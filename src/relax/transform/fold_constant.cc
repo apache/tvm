@@ -322,8 +322,9 @@ class ConstantFolder : public ExprMutator {
 namespace transform {
 
 Pass FoldConstant() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) { return ConstantFolder::Fold(f, m); };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return ConstantFolder::Fold(f, m);
+  };
   return CreateFunctionPass(pass_func, 0, "FoldConstant", {});
 }
 

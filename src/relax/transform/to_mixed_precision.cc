@@ -614,10 +614,9 @@ Expr ToMixedPrecision(const Function& f, const DataType& out_dtype,
 namespace transform {
 
 Pass ToMixedPrecision(const DataType& out_dtype, Optional<Array<String>> fp16_input_names) {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(ToMixedPrecision(f, out_dtype, fp16_input_names));
-      };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return Downcast<Function>(ToMixedPrecision(f, out_dtype, fp16_input_names));
+  };
   return CreateFunctionPass(pass_func, 0, "ToMixedPrecision", {});
 }
 

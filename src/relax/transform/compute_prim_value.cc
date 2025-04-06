@@ -62,8 +62,7 @@ class PrimValueComputeInjector : public ExprMutator {
 namespace transform {
 
 Pass ComputePrimValue() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) -> IRModule {
+  auto pass_func = [=](IRModule mod, PassContext pc) -> IRModule {
     PrimValueComputeInjector mutator;
 
     IRModule updates;

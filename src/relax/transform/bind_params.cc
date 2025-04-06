@@ -201,8 +201,9 @@ TVM_REGISTER_GLOBAL("relax.FunctionBindParams").set_body_typed(FunctionBindParam
 namespace transform {
 
 Pass BindParams(String func_name, Map<ObjectRef, ObjectRef> params) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) { return BindParam(std::move(mod), func_name, params); };
+  auto pass_func = [=](IRModule mod, PassContext pc) {
+    return BindParam(std::move(mod), func_name, params);
+  };
   return CreateModulePass(pass_func, 0, "BindParams", {});
 }
 

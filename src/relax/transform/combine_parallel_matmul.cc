@@ -380,10 +380,9 @@ Function CombineParallelMatmul(Function f, FCheck check) {
 namespace transform {
 
 Pass CombineParallelMatmul(FCheck check) {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return relax::CombineParallelMatmul(f, check);
-      };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return relax::CombineParallelMatmul(f, check);
+  };
   return CreateFunctionPass(/*pass_function=*/pass_func,            //
                             /*opt_level=*/0,                        //
                             /*pass_name=*/"CombineParallelMatmul",  //

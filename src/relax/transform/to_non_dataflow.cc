@@ -55,8 +55,9 @@ Expr ToNonDataflow(const Expr& e) { return ToNonDFMutator().VisitExpr(e); }
 namespace transform {
 
 Pass ToNonDataflow() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(ToNonDataflow(f)); };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return Downcast<Function>(ToNonDataflow(f));
+  };
   return CreateFunctionPass(pass_func, 0, "ToNonDataflow", {});
 }
 

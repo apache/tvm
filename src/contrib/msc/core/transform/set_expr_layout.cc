@@ -1353,8 +1353,7 @@ void SetExprLayout(const IRModule& ref_module, const Expr& func, bool allow_miss
 namespace transform {
 
 Pass SetExprLayout(bool allow_missing, const String& entry_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule m, PassContext pc) {
     relax::SetExprLayout(m, m->Lookup(entry_name), allow_missing);
     return m;
   };

@@ -226,8 +226,9 @@ IRModule FuseTuple(IRModule mod, const String& target, const String& entry_name)
 namespace transform {
 
 Pass FuseTuple(const String& target, const String& entry_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::FuseTuple(m, target, entry_name); };
+  auto pass_func = [=](IRModule m, PassContext pc) {
+    return relax::FuseTuple(m, target, entry_name);
+  };
   return CreateModulePass(pass_func, 0, "FuseTuple", {});
 }
 

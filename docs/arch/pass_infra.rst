@@ -209,7 +209,7 @@ passes
 
     class ModulePassNode : PassNode {
       PassInfo pass_info;
-      runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func;
+      std::function<Module(Module, PassContext)> pass_func;
       Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
       // Other members/methods are omitted
     };
@@ -240,7 +240,7 @@ the global information.
 
     class FunctionPassNode : PassNode {
       PassInfo pass_info;
-      runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func;
+      std::function<Function(Function, Module, PassContext)> pass_func;
       Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
       bool SkipFunction(const Function& func) const;
       // Other members/methods are omitted...
@@ -319,19 +319,19 @@ favorably use Python APIs to create a specific pass object.
 .. code:: c++
 
     Pass CreateFunctionPass(
-        const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
+        std::function<Function(Function, IRModule, PassContext)> pass_func,
         int opt_level,
         String name,
         Array<String> required);
 
     Pass CreatePrimFuncPass(
-        const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
+        std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
         int opt_level,
         String name,
         Array<String> required);
 
     Pass CreateModulePass(
-        const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
+        std::function<IRModule(IRModule, PassContext)> pass_func,
         int opt_level,
         String name,
         Array<String> required);
@@ -371,7 +371,7 @@ Python when needed.
     namespace transform {
 
     Pass FoldConstant() {
-      runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      auto pass_func =
           [=](Function f, IRModule m, PassContext pc) { return ConstantFolder::Fold(f, m); };
       return CreateFunctionPass(pass_func, 0, "FoldConstant", {});
     }

@@ -907,10 +907,9 @@ Function TransformTensorRT(const Function& func, const IRModule& module, const S
 namespace transform {
 
 Pass TransformTensorRT(const String& config) {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return relax::TransformTensorRT(f, m, config);
-      };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return relax::TransformTensorRT(f, m, config);
+  };
   return CreateFunctionPass(pass_func, 0, "TransformTensorRT", {});
 }
 

@@ -22,6 +22,7 @@
  * \brief Infrastructure for transformation passes.
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/rvalue_ref.h>
 #include <tvm/ir/transform.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/structural_hash.h>
@@ -29,7 +30,6 @@
 #include <tvm/relax/tuning_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/ffi/rvalue_ref.h>
 
 #include <chrono>
 #include <iomanip>
@@ -150,8 +150,6 @@ class PassConfigManager {
       config->Set(kv.first, kv.second);
     }
   }
-
-
 
   Map<String, Map<String, String>> ListConfigs() {
     Map<String, Map<String, String>> configs;
@@ -348,7 +346,7 @@ class ModulePassNode : public PassNode {
    * implement the algorithm in the `pass_func` and let it run on a module. It
    * will then remove the dead code including the unused functions in the module.
    */
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func;
+  std::function<IRModule(IRModule, PassContext)> pass_func;
 
   ModulePassNode() = default;
 
@@ -375,8 +373,7 @@ class ModulePassNode : public PassNode {
 
 class ModulePass : public Pass {
  public:
-  ModulePass(runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
-             PassInfo pass_info);
+  ModulePass(std::function<IRModule(IRModule, PassContext)> pass_func, PassInfo pass_info);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ModulePass, Pass, ModulePassNode);
 };
@@ -391,7 +388,7 @@ PassInfo::PassInfo(int opt_level, String name, tvm::Array<runtime::String> requi
   data_ = std::move(pass_info);
 }
 
-ModulePass::ModulePass(runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
+ModulePass::ModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
                        PassInfo pass_info) {
   auto n = make_object<ModulePassNode>();
   n->pass_func = std::move(pass_func);
@@ -528,10 +525,10 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
   return mod;
 }
 
-Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
-                      int opt_level, String name, tvm::Array<String> required, bool traceable) {
+Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func, int opt_level,
+                      String name, tvm::Array<String> required, bool traceable) {
   PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
-  return ModulePass(pass_func, pass_info);
+  return ModulePass(std::move(pass_func), pass_info);
 }
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
@@ -567,12 +564,17 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
 TVM_REGISTER_GLOBAL("transform.MakeModulePass")
-    .set_body_typed([](runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
-                       PassInfo pass_info) { return ModulePass(pass_func, pass_info); });
+    .set_body_typed(
+        [](runtime::TypedPackedFunc<IRModule(ffi::RValueRef<IRModule>, PassContext)> pass_func,
+           PassInfo pass_info) {
+          auto wrapped_pass_func = [pass_func](IRModule mod, PassContext ctx) {
+            return pass_func(ffi::RValueRef<IRModule>(std::move(mod)), ctx);
+          };
+          return ModulePass(wrapped_pass_func, pass_info);
+        });
 
-TVM_REGISTER_GLOBAL("transform.RunPass").set_body_typed([](Pass pass, ffi::RValueRef<IRModule> mod) {
-  return pass(*std::move(mod));
-});
+TVM_REGISTER_GLOBAL("transform.RunPass")
+    .set_body_typed([](Pass pass, ffi::RValueRef<IRModule> mod) { return pass(*std::move(mod)); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ModulePassNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -622,7 +624,6 @@ TVM_REGISTER_GLOBAL("transform.PassContext")
       pctx->required_pass = std::move(required);
       pctx->disabled_pass = std::move(disabled);
       pctx->instruments = std::move(instruments);
-
 
       if (config.defined()) {
         pctx->config = config.value();

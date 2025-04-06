@@ -404,8 +404,7 @@ class VDeviceStructInfoUpdater : ExprMutator {
 namespace transform {
 
 Pass RealizeVDevice() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule mod, PassContext pc) {
     auto known_vdevices = InferVDevice(mod);
     return VDeviceStructInfoUpdater::Apply(mod, known_vdevices);
   };

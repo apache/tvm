@@ -180,8 +180,7 @@ IRModule InlineParams(IRModule mod, const String& entry_name) {
 namespace transform {
 
 Pass InlineParams(const String& entry_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::InlineParams(m, entry_name); };
+  auto pass_func = [=](IRModule m, PassContext pc) { return relax::InlineParams(m, entry_name); };
   return CreateModulePass(pass_func, 0, "InlineParams", {});
 }
 

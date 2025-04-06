@@ -217,6 +217,11 @@ inline void AnyViewToLegacyTVMArgValue(TVMFFIAny src, TVMValue* value, int* type
       value[0].v_handle = src.v_obj;
       break;
     }
+    case ffi::TypeIndex::kTVMFFIObjectRValueRef: {
+      type_code[0] = kTVMObjectRValueRefArg;
+      value[0].v_handle = src.v_ptr;
+      break;
+    }
     default: {
       if (src.type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
         type_code[0] = kTVMObjectHandle;

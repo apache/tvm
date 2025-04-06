@@ -318,8 +318,7 @@ namespace transform {
 
 Pass SetRelaxExprName(const String& entry_name, const String& target,
                       const Map<String, String>& var_names) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule m, PassContext pc) {
     relax::SetRelaxExprName(m, m->Lookup(entry_name), target, var_names);
     return m;
   };

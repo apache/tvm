@@ -38,6 +38,7 @@ using PassInfo = tvm::transform::PassInfo;
 using PassContext = tvm::transform::PassContext;
 using Function = tvm::relax::Function;
 using DataflowBlock = tvm::relax::DataflowBlock;
+using tvm::transform::CreateModulePass;
 
 /*!
  * \brief Create a function pass.
@@ -50,9 +51,9 @@ using DataflowBlock = tvm::relax::DataflowBlock;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreateFunctionPass(
-    const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
+TVM_DLL Pass CreateFunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
+                                int opt_level, String name, tvm::Array<String> required,
+                                bool traceable = false);
 
 /*!
  * \brief Create a dataflowblock pass.
@@ -66,8 +67,8 @@ TVM_DLL Pass CreateFunctionPass(
  * \return The created dataflowblock pass.
  */
 TVM_DLL Pass CreateDataflowBlockPass(
-    const runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
+    std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func, int opt_level,
+    String name, tvm::Array<String> required, bool traceable = false);
 
 /*!
  * \brief Perform lambda lifting to lift functions from nested into global.

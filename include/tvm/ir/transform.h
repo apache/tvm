@@ -531,9 +531,9 @@ class Sequential : public Pass {
  *
  * \return The created module pass.
  */
-TVM_DLL Pass CreateModulePass(
-    const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func, int opt_level,
-    String name, Array<runtime::String> required, bool traceable = false);
+TVM_DLL Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
+                              int opt_level, String name, Array<runtime::String> required,
+                              bool traceable = false);
 
 /*
  * \brief Utility to apply a pass to specific functions in an IRModule

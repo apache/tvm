@@ -99,8 +99,7 @@ class AttrAttacher : public ExprMutator {
 namespace transform {
 
 Pass AttachAttrLayoutFreeBuffers() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) { return AttrAttacher::Transform(mod); };
+  auto pass_func = [=](IRModule mod, PassContext pc) { return AttrAttacher::Transform(mod); };
   auto pass = CreateModulePass(pass_func, 0, "_AttachAttrLayoutFreeBuffers", {});
   // Apply DeadCodeElimination to remove unused tir::PrimFunc
   return tvm::transform::Sequential({pass, DeadCodeElimination()}, "AttachAttrLayoutFreeBuffers");
