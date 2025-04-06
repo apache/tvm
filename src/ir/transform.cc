@@ -29,6 +29,7 @@
 #include <tvm/relax/tuning_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/ffi/rvalue_ref.h>
 
 #include <chrono>
 #include <iomanip>
@@ -569,8 +570,8 @@ TVM_REGISTER_GLOBAL("transform.MakeModulePass")
     .set_body_typed([](runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func,
                        PassInfo pass_info) { return ModulePass(pass_func, pass_info); });
 
-TVM_REGISTER_GLOBAL("transform.RunPass").set_body_typed([](Pass pass, IRModule mod) {
-  return pass(std::move(mod));
+TVM_REGISTER_GLOBAL("transform.RunPass").set_body_typed([](Pass pass, ffi::RValueRef<IRModule> mod) {
+  return pass(*std::move(mod));
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

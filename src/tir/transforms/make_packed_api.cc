@@ -389,7 +389,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     arg_buffer_declarations.push_back(DeclBuffer(kv.second, nop));
   }
 
-  func = WithAttrs(std::move(func), {{tvm::attr::kCallingConv, Integer(CallingConv::kCPackedFunc)},
+  func = WithAttrs(std::move(func), {{tvm::attr::kCallingConv, static_cast<int>(CallingConv::kCPackedFunc)},
                                      {tvm::attr::kTarget, target_host}});
 
   Stmt body = RewriteReturn(func_ptr->body, v_out_ret_value, v_out_ret_tcode);
