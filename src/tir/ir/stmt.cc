@@ -73,11 +73,9 @@ AttrStmt::AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, S
 
 TVM_REGISTER_GLOBAL("tir.AttrStmt")
     .set_body_typed([](Any node, String attr_key, PrimExpr value, Stmt body, Span span) {
-      // The nodes are not required to be a TIR type, and may legally
-      // contain any ObjectRef.  However, normalizing to an IR type if
-      // possible prevents spurious discrepancies in StructuralEqual().
-      if (auto opt_expr = node.as<PrimExpr>()) {
-        return AttrStmt(opt_expr.value(), attr_key, value, body, span);
+      // when node is a POD data type like int or bool, first convert to primexpr.
+      if (node.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+        return AttrStmt(node.as<PrimExpr>().value(), attr_key, value, body, span);
       }
       return AttrStmt(node.as<ObjectRef>().value(), attr_key, value, body, span);
     });

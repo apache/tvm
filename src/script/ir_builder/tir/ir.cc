@@ -483,13 +483,9 @@ AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
   return AllocateConstFrame(n);
 }
 
-AttrFrame Attr(Any node, String attr_key, PrimExpr value) {
+AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value) {
   ObjectPtr<AttrFrameNode> n = make_object<AttrFrameNode>();
-  if (auto opt_obj = node.as<ObjectRef>()) {
-    n->node = opt_obj.value();
-  } else {
-    n->node = node.as<PrimExpr>().value();
-  }
+  n->node = node;
   n->attr_key = attr_key;
   n->value = value;
   return AttrFrame(n);
