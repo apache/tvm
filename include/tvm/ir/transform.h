@@ -276,6 +276,12 @@ class PassContext : public ObjectRef {
       if (auto opt_map = value.as<Map<String, ffi::Any>>()) {
         return reflection->CreateObject(type_key, opt_map.value());
       } else {
+        auto opt_val = value.as<ValueType>();
+        if (!opt_val.has_value()) {
+          TVM_FFI_THROW(AttributeError)
+              << "Expect config " << key << " to have type " << type_key << ", but instead get "
+              << ffi::details::AnyUnsafe::GetMismatchTypeInfo<ValueType>(value);
+        }
         return value;
       }
     };

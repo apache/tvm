@@ -133,7 +133,11 @@ class SHashHandlerDefault::Impl {
     }
   }
 
-  uint64_t Hash(const ObjectRef& object, bool map_free_vars) {
+  uint64_t Hash(const Any& value, bool map_free_vars) {
+    if (value.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+      return BaseValueHash().HashPODValueInAny(value);
+    }
+    ObjectRef object = value.operator ObjectRef();
     ICHECK_EQ(task_stack_.size(), 0U);
     ICHECK_EQ(pending_tasks_.size(), 0U);
     ICHECK_EQ(result_stack_.size(), 0U);
@@ -279,7 +283,7 @@ bool SHashHandlerDefault::LookupHashedValue(const ObjectRef& key, uint64_t* hash
 
 void SHashHandlerDefault::MarkGraphNode() { impl->MarkGraphNode(); }
 
-uint64_t SHashHandlerDefault::Hash(const ObjectRef& object, bool map_free_vars) {
+uint64_t SHashHandlerDefault::Hash(const Any& object, bool map_free_vars) {
   return impl->Hash(object, map_free_vars);
 }
 
@@ -288,7 +292,7 @@ void SHashHandlerDefault::DispatchSHash(const ObjectRef& key, bool map_free_vars
 }
 
 TVM_REGISTER_GLOBAL("node.StructuralHash")
-    .set_body_typed([](const ObjectRef& object, bool map_free_vars) -> int64_t {
+    .set_body_typed([](const Any& object, bool map_free_vars) -> int64_t {
       uint64_t hashed_value = SHashHandlerDefault().Hash(object, map_free_vars);
       return static_cast<int64_t>(hashed_value);
     });

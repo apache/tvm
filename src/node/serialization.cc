@@ -352,6 +352,9 @@ class FieldDependencyFinder : public AttrVisitor {
     if (node == nullptr) {
       return;
     }
+    if (node.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+      return;
+    }
     // Skip the objects that have their own string repr
     if (jnode->repr_bytes.length() > 0 || reflection_->GetReprBytes(node, nullptr)) {
       return;

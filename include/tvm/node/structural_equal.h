@@ -439,7 +439,7 @@ class SEqualHandlerDefault : public SEqualReducer::Handler {
    * \param map_free_vars Whether or not to remap variables if possible.
    * \return The equality result.
    */
-  virtual bool Equal(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars);
+  virtual bool Equal(const ffi::Any& lhs, const ffi::Any& rhs, bool map_free_vars);
 
  protected:
   /*!

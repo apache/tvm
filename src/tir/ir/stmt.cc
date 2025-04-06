@@ -342,9 +342,10 @@ int64_t AllocateConstNode::ConstantAllocationSize(const Array<PrimExpr>& extents
 }
 TVM_REGISTER_GLOBAL("tir.AllocateConst")
     .set_body_typed([](Var buffer_var, DataType dtype, Array<PrimExpr> extents,
-                       ObjectRef data_or_idx, Stmt body, Map<String, Any> annotations,
+                       ObjectRef data_or_idx, Stmt body, Optional<Map<String, Any>> annotations,
                        Span span) {
-      return AllocateConst(buffer_var, dtype, extents, data_or_idx, body, annotations, span);
+      return AllocateConst(buffer_var, dtype, extents, data_or_idx, body, annotations.value_or({}),
+                           span);
     });
 
 TVM_REGISTER_NODE_TYPE(AllocateConstNode);

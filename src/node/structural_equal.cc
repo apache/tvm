@@ -333,20 +333,31 @@ class SEqualHandlerDefault::Impl {
   }
 
   // Function that implements actual equality check.
-  bool Equal(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars) {
-    if (!lhs.defined() && !rhs.defined()) return true;
+  bool Equal(const ffi::Any& lhs, const ffi::Any& rhs, bool map_free_vars) {
     task_stack_.clear();
     pending_tasks_.clear();
     equal_map_lhs_.clear();
     equal_map_rhs_.clear();
     root_lhs_ = lhs;
     root_rhs_ = rhs;
-
     Optional<ObjectPathPair> current_paths;
     if (IsPathTracingEnabled()) {
       auto root_path = ObjectPath::Root();
       current_paths = ObjectPathPair(root_path, root_path);
     }
+    if (lhs.type_index() != rhs.type_index()) {
+      return CheckResult(false, lhs, rhs, current_paths);
+    }
+
+    if (lhs.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+      if (ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(lhs)->v_uint64 ==
+          ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(rhs)->v_uint64) {
+        return true;
+      }
+      return CheckResult(false, lhs, rhs, current_paths);
+    }
+
+    // normal object ref path
     if (!SEqualReduce(lhs, rhs, map_free_vars, current_paths)) {
       return false;
     }
@@ -384,7 +395,7 @@ class SEqualHandlerDefault::Impl {
 
  protected:
   // Check the result.
-  bool CheckResult(bool result, const ObjectRef& lhs, const ObjectRef& rhs,
+  bool CheckResult(bool result, const Any& lhs, const Any& rhs,
                    const Optional<ObjectPathPair>& current_paths) {
     if (IsPathTracingEnabled() && !result && !first_mismatch_->defined()) {
       *first_mismatch_ = current_paths;
@@ -394,7 +405,7 @@ class SEqualHandlerDefault::Impl {
       oss << "ValueError: StructuralEqual check failed, caused by lhs";
       if (first_mismatch_->defined()) {
         oss << " at " << first_mismatch_->value()->lhs_path;
-        if (root_lhs_.defined()) {
+        if (root_lhs_.has_value()) {
           PrinterConfig cfg;
           cfg->syntax_sugar = false;
           cfg->path_to_underline.push_back(first_mismatch_->value()->lhs_path);
@@ -409,7 +420,7 @@ class SEqualHandlerDefault::Impl {
       oss << std::endl << "and rhs";
       if (first_mismatch_->defined()) {
         oss << " at " << first_mismatch_->value()->rhs_path;
-        if (root_rhs_.defined()) {
+        if (root_rhs_.has_value()) {
           PrinterConfig cfg;
           cfg->syntax_sugar = false;
           cfg->path_to_underline.push_back(first_mismatch_->value()->rhs_path);
@@ -531,9 +542,9 @@ class SEqualHandlerDefault::Impl {
   // map from rhs to lhs
   std::unordered_map<ObjectRef, ObjectRef, ObjectPtrHash, ObjectPtrEqual> equal_map_rhs_;
   // root lhs for result printing
-  Optional<ObjectRef> root_lhs_;
+  Optional<Any> root_lhs_;
   // root rhs for result printing
-  Optional<ObjectRef> root_rhs_;
+  Optional<Any> root_rhs_;
   // whether to defer fails
   bool defer_fails_;
 };
@@ -562,7 +573,7 @@ ObjectRef SEqualHandlerDefault::MapLhsToRhs(const ObjectRef& lhs) { return impl-
 
 void SEqualHandlerDefault::MarkGraphNode() { impl->MarkGraphNode(); }
 
-bool SEqualHandlerDefault::Equal(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars) {
+bool SEqualHandlerDefault::Equal(const Any& lhs, const Any& rhs, bool map_free_vars) {
   return impl->Equal(lhs, rhs, map_free_vars);
 }
 
@@ -573,8 +584,7 @@ bool SEqualHandlerDefault::DispatchSEqualReduce(const ObjectRef& lhs, const Obje
 }
 
 TVM_REGISTER_GLOBAL("node.StructuralEqual")
-    .set_body_typed([](const ObjectRef& lhs, const ObjectRef& rhs, bool assert_mode,
-                       bool map_free_vars) {
+    .set_body_typed([](const Any& lhs, const Any& rhs, bool assert_mode, bool map_free_vars) {
       // If we are asserting on failure, then the `defer_fails` option
       // should be enabled, to provide better error messages.  For
       // example, if the number of bindings in a `relax::BindingBlock`
@@ -587,7 +597,7 @@ TVM_REGISTER_GLOBAL("node.StructuralEqual")
     });
 
 TVM_REGISTER_GLOBAL("node.GetFirstStructuralMismatch")
-    .set_body_typed([](const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars) {
+    .set_body_typed([](const Any& lhs, const Any& rhs, bool map_free_vars) {
       Optional<ObjectPathPair> first_mismatch;
       bool equal =
           SEqualHandlerDefault(false, &first_mismatch, true).Equal(lhs, rhs, map_free_vars);
