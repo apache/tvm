@@ -62,6 +62,10 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Unary Ops ##########
 
+    def _reciprocal(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.struct_info.dtype), x))
+
     def _leakyrelu_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -411,24 +415,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", 0)
         return self.block_builder.emit(relax.op.split(x, chunks, dim))
 
-    def _flatten_impl(self, x, start_dim, end_dim) -> relax.Var:
-        shape = self.shape_of(x)
-        start_dim = start_dim if start_dim >= 0 else len(shape) + start_dim
-        end_dim = end_dim if end_dim >= 0 else len(shape) + end_dim
-        flattened = reduce(lambda x, y: x * y, [shape[i] for i in range(start_dim, end_dim + 1)])
-        new_shape = (
-            [shape[i] for i in range(0, start_dim)]
-            + [flattened]
-            + [shape[i] for i in range(end_dim + 1, len(shape))]
-        )
-        return self.block_builder.emit(relax.op.reshape(x, new_shape))
-
-    def _flatten(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        start_dim = node.args[1] if len(node.args) >= 2 else node.kwargs.get("start_dim", 0)
-        end_dim = node.args[2] if len(node.args) == 3 else node.kwargs.get("end_dim", -1)
-        return self._flatten_impl(x, start_dim, end_dim)
-
     def _flatten_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -577,19 +563,6 @@ class TorchFXImporter(BaseFXGraphImporter):
             x.struct_info.dtype in ["float16", "float32", "float64", "bfloat16"], "bool"
         )
 
-    def _to(self, node: fx.Node) -> relax.Var:
-        import torch
-
-        x = self.env[node.args[0]]
-        if len(node.args) == 2:
-            if isinstance(node.args[1], torch.dtype):
-                dtype = TorchFXImporter._convert_data_type(node.args[1], self.env)
-                return self.block_builder.emit(relax.op.astype(x, dtype))
-        elif "dtype" in node.kwargs:
-            dtype = TorchFXImporter._convert_data_type(node.kwargs["dtype"], self.env)
-            return self.block_builder.emit(relax.op.astype(x, dtype))
-        return x
-
     def _type(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         dtype = TorchFXImporter._convert_data_type(node.args[1], self.env)
@@ -646,7 +619,7 @@ class TorchFXImporter(BaseFXGraphImporter):
                 relax.op.clip(self.env[node.args[0]], 0, 6)
             ),
             nn.Sigmoid: self._unary_op(relax.op.sigmoid),
-            nn.SELU: self._selu,
+            nn.SELU: self._unary_op(relax.op.nn.selu),
             nn.SiLU: self._unary_op(relax.op.nn.silu),
             nn.Softmax: self._softmax_module,
             nn.Tanh: self._unary_op(relax.op.tanh),
@@ -702,10 +675,11 @@ class TorchFXImporter(BaseFXGraphImporter):
             "logical_not": self._unary_op(relax.op.logical_not),
             "log_softmax": self._log_softmax,
             "neg": self._unary_op(relax.op.negative),
+            "reciprocal": self._reciprocal,
             "relu": self._unary_op(relax.op.nn.relu),
             "round": self._round,
             "rsqrt": self._unary_op(relax.op.rsqrt),
-            "selu": self._selu,
+            "selu": self._unary_op(relax.op.nn.selu),
             "sigmoid": self._unary_op(relax.op.sigmoid),
             "sign": self._unary_op(relax.op.sign),
             "silu": self._unary_op(relax.op.nn.silu),
@@ -778,11 +752,14 @@ class TorchFXImporter(BaseFXGraphImporter):
             # search
             "argmax": self._argmax_argmin(relax.op.argmax),
             "argmin": self._argmax_argmin(relax.op.argmin),
+            "where": self._where,
             # tensor manipulation
+            "argsort": self._argsort,
             "cat": self._cat,
             "chunk": self._chunk,
             "concat": self._cat,
             "contiguous": lambda node: self.env[node.args[0]],
+            "cumprod": self._cumprod,
             "cumsum": self._cumsum,
             "expand": self._expand,
             "expand_as.default": self._expand_as,
@@ -796,11 +773,13 @@ class TorchFXImporter(BaseFXGraphImporter):
             "scatter": self._scatter,
             "select": self._select,
             "size": self._size,
+            "sort": self._sort,
             "split": self._split,
             "squeeze": self._squeeze,
             "stack": self._stack,
             "take": self._take,
             "tile": self._tile,
+            "topk": self._topk,
             "transpose": self._transpose,
             "unsqueeze": lambda node: self.block_builder.emit(
                 relax.op.expand_dims(self.env[node.args[0]], node.args[1])

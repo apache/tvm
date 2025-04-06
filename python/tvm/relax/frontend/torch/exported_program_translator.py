@@ -60,6 +60,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         one = relax.const(1, x.struct_info.dtype)
         return self.block_builder.emit(relax.op.log(relax.op.add(x, one)))
 
+    def _reciprocal(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.struct_info.dtype), x))
+
     ########## Neural Network ##########
 
     def _batch_norm(self, node: fx.Node, training) -> relax.Var:
@@ -272,16 +276,18 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "log1p.default": self._log1p,
             "log_softmax.int": self._log_softmax,
             "neg.default": self._unary_op(relax.op.negative),
+            "reciprocal.default": self._reciprocal,
             "relu.default": self._unary_op(relax.op.nn.relu),
             "round.default": self._round,
             "rsqrt.default": self._unary_op(relax.op.rsqrt),
-            "selu.default": self._selu,
+            "selu.default": self._unary_op(relax.op.nn.selu),
             "sigmoid.default": self._unary_op(relax.op.sigmoid),
             "sign.default": self._unary_op(relax.op.sign),
             "silu.default": self._unary_op(relax.op.nn.silu),
             "sin.default": self._unary_op(relax.op.sin),
             "sinh.default": self._unary_op(relax.op.sinh),
             "softmax.int": self._softmax,
+            "softshrink.default": self._softshrink,
             "sqrt.default": self._unary_op(relax.op.sqrt),
             "square.default": self._unary_op(relax.op.square),
             "tan.default": self._unary_op(relax.op.tan),
@@ -360,6 +366,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # search
             "argmax.default": self._argmax_argmin(relax.op.argmax),
             "argmin.default": self._argmax_argmin(relax.op.argmin),
+            "where.self": self._where,
             # tensor manipulation
             "cat.default": self._cat,
             "chunk.default": self._chunk,
@@ -367,8 +374,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "concat.default": self._cat,
             "copy_.default": self._copy_,
             "cumsum.default": self._cumsum,
+            "cumprod.default": self._cumprod,
             "expand.default": self._expand,
             "expand_as.default": self._expand_as,
+            "flatten.using_ints": self._flatten,
             "flip.default": self._flip,
             "gather.default": self._gather,
             "index.Tensor": self._index_tensor,
@@ -404,6 +413,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "lift_fresh_copy.default": self._to_copy,
             "new_ones.default": self._new_ones,
             "one_hot.default": self._one_hot,
+            # datatype
+            "to.dtype": self._to,
+            "to.dtype_layout": self._to,
             # other
             "getitem": self._getitem,
         }

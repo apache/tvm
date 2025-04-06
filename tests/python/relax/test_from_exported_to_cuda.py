@@ -468,18 +468,6 @@ def test_chunk_too_many(target, dev):
 
 
 @tvm.testing.parametrize_targets("cuda")
-def test_index_select(target, dev):
-    class IndexSelectModel(nn.Module):
-        def forward(self, x):
-            indices = torch.tensor([0, 2])
-            return torch.index_select(x, 0, indices)
-
-    raw_data = np.random.rand(3, 4).astype("float32")
-    torch_module = IndexSelectModel().eval()
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
-
-
-@tvm.testing.parametrize_targets("cuda")
 def test_arange(target, dev):
     # arange.default
     raw_data = np.array([0, 0, 0, 0, 0])
@@ -509,6 +497,18 @@ def test_arange(target, dev):
             return x + torch.arange(1, 2.5, 0.5, dtype=torch.float32)
 
     torch_module = ArangeStartStopModel().eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_index_select(target, dev):
+    class IndexSelectModel(nn.Module):
+        def forward(self, x):
+            indices = torch.tensor([0, 2])
+            return torch.index_select(x, 0, indices)
+
+    raw_data = np.random.rand(3, 4).astype("float32")
+    torch_module = IndexSelectModel().eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
