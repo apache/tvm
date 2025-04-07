@@ -39,8 +39,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     def _hardtanh(self, node: fx.Node) -> relax.Expr:
         args = self.retrieve_args(node)
         x = args[0]
-        min_val = node.args[1] if len(args) > 1 else node.kwargs("min_val", -1.0)
-        max_val = node.args[2] if len(args) > 2 else node.kwargs("max_val", 1.0)
+        min_val = node.args[1] if len(args) > 1 else node.kwargs.get("min_val", -1.0)
+        max_val = node.args[2] if len(args) > 2 else node.kwargs.get("max_val", 1.0)
         return self.block_builder.emit(relax.op.clip(x, min_val, max_val))
 
     def _log2(self, node: fx.Node) -> relax.Var:
@@ -268,6 +268,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "hardswish.default": self._hardswish,
             "hardswish_.default": self._hardswish,
             "hardtanh.default": self._hardtanh,
+            "hardtanh_.default": self._hardtanh,
             "isfinite.default": self._unary_op(relax.op.isfinite),
             "isinf.default": self._unary_op(relax.op.isinf),
             "isnan.default": self._unary_op(relax.op.isnan),

@@ -656,6 +656,10 @@ def test_hardtanh():
         def forward(self, input):
             return torch.nn.functional.hardtanh(input)
 
+    class Hardtanh3(torch.nn.Module):
+        def forward(self, input):
+            return torch.ops.aten.hardtanh_(input)
+
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -673,6 +677,7 @@ def test_hardtanh():
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     verify_model(Hardtanh(), example_args, {}, expected1)
     verify_model(Hardtanh2(), example_args, {}, expected1)
+    verify_model(Hardtanh3(), example_args, {}, expected1)
 
 
 def test_leakyrelu():
