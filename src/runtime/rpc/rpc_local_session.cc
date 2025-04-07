@@ -48,7 +48,11 @@ void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_retu
   // NOTE: this is the place that we need to handle special RPC-related
   // ABI convention for return value passing that is built on top of Any FFI.
   // We need to encode object pointers as opaque raw pointers for passing
-  if (rv.as<NDArray>()) {
+  if (rv == nullptr) {
+    packed_args[0] = rv.type_index();
+    packed_args[1] = rv;
+    encode_return(ffi::PackedArgs(packed_args, 2));
+  } else if (rv.as<NDArray>()) {
     // We follow a special protocol to return NDArray to client side
     // The first pack value is the NDArray handle as DLTensor
     // The second pack value is a customized deleter that deletes the NDArray.
@@ -96,7 +100,7 @@ void LocalSession::CallFunc(RPCSession::PackedFuncHandle func, ffi::PackedArgs a
   // unwrap RPCObjectRef in case we are directly using it to call LocalSession
   for (int i = 0; i < args.size(); ++i) {
     if (auto opt_rpc_obj = args[i].as<RPCObjectRef>()) {
-      packed_args[i] = opt_rpc_obj.value()->object_handle();
+      packed_args[i] = static_cast<const Object*>(opt_rpc_obj.value()->object_handle());
     } else {
       packed_args[i] = args[i];
     }

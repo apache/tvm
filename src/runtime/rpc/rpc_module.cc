@@ -125,6 +125,12 @@ class RPCWrappedFunc : public Object {
         case ffi::TypeIndex::kTVMFFIFunc:
         case ffi::TypeIndex::kTVMFFIRuntimeModule: {
           packed_args[i] = UnwrapRemoteValueToHandle(args[i]);
+          // hack, need to force set the type index to the correct one
+          // so legacy RPC ABI translation can work
+          // TODO(tqchen): remove this once we migrate to use new ABI as transport
+          TVMFFIAny temp = packed_args[i].CopyToTVMFFIAny();
+          temp.type_index = args[i].type_index();
+          packed_args[i] = AnyView::CopyFromTVMFFIAny(temp);
           break;
         }
       }
@@ -272,7 +278,7 @@ class RPCModuleNode final : public ModuleNode {
 
 void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
   // TODO(tqchen): only support Module unwrapping for now.
-  if (arg.type_index() == kTVMModuleHandle) {
+  if (arg.type_index() == ffi::TypeIndex::kTVMFFIRuntimeModule) {
     Module mod = arg;
     std::string tkey = mod->type_key();
     ICHECK_EQ(tkey, "rpc") << "ValueError: Cannot pass a non-RPC module to remote";
@@ -290,29 +296,31 @@ void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
 void RPCWrappedFunc::WrapRemoteReturnToValue(TVMArgs args, TVMRetValue* rv) const {
   int tcode = args[0];
 
-  if (tcode == kTVMNullptr) return;
-  if (tcode == kTVMPackedFuncHandle) {
+  if (tcode == ffi::TypeIndex::kTVMFFINone) {
+    *rv = nullptr;
+    return;
+  } else if (tcode == ffi::TypeIndex::kTVMFFIFunc) {
     ICHECK_EQ(args.size(), 2);
     void* handle = args[1];
     auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
     *rv = PackedFunc([wf](TVMArgs args, TVMRetValue* rv) { return wf->operator()(args, rv); });
-  } else if (tcode == kTVMModuleHandle) {
+  } else if (tcode == ffi::TypeIndex::kTVMFFIRuntimeModule) {
     ICHECK_EQ(args.size(), 2);
     void* handle = args[1];
     auto n = make_object<RPCModuleNode>(handle, sess_);
     *rv = Module(n);
-  } else if (tcode == kTVMObjectHandle) {
-    ICHECK_EQ(args.size(), 2);
-    void* handle = args[1];
-    auto n = make_object<RPCObjectRefObj>(handle, sess_);
-    *rv = ObjectRef(n);
-  } else if (tcode == kTVMDLTensorHandle || tcode == kTVMNDArrayHandle) {
+  } else if (tcode == ffi::TypeIndex::kTVMFFIDLTensorPtr || tcode == ffi::TypeIndex::kTVMFFINDArray) {
     ICHECK_EQ(args.size(), 3);
     DLTensor* tensor = args[1];
     void* nd_handle = args[2];
     *rv = NDArrayFromRemoteOpaqueHandle(sess_, tensor->data, tensor,
                                         AddRPCSessionMask(tensor->device, sess_->table_index()),
                                         nd_handle);
+  } else if (tcode >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+    ICHECK_EQ(args.size(), 2);
+    void* handle = args[1];
+    auto n = make_object<RPCObjectRefObj>(handle, sess_);
+    *rv = ObjectRef(n);
   } else {
     ICHECK_EQ(args.size(), 2);
     *rv = args[1];
@@ -407,7 +415,7 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
             f_preproc = *pf_preproc;
           }
           PackedFunc pf = m.GetFunction(name, true);
-          CHECK(pf != nullptr) << "Cannot find " << name << " in the global registry";
+          CHECK(pf != nullptr) << "Cannot find " << name << "` in the global registry";
           return profiling::WrapTimeEvaluator(pf, dev, number, repeat, min_repeat_ms,
                                               limit_zero_time_iterations, cooldown_interval_ms,
                                               repeats_to_cooldown, cache_flush_bytes, f_preproc);
