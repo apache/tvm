@@ -207,20 +207,16 @@ TVM_REGISTER_GLOBAL("testing.AcceptsBool").set_body_typed([](bool arg) -> bool {
 
 TVM_REGISTER_GLOBAL("testing.AcceptsInt").set_body_typed([](int arg) -> int { return arg; });
 
-TVM_REGISTER_GLOBAL("testing.AcceptsObjectRef").set_body_typed([](ObjectRef arg) -> ObjectRef {
-  return arg;
-});
-
 TVM_REGISTER_GLOBAL("testing.AcceptsObjectRefArray")
-    .set_body_typed([](Array<ObjectRef> arg) -> ObjectRef { return arg[0]; });
+    .set_body_typed([](Array<Any> arg) -> Any { return arg[0]; });
 
 TVM_REGISTER_GLOBAL("testing.AcceptsMapReturnsValue")
-    .set_body_typed([](Map<ObjectRef, ObjectRef> map, ObjectRef key) -> ObjectRef {
+    .set_body_typed([](Map<Any, Any> map, Any key) -> Any {
       return map[key];
     });
 
 TVM_REGISTER_GLOBAL("testing.AcceptsMapReturnsMap")
-    .set_body_typed([](Map<ObjectRef, ObjectRef> map) -> ObjectRef { return map; });
+    .set_body_typed([](Map<Any, Any> map) -> ObjectRef { return map; });
 
 TVM_REGISTER_GLOBAL("testing.AcceptsPrimExpr").set_body_typed([](PrimExpr expr) -> ObjectRef {
   return expr;

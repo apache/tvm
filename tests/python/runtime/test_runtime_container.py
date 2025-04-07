@@ -84,15 +84,6 @@ def test_int_argument():
     assert isinstance(func(0), int)
 
 
-def test_object_ref_argument():
-    func = tvm.get_global_func("testing.AcceptsObjectRef")
-
-    assert isinstance(func(True), bool)
-    assert isinstance(func(1), int)
-    assert isinstance(func(3.5), float)
-    assert func(3.5) == 3.5
-
-
 def test_object_ref_array_argument():
     func = tvm.get_global_func("testing.AcceptsObjectRefArray")
 
