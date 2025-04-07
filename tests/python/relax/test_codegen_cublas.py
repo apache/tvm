@@ -393,6 +393,47 @@ def test_matmul_fp8_multiply_offload():
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
 
+@pytest.mark.skipif(ml_dtypes is None, reason="requires ml_dtypes to be installed")
+@pytest.mark.parametrize(
+    "x_shape, y_shape, transpose_y, out_dtype",
+    [
+        ((10, 32), (64, 32), True, "float32"),
+        ((32, 16), (32, 16), True, "float32"),
+        ((2, 10, 32), (2, 64, 32), True, "float32"),
+    ],
+)
+def test_matmul_bfloat16_offload(
+    x_shape,
+    y_shape,
+    transpose_y,
+    out_dtype,
+):
+    in_dtype = "bfloat16"
+    mod = get_relax_matmul_module(
+        x_shape,
+        y_shape,
+        in_dtype,
+        out_dtype,
+        bias_shape=None,
+        transposed_y=transpose_y,
+        activation=None,
+    )
+    # Generate input data in float32 and then convert to bfloat16 using ml_dtypes.
+    x_float32 = np.random.uniform(low=0, high=5, size=x_shape).astype("float32")
+    y_float32 = np.random.uniform(low=0, high=5, size=y_shape).astype("float32")
+    x_bf16 = ml_dtypes.bfloat16(x_float32)
+    y_bf16 = ml_dtypes.bfloat16(y_float32)
+
+    # For the reference result, adjust y (if needed) in float32.
+    z = np.swapaxes(y_float32, -2, -1) if transpose_y else y_float32
+    args = (x_bf16, y_bf16)
+
+    out = get_result_with_relax_cublas_offload(mod, args)
+    ref_out = np.matmul(x_float32, z).astype(out_dtype)
+
+    tvm.testing.assert_allclose(out, ref_out, rtol=1e-2, atol=1e-2)
+
+
 @pytest.mark.parametrize(
     "M, N, K, out_dtype, transposed_y, partition_done",
     [
