@@ -17,6 +17,7 @@
  * under the License.
  */
 #include "./utils.h"
+#include <tvm/tir/var.h>
 
 namespace tvm {
 namespace script {
@@ -60,6 +61,16 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             });
           } else {
             std::sort(items.begin(), items.end(), [](const POO& lhs, const POO& rhs) {
+               if (auto lhs_var = lhs.first.as<tir::Var>()) {
+                if (auto rhs_var = rhs.first.as<tir::Var>()) {
+                  std::stringstream lhs_ss, rhs_ss;
+                  lhs_ss << lhs_var;
+                  rhs_ss << rhs_var;
+                  std::string lhs_var_name = lhs_ss.str();
+                  std::string rhs_var_name = rhs_ss.str();
+                  return lhs_var_name < rhs_var_name;
+                }
+              }
               return lhs.first.get() < rhs.first.get();
             });
           }
