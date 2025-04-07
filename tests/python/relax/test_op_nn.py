@@ -80,7 +80,6 @@ def test_linear_unit_infer_struct_info():
     _check_inference(bb, relax.op.nn.softplus(x5), relax.TensorStructInfo((3, 4), dtype=""))
 
 
-
 def test_linear_unit_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
     m = tir.Var("m", "int64")
