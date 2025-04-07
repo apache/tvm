@@ -511,6 +511,10 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.relu(input)
 
+    class ReLU2(Module):
+        def forward(self, input):
+            return torch.ops.aten.relu_(input)
+
     @tvm.script.ir_module
     class expected_relu:
         @R.function
@@ -526,6 +530,7 @@ def test_extended_unary_ops():
 
     verify_model(ReLU0(), example_args, {}, expected_relu)
     verify_model(ReLU1(), example_args, {}, expected_relu)
+    verify_model(ReLU2(), example_args, {}, expected_relu)
 
     # selu
     class Selu1(Module):
