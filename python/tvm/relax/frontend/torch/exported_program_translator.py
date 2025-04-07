@@ -285,6 +285,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "sigmoid.default": self._unary_op(relax.op.sigmoid),
             "sign.default": self._unary_op(relax.op.sign),
             "silu.default": self._unary_op(relax.op.nn.silu),
+            "silu_.default": self._unary_op(relax.op.nn.silu),
             "sin.default": self._unary_op(relax.op.sin),
             "sinh.default": self._unary_op(relax.op.sinh),
             "softmax.int": self._softmax,

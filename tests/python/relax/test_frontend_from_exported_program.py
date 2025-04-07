@@ -602,6 +602,10 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.silu(input)
 
+    class SiLU3(Module):
+        def forward(self, input):
+            return torch.ops.aten.silu_(input)
+
     @tvm.script.ir_module
     class expected_silu:
         @R.function
@@ -617,6 +621,7 @@ def test_extended_unary_ops():
 
     verify_model(SiLU(), example_args, {}, expected_silu)
     verify_model(SiLU2(), example_args, {}, expected_silu)
+    verify_model(SiLU3(), example_args, {}, expected_silu)
 
     # softmax
     test_softmax()
