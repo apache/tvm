@@ -80,7 +80,9 @@ class Object(ObjectBase):
     def __getstate__(self):
         handle = self.handle
         if handle is not None:
-            return {"handle": _ffi_node_api.SaveJSON(self)}
+            # need to explicit convert to str in case String
+            # returned and triggered another infinite recursion in get state
+            return {"handle": str(_ffi_node_api.SaveJSON(self))}
         return {"handle": None}
 
     def __setstate__(self, state):
