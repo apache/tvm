@@ -202,7 +202,7 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
 
 /**************** TranslateAddOutputRVs  ****************/
 
-void  TranslateAddOutputRVs(const Array<ObjectRef>& old_outputs, const Array<ObjectRef>& new_outputs,
+void TranslateAddOutputRVs(const Array<ObjectRef>& old_outputs, const Array<ObjectRef>& new_outputs,
                            std::unordered_map<const Object*, const Object*>* rv_map) {
   ICHECK_EQ(old_outputs.size(), new_outputs.size());
   int n = old_outputs.size();
