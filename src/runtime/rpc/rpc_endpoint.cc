@@ -171,8 +171,9 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
    */
   void ValidateArguments(ffi::PackedArgs args) {
     for (int i = 0; i < args.size(); ++i) {
-      if (auto opt_obj = args[i].as<ObjectRef>()) {
-        ObjectRef obj = opt_obj.value();
+      if (args[i] == nullptr) continue;
+      if (args[i].type_index() == ffi::TypeIndex::kTVMFFIRuntimeModule) continue;
+      if (const Object* obj = args[i].as<Object>()) {
         if (!obj->IsInstance<RPCObjectRefObj>()) {
           LOG(FATAL) << "ValueError: Cannot pass argument " << i << ", type " << obj->GetTypeKey()
                      << " (type_index = " << obj->type_index() << ")";
