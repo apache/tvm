@@ -254,6 +254,10 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.dropout(input, 0.5, train=True)
 
+    class Dropout3(Module):
+        def forward(self, input):
+            return torch.ops.aten.dropout_(input, 0.5, train=True)
+
     @tvm.script.ir_module
     class expected_dropout:
         @R.function
@@ -268,6 +272,7 @@ def test_extended_unary_ops():
 
     verify_model(Dropout1(), example_args, {}, expected_dropout)
     verify_model(Dropout2(), example_args, {}, expected_dropout)
+    verify_model(Dropout3(), example_args, {}, expected_dropout)
 
     # elu
     class Elu(Module):

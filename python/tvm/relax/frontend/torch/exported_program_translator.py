@@ -258,6 +258,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "cos.default": self._unary_op(relax.op.cos),
             "cosh.default": self._unary_op(relax.op.cosh),
             "dropout.default": lambda node: self.env[node.args[0]],
+            "dropout_.default": lambda node: self.env[node.args[0]],
             "elu.default": self._elu,
             "erf.default": self._unary_op(relax.op.erf),
             "exp.default": self._unary_op(relax.op.exp),
