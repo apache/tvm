@@ -297,6 +297,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "triu.default": self._tril_triu(relax.op.triu),
             # binary
             "add.Tensor": self._binary_op(relax.op.add, operator.add),
+            "add_.Tensor": self._binary_op(relax.op.add, operator.add),
             "div.Tensor": self._binary_op(relax.op.divide, operator.truediv),
             "eq.Scalar": self._binary_op(relax.op.equal, operator.eq),
             "eq.Tensor": self._binary_op(relax.op.equal, operator.eq),

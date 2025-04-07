@@ -850,6 +850,7 @@ def test_tril_triu():
 
 operator_binary_1 = [
     (operator.add, R.add),
+    (torch.ops.aten.add_, R.add),
     (operator.sub, R.subtract),
     (operator.mul, R.multiply),
     (operator.truediv, R.divide),
