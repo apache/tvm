@@ -17,6 +17,7 @@
  * under the License.
  */
 #include "./utils.h"
+#include "../ir/utils.h"
 
 namespace tvm {
 namespace tir {
@@ -555,9 +556,10 @@ TVM_REGISTER_INST_KIND_TRAITS(EnterPostprocTraits);
 TVM_REGISTER_NODE_TYPE(TraceNode);
 TVM_REGISTER_GLOBAL("tir.schedule.Trace")
     .set_body_typed([](Optional<Array<Instruction>> insts,
-                       Optional<Map<Instruction, ObjectRef>> decisions) {
+                       Optional<Map<Instruction, Any>> decisions) {
       return Trace(insts.value_or(Array<Instruction>()),
-                   decisions.value_or(Map<Instruction, ObjectRef>()));
+                   Downcast<Map<Instruction, ObjectRef>>(
+                    NormalizeAttributeObject(decisions.value_or({}))));
     });
 TVM_REGISTER_GLOBAL("tir.schedule.TraceGetDecision")
     .set_body_method<Trace>(&TraceNode::GetDecision);
