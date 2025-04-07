@@ -125,7 +125,7 @@ bool CheckMixPrecisionType(DLDataType in_dtype, DLDataType out_dtype, bool int_s
   if (int_support && TypeMatch(out_dtype, kDLInt, 32)) {
     return TypeMatch(in_dtype, kDLInt, 8);
   } else if (TypeMatch(out_dtype, kDLFloat, 32)) {
-    return TypeMatch(in_dtype, kDLInt, 8) || TypeMatch(in_dtype, kDLFloat, 16);
+    return TypeMatch(in_dtype, kDLInt, 8) || TypeMatch(in_dtype, kDLFloat, 16) || TypeMatch(in_dtype, kDLBfloat, 16);
   } else {
     return false;
   }
