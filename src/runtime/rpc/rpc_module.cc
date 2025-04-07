@@ -92,8 +92,8 @@ class RPCWrappedFunc : public Object {
     // scan and check whether we need rewrite these arguments
     // to their remote variant.
     for (int i = 0; i < args.size(); ++i) {
-      if (auto opt_str = args[i].as<ffi::String>()) {
-        packed_args[i] = opt_str.value().c_str();
+      if (const auto* str = args[i].as<ffi::StringObj>()) {
+        packed_args[i] = str->bytes.data;
         continue;
       }
       packed_args[i] = args[i];
@@ -295,28 +295,28 @@ void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
 
 void RPCWrappedFunc::WrapRemoteReturnToValue(TVMArgs args, TVMRetValue* rv) const {
   int tcode = args[0];
-
-  if (tcode == ffi::TypeIndex::kTVMFFINone) {
+  // TODO(tqchen): move to RPC to new ABI
+  if (tcode == kTVMNullptr) {
     *rv = nullptr;
     return;
-  } else if (tcode == ffi::TypeIndex::kTVMFFIFunc) {
+  } else if (tcode == kTVMPackedFuncHandle) {
     ICHECK_EQ(args.size(), 2);
     void* handle = args[1];
     auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
     *rv = PackedFunc([wf](TVMArgs args, TVMRetValue* rv) { return wf->operator()(args, rv); });
-  } else if (tcode == ffi::TypeIndex::kTVMFFIRuntimeModule) {
+  } else if (tcode == kTVMModuleHandle) {
     ICHECK_EQ(args.size(), 2);
     void* handle = args[1];
     auto n = make_object<RPCModuleNode>(handle, sess_);
     *rv = Module(n);
-  } else if (tcode == ffi::TypeIndex::kTVMFFIDLTensorPtr || tcode == ffi::TypeIndex::kTVMFFINDArray) {
+  } else if (tcode == kTVMNDArrayHandle || tcode == kTVMDLTensorHandle) {
     ICHECK_EQ(args.size(), 3);
     DLTensor* tensor = args[1];
     void* nd_handle = args[2];
     *rv = NDArrayFromRemoteOpaqueHandle(sess_, tensor->data, tensor,
                                         AddRPCSessionMask(tensor->device, sess_->table_index()),
                                         nd_handle);
-  } else if (tcode >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+  } else if (tcode == kTVMObjectHandle) {
     ICHECK_EQ(args.size(), 2);
     void* handle = args[1];
     auto n = make_object<RPCObjectRefObj>(handle, sess_);

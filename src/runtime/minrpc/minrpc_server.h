@@ -332,24 +332,10 @@ class MinRPCExecute : public MinRPCExecInterface {
   }
 
   void SyscallFreeHandle(TVMValue* values, int* tcodes, int num_args) {
-    MINRPC_CHECK(num_args == 2);
+    MINRPC_CHECK(num_args == 1);
     MINRPC_CHECK(tcodes[0] == kTVMOpaqueHandle);
-    MINRPC_CHECK(tcodes[1] == kDLInt);
-
     void* handle = values[0].v_handle;
-    int64_t type_code = values[1].v_int64;
-    int call_ecode;
-
-    if (type_code == kTVMNDArrayHandle) {
-      call_ecode = TVMArrayFree(static_cast<TVMArrayHandle>(handle));
-    } else if (type_code == kTVMPackedFuncHandle) {
-      call_ecode = TVMFuncFree(handle);
-    } else if (type_code == kTVMObjectHandle) {
-      call_ecode = TVMObjectFree(handle);
-    } else {
-      MINRPC_CHECK(type_code == kTVMModuleHandle);
-      call_ecode = TVMModFree(handle);
-    }
+    int call_ecode = TVMObjectFree(handle);
 
     if (call_ecode == 0) {
       ret_handler_->ReturnVoid();
