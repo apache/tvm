@@ -3629,6 +3629,33 @@ def test_select():
     verify_model(Select(), example_args, {}, Expected)
 
 
+def test_unflatten():
+    class Unflatten(Module):
+        def forward(self, input):
+            return torch.ops.aten.unflatten(input, 1, (3, 5))
+
+    class Unflatten1(Module):
+        def forward(self, input):
+            return torch.ops.aten.unflatten(input, -2, (3, 5))
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 15, 7), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 3, 5, 7), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 5, 7), dtype="float32") = R.reshape(inp_0, [2, 3, 5, 7])
+                gv: R.Tuple(R.Tensor((2, 3, 5, 7), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 15, 7, dtype=torch.float32),)
+
+    verify_model(Unflatten(), example_args, {}, Expected)
+    verify_model(Unflatten1(), example_args, {}, Expected)
+
+
 def test_gather():
     class Gather0(Module):
         def forward(self, data, indices):

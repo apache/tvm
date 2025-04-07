@@ -216,6 +216,19 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         stride = [node.args[4] if len(node.args) > 4 else 1]
         return self.block_builder.emit(relax.op.strided_slice(x, axes, begin, end, stride))
 
+    def _unflatten(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        dim = node.args[1]
+        sizes = node.args[2]
+
+        x_shape = list(self.shape_of(x))
+        if dim < 0:
+            dim += len(x_shape)
+
+        new_shape = x_shape[:dim] + sizes + x_shape[dim + 1:]
+        return self.block_builder.emit(relax.op.reshape(x, new_shape))
+
     ########## Creation ##########
 
     def _one_hot(self, node: fx.Node) -> relax.Var:
@@ -399,6 +412,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "tile.default": self._tile,
             "topk.default": self._topk,
             "transpose.int": self._transpose,
+            "unflatten.int": self._unflatten,
             "unsqueeze.default": lambda node: self.block_builder.emit(
                 relax.op.expand_dims(self.env[node.args[0]], node.args[1])
             ),
