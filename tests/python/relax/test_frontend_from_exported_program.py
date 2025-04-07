@@ -388,6 +388,10 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.hardswish(input)
 
+    class Hardswish3(torch.nn.Module):
+        def forward(self, input):
+            return torch.ops.aten.hardswish_(input)
+
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -407,6 +411,7 @@ def test_extended_unary_ops():
 
     verify_model(Hardswish(), example_args, {}, expected1)
     verify_model(Hardswish2(), example_args, {}, expected1)
+    verify_model(Hardswish3(), example_args, {}, expected1)
 
     # hardtanh
     test_hardtanh()

@@ -266,6 +266,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "gelu.default": self._gelu,
             "hardsigmoid.default": self._hardsigmoid,
             "hardswish.default": self._hardswish,
+            "hardswish_.default": self._hardswish,
             "hardtanh.default": self._hardtanh,
             "isfinite.default": self._unary_op(relax.op.isfinite),
             "isinf.default": self._unary_op(relax.op.isinf),
