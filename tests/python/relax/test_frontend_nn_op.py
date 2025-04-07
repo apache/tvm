@@ -391,6 +391,7 @@ def test_nn():
             tanh_out = op.tanh(x)
             exp_out = op.exp(x)
             negative_out = op.negative(x)
+            softplus_out = op.softplus(x, beta=1.0, threshold=20.0)
             softmax_out = op.softmax(x, axis=2)
             rms_norm_out = op.rms_norm(x, weight, axes=[-2, -1])
             rms_norm_with_bias_out = op.rms_norm(x, weight, axes=[-2, -1])
