@@ -1046,6 +1046,32 @@ def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
     return wrap_nested(_op.nn.softmax(x._expr, axis), name)
 
 
+def softplus(x: Tensor, beta: float = 1.0, threshold: float = 20.0, name: str = "softplus"):
+    r"""Softplus activation function.
+
+    .. math::
+        \text{Softplus}(x) = \frac{1}{\beta} \log(1 + e^{\beta x})
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data.
+
+    beta : float, optional
+        Controls the smoothness of the transition. Default is 1.0.
+
+    threshold : float, optional
+        The value beyond which the function is approximated as linear
+        to avoid numerical instability. Default is 20.0.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return wrap_nested(_op.nn.softplus(x._expr, beta=beta, threshold=threshold), name)
+
+
 def tanh(x: Tensor, name: str = "tanh") -> Tensor:
     r"""Applies the hyperbolic tangent function.
 
