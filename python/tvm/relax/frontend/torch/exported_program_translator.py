@@ -226,7 +226,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         if dim < 0:
             dim += len(x_shape)
 
-        new_shape = x_shape[:dim] + sizes + x_shape[dim + 1:]
+        new_shape = x_shape[:dim] + sizes + x_shape[dim + 1 :]
         return self.block_builder.emit(relax.op.reshape(x, new_shape))
 
     ########## Creation ##########
