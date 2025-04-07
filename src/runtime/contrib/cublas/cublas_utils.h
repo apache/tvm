@@ -116,7 +116,7 @@ inline cudaDataType_t GetCudaDataType(DLDataType type) {
       case 64:
         return CUDA_R_64F;
     }
-  } else if (type.code == kDLBfloat){
+  } else if (type.code == kDLBfloat) {
     switch (type.bits) {
       case 16:
         return CUDA_R_16BF;
