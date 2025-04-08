@@ -24,7 +24,6 @@
 #ifndef TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
 #define TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
 
-#include <tvm/runtime/metadata.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <string>

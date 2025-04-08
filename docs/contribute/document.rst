@@ -195,7 +195,7 @@ shows an example of c++ docstring.
     /*!
      * \brief Description of my function
      * \param arg1 Description of arg1
-     * \param arg2 Descroption of arg2
+     * \param arg2 Description of arg2
      * \returns describe return value
      */
     int myfunction(int arg1, int arg2) {

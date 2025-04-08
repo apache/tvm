@@ -26,6 +26,7 @@
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/transform.h>
 
 #include "../op/op_common.h"
 

@@ -16,6 +16,6 @@
 # under the License.
 
 # pylint: disable=redefined-builtin, wildcard-import
-"""GPU specific declaration and schedules."""
-from .dense import *
-from .conv2d import *
+"""GPU specific declaration."""
+from .scan import cumsum, cumprod
+from .sort import *

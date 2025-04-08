@@ -175,11 +175,66 @@ class AttentionKVCacheObj : public KVStateObj {
    * `(total_length, num_qo_heads + 2 * num_kv_heads, head_dim)`.
    * \param mask The input mask data, in layout `(total_sqr_length)`.
    * \param o_data The output O data, in layout `(total_length, num_qo_heads, head_dim)`.
-   * \param attn_score_scaling_factor The additional attention scaling factor.
+   * \param sm_scale The additional attention scaling factor.
    * \sa AttentionKVCache::Attention
    */
   virtual void AttentionWithFusedQKV(int64_t layer_id, NDArray qkv_data, Optional<NDArray> mask,
-                                     NDArray o_data, double attn_score_scaling_factor) = 0;
+                                     NDArray o_data, double sm_scale) = 0;
+
+  /*!
+   * \brief Fine-grained API that computes ragged self attention with Q/K/V data.
+   * \param layer_id The model layer where the attention compute happens.
+   * \param q_data The input Q data.
+   * \param k_data The input K data.
+   * \param v_data The input V data.
+   * \param o_data The output O data, in layout `(total_length, num_qo_heads, v_head_dim)`.
+   * \param lse_data The output attention LSE data, in layout `(total_length, num_qo_heads)`.
+   * \param sm_scale The additional attention scaling factor.
+   */
+  virtual void SelfAttention(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
+                             NDArray o_data, NDArray lse_data, double sm_scale) = 0;
+
+  /*!
+   * \brief Fine-grained API that computes paged cross attention with Q and in-cache KV data.
+   * \param layer_id The model layer where the attention compute happens.
+   * \param q_data The input Q data.
+   * \param o_data The output O data.
+   * \param lse_data The output attention LSE data, in layout `(total_length, num_qo_heads)`.
+   * \param sm_scale The additional attention scaling factor.
+   */
+  virtual void CrossAttention(int64_t layer_id, NDArray q_data, NDArray o_data, NDArray lse_data,
+                              double sm_scale) = 0;
+
+  /*!
+   * \brief Fine-grained API that appends the MLA K/V data to KV cache.
+   * \param layer_id The model layer where the attention compute happens.
+   * \param kv_data The input KV data to append, in layout `(total_length, qk_head_dim)`.
+   */
+  virtual void AppendMLAKV(int64_t layer_id, NDArray kv_data) = 0;
+
+  /*!
+   * \brief Fine-grained API that merges the attention output from two sources.
+   * \param o1_data The first source O data.
+   * \param lse1_data The first source LSE data.
+   * \param o2_data The second source O data.
+   * \param lse2_data The second source LSE data.
+   * \return The merged O and LSE data.
+   */
+  virtual Array<NDArray> MergeAttnOutputInplace(NDArray o_self_attn, NDArray lse_self_attn,
+                                                NDArray o_cross_attn, NDArray lse_cross_attn) = 0;
+
+  /*!
+   * \brief Compute linear attention with Q/K/V data.
+   * \param layer_id The model layer where the attention compute happens.
+   * \param q_data The input Q data, in layout `(total_length, num_qo_heads, head_dim)`.
+   * \param k_data The input K data, in layout `(total_length, num_kv_heads, head_dim)`.
+   * \param v_data The input V data, in layout `(total_length, num_kv_heads, head_dim)`.
+   * \param o_data The output O data, in layout `(total_length, num_qo_heads, head_dim)`.
+   * \param sm_scale The additional attention scaling factor.
+   * \sa AttentionKVCache::Attention
+   */
+  virtual void LinearAttention(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
+                               double sm_scale) = 0;
 
   /************** Positions **************/
 
@@ -211,6 +266,16 @@ class AttentionKVCacheObj : public KVStateObj {
    */
   virtual void DebugGetKV(int64_t seq_id,  //
                           int64_t start_pos, int64_t end_pos, NDArray k_data, NDArray v_data) = 0;
+
+  /*!
+   * \brief Fetch the compact K/V data of the given sequence for MLA cache.
+   * \param seq_id The sequence whose K/V data is to be fetched.
+   * \param start_pos The start position (inclusive) of the K/V data to fetch.
+   * \param end_pos The end position (exclusive) of the K/V data to fetch.
+   * \param kv_data The output KV data of the given sequence in layout elaborated above.
+   */
+  virtual void DebugGetKVMLA(int64_t seq_id, int64_t start_pos, int64_t end_pos,
+                             NDArray kv_data) = 0;
 
   /*!
    * \brief Set the K/V data of the given sequence from input K/V data.

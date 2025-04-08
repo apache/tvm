@@ -64,6 +64,17 @@ Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f) {
   return arg_idx;
 }
 
+/*!
+ * \brief Utility function to find the string pattern in string str
+ * \param str the main string to check the pattern
+ * \param pattern the pattern to check in the main string
+ * \return return true if the main string ends with pattern, false otherwise
+ */
+bool EndsWithPattern(const std::string& str, const std::string& pattern) {
+  if (str.length() < pattern.length()) return false;
+  return str.compare(str.length() - pattern.length(), pattern.length(), pattern) == 0;
+}
+
 TVM_REGISTER_GLOBAL("relax.contrib.extract_arg_idx").set_body_typed(ExtractArgIdx);
 
 }  // namespace backend

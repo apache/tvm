@@ -36,7 +36,7 @@ class SamplingDispatcher(BackendDispatcher):
             return super().visit_call_(call)
 
         if call.op.name == "relax.multinomial_from_uniform":
-            from tvm.relax.backend_tir import (  # pylint: disable=import-outside-toplevel
+            from tvm.relax.backend.gpu_generic import (  # pylint: disable=import-outside-toplevel
                 generic_get_sample_index,
                 gpu_multinomial_from_uniform,
             )

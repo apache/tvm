@@ -20,10 +20,10 @@ set -euxo pipefail
 
 source tests/scripts/setup-pytest-env.sh
 
-# Rebuild cython
-make cython3
+# setup cython
+cd python; python3 setup.py build_ext --inplace; cd ..
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
-run_pytest cython python-topi-nightly tests/python/topi/nightly
+run_pytest python-topi-nightly tests/python/topi/nightly

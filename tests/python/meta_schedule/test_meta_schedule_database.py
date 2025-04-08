@@ -24,7 +24,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import meta_schedule as ms
-from tvm import relay, tir
+from tvm import tir
 from tvm.ir.module import IRModule
 from tvm.meta_schedule.database import TuningRecord, Workload
 from tvm.script import tir as T
@@ -452,7 +452,6 @@ def test_meta_schedule_database_union():
 
 
 def test_meta_schedule_pydatabase_default_query():
-
     mod: IRModule = Matmul
     target = tvm.target.Target("llvm")
     arg_info = ms.arg_info.ArgInfo.from_prim_func(func=mod["main"])
@@ -492,7 +491,6 @@ def test_meta_schedule_pydatabase_default_query():
 
 
 def test_meta_schedule_pydatabase_override_query():
-
     mod: IRModule = Matmul
     target = tvm.target.Target("llvm")
     arg_info = ms.arg_info.ArgInfo.from_prim_func(func=mod["main"])
@@ -584,18 +582,11 @@ def test_json_database_get_top_k(k, expected):
     assert result == expected
 
 
-def MatmulFunc() -> IRModule:
-    a = relay.var("a", relay.TensorType((1024, 1024), "float32"))
-    b = relay.var("b", relay.TensorType((1024, 1024), "float32"))
-    func = relay.Function([a, b], relay.nn.matmul(a, b))
-    return tvm.IRModule.from_expr(func)
-
-
 def MatmulPrimFunc() -> IRModule:
     return Matmul
 
 
-@pytest.mark.parametrize("f_mod", [MatmulPrimFunc, MatmulFunc])
+@pytest.mark.parametrize("f_mod", [MatmulPrimFunc])
 @pytest.mark.parametrize("mod_eq", ["structural", "ignore-ndarray", "anchor-block"])
 def test_json_database_commit_workload(f_mod, mod_eq):
     mod: IRModule = f_mod()
@@ -604,7 +595,7 @@ def test_json_database_commit_workload(f_mod, mod_eq):
         database.commit_workload(mod)
 
 
-@pytest.mark.parametrize("f_mod", [MatmulPrimFunc, MatmulFunc])
+@pytest.mark.parametrize("f_mod", [MatmulPrimFunc])
 @pytest.mark.parametrize("mod_eq", ["structural", "ignore-ndarray", "anchor-block"])
 def test_memory_database_commit_workload(f_mod, mod_eq):
     mod: IRModule = f_mod()

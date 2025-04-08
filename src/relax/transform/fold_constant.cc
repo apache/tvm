@@ -17,7 +17,6 @@
  * under the License.
  */
 
-#include <tvm/driver/driver_api.h>
 #include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
@@ -116,8 +115,10 @@ class ConstantFolder : public ExprMutator {
       // already scheduled to only work on GPU, we will need to skip this in the const folder for
       // now
       // TODO(Hongyi): further check and narrow the scope of foldable function
-      runtime::Module rt_module =
-          build(LowerPrimFunc(func, "tir_function"), eval_cpu_target, eval_cpu_target);
+      auto* pf = runtime::Registry::Get("tir.build");
+      ICHECK(pf != nullptr) << "Cannot find tir.build in registry";
+      func = WithAttr(func, tvm::attr::kGlobalSymbol, String("tir_function"));
+      runtime::Module rt_module = (*pf)(func, eval_cpu_target);
       build_func = rt_module.GetFunction("tir_function");
     } catch (const tvm::Error& err) {
       // build failure may happen in which case we skip
@@ -185,7 +186,7 @@ class ConstantFolder : public ExprMutator {
     bool output_not_tuple = call->sinfo_args.size() == 1;
     // Pattern 0: call constant function, const argument with const shape.
     if (func && arr_args && shape && output_not_tuple) {
-      DynTensorType ret_type = Downcast<DynTensorType>(call->checked_type());
+      TensorType ret_type = Downcast<TensorType>(call->checked_type());
       // value_or will return value if it is not null, otherwise return or
       return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(), ret_type->dtype)
           .value_or({});

@@ -29,6 +29,26 @@ namespace tvm {
 namespace tir {
 namespace transform {
 
+// Register build pipeline related options
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.noalias", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.detect_global_barrier", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_bound_checkers", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_assert", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_vectorize", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_buffer_level_predication", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_cse_tir", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_debug", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_equiv_terms_in_cse_tir", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_storage_rewrite", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.is_entry_func", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", Array<Array<ObjectRef>>);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.debug_keep_trivial_loop", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_async_copy", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.merge_static_smem", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_lwp", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.vtcm_capacity", Integer);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.ptx_ldg32", Bool);
+
 /*!
  * \brief Function level pass that applies transformations to all
  *        TIR functions within the module.

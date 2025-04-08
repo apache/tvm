@@ -28,13 +28,13 @@ namespace tvm {
 namespace runtime {
 
 #ifdef __linux__
-#include <dmlc/logging.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <immintrin.h>
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/syscall.h>
+#include <tvm/runtime/logging.h>
 #include <unistd.h>
 
 #define XFEATURE_XTILECFG 17

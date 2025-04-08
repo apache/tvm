@@ -377,7 +377,6 @@ if not on_rtd and html_theme == "rtd":
 html_static_path = ["_static"]
 
 html_theme_options = {
-    "analytics_id": "UA-75982049-2",
     "logo_only": True,
 }
 
@@ -487,7 +486,6 @@ autodoc_default_options = {
 tvm_alias_check_map = {
     "tvm.te": ["tvm.tir"],
     "tvm.tir": ["tvm.ir", "tvm.runtime"],
-    "tvm.relay": ["tvm.ir", "tvm.tir"],
 }
 
 ## Setup header and other configs

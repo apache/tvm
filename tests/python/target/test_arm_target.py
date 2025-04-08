@@ -24,7 +24,6 @@ import numpy as np
 
 import tvm
 from tvm.script import tir as T
-from tvm.topi.arm_cpu.conv2d_int8 import is_int8_hw_support
 from tvm.target import codegen
 
 llvm_version, arm_target, input_dtype, kernel_dtype, is_supported = tvm.testing.parameters(
@@ -47,27 +46,6 @@ llvm_version, arm_target, input_dtype, kernel_dtype, is_supported = tvm.testing.
     (8, "llvm -mtriple=aarch64-linux-gnu -mattr=+neon", "int8", "int16", False),
     (8, "llvm -mtriple=aarch64-linux-gnu -mattr=+neon", "int16", "int16", False),
 )
-
-
-def test_arm_conv2d_int8_support(
-    monkeypatch, llvm_version, arm_target, input_dtype, kernel_dtype, is_supported
-):
-    """Test ARM conv2d int8 support for different targets.
-
-    Parameters
-    ----------
-    arm_target : str
-        ARM CPU target.
-    input_dtype : str
-        Conv2d input data type.
-    kernel_dtype : Session
-        Conv2d kernel data type.
-    is_supported : bool
-        Expected result.
-    """
-    with tvm.target.Target(arm_target):
-        monkeypatch.setattr(codegen, "llvm_version_major", lambda: llvm_version)
-        assert is_int8_hw_support(input_dtype, kernel_dtype) == is_supported
 
 
 @pytest.fixture(scope="session")
@@ -104,7 +82,7 @@ def test_scalable_div(sve_device_vector_length):
         T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
         A[0] = T.Div(10000, 4 * T.vscale())
 
-    mod = tvm.build(my_func, target=target)
+    mod = tvm.compile(my_func, target=target)
 
     A_nd = tvm.nd.array(np.empty((1,), dtype="int32"), device=dev)
     mod(A_nd)
@@ -127,7 +105,7 @@ def test_scalable_buffer_load_store(sve_device_vector_length):
         T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
         B[T.ramp(0, 1, 4 * T.vscale())] = A[T.ramp(0, 1, 4 * T.vscale())]
 
-    mod = tvm.build(my_func, target=target)
+    mod = tvm.compile(my_func, target=target)
 
     A_np = np.random.uniform(size=(num_elements,)).astype("float32")
     B_np = np.zeros((num_elements,)).astype("float32")
@@ -155,7 +133,7 @@ def test_scalable_loop_bound(sve_device_vector_length):
         for i in T.serial(0, 4 * T.vscale()):
             B[i] = A[i]
 
-    mod = tvm.build(my_func, target=target)
+    mod = tvm.compile(my_func, target=target)
 
     A_np = np.random.uniform(size=(num_elements,)).astype(dtype)
     B_np = np.zeros((num_elements,)).astype(dtype)
@@ -178,7 +156,7 @@ def test_scalable_broadcast(sve_device_vector_length):
         T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
         A[T.ramp(0, 1, 4 * T.vscale())] = T.broadcast(1, 4 * T.vscale())
 
-    mod = tvm.build(my_func, target=target)
+    mod = tvm.compile(my_func, target=target)
 
     A_np = np.zeros((num_elements,)).astype("float32")
     A_nd = tvm.nd.array(A_np, device=dev)

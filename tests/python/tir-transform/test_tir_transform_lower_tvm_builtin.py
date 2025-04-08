@@ -148,7 +148,6 @@ def check_packed_func(target="llvm"):
 
 def test_lower_packed_func():
     check_packed_func("llvm")
-    check_packed_func("stackvm")
 
 
 @tvm.testing.requires_llvm
@@ -179,7 +178,7 @@ def test_call_packed_return_non_i32():
         )
 
     mod = build_tir()
-    f = tvm.build(mod, None, "llvm")
+    f = tvm.compile(mod, None)
     a = tvm.nd.array(np.zeros(2, dtype="float32"))
     f(a)
     tvm.testing.assert_allclose(a.numpy(), expected_value)
@@ -199,7 +198,7 @@ def test_lower_overflow_int32():
             T_subtract_1[cse_var_1] = rxplaceholder_1[cse_var_1] - rxplaceholder_red_1[ax1]
 
     func = variance4
-    tvm.build(func, target="llvm")  # should not crash
+    tvm.compile(func, target="llvm")  # should not crash
 
 
 class TestLowerDeviceAllocate(tvm.testing.CompareBeforeAfter):

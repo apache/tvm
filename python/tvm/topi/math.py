@@ -94,28 +94,6 @@ def erf(x):
     return te.compute(x.shape, lambda *i: te.erf(x(*i)))
 
 
-@tvm.target.generic_func
-def erf_legalize(attrs, inputs, types):
-    """Legalizes ERF op.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current convolution
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The legalized expr.
-    """
-    # Note changed by default.
-    return None
-
-
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
 def tanh(x):
     """Take hyperbolic tanh of input x.

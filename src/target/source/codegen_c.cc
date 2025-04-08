@@ -240,7 +240,7 @@ std::string CodeGenC::GetBufferRef(DataType t, const BufferNode* buffer, PrimExp
   }
 
   std::string index_str = PrintExpr(index);
-  if (t.bits() == 4 || (t.bits() == 1 && t.is_int())) {
+  if ((t.bits() == 4 && !t.is_float4()) || (t.bits() == 1 && t.is_int())) {
     // This is a special case, because CodegenCUDA::PrintType()
     // returns "int" for bool and for 4-bit integers. In most cases,
     // we divide by the number of lanes to determine the index.
@@ -789,6 +789,11 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
       }
     }
 
+    if (value_dtype.is_float4_e2m1fn() && lanes != 1) {
+      // A float4_e2m1fn element has 4 bits, which is an incomplete byte.
+      // So we cannot vector load it.
+      can_vector_load = false;
+    }
     if (can_vector_load) {
       std::string ref = GetVecLoad(op->dtype, op->buffer.get(), base.Eval());
       HandleVolatileLoads(ref, op, os);
@@ -839,7 +844,8 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
   } else {
     arith::PVar<PrimExpr> base;
 
-    if (arith::ramp(base, 1, value_dtype.lanes()).Match(index_expr)) {
+    if (arith::ramp(base, 1, value_dtype.lanes()).Match(index_expr) &&
+        !value_dtype.is_float4_e2m1fn()) {
       std::string value = this->PrintExpr(op->value);
       this->PrintVecStore(op->buffer.get(), value_dtype, base.Eval(), value);
     } else {
@@ -937,22 +943,43 @@ void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(
   // NOTE: important to print expr first
   // in case each expr have their own nested expressions
   // print each elements
-  for (const PrimExpr& vec : op->vectors) {
-    std::string vec_value = this->PrintExpr(vec);
-    if (vec.dtype().lanes() == 1) {
+  if (op->vectors.size() > 1) {
+    for (const PrimExpr& vec : op->vectors) {
+      std::string vec_value = this->PrintExpr(vec);
+      if (vec.dtype().lanes() == 1) {
+        concat_vec.push_back(vec_value);
+      } else {
+        // print out each element
+        for (int i = 0; i < vec.dtype().lanes(); ++i) {
+          // access i-th element of each vector
+          std::ostringstream vec_elem_strm;
+          vec_elem_strm << vec_value << "[" << i << "]";
+          concat_vec.push_back(vec_elem_strm.str());
+        }
+      }
+    }
+  } else {
+    // Extract elements from a single vector-type value.
+    std::string vec_value = "(" + this->PrintExpr(op->vectors[0]) + ")";
+    if (op->vectors[0].dtype().lanes() == 1) {
       concat_vec.push_back(vec_value);
     } else {
       // print out each element
-      for (int i = 0; i < vec.dtype().lanes(); ++i) {
+      for (int i = 0; i < op->vectors[0].dtype().lanes(); ++i) {
         // access i-th element of each vector
         std::ostringstream vec_elem_strm;
-        vec_elem_strm << vec_value << "[" << i << "]";
+        PrintVecElemLoad(vec_value, op->vectors[0].dtype(), i, vec_elem_strm);
         concat_vec.push_back(vec_elem_strm.str());
       }
     }
   }
   if (op->indices.size() == 1) {
     // This is an extract element
+    CHECK(op->indices[0]->IsInstance<IntImmNode>())
+        << "The ShuffleNode indices are expected to be constants at codegen time. However, "
+        << "a non-constant index is " << op->indices[0]
+        << ". Please avoid using ShuffleNode or eliminate the ShuffleNode with loop unroll or "
+        << "vectorize.";
     int64_t idx = Downcast<IntImm>(op->indices[0])->value;
     ICHECK_LT(idx, concat_vec.size());
     os << concat_vec[idx];
@@ -963,6 +990,11 @@ void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(
     os << '(';
     for (size_t i = 0; i < op->indices.size(); ++i) {
       if (i != 0) os << ", ";
+      CHECK(op->indices[i]->IsInstance<IntImmNode>())
+          << "The ShuffleNode indices are expected to be constants at codegen time. However, "
+          << "a non-constant index is " << op->indices[i]
+          << ". Please avoid using ShuffleNode or eliminate the ShuffleNode with loop unroll or "
+          << "vectorize.";
       os << concat_vec[Downcast<IntImm>(op->indices[i])->value];
     }
     os << ')';

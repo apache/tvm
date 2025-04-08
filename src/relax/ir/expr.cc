@@ -138,7 +138,7 @@ TVM_REGISTER_GLOBAL("relax.If")
       return If(cond, true_branch, false_branch, span);
     });
 
-Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
+Tuple::Tuple(tvm::Array<Expr> fields, Span span) {
   Optional<StructInfo> tuple_sinfo = [&]() -> Optional<StructInfo> {
     Array<StructInfo> field_sinfo;
     for (const auto& field : fields) {
@@ -163,7 +163,7 @@ Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
 
 TVM_REGISTER_NODE_TYPE(TupleNode);
 
-TVM_REGISTER_GLOBAL("relax.Tuple").set_body_typed([](tvm::Array<relay::Expr> fields, Span span) {
+TVM_REGISTER_GLOBAL("relax.Tuple").set_body_typed([](tvm::Array<Expr> fields, Span span) {
   return Tuple(fields, span);
 });
 
@@ -337,7 +337,7 @@ Constant::Constant(runtime::NDArray data, Optional<StructInfo> struct_info_annot
   } else {
     TensorStructInfo tinfo(ShapeExpr(values), n->data.DataType(), VDevice(), span);
     n->struct_info_ = tinfo;
-    n->checked_type_ = DynTensorType(tinfo->ndim, tinfo->dtype);
+    n->checked_type_ = TensorType(tinfo->ndim, tinfo->dtype);
   }
 
   data_ = std::move(n);

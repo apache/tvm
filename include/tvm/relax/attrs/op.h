@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_ATTRS_OP_H_
 #define TVM_RELAX_ATTRS_OP_H_
 
+#include <tvm/ir/global_info.h>
 #include <tvm/relax/expr.h>
 
 namespace tvm {

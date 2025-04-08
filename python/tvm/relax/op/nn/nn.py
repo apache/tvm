@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple, Union
 from tvm import DataType
 from tvm.tir import FloatImm
 
-from ...expr import Expr, const
+from ...expr import Expr
 from . import _ffi_api
 
 
@@ -513,7 +513,12 @@ def conv2d_transpose(
     )
 
 
-def pad(data, pad_width, pad_value=0, pad_mode="constant"):
+def pad(
+    data: Expr,
+    pad_width: Tuple[Tuple[int, int], ...],
+    pad_mode: Optional[str] = "constant",
+    pad_value: Optional[Union[float, Expr]] = 0.0,
+):
     r"""Padding
 
     This operator takes in a tensor and pads each axis by the specified
@@ -523,23 +528,24 @@ def pad(data, pad_width, pad_value=0, pad_mode="constant"):
     ----------
     data: relax.Expr
         The input data to the operator
-    pad_width: tuple of <tuple of <int>>, required
+    pad_width: Tuple[Tuple[int, int], ...], required
         Number of values padded to the edges of each axis, in the format
         of ((before_1, after_1), ..., (before_N, after_N))
-    pad_value: float
-        The value used for padding
-    pad_mode: 'constant', 'edge', 'reflect'
+    pad_mode: Optional[str]
+        'constant', 'edge', or 'reflect'
         'constant' pads with constant_value pad_value
         'edge' pads using the edge values of the input array
         'reflect' pads by reflecting values with respect to the edge
+        Default is 'constant'
+    pad_value: Optional[Union[float, Expr]]
+        The value used for padding. Default is 0.
+
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    if not isinstance(pad_value, Expr):
-        pad_value = const(pad_value)
-    return _ffi_api.pad(data, pad_width, pad_value, pad_mode)
+    return _ffi_api.pad(data, pad_width, pad_mode, pad_value)
 
 
 def max_pool1d(
@@ -1298,6 +1304,30 @@ def gelu_tanh(data: Expr) -> Expr:
     return _ffi_api.gelu_tanh(data)  # type: ignore
 
 
+def selu(data: Expr) -> Expr:
+    r"""Scaled Exponential Linear Unit (SELU).
+
+    .. math::
+        \text{SELU}(x) = \lambda \begin{cases}
+            x & \text{if } x > 0 \\
+            \alpha (e^x - 1) & \text{if } x \leq 0
+        \end{cases}
+
+    where :math:`\lambda \approx 1.0507` and :math:`\alpha \approx 1.6733`.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.selu(data)
+
+
 def silu(data: Expr) -> Expr:
     r"""Sigmoid Linear Unit function
 
@@ -1387,6 +1417,7 @@ def batch_norm(
     center: bool = True,
     scale: bool = True,
     momentum: float = 0.1,
+    training: bool = True,
 ) -> Expr:
     r"""
     Batch normalization layer (Ioffe and Szegedy, 2014).
@@ -1475,13 +1506,18 @@ def batch_norm(
     momentum : float
         The value used for the moving_mean and moving_var update.
 
+    training : bool
+        A boolean value to indicate whether training or in eval mode. By default.
+          relax batch_norm is training mode. To transform it to inference mode,
+          can use DecomposeOpsForInference.
+
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
     return _ffi_api.batch_norm(  # type: ignore
-        data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale, momentum
+        data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale, momentum, training
     )
 
 

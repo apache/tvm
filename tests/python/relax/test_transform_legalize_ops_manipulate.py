@@ -15,6 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import sys
+
+sys.path.append("/ssd1/htalendr/tvm/python")
+
 import tvm
 from tvm import relax
 from tvm.relax.transform import LegalizeOps
@@ -788,12 +792,42 @@ def test_split_by_indices_n_section_indivisible():
     class Split:
         @R.function
         def main(x: R.Tensor((2, 10, 4), "float32")) -> R.Tuple([R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 2, 4), "float32")]):
-            gv: R.Tuple([R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 2, 4), "float32")]) = R.split(x, 3, axis=1)
+            gv: R.Tuple([R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 2, 4), "float32")]) = R.split(x, indices_or_sections=3, axis=1)
             return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 10, 4), "float32")) -> R.Tuple([R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 2, 4), "float32")]):
+            gv = R.call_tir(Expected.split, (x,), [R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 4, 4), "float32"), R.Tensor((2, 2, 4), "float32")])
+            return gv
+
+        @T.prim_func(private=True)
+        def split(rxplaceholder: T.Buffer((T.int64(2), T.int64(10), T.int64(4)), "float32"), T_split_sections: T.Buffer((T.int64(2), T.int64(4), T.int64(4)), "float32"), T_split_sections_1: T.Buffer((T.int64(2), T.int64(4), T.int64(4)), "float32"), T_split_sections_2: T.Buffer((T.int64(2), T.int64(2), T.int64(4)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i0, i1, i2 in T.grid(T.int64(2), T.int64(4), T.int64(4)):
+                with T.block("T_split_sections"):
+                    ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(rxplaceholder[ax0, ax1, ax2])
+                    T.writes(T_split_sections[ax0, ax1, ax2])
+                    T_split_sections[ax0, ax1, ax2] = rxplaceholder[ax0, ax1, ax2]
+            for i0, i1, i2 in T.grid(T.int64(2), T.int64(4), T.int64(4)):
+                with T.block("T_split_sections_1"):
+                    ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(rxplaceholder[ax0, ax1 + T.int64(4), ax2])
+                    T.writes(T_split_sections_1[ax0, ax1, ax2])
+                    T_split_sections_1[ax0, ax1, ax2] = rxplaceholder[ax0, ax1 + T.int64(4), ax2]
+            for i0, i1, i2 in T.grid(T.int64(2), T.int64(2), T.int64(4)):
+                with T.block("T_split_sections_2"):
+                    ax0, ax1, ax2 = T.axis.remap("SSS", [i0, i1, i2])
+                    T.reads(rxplaceholder[ax0, ax1 + T.int64(8), ax2])
+                    T.writes(T_split_sections_2[ax0, ax1, ax2])
+                    T_split_sections_2[ax0, ax1, ax2] = rxplaceholder[ax0, ax1 + T.int64(8), ax2]
+
     # fmt: on
 
     mod = LegalizeOps()(Split)
-    tvm.ir.assert_structural_equal(mod, Split)
+    tvm.ir.assert_structural_equal(mod, Expected)
 
 
 def test_split_by_indices_n_section_divisible():
@@ -850,7 +884,7 @@ def test_split_by_indices_n_section_divisible_symbolic():
         def main(dumb_param: R.Tensor(("n",)), x: R.Tensor(("m", "(n * 3)"), "float32")) -> R.Tuple(R.Tensor(("m", "((n * 3) // 3)"), "float32"), R.Tensor(("m", "((((n * 3) // 3) * 2) - ((n * 3) // 3))"), "float32"), R.Tensor(("m", "((n * 3) - (((n * 3) // 3) * 2))"), "float32")):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(Expected.split, (x,), [R.Tensor((m, ((n * 3) // 3)), "float32"), R.Tensor((m, ((((n * 3) // 3) * 2) - ((n * 3) // 3))), "float32"), R.Tensor((m, ((n * 3) - (((n * 3) // 3) * 2))), "float32")], tir_vars=(n,))
+            gv = R.call_tir(Expected.split, (x,), [R.Tensor((m, ((n * 3 + 3 - 1) // 3)), "float32"), R.Tensor((m, ((((n * 3 + 3 - 1) // 3) * 2) - ((n * 3 + 3 - 1) // 3))), "float32"), R.Tensor((m, ((n * 3) - (((n * 3 + 3 - 1) // 3) * 2))), "float32")], tir_vars=R.shape([n]))
             return gv
 
         @T.prim_func(private=True)
@@ -858,9 +892,9 @@ def test_split_by_indices_n_section_divisible_symbolic():
             T.func_attr({"tir.noalias": True})
             m = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n * T.int64(3)], dtype="float32")
-            T_split_sections = T.match_buffer(var_T_split_sections, [m, n * T.int64(3) // T.int64(3)], dtype="float32")
-            T_split_sections_1 = T.match_buffer(var_T_split_sections_1, [m, n * T.int64(3) // T.int64(3) * T.int64(2) - n * T.int64(3) // T.int64(3)], dtype="float32")
-            T_split_sections_2 = T.match_buffer(var_T_split_sections_2, [m, n * T.int64(3) - n * T.int64(3) // T.int64(3) * T.int64(2)], dtype="float32")
+            T_split_sections = T.match_buffer(var_T_split_sections, [m, (n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3)], dtype="float32")
+            T_split_sections_1 = T.match_buffer(var_T_split_sections_1, [m, (n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3) * T.int64(2) - (n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3)], dtype="float32")
+            T_split_sections_2 = T.match_buffer(var_T_split_sections_2, [m, n * T.int64(3) - (n * T.int64(3) + T.int64(3) - T.int64(1)) // T.int64(3) * T.int64(2)], dtype="float32")
             for i0, i1 in T.grid(m, n):
                 with T.block("T_split_sections"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
@@ -870,9 +904,9 @@ def test_split_by_indices_n_section_divisible_symbolic():
             for i0, i1 in T.grid(m, n):
                 with T.block("T_split_sections_1"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(rxplaceholder[ax0, n + ax1])
+                    T.reads(rxplaceholder[ax0, ax1 + n])
                     T.writes(T_split_sections_1[ax0, ax1])
-                    T_split_sections_1[ax0, ax1] = rxplaceholder[ax0, n + ax1]
+                    T_split_sections_1[ax0, ax1] = rxplaceholder[ax0, ax1 + n]
             for i0, i1 in T.grid(m, n):
                 with T.block("T_split_sections_2"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])

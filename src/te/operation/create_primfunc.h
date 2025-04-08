@@ -42,8 +42,6 @@ PrimFunc CreatePrimFuncWithConstants(const Array<te::Tensor>& arg_list,
                                      const Array<runtime::NDArray>& constants,
                                      std::optional<DataType> index_dtype_override = std::nullopt);
 
-// Relax version
-// TODO(relax-team) combine with the relay version
 /*! \brief Use Tensor Expression to create a schedulable TensorIR func. */
 PrimFunc CreatePrimFunc(const Array<ObjectRef>& arg_list,
                         std::optional<DataType> index_dtype_override);

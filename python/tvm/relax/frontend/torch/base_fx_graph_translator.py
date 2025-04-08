@@ -19,6 +19,8 @@
 # pylint: disable=import-outside-toplevel
 """Base class for PyTorch FX Graph importer."""
 import abc
+from functools import reduce
+import math
 from typing import Callable, Dict, Optional, Tuple, Union
 
 from tvm import relax
@@ -111,21 +113,146 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return convert
 
+    def _celu(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("alpha", 1.0)
+        dtype = x.struct_info.dtype
+
+        if isinstance(alpha, (int, float)):
+            alpha = relax.const(alpha, dtype)
+        else:
+            if not isinstance(alpha, relax.Var):
+                alpha = self.block_builder.emit(relax.const(alpha, dtype))
+
+        zero = relax.const(0, dtype)
+        # alpha * min(0, exp(x / alpha) - 1) + max(0, x)
+        return self.block_builder.emit(
+            relax.op.add(
+                relax.op.multiply(
+                    alpha,
+                    relax.op.minimum(
+                        zero,
+                        relax.op.subtract(
+                            relax.op.divide(relax.op.exp(x), alpha), relax.const(1, dtype)
+                        ),
+                    ),
+                ),
+                relax.op.nn.relu(x),
+            )
+        )
+
     def _clamp(self, node: fx.Node) -> relax.Expr:
         args = self.retrieve_args(node)
-        a_min = args[1] if len(args) > 1 else node.kwargs["min"]
-        a_max = args[2] if len(args) > 2 else node.kwargs["max"]
+        x = args[0]
+        a_min = args[1] if len(args) > 1 else node.kwargs.get("min", -math.inf)
+        a_max = args[2] if len(args) > 2 else node.kwargs.get("max", math.inf)
+
+        a_min = -math.inf if a_min is None else a_min
+        a_max = math.inf if a_max is None else a_max
+
+        # Handle the case where a_min is a tensor
         if not isinstance(a_min, (int, float)):
-            raise ValueError(
-                f"TVM only supports constant min value for torch.clamp/clip, "
-                f"but got {a_min} with type {type(a_min)}"
+            from torch import fx
+
+            if isinstance(a_min, fx.Node):
+                # Extract relax Expr (needed for fx.tracer)
+                a_min = self.env[a_min]
+            assert isinstance(a_min, relax.Expr), (
+                f"Unexpected argument type "
+                f"passed to torch.clamp/clip: {a_min} with type {type(a_min)}"
             )
+            a_min = self.block_builder.emit(relax.op.broadcast_to(a_min, self.shape_of(x)))
+            x = self.block_builder.emit(relax.op.maximum(x, a_min))
+            a_min = -math.inf
+
+        # Handle the case where a_max is a tensor
         if not isinstance(a_max, (int, float)):
-            raise ValueError(
-                f"TVM only supports constant max value for torch.clamp/clip, "
-                f"but got {a_max} with type {type(a_max)}"
+            from torch import fx
+
+            if isinstance(a_max, fx.Node):
+                # Extract relax Expr (needed for fx.tracer)
+                a_max = self.env[a_max]
+            assert isinstance(a_max, relax.Expr), (
+                f"Unexpected argument type "
+                f"passed to torch.clamp/clip: {a_max} with type {type(a_max)}"
             )
-        return self.block_builder.emit(relax.op.clip(args[0], a_min, a_max))
+            a_max = self.block_builder.emit(relax.op.broadcast_to(a_max, self.shape_of(x)))
+            x = self.block_builder.emit(relax.op.minimum(x, a_max))
+            a_max = math.inf
+
+        return self.block_builder.emit(relax.op.clip(x, a_min, a_max))
+
+    def _clamp_min(self, node: fx.Node) -> relax.Expr:
+        args = self.retrieve_args(node)
+        x = args[0]
+        a_min = args[1] if len(args) > 1 else node.kwargs.get("min", -math.inf)
+        a_max = math.inf
+
+        a_min = -math.inf if a_min is None else a_min
+
+        # Handle the case where a_min is a tensor
+        if not isinstance(a_min, (int, float)):
+            from torch import fx
+
+            if isinstance(a_min, fx.Node):
+                # Extract relax Expr (needed for fx.tracer)
+                a_min = self.env[a_min]
+            assert isinstance(a_min, relax.Expr), (
+                f"Unexpected argument type "
+                f"passed to torch.clamp/clip: {a_min} with type {type(a_min)}"
+            )
+            a_min = self.block_builder.emit(relax.op.broadcast_to(a_min, self.shape_of(x)))
+            x = self.block_builder.emit(relax.op.maximum(x, a_min))
+            a_min = -math.inf
+
+        return self.block_builder.emit(relax.op.clip(x, a_min, a_max))
+
+    def _clamp_max(self, node: fx.Node) -> relax.Expr:
+        args = self.retrieve_args(node)
+        x = args[0]
+        a_min = -math.inf
+        a_max = args[2] if len(args) > 2 else node.kwargs.get("max", math.inf)
+
+        a_max = math.inf if a_max is None else a_max
+
+        # Handle the case where a_max is a tensor
+        if not isinstance(a_max, (int, float)):
+            from torch import fx
+
+            if isinstance(a_max, fx.Node):
+                # Extract relax Expr (needed for fx.tracer)
+                a_max = self.env[a_max]
+            assert isinstance(a_max, relax.Expr), (
+                f"Unexpected argument type "
+                f"passed to torch.clamp/clip: {a_max} with type {type(a_max)}"
+            )
+            a_max = self.block_builder.emit(relax.op.broadcast_to(a_max, self.shape_of(x)))
+            x = self.block_builder.emit(relax.op.minimum(x, a_max))
+            a_max = math.inf
+
+        return self.block_builder.emit(relax.op.clip(x, a_min, a_max))
+
+    def _elu(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("alpha", 1.0)
+        dtype = x.struct_info.dtype
+
+        if isinstance(alpha, (int, float)):
+            alpha = relax.const(-alpha, dtype)
+        else:
+            if not isinstance(alpha, relax.Var):
+                alpha = self.block_builder.emit(relax.const(-alpha, dtype))
+
+        # alpha * ReLU(1 − exp(x)) + ReLU(x)
+        return self.block_builder.emit(
+            relax.op.add(
+                relax.op.multiply(
+                    alpha,
+                    relax.op.nn.relu(relax.op.subtract(relax.const(1, dtype), relax.op.exp(x))),
+                ),
+                relax.op.nn.relu(x),
+            )
+        )
 
     def _gelu(self, node: fx.Node) -> relax.Expr:
         approximate = node.kwargs.get("approximate", "none")
@@ -153,6 +280,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x2 = relax.op.divide(x1, relax.const(6, dtype))
         return self.block_builder.emit(relax.op.multiply(x, x2))
 
+    def _hardtanh(self, node: fx.Node) -> relax.Expr:
+        args = self.retrieve_args(node)
+        x = args[0]
+        min_val = node.kwargs.get("min_val", -1.0)
+        max_val = node.kwargs.get("max_val", 1.0)
+        return self.block_builder.emit(relax.op.clip(x, min_val, max_val))
+
     def _leakyrelu(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("negative_slope", 0.01)
@@ -173,6 +307,39 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         return self.block_builder.emit(relax.op.nn.softmax(x, dim))
+
+    def _softshrink(self, node: fx.Node) -> relax.Var:
+        """
+        Applies the Softshrink activation function in Relax.
+
+        Softshrink(x) =
+            x - λ    if x > λ
+            x + λ    if x < -λ
+            0        otherwise
+
+        Args:
+            node (fx.Node): The input node containing the tensor and lambda value.
+
+        Returns:
+            relax.Var: The resulting tensor after applying Softshrink.
+        """
+        args = self.retrieve_args(node)
+        x = args[0]
+        lambd = relax.const(args[1] if len(args) > 1 else 0.5, x.struct_info.dtype)
+
+        # Apply Softshrink transformation with masking
+        shrink_pos = relax.op.multiply(
+            relax.op.subtract(x, lambd),
+            relax.op.astype(relax.op.greater(x, lambd), x.struct_info.dtype),
+        )
+
+        shrink_neg = relax.op.multiply(
+            relax.op.add(x, lambd),
+            relax.op.astype(relax.op.less(x, relax.op.negative(lambd)), x.struct_info.dtype),
+        )
+
+        # Combine the positive and negative shrink results
+        return self.block_builder.emit(relax.op.add(shrink_pos, shrink_neg))
 
     def _tril_triu(self, op: Callable) -> Callable:
         from torch import fx
@@ -217,6 +384,42 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return intrinsic_op(lhs, rhs)
 
         return convert
+
+    ########## Linear Algebra ##########
+
+    def _linalg_vector_norm(self, node: fx.Node) -> relax.Var:
+
+        args = self.retrieve_args(node)
+
+        data = args[0]
+        # Default ord=2 if not supplied
+        ord_val = args[1] if len(args) > 1 else 2.0
+        dim = args[2] if len(args) > 2 else None
+        keepdim = args[3] if len(args) > 3 else False
+
+        # If ord_val is a Python float/int, wrap it in a Relax const
+        # so that it matches data's dtype.
+        dtype = data.struct_info.dtype
+        ord_expr = (
+            ord_val if isinstance(ord_val, relax.Expr) else relax.const(float(ord_val), dtype)
+        )
+        # Reciprocal
+        reci_expr = (
+            relax.op.divide(relax.const(1.0, dtype), ord_expr)
+            if isinstance(ord_val, relax.Expr)
+            else relax.const(1.0 / float(ord_val), dtype)
+        )
+
+        # abs(data)
+        abs_data = self.block_builder.emit(relax.op.abs(data))
+        # abs_data^ord
+        abs_data_pow = self.block_builder.emit(relax.op.power(abs_data, ord_expr))
+        # sum over dim
+        reduced = self.block_builder.emit(relax.op.sum(abs_data_pow, dim, keepdims=keepdim))
+        # (sum(...))^(1/ord)
+        norm_val = self.block_builder.emit(relax.op.power(reduced, reci_expr))
+
+        return norm_val
 
     ########## Neural Network ##########
 
@@ -572,8 +775,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return self.block_builder.emit(relax.op.reshape(embedding, [*x_shape, emb_size]))
 
     def _layer_norm_impl(self, x, gamma, beta, eps, normalized_shape) -> relax.Var:
-        from torch.fx.immutable_collections import immutable_list
         import numpy as np  # type: ignore
+        from torch.fx.immutable_collections import immutable_list
 
         if isinstance(normalized_shape, (immutable_list, tuple)):
             normalized_shape = tuple(normalized_shape)
@@ -708,12 +911,33 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
         return self.block_builder.emit(relax.op.mean(x, dim, keepdims=keepdim))
 
+    def _prod(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+        return self.block_builder.emit(relax.op.prod(x, dim, keepdims=keepdim))
+
+    def _std(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+        return self.block_builder.emit(relax.op.std(x, dim, keepdims=keepdim))
+
     def _sum(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         keepdim = node.kwargs["keepdim"] if "keepdim" in node.kwargs else False
         if len(args) == 1:
             return self.block_builder.emit(relax.op.sum(args[0], keepdims=keepdim))
         return self.block_builder.emit(relax.op.sum(args[0], args[1]))
+
+    def _var(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+        return self.block_builder.emit(relax.op.variance(x, dim, keepdims=keepdim))
 
     ########## Search ##########
 
@@ -728,12 +952,46 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return convert
 
+    def _where(self, node: fx.Node) -> relax.Var:
+        condition = self.env[node.args[0]]
+        x = self.env[node.args[1]]
+        y = self.env[node.args[2]]
+        return self.block_builder.emit(relax.op.where(condition, x, y))
+
     ########## Manipulation ##########
+
+    def _argsort(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
+        descending = node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False)
+        return self.block_builder.emit(relax.op.argsort(x, dim, descending))
 
     def _cat(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
         return self.block_builder.emit(relax.op.concat(args[0], axis=axis))
+
+    def _chunk(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        chunks = node.args[1]
+        dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", 0)
+        x_shape = self.shape_of(x)
+        max_chunks = x_shape[dim].value
+        n_sections = min(chunks, max_chunks)
+        return self.block_builder.emit(
+            relax.op.split(x=x, indices_or_sections=n_sections, axis=dim)
+        )
+
+    def _cumprod(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        if "dtype" in node.kwargs:
+            dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
+        else:
+            dtype = None
+
+        return self.block_builder.emit(relax.op.cumprod(x, dim, dtype))
 
     def _cumsum(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -758,6 +1016,47 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             else:
                 broadcast_shape.append(i)
         return self.block_builder.emit(relax.op.broadcast_to(args[0], broadcast_shape))
+
+    def _expand_as(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        # args[0] is the 'self' tensor
+        # args[1] is the 'other' tensor
+        data = args[0]
+        other_shape = self.shape_of(args[1])  # the shape of 'other'
+        return self.block_builder.emit(relax.op.broadcast_to(data, other_shape))
+
+    def _flatten_impl(self, x, start_dim, end_dim) -> relax.Var:
+        shape = self.shape_of(x)
+        start_dim = start_dim if start_dim >= 0 else len(shape) + start_dim
+        end_dim = end_dim if end_dim >= 0 else len(shape) + end_dim
+        flattened = reduce(lambda x, y: x * y, [shape[i] for i in range(start_dim, end_dim + 1)])
+        new_shape = (
+            [shape[i] for i in range(0, start_dim)]
+            + [flattened]
+            + [shape[i] for i in range(end_dim + 1, len(shape))]
+        )
+        return self.block_builder.emit(relax.op.reshape(x, new_shape))
+
+    def _flatten(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        start_dim = node.args[1] if len(node.args) >= 2 else node.kwargs.get("start_dim", 0)
+        end_dim = node.args[2] if len(node.args) == 3 else node.kwargs.get("end_dim", -1)
+        return self._flatten_impl(x, start_dim, end_dim)
+
+    def _flip(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dims = node.args[1] if len(node.args) > 1 else node.kwargs.get("dims", None)
+        if isinstance(dims, (list, tuple)) and len(dims) > 0:
+            dims = dims[0]
+        elif not isinstance(dims, int):
+            raise TypeError(f"flip expects an integer axis, but got {type(dims)}: {dims}")
+        return self.block_builder.emit(relax.op.flip(x, dims))
+
+    def _gather(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
+        index = self.env[node.args[2]]
+        return self.block_builder.emit(relax.op.gather_elements(x, index, axis=dim))
 
     def _permute(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
@@ -797,6 +1096,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             raise Exception("Unexpected args " + str(node.args))
         return self.block_builder.emit(relax.op.scatter_elements(x, index, src, axis=dim))
 
+    def _sort(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
+        descending = node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False)
+        return self.block_builder.emit(relax.op.sort(x, dim, descending))
+
     def _split(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         split_size = node.args[1]
@@ -833,6 +1138,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 s_shape.append(s)
         return self.block_builder.emit(relax.op.reshape(cat, s_shape))
 
+    def _take(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        indices = self.env[node.args[1]]
+        indices = self.block_builder.emit(relax.op.astype(indices, "int32"))
+        return self.block_builder.emit(relax.op.take(x, indices))
+
     def _tile(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
@@ -840,6 +1151,22 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = args[0]
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
         return self.block_builder.emit(relax.op.tile(x, dims))
+
+    def _topk(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        k = args[1] if len(args) > 1 else node.kwargs.get("k", 1)
+        dim = args[2] if len(args) > 2 else node.kwargs.get("dim", -1)
+        largest = args[3] if len(args) > 3 else node.kwargs.get("largest", True)
+        _sorted = args[4] if len(args) > 4 else node.kwargs.get("_sorted", True)
+
+        if not _sorted:
+            msg = "Currently supports only sorted output for topk operator."
+            raise AssertionError(msg)
+
+        return self.block_builder.emit(
+            relax.op.topk(x, k=k, axis=dim, largest=largest, ret_type="both", dtype="int64")
+        )
 
     def _transpose(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -849,7 +1176,19 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     ########## Creation ##########
 
+    def _detach(self, node: fx.Node) -> relax.Var:
+        # There is no way to implement detach() such that the output shares
+        # the same memory as the input. In-place operations are not supported
+        # by the translator, and therefore we just return a copy of the input.
+        return self.env[node.args[0]]
+
+    def _copy_(self, node: fx.Node) -> relax.Var:
+        # Copies the source tensor's into the destination tensor
+        # In TVM, that means simply returning the source tensor
+        return self.env[node.args[1]]
+
     def _to_copy(self, node: fx.Node) -> relax.Var:
+        # Returns a copy of the input tensor
         import torch  # type: ignore
 
         x = self.env[node.args[0]]
@@ -909,12 +1248,22 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
         return self.block_builder.emit(relax.op.zeros(node.args[0], dtype))
 
+    def _empty_like(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(relax.op.zeros_like(x))
+
     def _fill(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
         dtype = x.struct_info.dtype
         value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
         return self.block_builder.emit(relax.op.full(x.struct_info.shape, value, dtype))
+
+    def _index_select(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1]
+        index = self.env[node.args[2]]
+        return self.block_builder.emit(relax.op.take(x, index, dim))
 
     def _new_ones(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -930,6 +1279,21 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 self_var.struct_info.dtype,
             )
         )
+
+    ########## DataType ##########
+
+    def _to(self, node: fx.Node) -> relax.Var:
+        import torch
+
+        x = self.env[node.args[0]]
+        if len(node.args) == 2:
+            if isinstance(node.args[1], torch.dtype):
+                dtype = BaseFXGraphImporter._convert_data_type(node.args[1], self.env)
+                return self.block_builder.emit(relax.op.astype(x, dtype))
+        elif "dtype" in node.kwargs:
+            dtype = BaseFXGraphImporter._convert_data_type(node.kwargs["dtype"], self.env)
+            return self.block_builder.emit(relax.op.astype(x, dtype))
+        return x
 
     ########## Others ##########
 

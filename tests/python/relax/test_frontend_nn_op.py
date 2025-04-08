@@ -128,6 +128,54 @@ def test_sum():
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
 
+def test_max():
+    class Model(Module):
+        def test(self, x: Tensor):
+            z0 = op.max(x, axis=[1, 2], keepdims=True)
+            return z0
+
+    # fmt: off
+    @R.function
+    def test(x: R.Tensor((3, 5, 2, 4), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((3, 1, 1, 4), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            max: R.Tensor((3, 1, 1, 4), dtype="float32") = R.max(x, axis=[1, 2], keepdims=True)
+            gv1: R.Tuple(R.Tensor((3, 1, 1, 4), dtype="float32"), R.Tuple(R.Object)) = max, (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
+
+    m = Model()
+    irmodule, _ = m.export_tvm(
+        spec={"test": {"x": spec.Tensor([3, 5, 2, 4], "float32")}}, debug=True
+    )
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
+
+
+def test_min():
+    class Model(Module):
+        def test(self, x: Tensor):
+            z0 = op.min(x, axis=[1, 2], keepdims=True)
+            return z0
+
+    # fmt: off
+    @R.function
+    def test(x: R.Tensor((3, 5, 2, 4), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((3, 1, 1, 4), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            min: R.Tensor((3, 1, 1, 4), dtype="float32") = R.min(x, axis=[1, 2], keepdims=True)
+            gv1: R.Tuple(R.Tensor((3, 1, 1, 4), dtype="float32"), R.Tuple(R.Object)) = min, (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
+
+    m = Model()
+    irmodule, _ = m.export_tvm(
+        spec={"test": {"x": spec.Tensor([3, 5, 2, 4], "float32")}}, debug=True
+    )
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
+
+
 def test_manipulate():
     class Model(Module):
         def test(self, x: Tensor):
@@ -855,7 +903,7 @@ def test_empty():
             return result
 
     irmodule, _ = Model().export_tvm(spec={"test": {}}, debug=True)
-    ex = relax.build(irmodule, "llvm")
+    ex = tvm.compile(irmodule, "llvm")
     vm = relax.VirtualMachine(ex, tvm.cpu())
     effects = vm["_initialize_effect"]()
     vm["test"](*effects)
@@ -912,7 +960,7 @@ def test_multinomial_from_uniform():
     with target:
         mod = relax.backend.DispatchSampling()(mod)
         mod = tir.transform.DefaultGPUSchedule()(mod)
-    ex = relax.build(mod, target)
+    ex = tvm.compile(mod, target)
     dev = tvm.device(str(target), 0)
     vm = relax.VirtualMachine(ex, dev)
 
@@ -1044,7 +1092,7 @@ def test_sample_top_p_top_k_from_sorted_prob():
     with target:
         mod = tir.transform.DefaultGPUSchedule()(mod)
 
-    ex = relax.build(mod, target)
+    ex = tvm.compile(mod, target)
     dev = tvm.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
 
@@ -1160,7 +1208,7 @@ def test_renormalize_top_p_top_k_prob():
         mod = relax.transform.LegalizeOps()(mod)
         mod = tir.transform.DefaultGPUSchedule()(mod)
 
-    ex = relax.build(mod, target)
+    ex = tvm.compile(mod, target)
     dev = tvm.cuda(0)
     vm = relax.VirtualMachine(ex, dev)
 

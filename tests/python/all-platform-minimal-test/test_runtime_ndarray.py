@@ -69,28 +69,6 @@ def test_memory_usage(target, dev, dtype):
     assert dev.available_global_memory == available_memory_before
 
 
-@pytest.mark.skip(reason="Skip for passing windows test on CI")
-def test_fp16_conversion():
-    n = 100
-
-    for src, dst in [("float32", "float16"), ("float16", "float32")]:
-        A = te.placeholder((n,), dtype=src)
-        B = te.compute((n,), lambda i: A[i].astype(dst))
-
-        s = te.create_schedule([B.op])
-        func = tvm.build(s, [A, B], "llvm")
-
-        x_tvm = tvm.nd.array(100 * np.random.randn(n).astype(src) - 50)
-        y_tvm = tvm.nd.array(100 * np.random.randn(n).astype(dst) - 50)
-
-        func(x_tvm, y_tvm)
-
-        expected = x_tvm.numpy().astype(dst)
-        real = y_tvm.numpy()
-
-        tvm.testing.assert_allclose(expected, real)
-
-
 def test_dtype():
     dtype = tvm.DataType("handle")
     assert dtype.type_code == tvm.DataTypeCode.HANDLE

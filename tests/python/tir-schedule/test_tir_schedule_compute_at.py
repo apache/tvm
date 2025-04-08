@@ -1227,7 +1227,7 @@ def test_compute_at_tiled_repeat_op(use_block_name):
 
 def test_compute_at_rev_iter():
     @T.prim_func
-    def before(X: T.Buffer[(10, 10), "float32"], Z: T.Buffer[(10, 10), "float32"]):
+    def before(X: T.Buffer((10, 10), "float32"), Z: T.Buffer((10, 10), "float32")):
         Y = T.alloc_buffer([10, 10], "float32")
         for i, j in T.grid(10, 10):
             with T.block("b0"):
@@ -1239,7 +1239,7 @@ def test_compute_at_rev_iter():
                 Z[vi, vj] = Y[vj, vi] + 2.0
 
     @T.prim_func
-    def after(X: T.Buffer[(10, 10), "float32"], Z: T.Buffer[(10, 10), "float32"]):
+    def after(X: T.Buffer((10, 10), "float32"), Z: T.Buffer((10, 10), "float32")):
         Y = T.alloc_buffer([10, 10], "float32")
         for i in range(10):
             for j in range(10):

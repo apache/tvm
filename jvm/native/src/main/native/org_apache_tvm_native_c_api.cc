@@ -25,9 +25,9 @@
 #include "tvm_runtime.h"
 #else
 #include <dlfcn.h>
-#include <dmlc/logging.h>
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/logging.h>
 #endif
 #include <cstring>
 #include <iostream>

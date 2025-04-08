@@ -600,7 +600,7 @@ class BlockCollector : public tir::StmtVisitor {
     } else {
       for (const auto& [gv, base_func] : sch_->mod()->functions) {
         // `gv->name_hint` is the name of the function
-        // `base_func` can be PrimFunc or relay::Function
+        // `base_func` can be PrimFunc or relax::Function
         if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
           f_collect(GetRef<tir::PrimFunc>(func), gv->name_hint);
         }

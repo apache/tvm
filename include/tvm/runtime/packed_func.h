@@ -1460,10 +1460,6 @@ inline const char* DLDeviceType2Str(int type) {
       return "cuda_managed";
     case kDLOpenCL:
       return "opencl";
-    case kDLSDAccel:
-      return "sdaccel";
-    case kDLAOCL:
-      return "aocl";
     case kDLVulkan:
       return "vulkan";
     case kDLMetal:
@@ -1482,10 +1478,6 @@ inline const char* DLDeviceType2Str(int type) {
       return "webgpu";
     case kDLHexagon:
       return "hexagon";
-    case kOpenGL:
-      return "opengl";
-    case kDLMicroDev:
-      return "microdev";
     default:
       LOG(FATAL) << "unknown type = " << type;
   }

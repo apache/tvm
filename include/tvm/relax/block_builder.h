@@ -25,6 +25,7 @@
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>

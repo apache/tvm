@@ -70,11 +70,10 @@ from .target import (
     riscv_cpu,
     hexagon,
     stm32,
+    adreno,
 )
 from .virtual_device import VirtualDevice
 from .compilation_config import make_compilation_config
 from .tag import list_tags
-from .generic_func import GenericFunc
-from .generic_func import generic_func, get_native_generic_func, override_native_generic_func
 from . import datatype
 from . import codegen

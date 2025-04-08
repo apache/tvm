@@ -17,11 +17,10 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/functor.h>
-#include <tvm/relay/function.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -54,22 +53,6 @@ TEST(IRF, CountVar) {
     if (n.as<VarNode>()) ++n_var;
   });
   ICHECK_EQ(n_var, 2);
-}
-
-TEST(IRF, VisitPrimFuncs) {
-  using namespace tvm;
-  using namespace tvm::tir;
-  PrimFunc prim_func(/*params=*/{}, /*body=*/Evaluate(Integer(0)));
-  auto c_data = tvm::runtime::NDArray::Empty({1, 2, 3}, {kDLFloat, 32, 1}, {kDLCPU, 0});
-  relay::Function relay_func(/*params=*/{}, /*body=*/relay::Expr(relay::Constant(c_data)),
-                             /*ret_type=*/relay::Type(), /*ty_params=*/{});
-  IRModule mod({
-      {GlobalVar("main"), prim_func},
-      {GlobalVar("main2"), relay_func},
-  });
-  int n_visited = 0;
-  VisitPrimFuncs(mod, [&](const PrimFuncNode* func) { ++n_visited; });
-  ASSERT_EQ(n_visited, 1);
 }
 
 TEST(IRF, PreOrderVisit) {

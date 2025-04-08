@@ -28,6 +28,9 @@ from tvm.relax.frontend.torch import relax_dynamo
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
+from packaging import version
+
+torch_version = torch.__version__
 
 
 def test_relax_dynamo():
@@ -154,6 +157,10 @@ def test_relax_dynamo_dynamic():
             tvm.testing.assert_allclose(opt_func(x, y), opt_func(x, y))
 
 
+@pytest.mark.skipif(
+    version.parse(torch_version) >= version.parse("2.6.0"),
+    reason="Tests not compatible with PyTorch >= 2.6",
+)
 def test_subgraph_capture():
     import torch
     from tvm.relax.frontend.torch.dynamo import dynamo_capture_subgraphs
@@ -268,6 +275,10 @@ def test_subgraph_capture():
     tvm.ir.assert_structural_equal(mod, expected)
 
 
+@pytest.mark.skipif(
+    version.parse(torch_version) >= version.parse("2.6.0"),
+    reason="Tests not compatible with PyTorch >= 2.6",
+)
 def verify_dynamo_model(torch_model, input_info, binding, expected):
     import torch
     import torch._dynamo as dynamo
@@ -276,7 +287,7 @@ def verify_dynamo_model(torch_model, input_info, binding, expected):
     args = []
     for info in input_info:
         args.append(torch.zeros(*info[0], dtype=_convert_data_type(info[1])))
-    graph_model = dynamo.export(torch_model, *args)[0]
+    graph_model = dynamo.export(torch_model)(*args)[0]
     mod = from_fx(graph_model, input_info, unwrap_unit_return_tuple=True)
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
@@ -315,7 +326,7 @@ def test_ones():
     class Expected1:
         @R.function
         def main(
-            inp_0: R.Tensor((256, 256), dtype="float32")
+            inp_0: R.Tensor((256, 256), dtype="float32"),
         ) -> R.Tensor((10, 10), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.full(
@@ -346,7 +357,7 @@ def test_full():
     class Expected1:
         @R.function
         def main(
-            inp_0: R.Tensor((256, 256), dtype="float32")
+            inp_0: R.Tensor((256, 256), dtype="float32"),
         ) -> R.Tensor((10, 10), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.full(
@@ -381,7 +392,7 @@ def test_gelu():
     class ExpectedGeLU:
         @R.function
         def main(
-            inp_0: R.Tensor((128, 256), dtype="float32")
+            inp_0: R.Tensor((128, 256), dtype="float32"),
         ) -> R.Tensor((128, 256), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((128, 256), dtype="float32") = R.nn.gelu(inp_0)
@@ -393,7 +404,7 @@ def test_gelu():
     class ExpectedGeLUTanh:
         @R.function
         def main(
-            inp_0: R.Tensor((128, 256), dtype="float32")
+            inp_0: R.Tensor((128, 256), dtype="float32"),
         ) -> R.Tensor((128, 256), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((128, 256), dtype="float32") = R.nn.gelu_tanh(inp_0)
@@ -490,7 +501,7 @@ def test_getitem():
     class Expected2:
         @R.function
         def main(
-            inp_0: R.Tensor((1, 77, 1280), dtype="float32")
+            inp_0: R.Tensor((1, 77, 1280), dtype="float32"),
         ) -> R.Tensor((1, 77, 1280), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((1,), dtype="int64") = R.arange(
@@ -525,6 +536,10 @@ def test_getitem():
     verify_dynamo_model(Select2(), [([1, 77, 1280], "float32")], {}, Expected2)
 
 
+@pytest.mark.skipif(
+    version.parse(torch_version) >= version.parse("2.6.0"),
+    reason="Need to support dynamic arange in Relax",
+)
 @tvm.testing.requires_gpu
 def test_arange():
     import torch

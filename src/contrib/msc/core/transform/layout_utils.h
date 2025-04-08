@@ -37,7 +37,7 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
-using Expr = tvm::RelayExpr;
+using Expr = tvm::RelaxExpr;
 using namespace tvm::relax;
 
 /*!

@@ -19,7 +19,7 @@
 
 {% call m.invoke_build(
   name='BUILD: i386',
-  node='CPU-SMALL',
+  node='CPU',
   condition='!skip_ci && is_docs_only_build != 1',
   ws='tvm/build-i386',
   docker_image='ci_i386',
@@ -29,9 +29,9 @@
     script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
     label: 'Create i386 cmake config',
   )
-  cmake_build(ci_i386, 'build', '-j2')
+  cmake_build(ci_i386, 'build')
   make_cpp_tests(ci_i386, 'build')
-  {{ m.upload_artifacts(tag='i386', filenames=tvm_multilib_tsim + crttest + cpptest + microtvm_template_projects) }}
+  {{ m.upload_artifacts(tag='i386', filenames=tvm_lib + cpptest) }}
 {% endcall %}
 
 
@@ -39,7 +39,6 @@
 
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="python: i386",
-  node="CPU-SMALL",
   num_shards=3,
   ws="tvm/integration-python-i386",
   platform="i386",
@@ -58,4 +57,4 @@
   )
 {% endcall %}
 
-{{ m.invoke_tests(test_method_names) -}}
+{{ m.invoke_tests(node="CPU-SMALL", test_method_names=test_method_names) -}}

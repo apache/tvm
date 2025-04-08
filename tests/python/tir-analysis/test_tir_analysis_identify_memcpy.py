@@ -56,7 +56,7 @@ class BaseTest:
 class Test1D(BaseTest):
     """Simplest test case"""
 
-    def func(A: T.Buffer[1024, "float32"], B: T.Buffer[1024, "float32"]):
+    def func(A: T.Buffer(1024, "float32"), B: T.Buffer(1024, "float32")):
         for i in T.serial(1024):
             B[i] = A[i]
 
@@ -68,7 +68,7 @@ class Test1D(BaseTest):
 class Test1DCompute(BaseTest):
     """Like Test1D, but a computation prevents this being a memcpy"""
 
-    def func(A: T.Buffer[1024, "float32"], B: T.Buffer[1024, "float32"]):
+    def func(A: T.Buffer(1024, "float32"), B: T.Buffer(1024, "float32")):
         for i in T.serial(1024):
             B[i] = A[i] + 1.0
 
@@ -79,7 +79,7 @@ class Test1DCompute(BaseTest):
 class Test1DConditional(BaseTest):
     """Like Test1D, but a conditionals prevents this being a memcpy"""
 
-    def func(A: T.Buffer[1024, "float32"], B: T.Buffer[1024, "float32"]):
+    def func(A: T.Buffer(1024, "float32"), B: T.Buffer(1024, "float32")):
         for i in T.serial(1024):
             if i < 1024:
                 B[i] = A[i]
@@ -92,7 +92,7 @@ class Test1DConditional(BaseTest):
 class Test1DStridedInput(BaseTest):
     """Like Test1D, but strided input prevents this being a memcpy"""
 
-    def func(A: T.Buffer[2048, "float32"], B: T.Buffer[1024, "float32"]):
+    def func(A: T.Buffer(2048, "float32"), B: T.Buffer(1024, "float32")):
         for i in T.serial(1024):
             B[i] = A[i * 2]
 
@@ -103,7 +103,7 @@ class Test1DStridedInput(BaseTest):
 class Test1DStridedOutput(BaseTest):
     """Like Test1D, but strided output prevents this being a memcpy"""
 
-    def func(A: T.Buffer[1024, "float32"], B: T.Buffer[2048, "float32"]):
+    def func(A: T.Buffer(1024, "float32"), B: T.Buffer(2048, "float32")):
         for i in T.serial(1024):
             B[i * 2] = A[i]
 
@@ -114,7 +114,7 @@ class Test1DStridedOutput(BaseTest):
 class Test1DInput2DOutputFusedLoop(BaseTest):
     """Like Test1D, but the output is written as a 2-d buffer"""
 
-    def func(A: T.Buffer[1024, "float32"], B: T.Buffer[(32, 32), "float32"]):
+    def func(A: T.Buffer(1024, "float32"), B: T.Buffer((32, 32), "float32")):
         for i in T.serial(1024):
             B[i // 32, i % 32] = A[i]
 
@@ -126,7 +126,7 @@ class Test1DInput2DOutputFusedLoop(BaseTest):
 class Test2DInput1DOutputFusedLoop(BaseTest):
     """Like Test1D, but the input is written as a 2-d buffer"""
 
-    def func(A: T.Buffer[(32, 32), "float32"], B: T.Buffer[1024, "float32"]):
+    def func(A: T.Buffer((32, 32), "float32"), B: T.Buffer(1024, "float32")):
         for i in T.serial(1024):
             B[i] = A[i // 32, i % 32]
 
@@ -144,7 +144,7 @@ class Test1DInput1DOutputNestedLoop(BaseTest):
     is more convenient to return the results for all loops.
     """
 
-    def func(A: T.Buffer[1024, "float32"], B: T.Buffer[1024, "float32"]):
+    def func(A: T.Buffer(1024, "float32"), B: T.Buffer(1024, "float32")):
         for i, j in T.grid(32, 32):
             B[i * 32 + j] = A[i * 32 + j]
 
@@ -165,7 +165,7 @@ class Test1DInput1DOutputNestedLoopEquivalentExpressions(BaseTest):
     equivalent.
     """
 
-    def func(A: T.Buffer[1024, "float32"], B: T.Buffer[1024, "float32"]):
+    def func(A: T.Buffer(1024, "float32"), B: T.Buffer(1024, "float32")):
         for i, j in T.grid(32, 32):
             B[i * 32 + j] = A[j + i * 32]
 
@@ -181,7 +181,7 @@ class Test1DInput1DOutputNestedLoopEquivalentExpressions(BaseTest):
 class Test1DInput2DOutputNestedLoop(BaseTest):
     """Like Test1DInput1DOutputNestedLoop, but with a 2-d output buffer"""
 
-    def func(A: T.Buffer[1024, "float32"], B: T.Buffer[(32, 32), "float32"]):
+    def func(A: T.Buffer(1024, "float32"), B: T.Buffer((32, 32), "float32")):
         for i, j in T.grid(32, 32):
             B[i, j] = A[i * 32 + j]
 
@@ -197,7 +197,7 @@ class Test1DInput2DOutputNestedLoop(BaseTest):
 class Test2DInput1DOutputNestedLoop(BaseTest):
     """Like Test1DInput1DOutputNestedLoop, but with a 2-d input buffer"""
 
-    def func(A: T.Buffer[(32, 32), "float32"], B: T.Buffer[1024, "float32"]):
+    def func(A: T.Buffer((32, 32), "float32"), B: T.Buffer(1024, "float32")):
         for i, j in T.grid(32, 32):
             B[i * 32 + j] = A[i, j]
 
@@ -213,7 +213,7 @@ class Test2DInput1DOutputNestedLoop(BaseTest):
 class Test2DInput2DOutputNestedLoop(BaseTest):
     """Like Test1DInput1DOutputNestedLoop, but with 2-d input/output buffers"""
 
-    def func(A: T.Buffer[(32, 32), "float32"], B: T.Buffer[(32, 32), "float32"]):
+    def func(A: T.Buffer((32, 32), "float32"), B: T.Buffer((32, 32), "float32")):
         for i, j in T.grid(32, 32):
             B[i, j] = A[i, j]
 
@@ -232,7 +232,7 @@ class Test2DInput2DOutputTransposeOutput(BaseTest):
     This is not recognized as a memcpy, because it results in a transpose.
     """
 
-    def func(A: T.Buffer[(32, 32), "float32"], B: T.Buffer[(32, 32), "float32"]):
+    def func(A: T.Buffer((32, 32), "float32"), B: T.Buffer((32, 32), "float32")):
         for i, j in T.grid(32, 32):
             B[j, i] = A[i, j]
 
@@ -249,7 +249,7 @@ class Test2DInput2DOutputTransposeInput(BaseTest):
     This is not recognized as a memcpy, because it results in a transpose.
     """
 
-    def func(A: T.Buffer[(32, 32), "float32"], B: T.Buffer[(32, 32), "float32"]):
+    def func(A: T.Buffer((32, 32), "float32"), B: T.Buffer((32, 32), "float32")):
         for i, j in T.grid(32, 32):
             B[i, j] = A[j, i]
 
@@ -269,7 +269,7 @@ class Test2DInput2DOutputTransposeBoth(BaseTest):
     region has been copied over, even though it occurs out of order.
     """
 
-    def func(A: T.Buffer[(32, 32), "float32"], B: T.Buffer[(32, 32), "float32"]):
+    def func(A: T.Buffer((32, 32), "float32"), B: T.Buffer((32, 32), "float32")):
         for i, j in T.grid(32, 32):
             B[j, i] = A[j, i]
 
@@ -288,7 +288,7 @@ class TestCacheRead(BaseTest):
     pattern would appear when B is a read cache of A.
     """
 
-    def func(A: T.Buffer[(32, 32), "float32"], B: T.Buffer[32, "float32"]):
+    def func(A: T.Buffer((32, 32), "float32"), B: T.Buffer(32, "float32")):
         for i, j in T.grid(32, 32):
             B[j] = A[i, j]
 
@@ -308,7 +308,7 @@ class TestCacheWrite(BaseTest):
     pattern would appear when A is a write cache of B.
     """
 
-    def func(A: T.Buffer[32, "float32"], B: T.Buffer[(32, 32), "float32"]):
+    def func(A: T.Buffer(32, "float32"), B: T.Buffer((32, 32), "float32")):
         for i, j in T.grid(32, 32):
             B[i, j] = A[j]
 

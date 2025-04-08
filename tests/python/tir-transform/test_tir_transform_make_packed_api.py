@@ -21,32 +21,6 @@ import tvm
 import tvm.testing
 from tvm import te, tir
 from tvm.script import tir as T, ir as I
-from tvm.driver.build_module import schedule_to_module
-
-
-def test_makeapi():
-    """Not yet working, mock design"""
-    n = te.size_var("n")
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
-    s = te.create_schedule(C.op)
-
-    mod = schedule_to_module(s, [n, A, B, C])
-    mod = tvm.tir.transform.StorageFlatten(64)(mod)
-    mod = tvm.tir.transform.Apply(
-        lambda f: f.with_attr(
-            {
-                "target": tvm.target.Target("llvm", host="llvm"),
-                "global_symbol": "main",
-            }
-        )
-    )(mod)
-
-    before = mod
-    after = tvm.tir.transform.MakePackedAPI()(before)
-    f = after["main"]
-    assert len(f.params) == 6
 
 
 def _find_assignment(stmt, var_name):
@@ -296,7 +270,7 @@ def test_function_call_with_wrong_argument_count():
     ):
         pass
 
-    built = tvm.build(func, target="llvm")
+    built = tvm.compile(func, target="llvm")
 
     with pytest.raises(tvm.TVMError):
         built()
@@ -309,7 +283,7 @@ def test_function_call_with_wrong_type_code():
     def func(A: T.Buffer([16, 16], "int32")):
         pass
 
-    built = tvm.build(func, target="llvm")
+    built = tvm.compile(func, target="llvm")
 
     with pytest.raises(tvm.TVMError):
         built(0)
@@ -323,7 +297,7 @@ def test_function_call_with_null_data_pointer():
         for i, j in T.grid(16, 16):
             B[i, j] = A[i, j]
 
-    built = tvm.build(func, target="llvm")
+    built = tvm.compile(func, target="llvm")
 
     A = tvm.nd.empty([16, 16], "int32", tvm.cpu())
     B = tvm.nd.empty([16, 16], "int32", tvm.cpu())
@@ -342,7 +316,7 @@ def test_function_call_with_wrong_dimensionality():
         for i, j in T.grid(16, 16):
             B[i, j] = A[i, j]
 
-    built = tvm.build(func, target="llvm")
+    built = tvm.compile(func, target="llvm")
 
     A = tvm.nd.empty([16], "int32", tvm.cpu())
     B = tvm.nd.empty([16], "int32", tvm.cpu())

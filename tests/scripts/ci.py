@@ -594,7 +594,6 @@ generated = [
         help="Run GPU build and test(s)",
         options={
             "cpp": CPP_UNITTEST,
-            "topi": ("run topi tests", ["./tests/scripts/task_python_topi.sh"]),
             "unittest": (
                 "run unit tests",
                 [
@@ -684,7 +683,6 @@ generated = [
                 "run full Python tests",
                 [
                     "./tests/scripts/task_python_unittest.sh",
-                    "./tests/scripts/task_python_arm_compute_library.sh",
                 ],
             ),
         },

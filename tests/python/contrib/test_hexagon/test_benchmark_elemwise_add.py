@@ -199,18 +199,12 @@ def _benchmark_hexagon_elementwise_add_kernel(
         try:
             ns_tir_module = _get_irmod_elemwise_add(shape, dtype, mem_scope)
 
-            # Dump the primfunc NS-TIR (as text) to the log file...
-            lowered_mod = tvm.lower(ns_tir_module, _PRIMFUNC_NAME)
-            log_file.write("LOWERED IR MODULE:\n")
-            log_file.write(str(lowered_mod))
-            log_file.write("\n")
-
             # Lower the primfunc's IRModule to Hexagon object code...
             input1 = tvm.te.placeholder(shape, dtype=dtype)
             input2 = tvm.te.placeholder(shape, dtype=dtype)
             output = tvm.te.placeholder(shape, dtype=dtype)
 
-            built_module: tvm.driver.build_module.OperatorModule = tvm.build(
+            built_module: tvm.driver.build_module.OperatorModule = tvm.compile(
                 ns_tir_module,
                 [
                     input1,

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test Plugin in MSC. """
+"""Test Plugin in MSC."""
 
 import numpy as np
 
@@ -261,7 +261,7 @@ def _run_relax(relax_mod, target_name, data):
     else:
         device = tvm.cpu()
     with tvm.transform.PassContext(opt_level=3):
-        relax_exec = tvm.relax.build(relax_mod, target)
+        relax_exec = tvm.compile(relax_mod, target)
         runnable = tvm.relax.VirtualMachine(relax_exec, device)
     data = tvm.nd.array(data, device)
     return runnable["main"](data).asnumpy()

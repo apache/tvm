@@ -32,19 +32,19 @@ def sparse_reshape(
 
     Parameters
     ----------
-    sparse_indices : relay.Expr
+    sparse_indices : te.Expr
         A 2-D tensor[N, n_dim] of integers containing location of sparse values, where N is the
         number of sparse values and n_dim is the number of dimensions of the dense_shape
 
-    prev_shape : relay.Expr
+    prev_shape : te.Expr
         A 1-D tensor containing the previous shape of the dense tensor
 
-    new_shape : relay.Expr
+    new_shape : te.Expr
         A 1-D tensor containing the new shape of the dense tensor
 
     Returns
     -------
-    result: relay.Expr
+    result: te.Expr
         Output tensor.
 
     Examples
@@ -58,7 +58,7 @@ def sparse_reshape(
                             [1, 2, 3]]
         prev_shape = [2, 3, 4]
         new_shape = [9, -1]
-        new_sparse_indices, new_shape = relay.sparse_reshape(
+        new_sparse_indices, new_shape = topi.sparse_reshape(
             sparse_indices, prev_shape, new_shape)
         new_sparse_indices = [[0, 0],
                               [0, 1],

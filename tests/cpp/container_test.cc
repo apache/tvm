@@ -17,13 +17,12 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
-#include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/container/variant.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
@@ -98,19 +97,6 @@ class TestArrayObj : public Object, public InplaceArrayBase<TestArrayObj, TestEr
 
   friend class InplaceArrayBase;
 };
-
-TEST(ADT, Constructor) {
-  std::vector<ObjectRef> fields;
-  auto f1 = ADT::Tuple(fields);
-  auto f2 = ADT::Tuple(fields);
-  ADT v1{1, {f1, f2}};
-  ASSERT_EQ(f1.tag(), 0);
-  ASSERT_EQ(f2.size(), 0);
-  ASSERT_EQ(v1.tag(), 1);
-  ASSERT_EQ(v1.size(), 2);
-  ASSERT_EQ(Downcast<ADT>(v1[0]).tag(), 0);
-  ASSERT_EQ(Downcast<ADT>(v1[1]).size(), 0);
-}
 
 TEST(InplaceArrayBase, BadExceptionSafety) {
   auto wrong_init = []() {

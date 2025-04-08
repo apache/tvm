@@ -1897,21 +1897,6 @@ def test_no_thread_broadcast_rewrite():
     _check(no_thread_broadcast, lowered_no_thread_broadcast)
 
 
-def test_lower_te():
-    a = te.placeholder((32, 2, 2))
-    k1 = te.reduce_axis((0, 2), "k1")
-    k2 = te.reduce_axis((0, 2), "k2")
-    b = te.compute((32,), lambda i: te.sum(a[i, k1, k2], axis=[k1, k2]))
-    s = te.create_schedule(b.op)
-    s[b].bind(k1, te.thread_axis("threadIdx.x"))
-    s[b].bind(k2, te.thread_axis("threadIdx.y"))
-    orig_mod = tvm.driver.build_module.schedule_to_module(s, [a, b])
-    mod = tvm.tir.transform.LowerCrossThreadReduction()(orig_mod)
-    tvm.ir.assert_structural_equal(
-        mod, orig_mod
-    )  # LowerCrossThreadReduction should do nothing on TE
-
-
 def test_layer_norm_tuple_sum():
     _check(layer_norm_tuple_sum, lowered_layer_norm_tuple_sum)
 

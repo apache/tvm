@@ -35,7 +35,7 @@ def stft(
     This gives frequency components of the signal as they change over time.
     Parameters
     ----------
-    data : relay.Expr
+    data : te.Tensor
         Either a 1-D tensor or a 2-D batch tensor.
     n_fft : int
         The size of Fourier transform
@@ -43,7 +43,7 @@ def stft(
         The distance between neighboring sliding window frames
     win_length : int
         The size of window frame and STFT filter
-    window : relay.Expr
+    window : te.Tensor
         A 1-D tensor window frame
     normalized : bool
         Whether to return the normalized STFT results
@@ -51,7 +51,7 @@ def stft(
         Whether to return onesided result or fill with conjugate symmetry
     Returns
     -------
-    output : relay.Expr
+    output : te.Tensor
         Tensor containing the STFT result
     Examples
     --------
@@ -60,7 +60,7 @@ def stft(
         data = [1, 2, 3, 4, 5, 6]
         window = [4, 3, 2]
         [n_fft, hop_length, win_length, normalized, onesided] = [3, 3, 3, False, True]
-        relay.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
+        topi.stft(data, n_fft, hop_length, win_length, window, normalized, onesided)
         -> [[[15.0000,  0.0000], [34.0000,  0.0000]], [[ 4.5000,  0.8660], [ 1.0000, -1.7321]]]
     """
 
@@ -136,10 +136,10 @@ def dft(
 
     Parameters
     ----------
-    re_data : relay.Expr
+    re_data : te.Tensor
         N-D tensor, real part of the input signal.
 
-    im_data : relay.Expr
+    im_data : te.Tensor
         N-D tensor, imaginary part of the input signal.
         If the signal is real, then the values of this tensor are zeros.
 
@@ -148,9 +148,9 @@ def dft(
 
     Returns
     -------
-    re_output : relay.Expr
+    re_output : te.Tensor
         The Fourier Transform of the input (Real part).
-    im_output : relay.Expr
+    im_output : te.Tensor
         The Fourier Transform of the input (Imaginary part).
     """
 

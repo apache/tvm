@@ -152,7 +152,6 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const PrimExpr&, ObjectPat
   void VisitExpr_(const IntImmNode* op, ObjectPath path) override;
   void VisitExpr_(const FloatImmNode* op, ObjectPath path) override;
   void VisitExpr_(const StringImmNode* op, ObjectPath path) override;
-  void VisitExpr_(const AnyNode* op, ObjectPath path) override;
 
   // Utility to call EnterDef/ExitDef.  Used in the implementation of
   // WithDef.

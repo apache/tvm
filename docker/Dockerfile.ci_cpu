@@ -53,10 +53,6 @@ RUN bash /install/ubuntu_install_dnnl.sh
 COPY install/ubuntu_install_papi.sh /install/ubuntu_install_papi.sh
 RUN bash /install/ubuntu_install_papi.sh ""
 
-# Install MxNet for access to Gluon Model Zoo.
-COPY install/ubuntu_install_mxnet.sh /install/ubuntu_install_mxnet.sh
-RUN bash /install/ubuntu_install_mxnet.sh
-
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
 RUN bash /install/ubuntu_install_rust.sh
@@ -77,21 +73,9 @@ COPY install/ubuntu_install_golang.sh /install/ubuntu_install_golang.sh
 RUN bash /install/ubuntu_install_golang.sh
 ENV PATH $PATH:/usr/lib/go-1.18/bin
 
-# ANTLR deps
-COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
-RUN bash /install/ubuntu_install_java.sh
-
 # BYODT deps
 COPY install/ubuntu_install_universal.sh /install/ubuntu_install_universal.sh
 RUN bash /install/ubuntu_install_universal.sh
-
-# Chisel deps for TSIM
-COPY install/ubuntu_install_sbt.sh /install/ubuntu_install_sbt.sh
-RUN bash /install/ubuntu_install_sbt.sh
-
-# Verilator deps
-COPY install/ubuntu_install_verilator.sh /install/ubuntu_install_verilator.sh
-RUN bash /install/ubuntu_install_verilator.sh
 
 # TensorFlow deps
 COPY install/ubuntu_install_tensorflow.sh /install/ubuntu_install_tensorflow.sh
@@ -109,14 +93,6 @@ RUN bash /install/ubuntu_install_jax.sh "cpu"
 COPY install/ubuntu_download_arm_compute_lib_binaries.sh /install/ubuntu_download_arm_compute_lib_binaries.sh
 RUN bash /install/ubuntu_download_arm_compute_lib_binaries.sh
 
-# Vitis-AI PyXIR CI deps
-COPY install/ubuntu_install_vitis_ai_packages_ci.sh /install/ubuntu_install_vitis_ai_packages_ci.sh
-RUN bash /install/ubuntu_install_vitis_ai_packages_ci.sh
-
-# PaddlePaddle deps
-COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
-RUN bash /install/ubuntu_install_paddle.sh
-
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh
@@ -129,10 +105,6 @@ RUN bash /install/ubuntu_install_libxsmm.sh
 # ONNX and PyTorch
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
-
-# NNEF
-COPY install/ubuntu_install_nnef.sh /install/ubuntu_install_nnef.sh
-RUN bash /install/ubuntu_install_nnef.sh
 
 # AArch64 Architecture Envelope Model (AEM)
 COPY install/ubuntu_install_aprofile_aem.sh /install

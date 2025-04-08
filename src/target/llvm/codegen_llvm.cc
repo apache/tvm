@@ -104,7 +104,6 @@
 
 #include "../../arith/pattern_match.h"
 #include "../build_common.h"
-#include "../func_registry_generator.h"
 #include "codegen_params.h"
 #include "llvm_instance.h"
 
@@ -174,21 +173,8 @@ void CodeGenLLVM::InitTarget() {
   data_layout_.reset(new llvm::DataLayout(module_.get()));
 #endif
   if (native_vector_bits_ == 0) {
-    const auto& arch = tm->getTargetTriple().getArch();
-    if (arch == llvm::Triple::x86_64) {
-      // for avx512
-      native_vector_bits_ = 512;
-    } else if (arch == llvm::Triple::x86) {
-      native_vector_bits_ = 256;
-    } else if (arch == llvm::Triple::arm || arch == llvm::Triple::aarch64) {
-      native_vector_bits_ = 128;
-    } else {
-      native_vector_bits_ = 128;
-      std::string arch_name = std::string(tm->getTargetTriple().getArchName());
-      LOG(WARNING) << "Set native vector bits to be 128 for " << arch_name;
-    }
+    native_vector_bits_ = llvm_target_->GetVectorWidth();
   }
-
 #if TVM_LLVM_VERSION >= 60
   bool use_float16_abi = false;
 #if TVM_LLVM_VERSION >= 150
@@ -593,8 +579,10 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
       default:
         LOG(FATAL) << "do not support " << dtype;
     }
-  } else if (dtype.code() == DataType::kE4M3Float || dtype.code() == DataType::kE5M2Float) {
+  } else if (dtype.code() == DataType::kFloat8_e4m3fn || dtype.code() == DataType::kFloat8_e5m2) {
     etype = llvm::Type::getInt8Ty(*ctx);
+  } else if (dtype.code() == DataType::kFloat4_e2m1fn) {
+    etype = llvm::Type::getIntNTy(*ctx, 4);
   }
   if (!dtype.is_scalar()) {
 #if TVM_LLVM_VERSION >= 110
@@ -754,7 +742,7 @@ std::unique_ptr<CodeGenLLVM::DebugInfo> CodeGenLLVM::CreateDebugInfo(llvm::Modul
   auto debug_info = llvm::make_unique<CodeGenLLVM::DebugInfo>();
   debug_info->di_builder_ = llvm::make_unique<llvm::DIBuilder>(*module);
 #endif
-  // TODO(tulloch): pass this information through relay::Span classes to the IRModule instance?
+  // TODO(tulloch): pass this information through Span classes to the IRModule instance?
   debug_info->file_ = debug_info->di_builder_->createFile("IRModule.CodeGenLLVM", ".");
   const int runtime_version = 0;
   const bool is_optimized = false;
@@ -1809,7 +1797,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
   auto make_load = [this, &loads](TypedPointer buffer_ptr, int /* subelement_i */,
                                   llvm::Value* predicate, int alignment, bool is_volatile) {
     llvm::Instruction* load = nullptr;
-    if (predicate != NULL) {
+    if (predicate != nullptr) {
       ICHECK(!is_volatile)
           << "The masked load intrinsic does not support declaring load as volatile.";
 #if TVM_LLVM_VERSION >= 130
@@ -1962,7 +1950,7 @@ void CodeGenLLVM::VisitStmt_(const BufferStoreNode* op) {
       to_store = builder_->CreateExtractElement(value, subelement_i);
     }
 
-    if (predicate != NULL) {
+    if (predicate != nullptr) {
       ICHECK(!is_volatile)
           << "The masked store intrinsic does not support declaring store as volatile.";
 #if TVM_LLVM_VERSION >= 110

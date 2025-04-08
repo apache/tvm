@@ -200,14 +200,9 @@ class OpaqueBlockLower : public StmtExprMutator {
 };
 
 PrimFunc LowerOpaqueBlock(PrimFunc f) {
-  // Only apply this pass to TIR that is not from TE schedules
-  if (!IsFromLegacyTESchedule(f)) {
-    auto fptr = f.CopyOnWrite();
-    fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body));
-    return f;
-  } else {
-    return f;
-  }
+  auto fptr = f.CopyOnWrite();
+  fptr->body = OpaqueBlockLower::Rewrite(std::move(fptr->body));
+  return f;
 }
 
 namespace transform {

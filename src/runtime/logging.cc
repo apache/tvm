@@ -270,7 +270,7 @@ std::string Backtrace() {
 
 #else
 
-#include <dmlc/logging.h>
+#include <tvm/runtime/logging.h>
 
 namespace tvm {
 namespace runtime {

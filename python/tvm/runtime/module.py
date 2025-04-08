@@ -517,15 +517,6 @@ class Module(object):
         if isinstance(file_name, Path):
             file_name = str(file_name)
 
-        if self.type_key == "stackvm":
-            if not file_name.endswith(".stackvm"):
-                raise ValueError(
-                    f"Module[{self.type_key}]: can only be saved as stackvm format."
-                    "did you build with LLVM enabled?"
-                )
-            self.save(file_name)
-            return
-
         modules = self._collect_dso_modules()
         if workspace_dir is None:
             temp = _utils.tempdir()

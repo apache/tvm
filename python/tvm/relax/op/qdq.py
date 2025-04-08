@@ -35,7 +35,7 @@ def quantize(data: Expr, scale: Expr, zero_point: Expr, axis: int = -1, out_dtyp
     scale : tvm.relax.Expr
         The output scale.
 
-    zero_point : tvm.relay.Expr
+    zero_point : tvm.relax.Expr
         The output zero_point.
 
     axis : int
@@ -70,7 +70,7 @@ def dequantize(
     scale : tvm.relax.Expr
         The input scale.
 
-    zero_point : tvm.relay.Expr
+    zero_point : tvm.relax.Expr
         The input zero_point.
 
     axis : int

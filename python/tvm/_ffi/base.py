@@ -83,6 +83,9 @@ _RUNTIME_ONLY = "runtime" in _LIB_NAME
 # The FFI mode of TVM
 _FFI_MODE = os.environ.get("TVM_FFI", "auto")
 
+if _FFI_MODE == "ctypes":
+    raise ImportError("We have phased out ctypes support in favor of cython on wards")
+
 
 # ----------------------------
 # helper function in ctypes.
@@ -119,22 +122,6 @@ def c_array(ctype, values):
         Created ctypes array
     """
     return (ctype * len(values))(*values)
-
-
-def decorate(func, fwrapped):
-    """A wrapper call of decorator package, differs to call time
-
-    Parameters
-    ----------
-    func : function
-        The original function
-
-    fwrapped : function
-        The wrapped function
-    """
-    import decorator
-
-    return decorator.decorate(func, fwrapped)
 
 
 # -----------------------------------------

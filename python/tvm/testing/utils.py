@@ -67,7 +67,6 @@ import copy
 import copyreg
 import ctypes
 import functools
-import hashlib
 import itertools
 import logging
 import os
@@ -90,11 +89,9 @@ import tvm.tir
 import tvm.te
 import tvm._ffi
 
-from tvm import relay
 from tvm.target import codegen
-from tvm.contrib import nvcc, cudnn, rocm, graph_executor
+from tvm.contrib import nvcc, cudnn, rocm
 import tvm.contrib.hexagon._ci_env_check as hexagon
-from tvm.driver.tvmc.frontends import load_model
 from tvm.error import TVMError
 import tvm.contrib.utils
 
@@ -329,8 +326,7 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
 
         A = tvm.te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
         args = [tvm.nd.empty(A.shape, A.dtype)]
-        sch = tvm.te.create_schedule(A.op)
-        mod = tvm.build(sch, [A])
+        mod = tvm.compile(tvm.IRModule.from_expr(tvm.te.create_prim_func([A])))
         mod(*args)
         return args[0].numpy()
 
@@ -459,7 +455,7 @@ DEFAULT_TEST_TARGETS = [
     "nvptx",
     "vulkan -from_device=0",
     "opencl",
-    "opencl -device=mali,aocl_sw_emu",
+    "opencl -device=mali",
     "opencl -device=intel_graphics",
     "metal",
     "rocm",
@@ -1025,9 +1021,6 @@ requires_aprofile_aem_fvp = Feature(
     compile_time_check=_aprofile_aem_fvp_compile_time_check,
 )
 
-# Mark a test as requiring Vitis AI to run
-requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
-
 
 # check cpu features
 def _has_cpu_feat(features):
@@ -1122,6 +1115,39 @@ slow = pytest.mark.skipif(
     SKIP_SLOW_TESTS,
     reason="Skipping slow test since the SKIP_SLOW_TESTS environment variable is 'true'",
 )
+
+
+def requires_llvm_minimum_version(major_version):
+    """Mark a test as requiring at least a specific version of LLVM.
+
+    Unit test marked with this decorator will run only if the
+    installed version of LLVM is at least `major_version`.
+
+    This also marks the test as requiring LLVM backend support.
+
+    Parameters
+    ----------
+    major_version: int
+
+
+    """
+
+    try:
+        llvm_version = tvm.target.codegen.llvm_version_major()
+    except RuntimeError:
+        llvm_version = 0
+
+    requires = [
+        pytest.mark.skipif(
+            llvm_version < major_version, reason=f"Requires LLVM >= {major_version}"
+        ),
+        *requires_llvm.marks(),
+    ]
+
+    def inner(func):
+        return _compose([func], requires)
+
+    return inner
 
 
 def requires_nvcc_version(major_version, minor_version=0, release_version=0):
@@ -1647,35 +1673,6 @@ def get_dtype_range(dtype: str) -> Tuple[int, int]:
     return type_info.min, type_info.max
 
 
-def generate_ref_data(mod, input_data, params=None, target="llvm"):
-    """Generate reference data through executing the relay module"""
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lib = relay.build(mod, target=target, params=params)
-
-    lib_name = "mod.so"
-    temp = tvm.contrib.utils.tempdir()
-    lib_path = temp.relpath(lib_name)
-    lib.export_library(lib_path)
-    lib = tvm.runtime.load_module(lib_path)
-    grt_mod = graph_executor.GraphModule(lib["default"](tvm.cpu()))
-    grt_mod.set_input(**input_data)
-    grt_mod.run()
-    output_count = grt_mod.get_num_outputs()
-    out = [grt_mod.get_output(i).numpy() for i in range(output_count)]
-    if isinstance(mod, tvm.relay.Function):
-        main = mod
-    else:
-        main = mod["main"]
-    if "output_tensor_names" in main.attrs:
-        output_tensor_names = main.attrs["output_tensor_names"]
-    else:
-        output_tensor_names = (
-            ["output"] if output_count == 1 else [f"output{i}" for i in range(output_count)]
-        )
-
-    return dict(zip(output_tensor_names, out))
-
-
 class _DeepCopyAllowedClasses(dict):
     def __init__(self, allowed_class_list):
         self.allowed_class_list = allowed_class_list
@@ -1831,8 +1828,8 @@ def terminate_self():
 def is_ampere_or_newer():
     """Check if the target environment has an NVIDIA Ampere GPU or newer."""
     arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
-    return major >= 8
+    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
+    return major >= 8 and minor != 9
 
 
 def install_request_hook(depth: int) -> None:
@@ -1878,47 +1875,6 @@ def install_request_hook(depth: int) -> None:
     import request_hook  # pylint: disable=import-outside-toplevel
 
     request_hook.init()
-
-
-def fetch_model_from_url(
-    url: str,
-    model_format: str,
-    sha256: str,
-) -> Tuple[tvm.ir.module.IRModule, dict]:
-    """Testing function to fetch a model from a URL and return it as a Relay
-    model. Downloaded files are cached for future re-use.
-
-    Parameters
-    ----------
-    url : str
-        The URL or list of URLs to try downloading the model from.
-
-    model_format: str
-        The file extension of the model format used.
-
-    sha256 : str
-        The sha256 hex hash to compare the downloaded model against.
-
-    Returns
-    -------
-    (mod, params) : object
-        The Relay representation of the downloaded model.
-    """
-
-    rel_path = f"model_{sha256}.{model_format}"
-    file = tvm.contrib.download.download_testdata(url, rel_path, overwrite=False)
-
-    # Check SHA-256 hash
-    file_hash = hashlib.sha256()
-    with open(file, "rb") as f:
-        for block in iter(lambda: f.read(2**24), b""):
-            file_hash.update(block)
-
-    if file_hash.hexdigest() != sha256:
-        raise FileNotFoundError("SHA-256 hash for model does not match")
-
-    tvmc_model = load_model(file, model_format)
-    return tvmc_model.mod, tvmc_model.params
 
 
 def _mark_parameterizations(*params, marker_fn, reason):
@@ -2218,25 +2174,3 @@ class CompareBeforeAfter:
                 f"or an instance of `tvm.tir.PrimFunc`.  "
                 f"Instead, received {type(expected)}."
             )
-
-
-class _control_span_filling:
-    def __init__(self, on=True):
-        self._on = on
-        self._pass_ctx = tvm.transform.PassContext(config={"relay.frontend.fill_span": self._on})
-
-    def __enter__(self):
-        self._pass_ctx.__enter__()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._pass_ctx.__exit__(exc_type, exc_val, exc_tb)
-
-
-class enable_span_filling(_control_span_filling):
-    def __init__(self):
-        super().__init__()
-
-
-class disable_span_filling(_control_span_filling):
-    def __init__(self):
-        super().__init__(on=False)

@@ -236,7 +236,7 @@ class VecAllocAccess : public StmtExprMutator {
       shape.Set(shape.size() - 1, analyzer_.Simplify(shape[shape.size() - 1] * var_lanes_));
 
       // TODO(Lunderberg): Move this pass to be prior to
-      // StorageFlatten/FlattenBuffer, implement by appending a
+      // FlattenBuffer, implement by appending a
       // dimension to the buffer.  Since it is currently after the
       // flattening, the strides are not technically necessary, but
       // are updated for consistency.
@@ -503,7 +503,11 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       if (value.dtype().is_scalable_vector()) {
         return Call(op->dtype.with_scalable_vscale_factor(lanes), op->op, {value});
       } else {
-        return Call(op->dtype.with_lanes(lanes), op->op, {value});
+        int new_lanes = (op->dtype != DataType::NVFloat4E2M1FN() &&
+                         op->args[0].dtype() != DataType::NVFloat4E2M1FN())
+                            ? (value.dtype().bits() * value.dtype().lanes()) / op->dtype.bits()
+                            : value.dtype().lanes();
+        return Call(op->dtype.with_lanes(new_lanes), op->op, {value});
       }
     }
   }
@@ -622,6 +626,68 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       } else {
         return Let(op->var, value, body);
       }
+    }
+  }
+  PrimExpr VisitExpr_(const ShuffleNode* op) final {
+    CHECK(op->vectors.size() == 1 && op->indices.size() == 1)
+        << "Cannot vectorize ShuffleNode with multiple vectors or indices: the vector size is "
+        << op->vectors.size() << " and the index size is " << op->indices.size();
+    int lane_vectors = 0;
+    int lane_indices = 0;
+    Array<PrimExpr> vectors = MutateArray(op->vectors, &lane_vectors);
+    Array<PrimExpr> indices = MutateArray(op->indices, &lane_indices);
+    if (vectors.same_as(op->vectors) && indices.same_as(op->indices)) {
+      return GetRef<PrimExpr>(op);
+    }
+
+    int new_vec_length = Downcast<IntImm>(var_lanes_)->value / op->vectors[0].dtype().lanes();
+    PrimExpr updated_index = indices[0];
+    // Check that the indices satisfy the specific patterns.
+    auto f_check_index = [this, op](const PrimExpr& index) {
+      // Allowing Ramp(0, 1, var_lanes_)
+      if (const auto* ramp = index.as<RampNode>()) {
+        if (ramp->base->IsInstance<IntImmNode>() && Downcast<IntImm>(ramp->base)->value == 0 &&
+            ramp->stride->IsInstance<IntImmNode>() && Downcast<IntImm>(ramp->stride)->value == 1 &&
+            ramp->lanes->IsInstance<IntImmNode>() &&
+            Downcast<IntImm>(ramp->lanes)->value == Downcast<IntImm>(var_lanes_)->value) {
+          return true;
+        }
+      }
+      // Allowing FloorMod(Ramp(0, 1, var_lanes_), Broadcast(op->vectors[0]->lanes, var_lanes_))
+      if (const auto* floordiv = index.as<FloorModNode>()) {
+        if (const auto* ramp = floordiv->a.as<RampNode>()) {
+          if (const auto* broadcast = floordiv->b.as<BroadcastNode>()) {
+            if (ramp->base->IsInstance<IntImmNode>() && Downcast<IntImm>(ramp->base)->value == 0 &&
+                ramp->stride->IsInstance<IntImmNode>() &&
+                Downcast<IntImm>(ramp->stride)->value == 1 &&
+                ramp->lanes->IsInstance<IntImmNode>() &&
+                Downcast<IntImm>(ramp->lanes)->value == Downcast<IntImm>(var_lanes_)->value &&
+                broadcast->value->IsInstance<IntImmNode>() &&
+                Downcast<IntImm>(broadcast->value)->value == op->vectors[0]->dtype.lanes() &&
+                broadcast->lanes->IsInstance<IntImmNode>() &&
+                Downcast<IntImm>(broadcast->lanes)->value == Downcast<IntImm>(var_lanes_)->value) {
+              return true;
+            }
+          }
+        }
+      }
+
+      return false;
+    };
+    CHECK(f_check_index(updated_index));
+
+    if (new_vec_length == 1) {
+      return tir::Substitute(op->vectors[0], {{var_, tvm::IntImm(var_->dtype, 0)}});
+    } else {
+      PrimExpr prev_ramp = ramp_;
+      PrimExpr prev_var_lanes = var_lanes_;
+      ramp_ = Ramp(IntImm(var_->dtype, 0), IntImm(var_->dtype, 2), new_vec_length);
+      var_lanes_ = tvm::IntImm(var_lanes_.dtype(), new_vec_length);
+      lane_vectors = 0;
+      vectors = MutateArray(op->vectors, &lane_vectors);
+      ramp_ = prev_ramp;
+      var_lanes_ = prev_var_lanes;
+      return vectors[0];
     }
   }
   // BufferStore
@@ -780,7 +846,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     }
 
     // TODO(Lunderberg): Move this pass to be prior to
-    // StorageFlatten/FlattenBuffer.  That will allow this pass to be
+    // FlattenBuffer.  That will allow this pass to be
     // implemented as adding a new buffer dimension, which is later
     // flattened.
 

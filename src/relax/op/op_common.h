@@ -27,8 +27,6 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/relay/expr.h>
-#include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
 
 #include <optional>
@@ -201,7 +199,8 @@ template <bool require_float_dtype, typename FType>
 inline StructInfo InferStructInfoUnary(const Call& call, const BlockBuilder& ctx,
                                        FType f_compute_out_dtype) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
-  if (require_float_dtype && !input_sinfo->IsUnknownDtype() && !input_sinfo->dtype.is_float()) {
+  if (require_float_dtype && !input_sinfo->IsUnknownDtype() &&
+      (!input_sinfo->dtype.is_float() && !input_sinfo->dtype.is_bfloat())) {
     ctx->ReportFatal(
         Diagnostic::Error(call)
         << call->op

@@ -48,8 +48,6 @@ ALLOW_EXTENSION = {
     "cu",
     "cuh",
     "bat",
-    # relay text format
-    "rly",
     # configurations
     "mk",
     "in",

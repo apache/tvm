@@ -245,6 +245,74 @@ def sum(
     return wrap_nested(_op.sum(x._expr, axis, keepdims), name)
 
 
+def max(
+    x: Tensor,
+    axis: Optional[Union[int, List[int]]] = None,
+    keepdims: bool = False,
+    name: str = "max",
+) -> Tensor:
+    """Computes the max of tensor elements over given axes.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data tensor
+
+    axis : Optional[Union[int, List[int]]]
+        Axis or axes along which a max is performed.
+        The default, axis=None, will max all of the elements of the input tensor.
+        Negative indexing is supported.
+
+    keepdims : bool
+        If this is set to True, the axes which are reduced are left in the result as
+        dimensions with size one.
+        With this option, the result will broadcast correctly against the input tensor.
+
+    name : str
+        Name hint for this operation.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.max(x._expr, axis, keepdims), name)
+
+
+def min(
+    x: Tensor,
+    axis: Optional[Union[int, List[int]]] = None,
+    keepdims: bool = False,
+    name: str = "min",
+) -> Tensor:
+    """Computes the min of tensor elements over given axes.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data tensor
+
+    axis : Optional[Union[int, List[int]]]
+        Axis or axes along which a min is performed.
+        The default, axis=None, will min all of the elements of the input tensor.
+        Negative indexing is supported.
+
+    keepdims : bool
+        If this is set to True, the axes which are reduced are left in the result as
+        dimensions with size one.
+        With this option, the result will broadcast correctly against the input tensor.
+
+    name : str
+        Name hint for this operation.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.min(x._expr, axis, keepdims), name)
+
+
 def matmul(a: Tensor, b: Tensor, out_dtype: Optional[str] = None, name: str = "matmul") -> Tensor:
     """General matrix multiplication of two tensors, with broadcasting on batched dimensions.
 
@@ -1438,7 +1506,7 @@ def pad(
     x: Tensor,
     pad: List[int],
     mode: str = "constant",
-    value: int = 0,
+    value: float = 0.0,
     name: str = "pad",
 ) -> Tensor:
     """
@@ -1454,7 +1522,7 @@ def pad(
     mod : str
         Padding mode to use, constant implies padded elements will use
         value argument.
-    value : int
+    value : float
         What to pad with in constant mode.
     name : str
         Name hint for this operator.
@@ -1464,7 +1532,7 @@ def pad(
     result : Tensor
         Padded output tensor.
     """
-    return wrap_nested(_op.nn.pad(x._expr, pad_width=pad, pad_value=value, pad_mode=mode), name)
+    return wrap_nested(_op.nn.pad(x._expr, pad_width=pad, pad_mode=mode, pad_value=value), name)
 
 
 def square(x: Tensor, name: str = "square") -> Tensor:

@@ -85,7 +85,7 @@ macro_rules! impl_tvm_device {
 }
 
 impl_tvm_device!(
-    DLDeviceType_kDLCPU: [cpu, llvm, stackvm],
+    DLDeviceType_kDLCPU: [cpu, llvm],
     DLDeviceType_kDLCUDA: [cuda, nvptx],
     DLDeviceType_kDLOpenCL: [cl],
     DLDeviceType_kDLMetal: [metal],

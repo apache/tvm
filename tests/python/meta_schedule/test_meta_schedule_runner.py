@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" Test Meta Schedule Runner """
+"""Test Meta Schedule Runner"""
 
 import itertools
 import sys
@@ -388,6 +388,7 @@ def test_meta_schedule_py_runner():
         runner.run([])
 
 
+@tvm.testing.skip_if_32bit(reason="skipping test for i386.")
 def test_meta_schedule_rpc_runner_time_out():
     """Test meta schedule RPC Runner time out by using a super large workload"""
 
@@ -629,9 +630,9 @@ def test_meta_schedule_runner_matmul_test():
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
-            f_preproc="cache_flush_cpu_non_first_arg"
-            if evaluator_config.enable_cpu_cache_flush
-            else "",
+            f_preproc=(
+                "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
+            ),
         )
         repeated_costs: List[List[float]] = []
         for args in repeated_args:
@@ -741,9 +742,9 @@ def test_meta_schedule_runner_add_test():
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
-            f_preproc="cache_flush_cpu_non_first_arg"
-            if evaluator_config.enable_cpu_cache_flush
-            else "",
+            f_preproc=(
+                "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
+            ),
         )
         repeated_costs: List[List[float]] = []
         for args in repeated_args:
@@ -846,9 +847,9 @@ def test_meta_schedule_local_runner_add_test():
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
-            f_preproc="cache_flush_cpu_non_first_arg"
-            if evaluator_config.enable_cpu_cache_flush
-            else "",
+            f_preproc=(
+                "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
+            ),
         )
         repeated_costs: List[List[float]] = []
         for args in repeated_args:

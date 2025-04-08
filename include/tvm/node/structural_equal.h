@@ -100,11 +100,9 @@ class ObjectPathPair : public ObjectRef {
  *  - Normal node: equality is recursively defined without the restriction
  *    of graph nodes.
  *
- *  Vars(tir::Var, TypeVar) and non-constant relay expression nodes are graph nodes.
- *  For example, it means that `%1 = %x + %y; %1 + %1` is not structurally equal
- *  to `%1 = %x + %y; %2 = %x + %y; %1 + %2` in relay.
+ *  Vars(tir::Var, relax::Var) nodes are graph nodes.
  *
- *  A var-type node(e.g. tir::Var, TypeVar) can be mapped as equal to another var
+ *  A var-type node(e.g. tir::Var) can be mapped as equal to another var
  *  with the same type if one of the following condition holds:
  *
  *  - They appear in a same definition point(e.g. function argument).

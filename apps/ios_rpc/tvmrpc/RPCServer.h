@@ -74,7 +74,7 @@ typedef enum {
 @property int port;
 /// Custom address to report into tracker server (optional). Ignored for Standalone/Proxy modes
 @property(retain) NSString* custom_addr;
-/// Triger to enable printing of server state info
+/// Trigger to enable printing of server state info
 @property BOOL verbose;
 /// RPC port opened on the device. Ignored for Proxy/Tracker modes
 @property int actual_port;
@@ -82,7 +82,7 @@ typedef enum {
 @property(retain) NSString* device_addr;
 
 /*!
- * \brief Create server with specified sevicing mode
+ * \brief Create server with specified servicing mode
  * \param mode Mode of server
  */
 + (instancetype)serverWithMode:(RPCServerMode)mode;

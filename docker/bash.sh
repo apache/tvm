@@ -460,27 +460,6 @@ if [[ "${DOCKER_IMAGE_NAME}" == *"ci"* ]]; then
     DOCKER_ENV+=( --env PYTHONPATH="${REPO_MOUNT_POINT}"/python )
 fi
 
-
-
-# If the Vitis-AI docker image is selected, expose the Xilinx FPGA
-# devices and required volumes containing e.g. DSA's and overlays
-if [[ "${DOCKER_IMAGE_NAME}" == *"demo_vitis_ai"* && -d "/dev/shm" && -d "/opt/xilinx/dsa" && -d "/opt/xilinx/overlaybins" ]]; then
-    DOCKER_MOUNT+=( --volume /dev/shm:/dev/shm
-                    --volume /opt/xilinx/dsa:/opt/xilinx/dsa
-                    --volume /opt/xilinx/overlaybins:/opt/xilinx/overlaybins
-                  )
-
-    XCLMGMT_DRIVER="$(find /dev -name xclmgmt\*)"
-    for DRIVER in "${XCLMGMT_DRIVER}"; do
-       DOCKER_DEVICES+=( --device="${DRIVER}" )
-    done
-
-    RENDER_DRIVER="$(find /dev/dri -name renderD\*)"
-    for DRIVER in "${RENDER_DRIVER}"; do
-        DOCKER_DEVICES+=( --device="${DRIVER}" )
-    done
-fi
-
 # Add ROCm devices and set ROCM_ENABLED=1 which is used in the with_the_same_user script
 # to add the user to the video group
 if [[ "${DOCKER_IMAGE_NAME}" == *"rocm"* && -d "/dev/dri" ]]; then

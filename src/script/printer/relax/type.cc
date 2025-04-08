@@ -36,8 +36,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::DynTensorType>(
-        "", [](relax::DynTensorType n, ObjectPath n_p, IRDocsifier d) -> Doc {
+    .set_dispatch<relax::TensorType>(  //
+        "", [](relax::TensorType n, ObjectPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "Tensor")
               ->Call({}, {"ndim", "dtype"},
                      {LiteralDoc::Int(n->ndim, n_p->Attr("ndim")),
@@ -45,7 +45,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::PackedFuncType>(
+    .set_dispatch<relax::PackedFuncType>(  //
         "", [](relax::PackedFuncType n, ObjectPath n_p, IRDocsifier d) -> Doc {
           return Relax(d, "PackedFunc");  // TODO(@junrushao): verify if this is correct
         });
@@ -80,7 +80,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_SCRIPT_REPR(relax::ShapeTypeNode, ReprPrintRelax);
 TVM_SCRIPT_REPR(relax::ObjectTypeNode, ReprPrintRelax);
-TVM_SCRIPT_REPR(relax::DynTensorTypeNode, ReprPrintRelax);
+TVM_SCRIPT_REPR(relax::TensorTypeNode, ReprPrintRelax);
 TVM_SCRIPT_REPR(relax::PackedFuncTypeNode, ReprPrintRelax);
 TVM_REGISTER_GLOBAL("script.printer.ReprPrintRelax").set_body_typed(ReprPrintRelax);
 

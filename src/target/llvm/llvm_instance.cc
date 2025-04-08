@@ -53,6 +53,18 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
+#if TVM_LLVM_VERSION >= 190
+#include <llvm/TargetParser/RISCVISAInfo.h>
+#else
+#if TVM_LLVM_VERSION >= 140
+#include <llvm/Support/RISCVISAInfo.h>
+#endif
+#endif
+#if TVM_LLVM_VERSION >= 160
+#include <llvm/TargetParser/RISCVTargetParser.h>
+#else
+#include <llvm/Support/TargetParser.h>
+#endif
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/optional.h>
@@ -273,10 +285,48 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     }
   }
 
-  // RISCV code model
+  // TVM & LLVM vector width options
+  if (const auto& w = Downcast<Optional<runtime::Int>>(target.Get("vector-width"))) {
+    vector_width_ = w.value();
+    if ((vector_width_ <= 0) || (vector_width_ > 65536)) {
+      LOG(FATAL) << "Invalid -vector-width value: " << vector_width_;
+    }
+  }
+
+  // RISCV code model & vlen
   auto arch = llvm::Triple(triple_).getArch();
   if (arch == llvm::Triple::riscv32 || arch == llvm::Triple::riscv64) {
+    // code model
     code_model_ = llvm::CodeModel::Medium;
+#if TVM_LLVM_VERSION >= 140
+    // VLEN inference
+    const auto cpu_name = GetOrCreateTargetMachine(false)->getMCSubtargetInfo()->getCPU();
+    const auto canon_arch = llvm::RISCV::getMArchFromMcpu(cpu_name);
+    auto ISAInfo =
+        llvm::RISCVISAInfo::parseArchString(canon_arch, /*EnableExperimentalExtensions=*/true);
+    // infer VLEN from LLVM RISCVInfo parser
+    if (!llvm::errorToBool(ISAInfo.takeError()) && (vector_width_ == 0)) {
+      vector_width_ = (*ISAInfo)->getMinVLen();
+    }
+    // infer VLEN from LLVM options (zvlXXXb override)
+    for (const auto& attr : attrs_) {
+      if (attr.find("zvl") != std::string::npos) {
+        std::string vec;
+        for (char c : attr) {
+          if (std::isdigit(c)) vec += c;
+        }
+        vector_width_ = std::stoi(vec);
+      }
+    }
+#endif
+    if (vector_width_ > 0) {
+      // push cl-opt to LLVM
+      llvm_options_.push_back(
+          ParseOptionString("-riscv-v-vector-bits-min:int=" + std::to_string(vector_width_)));
+    } else {
+      // fallback default (codegen will warn)
+      llvm_options_.push_back(ParseOptionString("-riscv-v-vector-bits-min:int=256"));
+    }
   }
 
   // Target options
@@ -878,6 +928,32 @@ const bool LLVMTargetInfo::TargetHasCPUFeature(const std::string& feature) const
   auto feats = GetAllLLVMCpuFeatures();
   bool has_feature = feats.find(feature) != feats.end();
   return has_feature;
+}
+
+const int LLVMTargetInfo::GetVectorWidth() {
+  auto* tm = GetOrCreateTargetMachine(false);
+  const auto& arch = tm->getTargetTriple().getArch();
+  const std::string arch_name = std::string(tm->getTargetTriple().getArchName());
+  if (vector_width_ == 0) {
+    if (arch == llvm::Triple::x86_64) {
+      // for avx512
+      vector_width_ = 512;
+    } else if (arch == llvm::Triple::x86) {
+      vector_width_ = 256;
+    } else if (arch == llvm::Triple::arm || arch == llvm::Triple::aarch64) {
+      vector_width_ = 128;
+    } else if (arch == llvm::Triple::riscv32 || arch == llvm::Triple::riscv64) {
+      vector_width_ = 256;
+      LOG(WARNING) << "LLVM RVV VLEN inference failed, "
+                   << "using 256 bits, set -vector-width=XXX to override";
+    } else {
+      // fallback default
+      vector_width_ = 128;
+      LOG(WARNING) << "Set native vector bits to be 128 for `" << arch_name
+                   << "`, use -vector-width=XXX to override.";
+    }
+  }
+  return vector_width_;
 }
 
 // LLVMTarget

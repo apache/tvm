@@ -168,11 +168,12 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       *rv = device(index).compute_memory_size;
       return;
     }
-
     case kAvailableGlobalMemory:
       // Not currently implemented.  Will only be implementable for
       // devices that support the VK_EXT_memory_budget extension.
       break;
+    case kImagePitchAlignment:
+      return;
   }
 }
 

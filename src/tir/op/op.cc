@@ -201,6 +201,12 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   } else if (ltype.is_float8() && !rtype.is_float8()) {
     // Cast int->float8 for rhs when lhs is a float8
     rhs = cast(ltype, rhs);
+  } else if (!ltype.is_float4() && rtype.is_float4()) {
+    // Cast int->float4 for lhs when rhs is a float4
+    lhs = cast(rtype, lhs);
+  } else if (ltype.is_float4() && !rtype.is_float4()) {
+    // Cast int->float4 for rhs when lhs is a float4
+    rhs = cast(ltype, rhs);
   } else if ((ltype.is_int() && rtype.is_int()) || (ltype.is_uint() && rtype.is_uint())) {
     // Promote int to higher bits e.g. int8 + int16 --> int16 + int16
     if (ltype.bits() < rtype.bits()) {
@@ -267,11 +273,13 @@ PrimExpr max_value(const DataType& dtype, Span span) {
     return FloatImm(dtype, std::numeric_limits<float>::max(), span);
   } else if (dtype.is_float8()) {
     // according to https://arxiv.org/pdf/2209.05433.pdf
-    if (dtype.code() == DataType::TypeCode::kE5M2Float) {
+    if (dtype.code() == DataType::TypeCode::kFloat8_e5m2) {
       return FloatImm(dtype, 57344.0, span);
-    } else if (dtype.code() == DataType::TypeCode::kE4M3Float) {
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3fn) {
       return FloatImm(dtype, 448.0, span);
     }
+  } else if (dtype.is_float4()) {
+    return FloatImm(dtype, 6.0, span);
   }
   LOG(FATAL) << "Cannot decide max_value for type" << dtype;
 }
@@ -308,11 +316,13 @@ PrimExpr min_value(const DataType& dtype, Span span) {
     return FloatImm(dtype, std::numeric_limits<float>::lowest(), span);
   } else if (dtype.is_float8()) {
     // according to https://arxiv.org/pdf/2209.05433.pdf
-    if (dtype.code() == DataType::TypeCode::kE5M2Float) {
+    if (dtype.code() == DataType::TypeCode::kFloat8_e5m2) {
       return FloatImm(dtype, -57344.0, span);
-    } else if (dtype.code() == DataType::TypeCode::kE4M3Float) {
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3fn) {
       return FloatImm(dtype, -448.0, span);
     }
+  } else if (dtype.is_float4()) {
+    return FloatImm(dtype, -6.0, span);
   }
   LOG(FATAL) << "Cannot decide min_value for type" << dtype;
 }
@@ -415,8 +425,10 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
 PrimExpr reinterpret(const DataType& t, PrimExpr value, Span span) {
   if (value.dtype() == t) return value;
   if (!t.is_scalable_vector() && !value.dtype().is_scalable_vector()) {
-    ICHECK(value.dtype().bits() * value.dtype().lanes() == t.bits() * t.lanes())
-        << "Bitcast requires size match " << t << " vs " << value.dtype();
+    ICHECK(value.dtype().bits() * value.dtype().lanes() == t.bits() * t.lanes() ||
+           ((value.dtype().is_float4_e2m1fn() || t.is_float4_e2m1fn()) &&
+            value.dtype().bytes() * value.dtype().lanes() == t.bytes() * t.lanes()))
+        << "Reinterpret requires size match " << t << " vs " << value.dtype();
   }
   return tir::Call(t, tir::builtin::reinterpret(), {value}, span);
 }
@@ -789,7 +801,7 @@ PrimExpr abs(PrimExpr x, Span span) {
       return IntImm(x.dtype(), std::abs(px->value), px->span);
     }
     return tir::Select(x >= make_zero(x.dtype()), x, -x, span);
-  } else if (x.dtype().is_float()) {
+  } else if (x.dtype().is_float() || x.dtype().is_bfloat()) {
     using tir::FloatImmNode;
     const FloatImmNode* fx = x.as<FloatImmNode>();
     if (fx) {

@@ -143,7 +143,7 @@ bool RuntimeEnabled(const String& target_str) {
     return true;
   } else if (target == "cuda" || target == "gpu") {
     f_name = "device_api.cuda";
-  } else if (target == "cl" || target == "opencl" || target == "sdaccel") {
+  } else if (target == "cl" || target == "opencl") {
     f_name = "device_api.opencl";
   } else if (target == "mtl" || target == "metal") {
     f_name = "device_api.metal";
@@ -151,8 +151,6 @@ bool RuntimeEnabled(const String& target_str) {
     f_name = "target.runtime.tflite";
   } else if (target == "vulkan") {
     f_name = "device_api.vulkan";
-  } else if (target == "stackvm") {
-    f_name = "target.build.stackvm";
   } else if (target == "rpc") {
     f_name = "device_api.rpc";
   } else if (target == "hexagon") {

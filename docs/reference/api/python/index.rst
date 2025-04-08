@@ -85,21 +85,3 @@ Python API
 
     rpc
     contrib
-
-.. toctree::
-    :maxdepth: 1
-    :caption: Legacy
-
-    relay/index
-    relay/frontend
-    relay/nn
-    relay/vision
-    relay/image
-    relay/transform
-    relay/analysis
-    relay/backend
-    relay/dataflow_pattern
-    relay/testing
-    autotvm
-    auto_scheduler
-    graph_executor

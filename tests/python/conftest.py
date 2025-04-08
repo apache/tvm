@@ -19,20 +19,11 @@ import sys
 
 COLLECT_IGNORE = []
 if sys.platform.startswith("win"):
-    COLLECT_IGNORE.append("frontend/caffe")
-    COLLECT_IGNORE.append("frontend/caffe2")
     COLLECT_IGNORE.append("frontend/coreml")
-    COLLECT_IGNORE.append("frontend/darknet")
     COLLECT_IGNORE.append("frontend/keras")
-    COLLECT_IGNORE.append("frontend/mxnet")
     COLLECT_IGNORE.append("frontend/pytorch")
     COLLECT_IGNORE.append("frontend/tensorflow")
     COLLECT_IGNORE.append("frontend/tflite")
     COLLECT_IGNORE.append("frontend/onnx")
-    COLLECT_IGNORE.append("driver/tvmc/test_autoscheduler.py")
-    COLLECT_IGNORE.append("auto_scheduler/test_auto_scheduler_cost_model.py")  # stack overflow
-    # COLLECT_IGNORE.append("auto_scheduler/test_auto_scheduler_measure.py") # exception ignored
-    COLLECT_IGNORE.append("auto_scheduler/test_auto_scheduler_search_policy.py")  # stack overflow
-    # COLLECT_IGNORE.append("auto_scheduler/test_auto_scheduler_measure.py") # exception ignored
 
     COLLECT_IGNORE.append("tir_base/test_tir_intrin.py")

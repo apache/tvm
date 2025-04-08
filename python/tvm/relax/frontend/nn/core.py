@@ -522,7 +522,7 @@ class Module(SubroutineMixin):
                 relax_build(
                     mod,
                     target=Target.from_device(device),
-                    pipeline=pipeline,
+                    relax_pipeline=pipeline,
                 ),
                 device,
             )

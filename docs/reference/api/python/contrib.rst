@@ -48,20 +48,18 @@ tvm.contrib.dlpack
 .. automodule:: tvm.contrib.dlpack
     :members:
 
+
 tvm.contrib.emcc
 ~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.emcc
     :members:
+
 
 tvm.contrib.miopen
 ~~~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.miopen
     :members:
 
-tvm.contrib.mxnet
-~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.mxnet
-    :members:
 
 tvm.contrib.ndk
 ~~~~~~~~~~~~~~~
@@ -102,11 +100,6 @@ tvm.contrib.rocblas
 tvm.contrib.rocm
 ~~~~~~~~~~~~~~~~
 .. automodule:: tvm.contrib.rocm
-    :members:
-
-tvm.contrib.sparse
-~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.sparse
     :members:
 
 

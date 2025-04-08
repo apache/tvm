@@ -105,7 +105,7 @@ FuncType PrimFuncNode::func_type_annotation() const {
   for (auto param : this->params) {
     param_types.push_back(GetType(param));
   }
-  return FuncType(param_types, ret_type, {}, {});
+  return FuncType(param_types, ret_type);
 }
 
 TVM_REGISTER_NODE_TYPE(PrimFuncNode);

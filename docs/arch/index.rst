@@ -114,7 +114,7 @@ Target Translation
 The target translation phase transforms an IRModule to the corresponding target executable format.
 For backends such as x86 and ARM, we use the LLVM IRBuilder to build in-memory LLVM IR.
 We can also generate source-level languages such as CUDA C and OpenCL.
-Finally, we support direct translations of a Relay function (sub-graph) to specific targets via external code generators.
+Finally, we support direct translations of a Relax function (sub-graph) to specific targets via external code generators.
 It is important that the final code generation phase is as lightweight as possible. Vast majority of transformations
 and lowering should be performed before the target translation phase.
 
@@ -170,13 +170,13 @@ Summary and Discussions
 
 In summary, the key data structures in the compilation flows are:
 
-- IRModule: contains relay.Function and tir.PrimFunc
+- IRModule: contains relax.Function and tir.PrimFunc
 - runtime.Module: contains runtime.PackedFunc
 
 Most parts of the compilation are transformations among the key data structures.
 
-- relay/transform and tir/transform are determinstic rule-based transformations
-- auto_scheduler and autotvm contains the search-based transformations
+- relax/transform and tir/transform are determinstic rule-based transformations
+- meta-schedule contains the search-based transformations
 
 Finally, the compilation flow example is only a typical use-case of the TVM stack.
 We expose these key data structures and transformations to python and C++ APIs. As a result, you can use TVM just like the way you use numpy,
@@ -221,7 +221,6 @@ for learning-based optimizations.
 .. toctree::
    :maxdepth: 1
 
-   debugger
    introduction_to_module_serialization
    device_target_interactions
 
@@ -248,14 +247,14 @@ The ability to save/store, and inspect an IR node provides a foundation for maki
 tvm/ir
 ------
 The `tvm/ir` folder contains the unified data structure and interfaces across for all IR function variants.
-The components in `tvm/ir` are shared by `tvm/relay` and `tvm/tir`, notable ones include
+The components in `tvm/ir` are shared by `tvm/relax` and `tvm/tir`, notable ones include
 
 - IRModule
 - Type
 - PassContext and Pass
 - Op
 
-Different variants of functions(e.g. relay.Function and tir.PrimFunc) can co-exist in an IRModule.
+Different variants of functions(e.g. relax.Function and tir.PrimFunc) can co-exist in an IRModule.
 While these variants may not have the same content representation, they use the same data structure to represent types.
 As a consequence, we use the same data structure to represent function (type) signatures of these variants.
 The unified type system allows one function variant to call another function

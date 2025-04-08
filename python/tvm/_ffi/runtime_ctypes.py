@@ -66,8 +66,9 @@ class DataTypeCode(object):
     FLOAT = 2
     HANDLE = 3
     BFLOAT = 4
-    E4M3Float = 6
-    E5M2Float = 7
+    Float8E4M3FN = 6
+    Float8E5M2 = 7
+    Float4E2M1FN = 8
 
 
 class DataType(ctypes.Structure):
@@ -80,8 +81,9 @@ class DataType(ctypes.Structure):
         DataTypeCode.FLOAT: "float",
         DataTypeCode.HANDLE: "handle",
         DataTypeCode.BFLOAT: "bfloat",
-        DataTypeCode.E4M3Float: "e4m3_float",
-        DataTypeCode.E5M2Float: "e5m2_float",
+        DataTypeCode.Float8E4M3FN: "float8_e4m3fn",
+        DataTypeCode.Float8E5M2: "float8_e5m2",
+        DataTypeCode.Float4E2M1FN: "float4_e2m1fn",
     }
     NUMPY2STR = {
         np.dtype(np.bool_): "bool",
@@ -110,11 +112,13 @@ class DataType(ctypes.Structure):
         "uint16": {"type_code": DataTypeCode.UINT, "bits": 16, "lanes": 1},
         "uint32": {"type_code": DataTypeCode.UINT, "bits": 32, "lanes": 1},
         "uint64": {"type_code": DataTypeCode.UINT, "bits": 64, "lanes": 1},
-        "e4m3_float8": {"type_code": DataTypeCode.E4M3Float, "bits": 8, "lanes": 1},
-        "e5m2_float8": {"type_code": DataTypeCode.E5M2Float, "bits": 8, "lanes": 1},
+        "float8_e4m3fn": {"type_code": DataTypeCode.Float8E4M3FN, "bits": 8, "lanes": 1},
+        "float8_e5m2": {"type_code": DataTypeCode.Float8E5M2, "bits": 8, "lanes": 1},
+        "float4_e2m1fn": {"type_code": DataTypeCode.Float4E2M1FN, "bits": 4, "lanes": 1},
         "float16": {"type_code": DataTypeCode.FLOAT, "bits": 16, "lanes": 1},
         "float32": {"type_code": DataTypeCode.FLOAT, "bits": 32, "lanes": 1},
         "float64": {"type_code": DataTypeCode.FLOAT, "bits": 64, "lanes": 1},
+        "bfloat16": {"type_code": DataTypeCode.BFLOAT, "bits": 16, "lanes": 1},
     }
 
     def __init__(self, type_str):
@@ -152,6 +156,19 @@ class DataType(ctypes.Structure):
         elif head.startswith("uint"):
             self.type_code = DataTypeCode.UINT
             head = head[4:]
+        elif head.startswith("float4_e2m1fn"):
+            # Avoid being treated as "float"
+            self.type_code = DataTypeCode.Float4E2M1FN
+            bits = 4
+            head = ""
+        elif head.startswith("float8_e4m3fn"):
+            self.type_code = DataTypeCode.Float8E4M3FN
+            bits = 8
+            head = ""
+        elif head.startswith("float8_e5m2"):
+            self.type_code = DataTypeCode.Float8E5M2
+            bits = 8
+            head = ""
         elif head.startswith("float"):
             self.type_code = DataTypeCode.FLOAT
             head = head[5:]
@@ -162,12 +179,6 @@ class DataType(ctypes.Structure):
         elif head.startswith("bfloat"):
             self.type_code = DataTypeCode.BFLOAT
             head = head[6:]
-        elif head.startswith("e4m3_float"):
-            self.type_code = DataTypeCode.E4M3Float
-            head = head[10:]
-        elif head.startswith("e5m2_float"):
-            self.type_code = DataTypeCode.E5M2Float
-            head = head[10:]
         elif head.startswith("custom"):
             # pylint: disable=import-outside-toplevel
             import tvm.runtime._ffi_api
@@ -195,7 +206,14 @@ class DataType(ctypes.Structure):
             import tvm.runtime._ffi_api
 
             type_name = "custom[%s]" % tvm.runtime._ffi_api._datatype_get_type_name(self.type_code)
-        x = "%s%d" % (type_name, self.bits)
+        if self.type_code in [
+            DataTypeCode.Float8E4M3FN,
+            DataTypeCode.Float8E5M2,
+            DataTypeCode.Float4E2M1FN,
+        ]:
+            x = type_name
+        else:
+            x = "%s%d" % (type_name, self.bits)
         lanes_as_int = ctypes.c_int16(self.lanes).value
         if lanes_as_int > 1:
             x += "x%d" % self.lanes
@@ -230,8 +248,9 @@ class DataType(ctypes.Structure):
 
 if ml_dtypes is not None:
     DataType.NUMPY2STR[np.dtype(ml_dtypes.bfloat16)] = "bfloat16"
-    DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e4m3fn)] = "e4m3_float8"
-    DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e5m2)] = "e5m2_float8"
+    DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e4m3fn)] = "float8_e4m3fn"
+    DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e5m2)] = "float8_e5m2"
+    DataType.NUMPY2STR[np.dtype(ml_dtypes.float4_e2m1fn)] = "float4_e2m1fn"
 
 RPC_SESS_MASK = 128
 
@@ -264,10 +283,6 @@ class Device(ctypes.Structure):
     kDLOneAPI = 14
     kDLWebGPU = 15
     kDLHexagon = 16
-    kDLAOCL = 32
-    kDLSDAccel = 33
-    kOpenGL = 34
-    kDLMicroDev = 35
 
     _fields_ = [("device_type", ctypes.c_int), ("device_id", ctypes.c_int)]
     MASK2STR = {
@@ -285,10 +300,6 @@ class Device(ctypes.Structure):
         kDLOneAPI: "oneapi",
         kDLWebGPU: "webgpu",
         kDLHexagon: "hexagon",
-        kDLAOCL: "aocl",
-        kDLSDAccel: "sdaccel",
-        kOpenGL: "opengl",
-        kDLMicroDev: "microdev",
     }
 
     STR2MASK = {
@@ -303,9 +314,6 @@ class Device(ctypes.Structure):
         "nvptx": kDLCUDA,
         "cl": kDLOpenCL,
         "opencl": kDLOpenCL,
-        "sdaccel": kDLOpenCL,
-        "aocl": kDLAOCL,
-        "aocl_sw_emu": kDLAOCL,
         "vulkan": kDLVulkan,
         "metal": kDLMetal,
         "vpi": kDLVPI,

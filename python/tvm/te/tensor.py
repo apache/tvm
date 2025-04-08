@@ -49,11 +49,6 @@ class TensorSlice(ObjectGeneric, _expr.ExprOp):
 
 
 @tvm._ffi.register_object
-class TensorIntrinCall(Object):
-    """Intermediate structure for calling a tensor intrinsic."""
-
-
-@tvm._ffi.register_object
 class Tensor(DataProducer, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
 
@@ -173,11 +168,6 @@ class ComputeOp(BaseComputeOp):
 
 
 @tvm._ffi.register_object
-class TensorComputeOp(BaseComputeOp):
-    """Tensor operation."""
-
-
-@tvm._ffi.register_object
 class ScanOp(Operation):
     """Scan operation."""
 
@@ -190,13 +180,3 @@ class ScanOp(Operation):
 @tvm._ffi.register_object
 class ExternOp(Operation):
     """External operation."""
-
-
-@tvm._ffi.register_object
-class HybridOp(Operation):
-    """Hybrid operation."""
-
-    @property
-    def axis(self):
-        """Represent the IterVar axis, also defined when it is a HybridOp"""
-        return self.__getattr__("axis")

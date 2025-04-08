@@ -361,8 +361,22 @@ class PipelineRewriter : public StmtExprMutator {
     Stmt prologue = EmitImpl(pipeline_loop_->min, pipeline_loop_->min + max_stage_, true);
     Stmt body = EmitImpl(pipeline_loop_->min + max_stage_,
                          pipeline_loop_->min + pipeline_loop_->extent, false);
-    Stmt epilogue = EmitImpl(pipeline_loop_->min + pipeline_loop_->extent,
-                             pipeline_loop_->min + pipeline_loop_->extent + max_stage_, true);
+    // introduce extra lowerbound when the loop length is smaller than num stages
+    // to ensure the epilogue interval do not overlap the prologue interval.
+    PrimExpr epigogue_start = pipeline_loop_->min + pipeline_loop_->extent;
+    Optional<PrimExpr> extra_epilogue_lower_bound = NullOpt;
+    if (max_stage_ > 1 && !analyzer_.CanProveGreaterEqual(pipeline_loop_->extent, max_stage_)) {
+      if (is_const_int(epigogue_start)) {
+        epigogue_start = max(epigogue_start, pipeline_loop_->min + max_stage_);
+      } else {
+        // for dynamic case, introduce extra lowerbound as loop predicate
+        // to ensure the epilogue part unrollable.
+        extra_epilogue_lower_bound = pipeline_loop_->min + max_stage_;
+      }
+    }
+    Stmt epilogue =
+        EmitImpl(epigogue_start, pipeline_loop_->min + pipeline_loop_->extent + max_stage_, true,
+                 extra_epilogue_lower_bound);
 
     SeqStmt stmt = SeqStmt({prologue, body, epilogue});
 
@@ -793,9 +807,11 @@ class PipelineRewriter : public StmtExprMutator {
    * \param start The start of the range
    * \param end The end of the range
    * \param unroll_loop Whether the loop should be unrolled.
+   * \param extra_loop_lower_bound Extra loop lower bound.
    * \return The result loop.
    */
-  Stmt EmitImpl(PrimExpr start, PrimExpr end, bool unroll_loop) {
+  Stmt EmitImpl(PrimExpr start, PrimExpr end, bool unroll_loop,
+                Optional<PrimExpr> extra_loop_lower_bound = NullOpt) {
     PrimExpr new_loop_var;
     PrimExpr extent = end - start;
 
@@ -830,6 +846,9 @@ class PipelineRewriter : public StmtExprMutator {
       PrimExpr skewed_loop_var = new_loop_var - stage;
       PrimExpr inbound = analyzer_.Simplify(pipeline_loop_->min <= skewed_loop_var) &&
                          (skewed_loop_var < pipeline_loop_->min + pipeline_loop_->extent);
+      if (extra_loop_lower_bound.defined()) {
+        inbound = analyzer_.Simplify(inbound && new_loop_var >= extra_loop_lower_bound.value());
+      }
       if (analyzer_.CanProve(!inbound)) {
         continue;
       }

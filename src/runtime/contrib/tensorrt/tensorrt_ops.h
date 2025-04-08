@@ -18,14 +18,13 @@
 
 /*!
  * \file runtime/contrib/tensorrt/tensorrt_ops.h
- * \brief Converters from Relay ops into TensorRT layers. Converters should
+ * \brief Converters from ops into TensorRT layers. Converters should
  * inherit from TensorRTOpConverter and implement the Convert() method.
  */
 
 #ifndef TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_OPS_H_
 #define TVM_RUNTIME_CONTRIB_TENSORRT_TENSORRT_OPS_H_
 
-#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <string>
@@ -78,7 +77,7 @@ struct TensorRTOpInput {
       : tensor(nullptr), weight(weight), type(kWeight), weight_shape(shape) {}
 };
 
-/*! \brief Parameters to convert an Op from Relay to TensorRT. */
+/*! \brief Parameters to convert an Op to TensorRT. */
 struct TensorRTOpConverterParams {
   /*! \brief The TRT network that the new layer should be added to. */
   nvinfer1::INetworkDefinition* network;
@@ -104,7 +103,7 @@ struct TensorRTOpConverterParams {
   std::string LayerName() const { return op_name + "(" + std::to_string(nid) + ")"; }
 };
 
-/*! \brief Base class for an op converter from Relay to TRT. */
+/*! \brief Base class for an op converter from Operator to TRT. */
 class TensorRTOpConverter {
  public:
   virtual ~TensorRTOpConverter() = default;
@@ -198,7 +197,7 @@ class TensorRTOpConverter {
 };
 
 /*!
- * \brief Get the map of available TensorRTOpConverters, where the key is the name of the relay op.
+ * \brief Get the map of available TensorRTOpConverters, where the key is the name of the op.
  * \return Map of TensorRTOpConverters.
  */
 const std::unordered_map<std::string, std::unique_ptr<TensorRTOpConverter>>& GetOpConverters();

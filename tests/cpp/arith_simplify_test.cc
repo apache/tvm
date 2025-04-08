@@ -17,9 +17,9 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/arith/analyzer.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
 
 TEST(Simplify, MinMax) {

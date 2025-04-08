@@ -17,7 +17,7 @@
 import hashlib
 
 import tvm
-from tvm import auto_scheduler, te, topi
+from tvm import te, topi
 from tvm.ir.base import save_json
 from tvm.ir.module import IRModule
 from tvm.script import tir as T
@@ -446,50 +446,6 @@ def test_deterministic_cse():
         assert json_hash == initial_hash
 
 
-# Needed for the second test on determinism
-LOG_LINE = '{"i": [["[\\"conv2d_layer\\", 1, 7, 7, 512, 512, 3, 3, [1, 1], [1, 1]]", \
-            "llvm -keys=cpu -mcpu=broadwell -num-cores=2", \
-            [8, 64, 64, 0, 0, 0, 0, 0], "", 1, []], [[], [["CI", 5], \
-            ["SP", 3, 0, 1, [1, 1, 1], 1], ["SP", 3, 4, 512, [1, 32, 16], 1], \
-            ["SP", 3, 8, 7, [7, 1, 1], 1], ["SP", 3, 12, 7, [1, 1, 1], 1], \
-            ["SP", 3, 16, 512, [1], 1], ["SP", 3, 18, 3, [1], 1], ["SP", 3, 20, 3, [3], 1], \
-            ["RE", 3, [0, 4, 8, 12, 1, 5, 9, 13, 16, 18, 20, 2, 6, 10, 14, 17, 19, 21, 3, 7, \
-            11, 15]], ["FSP", 6, 0, 1, 2], ["FSP", 6, 3, 2, 2], ["FSP", 6, 6, 3, 2], \
-            ["FSP", 6, 9, 4, 2], ["RE", 6, [0, 3, 6, 9, 1, 4, 7, 10, 2, 5, 8, 11]], \
-            ["CA", 3, 6, 7], ["CA", 1, 6, 5], ["FU", 6, [0, 1, 2, 3, 4, 5]], ["AN", 6, 0, 3], \
-            ["PR", 3, 0, "auto_unroll_max_step$512"], ["AN", 1, 3, 2], ["AN", 3, 21, 2], \
-            ["AN", 6, 6, 2]]]], "r": [[0.0331129], 0, 0.900362, 1647464342], "v": "v0.6"}\n'
-
-
-# The workload associated with the log
-@auto_scheduler.register_workload
-def conv2d_layer(N, H, W, CO, CI, KH, KW, stride, padding):
-    data = te.placeholder((N, CI, H, W), name="data")
-    kernel = te.placeholder((CO, CI, KH, KW), name="kernel")
-    bias = te.placeholder((1, CO, 1, 1), name="bias")
-    conv = topi.nn.conv2d_nchw(data, kernel, stride, padding, dilation=1, out_dtype="float32")
-    out = topi.nn.relu(conv + bias)
-    return [data, kernel, bias, out]
-
-
-def test_deterministic_cse_2():
-    inp, inr = auto_scheduler.measure_record.load_record_from_string(LOG_LINE)
-    inp = auto_scheduler.measure.recover_measure_input(inp, rebuild_state=True)
-
-    initial_hash = None
-
-    for _ in range(10):
-        sch, args = inp.task.compute_dag.apply_steps_from_state(inp.state)
-        ir_module = tvm.lower(sch, args)
-        primfunc = ir_module["main"]
-        json_str = save_json(primfunc)
-        new_hash = hashlib.sha256(json_str.encode("utf-8")).hexdigest()
-        # Make sure that all the hashes are going to be the same
-        if initial_hash is None:
-            initial_hash = new_hash
-        assert new_hash == initial_hash
-
-
 if __name__ == "__main__":
     # Basic test:
     test_cse()
@@ -505,4 +461,3 @@ if __name__ == "__main__":
     test_semantic_equiv_associativity()
     # Tests that verify the determinism of the pass:
     test_deterministic_cse()
-    test_deterministic_cse_2()

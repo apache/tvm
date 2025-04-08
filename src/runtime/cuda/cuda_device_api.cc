@@ -127,6 +127,8 @@ class CUDADeviceAPI final : public DeviceAPI {
         *rv = static_cast<int64_t>(free_mem);
         return;
       }
+      case kImagePitchAlignment:
+        return;
     }
     *rv = value;
   }

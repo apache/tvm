@@ -119,11 +119,7 @@ typedef enum {
   // To help avoid accidental conflicts between `DLDeviceType`
   // and this enumeration, start numbering the new enumerators
   // a little higher than (currently) seems necessary.
-  kDLAOCL = 32,
-  kDLSDAccel,
-  kOpenGL,
-  kDLMicroDev,
-  TVMDeviceExtType_End,  // sentinel value
+  TVMDeviceExtType_End = 36,  // sentinel value
 } TVMDeviceExtType;
 
 #ifdef __cplusplus
@@ -149,10 +145,6 @@ static_assert(kDLOneAPI == 14, TVM_HARCODED_INTEGER_CHANGED_MSG);
 static_assert(kDLWebGPU == 15, TVM_HARCODED_INTEGER_CHANGED_MSG);
 static_assert(kDLHexagon == 16, TVM_HARCODED_INTEGER_CHANGED_MSG);
 
-static_assert(kDLAOCL == 32, TVM_HARCODED_INTEGER_CHANGED_MSG);
-static_assert(kDLSDAccel == 33, TVM_HARCODED_INTEGER_CHANGED_MSG);
-static_assert(kOpenGL == 34, TVM_HARCODED_INTEGER_CHANGED_MSG);
-static_assert(kDLMicroDev == 35, TVM_HARCODED_INTEGER_CHANGED_MSG);
 #undef TVM_HARCODED_INTEGER_CHANGED_MSG
 #endif
 

@@ -544,7 +544,7 @@ TVM_REGISTER_GLOBAL("tir.Let").set_body_typed([](Var var, PrimExpr value, PrimEx
 TVM_REGISTER_NODE_TYPE(LetNode);
 
 // Call
-Call::Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, Span span) {
+Call::Call(DataType dtype, RelaxExpr op, Array<PrimExpr> args, Span span) {
   for (size_t i = 0; i < args.size(); ++i) {
     ICHECK(args[i].defined()) << "arg " << i << " is not defined()";
   }
@@ -558,7 +558,7 @@ Call::Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, Span span) {
 }
 
 TVM_REGISTER_GLOBAL("tir.Call")
-    .set_body_typed([](DataType type, RelayExpr op,
+    .set_body_typed([](DataType type, RelaxExpr op,
                        Array<Variant<runtime::String, IterVar, BufferRegion, PrimExpr>> args,
                        Span span) {
       Array<PrimExpr> prim_expr_args;
@@ -746,18 +746,6 @@ TVM_REGISTER_GLOBAL("tir.Reduce")
     });
 
 TVM_REGISTER_NODE_TYPE(ReduceNode);
-
-// Any
-Any::Any(Span span) {
-  auto n = make_object<AnyNode>();
-  n->dtype = DataType::Int(32);
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-TVM_REGISTER_GLOBAL("tir.Any").set_body_typed([](Span span) { return Any(span); });
-
-TVM_REGISTER_NODE_TYPE(AnyNode);
 
 // BufferLoad
 void BufferLoadNode::LegalizeDType() {

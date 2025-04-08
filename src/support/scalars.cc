@@ -24,7 +24,6 @@
 
 #include "./scalars.h"
 
-#include "tvm/relay/expr.h"
 #include "tvm/runtime/builtin_fp16.h"
 
 namespace tvm {
@@ -38,15 +37,6 @@ static const DataType kFloat16 = DataType::Float(16);
 static const DataType kFloat32 = DataType::Float(32);
 static const DataType kFloat64 = DataType::Float(64);
 static const DataType kBool = DataType::Bool();
-
-bool IsSimpleScalarDtype(DataType dtype) {
-  return dtype == kInt16 || dtype == kInt32 || dtype == kInt64 || dtype == kFloat16 ||
-         dtype == kFloat32 || dtype == kFloat64 || dtype == kBool;
-}
-
-bool IsSimpleScalar(const relay::ConstantNode* constant_node) {
-  return constant_node->is_scalar() && IsSimpleScalarDtype(DataType(constant_node->data->dtype));
-}
 
 runtime::NDArray IntImmToNDArray(const IntImm& int_imm) {
   DLDevice dev = {DLDeviceType::kDLCPU, 0};

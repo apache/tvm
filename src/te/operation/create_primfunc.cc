@@ -22,6 +22,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/te/operation.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/function.h>
@@ -37,7 +38,7 @@
 #include "../../support/array.h"
 #include "../../tir/ir/functor_common.h"
 #include "../../tir/transforms/ir_utils.h"
-#include "../schedule/graph.h"
+#include "graph.h"
 
 namespace tvm {
 namespace tir {

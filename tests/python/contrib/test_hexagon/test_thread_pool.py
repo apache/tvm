@@ -75,7 +75,7 @@ def benchmark_func(mod, name, args, hexagon_session):
 @tvm.testing.requires_hexagon
 def test_speedup(hexagon_session: Session, capsys):
     """Test speedup"""
-    func = tvm.build(
+    func = tvm.compile(
         ElemwiseSumIRModule,
         target=get_hexagon_target("v68"),
     )
@@ -91,7 +91,7 @@ def test_speedup(hexagon_session: Session, capsys):
 @tvm.testing.requires_hexagon
 def test_elemwise_sum_parallel(hexagon_session: Session):
     """Test parallel elementwise sum"""
-    func = tvm.build(
+    func = tvm.compile(
         ElemwiseSumIRModule,
         target=get_hexagon_target("v68"),
     )

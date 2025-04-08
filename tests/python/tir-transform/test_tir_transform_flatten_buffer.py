@@ -259,19 +259,6 @@ class TestBoolean(BaseCompare):
             B[i0] = T.cast(T.cast(A[i0], "bool"), "int8")
 
 
-class TestLowerTE(BaseCompare):
-    """FlattenBuffer should do nothing on TE-based functions"""
-
-    def before(self):
-        x = te.placeholder((1,))
-        y = te.compute((1,), lambda i: x[i] + 2)
-        s = te.create_schedule(y.op)
-        mod = tvm.driver.build_module.schedule_to_module(s, [x, y])
-        return mod["main"]
-
-    expected = before
-
-
 class TestFlattenInsideBlock(BaseCompare):
     """Flattening access inside a block flattens the accessed region."""
 
@@ -333,37 +320,6 @@ class TestFlattenDeclBufferWithAxisSeparators(BaseCompare):
         A = T.Buffer([30, 1001], dtype="float32", scope="global", axis_separators=[1], data=A_data)
         for i0, i1, i2, i3, i4, i5 in T.grid(2, 3, 5, 7, 11, 13):
             T.evaluate(A[i0 * 15 + i1 * 5 + i2, i3 * 143 + i4 * 13 + i5])
-
-
-def test_lower_2d_physical_memory():
-    """Axis separators should preserve 2-d buffers through lowering.
-
-    A catch-all test to ensure that defining axis_separators is
-    sufficient to maintain non-flat buffer descriptions through all
-    lowering steps.
-    """
-
-    # This test doesn't use CompareBeforeAfter, because the after step
-    # is not currently expressible in TVMScript.  This test can be
-    # re-written after https://github.com/apache/tvm/pull/12412.
-
-    @T.prim_func
-    def func():
-        buf = T.alloc_buffer(
-            [1, 1],
-            dtype="int32",
-            scope="global",
-            axis_separators=[1],
-        )
-        buf[0, 0] = 0
-
-    lowered = tvm.lower(func)["main"]
-    assert isinstance(lowered.body, tvm.tir.Allocate)
-    assert list(lowered.body.extents) == [1, 1], (
-        "Non-flat buffer allocations, "
-        "marked by axis_separators, "
-        "flattened to flat memory allocation."
-    )
 
 
 if __name__ == "__main__":

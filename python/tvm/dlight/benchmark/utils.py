@@ -37,7 +37,7 @@ def get_func_name_from_gv(gv: tvm.ir.GlobalVar) -> str:  # pylint: disable=inval
     result : str
         The global variable name without the prefix "...@".
     """
-    return gv.astext().split("@")[1] if "@" in gv.astext() else gv.astext()
+    return gv.name_hint
 
 
 def dym_var_sample_str(sample: Dict[Union[str, tvm.relax.expr.Call], int]) -> str:

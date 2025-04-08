@@ -150,7 +150,7 @@ constexpr const char* FrontendTestModuleNode::kAddFunctionName;
 PackedFunc FrontendTestModuleNode::GetFunction(const String& name,
                                                const ObjectPtr<Object>& sptr_to_self) {
   if (name == kAddFunctionName) {
-    return TypedPackedFunc<void(std::string, PackedFunc)>(
+    return runtime::TypedPackedFunc<void(std::string, PackedFunc)>(
         [this, sptr_to_self](std::string func_name, PackedFunc pf) {
           CHECK_NE(func_name, kAddFunctionName)
               << "func_name: cannot be special function " << kAddFunctionName;

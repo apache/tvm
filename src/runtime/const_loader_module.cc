@@ -21,7 +21,7 @@
  * \file src/runtime/const_loader_module.cc
  * \brief A wrapper for initializing imported modules using constant NDArray. This
  * module is intended to be used by various runtime in the TVM stack, i.e.
- * graph executor, relay VM, AOT runtime, and various user defined runtimes. It
+ * graph executor, relax VM, AOT runtime, and various user defined runtimes. It
  * paves the way to separate the code and metedata, which makes compilation
  * and/or interpretation more convenient. In addition, the clear separation of
  * code and constants significantly reduces the efforts for handling external
@@ -34,9 +34,6 @@
 #include <tvm/runtime/registry.h>
 
 #include <cstdint>
-#include <sstream>
-
-#include "meta_data.h"
 
 namespace tvm {
 namespace runtime {
@@ -249,8 +246,6 @@ Module ConstLoaderModuleCreate(
   return Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_metadata")
-    .set_body_typed(ConstLoaderModuleNode::LoadFromBinary);
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_const_loader")
     .set_body_typed(ConstLoaderModuleNode::LoadFromBinary);
 

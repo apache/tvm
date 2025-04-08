@@ -26,6 +26,7 @@
 
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/packed_func.h>
 
 #include <memory>
 
@@ -69,7 +70,8 @@ TVM_DLL Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
  */
 TVM_DLL Function RewriteBindings(
     const PatternContext& ctx,
-    TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter, Function f);
+    runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter,
+    Function f);
 
 /**
  * \brief Rewrite a function with the given pattern and the rewriter function.
@@ -95,7 +97,7 @@ TVM_DLL Function RewriteBindings(
  * \return The updated function, if any updates were applied.
  */
 TVM_DLL Function RewriteCall(const DFPattern& pattern,
-                             TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)> rewriter,
+                             runtime::TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)> rewriter,
                              Function func);
 
 }  // namespace relax

@@ -39,7 +39,7 @@ typedef struct RPCArgs_t {
   /// device key to report
   const char* key;
 
-  /// custom adress to report into Tracker. Ignored for other server modes.
+  /// custom address to report into Tracker. Ignored for other server modes.
   const char* custom_addr;
 
   /// Verbose mode. Will print status messages to std out.

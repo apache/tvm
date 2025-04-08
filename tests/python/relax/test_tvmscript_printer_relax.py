@@ -233,7 +233,7 @@ def test_object_type():
 
 
 def test_dyn_tensor_type():
-    obj = relax.DynTensorType()
+    obj = relax.TensorType()
     _assert_print(obj, 'R.Tensor(ndim=-1, dtype="float32")')
 
 
@@ -256,7 +256,7 @@ def test_func_type():
             relax.ObjectType(),
             relax.ShapeType(ndim=3),
         ],
-        ret_type=relax.DynTensorType(
+        ret_type=relax.TensorType(
             ndim=3,
             dtype="float32",
         ),

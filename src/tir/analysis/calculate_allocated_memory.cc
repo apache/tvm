@@ -28,7 +28,6 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/tir/usmp/utils.h>
 
 #include <algorithm>
 #include <map>
