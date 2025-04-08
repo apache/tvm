@@ -278,7 +278,7 @@ class LocalRunner(PyRunner):
         if logger.root.level <= logging.DEBUG:
             err_path = subprocess.STDOUT
 
-        logger.info("LocalRunner: max_workers = 1")
+        # logger.info("LocalRunner: max_workers = 1")
         self.pool = PopenPoolExecutor(
             max_workers=1,  # one local worker
             timeout=timeout_sec,

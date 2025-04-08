@@ -63,14 +63,14 @@ def get_logging_func(logger: Logger) -> Optional[Callable[[int, str, int, str], 
     }
 
     def logging_func(level: int, filename: str, lineo: int, msg: str):
-        if level < 0:  # clear the output in notebook / console
-            from IPython.display import (  # type: ignore # pylint: disable=import-outside-toplevel
-                clear_output,
-            )
+        # if level < 0:  # clear the output in notebook / console
+        from IPython.display import (  # type: ignore # pylint: disable=import-outside-toplevel
+            clear_output,
+        )
 
-            clear_output(wait=True)
-        else:
-            level2log[level](f"[{os.path.basename(filename)}:{lineo}] " + msg)
+        clear_output(wait=True)
+        # else:
+        #     level2log[level](f"[{os.path.basename(filename)}:{lineo}] " + msg)
 
     return logging_func
 
