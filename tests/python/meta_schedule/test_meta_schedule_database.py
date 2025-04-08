@@ -234,7 +234,7 @@ def test_meta_schedule_tuning_record_round_trip():
         record = ms.database.TuningRecord(
             _create_schedule(mod, _schedule_matmul).trace,
             workload,
-            [1.5, 2.5, 1.8],
+            [T.float32(1.5), T.float32(2.5), T.float32(1.8)],
             tvm.target.Target("llvm"),
             ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
         )

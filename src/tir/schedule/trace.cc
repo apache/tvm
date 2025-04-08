@@ -411,21 +411,14 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
       const auto* arr = inst_entry.as<ArrayNode>();
       ICHECK(arr && arr->size() == 4);
       const auto* arr0 = arr->at(0).as<StringObj>();
-      const auto* arr1 = arr->at(1).as<ArrayNode>();
-      const auto* arr2 = arr->at(2).as<ArrayNode>();
-      const auto* arr3 = arr->at(3).as<ArrayNode>();
-      ICHECK(arr0 && arr1 && arr2 && arr3);
-      for (const Any& str : *arr3) {
-        ICHECK(str.as<StringObj>());
-      }
       kind = InstructionKind::Get(arr0->bytes.data);
-      inputs = GetRef<Array<ObjectRef>>(arr1);
-      attrs = GetRef<Array<ObjectRef>>(arr2);
-      outputs = GetRef<Array<String>>(arr3);
+      inputs = arr->at(1);
+      attrs = arr->at(2);
+      outputs = arr->at(3);
     } catch (const tvm::Error& e) {
       LOG(FATAL) << "ValueError: Each entry of a json instruction should be a tuple [inst_name, "
                     "inputs, attrs, outputs], but gets: "
-                 << inst_entry;
+                 << inst_entry << "\nThe error is: " << e.what();
       throw;
     }
     // Parse inputs
