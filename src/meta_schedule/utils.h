@@ -424,20 +424,16 @@ inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
   Array<FloatImm> results;
   results.reserve(arr->size());
   for (Any val : *arr) {
-    ObjectRef elem = val;
-    auto float_value = [&]() -> double {
-      if (const auto* int_imm = elem.as<IntImmNode>()) {
-        return int_imm->value;
-      } else if (const auto* float_imm = elem.as<FloatImmNode>()) {
-        return float_imm->value;
+    auto float_value = [&]() -> FloatImm {
+      if (auto opt_float_imm = val.as<FloatImm>()) {
+        return *std::move(opt_float_imm);
       } else {
-        LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: "
-                   << elem->GetTypeKey();
+        LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: " << val.GetTypeKey();
         TVM_FFI_UNREACHABLE();
       }
     }();
 
-    results.push_back(FloatImm(DataType::Float(32), float_value));
+    results.push_back(float_value);
   }
   return results;
 }
@@ -453,12 +449,11 @@ inline Array<Integer> AsIntArray(const ObjectRef& obj) {
   Array<Integer> results;
   results.reserve(arr->size());
   for (Any val : *arr) {
-    ObjectRef elem = val;
     auto int_value = [&]() -> int64_t {
-      if (const auto* int_imm = elem.as<IntImmNode>()) {
-        return int_imm->value;
+      if (auto opt_int_imm = val.as<IntImm>()) {
+        return (*opt_int_imm)->value;
       } else {
-        LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << elem->GetTypeKey();
+        LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << val.GetTypeKey();
       }
     }();
     results.push_back(Integer(int_value));

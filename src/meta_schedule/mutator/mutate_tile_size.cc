@@ -225,7 +225,7 @@ Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,
     }
     tiles[x] /= divide_factor;
     tiles[y] *= divide_factor;
-    return trace->WithDecision(inst, support::AsArray<int64_t, ObjectRef>(tiles),
+    return trace->WithDecision(inst, support::AsArray<int64_t, IntImm>(tiles),
                                /*remove_postproc=*/true);
   }
 }
