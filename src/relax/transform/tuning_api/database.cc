@@ -27,6 +27,7 @@
 #include <thread>
 #include <unordered_map>
 
+#include "../../../tir/ir/utils.h"
 #include "../../../meta_schedule/utils.h"
 
 namespace tvm {
@@ -49,11 +50,15 @@ TuningRecord::TuningRecord(Trace trace, Optional<Array<FloatImm>> run_secs) {
 }
 
 ObjectRef TuningRecordNode::AsJSON(bool include_irmod) const {
+  LOG(INFO) << "TuningRecordNode::AsJSON " << AsLegacyRepr(trace->AsJSON(include_irmod));
   return Array<ObjectRef>{trace->AsJSON(include_irmod),  //
                           run_secs};
 }
 
-TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj) {
+TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj_src) {
+  // normalize attribute object so int/float becomes intimm/floatimm
+  // TODO(tqchen): upgrade tuning record to be aware of normal constant.
+  ObjectRef json_obj = tvm::tir::NormalizeAttributeObject(json_obj_src);
   Trace trace{nullptr};
   Optional<Array<FloatImm>> run_secs{nullptr};
   try {

@@ -63,7 +63,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.RunnerInput")
     });
 TVM_REGISTER_GLOBAL("meta_schedule.RunnerResult")
     .set_body_typed([](Optional<Array<FloatImm>> run_secs, Optional<String> error_msg) -> RunnerResult {
-      return RunnerResult(run_secs.value_or({}), error_msg);
+      return RunnerResult(run_secs, error_msg);
     });
 TVM_REGISTER_GLOBAL("meta_schedule.RunnerFuture")
     .set_body_typed([](RunnerFuture::FDone f_done, RunnerFuture::FResult f_result) -> RunnerFuture {

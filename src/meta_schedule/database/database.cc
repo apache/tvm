@@ -18,6 +18,7 @@
  */
 #include "../module_equality.h"
 #include "../utils.h"
+#include "../../tir/ir/utils.h"
 
 namespace tvm {
 namespace meta_schedule {
@@ -128,7 +129,8 @@ bool TuningRecordNode::IsValid() const {
   return false;
 }
 
-TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& workload) {
+TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj_src, const Workload& workload) {
+  ObjectRef json_obj = tvm::tir::NormalizeAttributeObject(json_obj_src);
   tir::Trace trace{nullptr};
   Optional<Array<FloatImm>> run_secs;
   Optional<Target> target;
