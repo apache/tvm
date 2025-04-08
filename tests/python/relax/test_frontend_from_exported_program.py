@@ -647,7 +647,7 @@ def test_prelu():
         def __init__(self, num_parameters=1, alpha=0.25):
             super().__init__()
             self.prelu = torch.nn.PReLU(num_parameters=num_parameters, init=alpha)
-            
+
         def forward(self, x):
             return self.prelu(x)
 
@@ -658,7 +658,7 @@ def test_prelu():
 
         def forward(self, x):
             return torch.nn.functional.prelu(x, self.alpha)
-    
+
     @tvm.script.ir_module
     class expected:
         @R.function
@@ -668,7 +668,7 @@ def test_prelu():
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
-    
+
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     verify_model(Prelu1(), example_args, {}, expected)
     verify_model(Prelu2(), example_args, {}, expected)

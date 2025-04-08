@@ -102,11 +102,11 @@ class TorchFXImporter(BaseFXGraphImporter):
         dim = module.dim
         assert dim is not None
         return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
-    
+
     def _prelu_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        module = self.named_modules[node.target]                 
-        alpha_tensor = module.weight.numpy()  
+        module = self.named_modules[node.target]
+        alpha_tensor = module.weight.numpy()
         alpha = relax.const(alpha_tensor, dtype="float32")
         axis = 0 if len(x.struct_info.shape) == 1 else 1
         return self.block_builder.emit(relax.op.nn.prelu(x, alpha, axis))
