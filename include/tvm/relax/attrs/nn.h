@@ -468,6 +468,16 @@ struct SoftplusAttrs : public tvm::AttrsNode<SoftplusAttrs> {
   }
 };
 
+/*! \brief Attributes used in PReLU operator */
+struct PReluAttrs : public tvm::AttrsNode<PReluAttrs> {
+  int axis;
+
+  TVM_DECLARE_ATTRS(PReluAttrs, "relax.attrs.PReluAttrs") {
+    TVM_ATTR_FIELD(axis)
+        .describe("The axis along which the alpha values are applied.");
+  }
+};
+
 /*! \brief Attributes used in batch_norm operator */
 struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
   int axis;

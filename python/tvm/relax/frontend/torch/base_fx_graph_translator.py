@@ -307,6 +307,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
 
+    def _prelu(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        alpha = self.env[node.args[1]]
+        axis = 0 if len(x.struct_info.shape) == 1 else 1
+        return self.block_builder.emit(relax.op.nn.prelu(x, alpha, axis))
+
     def _round(self, node: fx.Node) -> relax.Expr:
         if node.kwargs.get("decimals", 0) != 0:
             raise ValueError("specifying decimals for round is not supported yet")

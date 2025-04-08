@@ -642,6 +642,38 @@ def test_logsoftmax():
     verify_model(LogSoftmax2(), example_args, {}, expected1)
 
 
+def test_prelu():
+    class Prelu1(Module):
+        def __init__(self, num_parameters=1, alpha=0.25):
+            super().__init__()
+            self.prelu = torch.nn.PReLU(num_parameters=num_parameters, init=alpha)
+            
+        def forward(self, x):
+            return self.prelu(x)
+
+    class Prelu2(torch.nn.Module):
+        def __init__(self):
+            super(Prelu2, self).__init__()
+            self.alpha = torch.nn.Parameter(torch.tensor([0.25]))
+
+        def forward(self, x):
+            return torch.nn.functional.prelu(x, self.alpha)
+    
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.prelu(x, R.const([0.25], dtype="float32"), axis=1)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+    
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+    verify_model(Prelu1(), example_args, {}, expected)
+    verify_model(Prelu2(), example_args, {}, expected)
+
+
 def test_softmax():
     class Softmax(Module):
         def __init__(self):

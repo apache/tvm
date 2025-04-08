@@ -102,6 +102,14 @@ class TorchFXImporter(BaseFXGraphImporter):
         dim = module.dim
         assert dim is not None
         return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
+    
+    def _prelu_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]                 
+        alpha_tensor = module.weight.numpy()  
+        alpha = relax.const(alpha_tensor, dtype="float32")
+        axis = 0 if len(x.struct_info.shape) == 1 else 1
+        return self.block_builder.emit(relax.op.nn.prelu(x, alpha, axis))
 
     def _softmax_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -595,6 +603,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.Identity: lambda node: self.env[node.args[0]],
             nn.LeakyReLU: self._leakyrelu_module,
             nn.LogSoftmax: self._log_softmax_module,
+            nn.PReLU: self._prelu_module,
             nn.ReLU: self._unary_op(relax.op.nn.relu),
             nn.ReLU6: lambda node: self.block_builder.emit(
                 relax.op.clip(self.env[node.args[0]], 0, 6)
@@ -657,6 +666,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "logical_not": self._unary_op(relax.op.logical_not),
             "log_softmax": self._log_softmax,
             "neg": self._unary_op(relax.op.negative),
+            "prelu":self._prelu,
             "reciprocal": self._reciprocal,
             "relu": self._unary_op(relax.op.nn.relu),
             "round": self._round,
