@@ -473,8 +473,7 @@ struct PReluAttrs : public tvm::AttrsNode<PReluAttrs> {
   int axis;
 
   TVM_DECLARE_ATTRS(PReluAttrs, "relax.attrs.PReluAttrs") {
-    TVM_ATTR_FIELD(axis)
-        .describe("The axis along which the alpha values are applied.");
+    TVM_ATTR_FIELD(axis).describe("The axis along which the alpha values are applied.");
   }
 };
 
