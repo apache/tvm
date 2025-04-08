@@ -916,8 +916,18 @@ ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_v
   if (ann_val.as<ffi::StringObj>()) {
     return ann_val;
   }
-  if (const auto opt_expr = ann_val.as<PrimExpr>()) {
-    return opt_expr.value();
+
+  if (auto opt_intimm = ann_val.as<IntImm>()) {
+    return *std::move(opt_intimm);
+  }
+  if (auto opt_floatimm = ann_val.as<FloatImm>()) {
+    return *std::move(opt_floatimm);
+  }
+
+  if (const auto* expr = ann_val.as<PrimExprNode>()) {
+    ICHECK(!expr->IsInstance<StringImmNode>())
+        << "TypeError: runtime::String is expected, but gets StringImm";
+    return this->Get(GetRef<PrimExpr>(expr));
   }
   if (const auto* arr = ann_val.as<ArrayNode>()) {
     Array<ObjectRef> result;
