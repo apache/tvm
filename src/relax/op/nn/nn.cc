@@ -98,7 +98,7 @@ TVM_REGISTER_OP("relax.nn.prelu")
     .add_argument("alpha", "Tensor", "The channel-wise learnable slope.")
     .set_attrs_type<PReluAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo",
-      InferStructInfoUnaryArith</*require_float_dtype=*/true>)
+                                InferStructInfoUnaryArith</*require_float_dtype=*/true>)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.softmax */

@@ -662,9 +662,13 @@ def test_prelu():
     @tvm.script.ir_module
     class expected:
         @R.function
-        def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.prelu(x, R.const([0.25], dtype="float32"), axis=1)
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.prelu(
+                    x, R.const([0.25], dtype="float32"), axis=1
+                )
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
