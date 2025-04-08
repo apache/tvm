@@ -21,7 +21,6 @@
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
-
 #include "../../support/process_id.h"
 #include "./protocol.h"
 
@@ -50,6 +49,7 @@ void DiscoWorker::SetRegister(int reg_id, AnyView value) {
 struct DiscoWorker::Impl {
   static void MainLoop(DiscoWorker* self) {
     ThreadLocalDiscoWorker::Get()->worker = self;
+    using namespace tvm;
     while (true) {
       TVMArgs args = self->channel->Recv();
       DiscoAction action = static_cast<DiscoAction>(args[0].operator int());

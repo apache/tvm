@@ -122,8 +122,8 @@ void MatchShape(ffi::PackedArgs args, Any* rv) {
   } else {
     input_shape = args[0];
   }
-  const NDArray::Container* heap = args[1];
-  int64_t* heap_data = heap == nullptr ? nullptr : static_cast<int64_t*>(heap->dl_tensor.data);
+  auto heap = args[1].as<DLTensor*>();
+  int64_t* heap_data = heap.has_value() ? static_cast<int64_t*>((*heap)->data) : nullptr;
   int64_t size = args[2];
   const int64_t kBeginCode = 3;
   ICHECK_LE(kBeginCode + size * 2, args.size());
@@ -191,8 +191,8 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_prim_value").set_body_typed(MakePrimValue);
  */
 void MakeShape(ffi::PackedArgs args, Any* rv) {
   // NOTE: heap can be nullptr
-  const NDArray::Container* heap = args[0];
-  int64_t* heap_data = heap == nullptr ? nullptr : static_cast<int64_t*>(heap->dl_tensor.data);
+  auto heap = args[0].as<DLTensor*>();
+  int64_t* heap_data = heap.has_value() ? static_cast<int64_t*>((*heap)->data) : nullptr;
   int64_t size = args[1];
   const int64_t kBeginCode = 2;
 
@@ -234,21 +234,21 @@ void CheckTensorInfo(ffi::PackedArgs args, Any* rv) {
     err_ctx = args[3].operator Optional<String>();
   }
 
-  auto opt_ptr = arg.as<const NDArray::ContainerType*>();
+  auto opt_ptr = arg.as<DLTensor*>();
   CHECK(opt_ptr.has_value()) << "TypeError: " << err_ctx.value_or("") << " expect a Tensor but get "
                              << arg.GetTypeKey();
 
-  const NDArray::ContainerType* ptr = opt_ptr.value();
+  DLTensor* ptr = opt_ptr.value();
   if (ndim != -1) {
-    CHECK(ptr->dl_tensor.ndim == ndim)
+    CHECK(ptr->ndim == ndim)
         << "ValueError: " << err_ctx.value_or("") << " expect Tensor with ndim " << ndim
-        << " but get " << ptr->dl_tensor.ndim;
+        << " but get " << ptr->ndim;
   }
 
   if (dtype != DataType::Void()) {
-    CHECK(DataType(ptr->dl_tensor.dtype) == dtype)
+    CHECK(DataType(ptr->dtype) == dtype)
         << "ValueError: " << err_ctx.value_or("") << " expect Tensor with dtype " << dtype
-        << " but get " << DataType(ptr->dl_tensor.dtype);
+        << " but get " << DataType(ptr->dtype);
   }
 }
 

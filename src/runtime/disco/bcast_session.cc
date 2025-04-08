@@ -93,9 +93,9 @@ DRef BcastSessionObj::CallWithPacked(const TVMArgs& args) {
   int reg_id = AllocateReg();
   {
     DRef func = args[2];
-    args[0] = static_cast<int>(DiscoAction::kCallPacked);
-    args[1] = reg_id;
-    args[2] = func->reg_id;
+    args_vec[0] = static_cast<int>(DiscoAction::kCallPacked);
+    args_vec[1] = reg_id;
+    args_vec[2] = func->reg_id;
   }
   this->BroadcastPacked(ffi::PackedArgs(args_vec, args.size()));
   return BcastSessionObj::Internal::MakeDRef(reg_id, GetRef<Session>(this));

@@ -127,6 +127,9 @@ inline uint64_t DiscoProtocol<SubClassType>::GetObjectBytes(Object* obj) {
   } else if (obj->IsInstance<StringObj>()) {
     uint64_t size = static_cast<StringObj*>(obj)->bytes.size;
     return sizeof(uint32_t) + sizeof(uint64_t) + size * sizeof(char);
+  } else if (obj->IsInstance<ffi::BytesObj>()) {
+    uint64_t size = static_cast<ffi::BytesObj*>(obj)->bytes.size;
+    return sizeof(uint32_t) + sizeof(uint64_t) + size * sizeof(char);
   } else if (obj->IsInstance<ShapeTupleObj>()) {
     uint64_t ndim = static_cast<ShapeTupleObj*>(obj)->size;
     return sizeof(uint32_t) + sizeof(uint64_t) + ndim * sizeof(ShapeTupleObj::index_type);
@@ -149,6 +152,11 @@ inline void DiscoProtocol<SubClassType>::WriteObject(Object* obj) {
     self->template Write<uint32_t>(TypeIndex::kRuntimeString);
     self->template Write<uint64_t>(str->bytes.size);
     self->template WriteArray<char>(str->bytes.data, str->bytes.size);
+  } else if (obj->IsInstance<ffi::BytesObj>()) {
+    ffi::BytesObj* bytes = static_cast<ffi::BytesObj*>(obj);
+    self->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIBytes);
+    self->template Write<uint64_t>(bytes->bytes.size);
+    self->template WriteArray<char>(bytes->bytes.data, bytes->bytes.size);
   } else if (obj->IsInstance<ShapeTupleObj>()) {
     ShapeTupleObj* shape = static_cast<ShapeTupleObj*>(obj);
     self->template Write<uint32_t>(TypeIndex::kRuntimeShapeTuple);
@@ -182,6 +190,12 @@ inline void DiscoProtocol<SubClassType>::ReadObject(int* tcode, TVMValue* value)
     std::string data(size, '\0');
     self->template ReadArray<char>(data.data(), size);
     result = String(std::move(data));
+  } else if (type_index == ffi::TypeIndex::kTVMFFIBytes) {
+    uint64_t size = 0;
+    self->template Read<uint64_t>(&size);
+    std::string data(size, '\0');
+    self->template ReadArray<char>(data.data(), size);
+    result = ffi::Bytes(std::move(data));
   } else if (type_index == TypeIndex::kRuntimeShapeTuple) {
     uint64_t ndim = 0;
     self->template Read<uint64_t>(&ndim);
