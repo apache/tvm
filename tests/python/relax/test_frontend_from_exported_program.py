@@ -254,6 +254,10 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.dropout(input, 0.5, train=True)
 
+    class Dropout3(Module):
+        def forward(self, input):
+            return torch.ops.aten.dropout_(input, 0.5, train=True)
+
     @tvm.script.ir_module
     class expected_dropout:
         @R.function
@@ -268,6 +272,7 @@ def test_extended_unary_ops():
 
     verify_model(Dropout1(), example_args, {}, expected_dropout)
     verify_model(Dropout2(), example_args, {}, expected_dropout)
+    verify_model(Dropout3(), example_args, {}, expected_dropout)
 
     # elu
     class Elu(Module):
@@ -383,6 +388,10 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.hardswish(input)
 
+    class Hardswish3(torch.nn.Module):
+        def forward(self, input):
+            return torch.ops.aten.hardswish_(input)
+
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -402,6 +411,7 @@ def test_extended_unary_ops():
 
     verify_model(Hardswish(), example_args, {}, expected1)
     verify_model(Hardswish2(), example_args, {}, expected1)
+    verify_model(Hardswish3(), example_args, {}, expected1)
 
     # hardtanh
     test_hardtanh()
@@ -511,6 +521,10 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.relu(input)
 
+    class ReLU2(Module):
+        def forward(self, input):
+            return torch.ops.aten.relu_(input)
+
     @tvm.script.ir_module
     class expected_relu:
         @R.function
@@ -526,6 +540,7 @@ def test_extended_unary_ops():
 
     verify_model(ReLU0(), example_args, {}, expected_relu)
     verify_model(ReLU1(), example_args, {}, expected_relu)
+    verify_model(ReLU2(), example_args, {}, expected_relu)
 
     # selu
     class Selu1(Module):
@@ -597,6 +612,10 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.silu(input)
 
+    class SiLU3(Module):
+        def forward(self, input):
+            return torch.ops.aten.silu_(input)
+
     @tvm.script.ir_module
     class expected_silu:
         @R.function
@@ -612,6 +631,7 @@ def test_extended_unary_ops():
 
     verify_model(SiLU(), example_args, {}, expected_silu)
     verify_model(SiLU2(), example_args, {}, expected_silu)
+    verify_model(SiLU3(), example_args, {}, expected_silu)
 
     # softmax
     test_softmax()
@@ -636,6 +656,10 @@ def test_hardtanh():
         def forward(self, input):
             return torch.nn.functional.hardtanh(input)
 
+    class Hardtanh3(torch.nn.Module):
+        def forward(self, input):
+            return torch.ops.aten.hardtanh_(input)
+
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -653,6 +677,7 @@ def test_hardtanh():
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     verify_model(Hardtanh(), example_args, {}, expected1)
     verify_model(Hardtanh2(), example_args, {}, expected1)
+    verify_model(Hardtanh3(), example_args, {}, expected1)
 
 
 def test_leakyrelu():
@@ -845,6 +870,7 @@ def test_tril_triu():
 
 operator_binary_1 = [
     (operator.add, R.add),
+    (torch.ops.aten.add_, R.add),
     (operator.sub, R.subtract),
     (operator.mul, R.multiply),
     (operator.truediv, R.divide),
@@ -3601,6 +3627,33 @@ def test_select():
     example_args = (torch.randn(2, 3, dtype=torch.float32),)
 
     verify_model(Select(), example_args, {}, Expected)
+
+
+def test_unflatten():
+    class Unflatten(Module):
+        def forward(self, input):
+            return torch.ops.aten.unflatten(input, 1, (3, 5))
+
+    class Unflatten1(Module):
+        def forward(self, input):
+            return torch.ops.aten.unflatten(input, -2, (3, 5))
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 15, 7), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 3, 5, 7), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 5, 7), dtype="float32") = R.reshape(inp_0, [2, 3, 5, 7])
+                gv: R.Tuple(R.Tensor((2, 3, 5, 7), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 15, 7, dtype=torch.float32),)
+
+    verify_model(Unflatten(), example_args, {}, Expected)
+    verify_model(Unflatten1(), example_args, {}, Expected)
 
 
 def test_gather():

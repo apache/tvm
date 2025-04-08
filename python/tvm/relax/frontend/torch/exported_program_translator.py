@@ -39,8 +39,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     def _hardtanh(self, node: fx.Node) -> relax.Expr:
         args = self.retrieve_args(node)
         x = args[0]
-        min_val = node.args[1] if len(args) > 1 else node.kwargs("min_val", -1.0)
-        max_val = node.args[2] if len(args) > 2 else node.kwargs("max_val", 1.0)
+        min_val = node.args[1] if len(args) > 1 else node.kwargs.get("min_val", -1.0)
+        max_val = node.args[2] if len(args) > 2 else node.kwargs.get("max_val", 1.0)
         return self.block_builder.emit(relax.op.clip(x, min_val, max_val))
 
     def _log2(self, node: fx.Node) -> relax.Var:
@@ -216,6 +216,19 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         stride = [node.args[4] if len(node.args) > 4 else 1]
         return self.block_builder.emit(relax.op.strided_slice(x, axes, begin, end, stride))
 
+    def _unflatten(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        dim = node.args[1]
+        sizes = node.args[2]
+
+        x_shape = list(self.shape_of(x))
+        if dim < 0:
+            dim += len(x_shape)
+
+        new_shape = x_shape[:dim] + sizes + x_shape[dim + 1 :]
+        return self.block_builder.emit(relax.op.reshape(x, new_shape))
+
     ########## Creation ##########
 
     def _one_hot(self, node: fx.Node) -> relax.Var:
@@ -258,6 +271,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "cos.default": self._unary_op(relax.op.cos),
             "cosh.default": self._unary_op(relax.op.cosh),
             "dropout.default": lambda node: self.env[node.args[0]],
+            "dropout_.default": lambda node: self.env[node.args[0]],
             "elu.default": self._elu,
             "erf.default": self._unary_op(relax.op.erf),
             "exp.default": self._unary_op(relax.op.exp),
@@ -265,7 +279,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "gelu.default": self._gelu,
             "hardsigmoid.default": self._hardsigmoid,
             "hardswish.default": self._hardswish,
+            "hardswish_.default": self._hardswish,
             "hardtanh.default": self._hardtanh,
+            "hardtanh_.default": self._hardtanh,
             "isfinite.default": self._unary_op(relax.op.isfinite),
             "isinf.default": self._unary_op(relax.op.isinf),
             "isnan.default": self._unary_op(relax.op.isnan),
@@ -278,12 +294,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "neg.default": self._unary_op(relax.op.negative),
             "reciprocal.default": self._reciprocal,
             "relu.default": self._unary_op(relax.op.nn.relu),
+            "relu_.default": self._unary_op(relax.op.nn.relu),
             "round.default": self._round,
             "rsqrt.default": self._unary_op(relax.op.rsqrt),
             "selu.default": self._unary_op(relax.op.nn.selu),
             "sigmoid.default": self._unary_op(relax.op.sigmoid),
             "sign.default": self._unary_op(relax.op.sign),
             "silu.default": self._unary_op(relax.op.nn.silu),
+            "silu_.default": self._unary_op(relax.op.nn.silu),
             "sin.default": self._unary_op(relax.op.sin),
             "sinh.default": self._unary_op(relax.op.sinh),
             "softmax.int": self._softmax,
@@ -296,6 +314,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "triu.default": self._tril_triu(relax.op.triu),
             # binary
             "add.Tensor": self._binary_op(relax.op.add, operator.add),
+            "add_.Tensor": self._binary_op(relax.op.add, operator.add),
             "div.Tensor": self._binary_op(relax.op.divide, operator.truediv),
             "eq.Scalar": self._binary_op(relax.op.equal, operator.eq),
             "eq.Tensor": self._binary_op(relax.op.equal, operator.eq),
@@ -393,6 +412,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "tile.default": self._tile,
             "topk.default": self._topk,
             "transpose.int": self._transpose,
+            "unflatten.int": self._unflatten,
             "unsqueeze.default": lambda node: self.block_builder.emit(
                 relax.op.expand_dims(self.env[node.args[0]], node.args[1])
             ),
