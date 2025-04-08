@@ -1431,6 +1431,32 @@ def log_softmax(data: Expr, axis: int = -1) -> Expr:
     return _ffi_api.log_softmax(data, axis)  # type: ignore
 
 
+def prelu(data: Expr, alpha: Expr, axis: int = 1) -> Expr:
+    r"""Parametric Rectified Linear Unit (PReLU).
+
+    .. math::
+        PReLU(x) = x \text{ if } x > 0 \text{ else } \alpha * x
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor.
+
+    alpha : relax.Expr
+        The learnable slope tensor, applied channel-wise.
+
+    axis : int
+        The axis along which the `alpha` values are applied.
+        Default is 1 (assuming NCHW format).
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.prelu(data, alpha, axis)
+
+
 def batch_norm(
     data: Expr,
     gamma: Expr,

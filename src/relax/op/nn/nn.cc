@@ -79,6 +79,26 @@ TVM_REGISTER_OP("relax.nn.softplus")
     .set_attrs_type<SoftplusAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo",
                                 InferStructInfoUnaryArith</*require_float_dtype=*/true>)
+
+/* relax.nn.prelu */
+TVM_REGISTER_NODE_TYPE(PReluAttrs);
+
+Expr prelu(Expr data, Expr alpha, int axis = 1) {
+  auto attrs = make_object<PReluAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("relax.nn.prelu");
+  return Call(op, {data, alpha}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.nn.prelu").set_body_typed(prelu);
+
+TVM_REGISTER_OP("relax.nn.prelu")
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("alpha", "Tensor", "The channel-wise learnable slope.")
+    .set_attrs_type<PReluAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo",
+      InferStructInfoUnaryArith</*require_float_dtype=*/true>)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.softmax */
