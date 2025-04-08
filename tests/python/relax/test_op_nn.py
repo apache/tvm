@@ -37,7 +37,7 @@ def test_op_correctness():
 
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     alpha = relax.Var("alpha", R.Tensor((3,), "float32"))
-    assert relax.op.nn.prelu(x, alpha, axis=1) == Op.get("relax.nn.prelu")
+    assert relax.op.nn.prelu(x, alpha, axis=1).op == Op.get("relax.nn.prelu")
 
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     gamma = relax.Var("gamma", R.Tensor((3,), "float32"))
