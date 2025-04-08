@@ -966,6 +966,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         descending = node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False)
         return self.block_builder.emit(relax.op.argsort(x, dim, descending))
 
+    def _broadcast_to(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        shape = args[1] if len(args) > 1 else args[0]
+        return self.block_builder.emit(relax.op.broadcast_to(x, shape))
+
     def _cat(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
