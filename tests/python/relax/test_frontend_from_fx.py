@@ -750,6 +750,43 @@ def test_einsum():
 
 
 @tvm.testing.requires_gpu
+def test_softplus():
+    import torch
+    from torch.nn import Module
+
+    torch.set_grad_enabled(False)
+
+    class Softplus0(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.softplus = torch.nn.Softplus(1.0, 20.0)
+
+        def forward(self, x):
+            return self.softplus(x)
+
+    class Softplus1(Module):
+        def forward(self, input):
+            return torch.nn.functional.softplus(input, 1.0, 20.0)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(inp_0: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.nn.softplus(
+                    inp_0, beta=1.0, threshold=20.0
+                )
+                gv: R.Tensor((10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    input_info = [([10, 10], "float32")]
+    verify_model(Softplus0(), input_info, {}, expected)
+    verify_model(Softplus1(), input_info, {}, expected)
+
+
+@tvm.testing.requires_gpu
 def test_leakyrelu():
     import torch
     from torch.nn import Module
@@ -2225,6 +2262,9 @@ def test_extended_unary_ops():
 
     # leaky_relu
     test_leakyrelu()
+
+    # softplus
+    test_softplus()
 
     # log2
     class Log2(Module):

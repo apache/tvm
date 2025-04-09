@@ -419,6 +419,9 @@ def test_extended_unary_ops():
     # leakyrelu
     test_leakyrelu()
 
+    # softplus
+    test_softplus()
+
     # log2
     class Log2(Module):
         def forward(self, x):
@@ -678,6 +681,43 @@ def test_hardtanh():
     verify_model(Hardtanh(), example_args, {}, expected1)
     verify_model(Hardtanh2(), example_args, {}, expected1)
     verify_model(Hardtanh3(), example_args, {}, expected1)
+
+
+def test_softplus():
+    import torch
+    from torch.nn import Module
+
+    torch.set_grad_enabled(False)
+
+    class Softplus0(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.softplus = torch.nn.Softplus(1.0, 20.0)
+
+        def forward(self, x):
+            return self.softplus(x)
+
+    class Softplus1(Module):
+        def forward(self, input):
+            return torch.nn.functional.softplus(input, 1.0, 20.0)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.softplus(
+                    x, beta=1.0, threshold=20.0
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+    verify_model(Softplus0(), example_args, {}, expected)
+    verify_model(Softplus1(), example_args, {}, expected)
 
 
 def test_leakyrelu():

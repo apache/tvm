@@ -65,6 +65,39 @@ def leaky_relu(x, alpha):
     return te.compute(x.shape, _compute)
 
 
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
+def softplus(x, beta=1.0, threshold=20.0):
+    """Compute Softplus activation for input x with numerical stability.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input tensor.
+
+    beta : float, optional
+        The scaling factor β in the Softplus formula (default is 1.0).
+
+    threshold : float, optional
+        The threshold value for numerical stability (default is 20.0).
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+
+    def _compute(*indices):
+        value = x(*indices)
+        b = tvm.tir.const(beta, value.dtype)
+        t = tvm.tir.const(threshold, value.dtype)
+
+        return tvm.tir.Select(
+            b * value > t, value, (1 / b) * tvm.tir.log(1 + tvm.tir.exp(b * value))
+        )
+
+    return te.compute(x.shape, _compute)
+
+
 @tvm.te.tag_scope(tag=tag.BROADCAST)
 def prelu(x, slope, axis=1):
     """PReLU.
