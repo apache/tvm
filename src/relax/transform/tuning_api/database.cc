@@ -27,8 +27,8 @@
 #include <thread>
 #include <unordered_map>
 
-#include "../../../tir/ir/utils.h"
 #include "../../../meta_schedule/utils.h"
+#include "../../../tir/ir/utils.h"
 
 namespace tvm {
 namespace meta_schedule {
@@ -202,7 +202,7 @@ class JSONDatabaseNode : public DatabaseNode {
     this->tuning_records_[key].insert(record);
 
     meta_schedule::JSONFileAppendLine(
-        this->path_tuning_record, meta_schedule::JSONDumps(Array<ObjectRef>{
+        this->path_tuning_record, meta_schedule::JSONDumps(Array<Any>{
                                       Integer(workload_idx), target->Export(), record->AsJSON()}));
   }
 

@@ -1176,12 +1176,11 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args,
-                                           const Array<ObjectRef>& inputs) {
-    thread_local ObjectRef loop_rv{nullptr};
-    thread_local Array<ObjectRef> factors{nullptr};
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const Array<Any>& inputs) {
+    thread_local Any loop_rv{nullptr};
+    thread_local Array<Any> factors{nullptr};
     loop_rv = inputs[0];
-    factors = Array<ObjectRef>{inputs.begin() + 1, inputs.end()};
+    factors = Array<Any>{inputs.begin() + 1, inputs.end()};
     packed_args[delta] = loop_rv;
     packed_args[delta + 1] = factors;
   }
@@ -1193,7 +1192,7 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
                       disable_predication.operator bool());
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Array<ObjectRef> factors,
+  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Array<Any> factors,
                                  Bool preserve_unit_iters, Bool disable_predication) {
     PythonAPICall py("split");
     py.Input("loop", loop_rv);
@@ -1218,12 +1217,11 @@ struct LoopPartitionTraits : public UnpackedInstTraits<LoopPartitionTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args,
-                                           const Array<ObjectRef>& inputs) {
-    thread_local ObjectRef loop_rv{nullptr};
-    thread_local Array<ObjectRef> factors{nullptr};
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const Array<Any>& inputs) {
+    thread_local Any loop_rv{nullptr};
+    thread_local Array<Any> factors{nullptr};
     loop_rv = inputs[0];
-    factors = Array<ObjectRef>{inputs.begin() + 1, inputs.end()};
+    factors = Array<Any>{inputs.begin() + 1, inputs.end()};
     packed_args[delta] = loop_rv;
     packed_args[delta + 1] = factors;
   }
@@ -1234,7 +1232,7 @@ struct LoopPartitionTraits : public UnpackedInstTraits<LoopPartitionTraits> {
     return sch->LoopPartition(loop_rv, factors, preserve_unit_iters.operator bool());
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Array<ObjectRef> factors,
+  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Array<Any> factors,
                                  Bool preserve_unit_iters) {
     PythonAPICall py("loop_partition");
     py.Input("loop", loop_rv);
@@ -1258,8 +1256,7 @@ struct MergeTraits : public UnpackedInstTraits<MergeTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args,
-                                           const Array<ObjectRef>& inputs) {
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const Array<Any>& inputs) {
     packed_args[delta] = inputs;
   }
 
@@ -1290,8 +1287,7 @@ struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args,
-                                           const Array<ObjectRef>& inputs) {
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const Array<Any>& inputs) {
     packed_args[delta] = inputs;
   }
 
@@ -1325,8 +1321,7 @@ struct ReorderTraits : public UnpackedInstTraits<ReorderTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args,
-                                           const Array<ObjectRef>& inputs) {
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const Array<Any>& inputs) {
     packed_args[delta] = inputs;
   }
 

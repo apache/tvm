@@ -150,8 +150,10 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
                              tir::ExprRV* extent) {
     for (const tir::Instruction& inst : trace->insts) {
       if (inst->kind->name == "Split") {
-        int i = std::find(inst->outputs.begin(), inst->outputs.end(), loop) - inst->outputs.begin();
-        CHECK(inst->inputs[1 + i].defined())
+        auto fcheck = [&](const Any& a) -> bool { return a.as<Object>() == loop.get(); };
+        int i = std::find_if(inst->outputs.begin(), inst->outputs.end(), fcheck) -
+                inst->outputs.begin();
+        CHECK(inst->inputs[1 + i] != nullptr)
             << "ValueError: Extracting an extent which needs inference is not supported so far";
         *extent = Downcast<tir::ExprRV>(inst->inputs[1 + i]);
         return true;

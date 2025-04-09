@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "../../tir/ir/utils.h"
 #include "../module_equality.h"
 #include "../utils.h"
-#include "../../tir/ir/utils.h"
 
 namespace tvm {
 namespace meta_schedule {

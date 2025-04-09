@@ -30,7 +30,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return LiteralDoc::Str(s, p);
     });
 
-
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<Array<Any>>(  //
         "", [](Array<Any> array, ObjectPath p, IRDocsifier d) -> Doc {

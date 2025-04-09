@@ -599,7 +599,8 @@ class FunctionCreator : public ExprMutator {
     const auto* var = expr.as<VarNode>();
     if ((var == nullptr || defined_vars_.count(var) == 0) &&
         (lift_constant_ || !expr->IsInstance<ConstantNode>())) {
-      String name = var != nullptr ? var->name_hint() : String("param_" + std::to_string(n_param_for_const_++));
+      String name = var != nullptr ? var->name_hint()
+                                   : String("param_" + std::to_string(n_param_for_const_++));
       StructInfo param_sinfo = GetStructInfo(expr);
       if (!IsInlinableConstants(expr)) {
         Var param(std::move(name), GetStructInfo(expr));

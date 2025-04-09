@@ -26,8 +26,8 @@ bool InstructionKindNode::IsPostproc() const {
   return this == inst_enter_postproc.get();
 }
 
-Instruction::Instruction(InstructionKind kind, Array<ObjectRef> inputs, Array<ObjectRef> attrs,
-                         Array<ObjectRef> outputs) {
+Instruction::Instruction(InstructionKind kind, Array<Any> inputs, Array<Any> attrs,
+                         Array<Any> outputs) {
   ObjectPtr<InstructionNode> n = make_object<InstructionNode>();
   n->kind = std::move(kind);
   n->inputs = std::move(inputs);
@@ -58,16 +58,18 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<InstructionNode>([](const ObjectRef& obj, ReprPrinter* p) {
       const auto* self = obj.as<InstructionNode>();
       ICHECK_NOTNULL(self);
-      Array<ObjectRef> inputs;
+      Array<Any> inputs;
       inputs.reserve(self->inputs.size());
-      for (const ObjectRef& obj : self->inputs) {
-        if (!obj.defined()) {
+      for (const Any& obj : self->inputs) {
+        if (obj == nullptr) {
           inputs.push_back(String("None"));
-        } else if (obj->IsInstance<BlockRVNode>() || obj->IsInstance<LoopRVNode>()) {
+        } else if (obj.as<BlockRVNode>() || obj.as<LoopRVNode>()) {
           inputs.push_back(String("_"));
         } else if (const auto* str_obj = obj.as<StringObj>()) {
           inputs.push_back(String('"' + std::string(str_obj->bytes.data) + '"'));
-        } else if (obj->IsInstance<IntImmNode>() || obj->IsInstance<FloatImmNode>()) {
+        } else if (obj.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+          inputs.push_back(obj);
+        } else if (obj.as<IntImmNode>() || obj.as<FloatImmNode>()) {
           inputs.push_back(obj);
         } else if (const auto* expr = obj.as<PrimExprNode>()) {
           PrimExpr new_expr =
@@ -82,14 +84,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
         } else if (obj.as<IndexMapNode>()) {
           inputs.push_back(obj);
         } else {
-          LOG(FATAL) << "TypeError: Stringifying is not supported for type: " << obj->GetTypeKey();
+          LOG(FATAL) << "TypeError: Stringifying is not supported for type: " << obj.GetTypeKey();
           throw;
         }
       }
       p->stream << self->kind->f_as_python(
           /*inputs=*/inputs,
           /*attrs=*/self->attrs,
-          /*decision=*/NullOpt,
+          /*decision=*/Any(nullptr),
           /*outputs=*/Array<String>(self->outputs.size(), String("_")));
     });
 
@@ -100,8 +102,8 @@ TVM_REGISTER_NODE_TYPE(InstructionKindNode);
 
 TVM_REGISTER_GLOBAL("tir.schedule.InstructionKindGet").set_body_typed(InstructionKind::Get);
 TVM_REGISTER_GLOBAL("tir.schedule.Instruction")
-    .set_body_typed([](InstructionKind kind, Array<ObjectRef> inputs, Array<ObjectRef> attrs,
-                       Array<ObjectRef> outputs) -> Instruction {
+    .set_body_typed([](InstructionKind kind, Array<Any> inputs, Array<Any> attrs,
+                       Array<Any> outputs) -> Instruction {
       return Instruction(kind, inputs, attrs, outputs);
     });
 

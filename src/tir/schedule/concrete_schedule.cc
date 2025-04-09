@@ -913,8 +913,8 @@ void ConcreteScheduleNode::Tensorize(const BlockRV& block_rv, const String& intr
 /******** Schedule: Annotation ********/
 
 ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
-  if (ann_val.as<ffi::StringObj>()) {
-    return ann_val;
+  if (auto opt_str = ann_val.as<ffi::String>()) {
+    return *std::move(opt_str);
   }
 
   if (auto opt_intimm = ann_val.as<IntImm>()) {

@@ -26,7 +26,7 @@ namespace tir {
 
 Trace::Trace() { data_ = make_object<TraceNode>(); }
 
-Trace::Trace(Array<Instruction> insts, Map<Instruction, ObjectRef> decisions) {
+Trace::Trace(Array<Instruction> insts, Map<Instruction, Any> decisions) {
   ObjectPtr<TraceNode> n = make_object<TraceNode>();
   n->insts = std::move(insts);
   n->decisions = std::move(decisions);
@@ -52,9 +52,9 @@ int GetNumValidInstructions(const Array<Instruction>& insts, bool remove_postpro
 
 /**************** TranslateInputRVs  ****************/
 
-Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
-                                   const std::unordered_map<const Object*, const Object*>& rv_map) {
-  Array<ObjectRef> result;
+Array<Any> TranslateInputRVs(const Array<Any>& inputs,
+                             const std::unordered_map<const Object*, const Object*>& rv_map) {
+  Array<Any> result;
   result.reserve(inputs.size());
   auto f_subst_with_rv_map = [&rv_map](const Var& var) -> Optional<PrimExpr> {
     auto it = rv_map.find(var.get());
@@ -67,62 +67,73 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
     return GetRef<Var>(static_cast<const VarNode*>(dst));
   };
 
-  for (const ObjectRef& input : inputs) {
-    if (!input.defined() ||                   // constant: nullptr
-        input->IsInstance<ffi::StringObj>() ||     // constant: string
-        input->IsInstance<IntImmNode>() ||    // constant: integer
-        input->IsInstance<FloatImmNode>()) {  // constant: float
+  for (const Any& input : inputs) {
+    if (input.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+      // directly put back POD type
       result.push_back(input);
-    } else if (input->IsInstance<BlockRVNode>() ||  // RV: block
-               input->IsInstance<LoopRVNode>() ||   // RV: loop
-               input->IsInstance<VarNode>()) {      // RV: var
-      auto it = rv_map.find(input.get());
+    } else if (auto expr = input.as<ffi::String>()) {
+      result.push_back(expr.value());
+    } else if (input.as<BlockRVNode>() ||  // RV: block
+               input.as<LoopRVNode>() ||   // RV: loop
+               input.as<VarNode>()) {      // RV: var
+      auto it = rv_map.find(input.as<Object>());
       ICHECK(it != rv_map.end()) << "IndexError: Random variable doesn't exist: " << input;
       result.push_back(GetRef<ObjectRef>(it->second));
     } else if (auto expr = input.as<PrimExpr>()) {  // RV: Expr
       result.push_back(Substitute(expr.value(), f_subst_with_rv_map));
     } else if (auto index_map = input.as<IndexMap>()) {
       result.push_back(Substitute(index_map.value(), f_subst_with_rv_map));
-    } else if (auto arr = input.as<Array<ObjectRef>>()) {
+    } else if (auto arr = input.as<Array<Any>>()) {
       // Recursively convert elements of the array into a new list of ObjectRefs.
       result.push_back(TranslateInputRVs(arr.value(), rv_map));
     } else {
       ICHECK(false) << "TypeError: Cannot recognize the type of an input random variable: "
-                    << input->GetTypeKey();
+                    << input.GetTypeKey();
       throw;
     }
   }
   return result;
 }
 
-Array<ObjectRef> TranslateInputRVs(
-    const Array<ObjectRef>& inputs,
+// translate rv to string
+Array<Any> TranslateInputRVs(
+    const Array<Any>& inputs,
     const std::unordered_map<ObjectRef, String, ObjectPtrHash, ObjectPtrEqual>& rv_names) {
-  Array<ObjectRef> results;
+  Array<Any> results;
   results.reserve(inputs.size());
-  for (const ObjectRef& input : inputs) {
-    if (!input.defined()) {
+  for (const Any& input : inputs) {
+    if (input == nullptr) {
       // Case 0. nullptr => None
       results.push_back(String("None"));
       continue;
     }
-    auto it = rv_names.find(input);
-    if (it != rv_names.end()) {
-      // Case 1. BlockRV, LoopRV, VarRV
-      results.push_back(it->second);
+    if (input.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+      // directly put back POD type
+      results.push_back(input);
+    } else if (input.as<BlockRVNode>() ||  // RV: block
+               input.as<LoopRVNode>() ||   // RV: loop
+               input.as<VarNode>()) {      // RV: var
+      auto it = rv_names.find(input);
+      if (it != rv_names.end()) {
+        // Case 1. BlockRV, LoopRV, VarRV
+        results.push_back(it->second);
+      } else {
+        LOG(FATAL) << "IndexError: Random variable is not defined " << input;
+        throw;
+      }
     } else if (const auto* str_obj = input.as<StringObj>()) {
       // Case 2. string => "content"
       results.push_back(String('"' + std::string(str_obj->bytes.data) + '"'));
-    } else if (input->IsInstance<IntImmNode>() || input->IsInstance<FloatImmNode>()) {
+    } else if (input.as<IntImmNode>() || input.as<FloatImmNode>()) {
       // Case 3. integer or floating-point number
       results.push_back(input);
-    } else if (input->IsInstance<ArrayNode>()) {
+    } else if (input.as<ArrayNode>()) {
       // Case 4: array
-      results.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(Any(input)), rv_names));
-    } else if (input->IsInstance<MapNode>()) {
+      results.push_back(TranslateInputRVs(Downcast<Array<Any>>(Any(input)), rv_names));
+    } else if (input.as<MapNode>()) {
       // Case 5: dict
       results.push_back(input);
-    } else if (input->IsInstance<IndexMapNode>()) {
+    } else if (input.as<IndexMapNode>()) {
       // // Case 6: IndexMap
       IndexMap index_map = Downcast<IndexMap>(input);
       index_map = index_map.RenameVariables([&rv_names](const Var& var) -> Optional<String> {
@@ -132,47 +143,48 @@ Array<ObjectRef> TranslateInputRVs(
         return NullOpt;
       });
       results.push_back(index_map);
-    } else if (input->IsInstance<BlockRVNode>() || inputs->IsInstance<LoopRVNode>() ||
-               inputs->IsInstance<VarNode>()) {
-      LOG(FATAL) << "IndexError: Random variable is not defined " << input;
-      throw;
     } else {
-      LOG(FATAL) << "TypeError: Stringifying is not supported for type: " << input->GetTypeKey();
+      LOG(FATAL) << "TypeError: Stringifying is not supported for type: " << input.GetTypeKey();
       throw;
     }
   }
   return results;
 }
 
-Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
-                                   const std::unordered_map<std::string, ObjectRef>& named_rvs) {
-  Array<ObjectRef> results;
+Array<Any> TranslateInputRVs(const Array<Any>& inputs,
+                             const std::unordered_map<std::string, ObjectRef>& named_rvs) {
+  Array<Any> results;
   results.reserve(inputs.size());
-  for (const ObjectRef& input : inputs) {
-    // Case 3. integer or floating-point number
-    if (input->IsInstance<IntImmNode>() || input->IsInstance<FloatImmNode>()) {
+  for (const Any& input : inputs) {
+    if (input.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+      // directly put back POD type
+      results.push_back(input);
+      continue;
+    }
+    // Case 3. integer or floating-point immediate
+    if (input.as<IntImmNode>() || input.as<FloatImmNode>()) {
       results.push_back(input);
       continue;
     }
     // Case 4. array
-    if (input->IsInstance<ArrayNode>()) {
-      results.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), named_rvs));
+    if (input.as<ArrayNode>()) {
+      results.push_back(TranslateInputRVs(Downcast<Array<Any>>(input), named_rvs));
       continue;
     }
     // Case 5. dict
-    if (input->IsInstance<MapNode>()) {
+    if (input.as<MapNode>()) {
       results.push_back(input);
       continue;
     }
     const auto* str = input.as<ffi::StringObj>();
-    CHECK(str) << "TypeError: Expect String, but gets: " << input->GetTypeKey();
+    CHECK(str) << "TypeError: Expect String, but gets: " << input.GetTypeKey();
     CHECK_GT(str->bytes.size, 0) << "ValueError: Empty string is not allowed in input names";
     const char* name = str->bytes.data;
     int64_t size = str->bytes.size;
     if (name[0] == '{' && name[size - 1] == '}') {
-      ObjectRef obj = LoadJSON(name);
+      Any obj = LoadJSON(name);
       // Case 6. IndexMap
-      if (obj->IsInstance<IndexMapNode>()) {
+      if (obj.as<IndexMapNode>()) {
         IndexMap index_map = Downcast<IndexMap>(obj);
         index_map = Substitute(index_map, [&named_rvs](const Var& var) -> Optional<PrimExpr> {
           auto it = named_rvs.find(var->name_hint);
@@ -184,7 +196,7 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
         results.push_back(index_map);
         continue;
       } else {
-        LOG(FATAL) << "TypeError: Unexpected object: " << obj->GetTypeKey();
+        LOG(FATAL) << "TypeError: Unexpected object: " << obj.GetTypeKey();
         throw;
       }
     }
@@ -203,36 +215,39 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
 
 /**************** TranslateAddOutputRVs  ****************/
 
-void TranslateAddOutputRVs(const Array<ObjectRef>& old_outputs, const Array<ObjectRef>& new_outputs,
+void TranslateAddOutputRVs(const Array<Any>& old_outputs, const Array<Any>& new_outputs,
                            std::unordered_map<const Object*, const Object*>* rv_map) {
   ICHECK_EQ(old_outputs.size(), new_outputs.size());
   int n = old_outputs.size();
   for (int i = 0; i < n; ++i) {
-    (*rv_map)[old_outputs[i].get()] = new_outputs[i].get();
+    const Object* old_rv = old_outputs[i].as<Object>();
+    const Object* new_rv = new_outputs[i].as<Object>();
+    ICHECK(old_rv != nullptr && new_rv != nullptr);
+    (*rv_map)[old_rv] = new_rv;
   }
 }
 
 Array<String> TranslateAddOutputRVs(
-    const Array<ObjectRef>& outputs,
+    const Array<Any>& outputs,
     std::unordered_map<ObjectRef, String, ObjectPtrHash, ObjectPtrEqual>* rv_names) {
   Array<String> results;
   results.reserve(outputs.size());
-  for (const ObjectRef& output : outputs) {
+  for (const Any& output : outputs) {
     int i = rv_names->size();
     ICHECK(!rv_names->count(output))
         << "ValueError: The random variable has been produced once: " << rv_names->at(output);
     String result{ObjectPtr<StringObj>{nullptr}};
-    if (!output.defined()) {
+    if (output == nullptr) {
       result = "_";
-    } else if (output->IsInstance<BlockRVNode>()) {
+    } else if (output.as<BlockRVNode>()) {
       result = "b" + std::to_string(i);
-    } else if (output->IsInstance<LoopRVNode>()) {
+    } else if (output.as<LoopRVNode>()) {
       result = "l" + std::to_string(i);
-    } else if (output->IsInstance<VarNode>()) {
+    } else if (output.as<VarNode>()) {
       result = "v" + std::to_string(i);
     } else {
       LOG(FATAL) << "TypeError: Cannot recognize the type of the random variable: "
-                 << output->GetTypeKey();
+                 << output.GetTypeKey();
       throw;
     }
     results.push_back(result);
@@ -241,7 +256,7 @@ Array<String> TranslateAddOutputRVs(
   return results;
 }
 
-void TranslateAddOutputRVs(const Array<String>& old_outputs, const Array<ObjectRef>& new_outputs,
+void TranslateAddOutputRVs(const Array<String>& old_outputs, const Array<Any>& new_outputs,
                            std::unordered_map<std::string, ObjectRef>* named_rvs) {
   ICHECK_EQ(old_outputs.size(), new_outputs.size());
   int n = old_outputs.size();
@@ -252,14 +267,13 @@ void TranslateAddOutputRVs(const Array<String>& old_outputs, const Array<ObjectR
 
 /**************** Add/Remove/Get ****************/
 
-Optional<ObjectRef> TraceNode::GetDecision(const Instruction& inst) const {
-  auto it = this->decisions.find(inst);
-  return it == this->decisions.end() ? Optional<ObjectRef>(NullOpt) : (*it).second;
+Any TraceNode::GetDecision(const Instruction& inst) const {
+  return this->decisions.Get(inst).value_or(Any{nullptr});
 }
 
 void TraceNode::Append(Instruction inst) { insts.push_back(std::move(inst)); }
 
-void TraceNode::Append(Instruction inst, ObjectRef decision) {
+void TraceNode::Append(Instruction inst, Any decision) {
   decisions.Set(inst, std::move(decision));
   insts.push_back(std::move(inst));
 }
@@ -280,22 +294,22 @@ Optional<Instruction> TraceNode::Pop() {
 
 void TraceNode::ApplyToSchedule(
     Schedule sch, bool remove_postproc,
-    runtime::TypedPackedFunc<ObjectRef(const Instruction& inst, const Array<ObjectRef>& inputs,  //
-                                       const Array<ObjectRef>& attrs,                            //
-                                       const Optional<ObjectRef>& decision)>
+    runtime::TypedPackedFunc<Any(const Instruction& inst, const Array<Any>& inputs,  //
+                                 const Array<Any>& attrs,                            //
+                                 const Any& decision)>
         decision_provider) const {
   std::unordered_map<const Object*, const Object*> rv_map;
   for (const Instruction& inst : this->insts) {
     if (remove_postproc && inst->kind->IsPostproc()) {
       break;
     }
-    Array<ObjectRef> inputs = TranslateInputRVs(inst->inputs, rv_map);
-    Array<ObjectRef> attrs = inst->attrs;
-    Optional<ObjectRef> decision = this->GetDecision(inst);
+    Array<Any> inputs = TranslateInputRVs(inst->inputs, rv_map);
+    Array<Any> attrs = inst->attrs;
+    Any decision = this->GetDecision(inst);
     if (decision_provider != nullptr) {
       decision = decision_provider(inst, inputs, attrs, decision);
     }
-    Array<ObjectRef> outputs = inst->kind->f_apply_to_schedule(sch, inputs, attrs, decision);
+    Array<Any> outputs = inst->kind->f_apply_to_schedule(sch, inputs, attrs, decision);
     TranslateAddOutputRVs(inst->outputs, outputs, &rv_map);
   }
 }
@@ -342,9 +356,9 @@ Array<String> TraceNode::AsPython(bool remove_postproc) const {
     if (remove_postproc && inst->kind->IsPostproc()) {
       break;
     }
-    Array<ObjectRef> attrs;
+    Array<Any> attrs;
     attrs.reserve(inst->attrs.size());
-    for (const ObjectRef& obj : inst->attrs) {
+    for (const Any& obj : inst->attrs) {
       if (const auto* str = obj.as<StringObj>()) {
         attrs.push_back(String('"' + std::string(str->bytes.data) + '"'));
       } else {
@@ -361,8 +375,8 @@ Array<String> TraceNode::AsPython(bool remove_postproc) const {
 }
 
 void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
-  Array<ObjectRef> json_insts{nullptr};
-  Array<ObjectRef> json_decisions{nullptr};
+  Array<Any> json_insts{nullptr};
+  Array<Any> json_decisions{nullptr};
   // Parse `json` into `json_insts` and `json_decisions`
   try {
     const ArrayNode* arr = json.as<ArrayNode>();
@@ -370,8 +384,8 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
     const auto* arr0 = arr->at(0).as<ArrayNode>();
     const auto* arr1 = arr->at(1).as<ArrayNode>();
     ICHECK(arr0 && arr1);
-    json_insts = GetRef<Array<ObjectRef>>(arr0);
-    json_decisions = GetRef<Array<ObjectRef>>(arr1);
+    json_insts = GetRef<Array<Any>>(arr0);
+    json_decisions = GetRef<Array<Any>>(arr1);
   } catch (const tvm::Error& e) {
     LOG(FATAL) << "ValueError: The json entry of a trace should contain two arrays, an array of "
                   "instructions and an array of decisions, but gets: "
@@ -379,10 +393,10 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
     throw;
   }
   // Parse `json_decisions`
-  std::vector<Optional<ObjectRef>> decisions(json_insts.size(), NullOpt);
-  for (const ObjectRef& decision_entry : json_decisions) {
+  std::vector<Any> decisions(json_insts.size(), Any{nullptr});
+  for (const Any& decision_entry : json_decisions) {
     int index = -1;
-    ObjectRef decision{nullptr};
+    Any decision{nullptr};
     try {
       const ArrayNode* arr = decision_entry.as<ArrayNode>();
       ICHECK(arr && arr->size() == 2);
@@ -403,8 +417,8 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
   int i = 0;
   for (const ObjectRef& inst_entry : json_insts) {
     InstructionKind kind{nullptr};
-    Array<ObjectRef> inputs{nullptr};
-    Array<ObjectRef> attrs{nullptr};
+    Array<Any> inputs{nullptr};
+    Array<Any> attrs{nullptr};
     Array<String> outputs{ObjectPtr<Object>{nullptr}};
     // Parse the entry
     try {
@@ -428,7 +442,7 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
       attrs = kind->f_attrs_from_json(attrs);
     }
     // Apply to the schedule
-    Array<ObjectRef> new_outputs = kind->f_apply_to_schedule(sch, inputs, attrs, decisions[i]);
+    Array<Any> new_outputs = kind->f_apply_to_schedule(sch, inputs, attrs, decisions[i]);
     // Parse outputs
     TranslateAddOutputRVs(outputs, new_outputs, &named_rvs);
     ++i;
@@ -437,11 +451,11 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
 
 /**************** Creation ****************/
 
-Trace TraceNode::WithDecision(Instruction inst, ObjectRef decision, bool remove_postproc) const {
+Trace TraceNode::WithDecision(Instruction inst, Any decision, bool remove_postproc) const {
   int n_insts = GetNumValidInstructions(this->insts, remove_postproc);
   Array<Instruction> new_insts =
       Array<Instruction>{this->insts.begin(), this->insts.begin() + n_insts};
-  Map<Instruction, ObjectRef> new_decisions{this->decisions.begin(), this->decisions.end()};
+  Map<Instruction, Any> new_decisions{this->decisions.begin(), this->decisions.end()};
   new_decisions.Set(std::move(inst), std::move(decision));
   return Trace(new_insts, new_decisions);
 }
@@ -450,7 +464,7 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
   int n_insts = GetNumValidInstructions(this->insts, remove_postproc);
   std::unordered_set<const Object*> used_rvs;
   std::vector<Instruction> new_insts;
-  std::unordered_map<Instruction, ObjectRef, ObjectPtrHash, ObjectPtrEqual> new_decisions;
+  std::unordered_map<Instruction, Any, ObjectPtrHash, ObjectPtrEqual> new_decisions;
   new_insts.reserve(n_insts);
   new_decisions.reserve(this->decisions.size());
   for (int inst_idx = n_insts - 1; inst_idx >= 0; --inst_idx) {
@@ -459,10 +473,12 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
     // If so, and the instruction is pure, we can safely remove this instruction
     bool all_defs_dead = inst->kind->is_pure;
     if (all_defs_dead) {
-      for (const ObjectRef& obj : inst->outputs) {
-        if (used_rvs.count(obj.get())) {
-          all_defs_dead = false;
-          break;
+      for (const Any& obj : inst->outputs) {
+        if (auto* obj_ptr = obj.as<Object>()) {
+          if (used_rvs.count(obj_ptr)) {
+            all_defs_dead = false;
+            break;
+          }
         }
       }
     }
@@ -472,20 +488,20 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
     }
     // Otherwise this instruction is not dead
     new_insts.push_back(inst);
-    if (Optional<ObjectRef> decision = this->GetDecision(inst)) {
+    Any decision = this->GetDecision(inst);
+    if (decision != nullptr) {
       new_decisions.emplace(inst, std::move(decision));
     }
     // Add its inputs as "used" ones
-    for (const ObjectRef& obj : inst->inputs) {
-      if (!obj.defined()) {
+    for (const Any& obj : inst->inputs) {
+      if (obj == nullptr) {
         continue;
-      } else if (obj->IsInstance<BlockRVNode>() || obj->IsInstance<LoopRVNode>() ||
-                 obj->IsInstance<VarNode>()) {
-        used_rvs.insert(obj.get());
+      } else if (obj.as<BlockRVNode>() || obj.as<LoopRVNode>() || obj.as<VarNode>()) {
+        used_rvs.insert(obj.as<Object>());
         continue;
-      } else if (obj->IsInstance<PrimExprNode>()) {
+      } else if (obj.as<PrimExprNode>()) {
         PostOrderVisit(obj, [&used_rvs](const ObjectRef& obj) -> void {
-          if (obj->IsInstance<VarNode>()) {
+          if (obj.as<VarNode>()) {
             used_rvs.insert(obj.get());
           }
         });
@@ -493,7 +509,7 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
     }
   }
   return Trace(Array<Instruction>(new_insts.rbegin(), new_insts.rend()),
-               Map<Instruction, ObjectRef>(new_decisions));
+               Map<Instruction, Any>(new_decisions));
 }
 
 /**************** Repr ****************/
@@ -550,9 +566,7 @@ TVM_REGISTER_NODE_TYPE(TraceNode);
 TVM_REGISTER_GLOBAL("tir.schedule.Trace")
     .set_body_typed([](Optional<Array<Instruction>> insts,
                        Optional<Map<Instruction, Any>> decisions) {
-      return Trace(insts.value_or(Array<Instruction>()),
-                   Downcast<Map<Instruction, ObjectRef>>(
-                    NormalizeAttributeObject(decisions.value_or({}))));
+      return Trace(insts.value_or(Array<Instruction>()), decisions.value_or({}));
     });
 TVM_REGISTER_GLOBAL("tir.schedule.TraceGetDecision")
     .set_body_method<Trace>(&TraceNode::GetDecision);

@@ -152,17 +152,16 @@ struct UnpackedInstTraits {
    * `TTraits::UnpackedApplyToSchedule`
    * \sa InstructionKindNode::f_apply_to_schedule
    */
-  static Array<ObjectRef> ApplyToSchedule(const Schedule& sch, const Array<ObjectRef>& inputs,
-                                          const Array<ObjectRef>& attrs,
-                                          const Optional<ObjectRef>& decision);
+  static Array<Any> ApplyToSchedule(const Schedule& sch, const Array<Any>& inputs,
+                                    const Array<Any>& attrs, const Any& decision);
 
   /*!
    * \brief Unpack the arguments in the calling convention, and feed them into
    * `TTraits::UnpackedAsPython`
    * \sa InstructionKindNode::f_as_python
    */
-  static String AsPython(const Array<ObjectRef>& inputs, const Array<ObjectRef>& attrs,
-                         const Optional<ObjectRef>& decision, const Array<String>& outputs);
+  static String AsPython(const Array<Any>& inputs, const Array<Any>& attrs, const Any& decision,
+                         const Array<String>& outputs);
 
   /*! \brief No customized serializer by default */
   static constexpr std::nullptr_t AttrsAsJSON = nullptr;
@@ -172,13 +171,12 @@ struct UnpackedInstTraits {
 
  protected:
   template <size_t index_offset>
-  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const Array<ObjectRef>& inputs);
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const Array<Any>& inputs);
   template <size_t index_offset>
-  static TVM_ALWAYS_INLINE void _SetAttrs(AnyView* packed_args, const Array<ObjectRef>& attrs);
+  static TVM_ALWAYS_INLINE void _SetAttrs(AnyView* packed_args, const Array<Any>& attrs);
   template <size_t index_offset>
-  static TVM_ALWAYS_INLINE void _SetDecision(AnyView* packed_args,
-                                             const Optional<ObjectRef>& decision);
-  static TVM_ALWAYS_INLINE Array<ObjectRef> _ConvertOutputs(const TVMRetValue& rv);
+  static TVM_ALWAYS_INLINE void _SetDecision(AnyView* packed_args, const Any& decision);
+  static TVM_ALWAYS_INLINE Array<Any> _ConvertOutputs(const TVMRetValue& rv);
 };
 
 /*!
@@ -203,10 +201,12 @@ class PythonAPICall {
   inline void Input(String arg_name, double arg);
   /*! \brief Add an input random variable */
   inline void Input(String arg_name, String arg);
+  /*! \brief Add an input random variable */
+  inline void Input(String arg_name, std::string arg);
   /*! \brief Add an input, dispatched to different implementations according to the object's type */
-  inline void Input(String arg_name, ObjectRef arg);
+  inline void Input(String arg_name, Any arg);
   /*! \brief Add the decision */
-  inline void Decision(ObjectRef decision);
+  inline void Decision(Any decision);
   /*!
    * \brief Add a single output random variable
    * \param unit_array An array containing only one element
@@ -219,7 +219,7 @@ class PythonAPICall {
 
  private:
   /*! \brief Converts a TVM object to python string and print to the output stream */
-  inline void AsPythonString(const ObjectRef& obj, std::ostream& os);
+  inline void AsPythonString(const Any& obj, std::ostream& os);
 
  private:
   /*! \brief The name of the API to call */
@@ -276,8 +276,7 @@ struct _IsTVMArray<runtime::Array<T>> : std::true_type {};
 
 template <typename T>
 struct _IsSingleObject
-    : std::integral_constant<bool, std::is_base_of<ObjectRef, T>::value && !_IsTVMArray<T>::value> {
-};
+    : std::integral_constant<bool, !_IsTVMArray<T>::value && !std::is_void<T>::value> {};
 
 template <class T>
 using ReturnType = typename _MethodType<std::remove_cv_t<T>>::return_type;
@@ -298,14 +297,14 @@ static constexpr int IsSingleObject = _IsSingleObject<std::remove_cv_t<T>>::valu
 };  // namespace details
 
 template <class TTraits>
-Array<ObjectRef> UnpackedInstTraits<TTraits>::ApplyToSchedule(const Schedule& sch,
-                                                              const Array<ObjectRef>& inputs,
-                                                              const Array<ObjectRef>& attrs,
-                                                              const Optional<ObjectRef>& decision) {
+Array<Any> UnpackedInstTraits<TTraits>::ApplyToSchedule(const Schedule& sch,
+                                                        const Array<Any>& inputs,
+                                                        const Array<Any>& attrs,
+                                                        const Any& decision) {
   using method_type = decltype(TTraits::UnpackedApplyToSchedule);
   using return_type = details::ReturnType<method_type>;
-  static_assert(details::ArgumentAreAllObjects<method_type>,
-                "All arguments to `UnpackedApplyToSchedule` must be subclasses of ObjectRef");
+  // static_assert(details::ArgumentAreAllObjects<method_type>,
+  //              "All arguments to `UnpackedApplyToSchedule` must be subclasses of ObjectRef");
   constexpr size_t kNumArgs = details::NumArgs<method_type>;
   constexpr size_t kNumInputs = TTraits::kNumInputs;
   constexpr size_t kNumAttrs = TTraits::kNumAttrs;
@@ -329,14 +328,12 @@ Array<ObjectRef> UnpackedInstTraits<TTraits>::ApplyToSchedule(const Schedule& sc
 }
 
 template <class TTraits>
-String UnpackedInstTraits<TTraits>::AsPython(const Array<ObjectRef>& inputs,
-                                             const Array<ObjectRef>& attrs,
-                                             const Optional<ObjectRef>& decision,
-                                             const Array<String>& outputs) {
+String UnpackedInstTraits<TTraits>::AsPython(const Array<Any>& inputs, const Array<Any>& attrs,
+                                             const Any& decision, const Array<String>& outputs) {
   using method_type = decltype(TTraits::UnpackedAsPython);
   using return_type = details::ReturnType<method_type>;
-  static_assert(details::ArgumentAreAllObjects<method_type>,
-                "All arguments to `UnpackedAsPython` must be subclasses of ObjectRef");
+  // static_assert(details::ArgumentAreAllObjects<method_type>,
+  //               "All arguments to `UnpackedAsPython` must be subclasses of ObjectRef");
   constexpr size_t kNumArgs = details::NumArgs<method_type>;
   constexpr size_t kNumInputs = TTraits::kNumInputs;
   constexpr size_t kNumAttrs = TTraits::kNumAttrs;
@@ -365,7 +362,7 @@ String UnpackedInstTraits<TTraits>::AsPython(const Array<ObjectRef>& inputs,
 template <class TTraits>
 template <size_t index_offset>
 TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetInputs(AnyView* packed_args,
-                                                               const Array<ObjectRef>& inputs) {
+                                                               const Array<Any>& inputs) {
   constexpr size_t kNumInputs = TTraits::kNumInputs;
   ICHECK_EQ(kNumInputs, inputs.size())
       << "ValueError: Incorrect kNumInputs for instruction: " << TTraits::kName;
@@ -377,7 +374,7 @@ TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetInputs(AnyView* packed_a
 template <class TTraits>
 template <size_t index_offset>
 TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetAttrs(AnyView* packed_args,
-                                                              const Array<ObjectRef>& attrs) {
+                                                              const Array<Any>& attrs) {
   constexpr size_t kNumAttrs = TTraits::kNumAttrs;
   ICHECK_EQ(kNumAttrs, attrs.size())
       << "ValueError: Incorrect kNumAttrs for instruction: " << TTraits::kName;
@@ -388,20 +385,19 @@ TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetAttrs(AnyView* packed_ar
 
 template <class TTraits>
 template <size_t index_offset>
-TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetDecision(
-    AnyView* packed_args, const Optional<ObjectRef>& decision) {
+TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetDecision(AnyView* packed_args,
+                                                                 const Any& decision) {
   constexpr size_t kNumDecisions = TTraits::kNumDecisions;
   static_assert(kNumDecisions <= 1, "an instruction is supposed to have at most 1 decision");
   if (kNumDecisions == 1) {
     packed_args[index_offset] = decision;
   } else {
-    ICHECK(!decision.defined());
+    ICHECK(decision == nullptr);
   }
 }
 
 template <class TTraits>
-TVM_ALWAYS_INLINE Array<ObjectRef> UnpackedInstTraits<TTraits>::_ConvertOutputs(
-    const TVMRetValue& rv) {
+TVM_ALWAYS_INLINE Array<Any> UnpackedInstTraits<TTraits>::_ConvertOutputs(const TVMRetValue& rv) {
   using method_type = decltype(TTraits::UnpackedApplyToSchedule);
   using return_type = details::ReturnType<method_type>;
   constexpr int is_array = details::IsTVMArray<return_type>;
@@ -412,27 +408,24 @@ TVM_ALWAYS_INLINE Array<ObjectRef> UnpackedInstTraits<TTraits>::_ConvertOutputs(
   if (is_void) {
     return {};
   } else if (is_single_obj) {
-    ObjectRef obj = rv;
-    return {obj};
+    return {rv};
   } else if (is_array) {
-    ObjectRef obj = rv;
-    const ArrayNode* array = obj.as<ArrayNode>();
-    return GetRef<Array<ObjectRef>>(array);
+    return rv;
   }
 }
 
 /********** PythonAPICall **********/
 
-inline void PythonAPICall::AsPythonString(const ObjectRef& obj, std::ostream& os) {
-  if (!obj.defined()) {
+inline void PythonAPICall::AsPythonString(const Any& obj, std::ostream& os) {
+  if (obj == nullptr) {
     os << "None";
   } else if (const auto* str = obj.as<ffi::StringObj>()) {
     os << str->bytes.data;
-  } else if (const auto* int_imm = obj.as<IntImmNode>()) {
-    os << int_imm->value;
-  } else if (const auto* float_imm = obj.as<FloatImmNode>()) {
+  } else if (const auto opt_int_imm = obj.as<IntImm>()) {
+    os << (*opt_int_imm)->value;
+  } else if (const auto opt_float_imm = obj.as<FloatImm>()) {
     os.precision(17);
-    os << float_imm->value;
+    os << (*opt_float_imm)->value;
   } else if (const auto* array = obj.as<ArrayNode>()) {
     os << '[';
     bool is_first = true;
@@ -468,7 +461,7 @@ inline void PythonAPICall::AsPythonString(const ObjectRef& obj, std::ostream& os
     }
     os << '}';
   } else {
-    LOG(FATAL) << "ValueError: Cannot translate type '" << obj->GetTypeKey()
+    LOG(FATAL) << "ValueError: Cannot translate type '" << obj.GetTypeKey()
                << "' to python. Its value is: " << obj;
     throw;
   }
@@ -508,15 +501,20 @@ void PythonAPICall::Input(String arg_name, String arg) {
   args_.emplace_back(std::move(arg));
 }
 
-void PythonAPICall::Input(String arg_name, ObjectRef arg) {
+void PythonAPICall::Input(String arg_name, std::string arg) {
+  arg_names_.emplace_back(std::move(arg_name));
+  args_.emplace_back(std::move(arg));
+}
+
+void PythonAPICall::Input(String arg_name, Any arg) {
   arg_names_.emplace_back(std::move(arg_name));
   std::ostringstream os;
   AsPythonString(arg, os);
   args_.push_back(os.str());
 }
 
-void PythonAPICall::Decision(ObjectRef decision) {
-  if (decision.defined()) {
+void PythonAPICall::Decision(Any decision) {
+  if (decision != nullptr) {
     this->Input("decision", decision);
   }
 }
