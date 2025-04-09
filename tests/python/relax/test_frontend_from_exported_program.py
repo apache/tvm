@@ -32,8 +32,8 @@ from packaging import version
 torch_version = torch.__version__
 
 
-def verify_model(torch_model, example_args, binding, expected):
-    exported_program = export(torch_model, args=example_args)
+def verify_model(torch_model, example_args, binding, expected, dynamic_shapes=None):
+    exported_program = export(torch_model, args=example_args, dynamic_shapes=dynamic_shapes)
     mod = from_exported_program(exported_program)
 
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
@@ -3959,6 +3959,33 @@ def test_topk():
 
     example_args = (torch.randn(5, 3, dtype=torch.float32),)
     verify_model(Topk(), example_args, {}, Expected)
+
+
+def test_dynamic_shape():
+    class DynamicModel(torch.nn.Module):
+        def forward(self, x1, x2):
+            return torch.ops.aten.add.Tensor(x1, x2)
+
+    B = tvm.tir.SizeVar("BatchSize", dtype="int64")
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((B, 4), dtype="float32"),
+            rhs: R.Tensor((B, 4), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((B, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((B, 4), dtype="float32") = R.add(lhs, rhs)
+                gv: R.Tuple(R.Tensor((B, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 4), torch.randn(2, 4))
+    batch = torch.export.Dim("batch")
+    dynamic_shapes = {"x1": {0: batch}, "x2": {0: batch}}
+
+    verify_model(DynamicModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes)
 
 
 if __name__ == "__main__":
