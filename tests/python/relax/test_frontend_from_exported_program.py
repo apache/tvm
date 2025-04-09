@@ -3092,6 +3092,7 @@ def test_squeeze():
     verify_model(Squeeze1(), example_args, {}, Expected1)
     verify_model(Squeeze2(), example_args, {}, Expected2)
 
+
 def test_stack():
     class Stack0(Module):
         def forward(self, x, y):
@@ -3154,6 +3155,7 @@ def test_stack():
     verify_model(Stack1(), example_args, {}, Expected1)
     verify_model(Stack2(), example_args, {}, Expected1)
     verify_model(Stack3(), example_args, {}, Expected3)
+    
 
 def test_tile():
     class Tile1(Module):

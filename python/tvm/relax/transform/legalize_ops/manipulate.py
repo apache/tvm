@@ -117,6 +117,7 @@ def _split(bb: BlockBuilder, call: Call) -> Expr:
 def _squeeze(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.squeeze, call.args[0], call.attrs.axis)
 
+
 @register_legalize("relax.stack")
 def _stack(bb: BlockBuilder, call: Call) -> Expr:
     t = call.args[0]
@@ -133,11 +134,13 @@ def _stack(bb: BlockBuilder, call: Call) -> Expr:
 
     # Extract fields from either Tuple or bound Var
     fields = (
-        t.fields if isinstance(t, Tuple)
-        else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
+        t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )
 
-    return bb.call_te(topi.stack, fields, None if call.attrs.axis is None else call.attrs.axis.value)
+    return bb.call_te(
+        topi.stack, fields, None if call.attrs.axis is None else call.attrs.axis.value
+    )
+
 
 @register_legalize("relax.repeat")
 def _repeat(bb: BlockBuilder, call: Call) -> Expr:
