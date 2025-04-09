@@ -98,7 +98,7 @@ Expr sum(Expr x, Optional<Array<Integer>> axis, bool keepdims);
  * \return The computed
  * result.
  */
-Expr cumprod(Expr data, Optional<Integer> axis = NullOpt, DataType dtype = DataType::Void(),
+Expr cumprod(Expr data, Optional<Integer> axis = NullOpt, Optional<DataType> dtype = NullOpt,
              Bool exclusive = Bool(false));
 
 /*!
@@ -113,7 +113,7 @@ Expr cumprod(Expr data, Optional<Integer> axis = NullOpt, DataType dtype = DataT
  * which the first element is not included.
  * \return The computed result.
  */
-Expr cumsum(Expr data, Optional<Integer> axis = NullOpt, DataType dtype = DataType::Void(),
+Expr cumsum(Expr data, Optional<Integer> axis = NullOpt, Optional<DataType> dtype = NullOpt,
             Bool exclusive = Bool(false));
 
 /*! \brief Computes the variance of tensor elements over given axes. */

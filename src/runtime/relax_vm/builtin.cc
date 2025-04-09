@@ -468,6 +468,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.read_if_cond").set_body_typed(ReadIfCond);
 TVM_REGISTER_GLOBAL("vm.builtin.invoke_debug_func")
     .set_body_packed([](ffi::PackedArgs args, Any* rv) -> void {
       ICHECK_GE(args.size(), 3);
+      int num_args = args.size() - 3;
       ObjectRef io_effect = args[0];
       ICHECK(!io_effect.defined()) << "ValueError: IOEffect is expected to be lowered to None.";
       String debug_func_name = args[1];
@@ -476,10 +477,10 @@ TVM_REGISTER_GLOBAL("vm.builtin.invoke_debug_func")
                         << "Use the decorator `@tvm.register_func(\"" << debug_func_name
                         << "\")` to register it.";
       String line_info = args[2];
-      std::vector<AnyView> call_args(args.size() + 1);
+      std::vector<AnyView> call_args(num_args + 1);
       {
         call_args[0] = line_info;
-        for (int i = 0; i < args.size(); ++i) {
+        for (int i = 0; i < num_args; ++i) {
           call_args[i + 1] = args[i + 3];
         }
       }
