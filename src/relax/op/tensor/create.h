@@ -89,7 +89,7 @@ Expr zeros(Expr shape, DataType dtype);
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr zeros_like(Expr x, DataType dtype);
+Expr zeros_like(Expr x, Optional<DataType> dtype);
 
 /*!
  * \brief Construct a 2-D tensor with ones on the diagonal and zeros elsewhere.
@@ -113,7 +113,7 @@ Expr eye(PrimValue n, PrimValue m, PrimValue k, DataType dtype);
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr eye_like(Expr x, PrimValue k, DataType dtype);
+Expr eye_like(Expr x, PrimValue k, Optional<DataType> dtype);
 
 /*! \brief Construct a tensor with evenly spaced elements. */
 Expr arange(PrimValue start, PrimValue stop, PrimValue step, DataType dtype);

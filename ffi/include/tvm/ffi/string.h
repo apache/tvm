@@ -213,6 +213,8 @@ class Bytes : public ObjectRef {
  */
 class String : public ObjectRef {
  public:
+  String(nullptr_t) = delete;
+
   /*!
    * \brief constructor from char [N]
    *

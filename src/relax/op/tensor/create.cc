@@ -201,9 +201,9 @@ Expr zeros(Expr shape, DataType dtype) {
   return Call(op, {std::move(shape)}, Attrs(attrs), {});
 }
 
-Expr zeros_like(Expr x, DataType dtype) {
+Expr zeros_like(Expr x, Optional<DataType> dtype) {
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+  attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.zeros_like");
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
@@ -234,9 +234,9 @@ Expr eye(PrimValue n, PrimValue m, PrimValue k, DataType dtype) {
   return Call(op, {std::move(n), std::move(m), std::move(k)}, Attrs(attrs), {});
 }
 
-Expr eye_like(Expr x, PrimValue k, DataType dtype) {
+Expr eye_like(Expr x, PrimValue k, Optional<DataType> dtype) {
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+  attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.eye_like");
   return Call(op, {std::move(x), std::move(k)}, Attrs(attrs), {});
 }
