@@ -447,24 +447,34 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         """Create relax input vars."""
         parameters_buffers_constants = OrderedDict()
         user_inputs = OrderedDict()
+        torch_symbol_to_relax_var: Dict[str, tvm.tir.Var] = {}
+
         for spec in exported_program.graph_signature.input_specs:
             name_hint = spec.arg.name
             if spec.kind is torch.export.graph_signature.InputKind.CONSTANT_TENSOR:
-                shape = exported_program.tensor_constants[spec.target].shape
+                torch_shape = exported_program.tensor_constants[spec.target].shape
                 torch_dtype = exported_program.tensor_constants[spec.target].dtype
             elif spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
                 for node in exported_program.graph.find_nodes(op="placeholder", target=spec.target):
                     if node.name == name_hint and "tensor_meta" in node.meta:
-                        shape = node.meta["tensor_meta"].shape
+                        torch_shape = node.meta["tensor_meta"].shape
                         torch_dtype = node.meta["tensor_meta"].dtype
                         break
             else:
                 # PARAMETER or BUFFER
-                shape = exported_program.state_dict[spec.target].shape
+                torch_shape = exported_program.state_dict[spec.target].shape
                 torch_dtype = exported_program.state_dict[spec.target].dtype
 
+            # TODO(mshr-h): Support range constraints
+            relax_shape = [
+                torch_symbol_to_relax_var.setdefault(str(s), tvm.tir.SizeVar(str(s), "int64"))
+                if isinstance(s, torch.SymInt)
+                else s
+                for s in torch_shape
+            ]
             dtype = self._convert_data_type(torch_dtype)
-            relax_var = relax.Var(name_hint, relax.TensorStructInfo(shape, dtype))
+
+            relax_var = relax.Var(name_hint, relax.TensorStructInfo(relax_shape, dtype))
             if spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
                 user_inputs[name_hint] = relax_var
             else:
