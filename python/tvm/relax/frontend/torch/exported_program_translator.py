@@ -408,6 +408,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "split_with_sizes.default": self._split,
             "squeeze.default": self._squeeze,
             "squeeze.dim": self._squeeze,
+            "stack.default": self._stack,
             "take.default": self._take,
             "tile.default": self._tile,
             "topk.default": self._topk,

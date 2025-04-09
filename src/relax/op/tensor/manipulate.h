@@ -125,6 +125,14 @@ Expr squeeze(Expr x, Optional<Array<Integer>> axis);
  * \param collapse_target The tensor whose shape is the shape to collapse to.
  * \return The result tensor after summation.
  */
+ Expr stack(Expr tensors, int axis);
+
+ /*!
+  * \brief Stack tensors along the specified axis.
+  * \param tensors The input tensors to be stacked.
+  * \param axis The axis along which the tensors will be stacked.
+  * \return The stacked result.
+  */
 Expr collapse_sum_like(Expr data, Expr collapse_target);
 
 /*!

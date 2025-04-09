@@ -1193,6 +1193,212 @@ void CheckCollapseShape(const Call& call, const BlockBuilder& ctx,
   }
 }
 
+/* relax.stack */
+TVM_REGISTER_NODE_TYPE(StackAttrs);
+
+Expr stack(Expr tensors, int axis) {
+  ObjectPtr<StackAttrs> attrs = make_object<StackAttrs>();
+  attrs->axis = axis;
+
+  static const Op& op = Op::Get("relax.stack");
+  return Call(op, {std::move(tensors)}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.stack").set_body_typed(stack);
+
+Optional<Array<PrimExpr>> CheckStackOutputShape(const Call& call, const BlockBuilder& ctx,
+                                               const std::vector<Array<PrimExpr>>& shape_values,
+                                               int axis) {
+  bool shape_unknown = false;
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  
+  // Stack requires all input tensors to have identical shapes
+  for (int d = 0; d < static_cast<int>(shape_values[0].size()); ++d) {
+    for (int i = 1; i < static_cast<int>(shape_values.size()); ++i) {
+      if (analyzer->CanProve(shape_values[i][d] != shape_values[0][d])) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "Stack expects all input tensors to have identical shapes. "
+                         << "Dimension " << d << " differs between tensors: "
+                         << shape_values[0][d] << " vs " << shape_values[i][d]);
+      } else if (!analyzer->CanProveEqual(shape_values[i][d], shape_values[0][d])) {
+        shape_unknown = true;
+      }
+    }
+  }
+
+  if (shape_unknown) {
+    return NullOpt;
+  }
+
+  // Insert new dimension at axis position
+  Array<PrimExpr> output_shape;
+  for (int i = 0; i < axis; ++i) {
+    output_shape.push_back(shape_values[0][i]);
+  }
+  output_shape.push_back(IntImm(DataType::Int(64), shape_values.size()));  // Stack dimension
+  for (int i = axis; i < static_cast<int>(shape_values[0].size()); ++i) {
+    output_shape.push_back(shape_values[0][i]);
+  }
+  return output_shape;
+}
+
+StructInfo InferStructInfoStack(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "Stack op should have 1 argument");
+  }
+  
+  Array<TensorStructInfo> tensor_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[0]);
+  if (tensor_sinfo.empty()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Stack op expects at least one tensor in the input Tuple. "
+                     << "However, the given input Tuple is empty.");
+  }
+
+  const auto* attrs = call->attrs.as<StackAttrs>();
+  ICHECK(attrs != nullptr) << "Stack must have axis attribute";
+  
+  int output_ndim = tensor_sinfo[0]->ndim + 1;  // Stack adds one dimension
+  DataType output_dtype = DataType::Void();
+  Optional<VDevice> vdev = NullOpt;
+  bool shape_unknown = false;
+  bool is_void_dtype = false;
+  bool vdevice_unknown = false;
+  std::vector<Array<PrimExpr>> shape_values;
+  shape_values.reserve(tensor_sinfo.size());
+
+  for (TensorStructInfo sinfo : tensor_sinfo) {
+    // Check dtype consistency
+    if (sinfo->dtype.is_void()) {
+      is_void_dtype = true;
+    } else if (output_dtype.is_void()) {
+      output_dtype = sinfo->dtype;
+    } else if (sinfo->dtype != output_dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "Stack expects all input tensors to have the same dtype. "
+                       << "Found " << output_dtype << " and " << sinfo->dtype);
+    }
+
+    // Check ndim consistency
+    if (sinfo->ndim != kUnknownNDim && sinfo->ndim != tensor_sinfo[0]->ndim) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "Stack expects all input tensors to have same ndim. "
+                       << "Found " << tensor_sinfo[0]->ndim << " and " << sinfo->ndim);
+    }
+
+    // Check virtual device consistency
+    if (!vdevice_unknown) {
+      if (sinfo->vdevice.defined()) {
+        if (!vdev.defined()) {
+          vdev = sinfo->vdevice.value();
+        } else if (sinfo->vdevice.value() != vdev) {
+          vdevice_unknown = true;
+        }
+      }
+    }
+
+    // Collect shape information
+    const auto* shape_expr = sinfo->shape.as<ShapeExprNode>();
+    if (shape_expr != nullptr) {
+      shape_values.push_back(shape_expr->values);
+      continue;
+    }
+    shape_unknown = true;
+
+    if (!sinfo->shape.defined()) continue;
+    ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(sinfo->shape.value()->struct_info_);
+    if (shape_sinfo->values.defined()) {
+      shape_values.push_back(shape_sinfo->values.value());
+    }
+  }
+
+  if (is_void_dtype) output_dtype = DataType::Void();
+  if (vdevice_unknown) vdev = NullOpt;
+
+  // Normalize axis
+  int axis = NormalizeAxis(call, ctx, output_ndim, attrs->axis.IntValue());
+
+  // Single tensor case
+  if (tensor_sinfo.size() == 1) {
+    if (shape_values.empty()) {
+      if (!vdevice_unknown) {
+        return TensorStructInfo(output_dtype, output_ndim, vdev);
+      }
+      return TensorStructInfo(output_dtype, output_ndim);
+    }
+    Array<PrimExpr> output_shape;
+    for (int i = 0; i < axis; ++i) {
+      output_shape.push_back(shape_values[0][i]);
+    }
+    output_shape.push_back(1);  // Stack size 1
+    for (int i = axis; i < static_cast<int>(shape_values[0].size()); ++i) {
+      output_shape.push_back(shape_values[0][i]);
+    }
+    if (!vdevice_unknown) {
+      return TensorStructInfo(ShapeExpr(output_shape), output_dtype, vdev);
+    }
+    return TensorStructInfo(ShapeExpr(output_shape), output_dtype);
+  }
+
+  // Multiple tensors case
+  if (shape_values.empty()) {
+    if (!vdevice_unknown) {
+      return TensorStructInfo(output_dtype, output_ndim, vdev);
+    }
+    return TensorStructInfo(output_dtype, output_ndim);
+  }
+
+  Optional<Array<PrimExpr>> output_shape = CheckStackOutputShape(call, ctx, shape_values, axis);
+  if (shape_unknown || !output_shape.defined()) {
+    if (!vdevice_unknown) {
+      return TensorStructInfo(output_dtype, output_ndim, vdev);
+    }
+    return TensorStructInfo(output_dtype, output_ndim);
+  } else {
+    if (!vdevice_unknown) {
+      return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype, vdev);
+    }
+    return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype);
+  }
+}
+
+InferLayoutOutput InferLayoutStack(const Call& call,
+                                  const Map<String, Array<String>>& desired_layouts,
+                                  const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+
+  const auto* attrs = call->attrs.as<StackAttrs>();
+  ICHECK(attrs != nullptr) << "Invalid Call";
+  NLayout nlayout = GetNLayout(var_layout_map, call->args[0]);
+  ICHECK(nlayout.IsNested());
+  ICHECK(nlayout.NestedArray()[0].IsLeaf());
+
+  int n_tensor = nlayout.NestedArray().size();
+  LayoutDecision layout = nlayout.NestedArray()[0].LeafValue();
+  Array<NLayout> input_layouts, output_layouts;
+  for (int i = 0; i < n_tensor; ++i) {
+    input_layouts.push_back(layout);
+  }
+  
+  // For stack, we need to adjust the output layout by inserting a new axis
+  std::string layout_str = layout->layout.name();
+  layout_str.insert(static_cast<size_t>(attrs->axis.IntValue()), "S");  // Add stack dimension
+  Layout output_layout = Layout(layout_str);
+  output_layouts.push_back(LayoutDecision(output_layout));
+
+  ObjectPtr<StackAttrs> new_attrs = make_object<StackAttrs>(*attrs);
+  new_attrs->axis = FindAxis(layout->layout, attrs->axis.IntValue());
+  return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
+}
+
+TVM_REGISTER_OP("relax.stack")
+    .set_attrs_type<StackAttrs>()
+    .set_num_inputs(1)
+    .add_argument("tensors", "Tuple of Tensors", "The input list of tensors to stack")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStack)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStack)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.collapse_sum_like */
 Expr collapse_sum_like(Expr data, Expr collapse_target) {
   static const Op& op = Op::Get("relax.collapse_sum_like");

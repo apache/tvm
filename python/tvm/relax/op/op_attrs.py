@@ -138,6 +138,9 @@ class SplitAttrs(Attrs):
 class SqueezeAttrs(Attrs):
     """Attributes for squeeze operator"""
 
+@tvm._ffi.register_object("relax.attrs.StackAttrs")
+class StackAttrs(Attrs):
+    """Attributes for concat operator"""
 
 @tvm._ffi.register_object("relax.attrs.LayoutTransformAttrs")
 class LayoutTransformAttrs(Attrs):
