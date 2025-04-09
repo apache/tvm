@@ -1446,7 +1446,7 @@ def prelu(data: Expr, alpha: Expr, axis: int = 1) -> Expr:
         The learnable slope tensor, applied channel-wise.
 
     axis : int
-        The axis along which the `alpha` values are applied.
+        The axis along which the `alpha` values are applied
         Default is 1 (assuming NCHW format).
 
     Returns
