@@ -3149,7 +3149,7 @@ def test_stack():
             return gv
 
     example_args = (torch.randn(2, 3, dtype=torch.float32), torch.randn(2, 3, dtype=torch.float32))
-    
+
     verify_model(Stack0(), example_args, {}, Expected0)
     verify_model(Stack1(), example_args, {}, Expected1)
     verify_model(Stack2(), example_args, {}, Expected1)

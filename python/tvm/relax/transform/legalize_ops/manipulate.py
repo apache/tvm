@@ -121,7 +121,7 @@ def _squeeze(bb: BlockBuilder, call: Call) -> Expr:
 def _stack(bb: BlockBuilder, call: Call) -> Expr:
     t = call.args[0]
     n_field = len(t.struct_info.fields)
-    
+
     # Follow bindings to find the actual tuple
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
@@ -130,13 +130,13 @@ def _stack(bb: BlockBuilder, call: Call) -> Expr:
         t = binding
 
     assert isinstance(t, (Tuple, Var))
-    
+
     # Extract fields from either Tuple or bound Var
     fields = (
-        t.fields if isinstance(t, Tuple) 
+        t.fields if isinstance(t, Tuple)
         else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )
-    
+
     return bb.call_te(topi.stack, fields, None if call.attrs.axis is None else call.attrs.axis.value)
 
 @register_legalize("relax.repeat")
