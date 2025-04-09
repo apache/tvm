@@ -229,6 +229,9 @@ class InternalError : public Error {
       size_t end = pos + 6;
       size_t begin = pos;
       for (; begin != 0 && message[begin - 1] != ' '; --begin) {}
+      if (end < message.size() && message[end] == ' ') {
+        end += 1;
+      }
       return message.substr(0, begin) + message.substr(end);
     } else {
       return message;
