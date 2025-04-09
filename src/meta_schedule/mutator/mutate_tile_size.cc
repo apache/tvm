@@ -127,7 +127,7 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
     const ObjectRef& decision = kv.second;
     if (inst->kind.same_as(inst_sample_categorical)) {
       ICHECK_EQ(inst->outputs.size(), 1);
-      if (annotated.count(inst->outputs[0].get())) {
+      if (annotated.count(inst->outputs[0].as<Object>())) {
         ICHECK_EQ(inst->attrs.size(), 2);
         std::vector<double> probs = support::AsVector<FloatImm, double>(
             Downcast<Array<FloatImm>>(inst->attrs[1]));

@@ -42,9 +42,8 @@ class Schedule;
  * \param decision Decisions made on the instruction
  * \return The functor returns an array of output random variables
  */
-using FInstructionApply = runtime::TypedPackedFunc<Array<ObjectRef>(
-    Schedule sch, const Array<ObjectRef>& inputs, const Array<ObjectRef>& attrs,
-    const Optional<ObjectRef>& decision)>;
+using FInstructionApply = runtime::TypedPackedFunc<Array<Any>(
+    Schedule sch, const Array<Any>& inputs, const Array<Any>& attrs, const Any& decision)>;
 
 /*!
  * \brief Type of the functor that converts the instruction to a statement in python syntax
@@ -54,9 +53,9 @@ using FInstructionApply = runtime::TypedPackedFunc<Array<ObjectRef>(
  * \param outputs Names of the output random variables
  * \return A string representing the python api call
  */
-using FInstructionAsPython = runtime::TypedPackedFunc<String(
-    const Array<ObjectRef>& inputs, const Array<ObjectRef>& attrs,
-    const Optional<ObjectRef>& decision, const Array<String>& outputs)>;
+using FInstructionAsPython =
+    runtime::TypedPackedFunc<String(const Array<Any>& inputs, const Array<Any>& attrs,
+                                    const Any& decision, const Array<String>& outputs)>;
 
 /*!
  * \brief Type of the functor that serialize its attributes to JSON
@@ -64,7 +63,7 @@ using FInstructionAsPython = runtime::TypedPackedFunc<String(
  * \return An array, serialized attributes
  * \note This functor is nullable
  */
-using FInstructionAttrsAsJSON = runtime::TypedPackedFunc<ObjectRef(Array<ObjectRef> attrs)>;
+using FInstructionAttrsAsJSON = runtime::TypedPackedFunc<ObjectRef(Array<Any> attrs)>;
 
 /*!
  * \brief Type of the functor that deserialize its attributes from JSON
@@ -72,7 +71,7 @@ using FInstructionAttrsAsJSON = runtime::TypedPackedFunc<ObjectRef(Array<ObjectR
  * \return An array, deserialized attributes
  * \note This functor is nullable
  */
-using FInstructionAttrsFromJSON = runtime::TypedPackedFunc<Array<ObjectRef>(ObjectRef json_attrs)>;
+using FInstructionAttrsFromJSON = runtime::TypedPackedFunc<Array<Any>(ObjectRef json_attrs)>;
 
 /*!
  * \brief Kind of an instruction, e.g. Split, Reorder, etc.
@@ -154,25 +153,25 @@ class InstructionNode : public runtime::Object {
    * - BlockRV
    * - LoopRV
    * - ExprRV
-   * - FloatImm
-   * - IntImm
+   * - double
+   * - int64_t
    * - String
    * - null pointer
    */
-  Array<ObjectRef> inputs;
+  Array<Any> inputs;
   /*!
    * \brief The attributes of the instruction. Similar to attributes of an operator,
    * attributes of an instruction are arbitrary constant metadata required by the instructions.
    * For example, the name of the block to be retrieved in `GetBlock`.
    */
-  Array<ObjectRef> attrs;
+  Array<Any> attrs;
   /*! \brief The output random variables of the instruction, and the type of each element can be one
    * of the following:
    * - BlockRV
    * - LoopRV
    * - ExprRV, atomic variables only, won't be constants or composite PrimExpr
    */
-  Array<ObjectRef> outputs;
+  Array<Any> outputs;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("kind", &kind);
@@ -198,8 +197,8 @@ class Instruction : public runtime::ObjectRef {
    * \param attrs The attributes of the instruction
    * \param outputs The output random variables of the instruction
    */
-  explicit Instruction(InstructionKind kind, Array<ObjectRef> inputs, Array<ObjectRef> attrs,
-                       Array<ObjectRef> outputs);
+  explicit Instruction(InstructionKind kind, Array<Any> inputs, Array<Any> attrs,
+                       Array<Any> outputs);
 
   TVM_DEFINE_OBJECT_REF_METHODS(Instruction, runtime::ObjectRef, InstructionNode);
 };

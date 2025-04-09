@@ -136,7 +136,8 @@ TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, Optional<VDevice> v
 TVM_REGISTER_NODE_TYPE(TensorStructInfoNode);
 
 TVM_REGISTER_GLOBAL("relax.TensorStructInfo")
-    .set_body_typed([](Optional<Expr> shape, Optional<DataType> dtype, int ndim, VDevice vdevice, Span span) {
+    .set_body_typed([](Optional<Expr> shape, Optional<DataType> dtype, int ndim, VDevice vdevice,
+                       Span span) {
       if (shape.defined()) {
         CHECK_EQ(ndim, kUnknownNDim) << "ValueError: Cannot both specify shape and ndim";
         return TensorStructInfo(shape.value(), dtype.value_or(DataType::Void()), vdevice, span);

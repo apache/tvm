@@ -79,7 +79,7 @@ Array<ExprRV> TracedScheduleNode::SamplePerfectTile(const LoopRV& loop_rv, int n
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
                                       /*inputs=*/{loop_rv},
                                       /*attrs=*/{Integer(n), Integer(max_innermost_factor)},
-                                      /*outputs=*/{results.begin(), results.end()}),
+                                      /*outputs=*/results),
                  /*decision=*/decision);
   return results;
 }
@@ -95,7 +95,7 @@ Array<ExprRV> TracedScheduleNode::SamplePartitionedTile(const LoopRV& loop_rv, i
                      /*kind=*/kind,  //
                      /*inputs=*/{loop_rv},
                      /*attrs=*/{Integer(n), Integer(partition_pos), Integer(innerpart_factor)},
-                     /*outputs=*/{results.begin(), results.end()}),
+                     /*outputs=*/results),
                  /*decision=*/decision);
   return results;
 }
@@ -144,7 +144,7 @@ Array<LoopRV> TracedScheduleNode::GetLoops(const BlockRV& block_rv) {
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
                                       /*inputs=*/{block_rv},
                                       /*attrs=*/{},
-                                      /*outputs=*/{results.begin(), results.end()}));
+                                      /*outputs=*/results));
   return results;
 }
 
@@ -155,7 +155,7 @@ Array<BlockRV> TracedScheduleNode::GetChildBlocks(const BlockRV& block_rv) {
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
                                       /*inputs=*/{block_rv},
                                       /*attrs=*/{},
-                                      /*outputs=*/{results.begin(), results.end()}));
+                                      /*outputs=*/results));
   return results;
 }
 
@@ -166,7 +166,7 @@ Array<BlockRV> TracedScheduleNode::GetChildBlocks(const LoopRV& loop_rv) {
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
                                       /*inputs=*/{loop_rv},
                                       /*attrs=*/{},
-                                      /*outputs=*/{results.begin(), results.end()}));
+                                      /*outputs=*/results));
   return results;
 }
 
@@ -177,7 +177,7 @@ Array<BlockRV> TracedScheduleNode::GetProducers(const BlockRV& block_rv) {
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
                                       /*inputs=*/{block_rv},
                                       /*attrs=*/{},
-                                      /*outputs=*/{results.begin(), results.end()}));
+                                      /*outputs=*/results));
   return results;
 }
 
@@ -188,7 +188,7 @@ Array<BlockRV> TracedScheduleNode::GetConsumers(const BlockRV& block_rv) {
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
                                       /*inputs=*/{block_rv},
                                       /*attrs=*/{},
-                                      /*outputs=*/{results.begin(), results.end()}));
+                                      /*outputs=*/results));
   return results;
 }
 
@@ -199,7 +199,7 @@ Array<BlockRV> TracedScheduleNode::GetOutputBlocks(const BlockRV& scope_block_rv
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
                                       /*inputs=*/{scope_block_rv},
                                       /*attrs=*/{},
-                                      /*outputs=*/{results.begin(), results.end()}));
+                                      /*outputs=*/results));
   return results;
 }
 
@@ -209,7 +209,7 @@ LoopRV TracedScheduleNode::Merge(const Array<LoopRV>& loop_rvs) {
   LoopRV result = ConcreteScheduleNode::Merge(loop_rvs);
   static const InstructionKind& kind = InstructionKind::Get("Merge");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
-                                      /*inputs=*/{loop_rvs.begin(), loop_rvs.end()},
+                                      /*inputs=*/loop_rvs,
                                       /*attrs=*/{},
                                       /*outputs=*/{result}));
   return result;
@@ -220,7 +220,7 @@ LoopRV TracedScheduleNode::Fuse(const Array<LoopRV>& loop_rvs, bool preserve_uni
 
   static const InstructionKind& kind = InstructionKind::Get("Fuse");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
-                                      /*inputs=*/{loop_rvs.begin(), loop_rvs.end()},
+                                      /*inputs=*/loop_rvs,
                                       /*attrs=*/{Integer(preserve_unit_loops)},
                                       /*outputs=*/{result}));
   return result;
@@ -232,10 +232,10 @@ Array<LoopRV> TracedScheduleNode::Split(const LoopRV& loop_rv,
   Array<LoopRV> results =
       ConcreteScheduleNode::Split(loop_rv, factor_rvs, preserve_unit_iters, disable_predication);
 
-  std::vector<ObjectRef> inputs;
+  Array<Any> inputs;
   inputs.reserve(1 + factor_rvs.size());
   inputs.push_back(loop_rv);
-  for (const ObjectRef& obj : factor_rvs) {
+  for (const auto& obj : factor_rvs) {
     inputs.push_back(obj);
   }
 
@@ -243,8 +243,8 @@ Array<LoopRV> TracedScheduleNode::Split(const LoopRV& loop_rv,
   trace_->Append(
       /*inst=*/Instruction(/*kind=*/kind,
                            /*inputs=*/inputs,
-                           /*attrs=*/{Integer(preserve_unit_iters), Integer(disable_predication)},
-                           /*outputs=*/{results.begin(), results.end()}));
+                           /*attrs=*/Array<Any>({preserve_unit_iters, disable_predication}),
+                           /*outputs=*/results));
   return results;
 }
 
@@ -254,10 +254,10 @@ Array<LoopRV> TracedScheduleNode::LoopPartition(const LoopRV& loop_rv,
   Array<LoopRV> results =
       ConcreteScheduleNode::LoopPartition(loop_rv, factor_rvs, preserve_unit_iters);
 
-  std::vector<ObjectRef> inputs;
+  Array<Any> inputs;
   inputs.reserve(1 + factor_rvs.size());
   inputs.push_back(loop_rv);
-  for (const ObjectRef& obj : factor_rvs) {
+  for (const auto& obj : factor_rvs) {
     inputs.push_back(obj);
   }
 
@@ -265,7 +265,7 @@ Array<LoopRV> TracedScheduleNode::LoopPartition(const LoopRV& loop_rv,
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
                                       /*inputs=*/inputs,
                                       /*attrs=*/{Integer(preserve_unit_iters)},
-                                      /*outputs=*/{results.begin(), results.end()}));
+                                      /*outputs=*/results));
   return results;
 }
 
@@ -274,7 +274,7 @@ void TracedScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
 
   static const InstructionKind& kind = InstructionKind::Get("Reorder");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
-                                      /*inputs=*/{ordered_loop_rvs.begin(), ordered_loop_rvs.end()},
+                                      /*inputs=*/Any(ordered_loop_rvs),
                                       /*attrs=*/{},
                                       /*outputs=*/{}));
 }
@@ -417,7 +417,7 @@ Array<BlockRV> TracedScheduleNode::CacheInplace(const BlockRV& block_rv, int rea
                                                 const String& storage_scope) {
   Array<BlockRV> result =
       ConcreteScheduleNode::CacheInplace(block_rv, read_buffer_index, storage_scope);
-  Array<ObjectRef> results;
+  Array<Any> results;
   for (const BlockRV& r : result) {
     results.push_back(r);
   }
@@ -432,7 +432,7 @@ Array<BlockRV> TracedScheduleNode::CacheInplace(const BlockRV& block_rv, int rea
 Array<BlockRV> TracedScheduleNode::CacheIndex(const BlockRV& block_rv, const String& storage_scope,
                                               int cse_thresh) {
   Array<BlockRV> result = ConcreteScheduleNode::CacheIndex(block_rv, storage_scope, cse_thresh);
-  Array<ObjectRef> outputs;
+  Array<Any> outputs;
   for (const BlockRV& r : result) {
     outputs.push_back(r);
   }

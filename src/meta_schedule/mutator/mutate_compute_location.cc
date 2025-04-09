@@ -80,10 +80,10 @@ std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::Fin
       InstructionKind::Get("SampleComputeLocation");
   std::vector<MutateComputeLocationNode::Candidate> candidates;
 
-  auto f_decision_provider = [&](const tir::Instruction& inst,    //
-                                 const Array<ObjectRef>& inputs,  //
-                                 const Array<ObjectRef>& attrs,   //
-                                 const ObjectRef& decision) -> ObjectRef {
+  auto f_decision_provider = [&](const tir::Instruction& inst,  //
+                                 const Array<Any>& inputs,      //
+                                 const Array<Any>& attrs,       //
+                                 const Any& decision) -> Any {
     if (inst->kind.same_as(inst_sample_compute_location)) {
       // Step 1. Extract the instruction input and the old decision.
       ICHECK_EQ(inputs.size(), 1);

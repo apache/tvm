@@ -117,9 +117,9 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
   // schedule.
   auto is_inst_applicable = [&foreign_blocks, &foreign_loops](Instruction inst) {
     for (auto input : inst->inputs) {
-      if (!input.defined()) continue;
-      if ((input->IsInstance<BlockRVNode>() && foreign_blocks.count(Downcast<BlockRV>(input))) ||
-          (input->IsInstance<LoopRVNode>() && foreign_loops.count(Downcast<LoopRV>(input)))) {
+      if (input == nullptr) continue;
+      if ((input.as<BlockRVNode>() && foreign_blocks.count(Downcast<BlockRV>(input))) ||
+          (input.as<LoopRVNode>() && foreign_loops.count(Downcast<LoopRV>(input)))) {
         return false;
       }
     }
@@ -131,16 +131,16 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       // If we find an instruction that is not applicable, its outputs are recorded as "foreign"
       // to the target schedule.
       for (auto output : inst->outputs) {
-        if (output->IsInstance<BlockRVNode>()) {
+        if (output.as<BlockRVNode>()) {
           foreign_blocks.insert(Downcast<BlockRV>(output));
-        } else if (output->IsInstance<LoopRVNode>()) {
+        } else if (output.as<LoopRVNode>()) {
           foreign_loops.insert(Downcast<LoopRV>(output));
         }
       }
       continue;
     }
 
-    Array<ObjectRef> inputs = TranslateInputRVs(inst->inputs, rv_map);
+    Array<Any> inputs = TranslateInputRVs(inst->inputs, rv_map);
 
     if (inst->kind.same_as(kind_get_block) && !HasBlock(sch, Downcast<String>(inst->attrs[0]))) {
       // The anchor trace does get_block on a block that is not part of the target schedule.
@@ -173,8 +173,8 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       }
     }
 
-    Optional<ObjectRef> decision = anchor_trace->GetDecision(inst);
-    Array<ObjectRef> outputs = inst->kind->f_apply_to_schedule(sch, inputs, inst->attrs, decision);
+    Any decision = anchor_trace->GetDecision(inst);
+    Array<Any> outputs = inst->kind->f_apply_to_schedule(sch, inputs, inst->attrs, decision);
 
     if (inst->kind.same_as(kind_get_child_blocks)) {
       // We want to allow a trace generated for a single conv2d block to be applied to
@@ -184,9 +184,9 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
       // new_outputs.size(). We workaround this problem by assuming that the prefix of the "new"
       // outputs matches with the "old" outputs, and truncating the new outputs accordingly.
       ICHECK(inst->outputs.size() <= outputs.size());
-      TranslateAddOutputRVs(
-          inst->outputs, Array<ObjectRef>(outputs.begin(), outputs.begin() + inst->outputs.size()),
-          &rv_map);
+      TranslateAddOutputRVs(inst->outputs,
+                            Array<Any>(outputs.begin(), outputs.begin() + inst->outputs.size()),
+                            &rv_map);
     } else {
       TranslateAddOutputRVs(inst->outputs, outputs, &rv_map);
     }

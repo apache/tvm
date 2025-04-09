@@ -240,9 +240,8 @@ void CheckTensorInfo(ffi::PackedArgs args, Any* rv) {
 
   DLTensor* ptr = opt_ptr.value();
   if (ndim != -1) {
-    CHECK(ptr->ndim == ndim)
-        << "ValueError: " << err_ctx.value_or("") << " expect Tensor with ndim " << ndim
-        << " but get " << ptr->ndim;
+    CHECK(ptr->ndim == ndim) << "ValueError: " << err_ctx.value_or("")
+                             << " expect Tensor with ndim " << ndim << " but get " << ptr->ndim;
   }
 
   if (dtype != DataType::Void()) {

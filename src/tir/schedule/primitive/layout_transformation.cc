@@ -1587,12 +1587,12 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
   }
 
  public:
-  static ObjectRef AttrsAsJSON(const Array<ObjectRef>& attrs) {
-    Array<ObjectRef> attrs_record;
+  static ObjectRef AttrsAsJSON(const Array<Any>& attrs) {
+    Array<Any> attrs_record;
     attrs_record.reserve(kNumAttrs);
     attrs_record.push_back(attrs[0]);
     attrs_record.push_back(attrs[1]);
-    if (attrs[2].defined()) {
+    if (attrs[2] != nullptr) {
       attrs_record.push_back(String(::tvm::SaveJSON(attrs[2])));
     } else {
       attrs_record.push_back(attrs[2]);
@@ -1601,12 +1601,12 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     return std::move(attrs_record);
   }
 
-  static Array<ObjectRef> AttrsFromJSON(const ObjectRef& attrs_record_) {
-    Array<ObjectRef> attrs_record = Downcast<Array<ObjectRef>>(attrs_record_);
-    Array<ObjectRef> attrs;
+  static Array<Any> AttrsFromJSON(const ObjectRef& attrs_record_) {
+    Array<Any> attrs_record = Downcast<Array<Any>>(attrs_record_);
+    Array<Any> attrs;
     attrs.push_back(attrs_record[0]);
     attrs.push_back(attrs_record[1]);
-    if (attrs_record[2].defined()) {
+    if (attrs_record[2] != nullptr) {
       attrs.push_back(::tvm::LoadJSON(Downcast<String>(attrs_record[2])));
     } else {
       attrs.push_back(attrs_record[2]);
@@ -1640,16 +1640,16 @@ struct TransformBlockLayoutTraits : public UnpackedInstTraits<TransformBlockLayo
   }
 
  public:
-  static ObjectRef AttrsAsJSON(const Array<ObjectRef>& attrs) {
-    Array<ObjectRef> attrs_record;
+  static ObjectRef AttrsAsJSON(const Array<Any>& attrs) {
+    Array<Any> attrs_record;
     attrs_record.reserve(kNumAttrs);
     attrs_record.push_back(String(::tvm::SaveJSON(attrs[0])));
     return std::move(attrs_record);
   }
 
-  static Array<ObjectRef> AttrsFromJSON(const ObjectRef& attrs_record_) {
-    Array<ObjectRef> attrs_record = Downcast<Array<ObjectRef>>(attrs_record_);
-    Array<ObjectRef> attrs;
+  static Array<Any> AttrsFromJSON(const ObjectRef& attrs_record_) {
+    Array<Any> attrs_record = Downcast<Array<Any>>(attrs_record_);
+    Array<Any> attrs;
     attrs.push_back(::tvm::LoadJSON(Downcast<String>(attrs_record[0])));
     return attrs;
   }

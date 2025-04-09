@@ -199,14 +199,14 @@ inline std::string Base64Decode(std::string str) {
  * \param json_str The json string.
  * \return The json object
  */
-ObjectRef JSONLoads(std::string json_str);
+Any JSONLoads(std::string json_str);
 
 /*!
  * \brief Dumps a json object into a json string.
  * \param json_obj The json object.
  * \return The json string
  */
-std::string JSONDumps(ObjectRef json_obj);
+std::string JSONDumps(Any json_obj);
 
 /*!
  * \brief Converts a structural hash code to string
@@ -425,7 +425,9 @@ inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
   results.reserve(arr->size());
   for (Any val : *arr) {
     auto float_value = [&]() -> FloatImm {
-      if (auto opt_float_imm = val.as<FloatImm>()) {
+      if (auto opt_int_imm = val.as<IntImm>()) {
+        return FloatImm(DataType::Float(32), (*opt_int_imm)->value);
+      } else if (auto opt_float_imm = val.as<FloatImm>()) {
         return *std::move(opt_float_imm);
       } else {
         LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: " << val.GetTypeKey();

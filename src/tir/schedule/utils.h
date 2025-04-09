@@ -409,8 +409,8 @@ inline bool HasBlock(const Schedule& sch, const std::string& block_name) {
  * \param rv_map The substitution map for variables.
  * \return The transformed objects.
  */
-Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
-                                   const std::unordered_map<const Object*, const Object*>& rv_map);
+Array<Any> TranslateInputRVs(const Array<Any>& inputs,
+                             const std::unordered_map<const Object*, const Object*>& rv_map);
 
 /*!
  * \brief Update the variable substitution map according to the new outputs.
@@ -418,7 +418,7 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
  * \param new_outputs The new outputs of the same schedule instruction.
  * \param rv_map The substitution map for variables.
  */
-void TranslateAddOutputRVs(const Array<ObjectRef>& old_outputs, const Array<ObjectRef>& new_outputs,
+void TranslateAddOutputRVs(const Array<Any>& old_outputs, const Array<Any>& new_outputs,
                            std::unordered_map<const Object*, const Object*>* rv_map);
 
 /*!

@@ -96,10 +96,8 @@ struct AnnotateTraits : public UnpackedInstTraits<AnnotateTraits> {
   static constexpr size_t kNumAttrs = 1;
   static constexpr size_t kNumDecisions = 0;
 
-  static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, ObjectRef ann_val,
+  static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, Any ann_val,
                                       String ann_key) {
-    ann_val = NormalizeAttributeObject(ann_val);
-
     if (auto block = block_or_loop_rv.as<BlockRV>()) {
       return sch->Annotate(block.value(), ann_key, ann_val);
     }
@@ -110,8 +108,8 @@ struct AnnotateTraits : public UnpackedInstTraits<AnnotateTraits> {
     throw;
   }
 
-  static String UnpackedAsPython(Array<String> outputs, ObjectRef block_or_loop_rv,
-                                 ObjectRef ann_val, String ann_key) {
+  static String UnpackedAsPython(Array<String> outputs, ObjectRef block_or_loop_rv, Any ann_val,
+                                 String ann_key) {
     PythonAPICall py("annotate");
     py.Input("block_or_loop", block_or_loop_rv);
     py.Input("ann_key", ann_key);

@@ -151,7 +151,7 @@ struct AnnotateBufferAccessTraits : public UnpackedInstTraits<AnnotateBufferAcce
     std::ostringstream os;
     os << "\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
        << "\"";
-    py.Input("buf_type", os.str());
+    py.Input("buf_type", String(os.str()));
 
     py.Input("gen_new_ranges", IndexMap2GenNewRangesLambda(index_map));
     return py.Str();

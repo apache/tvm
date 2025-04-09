@@ -26,10 +26,11 @@
 namespace tvm {
 namespace meta_schedule {
 
-void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
-  if (!json_obj.defined()) {
+void JSONDumps(Any json_obj, std::ostringstream& os) {
+  if (json_obj == nullptr) {
     os << "null";
-  } else if (const auto* int_imm = json_obj.as<IntImmNode>()) {
+  } else if (auto opt_int_imm = json_obj.as<IntImm>()) {
+    IntImm int_imm = *std::move(opt_int_imm);
     if (int_imm->dtype == DataType::Bool()) {
       if (int_imm->value) {
         os << "true";
@@ -39,9 +40,8 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
     } else {
       os << int_imm->value;
     }
-  } else if (const auto* int_imm = json_obj.as<IntImmNode>()) {
-    os << int_imm->value;
-  } else if (const auto* float_imm = json_obj.as<FloatImmNode>()) {
+  } else if (auto opt_float_imm = json_obj.as<FloatImm>()) {
+    FloatImm float_imm = *std::move(opt_float_imm);
     os << std::setprecision(20) << float_imm->value;
   } else if (const auto* str = json_obj.as<runtime::StringObj>()) {
     os << '"' << support::StrEscape(str->bytes.data, str->bytes.size) << '"';
@@ -81,14 +81,14 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
       JSONDumps(kv.second, os);
     }
     os << "}";
-  } else if (json_obj->IsInstance<tir::IndexMapNode>()) {
+  } else if (json_obj.as<tir::IndexMapNode>()) {
     JSONDumps(String(SaveJSON(json_obj)), os);
   } else {
-    LOG(FATAL) << "TypeError: Unsupported type in JSON object: " << json_obj->GetTypeKey();
+    LOG(FATAL) << "TypeError: Unsupported type in JSON object: " << json_obj.GetTypeKey();
   }
 }
 
-std::string JSONDumps(ObjectRef json_obj) {
+std::string JSONDumps(Any json_obj) {
   std::ostringstream os;
   JSONDumps(json_obj, os);
   return os.str();
@@ -276,7 +276,7 @@ class JSONParser {
 
   explicit JSONParser(const char* st, const char* ed) : tokenizer_(st, ed) {}
 
-  ObjectRef Get() {
+  Any Get() {
     Token token = tokenizer_.Next();
     if (token.type == TokenType::kEOF) {
       return ObjectRef(nullptr);
@@ -390,7 +390,7 @@ class JSONParser {
   JSONTokenizer tokenizer_;
 };
 
-ObjectRef JSONLoads(std::string str) {
+Any JSONLoads(std::string str) {
   const char* st = str.c_str();
   const char* ed = st + str.length();
   return JSONParser(st, ed).Get();

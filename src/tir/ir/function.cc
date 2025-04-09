@@ -77,7 +77,7 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
   }
   // normalize attributes so values are IntImm values
   // TODO(tvm-team) move most attributes to non immediate values instead
-  attrs.CopyOnWrite()->dict = NormalizeAttributeObject(attrs->dict);
+  // attrs.CopyOnWrite()->dict = NormalizeAttributeObject(attrs->dict);
 
   if (!ret_type.defined()) {
     ret_type = VoidType();

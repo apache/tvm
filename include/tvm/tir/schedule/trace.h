@@ -36,9 +36,9 @@ class Trace;
  * \param decision The original decision
  * \return A new decision
  */
-using FTraceDecisionProvider = runtime::TypedPackedFunc<ObjectRef(
-    const Instruction& inst, const Array<ObjectRef>& inputs, const Array<ObjectRef>& attrs,
-    const Optional<ObjectRef>& decision)>;
+using FTraceDecisionProvider =
+    runtime::TypedPackedFunc<Any(const Instruction& inst, const Array<Any>& inputs,
+                                 const Array<Any>& attrs, const Any& decision)>;
 
 /*!
  * \brief An execution trace of a scheduling program
@@ -60,7 +60,7 @@ class TraceNode : public runtime::Object {
   /*! \brief The instructions invoked so far in the program execution */
   Array<Instruction> insts;
   /*! \brief The random decisions made upon those instructions */
-  Map<Instruction, ObjectRef> decisions;
+  Map<Instruction, Any> decisions;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("insts", &insts);
@@ -74,9 +74,9 @@ class TraceNode : public runtime::Object {
   /*!
    * \brief Retrieve the decision made on a specific instruction
    * \param inst The instruction whose decision is to be retrieved
-   * \return The corresponding decision; NullOpt if there is no decision made on the instruction
+   * \return The corresponding decision; nullptr if there is no decision made on the instruction
    */
-  Optional<ObjectRef> GetDecision(const Instruction& inst) const;
+  Any GetDecision(const Instruction& inst) const;
   /*!
    * \brief Append a new instruction to the trace
    * \param inst The new instruction to be appended
@@ -89,7 +89,7 @@ class TraceNode : public runtime::Object {
    * The type of `decision` depends on the instruction, e.g.
    * the decision of `SamplePerfectTile` has type `Array<IntImm>`
    */
-  void Append(Instruction inst, ObjectRef decision);
+  void Append(Instruction inst, Any decision);
   /*!
    * \brief Remove the last instruction, along with the decision made on that instruction, if any
    * \return The instruction removed; NullOpt if the trace is empty
@@ -125,7 +125,7 @@ class TraceNode : public runtime::Object {
    * \param remove_postproc If postprocessing instructions are removed
    * \return The new trace with the decision changed
    */
-  Trace WithDecision(Instruction inst, ObjectRef decision, bool remove_postproc) const;
+  Trace WithDecision(Instruction inst, Any decision, bool remove_postproc) const;
   /*!
    * \brief Simplify the trace with dead-code elimination
    * \param remove_postproc If postprocessing instructions are removed
@@ -147,7 +147,7 @@ class Trace : public runtime::ObjectRef {
    * \param insts The instructions used
    * \param decisions The decisions made in sampling
    */
-  explicit Trace(Array<Instruction> insts, Map<Instruction, ObjectRef> decisions);
+  explicit Trace(Array<Instruction> insts, Map<Instruction, Any> decisions);
   /*!
    * \brief Apply a JSON-serialized trace to a TensorIR schedule
    * \param json The JSON-serialized trace

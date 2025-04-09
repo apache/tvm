@@ -2425,7 +2425,7 @@ struct ReIndexTraits : public UnpackedInstTraits<ReIndexTraits> {
     std::ostringstream os;
     os << "(\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
        << "\", " << buffer_index << ")";
-    py.Input("buffer", os.str());
+    py.Input("buffer", String(os.str()));
     py.SingleOutput(outputs);
     return py.Str();
   }
