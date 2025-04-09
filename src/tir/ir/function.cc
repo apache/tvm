@@ -75,13 +75,13 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
   if (!attrs.defined()) {
     attrs = DictAttrs();
   }
+  // normalize attributes so values are IntImm values
+  // TODO(tvm-team) move most attributes to non immediate values instead
+  attrs.CopyOnWrite()->dict = NormalizeAttributeObject(attrs->dict);
 
-  // Assume void-return type for now
-  // TODO(tvm-team) consider type deduction from body.
   if (!ret_type.defined()) {
     ret_type = VoidType();
   }
-
 
   auto n = make_object<PrimFuncNode>();
   n->params = std::move(params);

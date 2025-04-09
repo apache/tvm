@@ -32,8 +32,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Array<ObjectRef>>(  //
-        "", [](Array<ObjectRef> array, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<Array<Any>>(  //
+        "", [](Array<Any> array, ObjectPath p, IRDocsifier d) -> Doc {
           int n = array.size();
           Array<ExprDoc> results;
           results.reserve(n);
