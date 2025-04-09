@@ -124,11 +124,11 @@ struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
   Integer axis;
 
   TVM_DECLARE_ATTRS(StackAttrs, "relax.attrs.StackAttrs") {
-    TVM_ATTR_FIELD(axis)
-        .describe("The axis along which to stack the input tensors. "
-                 "The axis will be inserted at this position in the output, "
-                 "so it must be in range [-ndim-1, ndim] where ndim is the "
-                 "number of dimensions of the input tensors.");
+    TVM_ATTR_FIELD(axis).describe(
+        "The axis along which to stack the input tensors. "
+        "The axis will be inserted at this position in the output, "
+        "so it must be in range [-ndim-1, ndim] where ndim is the "
+        "number of dimensions of the input tensors.");
   }
 };  // struct StackAttrs
 

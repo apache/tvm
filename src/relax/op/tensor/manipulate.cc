@@ -1207,8 +1207,8 @@ Expr stack(Expr tensors, int axis) {
 TVM_REGISTER_GLOBAL("relax.op.stack").set_body_typed(stack);
 
 Optional<Array<PrimExpr>> CheckStackOutputShape(const Call& call, const BlockBuilder& ctx,
-                                               const std::vector<Array<PrimExpr>>& shape_values,
-                                               int axis) {
+                                                const std::vector<Array<PrimExpr>>& shape_values,
+                                                int axis) {
   bool shape_unknown = false;
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
 
@@ -1218,8 +1218,8 @@ Optional<Array<PrimExpr>> CheckStackOutputShape(const Call& call, const BlockBui
       if (analyzer->CanProve(shape_values[i][d] != shape_values[0][d])) {
         ctx->ReportFatal(Diagnostic::Error(call)
                          << "Stack expects all input tensors to have identical shapes. "
-                         << "Dimension " << d << " differs between tensors: "
-                         << shape_values[0][d] << " vs " << shape_values[i][d]);
+                         << "Dimension " << d << " differs between tensors: " << shape_values[0][d]
+                         << " vs " << shape_values[i][d]);
       } else if (!analyzer->CanProveEqual(shape_values[i][d], shape_values[0][d])) {
         shape_unknown = true;
       }
@@ -1362,8 +1362,8 @@ StructInfo InferStructInfoStack(const Call& call, const BlockBuilder& ctx) {
 }
 
 InferLayoutOutput InferLayoutStack(const Call& call,
-                                  const Map<String, Array<String>>& desired_layouts,
-                                  const VarLayoutMap& var_layout_map) {
+                                   const Map<String, Array<String>>& desired_layouts,
+                                   const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
 
   const auto* attrs = call->attrs.as<StackAttrs>();
