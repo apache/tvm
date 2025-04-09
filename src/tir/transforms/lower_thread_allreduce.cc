@@ -505,7 +505,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         //
         // The former may cause dead lock as there is a divergent
         // branch with a warp sync call inside.
-        PrimExpr other = WarpShuffle(builtin::tvm_warp_shuffle_down(), mask_buffer, val, offset);
+        bool cast_offset_to_uint = target_->kind->name == "webgpu";
+        PrimExpr other = WarpShuffle(builtin::tvm_warp_shuffle_down(), mask_buffer, val, offset,
+                                     cast_offset_to_uint);
         Buffer local_buf = local_bufs[i];
         Stmt s = BufferStore(local_buf, other, zero_indices);
         seq->push_back(s);
@@ -694,7 +696,10 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
   // Emit warp shuffle  calls.
   PrimExpr WarpShuffle(const Op& op, Optional<Buffer> mask_buffer, PrimExpr val,
-                       PrimExpr delta_or_lane) {
+                       PrimExpr delta_or_lane, bool cast_delta_to_uint = false) {
+    if (cast_delta_to_uint) {
+      delta_or_lane = cast(DataType::UInt(32, delta_or_lane.dtype().lanes()), delta_or_lane);
+    }
     Array<PrimExpr> indices = {0};
     PrimExpr mask;
     if (mask_buffer.defined()) {
@@ -714,11 +719,11 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   bool IsWarpReduction(const std::vector<DataType>& types, int group_extent, int reduce_extent,
                        int contiguous_reduce_extent) {
     if ((target_->kind->name != "cuda") && (target_->kind->name != "rocm") &&
-        (target_->kind->name != "metal")) {
+        (target_->kind->name != "metal") && (target_->kind->name != "webgpu")) {
       return false;
     }
 
-    need_warp_shuffle_mask_ = target_->kind->name != "metal";
+    need_warp_shuffle_mask_ = target_->kind->name != "metal" && target_->kind->name != "webgpu";
 
     // rocm only supports 32 bit operands for shuffling at the moment
     if ((target_->kind->name == "rocm") &&
