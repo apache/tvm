@@ -3155,7 +3155,7 @@ def test_stack():
     verify_model(Stack1(), example_args, {}, Expected1)
     verify_model(Stack2(), example_args, {}, Expected1)
     verify_model(Stack3(), example_args, {}, Expected3)
-    
+
 
 def test_tile():
     class Tile1(Module):
