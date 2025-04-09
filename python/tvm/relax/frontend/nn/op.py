@@ -1072,6 +1072,34 @@ def softplus(x: Tensor, beta: float = 1.0, threshold: float = 20.0, name: str = 
     return wrap_nested(_op.nn.softplus(x._expr, beta=beta, threshold=threshold), name)
 
 
+def prelu(x: Tensor, alpha: Tensor, name: str = "prelu"):
+    r"""Parametric ReLU activation function.
+
+    .. math::
+        \text{PReLU}(x) = \begin{cases}
+            x & \text{if } x \geq 0 \\
+            \alpha \cdot x & \text{if } x < 0
+        \end{cases}
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data.
+
+    alpha : Tensor
+        Slope coefficient for the negative part of the input.
+
+    name : str, optional
+        Optional name for the operation. Default is "prelu".
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.nn.prelu(x._expr, alpha._expr), name)
+
+
 def tanh(x: Tensor, name: str = "tanh") -> Tensor:
     r"""Applies the hyperbolic tangent function.
 
