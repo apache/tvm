@@ -180,6 +180,8 @@ inline std::ostream& operator<<(std::ostream& os, DLDataType dtype) {  // NOLINT
  * \return The corresponding DLDataType in string.
  */
 inline std::string DLDataTypeToString(DLDataType dtype) {
+  // represent void as empty string
+  if (dtype.bits == 0) return "";
   std::ostringstream oss;
   oss << dtype;
   return oss.str();
