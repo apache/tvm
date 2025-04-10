@@ -27,9 +27,6 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
 from tvm.relax.frontend.torch import from_exported_program
-from packaging import version
-
-torch_version = torch.__version__
 
 
 def verify_model(torch_model, example_args, binding, expected, dynamic_shapes=None):
