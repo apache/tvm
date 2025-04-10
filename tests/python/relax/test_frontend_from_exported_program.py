@@ -1936,7 +1936,7 @@ def test_pad():
                 return torch.nn.functional.pad(x, self.pad, mode=self.mode, value=self.value)
             else:
                 return torch.nn.functional.pad(x, self.pad, mode=self.mode)
-    
+
     @tvm.script.ir_module
     class expected:
         @R.function
@@ -1946,7 +1946,7 @@ def test_pad():
                 gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
-        
+
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     verify_model(PadModel(pad=[1, 1, 2, 2]), example_args, {}, expected)
 

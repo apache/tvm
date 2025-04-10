@@ -526,7 +526,7 @@ def test_pad():
                 gv: R.Tensor((1, 3, 14, 12), dtype="float32") = lv
                 R.output(gv)
             return gv
-    
+
     input_infos = [([1, 3, 10, 10], "float32")]
     verify_model(PadModel(pad=[1, 1, 2, 2]), input_infos, {}, expected)
 
