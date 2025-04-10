@@ -532,10 +532,11 @@ def pad(
         Number of values padded to the edges of each axis, in the format
         of ((before_1, after_1), ..., (before_N, after_N))
     pad_mode: Optional[str]
-        'constant', 'edge', or 'reflect'
-        'constant' pads with constant_value pad_value
-        'edge' pads using the edge values of the input array
-        'reflect' pads by reflecting values with respect to the edge
+        'constant', 'reflect', 'replicate', 'circular'
+        'constant' pads with constant value pad_value
+        'reflect' pads by mirroring values excluding the edge
+        'replicate' pads by repeating the edge values.
+        'circular' pads by looping values from the other side
         Default is 'constant'
     pad_value: Optional[Union[float, Expr]]
         The value used for padding. Default is 0.
