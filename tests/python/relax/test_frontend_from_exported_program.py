@@ -56,10 +56,17 @@ operator_basic_unary = [
     (torch.erf, R.erf),
     (torch.exp, R.exp),
     (torch.floor, R.floor),
+    (torch.ops.aten.gelu, R.nn.gelu),
     (torch.log, R.log),
     (torch.neg, R.negative),
+    (torch.relu, R.nn.relu),
+    (torch.relu_, R.nn.relu),
     (torch.round, R.round),
     (torch.rsqrt, R.rsqrt),
+    (torch.selu, R.nn.selu),
+    (torch.sigmoid, R.sigmoid),
+    (torch.ops.aten.silu, R.nn.silu),
+    (torch.ops.aten.silu_, R.nn.silu),
     (torch.sin, R.sin),
     (torch.sinh, R.sinh),
     (torch.sign, R.sign),
@@ -314,35 +321,6 @@ def test_extended_unary_ops():
     verify_model(Elu(), example_args, {}, expected_elu)
     verify_model(Elu2(), example_args, {}, expected_elu)
 
-    # gelu
-    class Gelu(Module):
-        def __init__(self):
-            super().__init__()
-            self.gelu = torch.nn.GELU()
-
-        def forward(self, input):
-            return self.gelu(input)
-
-    class Gelu2(Module):
-        def forward(self, input):
-            return torch.nn.functional.gelu(input)
-
-    @tvm.script.ir_module
-    class expected_gelu:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.gelu(input_1)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
-                R.output(gv)
-            return gv
-
-    verify_model(Gelu(), example_args, {}, expected_gelu)
-    verify_model(Gelu2(), example_args, {}, expected_gelu)
-
     # hardsigmoid
     class Hardsigmoid(torch.nn.Module):
         def __init__(self):
@@ -510,131 +488,6 @@ def test_extended_unary_ops():
             return gv
 
     verify_model(Reciprocal(), example_args, {}, expected_reciprocal)
-
-    # relu
-    class ReLU0(Module):
-        def __init__(self):
-            super().__init__()
-            self.relu = torch.nn.ReLU()
-
-        def forward(self, input):
-            return self.relu(input)
-
-    class ReLU1(Module):
-        def forward(self, input):
-            return torch.nn.functional.relu(input)
-
-    class ReLU2(Module):
-        def forward(self, input):
-            return torch.ops.aten.relu_(input)
-
-    @tvm.script.ir_module
-    class expected_relu:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input_1)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
-                R.output(gv)
-            return gv
-
-    verify_model(ReLU0(), example_args, {}, expected_relu)
-    verify_model(ReLU1(), example_args, {}, expected_relu)
-    verify_model(ReLU2(), example_args, {}, expected_relu)
-
-    # selu
-    class Selu1(Module):
-        def __init__(self):
-            super().__init__()
-            self.selu = torch.nn.SELU()
-
-        def forward(self, input):
-            return self.selu(input)
-
-    class Selu2(Module):
-        def forward(self, input):
-            return torch.nn.functional.selu(input)
-
-    @tvm.script.ir_module
-    class expected_selu:
-        @R.function
-        def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.selu(input)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
-                R.output(gv)
-            return gv
-
-    verify_model(Selu1(), example_args, {}, expected_selu)
-    verify_model(Selu2(), example_args, {}, expected_selu)
-
-    # sigmoid
-    class Sigmoid(Module):
-        def __init__(self):
-            super().__init__()
-            self.sigmoid = torch.nn.Sigmoid()
-
-        def forward(self, input):
-            return self.sigmoid(input)
-
-    class Sigmoid2(Module):
-        def forward(self, input):
-            return torch.sigmoid(input)
-
-    @tvm.script.ir_module
-    class expected_sigmoid:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.sigmoid(input_1)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
-                R.output(gv)
-            return gv
-
-    verify_model(Sigmoid(), example_args, {}, expected_sigmoid)
-    verify_model(Sigmoid2(), example_args, {}, expected_sigmoid)
-
-    # silu
-    class SiLU(Module):
-        def __init__(self):
-            super().__init__()
-            self.silu = torch.nn.SiLU()
-
-        def forward(self, input):
-            return self.silu(input)
-
-    class SiLU2(Module):
-        def forward(self, input):
-            return torch.nn.functional.silu(input)
-
-    class SiLU3(Module):
-        def forward(self, input):
-            return torch.ops.aten.silu_(input)
-
-    @tvm.script.ir_module
-    class expected_silu:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.silu(input_1)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
-                R.output(gv)
-            return gv
-
-    verify_model(SiLU(), example_args, {}, expected_silu)
-    verify_model(SiLU2(), example_args, {}, expected_silu)
-    verify_model(SiLU3(), example_args, {}, expected_silu)
 
     # softmax
     test_softmax()
