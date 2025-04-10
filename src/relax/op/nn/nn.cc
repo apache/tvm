@@ -79,6 +79,7 @@ TVM_REGISTER_OP("relax.nn.softplus")
     .set_attrs_type<SoftplusAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo",
                                 InferStructInfoUnaryArith</*require_float_dtype=*/true>)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.prelu */
 TVM_REGISTER_NODE_TYPE(PReluAttrs);
