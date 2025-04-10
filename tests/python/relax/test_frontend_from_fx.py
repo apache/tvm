@@ -823,6 +823,42 @@ def test_leakyrelu():
     verify_model(LeakyReLU1(), input_info, {}, expected)
 
 
+def test_prelu():
+    class Prelu1(Module):
+        def __init__(self, num_parameters=1, alpha=0.25):
+            super().__init__()
+            self.prelu = torch.nn.PReLU(num_parameters=num_parameters, init=alpha)
+
+        def forward(self, x):
+            return self.prelu(x)
+
+    class Prelu2(torch.nn.Module):
+        def __init__(self):
+            super(Prelu2, self).__init__()
+            self.alpha = torch.nn.Parameter(torch.tensor([0.25]))
+
+        def forward(self, x):
+            return torch.nn.functional.prelu(x, self.alpha)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.prelu(
+                    x, R.const([0.25], dtype="float32"), axis=1
+                )
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    input_info = [([1, 3, 10, 10], "float32")]
+    verify_model(Prelu1(), input_info, {}, expected)
+    verify_model(Prelu2(), input_info, {}, expected)
+
+
 def test_maxpool2d():
     input_info = [([1, 3, 10, 10], "float32")]
 
@@ -2265,6 +2301,9 @@ def test_extended_unary_ops():
 
     # softplus
     test_softplus()
+
+    # prelu
+    test_prelu()
 
     # log2
     class Log2(Module):

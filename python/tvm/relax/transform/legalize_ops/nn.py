@@ -469,6 +469,11 @@ def _nn_leakyrelu(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.nn.leaky_relu, call.args[0], call.attrs.alpha)
 
 
+@register_legalize("relax.nn.prelu")
+def _nn_prelu(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(topi.nn.prelu, call.args[0], call.args[1], call.attrs.axis)
+
+
 @register_legalize("relax.nn.gelu")
 def _nn_gelu(bb: BlockBuilder, call: Call) -> Expr:
     def te_gelu(x: te.Tensor):

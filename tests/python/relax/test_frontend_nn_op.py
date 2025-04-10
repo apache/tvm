@@ -393,6 +393,7 @@ def test_nn():
             negative_out = op.negative(x)
             softplus_out = op.softplus(x, beta=1.0, threshold=20.0)
             softmax_out = op.softmax(x, axis=2)
+            prelu_out = op.prelu(x, alpha=bias)
             rms_norm_out = op.rms_norm(x, weight, axes=[-2, -1])
             rms_norm_with_bias_out = op.rms_norm(x, weight, axes=[-2, -1])
             group_norm_out = op.group_norm(x, num_groups=1, weight=bias, bias=bias)
@@ -418,6 +419,7 @@ def test_nn():
                 x, beta=1.0, threshold=20.0
             )
             softmax: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.softmax(x, axis=2)
+            prelu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.prelu(x, bias)
             rms_norm: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.rms_norm(
                 x, weight, axes=[-2, -1], epsilon=1.0000000000000001e-05
             )
