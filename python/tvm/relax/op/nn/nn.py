@@ -515,7 +515,7 @@ def conv2d_transpose(
 
 def pad(
     data: Expr,
-    pad_width: Tuple[Tuple[int, int], ...],
+    pad_width: Union[List[int], Tuple[int, ...]],
     pad_mode: Optional[str] = "constant",
     pad_value: Optional[Union[float, Expr]] = 0.0,
 ):
@@ -528,7 +528,7 @@ def pad(
     ----------
     data: relax.Expr
         The input data to the operator
-    pad_width: Tuple[Tuple[int, int], ...], required
+    pad_width: Union[List[int], Tuple[int, ...]], required
         Number of values padded to the edges of each axis, in the format
         of ((before_1, after_1), ..., (before_N, after_N))
     pad_mode: Optional[str]
