@@ -311,21 +311,30 @@ class Array : public ObjectRef {
    * \brief default constructor
    */
   Array() { data_ = ArrayNode::Empty(); }
+  Array(Array<T>&& other) : ObjectRef(std::move(other.data_)) {}
+  Array(const Array<T>& other) : ObjectRef(other.data_) {}
+  template <typename U, typename = std::enable_if_t<details::type_contains_v<T, U>>>
+  Array(Array<U>&& other) : ObjectRef(std::move(other.data_)) {}
+  template <typename U, typename = std::enable_if_t<details::type_contains_v<T, U>>>
+  Array(const Array<U>& other) : ObjectRef(other.data_) {}
 
-  /*!
-   * \brief move constructor
-   * \param other source
-   */
-  Array(Array<T>&& other) : ObjectRef() {  // NOLINT(*)
+  TVM_FFI_INLINE Array<T>& operator=(Array<T>&& other) {
     data_ = std::move(other.data_);
+    return *this;
   }
-
-  /*!
-   * \brief copy constructor
-   * \param other source
-   */
-  Array(const Array<T>& other) : ObjectRef() {  // NOLINT(*)
+  TVM_FFI_INLINE Array<T>& operator=(const Array<T>& other) {
     data_ = other.data_;
+    return *this;
+  }
+  template <typename U, typename = std::enable_if_t<details::type_contains_v<T, U>>>
+  TVM_FFI_INLINE Array<T>& operator=(Array<U>&& other) {
+    data_ = std::move(other.data_);
+    return *this;
+  }
+  template <typename U, typename = std::enable_if_t<details::type_contains_v<T, U>>>
+  TVM_FFI_INLINE Array<T>& operator=(const Array<U>& other) {
+    data_ = other.data_;
+    return *this;
   }
 
   /*!
@@ -369,26 +378,6 @@ class Array : public ObjectRef {
    * \param val The init value
    */
   explicit Array(const size_t n, const T& val) { data_ = ArrayNode::CreateRepeated(n, val); }
-
-  /*!
-   * \brief move assign operator
-   * \param other The source of assignment
-   * \return reference to self.
-   */
-  Array<T>& operator=(Array<T>&& other) {
-    data_ = std::move(other.data_);
-    return *this;
-  }
-
-  /*!
-   * \brief copy assign operator
-   * \param other The source of assignment
-   * \return reference to self.
-   */
-  Array<T>& operator=(const Array<T>& other) {
-    data_ = other.data_;
-    return *this;
-  }
 
  public:
   // iterators
@@ -928,6 +917,8 @@ class Array : public ObjectRef {
 
     return output;
   }
+  template <typename, typename>
+  friend class Array;
 };
 
 /*!
@@ -1030,6 +1021,11 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
 
   static TVM_FFI_INLINE std::string TypeStr() { return "Array<" + details::Type2Str<T>::v() + ">"; }
 };
+
+namespace details {
+template <typename T, typename U>
+inline constexpr bool type_contains_v<Array<T>, Array<U>> = type_contains_v<T, U>;
+}  // namespace details
 
 }  // namespace ffi
 }  // namespace tvm

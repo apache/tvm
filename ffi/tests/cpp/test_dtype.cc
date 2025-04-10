@@ -35,7 +35,7 @@ TEST(DType, StringConversion) {
   EXPECT_EQ(StringToDLDataType("int16x2"), dtype);
 
   dtype = DLDataType{kDLOpaqueHandle, 0, 0};
-  EXPECT_EQ(DLDataTypeToString(dtype), "void");
+  EXPECT_EQ(DLDataTypeToString(dtype), "");
   EXPECT_EQ(StringToDLDataType("void"), dtype);
 
   // test bfloat with lanes

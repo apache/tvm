@@ -267,4 +267,19 @@ TEST(Array, AnyConvertCheck) {
       ::tvm::ffi::Error);
 }
 
+TEST(Array, Upcast) {
+  Array<int> a0 = {1, 2, 3};
+  Array<Any> a1 = a0;
+  EXPECT_EQ(a1[0].operator int(), 1);
+  EXPECT_EQ(a1[1].operator int(), 2);
+  EXPECT_EQ(a1[2].operator int(), 3);
+
+  Array<Array<int>> a2 = {a0};
+  Array<Array<Any>> a3 = a2;
+  Array<Array<Any>> a4 = a2;
+
+  static_assert(details::type_contains_v<Array<Any>, Array<int>>);
+  static_assert(details::type_contains_v<Any, Array<float>>);
+}
+
 }  // namespace

@@ -46,26 +46,37 @@ class Variant {
                 "All types used in Variant<...> must be compatible with Any");
 
   /*
-   * \brief Helper utility to check if the type is part of the variant
-   * \note Need is_same_v for POD types here.
+   * \brief Helper utility to check if the type can be contained in the variant
    */
   template <typename T>
-  static constexpr bool is_variant_v =
-      ((std::is_base_of_v<V, T> || ...) || (std::is_same_v<T, V> || ...));
+  static constexpr bool variant_contains_v = (details::type_contains_v<V, T> || ...);
   /* \brief Helper utility for SFINAE if the type is part of the variant */
   template <typename T>
-  using enable_if_variant_t = std::enable_if_t<is_variant_v<T>>;
+  using enable_if_variant_contains_t = std::enable_if_t<variant_contains_v<T>>;
 
-  template <typename T, typename = enable_if_variant_t<T>>
+  Variant(const Variant<V...>& other) : data_(other.data_) {}
+  Variant(Variant<V...>&& other) : data_(std::move(other.data_)) {}
+
+  TVM_FFI_INLINE Variant& operator=(const Variant<V...>& other) {
+    data_ = other.data_;
+    return *this;
+  }
+
+  TVM_FFI_INLINE Variant& operator=(Variant<V...>&& other) {
+    data_ = std::move(other.data_);
+    return *this;
+  }
+
+  template <typename T, typename = enable_if_variant_contains_t<T>>
   Variant(T other) : data_(std::move(other)) {}
 
-  template <typename T, typename = enable_if_variant_t<T>>
+  template <typename T, typename = enable_if_variant_contains_t<T>>
   TVM_FFI_INLINE Variant& operator=(T other) {
     data_ = std::move(other);
     return *this;
   }
 
-  template <typename T, typename = enable_if_variant_t<T>>
+  template <typename T, typename = enable_if_variant_contains_t<T>>
   TVM_FFI_INLINE std::optional<T> as() const {
     return data_.as<T>();
   }
@@ -81,12 +92,12 @@ class Variant {
     return data_.as<const T*>().value_or(nullptr);
   }
 
-  template <typename T, typename = enable_if_variant_t<T>>
+  template <typename T, typename = enable_if_variant_contains_t<T>>
   TVM_FFI_INLINE T Get() const& {
     return data_.operator T();
   }
 
-  template <typename T, typename = enable_if_variant_t<T>>
+  template <typename T, typename = enable_if_variant_contains_t<T>>
   TVM_FFI_INLINE T Get() && {
     return std::move(data_).operator T();
   }
@@ -176,6 +187,10 @@ TVM_FFI_INLINE bool ObjectPtrEqual::operator()(const Variant<V...>& a,
   return a.GetObjectPtrForHashEqual() == b.GetObjectPtrForHashEqual();
 }
 
+namespace details {
+template <typename... V, typename T>
+inline constexpr bool type_contains_v<Variant<V...>, T> = (type_contains_v<V, T> || ...);
+}  // namespace details
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_CONTAINER_VARIANT_H_

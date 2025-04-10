@@ -30,9 +30,14 @@ using namespace tvm::ffi;
 using namespace tvm::ffi::testing;
 
 TEST(Variant, Basic) {
-  Variant<int, float> v = 1;
-  EXPECT_EQ(v.Get<int>(), 1);
-  EXPECT_EQ(v.as<float>().value(), 1.0f);
+  Variant<int, float> v1 = 1;
+  EXPECT_EQ(v1.Get<int>(), 1);
+  EXPECT_EQ(v1.as<float>().value(), 1.0f);
+
+  Variant<int, float> v2 = 2.0f;
+  EXPECT_EQ(v2.Get<float>(), 2.0f);
+  v2 = v1;
+  EXPECT_EQ(v2.Get<int>(), 1);
 }
 
 TEST(Variant, AnyConvert) {
@@ -120,6 +125,13 @@ TEST(Variant, FromUnpacked) {
         }
       },
       ::tvm::ffi::Error);
+}
+
+TEST(Variant, Upcast) {
+  Array<int> a0 = {1, 2, 3};
+  static_assert(details::type_contains_v<Array<Variant<int, float>>, Array<int>>);
+  Array<Variant<int, float>> a1 = a0;
+  EXPECT_EQ(a1[0].Get<int>(), 1);
 }
 
 }  // namespace

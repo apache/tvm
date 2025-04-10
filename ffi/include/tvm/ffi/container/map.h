@@ -1162,27 +1162,43 @@ class Map : public ObjectRef {
    * \brief move constructor
    * \param other source
    */
-  Map(Map<K, V>&& other) { data_ = std::move(other.data_); }
+  Map(Map<K, V>&& other) : ObjectRef(std::move(other.data_)) {}
   /*!
    * \brief copy constructor
    * \param other source
    */
   Map(const Map<K, V>& other) : ObjectRef(other.data_) {}
-  /*!
-   * \brief copy assign operator
-   * \param other The source of assignment
-   * \return reference to self.
-   */
+
+  template <typename KU, typename VU,
+            typename = std::enable_if_t<details::type_contains_v<K, KU> &&
+                                        details::type_contains_v<V, VU>>>
+  Map(Map<KU, VU>&& other) : ObjectRef(std::move(other.data_)) {}
+
+  template <typename KU, typename VU,
+            typename = std::enable_if_t<details::type_contains_v<K, KU> &&
+                                        details::type_contains_v<V, VU>>>
+  Map(const Map<KU, VU>& other) : ObjectRef(other.data_) {}
   Map<K, V>& operator=(Map<K, V>&& other) {
     data_ = std::move(other.data_);
     return *this;
   }
-  /*!
-   * \brief move assign operator
-   * \param other The source of assignment
-   * \return reference to self.
-   */
   Map<K, V>& operator=(const Map<K, V>& other) {
+    data_ = other.data_;
+    return *this;
+  }
+
+  template <typename KU, typename VU,
+            typename = std::enable_if_t<details::type_contains_v<K, KU> &&
+                                        details::type_contains_v<V, VU>>>
+  Map<K, V>& operator=(Map<KU, VU>&& other) {
+    data_ = std::move(other.data_);
+    return *this;
+  }
+
+  template <typename KU, typename VU,
+            typename = std::enable_if_t<details::type_contains_v<K, KU> &&
+                                        details::type_contains_v<V, VU>>>
+  Map<K, V>& operator=(const Map<KU, VU>& other) {
     data_ = other.data_;
     return *this;
   }
@@ -1341,6 +1357,9 @@ class Map : public ObjectRef {
  private:
   /*! \brief Return data_ as type of pointer of MapNode */
   MapNode* GetMapNode() const { return static_cast<MapNode*>(data_.get()); }
+
+  template <typename, typename, typename>
+  friend class Map;
 };
 
 /*!
@@ -1448,7 +1467,12 @@ struct TypeTraits<Map<K, V>> : public ObjectRefTypeTraitsBase<Map<K, V>> {
   }
 };
 
+namespace details {
+template <typename K, typename V, typename KU, typename VU>
+inline constexpr bool type_contains_v<Map<K, V>, Map<KU, VU>> =
+    type_contains_v<K, KU> && type_contains_v<V, VU>;
+}  // namespace details
+
 }  // namespace ffi
 }  // namespace tvm
-
 #endif  // TVM_FFI_CONTAINER_MAP_H_
