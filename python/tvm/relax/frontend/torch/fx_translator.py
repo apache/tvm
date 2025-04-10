@@ -108,7 +108,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         module = self.named_modules[node.target]
         alpha_tensor = module.weight.numpy()
         alpha = relax.const(alpha_tensor, dtype="float32")
-        axis = 0 if len(x.struct_info.shape) == 1 else 1 # Extract Channel size
+        axis = 0 if len(x.struct_info.shape) == 1 else 1  # Extract Channel size
         return self.block_builder.emit(relax.op.nn.prelu(x, alpha, axis))
 
     def _softmax_module(self, node: fx.Node) -> relax.Var:
