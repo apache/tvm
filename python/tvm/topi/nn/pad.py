@@ -26,7 +26,7 @@ from ..utils import equal_const_int
 
 @tvm.te.tag_scope(tag=tag.INJECTIVE + ",pad")
 def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput", attrs=None):
-    """Pad Input with zeros.
+    """Pad Input with using pad values.
 
     Parameters
     ----------
