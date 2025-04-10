@@ -883,10 +883,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         input_ndim = x.struct_info.ndim
         pad_width = [0] * (input_ndim * 2)
-        pad_pairs = [pad[i:i+2] for i in range(0, len(pad), 2)]
+        pad_pairs = [pad[i : i + 2] for i in range(0, len(pad), 2)]
         reversed_pairs = list(reversed(pad_pairs))
         flattened = [value for pair in reversed_pairs for value in pair]
-        pad_width[-len(flattened):] = flattened
+        pad_width[-len(flattened) :] = flattened
 
         if not isinstance(value, relax.Expr):
             value = relax.const(value)

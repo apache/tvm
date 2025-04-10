@@ -1925,14 +1925,14 @@ def test_conv3d():
 
 def test_pad():
     class PadModel(torch.nn.Module):
-        def __init__(self, pad, mode='constant', value=0.0):
+        def __init__(self, pad, mode="constant", value=0.0):
             super().__init__()
             self.pad = pad
             self.mode = mode
             self.value = value
 
         def forward(self, x):
-            if self.mode == 'constant':
+            if self.mode == "constant":
                 return torch.nn.functional.pad(x, self.pad, mode=self.mode, value=self.value)
             else:
                 return torch.nn.functional.pad(x, self.pad, mode=self.mode)
@@ -1940,9 +1940,16 @@ def test_pad():
     @tvm.script.ir_module
     class expected:
         @R.function
-        def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")):
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(x, pad_value = R.const(0.0, "float32"), pad_width=[0, 0, 0, 0, 2, 2, 1, 1], pad_mode="constant")
+                lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(
+                    x, 
+                    pad_value = R.const(0.0, "float32"), 
+                    pad_width=[0, 0, 0, 0, 2, 2, 1, 1], 
+                    pad_mode="constant",
+                )
                 gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv

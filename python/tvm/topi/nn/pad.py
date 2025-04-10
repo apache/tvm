@@ -258,7 +258,7 @@ def replicate_pad(data, pad_before, pad_after=None, name="ReplicatePadInput"):
                     orig_idx >= size,
                     size - 1,  # replicate last element
                     orig_idx,
-                )
+                ),
             )
             index_tuple.append(clamped_idx)
         return data(*index_tuple)

@@ -228,22 +228,16 @@ def _nn_pad(bb: BlockBuilder, call: Call) -> Expr:
     pad_after = pad_widths[1::2]
     if pad_mode == "reflect":
         return bb.call_te(
-        topi.nn.reflect_pad,
-        call.args[0],
-        pad_before=pad_before,
-        pad_after=pad_after)
+            topi.nn.reflect_pad, call.args[0], pad_before=pad_before, pad_after=pad_after
+        )
     elif pad_mode == "replicate":
         return bb.call_te(
-        topi.nn.replicate_pad,
-        call.args[0],
-        pad_before=pad_before,
-        pad_after=pad_after)
+            topi.nn.replicate_pad, call.args[0], pad_before=pad_before, pad_after=pad_after
+        )
     elif pad_mode == "circular":
         return bb.call_te(
-        topi.nn.circular_pad,
-        call.args[0],
-        pad_before=pad_before,
-        pad_after=pad_after)
+            topi.nn.circular_pad, call.args[0], pad_before=pad_before, pad_after=pad_after
+        )
     else:
         return bb.call_te(
             topi.nn.pad,
