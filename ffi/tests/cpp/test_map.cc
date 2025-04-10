@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+#include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
 
@@ -249,6 +250,17 @@ TEST(Map, PackedFuncGetItem) {
   Any k("x");
   Any v = f(map, k);
   EXPECT_EQ(v.operator int(), 1);
+}
+
+TEST(Map, Upcast) {
+  Map<int, int> m0 = {{1, 2}, {3, 4}};
+  Map<Any, Any> m1 = m0;
+  EXPECT_EQ(m1[1].operator int(), 2);
+  EXPECT_EQ(m1[3].operator int(), 4);
+  static_assert(details::type_contains_v<Map<Any, Any>, Map<String, int>>);
+
+  Map<String, Array<int>> m2 = {{"x", {1}}, {"y", {2}}};
+  Map<String, Array<Any>> m3 = m2;
 }
 
 }  // namespace

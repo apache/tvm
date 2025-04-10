@@ -42,25 +42,46 @@ class Tuple : public ObjectRef {
   static constexpr bool all_container_enabled_v = (details::container_enabled_v<Types> && ...);
   static_assert(all_container_enabled_v,
                 "All types used in Tuple<...> must be compatible with Any");
+
   Tuple() : ObjectRef(MakeDefaultTupleNode()) {}
   Tuple(const Tuple<Types...>& other) : ObjectRef(other) {}
   Tuple(Tuple<Types...>&& other) : ObjectRef(std::move(other)) {}
-
+  template <typename... UTypes,
+            typename = std::enable_if_t<(details::type_contains_v<Types, UTypes> && ...), int>>
+  Tuple(const Tuple<UTypes...>& other) : ObjectRef(other) {}
+  template <typename... UTypes,
+            typename = std::enable_if_t<(details::type_contains_v<Types, UTypes> && ...), int>>
+  Tuple(Tuple<UTypes...>&& other) : ObjectRef(std::move(other)) {}
   template <typename... UTypes>
   explicit Tuple(UTypes&&... args) : ObjectRef(MakeTupleNode(std::forward<UTypes>(args)...)) {
     static_assert(sizeof...(Types) == sizeof...(UTypes), "Tuple size mismatch");
   }
 
-  explicit Tuple(ObjectPtr<Object> n) : ObjectRef(n) {}
-
-  Tuple& operator=(const Tuple<Types...>& other) {
+  TVM_FFI_INLINE Tuple& operator=(const Tuple<Types...>& other) {
     data_ = other.data_;
     return *this;
   }
-  Tuple& operator=(Tuple<Types...>&& other) {
+
+  TVM_FFI_INLINE Tuple& operator=(Tuple<Types...>&& other) {
     data_ = std::move(other.data_);
     return *this;
   }
+
+  template <typename... UTypes,
+            typename = std::enable_if_t<(details::type_contains_v<Types, UTypes> && ...)>>
+  TVM_FFI_INLINE Tuple& operator=(const Tuple<UTypes...>& other) {
+    data_ = other.data_;
+    return *this;
+  }
+
+  template <typename... UTypes,
+            typename = std::enable_if_t<(details::type_contains_v<Types, UTypes> && ...)>>
+  TVM_FFI_INLINE Tuple& operator=(Tuple<UTypes...>&& other) {
+    data_ = std::move(other.data_);
+    return *this;
+  }
+
+  explicit Tuple(ObjectPtr<Object> n) : ObjectRef(n) {}
 
   /*!
    * \brief Get I-th element of the tuple
@@ -142,6 +163,9 @@ class Tuple : public ObjectRef {
 
   /*! \return The underlying ArrayNode */
   ArrayNode* GetArrayNode() const { return static_cast<ArrayNode*>(data_.get()); }
+
+  template <typename... UTypes>
+  friend class Tuple;
 };
 
 template <typename... Types>
@@ -238,6 +262,11 @@ struct TypeTraits<Tuple<Types...>> : public ObjectRefTypeTraitsBase<Tuple<Types.
     return details::ContainerTypeStr<Types...>("Tuple");
   }
 };
+
+namespace details {
+template <typename... T, typename... U>
+inline constexpr bool type_contains_v<Tuple<T...>, Tuple<U...>> = (type_contains_v<T, U> && ...);
+}  // namespace details
 
 }  // namespace ffi
 }  // namespace tvm

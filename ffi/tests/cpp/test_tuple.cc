@@ -126,4 +126,14 @@ TEST(Tuple, FromUnpacked) {
       },
       ::tvm::ffi::Error);
 }
+
+TEST(Tuple, Upcast) {
+  Tuple<int, float> t0(1, 2.0f);
+  Tuple<Any, Any> t1 = t0;
+  EXPECT_EQ(t1.Get<0>().operator int(), 1);
+  EXPECT_EQ(t1.Get<1>().operator float(), 2.0f);
+  static_assert(details::type_contains_v<Tuple<Any, Any>, Tuple<int, float>>);
+  static_assert(details::type_contains_v<Tuple<Any, float>, Tuple<int, float>>);
+  static_assert(details::type_contains_v<Tuple<TNumber, float>, Tuple<TInt, float>>);
+}
 }  // namespace

@@ -272,7 +272,22 @@ class ReverseIterAdapter {
  * \return True if T is compatible with Any, false otherwise.
  */
 template <typename T>
-constexpr bool container_enabled_v = std::is_same_v<T, Any> || TypeTraits<T>::container_enabled;
+inline constexpr bool container_enabled_v =
+    std::is_same_v<T, Any> || TypeTraits<T>::container_enabled;
+
+/**
+ * \brief Check if Any storage of Derived can always be directly used as Base.
+ *
+ * \tparam Base The base type.
+ * \tparam Derived The derived type.
+ * \return True if Derived's storage can be used as Base's storage, false otherwise.
+ */
+template <typename Base, typename Derived>
+inline constexpr bool type_contains_v =
+    std::is_base_of_v<Base, Derived> || std::is_same_v<Base, Derived>;
+// special case for Any
+template <typename Derived>
+inline constexpr bool type_contains_v<Any, Derived> = true;
 
 /*!
  * \brief Create a string of the container type.
