@@ -138,7 +138,7 @@ def _stack(bb: BlockBuilder, call: Call) -> Expr:
     )
 
     return bb.call_te(
-        topi.stack, fields, None if call.attrs.axis is None else call.attrs.axis.value
+        topi.stack, fields, 0 if call.attrs.axis is None else call.attrs.axis.value
     )
 
 

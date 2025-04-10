@@ -3886,13 +3886,8 @@ def test_stack():
             inp_2: R.Tensor((1, 3, 10, 10), dtype="float32"),
         ) -> R.Tensor((3, 1, 3, 10, 10), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((3, 3, 10, 10), dtype="float32") = R.concat(
-                    (inp_0, inp_1, inp_2), axis=0
-                )
-                lv1: R.Tensor((3, 1, 3, 10, 10), dtype="float32") = R.reshape(
-                    lv, R.shape([3, 1, 3, 10, 10])
-                )
-                gv: R.Tensor((3, 1, 3, 10, 10), dtype="float32") = lv1
+                lv: R.Tensor((3, 1, 3, 10, 10), dtype="float32") = R.stack((inp_0, inp_1, inp_2), axis=0)
+                gv: R.Tensor((3, 1, 3, 10, 10), dtype="float32") = lv
                 R.output(gv)
             return gv
 
