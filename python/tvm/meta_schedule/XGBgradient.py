@@ -470,10 +470,8 @@ class XGBGradientSearchTuner:
                    and the list of MeasureResult objects.
         """
         logging.debug("Sampling Init Population")
-        if number == 1:
-            raw_states = [self.context.generate_design_space()[0]]
-        else:
-            raw_states = self.sample_init_population(self.context.search_strategy, number)
+
+        raw_states = self.sample_init_population(self.context.search_strategy, number)
         states = remove_duplicates_and_measured_schedules(raw_states)
         builder_inputs = [ms.builder.BuilderInput(state.mod, self.target) for state in states]
         builder_results = self.builder.build(builder_inputs)
@@ -484,7 +482,6 @@ class XGBGradientSearchTuner:
         valid_indices = []
         for i, res in enumerate(builder_results):
             if res.error_msg:
-                print("compile error: ", res.error_msg)
                 continue
             runner_input = ms.runner.RunnerInput(
                 res.artifact_path,
