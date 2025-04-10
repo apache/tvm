@@ -137,9 +137,7 @@ def _stack(bb: BlockBuilder, call: Call) -> Expr:
         t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )
 
-    return bb.call_te(
-        topi.stack, fields, 0 if call.attrs.axis is None else call.attrs.axis.value
-    )
+    return bb.call_te(topi.stack, fields, 0 if call.attrs.axis is None else call.attrs.axis.value)
 
 
 @register_legalize("relax.repeat")
