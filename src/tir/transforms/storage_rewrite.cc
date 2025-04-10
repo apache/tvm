@@ -1219,8 +1219,9 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
       PrimExpr index = op->args[2];
       OnArrayAccess(dtype, buffer, {index}, false);
     } else if (op->op.same_as(builtin::address_of())) {
-      BufferLoad load = Downcast<BufferLoad>(op->args[0]);
-      OnArrayAccess(load->dtype, load->buffer->data.get(), load->indices, /*is_buffer_load=*/false);
+      if (auto load = op->args[0].as<BufferLoadNode>()) {
+        OnArrayAccess(load->dtype, load->buffer->data.get(), load->indices, /*is_buffer_load=*/false);
+      }
     }
     StmtExprVisitor::VisitExpr_(op);
   }
