@@ -388,15 +388,6 @@ def test_extended_unary_ops():
     verify_model(Hardswish2(), example_args, {}, expected1)
     verify_model(Hardswish3(), example_args, {}, expected1)
 
-    # hardtanh
-    test_hardtanh()
-
-    # leakyrelu
-    test_leakyrelu()
-
-    # softplus
-    test_softplus()
-
     # log2
     class Log2(Module):
         def forward(self, x):
@@ -462,9 +453,6 @@ def test_extended_unary_ops():
 
     verify_model(Log1p(), example_args, {}, Expected_log1p)
 
-    # log_softmax
-    test_logsoftmax()
-
     # reciprocal
     class Reciprocal(Module):
         def forward(self, input):
@@ -485,15 +473,6 @@ def test_extended_unary_ops():
             return gv
 
     verify_model(Reciprocal(), example_args, {}, expected_reciprocal)
-
-    # softmax
-    test_softmax()
-
-    # softshrink
-    test_softshrink()
-
-    # tril, triu
-    test_tril_triu()
 
 
 def test_hardtanh():
