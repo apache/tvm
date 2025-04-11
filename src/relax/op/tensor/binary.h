@@ -70,6 +70,9 @@ Expr divide(Expr x1, Expr x2);
 /*! \brief Floor division with numpy-style broadcasting. */
 Expr floor_divide(Expr x1, Expr x2);
 
+/*! \brief Log Add Exponent with numpy-style broadcasting. */
+Expr log_add_exp(Expr x1, Expr x2);
+
 /*! \brief Multiplication with numpy-style broadcasting. */
 Expr multiply(Expr x1, Expr x2);
 

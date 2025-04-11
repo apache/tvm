@@ -24,7 +24,7 @@ from tvm.tir import sinh, cosh, log2, log10
 from tvm.tir import asin, asinh, acos, acosh, atan, atanh
 from tvm.tir import trunc, abs, round, nearbyint, power, popcount, fmod, if_then_else
 from tvm.tir import isnan, isfinite, isinf
-from tvm.tir import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod
+from tvm.tir import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, logaddexp
 from tvm.tir import comm_reducer, min, max, sum
 from tvm.tir import add, subtract, multiply
 

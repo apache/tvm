@@ -135,6 +135,25 @@ def floor_divide(lhs, rhs):
     return _cpp.floor_divide(lhs, rhs)
 
 
+def log_add_exp(lhs, rhs):
+    """Log-sum-exp operation with auto-broadcasting.
+
+    Parameters
+    ----------
+    x1 : tvm.te.Tensor or Expr
+        The first input tensor or expression.
+    x2 : tvm.te.Tensor or Expr
+        The second input tensor or expression.
+
+    Returns
+    -------
+    ret : tvm.te.Tensor or Expr
+        Returns an Expr if both operands are Expr.
+        Otherwise, returns a Tensor.
+    """
+    return _cpp.log_add_exp(lhs, rhs)
+
+
 def mod(lhs, rhs):
     """Modulus with auto-broadcasting
 

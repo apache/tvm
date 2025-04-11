@@ -395,6 +395,15 @@ TVM_DLL PrimExpr indexmod(PrimExpr a, PrimExpr b, Span span = Span());
  */
 TVM_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
+ * \brief Compute log(exp(a) + exp(b)).
+ *
+ * \param a Left operand.
+ * \param b Right operand.
+ * \param span The location of this operation in the source.
+ * \return The result expression.
+ */
+TVM_DLL PrimExpr logaddexp(PrimExpr a, PrimExpr b, Span span = Span());
+/*!
  * \brief compute ceil(a / b)
  *
  * \param a left operand
@@ -404,6 +413,7 @@ TVM_DLL PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span = Span());
  * \note this function does eager constant folding for
  *       index types(int32, int64) when possible.
  */
+
 TVM_DLL PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span = Span());
 /*!
  * \brief compute the remainder of floordiv
@@ -1071,6 +1081,7 @@ TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(indexmod);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(truncdiv);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(truncmod);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(floordiv);
+TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(logaddexp);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(floormod);
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(right_shift);  // NOLINT(*)
 TVM_DEFINE_INT_OP_CONST_VAL_OVERLOAD_SPANNED(left_shift);   // NOLINT(*)
