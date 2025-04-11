@@ -216,7 +216,7 @@ inline DLDataType StringToDLDataType(const std::string& str) {
       scan = endpt;
     }
     if (scan != str.c_str() + str.length()) {
-      TVM_FFI_THROW(ValueError) << "unknown dtype " << str;
+      TVM_FFI_THROW(ValueError) << "unknown dtype `" << str << '`';
     }
     return dtype;
   };
@@ -253,7 +253,7 @@ inline DLDataType StringToDLDataType(const std::string& str) {
     dtype.code = details::ParseCustomDataTypeCode(str, &scan);
   } else {
     scan = str.c_str();
-    TVM_FFI_THROW(ValueError) << "unknown dtype " << str;
+    TVM_FFI_THROW(ValueError) << "unknown dtype `" << str << '`';
   }
   char* xdelim;  // emulate sscanf("%ux%u", bits, lanes)
   uint8_t bits = static_cast<uint8_t>(strtoul(scan, &xdelim, 10));
@@ -268,7 +268,7 @@ inline DLDataType StringToDLDataType(const std::string& str) {
     dtype.lanes = static_cast<uint16_t>(scalable_multiplier * strtoul(xdelim + 1, &endpt, 10));
   }
   if (endpt != str.c_str() + str.length()) {
-    TVM_FFI_THROW(ValueError) << "unknown dtype " << str;
+    TVM_FFI_THROW(ValueError) << "unknown dtype `" << str << '`';
   }
   return dtype;
 }
