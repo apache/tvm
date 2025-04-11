@@ -511,6 +511,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         ):
             output = None
             with self.block_builder.dataflow():
+
+                # Find all the missing function types
+                missing_func_types = list({node.target.__name__ for node in nodes 
+                if node.op == "call_function" and node.target.__name__ not in self.convert_map})
+                assert not missing_func_types, f"Unsupported function types {missing_func_types}"
+
                 # Translate the model.
                 for node in nodes:
                     if node.op == "placeholder":
@@ -537,9 +543,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         self.env[node] = getattr(exported_program.graph_module, node.target)
                     elif node.op == "call_function":
                         func_name = node.target.__name__
-                        assert (
-                            func_name in self.convert_map
-                        ), f"Unsupported function type {func_name}"
                         self.env[node] = self.convert_map[func_name](node)
                     else:
                         raise ValueError(f"Unsupported op {node.op}")
