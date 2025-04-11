@@ -550,7 +550,8 @@ TVM_REGISTER_GLOBAL("tir.Call")
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
         ICHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>() ||
-               it->IsInstance<IterVarNode>() || it->IsInstance<BufferRegionNode>())
+               it->IsInstance<IterVarNode>() || it->IsInstance<BufferRegionNode>() ||
+               it->IsInstance<BufferNode>())
             << "Argument " << it << " is not a string or primexpr";
         if (const auto* str = it.as<runtime::StringObj>()) {
           prim_expr_args.push_back(StringImm(str->data));
@@ -569,6 +570,12 @@ TVM_REGISTER_GLOBAL("tir.Call")
             }
           }
           prim_expr_args.push_back(BufferLoad(br->buffer, indices));
+        } else if (const auto* buffer = it.as<BufferNode>()) {
+          Array<PrimExpr> indices;
+          for (auto r : buffer->shape) {
+            indices.push_back(0);
+          }
+          prim_expr_args.push_back(BufferLoad(GetRef<Buffer>(buffer), indices));
         } else {
           prim_expr_args.push_back(Downcast<PrimExpr>(it));
         }
