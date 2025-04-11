@@ -604,8 +604,8 @@ int TVMBackendAnyListSetPackedArg(void* anylist, int index, TVMValue* args, int*
                                   int arg_offset) {
   using namespace tvm::runtime;
   API_BEGIN();
-  auto* list = static_cast<Any*>(anylist);
-  list[arg_offset] = LegacyTVMArgValueToAnyView(args[index], type_codes[index]);
+  auto* list = static_cast<TVMFFIAny*>(anylist);
+  AnyViewToLegacyTVMArgValue(list[index], args + arg_offset, type_codes + arg_offset);
   API_END();
 }
 
