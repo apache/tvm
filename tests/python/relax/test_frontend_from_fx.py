@@ -526,9 +526,9 @@ def test_pad():
             with R.dataflow():
                 lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(
                     x,
-                    pad_value=0.0,
                     pad_width=[0, 0, 0, 0, 2, 2, 1, 1],
                     pad_mode="constant",
+                    pad_value=0.0,
                 )
                 gv: R.Tensor((1, 3, 14, 12), dtype="float32") = lv
                 R.output(gv)
