@@ -279,6 +279,30 @@ def squeeze(x: Expr, axis: Optional[Union[int, List[int]]] = None) -> Expr:
     return _ffi_api.squeeze(x, axis)  # type: ignore
 
 
+def stack(tensors: Union[Expr, List[Expr]], axis: int = 0) -> Expr:
+    """Stack the input tensors along a new axis.
+
+    Parameters
+    ----------
+    tensors : Union[relax.Expr, List[relax.Expr]]
+        An Expr in Tuple type, containing the tensors to be stacked,
+        or a list of Tensors. All input tensors must have the same shape.
+
+    axis : int
+        The axis in the resulting tensor along which the input tensors will be stacked.
+        Negative values wrap around. Default is 0.
+
+    Returns
+    -------
+    result: relax.Expr
+        The stacked tensor with an additional dimension compared to the input tensors.
+
+    """
+    if isinstance(tensors, (list, tuple)):
+        tensors = RxTuple(tensors)
+    return _ffi_api.stack(tensors, axis)  # type: ignore
+
+
 def collapse_sum_like(data: Expr, collapse_target: Expr) -> Expr:
     """Return a summation of data to the shape of collapse_target.
 
