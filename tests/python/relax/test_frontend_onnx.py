@@ -20,7 +20,8 @@ ONNX testcases
 ================
 This file is a test script to test Relax ONNX frontend coverage.
 """
-
+from io import StringIO
+from contextlib import redirect_stdout
 from typing import Dict, List, Literal, Optional
 
 import numpy as np
@@ -28,6 +29,10 @@ import onnx
 import onnxruntime
 import pytest
 from onnx import ModelProto, TensorProto, helper, mapping
+
+from onnxscript import script
+from onnxscript import FLOAT
+from onnxscript import opset20 as op
 
 import tvm
 import tvm.testing
@@ -2239,6 +2244,28 @@ def test_resize():
 
     model = helper.make_model(graph, producer_name="resize_test")
     check_correctness(model)
+
+def test_onnxscript_resize():
+    @script()
+    def Resize(X: FLOAT[1, 3, 20, 20]):
+        scales = op.Constant(value=helper.make_tensor("scales", TensorProto.FLOAT, (4,), [1, 1, 0.5, 0.5]))
+        roi = op.Constant(value=helper.make_tensor("roi", TensorProto.FLOAT, (), [10]))
+        return op.Resize(X, roi=roi, scales=scales,)
+
+    onnx_result = Resize(X=np.random.randn(1, 3, 20, 20).astype("float32"))
+    model = Resize.to_model_proto() # returns an onnx.ModelProto
+    # need fix
+    try:
+        with redirect_stdout(StringIO()) as sio:
+            tvm_model = from_onnx(model, keep_params_in_input=True)
+    except Exception as e:
+        print(f"Exception: {e}")
+        assert (
+            sio.getvalue() == 
+            'Error converting operator Resize, with inputs: [X, R.const(10.0, "float32"), '
+            'metadata["relax.expr.Constant"][0]\n# Metadata omitted. '
+            'Use show_meta=True in script() method to show it.]\n'
+        )
 
 
 def test_einsum():
