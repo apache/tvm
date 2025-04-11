@@ -1040,8 +1040,10 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
       auto f_check_ndarray_arg = [&dev, &arrs](const RegType& arg) {
         if (auto opt_nd = arg.as<NDArray>()) {
           NDArray arr = opt_nd.value();
-          dev = arr->device;
-          arrs.push_back(arr);
+          if (arr.defined()) {
+            dev = arr->device;
+            arrs.push_back(arr);
+          }
         }
       };
 
