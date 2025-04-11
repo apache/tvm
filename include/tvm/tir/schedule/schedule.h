@@ -707,15 +707,14 @@ class ScheduleNode : public runtime::Object {
    * \param ann_key The annotation key
    * \param ann_val The annotation value, a string or a ExprRV
    */
-  virtual void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) = 0;
+  virtual void Annotate(const LoopRV& loop_rv, const String& ann_key, const Any& ann_val) = 0;
   /*!
    * \brief Annotate a block with a key value pair
    * \param block_rv The block to be annotated
    * \param ann_key The annotation key
    * \param ann_val The annotation value, a string or a ExprRV
    */
-  virtual void Annotate(const BlockRV& block_rv, const String& ann_key,
-                        const ObjectRef& ann_val) = 0;
+  virtual void Annotate(const BlockRV& block_rv, const String& ann_key, const Any& ann_val) = 0;
   /*!
    * \brief Unannotate a loop's annotation with key ann_key
    * \param loop_rv The loop to be unannotated

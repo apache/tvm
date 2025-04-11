@@ -63,8 +63,7 @@ class OpaqueBlockLower : public StmtExprMutator {
       if (it != storage_align_.end()) {
         StorageAlignAnnotation allocate_aligns;
         for (auto tuple : it->second) {
-          ICHECK_EQ(tuple.size(), 4);
-          tuple.Set(0, -1);
+          tuple.Set<0>(-1);
           allocate_aligns.push_back(tuple);
         }
         allocate_annotations.Set(attr::buffer_dim_align, allocate_aligns);
@@ -148,15 +147,15 @@ class OpaqueBlockLower : public StmtExprMutator {
   }
 
   /*! \brief Convert attr value from annotation map into PrimExpr. */
-  PrimExpr ConvertAttrValue(const String& key, const ObjectRef& obj) {
-    if (!obj.defined()) {
+  PrimExpr ConvertAttrValue(const String& key, const Any& obj) {
+    if (obj == nullptr) {
       return PrimExpr();
     } else if (auto expr = obj.as<PrimExpr>()) {
       return expr.value();
     } else if (auto str = obj.as<String>()) {
       return std::move(StringImm(str.value()));
     } else {
-      LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj->GetTypeKey()
+      LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj.GetTypeKey()
                  << " not supported";
       return PrimExpr();
     }

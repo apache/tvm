@@ -3989,7 +3989,7 @@ def func_attr_with_list():
         D: T.Buffer((128, 128), "float32"),
     ) -> None:
         T.func_attr(
-            {"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [T.int32(1)]}
+            {"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [1]}
         )
         C = T.alloc_buffer([128, 128], dtype="float32")
         for i0, i1, i2 in T.grid(128, 128, 128):

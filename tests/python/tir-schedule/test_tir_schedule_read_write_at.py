@@ -73,7 +73,7 @@ def cuda_matmul_read_at_a(a: T.handle, b: T.handle, c: T.handle) -> None:
                                     v1 = T.axis.S(256, k0)
                                     T.reads([A[v0 * 64 : v0 * 64 + 64, v1 * 8 : v1 * 8 + 8]])
                                     T.writes([A_shared[v0 * 64 : v0 * 64 + 64, v1 * 8 : v1 * 8 + 8]])
-                                    T.block_attr({"auto_copy":1})
+                                    T.block_attr({"auto_copy": True})
                                     for ax0, ax1 in T.grid(64, 8):
                                         A_shared[v0 * 64 + ax0, v1 * 8 + ax1] = A[v0 * 64 + ax0, v1 * 8 + ax1]
                                 for k1 in T.unroll(0, 8):
@@ -108,7 +108,7 @@ def cuda_matmul_read_at_ab(a: T.handle, b: T.handle, c: T.handle) -> None:
                                     v1 = T.axis.S(256, k0)
                                     T.reads([A[v0 * 64 : v0 * 64 + 64, v1 * 8 : v1 * 8 + 8]])
                                     T.writes([A_shared[v0 * 64 : v0 * 64 + 64, v1 * 8 : v1 * 8 + 8]])
-                                    T.block_attr({"auto_copy":1})
+                                    T.block_attr({"auto_copy": True})
                                     for ax0, ax1 in T.grid(64, 8):
                                         A_shared[v0 * 64 + ax0, v1 * 8 + ax1] = A[v0 * 64 + ax0, v1 * 8 + ax1]
                                 with T.block("B_shared"):
@@ -116,7 +116,7 @@ def cuda_matmul_read_at_ab(a: T.handle, b: T.handle, c: T.handle) -> None:
                                     v1 = T.axis.S(32, bx)
                                     T.reads([B[v0 * 8 : v0 * 8 + 8, v1 * 64 : v1 * 64 + 64]])
                                     T.writes([B_shared[v0 * 8 : v0 * 8 + 8, v1 * 64 : v1 * 64 + 64]])
-                                    T.block_attr({"auto_copy":1})
+                                    T.block_attr({"auto_copy": True})
                                     for ax0, ax1 in T.grid(8, 64):
                                         B_shared[v0 * 8 + ax0, v1 * 64 + ax1] = B[v0 * 8 + ax0, v1 * 64 + ax1]
                                 for k1 in T.unroll(0, 8):
@@ -151,7 +151,7 @@ def cuda_matmul_write_at_c(a: T.handle, b: T.handle, c: T.handle) -> None:
                                     v1 = T.axis.S(256, k0)
                                     T.reads([A[v0 * 64 : v0 * 64 + 64, v1 * 8 : v1 * 8 + 8]])
                                     T.writes([A_shared[v0 * 64 : v0 * 64 + 64, v1 * 8 : v1 * 8 + 8]])
-                                    T.block_attr({"auto_copy":1})
+                                    T.block_attr({"auto_copy": True})
                                     for ax0, ax1 in T.grid(64, 8):
                                         A_shared[v0 * 64 + ax0, v1 * 8 + ax1] = A[v0 * 64 + ax0, v1 * 8 + ax1]
                                 with T.block("B_shared"):
@@ -159,7 +159,7 @@ def cuda_matmul_write_at_c(a: T.handle, b: T.handle, c: T.handle) -> None:
                                     v1 = T.axis.S(32, bx)
                                     T.reads([B[v0 * 8 : v0 * 8 + 8, v1 * 64 : v1 * 64 + 64]])
                                     T.writes([B_shared[v0 * 8 : v0 * 8 + 8, v1 * 64 : v1 * 64 + 64]])
-                                    T.block_attr({"auto_copy":1})
+                                    T.block_attr({"auto_copy": True})
                                     for ax0, ax1 in T.grid(8, 64):
                                         B_shared[v0 * 8 + ax0, v1 * 64 + ax1] = B[v0 * 8 + ax0, v1 * 64 + ax1]
                                 for k1 in T.unroll(0, 8):
@@ -178,7 +178,7 @@ def cuda_matmul_write_at_c(a: T.handle, b: T.handle, c: T.handle) -> None:
                                 v1 = T.axis.S(32, bx)
                                 T.reads([C_shared[v0 * 64 : v0 * 64 + 64, v1 * 64 : v1 * 64 + 64]])
                                 T.writes([C[v0 * 64 : v0 * 64 + 64, v1 * 64 : v1 * 64 + 64]])
-                                T.block_attr({"auto_copy":1})
+                                T.block_attr({"auto_copy": True})
                                 for ax0, ax1 in T.grid(64, 64):
                                     C[v0 * 64 + ax0, v1 * 64 + ax1] = C_shared[v0 * 64 + ax0, v1 * 64 + ax1]
 

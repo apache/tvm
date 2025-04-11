@@ -635,7 +635,7 @@ void TracedScheduleNode::Tensorize(const BlockRV& block_rv, const String& intrin
 /******** Schedule: Annotation ********/
 
 void TracedScheduleNode::Annotate(const LoopRV& loop_rv, const String& ann_key,
-                                  const ObjectRef& ann_val) {
+                                  const Any& ann_val) {
   ConcreteScheduleNode::Annotate(loop_rv, ann_key, ann_val);
   static const InstructionKind& kind = InstructionKind::Get("Annotate");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
@@ -645,7 +645,7 @@ void TracedScheduleNode::Annotate(const LoopRV& loop_rv, const String& ann_key,
 }
 
 void TracedScheduleNode::Annotate(const BlockRV& block_rv, const String& ann_key,
-                                  const ObjectRef& ann_val) {
+                                  const Any& ann_val) {
   ConcreteScheduleNode::Annotate(block_rv, ann_key, ann_val);
   static const InstructionKind& kind = InstructionKind::Get("Annotate");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,

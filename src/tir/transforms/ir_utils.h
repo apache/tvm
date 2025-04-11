@@ -32,6 +32,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
+#include <tvm/ffi/container/tuple.h>
 
 #include <limits>
 #include <optional>
@@ -324,7 +325,7 @@ std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op);
 PrimFunc BindParams(PrimFunc f, const Array<runtime::NDArray>& constants);
 
 /*! \brief The quad used by StorageAlign for (buffer_idx, axis, factor, offset) */
-using StorageAlignTuple = Array<Integer>;
+using StorageAlignTuple = ffi::Tuple<int32_t, int32_t, int32_t, int32_t>;
 /*! \brief A list of StorageAlignTuple, used by StorageAlign */
 using StorageAlignAnnotation = Array<StorageAlignTuple>;
 /*!

@@ -627,7 +627,7 @@ TVM_DLL void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref,
  * \param ann_val The annotation value
  */
 TVM_DLL void Annotate(ScheduleState self, const StmtSRef& sref, const String& ann_key,
-                      const ObjectRef& ann_val);
+                      const Any& ann_val);
 /*!
  * \brief Unannotate a block/loop's annotation with key ann_key
  * \param self The state of the schedule

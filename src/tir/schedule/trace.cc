@@ -17,7 +17,6 @@
  * under the License.
  */
 #include "./utils.h"
-#include "../ir/utils.h"
 
 namespace tvm {
 namespace tir {

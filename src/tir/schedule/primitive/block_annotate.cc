@@ -17,7 +17,7 @@
  * under the License.
  */
 #include <tvm/tir/expr.h>
-
+#include <tvm/ffi/container/tuple.h>
 #include "../../transforms/ir_utils.h"
 #include "../utils.h"
 
@@ -171,27 +171,8 @@ class StorageAlignInvalidAnnotationError : public ScheduleError {
   IRModule mod() const final { return mod_; }
 
  private:
-  static bool IsValidAnnotation(const Block& block, const ObjectRef& anno_value) {
-    if (!anno_value->IsInstance<ArrayNode>()) {
-      return false;
-    }
-    auto storage_align_annotations = Downcast<Array<ObjectRef>>(anno_value);
-    for (const ObjectRef& storage_align_annotation : storage_align_annotations) {
-      if (!storage_align_annotation->IsInstance<ArrayNode>()) {
-        return false;
-      }
-      auto storage_align_tuple = Downcast<Array<ObjectRef>>(storage_align_annotation);
-      // Check if the annotation is a 4-tuple.
-      if (storage_align_tuple.size() != 4) {
-        return false;
-      }
-      for (const ObjectRef& tuple_element : storage_align_tuple) {
-        if (!tuple_element->IsInstance<IntImmNode>()) {
-          return false;
-        }
-      }
-    }
-    return true;
+  static bool IsValidAnnotation(const Block& block, const Any& anno_value) {
+    return anno_value.as<ffi::Array<ffi::Tuple<int, int, int, int>>>().has_value();
   }
 
   IRModule mod_;
@@ -253,12 +234,10 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
 
   // Step 2: Update the annotation value
   bool found = false;
-  StorageAlignTuple new_storage_align_tuple{Integer(buffer_index), Integer(axis), Integer(factor),
-                                            Integer(offset)};
+  StorageAlignTuple new_storage_align_tuple{buffer_index, axis, factor, offset};
   for (size_t j = 0; j < storage_align_annotation.size(); ++j) {
     const auto& storage_align_tuple = storage_align_annotation[j];
-    ICHECK(storage_align_tuple.size() == 4);
-    if (storage_align_tuple[0] == buffer_index && storage_align_tuple[1] == axis) {
+    if (storage_align_tuple.Get<0>() == buffer_index && storage_align_tuple.Get<1>() == axis) {
       storage_align_annotation.Set(j, std::move(new_storage_align_tuple));
       found = true;
       break;
