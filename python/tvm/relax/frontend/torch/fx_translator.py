@@ -885,9 +885,15 @@ class TorchFXImporter(BaseFXGraphImporter):
             output = None
             with self.block_builder.dataflow():
 
-               # Find all the missing function types
-                missing_func_types = list({node.target.__name__ for node in graph.nodes
-                if node.op == "call_function" and node.target.__name__ not in self.convert_map})
+                # Find all the missing function types
+                missing_func_types = list(
+                    {
+                        node.target.__name__
+                        for node in nodes
+                        if node.op == "call_function"
+                        and node.target.__name__ not in self.convert_map
+                    }
+                )
                 assert not missing_func_types, f"Unsupported function types {missing_func_types}"
 
                 # Translate model parameters.
