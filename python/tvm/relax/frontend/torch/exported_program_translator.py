@@ -381,6 +381,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "mean.dim": self._mean,
             "prod.default": self._prod,
             "std.correction": self._std,
+            "sum.default": self._sum,
             "sum.dim_IntList": self._sum,
             "var.correction": self._var,
             # search
@@ -409,6 +410,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "split_with_sizes.default": self._split,
             "squeeze.default": self._squeeze,
             "squeeze.dim": self._squeeze,
+            "stack.default": self._stack,
             "take.default": self._take,
             "tile.default": self._tile,
             "topk.default": self._topk,
