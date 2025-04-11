@@ -891,7 +891,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         if not isinstance(value, relax.Expr):
             value = relax.const(value)
 
-        return self.block_builder.emit(relax.op.nn.pad(x, pad_width, value, mode))
+        return self.block_builder.emit(relax.op.nn.pad(x, pad_width, mode, value))
 
     def _scaled_dot_product_attention(self, node: fx.Node) -> relax.Var:
         transpose_S_H = lambda tensor: relax.op.permute_dims(tensor, [0, 2, 1, 3])
