@@ -517,7 +517,7 @@ def pad(
     data: Expr,
     pad_width: Union[List[int], Tuple[int, ...]],
     pad_mode: Optional[str] = "constant",
-    pad_value: Optional[Union[float, Expr]] = 0.0,
+    pad_value: Optional[float] = 0.0,
 ):
     r"""Padding
 

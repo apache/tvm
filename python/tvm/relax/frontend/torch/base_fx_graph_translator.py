@@ -888,9 +888,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         flattened = [value for pair in reversed_pairs for value in pair]
         pad_width[-len(flattened) :] = flattened
 
-        if not isinstance(value, relax.Expr):
-            value = relax.const(value)
-
         return self.block_builder.emit(relax.op.nn.pad(x, pad_width, mode, value))
 
     def _scaled_dot_product_attention(self, node: fx.Node) -> relax.Var:
