@@ -16,14 +16,13 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../../ir/utils.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace tir {
 
 void Annotate(ScheduleState self, const StmtSRef& sref, const String& ann_key,
-              const ObjectRef& ann_val) {
+              const Any& ann_val) {
   // Extract annotation
   const Map<String, ffi::Any>* annotations = nullptr;
   if (const auto* loop = sref->StmtAs<ForNode>()) {

@@ -387,9 +387,11 @@ Map<String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
     return obj;
   };
   for (const auto& [key, value] : annotations) {
-    auto new_value = f_mutate_obj(value);
-    if (!new_value.same_as(value)) {
-      new_annotations.Set(key, new_value);
+    if (auto* prim_expr = value.as<PrimExprNode>()) {
+      auto new_value = f_mutate_obj(GetRef<PrimExpr>(prim_expr));
+      if (!new_value.same_as(value)) {
+        new_annotations.Set(key, new_value);
+      }
     }
   }
   return new_annotations;

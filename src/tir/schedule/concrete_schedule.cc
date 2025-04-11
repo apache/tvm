@@ -912,9 +912,13 @@ void ConcreteScheduleNode::Tensorize(const BlockRV& block_rv, const String& intr
 
 /******** Schedule: Annotation ********/
 
-ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
+Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
   if (auto opt_str = ann_val.as<ffi::String>()) {
     return *std::move(opt_str);
+  }
+
+  if (ann_val.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+    return ann_val;
   }
 
   if (auto opt_intimm = ann_val.as<IntImm>()) {
@@ -930,7 +934,7 @@ ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_v
     return this->Get(GetRef<PrimExpr>(expr));
   }
   if (const auto* arr = ann_val.as<ArrayNode>()) {
-    Array<ObjectRef> result;
+    Array<Any> result;
     result.reserve(arr->size());
     for (size_t i = 0; i < arr->size(); i++) {
       result.push_back(CheckAndGetAnnotationValue(arr->at(i)));
@@ -955,11 +959,11 @@ ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_v
   LOG(FATAL)
       << "TypeError: Only strings, integers, floats, ExprRVs and Arrays are supported for now, but "
       << "gets: " << ann_val.GetTypeKey();
-  throw;
+  TVM_FFI_UNREACHABLE();
 }
 
 void ConcreteScheduleNode::Annotate(const LoopRV& loop_rv, const String& ann_key,
-                                    const ObjectRef& ann_val) {
+                                    const Any& ann_val) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::Annotate(state_, this->GetSRef(loop_rv), ann_key, this->CheckAndGetAnnotationValue(ann_val));
   this->state_->DebugVerify();
@@ -974,7 +978,7 @@ void ConcreteScheduleNode::Unannotate(const LoopRV& loop_rv, const String& ann_k
 }
 
 void ConcreteScheduleNode::Annotate(const BlockRV& block_rv, const String& ann_key,
-                                    const ObjectRef& ann_val) {
+                                    const Any& ann_val) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::Annotate(state_, this->GetSRef(block_rv), ann_key,
                 this->CheckAndGetAnnotationValue(ann_val));

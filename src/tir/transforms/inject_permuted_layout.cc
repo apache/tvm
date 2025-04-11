@@ -102,12 +102,14 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return {row_idx, analyzer_->Simplify(new_col_idx_outer * 8 + col_idx_inner)};
   }
 
-  static bool CheckAnnotation(ObjectRef annotation) {
+  static bool CheckAnnotation(const Any& annotation) {
     if (auto* node = annotation.as<StringObj>()) {
       // Support string annotation for backward compatibility
       return GetRef<String>(node) != "";
     } else if (auto* node = annotation.as<IntImmNode>()) {
       return node->value != 0;
+    } else if (auto opt_val = annotation.as<int64_t>()) {
+      return *opt_val != 0;
     } else {
       LOG(FATAL) << "Invalid permuted layout annotation: " << annotation;
     }

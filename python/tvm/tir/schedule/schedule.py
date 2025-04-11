@@ -3110,12 +3110,6 @@ class Schedule(Object):
                         B[vi, vj] = A[vi, vj] * 2.0
 
         """
-        if isinstance(ann_val, str):
-            ann_val = String(ann_val)
-        elif isinstance(ann_val, int):
-            ann_val = IntImm("int32", ann_val)
-        elif isinstance(ann_val, float):
-            ann_val = FloatImm("float32", ann_val)
         _ffi_api.ScheduleAnnotate(  # type: ignore # pylint: disable=no-member
             self, block_or_loop, ann_key, ann_val
         )

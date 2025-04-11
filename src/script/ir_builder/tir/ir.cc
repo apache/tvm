@@ -20,7 +20,6 @@
 #include <tvm/script/ir_builder/tir/ir.h>
 
 #include "./utils.h"
-#include "../../../tir/ir/utils.h"
 
 namespace tvm {
 namespace script {
@@ -224,7 +223,7 @@ void BlockAttrs(Map<String, Any> attrs) {
   if (frame->annotations.defined()) {
     LOG(FATAL) << "ValueError: Duplicate block annotations, previous one is " << frame->annotations;
   }
-  frame->annotations = Downcast<Map<String, Any>>(tvm::tir::NormalizeAttributeObject(attrs));
+  frame->annotations = attrs;
 }
 
 Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype, Optional<Var> data,

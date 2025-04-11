@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../../tir/ir/utils.h"
 #include "../module_equality.h"
 #include "../utils.h"
 
@@ -129,8 +128,7 @@ bool TuningRecordNode::IsValid() const {
   return false;
 }
 
-TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj_src, const Workload& workload) {
-  ObjectRef json_obj = tvm::tir::NormalizeAttributeObject(json_obj_src);
+TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& workload) {
   tir::Trace trace{nullptr};
   Optional<Array<FloatImm>> run_secs;
   Optional<Target> target;

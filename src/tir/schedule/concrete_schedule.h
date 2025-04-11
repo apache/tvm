@@ -163,9 +163,9 @@ class ConcreteScheduleNode : public ScheduleNode {
   void Tensorize(const BlockRV& block_rv, const String& intrin, bool preserve_unit_iters) override;
   void Tensorize(const LoopRV& loop_rv, const String& intrin, bool preserve_unit_iters) override;
   /******** Schedule: Annotation ********/
-  void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
+  void Annotate(const LoopRV& loop_rv, const String& ann_key, const Any& ann_val) override;
   void Unannotate(const LoopRV& loop_rv, const String& ann_key) override;
-  void Annotate(const BlockRV& block_rv, const String& ann_key, const ObjectRef& ann_val) override;
+  void Annotate(const BlockRV& block_rv, const String& ann_key, const Any& ann_val) override;
   void Unannotate(const BlockRV& block_rv, const String& ann_key) override;
   /******** Schedule: Layout transformation ********/
   void TransformLayout(const BlockRV& block_rv, int buffer_index, BufferIndexType buffer_index_type,
@@ -233,7 +233,7 @@ class ConcreteScheduleNode : public ScheduleNode {
    * \param The annotation value.
    * \return The annotation value with random variables substituted with their values.
    */
-  ObjectRef CheckAndGetAnnotationValue(const ffi::Any& ann_val);
+  Any CheckAndGetAnnotationValue(const ffi::Any& ann_val);
 };
 
 // implementations

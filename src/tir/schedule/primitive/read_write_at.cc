@@ -343,13 +343,13 @@ struct ReadWriteAtImpl {
 StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                 int read_buffer_index, const String& storage_scope) {
   return ReadWriteAtImpl::Main<true>(self, loop_sref, block_sref, read_buffer_index, storage_scope,
-                                     {{tir::attr::auto_copy, Integer(1)}});
+                                     {{tir::attr::auto_copy, true}});
 }
 
 StmtSRef WriteAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                  int write_buffer_index, const String& storage_scope) {
   return ReadWriteAtImpl::Main<false>(self, loop_sref, block_sref, write_buffer_index,
-                                      storage_scope, {{tir::attr::auto_copy, Integer(1)}});
+                                      storage_scope, {{tir::attr::auto_copy, true}});
 }
 
 /******** Instruction Registration ********/

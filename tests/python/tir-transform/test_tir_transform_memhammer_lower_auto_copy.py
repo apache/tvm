@@ -34,11 +34,11 @@ class Transpose:
                 with T.block():
                     A_shared_dyn = T.alloc_buffer([16, 128], dtype="float32", scope="shared.dyn")
                     with T.block("A_shared"):
-                        T.block_attr({"auto_copy": 1})
+                        T.block_attr({"auto_copy": True})
                         for ax0, ax1 in T.grid(128, 16):
                             A_shared_dyn[ax1, ax0] = A[ax0, ax1]
                     with T.block("B"):
-                        T.block_attr({"auto_copy": 1})
+                        T.block_attr({"auto_copy": True})
                         for ax1, ax0 in T.grid(16, 128):
                             B[ax1, ax0] = A_shared_dyn[ax1, ax0]
 
@@ -59,7 +59,7 @@ class GlobalToShared:
                                 [128, 128], dtype="float32", scope="shared.dyn"
                             )
                             with T.block("A_shared"):
-                                T.block_attr({"auto_copy": 1, "vector_bytes": 16})
+                                T.block_attr({"auto_copy": True, "vector_bytes": 16})
                                 for ax0, ax1 in T.grid(128, 128):
                                     A_shared_dyn[ax0, ax1] = A[bx * 128 + ax0, by * 128 + ax1]
                             with T.block("B"):
@@ -86,7 +86,7 @@ class SharedToGlobal:
                                 for ax0, ax1 in T.grid(128, 128):
                                     A_shared_dyn[ax1, ax0] = A[bx * 128 + ax0, by * 128 + ax1]
                             with T.block("B"):
-                                T.block_attr({"auto_copy": 1, "vector_bytes": 16})
+                                T.block_attr({"auto_copy": True, "vector_bytes": 16})
                                 for ax1, ax0 in T.grid(128, 128):
                                     B[bx * 128 + ax0, by * 128 + ax1] = A_shared_dyn[ax1, ax0]
 
@@ -108,7 +108,7 @@ class GlobalToSharedWithLocalStage:
                             )
                             with T.block("A_shared"):
                                 T.block_attr(
-                                    {"auto_copy": 1, "vector_bytes": 16, "local_stage": True}
+                                    {"auto_copy": True, "vector_bytes": 16, "local_stage": True}
                                 )
                                 for ax0, ax1 in T.grid(128, 128):
                                     A_shared_dyn[ax0, ax1] = A[bx * 128 + ax0, by * 128 + ax1]
@@ -134,7 +134,7 @@ class SharedToWmma:
                                 [128, 128], dtype="float16", scope="wmma.matrix_a"
                             )
                             with T.block("A_wmma"):
-                                T.block_attr({"auto_copy": 1})
+                                T.block_attr({"auto_copy": True})
                                 for ax0, ax1 in T.grid(128, 128):
                                     A_wmma[ax0, ax1] = A_shared_dyn[ax0, ax1]
 
@@ -156,7 +156,7 @@ class WmmaToShared:
                                 [128, 128], dtype="float32", scope="shared.dyn"
                             )
                             with T.block("C_shared"):
-                                T.block_attr({"auto_copy": 1})
+                                T.block_attr({"auto_copy": True})
                                 for ax0, ax1 in T.grid(128, 128):
                                     C_shared[ax0, ax1] = C_accum[ax0, ax1]
 
@@ -176,7 +176,7 @@ class WmmaToGlobal:
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
                             )
                             with T.block("C_global"):
-                                T.block_attr({"auto_copy": 1, "vector_bytes": 16})
+                                T.block_attr({"auto_copy": True, "vector_bytes": 16})
                                 for ax0, ax1 in T.grid(128, 128):
                                     C[bx * 128 + ax0, by * 128 + ax1] = C_accum[ax0, ax1]
 
@@ -197,7 +197,7 @@ class WmmaToGlobalWithFusion:
                                 [128, 128], dtype="float32", scope="wmma.accumulator"
                             )
                             with T.block("C_global"):
-                                T.block_attr({"auto_copy": 1, "vector_bytes": 16})
+                                T.block_attr({"auto_copy": True, "vector_bytes": 16})
                                 for ax0, ax1 in T.grid(128, 128):
                                     C[bx * 128 + ax0, by * 128 + ax1] = (
                                         C_accum[ax0, ax1] + A[bx * 128 + ax0]
@@ -219,7 +219,7 @@ class MmaToGlobal:
                                 [128, 128], dtype="float32", scope="m16n8k8.matrixC"
                             )
                             with T.block("C_global"):
-                                T.block_attr({"auto_copy": 1, "vector_bytes": 16})
+                                T.block_attr({"auto_copy": True, "vector_bytes": 16})
                                 for ax0, ax1 in T.grid(128, 128):
                                     C[bx * 128 + ax0, by * 128 + ax1] = C_accum[ax0, ax1]
 
@@ -240,7 +240,7 @@ class TransformedGlobalToShared:
                                 [128, 128], dtype="float32", strides=[128, 1], scope="shared.dyn"
                             )
                             with T.block("A_shared"):
-                                T.block_attr({"auto_copy": 1, "vector_bytes": 16})
+                                T.block_attr({"auto_copy": True, "vector_bytes": 16})
                                 for outer in T.serial(16):
                                     for ty_1 in T.thread_binding(8, thread="threadIdx.y"):
                                         for tx in T.thread_binding(32, thread="threadIdx.x"):
@@ -286,7 +286,7 @@ class TransformedSharedToGlobal:
                                 for ax0, ax1 in T.grid(128, 128):
                                     A_shared_dyn[ax1, ax0] = A[bx * 128 + ax0, by * 128 + ax1]
                             with T.block("B"):
-                                T.block_attr({"auto_copy": 1, "vector_bytes": 16})
+                                T.block_attr({"auto_copy": True, "vector_bytes": 16})
                                 for outer in T.serial(16):
                                     for ty_1 in T.thread_binding(8, thread="threadIdx.y"):
                                         for tx in T.thread_binding(32, thread="threadIdx.x"):
@@ -329,7 +329,7 @@ class TransformedGlobalToSharedWithLocalStage:
                                 T.reads(A[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
                                 T.writes(A_shared_dyn[0:128, 0:128])
                                 T.block_attr(
-                                    {"auto_copy": 1, "local_stage": True, "vector_bytes": 16}
+                                    {"auto_copy": True, "local_stage": True, "vector_bytes": 16}
                                 )
                                 A_shared_dyn_local = T.alloc_buffer((16, 4), scope="local")
                                 for ax0_ax1_fused_1 in T.thread_binding(8, thread="threadIdx.y"):
@@ -436,7 +436,7 @@ class TransformedSharedToWmma:
                             with T.block("C_shared"):
                                 T.reads(A_shared_dyn[0:128, 0:128])
                                 T.writes(A_wmma[0:128, 0:128])
-                                T.block_attr({"auto_copy": 1})
+                                T.block_attr({"auto_copy": True})
                                 for ax00, ax10 in T.grid(8, 8):
                                     with T.block("wmma_load"):
                                         T.reads(
@@ -517,7 +517,7 @@ class TransformedWmmaToShared:
                             with T.block("A_wmma"):
                                 T.reads(C_accum[0:128, 0:128])
                                 T.writes(C_shared[0:128, 0:128])
-                                T.block_attr({"auto_copy": 1})
+                                T.block_attr({"auto_copy": True})
                                 for ax00, ax10 in T.grid(8, 8):
                                     with T.block("wmma_store"):
                                         T.reads(
@@ -592,7 +592,7 @@ class TransformedWmmaToGlobal:
                             with T.block("C_global"):
                                 T.reads(C_accum[0:128, 0:128])
                                 T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                                T.block_attr({"auto_copy": 1, "vector_bytes": 16})
+                                T.block_attr({"auto_copy": True, "vector_bytes": 16})
                                 C_accum_shared_dyn = T.alloc_buffer(
                                     (8, 8, 16, 16), strides=(2048, 256, 16, 1), scope="shared.dyn"
                                 )
@@ -794,7 +794,7 @@ class TransformedWmmaToGlobalWithFusion:
                             with T.block("C_global"):
                                 T.reads(C_accum[0:128, 0:128], A[bx * 128 : bx * 128 + 128])
                                 T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                                T.block_attr({"auto_copy": 1, "vector_bytes": 16})
+                                T.block_attr({"auto_copy": True, "vector_bytes": 16})
                                 C_accum_shared_dyn = T.alloc_buffer(
                                     (8, 8, 16, 16), strides=(2048, 256, 16, 1), scope="shared.dyn"
                                 )
@@ -1014,7 +1014,7 @@ class TransformedMmaToGlobal:
                             with T.block("C_global"):
                                 T.reads(C_accum[0:128, 0:128])
                                 T.writes(C[bx * 128 : bx * 128 + 128, by * 128 : by * 128 + 128])
-                                T.block_attr({"auto_copy": 1, "vector_bytes": 16})
+                                T.block_attr({"auto_copy": True, "vector_bytes": 16})
                                 C_accum_shared_dyn = T.alloc_buffer(
                                     (8, 16, 8, 8), strides=(1152, 72, 8, 1), scope="shared.dyn"
                                 )
