@@ -28,8 +28,8 @@
 namespace tvm {
 namespace relax {
 
-Choice::Choice(String transform_func_key, Array<ObjectRef> transform_func_args,
-               String constr_func_key, Array<ObjectRef> constr_func_args) {
+Choice::Choice(String transform_func_key, Array<Any> transform_func_args,
+               String constr_func_key, Array<Any> constr_func_args) {
   ObjectPtr<ChoiceNode> n = make_object<ChoiceNode>();
   n->transform_func_key = std::move(transform_func_key);
   n->transform_func_args = std::move(transform_func_args);
@@ -46,7 +46,7 @@ ObjectRef ChoiceNode::AsJSON() const {
     std::string b64_arg = meta_schedule::Base64Encode(json_arg);
     json_transfrom_args.push_back(String(b64_arg));
   }
-  for (ObjectRef arg : this->constr_func_args) {
+  for (Any arg : this->constr_func_args) {
     std::string json_arg = tvm::SaveJSON(arg);
     std::string b64_arg = meta_schedule::Base64Encode(json_arg);
     json_constr_args.push_back(String(b64_arg));
@@ -62,7 +62,7 @@ ObjectRef ChoiceNode::AsJSON() const {
 Choice Choice::FromJSON(const ObjectRef& json) {
   // Parse `json` into `choice`
   String transform_func_key, constr_func_key;
-  Array<ObjectRef> transform_func_args, constr_func_args;
+  Array<Any> transform_func_args, constr_func_args;
   try {
     const ArrayNode* arr = json.as<ArrayNode>();
     ICHECK(arr && arr->size() == 4);
@@ -77,7 +77,7 @@ Choice Choice::FromJSON(const ObjectRef& json) {
       for (const Any& elem : *arr1) {
         String b64_arg = Downcast<String>(elem);
         std::string json_arg = meta_schedule::Base64Decode(b64_arg);
-        ObjectRef arg = LoadJSON(json_arg);
+        Any arg = LoadJSON(json_arg);
         transform_func_args.push_back(arg);
       }
     }
@@ -87,7 +87,7 @@ Choice Choice::FromJSON(const ObjectRef& json) {
       for (const Any& elem : *arr3) {
         String b64_arg = Downcast<String>(elem);
         std::string json_arg = meta_schedule::Base64Decode(b64_arg);
-        ObjectRef arg = LoadJSON(json_arg);
+        Any arg = LoadJSON(json_arg);
         constr_func_args.push_back(arg);
       }
     }
@@ -232,8 +232,8 @@ Trace Trace::FromJSON(const ObjectRef& json) {
 /**************** FFI ****************/
 TVM_REGISTER_NODE_TYPE(ChoiceNode);
 TVM_REGISTER_GLOBAL("relax.tuning_api.Choice")
-    .set_body_typed([](String transform_func_key, Array<ObjectRef> transform_func_args,
-                       String constr_func_key, Array<ObjectRef> constr_func_args) {
+    .set_body_typed([](String transform_func_key, Array<Any> transform_func_args,
+                       String constr_func_key, Array<Any> constr_func_args) {
       return Choice(transform_func_key, transform_func_args, constr_func_key, constr_func_args);
     });
 TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceAsJSON").set_body_method<Choice>(&ChoiceNode::AsJSON);

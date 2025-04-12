@@ -34,7 +34,7 @@ namespace relax {
 /*! \brief Helper function to unpack arguments in the array as parameters for the given packed
  * function. */
 TVM_ALWAYS_INLINE TVMRetValue CallPackedWithArgsInArray(const runtime::PackedFunc f,
-                                                        const Array<ObjectRef>& args) {
+                                                        const Array<Any>& args) {
   size_t num_args = args.size();
   std::vector<AnyView> packed_args(num_args);
   for (size_t i = 0; i < num_args; ++i) {
@@ -52,8 +52,8 @@ class ChoiceNode : public runtime::Object {
   String transform_func_key;
   /*! \brief ffi key for constraint function. */
   String constr_func_key;
-  Array<ObjectRef> transform_func_args;
-  Array<ObjectRef> constr_func_args;
+  Array<Any> transform_func_args;
+  Array<Any> constr_func_args;
 
   /*! \brief The default destructor. */
   virtual ~ChoiceNode() = default;
@@ -81,9 +81,9 @@ class ChoiceNode : public runtime::Object {
   }
 
   /*! \brief Perform constr_func. */
-  bool CheckConstr(const IRModule& mod) {
-    Array<ObjectRef> args(constr_func_args);
-    args.insert(args.begin(), mod);
+  bool CheckConstr(IRModule mod) {
+    Array<Any> args(constr_func_args);
+    args.insert(args.begin(), GetRef<IRModule>(mod.CopyOnWrite()));
     return CallPackedWithArgsInArray(GetConstrFunc(), args);
   }
 
@@ -91,7 +91,7 @@ class ChoiceNode : public runtime::Object {
   IRModule ApplyTransformFunc(IRModule mod) {
     // Apply transformation when constraint is satisfied.
     if (CheckConstr(mod)) {
-      Array<ObjectRef> args(transform_func_args);
+      Array<Any> args(transform_func_args);
       args.insert(args.begin(), GetRef<IRModule>(mod.CopyOnWrite()));
       return CallPackedWithArgsInArray(GetTransformFunc(), args);
     }
@@ -111,8 +111,8 @@ class ChoiceNode : public runtime::Object {
 /*! \brief Managed reference to ChoiceNode */
 class Choice : public runtime::ObjectRef {
  public:
-  TVM_DLL explicit Choice(String transform_func_key, Array<ObjectRef> transform_func_args,
-                          String constr_func_key, Array<ObjectRef> constr_func_args);
+  TVM_DLL explicit Choice(String transform_func_key, Array<Any> transform_func_args,
+                          String constr_func_key, Array<Any> constr_func_args);
   /*! \brief Deserialize JSON-style object into Choice */
   TVM_DLL static Choice FromJSON(const ObjectRef& json_obj);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Choice, ObjectRef, ChoiceNode);
