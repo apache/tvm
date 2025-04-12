@@ -375,9 +375,9 @@ void SetTIRVarUpperBound(Function func, arith::Analyzer* ana,
   // memory planning.
   // NOTE: we only apply the annotated upper bounds to the TIR variables that
   // appear in the **function signature**.
-  Map<ObjectRef, ObjectRef> var_upper_bound_attr_raw =
-      func->GetAttr<Map<ObjectRef, ObjectRef>>("tir_var_upper_bound")
-          .value_or(Map<ObjectRef, ObjectRef>());
+  Map<String, IntImm> var_upper_bound_attr_raw =
+      func->GetAttr<Map<String, IntImm>>("tir_var_upper_bound")
+          .value_or(Map<String, IntImm>());
   Array<ObjectRef> non_negative_var_attr_raw =
       func->GetAttr<Array<ObjectRef>>("tir_non_negative_var").value_or(Array<ObjectRef>());
   std::unordered_map<String, IntImm> var_upper_bound_attr;
@@ -391,7 +391,7 @@ void SetTIRVarUpperBound(Function func, arith::Analyzer* ana,
         << it.first->GetTypeKey() << " is got.";
     CHECK(value != nullptr)
         << "The entry value of attr `tir_var_upper_bound` should be integer. However "
-        << it.second->GetTypeKey() << " is got.";
+        << it.second.GetTypeKey() << " is got.";
     CHECK_GT(value->value, 0)
         << "The entry value of attr `tir_var_upper_bound` should be a positive integer, while "
         << value->value << " is got.";
