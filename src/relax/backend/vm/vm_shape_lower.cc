@@ -596,7 +596,7 @@ class VMShapeLowerMutator
     if (!shape_func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget).has_value()) {
       // kTarget and kIsHostFunc are mutually exclusive
       shape_func =
-          WithAttr<tir::PrimFunc>(std::move(shape_func), tvm::tir::attr::kIsHostFunc, Integer(1));
+          WithAttr<tir::PrimFunc>(std::move(shape_func), tvm::tir::attr::kIsHostFunc, true);
     }
     GlobalVar shape_func_var = builder_->AddFunction(shape_func, "shape_func");
     builder_->Emit(Call(shape_func_var, {shape_heap_}), "_");
