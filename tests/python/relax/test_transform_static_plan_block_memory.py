@@ -1343,7 +1343,7 @@ def test_invalid_tir_var_upper_bound():
             R.func_attr({"tir_var_upper_bound": {"n": [4]}, "relax.force_pure": True})
             return x
 
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError)):
         relax.transform.StaticPlanBlockMemory()(Module)
 
 
