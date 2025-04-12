@@ -68,14 +68,14 @@ PackedFunc VMClosure::BindLastArgs(PackedFunc func, std::vector<Any> last_args) 
 //-----------------------------------------------------------
 // Use the args after `starting_arg_idx` as a series of indices into `obj`,
 // indexing into nested Array and returning the final indexed object.
-ObjectRef IndexIntoNestedObject(ObjectRef obj, TVMArgs args, int starting_arg_idx) {
+Any IndexIntoNestedObject(Any obj, TVMArgs args, int starting_arg_idx) {
   for (int i = starting_arg_idx; i < args.size(); i++) {
     // the object must be an Array to be able to index into it
     if (!obj.as<ffi::ArrayNode>()) {
       LOG(FATAL) << "ValueError: Attempted to index into an object that is not an Array.";
     }
     int index = args[i];
-    auto arr = Downcast<ffi::Array<ObjectRef>>(obj);
+    auto arr = Downcast<ffi::Array<Any>>(obj);
     // make sure the index is in bounds
     if (index >= static_cast<int>(arr.size())) {
       LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << arr.size() << ").";
@@ -95,16 +95,16 @@ NDArray ConvertNDArrayToDevice(NDArray src, const DLDevice& dev, Allocator* allo
   }
 }
 
-ObjectRef ConvertObjectToDevice(ObjectRef src, const Device& dev, Allocator* alloc) {
-  if (src->IsInstance<NDArray::ContainerType>()) {
+Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc) {
+  if (src.as<NDArray::ContainerType>()) {
     return ConvertNDArrayToDevice(Downcast<NDArray>(src), dev, alloc);
-  } else if (src->IsInstance<ffi::ArrayNode>()) {
-    std::vector<ObjectRef> ret;
-    auto arr = Downcast<ffi::Array<ObjectRef>>(src);
+  } else if (src.as<ffi::ArrayNode>()) {
+    std::vector<Any> ret;
+    auto arr = Downcast<ffi::Array<Any>>(src);
     for (size_t i = 0; i < arr.size(); i++) {
       ret.push_back(ConvertObjectToDevice(arr[i], dev, alloc));
     }
-    return Array<ObjectRef>(ret.begin(), ret.end());
+    return Array<Any>(ret.begin(), ret.end());
   } else {
     return src;
   }
@@ -913,7 +913,7 @@ void VirtualMachineImpl::_SetInstrument(TVMArgs args, TVMRetValue* rv) {
 void VirtualMachineImpl::_GetOutputArity(TVMArgs args, TVMRetValue* rv) {
   std::string func_name = args[0];
   RegType out = LookupVMOutput(func_name);
-  ObjectRef obj = IndexIntoNestedObject(out.operator ObjectRef(), args, 1);
+  Any obj = IndexIntoNestedObject(out, args, 1);
   if (const auto* arr = obj.as<ffi::ArrayNode>()) {
     *rv = static_cast<int>(arr->size());
   } else {
@@ -924,7 +924,7 @@ void VirtualMachineImpl::_GetOutputArity(TVMArgs args, TVMRetValue* rv) {
 void VirtualMachineImpl::_GetOutput(TVMArgs args, TVMRetValue* rv) {
   std::string func_name = args[0];
   RegType out = LookupVMOutput(func_name);
-  ObjectRef obj = IndexIntoNestedObject(out.operator ObjectRef(), args, 1);
+  Any obj = IndexIntoNestedObject(out, args, 1);
   if (obj.as<ffi::ArrayNode>()) {
     LOG(FATAL) << "ValueError: `get_output` cannot return a tuple for RPC compatibility. "
                   "Please specify another index argument.";
