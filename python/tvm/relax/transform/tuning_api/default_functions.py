@@ -38,6 +38,7 @@ from .primitives import Knob, Trace
 
 logger = logging.getLogger("TuningAPI")  # pylint: disable=invalid-name
 
+
 # Default transform func that returns original IRModule.
 @tvm.register_func("relax.tuning_api.Choice.default_transform_func")
 def default_transform_func(mod):

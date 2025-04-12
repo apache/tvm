@@ -162,7 +162,6 @@ def _add_target_specific_marks(metafunc):
 
             new_argvalues = []
             for argvalue in argvalues:
-
                 if isinstance(argvalue, _pytest.mark.structures.ParameterSet):
                     # The parametrized value is already a
                     # pytest.param, so track any marks already

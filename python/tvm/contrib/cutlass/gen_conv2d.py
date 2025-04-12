@@ -134,7 +134,6 @@ def enumerate_conv2d_operators(
         for tile in tile_descriptions:
             for alignmentAB in alignment_constraints:
                 for alignmentC in alignment_c:
-
                     A = TensorDescription(element_a, LayoutType.TensorNHWC, alignmentAB)
                     B = TensorDescription(element_b, LayoutType.TensorNHWC, alignmentAB)
                     C = TensorDescription(element_c, LayoutType.TensorNHWC, alignmentC)

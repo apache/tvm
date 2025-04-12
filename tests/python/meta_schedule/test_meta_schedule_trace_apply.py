@@ -1785,6 +1785,7 @@ class Conv2dInt8_with_predicate_scheduled:
                             T.writes(compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1])
                             compute[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1] = T.max(T.min(T.q_multiply_shift(T.max(T.min(p7[()] + T.q_multiply_shift_per_axis(conv2d_nhwc_reindex_shared[v0, v1] - p2[0, 0, 0, v1] + p3[0, 0, 0, v1], p4[v1], p5[v1], p6[v1], 31, T.bool(False), T.bool(True)), 255), 0) - p8[0], 1457846997, 31, 0) + T.q_multiply_shift(p9[v0 // 3136, v0 % 3136 // 56, v0 % 56, v1], 2101000910, 31, 0), 255), 0)
 
+
 # fmt: on
 def verify(anchor_mod, anchor_trace_fun, target_mod, target, ref):
     anchor_sch = Schedule(anchor_mod)

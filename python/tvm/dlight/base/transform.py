@@ -71,8 +71,8 @@ class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
                 sch = _apply_rules(func, target, self.rules, tunable=False)
                 if sch is not None:
                     assert len(sch) == 1
-                    updated_functions[g_var] = sch[0].mod["main"].with_attr(
-                        "tir.is_scheduled", True
+                    updated_functions[g_var] = (
+                        sch[0].mod["main"].with_attr("tir.is_scheduled", True)
                     )
         for g_var, func in updated_functions.items():
             mod[g_var] = func

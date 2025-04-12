@@ -43,6 +43,7 @@ def structural_equal_no_gs(mod1: IRModule, mod2: IRModule) -> bool:
     """
     Checks structural equality but ignores global symbols
     """
+
     # for every function in the modules, remove global symbols from the attrs and then compare
     def remove_global_symbols(mod: IRModule) -> IRModule:
         stripped_mod = IRModule()

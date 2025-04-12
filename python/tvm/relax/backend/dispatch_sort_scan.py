@@ -56,7 +56,9 @@ class SortScanDispatcher(BackendDispatcher):
             )
             if sch is not None:
                 assert len(sch) == 1
-                self.builder_.update_func(gvar, sch[0].mod["main"].with_attr("tir.is_scheduled", True))
+                self.builder_.update_func(
+                    gvar, sch[0].mod["main"].with_attr("tir.is_scheduled", True)
+                )
 
     def _append_calls_to_update(self, tir_call: relax.Call, target: Target) -> None:
         gvar = tir_call.args[0]

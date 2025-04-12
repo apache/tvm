@@ -394,7 +394,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     ########## Linear Algebra ##########
 
     def _linalg_vector_norm(self, node: fx.Node) -> relax.Var:
-
         args = self.retrieve_args(node)
 
         data = args[0]

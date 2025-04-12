@@ -56,7 +56,6 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
         return dtype[0:index]
 
     def _auto_broadcast(a, b, op):
-
         if isinstance(a, int):
             if hasattr(b, "dtype"):
                 if (

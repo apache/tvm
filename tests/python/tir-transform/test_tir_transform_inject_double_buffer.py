@@ -74,7 +74,6 @@ class TestDoubleBuffer(tvm.testing.CompareBeforeAfter):
     )
 
     def before(A: T.Buffer([16, 32], "float32"), B: T.Buffer(16, "float32")):
-
         for i in range(16):
             cache_data = T.allocate([32], "float32")
             cache = T.Buffer(32, "float32", data=cache_data)

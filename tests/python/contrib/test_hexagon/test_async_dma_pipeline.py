@@ -25,6 +25,7 @@ from tvm.script import tir as T
 VRMPY_SIZE_B = 128
 VRMPY_SIZE_INT32 = 32
 
+
 # pylint: disable=invalid-name
 @T.prim_func
 def conv2d_async_non_contig(

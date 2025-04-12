@@ -31,7 +31,6 @@ key = "iphone"
 
 @pytest.mark.skip("skip because coremltools is not available in CI")
 def test_coreml_runtime():
-
     import coremltools
     from coremltools.models.neural_network import NeuralNetworkBuilder
 

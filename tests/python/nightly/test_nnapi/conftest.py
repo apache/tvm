@@ -28,7 +28,6 @@ def remote():
         and "TVM_TRACKER_PORT" in os.environ
         and "RPC_DEVICE_KEY" in os.environ
     ):
-
         rpc_tracker_host = os.environ["TVM_TRACKER_HOST"]
         rpc_tracker_port = int(os.environ["TVM_TRACKER_PORT"])
         rpc_device_key = os.environ["RPC_DEVICE_KEY"]

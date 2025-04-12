@@ -31,7 +31,6 @@ def get_valid_counts(
     id_index: T.int32,
     score_index: T.int32,
 ) -> None:
-
     data_buf = T.match_buffer(data, (1, 2500, 6), "float32")
     valid_count_buf = T.match_buffer(valid_count, (1,), "int32")
     out_buf = T.match_buffer(out, (1, 2500, 6), "float32")

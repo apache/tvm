@@ -59,6 +59,7 @@ def test_compile_tir():
 
 def test_compile_relax():
     """Test tvm.compile with Relax input."""
+
     # Define a simple Relax program
     @I.ir_module
     class MyModule:
