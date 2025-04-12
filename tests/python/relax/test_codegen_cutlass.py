@@ -538,7 +538,7 @@ def test_cutlass_partition_matmul_tuple_return_blocked():
                 # tuple output, which isn't possible in cutlass, e.g.
                 # @R.function
                 # def fused_relax_permute_dims_relax_matmul(...):
-                #     R.func_attr({"Composite": "cutlass.matmul_transposed", "Primitive": 1})
+                #     R.func_attr({"Composite": "cutlass.matmul_transposed", "Primitive": True})
                 #     with R.dataflow():
                 #         gv: R.Tensor((4, 4), dtype="float32") = R.permute_dims(y, axes=None)
                 #         gv1: R.Tensor((4, 4), dtype="float32") = R.matmul(x, gv, out_dtype="void")

@@ -32,7 +32,7 @@ def test_function_simple():
     with IRBuilder() as ir_builder:
         with R.function():
             R.func_name("foo")
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             x = R.arg("x", relax.TensorStructInfo((128, 128), "float32"))
             R.func_ret_struct_info(relax.TensorStructInfo(dtype="float32", ndim=2))
             y = R.emit(
@@ -51,7 +51,7 @@ def test_function_simple():
     # create with BlockBuilder
     x = relax.Var("x", relax.TensorStructInfo((128, 128), "float32"))
     bb = relax.BlockBuilder()
-    with bb.function("foo", (x,), attrs={"Primitive": 1}):
+    with bb.function("foo", (x,), attrs={"Primitive": True}):
         y = bb.emit(
             relax.call_dps_packed(
                 "extern_func", x, relax.TensorStructInfo((128, 128), dtype="float32")

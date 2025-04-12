@@ -181,7 +181,7 @@ class TupleFuser : public ExprMutator {
     body = builder_->Normalize(SeqExpr({new_block}, body));
 
     Map<String, ffi::Any> func_attrs;
-    func_attrs.Set(attr::kPrimitive, Integer(1));
+    func_attrs.Set(attr::kPrimitive, true);
     func_attrs.Set(attr::kComposite, target_ + func_name);
     func_attrs.Set(msc_attr::kUnique, SpanUtils::GetAttr(expr_span, msc_attr::kName));
 

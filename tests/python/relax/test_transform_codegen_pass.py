@@ -216,7 +216,7 @@ class Conv2dx2:
             data_1: R.Tensor((16, 32, 32, 16), dtype="float16"),
             weight1_1: R.Tensor((16, 3, 3, 16), dtype="float16"),
         ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
-            R.func_attr({"Composite": "tensorrt.conv2d", "Primitive": 1})
+            R.func_attr({"Composite": "tensorrt.conv2d", "Primitive": True})
             with R.dataflow():
                 gv_1: R.Tensor((16, 32, 32, 16), dtype="float16") = R.nn.conv2d(
                     data_1,

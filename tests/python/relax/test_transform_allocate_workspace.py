@@ -43,7 +43,7 @@ class Module:
             k_1: R.Tensor((32, 8, 16, 8), dtype="float16"),
             v_1: R.Tensor((32, 8, 16, 8), dtype="float16"),
         ) -> R.Tensor((32, 8, 16, 8), dtype="float16"):
-            R.func_attr({"Composite": "cutlass.attention", "Primitive": 1, "WorkspaceSize": 65536})
+            R.func_attr({"Composite": "cutlass.attention", "Primitive": True, "WorkspaceSize": 65536})
             with R.dataflow():
                 gv_2: R.Tensor((32, 8, 16, 8), dtype="float16") = R.nn.attention(
                     q_1, k_1, v_1, scale=None
@@ -106,7 +106,7 @@ class Expected:
             v_1: R.Tensor((32, 8, 16, 8), dtype="float16"),
             workspace_1: R.Tensor((65536,), dtype="uint8"),
         ) -> R.Tensor((32, 8, 16, 8), dtype="float16"):
-            R.func_attr({"Composite": "cutlass.attention", "Primitive": 1})
+            R.func_attr({"Composite": "cutlass.attention", "Primitive": True})
             with R.dataflow():
                 gv_2: R.Tensor((32, 8, 16, 8), dtype="float16") = R.nn.attention(
                     q_1, k_1, v_1, scale=None
