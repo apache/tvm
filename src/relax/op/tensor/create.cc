@@ -88,9 +88,9 @@ TVM_REGISTER_OP("relax.full")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.full_like */
-Expr full_like(Expr x, Expr fill_value, DataType dtype) {
+Expr full_like(Expr x, Expr fill_value, Optional<DataType> dtype) {
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+  attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.full_like");
   return Call(op, {std::move(x), std::move(fill_value)}, Attrs(attrs), {});
 }
@@ -166,9 +166,9 @@ Expr ones(Expr shape, DataType dtype) {
   return Call(op, {std::move(shape)}, Attrs(attrs), {});
 }
 
-Expr ones_like(Expr x, DataType dtype) {
+Expr ones_like(Expr x, Optional<DataType> dtype) {
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+  attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.ones_like");
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
