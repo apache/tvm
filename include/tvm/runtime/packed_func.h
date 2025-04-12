@@ -451,7 +451,6 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
     });                                                                \
   }
 
-
 /*!
  * \brief Export typed function as a PackedFunc
  *        that can be loaded by LibraryModule.
@@ -487,25 +486,25 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
  *
  * \endcode
  */
-#define TVM_DLL_EXPORT_TYPED_FUNC(ExportName, Function)                                     \
-  extern "C" {                                                                              \
-  TVM_DLL int ExportName(TVMValue* args, int* type_code, int num_args, TVMValue* out_value, \
-                         int* out_type_code, void* resource_handle) {                       \
-    try {                                                                                   \
-      using FuncInfo = ::tvm::ffi::details::FunctionInfo<decltype(Function)>;                \
-      std::vector<::tvm::ffi::AnyView> packed_args(num_args);                                \
-      ::tvm::runtime::LegacyTVMArgsToPackedArgs(args, type_code, num_args, packed_args.data());  \
-      ::tvm::ffi::Any rv;                                                                     \
-      static std::string name = #ExportName;                                                  \
-      ::tvm::ffi::details::unpack_call<typename FuncInfo::RetType, FuncInfo::num_args>(     \
-        &name, Function, packed_args.data(), num_args, &rv);                          \
-      ::tvm::runtime::MoveAnyToLegacyTVMValue(std::move(rv), out_value, out_type_code);      \
-      return 0;                                                                             \
-    } catch (const ::std::exception& _except_) {                                            \
-      TVMAPISetLastError(_except_.what());                                                  \
-      return -1;                                                                            \
-    }                                                                                       \
-  }                                                                                         \
+#define TVM_DLL_EXPORT_TYPED_FUNC(ExportName, Function)                                         \
+  extern "C" {                                                                                  \
+  TVM_DLL int ExportName(TVMValue* args, int* type_code, int num_args, TVMValue* out_value,     \
+                         int* out_type_code, void* resource_handle) {                           \
+    try {                                                                                       \
+      using FuncInfo = ::tvm::ffi::details::FunctionInfo<decltype(Function)>;                   \
+      std::vector<::tvm::ffi::AnyView> packed_args(num_args);                                   \
+      ::tvm::runtime::LegacyTVMArgsToPackedArgs(args, type_code, num_args, packed_args.data()); \
+      ::tvm::ffi::Any rv;                                                                       \
+      static std::string name = #ExportName;                                                    \
+      ::tvm::ffi::details::unpack_call<typename FuncInfo::RetType, FuncInfo::num_args>(         \
+          &name, Function, packed_args.data(), num_args, &rv);                                  \
+      ::tvm::runtime::MoveAnyToLegacyTVMValue(std::move(rv), out_value, out_type_code);         \
+      return 0;                                                                                 \
+    } catch (const ::std::exception& _except_) {                                                \
+      TVMAPISetLastError(_except_.what());                                                      \
+      return -1;                                                                                \
+    }                                                                                           \
+  }                                                                                             \
   }
 }  // namespace runtime
 

@@ -372,8 +372,7 @@ class JSONParser {
         }
         // Case 3
         Any key = ParseObject(std::move(token));
-        ICHECK(key.as<ffi::StringObj>())
-            << "ValueError: key must be a string, but gets: " << key;
+        ICHECK(key.as<ffi::StringObj>()) << "ValueError: key must be a string, but gets: " << key;
         token = tokenizer_.Next();
         CHECK(token.type == TokenType::kColon)
             << "ValueError: Unexpected token before: " << tokenizer_.cur_;

@@ -28,8 +28,8 @@
 namespace tvm {
 namespace relax {
 
-Choice::Choice(String transform_func_key, Array<Any> transform_func_args,
-               String constr_func_key, Array<Any> constr_func_args) {
+Choice::Choice(String transform_func_key, Array<Any> transform_func_args, String constr_func_key,
+               Array<Any> constr_func_args) {
   ObjectPtr<ChoiceNode> n = make_object<ChoiceNode>();
   n->transform_func_key = std::move(transform_func_key);
   n->transform_func_args = std::move(transform_func_args);
