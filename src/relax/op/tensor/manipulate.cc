@@ -1646,7 +1646,7 @@ TVM_REGISTER_OP("relax.collapse_sum_to")
 /* relax.repeat */
 TVM_REGISTER_NODE_TYPE(RepeatAttrs);
 
-Expr repeat(Expr data, int repeats, Optional<Integer> axis) {
+Expr repeat(Expr data, int repeats, Optional<int64_t> axis) {
   auto attrs = make_object<RepeatAttrs>();
   attrs->repeats = std::move(repeats);
   attrs->axis = std::move(axis);
@@ -1663,8 +1663,8 @@ StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<RepeatAttrs>();
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
 
-  if (attrs->axis.defined() && !data_sinfo->IsUnknownNdim()) {
-    int axis = attrs->axis.value()->value;
+  if (attrs->axis.has_value() && !data_sinfo->IsUnknownNdim()) {
+    int axis = attrs->axis.value();
     int ndim = data_sinfo->ndim;
     if (axis < -ndim || axis >= ndim) {
       ctx->ReportFatal(
@@ -1676,7 +1676,7 @@ StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
   }
 
   if (data_shape == nullptr) {
-    if (attrs->axis.defined()) {
+    if (attrs->axis.has_value()) {
       if (analyzer->CanProveEqual(attrs->repeats, 1)) {
         // the shape does not changes
         return data_sinfo;
@@ -1688,14 +1688,14 @@ StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  if (!attrs->axis.defined()) {
+  if (!attrs->axis.has_value()) {
     PrimExpr new_shape =
         analyzer->Simplify(ComputeShapeProduct(data_shape->values) * attrs->repeats);
     return TensorStructInfo(ShapeExpr(Array<PrimExpr>({new_shape})), data_sinfo->dtype,
                             data_sinfo->vdevice);
   }
 
-  int axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value()->value);
+  int axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value());
   auto shape_array = data_shape->values;
   shape_array.Set(axis, analyzer->Simplify(shape_array[axis] * attrs->repeats));
   return TensorStructInfo(ShapeExpr(shape_array), data_sinfo->dtype, data_sinfo->vdevice);

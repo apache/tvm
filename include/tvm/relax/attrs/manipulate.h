@@ -135,7 +135,7 @@ struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
 /*! \brief Attributes used in repeat operators */
 struct RepeatAttrs : public tvm::AttrsNode<RepeatAttrs> {
   int repeats;
-  Optional<Integer> axis;
+  Optional<int64_t> axis;
 
   TVM_DECLARE_ATTRS(RepeatAttrs, "relax.attrs.RepeatAttrs") {
     TVM_ATTR_FIELD(repeats).describe("The number of repetitions.");

@@ -154,7 +154,7 @@ Expr collapse_sum_to(Expr data, Expr shape);
  * from the backward. By default, use the flattened input array, and return a flat output array.
  * \return The computed result.
  */
-Expr repeat(Expr data, int repeats, Optional<Integer> axis = NullOpt);
+Expr repeat(Expr data, int repeats, Optional<int64_t> axis = NullOpt);
 
 /*!
  * \brief Construct an array by repeating data the number of times given by reps.

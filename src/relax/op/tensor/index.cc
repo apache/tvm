@@ -39,7 +39,7 @@ namespace relax {
 /* relax.take */
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
-Expr take(Expr x, Expr indices, Optional<Integer> axis) {
+Expr take(Expr x, Expr indices, Optional<int64_t> axis) {
   ObjectPtr<TakeAttrs> attrs = make_object<TakeAttrs>();
   attrs->axis = std::move(axis);
 
@@ -85,7 +85,7 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<TakeAttrs>();
-  if (!attrs->axis.defined() && data_sinfo->ndim != 1) {
+  if (!attrs->axis.has_value() && data_sinfo->ndim != 1) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Take op expects the input data to be 1-dimensional tensor when the axis "
                         "is not specified. However, the given data tensor has ndim "
@@ -95,8 +95,8 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
     return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
   }
 
-  int axis = attrs->axis.defined()
-                 ? NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value()->value)
+  int axis = attrs->axis.has_value()
+                 ? NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value())
                  : 0;
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();

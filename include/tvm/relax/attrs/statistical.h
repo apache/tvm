@@ -44,7 +44,7 @@ struct StatisticalAttrs : public tvm::AttrsNode<StatisticalAttrs> {
 
 /*! \brief Attributes used in scan operators like cumsum, cumprod */
 struct ScanopAttrs : public tvm::AttrsNode<ScanopAttrs> {
-  Optional<Integer> axis;
+  Optional<int64_t> axis;
   DataType dtype;
   Bool exclusive = Bool(false);
 
