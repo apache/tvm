@@ -36,7 +36,7 @@ namespace relax {
 TVM_REGISTER_NODE_TYPE(InitAttrs);
 
 /* relax.full */
-Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, DataType dtype) {
+Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, Optional<DataType> dtype) {
   Expr shape_in_expr{nullptr};
   if (const auto* expr = shape.as<ExprNode>()) {
     shape_in_expr = GetRef<Expr>(expr);
@@ -47,7 +47,7 @@ Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, DataType dtype)
   }
 
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+  attrs->dtype = dtype.value_or(DataType::Void());
 
   static const Op& op = Op::Get("relax.full");
   return Call(op, {std::move(shape_in_expr), std::move(fill_value)}, Attrs(attrs), {});
