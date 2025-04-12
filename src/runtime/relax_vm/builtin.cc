@@ -491,17 +491,17 @@ TVM_REGISTER_GLOBAL("vm.builtin.invoke_debug_func")
 //  Data structure API
 //-------------------------------------
 TVM_REGISTER_GLOBAL("vm.builtin.tuple_getitem")
-    .set_body_typed([](runtime::Array<ObjectRef> arr, int64_t index) { return arr[index]; });
+    .set_body_typed([](runtime::Array<Any> arr, int64_t index) { return arr[index]; });
 
 TVM_REGISTER_GLOBAL("vm.builtin.tuple_reset_item")
-    .set_body_typed([](runtime::Array<ObjectRef> arr, int64_t index) {
-      arr.Set(index, ObjectRef(nullptr));
+    .set_body_typed([](const ffi::ArrayNode* arr, int64_t index) {
+      const_cast<ffi::ArrayNode*>(arr)->SetItem(index, nullptr);
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.make_tuple").set_body_packed([](ffi::PackedArgs args, Any* rv) {
-  runtime::Array<ObjectRef> arr;
+  runtime::Array<Any> arr;
   for (int i = 0; i < args.size(); ++i) {
-    arr.push_back(args[i].operator ObjectRef());
+    arr.push_back(args[i]);
   }
   *rv = arr;
 });
