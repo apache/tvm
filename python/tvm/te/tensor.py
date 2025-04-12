@@ -48,7 +48,7 @@ class TensorSlice(ObjectGeneric, _expr.ExprOp):
         return self.tensor.dtype
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("te.Tensor")
 class Tensor(DataProducer, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
 
