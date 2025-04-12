@@ -40,7 +40,7 @@ namespace relax {
  * If dtype is not given, it will by default use the dtype of fill_value.
  * \return The result tensor.
  */
-Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, DataType dtype);
+Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, Optional<DataType> dtype);
 
 /*!
  * \brief Construct a tensor such that
