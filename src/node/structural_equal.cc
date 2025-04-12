@@ -141,7 +141,6 @@ bool SEqualReducer::operator()(const int64_t& lhs, const int64_t& rhs,
   return CompareAttributeValues(lhs, rhs, tracing_data_, paths);
 }
 
-
 bool SEqualReducer::operator()(const Optional<double>& lhs, const Optional<double>& rhs,
                                Optional<ObjectPathPair> paths) const {
   return CompareAttributeValues(lhs, rhs, tracing_data_, paths);
@@ -151,7 +150,6 @@ bool SEqualReducer::operator()(const Optional<int64_t>& lhs, const Optional<int6
                                Optional<ObjectPathPair> paths) const {
   return CompareAttributeValues(lhs, rhs, tracing_data_, paths);
 }
-
 
 bool SEqualReducer::operator()(const uint64_t& lhs, const uint64_t& rhs,
                                Optional<ObjectPathPair> paths) const {

@@ -743,7 +743,6 @@ struct TypeName<Optional<double>> {
   static constexpr const char* value = "Optional[float]";
 };
 
-
 template <>
 struct TypeName<uint64_t> {
   static constexpr const char* value = "int";

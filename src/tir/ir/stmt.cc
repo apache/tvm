@@ -680,8 +680,7 @@ TVM_REGISTER_NODE_TYPE(MatchBufferRegionNode);
 // Block
 Block::Block(Array<IterVar> iter_vars, Array<BufferRegion> reads, Array<BufferRegion> writes,
              String name_hint, Stmt body, Optional<Stmt> init, Array<Buffer> alloc_buffers,
-             Array<MatchBufferRegion> match_buffers, Map<String, Any> annotations,
-             Span span) {
+             Array<MatchBufferRegion> match_buffers, Map<String, Any> annotations, Span span) {
   ObjectPtr<BlockNode> node = make_object<BlockNode>();
   node->iter_vars = std::move(iter_vars);
   node->reads = std::move(reads);

@@ -26,13 +26,13 @@
 
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/int_solver.h>
+#include <tvm/ffi/container/tuple.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/support/with.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
-#include <tvm/ffi/container/tuple.h>
 
 #include <limits>
 #include <optional>

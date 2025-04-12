@@ -21,8 +21,7 @@
 namespace tvm {
 namespace tir {
 
-void Annotate(ScheduleState self, const StmtSRef& sref, const String& ann_key,
-              const Any& ann_val) {
+void Annotate(ScheduleState self, const StmtSRef& sref, const String& ann_key, const Any& ann_val) {
   // Extract annotation
   const Map<String, ffi::Any>* annotations = nullptr;
   if (const auto* loop = sref->StmtAs<ForNode>()) {
