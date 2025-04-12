@@ -117,15 +117,14 @@ TVMRetValue ConvertArgToDevice(AnyView input, Device dev, Allocator* alloc) {
   // The developer can still explicitly allocate NDArray
   // in TVM Native API or NDArray::FromDLPack to regain zero copy behavior.
   Any ret;
-
-  if (auto opt_dltensor = input.as<DLTensor*>()) {
+  if (auto opt_obj = input.as<ObjectRef>()) {
+    ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc);
+  } else if (auto opt_dltensor = input.as<DLTensor*>()) {
     DLTensor* tensor = opt_dltensor.value();
     std::vector<int64_t> shape(tensor->shape, tensor->shape + tensor->ndim);
     auto dst = alloc->Empty(shape, tensor->dtype, dev);
     dst.CopyFrom(tensor);
     ret = dst;
-  } else if (auto opt_obj = input.as<ObjectRef>()) {
-    ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc);
   } else {
     ret = input;
   }
