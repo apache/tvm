@@ -3864,7 +3864,9 @@ def test_broadcast_to():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((5, 1), dtype="float32")) -> R.Tuple(R.Tensor((5, 3), dtype="float32")):
+        def main(
+            x: R.Tensor((5, 1), dtype="float32")
+        ) -> R.Tuple(R.Tensor((5, 3), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((5, 3), dtype="float32") = R.broadcast_to(x, R.shape([5, 3]))
                 gv: R.Tuple(R.Tensor((5, 3), dtype="float32")) = (lv,)
@@ -3884,14 +3886,19 @@ def test_narrow():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((5, 3), dtype="float32")) -> R.Tuple(R.Tensor((5, 2), dtype="float32")):
+        def main(
+            x: R.Tensor((5, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((5, 2), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((5, 2), dtype="float32") = R.strided_slice(x, (R.prim_value(1),), (R.prim_value(0),),
-                                                                        (R.prim_value(2),), (R.prim_value(1),),
-                                                                        assume_inbound=False)
-
+                lv: R.Tensor((5, 2), dtype="float32") = R.strided_slice(
+                    x,
+                    (R.prim_value(1),),
+                    (R.prim_value(0),),
+                    (R.prim_value(2),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
                 gv: R.Tuple(R.Tensor((5, 2), dtype="float32")) = (lv,)
-
                 R.output(gv)
 
             return gv
