@@ -270,8 +270,8 @@ class WellFormedChecker : public relax::ExprVisitor,
 
     // if we are not forcing purity and the function is annotated as pure, it must not contain an
     // impure call
-    if (check_struct_info_ &&
-        !op->GetAttr<bool>(relax::attr::kForcePure).value_or(false) && op->is_pure) {
+    if (check_struct_info_ && !op->GetAttr<bool>(relax::attr::kForcePure).value_or(false) &&
+        op->is_pure) {
       if (auto impure = FindImpureCall(op->body)) {
         Malformed(Diagnostic::Error(op)
                   << "Function " << op << " is annotated as pure but contains an impure call: "

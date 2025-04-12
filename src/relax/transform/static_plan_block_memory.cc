@@ -376,8 +376,7 @@ void SetTIRVarUpperBound(Function func, arith::Analyzer* ana,
   // NOTE: we only apply the annotated upper bounds to the TIR variables that
   // appear in the **function signature**.
   Map<String, IntImm> var_upper_bound_attr_raw =
-      func->GetAttr<Map<String, IntImm>>("tir_var_upper_bound")
-          .value_or(Map<String, IntImm>());
+      func->GetAttr<Map<String, IntImm>>("tir_var_upper_bound").value_or(Map<String, IntImm>());
   Array<ObjectRef> non_negative_var_attr_raw =
       func->GetAttr<Array<ObjectRef>>("tir_non_negative_var").value_or(Array<ObjectRef>());
   std::unordered_map<String, IntImm> var_upper_bound_attr;
