@@ -662,7 +662,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << result;
     } else if (op->op.same_as(builtin::address_of())) {
       const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
-      ICHECK(op->args.size() == 1 && load);
+      ICHECK(op->args.size() == 1 && load) << "op->args " << op->args << " load " << load;
       ICHECK_EQ(load->indices.size(), 1) << "CodeGenC only supports flat memory allocations.";
       os << "(&(" << GetBufferRef(load->dtype, load->buffer.get(), load->indices[0]) << "))";
     } else if (op->op.same_as(builtin::tvm_struct_get())) {
