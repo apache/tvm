@@ -452,11 +452,11 @@ class JSONAttrSetter : public AttrVisitor {
 
   void Visit(const char* key, Optional<double>* value) final {
     ParseOptionalValue<double>(key, value,
-      [this](const char* key, double* value) { ParseDouble(key, value); });
+                               [this](const char* key, double* value) { ParseDouble(key, value); });
   }
   void Visit(const char* key, Optional<int64_t>* value) final {
-    ParseOptionalValue<int64_t>(key, value,
-      [this](const char* key, int64_t* value) { ParseValue(key, value); });
+    ParseOptionalValue<int64_t>(
+        key, value, [this](const char* key, int64_t* value) { ParseValue(key, value); });
   }
 
   void Visit(const char* key, void** value) final {

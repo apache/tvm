@@ -200,8 +200,8 @@ inline Tensor expand_dims(const Tensor& x, int axis, int num_newaxis = 1,
  *
  * \return A Tensor whose op member is the transpose operation
  */
-inline Tensor transpose(const Tensor& x, Optional<Array<Integer>> opt_axes, std::string name = "T_transpose",
-                        std::string tag = kInjective) {
+inline Tensor transpose(const Tensor& x, Optional<Array<Integer>> opt_axes,
+                        std::string name = "T_transpose", std::string tag = kInjective) {
   Array<Integer> axes = opt_axes.value_or({});
   if (axes.size() == 0) {
     for (int i = static_cast<int>(x->shape.size()) - 1; i >= 0; --i) {

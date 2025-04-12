@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/tir/expr.h>
 #include <tvm/ffi/container/tuple.h>
+#include <tvm/tir/expr.h>
+
 #include "../../transforms/ir_utils.h"
 #include "../utils.h"
 
