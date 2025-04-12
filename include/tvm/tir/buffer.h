@@ -304,7 +304,7 @@ class DataProducerNode : public PrimExprConvertibleNode {
   static constexpr const char* _type_key = "tir.DataProducer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_BASE_OBJECT_INFO(DataProducerNode, Object);
+  TVM_DECLARE_BASE_OBJECT_INFO(DataProducerNode, PrimExprConvertibleNode);
 };
 
 /*!
