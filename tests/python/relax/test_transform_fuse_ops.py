@@ -402,7 +402,7 @@ def test_tuple_intermediate():
         p3 = relax.Var("p3", R.Tensor((), "float32"))
         p4 = relax.Var("p4", R.Tensor((), "float32"))
         with bb.function(
-            "fused_squeeze_add_squeeze1_add_add_add_concatenate_squeeze2_add1",
+            "fused_squeeze_add_squeeze_add_add_add_concatenate_squeeze1_add1",
             [x, p0, p1, p2, p3, p4],
             attrs={"Primitive": True},
             private=True,
@@ -421,7 +421,7 @@ def test_tuple_intermediate():
 
         # Get the global variables of the grouped functions
         fused_func = bb.get().get_global_var(
-            "fused_squeeze_add_squeeze1_add_add_add_concatenate_squeeze2_add1"
+            "fused_squeeze_add_squeeze_add_add_add_concatenate_squeeze1_add1"
         )
 
         # Main func
