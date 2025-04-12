@@ -40,7 +40,7 @@ namespace relax {
  * If it is `NullOpt`, the input tensor is required to be one-dimensional.
  * \return The taken result.
  */
-Expr take(Expr x, Expr indices, Optional<Integer> axis);
+Expr take(Expr x, Expr indices, Optional<int64_t> axis);
 
 /*!
  * \brief Strided slice of a tensor.

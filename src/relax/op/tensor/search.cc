@@ -134,14 +134,14 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
   const auto* attrs = call->attrs.as<ArgmaxArgminAttrs>();
 
   int axis = -1;
-  if (!data_sinfo->IsUnknownNdim() && attrs->axis.defined()) {
-    axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value()->value);
+  if (!data_sinfo->IsUnknownNdim() && attrs->axis.has_value()) {
+    axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value());
   }
 
   int out_ndim;
   if (attrs->keepdims) {
     out_ndim = data_sinfo->ndim;
-  } else if (!attrs->axis.defined()) {
+  } else if (!attrs->axis.has_value()) {
     out_ndim = 0;
   } else if (data_sinfo->IsUnknownNdim()) {
     out_ndim = kUnknownNDim;
@@ -160,7 +160,7 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
   // input axes
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr) {
-    if (!attrs->axis.defined() && attrs->keepdims && out_ndim != kUnknownNDim) {
+    if (!attrs->axis.has_value() && attrs->keepdims && out_ndim != kUnknownNDim) {
       return TensorStructInfo(ShapeExpr(Array<PrimExpr>(out_ndim, IntImm(out_dtype, /*value=*/1))),
                               out_dtype, data_sinfo->vdevice);
     } else {
@@ -177,7 +177,7 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
   Array<PrimExpr> out_shape;
   out_shape.reserve(out_ndim);
   for (int i = 0; i < data_sinfo->ndim; ++i) {
-    if (attrs->axis.defined() && i != axis) {
+    if (attrs->axis.has_value() && i != axis) {
       out_shape.push_back(data_shape->values[i]);
     } else if (attrs->keepdims) {
       out_shape.push_back(IntImm(out_dtype, /*value=*/1));
@@ -188,7 +188,7 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
 }
 
 #define RELAX_REGISTER_ARGMAX_ARGMIN_OP(OpName)                                    \
-  Expr OpName(Expr x, Optional<Integer> axis, bool keepdims) {                     \
+  Expr OpName(Expr x, Optional<int64_t> axis, bool keepdims) {                     \
     ObjectPtr<ArgmaxArgminAttrs> attrs = make_object<ArgmaxArgminAttrs>();         \
     attrs->axis = std::move(axis);                                                 \
     attrs->keepdims = std::move(keepdims);                                         \

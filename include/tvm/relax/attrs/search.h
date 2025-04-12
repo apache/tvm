@@ -31,7 +31,7 @@ namespace relax {
 
 /*! \brief Attributes for search operators */
 struct ArgmaxArgminAttrs : public tvm::AttrsNode<ArgmaxArgminAttrs> {
-  Optional<Integer> axis;
+  Optional<int64_t> axis;
   bool keepdims;
 
   TVM_DECLARE_ATTRS(ArgmaxArgminAttrs, "relax.attrs.ArgmaxArgminAttrs") {
