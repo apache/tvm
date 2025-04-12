@@ -52,7 +52,7 @@ class TestMatmulTensorize(BaseBeforeAfter):
 
     @T.prim_func
     def expected(X: T.Buffer((256, 256), "float16"), W: T.Buffer((256, 256), "float16"), compute: T.Buffer((256, 256), "float16")):
-        T.func_attr({"global_symbol": "main", "tir.is_scheduled": 1, "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tir.is_scheduled": True, "tir.noalias": True})
         # with T.block("root"):
         X_reindex_shared_dyn = T.alloc_buffer((1, 256, 256), "float16", scope="shared.dyn")
         W_reindex_shared_dyn = T.alloc_buffer((1, 256, 256), "float16", scope="shared.dyn")
@@ -190,7 +190,7 @@ class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
 
     @T.prim_func
     def expected(var_X: T.handle, W: T.Buffer((15, 256), "float16"), var_compute: T.handle):
-        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
+        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         m = T.int32()
         X = T.match_buffer(var_X, (m, 256), "float16")
         compute = T.match_buffer(var_compute, (m, 15))
@@ -304,7 +304,7 @@ class TestMatmulTensorizeEpilogue(BaseBeforeAfter):
 
     @T.prim_func
     def expected(lv686: T.Buffer((4096, 256), "uint32"), lv687: T.Buffer((4096, 64), "float16"), p_lv42: T.handle, p_lv3: T.handle, p_output0: T.handle):
-        T.func_attr({"global_symbol": "fused_fused_decode3_fused_NT_matmul6_divide1_add1", "tir.is_scheduled": 1, "tir.noalias": True})
+        T.func_attr({"global_symbol": "fused_fused_decode3_fused_NT_matmul6_divide1_add1", "tir.is_scheduled": True, "tir.noalias": True})
         n = T.int32()
         lv42 = T.match_buffer(p_lv42, (1, n, 2048), "float16")
         lv3 = T.match_buffer(p_lv3, (1, n, 4096), "float16")
@@ -442,7 +442,7 @@ class TestMatmulInt8Tensorize(BaseBeforeAfter):
 
     @T.prim_func
     def expected(X: T.Buffer((256, 256), "int8"), W: T.Buffer((256, 256), "int8"), compute: T.Buffer((256, 256), "int32")):
-        T.func_attr({"global_symbol": "main", "tir.is_scheduled": 1, "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tir.is_scheduled": True, "tir.noalias": True})
         # with T.block("root"):
         X_reindex_shared_dyn = T.alloc_buffer((1, 256, 256), "int8", scope="shared.dyn")
         W_reindex_shared_dyn = T.alloc_buffer((1, 256, 256), "int8", scope="shared.dyn")
@@ -578,7 +578,7 @@ class TestMatmulInt8Tensorize3d2dDyn(BaseBeforeAfter):
 
     @T.prim_func
     def expected(var_A: T.handle, B: T.Buffer((4096, 22016), "int8"), var_matmul: T.handle):
-        T.func_attr({"op_pattern": 4, "tir.is_scheduled": 1, "tir.noalias": True})
+        T.func_attr({"op_pattern": 4, "tir.is_scheduled": True, "tir.noalias": True})
         m = T.int32()
         A = T.match_buffer(var_A, (1, m, 22016), "int8")
         matmul_1 = T.match_buffer(var_matmul, (1, m, 4096), "int32")
@@ -729,7 +729,7 @@ class TestMatmulMetal(MetalBeforeAfter):
 
     @T.prim_func
     def expected(var_A: T.handle, B: T.Buffer((28672, 4096), "float16"), var_C: T.handle):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         batch_size = T.int32()
         A = T.match_buffer(var_A, (batch_size, 1, 4096), "float16")
         C = T.match_buffer(var_C, (batch_size, 1, 28672), "float16")
@@ -869,7 +869,7 @@ class TestMatmulMetalInt4Quant(MetalBeforeAfter):
 
     @T.prim_func(private=True)
     def expected(B0: T.Buffer((28672, 512), "uint32"), B1: T.Buffer((28672, 128), "float16"), var_A: T.handle, var_C: T.handle):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         batch_size = T.int32()
         A = T.match_buffer(var_A, (batch_size, 1, 4096), "float16")
         C = T.match_buffer(var_C, (batch_size, 1, 28672), "float16")

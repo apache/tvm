@@ -1483,7 +1483,7 @@ def _attention_prefill(
     sch = _schedule_prefill_kernel(
         sch, LOAD_VEC, bdx, num_warps, tile_x, tile_y, tile_z, False, False
     )
-    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+    return sch.mod["main"].with_attr("tir.is_scheduled", True)
 
 
 def _attention_decode_cpu(
@@ -1522,7 +1522,7 @@ def _attention_decode_cpu(
         rope_theta: T.float32,
         sm_scale: T.float32,
     ):
-        T.func_attr({"tir.is_scheduled": 1, "global_symbol": global_symbol})
+        T.func_attr({"tir.is_scheduled": True, "global_symbol": global_symbol})
         B = T.int32(is_size_var=True)
         nnz_pages = T.int32(is_size_var=True)
         max_num_pages = T.int32(is_size_var=True)
@@ -1703,7 +1703,7 @@ def _attention_decode(
         rope_theta: T.float32,
         sm_scale: T.float32,
     ):
-        T.func_attr({"tir.is_scheduled": 1, "global_symbol": global_symbol})
+        T.func_attr({"tir.is_scheduled": True, "global_symbol": global_symbol})
         B = T.int32(is_size_var=True)
         nnz_pages = T.int32(is_size_var=True)
         max_num_pages = T.int32(is_size_var=True)
@@ -1906,7 +1906,7 @@ def _merge_state_inplace_cpu(v_dtype):
         v_other: T.handle,
         s_other: T.handle,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         N = T.int32(is_size_var=True)
         H = T.int32(is_size_var=True)
         D = T.int32(is_size_var=True)
@@ -1959,7 +1959,7 @@ def _merge_state_inplace(
         v_other: T.handle,
         s_other: T.handle,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         N = T.int32(is_size_var=True)
         H = T.int32(is_size_var=True)
         D = T.int32(is_size_var=True)
@@ -2267,7 +2267,7 @@ def _attention_sequence_prefill(
     sch = _schedule_prefill_kernel(
         sch, LOAD_VEC, bdx, num_warps, tile_x, tile_y, tile_z, False, False
     )
-    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+    return sch.mod["main"].with_attr("tir.is_scheduled", True)
 
 
 def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: Dict[str, Any]):
@@ -2659,7 +2659,7 @@ def _attention_prefill_ragged(
     # pylint: enable=line-too-long,too-many-branches
     sch = tir.Schedule(batch_prefill_ragged_kv)
     sch = _schedule_prefill_kernel(sch, LOAD_VEC, bdx, num_warps, tile_x, d_v, tile_z, True, False)
-    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+    return sch.mod["main"].with_attr("tir.is_scheduled", True)
 
 
 def _attention_prefill_mla(
@@ -2928,7 +2928,7 @@ def _attention_prefill_mla(
     sch = _schedule_prefill_kernel(
         sch, LOAD_VEC, bdx, num_warps, tile_x, d_latent, tile_z, False, True
     )
-    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+    return sch.mod["main"].with_attr("tir.is_scheduled", True)
 
 
 def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
@@ -2941,7 +2941,7 @@ def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
         tgt_page_id: T.int64,
         copy_length: T.int64,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         num_pages = T.int32()
         pages_elem_offset = T.int64()
         pages = T.match_buffer(
@@ -2988,7 +2988,7 @@ def _copy_single_page_mla(page_size, head_dim, dtype, target: Target):
         tgt_page_id: T.int64,
         copy_length: T.int64,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         num_pages = T.int32()
         pages_elem_offset = T.int64()
         pages = T.match_buffer(
@@ -3016,7 +3016,7 @@ def _copy_single_page_cpu(num_heads, page_size, head_dim, dtype):
         tgt_page_id: T.int64,
         copy_length: T.int64,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         num_pages = T.int32()
         pages = T.match_buffer(var_pages, (num_pages, 2, num_heads, page_size, head_dim), dtype)
 
@@ -3055,7 +3055,7 @@ def _compact_kv_copy(num_heads, head_dim, dtype, target: Target, page_size: int 
         var_copy_src_dst_pos: T.handle,
         batch_size: T.int32,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         num_pages = T.int32()
         total_copy_length = T.int32()
         copy_length_indptr_elem_offset = T.int32()
@@ -3112,7 +3112,7 @@ def _compact_kv_copy_cpu(num_heads, head_dim, dtype, page_size: int = 16):
         var_copy_src_dst_pos: T.handle,
         batch_size: T.int32,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         num_pages = T.int32()
         total_copy_length = T.int32()
         copy_length_indptr_elem_offset = T.int32()

@@ -83,7 +83,7 @@ class TestGEMV(BaseBeforeAfter):
 
     @T.prim_func
     def expected(lv1637: T.Buffer((1, 32, 1, 128), "float16"), p_lv1638: T.handle, p_lv1614: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
+        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         n = T.int32()
         lv1638 = T.match_buffer(p_lv1638, (1, 32, n, 128), "float16")
         lv1614 = T.match_buffer(p_lv1614, (1, 1, 1, n), "float16")
@@ -139,7 +139,7 @@ def test_decode_gemv_256_threads():
 
     @T.prim_func(private=True)
     def expected(lv571: T.Buffer((22016, 512), "uint32"), lv572: T.Buffer((22016, 128), "float16"), lv1654: T.Buffer((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Buffer((1, 1, 22016), "float16")):
-        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
+        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         # with T.block("root"):
         for u_fused in range(1):
             for ax0_fused_0 in T.parallel(172):
@@ -187,7 +187,7 @@ def test_decode_gemv1():
 
     @T.prim_func(private=True)
     def expected(lv571: T.Buffer((22016, 512), "uint32"), lv572: T.Buffer((22016, 128), "float16"), lv1654: T.Buffer((1, 1, 4096), "float16"), var_NT_matmul_intermediate: T.Buffer((1, 1, 22016), "float16")):
-        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
+        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         # with T.block("root"):
         for u_fused in range(1):
             for ax0_fused_0 in T.parallel(172):
@@ -242,7 +242,7 @@ def test_decode_gemv2():
 
     @T.prim_func(private=True)
     def expected(lv771: T.Buffer((32000, 512), "uint32"), lv772: T.Buffer((32000, 128), "float16"), lv3216: T.Buffer((1, 1, 4096), "float16"), p_output0_intermediate: T.Buffer((1, 1, 32000), "float32")):
-        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
+        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         # with T.block("root"):
         var_NT_matmul_intermediate = T.alloc_buffer((1, 1, 32000), "float16")
         for u_fused in range(1):
@@ -304,7 +304,7 @@ def test_decode_gemv3():
 
     @T.prim_func(private=True)
     def expected(lv575: T.Buffer((T.int64(4096), T.int64(1376)), "uint32"), lv576: T.Buffer((T.int64(4096), T.int64(344)), "float16"), lv574: T.Buffer((T.int64(1), T.int64(1), T.int64(11008)), "float16"), lv570: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"), p_output0_intermediate: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")):
-        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
+        T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
         # with T.block("root"):
         var_NT_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16")
         for u_fused in range(1):
@@ -529,7 +529,7 @@ def test_blockized_gemv():
 
     @T.prim_func(private=True)
     def expected(x: T.Buffer((1, 4096), "float16"), w: T.Buffer((8, 16384, 4096), "float16"), indptr: T.Buffer((2,), "int32"), o: T.Buffer((2, 16384), "float16")):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         # with T.block("root"):
         for expert_id in T.thread_binding(2, thread="blockIdx.y"):
             with T.block("gemv_o"):

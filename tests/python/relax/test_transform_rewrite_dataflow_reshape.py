@@ -226,7 +226,7 @@ def test_reshape_dynamic_shape():
     class Module:
         @T.prim_func(private=True)
         def reshape(var_A: T.handle, var_T_reshape: T.handle):
-            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
+            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
             n = T.int32()
             A = T.match_buffer(var_A, (n, 16, 128), "float16")
             T_reshape = T.match_buffer(var_T_reshape, (1, n, 16, 128), "float16")
@@ -268,7 +268,7 @@ def test_reshape_dynamic_shape():
     class Expected:
         @T.prim_func(private=True)
         def reshape(var_A: T.handle, var_T_reshape: T.handle):
-            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
+            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
             n = T.int32()
             A = T.match_buffer(var_A, (n, 16, 128), "float16")
             T_reshape = T.match_buffer(var_T_reshape, (1, n, 16, 128), "float16")

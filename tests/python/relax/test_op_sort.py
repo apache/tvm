@@ -90,7 +90,7 @@ def test_sort_wrong_input():
     x = relax.Var("x", R.Tensor((3, 4, 5), "float32"))
     y = relax.Var("y", R.Tensor((2, 3, 4), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.sort(x, y)
 
     with pytest.raises(TVMError):

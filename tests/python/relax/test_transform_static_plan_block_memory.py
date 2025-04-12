@@ -1276,7 +1276,7 @@ def test_function_independence():
 
         @R.function
         def func1(x: R.Tensor((8,), dtype="float32")) -> R.Tensor((8,), dtype="float32"):
-            R.func_attr({"relax.force_pure": 1})
+            R.func_attr({"relax.force_pure": True})
             cls = Module
             alloc: R.Tensor((8,), dtype="float32") = R.builtin.alloc_tensor(R.shape([8,]), dtype="float32", runtime_device_index=0)
             _: R.Tuple() = cls.exp(x, alloc)
@@ -1288,7 +1288,7 @@ def test_function_independence():
 
         @R.function
         def func2(x: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
-            R.func_attr({"relax.force_pure": 1})
+            R.func_attr({"relax.force_pure": True})
             cls = Module
             alloc: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(R.shape([10,]), dtype="float32", runtime_device_index=0)
             _: R.Tuple() = cls.exp(x, alloc)
@@ -1306,7 +1306,7 @@ def test_function_independence():
 
         @R.function
         def func1(x: R.Tensor((8,), dtype="float32")) -> R.Tensor((8,), dtype="float32"):
-            R.func_attr({"relax.force_pure": 1})
+            R.func_attr({"relax.force_pure": True})
             cls = Expected
             storage: R.Object = R.memory.alloc_storage(R.shape([32]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(storage, R.prim_value(0), R.shape([8]), R.dtype("float32"))
@@ -1319,7 +1319,7 @@ def test_function_independence():
 
         @R.function
         def func2(x: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
-            R.func_attr({"relax.force_pure": 1})
+            R.func_attr({"relax.force_pure": True})
             cls = Expected
             storage1: R.Object = R.memory.alloc_storage(R.shape([40]), R.prim_value(0), R.str("global"), R.dtype("float32"))
             alloc: R.Tensor((10,), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([10]), R.dtype("float32"))
@@ -1362,7 +1362,7 @@ def test_add():
             vocab_size = T.int64()
             R.func_attr(
                 {
-                    "relax.force_pure": 1,
+                    "relax.force_pure": True,
                     "relax.memory_plan_dynamic_func_output": 1,
                     "tir_var_upper_bound": {"batch_size": 32},
                     "tir_non_negative_var": ["vocab_size"],
@@ -1408,7 +1408,7 @@ def test_add():
             vocab_size = T.int64()
             R.func_attr(
                 {
-                    "relax.force_pure": 1,
+                    "relax.force_pure": True,
                     "tir_non_negative_var": ["vocab_size"],
                     "tir_var_upper_bound": {"batch_size": 32},
                 }

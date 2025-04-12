@@ -647,12 +647,12 @@ def test_check_lifted_weights():
         def main_transform_params(
             params: R.Tuple(R.Tensor((16, 16), dtype="float32"))
         ) -> R.Tuple(R.Tensor((16, 16), dtype="float32")):
-            R.func_attr({"relax.force_pure": 1})
+            R.func_attr({"relax.force_pure": True})
             return params
 
         @R.function
         def main(x: R.Tensor((16, 16), "float32"), param_0: R.Tensor((16, 16), dtype="float32")):
-            R.func_attr({"relax.force_pure": 1, "num_input": 1})
+            R.func_attr({"relax.force_pure": True, "num_input": 1})
             return (x, param_0)
 
     @I.ir_module
@@ -661,7 +661,7 @@ def test_check_lifted_weights():
         def main_transform_params(
             params: R.Tuple(R.Tensor((16, 16), dtype="float32"))
         ) -> R.Tuple(R.Tensor((16, 16), dtype="float32")):
-            R.func_attr({"relax.force_pure": 1})
+            R.func_attr({"relax.force_pure": True})
             shape_heap: R.Object = R.null_value()
             _: R.Tuple = R.call_packed(
                 "vm.builtin.check_tuple_info",
@@ -697,7 +697,7 @@ def test_check_lifted_weights():
         def main(
             x: R.Tensor((16, 16), dtype="float32"), param_0: R.Tensor((16, 16), dtype="float32")
         ) -> R.Tuple(R.Tensor((16, 16), dtype="float32"), R.Tensor((16, 16), dtype="float32")):
-            R.func_attr({"num_input": 1, "relax.force_pure": 1})
+            R.func_attr({"num_input": 1, "relax.force_pure": True})
             shape_heap: R.Object = R.null_value()
             _: R.Tuple = R.call_packed(
                 "vm.builtin.check_tensor_info",
@@ -737,7 +737,7 @@ def test_check_weights_with_dynamic_shape():
             x: R.Tensor((16, 16), "float32"),
             params: R.Tuple(R.Tensor((16, 16), dtype="float32"), R.Tensor(("n",), "float32")),
         ):
-            R.func_attr({"relax.force_pure": 1, "num_input": 1})
+            R.func_attr({"relax.force_pure": True, "num_input": 1})
             n = T.int64()
             param_0 = params[0]
             param_1 = params[1]
@@ -751,7 +751,7 @@ def test_check_weights_with_dynamic_shape():
             params: R.Tuple(R.Tensor((16, 16), dtype="float32"), R.Tensor(("n",), "float32")),
         ):
             n = T.int64()
-            R.func_attr({"num_input": 1, "relax.force_pure": 1})
+            R.func_attr({"num_input": 1, "relax.force_pure": True})
             shape_heap: R.Tensor(dtype="int64", ndim=1) = R.call_builtin_with_ctx(
                 "vm.builtin.alloc_shape_heap",
                 (R.prim_value(1),),
@@ -824,7 +824,7 @@ def test_update_symbolic_vars_in_match_cast_rhs():
         def main(
             arg_prim_value: R.Prim(value="n"),
         ):
-            R.func_attr({"relax.force_pure": 1})
+            R.func_attr({"relax.force_pure": True})
             n = T.int64()
             shape = R.shape([n])
             m = T.int64()
@@ -835,7 +835,7 @@ def test_update_symbolic_vars_in_match_cast_rhs():
     class Expected:
         @R.function
         def main(arg_prim_value: R.Prim(value="n")) -> R.Prim("int64"):
-            R.func_attr({"relax.force_pure": 1})
+            R.func_attr({"relax.force_pure": True})
             n = T.int64()
 
             shape_heap = R.call_builtin_with_ctx(
