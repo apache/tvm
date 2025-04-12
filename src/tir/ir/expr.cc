@@ -395,7 +395,7 @@ TVM_REGISTER_NODE_TYPE(OrNode);
 // Not
 Not::Not(PrimExpr a, Span span) {
   ICHECK(a.defined()) << "ValueError: a is undefined";
-  ICHECK(a.dtype().is_bool());
+  ICHECK(a.dtype().is_bool()) << "a " << a << "." << a.dtype() << " is not bool";
 
   ObjectPtr<NotNode> node = make_object<NotNode>();
   DataType a_dtype = a.dtype();
