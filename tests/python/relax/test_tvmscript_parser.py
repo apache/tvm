@@ -45,14 +45,14 @@ def _check(
 def test_simple_func():
     @R.function
     def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
-        R.func_attr({"Primitive": 1})
+        R.func_attr({"Primitive": True})
         gv0 = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
         gv1 = R.call_dps_packed("extern_dps_func", gv0, R.Tensor((128, 128), dtype="float32"))
         return gv1
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
-    with bb.function("foo", (x,), attrs={"Primitive": 1}):
+    with bb.function("foo", (x,), attrs={"Primitive": True}):
         y = bb.emit(relax.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32")))
         out = bb.emit(
             relax.call_dps_packed("extern_dps_func", y, R.Tensor((128, 128), dtype="float32"))

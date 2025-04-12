@@ -542,7 +542,7 @@ class FunctionCreator : public ExprMutator {
       Expr body = outputs.size() == 1 ? outputs[0] : Tuple(outputs);
       body = builder_->Normalize(body);
       body = builder_->Normalize(SeqExpr({new_block}, body));
-      group_attrs.Set(tvm::relax::attr::kPrimitive, Integer(1));
+      group_attrs.Set(tvm::relax::attr::kPrimitive, true);
       Function function = Function(/*params=*/params_,           //
                                    /*body=*/body,                //
                                    /*ret_struct_info=*/NullOpt,  //
@@ -1349,7 +1349,7 @@ IRModule FuseOpsByPattern(const tvm::Array<transform::FusionPattern>& patterns, 
           continue;
         }
         const FunctionNode* function = base_func.as<FunctionNode>();
-        if (function->GetAttr<Integer>(attr::kPrimitive).defined() ||
+        if (function->GetAttr<bool>(attr::kPrimitive).value_or(false) ||
             function->GetAttr<String>(attr::kComposite).defined() ||
             function->GetAttr<String>(attr::kCodegen).defined()) {
           continue;

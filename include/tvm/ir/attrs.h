@@ -259,23 +259,11 @@ class DictAttrs : public Attrs {
   Optional<TObjectRef> GetAttr(
       const std::string& attr_key,
       Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
-    static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
-                  "Can only call GetAttr with ObjectRef types.");
     if (!defined()) return default_value;
     const DictAttrsNode* node = this->as<DictAttrsNode>();
-
     auto it = node->dict.find(attr_key);
     if (it != node->dict.end()) {
-      // For backwards compatibility, return through TVMRetValue.
-      // This triggers any automatic conversions registered with
-      // PackedFuncValueConverter.  Importantly, this allows use of
-      // `GetAttr<Integer>` and `GetAttr<Bool>` for properties that
-      // are stored internally as `runtime::Box<int64_t>` and
-      // `runtime::Box<bool>`.
-      TVMRetValue ret;
-      ret = (*it).second;
-      Optional<TObjectRef> obj = ret;
-      return obj;
+      return (*it).second;
     } else {
       return default_value;
     }

@@ -567,7 +567,7 @@ def test_multiple_relax_functions():
 
         x = relax.Var("x", R.Tensor([10, 20], "float32"))
         p0 = relax.Var("p0", R.Tensor((), "float32"))
-        with bb.function("fused_add_exp_squeeze", [x, p0], attrs={"Primitive": 1}, private=True):
+        with bb.function("fused_add_exp_squeeze", [x, p0], attrs={"Primitive": True}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, p0)
                 lv1 = bb.emit_te(topi.exp, lv0)
@@ -577,7 +577,7 @@ def test_multiple_relax_functions():
 
         x = relax.Var("x", R.Tensor([20, 10], "float32"))
         p0 = relax.Var("p0", R.Tensor((), "float32"))
-        with bb.function("fused_add1_exp1_squeeze1", [x, p0], attrs={"Primitive": 1}, private=True):
+        with bb.function("fused_add1_exp1_squeeze1", [x, p0], attrs={"Primitive": True}, private=True):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, p0)
                 lv1 = bb.emit_te(topi.exp, lv0)
@@ -707,7 +707,7 @@ def test_symbolic_shape_aware_fuse():
         def fused_add_exp_squeeze(
             x: R.Tensor(["n", "m"], "float32"), p0: R.Tensor([], "float32")
         ) -> R.Tensor(["n", "m"], dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             with R.dataflow():
                 lv0 = R.emit_te(topi.add, x, p0)
                 lv1 = R.emit_te(topi.exp, lv0)
@@ -755,7 +755,7 @@ def test_fuse_of_dynamic_kernel_with_var_params_and_static_args():
 
         @R.function(private=True)
         def fused_function(x: R.Tensor([16, 32], "float32")) -> R.Tensor([16, 32], dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             cls = Before
             with R.dataflow():
                 y = R.call_tir(cls.dynamic_tir_kernel, [x], out_sinfo=R.Tensor([16, 32], "float32"))
@@ -829,7 +829,7 @@ def test_fuse_of_dynamic_kernel_with_expression_params_and_static_args():
             B: R.Tensor([16], "float32"),
             C: R.Tensor([32], "float32"),
         ):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             cls = Before
             with R.dataflow():
                 y = R.call_tir(
@@ -903,7 +903,7 @@ def test_symbolic_shape_aware_fuse_with_allocation():
             y: R.Tensor((1, "n", 4096), dtype="float32"),
             rms_norm_weight: R.Tensor((4096,), dtype="float32"),
         ) -> R.Tensor((1, "n", 4096), dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             with R.dataflow():
                 lv0 = R.emit_te(te_mean, x, axis=2)
                 lv1 = R.emit_te(topi.add, lv0, lv0)
@@ -969,7 +969,7 @@ def test_symbolic_var_in_call_tir_args():
             y: R.Tensor((2048, 128), dtype="float32"),
             len: R.Shape(["m"]),
         ) -> R.Tensor((1, 1, 32, 128), dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             m = T.int64()
             cls = Before
             with R.dataflow():
@@ -1083,7 +1083,7 @@ def test_same_buffer_multiple_read():
         def fused_concatenate_transpose2(
             inp_0: R.Tensor((1, 4, 64, 64), dtype="float32")
         ) -> R.Tensor((2, 64, 64, 4), dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             cls = Module
             with R.dataflow():
                 lv = R.call_tir(
@@ -1167,7 +1167,7 @@ def test_tir_expression_in_shape():
             y: R.Tensor(("n - 1", 4), dtype="float32"),
             tir_vars: R.Shape(["n"]),
         ) -> R.Tensor(("n - 1", 3), dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             with R.dataflow():
                 lv = R.emit_te(topi.transpose, x)
                 gv = R.emit_te(topi.matmul, y, lv)
@@ -1276,7 +1276,7 @@ def test_tuple_input_unused_field():
                 R.Tensor((4, 8, 2048), dtype="float32"), R.Tensor((4, 8, 2048), dtype="float32")
             )
         ) -> R.Tensor((4, 8, 32, 64), dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             cls = Module
             with R.dataflow():
                 lv1: R.Tensor((4, 8, 2048), dtype="float32") = lv[0]
@@ -1390,7 +1390,7 @@ def test_unique_duplicated_buffer_allocation():
         def fused_func(
             input_embeds: R.Tensor((4096, 4096), dtype="float16"),
         ) -> R.Tensor((4096, 4096), dtype="float16"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             cls = Module
             with R.dataflow():
                 lv = R.call_tir(
@@ -1485,7 +1485,7 @@ def test_symbolic_var_in_buffer_shape():
             y: R.Tensor((2048, 128), dtype="float32"),
             len: R.Shape(["m"]),
         ) -> R.Tensor((1, "sequence_length", 32, 128), dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             sequence_length = T.int64()
             m = T.int64()
             cls = Before
@@ -1593,7 +1593,7 @@ def test_symbolic_var_called_with_static_shape():
         def fused(
             x: R.Tensor([64], dtype="float32"),
         ) -> R.Tensor([1], dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             cls = Before
             with R.dataflow():
                 gv = R.call_tir(
@@ -1680,7 +1680,7 @@ def test_symbolic_var_called_with_multiple_static_shapes():
             x: R.Tensor([64], dtype="float32"),
             y: R.Tensor([16], dtype="float32"),
         ) -> R.Tensor([1], dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             cls = Before
             with R.dataflow():
                 x_sum = R.call_tir(
@@ -1792,7 +1792,7 @@ def test_symbolic_var_called_with_static_argument():
         def fused(
             x: R.Tensor([64], dtype="float32"),
         ) -> R.Tensor([1], dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             cls = Before
             with R.dataflow():
                 gv = R.call_tir(
@@ -1883,7 +1883,7 @@ def test_gather():
             input_ids: R.Tensor((1,), dtype="int32"),
             input_embeds: R.Tensor((4096, 4096), dtype="float16"),
         ) -> R.Tensor((1, 4096), dtype="float16"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             cls = Before
             with R.dataflow():
                 lv = R.call_tir(
@@ -1973,7 +1973,7 @@ def test_inplace_simple():
         def fused_add_exp_squeeze(
             x: R.Tensor((10, 20), dtype="float32"), p0: R.Tensor((), dtype="float32")
         ) -> R.Tensor((10, 20), dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             cls = Module
             with R.dataflow():
                 # This overwrites x and is actually evil because the function is marked as pure
@@ -2090,7 +2090,7 @@ def test_fuse_inplace_and_non_inplace():
         def fused_add_exp_squeeze(
             x: R.Tensor((10, 20), dtype="float32"), p0: R.Tensor((), dtype="float32")
         ) -> R.Tensor((10, 20), dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             cls = Module
             with R.dataflow():
                 lv = R.call_tir(
@@ -2184,7 +2184,7 @@ def test_use_as_inplace_and_dps():
         def fused_sums(
             x: R.Tensor((10, 20), dtype="float32"), p0: R.Tensor((), dtype="float32")
         ) -> R.Tensor((10, 20), dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             cls = Module
             with R.dataflow():
                 lv = R.call_tir(
@@ -2336,7 +2336,7 @@ def test_fuse_with_axis_separators():
             y: R.Tensor([T.int64(16), T.int64(32)], "float32"),
             z: R.Tensor([T.int64(16), T.int64(32)], "float32"),
         ) -> R.Tensor([T.int64(16), T.int64(32)], dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             cls = Before
             with R.dataflow():
                 w = R.call_tir(
@@ -2417,7 +2417,7 @@ def test_fuse_with_axis_separators_inconsistent_buffer_mapping():
         def fused_function(
             x: R.Tensor([T.int64(16), T.int64(32)], "float32"),
         ) -> R.Tensor([T.int64(16), T.int64(32)], dtype="float32"):
-            R.func_attr({"Primitive": 1})
+            R.func_attr({"Primitive": True})
             cls = Before
             with R.dataflow():
                 out = R.call_tir(
