@@ -38,7 +38,6 @@ std::vector<Any> JSONFileReadLines(const String& path, int num_threads, bool all
   if (is.good()) {
     std::vector<String> json_strs;
     for (std::string str; std::getline(is, str);) {
-      LOG(INFO) << "str: " << str;
       json_strs.push_back(str);
     }
     int n = json_strs.size();
@@ -167,7 +166,6 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
     n->workloads2idx_.reserve(n_objs);
     workloads.reserve(n_objs);
     for (int i = 0; i < n_objs; ++i) {
-      LOG(INFO) << "workload: " << i << ": " << json_objs[i];
       Workload workload = Workload::FromJSON(json_objs[i]);
       auto recalc_hash = n->GetModuleEquality().Hash(workload->mod);
       // Todo(tvm-team): re-enable the shash check when we get environment
