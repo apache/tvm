@@ -306,7 +306,7 @@ def test_module_with_attr_and_global_info():
         bb.emit_func_output(out)
     mod = bb.get()
     mod.update_global_info("dummy", [DummyGlobalInfo(), DummyGlobalInfo()])
-    mod = mod.with_attr("attr", tvm.tir.IntImm("int32", 10))
+    mod = mod.with_attr("attr", 10)
     _check(TestModule, mod)
 
 
@@ -356,7 +356,7 @@ def test_global_info_vdevice():
         bb.emit_func_output(out)
     mod = bb.get()
     mod.update_global_info("vdevice", vdevices)
-    mod = mod.with_attr("attr", tvm.tir.IntImm("int32", 10))
+    mod = mod.with_attr("attr", 10)
     _check(TestModule, mod)
 
 
@@ -810,7 +810,7 @@ def test_tensor_with_vdevice():
         out = bb.emit(relax.op.add(a, c))
         bb.emit_func_output(out)
     mod = bb.get()
-    mod = mod.with_attr("attr", tvm.tir.IntImm("int32", 10))
+    mod = mod.with_attr("attr", 10)
     mod.update_global_info("vdevice", vdevices)
 
     _check(TestModule, mod)
