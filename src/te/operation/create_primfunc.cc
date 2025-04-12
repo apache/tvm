@@ -140,10 +140,10 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
     if (this->layout_free_buffer_indices_.empty()) {
       return func;
     }
-    Array<Integer> indices;
+    Array<int64_t> indices;
     indices.reserve(this->layout_free_buffer_indices_.size());
     for (int i : this->layout_free_buffer_indices_) {
-      indices.push_back(Integer(i));
+      indices.push_back(i);
     }
     return WithAttr(std::move(func), tir::attr::layout_free_buffers, indices);
   }

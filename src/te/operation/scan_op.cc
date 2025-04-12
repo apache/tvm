@@ -45,9 +45,9 @@ Array<PrimExpr> ScanOpNode::output_shape(size_t i) const {
   return state_placeholder[i]->shape;
 }
 
-ScanOp::ScanOp(std::string name, std::string tag, Map<String, ffi::Any> attrs, IterVar axis,
-               Array<Tensor> init, Array<Tensor> update, Array<Tensor> state_placeholder,
-               Array<Tensor> inputs) {
+ScanOp::ScanOp(std::string name, std::string tag, Optional<Map<String, ffi::Any>> attrs,
+               IterVar axis, Array<Tensor> init, Array<Tensor> update,
+               Array<Tensor> state_placeholder, Array<Tensor> inputs) {
   if (!attrs.defined()) {
     attrs = Map<String, ffi::Any>();
   }
@@ -88,7 +88,7 @@ ScanOp::ScanOp(std::string name, std::string tag, Map<String, ffi::Any> attrs, I
   }
   n->name = std::move(name);
   n->tag = std::move(tag);
-  n->attrs = std::move(attrs);
+  n->attrs = attrs.value_or({});
   n->scan_axis = std::move(axis);
   n->init = std::move(init);
   n->update = std::move(update);
@@ -98,7 +98,7 @@ ScanOp::ScanOp(std::string name, std::string tag, Map<String, ffi::Any> attrs, I
 }
 
 TVM_REGISTER_GLOBAL("te.ScanOp")
-    .set_body_typed([](std::string name, std::string tag, Map<String, ffi::Any> attrs,
+    .set_body_typed([](std::string name, std::string tag, Optional<Map<String, ffi::Any>> attrs,
                        IterVar axis, Array<Tensor> init, Array<Tensor> update,
                        Array<Tensor> state_placeholder, Array<Tensor> inputs) {
       return ScanOp(name, tag, attrs, axis, init, update, state_placeholder, inputs);
@@ -106,7 +106,7 @@ TVM_REGISTER_GLOBAL("te.ScanOp")
 
 Array<Tensor> scan(Array<Tensor> init, Array<Tensor> update, Array<Tensor> state_placeholder,
                    Array<Tensor> inputs, std::string name, std::string tag,
-                   Map<String, ffi::Any> attrs) {
+                   Optional<Map<String, ffi::Any>> attrs) {
   IterVar scan_axis =
       IterVar(Range::FromMinExtent(init[0]->shape[0], update[0]->shape[0] - init[0]->shape[0]),
               Var(name + ".idx"), kOrdered);
