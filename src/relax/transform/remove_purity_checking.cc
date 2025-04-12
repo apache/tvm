@@ -36,7 +36,7 @@ class PurityRemover : public ExprMutator {
     bool purity = func->is_pure;
     auto ret = func;
     if (purity) {
-      ret = std::move(WithAttr<Function>(func, relax::attr::kForcePure, Bool(true)));
+      ret = std::move(WithAttr<Function>(func, relax::attr::kForcePure, true));
     }
     auto new_body = VisitExpr(ret->body);
     if (!new_body.same_as(ret->body)) {
