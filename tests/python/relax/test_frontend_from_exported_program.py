@@ -3856,5 +3856,49 @@ def test_dynamic_shape():
     verify_model(DynamicModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes)
 
 
+def test_broadcast_to():
+    class BroadcastTo(Module):
+        def forward(self, x):
+            return torch.broadcast_to(x, (5, 3))
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((5, 1), dtype="float32")) -> R.Tuple(R.Tensor((5, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5, 3), dtype="float32") = R.broadcast_to(x, R.shape([5, 3]))
+                gv: R.Tuple(R.Tensor((5, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+
+            return gv
+
+    example_args = (torch.randn(5, 1, dtype=torch.float32),)
+    verify_model(BroadcastTo(), example_args, {}, Expected)
+
+
+def test_narrow():
+    class Narrow(Module):
+        def forward(self, x):
+            return torch.narrow(x, 1, 0, 2)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((5, 3), dtype="float32")) -> R.Tuple(R.Tensor((5, 2), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5, 2), dtype="float32") = R.strided_slice(x, (R.prim_value(1),), (R.prim_value(0),),
+                                                                        (R.prim_value(2),), (R.prim_value(1),),
+                                                                        assume_inbound=False)
+
+                gv: R.Tuple(R.Tensor((5, 2), dtype="float32")) = (lv,)
+
+                R.output(gv)
+
+            return gv
+
+    example_args = (torch.randn(5, 3, dtype=torch.float32),)
+    verify_model(Narrow(), example_args, {}, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
