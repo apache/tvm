@@ -889,7 +889,7 @@ class TorchFXImporter(BaseFXGraphImporter):
                 missing_func_types = list(
                     {
                         node.target.__name__
-                        for node in nodes
+                        for node in graph.nodes
                         if node.op == "call_function"
                         and node.target.__name__ not in self.convert_map
                     }
