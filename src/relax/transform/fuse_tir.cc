@@ -950,7 +950,7 @@ class FusedTIRConstructor : public ExprVisitor {
    */
   tir::PrimFunc ConstructFunc() {
     Map<String, Any> attr_map;
-    attr_map.Set("tir.noalias", tir::const_true());
+    attr_map.Set(tir::attr::kNoAlias, true);
     tir::FuseTIRBufferSubstitutor subst(func_info_.buffer_subst_map, func_info_.symbolic_var_remap);
     ICHECK(func_info_.global_name != "fused");
     // Remove output buffers from func_info_.alloc_buffers
