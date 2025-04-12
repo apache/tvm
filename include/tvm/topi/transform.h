@@ -193,17 +193,17 @@ inline Tensor expand_dims(const Tensor& x, int axis, int num_newaxis = 1,
  * \brief Permute the dimensions of an array
  *
  * \param x The input tensor
- * \param axes The indices of the permutation. If this is empty,
+ * \param opt_axes The indices of the permutation. If this is empty,
  * the dimensions will be reversed.
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
  * \return A Tensor whose op member is the transpose operation
  */
-inline Tensor transpose(const Tensor& x, Array<Integer> axes, std::string name = "T_transpose",
+inline Tensor transpose(const Tensor& x, Optional<Array<Integer>> opt_axes, std::string name = "T_transpose",
                         std::string tag = kInjective) {
-  if (!axes.defined() || axes.size() == 0) {
-    axes = Array<Integer>();
+  Array<Integer> axes = opt_axes.value_or({});
+  if (axes.size() == 0) {
     for (int i = static_cast<int>(x->shape.size()) - 1; i >= 0; --i) {
       axes.push_back(i);
     }

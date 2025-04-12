@@ -193,7 +193,7 @@ def test_symbolic_compute():
         @T.prim_func(private=True)
         def shape_func(H: T.Buffer(T.int64(4), "int64")):
             # generated compute function
-            T.func_attr({"tir.is_host_func": 1})
+            T.func_attr({"tir.is_host_func": True})
             H[T.int64(sindex["k+1"])] = H[T.int64(sindex["k"])] + T.int64(1)
 
         @R.function
@@ -527,7 +527,7 @@ def test_return_match_check_with_new_expr():
         @T.prim_func(private=True)
         def shape_func(H: T.Buffer(T.int64(2), "int64")):
             # generated compute function
-            T.func_attr({"tir.is_host_func": 1})
+            T.func_attr({"tir.is_host_func": True})
             H[T.int64(sindex["n * n"])] = H[T.int64(sindex["n"])] * H[T.int64(sindex["n"])]
 
     before = Before
