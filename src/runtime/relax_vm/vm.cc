@@ -780,8 +780,8 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
     // store dtype to str since py callback cannot handle dtype atm.
     std::vector<std::unique_ptr<std::string>> temp_dtype;
     for (int i = 0; i < instr.num_args; ++i) {
-      if (auto opt_dtype = call_args[i + args_begin_offset].as<DataType>()) {
-        std::string str_dtype = DLDataTypeToString(opt_dtype.value());
+      if (call_args[i + args_begin_offset].type_index() == ffi::TypeIndex::kTVMFFIDataType) {
+        std::string str_dtype = DLDataTypeToString(call_args[i + args_begin_offset]);
         temp_dtype.emplace_back(std::make_unique<std::string>(str_dtype));
         call_args[i + args_begin_offset] = *temp_dtype.back();
       }
