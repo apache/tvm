@@ -139,7 +139,7 @@ class LazyTransformParamsFuncCreator:
 
     def transform(self, func: relax.Function) -> relax.Function:
         if "num_input" in func.attrs:
-            num_input = func.attrs["num_input"].value
+            num_input = func.attrs["num_input"]
         else:
             num_input = 0
 
@@ -236,7 +236,7 @@ class LazyInputMutator(PyExprMutator):
 
     def visit_function_(self, func: relax.Function) -> relax.Expr:
         if "num_input" in func.attrs:
-            num_input = func.attrs["num_input"].value
+            num_input = func.attrs["num_input"]
         else:
             num_input = 0
 

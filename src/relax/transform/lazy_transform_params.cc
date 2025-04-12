@@ -87,7 +87,7 @@ class LazyInputMutator : public ExprMutator {
     auto node = GetRef<Function>(func);
     node.CopyOnWrite()->params = new_params;
     node.CopyOnWrite()->ret_struct_info = new_ret_struct_info;
-    node = WithAttr(node, attr::kNumInput, Integer(num_input_params + 1));
+    node = WithAttr(node, attr::kNumInput, num_input_params + 1);
 
     plan_ = FunctionPlan{std::move(param_lookup), fget_param};
     auto output = Downcast<Function>(ExprMutator::VisitExpr_(node.get()));
@@ -192,7 +192,7 @@ class LazyOutputMutator : public ExprMutator {
       write_ptr->is_pure = false;
     }
     if (num_input_params.has_value()) {
-      node = WithAttr(node, attr::kNumInput, Integer(num_input_params.value() + 1));
+      node = WithAttr(node, attr::kNumInput, num_input_params.value() + 1);
     }
 
     auto output = Downcast<Function>(ExprMutator::VisitExpr_(node.get()));

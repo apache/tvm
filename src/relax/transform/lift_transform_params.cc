@@ -117,7 +117,7 @@ struct BaseCollectInfo {
         },
         tuple_var);
     Function func(params, body, GetStructInfo(tuple_var));
-    func = WithAttr(func, attr::kNumInput, Integer(0));
+    func = WithAttr(func, attr::kNumInput, 0);
     func = CopyWithNewVars(func);
     func = BundleModelParams(func);
     func = Downcast<Function>(CanonicalizeBindings(func));
