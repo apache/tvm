@@ -62,15 +62,15 @@ using FCommReduce = std::function<Array<PrimExpr>(Array<PrimExpr> exprs, const A
  * If any input element is negative, it will be treated as an offset from the
  * last dimension (same as python indexing rules).
  */
-inline std::vector<int> GetRealAxis(int ndim, const Array<Integer>& axis) {
+inline std::vector<int> GetRealAxis(int ndim, const Optional<Array<Integer>>& axis) {
   std::vector<int> real_axis;
-  if (!axis.defined()) {
+  if (!axis.has_value()) {
     for (int i = 0; i < ndim; ++i) {
       real_axis.push_back(i);
     }
   } else {
     // Use a set so duplicates are removed and the dims are sorted
-    for (auto elem : axis) {
+    for (auto elem : axis.value()) {
       int64_t val = elem->value;
       if (val < 0) {
         val += ndim;
@@ -179,7 +179,7 @@ inline Tensor DoCommReduce(const Tensor& data, FReduce func, const Array<PrimExp
  *
  * \return The result tensor.
  */
-inline Tensor CommReduce(const Tensor& data, const Array<Integer>& axis, FReduce func,
+inline Tensor CommReduce(const Tensor& data, const Optional<Array<Integer>>& axis, FReduce func,
                          bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
   ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
@@ -202,7 +202,7 @@ inline Tensor CommReduce(const Tensor& data, const Array<Integer>& axis, FReduce
  *
  * \return The result tensor.
  */
-inline Tensor CommReduceIdx(const Tensor& data, const Array<Integer>& axis, FCommReduce func,
+inline Tensor CommReduceIdx(const Tensor& data, const Optional<Array<Integer>>& axis, FCommReduce func,
                             bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
   ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
@@ -323,7 +323,7 @@ inline PrimExpr ProdOp(PrimExpr source, Array<IterVar> axis, Array<PrimExpr> ini
  *
  * \return A Tensor whose op member is the sum operation
  */
-inline Tensor sum(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
+inline Tensor sum(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
                   bool atleast1d = false) {
   if (data->dtype.is_bool()) {
     return CommReduce(data, axis, tvm::any, keepdims, atleast1d);
@@ -380,7 +380,7 @@ inline Tensor collapse_sum(const Tensor& data, Array<PrimExpr> target_shape) {
  *
  * \return A Tensor whose op member is the all operation
  */
-inline Tensor all(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
+inline Tensor all(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
                   bool atleast1d = false) {
   return CommReduce(data, axis, tvm::all, keepdims, atleast1d);
 }
@@ -399,7 +399,7 @@ inline Tensor all(const Tensor& data, const Array<Integer>& axis, bool keepdims 
  *
  * \return A Tensor whose op member is the all operation
  */
-inline Tensor any(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
+inline Tensor any(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
                   bool atleast1d = false) {
   return CommReduce(data, axis, tvm::any, keepdims, atleast1d);
 }
@@ -418,7 +418,7 @@ inline Tensor any(const Tensor& data, const Array<Integer>& axis, bool keepdims 
  *
  * \return A Tensor whose op member is the min operation
  */
-inline Tensor min(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
+inline Tensor min(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
                   bool atleast1d = false) {
   return CommReduce(data, axis, MinOp, keepdims, atleast1d);
 }
@@ -437,7 +437,7 @@ inline Tensor min(const Tensor& data, const Array<Integer>& axis, bool keepdims 
  *
  * \return A Tensor whose op member is the max operation
  */
-inline Tensor max(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
+inline Tensor max(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
                   bool atleast1d = false) {
   return CommReduce(data, axis, MaxOp, keepdims, atleast1d);
 }
@@ -497,7 +497,7 @@ inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
  *
  * \return A Tensor whose op member is the argmin operation
  */
-inline Tensor argmin(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
+inline Tensor argmin(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
                      bool atleast1d = false, bool select_last_index = false) {
   auto reducer = MakeArgminReducer(select_last_index);
   return CommReduceIdx(data, axis, reducer, keepdims, atleast1d);
@@ -557,7 +557,7 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
  * appears multiple times, else select the first index.
  * \return A Tensor whose op member is the argmax operation
  */
-inline Tensor argmax(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
+inline Tensor argmax(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
                      bool atleast1d = false, bool select_last_index = false) {
   auto reducer = MakeArgmaxReducer(select_last_index);
   return CommReduceIdx(data, axis, reducer, keepdims, atleast1d);
@@ -576,7 +576,7 @@ inline Tensor argmax(const Tensor& data, const Array<Integer>& axis, bool keepdi
  *
  * \return A Tensor whose op member is the prod operation
  */
-inline Tensor prod(const Tensor& data, const Array<Integer>& axis, bool keepdims = false,
+inline Tensor prod(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
                    bool atleast1d = false) {
   return CommReduce(data, axis, ProdOp, keepdims, atleast1d);
 }

@@ -50,7 +50,7 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   bool is_float16 = data_type == DataType::Float(16);
   // reshape data C -> G, C/G
   int ndim = data->shape.size();
-  channel_axis = GetRealAxis(static_cast<int>(ndim), {channel_axis})[0];
+  channel_axis = GetRealAxis(static_cast<int>(ndim), Array<Integer>({channel_axis}))[0];
 
   auto shape = data->shape;
   auto group_size = floordiv(shape[channel_axis], num_groups);
@@ -82,7 +82,7 @@ inline Tensor group_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   // get the new axes to normalize after reshape
   std::vector<int> new_axes{channel_axis + 1};
   for (auto axis : axes) {
-    int new_axis = GetRealAxis(static_cast<int>(ndim), {axis})[0];
+    int new_axis = GetRealAxis(static_cast<int>(ndim), Array<Integer>({axis}))[0];
     if (new_axis < channel_axis) {
       new_axes.push_back(new_axis);
     } else if (new_axis > channel_axis) {
