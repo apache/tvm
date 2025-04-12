@@ -269,9 +269,9 @@ def test_reshape_new_shape_not_tuple():
     m = tir.Var("m", "int64")
     x = relax.Var("x", R.Tensor((2, 3, 4, 5), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.reshape(x, 120)
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.reshape(x, m)
 
 
@@ -313,13 +313,13 @@ def test_reshape_infer_struct_info_wrong_input_type():
     ns = relax.Var("ns", relax.TensorStructInfo((120,), "float32"))
     pv = relax.Var("pv", relax.PrimStructInfo("int64"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError)):
         bb.normalize(relax.op.reshape(x0, (2, 3, 4, 5)))
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError)):
         bb.normalize(relax.op.reshape(x1, (2, 3, 4, 5)))
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError)):
         bb.normalize(relax.op.reshape(x2, ns))
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError)):
         bb.normalize(relax.op.reshape(x2, [pv]))
 
 
@@ -2292,7 +2292,7 @@ def test_split_infer_struct_info_non_integer_indices():
     b = tir.Var("d", "int64")
     x = relax.Var("x", R.Tensor((3, 4), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         bb.normalize(relax.op.split(x, [a, b], axis=1))
 
 
@@ -2300,11 +2300,11 @@ def test_split_invalid_n_section():
     n = tir.Var("n", "int64")
     x = relax.Var("x", R.Tensor((3, 4), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError)):
         relax.op.split(x, 0, axis=1)
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError)):
         relax.op.split(x, -1, axis=1)
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError)):
         relax.op.split(x, n, axis=1)
 
 
@@ -2328,9 +2328,9 @@ def test_split_infer_invalid_struct_info_indices():
     x0 = relax.Var("x", R.Tensor((2, 3), "float32"))
     v = relax.Var("v", relax.PrimStructInfo("int64"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError)):
         bb.normalize(relax.op.split(x0, [v], axis=1))
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError)):
         bb.normalize(relax.op.split(x0, v, axis=1))
 
 
@@ -3029,15 +3029,15 @@ def test_repeat_infer_struct_info_wrong_input_type():
     r1 = tir.Var("r", "float32")
     r2 = tir.StringImm("abc")
 
-    with pytest.raises(TVMError):
+    with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.repeat(x0, 2))
-    with pytest.raises(TVMError):
+    with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.repeat(x1, 2))
-    with pytest.raises(TVMError):
+    with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.repeat(x2, 1.5))
-    with pytest.raises(TVMError):
+    with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.repeat(x2, r1))
-    with pytest.raises(TVMError):
+    with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.repeat(x2, r2))
 
 
@@ -3154,15 +3154,15 @@ def test_tile_infer_struct_info_wrong_input_type():
     r1 = tir.Var("a", "float32")
     r2 = tir.StringImm("abc")
 
-    with pytest.raises(TVMError):
+    with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.tile(x0, 2))
-    with pytest.raises(TVMError):
+    with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.tile(x1, 2))
-    with pytest.raises(TVMError):
+    with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.tile(x2, (2, 1.5, 2)))
-    with pytest.raises(TVMError):
+    with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.tile(x2, (2, r1)))
-    with pytest.raises(TVMError):
+    with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.tile(x2, r2))
 
 

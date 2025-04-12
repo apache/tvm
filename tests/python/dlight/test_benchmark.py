@@ -101,7 +101,7 @@ class Module:
 
 @T.prim_func
 def cuda_workload(var_inp0: T.handle, inp1: T.Buffer((T.int64(4096), T.int64(4096)), "float32"), var_matmul: T.handle):
-    T.func_attr({"tir.is_scheduled": 1})
+    T.func_attr({"tir.is_scheduled": True})
     m = T.int64()
     inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
     matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))

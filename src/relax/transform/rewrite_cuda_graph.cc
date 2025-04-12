@@ -158,7 +158,7 @@ class FuncBuilder : public ExprMutator {
     auto block = builder_->EndBlock();
     auto body = builder_->Normalize(SeqExpr({block}, output));
     Map<String, Any> attrs;
-    attrs.Set(relax::attr::kForcePure, Bool(true));
+    attrs.Set(relax::attr::kForcePure, true);
     auto func = Function(params, body, Downcast<StructInfo>(output->struct_info_.value()),
                          /*is_pure=*/true, /*attrs=*/DictAttrs(attrs));
     return func;

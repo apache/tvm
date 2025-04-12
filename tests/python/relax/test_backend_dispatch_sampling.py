@@ -85,7 +85,7 @@ def test_dispatch_multinomial_from_uniform_gpu():
     class Expected:
         @T.prim_func
         def parallel_sampling_from_prob(var_prob: T.handle, var_uniform_samples: T.handle, var_row_indices: T.handle, var_sampled_token_ids: T.handle):
-            T.func_attr({"tir.is_scheduled": 1})
+            T.func_attr({"tir.is_scheduled": True})
             n, vocab_size = T.int64(), T.int64()
             prob = T.match_buffer(var_prob, (n, vocab_size))
             batch_size = T.int64()

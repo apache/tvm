@@ -155,7 +155,7 @@ def gpu_2d_continuous_cumsum(
 
     @T.prim_func(private=True)
     def cumsum(var_a: T.handle, var_out: T.handle):
-        T.func_attr({"tir.is_scheduled": 1})  # prevent further scheduling
+        T.func_attr({"tir.is_scheduled": True})  # prevent further scheduling
         m, n = T.int64(), T.int64()
         A = T.match_buffer(var_a, [m, n], dtype=in_dtype)
         Out = T.match_buffer(var_out, [m, n], dtype=out_dtype)

@@ -99,7 +99,7 @@ def test_rms_norm_with_casting():
     class After:
         @T.prim_func
         def main(var_data: T.handle, weight: T.Buffer((4096,), "float16"), var_T_cast: T.handle):
-            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
+            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
             n = T.int32()
             data = T.match_buffer(var_data, (1, n, 4096), "float16")
             T_cast = T.match_buffer(var_T_cast, (1, n, 4096), "float16")
@@ -217,7 +217,7 @@ def test_rms_norm_without_casting():
     class After:
         @T.prim_func
         def main(var_data: T.handle, weight: T.Buffer((4096,), "float32"), var_T_cast: T.handle):
-            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
+            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
             n = T.int32()
             data = T.match_buffer(var_data, (1, n, 4096))
             T_cast = T.match_buffer(var_T_cast, (1, n, 4096))

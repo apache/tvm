@@ -558,7 +558,7 @@ Call::Call(DataType dtype, RelaxExpr op, Array<PrimExpr> args, Span span) {
 }
 
 TVM_REGISTER_GLOBAL("tir.Call")
-    .set_body_typed([](DataType type, RelaxExpr op,
+    .set_body_typed([](Optional<DataType> dtype, RelaxExpr op,
                        Array<Variant<runtime::String, IterVar, BufferRegion, PrimExpr>> args,
                        Span span) {
       Array<PrimExpr> prim_expr_args;
@@ -584,7 +584,7 @@ TVM_REGISTER_GLOBAL("tir.Call")
           prim_expr_args.push_back(Downcast<PrimExpr>(it));
         }
       }
-      return Call(type, op, prim_expr_args, span);
+      return Call(dtype.value_or(DataType::Void()), op, prim_expr_args, span);
     });
 
 TVM_REGISTER_NODE_TYPE(CallNode);

@@ -649,7 +649,7 @@ def tree_attn(
     apply_to_qkv_load(sch, sch.get_block("KV_load"))
 
     apply_to_md(sch, sch.get_block("lse_store"))
-    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+    return sch.mod["main"].with_attr("tir.is_scheduled", True)
 
 
 def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any]):
@@ -1341,4 +1341,4 @@ def tree_attn_with_paged_kv_cache(
     apply_to_qkv_load(sch, sch.get_block("K_load"))
     apply_to_qkv_load(sch, sch.get_block("V_load"))
     apply_to_md(sch, sch.get_block("lse_store"))
-    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+    return sch.mod["main"].with_attr("tir.is_scheduled", True)
