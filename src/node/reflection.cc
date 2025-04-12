@@ -69,10 +69,16 @@ class AttrGetter : public AttrVisitor {
     if (skey == key) *ret = value[0];
   }
   void Visit(const char* key, Optional<double>* value) final {
-    if (skey == key) *ret = value[0];
+    if (skey == key) {
+      *ret = value[0];
+      found_ref_object = true;
+    }
   }
   void Visit(const char* key, Optional<int64_t>* value) final {
-    if (skey == key) *ret = value[0];
+    if (skey == key) {
+      *ret = value[0];
+      found_ref_object = true;
+    }
   }
 
   void Visit(const char* key, runtime::NDArray* value) final {
