@@ -33,9 +33,9 @@ namespace topi {
 using namespace tvm::runtime;
 
 /*! \brief Canonicalize an argument that may be Array<Expr> or int to Array<Expr> */
-inline Array<Integer> ArrayOrInt(AnyView arg) {
+inline Optional<Array<Integer>> ArrayOrInt(AnyView arg) {
   if (arg == nullptr) {
-    return Array<Integer>();
+    return std::nullopt;
   }
   if (auto opt_int = arg.as<int>()) {
     Array<Integer> result;

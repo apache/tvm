@@ -407,17 +407,18 @@ inline Tensor unravel_index(const Tensor& x, const Tensor& shape, std::string na
  *
  * \return A Tensor whose op member is the squeeze operation
  */
-inline Tensor squeeze(const Tensor& x, Array<Integer> axis, bool atleast1d = false,
+inline Tensor squeeze(const Tensor& x, Optional<Array<Integer>> opt_axes, bool atleast1d = false,
                       std::string name = "T_squeeze", std::string tag = kInjective) {
   auto ndim = x->shape.size();
   std::vector<int> axis_val;
-  if (!axis.defined()) {
+  if (!opt_axes.has_value()) {
     for (size_t i = 0; i < ndim; ++i) {
       if (IsConstInt(x->shape[i]) && GetConstInt(x->shape[i]) == 1) {
         axis_val.push_back(static_cast<int>(i));
       }
     }
   } else {
+    Array<Integer> axis = *std::move(opt_axes);
     for (size_t i = 0; i < axis.size(); ++i) {
       int64_t val = axis[i]->value;
       if (val < 0) {
