@@ -71,10 +71,10 @@ class AttrAttacher : public ExprMutator {
     GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
     Array<Expr> call_tir_args = Downcast<Tuple>(call->args[1])->fields;
     // Compute the layout free buffers
-    Array<Integer> layout_free_buffers;
+    Array<int64_t> layout_free_buffers;
     for (size_t i = 0; i < call_tir_args.size(); i++) {
       if (layout_free_exprs_.count(call_tir_args[i].get())) {
-        layout_free_buffers.push_back(Integer(i));
+        layout_free_buffers.push_back(i);
       }
     }
     // Attach the layout free buffers to the tir::PrimFunc
