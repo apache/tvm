@@ -68,6 +68,12 @@ class AttrGetter : public AttrVisitor {
   void Visit(const char* key, std::string* value) final {
     if (skey == key) *ret = value[0];
   }
+  void Visit(const char* key, Optional<double>* value) final {
+    if (skey == key) *ret = value[0];
+  }
+  void Visit(const char* key, Optional<int64_t>* value) final {
+    if (skey == key) *ret = value[0];
+  }
 
   void Visit(const char* key, runtime::NDArray* value) final {
     if (skey == key) {
@@ -127,6 +133,8 @@ class AttrDir : public AttrVisitor {
   void Visit(const char* key, std::string* value) final { names->push_back(key); }
   void Visit(const char* key, runtime::NDArray* value) final { names->push_back(key); }
   void Visit(const char* key, runtime::ObjectRef* value) final { names->push_back(key); }
+  void Visit(const char* key, Optional<double>* value) final { names->push_back(key); }
+  void Visit(const char* key, Optional<int64_t>* value) final { names->push_back(key); }
 };
 
 std::vector<std::string> ReflectionVTable::ListAttrNames(Object* self) const {
@@ -181,6 +189,13 @@ class NodeAttrSetter : public AttrVisitor {
   }
   void Visit(const char* key, ObjectRef* value) final {
     *value = GetAttr(key).operator ObjectRef();
+  }
+
+  void Visit(const char* key, Optional<double>* value) final {
+    *value = GetAttr(key).operator Optional<double>();
+  }
+  void Visit(const char* key, Optional<int64_t>* value) final {
+    *value = GetAttr(key).operator Optional<int64_t>();
   }
 
  private:
@@ -294,7 +309,8 @@ class GetAttrKeyByAddressVisitor : public AttrVisitor {
   void Visit(const char* key, DataType* value) final { DoVisit(key, value); }
   void Visit(const char* key, runtime::NDArray* value) final { DoVisit(key, value); }
   void Visit(const char* key, runtime::ObjectRef* value) final { DoVisit(key, value); }
-
+  void Visit(const char* key, Optional<double>* value) final { DoVisit(key, value); }
+  void Visit(const char* key, Optional<int64_t>* value) final { DoVisit(key, value); }
   const char* GetKey() const { return key_; }
 
  private:

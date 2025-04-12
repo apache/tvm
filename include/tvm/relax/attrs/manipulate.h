@@ -32,7 +32,7 @@ namespace relax {
 
 /*! \brief Attributes used in concat operators */
 struct ConcatAttrs : public tvm::AttrsNode<ConcatAttrs> {
-  Optional<Integer> axis;
+  Optional<int64_t> axis;
 
   TVM_DECLARE_ATTRS(ConcatAttrs, "relax.attrs.ConcatAttrs") {
     TVM_ATTR_FIELD(axis).describe(

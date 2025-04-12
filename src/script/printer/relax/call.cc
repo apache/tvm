@@ -79,6 +79,24 @@ class AttrPrinter : public tvm::AttrVisitor {
     LOG(FATAL) << "TypeError: NDArray is not allowed in Attrs";
   }
 
+  void Visit(const char* key, Optional<double>* value) final {
+    keys->push_back(key);
+    if (value->has_value()) {
+      values->push_back(LiteralDoc::Float(value->value(), p->Attr(key)));
+    } else {
+      values->push_back(LiteralDoc::None(p->Attr(key)));
+    }
+  }
+
+  void Visit(const char* key, Optional<int64_t>* value) final {
+    keys->push_back(key);
+    if (value->has_value()) {
+      values->push_back(LiteralDoc::Int(value->value(), p->Attr(key)));
+    } else {
+      values->push_back(LiteralDoc::None(p->Attr(key)));
+    }
+  }
+
   ObjectPath p;
   const IRDocsifier& d;
   Array<String>* keys;

@@ -58,6 +58,12 @@ class BaseValueEqual {
 
   bool operator()(const int64_t& lhs, const int64_t& rhs) const { return lhs == rhs; }
   bool operator()(const uint64_t& lhs, const uint64_t& rhs) const { return lhs == rhs; }
+  bool operator()(const Optional<int64_t>& lhs, const Optional<int64_t>& rhs) const {
+    return lhs == rhs;
+  }
+  bool operator()(const Optional<double>& lhs, const Optional<double>& rhs) const {
+    return lhs == rhs;
+  }
   bool operator()(const int& lhs, const int& rhs) const { return lhs == rhs; }
   bool operator()(const bool& lhs, const bool& rhs) const { return lhs == rhs; }
   bool operator()(const std::string& lhs, const std::string& rhs) const { return lhs == rhs; }
@@ -258,7 +264,10 @@ class SEqualReducer {
                   Optional<ObjectPathPair> paths = NullOpt) const;
   bool operator()(const DataType& lhs, const DataType& rhs,
                   Optional<ObjectPathPair> paths = NullOpt) const;
-
+  bool operator()(const Optional<double>& lhs, const Optional<double>& rhs,
+                  Optional<ObjectPathPair> paths = NullOpt) const;
+  bool operator()(const Optional<int64_t>& lhs, const Optional<int64_t>& rhs,
+                  Optional<ObjectPathPair> paths = NullOpt) const;
   template <typename ENum, typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
   bool operator()(const ENum& lhs, const ENum& rhs,
                   Optional<ObjectPathPair> paths = NullOpt) const {

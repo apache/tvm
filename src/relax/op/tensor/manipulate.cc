@@ -116,7 +116,7 @@ TVM_REGISTER_OP("relax.broadcast_to")
 /* relax.concat */
 TVM_REGISTER_NODE_TYPE(ConcatAttrs);
 
-Expr concat(Expr tensors, Optional<Integer> axis) {
+Expr concat(Expr tensors, Optional<int64_t> axis) {
   ObjectPtr<ConcatAttrs> attrs = make_object<ConcatAttrs>();
   attrs->axis = std::move(axis);
 
@@ -190,7 +190,7 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<ConcatAttrs>();
-  int output_ndim = attrs->axis.defined() ? kUnknownNDim : 1;
+  int output_ndim = attrs->axis.has_value() ? kUnknownNDim : 1;
   DataType output_dtype = DataType::Void();
   Optional<VDevice> vdev = NullOpt;
   bool shape_unknown = false;
@@ -269,7 +269,7 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
   }
 
   int axis =
-      attrs->axis.defined() ? NormalizeAxis(call, ctx, output_ndim, attrs->axis.value()->value) : 0;
+      attrs->axis.has_value() ? NormalizeAxis(call, ctx, output_ndim, attrs->axis.value()) : 0;
   // If there is only one input tensor, no action is needed.
   if (tensor_sinfo.size() == 1) {
     return tensor_sinfo[0];
@@ -316,7 +316,7 @@ InferLayoutOutput InferLayoutConcat(const Call& call,
   }
   output_layouts.push_back(layout);
   ObjectPtr<ConcatAttrs> new_attrs = make_object<ConcatAttrs>(*attrs);
-  new_attrs->axis = Integer(FindAxis(layout->layout, attrs->axis.value_or(0)->value));
+  new_attrs->axis = FindAxis(layout->layout, attrs->axis.value_or(0));
   return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
 }
 

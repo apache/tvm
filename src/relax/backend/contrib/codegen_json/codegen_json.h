@@ -86,6 +86,22 @@ class OpAttrExtractor : public AttrVisitor {
 
   void Visit(const char* key, std::string* value) final { SetNodeAttr(key, {*value}); }
 
+  void Visit(const char* key, Optional<double>* value) final {
+    if (value->has_value()) {
+      SetNodeAttr(key, {Fp2String(value->value())});
+    } else {
+      SetNodeAttr(key, {""});
+    }
+  }
+
+  void Visit(const char* key, Optional<int64_t>* value) final {
+    if (value->has_value()) {
+      SetNodeAttr(key, {std::to_string(value->value())});
+    } else {
+      SetNodeAttr(key, {""});
+    }
+  }
+
   void Visit(const char* key, DataType* value) final {
     if (!value->is_void()) {
       SetNodeAttr(key, {runtime::DLDataTypeToString(*value)});
