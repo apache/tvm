@@ -44,7 +44,7 @@ Expr broadcast_to(Expr x, Expr shape);
  * If it is `NullOpt`, the input tensor is required to be flattened before concatenation.
  * \return The concatenated tensor.
  */
-Expr concat(Expr tensors, Optional<Integer> axis);
+Expr concat(Expr tensors, Optional<int64_t> axis);
 
 /*!
  * \brief Insert new axes at the positions given by `axis`.

@@ -123,6 +123,8 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
     void Visit(const char* key, void** value) final {}
     void Visit(const char* key, DataType* value) final {}
     void Visit(const char* key, runtime::NDArray* value) final {}
+    void Visit(const char* key, Optional<double>* value) final {}
+    void Visit(const char* key, Optional<int64_t>* value) final {}
     void Visit(const char* key, ObjectRef* value) final {
       const Object* obj = value->get();
       if (obj == nullptr) {

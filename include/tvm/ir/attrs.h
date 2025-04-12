@@ -730,12 +730,23 @@ struct TypeName<int> {
 
 template <>
 struct TypeName<int64_t> {
-  static constexpr const char* value = "int64";
+  static constexpr const char* value = "int";
 };
 
 template <>
+struct TypeName<Optional<int64_t>> {
+  static constexpr const char* value = "Optional[int]";
+};
+
+template <>
+struct TypeName<Optional<double>> {
+  static constexpr const char* value = "Optional[float]";
+};
+
+
+template <>
 struct TypeName<uint64_t> {
-  static constexpr const char* value = "uint64_t";
+  static constexpr const char* value = "int";
 };
 
 template <>
@@ -760,7 +771,7 @@ struct TypeName<void*> {
 
 template <>
 struct TypeName<double> {
-  static constexpr const char* value = "double";
+  static constexpr const char* value = "float";
 };
 
 class AttrDocEntry {

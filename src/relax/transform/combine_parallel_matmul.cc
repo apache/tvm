@@ -204,13 +204,13 @@ runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> Ge
         continue;
       }
 
-      auto concat_rhs = concat(Tuple(rhs), Integer(rhs_dim - 1));
+      auto concat_rhs = concat(Tuple(rhs), rhs_dim - 1);
       auto out_dtype = GetTensorSInfo(matchings[patterns.matmul[indices[0]]])->dtype;
       auto matmul_combined = matmul(lhs, concat_rhs, out_dtype);
 
       if (branch_info.bias_dim) {
         auto bias_dim = GetTensorSInfo(bias[0])->ndim;
-        auto concat_bias = concat(Tuple(bias), Integer(bias_dim - 1));
+        auto concat_bias = concat(Tuple(bias), bias_dim - 1);
         matmul_combined = add(matmul_combined, concat_bias);
       }
 

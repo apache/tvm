@@ -151,15 +151,11 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
     ICHECK(concat_attrs);
 
     auto old_concat_axis = [&]() -> size_t {
-      if (concat_attrs->axis.defined()) {
-        return concat_attrs->axis.value()->value;
-      } else {
-        return 0;
-      }
+      return concat_attrs->axis.value_or(0);
     }();
     Integer new_concat_axis = get_permute_dims_axes(all_permute_dims[0])[old_concat_axis];
 
-    auto new_concat = concat(Tuple(args), new_concat_axis);
+    auto new_concat = concat(Tuple(args), new_concat_axis->value);
     auto new_permute_dims = permute_dims(new_concat, permute_axes);
 
     return new_permute_dims;

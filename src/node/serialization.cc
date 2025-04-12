@@ -89,6 +89,9 @@ class NodeIndexer : public AttrVisitor {
     tensor_list_.push_back(ptr);
   }
 
+  void Visit(const char* key, Optional<double>* value) final {}
+  void Visit(const char* key, Optional<int64_t>* value) final {}
+
   void Visit(const char* key, ObjectRef* value) final { MakeIndex(Any(*value)); }
 
   void MakeNodeIndex(Any node) {
@@ -233,10 +236,25 @@ class JSONAttrGetter : public AttrVisitor {
     LOG(FATAL) << "not allowed to serialize a pointer";
   }
   void Visit(const char* key, DataType* value) final { node_->attrs[key] = Type2String(*value); }
-
   void Visit(const char* key, runtime::NDArray* value) final {
     node_->attrs[key] =
         std::to_string(tensor_index_->at(const_cast<DLTensor*>((*value).operator->())));
+  }
+
+  void Visit(const char* key, Optional<int64_t>* value) final {
+    if (value->has_value()) {
+      node_->attrs[key] = std::to_string(value->value());
+    } else {
+      node_->attrs[key] = "null";
+    }
+  }
+  void Visit(const char* key, Optional<double>* value) final {
+    if (value->has_value()) {
+      double val = **value;
+      Visit(key, &val);
+    } else {
+      node_->attrs[key] = "null";
+    }
   }
 
   void Visit(const char* key, ObjectRef* value) final {
@@ -342,6 +360,8 @@ class FieldDependencyFinder : public AttrVisitor {
   void Visit(const char* key, void** value) final {}
   void Visit(const char* key, DataType* value) final {}
   void Visit(const char* key, runtime::NDArray* value) final {}
+  void Visit(const char* key, Optional<int64_t>* value) final {}
+  void Visit(const char* key, Optional<double>* value) final {}
   void Visit(const char* key, ObjectRef* value) final {
     size_t index;
     ParseValue(key, &index);
@@ -411,12 +431,34 @@ class JSONAttrSetter : public AttrVisitor {
       LOG(FATAL) << "Wrong value format for field " << key;
     }
   }
+
+  template <typename T, typename Fallback>
+  void ParseOptionalValue(const char* key, Optional<T>* value, Fallback fallback) const {
+    if (GetValue(key) == "null") {
+      *value = std::nullopt;
+    } else {
+      T temp;
+      fallback(key, &temp);
+      *value = temp;
+    }
+  }
+
   void Visit(const char* key, double* value) final { ParseDouble(key, value); }
   void Visit(const char* key, int64_t* value) final { ParseValue(key, value); }
   void Visit(const char* key, uint64_t* value) final { ParseValue(key, value); }
   void Visit(const char* key, int* value) final { ParseValue(key, value); }
   void Visit(const char* key, bool* value) final { ParseValue(key, value); }
   void Visit(const char* key, std::string* value) final { *value = GetValue(key); }
+
+  void Visit(const char* key, Optional<double>* value) final {
+    ParseOptionalValue<double>(key, value,
+      [this](const char* key, double* value) { ParseDouble(key, value); });
+  }
+  void Visit(const char* key, Optional<int64_t>* value) final {
+    ParseOptionalValue<int64_t>(key, value,
+      [this](const char* key, int64_t* value) { ParseValue(key, value); });
+  }
+
   void Visit(const char* key, void** value) final {
     LOG(FATAL) << "not allowed to deserialize a pointer";
   }
