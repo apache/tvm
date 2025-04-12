@@ -240,9 +240,9 @@ class ScanOpNode : public OperationNode {
  */
 class ScanOp : public Operation {
  public:
-  TVM_DLL ScanOp(std::string name, std::string tag, Map<String, ffi::Any> attrs, IterVar axis,
-                 Array<Tensor> init, Array<Tensor> update, Array<Tensor> state_placeholder,
-                 Array<Tensor> input);
+  TVM_DLL ScanOp(std::string name, std::string tag, Optional<Map<String, ffi::Any>> attrs,
+                 IterVar axis, Array<Tensor> init, Array<Tensor> update,
+                 Array<Tensor> state_placeholder, Array<Tensor> input);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ScanOp, Operation, ScanOpNode);
 };
