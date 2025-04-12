@@ -53,7 +53,7 @@ Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, DataType dtype)
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr full_like(Expr x, Expr fill_value, DataType dtype);
+Expr full_like(Expr x, Expr fill_value, Optional<DataType> dtype);
 
 /*!
  * \brief Construct a tensor of all ones, with the input shape and dtype.
@@ -71,7 +71,7 @@ Expr ones(Expr shape, DataType dtype);
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr ones_like(Expr x, DataType dtype);
+Expr ones_like(Expr x, Optional<DataType> dtype);
 
 /*!
  * \brief Construct a tensor of all zeros, with the input shape and dtype.
