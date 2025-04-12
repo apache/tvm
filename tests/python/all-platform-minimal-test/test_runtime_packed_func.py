@@ -27,6 +27,7 @@ from tvm.script import tir as T
 
 def test_get_global():
     targs = (10, 10.0, "hello")
+
     # register into global function table
     @tvm.register_func
     def my_packed_func(*args):
@@ -48,6 +49,7 @@ def test_get_callback_with_node():
         return y
 
     f2 = tvm.runtime.convert(test)
+
     # register into global function table
     @tvm.register_func
     def my_callback_with_node(y, f):

@@ -532,7 +532,9 @@ def test_tuple_consecutive():
         # Grouped function 2
         concat = relax.Var("concat", R.Tensor((1, 144, 64, 64), "float32"))
         p0 = relax.Var("p0", R.Tensor((), "float32"))
-        with bb.function("fused_pool2d_add2", [concat, p0], attrs={"Primitive": True}, private=True):
+        with bb.function(
+            "fused_pool2d_add2", [concat, p0], attrs={"Primitive": True}, private=True
+        ):
             with bb.dataflow():
                 lv0 = bb.emit_te(
                     topi.nn.pool2d,
@@ -803,7 +805,9 @@ def test_multiple_relax_functions():
 
         x = relax.Var("x", R.Tensor([20, 10], "float32"))
         p0 = relax.Var("p0", R.Tensor((), "float32"))
-        with bb.function("fused_add1_exp1_squeeze1", [x, p0], attrs={"Primitive": True}, private=True):
+        with bb.function(
+            "fused_add1_exp1_squeeze1", [x, p0], attrs={"Primitive": True}, private=True
+        ):
             with bb.dataflow():
                 lv0 = bb.emit_te(topi.add, x, p0)
                 lv1 = bb.emit_te(topi.exp, lv0)

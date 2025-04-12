@@ -1773,7 +1773,6 @@ def test_func_struct_info_of_legalized_layout_transform():
 
 
 def test_scatter_nd():
-
     # fmt: off
     @I.ir_module
     class Before:

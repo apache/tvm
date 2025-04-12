@@ -917,7 +917,6 @@ def test_empty():
 
 @tvm.testing.requires_cuda
 def test_multinomial_from_uniform():
-
     prob_shape = (3, 5)
     sample_shape = (6, 1)
 

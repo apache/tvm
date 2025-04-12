@@ -388,6 +388,7 @@ def _filter_traceback_frames(tb, filter_funcs: Sequence[Callable[[types.CodeType
 
     return new_tb
 
+
 def legacy_ensure_cerror(c_err_msg):
     """Detect if the error message is in python style and convert it to C style.
 

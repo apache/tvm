@@ -160,7 +160,9 @@ def test_annotate_buffer_access_read_and_write():
                 vi, vj = T.axis.remap("SS", [i, j])
                 T.reads(A[vi - 1 : vi + 2, vj - 1 : vj + 2])
                 T.writes(B[vi : vi + 2, vj : vj + 2])
-                T.block_attr({"explicit_read_region": [T.int32(0)], "explicit_write_region": [T.int32(0)]})
+                T.block_attr(
+                    {"explicit_read_region": [T.int32(0)], "explicit_write_region": [T.int32(0)]}
+                )
                 B[vi, vj] = A[vi, vj] * 2.0
         for i, j in T.grid(128, 128):
             with T.block("C"):
