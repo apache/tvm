@@ -450,6 +450,63 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
       (static_cast<SelfPtr>(_self.get())->*(MemFunc))(args, rv);       \
     });                                                                \
   }
+
+
+/*!
+ * \brief Export typed function as a PackedFunc
+ *        that can be loaded by LibraryModule.
+ *
+ * \param ExportName The symbol name to be exported.
+ * \param Function The typed function.
+ * \note ExportName and Function must be different,
+ *       see code examples below.
+ *
+ * \sa TypedPackedFunc
+ *
+ * \code
+ *
+ * int AddOne_(int x) {
+ *   return x + 1;
+ * }
+ *
+ * // Expose the function as "AddOne"
+ * TVM_DLL_EXPORT_TYPED_FUNC(AddOne, AddOne_);
+ *
+ * // Expose the function as "SubOne"
+ * TVM_DLL_EXPORT_TYPED_FUNC(SubOne, [](int x) {
+ *   return x - 1;
+ * });
+ *
+ * // The following code will cause compilation error.
+ * // Because the same Function and ExportName
+ * // TVM_DLL_EXPORT_TYPED_FUNC(AddOne_, AddOne_);
+ *
+ * // The following code is OK, assuming the macro
+ * // is in a different namespace from xyz
+ * // TVM_DLL_EXPORT_TYPED_FUNC(AddOne_, xyz::AddOne_);
+ *
+ * \endcode
+ */
+#define TVM_DLL_EXPORT_TYPED_FUNC(ExportName, Function)                                     \
+  extern "C" {                                                                              \
+  TVM_DLL int ExportName(TVMValue* args, int* type_code, int num_args, TVMValue* out_value, \
+                         int* out_type_code, void* resource_handle) {                       \
+    try {                                                                                   \
+      using FuncInfo = ::tvm::ffi::details::FunctionInfo<decltype(Function)>;                \
+      std::vector<::tvm::ffi::AnyView> packed_args(num_args);                                \
+      ::tvm::runtime::LegacyTVMArgsToPackedArgs(args, type_code, num_args, packed_args.data());  \
+      ::tvm::ffi::Any rv;                                                                     \
+      static std::string name = #ExportName;                                                  \
+      ::tvm::ffi::details::unpack_call<typename FuncInfo::RetType, FuncInfo::num_args>(     \
+        &name, Function, packed_args.data(), num_args, &rv);                          \
+      ::tvm::runtime::MoveAnyToLegacyTVMValue(std::move(rv), out_value, out_type_code);      \
+      return 0;                                                                             \
+    } catch (const ::std::exception& _except_) {                                            \
+      TVMAPISetLastError(_except_.what());                                                  \
+      return -1;                                                                            \
+    }                                                                                       \
+  }                                                                                         \
+  }
 }  // namespace runtime
 
 using ffi::Any;
