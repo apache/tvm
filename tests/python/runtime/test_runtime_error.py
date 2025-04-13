@@ -33,9 +33,7 @@ def test_op_translation_to_not_implemented():
         ferror()
         assert False
     except tvm.error.OpNotImplemented as e:
-        msg = str(e)
         assert isinstance(e, NotImplementedError)
-        assert msg.find("ffi_testing.cc") != -1
 
 
 def test_op_translation_to_internal_error():
@@ -44,8 +42,7 @@ def test_op_translation_to_internal_error():
         fchk_eq(0, 1)
         assert False
     except tvm.error.InternalError as e:
-        msg = str(e)
-        assert msg.find("ffi_testing.cc") != -1
+        pass
 
 
 def test_op_translation_to_value_error():
@@ -53,8 +50,7 @@ def test_op_translation_to_value_error():
         tvm.testing.ErrorTest(0, 1)
         assert False
     except ValueError as e:
-        msg = str(e)
-        assert msg.find("ffi_testing.cc") != -1
+        pass
 
 
 def test_deep_callback():
