@@ -31,6 +31,7 @@
 #include <fstream>
 #include <unordered_map>
 #include <vector>
+#include <utility>
 
 namespace tvm {
 namespace runtime {

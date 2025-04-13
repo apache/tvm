@@ -91,10 +91,12 @@ class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(MultiLevelTilingWithIntrinNode, MultiLevelTilingNode);
 };
 
-ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(
-    String intrin_name, String structure, Optional<Array<String>> tile_binds,
-    Optional<Integer> max_innermost_factor, Optional<Array<Integer>> vector_load_lens,
-    Optional<Map<String, ffi::Any>> reuse_read, Optional<Map<String, ffi::Any>> reuse_write) {
+ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(String intrin_name, String structure,
+                                                      Optional<Array<String>> tile_binds,
+                                                      Optional<Integer> max_innermost_factor,
+                                                      Optional<Array<Integer>> vector_load_lens,
+                                                      Optional<Map<String, ffi::Any>> reuse_read,
+                                                      Optional<Map<String, ffi::Any>> reuse_write) {
   ICHECK(tir::TensorIntrin::Get(intrin_name).defined())
       << "Provided tensor intrinsic " << intrin_name << " is not registered.";
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingWithIntrinNode>(

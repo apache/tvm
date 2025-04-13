@@ -39,7 +39,6 @@ using namespace tvm;
 using namespace tvm::runtime;
 using namespace tvm::relax;
 
-
 TEST(NestedMsg, Basic) {
   // start with no annotation
   relax::Var x("x", NullOpt), y("y", NullOpt);

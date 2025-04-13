@@ -87,8 +87,7 @@ class ConcreteScheduleNode : public ScheduleNode {
 
  public:
   /******** Schedule: Sampling ********/
-  ExprRV SampleCategorical(const Array<Integer>& candidates,
-                           const Array<FloatImm>& probs,
+  ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
                            Optional<Integer> decision = NullOpt) override;
   Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
                                   Optional<Array<Integer>> decision = NullOpt) override;

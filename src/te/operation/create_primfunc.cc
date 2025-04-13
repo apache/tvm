@@ -296,7 +296,7 @@ Array<Buffer> GenerateOutputBuffers(const te::ComputeOp& compute_op, CreateFuncI
  * \returns The block annotation dict.
  **/
 Map<String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& compute_op,
-                                                CreateFuncInfo* info) {
+                                               CreateFuncInfo* info) {
   Map<String, ffi::Any> annotations;
   auto mutate_attr = [&info](const ffi::Any& value) -> ffi::Any {
     if (auto tensor_value = value.as<te::Tensor>()) {

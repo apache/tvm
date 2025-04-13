@@ -325,7 +325,7 @@ Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
 }  // namespace axis
 
 #define TVM_TIR_IR_BUILDER_FOR_FRAME(Method, Kind)                                                \
-  ForFrame Method(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annotations) {  \
+  ForFrame Method(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annotations) {        \
     PrimExpr min = start;                                                                         \
     PrimExpr extent = arith::Analyzer().Simplify(stop - start);                                   \
     ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();                                      \
@@ -336,7 +336,7 @@ Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
       ICHECK_EQ(vars.size(), 1);                                                                  \
       ICHECK_EQ(doms.size(), 1);                                                                  \
       return tvm::tir::For(vars[0], doms[0]->min, doms[0]->extent, Kind, body, NullOpt,           \
-                           annotations.value_or(Map<String, Any>()));                       \
+                           annotations.value_or(Map<String, Any>()));                             \
     };                                                                                            \
     return ForFrame(n);                                                                           \
   }
@@ -473,8 +473,7 @@ AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_s
 }
 
 AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
-                                 Array<PrimExpr> extents,
-                                 Optional<Map<String, Any>> annotations) {
+                                 Array<PrimExpr> extents, Optional<Map<String, Any>> annotations) {
   ObjectPtr<AllocateConstFrameNode> n = make_object<AllocateConstFrameNode>();
   n->dtype = dtype;
   n->extents = extents;

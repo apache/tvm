@@ -43,7 +43,7 @@ class ReprPrinter {
 
   /*! \brief The node to be printed. */
   TVM_DLL void Print(const ObjectRef& node);
-    /*! \brief The node to be printed. */
+  /*! \brief The node to be printed. */
   TVM_DLL void Print(const ffi::Any& node);
   /*! \brief Print indent to the stream */
   TVM_DLL void PrintIndent();

@@ -460,9 +460,9 @@ struct SampleCategoricalTraits : public UnpackedInstTraits<SampleCategoricalTrai
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 1;
 
-  static ExprRV UnpackedApplyToSchedule(Schedule sch,                    //
+  static ExprRV UnpackedApplyToSchedule(Schedule sch,               //
                                         Array<Integer> candidates,  //
-                                        Array<FloatImm> probs,     //
+                                        Array<FloatImm> probs,      //
                                         Optional<Integer> decision) {
     return sch->SampleCategorical(candidates, probs, decision);
   }

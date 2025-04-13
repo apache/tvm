@@ -34,8 +34,8 @@ using namespace tvm::runtime;
 
 #define TOPI_REGISTER_BCAST_OP(OpName, Op)                                              \
   TVM_REGISTER_GLOBAL(OpName).set_body([](TVMArgs args, TVMRetValue* rv) {              \
-    bool lhs_is_tensor = args[0].as<tvm::te::Tensor>().has_value();                        \
-    bool rhs_is_tensor = args[1].as<tvm::te::Tensor>().has_value();                        \
+    bool lhs_is_tensor = args[0].as<tvm::te::Tensor>().has_value();                     \
+    bool rhs_is_tensor = args[1].as<tvm::te::Tensor>().has_value();                     \
     if (lhs_is_tensor && rhs_is_tensor) {                                               \
       *rv = Op(args[0].operator tvm::te::Tensor(), args[1].operator tvm::te::Tensor()); \
     } else if (!lhs_is_tensor && rhs_is_tensor) {                                       \

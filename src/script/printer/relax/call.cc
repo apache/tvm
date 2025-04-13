@@ -347,9 +347,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
               for (const auto& kv : attrs->dict) {
                 sorted.push_back(kv);
               }
-              std::sort(sorted.begin(), sorted.end(), [](const auto& a, const auto& b) {
-                return a.first < b.first;
-              });
+              std::sort(sorted.begin(), sorted.end(),
+                        [](const auto& a, const auto& b) { return a.first < b.first; });
               for (const auto& kv : sorted) {
                 kwargs_keys.push_back(kv.first);
                 kwargs_values.push_back(

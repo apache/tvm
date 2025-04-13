@@ -43,7 +43,8 @@ Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, Optional<DataTy
   } else if (const auto* _array = shape.as<ArrayNode>()) {
     shape_in_expr = ShapeExpr(GetRef<Array<PrimExpr>>(_array));
   } else {
-    LOG(FATAL) << "Full only expects the input shape to be either an Expr or an Array of PrimExpr. ";
+    LOG(FATAL)
+        << "Full only expects the input shape to be either an Expr or an Array of PrimExpr. ";
   }
 
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();

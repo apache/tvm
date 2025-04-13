@@ -32,6 +32,10 @@
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 
+#include <string>
+#include <utility>
+#include <vector>
+
 namespace tvm {
 namespace runtime {
 
@@ -474,10 +478,9 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
     }                                                                                           \
   }                                                                                             \
   }
-}  // namespace runtime
 
+}  // namespace runtime  // NOLINT(*)
 using ffi::Any;
 using ffi::AnyView;
-
 }  // namespace tvm
 #endif  // TVM_RUNTIME_PACKED_FUNC_H_

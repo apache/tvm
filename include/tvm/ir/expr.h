@@ -811,7 +811,6 @@ struct TypeTraits<Bool> : public ObjectRefWithFallbackTraitsBase<Bool, int64_t> 
   static TVM_FFI_INLINE Bool ConvertFallbackValue(int64_t value) { return Bool(value != 0); }
 };
 
-
 // define automatic conversion from bool, int64_t, double to PrimExpr
 TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(StrictBool value) {
   return IntImm(DataType::Bool(), value, Span());

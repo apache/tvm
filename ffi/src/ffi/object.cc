@@ -202,7 +202,7 @@ class TypeTable {
       if (ptr != nullptr && ptr->type_depth != 0) {
         int parent_index = ptr->type_acenstors[ptr->type_depth - 1];
         num_children[parent_index] += num_children[ptr->type_index] + 1;
-        if (expected_child_slots[ptr->type_index] + 1< ptr->num_slots) {
+        if (expected_child_slots[ptr->type_index] + 1 < ptr->num_slots) {
           expected_child_slots[ptr->type_index] = ptr->num_slots - 1;
         }
         expected_child_slots[parent_index] += expected_child_slots[ptr->type_index] + 1;
@@ -249,9 +249,8 @@ class TypeTable {
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIOpaquePtr, TypeIndex::kTVMFFIOpaquePtr);
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIDataType, TypeIndex::kTVMFFIDataType);
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIDevice, TypeIndex::kTVMFFIDevice);
-    ReserveBuiltinTypeIndex(
-      StaticTypeKey::kTVMFFIObjectRValueRef,
-      TypeIndex::kTVMFFIObjectRValueRef);
+    ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIObjectRValueRef,
+                            TypeIndex::kTVMFFIObjectRValueRef);
   }
 
   void ReserveBuiltinTypeIndex(const char* type_key, int32_t static_type_index) {

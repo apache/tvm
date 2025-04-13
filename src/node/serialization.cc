@@ -482,8 +482,7 @@ class JSONAttrSetter : public AttrVisitor {
   static Any CreateInitAny(ReflectionVTable* reflection, JSONNode* jnode) {
     JSONAttrSetter setter;
     setter.jnode_ = jnode;
-    if (jnode->type_key == ffi::StaticTypeKey::kTVMFFINone ||
-        jnode->type_key.empty()) {
+    if (jnode->type_key == ffi::StaticTypeKey::kTVMFFINone || jnode->type_key.empty()) {
       // empty key type means None in current implementation
       return Any();
     }

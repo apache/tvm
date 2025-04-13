@@ -305,8 +305,7 @@ void CollectCLMLFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node)
  * \param functions The extern functions to be compiled via OpenCLML
  * \return Runtime modules.
  */
-Array<runtime::Module> OpenCLMLCompiler(Array<Function> functions,
-                                        Map<String, Any> /*unused*/,
+Array<runtime::Module> OpenCLMLCompiler(Array<Function> functions, Map<String, Any> /*unused*/,
                                         Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
   for (const auto& func : functions) {

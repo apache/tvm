@@ -44,16 +44,12 @@ struct TypeToFieldStaticTypeIndex<T, std::enable_if_t<TypeTraits<T>::convert_ena
 
 template <typename T, typename = void>
 struct TypeToRuntimeTypeIndex {
-  static int32_t v() {
-    return TypeToFieldStaticTypeIndex<T>::value;
-  }
+  static int32_t v() { return TypeToFieldStaticTypeIndex<T>::value; }
 };
 
 template <typename T>
 struct TypeToRuntimeTypeIndex<T, std::enable_if_t<std::is_base_of_v<ObjectRef, T>>> {
-  static int32_t v() {
-    return T::ContainerType::RuntimeTypeIndex();
-  }
+  static int32_t v() { return T::ContainerType::RuntimeTypeIndex(); }
 };
 
 /*!
@@ -77,13 +73,13 @@ class ReflectionDef {
   explicit ReflectionDef(int32_t type_index) : type_index_(type_index) {}
 
   template <typename Class, typename T>
-  ReflectionDef& def_readonly(const char* name, T Class::* field_ptr) {
+  ReflectionDef& def_readonly(const char* name, T Class::*field_ptr) {
     RegisterField(name, field_ptr, true);
     return *this;
   }
 
   template <typename Class, typename T>
-  ReflectionDef& def_readwrite(const char* name, T Class::* field_ptr) {
+  ReflectionDef& def_readwrite(const char* name, T Class::*field_ptr) {
     RegisterField(name, field_ptr, false);
     return *this;
   }
@@ -92,7 +88,7 @@ class ReflectionDef {
 
  private:
   template <typename Class, typename T>
-  void RegisterField(const char* name, T Class::* field_ptr, bool readonly) {
+  void RegisterField(const char* name, T Class::*field_ptr, bool readonly) {
     TVMFFIFieldInfo info;
     info.name = name;
     info.field_static_type_index = TypeToFieldStaticTypeIndex<T>::value;
