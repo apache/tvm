@@ -116,16 +116,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
 
   /* Same as makeInitDataProvider but in case of InputOutput return real DLTensor */
   TensorRegistry::DLTensorProvider makeIODataProvider(const TVMArgs& args) const {
-    auto extract_dl_tensor = [](const TVMArgValue& val) -> const DLTensor* {
-      ICHECK(val.type_code() == kTVMNDArrayHandle || val.type_code() == kTVMDLTensorHandle)
-          << "Expect NDArray or DLTensor";
-      return val.IsObjectRef<NDArray>() ? val.operator NDArray().operator->()
-                                        : val.operator DLTensor*();
-    };
-
     std::map<uint32_t, const DLTensor*> io_map;  // eid to dl tensor map
     for (size_t i = 0; i < run_arg_eid_.size(); i++) {
-      io_map[run_arg_eid_[i]] = extract_dl_tensor(args[i]);
+      io_map[run_arg_eid_[i]] = args[i].operator DLTensor*();
     }
 
     // lambda with captured IO data handlers

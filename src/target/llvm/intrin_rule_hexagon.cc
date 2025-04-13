@@ -57,6 +57,7 @@ inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
   const auto* f = tvm::runtime::Registry::Get("target.TargetCurrent");
   ICHECK(f != nullptr);
   const auto ret = (*f)(true);
+  bool useqhl = true;
   if (auto opt_target = ret.as<Target>()) {
     const std::string tstring = opt_target.value()->str();
     useqhl = tstring.find("+hvx-qfloat") != std::string::npos;
