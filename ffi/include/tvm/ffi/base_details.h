@@ -99,6 +99,18 @@
     throw err;                                                                            \
   }
 
+/*!
+ * \brief Clear the padding parts so we can safely use v_int64 for hash
+ *        and equality check even when the value stored is a pointer.
+ *
+ * This macro is used to clear the padding parts for hash and equality check
+ * in 32bit platform.
+ */
+#define TVM_FFI_CLEAR_PTR_PADDING_IN_FFI_ANY(result)                \
+  if constexpr (sizeof(result->v_obj) != sizeof(result->v_int64)) { \
+    result->v_int64 = 0;                                            \
+  }
+
 namespace tvm {
 namespace ffi {
 namespace details {

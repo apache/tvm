@@ -300,7 +300,7 @@ TEST(String, Bytes) {
   EXPECT_EQ(b.size(), 4);
   EXPECT_EQ(b.operator std::string(), s);
 
-  TVMFFIByteArray arr{s.data(), static_cast<int64_t>(s.size())};
+  TVMFFIByteArray arr{s.data(), static_cast<size_t>(s.size())};
   Bytes b2 = arr;
   EXPECT_EQ(b2.size(), 4);
   EXPECT_EQ(b2.operator std::string(), s);
@@ -308,7 +308,7 @@ TEST(String, Bytes) {
 
 TEST(String, BytesAny) {
   std::string s = {'\0', 'a', 'b', 'c'};
-  TVMFFIByteArray arr{s.data(), static_cast<int64_t>(s.size())};
+  TVMFFIByteArray arr{s.data(), static_cast<size_t>(s.size())};
 
   AnyView view = &arr;
   EXPECT_EQ(view.type_index(), TypeIndex::kTVMFFIByteArrayPtr);
@@ -327,7 +327,7 @@ TEST(String, StdString) {
   EXPECT_EQ(view1.type_index(), TypeIndex::kTVMFFIRawStr);
   EXPECT_EQ(view1.as<std::string>().value(), s1);
 
-  TVMFFIByteArray arr1{s1.data(), static_cast<int64_t>(s1.size())};
+  TVMFFIByteArray arr1{s1.data(), static_cast<size_t>(s1.size())};
   AnyView view2 = &arr1;
   EXPECT_EQ(view2.type_index(), TypeIndex::kTVMFFIByteArrayPtr);
   EXPECT_EQ(view2.as<std::string>().value(), s1);
