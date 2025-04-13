@@ -349,9 +349,8 @@ String UnpackedInstTraits<TTraits>::AsPython(const Array<Any>& inputs, const Arr
   PackedFunc pf([](const TVMArgs& args, TVMRetValue* rv) -> void {
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
     ICHECK_EQ(args.size(), kNumArgs);
-    ffi::details::unpack_call<return_type, kNumArgs>(
-      nullptr, TTraits::UnpackedAsPython, args.data(),
-      args.size(), rv);
+    ffi::details::unpack_call<return_type, kNumArgs>(nullptr, TTraits::UnpackedAsPython,
+                                                     args.data(), args.size(), rv);
   });
   ffi::Any rv;
   pf.CallPacked(ffi::PackedArgs(packed_args, kNumArgs), &rv);

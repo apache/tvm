@@ -150,7 +150,7 @@ void Writes(Array<ObjectRef> buffer_slices);
  * \brief The block annotation statement.
  * \param attrs The annotation of the block.
  */
-void BlockAttrs(Map<String,ffi::Any> attrs);
+void BlockAttrs(Map<String, ffi::Any> attrs);
 
 /*!
  * \brief The buffer allocation function.
@@ -227,8 +227,7 @@ Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype = DataTy
  * \param annotations The optional annotations of the For statement.
  * \return The ForFrame.
  */
-ForFrame Serial(PrimExpr start, PrimExpr stop,
-                Optional<Map<String, Any>> annotations = NullOpt);
+ForFrame Serial(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annotations = NullOpt);
 /*!
  * \brief The parallel For statement.
  * \param start The minimum value of iteration.
@@ -236,8 +235,7 @@ ForFrame Serial(PrimExpr start, PrimExpr stop,
  * \param annotations The optional annotations of the For statement.
  * \return The ForFrame.
  */
-ForFrame Parallel(PrimExpr start, PrimExpr stop,
-                  Optional<Map<String, Any>> annotations = NullOpt);
+ForFrame Parallel(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annotations = NullOpt);
 /*!
  * \brief The vectorized For statement.
  * \param start The minimum value of iteration.
@@ -254,8 +252,7 @@ ForFrame Vectorized(PrimExpr start, PrimExpr stop,
  * \param annotations The optional annotations of the For statement.
  * \return The ForFrame.
  */
-ForFrame Unroll(PrimExpr start, PrimExpr stop,
-                Optional<Map<String, Any>> annotations = NullOpt);
+ForFrame Unroll(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annotations = NullOpt);
 /*!
  * \brief The thread-binding For statement.
  * \param start The minimum value of iteration.

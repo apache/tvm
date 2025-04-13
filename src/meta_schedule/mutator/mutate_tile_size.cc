@@ -129,8 +129,8 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
       ICHECK_EQ(inst->outputs.size(), 1);
       if (annotated.count(inst->outputs[0].as<Object>())) {
         ICHECK_EQ(inst->attrs.size(), 2);
-        std::vector<double> probs = support::AsVector<FloatImm, double>(
-            Downcast<Array<FloatImm>>(inst->attrs[1]));
+        std::vector<double> probs =
+            support::AsVector<FloatImm, double>(Downcast<Array<FloatImm>>(inst->attrs[1]));
         if (probs.size() == 1) {
           // Skip mutating the sampling instructions who have only single candidate.
           continue;

@@ -115,7 +115,7 @@ class AnyView {
     return *std::move(opt);
   }
 
-    /*
+  /*
    * \brief Shortcut of as Object to cast to a const pointer when T is an Object.
    *
    * \tparam T The object type.
@@ -132,7 +132,7 @@ class AnyView {
   TVM_FFI_INLINE bool operator!=(std::nullptr_t) const noexcept {
     return data_.type_index != TypeIndex::kTVMFFINone;
   }
-   /*!
+  /*!
    * \brief Get the type key of the Any
    * \return The type key of the Any
    */

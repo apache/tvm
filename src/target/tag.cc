@@ -78,10 +78,10 @@ TVM_REGISTER_TARGET_TAG("raspberry-pi/4b-aarch64")
                  {"mattr", Array<String>{"+neon"}},
                  {"num-cores", 4},
                  {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
-                                                 {"mtriple", String("aarch64-linux-gnu")},
-                                                 {"mcpu", String("cortex-a72")},
-                                                 {"mattr", Array<String>{"+neon"}},
-                                                 {"num-cores", 4}}}});
+                                                {"mtriple", String("aarch64-linux-gnu")},
+                                                {"mcpu", String("cortex-a72")},
+                                                {"mattr", Array<String>{"+neon"}},
+                                                {"num-cores", 4}}}});
 
 #if TVM_LLVM_VERSION >= 110
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
@@ -92,9 +92,9 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
                  {"thread_warp_size", 32},
                  {"registers_per_block", 65536},
                  {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
-                                                 {"mtriple", String("aarch64-linux-gnu")},
-                                                 {"mcpu", String("carmel")},
-                                                 {"num-cores", 8}}}});
+                                                {"mtriple", String("aarch64-linux-gnu")},
+                                                {"mcpu", String("carmel")},
+                                                {"num-cores", 8}}}});
 
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-orin-nano")
     .set_config({{"kind", String("cuda")},
@@ -104,9 +104,9 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-orin-nano")
                  {"thread_warp_size", 32},
                  {"registers_per_block", 65536},
                  {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
-                                                 {"mtriple", String("aarch64-linux-gnu")},
-                                                 {"mcpu", String("carmel")},
-                                                 {"num-cores", 6}}}});
+                                                {"mtriple", String("aarch64-linux-gnu")},
+                                                {"mcpu", String("carmel")},
+                                                {"num-cores", 6}}}});
 
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-32gb")
     .set_config({{"kind", String("cuda")},
@@ -116,9 +116,9 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-32gb")
                  {"thread_warp_size", 32},
                  {"registers_per_block", 65536},
                  {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
-                                                 {"mtriple", String("aarch64-linux-gnu")},
-                                                 {"mcpu", String("cortex-a78")},
-                                                 {"num-cores", 8}}}});
+                                                {"mtriple", String("aarch64-linux-gnu")},
+                                                {"mcpu", String("cortex-a78")},
+                                                {"num-cores", 8}}}});
 
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-64gb")
     .set_config({{"kind", String("cuda")},
@@ -128,9 +128,9 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-64gb")
                  {"thread_warp_size", 32},
                  {"registers_per_block", 65536},
                  {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
-                                                 {"mtriple", String("aarch64-linux-gnu")},
-                                                 {"mcpu", String("cortex-a78")},
-                                                 {"num-cores", 12}}}});
+                                                {"mtriple", String("aarch64-linux-gnu")},
+                                                {"mcpu", String("cortex-a78")},
+                                                {"num-cores", 12}}}});
 #endif  // TVM_LLVM_VERSION >= 110
 #endif  // TVM_LLVM_HAS_AARCH64_TARGET
 
@@ -139,10 +139,10 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-64gb")
       {"kind", String("cuda")},                                   \
       {"keys", Array<String>{"cuda", "gpu"}},                     \
       {"arch", String(Arch)},                                     \
-      {"max_shared_memory_per_block", SharedMem},   \
-      {"max_threads_per_block", 1024},              \
-      {"thread_warp_size", 32},                     \
-      {"registers_per_block", RegPerBlock},         \
+      {"max_shared_memory_per_block", SharedMem},                 \
+      {"max_threads_per_block", 1024},                            \
+      {"thread_warp_size", 32},                                   \
+      {"registers_per_block", RegPerBlock},                       \
   })
 
 // Naming convention for CUDA tags see https://developer.nvidia.com/cuda-gpus
@@ -430,25 +430,25 @@ TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.24xlarge", 48, "cascadelake");
 #undef TVM_REGISTER_TAG_AWS_C5
 
 #if TVM_LLVM_VERSION >= 190
-#define TVM_REGISTER_METAL_GPU_TAG(Name, ThreadsPerBlock, SharedMem, WarpSize)   \
-  TVM_REGISTER_TARGET_TAG(Name).set_config(                                      \
-      {{"kind", String("metal")},                                                \
-       {"max_threads_per_block", ThreadsPerBlock},                 \
-       {"max_shared_memory_per_block", SharedMem},                 \
-       {"thread_warp_size", WarpSize},                             \
+#define TVM_REGISTER_METAL_GPU_TAG(Name, ThreadsPerBlock, SharedMem, WarpSize)  \
+  TVM_REGISTER_TARGET_TAG(Name).set_config(                                     \
+      {{"kind", String("metal")},                                               \
+       {"max_threads_per_block", ThreadsPerBlock},                              \
+       {"max_shared_memory_per_block", SharedMem},                              \
+       {"thread_warp_size", WarpSize},                                          \
        {"host", Map<String, ffi::Any>{{"kind", String("llvm")},                 \
-                                       {"mtriple", String("arm64-apple-macos")}, \
-                                       {"mcpu", String("apple-m4")}}}});
+                                      {"mtriple", String("arm64-apple-macos")}, \
+                                      {"mcpu", String("apple-m4")}}}});
 #else
-#define TVM_REGISTER_METAL_GPU_TAG(Name, ThreadsPerBlock, SharedMem, WarpSize)   \
-  TVM_REGISTER_TARGET_TAG(Name).set_config(                                      \
-      {{"kind", String("metal")},                                                \
-       {"max_threads_per_block", ThreadsPerBlock},                 \
-       {"max_shared_memory_per_block", SharedMem},                 \
-       {"thread_warp_size", WarpSize},                             \
+#define TVM_REGISTER_METAL_GPU_TAG(Name, ThreadsPerBlock, SharedMem, WarpSize)  \
+  TVM_REGISTER_TARGET_TAG(Name).set_config(                                     \
+      {{"kind", String("metal")},                                               \
+       {"max_threads_per_block", ThreadsPerBlock},                              \
+       {"max_shared_memory_per_block", SharedMem},                              \
+       {"thread_warp_size", WarpSize},                                          \
        {"host", Map<String, ffi::Any>{{"kind", String("llvm")},                 \
-                                       {"mtriple", String("arm64-apple-macos")}, \
-                                       {"mcpu", String("apple-latest")}}}});
+                                      {"mtriple", String("arm64-apple-macos")}, \
+                                      {"mcpu", String("apple-latest")}}}});
 #endif
 
 #if TVM_LLVM_HAS_AARCH64_TARGET

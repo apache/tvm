@@ -883,8 +883,7 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
   void* CreateView(const Buffer& buffer, ShapeTuple shape, DLDataType type_hint,
                    const std::string& mem_scope) final {
     OpenCLWorkspace* ws_ = OpenCLWorkspace::Global();
-    return ws_->AllocDataSpaceView(buffer.device, buffer.data, shape, type_hint,
-                                   String(mem_scope));
+    return ws_->AllocDataSpaceView(buffer.device, buffer.data, shape, type_hint, String(mem_scope));
   }
 
   void FreeView(Device dev, void* data) final {

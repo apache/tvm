@@ -95,9 +95,8 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
     return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
   }
 
-  int axis = attrs->axis.has_value()
-                 ? NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value())
-                 : 0;
+  int axis =
+      attrs->axis.has_value() ? NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value()) : 0;
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr || indices_shape == nullptr) {

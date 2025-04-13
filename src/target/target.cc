@@ -970,7 +970,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
 }  // namespace tvm
 
 std::unordered_map<String, ffi::Any> TargetInternal::QueryDevice(int device_id,
-                                                                  const TargetNode* target) {
+                                                                 const TargetNode* target) {
   std::unordered_map<String, ffi::Any> output;
 
   Device device{static_cast<DLDeviceType>(target->GetTargetDeviceType()), device_id};

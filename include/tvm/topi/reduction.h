@@ -202,8 +202,8 @@ inline Tensor CommReduce(const Tensor& data, const Optional<Array<Integer>>& axi
  *
  * \return The result tensor.
  */
-inline Tensor CommReduceIdx(const Tensor& data, const Optional<Array<Integer>>& axis, FCommReduce func,
-                            bool keepdims, bool atleast1d) {
+inline Tensor CommReduceIdx(const Tensor& data, const Optional<Array<Integer>>& axis,
+                            FCommReduce func, bool keepdims, bool atleast1d) {
   auto ndim = data->shape.size();
   ICHECK_NE(ndim, 0) << "Cannot reduce a 0 dim Tensor";
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
@@ -497,8 +497,9 @@ inline FCommReduce MakeArgminReducer(bool select_last_index = false) {
  *
  * \return A Tensor whose op member is the argmin operation
  */
-inline Tensor argmin(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
-                     bool atleast1d = false, bool select_last_index = false) {
+inline Tensor argmin(const Tensor& data, const Optional<Array<Integer>>& axis,
+                     bool keepdims = false, bool atleast1d = false,
+                     bool select_last_index = false) {
   auto reducer = MakeArgminReducer(select_last_index);
   return CommReduceIdx(data, axis, reducer, keepdims, atleast1d);
 }
@@ -557,8 +558,9 @@ inline FCommReduce MakeArgmaxReducer(bool select_last_index = false) {
  * appears multiple times, else select the first index.
  * \return A Tensor whose op member is the argmax operation
  */
-inline Tensor argmax(const Tensor& data, const Optional<Array<Integer>>& axis, bool keepdims = false,
-                     bool atleast1d = false, bool select_last_index = false) {
+inline Tensor argmax(const Tensor& data, const Optional<Array<Integer>>& axis,
+                     bool keepdims = false, bool atleast1d = false,
+                     bool select_last_index = false) {
   auto reducer = MakeArgmaxReducer(select_last_index);
   return CommReduceIdx(data, axis, reducer, keepdims, atleast1d);
 }

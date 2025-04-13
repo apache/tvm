@@ -96,13 +96,15 @@ PrinterConfig::PrinterConfig(Map<String, Any> config_dict) {
     n->path_to_underline = Downcast<Optional<Array<ObjectPath>>>(v).value_or(Array<ObjectPath>());
   }
   if (auto v = config_dict.Get("path_to_annotate")) {
-    n->path_to_annotate = Downcast<Optional<Map<ObjectPath, String>>>(v).value_or(Map<ObjectPath, String>());
+    n->path_to_annotate =
+        Downcast<Optional<Map<ObjectPath, String>>>(v).value_or(Map<ObjectPath, String>());
   }
   if (auto v = config_dict.Get("obj_to_underline")) {
     n->obj_to_underline = Downcast<Optional<Array<ObjectRef>>>(v).value_or(Array<ObjectRef>());
   }
   if (auto v = config_dict.Get("obj_to_annotate")) {
-    n->obj_to_annotate = Downcast<Optional<Map<ObjectRef, String>>>(v).value_or(Map<ObjectRef, String>());
+    n->obj_to_annotate =
+        Downcast<Optional<Map<ObjectRef, String>>>(v).value_or(Map<ObjectRef, String>());
   }
   if (auto v = config_dict.Get("syntax_sugar")) {
     n->syntax_sugar = v.value();

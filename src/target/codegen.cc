@@ -352,7 +352,6 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
 
   std::string blob = PackImportsToBytes(mod);
 
-
   // Call codegen_blob to generate LLVM module
   std::string codegen_f_name = "codegen.codegen_blob";
   // the codegen function.

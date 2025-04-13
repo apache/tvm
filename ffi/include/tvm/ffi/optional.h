@@ -56,7 +56,7 @@ class Optional<T, std::enable_if_t<!use_ptr_based_optional_v<T>>> {
   Optional(const Optional<T>& other) : data_(other.data_) {}
   Optional(Optional<T>&& other) : data_(std::move(other.data_)) {}
   Optional(std::optional<T> other) : data_(std::move(other)) {}  // NOLINT(*)
-  Optional(std::nullopt_t) {}  // NOLINT(*)
+  Optional(std::nullopt_t) {}                                    // NOLINT(*)
   // normal value handling.
   Optional(T other)  // NOLINT(*)
       : data_(std::move(other)) {}

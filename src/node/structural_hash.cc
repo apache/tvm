@@ -641,8 +641,8 @@ struct MapNodeTrait {
     // Second, check that we have visited every `rhs` key when iterating over `lhs`.
     for (const auto& kv : *rhs) {
       if (!seen_rhs_keys.count(kv.first)) {
-        equal.RecordMismatchPaths({map_paths->lhs_path->MissingMapEntry(),
-                                   map_paths->rhs_path->MapValue(kv.first)});
+        equal.RecordMismatchPaths(
+            {map_paths->lhs_path->MissingMapEntry(), map_paths->rhs_path->MapValue(kv.first)});
         return false;
       }
     }

@@ -414,7 +414,7 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
           .add_attr_option<String>("model")                       \
           .add_attr_option<Array<String>>("libs")                 \
           .add_attr_option<Target>("host")                        \
-          .add_attr_option<int64_t>("from_device")           \
+          .add_attr_option<int64_t>("from_device")                \
           .add_attr_option<int64_t>("target_device_type")
 
 }  // namespace tvm

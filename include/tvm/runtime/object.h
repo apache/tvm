@@ -29,6 +29,8 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/container/optional.h>
 
+#include <utility>
+
 namespace tvm {
 namespace runtime {
 

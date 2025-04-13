@@ -361,7 +361,7 @@ bool TensorizeComparator::CompareAnnotation(const std::pair<String, ffi::Any>& l
   }
   // handle expr values
   if (lhs.second.as<PrimExpr>() && rhs.second.as<PrimExpr>()) {
-      return VisitExpr(Downcast<PrimExpr>(lhs.second), Downcast<PrimExpr>(rhs.second));
+    return VisitExpr(Downcast<PrimExpr>(lhs.second), Downcast<PrimExpr>(rhs.second));
   }
   // handle any other values via any equal
   if (!ffi::AnyEqual()(lhs.second, rhs.second)) {
@@ -389,8 +389,7 @@ bool TensorizeComparator::CompareAnnotationMap(const Map<String, ffi::Any>& lhs,
     return false;
   }
 
-  auto sort_map =
-      [](const Map<String, ffi::Any>& map) -> std::vector<std::pair<String, ffi::Any>> {
+  auto sort_map = [](const Map<String, ffi::Any>& map) -> std::vector<std::pair<String, ffi::Any>> {
     std::vector<std::pair<String, ffi::Any>> ret(map.begin(), map.end());
     sort(ret.begin(), ret.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
     return ret;

@@ -154,10 +154,10 @@ class ScheduleRule : public runtime::ObjectRef {
    * ignored  by default. This function should return True for a block that should be tiled.
    * \return The schedule rule created
    */
-  TVM_DLL static ScheduleRule MultiLevelTiling(String structure,                             //
-                                               Optional<Array<String>> tile_binds,           //
-                                               Optional<Integer> max_innermost_factor,       //
-                                               Optional<Array<Integer>> vector_load_lens,    //
+  TVM_DLL static ScheduleRule MultiLevelTiling(String structure,                            //
+                                               Optional<Array<String>> tile_binds,          //
+                                               Optional<Integer> max_innermost_factor,      //
+                                               Optional<Array<Integer>> vector_load_lens,   //
                                                Optional<Map<String, ffi::Any>> reuse_read,  //
                                                Optional<Map<String, ffi::Any>> reuse_write,
                                                Optional<runtime::PackedFunc> filter_fn = NullOpt);
@@ -260,8 +260,8 @@ class ScheduleRule : public runtime::ObjectRef {
    * \param unroll_explicit Whether to explicitly unroll the loop, or just add an "unroll" pragma.
    * \return The schedule rule created
    */
-  TVM_DLL static ScheduleRule ParallelizeVectorizeUnroll(int max_jobs_per_core,                 //
-                                                         int max_vectorize_extent,              //
+  TVM_DLL static ScheduleRule ParallelizeVectorizeUnroll(int max_jobs_per_core,            //
+                                                         int max_vectorize_extent,         //
                                                          Array<Integer> unroll_max_steps,  //
                                                          bool unroll_explicit);
   /*!

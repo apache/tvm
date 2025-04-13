@@ -22,8 +22,8 @@
  * \file node/repr_printer.cc
  */
 #include <tvm/node/repr_printer.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/registry.h>
 
 namespace tvm {
 
@@ -62,9 +62,9 @@ void ReprPrinter::Print(const ffi::Any& node) {
     case ffi::TypeIndex::kTVMFFIOpaquePtr: {
       stream << node.operator void*();
       break;
-    case ffi::TypeIndex::kTVMFFIDataType:
-      stream << node.operator DataType();
-      break;
+      case ffi::TypeIndex::kTVMFFIDataType:
+        stream << node.operator DataType();
+        break;
     }
     case ffi::TypeIndex::kTVMFFIDevice: {
       runtime::operator<<(stream, node.operator Device());

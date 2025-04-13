@@ -22,6 +22,7 @@
 #include <dmlc/io.h>
 
 #include <string>
+#include <vector>
 
 #include "./protocol.h"
 

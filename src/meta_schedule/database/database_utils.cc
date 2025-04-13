@@ -67,9 +67,8 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
                    << kv.first.GetTypeKey();
       }
     }
-    std::sort(key_values.begin(), key_values.end(), [](const auto& a, const auto& b) {
-      return a.first < b.first;
-    });
+    std::sort(key_values.begin(), key_values.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
     os << "{";
     for (int i = 0; i < n; ++i) {
       const auto& kv = key_values[i];
