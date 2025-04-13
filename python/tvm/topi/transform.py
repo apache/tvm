@@ -1081,98 +1081,104 @@ def index_tensor(data, indices):
     #     name="dummy_add_one",
     #     # For a simple element-wise operator, you can use tag=topi.tag.ELEMWISE
     #     tag="elemwise",
-    # ) # TODO this should work
+    # ) # TODO this also works
 
-    return topi.sum(data, axis=[0]) # TODO this also works
+    # return topi.sum(data, axis=[0]) # TODO this also works
 
     # return data
 
     # TODO uncomment
 
 
-    # # Helper to fix negative indices:  out_idx = where(idx<0, idx+dim_size, idx)
-    # def _fix_negatives(idx_t, dim_size):
-    #     #  idx_t, dim_size are tvm.te.Tensor or integers.
-    #     #  We'll broadcast if needed.  We can do so by calling topi.where(...) with the condition
-    #     #   (idx_t < 0).
-    #     #  For static shape, `dim_size` could be int.  For dynamic shape, dim_size might be a Tensor.
-    #     #  Suppose dim_size is int here. Then we can just do:
+    # Helper to fix negative indices:  out_idx = where(idx<0, idx+dim_size, idx)
+    def _fix_negatives(idx_t, dim_size):
+        #  idx_t, dim_size are tvm.te.Tensor or integers.
+        #  We'll broadcast if needed.  We can do so by calling topi.where(...) with the condition
+        #   (idx_t < 0).
+        #  For static shape, `dim_size` could be int.  For dynamic shape, dim_size might be a Tensor.
+        #  Suppose dim_size is int here. Then we can just do:
 
-    #     # TODO uncomment
-    #     # zero_t = topi.full_like(idx_t, 0)
-    #     # dim_size_t = topi.full_like(idx_t, dim_size)  # broadcast if needed
-    #     # return topi.where(topi.less(idx_t, zero_t), topi.add(idx_t, dim_size_t), idx_t)
-    #     return topi.where(idx_t < 0, idx_t + dim_size, idx_t)
+        # TODO uncomment
+        zero_t = topi.full_like(idx_t, 0)
+        dim_size_t = topi.full_like(idx_t, dim_size)  # broadcast if needed
+        return topi.where(topi.less(idx_t, zero_t), topi.add(idx_t, dim_size_t), idx_t)
 
-    # # --- Check whether indices is multiple advanced indices or single advanced index. ---
-    # if isinstance(indices, (list, tuple)) and len(indices) > 1:
-    #     # -----------------------------------------------------------
-    #     # CASE B: multiple advanced indices
-    #     # -----------------------------------------------------------
-    #     # Suppose each sub_i is a tvm.te.Tensor of integer type, indexing a separate dimension.
-    #     # We want to broadcast them to a common shape (if not already),
-    #     # fix negative indices, then use topi.adv_index.
-    #     idx_list = list(indices)
+    # --- Check whether indices is multiple advanced indices or single advanced index. ---
+    if isinstance(indices, (list, tuple)) and len(indices) > 1:
+        # -----------------------------------------------------------
+        # CASE B: multiple advanced indices
+        # -----------------------------------------------------------
+        # Suppose each sub_i is a tvm.te.Tensor of integer type, indexing a separate dimension.
+        # We want to broadcast them to a common shape (if not already),
+        # fix negative indices, then use topi.adv_index.
+        idx_list = list(indices)
 
-    #     # 1) Determine broadcast shape. For simplicity we can rely on `topi.adv_index` automatically
-    #     #    broadcasting the indices if they differ in shape. If you need explicit broadcasting,
-    #     #    you can do so via topi utilities (e.g. topi.broadcast_to).
-    #     #    Then fix negative indexing dimensionwise.
-    #     #    data.shape is e.g. [d0, d1, d2, ...], so for the i-th advanced index, dimension = data.shape[i].
-    #     #    We fix negative indexing if desired:
-    #     final_indices = []
-    #     for i, idx_t in enumerate(idx_list):
-    #         # If we want negative fix, do it here:
-    #         dim_size = data.shape[i]  # a PrimExpr
-    #         fixed = _fix_negatives(idx_t, dim_size)
-    #         final_indices.append(fixed)
+        # 1) Determine broadcast shape. For simplicity we can rely on `topi.adv_index` automatically
+        #    broadcasting the indices if they differ in shape. If you need explicit broadcasting,
+        #    you can do so via topi utilities (e.g. topi.broadcast_to).
+        #    Then fix negative indexing dimensionwise.
+        #    data.shape is e.g. [d0, d1, d2, ...], so for the i-th advanced index, dimension = data.shape[i].
+        #    We fix negative indexing if desired:
+        final_indices = []
+        for i, idx_t in enumerate(idx_list):
+            # If we want negative fix, do it here:
+            dim_size = data.shape[i]  # a PrimExpr
+            fixed = _fix_negatives(idx_t, dim_size)
+            final_indices.append(fixed)
 
-    #     # 2) Use topi.adv_index
-    #     #    This will produce a new tensor with shape = broadcast of final_indices.
-    #     result = topi.adv_index(data, final_indices)
-    #     return result
+        # 2) Use topi.adv_index
+        #    This will produce a new tensor with shape = broadcast of final_indices.
+        result = topi.adv_index(data, final_indices)
+        return result
 
-    # else:
-    #     # -----------------------------------------------------------
-    #     # CASE A: single advanced index
-    #     # -----------------------------------------------------------
-    #     # We interpret 'indices' as a single integer-tensor for dimension=0 indexing.
-    #     # So the result shape is [*indices_shape, leftover_dims], with leftover_dims = data.shape[1:].
-    #     #
-    #     # Steps, paralleling the Python:
-    #     #  1) If the first dimension of indices is 1, remove it   => topi.squeeze if we want.
-    #     #  2) Flatten => topi.reshape
-    #     #  3) fix negative indices => topi.where
-    #     #  4) gather => topi.take(..., axis=0)
-    #     #  5) reshape => combine advanced dims + leftover dims
-    #     idx_t = indices if isinstance(indices, te.Tensor) else indices[0]
+    else:
+        # -----------------------------------------------------------
+        # CASE A: single advanced index
+        # -----------------------------------------------------------
+        # We interpret 'indices' as a single integer-tensor for dimension=0 indexing.
+        # So the result shape is [*indices_shape, leftover_dims], with leftover_dims = data.shape[1:].
+        #
+        # Steps, paralleling the Python:
+        #  1) If the first dimension of indices is 1, remove it   => topi.squeeze if we want.
+        #  2) Flatten => topi.reshape
+        #  3) fix negative indices => topi.where
+        #  4) gather => topi.take(..., axis=0)
+        #  5) reshape => combine advanced dims + leftover dims
+        idx_t = indices if isinstance(indices, te.Tensor) else indices[0]
+        return topi.sum(data, axis=[0]) # TODO this also works
+    
 
-    #     # Possibly remove leading dimension if shape[0]==1:
-    #     if len(idx_t.shape) > 0:
-    #         first_dim = idx_t.shape[0]
-    #         if isinstance(first_dim, int) and first_dim == 1:
-    #             # topi.squeeze can remove exactly one axis:
-    #             idx_t = topi.squeeze(idx_t, axis=[0])
-    #         else:
-    #             # If we suspect it's dynamic, we can check with a small schedule or approach,
-    #             # but here's the naive approach: we skip if the dimension is unknown
-    #             pass
+        # Possibly remove leading dimension if shape[0]==1:
+        if len(idx_t.shape) > 0:
+            first_dim = idx_t.shape[0]
+            if isinstance(first_dim, int) and first_dim == 1:
+                # topi.squeeze can remove exactly one axis:
+                idx_t = topi.squeeze(idx_t, axis=[0])
+            else:
+                # If we suspect it's dynamic, we can check with a small schedule or approach,
+                # but here's the naive approach: we skip if the dimension is unknown
+                pass
 
-    #     # Flatten
-    #     flattened = topi.reshape(idx_t, (-1,))
+        # Flatten
+        flattened = topi.reshape(idx_t, (-1,))
 
-    #     # fix negative indexing
-    #     # data.shape[0] is batch dimension
-    #     fixed = _fix_negatives(flattened, data.shape[0])
+        # fix negative indexing
+        # data.shape[0] is batch dimension
+        fixed = _fix_negatives(flattened, data.shape[0])
 
-    #     # gather => topi.take
-    #     # out shape = [len_of_fixed] + leftover_dims
-    #     picked = topi.take(data, fixed, axis=0)
+        # gather => topi.take
+        # out shape = [len_of_fixed] + leftover_dims
+        picked = topi.take(data, fixed, axis=0)
 
-    #     # final reshape => idx_t original shape (after squeeze) + leftover
-    #     # we can get idx_t's shape with topi.shape if dynamic, or known statically
-    #     adv_shape = tuple(idx_t.shape)  # or topi.shape(idx_t) if dynamic
-    #     leftover_dims = data.shape[1:]
-    #     final_shape = adv_shape + leftover_dims
-    #     result = topi.reshape(picked, final_shape)
-    #     return result
+        # final reshape => idx_t original shape (after squeeze) + leftover
+        # we can get idx_t's shape with topi.shape if dynamic, or known statically
+        adv_shape = tuple(idx_t.shape)  # or topi.shape(idx_t) if dynamic
+        leftover_dims = tuple(data.shape[1:])
+        print('adv_shape type', type(adv_shape))
+        print('leftover_dims type', type(leftover_dims))
+        print("A #############################################")
+        final_shape = adv_shape + leftover_dims
+        print("B #############################################")
+        result = topi.reshape(picked, final_shape)
+        print("C #############################################")
+        return result
