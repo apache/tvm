@@ -1054,6 +1054,9 @@ def trilu(data, k, upper):
     return te.compute(data.shape, _apply_trilu, name="trilu", tag=topi.tag.ELEMWISE)
 
 
+def collapse_sum_like_TWO(data, indices):
+    return topi.sum(data, axis=[0])
+
 def index_tensor(data, indices):
     """ TODO docstring   
     Replicate data[indices] using only:

@@ -49,10 +49,16 @@ register_legalize(
     "relax.collapse_sum_like",
     _reshape(topi.collapse_sum, "collapse_sum", is_collapse_sum_like=True),
 )
-register_legalize( # TODO try to call a topi directly? 
-    "relax.collapse_sum_like_TWO",
-    _reshape(topi.collapse_sum, "collapse_sum", is_collapse_sum_like=True),
-)
+
+# register_legalize( # TODO try to call a topi directly? 
+#     "relax.collapse_sum_like_TWO",
+#     _reshape(topi.collapse_sum, "collapse_sum", is_collapse_sum_like=True),
+# )
+
+@register_legalize("relax.collapse_sum_like_TWO")
+def _index_tensor(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(topi.index_tensor, call.args[0], call.args[1]) # TODO should I use primfunc_name_hint? 
+
 
 register_legalize("relax.collapse_sum_to", _reshape(topi.collapse_sum, "collapse_sum"))
 
