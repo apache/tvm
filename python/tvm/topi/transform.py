@@ -1174,7 +1174,6 @@ def index_tensor(data, indices):
         # we can get idx_t's shape with topi.shape if dynamic, or known statically
         adv_shape = tuple(idx_t.shape)  # or topi.shape(idx_t) if dynamic
 
-        return topi.sum(data, axis=[0]) # TODO this also works
 
 
         leftover_dims = tuple(data.shape[1:])
@@ -1185,4 +1184,15 @@ def index_tensor(data, indices):
         print("B #############################################")
         result = topi.reshape(picked, final_shape)
         print("C #############################################")
-        return result
+        # return result
+        result2 = topi.sum(data, axis=[0]) # TODO this also works
+        result3 = topi.sum(result, axis=[0]) # TODO this also works
+
+        print("type(result)", type(result))
+        print("type(result2)", type(result2))
+        print("type(result3)", type(result3))
+        print("result", result) # result Tensor(shape=[T.int64(2), T.int64(4)], op.name=T_reshape)
+        print("result2", result2) # result2 Tensor(shape=[T.int64(4)], op.name=x_red)
+        print("result3", result3) # result3 Tensor(shape=[T.int64(4)], op.name=T_reshape_red)
+
+        return result2
