@@ -1169,11 +1169,14 @@ def index_tensor(data, indices):
         # gather => topi.take
         # out shape = [len_of_fixed] + leftover_dims
         picked = topi.take(data, fixed, axis=0)
-        return topi.sum(data, axis=[0]) # TODO this also works
 
         # final reshape => idx_t original shape (after squeeze) + leftover
         # we can get idx_t's shape with topi.shape if dynamic, or known statically
         adv_shape = tuple(idx_t.shape)  # or topi.shape(idx_t) if dynamic
+
+        return topi.sum(data, axis=[0]) # TODO this also works
+
+
         leftover_dims = tuple(data.shape[1:])
         print('adv_shape type', type(adv_shape))
         print('leftover_dims type', type(leftover_dims))
