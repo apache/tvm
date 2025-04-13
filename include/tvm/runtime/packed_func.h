@@ -44,6 +44,8 @@ using ffi::AnyView;
  */
 inline TVMFFIAny LegacyTVMArgValueToFFIAny(TVMValue value, int type_code) {
   TVMFFIAny res;
+  // clear first to ensure consistent hash
+  res.v_uint64 = 0;
   switch (type_code) {
     case kTVMArgInt: {
       res.type_index = ffi::TypeIndex::kTVMFFIInt;
@@ -62,12 +64,10 @@ inline TVMFFIAny LegacyTVMArgValueToFFIAny(TVMValue value, int type_code) {
     }
     case kTVMNullptr: {
       res.type_index = ffi::TypeIndex::kTVMFFINone;
-      res.v_int64 = 0;
       return res;
     }
     case kTVMDataType: {
       res.type_index = ffi::TypeIndex::kTVMFFIDataType;
-      res.v_int64 = 0;
       res.v_dtype = value.v_type;
       return res;
     }
@@ -244,24 +244,6 @@ inline void MoveAnyToLegacyTVMValue(Any&& src, TVMValue* value, int* type_code) 
   // NOTE: conversion rule is the same as AnyViewToLegacyTVMArgValue
   AnyViewToLegacyTVMArgValue(val, value, type_code);
 }
-
-/*!
- * \brief Legacy TVM args kept for backward compact
- */
-class LegacyTVMArgs {
- public:
-  const TVMValue* values;
-  const int* type_codes;
-  int num_args;
-  /*!
-   * \brief constructor
-   * \param values The argument values
-   * \param type_codes The argument type codes
-   * \param num_args number of arguments.
-   */
-  LegacyTVMArgs(const TVMValue* values, const int* type_codes, int num_args)
-      : values(values), type_codes(type_codes), num_args(num_args) {}
-};
 
 /*!
  * \brief Translate legacy TVMArgs to PackedArgs
