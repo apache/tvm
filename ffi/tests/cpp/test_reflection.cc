@@ -34,8 +34,6 @@ struct A : public Object {
 };
 
 TEST(Reflection, GetFieldByteOffset) {
-
-
   EXPECT_EQ(details::GetFieldByteOffsetToObject(&A::x), sizeof(TVMFFIObject));
   EXPECT_EQ(details::GetFieldByteOffsetToObject(&A::y), 8 + sizeof(TVMFFIObject));
   EXPECT_EQ(details::GetFieldByteOffsetToObject(&TIntObj::value), sizeof(TVMFFIObject));
