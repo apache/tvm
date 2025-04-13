@@ -63,6 +63,43 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
         np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
 
 
+# Test index.Tensor # TODO aggregate into one big tet
+
+@tvm.testing.parametrize_targets("cuda")
+def test_index_tensor0(target, dev):
+    class IndexModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.position_ids = torch.tensor([0])
+
+        def forward(self, x):
+            return x[self.position_ids]
+            
+    torch_module = IndexModel().eval()
+
+    raw_data = np.random.rand(3,3).astype("float32")
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_index_tensor1(target, dev):
+    class IndexModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.position_ids = torch.tensor([[0]])
+
+        def forward(self, x):
+            return x[self.position_ids]
+            
+    torch_module = IndexModel().eval()
+
+    raw_data = np.random.rand(2,3).astype("float32")
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+
 @tvm.testing.parametrize_targets("cuda")
 def test_tensor_clamp(target, dev):
     class ClampBothTensor(torch.nn.Module):
