@@ -2183,11 +2183,11 @@ export class Instance implements Disposable {
 
   /** Register all object factory */
   private registerObjectFactoryFuncs(): void {
-    this.registerObjectConstructor("Array",
+    this.registerObjectConstructor("object.Array",
       (handle: number, lib: FFILibrary, ctx: RuntimeContext) => {
         return new TVMArray(handle, lib, ctx);
       });
-    this.registerObjectConstructor("runtime.String",
+    this.registerObjectConstructor("object.String",
       (handle: number, lib: FFILibrary, ctx: RuntimeContext) => {
         return new TVMString(handle, lib, ctx);
       });
