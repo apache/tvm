@@ -18,6 +18,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/script/ir_builder/tir/ir.h>
+#include <tvm/ffi/container/variant.h>
 
 #include "./utils.h"
 
@@ -710,14 +711,14 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.Then").set_body_typed(Then);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Else").set_body_typed(Else);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.DeclBuffer").set_body_typed(DeclBuffer);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.LaunchThread")
-    .set_body_typed([](ObjectRef thread_tag_or_var, PrimExpr extent) {
+    .set_body_typed([](ffi::Variant<tvm::tir::Var, String> thread_tag_or_var, PrimExpr extent) {
       if (auto var = thread_tag_or_var.as<tvm::tir::Var>()) {
         return LaunchThread(var.value(), extent);
       } else if (auto str = thread_tag_or_var.as<String>()) {
         return LaunchThread(str.value(), extent);
       } else {
         LOG(FATAL) << "ValueError: Unexpected type for TIR LaunchThread: "
-                   << thread_tag_or_var->GetTypeKey();
+                   << thread_tag_or_var.GetTypeKey();
         throw;
       }
     });
