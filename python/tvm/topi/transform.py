@@ -1161,11 +1161,11 @@ def index_tensor(data, indices):
 
         # Flatten
         flattened = topi.reshape(idx_t, (-1,))
-        return topi.sum(data, axis=[0]) # TODO this also works
 
         # fix negative indexing
         # data.shape[0] is batch dimension
         fixed = _fix_negatives(flattened, data.shape[0])
+        return topi.sum(data, axis=[0]) # TODO this also works
 
         # gather => topi.take
         # out shape = [len_of_fixed] + leftover_dims
