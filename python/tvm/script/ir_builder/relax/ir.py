@@ -70,6 +70,7 @@ from tvm.relax.op import (
     ceil,
     clip,
     collapse_sum_like,
+    collapse_sum_like_TWO, # TODO is this necessary?
     collapse_sum_to,
     concat,
     cos,
@@ -734,7 +735,8 @@ __all__ = [
     "call_builtin_with_ctx",
     "ceil",
     "clip",
-    "collapse_sum_like",
+    collapse_sum_like,
+    "collapse_sum_like_TWO", # TODO is this necessary?
     "collapse_sum_to",
     "concat",
     "cos",

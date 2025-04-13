@@ -300,6 +300,26 @@ def collapse_sum_like(data: Expr, collapse_target: Expr) -> Expr:
     return _ffi_api.collapse_sum_like(data, collapse_target)  # type: ignore
 
 
+def collapse_sum_like_TWO(data: Expr, collapse_target: Expr) -> Expr:
+    """Return a summation of data to the shape of collapse_target.
+
+    For details, please see relax.op.collapse_sum_to.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor.
+
+    collapse_target : relax.Expr
+        The tensor whose shape is the shape to collapse to.
+
+    Returns
+    -------
+    result : relax.Expr
+        The result tensor after summation.
+    """
+    return _ffi_api.collapse_sum_like_TWO(data, collapse_target)  # type: ignore
+
 def collapse_sum_to(data: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
     """Return a summation of data to the given shape.
 

@@ -1325,6 +1325,52 @@ TVM_REGISTER_OP("relax.collapse_sum_like")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCollapseSumLike)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.collapse_sum_like_TWO */
+Expr collapse_sum_like_TWO(Expr data, Expr collapse_target) {
+  static const Op& op = Op::Get("relax.collapse_sum_like_TWO");
+  return Call(op, {std::move(data), std::move(collapse_target)}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.collapse_sum_like_TWO").set_body_typed(collapse_sum_like_TWO);
+
+StructInfo InferStructInfoCollapseSumLikeTWO(const Call& call, const BlockBuilder& ctx) {
+  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  TensorStructInfo data_sinfo = input_sinfo[0];
+  TensorStructInfo collapse_target_sinfo = input_sinfo[1];
+
+  DataType output_dtype = data_sinfo->dtype;
+
+  Optional<Array<PrimExpr>> data_shape_value;
+  if (data_sinfo->shape.defined()) {
+    data_shape_value = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value())->values;
+  }
+  Optional<Array<PrimExpr>> collapse_target_shape_value;
+  if (collapse_target_sinfo->shape.defined()) {
+    collapse_target_shape_value =
+        GetStructInfoAs<ShapeStructInfoNode>(collapse_target_sinfo->shape.value())->values;
+  }
+
+  if (data_shape_value.defined() && collapse_target_shape_value.defined()) {
+    CheckCollapseShape(call, ctx, data_shape_value.value(), collapse_target_shape_value.value());
+  }
+
+  if (collapse_target_sinfo->shape.defined()) {
+    return TensorStructInfo(collapse_target_sinfo->shape.value(), output_dtype,
+                            collapse_target_sinfo->vdevice);
+  } else {
+    return TensorStructInfo(output_dtype, collapse_target_sinfo->ndim,
+                            collapse_target_sinfo->vdevice);
+  }
+}
+
+TVM_REGISTER_OP("relax.collapse_sum_like_TWO")
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("collapse_target", "Tensor",
+                  "The tensor whose shape is the shape to collapse to.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCollapseSumLikeTWO)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.collapse_sum_to */
 Expr collapse_sum_to(Expr data, Expr shape) {
   static const Op& op = Op::Get("relax.collapse_sum_to");
