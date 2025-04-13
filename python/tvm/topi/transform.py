@@ -1165,11 +1165,11 @@ def index_tensor(data, indices):
         # fix negative indexing
         # data.shape[0] is batch dimension
         fixed = _fix_negatives(flattened, data.shape[0])
-        return topi.sum(data, axis=[0]) # TODO this also works
 
         # gather => topi.take
         # out shape = [len_of_fixed] + leftover_dims
         picked = topi.take(data, fixed, axis=0)
+        return topi.sum(data, axis=[0]) # TODO this also works
 
         # final reshape => idx_t original shape (after squeeze) + leftover
         # we can get idx_t's shape with topi.shape if dynamic, or known statically
