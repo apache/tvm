@@ -26,7 +26,7 @@
 #define TVM_LOG_STACK_TRACE 0
 #define TVM_LOG_DEBUG 0
 #define TVM_LOG_CUSTOMIZE 1
-
+#define TVM_FFI_USE_LIBBACKTRACE 0
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
 #include <tvm/runtime/c_runtime_api.h>
@@ -65,6 +65,10 @@
 #include "src/runtime/relax_vm/paged_kv_cache.cc"
 #include "src/runtime/relax_vm/rnn_state.cc"
 #include "src/runtime/relax_vm/vm.cc"
+
+#include "ffi/src/ffi/object.cc"
+#include "ffi/src/ffi/function.cc"
+#include "ffi/src/ffi/traceback.cc"
 
 // --- Implementations of backend and wasm runtime API. ---
 
@@ -105,7 +109,7 @@ TVM_REGISTER_GLOBAL("testing.echo").set_body([](TVMArgs args, TVMRetValue* ret) 
 
 TVM_REGISTER_GLOBAL("testing.call").set_body([](TVMArgs args, TVMRetValue* ret) {
   (args[0].operator PackedFunc())
-      .CallPacked(TVMArgs(args.values + 1, args.type_codes + 1, args.num_args - 1), ret);
+      .CallPacked(args.Slice(1), ret);
 });
 
 TVM_REGISTER_GLOBAL("testing.ret_string").set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -160,19 +164,17 @@ TVM_REGISTER_GLOBAL("tvmjs.array.decode_storage").set_body_typed(ArrayDecodeStor
 
 // Concatenate n TVMArrays
 TVM_REGISTER_GLOBAL("tvmjs.runtime.ArrayConcat").set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::vector<ObjectRef> data;
+  std::vector<Any> data;
   for (int i = 0; i < args.size(); ++i) {
     // Get i-th TVMArray
-    ICHECK_EQ(args[i].type_code(), kTVMObjectHandle);
-    Object* ptr = static_cast<Object*>(args[i].value().v_handle);
-    ICHECK(ptr->IsInstance<ArrayNode>());
-    auto* arr_i = static_cast<const ArrayNode*>(ptr);
+    auto* arr_i = args[i].as<ArrayNode>();
+    ICHECK(arr_i != nullptr);
     for (size_t j = 0; j < arr_i->size(); ++j) {
       // Push back each j-th element of the i-th array
       data.push_back(arr_i->at(j));
     }
   }
-  *ret = Array<ObjectRef>(data);
+  *ret = Array<Any>(data);
 });
 
 NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
@@ -213,8 +215,7 @@ NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
 TVM_REGISTER_GLOBAL("tvmjs.runtime.ConcatEmbeddings").set_body([](TVMArgs args, TVMRetValue* ret) {
   std::vector<NDArray> embeddings;
   for (int i = 0; i < args.size(); ++i) {
-    ICHECK_EQ(args[i].type_code(), kTVMNDArrayHandle);
-    embeddings.push_back(args[i]);
+    embeddings.push_back(args[i].operator NDArray());
   }
   NDArray result = ConcatEmbeddings(std::move(embeddings));
   *ret = result;
