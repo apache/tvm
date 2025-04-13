@@ -536,7 +536,7 @@ def index_tensor(data: Expr, indices: Expr) -> Expr:
     # assert all(isinstance(i, int) for i in indices), "indices should be a list of integers, but got {}".format(
     #     [type(i) for i in indices]
     # )
-    return _ffi_api.add(data, indices)  # type: ignore
+    return _ffi_api.index_tensor(data, indices)  # type: ignore
 
 
 def scatter_elements(
