@@ -97,12 +97,14 @@ void MSCBasePrinter::PrintDoc(const Doc& doc, bool new_line) {
 }
 
 void MSCBasePrinter::PrintTypedDoc(const LiteralDoc& doc) {
-  const ObjectRef& value = doc->value;
-  if (!value.defined()) {
+  const Any& value = doc->value;
+  if (value == nullptr) {
     output_ << "\"\"";
-  } else if (const auto* int_imm = value.as<IntImmNode>()) {
+  } else if (auto opt_int_imm = value.as<IntImm>()) {
+    IntImm int_imm = *std::move(opt_int_imm);
     output_ << int_imm->value;
-  } else if (const auto* float_imm = value.as<FloatImmNode>()) {
+  } else if (auto opt_float_imm = value.as<FloatImm>()) {
+    FloatImm float_imm = *std::move(opt_float_imm);
     output_.precision(config_.float_precision);
     if (std::isinf(float_imm->value) || std::isnan(float_imm->value)) {
       output_ << '"' << float_imm->value << '"';
@@ -110,9 +112,10 @@ void MSCBasePrinter::PrintTypedDoc(const LiteralDoc& doc) {
       output_ << float_imm->value;
     }
   } else if (const auto* string_obj = value.as<StringObj>()) {
-    output_ << "\"" << tvm::support::StrEscape(string_obj->data, string_obj->size) << "\"";
+    output_ << "\"" << tvm::support::StrEscape(
+      string_obj->bytes.data, string_obj->bytes.size) << "\"";
   } else {
-    LOG(FATAL) << "TypeError: Unsupported literal value type: " << value->GetTypeKey();
+    LOG(FATAL) << "TypeError: Unsupported literal value type: " << value.GetTypeKey();
   }
 }
 

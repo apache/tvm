@@ -205,7 +205,7 @@ const Array<Doc> RelaxCodeGen::GetOpCodes(const MSCJoint& node) {
   try {
     return it->second->GetDocs();
   } catch (runtime::InternalError& err) {
-    LOG(WARNING) << "Failed to get docs for " << node << " : " << err.message();
+    LOG(WARNING) << "Failed to get docs for " << node << " : " << err.what();
     throw err;
   }
 }

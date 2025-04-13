@@ -57,10 +57,8 @@ inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
   const auto* f = tvm::runtime::Registry::Get("target.TargetCurrent");
   ICHECK(f != nullptr);
   const auto ret = (*f)(true);
-  const Target t = ret.AsObjectRef<Target>();
-  bool useqhl = true;
-  if (t.defined()) {
-    const std::string tstring = t->str();
+  if (auto opt_target = ret.as<Target>()) {
+    const std::string tstring = opt_target.value()->str();
     useqhl = tstring.find("+hvx-qfloat") != std::string::npos;
   }
 
@@ -108,10 +106,9 @@ TVM_REGISTER_OP("tir.tanh")
       const auto* f = tvm::runtime::Registry::Get("target.TargetCurrent");
       ICHECK(f != nullptr);
       const auto ret = (*f)(true);
-      const Target t = ret.AsObjectRef<Target>();
       bool useqhl = true;
-      if (t.defined()) {
-        const std::string tstring = t->str();
+      if (auto opt_target = ret.as<Target>()) {
+        const std::string tstring = opt_target.value()->str();
         useqhl = tstring.find("+hvx-qfloat") != std::string::npos;
       }
 
@@ -144,10 +141,9 @@ TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>(
       const auto* f = tvm::runtime::Registry::Get("target.TargetCurrent");
       ICHECK(f != nullptr);
       const auto ret = (*f)(true);
-      const Target t = ret.AsObjectRef<Target>();
       bool useqhl = true;
-      if (t.defined()) {
-        const std::string tstring = t->str();
+      if (auto opt_target = ret.as<Target>()) {
+        const std::string tstring = opt_target.value()->str();
         useqhl = tstring.find("+hvx-qfloat") != std::string::npos;
       }
 
@@ -175,10 +171,9 @@ TVM_REGISTER_OP("tir.sigmoid")
       const auto* f = tvm::runtime::Registry::Get("target.TargetCurrent");
       ICHECK(f != nullptr);
       const auto ret = (*f)(true);
-      const Target t = ret.AsObjectRef<Target>();
       bool useqhl = true;
-      if (t.defined()) {
-        const std::string tstring = t->str();
+      if (auto opt_target = ret.as<Target>()) {
+        const std::string tstring = opt_target.value()->str();
         useqhl = tstring.find("+hvx-qfloat") != std::string::npos;
       }
 

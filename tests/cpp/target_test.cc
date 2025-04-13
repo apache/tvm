@@ -191,7 +191,7 @@ TEST(TargetCreation, TargetFeaturesBeforeParser) {
       {"mcpu", String("woof")},
       {"features", features},
   };
-  EXPECT_THROW(Target test(config), InternalError);
+  EXPECT_THROW(Target test(config), ffi::Error);
 }
 
 TEST(TargetCreation, TargetAttrsPreProcessor) {
@@ -200,7 +200,7 @@ TEST(TargetCreation, TargetAttrsPreProcessor) {
 }
 
 TEST(TargetCreation, ClashingTargetProcessing) {
-  EXPECT_THROW(Target test("TestClashingPreprocessor -mcpu=woof -mattr=cake"), InternalError);
+  EXPECT_THROW(Target test("TestClashingPreprocessor -mcpu=woof -mattr=cake"), ffi::Error);
 }
 
 TVM_REGISTER_TARGET_KIND("TestStringKind", kDLCPU)
