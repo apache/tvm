@@ -209,8 +209,7 @@ class RelaxExprNameSetter : public ExprVisitor {
       try {
         input_types = ExprUtils::GetInputTypes(optype, val->args.size(), true);
       } catch (runtime::InternalError& err) {
-        LOG(WARNING) << "Failed to GetInputTypes for " << GetRef<Call>(val) << " : "
-                     << err.what();
+        LOG(WARNING) << "Failed to GetInputTypes for " << GetRef<Call>(val) << " : " << err.what();
         throw err;
       }
       for (size_t i = 0; i < input_types.size(); i++) {

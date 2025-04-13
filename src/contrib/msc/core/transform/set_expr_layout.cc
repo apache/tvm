@@ -1110,8 +1110,7 @@ class LayoutInfer : public ExprVisitor {
           SetInputLayouts(call, infered_layout->input_layouts);
         }
       } catch (runtime::InternalError& err) {
-        LOG(WARNING) << "Failed to backward set inputs layout for " << call << " : "
-                     << err.what();
+        LOG(WARNING) << "Failed to backward set inputs layout for " << call << " : " << err.what();
       }
     }
   }

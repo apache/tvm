@@ -112,8 +112,8 @@ void MSCBasePrinter::PrintTypedDoc(const LiteralDoc& doc) {
       output_ << float_imm->value;
     }
   } else if (const auto* string_obj = value.as<StringObj>()) {
-    output_ << "\"" << tvm::support::StrEscape(
-      string_obj->bytes.data, string_obj->bytes.size) << "\"";
+    output_ << "\"" << tvm::support::StrEscape(string_obj->bytes.data, string_obj->bytes.size)
+            << "\"";
   } else {
     LOG(FATAL) << "TypeError: Unsupported literal value type: " << value.GetTypeKey();
   }
