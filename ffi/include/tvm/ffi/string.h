@@ -440,6 +440,7 @@ struct TypeTraits<TVMFFIByteArray*> : public TypeTraitsBase {
   static TVM_FFI_INLINE void CopyToAnyView(TVMFFIByteArray* src, TVMFFIAny* result) {
     TVM_FFI_ICHECK_NOTNULL(src);
     result->type_index = TypeIndex::kTVMFFIByteArrayPtr;
+    TVM_FFI_CLEAR_PTR_PADDING_IN_FFI_ANY(result);
     result->v_ptr = src;
   }
 

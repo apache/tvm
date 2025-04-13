@@ -301,10 +301,7 @@ struct TypeTraits<void*> : public TypeTraitsBase {
 
   static TVM_FFI_INLINE void CopyToAnyView(void* src, TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFIOpaquePtr;
-    // maintain padding zero in 32bit platform
-    if constexpr (sizeof(void*) != sizeof(int64_t)) {
-      result->v_int64 = 0;
-    }
+    TVM_FFI_CLEAR_PTR_PADDING_IN_FFI_ANY(result);
     result->v_ptr = src;
   }
 
@@ -384,6 +381,7 @@ struct TypeTraits<DLTensor*> : public TypeTraitsBase {
   static TVM_FFI_INLINE void CopyToAnyView(DLTensor* src, TVMFFIAny* result) {
     TVM_FFI_ICHECK_NOTNULL(src);
     result->type_index = TypeIndex::kTVMFFIDLTensorPtr;
+    TVM_FFI_CLEAR_PTR_PADDING_IN_FFI_ANY(result);
     result->v_ptr = src;
   }
 
@@ -428,6 +426,7 @@ struct ObjectRefTypeTraitsBase : public TypeTraitsBase {
     }
     TVMFFIObject* obj_ptr = details::ObjectUnsafe::TVMFFIObjectPtrFromObjectRef(src);
     result->type_index = obj_ptr->type_index;
+    TVM_FFI_CLEAR_PTR_PADDING_IN_FFI_ANY(result);
     result->v_obj = obj_ptr;
   }
 
@@ -440,6 +439,7 @@ struct ObjectRefTypeTraitsBase : public TypeTraitsBase {
     }
     TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(src));
     result->type_index = obj_ptr->type_index;
+    TVM_FFI_CLEAR_PTR_PADDING_IN_FFI_ANY(result);
     result->v_obj = obj_ptr;
   }
 
@@ -573,12 +573,14 @@ struct TypeTraits<const TObject*, std::enable_if_t<std::is_base_of_v<Object, TOb
   static TVM_FFI_INLINE void CopyToAnyView(const TObject* src, TVMFFIAny* result) {
     TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetHeader(src);
     result->type_index = obj_ptr->type_index;
+    TVM_FFI_CLEAR_PTR_PADDING_IN_FFI_ANY(result);
     result->v_obj = obj_ptr;
   }
 
   static TVM_FFI_INLINE void MoveToAny(const TObject* src, TVMFFIAny* result) {
     TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetHeader(src);
     result->type_index = obj_ptr->type_index;
+    TVM_FFI_CLEAR_PTR_PADDING_IN_FFI_ANY(result);
     result->v_obj = obj_ptr;
     // needs to increase ref because original weak ptr do not own the code
     details::ObjectUnsafe::IncRefObjectHandle(result->v_obj);

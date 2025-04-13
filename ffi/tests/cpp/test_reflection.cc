@@ -29,14 +29,15 @@ using namespace tvm::ffi;
 using namespace tvm::ffi::testing;
 
 struct A : public Object {
-  ObjectRef obj;
-  int32_t x;
-  int32_t y;
+  int64_t x;
+  int64_t y;
 };
 
 TEST(Reflection, GetFieldByteOffset) {
-  EXPECT_EQ(details::GetFieldByteOffsetToObject(&A::x), 8 + sizeof(TVMFFIObject));
-  EXPECT_EQ(details::GetFieldByteOffsetToObject(&A::y), 12 + sizeof(TVMFFIObject));
+
+
+  EXPECT_EQ(details::GetFieldByteOffsetToObject(&A::x), sizeof(TVMFFIObject));
+  EXPECT_EQ(details::GetFieldByteOffsetToObject(&A::y), 8 + sizeof(TVMFFIObject));
   EXPECT_EQ(details::GetFieldByteOffsetToObject(&TIntObj::value), sizeof(TVMFFIObject));
 }
 
