@@ -21,7 +21,7 @@ from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
 from tvm.ir import GlobalVar, IRModule, PrimExpr
-from tvm.runtime import Object, String
+from tvm.runtime import Object
 from tvm.tir import Block, Buffer, FloatImm, For, IntImm, PrimFunc
 
 from ..function import IndexMap
