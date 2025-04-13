@@ -261,30 +261,16 @@ inline void LegacyTVMArgsToPackedArgs(const TVMValue* value, const int* type_cod
 
 /*!
  * \brief Translate legacy TVMArgs to PackedArgs
+ * \param args The AnyView array
+ * \param num_args The number of arguments
  * \param value The TVMValue array
  * \param type_code The type code array
- * \param num_args The number of arguments
- * \param dst The destination AnyView array
  */
 inline void PackedArgsToLegacyTVMArgs(const AnyView* args, int num_args, TVMValue* value,
                                       int* type_code) {
   for (int i = 0; i < num_args; ++i) {
     AnyViewToLegacyTVMArgValue(args[i].CopyToTVMFFIAny(), value + i, type_code + i);
   }
-}
-
-/*!
- * \brief Call the function in legacy packed format.
- * \param ffi_func The function object
- * \param args The arguments
- * \param rv The return value.
- */
-inline void LegacyCallPacked(ffi::FunctionObj* ffi_func, const TVMValue* value,
-                             const int* type_code, int num_args, Any* rv) {
-  std::vector<ffi::AnyView> args_vec(num_args);
-  LegacyTVMArgsToPackedArgs(value, type_code, num_args, args_vec.data());
-  // redirect to the normal call packed.
-  ffi_func->CallPacked(args_vec.data(), args_vec.size(), rv);
 }
 
 // redirect to ffi::PackedArgs

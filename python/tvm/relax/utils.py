@@ -114,7 +114,7 @@ def convert_to_expr(value: Any) -> Expr:
     if isinstance(tvm_value, PrimExpr):
         return PrimValue(value)
     # Case 3
-    if isinstance(tvm_value, String):
+    if isinstance(tvm_value, (str, String)):
         return StringImm(value)
     # Case 4
     if isinstance(value, (tuple, list)):

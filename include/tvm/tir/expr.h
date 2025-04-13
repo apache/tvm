@@ -1121,7 +1121,6 @@ inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
 
 namespace ffi {
 
-// auto convert String to StringImm
 template <>
 inline constexpr bool use_default_type_traits_v<tvm::tir::StringImm> = false;
 

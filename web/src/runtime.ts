@@ -2153,10 +2153,6 @@ export class Instance implements Disposable {
       (handle: number, lib: FFILibrary, ctx: RuntimeContext) => {
         return new TVMArray(handle, lib, ctx);
       });
-    this.registerObjectConstructor("object.String",
-      (handle: number, lib: FFILibrary, ctx: RuntimeContext) => {
-        return new TVMString(handle, lib, ctx);
-      });
   }
 
   /** Register global packed functions needed by the backend to the env. */
@@ -2275,7 +2271,7 @@ export class Instance implements Disposable {
       const valueOffset = argsValue + i * SizeOf.TVMValue;
       const codeOffset = argsCode + i * SizeOf.I32;
 
-      // Convert string[] to a TVMArray of TVMString, hence treated as a TVMObject
+      // Convert string[] to a TVMArray of, hence treated as a TVMObject
       if (val instanceof Array && val.every(e => typeof e === "string")) {
         const tvmStringArray: string[] = [];
         val.forEach(e => { tvmStringArray.push(e) });

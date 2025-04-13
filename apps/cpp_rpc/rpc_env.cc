@@ -159,11 +159,7 @@ RPCEnv::RPCEnv(const std::string& wd) {
         fs.seekg(0, std::ios::beg);
         bin.resize(size);
         fs.read(dmlc::BeginPtr(bin), size);
-
-        TVMByteArray binarr;
-        binarr.data = bin.data();
-        binarr.size = bin.length();
-        *rv = binarr;
+        *rv = ffi::Bytes(bin);
         LOG(INFO) << "Send linked module " << file_name << " to client";
       });
 }
