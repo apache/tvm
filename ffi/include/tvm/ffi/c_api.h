@@ -154,10 +154,16 @@ typedef struct TVMFFIAny {
  *
  *  String and bytes follows the layout of C-style string,
  *  with a null-terminated character array and a size field.
+ *
+ * \note This byte array data structure layout differs in 32/64 bit platforms.
+ *       as size_t equals to the size of the pointer, use this convetion to
+ *       be consistent with std::string and also avoid need to calculate padding
+ *       for the size field on 32-bit platforms.
+ *       The FFI binding should be careful when treating this ABI.
  */
 typedef struct {
   const char* data;
-  int64_t size;
+  size_t size;
 } TVMFFIByteArray;
 
 /*!
