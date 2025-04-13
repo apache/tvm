@@ -302,7 +302,7 @@ inline constexpr bool is_valid_iterator_v = is_valid_iterator<T, IterType>::valu
  * operator[] only provides const access, use Set to mutate the content.
  * \tparam T The content Value type, must be compatible with tvm::ffi::Any
  */
-template <typename T, typename = typename std::enable_if_t<details::container_enabled_v<T>>>
+template <typename T, typename = typename std::enable_if_t<details::storage_enabled_v<T>>>
 class Array : public ObjectRef {
  public:
   using value_type = T;
@@ -927,8 +927,8 @@ class Array : public ObjectRef {
  * \param rhs second Array to be concatenated.
  * \return The concatenated Array. Original Arrays are kept unchanged.
  */
-template <typename T,
-          typename = typename std::enable_if_t<std::is_same_v<T, Any> || TypeTraits<T>::enabled>>
+template <typename T, typename = typename std::enable_if_t<std::is_same_v<T, Any> ||
+                                                           TypeTraits<T>::convert_enabled>>
 inline Array<T> Concat(Array<T> lhs, const Array<T>& rhs) {
   for (const auto& x : rhs) {
     lhs.push_back(x);

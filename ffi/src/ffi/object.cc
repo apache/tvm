@@ -249,7 +249,9 @@ class TypeTable {
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIOpaquePtr, TypeIndex::kTVMFFIOpaquePtr);
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIDataType, TypeIndex::kTVMFFIDataType);
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIDevice, TypeIndex::kTVMFFIDevice);
-    ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIObjectRValueRef, TypeIndex::kTVMFFIObjectRValueRef);
+    ReserveBuiltinTypeIndex(
+      StaticTypeKey::kTVMFFIObjectRValueRef,
+      TypeIndex::kTVMFFIObjectRValueRef);
   }
 
   void ReserveBuiltinTypeIndex(const char* type_key, int32_t static_type_index) {

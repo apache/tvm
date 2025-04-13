@@ -55,8 +55,8 @@ class Optional<T, std::enable_if_t<!use_ptr_based_optional_v<T>>> {
   Optional() = default;
   Optional(const Optional<T>& other) : data_(other.data_) {}
   Optional(Optional<T>&& other) : data_(std::move(other.data_)) {}
-  Optional(std::optional<T> other) : data_(std::move(other)) {}
-  Optional(std::nullopt_t) {}
+  Optional(std::optional<T> other) : data_(std::move(other)) {}  // NOLINT(*)
+  Optional(std::nullopt_t) {}  // NOLINT(*)
   // normal value handling.
   Optional(T other)  // NOLINT(*)
       : data_(std::move(other)) {}
@@ -148,7 +148,7 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
   Optional(std::nullopt_t) {}  // NOLINT(*)
 
   // handle conversion from std::optional<T>
-  Optional(std::optional<T> other) {
+  Optional(std::optional<T> other) {  // NOLINT(*)
     if (other.has_value()) {
       *this = *std::move(other);
     }

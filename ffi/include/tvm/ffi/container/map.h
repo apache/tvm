@@ -31,6 +31,7 @@
 #include <tvm/ffi/optional.h>
 
 #include <algorithm>
+#include <string>
 #include <type_traits>
 #include <unordered_map>
 #include <utility>
@@ -1147,8 +1148,8 @@ inline ObjectPtr<MapNode> make_object<>() = delete;
  * \tparam V The value NodeRef type.
  */
 template <typename K, typename V,
-          typename = typename std::enable_if_t<details::container_enabled_v<K> &&
-                                               details::container_enabled_v<V>>>
+          typename = typename std::enable_if_t<details::storage_enabled_v<K> &&
+                                               details::storage_enabled_v<V>>>
 class Map : public ObjectRef {
  public:
   using key_type = K;
@@ -1369,8 +1370,8 @@ class Map : public ObjectRef {
  * @return The merged Array. Original Maps are kept unchanged.
  */
 template <typename K, typename V,
-          typename = typename std::enable_if_t<details::container_enabled_v<K> &&
-                                               details::container_enabled_v<V>>>
+          typename = typename std::enable_if_t<details::storage_enabled_v<K> &&
+                                               details::storage_enabled_v<V>>>
 inline Map<K, V> Merge(Map<K, V> lhs, const Map<K, V>& rhs) {
   for (const auto& p : rhs) {
     lhs.Set(p.first, p.second);
