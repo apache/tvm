@@ -512,5 +512,33 @@ def test_index_select(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
+@tvm.testing.parametrize_targets("cuda")
+def test_stack(target, dev):
+    class StackModel(nn.Module):
+        def forward(self, x):
+            val1 = x[1, 4]
+            val2 = x[3, 2]
+            val3 = x[5, 6]
+            z = torch.stack([val1, val2, val3])
+            return z
+
+    torch_module = StackModel().eval()
+    raw_data = np.random.rand(10, 10, 10).astype("float32")
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_sum(target, dev):
+    class SumModel(nn.Module):
+        def forward(self, x):
+            new_vec = x[1, 4]
+            return new_vec.sum()
+
+    torch_module = SumModel().eval()
+
+    raw_data = np.random.rand(10, 10, 10).astype("float32")
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

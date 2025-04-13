@@ -312,6 +312,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         return self.block_builder.emit(relax.op.nn.softmax(x, dim))
 
+    def _softplus(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        beta = node.args[1] if len(node.args) > 1 else node.kwargs.get("beta", 1.0)
+        threshold = node.args[2] if len(node.args) > 2 else node.kwargs.get("threshold", 20.0)
+        return self.block_builder.emit(relax.op.nn.softplus(x, beta, threshold))
+
     def _softshrink(self, node: fx.Node) -> relax.Var:
         """
         Applies the Softshrink activation function in Relax.
@@ -969,6 +975,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         descending = node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False)
         return self.block_builder.emit(relax.op.argsort(x, dim, descending))
+
+    def _broadcast_to(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        shape = args[1] if len(args) > 1 else args[0]
+        return self.block_builder.emit(relax.op.broadcast_to(x, shape))
 
     def _cat(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)

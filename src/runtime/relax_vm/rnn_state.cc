@@ -251,7 +251,7 @@ class RNNStateImpObj : public RNNStateObj {
     }
     // TODO(Siyuan): We need to update history_slot_id_device_ (on device) as well.
     // There are two ways to do this:
-    // 1. Update history_slot_id_device_ on device directly through a explict kernel
+    // 1. Update history_slot_id_device_ on device directly through a explicit kernel
     // 2. Update history_slot_id on host and then sync to device.
     // We choose the second way for now for convenience. But the first way is more efficient.
     dirty_aux_data_device_ = true;
