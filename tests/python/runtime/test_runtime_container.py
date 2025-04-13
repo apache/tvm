@@ -25,26 +25,21 @@ import tvm.testing
 from tvm import nd
 from tvm.runtime import container as _container
 
-
 def test_string():
     s = tvm.runtime.String("xyz")
 
-    assert isinstance(s, tvm.runtime.String)
     assert isinstance(s, str)
     assert s.startswith("xy")
     assert s + "1" == "xyz1"
     y = tvm.testing.echo(s)
-    assert isinstance(y, tvm.runtime.String)
-    assert s.__tvm_object__.same_as(y.__tvm_object__)
+    assert isinstance(y, str)
     assert s == y
 
     x = tvm.ir.load_json(tvm.ir.save_json(y))
-    assert isinstance(x, tvm.runtime.String)
     assert x == y
 
     # test pickle
     z = pickle.loads(pickle.dumps(s))
-    assert isinstance(z, tvm.runtime.String)
     assert s == z
 
 
