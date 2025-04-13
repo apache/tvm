@@ -70,7 +70,6 @@ from tvm.relax.op import (
     ceil,
     clip,
     collapse_sum_like,
-    collapse_sum_like_TWO, # TODO is this necessary?
     collapse_sum_to,
     concat,
     cos,
@@ -102,6 +101,7 @@ from tvm.relax.op import (
     greater_equal,
     hint_on_device,
     image,
+    index_tensor, # TODO do something with this or remove? 
     invoke_closure,
     invoke_pure_closure,
     isfinite,
@@ -735,8 +735,7 @@ __all__ = [
     "call_builtin_with_ctx",
     "ceil",
     "clip",
-    collapse_sum_like,
-    "collapse_sum_like_TWO", # TODO is this necessary?
+    "collapse_sum_like",
     "collapse_sum_to",
     "concat",
     "cos",
@@ -785,6 +784,7 @@ __all__ = [
     "hexagon",
     "hint_on_device",
     "image",
+    "index_tensor", # TODO keep or remove? 
     "invoke_closure",
     "invoke_pure_closure",
     "isfinite",

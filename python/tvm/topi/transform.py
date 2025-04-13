@@ -1053,14 +1053,6 @@ def trilu(data, k, upper):
 
     return te.compute(data.shape, _apply_trilu, name="trilu", tag=topi.tag.ELEMWISE)
 
-
-def collapse_sum_like_TWO(data, indices):
-    print("IN TOPI:   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-    print(data)
-    print(indices)
-    # return data # doesn't work
-    return topi.sum(data, axis=[0]) 
-
 def index_tensor(data, indices):
     """ TODO docstring  
     - If 'indices' is a list/tuple of length > 1, we interpret that as multiple advanced indices,
@@ -1083,13 +1075,15 @@ def index_tensor(data, indices):
     """
     # The typical pattern is to define the new output via te.compute,
     # with a lambda that describes the element-wise operation.
-    return te.compute(
-        data.shape,
-        lambda *indices: data(*indices) + tvm.tir.const(1, data.dtype),
-        name="dummy_add_one",
-        # For a simple element-wise operator, you can use tag=topi.tag.ELEMWISE
-        tag="elemwise",
-    )
+    # return te.compute(
+    #     data.shape,
+    #     lambda *indices: data(*indices) + tvm.tir.const(1, data.dtype),
+    #     name="dummy_add_one",
+    #     # For a simple element-wise operator, you can use tag=topi.tag.ELEMWISE
+    #     tag="elemwise",
+    # ) # TODO this should work
+
+    return topi.sum(data, axis=[0]) # TODO this also works
 
     # return data
 

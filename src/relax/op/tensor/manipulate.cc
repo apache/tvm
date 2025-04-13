@@ -476,87 +476,43 @@ TVM_REGISTER_OP("relax.flatten")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.index_tensor */
-TVM_REGISTER_NODE_TYPE(IndexTensorAttrs);
-
-Expr index_tensor(Expr x, Array<Integer> indices) {
-  auto attrs = make_object<IndexTensorAttrs>();
-  attrs->indices = std::move(indices);
-
+Expr index_tensor(Expr data, Expr indices) {
   static const Op& op = Op::Get("relax.index_tensor");
-  return Call(op, {std::move(x)}, Attrs(attrs), {});
+  return Call(op, {std::move(data), std::move(indices)}, Attrs(), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.index_tensor").set_body_typed(index_tensor);
 
-// TODO understand every line here? Is this all correct?
 StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx) {
-  CheckNumArguments(call, ctx);
-  TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
+  // TODO most of this is arbitrarily copied from collapse_sum_like. Need to understand what we
+  // actually need
+  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  TensorStructInfo data_sinfo = input_sinfo[0];
+  TensorStructInfo indices_sinfo = input_sinfo[1];
 
-  // TODO the commented out checks below fail, understand why! 
-  // // StructInfo inference when the index is a PrimValue is equivalent
-  // // to that of a scalar (0-d) tensor.
-  // TensorStructInfo indices_sinfo = [&]() {
-  //   auto arg = call->args[0]; // TODO changed this from 1 to 0, is that ok?
-  //   auto sinfo = GetStructInfo(arg);
-  //   // TODO update the condition below. The indices argument should always be a tensor, it cannot be
-  //   // a scalar value
-  //   if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
-  //     return tensor_sinfo.value();
-  //   } else if (auto prim_sinfo = sinfo.as<PrimStructInfoNode>()) {
-  //     return TensorStructInfo(ShapeExpr(Array<PrimExpr>{}), prim_sinfo->dtype);
-  //   } else {
-  //     ctx->ReportFatal(Diagnostic::Error(call)
-  //                      << "Operator " << call->op << " requires the indices argument to be "
-  //                      << "either a tensor or a scalar value.  "
-  //                      << "However, argument " << arg << " has struct info " << sinfo);
-  //     // Unreachable, but [[noreturn]] attribute on virtual function
-  //     // `ReportFatal` is insufficient to silence -Wreturn-type, as
-  //     // child class might not be [[noreturn]].
-  //     return TensorStructInfo();
-  //   }
-  // }();
+  DataType output_dtype = data_sinfo->dtype;
 
-  // if (indices_sinfo->IsUnknownDtype()) {
-  //   // TODO(tvm-team): Do we have an equivalent of `ctx->ReportFatal` for warning?
-  //   LOG(WARNING) << "Data type of indice has not been specified. Assume it has an integer type.";
-  // } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
-  //   ctx->ReportFatal(
-  //       Diagnostic::Error(call)
-  //       << "Index Tensor op requires the input indices to have integer dtype. However, the "
-  //          "given indices dtype is "
-  //       << indices_sinfo->dtype);
-  // }
+  Optional<Array<PrimExpr>> data_shape_value;
+  if (data_sinfo->shape.defined()) {
+    data_shape_value = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value())->values;
+  }
+  Optional<Array<PrimExpr>> indices_shape_value;
+  if (indices_sinfo->shape.defined()) {
+    indices_shape_value =
+        GetStructInfoAs<ShapeStructInfoNode>(indices_sinfo->shape.value())->values;
+  }
 
-  // if (data_sinfo->IsUnknownNdim() || indices_sinfo->IsUnknownNdim()) {
-  //   return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
-  // }
-
-  // const auto* attrs = call->attrs.as<IndexTensorAttrs>();
-
-  // const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
-  // const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
-  // if (data_shape == nullptr || indices_shape == nullptr) {
-  //   return TensorStructInfo(data_sinfo->dtype, indices_sinfo->ndim + data_sinfo->ndim - 1,
-  //                           data_sinfo->vdevice);
-  // }
-
-  // TODO can we do better than kUnknownNDim, and instead do something like this for the output
-  // shape? Array<PrimExpr> output_shape; for (int i = 0; i < data_sinfo->ndim; i++) {
-  //   if (i == axis) {
-  //     for (int j = 0; j < indices_sinfo->ndim; j++)
-  //       output_shape.push_back(indices_shape->values[j]);
-  //   } else {
-  //     output_shape.push_back(data_shape->values[i]);
-  //   }
-  // }
-  return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
+  if (indices_sinfo->shape.defined()) {
+    return TensorStructInfo(indices_sinfo->shape.value(), output_dtype, indices_sinfo->vdevice);
+  } else {
+    return TensorStructInfo(output_dtype, indices_sinfo->ndim, indices_sinfo->vdevice);
+  }
 }
 
 TVM_REGISTER_OP("relax.index_tensor")
-    .set_attrs_type<IndexTensorAttrs>()
-    .set_num_inputs(1)
-    .add_argument("x", "Tensor", "The input tensor.")
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoIndexTensor)
     .set_attr<Bool>("FPurity", Bool(true));
 
@@ -1323,52 +1279,6 @@ TVM_REGISTER_OP("relax.collapse_sum_like")
     .add_argument("collapse_target", "Tensor",
                   "The tensor whose shape is the shape to collapse to.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCollapseSumLike)
-    .set_attr<Bool>("FPurity", Bool(true));
-
-/* relax.collapse_sum_like_TWO */
-Expr collapse_sum_like_TWO(Expr data, Expr collapse_target) {
-  static const Op& op = Op::Get("relax.collapse_sum_like_TWO");
-  return Call(op, {std::move(data), std::move(collapse_target)}, Attrs(), {});
-}
-
-TVM_REGISTER_GLOBAL("relax.op.collapse_sum_like_TWO").set_body_typed(collapse_sum_like_TWO);
-
-StructInfo InferStructInfoCollapseSumLikeTWO(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo data_sinfo = input_sinfo[0];
-  TensorStructInfo collapse_target_sinfo = input_sinfo[1];
-
-  DataType output_dtype = data_sinfo->dtype;
-
-  Optional<Array<PrimExpr>> data_shape_value;
-  if (data_sinfo->shape.defined()) {
-    data_shape_value = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value())->values;
-  }
-  Optional<Array<PrimExpr>> collapse_target_shape_value;
-  if (collapse_target_sinfo->shape.defined()) {
-    collapse_target_shape_value =
-        GetStructInfoAs<ShapeStructInfoNode>(collapse_target_sinfo->shape.value())->values;
-  }
-
-  if (data_shape_value.defined() && collapse_target_shape_value.defined()) {
-    CheckCollapseShape(call, ctx, data_shape_value.value(), collapse_target_shape_value.value());
-  }
-
-  if (collapse_target_sinfo->shape.defined()) {
-    return TensorStructInfo(collapse_target_sinfo->shape.value(), output_dtype,
-                            collapse_target_sinfo->vdevice);
-  } else {
-    return TensorStructInfo(output_dtype, collapse_target_sinfo->ndim,
-                            collapse_target_sinfo->vdevice);
-  }
-}
-
-TVM_REGISTER_OP("relax.collapse_sum_like_TWO")
-    .set_num_inputs(2)
-    .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("collapse_target", "Tensor",
-                  "The tensor whose shape is the shape to collapse to.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCollapseSumLikeTWO)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.collapse_sum_to */

@@ -87,7 +87,6 @@ from .linear_algebra import einsum, linear, matmul
 from .manipulate import (
     broadcast_to,
     collapse_sum_like,
-    collapse_sum_like_TWO,
     collapse_sum_to,
     concat,
     expand_dims,

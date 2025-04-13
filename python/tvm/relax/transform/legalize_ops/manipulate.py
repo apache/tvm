@@ -50,17 +50,6 @@ register_legalize(
     _reshape(topi.collapse_sum, "collapse_sum", is_collapse_sum_like=True),
 )
 
-# # TODO this correctly calls index_tensor!
-# @register_legalize("relax.collapse_sum_like_TWO")
-# def _index_tensor(bb: BlockBuilder, call: Call) -> Expr:
-#     return bb.call_te(topi.index_tensor, call.args[0], call.args[1]) # TODO should I use primfunc_name_hint? 
-
-
-# TODO this correctly calls index_tensor!
-@register_legalize("relax.collapse_sum_like_TWO")
-def _index_tensor(bb: BlockBuilder, call: Call) -> Expr:
-    return bb.call_te(topi.collapse_sum_like_TWO, call.args[0], call.args[1]) # TODO should I use primfunc_name_hint? 
-
 register_legalize("relax.collapse_sum_to", _reshape(topi.collapse_sum, "collapse_sum"))
 
 
@@ -173,10 +162,9 @@ def _gather_nd(bb: BlockBuilder, call: Call) -> Expr:
 
     return bb.call_te(te_gather_nd, call.args[0], call.args[1], int(call.attrs.batch_dims))
 
-# TODO what does this do? 
 @register_legalize("relax.index_tensor")
 def _index_tensor(bb: BlockBuilder, call: Call) -> Expr:
-    return bb.call_te(topi.index_tensor, call.args[0], call.attrs.indices) # TODO should I use primfunc_name_hint? 
+    return bb.call_te(topi.index_tensor, call.args[0], call.args[1]) # TODO should I use primfunc_name_hint? 
 
 @register_legalize("relax.scatter_elements")
 def _scatter_elements(bb: BlockBuilder, call: Call) -> Expr:

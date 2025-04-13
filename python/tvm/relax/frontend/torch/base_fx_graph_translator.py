@@ -1102,7 +1102,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         # index = self.env[node.args[1]] # TODO
         # return self.block_builder.emit(relax.op.index_tensor(args[0], indices)) # TODO revert! removed to test collapse sum like
-        return self.block_builder.emit(relax.op.collapse_sum_like_TWO(args[0], indices))
+        return self.block_builder.emit(relax.op.index_tensor(args[0], indices))
         # return self.block_builder.emit(relax.op.index_tensor(args[0], indices)) # TODO switch the above to this
 
     def _permute(self, node: fx.Node) -> relax.Var:
