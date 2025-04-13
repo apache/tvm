@@ -163,8 +163,8 @@ Expr RewriteArgmaxmin(BlockBuilder builder, const Var& var, const Call& src_call
   static const Op& topk_op = Op::Get("relax.topk");
   auto topk_attrs = make_object<TopKAttrs>();
   topk_attrs->k = 1;
-  if (src_attrs->axis.defined()) {
-    topk_attrs->axis = src_attrs->axis.value()->value;
+  if (src_attrs->axis.has_value()) {
+    topk_attrs->axis = src_attrs->axis.value();
   }
   topk_attrs->largest = call->op == Op::Get("relax.argmax");
   topk_attrs->ret_type = "both";
@@ -395,7 +395,7 @@ Expr RewriteBroadcastTo(BlockBuilder builder, const Var& var, const Call& src_ca
     if (in_dim != out_dim) {
       Array<Expr> concat_inputs(out_dim / in_dim, concat_input);
       auto concat_attrs = make_object<ConcatAttrs>();
-      concat_attrs->axis = Integer(i);
+      concat_attrs->axis = i;
       concat_input = RewriteUtils::MakeCall(
           builder, ExprUtils::GetSpanName(call, "concat_" + std::to_string(i)), concat_op,
           {Tuple(concat_inputs)}, Attrs(concat_attrs));

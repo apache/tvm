@@ -266,7 +266,7 @@ InferLayoutOutput ForwardInferLayoutArgMaxMin(const Call& call,
   if (attrs->keepdims) {
     return InferLayoutOutput({input_layout}, {input_layout}, Attrs());
   }
-  if (!attrs->axis.defined()) {
+  if (!attrs->axis.has_value()) {
     return InferLayoutOutput({input_layout}, {LayoutDecision("")}, Attrs());
   }
   const auto& input_shape = ExprUtils::GetShape(call->args[0]);
@@ -274,7 +274,7 @@ InferLayoutOutput ForwardInferLayoutArgMaxMin(const Call& call,
     return InferLayoutOutput();
   }
   std::vector<size_t> axes;
-  axes.push_back(CommonUtils::GetIndex(Downcast<Integer>(attrs->axis)->value, input_shape.size()));
+  axes.push_back(CommonUtils::GetIndex(attrs->axis.value(), input_shape.size()));
   LayoutDecision output_layout = LayoutUtils::ReduceLayout(input_layout, axes);
   return InferLayoutOutput({input_layout}, {output_layout}, Attrs());
 }
@@ -1102,7 +1102,7 @@ class LayoutInfer : public ExprVisitor {
               BackwardInferLayoutCommon(call, Map<String, Array<String>>(), var_layout_map_);
         }
       } catch (runtime::InternalError& err) {
-        LOG(WARNING) << "Failed to backward infer layout " << expr << " : " << err.message();
+        LOG(WARNING) << "Failed to backward infer layout " << expr << " : " << err.what();
         infered_layout = InferLayoutOutput();
       }
       try {
@@ -1111,7 +1111,7 @@ class LayoutInfer : public ExprVisitor {
         }
       } catch (runtime::InternalError& err) {
         LOG(WARNING) << "Failed to backward set inputs layout for " << call << " : "
-                     << err.message();
+                     << err.what();
       }
     }
   }
@@ -1163,7 +1163,7 @@ class LayoutInfer : public ExprVisitor {
           }
         } catch (runtime::InternalError& err) {
           LOG(WARNING) << "Failed to forward infer layout for " << binding->var << " : "
-                       << binding->value << ", reason: " << err.message();
+                       << binding->value << ", reason: " << err.what();
           infered_layout = InferLayoutOutput();
         }
         if (infered_layout.defined() && infered_layout->output_layouts.size() == 1) {
@@ -1171,7 +1171,7 @@ class LayoutInfer : public ExprVisitor {
             SetExprLayout(binding->var, infered_layout->output_layouts[0]);
           } catch (runtime::InternalError& err) {
             LOG(WARNING) << "Failed to forward set output layout for " << binding->var << " : "
-                         << binding->value << ", reason: " << err.message();
+                         << binding->value << ", reason: " << err.what();
           }
         }
         if (set_inputs && infered_layout.defined()) {
@@ -1179,7 +1179,7 @@ class LayoutInfer : public ExprVisitor {
             SetInputLayouts(call, infered_layout->input_layouts);
           } catch (runtime::InternalError& err) {
             LOG(WARNING) << "Failed to forward set inputs layout for " << call << " : "
-                         << err.message();
+                         << err.what();
           }
         }
       }

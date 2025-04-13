@@ -99,7 +99,7 @@ TEST(ScalableDataType, TestInvalidStringToScalableDataType) {
         try {
           tvm::runtime::StringToDLDataType(scalable_type_str);
         } catch (const tvm::ffi::Error& e) {
-          EXPECT_THAT(e.what(), HasSubstr("unknown dtype int32x4xvscale"));
+          EXPECT_THAT(e.what(), HasSubstr("unknown dtype `int32x4xvscale`"));
           throw;
         }
       },

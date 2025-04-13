@@ -725,7 +725,7 @@ void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const CallNode* 
     AddNode(GetRef<Call>(call_node), binding->var, name);
   } catch (runtime::InternalError& err) {
     LOG(WARNING) << "Failed to add node from " << binding->var << " : " << binding->value
-                 << ", reason: " << err.message();
+                 << ", reason: " << err.what();
     throw err;
   }
 }
