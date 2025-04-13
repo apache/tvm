@@ -1055,6 +1055,9 @@ def trilu(data, k, upper):
 
 
 def collapse_sum_like_TWO(data, indices):
+    print("IN TOPI:   !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    print(data)
+    print(indices)
     return data
     # return indices # both work!
     # return topi.sum(data, axis=[0]) # both work!
