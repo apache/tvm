@@ -3895,7 +3895,6 @@ def test_narrow():
                     (R.prim_value(1),),
                     (R.prim_value(0),),
                     (R.prim_value(2),),
-                    (R.prim_value(1),),
                     assume_inbound=False,
                 )
                 gv: R.Tuple(R.Tensor((5, 2), dtype="float32")) = (lv,)
