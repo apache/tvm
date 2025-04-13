@@ -104,7 +104,7 @@ void BackwardDataFindAlgo(int format, int dims, int groups, const int pad[], con
                 << ", Memory: " << perf_results[i].memory;
     }
   }
-  ret[0] = best_algo;
+  ret[0] = static_cast<int>(best_algo);
 }
 
 void ConvolutionBackwardFilter(int mode, int format, int algo, int dims, int groups,
@@ -182,7 +182,7 @@ void BackwardFilterFindAlgo(int format, int dims, int groups, const int pad[], c
                 << ", Memory: " << perf_results[i].memory;
     }
   }
-  ret[0] = best_algo;
+  ret[0] = static_cast<int>(best_algo);
 }
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_data")

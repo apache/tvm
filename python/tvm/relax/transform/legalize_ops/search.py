@@ -30,7 +30,7 @@ def _argmax_argmin(te_func: TEFunc) -> LegalizeFunc:
         return bb.call_te(
             te_func,
             call.args[0],
-            None if call.attrs.axis is None else call.attrs.axis.value,
+            None if call.attrs.axis is None else call.attrs.axis,
             call.attrs.keepdims,
         )
 

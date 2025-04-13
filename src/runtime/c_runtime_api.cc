@@ -579,7 +579,9 @@ int TVMFuncCall(TVMFunctionHandle func, TVMValue* args, int* arg_type_codes, int
   API_BEGIN();
   tvm::ffi::Any rv;
   tvm::ffi::FunctionObj* ffi_func = static_cast<tvm::ffi::FunctionObj*>(func);
-  LegacyCallPacked(ffi_func, args, arg_type_codes, num_args, &rv);
+  std::vector<tvm::ffi::AnyView> args_vec(num_args);
+  tvm::runtime::LegacyTVMArgsToPackedArgs(args, arg_type_codes, num_args, args_vec.data());
+  ffi_func->CallPacked(args_vec.data(), args_vec.size(), &rv);
   // special handle of certain return types.
   if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIDataType ||
       rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIBytes ||
