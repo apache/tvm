@@ -169,13 +169,14 @@ struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
   }
 };  // struct GatherNDAttrs
 
+// TODO maybe we don't need this?
 /*! \brief Attributes used in index_tensor operators */
-struct IndexTensorAttrs : public tvm::AttrsNode<IndexTensorAttrs> {
-  Array<Integer> indices;  // TODO will need to extend this, since could be an array of arrays?
-  TVM_DECLARE_ATTRS(IndexTensorAttrs, "relax.attrs.IndexTensorAttrs") {
-    TVM_ATTR_FIELD(indices).describe("The indices to select.");
-  }
-};  // struct IndexTensorAttrs
+// struct IndexTensorAttrs : public tvm::AttrsNode<IndexTensorAttrs> {
+//   Array<Integer> indices;  // TODO will need to extend this, since could be an array of arrays?
+//   TVM_DECLARE_ATTRS(IndexTensorAttrs, "relax.attrs.IndexTensorAttrs") {
+//     TVM_ATTR_FIELD(indices).describe("The indices to select.");
+//   }
+// };  // struct IndexTensorAttrs
 
 /*! \brief Attributes used in scatter_elements operators */
 struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {

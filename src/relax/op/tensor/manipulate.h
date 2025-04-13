@@ -128,15 +128,6 @@ Expr squeeze(Expr x, Optional<Array<Integer>> axis);
 Expr collapse_sum_like(Expr data, Expr collapse_target);
 
 /*!
- * \brief Return a summation of data to the shape of collapse_target.
- * For details, please see the operator `relax.collapse_sum_to`.
- * \param data The input tensor.
- * \param collapse_target The tensor whose shape is the shape to collapse to.
- * \return The result tensor after summation.
- */
-Expr collapse_sum_like_TWO(Expr data, Expr collapse_target);
-
-/*!
  * \brief Return a summation of data to the given shape.
  * collapse_sum_to is intended as the backward operator of broadcast_to and
  * other broadcast operators in the automatic differentiation process.
