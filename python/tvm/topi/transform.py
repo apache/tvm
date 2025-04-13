@@ -1158,10 +1158,10 @@ def index_tensor(data, indices):
                 # but here's the naive approach: we skip if the dimension is unknown
                 pass
 
-        return topi.sum(data, axis=[0]) # TODO this also works
 
         # Flatten
         flattened = topi.reshape(idx_t, (-1,))
+        return topi.sum(data, axis=[0]) # TODO this also works
 
         # fix negative indexing
         # data.shape[0] is batch dimension
