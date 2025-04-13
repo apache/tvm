@@ -150,7 +150,7 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
     }
   }
 
-  ret[0] = best_algo;
+  ret[0] = static_cast<int>(best_algo);
 }
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
