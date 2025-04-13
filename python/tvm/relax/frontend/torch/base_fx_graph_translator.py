@@ -93,12 +93,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         from torch import fx
 
         if isinstance(node, fx.Node):
+            print("isinstance(node, fx.Node)")
             return self.env[node]
         elif isinstance(node, tuple):
+            print("isinstance(node, tuple) of length", len(node))
             return tuple(self._retrieve_args(x) for x in node)
         elif isinstance(node, list):
+            print("isinstance(node, list) of length", len(node))
             return [self._retrieve_args(x) for x in node]
         elif isinstance(node, dict):
+            print("isinstance(node, dict)")
             return {self._retrieve_args(k): self._retrieve_args(v) for k, v in node.items()}
         else:
             return node
@@ -1059,9 +1063,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.gather_elements(x, index, axis=dim))
 
     def _index_tensor(self, node: fx.Node) -> relax.Var:
+        # TODO should I be using _binary_op() ?
+         
 # ?        x = self.env[node.args[0]]
         # indices = node.args[1]
         args = self.retrieve_args(node)
+        print("node: fx.Node passed to index_tensor:")
         print("len of args", len(args))
         print("type of args[0]", type(args[0]))
         print("args[0]", args[0])
@@ -1069,10 +1076,21 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         print("args[1]", args[1])
 
         # indices = args[1] # TODO do something like this!
-        indices = [2,3]
+        # indices = [2,3]
+        indices = args[1][0]
+        print("type of indices", type(indices))
+        # print("indices:")
+        # args_indices = self.retrieve_args(indices)
+        # print("len of args_indices", len(args_indices))
+        # print("type of args_indices[0]", type(args_indices[0]))
+        # print("args_indices[0]", args_indices[0])
+        # print("type of args_indices[1]", type(args_indices[1])) # Is a list no matter what!!! Like even if we pass a torch.tensor 
+        # print("args_indices[1]", args_indices[1])
+
 
         # index = self.env[node.args[1]] # TODO
-        return self.block_builder.emit(relax.op.index_tensor(args[0], indices))
+        # return self.block_builder.emit(relax.op.index_tensor(args[0], indices)) # TODO revert! removed to test collapse sum like
+        return self.block_builder.emit(relax.op.collapse_sum_like(args[0], indices))
         # return self.block_builder.emit(relax.op.index_tensor(x, indices))
 
     def _permute(self, node: fx.Node) -> relax.Var:
