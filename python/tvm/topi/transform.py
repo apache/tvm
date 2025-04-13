@@ -1145,7 +1145,6 @@ def index_tensor(data, indices):
         #  4) gather => topi.take(..., axis=0)
         #  5) reshape => combine advanced dims + leftover dims
         idx_t = indices if isinstance(indices, te.Tensor) else indices[0]
-        return topi.sum(data, axis=[0]) # TODO this also works
     
 
         # Possibly remove leading dimension if shape[0]==1:
@@ -1158,6 +1157,8 @@ def index_tensor(data, indices):
                 # If we suspect it's dynamic, we can check with a small schedule or approach,
                 # but here's the naive approach: we skip if the dimension is unknown
                 pass
+
+        return topi.sum(data, axis=[0]) # TODO this also works
 
         # Flatten
         flattened = topi.reshape(idx_t, (-1,))
