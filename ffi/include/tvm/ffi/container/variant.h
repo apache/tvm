@@ -102,9 +102,7 @@ class Variant {
     return std::move(data_).operator T();
   }
 
-  TVM_FFI_INLINE std::string GetTypeKey() const {
-    return data_.GetTypeKey();
-  }
+  TVM_FFI_INLINE std::string GetTypeKey() const { return data_.GetTypeKey(); }
 
  private:
   friend struct TypeTraits<Variant<V...>>;

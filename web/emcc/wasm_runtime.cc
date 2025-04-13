@@ -53,6 +53,9 @@
 #include "src/runtime/system_library.cc"
 #include "src/runtime/workspace_pool.cc"
 // relax setup
+#include "ffi/src/ffi/function.cc"
+#include "ffi/src/ffi/object.cc"
+#include "ffi/src/ffi/traceback.cc"
 #include "src/runtime/memory/memory_manager.cc"
 #include "src/runtime/nvtx.cc"
 #include "src/runtime/relax_vm/attn_backend.cc"
@@ -65,10 +68,6 @@
 #include "src/runtime/relax_vm/paged_kv_cache.cc"
 #include "src/runtime/relax_vm/rnn_state.cc"
 #include "src/runtime/relax_vm/vm.cc"
-
-#include "ffi/src/ffi/object.cc"
-#include "ffi/src/ffi/function.cc"
-#include "ffi/src/ffi/traceback.cc"
 
 // --- Implementations of backend and wasm runtime API. ---
 
@@ -108,8 +107,7 @@ TVM_REGISTER_GLOBAL("testing.echo").set_body([](TVMArgs args, TVMRetValue* ret) 
 });
 
 TVM_REGISTER_GLOBAL("testing.call").set_body([](TVMArgs args, TVMRetValue* ret) {
-  (args[0].operator PackedFunc())
-      .CallPacked(args.Slice(1), ret);
+  (args[0].operator PackedFunc()).CallPacked(args.Slice(1), ret);
 });
 
 TVM_REGISTER_GLOBAL("testing.ret_string").set_body([](TVMArgs args, TVMRetValue* ret) {

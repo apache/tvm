@@ -17,8 +17,8 @@
  * under the License.
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/script/ir_builder/tir/ir.h>
 #include <tvm/ffi/container/variant.h>
+#include <tvm/script/ir_builder/tir/ir.h>
 
 #include "./utils.h"
 
