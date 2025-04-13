@@ -1075,18 +1075,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.gather_elements(x, index, axis=dim))
 
     def _index_tensor(self, node: fx.Node) -> relax.Var:
-<<<<<<< HEAD
         # TODO should I be using _binary_op() ?
          
 # ?        x = self.env[node.args[0]]
         # indices = node.args[1]
         args = self.retrieve_args(node)
         print("node: fx.Node passed to index_tensor:")
-=======
-# ?        x = self.env[node.args[0]]
-        # indices = node.args[1]
-        args = self.retrieve_args(node)
->>>>>>> index.Tensor3
         print("len of args", len(args))
         print("type of args[0]", type(args[0]))
         print("args[0]", args[0])
@@ -1094,7 +1088,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         print("args[1]", args[1])
 
         # indices = args[1] # TODO do something like this!
-<<<<<<< HEAD
         # indices = [2,3]
         indices = args[1][0]
         print("type of indices", type(indices))
@@ -1110,13 +1103,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # index = self.env[node.args[1]] # TODO
         # return self.block_builder.emit(relax.op.index_tensor(args[0], indices)) # TODO revert! removed to test collapse sum like
         return self.block_builder.emit(relax.op.collapse_sum_like_TWO(args[0], indices))
-=======
-        indices = [2,3]
-
-        # index = self.env[node.args[1]] # TODO
-        return self.block_builder.emit(relax.op.index_tensor(args[0], indices))
->>>>>>> index.Tensor3
-        # return self.block_builder.emit(relax.op.index_tensor(x, indices))
+        # return self.block_builder.emit(relax.op.index_tensor(args[0], indices)) # TODO switch the above to this
 
     def _permute(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
