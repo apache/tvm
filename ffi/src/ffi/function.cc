@@ -121,10 +121,9 @@ class GlobalFunctionTable {
 
 int TVMFFIFuncCreate(void* self, TVMFFISafeCallType safe_call, void (*deleter)(void* self),
                      TVMFFIObjectHandle* out) {
-  using namespace tvm::ffi;
   TVM_FFI_SAFE_CALL_BEGIN();
-  Function func = Function::FromExternC(self, safe_call, deleter);
-  *out = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(func));
+  tvm::ffi::Function func = tvm::ffi::Function::FromExternC(self, safe_call, deleter);
+  *out = tvm::ffi::details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(func));
   TVM_FFI_SAFE_CALL_END();
 }
 
@@ -141,8 +140,8 @@ int TVMFFIFuncGetGlobal(const char* name, TVMFFIObjectHandle* out) {
   TVM_FFI_SAFE_CALL_BEGIN();
   const Function* fp = GlobalFunctionTable::Global()->Get(name);
   if (fp != nullptr) {
-    Function func(*fp);
-    *out = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(func));
+    tvm::ffi::Function func(*fp);
+    *out = tvm::ffi::details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(func));
   } else {
     *out = nullptr;
   }

@@ -132,7 +132,7 @@ inline void PrintDLDataTypeCodeAsStr(std::ostream& os, DLDataTypeCode type_code)
       break;
     }
     default: {
-      if (type_code >= static_cast<int>(DLExtDataTypeCode::kDLExtCustomBegin)) {
+      if (static_cast<int>(type_code) >= static_cast<int>(DLExtDataTypeCode::kDLExtCustomBegin)) {
         os << "custom[" << details::DLDataTypeCodeGetCustomTypeName(type_code) << "]";
       } else {
         TVM_FFI_THROW(ValueError) << "DLDataType contains unknown type_code="
