@@ -157,8 +157,6 @@ class RuntimeContext implements Disposable {
   arrayGetSize: PackedFunc;
   arrayMake: PackedFunc;
   arrayConcat: PackedFunc;
-  stringMake: PackedFunc;
-  getFFIString: PackedFunc;
   getSysLib: PackedFunc;
   arrayCacheGet: PackedFunc;
   arrayCacheUpdate: PackedFunc;
@@ -183,8 +181,6 @@ class RuntimeContext implements Disposable {
     this.arrayGetSize = getGlobalFunc("runtime.ArraySize");
     this.arrayMake = getGlobalFunc("runtime.Array");
     this.arrayConcat = getGlobalFunc("tvmjs.runtime.ArrayConcat");
-    this.stringMake = getGlobalFunc("runtime.String");
-    this.getFFIString = getGlobalFunc("runtime.GetFFIString");
     this.getSysLib = getGlobalFunc("runtime.SystemLib");
     this.arrayCacheGet = getGlobalFunc("vm.builtin.ndarray_cache.get");
     this.arrayCacheRemove = getGlobalFunc("vm.builtin.ndarray_cache.remove");
@@ -214,8 +210,6 @@ class RuntimeContext implements Disposable {
     this.arrayGetSize.dispose();
     this.arrayMake.dispose();
     this.arrayConcat.dispose();
-    this.stringMake.dispose();
-    this.getFFIString.dispose();
     this.arrayCacheGet.dispose();
     this.arrayCacheRemove.dispose();
     this.arrayCacheUpdate.dispose();
@@ -920,24 +914,6 @@ export class TVMArray extends TVMObject {
    */
   get(index: number): TVMObjectBase {
     return this.ctx.arrayGetItem(this, new Scalar(index, "int32")) as TVMObjectBase;
-  }
-}
-
-/** Runtime string object. */
-export class TVMString extends TVMObject {
-  constructor(
-    handle: Pointer,
-    lib: FFILibrary,
-    ctx: RuntimeContext
-  ) {
-    super(handle, lib, ctx);
-  }
-
-  /**
-   * @returns the size of the array.
-   */
-  toString(): string {
-    return this.ctx.getFFIString(this) as string;
   }
 }
 
@@ -1900,7 +1876,7 @@ export class Instance implements Disposable {
    * @returns The result array.
    */
   makeTVMArray(
-    inputs: Array<TVMObjectBase>
+    inputs: Array<any>
   ): TVMArray {
     const CALL_STACK_LIMIT = 30000;
     const inputsLength = inputs.length;
@@ -1912,7 +1888,7 @@ export class Instance implements Disposable {
     const listOfArrays: Array<TVMArray> = [];
     for (let begin = 0; begin < inputsLength; begin += CALL_STACK_LIMIT) {
       const end = Math.min(inputsLength, begin + CALL_STACK_LIMIT);
-      const chunk: Array<TVMObjectBase> = inputs.slice(begin, end);
+      const chunk: Array<any> = inputs.slice(begin, end);
       listOfArrays.push(this.ctx.arrayMake(...chunk) as TVMArray);
     }
     return this.ctx.arrayConcat(...listOfArrays) as TVMArray;
@@ -1940,16 +1916,6 @@ export class Instance implements Disposable {
       );
     }
     return this.ctx.concatEmbeddings(...embeddings) as NDArray;
-  }
-
-  /**
-   * Create a {@link TVMString} that can be consumed by runtime.
-   *
-   * @param input The string.
-   * @returns The result TVMString.
-   */
-  makeString(input: string): TVMString {
-    return this.ctx.stringMake(input) as TVMString;
   }
 
   /**
@@ -2311,8 +2277,8 @@ export class Instance implements Disposable {
 
       // Convert string[] to a TVMArray of TVMString, hence treated as a TVMObject
       if (val instanceof Array && val.every(e => typeof e === "string")) {
-        const tvmStringArray: TVMString[] = [];
-        val.forEach(e => { tvmStringArray.push(this.makeString(e)) });
+        const tvmStringArray: string[] = [];
+        val.forEach(e => { tvmStringArray.push(e) });
         val = this.makeTVMArray(tvmStringArray);
       }
 
