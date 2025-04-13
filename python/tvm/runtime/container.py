@@ -73,9 +73,10 @@ class String(str, PyNativeObject):
 
     def __new__(cls, content):
         """Construct from string content."""
-        val = str.__new__(cls, content)
-        val.__init_tvm_object_by_constructor__(_ffi_api.String, content)
-        return val
+        return str.__new__(str, content)
+        # val = str.__new__(cls, content)
+        # val.__init_tvm_object_by_constructor__(_ffi_api.String, content)
+        # return val
 
     # pylint: disable=no-self-argument
     def __from_tvm_object__(cls, obj):

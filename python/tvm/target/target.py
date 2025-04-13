@@ -128,10 +128,10 @@ class Target(Object):
             target = convert(target)
         if isinstance(host, (dict, str)):
             host = convert(host)
-        if target is None or not isinstance(target, (Map, String, Target)):
+        if target is None or not isinstance(target, (Map, String, Target, str)):
             raise ValueError(f"target has to be a string or dictionary. instead get {type(target)}")
         if host is not None:
-            if not isinstance(host, (Map, String, Target)):
+            if not isinstance(host, (Map, String, Target, str)):
                 raise ValueError("target host has to be a string or dictionary.")
             self.__init_handle_by_constructor__(_ffi_api.Target, Target(target), Target(host))
         else:

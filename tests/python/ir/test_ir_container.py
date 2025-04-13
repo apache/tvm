@@ -122,7 +122,6 @@ def test_return_variant_type():
     assert res_even == 21
 
     res_odd = func(17)
-    assert isinstance(res_odd, tvm.runtime.String)
     assert res_odd == "argument was odd"
 
 
