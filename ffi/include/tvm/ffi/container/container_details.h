@@ -28,6 +28,7 @@
 #include <tvm/ffi/object.h>
 
 #include <sstream>
+#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -272,8 +273,7 @@ class ReverseIterAdapter {
  * \return True if T is compatible with Any, false otherwise.
  */
 template <typename T>
-inline constexpr bool container_enabled_v =
-    std::is_same_v<T, Any> || TypeTraits<T>::container_enabled;
+inline constexpr bool storage_enabled_v = std::is_same_v<T, Any> || TypeTraits<T>::storage_enabled;
 
 /**
  * \brief Check if Any storage of Derived can always be directly used as Base.

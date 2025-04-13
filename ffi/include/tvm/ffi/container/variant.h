@@ -28,8 +28,9 @@
 #include <tvm/ffi/container/container_details.h>
 #include <tvm/ffi/optional.h>
 
-#include <sstream>
+#include <string>
 #include <type_traits>
+#include <utility>
 
 namespace tvm {
 namespace ffi {
@@ -41,7 +42,7 @@ namespace ffi {
 template <typename... V>
 class Variant {
  public:
-  static constexpr bool all_compatible_with_any_v = (TypeTraits<V>::container_enabled && ...);
+  static constexpr bool all_compatible_with_any_v = (TypeTraits<V>::storage_enabled && ...);
   static_assert(all_compatible_with_any_v,
                 "All types used in Variant<...> must be compatible with Any");
 
@@ -68,7 +69,7 @@ class Variant {
   }
 
   template <typename T, typename = enable_if_variant_contains_t<T>>
-  Variant(T other) : data_(std::move(other)) {}
+  Variant(T other) : data_(std::move(other)) {}  // NOLINT(*)
 
   template <typename T, typename = enable_if_variant_contains_t<T>>
   TVM_FFI_INLINE Variant& operator=(T other) {

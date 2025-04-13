@@ -38,7 +38,7 @@ struct TypeToFieldStaticTypeIndex {
 };
 
 template <typename T>
-struct TypeToFieldStaticTypeIndex<T, std::enable_if_t<TypeTraits<T>::enabled>> {
+struct TypeToFieldStaticTypeIndex<T, std::enable_if_t<TypeTraits<T>::convert_enabled>> {
   static constexpr int32_t value = TypeTraits<T>::field_static_type_index;
 };
 

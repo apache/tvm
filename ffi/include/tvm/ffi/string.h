@@ -213,7 +213,7 @@ class Bytes : public ObjectRef {
  */
 class String : public ObjectRef {
  public:
-  String(nullptr_t) = delete;
+  String(nullptr_t) = delete;  // NOLINT(*)
 
   /*!
    * \brief constructor from char [N]
@@ -392,7 +392,7 @@ template <int N>
 struct TypeTraits<char[N]> : public TypeTraitsBase {
   // NOTE: only enable implicit conversion into AnyView
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIRawStr;
-  static constexpr bool container_enabled = false;
+  static constexpr bool storage_enabled = false;
 
   static TVM_FFI_INLINE void CopyToAnyView(const char src[N], TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFIRawStr;
@@ -408,7 +408,7 @@ struct TypeTraits<char[N]> : public TypeTraitsBase {
 template <>
 struct TypeTraits<const char*> : public TypeTraitsBase {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIRawStr;
-  static constexpr bool container_enabled = false;
+  static constexpr bool storage_enabled = false;
 
   static TVM_FFI_INLINE void CopyToAnyView(const char* src, TVMFFIAny* result) {
     TVM_FFI_ICHECK_NOTNULL(src);
@@ -435,7 +435,7 @@ struct TypeTraits<const char*> : public TypeTraitsBase {
 template <>
 struct TypeTraits<TVMFFIByteArray*> : public TypeTraitsBase {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIByteArrayPtr;
-  static constexpr bool container_enabled = false;
+  static constexpr bool storage_enabled = false;
 
   static TVM_FFI_INLINE void CopyToAnyView(TVMFFIByteArray* src, TVMFFIAny* result) {
     TVM_FFI_ICHECK_NOTNULL(src);

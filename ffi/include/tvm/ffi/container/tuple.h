@@ -26,6 +26,10 @@
 
 #include <tvm/ffi/container/array.h>
 
+#include <string>
+#include <tuple>
+#include <utility>
+
 namespace tvm {
 namespace ffi {
 
@@ -39,9 +43,8 @@ namespace ffi {
 template <typename... Types>
 class Tuple : public ObjectRef {
  public:
-  static constexpr bool all_container_enabled_v = (details::container_enabled_v<Types> && ...);
-  static_assert(all_container_enabled_v,
-                "All types used in Tuple<...> must be compatible with Any");
+  static constexpr bool all_storage_enabled_v = (details::storage_enabled_v<Types> && ...);
+  static_assert(all_storage_enabled_v, "All types used in Tuple<...> must be compatible with Any");
 
   Tuple() : ObjectRef(MakeDefaultTupleNode()) {}
   Tuple(const Tuple<Types...>& other) : ObjectRef(other) {}

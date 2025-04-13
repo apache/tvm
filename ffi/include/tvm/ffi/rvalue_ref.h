@@ -27,6 +27,9 @@
 #include <tvm/ffi/object.h>
 #include <tvm/ffi/type_traits.h>
 
+#include <string>
+#include <utility>
+
 namespace tvm {
 namespace ffi {
 
@@ -69,7 +72,7 @@ template <typename TObjRef, typename = std::enable_if_t<std::is_base_of_v<Object
 class RValueRef {
  public:
   /*! \brief only allow move constructor from rvalue of T */
-  RValueRef(TObjRef&& data)
+  explicit RValueRef(TObjRef&& data)
       : data_(details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(std::move(data))) {}
 
   /*! \brief return the data as rvalue */
@@ -87,7 +90,7 @@ inline constexpr bool use_default_type_traits_v<RValueRef<TObjRef>> = false;
 
 template <typename TObjRef>
 struct TypeTraits<RValueRef<TObjRef>> : public TypeTraitsBase {
-  static constexpr bool container_enabled = false;
+  static constexpr bool storage_enabled = false;
 
   static TVM_FFI_INLINE void CopyToAnyView(const RValueRef<TObjRef>& src, TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFIObjectRValueRef;
@@ -103,7 +106,7 @@ struct TypeTraits<RValueRef<TObjRef>> : public TypeTraitsBase {
       // in this case we do not move the original rvalue ref since conversion creates a copy
       TVMFFIAny tmp_any;
       tmp_any.type_index = rvalue_ref->get()->type_index();
-      ;
+
       tmp_any.v_obj = reinterpret_cast<TVMFFIObject*>(rvalue_ref->get());
       return "RValueRef<" + TypeTraits<TObjRef>::GetMismatchTypeInfo(&tmp_any) + ">";
     } else {
@@ -121,7 +124,7 @@ struct TypeTraits<RValueRef<TObjRef>> : public TypeTraitsBase {
       tmp_any.v_obj = reinterpret_cast<TVMFFIObject*>(rvalue_ref->get());
       // fast path, storage type matches, direct move the rvalue ref
       if (TypeTraits<TObjRef>::CheckAnyStorage(&tmp_any)) {
-        return TObjRef(std::move(*rvalue_ref));
+        return RValueRef<TObjRef>(TObjRef(std::move(*rvalue_ref)));
       }
       if (std::optional<TObjRef> opt = TypeTraits<TObjRef>::TryConvertFromAnyView(&tmp_any)) {
         // object type does not match up, we need to try to convert the object

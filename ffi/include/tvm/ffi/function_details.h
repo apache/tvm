@@ -57,12 +57,12 @@ template <typename T>
 static constexpr bool ArgSupported =
     (std::is_same_v<std::remove_const_t<std::remove_reference_t<T>>, Any> ||
      std::is_same_v<std::remove_const_t<std::remove_reference_t<T>>, AnyView> ||
-     TypeTraitsNoCR<T>::enabled);
+     TypeTraitsNoCR<T>::convert_enabled);
 
 // NOTE: return type can only support non-reference managed returns
 template <typename T>
 static constexpr bool RetSupported =
-    (std::is_same_v<T, Any> || std::is_void_v<T> || TypeTraits<T>::enabled);
+    (std::is_same_v<T, Any> || std::is_void_v<T> || TypeTraits<T>::convert_enabled);
 
 template <typename R, typename... Args>
 struct FuncFunctorImpl {

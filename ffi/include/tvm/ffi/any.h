@@ -88,23 +88,23 @@ class AnyView {
     return *this;
   }
   // constructor from general types
-  template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
+  template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
   AnyView(const T& other) {  // NOLINT(*)
     TypeTraits<T>::CopyToAnyView(other, &data_);
   }
-  template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
+  template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
   TVM_FFI_INLINE AnyView& operator=(const T& other) {  // NOLINT(*)
     // copy-and-swap idiom
     AnyView(other).swap(*this);  // NOLINT(*)
     return *this;
   }
 
-  template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
+  template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
   TVM_FFI_INLINE std::optional<T> as() const {
     return TypeTraits<T>::TryConvertFromAnyView(&data_);
   }
 
-  template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
+  template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
   TVM_FFI_INLINE operator T() const {
     std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
     if (!opt.has_value()) {
@@ -247,11 +247,11 @@ class Any {
   /*! \brief Any can be converted to AnyView in zero cost. */
   operator AnyView() const { return AnyView::CopyFromTVMFFIAny(data_); }
   // constructor from general types
-  template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
+  template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
   Any(T other) {  // NOLINT(*)
     TypeTraits<T>::MoveToAny(std::move(other), &data_);
   }
-  template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
+  template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
   TVM_FFI_INLINE Any& operator=(T other) {  // NOLINT(*)
     // copy-and-swap idiom
     Any(std::move(other)).swap(*this);  // NOLINT(*)
@@ -259,7 +259,7 @@ class Any {
   }
 
   template <typename T,
-            typename = std::enable_if_t<TypeTraits<T>::enabled || std::is_same_v<T, Any>>>
+            typename = std::enable_if_t<TypeTraits<T>::convert_enabled || std::is_same_v<T, Any>>>
   TVM_FFI_INLINE std::optional<T> as() const {
     if constexpr (std::is_same_v<T, Any>) {
       return *this;
@@ -279,7 +279,7 @@ class Any {
     return this->as<const T*>().value_or(nullptr);
   }
 
-  template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
+  template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
   TVM_FFI_INLINE operator T() const& {
     std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
     if (!opt.has_value()) {
@@ -290,7 +290,7 @@ class Any {
     return *std::move(opt);
   }
 
-  template <typename T, typename = std::enable_if_t<TypeTraits<T>::container_enabled>>
+  template <typename T, typename = std::enable_if_t<TypeTraits<T>::storage_enabled>>
   TVM_FFI_INLINE operator T() && {
     if (TypeTraits<T>::CheckAnyStorage(&data_)) {
       return TypeTraits<T>::MoveFromAnyStorageAfterCheck(&data_);

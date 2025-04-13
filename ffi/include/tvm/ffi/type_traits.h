@@ -31,6 +31,7 @@
 
 #include <string>
 #include <type_traits>
+#include <utility>
 
 namespace tvm {
 namespace ffi {
@@ -65,9 +66,9 @@ namespace ffi {
 template <typename, typename = void>
 struct TypeTraits {
   /*! \brief Whether the type is enabled in FFI. */
-  static constexpr bool enabled = false;
+  static constexpr bool convert_enabled = false;
   /*! \brief Whether the type can appear as a storage type in Container */
-  static constexpr bool container_enabled = false;
+  static constexpr bool storage_enabled = false;
 };
 
 /*!
@@ -81,8 +82,8 @@ template <typename T>
 inline constexpr bool use_default_type_traits_v = true;
 
 struct TypeTraitsBase {
-  static constexpr bool enabled = true;
-  static constexpr bool container_enabled = true;
+  static constexpr bool convert_enabled = true;
+  static constexpr bool storage_enabled = true;
   // get mismatched type when result mismatches the trait.
   // this function is called after TryConvertFromAnyView fails
   // to get more detailed type information in runtime
@@ -140,7 +141,7 @@ struct TypeTraits<std::nullptr_t> : public TypeTraitsBase {
  */
 class StrictBool {
  public:
-  StrictBool(bool value) : value_(value) {}
+  StrictBool(bool value) : value_(value) {}  // NOLINT(*)
   operator bool() const { return value_; }
 
  private:
@@ -375,7 +376,7 @@ struct TypeTraits<DLDevice> : public TypeTraitsBase {
 // DLTensor*, requirement: not nullable, do not retain ownership
 template <>
 struct TypeTraits<DLTensor*> : public TypeTraitsBase {
-  static constexpr bool container_enabled = false;
+  static constexpr bool storage_enabled = false;
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIDLTensorPtr;
 
   static TVM_FFI_INLINE void CopyToAnyView(DLTensor* src, TVMFFIAny* result) {
@@ -508,7 +509,7 @@ struct TypeTraits<TObjRef, std::enable_if_t<std::is_base_of_v<ObjectRef, TObjRef
 template <typename T, typename... FallbackTypes>
 struct FallbackOnlyTraitsBase : public TypeTraitsBase {
   // disable container for FallbackOnlyTraitsBase
-  static constexpr bool container_enabled = false;
+  static constexpr bool storage_enabled = false;
 
   static TVM_FFI_INLINE std::optional<T> TryConvertFromAnyView(const TVMFFIAny* src) {
     return TryFallbackTypes<FallbackTypes...>(src);
