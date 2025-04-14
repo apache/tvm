@@ -113,7 +113,13 @@ struct TracebackStorage {
 
   void Append(const char* filename, const char* func, int lineno) {
     // skip frames with empty filename
-    if (filename == nullptr) return;
+    if (filename == nullptr) {
+      if (func != nullptr) {
+        filename = "<unknown>";
+      } else {
+        return;
+      }
+    }
     std::ostringstream trackeback_stream;
     trackeback_stream << "  File \"" << filename << "\"";
     if (lineno != 0) {

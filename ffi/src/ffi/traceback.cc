@@ -73,12 +73,11 @@ void BacktraceErrorCallback(void*, const char*, int) {
 }
 
 void BacktraceSyminfoCallback(void* data, uintptr_t pc, const char* symname, uintptr_t,
-                              uintptr_t symsize) {
+                              uintptr_t) {
   auto str = reinterpret_cast<std::string*>(data);
 
   if (symname != nullptr) {
-    std::string tmp(symname, symsize);
-    *str = DemangleName(tmp.c_str());
+    *str = DemangleName(symname);
   } else {
     std::ostringstream s;
     s << "0x" << std::setfill('0') << std::setw(sizeof(uintptr_t) * 2) << std::hex << pc;
