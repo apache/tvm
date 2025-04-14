@@ -63,7 +63,6 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
         np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
 
 
-
 @tvm.testing.parametrize_targets("cuda")
 def test_full(target, dev):
     class FullModel(nn.Module):
@@ -72,15 +71,16 @@ def test_full(target, dev):
 
         def forward(self, x):
             return torch.full((2, 3), 3.141592)
-            
+
     torch_module = FullModel().eval()
 
-    raw_data = np.random.rand(3,3).astype("float32")
+    raw_data = np.random.rand(3, 3).astype("float32")
 
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
 # Test index.Tensor # TODO aggregate into one big tet
+
 
 @tvm.testing.parametrize_targets("cuda")
 def test_index_tensor0(target, dev):
@@ -90,10 +90,10 @@ def test_index_tensor0(target, dev):
 
         def forward(self, x):
             return x[torch.tensor([0])]
-            
+
     torch_module = IndexModel0().eval()
 
-    raw_data = np.random.rand(3,3).astype("float32")
+    raw_data = np.random.rand(3, 3).astype("float32")
 
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
@@ -106,10 +106,10 @@ def test_index_tensor1(target, dev):
 
         def forward(self, x):
             return x[torch.tensor([[0]])]
-            
+
     torch_module = IndexModel1().eval()
 
-    raw_data = np.random.rand(2,3).astype("float32")
+    raw_data = np.random.rand(2, 3).astype("float32")
 
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
@@ -121,11 +121,11 @@ def test_index_tensor2(target, dev):
             super().__init__()
 
         def forward(self, x):
-            return x[torch.tensor([0,2])]
-            
+            return x[torch.tensor([0, 2])]
+
     torch_module = IndexTensorModel2().eval()
 
-    raw_data = np.random.rand(3,4).astype("float32")
+    raw_data = np.random.rand(3, 4).astype("float32")
 
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
@@ -137,10 +137,10 @@ def test_index_tensor3(target, dev):
             super().__init__()
 
         def forward(self, x):
-            return x[[[[0,2],[1,3]]]] 
-        
+            return x[[[[0, 2], [1, 3]]]]
+
     torch_module = IndexTensorModel3().eval()
-    raw_data = np.random.rand(5,5,5).astype("float32")
+    raw_data = np.random.rand(5, 5, 5).astype("float32")
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
@@ -151,10 +151,10 @@ def test_index_tensor4(target, dev):
             super().__init__()
 
         def forward(self, x):
-            return x[[[1,4]]] 
-        
+            return x[[[1, 4]]]
+
     torch_module = IndexTensorModel4().eval()
-    raw_data = np.random.rand(5,5,5).astype("float32")
+    raw_data = np.random.rand(5, 5, 5).astype("float32")
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
@@ -165,10 +165,10 @@ def test_index_tensor5(target, dev):
             super().__init__()
 
         def forward(self, x):
-            return x[[[[1,2,4]]]] 
-        
+            return x[[[[1, 2, 4]]]]
+
     torch_module = IndexTensorModel5().eval()
-    raw_data = np.random.rand(5,5,5).astype("float32")
+    raw_data = np.random.rand(5, 5, 5).astype("float32")
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
@@ -179,10 +179,10 @@ def test_index_tensor6(target, dev):
             super().__init__()
 
         def forward(self, x):
-            return x[[[0,1],[0,1]]]
-    
+            return x[[[0, 1], [0, 1]]]
+
     torch_module = IndexTensorModel6().eval()
-    raw_data = np.random.rand(5,5,5,5).astype("float32")
+    raw_data = np.random.rand(5, 5, 5, 5).astype("float32")
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
@@ -193,10 +193,12 @@ def test_index_tensor7(target, dev):
             super().__init__()
 
         def forward(self, x):
-            return x[[[0,1,2,3], [1,2,3,4], [2,3,4,0]]] # both args[0] and indices are expr.Var
-        
+            return x[
+                [[0, 1, 2, 3], [1, 2, 3, 4], [2, 3, 4, 0]]
+            ]  # both args[0] and indices are expr.Var
+
     torch_module = IndexTensorModel7().eval()
-    raw_data = np.random.rand(5,5,5,5).astype("float32")
+    raw_data = np.random.rand(5, 5, 5, 5).astype("float32")
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
@@ -207,10 +209,10 @@ def test_index_tensor8(target, dev):
             super().__init__()
 
         def forward(self, x):
-            return x[[[[0,1],[2,3]],[[2,3],[3,4]],[[2,4],[1,2]],[[0,4],[0,3]]]]
-        
+            return x[[[[0, 1], [2, 3]], [[2, 3], [3, 4]], [[2, 4], [1, 2]], [[0, 4], [0, 3]]]]
+
     torch_module = IndexTensorModel8().eval()
-    raw_data = np.random.rand(5,5,5,5).astype("float32")
+    raw_data = np.random.rand(5, 5, 5, 5).astype("float32")
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
@@ -786,6 +788,7 @@ def test_sum(target, dev):
     raw_data = np.random.rand(10, 10, 10).astype("float32")
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
+
 @tvm.testing.parametrize_targets("cuda")
 def test_mul(target, dev):
     class MulModule(nn.Module):
@@ -794,11 +797,11 @@ def test_mul(target, dev):
             self.y = torch.tensor(np.random.rand(2, 3).astype("float32"))
 
         def forward(self, x):
-            return  x.mul(self.y)
+            return x.mul(self.y)
 
     torch_module = MulModule().eval()
     raw_data = np.random.rand(2, 3).astype("float32")
-    
+
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
@@ -813,11 +816,11 @@ def test_concat(target, dev):
             self.x4 = torch.randn(2, 3)
 
         def forward(self, x):
-            return torch.cat((x ,self.x2, self.x3, self.x4), dim=self.dim)
-            
+            return torch.cat((x, self.x2, self.x3, self.x4), dim=self.dim)
+
     torch_module = ConcatFour().eval()
 
-    raw_data = np.random.rand(2,3).astype("float32")
+    raw_data = np.random.rand(2, 3).astype("float32")
 
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 

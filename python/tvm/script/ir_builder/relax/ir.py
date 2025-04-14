@@ -101,7 +101,7 @@ from tvm.relax.op import (
     greater_equal,
     hint_on_device,
     image,
-    index_tensor, # TODO do something with this or remove? 
+    index_tensor,  # TODO do something with this or remove?
     invoke_closure,
     invoke_pure_closure,
     isfinite,
@@ -784,7 +784,7 @@ __all__ = [
     "hexagon",
     "hint_on_device",
     "image",
-    "index_tensor", # TODO keep or remove? 
+    "index_tensor",  # TODO keep or remove?
     "invoke_closure",
     "invoke_pure_closure",
     "isfinite",

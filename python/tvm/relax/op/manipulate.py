@@ -70,6 +70,7 @@ def concat(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
         tensors = RxTuple(tensors)
     return _ffi_api.concat(tensors, axis)  # type: ignore
 
+
 def expand_dims(x: Expr, axis: Union[int, List[int]]) -> Expr:
     """Insert new axes at the positions given by `axis`.
 
@@ -298,6 +299,7 @@ def collapse_sum_like(data: Expr, collapse_target: Expr) -> Expr:
     """
     return _ffi_api.collapse_sum_like(data, collapse_target)  # type: ignore
 
+
 def collapse_sum_to(data: Expr, shape: Union[Tuple[PrimExprLike], Expr]) -> Expr:
     """Return a summation of data to the given shape.
 
@@ -507,7 +509,7 @@ def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0) -> Expr:
 
 
 # TODO change names of args and remove axis arg
-def index_tensor(data:Expr, indices: Union[Expr, List[Expr]]) -> Expr:
+def index_tensor(data: Expr, indices: Union[Expr, List[Expr]]) -> Expr:
     """Concatenate the input tensors along the given axis.
 
     Parameters
@@ -528,6 +530,7 @@ def index_tensor(data:Expr, indices: Union[Expr, List[Expr]]) -> Expr:
     if isinstance(indices, (list, tuple)):
         indices = RxTuple(indices)
     return _ffi_api.index_tensor(data, indices)  # type: ignore
+
 
 def scatter_elements(
     data: Expr, indices: Expr, updates: Expr, axis: int = 0, reduction: str = "update"
