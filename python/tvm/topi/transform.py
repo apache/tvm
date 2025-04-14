@@ -1085,7 +1085,13 @@ def index_tensor(data, indices):
     3. Flatten -> fix negative indices -> index_select -> reshape.
     """
 
-    
+    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    print("WE ARE IN TOPI~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+    print("type of data", type(data))
+    print("type of indices", type(indices))
+    print("data", data)
+    print("indices", indices)
 
     if isinstance(indices, (list, tuple)) and len(indices) > 1:
 

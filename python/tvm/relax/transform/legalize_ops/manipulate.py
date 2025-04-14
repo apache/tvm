@@ -162,9 +162,32 @@ def _gather_nd(bb: BlockBuilder, call: Call) -> Expr:
 
     return bb.call_te(te_gather_nd, call.args[0], call.args[1], int(call.attrs.batch_dims))
 
+# @register_legalize("relax.index_tensor")
+# def _index_tensor(bb: BlockBuilder, call: Call) -> Expr:
+#     return bb.call_te(topi.index_tensor, call.args[0], call.args[1]) # TODO should I use primfunc_name_hint? 
+
+
+
 @register_legalize("relax.index_tensor")
 def _index_tensor(bb: BlockBuilder, call: Call) -> Expr:
-    return bb.call_te(topi.index_tensor, call.args[0], call.args[1]) # TODO should I use primfunc_name_hint? 
+    t = call.args[1]
+    n_field = len(t.struct_info.fields)
+    while isinstance(t, Var):
+        binding = bb.lookup_binding(t)
+        if not isinstance(binding, (Tuple, Var)):
+            break
+        t = binding
+
+    assert isinstance(t, (Tuple, Var))
+    fields = (
+        t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
+    )
+    return bb.call_te(
+        topi.index_tensor, call.args[0], fields
+    )
+
+
+
 
 @register_legalize("relax.scatter_elements")
 def _scatter_elements(bb: BlockBuilder, call: Call) -> Expr:

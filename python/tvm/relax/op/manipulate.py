@@ -506,7 +506,8 @@ def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0) -> Expr:
     """
     return _ffi_api.gather_nd(data, indices, batch_dims)  # type: ignore
 
-def index_tensor(data: Expr, indices: Expr) -> Expr:
+
+def index_tensor(data: Expr, indices: Union[Expr, List[Expr]]) -> Expr:
     """
     TODO docstring
     """
@@ -515,6 +516,8 @@ def index_tensor(data: Expr, indices: Expr) -> Expr:
     # assert all(isinstance(i, int) for i in indices), "indices should be a list of integers, but got {}".format(
     #     [type(i) for i in indices]
     # )
+    if isinstance(indices, (list, tuple)):
+        indices = RxTuple(indices)
     return _ffi_api.index_tensor(data, indices)  # type: ignore
 
 def scatter_elements(

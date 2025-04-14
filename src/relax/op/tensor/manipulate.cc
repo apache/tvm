@@ -477,6 +477,10 @@ TVM_REGISTER_OP("relax.flatten")
 
 /* relax.index_tensor */
 Expr index_tensor(Expr data, Expr indices) {
+  // TODO do we need code below?
+  // ObjectPtr<IndexTensorAttrs> attrs = make_object<IndexTensorAttrs>();
+  // attrs->indices = std::move(indices);
+
   static const Op& op = Op::Get("relax.index_tensor");
   return Call(op, {std::move(data), std::move(indices)}, Attrs(), {});
 }
@@ -484,35 +488,17 @@ Expr index_tensor(Expr data, Expr indices) {
 TVM_REGISTER_GLOBAL("relax.op.index_tensor").set_body_typed(index_tensor);
 
 StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx) {
-  // TODO most of this is arbitrarily copied from collapse_sum_like. Need to understand what we
-  // actually need
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo data_sinfo = input_sinfo[0];
-  TensorStructInfo indices_sinfo = input_sinfo[1];
+  TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
 
   DataType output_dtype = data_sinfo->dtype;
 
-  Optional<Array<PrimExpr>> data_shape_value;
-  if (data_sinfo->shape.defined()) {
-    data_shape_value = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value())->values;
-  }
-  Optional<Array<PrimExpr>> indices_shape_value;
-  if (indices_sinfo->shape.defined()) {
-    indices_shape_value =
-        GetStructInfoAs<ShapeStructInfoNode>(indices_sinfo->shape.value())->values;
-  }
-
-  if (indices_sinfo->shape.defined()) {
-    return TensorStructInfo(indices_sinfo->shape.value(), output_dtype, indices_sinfo->vdevice);
-  } else {
-    return TensorStructInfo(output_dtype, indices_sinfo->ndim, indices_sinfo->vdevice);
-  }
+  return TensorStructInfo(output_dtype, kUnknownNDim);
 }
 
 TVM_REGISTER_OP("relax.index_tensor")
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
-    .add_argument("indices", "Tensor", "The indices tensor.")
+    .add_argument("indices", "Tuple of Tensor", "The indices tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoIndexTensor)
     .set_attr<Bool>("FPurity", Bool(true));
 
