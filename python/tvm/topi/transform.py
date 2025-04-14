@@ -417,7 +417,8 @@ def concatenate2(first, a_tuple, axis=0):
     -------
     ret : tvm.te.Tensor
     """
-    return cpp.concatenate2(first, a_tuple, axis)
+    # return cpp.concatenate2(first, a_tuple, axis)
+    return topi.adv_index(first, a_tuple)
 
 
 def stack(a, axis):

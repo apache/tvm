@@ -114,21 +114,20 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
 #     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-# @tvm.testing.parametrize_targets("cuda")
-# def test_index_tensor2(target, dev):
-#     class IndexTensorModel2(nn.Module):
-#         def __init__(self):
-#             super().__init__()
+@tvm.testing.parametrize_targets("cuda")
+def test_index_tensor2(target, dev):
+    class IndexTensorModel2(nn.Module):
+        def __init__(self):
+            super().__init__()
 
-#         def forward(self, x):
-#             return x[torch.tensor([0,2])]
+        def forward(self, x):
+            return x[torch.tensor([0,2])]
             
-#     torch_module = IndexTensorModel2().eval()
+    torch_module = IndexTensorModel2().eval()
 
-#     raw_data = np.random.rand(3,4).astype("float32")
+    raw_data = np.random.rand(3,4).astype("float32")
 
-#     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
-#     assert 0
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
 # @tvm.testing.parametrize_targets("cuda")
