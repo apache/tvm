@@ -390,10 +390,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "where.self": self._where,
             # tensor manipulation
             "argsort.default": self._argsort,
-            "cat.default": self._cat2,
+            "cat.default": self._cat,
             "chunk.default": self._chunk,
             "clamp.Tensor": self._clamp,
-            "concat.default": self._cat2,
+            "concat.default": self._cat,
             "copy_.default": self._copy_,
             "cumsum.default": self._cumsum,
             "cumprod.default": self._cumprod,

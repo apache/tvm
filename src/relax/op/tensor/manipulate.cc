@@ -356,7 +356,7 @@ Optional<Array<PrimExpr>> CheckConcatOutputShape2(
 }
 
 StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
-  print("HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+  printf("HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
   TensorStructInfo first_sinfo = GetInputTensorStructInfo(call, 0, ctx);
   Array<TensorStructInfo> tensor_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[1]);
 
