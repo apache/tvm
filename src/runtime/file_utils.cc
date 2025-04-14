@@ -30,8 +30,8 @@
 
 #include <fstream>
 #include <unordered_map>
-#include <vector>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -248,7 +248,7 @@ TVM_REGISTER_GLOBAL("runtime.SaveParamsToFile")
       SaveParams(&strm, params);
     });
 
-TVM_REGISTER_GLOBAL("runtime.LoadParams").set_body_typed([](const String& s) {
+TVM_REGISTER_GLOBAL("runtime.LoadParams").set_body_typed([](const ffi::Bytes& s) {
   return ::tvm::runtime::LoadParams(s);
 });
 

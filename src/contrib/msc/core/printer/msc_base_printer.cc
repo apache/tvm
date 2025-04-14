@@ -21,8 +21,9 @@
  * \file src/contrib/msc/core/printer/msc_base_printer.cc
  */
 
-#include <utility>
 #include "msc_base_printer.h"
+
+#include <utility>
 
 #include "../utils.h"
 
