@@ -171,5 +171,49 @@ def test_index_tensor5(target, dev):
     raw_data = np.random.rand(5,5,5).astype("float32")
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
+
+@tvm.testing.parametrize_targets("cuda")
+def test_index_tensor6(target, dev):
+    class IndexTensorModel6(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return x[[[0,1],[0,1]]]
+    
+    torch_module = IndexTensorModel6().eval()
+    raw_data = np.random.rand(5,5,5,5).astype("float32")
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_index_tensor7(target, dev):
+    class IndexTensorModel7(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return x[[[0,1,2,3], [1,2,3,4], [2,3,4,0]]] # both args[0] and indices are expr.Var
+        
+    torch_module = IndexTensorModel7().eval()
+    raw_data = np.random.rand(5,5,5,5).astype("float32")
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_index_tensor8(target, dev):
+    class IndexTensorModel8(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return x[[[[0,1],[2,3]],[[2,3],[3,4]],[[2,4],[1,2]],[[0,4],[0,3]]]]
+        
+    torch_module = IndexTensorModel8().eval()
+    raw_data = np.random.rand(5,5,5,5).astype("float32")
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+
 if __name__ == "__main__":
     tvm.testing.main()

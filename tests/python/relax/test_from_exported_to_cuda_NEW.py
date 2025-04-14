@@ -63,20 +63,5 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
         np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
 
 
-
-@tvm.testing.parametrize_targets("cuda")
-def test_index_tensor6(target, dev):
-    class IndexTensorModel6(nn.Module):
-        def __init__(self):
-            super().__init__()
-
-        def forward(self, x):
-            return x[[[0,1],[0,1]]]
-    
-    torch_module = IndexTensorModel6().eval()
-    raw_data = np.random.rand(5,5,5,5).astype("float32")
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
-
-
 if __name__ == "__main__":
     tvm.testing.main()
