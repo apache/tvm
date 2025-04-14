@@ -761,6 +761,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "lerp": self._lerp,
             # statistical
             "mean": self._mean,
+            "norm": self._norm,
             "prod": self._prod,
             "std": self._std,
             "sum": self._sum,
