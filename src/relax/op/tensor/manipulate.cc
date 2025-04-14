@@ -504,17 +504,8 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
 
   TensorStructInfo indices_sinfo = data_sinfo;
 
-  Optional<Array<PrimExpr>> data_shape_value;
-  if (data_sinfo->shape.defined()) {
-    data_shape_value = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value())->values;
-  }
-  Optional<Array<PrimExpr>> indices_shape_value;
-  if (indices_sinfo->shape.defined()) {
-    indices_shape_value =
-        GetStructInfoAs<ShapeStructInfoNode>(indices_sinfo->shape.value())->values;
-  }
-
-  if (indices_sinfo->shape.defined()) {
+  if (indices_sinfo->shape.defined()) {  // TODO need this condition, but not sure why! Isn't that
+                                         // not reflective of the output anyway?
     return TensorStructInfo(indices_sinfo->shape.value(), output_dtype, indices_sinfo->vdevice);
   } else {
     return TensorStructInfo(output_dtype, indices_sinfo->ndim, indices_sinfo->vdevice);
