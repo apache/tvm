@@ -335,6 +335,8 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
       size = (num->value * sizeof(tvm_index_t) + unit - 1) / unit;
     } else if (type == "arg_value") {
       size = (num->value * sizeof(TVMValue) + unit - 1) / unit;
+    } else if (type == "tvm_ffi_any") {
+      size = (num->value * sizeof(TVMFFIAny) + unit - 1) / unit;
     } else if (type == "arg_tcode") {
       size = (num->value * sizeof(int) + unit - 1) / unit;
     } else if (type == "array") {

@@ -194,6 +194,10 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Constant* ConstInt32(int64_t value) const {
     return llvm::ConstantInt::getSigned(t_int32_, value);
   }
+  // Short hande code to get a constant int 64
+  llvm::Constant* ConstInt64(int64_t value) const {
+    return llvm::ConstantInt::getSigned(t_int64_, value);
+  }
   // override codegen
   llvm::Value* VisitExpr_(const VarNode* op) override;
   llvm::Value* VisitExpr_(const CastNode* op) override;

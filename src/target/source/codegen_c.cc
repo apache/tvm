@@ -315,6 +315,28 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     }
     os << ')';
     return os.str();
+  } else if (kind == builtin::kTVMFFIAnyTypeIndex) {
+    std::ostringstream os;
+    os << "(((TVMFFIAny*)";
+    this->PrintExpr(buffer, os);
+    os << ")[" << index << "].type_index)";
+    return os.str();
+   } else if (kind == builtin::kTVMFFIAnyUnionValue) {
+   std::ostringstream os;
+    os << "(((TVMFFIAny*)";
+    this->PrintExpr(buffer, os);
+    os << ")[" << index << "].";
+    if (t.is_handle()) {
+      os << "v_ptr";
+    } else if (t.is_float()) {
+      os << "v_float64";
+    } else if (t.is_int()) {
+      os << "v_int64";
+    } else {
+      LOG(FATAL) << "Do not know how to handle type" << t;
+    }
+    os << ")";
+    return os.str();
   } else {
     ICHECK_LT(kind, builtin::kTVMValueKindBound_);
     std::ostringstream os;
