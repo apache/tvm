@@ -409,7 +409,9 @@ StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
 
   const auto* attrs = call->attrs.as<ConcatAttrs>();
   int output_ndim = attrs->axis.defined() ? kUnknownNDim : 1;
-  DataType output_dtype = DataType::Void();
+  DataType output_dtype  = data_sinfo->dtype;
+
+
   Optional<VDevice> vdev = NullOpt;
   bool shape_unknown = false;
   bool is_void_dtype = false;
@@ -421,14 +423,7 @@ StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
     // Update the output dtype.
     if (sinfo->dtype.is_void()) {
       is_void_dtype = true;
-    } else if (output_dtype.is_void()) {
-      output_dtype = sinfo->dtype;
-    } else if (sinfo->dtype != output_dtype) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "Concat expects all input tensors to have the same dtype. However, the "
-                          "input contains tensors with dtype "
-                       << output_dtype << " and " << sinfo->dtype);
-    }
+    } 
 
     // Update the output ndim.
     // Todo(relax-team): revisit here for better check on if the input tensor has
