@@ -164,7 +164,7 @@ def _gather_nd(bb: BlockBuilder, call: Call) -> Expr:
 
 # @register_legalize("relax.index_tensor")
 # def _index_tensor(bb: BlockBuilder, call: Call) -> Expr:
-#     return bb.call_te(topi.index_tensor, call.args[0], call.args[1]) # TODO should I use primfunc_name_hint? 
+#     return bb.call_te(topi.index_tensor, call.args[0], call.args[1][0]) 
 
 
 
