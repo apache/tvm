@@ -89,7 +89,6 @@ from .manipulate import (
     collapse_sum_like,
     collapse_sum_to,
     concat,
-    concat2,
     expand_dims,
     flatten,
     flip,

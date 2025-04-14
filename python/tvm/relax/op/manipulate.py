@@ -70,31 +70,6 @@ def concat(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
         tensors = RxTuple(tensors)
     return _ffi_api.concat(tensors, axis)  # type: ignore
 
-
-def concat2(first:Expr, tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
-    """Concatenate the input tensors along the given axis.
-
-    Parameters
-    ----------
-    tensors : Union[relax.Expr, List[relax.Expr]]
-        An Expr in Tuple type, containing the tensors to be concatenated,
-        or a list of Tensors.
-
-    axis : Optional[int]
-        The axis along which the tensors are concatenated.
-        If `axis` is `None`, the input tensor is required to be flattened before concatenation.
-
-    Returns
-    -------
-    result: relax.Expr
-        The concatenated tensor.
-    """
-    if isinstance(tensors, (list, tuple)):
-        tensors = RxTuple(tensors)
-    # return _ffi_api.concat2(tensors, axis)  # TODO this works for some reason!
-    return _ffi_api.concat2(first, tensors, axis)  # type: ignore
-
-
 def expand_dims(x: Expr, axis: Union[int, List[int]]) -> Expr:
     """Insert new axes at the positions given by `axis`.
 
@@ -531,18 +506,29 @@ def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0) -> Expr:
     return _ffi_api.gather_nd(data, indices, batch_dims)  # type: ignore
 
 
-def index_tensor(data: Expr, indices: Union[Expr, List[Expr]]) -> Expr:
+# TODO change names of args and remove axis arg
+def index_tensor(data:Expr, indices: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
+    """Concatenate the input tensors along the given axis.
+
+    Parameters
+    ----------
+    tensors : Union[relax.Expr, List[relax.Expr]]
+        An Expr in Tuple type, containing the tensors to be concatenated,
+        or a list of Tensors.
+
+    axis : Optional[int]
+        The axis along which the tensors are concatenated.
+        If `axis` is `None`, the input tensor is required to be flattened before concatenation.
+
+    Returns
+    -------
+    result: relax.Expr
+        The concatenated tensor.
     """
-    TODO docstring
-    """
-    # TODO loosen those assertions! Need to handler lists of lists of lists etc. 
-    # assert isinstance(indices, list), f"indices should be a list, but is a {type(indices)}. Data is a {type(data)}"
-    # assert all(isinstance(i, int) for i in indices), "indices should be a list of integers, but got {}".format(
-    #     [type(i) for i in indices]
-    # )
     if isinstance(indices, (list, tuple)):
         indices = RxTuple(indices)
-    return _ffi_api.index_tensor(data, indices)  # type: ignore
+    # return _ffi_api.concat2(tensors, axis)  # TODO this works for some reason!
+    return _ffi_api.index_tensor(data, indices, axis)  # type: ignore
 
 def scatter_elements(
     data: Expr, indices: Expr, updates: Expr, axis: int = 0, reduction: str = "update"

@@ -477,84 +477,29 @@ TVM_REGISTER_OP("relax.flatten")
 
 /* relax.index_tensor */
 
-/* relax.concat2 */
-
-Expr concat2(Expr first, Expr tensors, Optional<Integer> axis) {
-  ObjectPtr<ConcatAttrs> attrs = make_object<ConcatAttrs>();
+Expr index_tensor(Expr first, Expr tensors, Optional<Integer> axis) {
+  ObjectPtr<ConcatAttrs> attrs = make_object<ConcatAttrs>();  // TODO remove this
   attrs->axis = std::move(axis);
 
-  static const Op& op = Op::Get("relax.concat2");
+  static const Op& op = Op::Get("relax.index_tensor");
   return Call(op, {std::move(first), std::move(tensors)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.concat2").set_body_typed(concat2);
+TVM_REGISTER_GLOBAL("relax.op.index_tensor").set_body_typed(index_tensor);
 
-Optional<Array<PrimExpr>> CheckConcatOutputShape2(const Call& call, const BlockBuilder& ctx,
-                                                  const std::vector<Array<PrimExpr>>& shape_values,
-                                                  int axis) {
-  bool shape_unknown = false;
-  arith::Analyzer* analyzer = ctx->GetAnalyzer();
-  PrimExpr concat_sum = [&]() {
-    // For the specified axis, we compute the sum of shape value over each tensor.
-
-    // Special case, if all concatenated values have the same shape
-    StructuralEqual structural_equal;
-    PrimExpr first_concat_dim = shape_values[1][axis];
-    bool all_same = std::all_of(shape_values.begin(), shape_values.end(), [&](const auto& a) {
-      return structural_equal(a[axis], first_concat_dim);
-    });
-    if (all_same) {
-      return first_concat_dim * IntImm(DataType::Int(64), shape_values.size());
-    }
-
-    // General case, add up the dimensions along the specified axis.
-    PrimExpr concat_sum = IntImm(DataType::Int(64), 0);
-    for (Array<PrimExpr> shape_value : shape_values) {
-      concat_sum += shape_value[axis];
-    }
-    return concat_sum;
-  }();
-
-  // For other axes, we check the equality of all tensors' shape values, to ensure safety.
-  for (int d = 0; d < static_cast<int>(shape_values[0].size()); ++d) {
-    if (d == axis) {
-      continue;
-    }
-    for (int i = 1; i < static_cast<int>(shape_values.size()); ++i) {
-      if (analyzer->CanProve(shape_values[i][d] != shape_values[0][d])) {
-        ctx->ReportFatal(Diagnostic::Error(call)
-                         << "Concat expects the input tensors to have the same shape on every "
-                            "dimension except the one indicated by the input axis. However, the "
-                            "input contains tensors whose shapes on dimension "
-                         << d << " is " << shape_values[0][d] << " and " << shape_values[i][d]);
-      } else if (!analyzer->CanProveEqual(shape_values[i][d], shape_values[0][d])) {
-        shape_unknown = true;
-      }
-    }
-  }
-
-  if (shape_unknown) {
-    return NullOpt;
-  }
-  Array<PrimExpr> output_shape = shape_values[0];
-  output_shape.Set(axis, concat_sum);
-  return output_shape;
-}
-
-StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
+StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
-    ctx->ReportFatal(Diagnostic::Error(call) << "Concat op should have 1 argument");
+    ctx->ReportFatal(Diagnostic::Error(call) << "Index.Tensor op should have 2 arguments");
   }
   TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
 
   Array<TensorStructInfo> tensor_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[1]);
   if (tensor_sinfo.empty()) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Concat op expects at least one tensor in the input Tuple. However, the "
-                        "given input Tuple is empty.");
+                     << "Index.Tensor expects at least one tensor in the input Tuple. However, the "
+                        "given input Tuple is empty.");  // TODO is this always true?
   }
 
-  const auto* attrs = call->attrs.as<ConcatAttrs>();
   DataType output_dtype = data_sinfo->dtype;
 
   bool vdevice_unknown = false;
@@ -564,7 +509,6 @@ StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
     vdevice_unknown = true;
   }
 
-  bool shape_unknown = false;
   bool is_void_dtype = false;
   if (data_sinfo->dtype.is_void()) {
     is_void_dtype = true;
@@ -589,12 +533,12 @@ StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
   }
 }
 
-TVM_REGISTER_OP("relax.concat2")
+TVM_REGISTER_OP("relax.index_tensor")
     .set_attrs_type<ConcatAttrs>()  // TODO remove that
     .set_num_inputs(2)
-    .add_argument("first", "Tensor", "The first tensor")
-    .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConcat2)  // TODO necessary
+    .add_argument("data", "Tensor", "The input data.")
+    .add_argument("indices", "List of Tensors", "The indices used to index.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoIndexTensor)  // TODO necessary
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.layout_transform */

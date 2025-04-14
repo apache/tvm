@@ -956,17 +956,6 @@ def adv_index(data, indices):
     result : tvm.te.Tensor
         Output tensor
     """
-
-    """
-    TODO 
-    this seems to be wrong 
-    Does not achieve correctness with this:
-    
-    x np.random.rand(5,5,5,5).astype("float32")
-    return x[[[0,1],[0,1]]]
-    
-    """
-
     return cpp.adv_index(data, indices)
 
 
