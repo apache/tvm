@@ -163,6 +163,10 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_context_id)
 TIR_DEFINE_BUILTIN_FUNC(tvm_tuple).set_attr<TCallEffectKind>("TCallEffectKind",
                                                              Integer(CallEffectKind::kEmbedInfo));
 
+TIR_DEFINE_BUILTIN_FUNC(handle_add_byte_offset)
+    .set_num_inputs(2)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
+
 TIR_DEFINE_BUILTIN_FUNC(tvm_struct_get)
     .set_num_inputs(3)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kReadState))
