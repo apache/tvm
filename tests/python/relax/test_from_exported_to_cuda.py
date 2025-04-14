@@ -215,6 +215,54 @@ def test_index_tensor8(target, dev):
 
 
 @tvm.testing.parametrize_targets("cuda")
+def test_full(target, dev):
+    class FullModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return torch.full((2, 3), 3.141592)
+
+    torch_module = FullModel().eval()
+
+    raw_data = np.random.rand(3, 3).astype("float32")
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_full_like(target, dev):
+    class FullLike(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.fill_value = 7.0
+
+        def forward(self, x):
+            return torch.full_like(x, self.fill_value)
+
+    torch_module = FullLike().eval()
+    raw_data = np.random.rand(2, 3).astype("float32")
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_ones(target, dev):
+    class FullModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return torch.ones((2, 3))
+
+    torch_module = FullModel().eval()
+
+    raw_data = np.random.rand(1, 1).astype("float32")
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
 def test_tensor_clamp(target, dev):
     class ClampBothTensor(torch.nn.Module):
         def __init__(self):
