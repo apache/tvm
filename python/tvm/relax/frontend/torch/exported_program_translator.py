@@ -202,6 +202,13 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     ########## Manipulation ##########
 
+    def _narrow(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1]
+        start = node.args[2]
+        length = node.args[3]
+        return self.block_builder.emit(relax.op.strided_slice(x, [dim], [start], [length]))
+
     def _select(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         dim = node.args[1]
@@ -390,6 +397,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "where.self": self._where,
             # tensor manipulation
             "argsort.default": self._argsort,
+            "broadcast_to.default": self._broadcast_to,
             "cat.default": self._cat,
             "chunk.default": self._chunk,
             "clamp.Tensor": self._clamp,
@@ -402,7 +410,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "flatten.using_ints": self._flatten,
             "flip.default": self._flip,
             "gather.default": self._gather,
+<<<<<<< HEAD
             "index.Tensor": self._index_tensor,
+=======
+            "narrow.default": self._narrow,
+>>>>>>> upstream/main
             "permute.default": self._permute,
             "repeat.default": self._repeat,
             "select.int": self._select,
@@ -515,6 +527,18 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         ):
             output = None
             with self.block_builder.dataflow():
+
+                # Find all the missing function types
+                missing_func_types = list(
+                    {
+                        node.target.__name__
+                        for node in nodes
+                        if node.op == "call_function"
+                        and node.target.__name__ not in self.convert_map
+                    }
+                )
+                assert not missing_func_types, f"Unsupported function types {missing_func_types}"
+
                 # Translate the model.
                 for node in nodes:
                     if node.op == "placeholder":
@@ -541,9 +565,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         self.env[node] = getattr(exported_program.graph_module, node.target)
                     elif node.op == "call_function":
                         func_name = node.target.__name__
-                        assert (
-                            func_name in self.convert_map
-                        ), f"Unsupported function type {func_name}"
                         self.env[node] = self.convert_map[func_name](node)
                     else:
                         raise ValueError(f"Unsupported op {node.op}")
