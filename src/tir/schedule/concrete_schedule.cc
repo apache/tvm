@@ -920,18 +920,26 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
   if (ann_val.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
     return ann_val;
   }
-
+  // prefer to return int/float literals for annotations
   if (auto opt_intimm = ann_val.as<IntImm>()) {
-    return *std::move(opt_intimm);
+    return (*std::move(opt_intimm))->value;
   }
   if (auto opt_floatimm = ann_val.as<FloatImm>()) {
-    return *std::move(opt_floatimm);
+    return (*std::move(opt_floatimm))->value;
   }
 
   if (const auto* expr = ann_val.as<PrimExprNode>()) {
     ICHECK(!expr->IsInstance<StringImmNode>())
         << "TypeError: runtime::String is expected, but gets StringImm";
-    return this->Get(GetRef<PrimExpr>(expr));
+    auto res_expr = this->Get(GetRef<PrimExpr>(expr));
+    // prefer to return int/float literals for annotations
+    if (auto opt_intimm = res_expr.as<IntImm>()) {
+      return (*std::move(opt_intimm))->value;
+    }
+    if (auto opt_floatimm = res_expr.as<FloatImm>()) {
+      return (*std::move(opt_floatimm))->value;
+    }
+    return res_expr;
   }
   if (const auto* arr = ann_val.as<ArrayNode>()) {
     Array<Any> result;
