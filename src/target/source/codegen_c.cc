@@ -321,8 +321,8 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     this->PrintExpr(buffer, os);
     os << ")[" << index << "].type_index)";
     return os.str();
-   } else if (kind == builtin::kTVMFFIAnyUnionValue) {
-   std::ostringstream os;
+  } else if (kind == builtin::kTVMFFIAnyUnionValue) {
+    std::ostringstream os;
     os << "(((TVMFFIAny*)";
     this->PrintExpr(buffer, os);
     os << ")[" << index << "].";
@@ -693,6 +693,13 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << " == NULL)";
+    } else if (op->op.same_as(builtin::handle_add_byte_offset())) {
+      ICHECK_EQ(op->args.size(), 2U);
+      os << "((void*)((char*)";
+      this->PrintExpr(op->args[0], os);
+      os << " + ";
+      this->PrintExpr(op->args[1], os);
+      os << "))";
     } else if (op->op.same_as(builtin::reinterpret())) {
       auto target_dtype = op->dtype;
       auto source_dtype = op->args[0]->dtype;
