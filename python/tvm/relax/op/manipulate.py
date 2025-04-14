@@ -527,7 +527,6 @@ def index_tensor(data:Expr, indices: Union[Expr, List[Expr]], axis: Optional[int
     """
     if isinstance(indices, (list, tuple)):
         indices = RxTuple(indices)
-    # return _ffi_api.concat2(tensors, axis)  # TODO this works for some reason!
     return _ffi_api.index_tensor(data, indices, axis)  # type: ignore
 
 def scatter_elements(

@@ -1073,7 +1073,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _index_tensor(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         indices = args[1]
-        return self.block_builder.emit(relax.op.concat2(args[0], indices))
+        return self.block_builder.emit(relax.op.index_tensor(args[0], indices))
 
     def _permute(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore

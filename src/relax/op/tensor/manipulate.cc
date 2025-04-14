@@ -502,18 +502,6 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
 
   DataType output_dtype = data_sinfo->dtype;
 
-  bool vdevice_unknown = false;
-  Optional<VDevice> vdev = NullOpt;
-  if (data_sinfo->vdevice.defined()) {
-    vdev = data_sinfo->vdevice.value();
-    vdevice_unknown = true;
-  }
-
-  bool is_void_dtype = false;
-  if (data_sinfo->dtype.is_void()) {
-    is_void_dtype = true;
-  }
-
   TensorStructInfo indices_sinfo = data_sinfo;
 
   Optional<Array<PrimExpr>> data_shape_value;
