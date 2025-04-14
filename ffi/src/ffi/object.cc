@@ -249,6 +249,7 @@ class TypeTable {
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIOpaquePtr, TypeIndex::kTVMFFIOpaquePtr);
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIDataType, TypeIndex::kTVMFFIDataType);
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIDevice, TypeIndex::kTVMFFIDevice);
+    ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIByteArrayPtr, TypeIndex::kTVMFFIByteArrayPtr);
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIObjectRValueRef,
                             TypeIndex::kTVMFFIObjectRValueRef);
   }

@@ -456,7 +456,7 @@ struct TypeTraits<TVMFFIByteArray*> : public TypeTraitsBase {
     return std::nullopt;
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return "TVMFFIByteArray*"; }
+  static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIByteArrayPtr; }
 };
 
 template <>
