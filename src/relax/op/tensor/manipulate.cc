@@ -338,14 +338,13 @@ Expr concat2(Expr first, Expr tensors, Optional<Integer> axis) {
 
   static const Op& op = Op::Get("relax.concat2");
   return Call(op, {std::move(first), std::move(tensors)}, Attrs(attrs), {});
-
 }
 
 TVM_REGISTER_GLOBAL("relax.op.concat2").set_body_typed(concat2);
 
 Optional<Array<PrimExpr>> CheckConcatOutputShape2(const Call& call, const BlockBuilder& ctx,
-                                                 const std::vector<Array<PrimExpr>>& shape_values,
-                                                 int axis) {
+                                                  const std::vector<Array<PrimExpr>>& shape_values,
+                                                  int axis) {
   bool shape_unknown = false;
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   PrimExpr concat_sum = [&]() {
@@ -399,6 +398,8 @@ StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
     ctx->ReportFatal(Diagnostic::Error(call) << "Concat op should have 1 argument");
   }
+  TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
+
   Array<TensorStructInfo> tensor_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[1]);
   if (tensor_sinfo.empty()) {
     ctx->ReportFatal(Diagnostic::Error(call)
@@ -515,8 +516,8 @@ StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
 }
 
 InferLayoutOutput InferLayoutConcat2(const Call& call,
-                                    const Map<String, Array<String>>& desired_layouts,
-                                    const VarLayoutMap& var_layout_map) {
+                                     const Map<String, Array<String>>& desired_layouts,
+                                     const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
 
   const auto* attrs = call->attrs.as<ConcatAttrs>();
@@ -542,11 +543,10 @@ TVM_REGISTER_OP("relax.concat2")
     .set_num_inputs(2)
     .add_argument("first", "Tensor", "The first tensor")
     .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConcat2)
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConcat2)  // TODO necessary
     // .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConcat2)
     // .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
-
 
 /* relax.expand_dims */
 TVM_REGISTER_NODE_TYPE(ExpandDimsAttrs);
