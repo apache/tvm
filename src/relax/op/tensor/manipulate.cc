@@ -330,6 +330,237 @@ TVM_REGISTER_OP("relax.concat")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.concat2 */
+#include <cassert>
+
+Expr concat2(Expr first, Expr tensors) {
+  assert(0);
+  static const Op& op = Op::Get("relax.concat2");
+  return Call(op, {std::move(first), std::move(tensors)}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.concat2").set_body_typed(concat2);
+
+Optional<Array<PrimExpr>> CheckConcatOutputShape2(
+    const Call& call, const BlockBuilder& ctx, const std::vector<Array<PrimExpr>>& shape_values) {
+  assert(0);
+
+  PrimExpr concat_sum = [&]() {
+    PrimExpr first_concat_dim = shape_values[0][0];
+    return first_concat_dim * IntImm(DataType::Int(64), shape_values.size());
+  }();
+
+  Array<PrimExpr> output_shape = shape_values[0];
+  output_shape.Set(0, concat_sum);
+  return output_shape;
+}
+
+StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
+  print("HERE!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!");
+  TensorStructInfo first_sinfo = GetInputTensorStructInfo(call, 0, ctx);
+  Array<TensorStructInfo> tensor_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[1]);
+
+  if (tensor_sinfo.empty()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Concat op expects at least one tensor in the input Tuple. However, the "
+                        "given input Tuple is empty.");
+  }
+
+  const auto* attrs = call->attrs.as<ConcatAttrs>();
+  int output_ndim = attrs->axis.defined() ? kUnknownNDim : 1;
+  DataType output_dtype = DataType::Void();
+  Optional<VDevice> vdev = NullOpt;
+  bool shape_unknown = false;
+  bool is_void_dtype = false;
+  bool vdevice_unknown = false;
+  std::vector<Array<PrimExpr>> shape_values;
+  shape_values.reserve(tensor_sinfo.size());
+
+  // First iteration with first_sinfo
+  if (first_sinfo->dtype.is_void()) {
+    is_void_dtype = true;
+  } else if (output_dtype.is_void()) {
+    output_dtype = first_sinfo->dtype;
+  } else if (first_sinfo->dtype != output_dtype) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Concat expects all input tensors to have the same dtype. However, the "
+                        "input contains tensors with dtype "
+                     << output_dtype << " and " << first_sinfo->dtype);
+  }
+
+  // Update the output ndim.
+  // Todo(relax-team): revisit here for better check on if the input tensor has
+  // ndim 1 when the input axis is undefined.
+  if (output_ndim == kUnknownNDim) {
+    output_ndim = first_sinfo->ndim;
+  } else if (first_sinfo->ndim != kUnknownNDim && first_sinfo->ndim != output_ndim) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Concat expects all input tensors to have same ndim. However, the "
+                        "input contains tensors with ndim "
+                     << output_ndim << " and " << first_sinfo->ndim);
+  }
+
+  // Update the virtual device.
+  if (!vdevice_unknown) {
+    if (first_sinfo->vdevice.defined()) {
+      if (!vdev.defined()) {
+        vdev = first_sinfo->vdevice.value();
+      } else if (first_sinfo->vdevice.value()->target.defined()) {
+        // mismatch
+        if (first_sinfo->vdevice.value() != vdev) {
+          vdevice_unknown = true;
+        }
+      }
+    }
+  }
+
+  // Update the shape values for best effort check.
+  const auto* shape_expr = first_sinfo->shape.as<ShapeExprNode>();
+  if (shape_expr != nullptr) {
+    shape_values.push_back(shape_expr->values);
+  } else {
+    shape_unknown = true;
+
+    if (!first_sinfo->shape.defined()) {
+    } else {
+      // Keep the shape value for equality check.
+      ShapeStructInfo shape_sinfo =
+          Downcast<ShapeStructInfo>(first_sinfo->shape.value()->struct_info_);
+      if (shape_sinfo->values.defined()) {
+        shape_values.push_back(shape_sinfo->values.value());
+      }
+    }
+  }
+
+  for (TensorStructInfo sinfo : tensor_sinfo) {
+    // Update the output dtype.
+    if (sinfo->dtype.is_void()) {
+      is_void_dtype = true;
+    } else if (output_dtype.is_void()) {
+      output_dtype = sinfo->dtype;
+    } else if (sinfo->dtype != output_dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "Concat expects all input tensors to have the same dtype. However, the "
+                          "input contains tensors with dtype "
+                       << output_dtype << " and " << sinfo->dtype);
+    }
+
+    // Update the output ndim.
+    // Todo(relax-team): revisit here for better check on if the input tensor has
+    // ndim 1 when the input axis is undefined.
+    if (output_ndim == kUnknownNDim) {
+      output_ndim = sinfo->ndim;
+    } else if (sinfo->ndim != kUnknownNDim && sinfo->ndim != output_ndim) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "Concat expects all input tensors to have same ndim. However, the "
+                          "input contains tensors with ndim "
+                       << output_ndim << " and " << sinfo->ndim);
+    }
+
+    // Update the virtual device.
+    if (!vdevice_unknown) {
+      if (sinfo->vdevice.defined()) {
+        if (!vdev.defined()) {
+          vdev = sinfo->vdevice.value();
+        } else if (sinfo->vdevice.value()->target.defined()) {
+          // mismatch
+          if (sinfo->vdevice.value() != vdev) {
+            vdevice_unknown = true;
+          }
+        }
+      }
+    }
+
+    // Update the shape values for best effort check.
+    const auto* shape_expr = sinfo->shape.as<ShapeExprNode>();
+    if (shape_expr != nullptr) {
+      shape_values.push_back(shape_expr->values);
+      continue;
+    }
+    shape_unknown = true;
+
+    if (!sinfo->shape.defined()) {
+      continue;
+    }
+    // Keep the shape value for equality check.
+    ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(sinfo->shape.value()->struct_info_);
+    if (shape_sinfo->values.defined()) {
+      shape_values.push_back(shape_sinfo->values.value());
+    }
+  }
+
+  if (is_void_dtype) {
+    output_dtype = DataType::Void();
+  }
+  if (vdevice_unknown) {
+    vdev = NullOpt;
+  }
+
+  if (output_ndim == kUnknownNDim) {
+    return tensor_sinfo.size() == 1 ? tensor_sinfo[0]
+                                    : TensorStructInfo(output_dtype, output_ndim, vdev);
+  }
+
+  // If there is only one input tensor, no action is needed.
+  if (tensor_sinfo.size() == 1) {
+    return tensor_sinfo[0];
+  }
+  if (shape_values.empty()) {
+    if (!vdevice_unknown) {
+      return TensorStructInfo(output_dtype, output_ndim, vdev);
+    }
+    return TensorStructInfo(output_dtype, output_ndim);
+  }
+
+  // As long as the there is known shape value, we will do the best effort check to ensure safety.
+  Optional<Array<PrimExpr>> output_shape = CheckConcatOutputShape2(call, ctx, shape_values);
+
+  if (shape_unknown || !output_shape.defined()) {
+    if (!vdevice_unknown) {
+      return TensorStructInfo(output_dtype, output_ndim, vdev);
+    }
+    return TensorStructInfo(output_dtype, output_ndim);
+  } else {
+    if (!vdevice_unknown) {
+      return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype, vdev);
+    }
+    return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype);
+  }
+}
+
+InferLayoutOutput InferLayoutConcat2(const Call& call,
+                                     const Map<String, Array<String>>& desired_layouts,
+                                     const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+
+  const auto* attrs = call->attrs.as<ConcatAttrs>();
+  ICHECK(attrs != nullptr) << "Invalid Call";
+  NLayout nlayout = GetNLayout(var_layout_map, call->args[1]);
+  ICHECK(nlayout.IsNested());
+  ICHECK(nlayout.NestedArray()[0].IsLeaf());
+
+  int n_tensor = nlayout.NestedArray().size();
+  LayoutDecision layout = nlayout.NestedArray()[0].LeafValue();
+  Array<NLayout> input_layouts, output_layouts;
+  for (int i = 0; i < n_tensor; ++i) {
+    input_layouts.push_back(layout);
+  }
+  output_layouts.push_back(layout);
+  ObjectPtr<ConcatAttrs> new_attrs = make_object<ConcatAttrs>(*attrs);
+  new_attrs->axis = Integer(FindAxis(layout->layout, attrs->axis.value_or(0)->value));
+  return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
+}
+
+TVM_REGISTER_OP("relax.concat2")
+    // .set_attrs_type<ConcatAttrs>()
+    // .set_num_inputs(1)
+    .add_argument("first", "Tensor", "The first tensor.")
+    .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConcat2)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConcat2)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.expand_dims */
 TVM_REGISTER_NODE_TYPE(ExpandDimsAttrs);
 

@@ -70,6 +70,13 @@ def concat(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
         tensors = RxTuple(tensors)
     return _ffi_api.concat(tensors, axis)  # type: ignore
 
+def concat2(first: Expr, tensors: Union[Expr, List[Expr]]) -> Expr:
+    if isinstance(tensors, (list, tuple)):
+        tensors = RxTuple(tensors)
+    print("manipulate.py: type(first)", type(first))
+    print("manipulate.py: type(tensors)", type(tensors))
+    return _ffi_api.concat2(first, tensors)  # type: ignore
+
 
 def expand_dims(x: Expr, axis: Union[int, List[int]]) -> Expr:
     """Insert new axes at the positions given by `axis`.

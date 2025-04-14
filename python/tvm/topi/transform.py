@@ -402,6 +402,26 @@ def concatenate(a_tuple, axis=0):
     """
     return cpp.concatenate(a_tuple, axis)
 
+def concatenate2(first, a_tuple):
+    """Join a sequence of arrays along an existing axis.
+
+    Parameters
+    ----------
+    a_tuple : tuple of tvm.te.Tensor
+        The arrays to concatenate
+
+    axis : int, optional
+        The axis along which the arrays will be joined. Default is 0.
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+    """
+    original_list = [first, *a_tuple]
+    return cpp.concatenate(original_list, 0)
+
+
+
 
 def stack(a, axis):
     """Repeats the whole array multiple times.

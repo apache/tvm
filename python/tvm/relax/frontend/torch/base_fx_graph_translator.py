@@ -987,6 +987,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
         return self.block_builder.emit(relax.op.concat(args[0], axis=axis))
 
+    def _cat2(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        first_tensor = args[0][0]
+        other_tensors = args[0][1:]
+        print("base_fx_graph_translator: type(first_tensor)", type(first_tensor))
+        print("base_fx_graph_translator: type(other_tensors)", type(other_tensors))
+        return self.block_builder.emit(relax.op.concat2(first_tensor, other_tensors))
+
     def _chunk(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         chunks = node.args[1]
