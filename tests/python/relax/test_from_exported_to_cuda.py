@@ -196,7 +196,7 @@ def test_index_tensor7(target, dev):
             return x[[[0,1,2,3], [1,2,3,4], [2,3,4,0]]] # both args[0] and indices are expr.Var
         
     torch_module = IndexTensorModel7().eval()
-    raw_data = np.random.rand(5,5,5).astype("float32")
+    raw_data = np.random.rand(5,5,5,5).astype("float32")
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
@@ -736,6 +736,21 @@ def test_sum(target, dev):
     torch_module = SumModel().eval()
 
     raw_data = np.random.rand(10, 10, 10).astype("float32")
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+@tvm.testing.parametrize_targets("cuda")
+def test_mul(target, dev):
+    class MulModule(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.y = torch.tensor(np.random.rand(2, 3).astype("float32"))
+
+        def forward(self, x):
+            return  x.mul(self.y)
+
+    torch_module = MulModule().eval()
+    raw_data = np.random.rand(2, 3).astype("float32")
+    
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 

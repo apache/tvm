@@ -956,6 +956,17 @@ def adv_index(data, indices):
     result : tvm.te.Tensor
         Output tensor
     """
+
+    """
+    TODO 
+    this seems to be wrong 
+    Does not achieve correctness with this:
+    
+    x np.random.rand(5,5,5,5).astype("float32")
+    return x[[[0,1],[0,1]]]
+    
+    """
+
     return cpp.adv_index(data, indices)
 
 
@@ -1073,7 +1084,96 @@ def index_tensor(data, indices):
     2. Remove exactly one leading dimension of size=1, if present. (Matches PyTorch's shape rule.)
     3. Flatten -> fix negative indices -> index_select -> reshape.
     """
-    # flattened = topi.reshape(indices, (-1,))
-    picked = topi.take(data, indices, axis=0)
-    return picked
+
+    
+
+    if isinstance(indices, (list, tuple)) and len(indices) > 1:
+
+        def _broadcast_shape(shapes):
+            """
+            shapes: list of tuples
+            Return the broadcasted shape for these shapes
+            """
+            max_ndim = max(len(s) for s in shapes)
+            out_rev = []
+            # reverse each shape
+            rev_shapes = [s[::-1] for s in shapes]
+            for i in range(max_ndim):
+                dim_size = 1
+                for rsh in rev_shapes:
+                    if i < len(rsh):
+                        s_ = rsh[i]
+                        # typical broadcast rule
+                        if s_ != 1 and dim_size != 1 and s_ != dim_size:
+                            raise ValueError("Incompatible shapes for broadcast")
+                        dim_size = max(dim_size, s_)
+                out_rev.append(dim_size)
+            out_rev.reverse()
+            return tuple(out_rev)
+
+        shapes = [tuple(idx.shape) for idx in idx_list]
+        broadcast_shape = _broadcast_shape(shapes)
+
+        # -------------------------------------------------
+        # 2) Expand (broadcast) each index to shape B
+        #    Then fix negative indices if you want negative support
+        # -------------------------------------------------
+        expanded_idx_list = []
+        for i, idx in enumerate(idx_list):
+            # broadcast to shape B
+            broadcasted = topi.broadcast_to(idx, broadcast_shape)
+
+            # fix negative:  out_idx = where(idx < 0, idx + data.shape[i], idx)
+            # data.shape[i] might be a PrimExpr or int
+            dim_size_i = data.shape[i]  # dimension size for data's i-th dim
+            # We must make sure it's broadcast-compatible:
+            dim_size_t = topi.full_like(broadcasted, dim_size_i)
+            zero_t = topi.full_like(broadcasted, 0)
+            fixed = topi.where(topi.less(broadcasted, zero_t),
+                            topi.add(broadcasted, dim_size_t),
+                            broadcasted)
+            expanded_idx_list.append(fixed)
+
+        # leftover dimensions => data.shape[k:]
+        k = len(idx_list)
+        leftover_dims = data.shape[k:]
+        # Final output shape is broadcast_shape + leftover_dims
+        final_shape = broadcast_shape + leftover_dims
+
+        # -------------------------------------------------
+        # 3) Build a te.compute that gathers from 'data'
+        # -------------------------------------------------
+        def _compute(*args):
+            # 'args' is a multi-index into final_shape
+            #   => the first len(broadcast_shape) are the broadcast coords
+            #      the remaining correspond to leftover_dims
+            bdim = len(broadcast_shape)
+            leftover_dim = len(leftover_dims)
+            assert len(args) == bdim + leftover_dim
+
+            # advanced_indices for dimension i
+            # i.e. i0 = expanded_idx_list[0][b0,b1,...], i1 = expanded_idx_list[1][b0,b1,...], ...
+            # leftover coords => the last leftover_dim from 'args'
+            # data is presumably shape = [D0, D1, ..., D(k-1), leftover...]
+            # So data coordinate is [ i0, i1, ..., i(k-1), leftover0, leftover1, ...]
+            data_coords = []
+            for i_ in range(k):
+                data_coords.append(expanded_idx_list[i_][*args[:bdim]])
+            # Now append leftover coords
+            data_coords.extend(args[bdim:])
+
+            return data(*data_coords)
+
+        # The final te.compute
+        out = te.compute(
+            final_shape,
+            _compute,
+            name="multi_adv_index_gather",
+        )
+        return out
+
+    else:
+        # flattened = topi.reshape(indices, (-1,))
+        picked = topi.take(data, indices, axis=0)
+        return picked
 
