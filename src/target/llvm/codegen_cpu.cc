@@ -1067,8 +1067,8 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
       // when we set any union value, we need to be careful to
       // clear off the union value to zero if the set size is less than 64 bits
       if (data_layout_->getTypeAllocSize(ref.type) != 8) {
-        llvm::Value* i64_addr = builder_->CreatePointerCast(
-            ref.addr, llvmGetPointerTo(t_int64_, 0));
+        llvm::Value* i64_addr =
+            builder_->CreatePointerCast(ref.addr, llvmGetPointerTo(t_int64_, 0));
         builder_->CreateStore(ConstInt64(0), i64_addr);
       }
     }

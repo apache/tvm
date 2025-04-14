@@ -1418,6 +1418,10 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return llvm::Constant::getNullValue(t_void_p_);
   } else if (op->op.same_as(builtin::isnullptr())) {
     return builder_->CreateIsNull(MakeValue(op->args[0]));
+  } else if (op->op.same_as(builtin::handle_add_byte_offset())) {
+    llvm::Value* ptr = MakeValue(op->args[0]);
+    llvm::Value* offset = MakeValue(op->args[1]);
+    return builder_->CreateInBoundsGEP(t_int8_, ptr, offset);
   } else if (op->op.same_as(builtin::large_uint_imm())) {
     ICHECK_EQ(op->args.size(), 2U);
     uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
