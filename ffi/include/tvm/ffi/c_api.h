@@ -103,7 +103,7 @@ typedef enum {
 typedef void* TVMFFIObjectHandle;
 
 /*!
- * \brief C-based type of all FFI object types that allocates on heap.
+ * \brief C-based type of all FFI object header that allocates on heap.
  * \note TVMFFIObject and TVMFFIAny share the common type_index header
  */
 typedef struct TVMFFIObject {
@@ -114,8 +114,15 @@ typedef struct TVMFFIObject {
   int32_t type_index;
   /*! \brief Reference counter of the object. */
   int32_t ref_counter;
-  /*! \brief Deleter to be invoked when reference counter goes to zero. */
-  void (*deleter)(struct TVMFFIObject* self);
+  union {
+    /*! \brief Deleter to be invoked when reference counter goes to zero. */
+    void (*deleter)(struct TVMFFIObject* self);
+    /*!
+     * \brief auxilary field to TVMFFIObject is always 8 bytes aligned.
+     * \note This helps us to ensure cross platform compatibility.
+     */
+    int64_t __ensure_align;
+  };
 } TVMFFIObject;
 
 /*!
