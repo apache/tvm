@@ -507,7 +507,7 @@ def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0) -> Expr:
 
 
 # TODO change names of args and remove axis arg
-def index_tensor(data:Expr, indices: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
+def index_tensor(data:Expr, indices: Union[Expr, List[Expr]]) -> Expr:
     """Concatenate the input tensors along the given axis.
 
     Parameters
@@ -527,7 +527,7 @@ def index_tensor(data:Expr, indices: Union[Expr, List[Expr]], axis: Optional[int
     """
     if isinstance(indices, (list, tuple)):
         indices = RxTuple(indices)
-    return _ffi_api.index_tensor(data, indices, axis)  # type: ignore
+    return _ffi_api.index_tensor(data, indices)  # type: ignore
 
 def scatter_elements(
     data: Expr, indices: Expr, updates: Expr, axis: int = 0, reduction: str = "update"

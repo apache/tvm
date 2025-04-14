@@ -1053,7 +1053,7 @@ def trilu(data, k, upper):
 
     return te.compute(data.shape, _apply_trilu, name="trilu", tag=topi.tag.ELEMWISE)
 
-def index_tensor(data, indices, axis): # TODO remove axis argument
+def index_tensor(data, indices): # TODO remove axis argument
     """ TODO docstring  
     """
 

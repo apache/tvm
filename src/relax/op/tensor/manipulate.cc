@@ -477,12 +477,9 @@ TVM_REGISTER_OP("relax.flatten")
 
 /* relax.index_tensor */
 
-Expr index_tensor(Expr first, Expr tensors, Optional<Integer> axis) {
-  ObjectPtr<ConcatAttrs> attrs = make_object<ConcatAttrs>();  // TODO remove this
-  attrs->axis = std::move(axis);
-
+Expr index_tensor(Expr first, Expr tensors) {
   static const Op& op = Op::Get("relax.index_tensor");
-  return Call(op, {std::move(first), std::move(tensors)}, Attrs(attrs), {});
+  return Call(op, {std::move(first), std::move(tensors)}, Attrs(), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.index_tensor").set_body_typed(index_tensor);
@@ -513,7 +510,6 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
 }
 
 TVM_REGISTER_OP("relax.index_tensor")
-    .set_attrs_type<ConcatAttrs>()  // TODO remove that
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input data.")
     .add_argument("indices", "List of Tensors", "The indices used to index.")

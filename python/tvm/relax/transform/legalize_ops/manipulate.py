@@ -178,8 +178,8 @@ def _index_tensor(bb: BlockBuilder, call: Call) -> Expr:
     fields = (
         t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )
-    return bb.call_te( # TODO remove axis
-        topi.index_tensor, call.args[0], fields, None if call.attrs.axis is None else call.attrs.axis.value
+    return bb.call_te( 
+        topi.index_tensor, call.args[0], fields
     )
 
 @register_legalize("relax.scatter_elements")

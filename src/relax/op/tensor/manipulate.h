@@ -211,7 +211,7 @@ Expr gather_nd(Expr data, Expr indices, int batch_dims = 0);
  *       The output shape is batch_dims + indices.shape[:-1] + data.shape[batch_dims +
  * indices.shape[-1]:]
  */
-Expr index_tensor(Expr data, Expr indices, Optional<Integer> axis);  // TODO remove axis
+Expr index_tensor(Expr data, Expr indices);  
 
 /*!
  * \brief Scatter updates into an array according to indices.
