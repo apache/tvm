@@ -424,16 +424,34 @@ StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
     is_void_dtype = true;
   }
 
-  std::vector<Array<PrimExpr>> shape_values;
-  shape_values.reserve(tensor_sinfo.size());
+  TensorStructInfo indices_sinfo = data_sinfo;
+
+  Optional<Array<PrimExpr>> data_shape_value;
+  if (data_sinfo->shape.defined()) {
+    data_shape_value = GetStructInfoAs<ShapeStructInfoNode>(data_sinfo->shape.value())->values;
+  }
+  Optional<Array<PrimExpr>> indices_shape_value;
+  if (indices_sinfo->shape.defined()) {
+    indices_shape_value =
+        GetStructInfoAs<ShapeStructInfoNode>(indices_sinfo->shape.value())->values;
+  }
+
+  if (indices_sinfo->shape.defined()) {
+    return TensorStructInfo(indices_sinfo->shape.value(), output_dtype, indices_sinfo->vdevice);
+  } else {
+    return TensorStructInfo(output_dtype, indices_sinfo->ndim, indices_sinfo->vdevice);
+  }
+
+  // std::vector<Array<PrimExpr>> shape_values;
+  // shape_values.reserve(tensor_sinfo.size());
 
 
-  // TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
-  // DataType output_dtype = data_sinfo->dtype;
+  // // TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
+  // // DataType output_dtype = data_sinfo->dtype;
 
-  return TensorStructInfo(output_dtype, kUnknownNDim);
+  // // return TensorStructInfo(output_dtype, kUnknownNDim);
 
-  // for (TensorStructInfo sinfo : tensor_sinfo) {
+  // for (TensorStructInfo sinfo : tensor_sinfo) { // TODO need this for-loop!
     
   //   // Update the output ndim.
   //   // Todo(relax-team): revisit here for better check on if the input tensor has
@@ -487,6 +505,7 @@ StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
   //   return TensorStructInfo(output_dtype, output_ndim);
   // }
 
+  // // TODO why do I need to output_shape here?? index_tensor did not require it!
   // // As long as the there is known shape value, we will do the best effort check to ensure safety.
   // Optional<Array<PrimExpr>> output_shape = CheckConcatOutputShape2(call, ctx, shape_values, axis);
 
@@ -509,8 +528,6 @@ TVM_REGISTER_OP("relax.concat2")
     .add_argument("first", "Tensor", "The first tensor")
     .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConcat2)  // TODO necessary
-    // .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConcat2)
-    // .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.expand_dims */
