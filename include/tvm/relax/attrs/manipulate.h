@@ -121,7 +121,7 @@ struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
 
 /*! \brief Attributes used in stack operators */
 struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
-  Integer axis;
+  Optional<Integer> axis;
 
   TVM_DECLARE_ATTRS(StackAttrs, "relax.attrs.StackAttrs") {
     TVM_ATTR_FIELD(axis).describe(
