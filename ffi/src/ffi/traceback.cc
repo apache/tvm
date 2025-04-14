@@ -72,8 +72,7 @@ void BacktraceErrorCallback(void*, const char*, int) {
   // do nothing
 }
 
-void BacktraceSyminfoCallback(void* data, uintptr_t pc, const char* symname, uintptr_t,
-                              uintptr_t) {
+void BacktraceSyminfoCallback(void* data, uintptr_t pc, const char* symname, uintptr_t, uintptr_t) {
   auto str = reinterpret_cast<std::string*>(data);
 
   if (symname != nullptr) {
