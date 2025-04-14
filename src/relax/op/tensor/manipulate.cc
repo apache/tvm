@@ -476,7 +476,7 @@ TVM_REGISTER_OP("relax.flatten")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.index_tensor */
-Expr index_tensor(Expr data, Expr indices) {
+Expr index_tensor(Expr data, Array<Expr> indices) {
   static const Op& op = Op::Get("relax.index_tensor");
   return Call(op, {std::move(data), std::move(indices)}, Attrs(), {});
 }

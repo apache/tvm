@@ -965,6 +965,7 @@ def adv_index(data, indices):
     x np.random.rand(5,5,5,5).astype("float32")
     return x[[[0,1],[0,1]]]
     
+    EDIT: is it because I was passing indices[0] ?
     """
 
     return cpp.adv_index(data, indices)

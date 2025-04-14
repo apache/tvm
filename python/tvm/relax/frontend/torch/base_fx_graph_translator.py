@@ -1089,7 +1089,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         # indices = args[1] # TODO do something like this!
         # indices = [2,3]
-        indices = args[1][0]
+        indices = args[1]
         print("type of indices", type(indices))
         # print("indices:")
         # args_indices = self.retrieve_args(indices)
