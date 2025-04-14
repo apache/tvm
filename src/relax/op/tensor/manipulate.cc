@@ -420,81 +420,87 @@ StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
 
   bool shape_unknown = false;
   bool is_void_dtype = false;
+  if (data_sinfo->dtype.is_void()) {
+    is_void_dtype = true;
+  }
+
   std::vector<Array<PrimExpr>> shape_values;
   shape_values.reserve(tensor_sinfo.size());
 
-  for (TensorStructInfo sinfo : tensor_sinfo) {
-    // Update the output dtype.
-    if (sinfo->dtype.is_void()) {
-      is_void_dtype = true;
-    }
 
-    // Update the output ndim.
-    // Todo(relax-team): revisit here for better check on if the input tensor has
-    // ndim 1 when the input axis is undefined.
-    if (output_ndim == kUnknownNDim) {
-      output_ndim = sinfo->ndim;
-    } else if (sinfo->ndim != kUnknownNDim && sinfo->ndim != output_ndim) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "Concat expects all input tensors to have same ndim. However, the "
-                          "input contains tensors with ndim "
-                       << output_ndim << " and " << sinfo->ndim);
-    }
+  // TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
+  // DataType output_dtype = data_sinfo->dtype;
 
-    // Update the shape values for best effort check.
-    const auto* shape_expr = sinfo->shape.as<ShapeExprNode>();
-    if (shape_expr != nullptr) {
-      shape_values.push_back(shape_expr->values);
-      continue;
-    }
-    shape_unknown = true;
+  return TensorStructInfo(output_dtype, kUnknownNDim);
 
-    if (!sinfo->shape.defined()) {
-      continue;
-    }
-    // Keep the shape value for equality check.
-    ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(sinfo->shape.value()->struct_info_);
-    if (shape_sinfo->values.defined()) {
-      shape_values.push_back(shape_sinfo->values.value());
-    }
-  }
+  // for (TensorStructInfo sinfo : tensor_sinfo) {
+    
+  //   // Update the output ndim.
+  //   // Todo(relax-team): revisit here for better check on if the input tensor has
+  //   // ndim 1 when the input axis is undefined.
+  //   if (output_ndim == kUnknownNDim) {
+  //     output_ndim = sinfo->ndim;
+  //   } else if (sinfo->ndim != kUnknownNDim && sinfo->ndim != output_ndim) {
+  //     ctx->ReportFatal(Diagnostic::Error(call)
+  //                      << "Concat expects all input tensors to have same ndim. However, the "
+  //                         "input contains tensors with ndim "
+  //                      << output_ndim << " and " << sinfo->ndim);
+  //   }
 
-  if (is_void_dtype) {
-    output_dtype = DataType::Void();
-  }
+  //   // Update the shape values for best effort check.
+  //   const auto* shape_expr = sinfo->shape.as<ShapeExprNode>();
+  //   if (shape_expr != nullptr) {
+  //     shape_values.push_back(shape_expr->values);
+  //     continue;
+  //   }
+  //   shape_unknown = true;
 
-  if (output_ndim == kUnknownNDim) {
-    return tensor_sinfo.size() == 1 ? tensor_sinfo[0]
-                                    : TensorStructInfo(output_dtype, output_ndim, vdev);
-  }
+  //   if (!sinfo->shape.defined()) {
+  //     continue;
+  //   }
+  //   // Keep the shape value for equality check.
+  //   ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(sinfo->shape.value()->struct_info_);
+  //   if (shape_sinfo->values.defined()) {
+  //     shape_values.push_back(shape_sinfo->values.value());
+  //   }
+  // }
 
-  int axis =
-      attrs->axis.defined() ? NormalizeAxis(call, ctx, output_ndim, attrs->axis.value()->value) : 0;
-  // If there is only one input tensor, no action is needed.
-  if (tensor_sinfo.size() == 1) {
-    return tensor_sinfo[0];
-  }
-  if (shape_values.empty()) {
-    if (!vdevice_unknown) {
-      return TensorStructInfo(output_dtype, output_ndim, vdev);
-    }
-    return TensorStructInfo(output_dtype, output_ndim);
-  }
+  // if (is_void_dtype) {
+  //   output_dtype = DataType::Void();
+  // }
 
-  // As long as the there is known shape value, we will do the best effort check to ensure safety.
-  Optional<Array<PrimExpr>> output_shape = CheckConcatOutputShape2(call, ctx, shape_values, axis);
+  // if (output_ndim == kUnknownNDim) {
+  //   return tensor_sinfo.size() == 1 ? tensor_sinfo[0]
+  //                                   : TensorStructInfo(output_dtype, output_ndim, vdev);
+  // }
 
-  if (shape_unknown || !output_shape.defined()) {
-    if (!vdevice_unknown) {
-      return TensorStructInfo(output_dtype, output_ndim, vdev);
-    }
-    return TensorStructInfo(output_dtype, output_ndim);
-  } else {
-    if (!vdevice_unknown) {
-      return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype, vdev);
-    }
-    return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype);
-  }
+  // int axis =
+  //     attrs->axis.defined() ? NormalizeAxis(call, ctx, output_ndim, attrs->axis.value()->value) : 0;
+  // // If there is only one input tensor, no action is needed.
+  // if (tensor_sinfo.size() == 1) {
+  //   return tensor_sinfo[0];
+  // }
+  // if (shape_values.empty()) {
+  //   if (!vdevice_unknown) {
+  //     return TensorStructInfo(output_dtype, output_ndim, vdev);
+  //   }
+  //   return TensorStructInfo(output_dtype, output_ndim);
+  // }
+
+  // // As long as the there is known shape value, we will do the best effort check to ensure safety.
+  // Optional<Array<PrimExpr>> output_shape = CheckConcatOutputShape2(call, ctx, shape_values, axis);
+
+  // if (shape_unknown || !output_shape.defined()) {
+  //   if (!vdevice_unknown) {
+  //     return TensorStructInfo(output_dtype, output_ndim, vdev);
+  //   }
+  //   return TensorStructInfo(output_dtype, output_ndim);
+  // } else {
+  //   if (!vdevice_unknown) {
+  //     return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype, vdev);
+  //   }
+  //   return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype);
+  // }
 }
 
 TVM_REGISTER_OP("relax.concat2")
