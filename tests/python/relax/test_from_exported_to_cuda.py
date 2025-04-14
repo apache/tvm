@@ -63,6 +63,23 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
         np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
 
 
+
+@tvm.testing.parametrize_targets("cuda")
+def test_full(target, dev):
+    class FullModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return torch.full((2, 3), 3.141592)
+            
+    torch_module = FullModel().eval()
+
+    raw_data = np.random.rand(3,3).astype("float32")
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
 # Test index.Tensor # TODO aggregate into one big tet
 
 @tvm.testing.parametrize_targets("cuda")

@@ -434,6 +434,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "empty.memory_format": self._empty,
             "empty_like.default": self._empty_like,
             "fill.Scalar": self._fill,
+            "full.default": self._full,
             "index_select.default": self._index_select,
             "lift_fresh_copy.default": self._to_copy,
             "new_ones.default": self._new_ones,
