@@ -266,6 +266,15 @@ TVM_DLL const Op& tvm_tuple();
 /*!
  * \brief See pesudo code
  *
+ *  void* handle_add_byte_offset(void* handle, int offset) {
+ *     return reinterpret_cast<v*>(reinterpret_cast<char*>(handle) + offset);
+ *  }
+ */
+TVM_DLL const Op& handle_add_byte_offset();
+
+/*!
+ * \brief See pesudo code
+ *
  *  Type tvm_struct_get(StructType* arr, int index, int field_id) {
  *     return arr[index]->field;
  *  }
@@ -990,6 +999,8 @@ enum TVMStructFieldKind : int {
   kArrKindBound_,
   // TVMValue field
   kTVMValueContent,
+  kTVMFFIAnyTypeIndex,
+  kTVMFFIAnyUnionValue,
   kTVMValueKindBound_
 };
 }  // namespace builtin
