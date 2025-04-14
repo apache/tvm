@@ -1093,7 +1093,14 @@ def index_tensor(data, indices):
     print("data", data)
     print("indices", indices)
 
+    is_instance = isinstance(indices, (list, tuple))
+    print("isinstance(indices, (list, tuple))", is_instance)
+    if is_instance:
+        print("len(indices)", len(indices)) 
+
+
     if isinstance(indices, (list, tuple)) and len(indices) > 1:
+        print("IF CASE ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
 
         def _broadcast_shape(shapes):
             """
@@ -1180,6 +1187,12 @@ def index_tensor(data, indices):
 
     else:
         # flattened = topi.reshape(indices, (-1,))
-        picked = topi.take(data, indices, axis=0)
+        print("ELSE CASE ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
+        idxs = indices[0]
+        print("type(data)", type(data))
+        print("data", data)
+        print("type(idxs)",type(idxs))
+        print("idxs", idxs)
+        picked = topi.take(data, idxs, axis=0)
         return picked
 
