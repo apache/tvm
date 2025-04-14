@@ -884,6 +884,18 @@ class TorchFXImporter(BaseFXGraphImporter):
         with self.block_builder.function(name=func_name, params=inputs.copy(), attrs=func_attrs):
             output = None
             with self.block_builder.dataflow():
+
+                # Find all the missing function types
+                missing_func_types = list(
+                    {
+                        node.target.__name__
+                        for node in graph.nodes
+                        if node.op == "call_function"
+                        and node.target.__name__ not in self.convert_map
+                    }
+                )
+                assert not missing_func_types, f"Unsupported function types {missing_func_types}"
+
                 # Translate model parameters.
                 for _, param in model.named_parameters():
                     shape = param.data.shape
@@ -929,9 +941,6 @@ class TorchFXImporter(BaseFXGraphImporter):
                         self.env[node] = self.convert_map[type(module)](node)
                     elif node.op == "call_function":
                         func_name = node.target.__name__
-                        assert (
-                            func_name in self.convert_map
-                        ), f"Unsupported function type {func_name}"
                         if func_name in custom_ops:
                             self.env[node] = self.convert_map[func_name](node, self)
                         else:
