@@ -74,7 +74,7 @@ def _concat(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.concat2")
 def _concat2(bb: BlockBuilder, call: Call) -> Expr:
-    t = call.args[0]
+    t = call.args[1]
     n_field = len(t.struct_info.fields)
     while isinstance(t, Var):
         binding = bb.lookup_binding(t)
@@ -87,7 +87,7 @@ def _concat2(bb: BlockBuilder, call: Call) -> Expr:
         t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )
     return bb.call_te(
-        topi.concatenate2, fields, None if call.attrs.axis is None else call.attrs.axis.value
+        topi.concatenate2, call.args[0], fields, None if call.attrs.axis is None else call.attrs.axis.value
     )
 
 
@@ -204,8 +204,6 @@ def _index_tensor(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(
         topi.index_tensor, call.args[0], fields
     )
-
-
 
 
 @register_legalize("relax.scatter_elements")

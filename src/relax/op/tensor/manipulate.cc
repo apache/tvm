@@ -332,15 +332,16 @@ TVM_REGISTER_OP("relax.concat")
 
 /* relax.concat2 */
 
-Expr concat2(Expr tensors, Optional<Integer> axis) {
+Expr concat2(Expr first, Expr tensors, Optional<Integer> axis) {
   ObjectPtr<ConcatAttrs> attrs = make_object<ConcatAttrs>();
   attrs->axis = std::move(axis);
 
   static const Op& op = Op::Get("relax.concat2");
-  return Call(op, {std::move(tensors)}, Attrs(attrs), {});
+  return Call(op, {std::move(first), std::move(tensors)}, Attrs(attrs), {});
+
 }
 
-TVM_REGISTER_GLOBAL("relax.op.concat2").set_body_typed(concat);
+TVM_REGISTER_GLOBAL("relax.op.concat2").set_body_typed(concat2);
 
 Optional<Array<PrimExpr>> CheckConcatOutputShape2(const Call& call, const BlockBuilder& ctx,
                                                  const std::vector<Array<PrimExpr>>& shape_values,
@@ -352,7 +353,7 @@ Optional<Array<PrimExpr>> CheckConcatOutputShape2(const Call& call, const BlockB
 
     // Special case, if all concatenated values have the same shape
     StructuralEqual structural_equal;
-    PrimExpr first_concat_dim = shape_values[0][axis];
+    PrimExpr first_concat_dim = shape_values[1][axis];
     bool all_same = std::all_of(shape_values.begin(), shape_values.end(), [&](const auto& a) {
       return structural_equal(a[axis], first_concat_dim);
     });
@@ -395,10 +396,10 @@ Optional<Array<PrimExpr>> CheckConcatOutputShape2(const Call& call, const BlockB
 }
 
 StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
-  if (call->args.size() != 1) {
+  if (call->args.size() != 2) {
     ctx->ReportFatal(Diagnostic::Error(call) << "Concat op should have 1 argument");
   }
-  Array<TensorStructInfo> tensor_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[0]);
+  Array<TensorStructInfo> tensor_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[1]);
   if (tensor_sinfo.empty()) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Concat op expects at least one tensor in the input Tuple. However, the "
@@ -538,7 +539,8 @@ InferLayoutOutput InferLayoutConcat2(const Call& call,
 
 TVM_REGISTER_OP("relax.concat2")
     .set_attrs_type<ConcatAttrs>()
-    .set_num_inputs(1)
+    .set_num_inputs(2)
+    .add_argument("first", "Tensor", "The first tensor")
     .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConcat2)
     .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConcat2)

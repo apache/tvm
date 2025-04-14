@@ -71,7 +71,7 @@ def concat(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
     return _ffi_api.concat(tensors, axis)  # type: ignore
 
 
-def concat2(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
+def concat2(first:Expr, tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
     """Concatenate the input tensors along the given axis.
 
     Parameters
@@ -91,7 +91,8 @@ def concat2(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
     """
     if isinstance(tensors, (list, tuple)):
         tensors = RxTuple(tensors)
-    return _ffi_api.concat2(tensors, axis)  # type: ignore
+    # return _ffi_api.concat2(tensors, axis)  # TODO this works for some reason!
+    return _ffi_api.concat2(first, tensors, axis)  # type: ignore
 
 
 def expand_dims(x: Expr, axis: Union[int, List[int]]) -> Expr:

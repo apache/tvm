@@ -529,8 +529,8 @@ inline Tensor concatenate(const Array<Tensor>& inputs, int axis = 0, std::string
  *
  * \return A Tensor whose op member is the concatenate operation
  */
-inline Tensor concatenate2(const Array<Tensor>& inputs, int axis = 0, std::string name = "T_concat",
-                           std::string tag = kInjective) {
+inline Tensor concatenate2(const Tensor& first, const Array<Tensor>& inputs, int axis = 0,
+                           std::string name = "T_concat", std::string tag = kInjective) {
   int ndim = static_cast<int>(inputs[0]->shape.size());
   ICHECK(-ndim <= axis && axis < ndim) << "concatenate only accepts `axis` in [-ndim, ndim)"
                                        << ", but got axis = " << axis << ", and ndim = " << ndim;
