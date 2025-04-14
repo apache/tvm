@@ -143,8 +143,18 @@ def find_lib_path(name=None, search_path=None, optional=False):
             ]
 
         name = lib_dll_names + runtime_dll_names + ext_lib_dll_names
-        lib_dll_path = [os.path.join(p, name) for name in lib_dll_names for p in dll_path]
-        runtime_dll_path = [os.path.join(p, name) for name in runtime_dll_names for p in dll_path]
+        lib_dll_path = [
+            os.path.join(p, name)
+            for name in lib_dll_names
+            for p in dll_path
+            if not p.endswith("python/tvm")
+        ]
+        runtime_dll_path = [
+            os.path.join(p, name)
+            for name in runtime_dll_names
+            for p in dll_path
+            if not p.endswith("python/tvm")
+        ]
         ext_lib_dll_path = [os.path.join(p, name) for name in ext_lib_dll_names for p in dll_path]
     if not use_runtime:
         # try to find lib_dll_path
