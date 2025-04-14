@@ -438,6 +438,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "lift_fresh_copy.default": self._to_copy,
             "new_ones.default": self._new_ones,
             "one_hot.default": self._one_hot,
+            "ones.default": self._ones,
             # datatype
             "to.dtype": self._to,
             "to.dtype_layout": self._to,
