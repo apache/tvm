@@ -410,11 +410,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "flatten.using_ints": self._flatten,
             "flip.default": self._flip,
             "gather.default": self._gather,
-<<<<<<< HEAD
             "index.Tensor": self._index_tensor,
-=======
             "narrow.default": self._narrow,
->>>>>>> upstream/main
             "permute.default": self._permute,
             "repeat.default": self._repeat,
             "select.int": self._select,
