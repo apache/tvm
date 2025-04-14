@@ -41,8 +41,8 @@
 #include <limits>
 #include <string>
 #include <unordered_set>
-#include <vector>
 #include <utility>
+#include <vector>
 
 #include "tvm/ir/expr.h"
 #include "tvm/runtime/data_type.h"
