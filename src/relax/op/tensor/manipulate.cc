@@ -409,13 +409,17 @@ StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
 
   const auto* attrs = call->attrs.as<ConcatAttrs>();
   int output_ndim = attrs->axis.defined() ? kUnknownNDim : 1;
-  DataType output_dtype  = data_sinfo->dtype;
+  DataType output_dtype = data_sinfo->dtype;
 
-
+  bool vdevice_unknown = false;
   Optional<VDevice> vdev = NullOpt;
+  if (data_sinfo->vdevice.defined()) {
+    vdev = data_sinfo->vdevice.value();
+    vdevice_unknown = true;
+  }
+
   bool shape_unknown = false;
   bool is_void_dtype = false;
-  bool vdevice_unknown = false;
   std::vector<Array<PrimExpr>> shape_values;
   shape_values.reserve(tensor_sinfo.size());
 
@@ -423,7 +427,7 @@ StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
     // Update the output dtype.
     if (sinfo->dtype.is_void()) {
       is_void_dtype = true;
-    } 
+    }
 
     // Update the output ndim.
     // Todo(relax-team): revisit here for better check on if the input tensor has
@@ -435,20 +439,6 @@ StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
                        << "Concat expects all input tensors to have same ndim. However, the "
                           "input contains tensors with ndim "
                        << output_ndim << " and " << sinfo->ndim);
-    }
-
-    // Update the virtual device.
-    if (!vdevice_unknown) {
-      if (sinfo->vdevice.defined()) {
-        if (!vdev.defined()) {
-          vdev = sinfo->vdevice.value();
-        } else if (sinfo->vdevice.value()->target.defined()) {
-          // mismatch
-          if (sinfo->vdevice.value() != vdev) {
-            vdevice_unknown = true;
-          }
-        }
-      }
     }
 
     // Update the shape values for best effort check.
@@ -471,9 +461,6 @@ StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
 
   if (is_void_dtype) {
     output_dtype = DataType::Void();
-  }
-  if (vdevice_unknown) {
-    vdev = NullOpt;
   }
 
   if (output_ndim == kUnknownNDim) {
@@ -508,29 +495,6 @@ StructInfo InferStructInfoConcat2(const Call& call, const BlockBuilder& ctx) {
     }
     return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype);
   }
-}
-
-InferLayoutOutput InferLayoutConcat2(const Call& call,
-                                     const Map<String, Array<String>>& desired_layouts,
-                                     const VarLayoutMap& var_layout_map) {
-  ICHECK(NoDesiredLayout(call, desired_layouts));
-
-  const auto* attrs = call->attrs.as<ConcatAttrs>();
-  ICHECK(attrs != nullptr) << "Invalid Call";
-  NLayout nlayout = GetNLayout(var_layout_map, call->args[0]);
-  ICHECK(nlayout.IsNested());
-  ICHECK(nlayout.NestedArray()[0].IsLeaf());
-
-  int n_tensor = nlayout.NestedArray().size();
-  LayoutDecision layout = nlayout.NestedArray()[0].LeafValue();
-  Array<NLayout> input_layouts, output_layouts;
-  for (int i = 0; i < n_tensor; ++i) {
-    input_layouts.push_back(layout);
-  }
-  output_layouts.push_back(layout);
-  ObjectPtr<ConcatAttrs> new_attrs = make_object<ConcatAttrs>(*attrs);
-  new_attrs->axis = Integer(FindAxis(layout->layout, attrs->axis.value_or(0)->value));
-  return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
 }
 
 TVM_REGISTER_OP("relax.concat2")
