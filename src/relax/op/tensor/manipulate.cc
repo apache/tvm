@@ -543,7 +543,7 @@ TVM_REGISTER_OP("relax.concat2")
     .add_argument("first", "Tensor", "The first tensor")
     .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoConcat2)
-    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConcat2)
+    // .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutConcat2)
     // .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 
