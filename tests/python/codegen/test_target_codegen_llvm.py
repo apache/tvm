@@ -804,7 +804,7 @@ def test_llvm_crt_static_lib():
         mod.with_attr("system_lib_prefix", ""),
         target=tvm.target.Target("llvm"),
     )
-    print(module.get_source())
+    module.get_source()
     module.save("test.o")
 
 

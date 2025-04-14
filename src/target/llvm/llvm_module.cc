@@ -350,7 +350,6 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   // makes sense when we start to use multiple modules.
   cg->Init("TVMMod", llvm_target.get(), system_lib_prefix, system_lib_prefix.defined(), false);
   cg->SetFastMathFlags(llvm_target->GetFastMathFlags());
-
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
   if (entry_func.length() != 0) {
     cg->AddMainFunction(entry_func);

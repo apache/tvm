@@ -100,6 +100,8 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   // Defined in include/tvm/runtime/c_runtime_api.h:
   // typedef union { ... } TVMValue;
   t_tvm_value_ = llvm::StructType::create({t_float64_});
+  // Defined in include/tvm/ffi/c_api.h:
+  t_tvm_ffi_any_ = llvm::StructType::create({t_int32_, t_int32_, t_float64_});
   // Defined in include/tvm/runtime/c_backend_api.h:
   // typedef struct { void* sync_handle; int32_t num_task; } TVMParallelGroupEnv;
   t_tvm_parallel_group_env_ = llvm::StructType::create({llvmGetPointerTo(t_int32_, 0), t_int32_});
@@ -344,6 +346,33 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
       llvm::Value* member_addr =
           builder_->CreateInBoundsGEP(t_tvm_array_, buf, {index, ConstInt32(1), ConstInt32(0)});
       return TypedPointer(member_type, member_addr);
+    }
+    case builtin::kTVMFFIAnyTypeIndex: {
+      buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_ffi_any_, 0));
+      buf = builder_->CreateInBoundsGEP(t_tvm_ffi_any_, buf, {index, ConstInt32(0)});
+      return TypedPointer(t_int32_, buf);
+    }
+    case builtin::kTVMFFIAnyUnionValue: {
+      ICHECK_EQ(t.lanes(), 1);
+      buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_ffi_any_, 0));
+      // field 2 is the union value
+      buf = builder_->CreateInBoundsGEP(t_tvm_ffi_any_, buf, {index, ConstInt32(2)});
+      if (t.is_bool()) {
+        // it should be safe to set the pointer to the first byte of the union value
+        buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(DTypeToLLVMType(t), 0));
+        return TypedPointer(t_int8_, buf);
+      } else if (t.is_int() && t.bits() == 64) {
+        buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_int64_, 0));
+        return TypedPointer(t_int64_, buf);
+      } else if (t.is_float() && t.bits() == 64) {
+        buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_float64_, 0));
+        return TypedPointer(t_float64_, buf);
+      } else if (t.is_handle()) {
+        builder_->CreatePointerCast(buf, llvmGetPointerTo(t_void_p_, 0));
+        return TypedPointer(t_void_p_, buf);
+      } else {
+        LOG(DEBUG) << "DataType " << t << " cannot be stored into a TVMFFIAny's value field";
+      }
     }
     case builtin::kTVMValueContent: {
       ICHECK_EQ(t.lanes(), 1);
@@ -1009,7 +1038,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     return ConstInt32(-1);
   } else if (op->op.same_as(builtin::tvm_struct_get())) {
     ICHECK_EQ(op->args.size(), 3U);
-    int kind = op->args[2].as<IntImmNode>()->value;
+    int kind = op->args[2].as<IntImm>().value()->value;
     TypedPointer ref =
         CreateStructRefPtr(op->dtype, MakeValue(op->args[0]), MakeValue(op->args[1]), kind);
     if (kind == builtin::kArrAddr) {
@@ -1023,10 +1052,9 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     }
 
     return struct_value;
-
   } else if (op->op.same_as(builtin::tvm_struct_set())) {
     ICHECK_EQ(op->args.size(), 4U);
-    int kind = op->args[2].as<IntImmNode>()->value;
+    int kind = op->args[2].as<IntImm>().value()->value;
     llvm::Value* value = MakeValue(op->args[3]);
     TypedPointer ref = CreateStructRefPtr(op->args[3].dtype(), MakeValue(op->args[0]),
                                           MakeValue(op->args[1]), kind);
@@ -1034,11 +1062,21 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     if (value->getType()->isPointerTy()) {
       value = builder_->CreatePointerCast(value, ref.type);
     }
+
+    if (kind == builtin::kTVMFFIAnyUnionValue) {
+      // when we set any union value, we need to be careful to
+      // clear off the union value to zero if the set size is less than 64 bits
+      if (data_layout_->getTypeAllocSize(ref.type) != 8) {
+        llvm::Value* i64_addr = builder_->CreatePointerCast(
+            ref.addr, llvmGetPointerTo(t_int64_, 0));
+        builder_->CreateStore(ConstInt64(0), i64_addr);
+      }
+    }
     builder_->CreateStore(value, ref.addr);
     return ConstInt32(0);
   } else if (op->op.same_as(builtin::tvm_stack_alloca())) {
     ICHECK_EQ(op->args.size(), 2U);
-    const std::string& type = op->args[0].as<StringImmNode>()->value;
+    std::string type = op->args[0].as<StringImm>().value()->value;
     return WithFunctionEntry([&]() -> llvm::AllocaInst* {
       const int64_t* pval = as_const_int(op->args[1]);
       ICHECK(pval) << "require stack alloca to contain constant value";
@@ -1049,6 +1087,8 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
         return builder_->CreateAlloca(t_tvm_value_, num);
       } else if (type == "arg_tcode") {
         return builder_->CreateAlloca(t_int_, num);
+      } else if (type == "tvm_ffi_any") {
+        return builder_->CreateAlloca(t_tvm_ffi_any_, num);
       } else if (type == "array") {
         return builder_->CreateAlloca(t_tvm_array_, num);
       } else {

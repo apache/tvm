@@ -121,8 +121,16 @@ class ReturnRewriter : public StmtMutator {
 
   Stmt WriteToOut(PrimExpr val) {
     auto info = ConvertForFFI(val);
-    Stmt store_val = BufferStore(info.dummy_val_buffer, info.expr, {0});
-    Stmt store_tcode = BufferStore(info.dummy_tcode_buffer, info.tcode, {0});
+    Stmt store_tindex = tir::Evaluate(tir::Call(
+        DataType::Int(32), tir::builtin::tvm_struct_set(),
+        {ret_var_, IntImm(DataType::Int(32), 0),
+         IntImm(DataType::Int(32), tir::builtin::kTVMFFIAnyTypeIndex),
+         IntImm(DataType::Int(32), info.type_index)}));
+    Stmt store_val =
+        tir::Evaluate(tir::Call(DataType::Int(32), tir::builtin::tvm_struct_set(),
+                                {ret_var_, IntImm(DataType::Int(32), 0),
+                                 IntImm(DataType::Int(32), tir::builtin::kTVMFFIAnyUnionValue),
+                                 info.expr}));
     Stmt ret_zero = Evaluate(tvm::ret(0));
     return SeqStmt({store_val, store_tcode, ret_zero});
   }
