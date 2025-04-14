@@ -70,12 +70,28 @@ def concat(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
         tensors = RxTuple(tensors)
     return _ffi_api.concat(tensors, axis)  # type: ignore
 
-def concat2(first: Expr, tensors: Union[Expr, List[Expr]]) -> Expr:
+
+def concat2(tensors: Union[Expr, List[Expr]], axis: Optional[int] = 0) -> Expr:
+    """Concatenate the input tensors along the given axis.
+
+    Parameters
+    ----------
+    tensors : Union[relax.Expr, List[relax.Expr]]
+        An Expr in Tuple type, containing the tensors to be concatenated,
+        or a list of Tensors.
+
+    axis : Optional[int]
+        The axis along which the tensors are concatenated.
+        If `axis` is `None`, the input tensor is required to be flattened before concatenation.
+
+    Returns
+    -------
+    result: relax.Expr
+        The concatenated tensor.
+    """
     if isinstance(tensors, (list, tuple)):
         tensors = RxTuple(tensors)
-    print("manipulate.py: type(first)", type(first))
-    print("manipulate.py: type(tensors)", type(tensors))
-    return _ffi_api.concat2(first, tensors)  # type: ignore
+    return _ffi_api.concat2(tensors, axis)  # type: ignore
 
 
 def expand_dims(x: Expr, axis: Union[int, List[int]]) -> Expr:
