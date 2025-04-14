@@ -56,8 +56,7 @@ def add(lhs, rhs):
         Returns Expr if both operands are Expr.
         Otherwise returns Tensor.
     """
-    return lhs
-    # return _cpp.add(lhs, rhs) # TODO revert
+    return _cpp.add(lhs, rhs)
 
 
 def subtract(lhs, rhs):

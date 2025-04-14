@@ -87,7 +87,7 @@ def _concat2(bb: BlockBuilder, call: Call) -> Expr:
         t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )
     return bb.call_te(
-        topi.concatenate2, call.args[0], fields, None if call.attrs.axis is None else call.attrs.axis.value
+        topi.index_tensor, call.args[0], fields, None if call.attrs.axis is None else call.attrs.axis.value
     )
 
 
