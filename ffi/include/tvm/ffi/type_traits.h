@@ -396,14 +396,11 @@ struct TypeTraits<DLTensor*> : public TypeTraitsBase {
       return static_cast<DLTensor*>(src->v_ptr);
     } else if (src->type_index == TypeIndex::kTVMFFINDArray) {
       // Conversion from NDArray pointer to DLTensor
-      // use temp struct so we can calculate ABI offset on 32/64 bit platforms.
-      // TODO(tqchen): followup once we bring NDArray related containers to FFI
-      // and move DLTensor* to the right place.
-      struct Temp {
-        TVMFFIObject header;
-        DLTensor dl_tensor;
-      };
-      return &(reinterpret_cast<Temp*>(src->v_obj)->dl_tensor);
+      // based on the assumption that NDArray always follows the TVMFFIObject header
+      static_assert(sizeof(TVMFFIObject) == 16, "TVMFFIObject must be 8 bytes");
+      static_assert(alignof(DLTensor) == 8, "DLTensor must be 8 bytes aligned");
+      return reinterpret_cast<DLTensor*>(reinterpret_cast<char*>(src->v_obj) +
+                                         sizeof(TVMFFIObject));
     }
     return std::nullopt;
   }

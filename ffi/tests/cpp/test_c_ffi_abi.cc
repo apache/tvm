@@ -25,6 +25,7 @@ TEST(ABIHeaderAlignment, Default) {
   TVMFFIObject value;
   value.type_index = 10;
   EXPECT_EQ(reinterpret_cast<TVMFFIAny*>(&value)->type_index, 10);
+  static_assert(sizeof(TVMFFIObject) == 16, "TVMFFIObject must be 16 bytes");
 }
 
 }  // namespace
