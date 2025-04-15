@@ -1168,7 +1168,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = args[0]
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
         return self.block_builder.emit(relax.op.tile(x, dims))
-    
+
     def _roll(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         input_tensor = args[0]
@@ -1183,7 +1183,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 return int(val.value)
             elif isinstance(val, int):
                 return val
-            elif hasattr(val, '__int__'):
+            elif hasattr(val, "__int__"):
                 return int(val)
             raise TypeError(f"Unsupported type for shift/dim: {type(val)}")
 
@@ -1198,8 +1198,23 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 return tensor
 
             split_pos = dim_size_val - shift_mod
-            part1 = self.block_builder.emit(relax.op.strided_slice(tensor,axes=[dim],begin=[0],end=[split_pos],strides=[1],))
-            part2 = self.block_builder.emit(relax.op.strided_slice(tensor,axes=[dim],begin=[split_pos],end=[dim_size_val],strides=[1],))
+            part1 = self.block_builder.emit(
+                relax.op.strided_slice(
+                    tensor,
+                    axes=[dim],
+                    begin=[0],
+                    end=[split_pos],
+                    strides=[1],
+                )
+            )
+            part2 = self.block_builder.emit(
+                relax.op.strided_slice(
+                    tensor,axes=[dim],
+                    begin=[split_pos],
+                    end=[dim_size_val],
+                    strides=[1],
+                )
+            )
             return self.block_builder.emit(relax.op.concat([part2, part1], axis=dim))
 
         # Handle dims=None (flatten -> roll -> reshape)

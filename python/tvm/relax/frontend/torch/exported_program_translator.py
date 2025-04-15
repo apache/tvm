@@ -423,7 +423,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "narrow.default": self._narrow,
             "permute.default": self._permute,
             "repeat.default": self._repeat,
-            "roll.default":self._roll,
+            "roll.default": self._roll,
             "select.int": self._select,
             "slice.Tensor": self._slice,
             "split.Tensor": self._split,

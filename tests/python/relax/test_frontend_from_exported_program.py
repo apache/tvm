@@ -2994,7 +2994,7 @@ def test_roll():
                     begin=[R.prim_value(0)],
                     end=[R.prim_value(7)],
                     strides=[R.prim_value(1)],
-                    assume_inbound=False
+                    assume_inbound=False,
                 )
                 lv2: R.Tensor((1,), dtype="int64") = R.strided_slice(
                     lv,
@@ -3002,7 +3002,7 @@ def test_roll():
                     begin=[R.prim_value(7)],
                     end=[R.prim_value(8)],
                     strides=[R.prim_value(1)],
-                    assume_inbound=False
+                    assume_inbound=False,
                 )
                 lv3: R.Tensor((8,), dtype="int64") = R.concat((lv2, lv1), axis=0)
                 lv4: R.Tensor((4, 2), dtype="int64") = R.reshape(lv3, R.shape([4, 2]))
@@ -3022,7 +3022,7 @@ def test_roll():
                     begin=[R.prim_value(0)],
                     end=[R.prim_value(1)],
                     strides=[R.prim_value(1)],
-                    assume_inbound=False
+                    assume_inbound=False,
                 )
                 lv1: R.Tensor((3, 2), dtype="int64") = R.strided_slice(
                     x,
@@ -3030,7 +3030,7 @@ def test_roll():
                     begin=[R.prim_value(1)],
                     end=[R.prim_value(4)],
                     strides=[R.prim_value(1)],
-                    assume_inbound=False
+                    assume_inbound=False,
                 )
                 lv2: R.Tensor((4, 2), dtype="int64") = R.concat((lv1, lv), axis=0)
                 gv: R.Tuple(R.Tensor((4, 2), dtype="int64")) = (lv2,)
@@ -3050,7 +3050,7 @@ def test_roll():
                     begin=[R.prim_value(0)],
                     end=[R.prim_value(2)],
                     strides=[R.prim_value(1)],
-                    assume_inbound=False
+                    assume_inbound=False,
                 )
                 lv1: R.Tensor((2, 2), dtype="int64") = R.strided_slice(
                     x,
@@ -3058,10 +3058,10 @@ def test_roll():
                     begin=[R.prim_value(2)],
                     end=[R.prim_value(4)],
                     strides=[R.prim_value(1)],
-                    assume_inbound=False
+                    assume_inbound=False,
                 )
                 lv2: R.Tensor((4, 2), dtype="int64") = R.concat((lv1, lv), axis=0)
-                
+
                 # Second roll along dim=1 with shift=1
                 lv3: R.Tensor((4, 1), dtype="int64") = R.strided_slice(
                     lv2,
@@ -3069,7 +3069,7 @@ def test_roll():
                     begin=[R.prim_value(0)],
                     end=[R.prim_value(1)],
                     strides=[R.prim_value(1)],
-                    assume_inbound=False
+                    assume_inbound=False,
                 )
                 lv4: R.Tensor((4, 1), dtype="int64") = R.strided_slice(
                     lv2,
@@ -3077,7 +3077,7 @@ def test_roll():
                     begin=[R.prim_value(1)],
                     end=[R.prim_value(2)],
                     strides=[R.prim_value(1)],
-                    assume_inbound=False
+                    assume_inbound=False,
                 )
                 lv5: R.Tensor((4, 2), dtype="int64") = R.concat((lv4, lv3), axis=1)
                 gv: R.Tuple(R.Tensor((4, 2), dtype="int64")) = (lv5,)
