@@ -905,7 +905,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         pad = node.args[1]
         mode = node.args[2] if len(node.args) > 2 else node.kwargs.get("mode", "constant")
-        value = node.args[3] if len(node.args) > 3 else node.kwargs.get("value", 0.0)
+        value = node.args[3] if len(node.args) > 3 else 0.0
 
         # Calculate symmetric padding width for each dimension
         # and applying them in reverse order to match the input dimensions.
