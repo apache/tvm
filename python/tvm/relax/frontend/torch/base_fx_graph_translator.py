@@ -21,7 +21,12 @@
 import abc
 from functools import reduce
 import math
+<<<<<<< HEAD
 from typing import Callable, Dict, Optional, Tuple, Union, List
+=======
+from typing import Callable, Dict, Optional, Tuple, Union
+import tvm
+>>>>>>> 20cb5dd08 (add op support for roll op)
 
 from tvm import relax
 
@@ -1163,6 +1168,69 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = args[0]
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
         return self.block_builder.emit(relax.op.tile(x, dims))
+    
+    def _roll(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        input_tensor = args[0]
+        shifts = args[1]
+        dims = args[2] if len(args) > 2 else None
+
+        # Get original shape
+        original_shape = self.shape_of(input_tensor)
+
+        def to_int(val):
+            if isinstance(val, tvm.tir.IntImm):
+                return int(val.value)
+            elif isinstance(val, int):
+                return val
+            elif hasattr(val, '__int__'):
+                return int(val)
+            raise TypeError(f"Unsupported type for shift/dim: {type(val)}")
+
+        def roll_single_dim(tensor: relax.Var, shift: int, dim: int) -> relax.Var:
+            shape = self.shape_of(tensor)
+
+            dim_size = shape.values[dim]
+            shift_val = to_int(shift)
+            dim_size_val = to_int(dim_size)
+            shift_mod = shift_val % dim_size_val
+            if shift_mod == 0:
+                return tensor
+
+            split_pos = dim_size_val - shift_mod
+            part1 = self.block_builder.emit(relax.op.strided_slice(tensor,axes=[dim],begin=[0],end=[split_pos],strides=[1],))
+            part2 = self.block_builder.emit(relax.op.strided_slice(tensor,axes=[dim],begin=[split_pos],end=[dim_size_val],strides=[1],))
+            return self.block_builder.emit(relax.op.concat([part2, part1], axis=dim))
+
+        # Handle dims=None (flatten -> roll -> reshape)
+        if dims is None:
+            flattened = self.block_builder.emit(relax.op.reshape(input_tensor, (-1,)))
+            shift_scalar = to_int(shifts[0] if isinstance(shifts, (list, tuple)) else shifts)
+            rolled = roll_single_dim(flattened, shift_scalar, 0)
+            return self.block_builder.emit(relax.op.reshape(rolled, original_shape))
+
+        # Normalize shifts and dims
+        if isinstance(shifts, (list, tuple)):
+            shifts = [to_int(s) for s in shifts]
+        else:
+            shifts = [to_int(shifts)]
+
+        if isinstance(dims, (list, tuple)):
+            dims = [to_int(d) for d in dims]
+        else:
+            dims = [to_int(dims)]
+
+        if len(shifts) != len(dims):
+            raise ValueError("shifts and dims must have the same length")
+
+        result = input_tensor
+        rank = len(original_shape.values)
+        for shift, dim in zip(shifts, dims):
+            if dim < 0:
+                dim += rank
+            result = roll_single_dim(result, shift, dim)
+
+        return result
 
     def _reshape(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore

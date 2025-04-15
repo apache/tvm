@@ -750,6 +750,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "numel": self._numel,
             "permute": self._permute,
             "repeat": self._repeat,
+            "roll": self._roll,
             "reshape": self._reshape,
             "scatter": self._scatter,
             "select": self._select,
