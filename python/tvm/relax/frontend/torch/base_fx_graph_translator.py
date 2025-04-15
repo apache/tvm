@@ -103,6 +103,17 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         else:
             return node
 
+    def _check_unsupported_func_type(self, nodes):
+        missing_func_types = list(
+            {
+                node.target.__name__
+                for node in nodes
+                if node.op == "call_function"
+                and node.target.__name__ not in self.convert_map
+            }
+        )
+        assert not missing_func_types, f"Unsupported function types {missing_func_types}"
+
     ########## Unary Ops ##########
 
     def _unary_op(self, op: Callable) -> Callable:
