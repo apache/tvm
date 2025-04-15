@@ -1172,8 +1172,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _roll(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         input_tensor = args[0]
-        shifts = args[1]
-        dims = args[2] if len(args) > 2 else None
+        shifts = args[1] if len(node.args) > 1 else node.kwargs.get("shifts", None)
+        dims = args[2] if len(node.args) > 2 else node.kwargs.get("dims", None)
 
         # Get original shape
         original_shape = self.shape_of(input_tensor)
