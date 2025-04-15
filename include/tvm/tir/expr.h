@@ -261,25 +261,6 @@ class FloorDiv : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FloorDivNode);
 };
 
-/*!
- * \brief LogAddExp operation, computes log(exp(a) + exp(b)).
- */
-class LogAddExpNode : public BinaryOpNode<LogAddExpNode> {
- public:
-  static constexpr const char* _type_key = "tir.LogAddExp";
-};
-
-/*!
- * \brief Managed reference to LogAddExpNode.
- * \sa LogAddExpNode
- */
-class LogAddExp : public PrimExpr {
- public:
-  TVM_DLL LogAddExp(PrimExpr a, PrimExpr b, Span span = Span());
-  TVM_DEFINE_OBJECT_REF_METHODS(LogAddExp, PrimExpr, LogAddExpNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(LogAddExpNode);
-};
-
 /*! \brief The remainder of the floordiv */
 class FloorModNode : public BinaryOpNode<FloorModNode> {
  public:

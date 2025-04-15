@@ -275,17 +275,6 @@ TVM_REGISTER_GLOBAL("tir.FloorDiv").set_body_typed([](PrimExpr a, PrimExpr b, Sp
   return FloorDiv(a, b, span);
 });
 
-TVM_REGISTER_NODE_TYPE(FloorDivNode);
-
-// LogAddExp
-TVM_DEFINE_BINOP_CONSTRUCTOR(LogAddExp);
-
-TVM_REGISTER_GLOBAL("tir.LogAddExp").set_body_typed([](PrimExpr a, PrimExpr b, Span span) {
-  return LogAddExp(a, b, span);
-});
-
-TVM_REGISTER_NODE_TYPE(LogAddExpNode);
-
 // FloorMod
 TVM_DEFINE_BINOP_CONSTRUCTOR(FloorMod);
 

@@ -511,7 +511,9 @@ PrimExpr logaddexp(PrimExpr a, PrimExpr b, Span span) {
   ICHECK(a.dtype().is_float()) << a;
   ICHECK(b.dtype().is_float()) << b;
   BinaryOpMatchTypes(a, b, span);
-  return tir::LogAddExp(a, b, span);
+  PrimExpr exp_sum = add(exp(a), exp(b));
+  PrimExpr log_exp_sum = log(exp_sum);
+  return log_exp_sum;
 }
 
 PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span) {

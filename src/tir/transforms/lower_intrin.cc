@@ -190,14 +190,6 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
     }
   }
 
-  PrimExpr VisitExpr_(const LogAddExpNode* op) final {
-    PrimExpr exp_a = VisitExpr_(tvm::exp(op->a).as<CallNode>());
-    PrimExpr exp_b = VisitExpr_(tvm::exp(op->b).as<CallNode>());
-    PrimExpr sum = Add(exp_a, exp_b);
-    PrimExpr log_sum = VisitExpr_(tvm::log(sum).as<CallNode>());
-    return log_sum;
-  }
-
   PrimExpr VisitExpr_(const FloorModNode* op) final {
     PrimExpr ret = IRMutatorWithAnalyzer::VisitExpr_(op);
     op = ret.as<FloorModNode>();

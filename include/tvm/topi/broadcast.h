@@ -271,7 +271,7 @@ TOPI_DEFINE_BCAST_OP(floor_divide, {
  *
  * \return The computed log-sum-exp result.
  */
-TOPI_DEFINE_BCAST_OP(log_add_exp, { return tvm::logaddexp(a, b); });
+TOPI_DEFINE_BCAST_OP(log_add_exp, { return logaddexp(a, b); });
 
 /*!
  * \fn trunc divide
