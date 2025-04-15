@@ -123,7 +123,7 @@ Expr squeeze(Expr x, Optional<Array<Integer>> axis);
  * \param axis The axis along which the tensors will be stacked.
  * \return The stacked result.
  */
-Expr stack(Expr tensors, int axis);
+Expr stack(Expr tensors, Optional<Integer> axis);
 /*!
  * \brief Return a summation of data to the shape of collapse_target.
  * For details, please see the operator `relax.collapse_sum_to`.

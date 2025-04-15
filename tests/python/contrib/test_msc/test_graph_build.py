@@ -2386,11 +2386,11 @@ def test_cat(dynamic: bool):
 
 @pytest.mark.parametrize("dynamic", [True, False])
 def test_stack(dynamic: bool):
-    """test graph builder for stack"""
+    """Test graph builder for stack."""
 
     bz = "bz" if dynamic else 1
 
-    class Stack(Module):  
+    class Stack(Module):
         def forward(self, data, data1, data2):
             return torch.stack((data, data1, data2), dim=0)
 
@@ -2408,17 +2408,17 @@ def test_stack(dynamic: bool):
         ],
         "outputs": [
             {
-                "name": "stack",  
+                "name": "stack",
                 "shape": [3, bz, 3, 10, 10],
                 "dtype": "float32",
-                "layout": "SABCD",  
+                "layout": "SABCD",
             }
         ],
-        "nodes": {"total": 4, "input": 3, "stack": 1},  
+        "nodes": {"total": 4, "input": 3, "stack": 1},
     }
 
     if dynamic:
-        expected["prims"] = {"total": 1, "shape": 1}  
+        expected["prims"] = {"total": 1, "shape": 1}
 
     verify_model(Stack(), input_info, expected)
 
