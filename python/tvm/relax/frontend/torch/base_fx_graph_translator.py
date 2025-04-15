@@ -108,8 +108,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             {
                 node.target.__name__
                 for node in nodes
-                if node.op == "call_function"
-                and node.target.__name__ not in self.convert_map
+                if node.op == "call_function" and node.target.__name__ not in self.convert_map
             }
         )
         assert not missing_func_types, f"Unsupported function types {missing_func_types}"
