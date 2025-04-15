@@ -4518,7 +4518,7 @@ def test_norm():
 
     class Norm1(Module):
         def forward(self, x):
-            return torch.norm(x, p=float('inf'), dim=None, keepdim=False)
+            return torch.norm(x, p=float("inf"), dim=None, keepdim=False)
 
     @tvm.script.ir_module
     class Expected1:
@@ -4534,7 +4534,7 @@ def test_norm():
 
     class Norm2(Module):
         def forward(self, x):
-            return torch.norm(x, p=float('-inf'), dim=None, keepdim=False)
+            return torch.norm(x, p=float("-inf"), dim=None, keepdim=False)
 
     @tvm.script.ir_module
     class Expected2:
