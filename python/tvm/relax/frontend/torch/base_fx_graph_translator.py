@@ -936,9 +936,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         elif order == "fro":
             return self.block_builder.emit(
                 relax.op.sqrt(
-                    relax.op.sum(
-                        relax.op.multiply(data, data), axis=axis, keepdims=keepdims
-                    ),
+                    relax.op.sum(relax.op.multiply(data, data), axis=axis, keepdims=keepdims),
                 )
             )
         else:
@@ -946,7 +944,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             order = relax.const(order, dtype=dtype)
             return self.block_builder.emit(
                 relax.op.power(
-                    relax.op.sum(relax.op.power(relax.op.abs(data), order), axis=axis, keepdims=keepdims),
+                    relax.op.sum(
+                        relax.op.power(relax.op.abs(data), order), axis=axis, keepdims=keepdims
+                    ),
                     reci_order,
                 )
             )
