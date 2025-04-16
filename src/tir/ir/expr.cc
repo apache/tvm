@@ -275,6 +275,8 @@ TVM_REGISTER_GLOBAL("tir.FloorDiv").set_body_typed([](PrimExpr a, PrimExpr b, Sp
   return FloorDiv(a, b, span);
 });
 
+TVM_REGISTER_NODE_TYPE(FloorDivNode);
+
 // FloorMod
 TVM_DEFINE_BINOP_CONSTRUCTOR(FloorMod);
 
