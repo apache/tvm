@@ -21,14 +21,9 @@
 import abc
 from functools import reduce
 import math
-<<<<<<< HEAD
 from typing import Callable, Dict, Optional, Tuple, Union, List
-=======
-from typing import Callable, Dict, Optional, Tuple, Union
-import tvm
->>>>>>> 20cb5dd08 (add op support for roll op)
 
-from tvm import relax
+from tvm import relax, tir
 
 
 class BaseFXGraphImporter(metaclass=abc.ABCMeta):
@@ -1179,7 +1174,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         original_shape = self.shape_of(input_tensor)
 
         def to_int(val):
-            if isinstance(val, tvm.tir.IntImm):
+            if isinstance(val, tir.IntImm):
                 return int(val.value)
             elif isinstance(val, int):
                 return val
