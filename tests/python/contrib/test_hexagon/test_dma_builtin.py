@@ -65,7 +65,12 @@ class Module_1D:
             dtype=data_type,
             storage_scope="global.vtcm",
         )
-        a: R.Tensor([12800,], dtype=data_type,) = R.vm.alloc_tensor(
+        a: R.Tensor(
+            [
+                12800,
+            ],
+            dtype=data_type,
+        ) = R.vm.alloc_tensor(
             vtcm_obj,
             offset=0,
             shape=R.shape(
@@ -80,7 +85,12 @@ class Module_1D:
             [x, a, 0, True],
             sinfo_args=[],
         )
-        b: R.Tensor([12800,], dtype=data_type,) = R.vm.alloc_tensor(
+        b: R.Tensor(
+            [
+                12800,
+            ],
+            dtype=data_type,
+        ) = R.vm.alloc_tensor(
             vtcm_obj,
             offset=12800 * 4,
             shape=R.shape(
@@ -95,7 +105,12 @@ class Module_1D:
             [y, b, 1, True],
             sinfo_args=[],
         )
-        c: R.Tensor([12800,], dtype=data_type,) = R.vm.alloc_tensor(
+        c: R.Tensor(
+            [
+                12800,
+            ],
+            dtype=data_type,
+        ) = R.vm.alloc_tensor(
             vtcm_obj,
             offset=2 * 12800 * 4,
             shape=R.shape(
