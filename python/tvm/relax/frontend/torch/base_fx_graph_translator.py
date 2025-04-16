@@ -21,7 +21,7 @@
 import abc
 from functools import reduce
 import math
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Callable, Dict, Optional, Tuple, Union, List
 
 from tvm import relax
 
@@ -102,6 +102,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return {self._retrieve_args(k): self._retrieve_args(v) for k, v in node.items()}
         else:
             return node
+
+    def _check_unsupported_func_type(self, nodes: List[fx.Node]):
+        missing_func_types = list(
+            {
+                node.target.__name__
+                for node in nodes
+                if node.op == "call_function" and node.target.__name__ not in self.convert_map
+            }
+        )
+        assert not missing_func_types, f"Unsupported function types {missing_func_types}"
 
     ########## Unary Ops ##########
 
@@ -1305,6 +1315,28 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
         return self.block_builder.emit(relax.op.full(x.struct_info.shape, value, dtype))
 
+    def _full(self, node: fx.Node) -> relax.Var:
+        import torch
+
+        args = self.retrieve_args(node)
+        size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
+        dtype = self._convert_data_type(
+            node.kwargs.get("dtype", torch.get_default_dtype()), self.env
+        )
+        value = args[1] if isinstance(args[1], relax.expr.Constant) else relax.const(args[1], dtype)
+        return self.block_builder.emit(
+            relax.op.full(
+                size,
+                value,
+                dtype,
+            )
+        )
+
+    def _full_like(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        fill_value = relax.const(node.args[1])
+        return self.block_builder.emit(relax.op.full_like(x, fill_value))
+
     def _index_select(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         dim = node.args[1]
@@ -1323,6 +1355,22 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 size,
                 relax.const(1, self_var.struct_info.dtype),
                 self_var.struct_info.dtype,
+            )
+        )
+
+    def _ones(self, node: fx.Node) -> relax.Var:
+        import torch
+
+        args = self.retrieve_args(node)
+        size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
+        dtype = self._convert_data_type(
+            node.kwargs.get("dtype", torch.get_default_dtype()), self.env
+        )
+        return self.block_builder.emit(
+            relax.op.full(
+                size,
+                relax.const(1, dtype),
+                dtype,
             )
         )
 

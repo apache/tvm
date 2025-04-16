@@ -1529,5 +1529,54 @@ def test_reverse_compute_inline_slicing_then_cachewrite():
     assert_structural_equal_ignore_global_symbol(after, sch.mod["main"])
 
 
+def test_inline_with_reduction():
+    @T.prim_func
+    def before(
+        T_softmax_norm: T.Buffer((T.int64(6), T.int64(1), T.int64(1)), "float32"),
+        T_reshape_2: T.Buffer((T.int64(6), T.int64(1), T.int64(64)), "float32"),
+        T_transpose: T.Buffer((T.int64(1), T.int64(1), T.int64(6), T.int64(64)), "float32"),
+    ):
+        T_batch_matmul_NN = T.alloc_buffer((T.int64(6), T.int64(1), T.int64(64)))
+        for ax0, ax1 in T.grid(T.int64(6), T.int64(64)):
+            with T.block("bmm"):
+                v0, v1 = T.axis.remap("SS", [ax0, ax1])
+                T.reads(T_softmax_norm[v0, T.int64(0), T.int64(0)], T_reshape_2[v0, T.int64(0), v1])
+                T.writes(T_batch_matmul_NN[v0, T.int64(0), v1])
+                with T.init():
+                    T_batch_matmul_NN[v0, T.int64(0), v1] = T.float32(0.0)
+                T_batch_matmul_NN[v0, T.int64(0), v1] = (
+                    T_batch_matmul_NN[v0, T.int64(0), v1]
+                    + T_softmax_norm[v0, T.int64(0), T.int64(0)] * T_reshape_2[v0, T.int64(0), v1]
+                )
+        for ax0, ax1 in T.grid(T.int64(6), T.int64(64)):
+            with T.block("transpose"):
+                v0, v1 = T.axis.remap("SS", [ax0, ax1])
+                T.reads(T_batch_matmul_NN[v0, T.int64(0), v1])
+                T.writes(T_transpose[T.int64(0), T.int64(0), v0, v1])
+                T_transpose[T.int64(0), T.int64(0), v0, v1] = T_batch_matmul_NN[v0, T.int64(0), v1]
+
+    @T.prim_func
+    def after(
+        T_softmax_norm: T.Buffer((T.int64(6), T.int64(1), T.int64(1)), "float32"),
+        T_reshape_2: T.Buffer((T.int64(6), T.int64(1), T.int64(64)), "float32"),
+        T_transpose: T.Buffer((T.int64(1), T.int64(1), T.int64(6), T.int64(64)), "float32"),
+    ):
+        for ax0, ax1 in T.grid(T.int64(6), T.int64(64)):
+            with T.block("bmm"):
+                v0, v1 = T.axis.remap("SS", [ax0, ax1])
+                T.reads(T_softmax_norm[v0, T.int64(0), T.int64(0)], T_reshape_2[v0, T.int64(0), v1])
+                T.writes(T_transpose[T.int64(0), T.int64(0), v0, v1])
+                with T.init():
+                    T_transpose[T.int64(0), T.int64(0), v0, v1] = T.float32(0.0)
+                T_transpose[T.int64(0), T.int64(0), v0, v1] = (
+                    T_transpose[T.int64(0), T.int64(0), v0, v1]
+                    + T_softmax_norm[v0, T.int64(0), T.int64(0)] * T_reshape_2[v0, T.int64(0), v1]
+                )
+
+    sch = tir.Schedule(before)
+    sch.reverse_compute_inline(sch.get_block("transpose"))
+    assert_structural_equal_ignore_global_symbol(after, sch.mod["main"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()
