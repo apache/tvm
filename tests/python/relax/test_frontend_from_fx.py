@@ -4514,11 +4514,19 @@ def test_narrow():
 
 
 def test_norm():
+
     input_info = [([1, 3, 5, 3], "float32")]
 
-    class Norm1(Module):
+    class Norm(Module):
+        def __init__(self, p, dim=None, keepdim=False):
+            super().__init__()
+            self.p = p
+            self.dim = dim
+            self.keepdim = keepdim
+
         def forward(self, x):
-            return torch.norm(x, p=float("inf"), dim=None, keepdim=False)
+            return torch.norm(x, p=self.p, dim=self.dim, keepdim=self.keepdim)
+
 
     @tvm.script.ir_module
     class Expected1:
@@ -4532,9 +4540,6 @@ def test_norm():
                 R.output(gv)
             return gv
 
-    class Norm2(Module):
-        def forward(self, x):
-            return torch.norm(x, p=float("-inf"), dim=None, keepdim=False)
 
     @tvm.script.ir_module
     class Expected2:
@@ -4548,9 +4553,6 @@ def test_norm():
                 R.output(gv)
             return gv
 
-    class Norm3(Module):
-        def forward(self, x):
-            return torch.norm(x, p=float(2), dim=None, keepdim=False)
 
     @tvm.script.ir_module
     class Expected3:
@@ -4567,9 +4569,6 @@ def test_norm():
                 R.output(gv)
             return gv
 
-    class Norm4(Module):
-        def forward(self, x):
-            return torch.norm(x, p=float(1.0), dim=None, keepdim=False)
 
     @tvm.script.ir_module
     class Expected4:
@@ -4586,9 +4585,6 @@ def test_norm():
                 R.output(gv)
             return gv
 
-    class Norm5(Module):
-        def forward(self, x):
-            return torch.norm(x, p=float(-4), dim=None, keepdim=True)
 
     @tvm.script.ir_module
     class Expected5:
@@ -4605,9 +4601,6 @@ def test_norm():
                 R.output(gv)
             return gv
 
-    class Norm6(Module):
-        def forward(self, x):
-            return torch.norm(x, p=float(0.5), dim=None, keepdim=True)
 
     @tvm.script.ir_module
     class Expected6:
@@ -4624,9 +4617,6 @@ def test_norm():
                 R.output(gv)
             return gv
 
-    class Norm7(Module):
-        def forward(self, x):
-            return torch.norm(x, p="fro", dim=None, keepdim=False)
 
     @tvm.script.ir_module
     class Expected7:
@@ -4642,13 +4632,21 @@ def test_norm():
                 R.output(gv)
             return gv
 
-    verify_model(Norm1(), input_info, {}, Expected1)
-    verify_model(Norm2(), input_info, {}, Expected2)
-    verify_model(Norm3(), input_info, {}, Expected3)
-    verify_model(Norm4(), input_info, {}, Expected4)
-    verify_model(Norm5(), input_info, {}, Expected5)
-    verify_model(Norm6(), input_info, {}, Expected6)
-    verify_model(Norm7(), input_info, {}, Expected7)
+    norms = [
+        (float('inf'), None, False),
+        (float('-inf'), None, False),
+        (float(2), None, False),
+        (float(1.0), None, False),
+        (float(-4), None, True),
+        (float(0.5), None, True),
+        ("fro", None, False)
+    ]
+
+    for norm, expected in zip(norms, [
+        Expected1, Expected2, Expected3, Expected4, Expected5, Expected6, Expected7
+    ]):
+        p, dim, keepdim = norm
+        verify_model(Norm(p, dim=dim, keepdim=keepdim), input_info, {}, expected)
 
 
 if __name__ == "__main__":
