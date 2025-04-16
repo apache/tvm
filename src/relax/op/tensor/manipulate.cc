@@ -489,23 +489,27 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
     ctx->ReportFatal(Diagnostic::Error(call) << "Index.Tensor op should have 2 arguments");
   }
   TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
+  DataType output_dtype = data_sinfo->dtype;
 
-  Array<TensorStructInfo> tensor_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[1]);
-  if (tensor_sinfo.empty()) {
+  Array<TensorStructInfo> indices_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[1]);
+  if (indices_sinfo.empty()) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Index.Tensor expects at least one tensor in the input Tuple. However, the "
                         "given input Tuple is empty.");  // TODO is this always true?
   }
+  TensorStructInfo first_indices_sinfo = indices_sinfo[0];
 
-  DataType output_dtype = data_sinfo->dtype;
-
-  TensorStructInfo indices_sinfo = data_sinfo;
-
-  if (indices_sinfo->shape.defined()) {  // TODO need this condition, but not sure why! Isn't that
-                                         // not reflective of the output anyway?
-    return TensorStructInfo(indices_sinfo->shape.value(), output_dtype, indices_sinfo->vdevice);
+  if (first_indices_sinfo->shape.defined()) {
+    LOG(INFO) << "USUALLY HERE "
+                 "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+                 "AAAAAAAAAAAAAAAAAAAAAAA";
+    return TensorStructInfo(first_indices_sinfo->shape.value(), output_dtype, data_sinfo->vdevice);
   } else {
-    return TensorStructInfo(output_dtype, indices_sinfo->ndim, indices_sinfo->vdevice);
+    LOG(INFO) << " NOT HERE "
+                 "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+                 "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
+
+    return TensorStructInfo(output_dtype, data_sinfo->ndim, data_sinfo->vdevice);
   }
 }
 
