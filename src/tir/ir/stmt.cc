@@ -102,13 +102,8 @@ AssertStmt::AssertStmt(PrimExpr condition, PrimExpr message, Stmt body, Span spa
 TVM_REGISTER_NODE_TYPE(AssertStmtNode);
 
 TVM_REGISTER_GLOBAL("tir.AssertStmt")
-    .set_body_typed([](PrimExpr condition, ObjectRef message, Stmt body, Span span) {
-      if (const auto* str = message.as<StringObj>()) {
-        auto msg = StringImm(str->bytes.data);
-        return AssertStmt(condition, msg, body, span);
-      } else {
-        return AssertStmt(condition, Downcast<PrimExpr>(message), body, span);
-      }
+    .set_body_typed([](PrimExpr condition, StringImm message, Stmt body, Span span) {
+      return AssertStmt(condition, message, body, span);
     });
 
 // For

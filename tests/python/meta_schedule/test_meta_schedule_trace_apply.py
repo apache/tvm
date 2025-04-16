@@ -1864,7 +1864,7 @@ def test_dense_add_cpu():
             ),
             pad_value=None,
         )
-        sch.annotate(block_or_loop=b59, ann_key="meta_schedule.layout_rewrite_preproc", ann_val=1)
+        sch.annotate(block_or_loop=b59, ann_key="meta_schedule.layout_rewrite_preproc", ann_val=True)
 
     verify(Dense, apply_anchor_trace, DenseAdd, "llvm", DenseAdd_scheduled_cpu)
 
@@ -1930,7 +1930,7 @@ def test_dense_add_cpu_no_write_cache():
             ),
             pad_value=None,
         )
-        sch.annotate(block_or_loop=b50, ann_key="meta_schedule.layout_rewrite_preproc", ann_val=1)
+        sch.annotate(block_or_loop=b50, ann_key="meta_schedule.layout_rewrite_preproc", ann_val=True)
 
     verify(Dense, apply_trace, DenseAdd, "llvm", DenseAdd_cpu_no_write_cache)
 
