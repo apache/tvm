@@ -474,6 +474,44 @@ def test_extended_unary_ops():
 
     verify_model(Reciprocal(), example_args, {}, expected_reciprocal)
 
+    # Returns the maximum value of all elements in the input tensor.
+    class MaxModel(Module):
+        def forward(self, input):
+            return torch.max(input)
+
+    @tvm.script.ir_module
+    class expected_max:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.max(input, axis=None, keepdims=False)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(MaxModel(), example_args, {}, expected_max)
+
+    # Returns the minimum value of all elements in the input tensor.
+    class MinModel(Module):
+        def forward(self, input):
+            return torch.min(input)
+
+    @tvm.script.ir_module
+    class expected_min:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.min(input, axis=None, keepdims=False)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(MinModel(), example_args, {}, expected_min)
+
 
 def test_hardtanh():
     class Hardtanh(torch.nn.Module):
@@ -742,6 +780,7 @@ operator_binary_1 = [
     (torch.ops.aten.add_, R.add),
     (operator.sub, R.subtract),
     (operator.mul, R.multiply),
+    (torch.ops.aten.mul_, R.multiply),
     (operator.truediv, R.divide),
     (operator.floordiv, R.floor_divide),
     (operator.pow, R.power),
