@@ -480,7 +480,7 @@ TVM_REGISTER_NODE_TYPE(RampNode);
 // Broadcast
 Broadcast::Broadcast(PrimExpr value, PrimExpr lanes, Span span) {
   ICHECK(value.defined());
-  ICHECK(value.dtype().is_scalar());
+  ICHECK(value.dtype().is_scalar()) << "value " << value << " is not a scalar " << value.dtype();
 
   ObjectPtr<BroadcastNode> node = make_object<BroadcastNode>();
   auto* lanes_int = lanes.as<IntImmNode>();
