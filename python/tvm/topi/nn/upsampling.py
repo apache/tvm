@@ -34,7 +34,7 @@ def upsampling(
 
     Parameters
     ----------
-    inputs : tvm.te.Tensor
+    data : tvm.te.Tensor
         inputs is a 4-D tensor with shape
         [batch, channel, in_height, in_width]
         or  [batch, in_height, in_width, channel]
@@ -120,7 +120,7 @@ def upsampling3d(
 
     Parameters
     ----------
-    inputs : tvm.te.Tensor
+    data : tvm.te.Tensor
         inputs is a 5-D tensor with shape
         [batch, channel, in_depth, in_height, in_width]
         or  [batch, in_depth, in_height, in_width, channel]
