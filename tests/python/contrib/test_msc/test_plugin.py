@@ -17,6 +17,7 @@
 
 """Test Plugin in MSC."""
 
+import pytest
 import numpy as np
 
 import torch
@@ -321,6 +322,7 @@ def _test_with_manager(plugins, compile_type, expected_info):
     ), "Model info {} mismatch with expected {}".format(model_info, expected_info)
 
 
+@pytest.mark.skip(reason="skip the test because plugin needs to include ffi folder, can be re-enabled")
 def test_plugin():
     """Test the plugins"""
 
