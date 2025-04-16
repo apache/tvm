@@ -4527,7 +4527,6 @@ def test_norm():
         def forward(self, x):
             return torch.norm(x, p=self.p, dim=self.dim, keepdim=self.keepdim)
 
-
     @tvm.script.ir_module
     class Expected1:
         @R.function
@@ -4540,7 +4539,6 @@ def test_norm():
                 R.output(gv)
             return gv
 
-
     @tvm.script.ir_module
     class Expected2:
         @R.function
@@ -4552,7 +4550,6 @@ def test_norm():
                 gv: R.Tensor((), dtype="float32") = lv
                 R.output(gv)
             return gv
-
 
     @tvm.script.ir_module
     class Expected3:
@@ -4569,7 +4566,6 @@ def test_norm():
                 R.output(gv)
             return gv
 
-
     @tvm.script.ir_module
     class Expected4:
         @R.function
@@ -4584,7 +4580,6 @@ def test_norm():
                 gv: R.Tensor((), dtype="float32") = lv3
                 R.output(gv)
             return gv
-
 
     @tvm.script.ir_module
     class Expected5:
@@ -4601,7 +4596,6 @@ def test_norm():
                 R.output(gv)
             return gv
 
-
     @tvm.script.ir_module
     class Expected6:
         @R.function
@@ -4616,7 +4610,6 @@ def test_norm():
                 gv: R.Tensor((), dtype="float32") = lv3
                 R.output(gv)
             return gv
-
 
     @tvm.script.ir_module
     class Expected7:
@@ -4633,18 +4626,18 @@ def test_norm():
             return gv
 
     norms = [
-        (float('inf'), None, False),
-        (float('-inf'), None, False),
+        (float("inf"), None, False),
+        (float("-inf"), None, False),
         (float(2), None, False),
         (float(1.0), None, False),
         (float(-4), None, True),
         (float(0.5), None, True),
-        ("fro", None, False)
+        ("fro", None, False),
     ]
 
-    for norm, expected in zip(norms, [
-        Expected1, Expected2, Expected3, Expected4, Expected5, Expected6, Expected7
-    ]):
+    for norm, expected in zip(
+        norms, [Expected1, Expected2, Expected3, Expected4, Expected5, Expected6, Expected7]
+    ):
         p, dim, keepdim = norm
         verify_model(Norm(p, dim=dim, keepdim=keepdim), input_info, {}, expected)
 
