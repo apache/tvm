@@ -21,7 +21,7 @@
 import abc
 from functools import reduce
 import math
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Callable, Dict, Optional, Tuple, Union, List
 
 from tvm import relax
 
@@ -103,7 +103,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         else:
             return node
 
-    def _check_unsupported_func_type(self, nodes):
+    def _check_unsupported_func_type(self, nodes: List[fx.Node]):
         missing_func_types = list(
             {
                 node.target.__name__
