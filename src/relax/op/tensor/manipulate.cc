@@ -493,22 +493,15 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
 
   Array<TensorStructInfo> indices_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[1]);
   if (indices_sinfo.empty()) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Index.Tensor expects at least one tensor in the input Tuple. However, the "
-                        "given input Tuple is empty.");  // TODO is this always true?
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "Index.Tensor expects at least one tensor in the indices Tuple. However, the "
+           "given input Tuple is empty.");  // TODO is this always true?
   }
-  TensorStructInfo first_indices_sinfo = indices_sinfo[0];
 
-  if (first_indices_sinfo->shape.defined()) {
-    LOG(INFO) << "USUALLY HERE "
-                 "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
-                 "AAAAAAAAAAAAAAAAAAAAAAA";
-    return TensorStructInfo(first_indices_sinfo->shape.value(), output_dtype, data_sinfo->vdevice);
+  if (indices_sinfo[0]->shape.defined()) {
+    return TensorStructInfo(indices_sinfo[0]->shape.value(), output_dtype, data_sinfo->vdevice);
   } else {
-    LOG(INFO) << " NOT HERE "
-                 "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
-                 "BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB";
-
     return TensorStructInfo(output_dtype, data_sinfo->ndim, data_sinfo->vdevice);
   }
 }
@@ -517,7 +510,7 @@ TVM_REGISTER_OP("relax.index_tensor")
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input data.")
     .add_argument("indices", "List of Tensors", "The indices used to index.")
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoIndexTensor)  // TODO necessary
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoIndexTensor)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.layout_transform */
