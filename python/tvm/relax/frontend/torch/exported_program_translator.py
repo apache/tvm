@@ -518,22 +518,15 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         func_attrs = {"num_input": len(user_input_vars)} if keep_params_as_input else None
 
         nodes: List[fx.Node] = exported_program.graph.nodes
+
+        # Find all the missing function types
+        self._check_unsupported_func_type(nodes)
+
         with self.block_builder.function(
             name=func_name, params=list(inputs_vars.values()).copy(), attrs=func_attrs
         ):
             output = None
             with self.block_builder.dataflow():
-
-                # Find all the missing function types
-                missing_func_types = list(
-                    {
-                        node.target.__name__
-                        for node in nodes
-                        if node.op == "call_function"
-                        and node.target.__name__ not in self.convert_map
-                    }
-                )
-                assert not missing_func_types, f"Unsupported function types {missing_func_types}"
 
                 # Translate the model.
                 for node in nodes:
