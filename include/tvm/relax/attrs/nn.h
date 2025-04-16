@@ -455,6 +455,19 @@ struct LeakyReluAttrs : public tvm::AttrsNode<LeakyReluAttrs> {
   }
 };
 
+/*! \brief Attributes used in softplus operators */
+struct SoftplusAttrs : public tvm::AttrsNode<SoftplusAttrs> {
+  double beta;
+  double threshold;
+
+  TVM_DECLARE_ATTRS(SoftplusAttrs, "relax.attrs.SoftplusAttrs") {
+    TVM_ATTR_FIELD(beta).describe(
+        "Scaling factor controlling the sharpness of the Softplus transition.");
+    TVM_ATTR_FIELD(threshold).describe(
+        "Value determining when to use linear approximation for numerical stability.");
+  }
+};
+
 /*! \brief Attributes used in batch_norm operator */
 struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
   int axis;
@@ -462,6 +475,7 @@ struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
   bool center;
   bool scale;
   double momentum;
+  bool training;
 
   TVM_DECLARE_ATTRS(BatchNormAttrs, "relax.attrs.BatchNormAttrs") {
     TVM_ATTR_FIELD(axis).describe("The axis along which the normalization is applied.");
@@ -470,6 +484,7 @@ struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
         "Indicating if the beta offset will be added to the normalized tensor.");
     TVM_ATTR_FIELD(scale).describe("Indicating if the gamma scale will be multiplied.");
     TVM_ATTR_FIELD(momentum).describe("The value used for the moving_mean and moving_var update.");
+    TVM_ATTR_FIELD(training).describe("Whether we are training (i.e., not in eval mode).");
   }
 };  // struct BatchNormAttrs
 

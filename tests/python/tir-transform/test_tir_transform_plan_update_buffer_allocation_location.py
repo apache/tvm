@@ -402,5 +402,55 @@ def test_dltensor_buffer_is_unlowered():
     _check(before, after)
 
 
+def test_reduce_buffer_dominate_reduce_loops():
+    """Reduction write buffer allocation should dominate all reduce loops"""
+
+    @T.prim_func
+    def before(x: T.Buffer((256, 256, 256), "float32"), x_red: T.Buffer((256, 256), "float32")):
+        x_red_ = T.alloc_buffer((256, 256))
+        for ax0_0, k1_0, ax1_0 in T.grid(4, 4, 4):
+            for ax0_1, k1_1, ax1_1 in T.grid(64, 64, 64):
+                with T.block("x_red"):
+                    v_ax0 = T.axis.spatial(256, ax0_0 * 64 + ax0_1)
+                    v_ax1 = T.axis.spatial(256, ax1_0 * 64 + ax1_1)
+                    v_k1 = T.axis.reduce(256, k1_0 * 64 + k1_1)
+                    if v_k1 == 0:
+                        x_red_[v_ax0, v_ax1] = T.float32(0.0)
+                    x_red_[v_ax0, v_ax1] = x_red_[v_ax0, v_ax1] + x[v_ax0, v_k1, v_ax1]
+            for ax0, ax1 in T.grid(64, 64):
+                with T.block("x_red_"):
+                    v0 = T.axis.spatial(256, ax0_0 * 64 + ax0)
+                    v1 = T.axis.spatial(256, ax1_0 * 64 + ax1)
+                    x_red[v0, v1] = x_red_[v0, v1]
+
+    @T.prim_func
+    def after(x: T.Buffer((256, 256, 256), "float32"), x_red: T.Buffer((256, 256), "float32")):
+        for ax0_0 in range(4):
+            with T.block(""):
+                T.reads(x[ax0_0 * 64 : ax0_0 * 64 + 64, 0:256, 0:256])
+                T.writes(x_red[ax0_0 * 64 : ax0_0 * 64 + 64, 0:256])
+                x_red_ = T.alloc_buffer((256, 256))
+                for k1_0, ax1_0 in T.grid(4, 4):
+                    for ax0_1, k1_1, ax1_1 in T.grid(64, 64, 64):
+                        with T.block("x_red"):
+                            v_ax0 = T.axis.spatial(256, ax0_0 * 64 + ax0_1)
+                            v_ax1 = T.axis.spatial(256, ax1_0 * 64 + ax1_1)
+                            v_k1 = T.axis.reduce(256, k1_0 * 64 + k1_1)
+                            T.reads(x_red_[v_ax0, v_ax1], x[v_ax0, v_k1, v_ax1])
+                            T.writes(x_red_[v_ax0, v_ax1])
+                            if v_k1 == 0:
+                                x_red_[v_ax0, v_ax1] = T.float32(0.0)
+                            x_red_[v_ax0, v_ax1] = x_red_[v_ax0, v_ax1] + x[v_ax0, v_k1, v_ax1]
+                    for ax0, ax1 in T.grid(64, 64):
+                        with T.block("x_red_"):
+                            v0 = T.axis.spatial(256, ax0_0 * 64 + ax0)
+                            v1 = T.axis.spatial(256, ax1_0 * 64 + ax1)
+                            T.reads(x_red_[v0, v1])
+                            T.writes(x_red[v0, v1])
+                            x_red[v0, v1] = x_red_[v0, v1]
+
+    _check(before, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

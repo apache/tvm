@@ -343,8 +343,6 @@ void TIRVisitorWithPath::VisitExpr_(const SizeVarNode* op, ObjectPath path) {
   VisitExpr_(static_cast<const VarNode*>(op), path);
 }
 
-void TIRVisitorWithPath::VisitExpr_(const AnyNode* op, ObjectPath path) {}
-
 void TIRVisitorWithPath::VisitExpr_(const BufferLoadNode* op, ObjectPath path) {
   Visit(op->buffer, path->Attr("buffer"));
   Visit(op->indices, path->Attr("indices"));

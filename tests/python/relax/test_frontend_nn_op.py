@@ -128,6 +128,54 @@ def test_sum():
     tvm.ir.assert_structural_equal(irmodule["test"], test)
 
 
+def test_max():
+    class Model(Module):
+        def test(self, x: Tensor):
+            z0 = op.max(x, axis=[1, 2], keepdims=True)
+            return z0
+
+    # fmt: off
+    @R.function
+    def test(x: R.Tensor((3, 5, 2, 4), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((3, 1, 1, 4), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            max: R.Tensor((3, 1, 1, 4), dtype="float32") = R.max(x, axis=[1, 2], keepdims=True)
+            gv1: R.Tuple(R.Tensor((3, 1, 1, 4), dtype="float32"), R.Tuple(R.Object)) = max, (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
+
+    m = Model()
+    irmodule, _ = m.export_tvm(
+        spec={"test": {"x": spec.Tensor([3, 5, 2, 4], "float32")}}, debug=True
+    )
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
+
+
+def test_min():
+    class Model(Module):
+        def test(self, x: Tensor):
+            z0 = op.min(x, axis=[1, 2], keepdims=True)
+            return z0
+
+    # fmt: off
+    @R.function
+    def test(x: R.Tensor((3, 5, 2, 4), dtype="float32"), _io: R.Object) -> R.Tuple(R.Tensor((3, 1, 1, 4), dtype="float32"), R.Tuple(R.Object)):
+        R.func_attr({"num_input": 2})
+        with R.dataflow():
+            min: R.Tensor((3, 1, 1, 4), dtype="float32") = R.min(x, axis=[1, 2], keepdims=True)
+            gv1: R.Tuple(R.Tensor((3, 1, 1, 4), dtype="float32"), R.Tuple(R.Object)) = min, (_io,)
+            R.output(gv1)
+        return gv1
+    # fmt: on
+
+    m = Model()
+    irmodule, _ = m.export_tvm(
+        spec={"test": {"x": spec.Tensor([3, 5, 2, 4], "float32")}}, debug=True
+    )
+    tvm.ir.assert_structural_equal(irmodule["test"], test)
+
+
 def test_manipulate():
     class Model(Module):
         def test(self, x: Tensor):
@@ -343,6 +391,7 @@ def test_nn():
             tanh_out = op.tanh(x)
             exp_out = op.exp(x)
             negative_out = op.negative(x)
+            softplus_out = op.softplus(x, beta=1.0, threshold=20.0)
             softmax_out = op.softmax(x, axis=2)
             rms_norm_out = op.rms_norm(x, weight, axes=[-2, -1])
             rms_norm_with_bias_out = op.rms_norm(x, weight, axes=[-2, -1])
@@ -365,6 +414,9 @@ def test_nn():
             tanh: R.Tensor((2, 3, 4, 5), dtype="float32") = R.tanh(x)
             exp: R.Tensor((2, 3, 4, 5), dtype="float32") = R.exp(x)
             negative: R.Tensor((2, 3, 4, 5), dtype="float32") = R.negative(x)
+            softplus: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.softplus(
+                x, beta=1.0, threshold=20.0
+            )
             softmax: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.softmax(x, axis=2)
             rms_norm: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.rms_norm(
                 x, weight, axes=[-2, -1], epsilon=1.0000000000000001e-05

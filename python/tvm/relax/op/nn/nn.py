@@ -1304,6 +1304,30 @@ def gelu_tanh(data: Expr) -> Expr:
     return _ffi_api.gelu_tanh(data)  # type: ignore
 
 
+def selu(data: Expr) -> Expr:
+    r"""Scaled Exponential Linear Unit (SELU).
+
+    .. math::
+        \text{SELU}(x) = \lambda \begin{cases}
+            x & \text{if } x > 0 \\
+            \alpha (e^x - 1) & \text{if } x \leq 0
+        \end{cases}
+
+    where :math:`\lambda \approx 1.0507` and :math:`\alpha \approx 1.6733`.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.selu(data)
+
+
 def silu(data: Expr) -> Expr:
     r"""Sigmoid Linear Unit function
 
@@ -1354,6 +1378,31 @@ def softmax(data: Expr, axis: int = -1) -> Expr:
     return _ffi_api.softmax(data, axis)  # type: ignore
 
 
+def softplus(data: Expr, beta: float = 1.0, threshold: float = 20.0) -> Expr:
+    r"""Softplus activation function.
+
+    .. math:: \text{Softplus}(x) = \frac{1}{\beta} \log(1 + e^{\beta x})
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data.
+
+    beta : float, optional
+        Controls the smoothness of the transition. Default is 1.0.
+
+    threshold : float, optional
+        The value beyond which the function is approximated as linear
+        to avoid numerical instability. Default is 20.0.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.softplus(data, beta, threshold)
+
+
 def log_softmax(data: Expr, axis: int = -1) -> Expr:
     r"""Computes log softmax.
 
@@ -1393,6 +1442,7 @@ def batch_norm(
     center: bool = True,
     scale: bool = True,
     momentum: float = 0.1,
+    training: bool = True,
 ) -> Expr:
     r"""
     Batch normalization layer (Ioffe and Szegedy, 2014).
@@ -1481,13 +1531,18 @@ def batch_norm(
     momentum : float
         The value used for the moving_mean and moving_var update.
 
+    training : bool
+        A boolean value to indicate whether training or in eval mode. By default.
+          relax batch_norm is training mode. To transform it to inference mode,
+          can use DecomposeOpsForInference.
+
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
     return _ffi_api.batch_norm(  # type: ignore
-        data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale, momentum
+        data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale, momentum, training
     )
 
 

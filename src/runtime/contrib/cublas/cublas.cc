@@ -125,7 +125,8 @@ bool CheckMixPrecisionType(DLDataType in_dtype, DLDataType out_dtype, bool int_s
   if (int_support && TypeMatch(out_dtype, kDLInt, 32)) {
     return TypeMatch(in_dtype, kDLInt, 8);
   } else if (TypeMatch(out_dtype, kDLFloat, 32)) {
-    return TypeMatch(in_dtype, kDLInt, 8) || TypeMatch(in_dtype, kDLFloat, 16);
+    return TypeMatch(in_dtype, kDLInt, 8) || TypeMatch(in_dtype, kDLFloat, 16) ||
+           TypeMatch(in_dtype, kDLBfloat, 16);
   } else {
     return false;
   }
@@ -162,6 +163,8 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
 
   if (TypeMatch(A->dtype, kDLFloat, 16)) {
     ab_type = CUDA_R_16F;
+  } else if (TypeMatch(A->dtype, kDLBfloat, 16)) {
+    ab_type = CUDA_R_16BF;
   } else if (TypeMatch(A->dtype, kDLInt, 8)) {
     ab_type = CUDA_R_8I;
   } else if (TypeMatch(A->dtype, DataType::TypeCode::kFloat8_e4m3fn, 8)) {
@@ -171,6 +174,8 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
 
   if (TypeMatch(C->dtype, kDLFloat, 16)) {
     c_type = CUDA_R_16F;
+  } else if (TypeMatch(C->dtype, kDLBfloat, 16)) {
+    c_type = CUDA_R_16BF;
   } else if (TypeMatch(C->dtype, kDLInt, 32)) {
     c_type = CUDA_R_32I;
     compute_type = CUBLAS_COMPUTE_32I;

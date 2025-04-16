@@ -59,10 +59,7 @@ def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput", attrs=
     ana = tvm.arith.Analyzer()
     dshape = []
     for dim in data.shape:
-        if isinstance(dim, tvm.tir.Any):
-            dshape.append(tvm.te.size_var("dim"))
-        else:
-            dshape.append(dim)
+        dshape.append(dim)
     out_shape = tuple(ana.simplify(dshape[i] + pad_before[i] + pad_after[i]) for i in range(n))
     pad_value = (
         pad_value

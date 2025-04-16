@@ -522,9 +522,6 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<AnyNode>([](const ObjectRef& node, ReprLegacyPrinter* p) { (*p) << "?"; });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     .set_dispatch<BufferLoadNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
       auto* op = static_cast<const BufferLoadNode*>(node.get());
       (*p) << op->buffer->name << "[";

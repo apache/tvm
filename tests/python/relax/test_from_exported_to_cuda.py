@@ -50,10 +50,65 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
     gpu_params = [tvm.nd.array(p, dev) for p in tvm_params["main"]]
     gpu_out = vm["main"](gpu_data, *gpu_params)
 
-    pytorch_out = torch_module(torch_data).detach().numpy()
-    actual = gpu_out[0].numpy()
-    desired = pytorch_out
-    np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+    pytorch_out = torch_module(torch_data)
+
+    if isinstance(pytorch_out, tuple):
+        for i in range(len(pytorch_out)):
+            actual = gpu_out[i].numpy()
+            desired = pytorch_out[i].detach().numpy()
+            np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+    else:
+        actual = gpu_out[0].numpy()
+        desired = pytorch_out.detach().numpy()
+        np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_full(target, dev):
+    class FullModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return torch.full((2, 3), 3.141592)
+
+    torch_module = FullModel().eval()
+
+    raw_data = np.random.rand(3, 3).astype("float32")
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_full_like(target, dev):
+    class FullLike(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.fill_value = 7.0
+
+        def forward(self, x):
+            return torch.full_like(x, self.fill_value)
+
+    torch_module = FullLike().eval()
+    raw_data = np.random.rand(2, 3).astype("float32")
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_ones(target, dev):
+    class FullModel(nn.Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return torch.ones((2, 3))
+
+    torch_module = FullModel().eval()
+
+    raw_data = np.random.rand(1, 1).astype("float32")
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
 @tvm.testing.parametrize_targets("cuda")
@@ -279,6 +334,258 @@ def test_linalg_vector_norm(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1, target, dev)
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2, target, dev)
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_batch_norm_prog(target, dev):
+    # Default args, in a pytorch program (to ensure output is in proper type and format)
+    raw_data = np.random.randn(2, 3, 2, 2).astype(np.float32)
+
+    class BatchNormWrapper(nn.Module):
+        def __init__(self):
+            super(BatchNormWrapper, self).__init__()
+            self.bn = nn.BatchNorm2d(3)
+
+        def forward(self, x):
+            x = self.bn(x)
+            x = x + 1
+            return x
+
+    torch_module = BatchNormWrapper().eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_split_size(target, dev):
+    # Test split using the split_size argument such that it is not a divisor
+    # of the dimension to split (the last tensor will be smaller)
+    batch = 2
+    channels = 7
+    height, width = 2, 2
+    split_size = 3  # last tensor will have just 1 element
+    dim = 1  # split across channels
+    raw_data = np.random.rand(batch, channels, height, width).astype("float32")
+
+    class SplitModelSplitSize(nn.Module):
+        def __init__(self, split_size, dim):
+            super().__init__()
+            self.split_size = split_size
+            self.dim = dim
+
+        def forward(self, x):
+            return torch.split(x, split_size_or_sections=self.split_size, dim=self.dim)
+
+    torch_module = SplitModelSplitSize(split_size=split_size, dim=dim).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_split_sections_list(target, dev):
+    # Test split using a list of section sizes
+    batch = 3
+    channels = 2
+    height = 10
+    width = 5
+    sections = [3, 2, 5]
+    dim = 2  # split across height
+    raw_data = np.random.rand(batch, channels, height, width).astype("float32")
+
+    class SplitModelSectionsList(nn.Module):
+        def __init__(self, split_size, dim):
+            super().__init__()
+            self.split_size = split_size
+            self.dim = dim
+
+        def forward(self, x):
+            return torch.split(x, split_size_or_sections=self.split_size, dim=self.dim)
+
+    torch_module = SplitModelSectionsList(split_size=sections, dim=dim).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_batch_norm0(target, dev):
+    # Eval, no momentum, no affine, no running stats
+    raw_data = np.random.randn(8, 3, 4, 4).astype(np.float32)
+    torch_module = nn.BatchNorm2d(
+        3, eps=1e-02, momentum=0.0, affine=False, track_running_stats=False, device=None, dtype=None
+    ).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_batch_norm1(target, dev):
+    # Eval, with momentum, no affine, with running stats
+    raw_data = np.random.randn(1, 4, 2, 2).astype(np.float32)
+    torch_module = nn.BatchNorm2d(
+        4, eps=1e-05, momentum=0.1, affine=False, track_running_stats=True, device=None, dtype=None
+    ).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_batch_norm2(target, dev):
+    # Eval, with momentum, affine, no running stats
+    raw_data = np.random.randn(3, 4, 2, 2).astype(np.float32)
+    torch_module = nn.BatchNorm2d(
+        4, eps=1e-05, momentum=0.2, affine=True, track_running_stats=False
+    ).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_batch_norm3(target, dev):
+    # Eval, no momentum, affine, with running stats
+    raw_data = np.random.randn(1, 2, 2, 2).astype(np.float32)
+    torch_module = nn.BatchNorm2d(
+        2, eps=1e-05, momentum=0.0, affine=True, track_running_stats=True
+    ).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_chunk_even(target, dev):
+    # Chunks is a divisor of the dimension size
+    batch = 6
+    channels = 2
+    height = 3
+    width = 4
+    chunks = 3
+    dim = 0
+    raw_data = np.random.rand(batch, channels, height, width).astype("float32")
+
+    class ChunkModel(nn.Module):
+        def __init__(self, chunks, dim):
+            super().__init__()
+            self.chunks = chunks
+            self.dim = dim
+
+        def forward(self, x):
+            return x.chunk(self.chunks, dim=self.dim)
+
+    torch_module = ChunkModel(chunks=chunks, dim=dim).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_chunk_uneven(target, dev):
+    # Chunks is not a divisor of the dimension size
+    batch = 2
+    channels = 5
+    height = 4
+    width = 5
+    chunks = 2
+    dim = 1
+    raw_data = np.random.rand(batch, channels, height, width).astype("float32")
+
+    class ChunkModel(nn.Module):
+        def __init__(self, chunks, dim):
+            super().__init__()
+            self.chunks = chunks
+            self.dim = dim
+
+        def forward(self, x):
+            return x.chunk(self.chunks, dim=self.dim)
+
+    torch_module = ChunkModel(chunks=chunks, dim=dim).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_chunk_too_many(target, dev):
+    # If user asks for more chunks than the size of the dim, pytorch simply splits in sections of size 1
+    batch = 1
+    channels = 3
+    height = 2
+    width = 2
+    chunks = 99
+    dim = 1
+    raw_data = np.random.rand(batch, channels, height, width).astype("float32")
+
+    class ChunkModel(nn.Module):
+        def __init__(self, chunks, dim):
+            super().__init__()
+            self.chunks = chunks
+            self.dim = dim
+
+        def forward(self, x):
+            return x.chunk(self.chunks, dim=self.dim)
+
+    torch_module = ChunkModel(chunks=chunks, dim=dim).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_arange(target, dev):
+    # arange.default
+    raw_data = np.array([0, 0, 0, 0, 0])
+
+    class ArangeDefaultModel(nn.Module):
+        def forward(self, x):
+            return x + torch.arange(5)
+
+    torch_module = ArangeDefaultModel().eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+    # arange.start
+    raw_data = np.array([0, 0, 0])
+
+    class ArangeStartModel(nn.Module):
+        def forward(self, x):
+            return x + torch.arange(1, 4)
+
+    torch_module = ArangeStartModel().eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+    # arange.start_step
+    raw_data = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+
+    class ArangeStartStopModel(nn.Module):
+        def forward(self, x):
+            return x + torch.arange(1, 2.5, 0.5, dtype=torch.float32)
+
+    torch_module = ArangeStartStopModel().eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_index_select(target, dev):
+    class IndexSelectModel(nn.Module):
+        def forward(self, x):
+            indices = torch.tensor([0, 2])
+            return torch.index_select(x, 0, indices)
+
+    raw_data = np.random.rand(3, 4).astype("float32")
+    torch_module = IndexSelectModel().eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_stack(target, dev):
+    class StackModel(nn.Module):
+        def forward(self, x):
+            val1 = x[1, 4]
+            val2 = x[3, 2]
+            val3 = x[5, 6]
+            z = torch.stack([val1, val2, val3])
+            return z
+
+    torch_module = StackModel().eval()
+    raw_data = np.random.rand(10, 10, 10).astype("float32")
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_sum(target, dev):
+    class SumModel(nn.Module):
+        def forward(self, x):
+            new_vec = x[1, 4]
+            return new_vec.sum()
+
+    torch_module = SumModel().eval()
+
+    raw_data = np.random.rand(10, 10, 10).astype("float32")
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
 if __name__ == "__main__":

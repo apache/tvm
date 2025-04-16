@@ -747,18 +747,6 @@ TVM_REGISTER_GLOBAL("tir.Reduce")
 
 TVM_REGISTER_NODE_TYPE(ReduceNode);
 
-// Any
-Any::Any(Span span) {
-  auto n = make_object<AnyNode>();
-  n->dtype = DataType::Int(32);
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-TVM_REGISTER_GLOBAL("tir.Any").set_body_typed([](Span span) { return Any(span); });
-
-TVM_REGISTER_NODE_TYPE(AnyNode);
-
 // BufferLoad
 void BufferLoadNode::LegalizeDType() {
   for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {

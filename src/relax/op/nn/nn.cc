@@ -34,6 +34,9 @@ RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(gelu, "nn.gelu", /*require_float_dtype=*/tru
 /* relax.nn.gelu_tanh */
 RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(gelu_tanh, "nn.gelu_tanh", /*require_float_dtype=*/true);
 
+/* relax.nn.selu */
+RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(selu, "nn.selu", /*require_float_dtype=*/true);
+
 /* relax.nn.silu */
 RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(silu, "nn.silu", /*require_float_dtype=*/true);
 
@@ -57,6 +60,27 @@ TVM_REGISTER_OP("relax.nn.leakyrelu")
                                 InferStructInfoUnaryArith</*require_float_dtype=*/true>)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.nn.softplus */
+TVM_REGISTER_NODE_TYPE(SoftplusAttrs);
+
+Expr softplus(Expr data, double beta, double threshold) {
+  auto attrs = make_object<SoftplusAttrs>();
+  attrs->beta = beta;
+  attrs->threshold = threshold;
+  static const Op& op = Op::Get("relax.nn.softplus");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.nn.softplus").set_body_typed(softplus);
+
+TVM_REGISTER_OP("relax.nn.softplus")
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attrs_type<SoftplusAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo",
+                                InferStructInfoUnaryArith</*require_float_dtype=*/true>)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.nn.softmax */
 TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
 
@@ -74,7 +98,8 @@ StructInfo InferStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
   if (data_sinfo->IsUnknownNdim()) {
     return data_sinfo;
   }
-  if (!data_sinfo->IsUnknownDtype() && !data_sinfo->dtype.is_float()) {
+  if (!data_sinfo->IsUnknownDtype() && !data_sinfo->dtype.is_float() &&
+      !data_sinfo->dtype.is_bfloat()) {
     ctx->ReportFatal(Diagnostic::Error(call) << "Softmax requires the input tensor to have float "
                                                 "dtype. However, the given input dtype is "
                                              << data_sinfo->dtype);
@@ -252,13 +277,14 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
 
 Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,  //
-                int axis, double epsilon, bool center, bool scale, double momentum) {
+                int axis, double epsilon, bool center, bool scale, double momentum, bool training) {
   ObjectPtr<BatchNormAttrs> attrs = make_object<BatchNormAttrs>();
   attrs->axis = axis;
   attrs->epsilon = epsilon;
   attrs->center = center;
   attrs->scale = scale;
   attrs->momentum = momentum;
+  attrs->training = training;
 
   static const Op& op = Op::Get("relax.nn.batch_norm");
   return Call(op,
@@ -266,7 +292,6 @@ Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_
                std::move(moving_var)},
               Attrs{attrs}, {});
 }
-
 TVM_REGISTER_GLOBAL("relax.op.nn.batch_norm").set_body_typed(batch_norm);
 
 StructInfo InferStructInfoBatchNorm(const Call& call, const BlockBuilder& ctx) {
@@ -388,7 +413,7 @@ InferLayoutOutput InferLayoutLayerNorm(const Call& call,
 TVM_REGISTER_OP("relax.nn.layer_norm")
     .set_attrs_type<LayerNormAttrs>()
     .set_num_inputs(3)
-    .add_argument("data", "Tensor", "Input to which batch_norm will be applied.")
+    .add_argument("data", "Tensor", "Input to which layer_norm will be applied.")
     .add_argument("gamma", "Tensor", "The gamma scale factor.")
     .add_argument("beta", "Tensor", "The beta offset factor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoLayerNorm)
@@ -500,7 +525,7 @@ InferLayoutOutput InferLayoutGroupNorm(const Call& call,
 TVM_REGISTER_OP("relax.nn.group_norm")
     .set_attrs_type<GroupNormAttrs>()
     .set_num_inputs(3)
-    .add_argument("data", "Tensor", "Input to which batch_norm will be applied.")
+    .add_argument("data", "Tensor", "Input to which group_norm will be applied.")
     .add_argument("gamma", "Tensor", "The gamma scale factor.")
     .add_argument("beta", "Tensor", "The beta offset factor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGroupNorm)

@@ -642,11 +642,7 @@ class TVMUtils {
     Array<tvm::PrimExpr> tvm_shape;
     for (size_t i = 0; i < meta_shape.ndim(); i++) {
       auto dim = meta_shape.DimAt(i);
-      if (dim == -1) {
-        tvm_shape.push_back(tir::Any());
-      } else {
-        tvm_shape.push_back(Integer(dim));
-      }
+      tvm_shape.push_back(Integer(dim));
     }
     return tvm_shape;
   }

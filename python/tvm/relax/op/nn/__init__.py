@@ -45,6 +45,8 @@ from .nn import (
     pad,
     relu,
     rms_norm,
+    selu,
     silu,
     softmax,
+    softplus,
 )

@@ -27,13 +27,10 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
 from tvm.relax.frontend.torch import from_exported_program
-from packaging import version
-
-torch_version = torch.__version__
 
 
-def verify_model(torch_model, example_args, binding, expected):
-    exported_program = export(torch_model, args=example_args)
+def verify_model(torch_model, example_args, binding, expected, dynamic_shapes=None):
+    exported_program = export(torch_model, args=example_args, dynamic_shapes=dynamic_shapes)
     mod = from_exported_program(exported_program)
 
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
@@ -56,10 +53,17 @@ operator_basic_unary = [
     (torch.erf, R.erf),
     (torch.exp, R.exp),
     (torch.floor, R.floor),
+    (torch.ops.aten.gelu, R.nn.gelu),
     (torch.log, R.log),
     (torch.neg, R.negative),
+    (torch.relu, R.nn.relu),
+    (torch.relu_, R.nn.relu),
     (torch.round, R.round),
     (torch.rsqrt, R.rsqrt),
+    (torch.selu, R.nn.selu),
+    (torch.sigmoid, R.sigmoid),
+    (torch.ops.aten.silu, R.nn.silu),
+    (torch.ops.aten.silu_, R.nn.silu),
     (torch.sin, R.sin),
     (torch.sinh, R.sinh),
     (torch.sign, R.sign),
@@ -254,6 +258,10 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.dropout(input, 0.5, train=True)
 
+    class Dropout3(Module):
+        def forward(self, input):
+            return torch.ops.aten.dropout_(input, 0.5, train=True)
+
     @tvm.script.ir_module
     class expected_dropout:
         @R.function
@@ -268,6 +276,7 @@ def test_extended_unary_ops():
 
     verify_model(Dropout1(), example_args, {}, expected_dropout)
     verify_model(Dropout2(), example_args, {}, expected_dropout)
+    verify_model(Dropout3(), example_args, {}, expected_dropout)
 
     # elu
     class Elu(Module):
@@ -308,35 +317,6 @@ def test_extended_unary_ops():
 
     verify_model(Elu(), example_args, {}, expected_elu)
     verify_model(Elu2(), example_args, {}, expected_elu)
-
-    # gelu
-    class Gelu(Module):
-        def __init__(self):
-            super().__init__()
-            self.gelu = torch.nn.GELU()
-
-        def forward(self, input):
-            return self.gelu(input)
-
-    class Gelu2(Module):
-        def forward(self, input):
-            return torch.nn.functional.gelu(input)
-
-    @tvm.script.ir_module
-    class expected_gelu:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.gelu(input_1)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
-                R.output(gv)
-            return gv
-
-    verify_model(Gelu(), example_args, {}, expected_gelu)
-    verify_model(Gelu2(), example_args, {}, expected_gelu)
 
     # hardsigmoid
     class Hardsigmoid(torch.nn.Module):
@@ -383,6 +363,10 @@ def test_extended_unary_ops():
         def forward(self, input):
             return torch.nn.functional.hardswish(input)
 
+    class Hardswish3(torch.nn.Module):
+        def forward(self, input):
+            return torch.ops.aten.hardswish_(input)
+
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -402,148 +386,93 @@ def test_extended_unary_ops():
 
     verify_model(Hardswish(), example_args, {}, expected1)
     verify_model(Hardswish2(), example_args, {}, expected1)
+    verify_model(Hardswish3(), example_args, {}, expected1)
 
-    # hardtanh
-    test_hardtanh()
-
-    # leakyrelu
-    test_leakyrelu()
-
-    # log_softmax
-    test_logsoftmax()
-
-    # relu
-    class ReLU0(Module):
-        def __init__(self):
-            super().__init__()
-            self.relu = torch.nn.ReLU()
-
-        def forward(self, input):
-            return self.relu(input)
-
-    class ReLU1(Module):
-        def forward(self, input):
-            return torch.nn.functional.relu(input)
+    # log2
+    class Log2(Module):
+        def forward(self, x):
+            return torch.log2(x)
 
     @tvm.script.ir_module
-    class expected_relu:
+    class Expected_log2:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
-            # block 0
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input_1)
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.log(inp_0)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
+                    lv, R.const(0.69314718246459961, "float32")
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    verify_model(Log2(), example_args, {}, Expected_log2)
+
+    # log10
+    class Log10(Module):
+        def forward(self, x):
+            return torch.log10(x)
+
+    @tvm.script.ir_module
+    class Expected_log10:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.log(inp_0)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
+                    lv, R.const(2.302585092994046, "float32")
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    verify_model(Log10(), example_args, {}, Expected_log10)
+
+    # log1p
+    class Log1p(Module):
+        def forward(self, x):
+            return torch.log1p(x)
+
+    @tvm.script.ir_module
+    class Expected_log1p:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.log(
+                    R.add(inp_0, R.const(1, "float32"))
+                )
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
-    verify_model(ReLU0(), example_args, {}, expected_relu)
-    verify_model(ReLU1(), example_args, {}, expected_relu)
+    verify_model(Log1p(), example_args, {}, Expected_log1p)
 
-    # selu
-    class Selu1(Module):
-        def __init__(self):
-            super().__init__()
-            self.selu = torch.nn.SELU()
-
+    # reciprocal
+    class Reciprocal(Module):
         def forward(self, input):
-            return self.selu(input)
-
-    class Selu2(Module):
-        def forward(self, input):
-            return torch.nn.functional.selu(input)
+            return torch.reciprocal(input)
 
     @tvm.script.ir_module
-    class expected_selu:
+    class expected_reciprocal:
         @R.function
         def main(
             input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
-                lv_relu: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input_1)
-                lv_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(input_1)
-                lv_sub: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(
-                    lv_exp, R.const(1.0, "float32")
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
+                    R.const(1.0, "float32"), input_1
                 )
-                lv_scaled: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
-                    R.const(1.6732631921768188, "float32"), lv_sub
-                )
-                lv_add: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv_relu, lv_scaled)
-                lv_selu: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
-                    R.const(1.0507010221481323, "float32"), lv_add
-                )
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv_selu,)
-                R.output(gv)
-
-            return gv
-
-    verify_model(Selu1(), example_args, {}, expected_selu)
-    verify_model(Selu2(), example_args, {}, expected_selu)
-
-    # sigmoid
-    class Sigmoid(Module):
-        def __init__(self):
-            super().__init__()
-            self.sigmoid = torch.nn.Sigmoid()
-
-        def forward(self, input):
-            return self.sigmoid(input)
-
-    class Sigmoid2(Module):
-        def forward(self, input):
-            return torch.sigmoid(input)
-
-    @tvm.script.ir_module
-    class expected_sigmoid:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.sigmoid(input_1)
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
-    verify_model(Sigmoid(), example_args, {}, expected_sigmoid)
-    verify_model(Sigmoid2(), example_args, {}, expected_sigmoid)
-
-    # silu
-    class SiLU(Module):
-        def __init__(self):
-            super().__init__()
-            self.silu = torch.nn.SiLU()
-
-        def forward(self, input):
-            return self.silu(input)
-
-    class SiLU2(Module):
-        def forward(self, input):
-            return torch.nn.functional.silu(input)
-
-    @tvm.script.ir_module
-    class expected_silu:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.silu(input_1)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
-                R.output(gv)
-            return gv
-
-    verify_model(SiLU(), example_args, {}, expected_silu)
-    verify_model(SiLU2(), example_args, {}, expected_silu)
-
-    # softmax
-    test_softmax()
-
-    # tril, triu
-    test_tril_triu()
+    verify_model(Reciprocal(), example_args, {}, expected_reciprocal)
 
 
 def test_hardtanh():
@@ -558,6 +487,10 @@ def test_hardtanh():
     class Hardtanh2(torch.nn.Module):
         def forward(self, input):
             return torch.nn.functional.hardtanh(input)
+
+    class Hardtanh3(torch.nn.Module):
+        def forward(self, input):
+            return torch.ops.aten.hardtanh_(input)
 
     @tvm.script.ir_module
     class expected1:
@@ -576,6 +509,44 @@ def test_hardtanh():
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     verify_model(Hardtanh(), example_args, {}, expected1)
     verify_model(Hardtanh2(), example_args, {}, expected1)
+    verify_model(Hardtanh3(), example_args, {}, expected1)
+
+
+def test_softplus():
+    import torch
+    from torch.nn import Module
+
+    torch.set_grad_enabled(False)
+
+    class Softplus0(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.softplus = torch.nn.Softplus(1.0, 20.0)
+
+        def forward(self, x):
+            return self.softplus(x)
+
+    class Softplus1(Module):
+        def forward(self, input):
+            return torch.nn.functional.softplus(input, 1.0, 20.0)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.softplus(
+                    x, beta=1.0, threshold=20.0
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+    verify_model(Softplus0(), example_args, {}, expected)
+    verify_model(Softplus1(), example_args, {}, expected)
 
 
 def test_leakyrelu():
@@ -676,6 +647,54 @@ def test_softmax():
     verify_model(Softmax2(), example_args, {}, expected1)
 
 
+def test_softshrink():
+    class Softshrink(Module):
+        def __init__(self):
+            super().__init__()
+            self.softshrink = torch.nn.Softshrink(lambd=0.5)
+
+        def forward(self, input):
+            return self.softshrink(input)
+
+    class Softshrink2(Module):
+        def forward(self, input):
+            return torch.nn.functional.softshrink(input, lambd=0.5)
+
+    @tvm.script.ir_module
+    class expected_softshrink:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(
+                    input, R.const(0.5, "float32")
+                )
+                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.greater(
+                    input, R.const(0.5, "float32")
+                )
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.astype(lv1, "float32")
+                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(lv, lv2)
+
+                lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(
+                    input, R.const(0.5, "float32")
+                )
+                lv5: R.Tensor((), dtype="float32") = R.negative(R.const(0.5, "float32"))
+                lv6: R.Tensor((1, 3, 10, 10), dtype="bool") = R.less(input, lv5)
+                lv7: R.Tensor((1, 3, 10, 10), dtype="float32") = R.astype(lv6, "float32")
+                lv8: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(lv4, lv7)
+
+                lv9: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv3, lv8)
+
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv9,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+    verify_model(Softshrink(), example_args, {}, expected_softshrink)
+    verify_model(Softshrink2(), example_args, {}, expected_softshrink)
+
+
 def test_tril_triu():
     example_args = (torch.randn(10, 10, dtype=torch.float32),)
 
@@ -720,6 +739,7 @@ def test_tril_triu():
 
 operator_binary_1 = [
     (operator.add, R.add),
+    (torch.ops.aten.add_, R.add),
     (operator.sub, R.subtract),
     (operator.mul, R.multiply),
     (operator.truediv, R.divide),
@@ -853,7 +873,6 @@ def test_binary3():
         torch.randn(10, 10, dtype=torch.float32),
         torch.randn(10, 10, dtype=torch.float32),
     )
-    example_args2 = (torch.randn(10, 10, dtype=torch.float32),)
 
     # Max
     class Max1(Module):
@@ -896,10 +915,6 @@ def test_binary3():
     verify_model(Min1(), example_args1, {}, expected_min1)
 
 
-@pytest.mark.skipif(
-    version.parse(torch_version) >= version.parse("2.6.0"),
-    reason="Tests not compatible with PyTorch >= 2.6",
-)
 def test_batchnorm2d():
     class BatchNorm2d(Module):
         def __init__(self):
@@ -2577,10 +2592,6 @@ def test_expand():
     verify_model(Expand2(), example_args, {}, expected1)
 
 
-@pytest.mark.skipif(
-    version.parse(torch_version) >= version.parse("2.6.0"),
-    reason="Tests not compatible with PyTorch >= 2.6",
-)
 def test_flatten():
     class Flatten(Module):
         def __init__(self):
@@ -2782,10 +2793,6 @@ def test_select_slice():
     verify_model(Slice2(), example_args, {}, expected2)
 
 
-@pytest.mark.skipif(
-    version.parse(torch_version) >= version.parse("2.6.0"),
-    reason="Tests not compatible with PyTorch >= 2.6",
-)
 def test_split():
     class Chunk(Module):
         def forward(self, input):
@@ -3215,10 +3222,6 @@ def test_new_ones():
     verify_model(NewOnes(), example_args, {}, expected1)
 
 
-@pytest.mark.skipif(
-    version.parse(torch_version) >= version.parse("2.6.0"),
-    reason="Tests not compatible with PyTorch >= 2.6",
-)
 def test_to_copy():
     # float
     class ToFloat(Module):
@@ -3269,7 +3272,8 @@ def test_to_copy():
         ) -> R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")):
             # block 0
             with R.dataflow():
-                gv: R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")) = (x,)
+                lv: R.Tensor((1, 2, 3, 4), dtype="float32") = R.astype(x, dtype="float32")
+                gv: R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
@@ -3423,6 +3427,483 @@ def test_no_bind_return_tuple():
     exported_program = export(Identity(), args=example_args)
     mod = from_exported_program(exported_program, no_bind_return_tuple=True)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_empty_like():
+    class EmptyLike(Module):
+        def forward(self, data):
+            return torch.empty_like(data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((5,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5,), dtype="float32") = R.zeros_like(inp_0, dtype="void")
+                gv: R.Tuple(R.Tensor((5,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(5, dtype=torch.float32),)
+
+    verify_model(EmptyLike(), example_args, {}, Expected)
+
+
+def test_one_hot():
+    class OneHot(Module):
+        def forward(self, indices):
+            return torch.nn.functional.one_hot(indices, num_classes=10)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5,), dtype="int64"),
+        ) -> R.Tuple(R.Tensor((5, 10), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tensor((5, 10), dtype="int64") = R.one_hot(
+                    inp_0, R.prim_value(1), R.prim_value(0), depth=10, axis=-1
+                )
+                gv: R.Tuple(R.Tensor((5, 10), dtype="int64")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randint(0, 10, (5,), dtype=torch.int64),)
+
+    verify_model(OneHot(), example_args, {}, Expected)
+
+
+def test_select():
+    class Select(Module):
+        def forward(self, input):
+            return torch.select(input, 0, 1)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((3,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="float32") = R.take(inp_0, R.const(1, "int64"), axis=0)
+                gv: R.Tuple(R.Tensor((3,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 3, dtype=torch.float32),)
+
+    verify_model(Select(), example_args, {}, Expected)
+
+
+def test_unflatten():
+    class Unflatten(Module):
+        def forward(self, input):
+            return torch.ops.aten.unflatten(input, 1, (3, 5))
+
+    class Unflatten1(Module):
+        def forward(self, input):
+            return torch.ops.aten.unflatten(input, -2, (3, 5))
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 15, 7), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 3, 5, 7), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 5, 7), dtype="float32") = R.reshape(inp_0, [2, 3, 5, 7])
+                gv: R.Tuple(R.Tensor((2, 3, 5, 7), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 15, 7, dtype=torch.float32),)
+
+    verify_model(Unflatten(), example_args, {}, Expected)
+    verify_model(Unflatten1(), example_args, {}, Expected)
+
+
+def test_gather():
+    class Gather0(Module):
+        def forward(self, data, indices):
+            return torch.gather(data, 0, indices)
+
+    class Gather1(Module):
+        def forward(self, data, indices):
+            return torch.gather(data, 1, indices)
+
+    class Gather2(Module):
+        def forward(self, data, indices):
+            return torch.gather(data, -1, indices)
+
+    class Gather3(Module):
+        def forward(self, data, indices):
+            return torch.gather(data, -2, indices)
+
+    @tvm.script.ir_module
+    class Expected0:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+            inp_1: R.Tensor((2, 3), dtype="int64"),
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.gather_elements(inp_0, inp_1, axis=0)
+                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+            inp_1: R.Tensor((2, 3), dtype="int64"),
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.gather_elements(inp_0, inp_1, axis=1)
+                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+            inp_1: R.Tensor((2, 3), dtype="int64"),
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.gather_elements(inp_0, inp_1, axis=-1)
+                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+            inp_1: R.Tensor((2, 3), dtype="int64"),
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.gather_elements(inp_0, inp_1, axis=-2)
+                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(2, 3, dtype=torch.float32),
+        torch.randint(0, 3, (2, 3), dtype=torch.int64),
+    )
+
+    verify_model(Gather0(), example_args, {}, Expected0)
+    verify_model(Gather1(), example_args, {}, Expected1)
+    verify_model(Gather2(), example_args, {}, Expected2)
+    verify_model(Gather3(), example_args, {}, Expected3)
+
+
+def test_flip():
+    class Flip0(Module):
+        def forward(self, data):
+            return torch.flip(data, [0])
+
+    class Flip1(Module):
+        def forward(self, data):
+            return torch.flip(data, [1])
+
+    @tvm.script.ir_module
+    class Expected0:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 2), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 2), dtype="float32") = R.flip(inp_0, axis=0)
+                gv: R.Tuple(R.Tensor((2, 2), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 2), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 2), dtype="float32") = R.flip(inp_0, axis=1)
+                gv: R.Tuple(R.Tensor((2, 2), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 2, dtype=torch.float32),)
+
+    verify_model(Flip0(), example_args, {}, Expected0)
+    verify_model(Flip1(), example_args, {}, Expected1)
+
+
+def test_take():
+    class Take(Module):
+        def forward(self, data, indices):
+            return torch.take(data, indices)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5,), dtype="float32"),
+            inp_1: R.Tensor((3,), dtype="int64"),
+        ) -> R.Tuple(R.Tensor((3,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="int32") = R.astype(inp_1, dtype="int32")
+                lv1: R.Tensor((3,), dtype="float32") = R.take(inp_0, lv, axis=None)
+                gv: R.Tuple(R.Tensor((3,), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(5, dtype=torch.float32),
+        torch.randint(0, 5, (3,), dtype=torch.int64),
+    )
+
+    verify_model(Take(), example_args, {}, Expected)
+
+
+def test_std():
+    class Std(Module):
+        def forward(self, x):
+            return torch.std(x)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.std(inp_0, axis=None, keepdims=False)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(5, 3, dtype=torch.float32),)
+    verify_model(Std(), example_args, {}, Expected)
+
+
+def test_var():
+    class Var(Module):
+        def forward(self, x):
+            return torch.var(x)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.variance(inp_0, axis=None, keepdims=False)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(5, 3, dtype=torch.float32),)
+    verify_model(Var(), example_args, {}, Expected)
+
+
+def test_prod():
+    class Prod(Module):
+        def forward(self, x):
+            return torch.prod(x)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.prod(inp_0, axis=None, keepdims=False)
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(5, 3, dtype=torch.float32),)
+    verify_model(Prod(), example_args, {}, Expected)
+
+
+def test_cumprod():
+    class Cumprod(Module):
+        def forward(self, x):
+            return torch.cumprod(x, 0)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((5, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5, 3), dtype="float32") = R.cumprod(inp_0, axis=0, exclusive=False)
+                gv: R.Tuple(R.Tensor((5, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_input = torch.randn(5, 3, dtype=torch.float32)
+    verify_model(Cumprod(), (example_input,), {}, Expected)
+
+
+def test_where():
+    class Where(Module):
+        def forward(self, condition, x, y):
+            return torch.where(condition, x, y)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5, 3), dtype="bool"),
+            inp_1: R.Tensor((5, 3), dtype="float32"),
+            inp_2: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((5, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5, 3), dtype="float32") = R.where(inp_0, inp_1, inp_2)
+                gv: R.Tuple(R.Tensor((5, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    condition = torch.randint(0, 2, (5, 3), dtype=torch.bool)
+    x = torch.randn(5, 3, dtype=torch.float32)
+    y = torch.randn(5, 3, dtype=torch.float32)
+
+    verify_model(Where(), (condition, x, y), {}, Expected)
+
+
+def test_argsort():
+    class Argsort(Module):
+        def forward(self, x):
+            return torch.argsort(x, dim=1, descending=True)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((5, 3), dtype="float32")) -> R.Tuple(R.Tensor((5, 3), dtype="int32")):
+            with R.dataflow():
+                lv: R.Tensor((5, 3), dtype="int32") = R.argsort(
+                    x, axis=1, descending=True, dtype="int32"
+                )
+                gv: R.Tuple(R.Tensor((5, 3), dtype="int32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(5, 3, dtype=torch.float32),)
+    verify_model(Argsort(), example_args, {}, Expected)
+
+
+def test_topk():
+    class Topk(Module):
+        def forward(self, x):
+            return torch.topk(x, k=2, dim=1, largest=True, sorted=True)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((5, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")
+                ) = R.topk(x, k=2, axis=1, ret_type="both", largest=True, dtype="int64")
+                lv1: R.Tensor((5, 2), dtype="float32") = lv[0]
+                lv2: R.Tensor((5, 2), dtype="int64") = lv[1]
+                gv: R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")) = (
+                    lv1,
+                    lv2,
+                )
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(5, 3, dtype=torch.float32),)
+    verify_model(Topk(), example_args, {}, Expected)
+
+
+def test_dynamic_shape():
+    class DynamicModel(torch.nn.Module):
+        def forward(self, x1, x2):
+            return torch.ops.aten.add.Tensor(x1, x2)
+
+    B = tvm.tir.SizeVar("BatchSize", dtype="int64")
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((B, 4), dtype="float32"),
+            rhs: R.Tensor((B, 4), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((B, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((B, 4), dtype="float32") = R.add(lhs, rhs)
+                gv: R.Tuple(R.Tensor((B, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 4), torch.randn(2, 4))
+    batch = torch.export.Dim("batch")
+    dynamic_shapes = {"x1": {0: batch}, "x2": {0: batch}}
+
+    verify_model(DynamicModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes)
+
+
+def test_broadcast_to():
+    class BroadcastTo(Module):
+        def forward(self, x):
+            return torch.broadcast_to(x, (5, 3))
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((5, 1), dtype="float32")
+        ) -> R.Tuple(R.Tensor((5, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5, 3), dtype="float32") = R.broadcast_to(x, R.shape([5, 3]))
+                gv: R.Tuple(R.Tensor((5, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+
+            return gv
+
+    example_args = (torch.randn(5, 1, dtype=torch.float32),)
+    verify_model(BroadcastTo(), example_args, {}, Expected)
+
+
+def test_narrow():
+    class Narrow(Module):
+        def forward(self, x):
+            return torch.narrow(x, 1, 0, 2)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((5, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((5, 2), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5, 2), dtype="float32") = R.strided_slice(
+                    x,
+                    (R.prim_value(1),),
+                    (R.prim_value(0),),
+                    (R.prim_value(2),),
+                    assume_inbound=False,
+                )
+                gv: R.Tuple(R.Tensor((5, 2), dtype="float32")) = (lv,)
+                R.output(gv)
+
+            return gv
+
+    example_args = (torch.randn(5, 3, dtype=torch.float32),)
+    verify_model(Narrow(), example_args, {}, Expected)
 
 
 if __name__ == "__main__":
