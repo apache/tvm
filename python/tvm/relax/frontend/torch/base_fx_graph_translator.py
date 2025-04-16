@@ -21,7 +21,7 @@
 import abc
 from functools import reduce
 import math
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Callable, Dict, Optional, Tuple, Union, List
 
 from tvm import relax
 
@@ -102,6 +102,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return {self._retrieve_args(k): self._retrieve_args(v) for k, v in node.items()}
         else:
             return node
+
+    def _check_unsupported_func_type(self, nodes: List[fx.Node]):
+        missing_func_types = list(
+            {
+                node.target.__name__
+                for node in nodes
+                if node.op == "call_function" and node.target.__name__ not in self.convert_map
+            }
+        )
+        assert not missing_func_types, f"Unsupported function types {missing_func_types}"
 
     ########## Unary Ops ##########
 
