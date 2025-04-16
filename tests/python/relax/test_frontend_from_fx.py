@@ -3581,12 +3581,20 @@ def test_roll():
             with R.dataflow():
                 lv: R.Tensor((8,), dtype="int64") = R.reshape(inp_0, R.shape([8]))
                 lv1: R.Tensor((7,), dtype="int64") = R.strided_slice(
-                    lv, axes=[0], begin=[R.prim_value(0)], end=[R.prim_value(7)],
-                    strides=[R.prim_value(1)], assume_inbound=False
+                    lv,
+                    axes=[0],
+                    begin=[R.prim_value(0)],
+                    end=[R.prim_value(7)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False
                 )
                 lv2: R.Tensor((1,), dtype="int64") = R.strided_slice(
-                    lv, axes=[0], begin=[R.prim_value(7)], end=[R.prim_value(8)],
-                    strides=[R.prim_value(1)], assume_inbound=False
+                    lv,
+                    axes=[0],
+                    begin=[R.prim_value(7)],
+                    end=[R.prim_value(8)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False
                 )
                 lv3: R.Tensor((8,), dtype="int64") = R.concat((lv2, lv1), axis=0)
                 lv4: R.Tensor((4, 2), dtype="int64") = R.reshape(lv3, R.shape([4, 2]))
@@ -3601,14 +3609,22 @@ def test_roll():
         def main(inp_0: R.Tensor((4, 2), dtype="int64")) -> R.Tensor((4, 2), dtype="int64"):
             with R.dataflow():
                 lv: R.Tensor((1, 2), dtype="int64") = R.strided_slice(
-                    inp_0, axes=[0], begin=[R.prim_value(0)], end=[R.prim_value(1)],
-                    strides=[R.prim_value(1)], assume_inbound=False
-                )  # Row 0: [[a, b]]
-                lv1: R.Tensor((3, 2), dtype="int64") = R.strided_slice(
-                    inp_0, axes=[0], begin=[R.prim_value(1)], end=[R.prim_value(4)],
-                    strides=[R.prim_value(1)], assume_inbound=False
+                    inp_0,
+                    axes=[0],
+                    begin=[R.prim_value(0)],
+                    end=[R.prim_value(1)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False
                 )
-                lv2: R.Tensor((4, 2), dtype="int64") = R.concat((lv1, lv), axis=0)  # [[c, d], [e, f], [g, h], [a, b]]
+                lv1: R.Tensor((3, 2), dtype="int64") = R.strided_slice(
+                    inp_0,
+                    axes=[0],
+                    begin=[R.prim_value(1)],
+                    end=[R.prim_value(4)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False
+                )
+                lv2: R.Tensor((4, 2), dtype="int64") = R.concat((lv1, lv), axis=0)
                 gv: R.Tensor((4, 2), dtype="int64") = lv2
                 R.output(gv)
             return gv
@@ -3620,31 +3636,45 @@ def test_roll():
         def main(inp_0: R.Tensor((4, 2), dtype="int64")) -> R.Tensor((4, 2), dtype="int64"):
             with R.dataflow():
                 lv: R.Tensor((2, 2), dtype="int64") = R.strided_slice(
-                    inp_0, axes=[0], begin=[R.prim_value(0)], end=[R.prim_value(2)],
-                    strides=[R.prim_value(1)], assume_inbound=False
+                    inp_0,
+                    axes=[0],
+                    begin=[R.prim_value(0)],
+                    end=[R.prim_value(2)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False
                 )
                 lv1: R.Tensor((2, 2), dtype="int64") = R.strided_slice(
-                    inp_0, axes=[0], begin=[R.prim_value(2)], end=[R.prim_value(4)],
-                    strides=[R.prim_value(1)], assume_inbound=False
+                    inp_0,
+                    axes=[0],
+                    begin=[R.prim_value(2)],
+                    end=[R.prim_value(4)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False
                 )
-                lv2: R.Tensor((4, 2), dtype="int64") = R.concat((lv1, lv), axis=0)  # [[e, f], [g, h], [a, b], [c, d]]
+                lv2: R.Tensor((4, 2), dtype="int64") = R.concat((lv1, lv), axis=0)
                 lv3: R.Tensor((4, 1), dtype="int64") = R.strided_slice(
-                    lv2, axes=[1], begin=[R.prim_value(0)], end=[R.prim_value(1)],
-                    strides=[R.prim_value(1)], assume_inbound=False
+                    lv2,
+                    axes=[1],
+                    begin=[R.prim_value(0)],
+                    end=[R.prim_value(1)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False
                 )
                 lv4: R.Tensor((4, 1), dtype="int64") = R.strided_slice(
-                    lv2, axes=[1], begin=[R.prim_value(1)], end=[R.prim_value(2)],
-                    strides=[R.prim_value(1)], assume_inbound=False
+                    lv2,
+                    axes=[1],
+                    begin=[R.prim_value(1)],
+                    end=[R.prim_value(2)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False
                 )
-                lv5: R.Tensor((4, 2), dtype="int64") = R.concat((lv4, lv3), axis=1)  # [[f, e], [h, g], [b, a], [d, c]]
+                lv5: R.Tensor((4, 2), dtype="int64") = R.concat((lv4, lv3), axis=1)
                 gv: R.Tensor((4, 2), dtype="int64") = lv5
                 R.output(gv)
             return gv
 
-    # Test inputs
     input_info = [([4, 2], "int64")]
 
-    # Run verification for each case
     verify_model(Roll1(), input_info, {}, Expected1)
     verify_model(Roll2(), input_info, {}, Expected2)
     verify_model(Roll3(), input_info, {}, Expected3)

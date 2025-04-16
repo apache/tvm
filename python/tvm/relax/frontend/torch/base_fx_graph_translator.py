@@ -1209,7 +1209,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             )
             part2 = self.block_builder.emit(
                 relax.op.strided_slice(
-                    tensor,axes=[dim],
+                    tensor,
+                    axes=[dim],
                     begin=[split_pos],
                     end=[dim_size_val],
                     strides=[1],
