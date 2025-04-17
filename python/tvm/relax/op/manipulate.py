@@ -515,17 +515,18 @@ def index_tensor(data: Expr, indices: Union[Expr, List[Expr]]) -> Expr:
     operator selects elements from ``data`` as if one had written
     ``data[I0, I1, …, Ik‑1]`` in NumPy/PyTorch:
 
-    * All index tensors must have an integer dtype.
-    * Their shapes are broadcast together to a common shape ``B`` in
-      the usual NumPy way.
-    * The result shape is ``B + data.shape[k:]`` (i.e. the broadcast
-      shape followed by the remaining axes of ``data`` that are *not*
-      indexed).
-    * At compile‑time Relax checks
-      * the number of index tensors ``k`` does not exceed
-        ``data.ndim``,
-      * the dtypes are integer,
-      * the shapes are consitent (broadcast‑compatible).
+    All index tensors must have an integer dtype.
+    
+    Their shapes are broadcast together to a common shape ``B`` in
+    the usual NumPy way.
+    
+    The result shape is ``B + data.shape[k:]`` (i.e. the broadcast
+    shape followed by the remaining axes of ``data`` that are *not*
+    indexed).
+    
+    At compile‑time Relax checks that the number of index tensors 
+    ``k`` does not exceed ``data.ndim``, that the dtypes are integer,
+    and that the shapes are consitent (broadcast‑compatible).
 
     Parameters
     ----------
