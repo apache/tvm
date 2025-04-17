@@ -35,13 +35,15 @@ option(TVM_FFI_BUILD_REGISTRY
   This will require the downstream targets to link against target `tvm_ffi` to be effective."
   OFF
 )
-option(TVM_FFI_USE_LIBBRACKTRACE "Enable libbacktrace" ON)
+option(TVM_FFI_USE_LIBBACKTRACE "Enable libbacktrace" ON)
 option(TVM_FFI_BACKTRACE_ON_SEGFAULT "Set signal handler to print traceback on segfault" ON)
 
 include(cmake/Utils/CxxWarning.cmake)
 include(cmake/Utils/Sanitizer.cmake)
 include(cmake/Utils/Library.cmake)
-include(cmake/Utils/AddLibbacktrace.cmake)
+if (TVM_FFI_USE_LIBBACKTRACE)
+  include(cmake/Utils/AddLibbacktrace.cmake)
+endif()
 
 ########## Target: `dlpack_header` ##########
 
@@ -74,12 +76,12 @@ add_cxx_warning(tvm_ffi_objs)
 target_link_libraries(tvm_ffi_objs PRIVATE dlpack_header)
 target_include_directories(tvm_ffi_objs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-if (TVM_FFI_USE_LIBBRACKTRACE)
-  message(STATUS "Setting C++ macro TVM_FFI_USE_LIBBRACKTRACE - 1")
-  target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_USE_LIBBRACKTRACE=1)
+if (TVM_FFI_USE_LIBBACKTRACE)
+  message(STATUS "Setting C++ macro TVM_FFI_USE_LIBBACKTRACE - 1")
+  target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_USE_LIBBACKTRACE=1)
 else()
-  message(STATUS "Setting C++ macro TVM_FFI_USE_LIBBRACKTRACE - 0")
-  target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_USE_LIBBRACKTRACE=0)
+  message(STATUS "Setting C++ macro TVM_FFI_USE_LIBBACKTRACE - 0")
+  target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_USE_LIBBACKTRACE=0)
 endif()
 
 if (TVM_FFI_BACKTRACE_ON_SEGFAULT)
