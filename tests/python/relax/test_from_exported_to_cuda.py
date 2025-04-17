@@ -682,7 +682,6 @@ def test_sum(target, dev):
             return new_vec.sum()
 
     torch_module = SumModel().eval()
-
     raw_data = np.random.rand(10, 10, 10).astype("float32")
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
@@ -699,7 +698,6 @@ def test_mul(target, dev):
 
     torch_module = MulModule().eval()
     raw_data = np.random.rand(2, 3).astype("float32")
-
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
