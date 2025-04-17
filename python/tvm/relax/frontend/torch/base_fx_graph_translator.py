@@ -1157,8 +1157,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # we use argsort to get indices and gather_elements to get values
         x = self.env[node.args[0]]
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
-        descending = (node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False))
-        
+        descending = node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False)
+
         indices = self.block_builder.emit(relax.op.argsort(x, dim, descending))
         values = self.block_builder.emit(relax.op.gather_elements(x, indices, axis=dim))
         return self.block_builder.emit(relax.Tuple([values, indices]))
