@@ -586,6 +586,30 @@ class ReverseComputeInliner : public BaseInliner {
     ReverseComputeInliner* self_;
   };
 
+  class RecursionResolver : public StmtExprMutator {
+   public:
+    explicit RecursionResolver(ReverseComputeInliner* self) : self_(self) {}
+
+   private:
+    PrimExpr VisitExpr_(const VarNode* var) final {
+      auto it = self_->idx_sub_.find(var);
+      if (it == self_->idx_sub_.end()) {
+        return GetRef<Var>(var);
+      }
+      return (*it).second;
+    }
+
+    PrimExpr VisitExpr_(const BufferLoadNode* _load) final {
+      BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_load));
+      return load->buffer.same_as(self_->inlined_buffer_)
+                 ? StmtExprMutator::VisitExpr(
+                       BufferLoad(self_->inlined_store_->buffer, self_->inlined_store_->indices))
+                 : load;
+    }
+
+    ReverseComputeInliner* self_;
+  };
+
  public:
   explicit ReverseComputeInliner(const Buffer& inlined_buffer, const BlockNode* producer_block,
                                  const BlockRealize& consumer_block_realize,
@@ -784,7 +808,9 @@ class ReverseComputeInliner : public BaseInliner {
   }
 
   Stmt ReplaceInlinedBuffer(BufferStore producer) {
-    producer_rhs_ = producer->value;
+    // "producer->value" may contain the buffer that is inlined in cases of reduction,
+    // so we need to resolve the recursion first
+    producer_rhs_ = RecursionResolver(this)(producer->value);
     return Substituter(this)(GetRef<BufferStore>(inlined_store_));
   }
 

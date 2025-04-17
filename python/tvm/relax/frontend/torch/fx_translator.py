@@ -728,6 +728,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "lerp": self._lerp,
             # statistical
             "mean": self._mean,
+            "norm": self._norm,
             "prod": self._prod,
             "std": self._std,
             "sum": self._sum,
@@ -848,9 +849,13 @@ class TorchFXImporter(BaseFXGraphImporter):
         else:
             func_attrs = None
 
+        # Find all the missing function types
+        self._check_unsupported_func_type(graph.nodes)
+
         with self.block_builder.function(name=func_name, params=inputs.copy(), attrs=func_attrs):
             output = None
             with self.block_builder.dataflow():
+
                 # Translate model parameters.
                 for _, param in model.named_parameters():
                     shape = param.data.shape
@@ -896,9 +901,6 @@ class TorchFXImporter(BaseFXGraphImporter):
                         self.env[node] = self.convert_map[type(module)](node)
                     elif node.op == "call_function":
                         func_name = node.target.__name__
-                        assert (
-                            func_name in self.convert_map
-                        ), f"Unsupported function type {func_name}"
                         if func_name in custom_ops:
                             self.env[node] = self.convert_map[func_name](node, self)
                         else:
