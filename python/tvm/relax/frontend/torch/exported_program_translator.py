@@ -200,6 +200,29 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             align_corners=align_corners,
         )
 
+    ########## Statistical ##########
+
+    def _norm(self, node: fx.Node) -> relax.Var:
+        data = self.env[node.args[0]]
+        dtype = data.struct_info.dtype
+        order = node.args[1] if len(node.args) > 1 else node.kwargs.get("p", 2)
+        axis = node.args[2] if len(node.args) > 2 else None
+        keepdims = node.args[3] if len(node.args) > 3 else False
+
+        if order == float("inf"):
+            return self.block_builder.emit(relax.op.max(relax.op.abs(data), axis=axis, keepdims=keepdims))
+        elif order == float("-inf"):
+            return self.block_builder.emit(relax.op.min(relax.op.abs(data), axis=axis, keepdims=keepdims))
+        else:
+            reci_order = relax.const(1 / order, dtype=dtype)
+            order = relax.const(order, dtype=dtype)
+            return self.block_builder.emit(
+                relax.op.power(
+                    relax.op.sum(relax.op.power(relax.op.abs(data), order), axis=axis, keepdims=keepdims),
+                    reci_order,
+                )
+            )
+
     ########## Manipulation ##########
 
     def _narrow(self, node: fx.Node) -> relax.Var:
