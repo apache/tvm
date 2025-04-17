@@ -131,7 +131,6 @@ include_directories(SYSTEM ${DMLC_PATH})
 include_directories(SYSTEM ${RANG_PATH})
 include_directories(SYSTEM ${COMPILER_RT_PATH})
 include_directories(SYSTEM ${PICOJSON_PATH})
-add_subdirectory(ffi)
 
 # initial variables
 set(TVM_LINKER_LIBS "")
@@ -570,6 +569,9 @@ endif()
 if(USE_IOS_RPC)
   add_subdirectory("apps/ios_rpc")
 endif()
+
+add_subdirectory(ffi)
+
 
 if(TVM_DEBUG_WITH_ABI_CHANGE)
   message(STATUS "Building with debug code that may cause ABI changes...")
