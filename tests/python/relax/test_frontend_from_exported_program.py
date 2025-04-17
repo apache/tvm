@@ -945,11 +945,11 @@ def test_binary3():
     class RSub1(Module):
         def forward(self, x, y):
             return torch.rsub(x, y)
-    
+
     class RSub2(Module):
         def forward(self, x):
             return torch.rsub(x, 5.0)
-    
+
     @tvm.script.ir_module
     class expected_rsub1:
         @R.function
@@ -959,9 +959,9 @@ def test_binary3():
                 gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
-    
+
     @tvm.script.ir_module
-    class expected_rsub2:  
+    class expected_rsub2:
         @R.function
         def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
             with R.dataflow():
