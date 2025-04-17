@@ -401,6 +401,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return convert
 
+    def _rsub(self, node: fx.Node)-> relax.Var:
+        args = self.retrieve_args(node)
+        input = args[0]
+        other = args[1]
+
+        if isinstance(other, (int, float)):
+            other = relax.const(other)
+
+        return self.block_builder.emit(relax.op.subtract(other, input))
+
     ########## Linear Algebra ##########
 
     def _linalg_vector_norm(self, node: fx.Node) -> relax.Var:

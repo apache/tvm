@@ -1702,6 +1702,43 @@ def test_binary3(op, relax_op):
     verify_model(Binary2(op), input_info2, {}, expected_binary2)
 
 
+# RSub
+def test_rsub():
+    input_info1 = [([10, 10], "float32"), ([10, 10], "float32")]
+    input_info2 = [([10, 10], "float32")]
+    
+    class RSub1(Module):
+        def forward(self, x, y):
+            return torch.rsub(x, y)
+    
+    class RSub2(Module):
+        def forward(self, x):
+            return torch.rsub(x, 5.0)
+    
+    @tvm.script.ir_module
+    class expected_rsub1:
+        @R.function
+        def main(x: R.Tensor((10, 10), dtype="float32"), y: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.subtract(y, x)
+                gv: R.Tensor((10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected_rsub2:  
+        @R.function
+        def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.subtract(R.const(5.0, "float32"), x)
+                gv: R.Tensor((10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+    
+    verify_model(RSub1(), input_info1, {}, expected_rsub1)
+    verify_model(RSub2(), input_info2, {}, expected_rsub2)
+
+
 def test_size():
     input_info = [([1, 3, 10, 10], "float32")]
 
