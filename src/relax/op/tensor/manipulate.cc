@@ -501,35 +501,26 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
   int n_indices = static_cast<int>(indices_sinfo.size());
   Optional<VDevice> vdev = data_sinfo->vdevice;
 
-  /* ------------------------------------------------------------------ *
-   * 2.  Sanity‑checks:                                                  *
-   *       • index dtype must be (u)int                                   *
-   *       • #indices ≤ data.ndim (if data.ndim known)                   *
-   * ------------------------------------------------------------------ */
+  // Indices must be integers
   for (int i = 0; i < n_indices; ++i) {
     const auto& s = indices_sinfo[i];
     if (!s->IsUnknownDtype() && !s->dtype.is_int()) {
       ctx->ReportFatal(Diagnostic::Error(call)
                        << "index_tensor requires every index tensor to have an integer dtype; "
-                       << "index #" << i << " has dtype " << s->dtype);
+                       << "index " << i << " has dtype " << s->dtype);
     }
   }
+
+  // Count of indices must be less than or equal to data.ndim
   if (!data_sinfo->IsUnknownNdim() && n_indices > data_sinfo->ndim) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "index_tensor received " << n_indices
                      << " index tensors, but data has only " << data_sinfo->ndim << " dimensions");
   }
 
-  /* ------------------------------------------------------------------ *
-   * 3.  Collect shape values of indices (when fully known).             *
-   *      We do *best‑effort* broadcasting analysis:                     *
-   *        ‑ if all index shapes are ShapeExpr, try to compute          *
-   *          the common broadcast shape exactly;                        *
-   *        ‑ otherwise fall back to “unknown shape”.                    *
-   * ------------------------------------------------------------------ */
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   bool all_index_have_shape_value = true;
-  std::vector<Array<PrimExpr>> index_shapes;  // only filled when fully known
+  std::vector<Array<PrimExpr>> index_shapes;
   int max_index_ndim = 0;
 
   for (const auto& s : indices_sinfo) {
@@ -545,12 +536,10 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
     }
   }
 
-  Optional<Array<PrimExpr>> broadcast_shape;  // the `B` in        OutShape = B + data[k:]
+  Optional<Array<PrimExpr>> broadcast_shape;
   bool shape_unknown = !all_index_have_shape_value;
 
   if (all_index_have_shape_value) {
-    // --- pair‑wise numpy‑style broadcasting --------------------------------
-
     // initialise broadcast result with 1’s
     Array<PrimExpr> out_shape;
     for (int i = 0; i < max_index_ndim; ++i) {
@@ -570,22 +559,22 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
         const auto* lhs_int = lhs_dim.as<IntImmNode>();
         const auto* rhs_int = rhs_dim.as<IntImmNode>();
 
-        // Case 1: current broadcast slot is 1 → always replace
+        // Case 1: current broadcast slot is 1 -> always replace
         if (lhs_int && lhs_int->value == 1) {
           out_shape.Set(lhs_axis, rhs_dim);
           continue;
         }
-        // Case 2: rhs is 1  → keep lhs_dim unchanged
+        // Case 2: rhs is 1 -> keep lhs_dim unchanged
         if (rhs_int && rhs_int->value == 1) {
           continue;
         }
         // Both are non‑one constants: must equal
         if (lhs_int && rhs_int && lhs_int->value != rhs_int->value) {
           ctx->ReportFatal(Diagnostic::Error(call)
-                           << "index_tensor: cannot broadcast index shapes; mismatch at axis "
+                           << "index_tensor: cannot broadcast index shapes. Mismatch at axis "
                            << lhs_axis << ": " << lhs_dim << " vs " << rhs_dim);
         }
-        // Otherwise (symbolics) – require provably equal, else give up
+        // Give up if not provablt equal
         if (!analyzer->CanProveEqual(lhs_dim, rhs_dim)) {
           shape_unknown = true;
           break;
@@ -597,9 +586,7 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
     if (!shape_unknown) broadcast_shape = out_shape;
   }
 
-  /* ------------------------------------------------------------------ *
-   * 4.  Derive output ndim (= |B| + (data.ndim – k)) when possible.     *
-   * ------------------------------------------------------------------ */
+  // Count of dimensions in output
   int out_ndim = kUnknownNDim;
   if (!data_sinfo->IsUnknownNdim()) {
     int tail_ndim = data_sinfo->ndim - n_indices;
@@ -610,9 +597,7 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
     }
   }
 
-  /* ------------------------------------------------------------------ *
-   * 5.  Construct final explicit output shape when fully known.         *
-   * ------------------------------------------------------------------ */
+  // Derive output shape
   if (broadcast_shape.defined()) {
     const auto* data_shape_expr = data_sinfo->shape.as<ShapeExprNode>();
     if (data_shape_expr) {
@@ -624,9 +609,7 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
     }
   }
 
-  /* ------------------------------------------------------------------ *
-   * 6.  Fallback: known rank only, or completely unknown.               *
-   * ------------------------------------------------------------------ */
+  // Unknown output shape
   return TensorStructInfo(output_dtype, out_ndim, vdev);
 }
 
