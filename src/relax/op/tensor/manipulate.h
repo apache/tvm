@@ -200,16 +200,15 @@ Expr gather_elements(Expr data, Expr indices, int axis = 0);
  */
 Expr gather_nd(Expr data, Expr indices, int batch_dims = 0);
 
-/*! // TODO update this comment
- * \brief Gather values from a tensor using N-dimensional indices.
+/*!
+ * \brief NumPy/PyTorch‑style advanced indexing with tensors.
  * \param data The input tensor.
- * \param indices The indices tensor, must have integer type.
- * \return The computed result.
+ * \param indices  A Tuple expression (or list) containing the index tensors.
+ * \return The indexed tensor.
  *
- * \note For batch_dims > 0, the first batch_dims dimensions of data and indices must be equal.
- *       The last dimension of indices indicates the depth of each index vector.
- *       The output shape is batch_dims + indices.shape[:-1] + data.shape[batch_dims +
- * indices.shape[-1]:]
+ * \note When all shapes are static, Relax checks that the index shapes are
+ *       broadcast-compatible. Bounds checking of the values in indices is
+ *       deferred to runtime.
  */
 Expr index_tensor(Expr data, Expr indices);
 

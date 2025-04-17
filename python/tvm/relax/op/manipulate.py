@@ -508,24 +508,61 @@ def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0) -> Expr:
     return _ffi_api.gather_nd(data, indices, batch_dims)  # type: ignore
 
 
-# TODO change names of args and remove axis arg
 def index_tensor(data: Expr, indices: Union[Expr, List[Expr]]) -> Expr:
-    """Concatenate the input tensors along the given axis.
+    """Advanced‑tensor indexing (NumPy/PyTorch‐style).
+
+    Given k index tensors ``indices = (I0, I1, …, Ik‑1)`` this
+    operator selects elements from ``data`` as if one had written
+    ``data[I0, I1, …, Ik‑1]`` in NumPy/PyTorch:
+
+    * All index tensors must have an integer dtype.
+    * Their shapes are broadcast together to a common shape ``B`` in
+      the usual NumPy way.
+    * The result shape is ``B + data.shape[k:]`` (i.e. the broadcast
+      shape followed by the remaining axes of ``data`` that are *not*
+      indexed).
+    * At compile‑time Relax checks
+      * the number of index tensors ``k`` does not exceed
+        ``data.ndim``,
+      * the dtypes are integer,
+      * the shapes are consitent (broadcast‑compatible).
 
     Parameters
     ----------
-    tensors : Union[relax.Expr, List[relax.Expr]]
-        An Expr in Tuple type, containing the tensors to be concatenated,
-        or a list of Tensors.
+    data : relax.Expr
+        The input tensor to be indexed.
 
-    axis : Optional[int]
-        The axis along which the tensors are concatenated.
-        If `axis` is `None`, the input tensor is required to be flattened before concatenation.
+    indices : Union[relax.Expr, List[relax.Expr]]
+        A Tuple expression containing the index tensors,
+        or a Python ``list`` / ``tuple`` that will be promoted to a
+        tuple expression automatically. Each tensor must have an
+        integer dtype.
 
     Returns
     -------
-    result: relax.Expr
-        The concatenated tensor.
+    result : relax.Expr
+        The tensor obtained after advanced indexing.  Its dtype equals
+        ``data.dtype``
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import numpy as np
+        import tvm.relax as R
+
+        x   = R.const(np.arange(9).reshape(3, 3).astype("float32"))
+        row = R.const(np.array([0, 2]))        # shape (2,)
+        col = R.const(np.array([1, 0]))        # shape (2,)
+
+        y = R.index_tensor(x, [row, col])
+        # y.shape == (2,) ;  y == [1., 6.]
+
+        # Broadcasting: row : (2,1), col : (1,3)  →  B = (2,3)
+        row = R.const(np.array([[0],[1]]))
+        col = R.const(np.array([[0,1,2]]))
+        z = R.index_tensor(x, [row, col])
+        # z.shape == (2,3)
     """
     if isinstance(indices, (list, tuple)):
         indices = RxTuple(indices)

@@ -1053,8 +1053,52 @@ def trilu(data, k, upper):
 
     return te.compute(data.shape, _apply_trilu, name="trilu", tag=topi.tag.ELEMWISE)
 
+def index_tensor(data, indices):
+    """Advanced‑tensor indexing (NumPy/PyTorch‐style).
 
-def index_tensor(data, indices):  # TODO remove axis argument
-    """TODO docstring"""
+    Given k index tensors ``indices = (I0, I1, …, Ik‑1)`` this
+    operator selects elements from ``data`` as if one had written
+    ``data[I0, I1, …, Ik‑1]`` in NumPy/PyTorch:
 
+    * All index tensors must have an integer dtype.
+    * Their shapes are broadcast together to a common shape ``B`` in
+      the usual NumPy way.
+    * The result shape is ``B + data.shape[k:]`` (i.e. the broadcast
+      shape followed by the remaining axes of ``data`` that are *not*
+      indexed).
+    *  ``k`` must not exceed ``data.ndim``; otherwise a compile‑time
+       error is raised.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The tensor to be indexed.
+
+    indices : Sequence[tvm.te.Tensor]
+        A Python ``list`` / ``tuple`` of **k** index tensors,
+        or a `tvm.te.Tensor` tuple expression. Each tensor must have an
+        integer dtype.
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        The tensor obtained after advanced indexing.  Its dtype equals
+        ``data.dtype``
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x     = te.placeholder((3, 3),  name="x")        # shape (3,3)
+        row   = te.placeholder((2,),    name="row", dtype="int32")
+        col   = te.placeholder((2,),    name="col", dtype="int32")
+
+        # Equivalent to x[row, col] in NumPy / PyTorch
+        y = topi.index_tensor(x, [row, col])             # shape (2,)
+
+        # Broadcasting example:
+        row = te.placeholder((2, 1), name="row", dtype="int32")
+        col = te.placeholder((1, 3), name="col", dtype="int32")
+        z = topi.index_tensor(x, [row, col])             # shape (2, 3)
+    """
     return topi.adv_index(data, indices)
