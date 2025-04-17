@@ -1153,19 +1153,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.scatter_elements(x, index, src, axis=dim))
 
     def _sort(self, node: fx.Node) -> relax.Var:
+        # torch.sort() returns a tuple of values and indices
+        # we use argsort to get indices and gather_elements to get values
         x = self.env[node.args[0]]
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
-        descending = (
-            node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False)
-        )
+        descending = (node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False))
         
-        # 1. indices: argsort already gives the permutation we need
         indices = self.block_builder.emit(relax.op.argsort(x, dim, descending))
-        
-        # 2. values: gather the tensor elements with those indices
         values = self.block_builder.emit(relax.op.gather_elements(x, indices, axis=dim))
-        
-        # 3. return the exact PyTorch ABI: (values, indices)
         return self.block_builder.emit(relax.Tuple([values, indices]))
 
     def _split(self, node: fx.Node) -> relax.Var:

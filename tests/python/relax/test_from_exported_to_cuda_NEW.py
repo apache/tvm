@@ -38,10 +38,6 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
 
     with torch.no_grad():
         exported_program = export(torch_module, example_args)
-        print("Exported program:", exported_program) # TODO remove
-        print("Exported program graph:", exported_program.graph) # TODO remove
-        print("Exported program graph signature:", exported_program.graph_signature) # TODO remove
-        print("Exported program graph module:", exported_program.graph_module) # TODO remove
         mod_from_torch = from_exported_program(exported_program, keep_params_as_input=True)
 
     tvm_mod, tvm_params = relax.frontend.detach_params(mod_from_torch)
