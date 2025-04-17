@@ -563,6 +563,7 @@ def index_tensor(data: Expr, indices: Union[Expr, List[Expr]]) -> Expr:
         col = R.const(np.array([[0,1,2]]))
         z = R.index_tensor(x, [row, col])
         # z.shape == (2,3)
+
     """
     if isinstance(indices, (list, tuple)):
         indices = RxTuple(indices)
