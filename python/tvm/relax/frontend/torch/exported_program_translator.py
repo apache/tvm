@@ -447,7 +447,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "full_like.default": self._full_like,
             "index_select.default": self._index_select,
             "lift_fresh_copy.default": self._to_copy,
-            "masked_fill.Scalar" : self._masked_fill,
+            "masked_fill.Scalar": self._masked_fill,
             "new_ones.default": self._new_ones,
             "one_hot.default": self._one_hot,
             "ones.default": self._ones,
