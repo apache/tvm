@@ -30,7 +30,6 @@
 #include <utility>
 #include <vector>
 
-#include "tvm/relax/type.h"  // kUnknownNDim
 #include "tvm/runtime/data_type.h"
 
 namespace tvm {

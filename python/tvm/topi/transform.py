@@ -1053,6 +1053,7 @@ def trilu(data, k, upper):
 
     return te.compute(data.shape, _apply_trilu, name="trilu", tag=topi.tag.ELEMWISE)
 
+
 def index_tensor(data, indices):
     """Advanced‑tensor indexing (NumPy/PyTorch‐style).
 
