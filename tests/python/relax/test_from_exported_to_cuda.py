@@ -204,9 +204,7 @@ def test_ones(target, dev):
             return torch.ones((2, 3))
 
     torch_module = FullModel().eval()
-
     raw_data = np.random.rand(1, 1).astype("float32")
-
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
