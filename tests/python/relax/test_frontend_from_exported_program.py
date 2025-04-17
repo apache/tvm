@@ -3223,6 +3223,27 @@ def test_fill():
     example_args = (torch.randn(10, 10, dtype=torch.float32),)
     verify_model(Fill(), example_args, {}, Expected)
 
+def test_masked_fill():
+    class Masked_Fill(Module):
+        def forward(self, input: torch.Tensor, mask: torch.Tensor):
+            return torch.masked_fill(input,mask,0)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((128, 128), dtype="float32"),
+            mask: R.Tensor((128, 128), dtype="bool")
+        ) -> R.Tuple(R.Tensor((128, 128), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.full_like(input, R.const(0, "int32"), dtype="void")
+                lv1: R.Tensor((128, 128), dtype="float32") = R.where(mask, lv, input)
+                gv: R.Tuple(R.Tensor((128, 128), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(128, 128, dtype=torch.float32),torch.rand(128,128) < 0.5 )
+    verify_model(Masked_Fill(), example_args, {}, Expected)
 
 def test_new_ones():
     class NewOnes(Module):
