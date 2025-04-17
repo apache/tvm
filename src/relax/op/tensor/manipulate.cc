@@ -1211,7 +1211,7 @@ Optional<Array<PrimExpr>> CheckStackOutputShape(const Call& call, const BlockBui
                                                int axis) {
   bool shape_unknown = false;
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
-  
+
   // Stack requires all input tensors to have identical shapes
   for (int d = 0; d < static_cast<int>(shape_values[0].size()); ++d) {
     for (int i = 1; i < static_cast<int>(shape_values.size()); ++i) {
@@ -1246,7 +1246,7 @@ StructInfo InferStructInfoStack(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
     ctx->ReportFatal(Diagnostic::Error(call) << "Stack op should have 1 argument");
   }
-  
+
   Array<TensorStructInfo> tensor_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[0]);
   if (tensor_sinfo.empty()) {
     ctx->ReportFatal(Diagnostic::Error(call)
@@ -1256,7 +1256,7 @@ StructInfo InferStructInfoStack(const Call& call, const BlockBuilder& ctx) {
 
   const auto* attrs = call->attrs.as<StackAttrs>();
   ICHECK(attrs != nullptr) << "Stack must have StackAttrs";
-  
+
   // Default axis is 0 if not specified
   int output_ndim = tensor_sinfo[0]->ndim + 1;  // Stack adds one dimension
   DataType output_dtype = DataType::Void();
@@ -1316,7 +1316,7 @@ StructInfo InferStructInfoStack(const Call& call, const BlockBuilder& ctx) {
   if (vdevice_unknown) vdev = NullOpt;
 
   // Normalize axis (default to 0 if not specified)
-  int axis = attrs->axis.defined() 
+  int axis = attrs->axis.defined()
              ? NormalizeAxis(call, ctx, output_ndim, attrs->axis.value()->value)
              : 0;
 
@@ -1381,7 +1381,7 @@ InferLayoutOutput InferLayoutStack(const Call& call,
   for (int i = 0; i < n_tensor; ++i) {
     input_layouts.push_back(layout);
   }
-  
+
   // For stack, we need to adjust the output layout by inserting a new axis
   std::string layout_str = layout->layout.name();
   int axis = attrs->axis.defined() ? attrs->axis.value()->value : 0;

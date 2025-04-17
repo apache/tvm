@@ -1122,12 +1122,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _stack(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
-        if len(args) == 1:
-            tensor_list = args[0]
-            dim = 0
-        else:
-            tensor_list, dim = args[0], args[1]
-        return self.block_builder.emit(relax.op.stack(tensor_list, dim))
+        tensor_list = args[0]
+        axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
+        return self.block_builder.emit(relax.op.stack(tensor_list, axis = axis))
 
     def _take(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
