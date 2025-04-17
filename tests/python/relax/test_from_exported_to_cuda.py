@@ -73,9 +73,7 @@ def test_index_tensor(target, dev):
             return x[torch.tensor([0])]
 
     torch_module = IndexModel0().eval()
-
     raw_data = np.random.rand(3, 3).astype("float32")
-
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
     class IndexModel1(nn.Module):
@@ -86,9 +84,7 @@ def test_index_tensor(target, dev):
             return x[torch.tensor([[0]])]
 
     torch_module = IndexModel1().eval()
-
     raw_data = np.random.rand(2, 3).astype("float32")
-
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
     class IndexTensorModel2(nn.Module):
@@ -99,9 +95,7 @@ def test_index_tensor(target, dev):
             return x[torch.tensor([0, 2])]
 
     torch_module = IndexTensorModel2().eval()
-
     raw_data = np.random.rand(3, 4).astype("float32")
-
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
     class IndexTensorModel3(nn.Module):
@@ -181,9 +175,7 @@ def test_full(target, dev):
             return torch.full((2, 3), 3.141592)
 
     torch_module = FullModel().eval()
-
     raw_data = np.random.rand(3, 3).astype("float32")
-
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
@@ -199,7 +191,6 @@ def test_full_like(target, dev):
 
     torch_module = FullLike().eval()
     raw_data = np.random.rand(2, 3).astype("float32")
-
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
