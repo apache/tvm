@@ -953,7 +953,9 @@ def test_binary3():
     @tvm.script.ir_module
     class expected_rsub1:
         @R.function
-        def main(x: R.Tensor((10, 10), dtype="float32"), y: R.Tensor((10, 10), dtype="float32")) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+        def main(
+            x: R.Tensor((10, 10), dtype="float32"), y: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.subtract(y, x)
                 gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv,)
@@ -963,7 +965,9 @@ def test_binary3():
     @tvm.script.ir_module
     class expected_rsub2:
         @R.function
-        def main(x: R.Tensor((10, 10), dtype="float32")) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+        def main(
+            x: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.subtract(R.const(5.0, "float32"), x)
                 gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv,)
