@@ -567,6 +567,10 @@ def test_leakyrelu():
         def forward(self, input):
             return torch.nn.functional.leaky_relu(input, 0.02)
 
+    class LeakyReLU2(Module):
+        def forward(self, input):
+            return torch.ops.aten.leaky_relu_(input, 0.02)
+
     @tvm.script.ir_module
     class expected:
         @R.function
@@ -583,6 +587,7 @@ def test_leakyrelu():
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     verify_model(LeakyReLU0(), example_args, {}, expected)
     verify_model(LeakyReLU1(), example_args, {}, expected)
+    verify_model(LeakyReLU2(), example_args, {}, expected)
 
 
 def test_logaddexp():

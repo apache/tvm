@@ -293,6 +293,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "isinf.default": self._unary_op(relax.op.isinf),
             "isnan.default": self._unary_op(relax.op.isnan),
             "leaky_relu.default": self._leakyrelu,
+            "leaky_relu_.default": self._leakyrelu,
             "log.default": self._unary_op(relax.op.log),
             "log2.default": self._log2,
             "log10.default": self._log10,
