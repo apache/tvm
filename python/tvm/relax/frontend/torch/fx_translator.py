@@ -427,6 +427,11 @@ class TorchFXImporter(BaseFXGraphImporter):
             return self.block_builder.emit(relax.op.max(relax.op.abs(data), axis=axis, keepdims=keepdims))
         elif order == float("-inf"):
             return self.block_builder.emit(relax.op.min(relax.op.abs(data), axis=axis, keepdims=keepdims))
+        # frobenius_norm
+        elif order == "fro":
+            return self.block_builder.emit(
+                relax.op.sqrt(relax.op.sum(relax.op.multiply(data, data), axis=axis, keepdims=keepdims))
+            )
         else:
             reci_order = relax.const(1 / order, dtype=dtype)
             order = relax.const(order, dtype=dtype)
