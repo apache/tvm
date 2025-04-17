@@ -410,6 +410,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "upsample_nearest2d.vec": self._upsample_nearest2d,
             # statistical
             "mean.dim": self._mean,
+            "linalg_vector_norm.default": self._norm,
             "prod.default": self._prod,
             "std.correction": self._std,
             "sum.default": self._sum,
