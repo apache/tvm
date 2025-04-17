@@ -111,14 +111,26 @@ def test_ones(target, dev):
 
 @tvm.testing.parametrize_targets("cuda")
 def test_sort(target, dev):
-    class SortModel(nn.Module):
+    raw_data = np.array([[4, 1, 13], [-30, 1, 3], [4, 0, 10]]).astype("float32")
+
+    # Test values
+    class SortModelValues(nn.Module):
         def forward(self, x):
             A, _ = torch.sort(x, dim=0, descending=True)
             B, _ = torch.sort(x, dim=1, descending=False)
             return A + B
 
-    torch_module = SortModel().eval()
-    raw_data = np.array([[4, 1, 13], [-30, 1, 3], [4, 0, 10]]).astype("float32")
+    torch_module = SortModelValues().eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+    # Test indices
+    class SortModelIndices(nn.Module):
+        def forward(self, x):
+            _, A = torch.sort(x, dim=0, descending=True)
+            _, B = torch.sort(x, dim=1, descending=False)
+            return A + B
+
+    torch_module = SortModelIndices().eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
