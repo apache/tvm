@@ -39,7 +39,7 @@ concurrency:
 jobs:
   upload-ci-resource:
     if: github.repository == 'apache/tvm'
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     steps:
       - name: Download item and upload to S3
         env:
