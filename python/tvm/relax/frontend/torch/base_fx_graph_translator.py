@@ -901,6 +901,24 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
 
+    def _pad(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        pad = node.args[1]
+        mode = node.args[2] if len(node.args) > 2 else node.kwargs.get("mode", "constant")
+        value = node.args[3] if len(node.args) > 3 else node.kwargs.get("value", 0.0)
+        value = 0.0 if value is None else value
+
+        # Calculate symmetric padding width for each dimension
+        # and applying them in reverse order to match the input dimensions.
+        input_ndim = x.struct_info.ndim
+        pad_width = [0] * (input_ndim * 2)
+        pad_pairs = [pad[i : i + 2] for i in range(0, len(pad), 2)]
+        reversed_pairs = list(reversed(pad_pairs))
+        flattened = [value for pair in reversed_pairs for value in pair]
+        pad_width[-len(flattened) :] = flattened
+
+        return self.block_builder.emit(relax.op.nn.pad(x, pad_width, mode, value))
+
     def _scaled_dot_product_attention(self, node: fx.Node) -> relax.Var:
         transpose_S_H = lambda tensor: relax.op.permute_dims(tensor, [0, 2, 1, 3])
         query = transpose_S_H(self.env[node.args[0]])

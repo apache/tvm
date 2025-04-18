@@ -1850,6 +1850,95 @@ def test_conv3d():
     verify_model(model, example_args, binding, expected2)
 
 
+def test_pad():
+    class PadModel(torch.nn.Module):
+        def __init__(self, pad, mode="constant", value=0.0):
+            super().__init__()
+            self.pad = pad
+            self.mode = mode
+            self.value = value
+
+        def forward(self, x):
+            if self.mode == "constant":
+                return torch.nn.functional.pad(x, self.pad, mode=self.mode, value=self.value)
+            else:
+                return torch.nn.functional.pad(x, self.pad, mode=self.mode)
+
+    @tvm.script.ir_module
+    class expected_constant:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(
+                    x,
+                    pad_width=[0, 0, 0, 0, 2, 2, 1, 1],
+                    pad_mode="constant",
+                    pad_value=0.0,
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected_reflect:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(
+                    x,
+                    pad_width=[0, 0, 0, 0, 2, 2, 1, 1],
+                    pad_mode="reflect",
+                    pad_value=0.0,
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected_replicate:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(
+                    x,
+                    pad_width=[0, 0, 0, 0, 2, 2, 1, 1],
+                    pad_mode="replicate",
+                    pad_value=0.0,
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected_circular:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 14, 12), dtype="float32") = R.nn.pad(
+                    x,
+                    pad_width=[0, 0, 0, 0, 2, 2, 1, 1],
+                    pad_mode="circular",
+                    pad_value=0.0,
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 14, 12), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+    verify_model(PadModel(pad=[1, 1, 2, 2]), example_args, {}, expected_constant)
+    verify_model(PadModel(pad=[1, 1, 2, 2], mode="reflect"), example_args, {}, expected_reflect)
+    verify_model(PadModel(pad=[1, 1, 2, 2], mode="replicate"), example_args, {}, expected_replicate)
+    verify_model(PadModel(pad=[1, 1, 2, 2], mode="circular"), example_args, {}, expected_circular)
+
+
 def test_einsum():
     class Einsum1(Module):
         def __init__(self):
