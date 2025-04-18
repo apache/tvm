@@ -4910,13 +4910,13 @@ def test_norm():
             return gv
 
     norms = [
-        ((float('inf'), None, False), Expected1),
-        ((float('-inf'), None, False), Expected2),
+        ((float("inf"), None, False), Expected1),
+        ((float("-inf"), None, False), Expected2),
         ((float(2), None, False), Expected3),
         ((float(1.0), None, False), Expected4),
         ((float(-4), None, True), Expected5),
         ((float(0.5), None, True), Expected6),
-        (("fro", None, False), Expected7)
+        (("fro", None, False), Expected7),
     ]
 
     for (p, dim, keepdim), expected in norms:
