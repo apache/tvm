@@ -1194,21 +1194,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _stack(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
+        tensor_list = args[0]
         axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
-        in_args = args[0]
-        assert all(
-            a.struct_info.shape[axis] == in_args[0].struct_info.shape[axis] for a in in_args[1:]
-        ), "Expect all dim at {} to be the same, get {}".format(
-            axis, [a.struct_info.shape for a in args]
-        )
-        cat = self.block_builder.emit(relax.op.concat(in_args, axis=axis))
-        s_shape = []
-        for idx, s in enumerate(cat.struct_info.shape):
-            if idx == axis:
-                s_shape.extend([len(in_args), in_args[0].struct_info.shape[axis]])
-            else:
-                s_shape.append(s)
-        return self.block_builder.emit(relax.op.reshape(cat, s_shape))
+        return self.block_builder.emit(relax.op.stack(tensor_list, axis=axis))
 
     def _take(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]

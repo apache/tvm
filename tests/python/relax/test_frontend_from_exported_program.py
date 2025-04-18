@@ -3060,6 +3060,70 @@ def test_squeeze():
     verify_model(Squeeze2(), example_args, {}, Expected2)
 
 
+def test_stack():
+    class Stack0(Module):
+        def forward(self, x, y):
+            return torch.stack((x, y))  # default dim=0
+
+    class Stack1(Module):
+        def forward(self, x, y):
+            return torch.stack((x, y), dim=1)
+
+    class Stack2(Module):
+        def forward(self, x, y):
+            return torch.stack((x, y), 1)  # positional dim
+
+    class Stack3(Module):
+        def forward(self, x, y):
+            return torch.stack((x, y), dim=-1)  # negative dim
+
+    @I.ir_module
+    class Expected0:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+            inp_1: R.Tensor((2, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 2, 3), dtype="float32") = R.stack((inp_0, inp_1), axis=0)
+                gv: R.Tuple(R.Tensor((2, 2, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+            inp_1: R.Tensor((2, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 2, 3), dtype="float32") = R.stack((inp_0, inp_1), axis=1)
+                gv: R.Tuple(R.Tensor((2, 2, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+            inp_1: R.Tensor((2, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 3, 2), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((2, 3, 2), dtype="float32") = R.stack((inp_0, inp_1), axis=-1)
+                gv: R.Tuple(R.Tensor((2, 3, 2), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 3, dtype=torch.float32), torch.randn(2, 3, dtype=torch.float32))
+
+    verify_model(Stack0(), example_args, {}, Expected0)
+    verify_model(Stack1(), example_args, {}, Expected1)
+    verify_model(Stack2(), example_args, {}, Expected1)
+    verify_model(Stack3(), example_args, {}, Expected3)
+
+
 def test_tile():
     class Tile1(Module):
         def forward(self, x):

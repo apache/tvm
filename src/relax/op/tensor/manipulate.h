@@ -117,7 +117,13 @@ Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis)
  * \return The squeezed result.
  */
 Expr squeeze(Expr x, Optional<Array<Integer>> axis);
-
+/*!
+ * \brief Stack tensors along the specified axis.
+ * \param tensors The input tensors to be stacked.
+ * \param axis The axis along which the tensors will be stacked.
+ * \return The stacked result.
+ */
+Expr stack(Expr tensors, Optional<Integer> axis);
 /*!
  * \brief Return a summation of data to the shape of collapse_target.
  * For details, please see the operator `relax.collapse_sum_to`.
