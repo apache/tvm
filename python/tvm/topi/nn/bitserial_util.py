@@ -28,10 +28,18 @@ def bitpack(data, bits, pack_axis, bit_axis, pack_type, name="QuantizeInput"):
 
     Parameters
     ----------
+    data : tvm.te.Tensor
+        The input tvm tensor
+    bits : int
+        Number of bits to use for packing
     pack_axis : int
        index of the axis to pack in data
     bit_axis : int
        index of axis to place bit axis in resulting packed data
+    pack_type : str
+        Data type for packing, must be one of: ['uint8', 'uint16', 'uint32', 'uint64']
+    name : Optional[str] = "QuantizeInput"
+        Name for the operation
     """
     ishape = data.shape
     n = len(ishape)
