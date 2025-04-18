@@ -262,10 +262,7 @@ class VarTable:
         """
         # Skip if the key and value are equal to those in the var_table
         if self.name2value[var] and isinstance(self.name2value[var][-1], type(value)):
-            if (
-                isinstance(value, np.ndarray)
-                and (self.name2value[var][-1] == value).all()
-            ):
+            if isinstance(value, np.ndarray) and (self.name2value[var][-1] == value).all():
                 return
             elif self.name2value[var][-1] == value:
                 return
@@ -407,9 +404,7 @@ class Parser(doc.NodeVisitor):
         """
 
         self.dispatch_tokens.append(token)
-        enter_func = dispatch.get(
-            token=token, type_name="enter_token", default=lambda *args: None
-        )
+        enter_func = dispatch.get(token=token, type_name="enter_token", default=lambda *args: None)
         context = enter_func(self)
 
         def pop_token():
@@ -673,9 +668,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "tvm_annotation")(self, node)
 
-    def visit_FunctionDef(
-        self, node: doc.FunctionDef
-    ) -> None:  # pylint: disable=invalid-name
+    def visit_FunctionDef(self, node: doc.FunctionDef) -> None:  # pylint: disable=invalid-name
         """The general function definition visit method.
 
         Parameters
@@ -789,9 +782,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "Assign")(self, node)
 
-    def visit_AnnAssign(
-        self, node: doc.AnnAssign
-    ) -> Any:  # pylint: disable=invalid-name
+    def visit_AnnAssign(self, node: doc.AnnAssign) -> Any:  # pylint: disable=invalid-name
         """The general annotated assign visiting method.
 
         Parameters
@@ -836,9 +827,7 @@ class Parser(doc.NodeVisitor):
         """
         return _dispatch(self, "If")(self, node)
 
-    def visit_AugAssign(
-        self, node: doc.AugAssign
-    ) -> Any:  # pylint: disable=invalid-name
+    def visit_AugAssign(self, node: doc.AugAssign) -> Any:  # pylint: disable=invalid-name
         """The general augmented assignment visiting method.
 
         Parameters
