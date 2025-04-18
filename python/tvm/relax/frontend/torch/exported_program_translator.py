@@ -305,6 +305,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "relu_.default": self._unary_op(relax.op.nn.relu),
             "round.default": self._round,
             "rsqrt.default": self._unary_op(relax.op.rsqrt),
+            "rsub.Tensor": self._rsub,
+            "rsub.Scalar": self._rsub,
             "selu.default": self._unary_op(relax.op.nn.selu),
             "sigmoid.default": self._unary_op(relax.op.sigmoid),
             "sign.default": self._unary_op(relax.op.sign),

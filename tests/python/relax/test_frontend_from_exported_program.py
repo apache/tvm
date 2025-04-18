@@ -935,6 +935,7 @@ def test_binary3():
         torch.randn(10, 10, dtype=torch.float32),
         torch.randn(10, 10, dtype=torch.float32),
     )
+    example_args2 = (torch.randn(10, 10, dtype=torch.float32),)
 
     # Max
     class Max1(Module):
@@ -975,6 +976,42 @@ def test_binary3():
             return gv
 
     verify_model(Min1(), example_args1, {}, expected_min1)
+
+    # RSub
+    class RSub1(Module):
+        def forward(self, x, y):
+            return torch.rsub(x, y)
+
+    class RSub2(Module):
+        def forward(self, x):
+            return torch.rsub(x, 5.0)
+
+    @tvm.script.ir_module
+    class expected_rsub1:
+        @R.function
+        def main(
+            x: R.Tensor((10, 10), dtype="float32"), y: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.subtract(y, x)
+                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected_rsub2:
+        @R.function
+        def main(
+            x: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.subtract(R.const(5.0, "float32"), x)
+                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(RSub1(), example_args1, {}, expected_rsub1)
+    verify_model(RSub2(), example_args2, {}, expected_rsub2)
 
 
 def test_batchnorm2d():
