@@ -27,7 +27,7 @@ def softmax(x, axis=-1):
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    x : tvm.te.Tensor
         can be any dimension
 
     axis : int
@@ -48,7 +48,7 @@ def fast_softmax(x, axis=-1):
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    x : tvm.te.Tensor
         can be any dimension
 
     axis : int
@@ -128,8 +128,11 @@ def log_softmax(x, axis=-1):
 
     Parameters
     ----------
-    data : tvm.te.Tensor
+    x : tvm.te.Tensor
         N-D input data
+
+    axis : int
+        channel axis
 
     Returns
     -------
