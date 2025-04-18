@@ -2968,6 +2968,131 @@ def test_reshape_as():
     verify_model(ReshapeAs(), example_args, {}, expected1)
 
 
+def test_roll():
+    class Roll1(Module):
+        def forward(self, x):
+            return torch.roll(x, 1)
+
+    class Roll2(Module):
+        def forward(self, x):
+            return torch.roll(x, -1, 0)
+
+    class Roll3(Module):
+        def forward(self, x):
+            return torch.roll(x, shifts=(2, 1), dims=(0, 1))
+
+    # Test case 1: torch.roll(x, 1)
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(x: R.Tensor((4, 2), dtype="int64")) -> R.Tuple(R.Tensor((4, 2), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tensor((8,), dtype="int64") = R.reshape(x, R.shape([8]))
+                lv1: R.Tensor((7,), dtype="int64") = R.strided_slice(
+                    lv,
+                    axes=[0],
+                    begin=[R.prim_value(0)],
+                    end=[R.prim_value(7)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False,
+                )
+                lv2: R.Tensor((1,), dtype="int64") = R.strided_slice(
+                    lv,
+                    axes=[0],
+                    begin=[R.prim_value(7)],
+                    end=[R.prim_value(8)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False,
+                )
+                lv3: R.Tensor((8,), dtype="int64") = R.concat((lv2, lv1), axis=0)
+                lv4: R.Tensor((4, 2), dtype="int64") = R.reshape(lv3, R.shape([4, 2]))
+                gv: R.Tuple(R.Tensor((4, 2), dtype="int64")) = (lv4,)
+                R.output(gv)
+            return gv
+
+    # Test case 2: torch.roll(x, -1, 0)
+    @I.ir_module
+    class Expected2:
+        @R.function
+        def main(x: R.Tensor((4, 2), dtype="int64")) -> R.Tuple(R.Tensor((4, 2), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tensor((1, 2), dtype="int64") = R.strided_slice(
+                    x,
+                    axes=[0],
+                    begin=[R.prim_value(0)],
+                    end=[R.prim_value(1)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False,
+                )
+                lv1: R.Tensor((3, 2), dtype="int64") = R.strided_slice(
+                    x,
+                    axes=[0],
+                    begin=[R.prim_value(1)],
+                    end=[R.prim_value(4)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False,
+                )
+                lv2: R.Tensor((4, 2), dtype="int64") = R.concat((lv1, lv), axis=0)
+                gv: R.Tuple(R.Tensor((4, 2), dtype="int64")) = (lv2,)
+                R.output(gv)
+            return gv
+
+    # Test case 3: torch.roll(x, shifts=(2,1), dims=(0,1))
+    @I.ir_module
+    class Expected3:
+        @R.function
+        def main(x: R.Tensor((4, 2), dtype="int64")) -> R.Tuple(R.Tensor((4, 2), dtype="int64")):
+            with R.dataflow():
+                # First roll along dim=0 with shift=2
+                lv: R.Tensor((2, 2), dtype="int64") = R.strided_slice(
+                    x,
+                    axes=[0],
+                    begin=[R.prim_value(0)],
+                    end=[R.prim_value(2)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False,
+                )
+                lv1: R.Tensor((2, 2), dtype="int64") = R.strided_slice(
+                    x,
+                    axes=[0],
+                    begin=[R.prim_value(2)],
+                    end=[R.prim_value(4)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False,
+                )
+                lv2: R.Tensor((4, 2), dtype="int64") = R.concat((lv1, lv), axis=0)
+
+                # Second roll along dim=1 with shift=1
+                lv3: R.Tensor((4, 1), dtype="int64") = R.strided_slice(
+                    lv2,
+                    axes=[1],
+                    begin=[R.prim_value(0)],
+                    end=[R.prim_value(1)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False,
+                )
+                lv4: R.Tensor((4, 1), dtype="int64") = R.strided_slice(
+                    lv2,
+                    axes=[1],
+                    begin=[R.prim_value(1)],
+                    end=[R.prim_value(2)],
+                    strides=[R.prim_value(1)],
+                    assume_inbound=False,
+                )
+                lv5: R.Tensor((4, 2), dtype="int64") = R.concat((lv4, lv3), axis=1)
+                gv: R.Tuple(R.Tensor((4, 2), dtype="int64")) = (lv5,)
+                R.output(gv)
+            return gv
+
+    # Test inputs
+    example_input = torch.randint(0, 10, (4, 2), dtype=torch.int64)
+
+    # Run verification for each case
+    verify_model(Roll1(), (example_input,), {}, Expected1)
+    verify_model(Roll2(), (example_input,), {}, Expected2)
+    verify_model(Roll3(), (example_input,), {}, Expected3)
+
+
 def test_select_slice():
     class Slice1(Module):
         def forward(self, x):
