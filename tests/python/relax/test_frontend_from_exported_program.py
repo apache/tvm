@@ -3693,6 +3693,34 @@ def test_new_ones():
     verify_model(NewOnes(), example_args, {}, expected1)
 
 
+def test_inplace_copy():
+    class Inplace_Copy(Module):
+        def forward(self, x, y):
+            x.copy_(y)
+            return x
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            y: R.Tensor((1, 2, 3, 4), dtype="float32"),
+        ) -> R.Tuple(
+            R.Tensor((1, 2, 3, 4), dtype="float32"),
+            R.Tensor((1, 2, 3, 4), dtype="float32"),
+        ):
+            with R.dataflow():
+                gv: R.Tuple(
+                    R.Tensor((1, 2, 3, 4), dtype="float32"),
+                    R.Tensor((1, 2, 3, 4), dtype="float32"),
+                ) = (y, y)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.rand(1, 2, 3, 4), torch.rand(1, 2, 3, 4))
+    verify_model(Inplace_Copy(), example_args, {}, Expected)
+
+
 def test_to_copy():
     # float
     class ToFloat(Module):

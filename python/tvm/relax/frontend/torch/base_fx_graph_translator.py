@@ -1364,6 +1364,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             dtype = self._convert_data_type(node.kwargs["dtype"], self.env)
             return self.block_builder.emit(relax.op.astype(x, dtype))
         return x
+    
+    def _inplace_copy(self, node: fx.Node) -> relax.Var:
+            dst = self.env[node.args[1]]
+            self.env[node.args[0]] = dst
+            return dst
 
     def _arange(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore

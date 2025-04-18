@@ -444,6 +444,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "reshape_as.default": self._reshape_as,
             # tensor creation
             "_to_copy.default": self._to_copy,
+            "copy.default": self._inplace_copy,
             "arange.default": self._arange,
             "arange.start": self._arange,
             "arange.start_step": self._arange,

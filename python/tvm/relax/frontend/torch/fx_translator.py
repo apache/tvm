@@ -782,6 +782,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "ones": self._ones,
             "one_hot": self._one_hot,
             "tensor": self._tensor,
+            "copy_": self._inplace_copy,
             # datatype
             "astype": self._type,
             "float": self._float,
