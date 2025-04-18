@@ -202,7 +202,6 @@ std::ostream& operator<<(std::ostream& out, ForKind type) {  // NOLINT(*)
 While::While(PrimExpr condition, Stmt body, Span span) {
   ICHECK(condition.defined());
   ICHECK(condition.dtype().is_scalar());
-  ICHECK(condition.as<tir::IntImmNode>() == nullptr) << "The condition should not be trivial.";
   ICHECK(body.defined());
 
   ObjectPtr<WhileNode> node = make_object<WhileNode>();
