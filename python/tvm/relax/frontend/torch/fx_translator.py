@@ -476,23 +476,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         self.env[node.args[0]] = filled
         return filled
 
-    def _inplace_masked_fill(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        mask = self.env[node.args[1]]
-        value = node.args[2]
-        rx_value = relax.const(value)
-        values = self.block_builder.emit(relax.op.full_like(x, rx_value))
-        output = self.block_builder.emit(relax.op.where(mask, values, x))
-        self.env[node.args[0]] = output
-        return output
-
-    def _masked_fill(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        mask = self.env[node.args[1]]
-        rx_value = relax.const(node.args[2])
-        values = self.block_builder.emit(relax.op.full_like(x, rx_value))
-        return self.block_builder.emit(relax.op.where(mask, values, x))
-
     def _masked_scatter(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         mask = self.env[node.args[1]]
