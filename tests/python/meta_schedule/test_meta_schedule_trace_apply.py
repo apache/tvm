@@ -105,7 +105,7 @@ class DenseAdd_scheduled_cpu:
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(p1[v0, v1])
                 T.writes(p1_global[v0 // 64, v1, v0 % 64])
-                T.block_attr({"meta_schedule.layout_rewrite_preproc": 1})
+                T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
                 p1_global[v0 // 64, v1, v0 % 64] = p1[v0, v1]
         for i0_0_i1_0_fused_fused in T.parallel(4):
             for i0_1, i1_1 in T.grid(8, 1):
@@ -184,7 +184,7 @@ class DenseAdd_cpu_no_write_cache:
                 v0, v1 = T.axis.remap("SS", [ax0, ax1])
                 T.reads(p1[v0, v1])
                 T.writes(p1_global[v1 // 16, v0 // 32, v1 % 16, v0 % 32])
-                T.block_attr({"meta_schedule.layout_rewrite_preproc":1})
+                T.block_attr({"meta_schedule.layout_rewrite_preproc": True})
                 p1_global[v1 // 16, v0 // 32, v1 % 16, v0 % 32] = p1[v0, v1]
         for i0_0_i1_0_i0_1_i1_1_fused in T.parallel(16, annotations={"pragma_auto_unroll_max_step":16, "pragma_unroll_explicit":1}):
             for i0_2_init, i1_2_init, i0_3_init in T.grid(4, 4, 2):
