@@ -66,9 +66,17 @@ class DataTypeCode(object):
     FLOAT = 2
     HANDLE = 3
     BFLOAT = 4
-    Float8E4M3FN = 6
-    Float8E5M2 = 7
-    Float4E2M1FN = 8
+    Float8E3M4 = 7
+    Float8E4M3 = 8
+    Float8E4M3B11FNUZ = 9
+    Float8E4M3FN = 10
+    Float8E4M3FNUZ = 11
+    Float8E5M2 = 12
+    Float8E5M2FNUZ = 13
+    Float8E8M0FNU = 14
+    Float6E2M3FN = 15
+    Float6E3M2FN = 16
+    Float4E2M1FN = 17
 
 
 class DataType(ctypes.Structure):

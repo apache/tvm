@@ -103,6 +103,14 @@ class TorchFXImporter(BaseFXGraphImporter):
         assert dim is not None
         return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
 
+    def _prelu_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        alpha_tensor = module.weight.numpy()
+        alpha = relax.const(alpha_tensor, dtype="float32")
+        axis = 0 if len(x.struct_info.shape) == 1 else 1  # Extract Channel size
+        return self.block_builder.emit(relax.op.nn.prelu(x, alpha, axis))
+
     def _softmax_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -496,23 +504,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         self.env[node.args[0]] = filled
         return filled
 
-    def _inplace_masked_fill(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        mask = self.env[node.args[1]]
-        value = node.args[2]
-        rx_value = relax.const(value)
-        values = self.block_builder.emit(relax.op.full_like(x, rx_value))
-        output = self.block_builder.emit(relax.op.where(mask, values, x))
-        self.env[node.args[0]] = output
-        return output
-
-    def _masked_fill(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        mask = self.env[node.args[1]]
-        rx_value = relax.const(node.args[2])
-        values = self.block_builder.emit(relax.op.full_like(x, rx_value))
-        return self.block_builder.emit(relax.op.where(mask, values, x))
-
     def _masked_scatter(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         mask = self.env[node.args[1]]
@@ -623,6 +614,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.Identity: lambda node: self.env[node.args[0]],
             nn.LeakyReLU: self._leakyrelu_module,
             nn.LogSoftmax: self._log_softmax_module,
+            nn.PReLU: self._prelu_module,
             nn.ReLU: self._unary_op(relax.op.nn.relu),
             nn.ReLU6: lambda node: self.block_builder.emit(
                 relax.op.clip(self.env[node.args[0]], 0, 6)
@@ -685,6 +677,8 @@ class TorchFXImporter(BaseFXGraphImporter):
             "logical_not": self._unary_op(relax.op.logical_not),
             "log_softmax": self._log_softmax,
             "neg": self._unary_op(relax.op.negative),
+            "pad": self._pad,
+            "prelu": self._prelu,
             "reciprocal": self._reciprocal,
             "relu": self._unary_op(relax.op.nn.relu),
             "round": self._round,
@@ -727,6 +721,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "pow": self._binary_op(relax.op.power, operator.pow),
             "or_": self._binary_op(relax.op.bitwise_or, operator.or_),
             "rshift": self._binary_op(relax.op.right_shift, operator.rshift),
+            "rsub": self._rsub,
             "sub": self._binary_op(relax.op.subtract, operator.sub),
             "truediv": self._binary_op(relax.op.divide, operator.truediv),
             "xor": self._binary_op(relax.op.bitwise_xor, operator.xor),
@@ -783,6 +778,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "numel": self._numel,
             "permute": self._permute,
             "repeat": self._repeat,
+            "roll": self._roll,
             "reshape": self._reshape,
             "scatter": self._scatter,
             "select": self._select,

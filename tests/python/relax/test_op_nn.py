@@ -36,6 +36,10 @@ def test_op_correctness():
     assert relax.op.nn.pad(x, (1, 1, 1, 1)).op == Op.get("relax.nn.pad")
 
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    alpha = relax.Var("alpha", R.Tensor((3,), "float32"))
+    assert relax.op.nn.prelu(x, alpha, axis=1).op == Op.get("relax.nn.prelu")
+
+    x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     gamma = relax.Var("gamma", R.Tensor((3,), "float32"))
     beta = relax.Var("beta", R.Tensor((3,), "float32"))
     moving_mean = relax.Var("moving_mean", R.Tensor((3,), "float32"))
