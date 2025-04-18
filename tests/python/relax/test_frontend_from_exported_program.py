@@ -4378,7 +4378,6 @@ def test_narrow():
 
 
 def test_norm():
-
     class Norm(Module):
         def __init__(self, p, dim=None, keepdim=False):
             super().__init__()
@@ -4453,7 +4452,9 @@ def test_norm():
                 lv: R.Tensor((1, 3, 5, 3), dtype="float32") = R.abs(inp_0)
                 lv1: R.Tensor((1, 3, 5, 3), dtype="float32") = R.power(lv, R.const(-4.0, "float32"))
                 lv2: R.Tensor((1, 1, 1, 1), dtype="float32") = R.sum(lv1, axis=None, keepdims=True)
-                lv3: R.Tensor((1, 1, 1, 1), dtype="float32") = R.power(lv2, R.const(-0.25, "float32"))
+                lv3: R.Tensor((1, 1, 1, 1), dtype="float32") = R.power(
+                    lv2, R.const(-0.25, "float32")
+                )
                 gv: R.Tuple(R.Tensor((1, 1, 1, 1), dtype="float32")) = (lv3,)
                 R.output(gv)
             return gv
@@ -4473,10 +4474,9 @@ def test_norm():
                 R.output(gv)
             return gv
 
-
     norms = [
-        ((float('inf'), None, False), Expected1),
-        ((float('-inf'), None, False), Expected2),
+        ((float("inf"), None, False), Expected1),
+        ((float("-inf"), None, False), Expected2),
         ((float(2), None, False), Expected3),
         ((float(1.0), None, False), Expected4),
         ((float(-4), None, True), Expected5),
