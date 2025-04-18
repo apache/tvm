@@ -542,7 +542,7 @@ def visit_return(self: Parser, node: doc.Return) -> None:
 
 
 @dispatch.register(token="tir", type_name="Continue")
-def visit_continue(self: Parser, node: doc.Continue) -> None:
+def visit_continue(self: Parser, node: doc.Continue) -> None:  # pylint:disable=unused-argument
     """The continue visiting method for tir.
 
     Parameters
@@ -557,7 +557,7 @@ def visit_continue(self: Parser, node: doc.Continue) -> None:
 
 
 @dispatch.register(token="tir", type_name="Break")
-def visit_break(self: Parser, node: doc.Break) -> None:
+def visit_break(self: Parser, node: doc.Break) -> None:  # pylint:disable=unused-argument
     """The continue visiting method for tir.
 
     Parameters
