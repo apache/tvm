@@ -605,6 +605,10 @@ def test_leakyrelu():
         def forward(self, input):
             return torch.nn.functional.leaky_relu(input, 0.02)
 
+    class LeakyReLU2(Module):
+        def forward(self, input):
+            return torch.ops.aten.leaky_relu_(input, 0.02)
+
     @tvm.script.ir_module
     class expected:
         @R.function
@@ -621,6 +625,7 @@ def test_leakyrelu():
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     verify_model(LeakyReLU0(), example_args, {}, expected)
     verify_model(LeakyReLU1(), example_args, {}, expected)
+    verify_model(LeakyReLU2(), example_args, {}, expected)
 
 
 def test_logaddexp():
@@ -2935,6 +2940,32 @@ def test_reshape():
 
     example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
     verify_model(Reshape(), example_args, {}, expected1)
+
+
+def test_reshape_as():
+    class ReshapeAs(Module):
+        def forward(self, x: torch.Tensor, y: torch.Tensor):
+            return x.reshape_as(y)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            x: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            y: R.Tensor((2, 12), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((2, 12), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((2, 12), dtype="float32") = R.reshape(x, (2, 12))
+                gv: R.Tuple(R.Tensor((2, 12), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(1, 2, 3, 4, dtype=torch.float32),
+        torch.randn(2, 12, dtype=torch.float32),
+    )
+    verify_model(ReshapeAs(), example_args, {}, expected1)
 
 
 def test_select_slice():

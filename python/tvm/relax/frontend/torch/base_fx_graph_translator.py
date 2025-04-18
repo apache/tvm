@@ -1172,6 +1172,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
         return self.block_builder.emit(relax.op.reshape(x, dims))
 
+    def _reshape_as(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        other = args[1]
+        dims = self.shape_of(other)
+        return self.block_builder.emit(relax.op.reshape(x, dims))
+
     def _scatter(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         if len(node.args) == 1:

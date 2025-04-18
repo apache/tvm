@@ -293,6 +293,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "isinf.default": self._unary_op(relax.op.isinf),
             "isnan.default": self._unary_op(relax.op.isnan),
             "leaky_relu.default": self._leakyrelu,
+            "leaky_relu_.default": self._leakyrelu,
             "log.default": self._unary_op(relax.op.log),
             "log2.default": self._log2,
             "log10.default": self._log10,
@@ -439,6 +440,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             ),
             "view.default": self._reshape,
             "reshape.default": self._reshape,
+            "reshape_as.default": self._reshape_as,
             # tensor creation
             "_to_copy.default": self._to_copy,
             "arange.default": self._arange,
