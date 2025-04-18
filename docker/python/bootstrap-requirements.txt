@@ -10,8 +10,9 @@ cffi==1.15.0 \
     --hash=sha256:fd8a250edc26254fe5b33be00402e6d287f562b6a5b2152dec302fa15bb3e997
 charset-normalizer==2.0.12 \
     --hash=sha256:6881edbebdb17b39b4eaaa821b438bf6eddffb4468cf344f09f89def34a8b1df
-cleo==0.8.1 \
-    --hash=sha256:141cda6dc94a92343be626bb87a0b6c86ae291dfc732a57bf04310d4b4201753
+cleo==2.0.0 \
+    --hash=sha256:daad7ff76134ebe2c7bf74520b1bbd59e6e77026535b967efc5a15a0eaa2e19c \
+    --hash=sha256:fbc5cb141cbc31ea8ffd3d5cd67d3b183fa38aa5098fd37e39e9a953a232fda9
 clikit==0.6.2 \
     --hash=sha256:71268e074e68082306e23d7369a7b99f824a0ef926e55ba2665e911f7208489e
 crashtest==0.3.1 \
