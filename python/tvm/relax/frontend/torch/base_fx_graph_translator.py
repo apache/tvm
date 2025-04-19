@@ -417,42 +417,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return self.block_builder.emit(relax.op.subtract(rhs, lhs))
 
-    ########## Linear Algebra ##########
-
-    def _linalg_vector_norm(self, node: fx.Node) -> relax.Var:
-
-        args = self.retrieve_args(node)
-
-        data = args[0]
-        # Default ord=2 if not supplied
-        ord_val = args[1] if len(args) > 1 else 2.0
-        dim = args[2] if len(args) > 2 else None
-        keepdim = args[3] if len(args) > 3 else False
-
-        # If ord_val is a Python float/int, wrap it in a Relax const
-        # so that it matches data's dtype.
-        dtype = data.struct_info.dtype
-        ord_expr = (
-            ord_val if isinstance(ord_val, relax.Expr) else relax.const(float(ord_val), dtype)
-        )
-        # Reciprocal
-        reci_expr = (
-            relax.op.divide(relax.const(1.0, dtype), ord_expr)
-            if isinstance(ord_val, relax.Expr)
-            else relax.const(1.0 / float(ord_val), dtype)
-        )
-
-        # abs(data)
-        abs_data = self.block_builder.emit(relax.op.abs(data))
-        # abs_data^ord
-        abs_data_pow = self.block_builder.emit(relax.op.power(abs_data, ord_expr))
-        # sum over dim
-        reduced = self.block_builder.emit(relax.op.sum(abs_data_pow, dim, keepdims=keepdim))
-        # (sum(...))^(1/ord)
-        norm_val = self.block_builder.emit(relax.op.power(reduced, reci_expr))
-
-        return norm_val
-
     ########## Neural Network ##########
 
     def _adaptive_avg_pool2d(self, node: fx.Node) -> relax.Var:
