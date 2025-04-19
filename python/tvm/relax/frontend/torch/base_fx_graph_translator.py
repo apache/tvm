@@ -782,6 +782,25 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             groups=groups,
         )
 
+    def _cross_entropy_loss(
+        self,
+        preds: relax.Expr,
+        targets: relax.Expr,
+        weights: Optional[relax.Expr],
+        reduction: str,
+        ignore_index: int,
+    ) -> relax.Expr:
+        log_probs = relax.op.nn.log_softmax(preds)
+        return self.block_builder.emit(
+            relax.op.nn.nll_loss(
+                log_probs,
+                targets,
+                weights,
+                reduction,
+                ignore_index,
+            )
+        )
+
     def _einsum(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
@@ -1096,8 +1115,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return self.block_builder.emit(relax.op.cumsum(x, dim, dtype))
 
-    def _expand(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
+
+    def _expand(self, node: fx.Node) -> relax.Var:
         sizes = args[1:] if len(args) > 2 else args[1]
         broadcast_shape, in_shape = [], self.shape_of(args[0])
         for idx, i in enumerate(sizes):

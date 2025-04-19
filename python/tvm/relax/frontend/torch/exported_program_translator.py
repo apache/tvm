@@ -66,7 +66,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     ########## Neural Network ##########
 
-    def _batch_norm(self, node: fx.Node, training) -> relax.Var:
+    def _batch_norm(self, node: fx.Node, training: bool) -> relax.Var:
         import numpy as np
 
         x = self.env[node.args[0]]
@@ -112,6 +112,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # This method is called for batch_norm in eval mode
         training = False
         return self._batch_norm(node, training)
+
+    def _cross_entropy_default(self, node: fx.Node) -> relax.Expr:
+        preds = self.env[node.args[0]]
+        targets = self.env[node.args[1]]
+        weight = self.env.get(node.args[2], None) if len(node.args) > 2 else None
+        reduction = node.kwargs.get("reduction", "mean")
+        ignore_index = node.kwargs.get("ignore_index", -100)
+        return self._cross_entropy_loss(preds, targets, weight, reduction, ignore_index)
 
     def _group_norm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -382,6 +390,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "conv1d.default": self._conv1d,
             "conv2d.default": self._conv2d,
             "conv3d.default": self._conv3d,
+            "cross_entropy_loss.default": self._cross_entropy_default,
             "einsum.default": self._einsum,
             "embedding.default": lambda node: self._embedding_impl(
                 self.env[node.args[1]], self.env[node.args[0]]
