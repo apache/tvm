@@ -447,7 +447,9 @@ class TorchFXImporter(BaseFXGraphImporter):
                 )
             )
         else:
-            ord_expr = (order if isinstance(order, relax.Expr) else relax.const(float(order), dtype=dtype) )
+            ord_expr = (
+                order if isinstance(order, relax.Expr) else relax.const(float(order), dtype=dtype)
+            )
             reci_order = (
                 relax.op.divide(relax.const(1.0, dtype), ord_expr)
                 if isinstance(order, relax.Expr)
@@ -455,7 +457,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             )
             return self.block_builder.emit(
                 relax.op.power(
-                    relax.op.sum(relax.op.power(relax.op.abs(data), ord_expr), axis=axis, keepdims=keepdims),
+                    relax.op.sum(
+                        relax.op.power(relax.op.abs(data), ord_expr), axis=axis, keepdims=keepdims
+                    ),
                     reci_order,
                 )
             )
