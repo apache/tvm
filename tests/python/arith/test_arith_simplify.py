@@ -113,7 +113,7 @@ def test_simplify_vscale_comparison_without_sve_target(capfd):
     warning_msg = (
         "Warning: The expression contains scalable values. An attempt to prove by substituting "
         "with known values of vscale was not performed. This proof currently only supports "
-        "AArch64 SVE targets, but the target was llvm -keys=arm_cpu,cpu -mtriple=aarch64-linux-gnu"
+        "VLA targets, but the target was llvm -keys=arm_cpu,cpu -mtriple=aarch64-linux-gnu"
     )
     capture = capfd.readouterr().err
     assert warning_msg in capture

@@ -35,9 +35,6 @@
 namespace tvm {
 namespace arith {
 
-/*! \brief A list of known vscale values to try for an AArch64 SVE target. */
-static const std::vector<unsigned int> kAArch64VScaleValues = {1, 2, 4, 8, 16};
-
 /*!
  * \brief Check if an expr is a call to the vscale intrinsic.
  * \param expr The expr to check
@@ -79,11 +76,18 @@ bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const Pr
                                              const std::vector<unsigned int>& vscale_values);
 
 /*!
- * \brief Check whether the compilation target supports SVE
+ * \brief Check whether the compilation target supports VLA
  * \param target The target to check.
- * \return Whether SVE is supported
+ * \return Whether VLA is supported
  */
-bool TargetHasSVE(Optional<Target> target = NullOpt);
+bool TargetHasVLA(Optional<Target> target = NullOpt);
+
+/*!
+ * \brief Get a list of known vscale values to try for an VLA target.
+ * \param target The target to check.
+ * \return A list of vscale values as std::vector<usigned int>
+ */
+const std::vector<unsigned int> GetVScaleValues(Optional<Target> target = NullOpt);
 
 }  // namespace arith
 }  // namespace tvm
