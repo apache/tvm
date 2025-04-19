@@ -231,17 +231,18 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
   // Current analysis may not be powerful enough to prove expressions containing
   // the same symbolic value multiple times. However, when the symbolic values are
   // "T.vscale" and the compile target uses a scalable architecture extension like
-  // SVE, we can make some assumptions about the value of vscale and iterate over a
+  // VLA, we can make some assumptions about the value of vscale and iterate over a
   // space of pre-defined values to attempt to prove the expression.
   Target curr_target = Target::Current();
   if (ContainsVscaleCall(simplified)) {
-    if (TargetHasSVE(curr_target)) {
-      return CanProveVscaleExpressionFromKnownValues(this, simplified, kAArch64VScaleValues);
+    if (TargetHasVLA(curr_target)) {
+      auto kVScaleValues = GetVScaleValues(curr_target);
+      return CanProveVscaleExpressionFromKnownValues(this, simplified, kVScaleValues);
     }
     LOG(WARNING)
         << "The expression contains scalable values. An attempt to prove by substituting "
            "with known values of vscale was not performed. This proof currently only supports "
-           "AArch64 SVE targets, but the target was "
+           "VLA targets, but the target was "
         << curr_target;
   }
   return false;
