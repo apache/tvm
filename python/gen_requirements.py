@@ -63,9 +63,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
         (
             "Base requirements needed to install tvm",
             [
-                "attrs",
                 "cloudpickle",
-                "decorator",
                 "ml_dtypes",
                 "numpy",
                 "psutil",
@@ -235,14 +233,12 @@ ConstraintsType = typing.List[typing.Tuple[str, typing.Union[None, str]]]
 #    here. Include a comment linking to context or explaining why the constraint is in place.
 CONSTRAINTS = [
     ("astroid", None),
-    ("attrs", None),
     ("autodocsumm", None),
     ("black", "==20.8b1"),
     ("cloudpickle", None),
     ("commonmark", ">=0.7.3"),  # From PR #213.
     ("coremltools", None),
     ("cpplint", None),
-    ("decorator", None),
     (
         "docutils",
         "<0.17",
