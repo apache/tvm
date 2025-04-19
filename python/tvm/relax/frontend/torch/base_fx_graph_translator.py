@@ -1115,9 +1115,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return self.block_builder.emit(relax.op.cumsum(x, dim, dtype))
 
-        args = self.retrieve_args(node)
-
     def _expand(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
         sizes = args[1:] if len(args) > 2 else args[1]
         broadcast_shape, in_shape = [], self.shape_of(args[0])
         for idx, i in enumerate(sizes):
