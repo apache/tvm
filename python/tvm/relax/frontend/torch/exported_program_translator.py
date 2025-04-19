@@ -327,6 +327,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "eq.Scalar": self._binary_op(relax.op.equal, operator.eq),
             "eq.Tensor": self._binary_op(relax.op.equal, operator.eq),
             "floor_divide.default": self._binary_op(relax.op.floor_divide, operator.floordiv),
+            "logaddexp.default": self._binary_op(relax.op.log_add_exp, torch.logaddexp),
             "ge.Scalar": self._binary_op(relax.op.greater_equal, operator.ge),
             "ge.Tensor": self._binary_op(relax.op.greater_equal, operator.ge),
             "gt.Scalar": self._binary_op(relax.op.greater, operator.gt),

@@ -52,6 +52,7 @@ TOPI_REGISTER_BCAST_OP("topi.subtract", topi::subtract);
 TOPI_REGISTER_BCAST_OP("topi.multiply", topi::multiply);
 TOPI_REGISTER_BCAST_OP("topi.divide", topi::divide);
 TOPI_REGISTER_BCAST_OP("topi.floor_divide", topi::floor_divide);
+TOPI_REGISTER_BCAST_OP("topi.log_add_exp", topi::log_add_exp);
 TOPI_REGISTER_BCAST_OP("topi.mod", topi::mod);
 TOPI_REGISTER_BCAST_OP("topi.floor_mod", topi::floor_mod);
 TOPI_REGISTER_BCAST_OP("topi.maximum", topi::maximum);
