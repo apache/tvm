@@ -74,11 +74,17 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         keepdims = node.args[3] if len(node.args) > 3 else False
 
         if order == float("inf"):
-            return self.block_builder.emit(relax.op.max(relax.op.abs(data), axis=axis, keepdims=keepdims))
+            return self.block_builder.emit(
+                relax.op.max(relax.op.abs(data), axis=axis, keepdims=keepdims)
+            )
         elif order == float("-inf"):
-            return self.block_builder.emit(relax.op.min(relax.op.abs(data), axis=axis, keepdims=keepdims))
+            return self.block_builder.emit(
+                relax.op.min(relax.op.abs(data), axis=axis, keepdims=keepdims)
+            )
         else:
-            ord_expr = (order if isinstance(order, relax.Expr) else relax.const(float(order), dtype=dtype) )
+            ord_expr = (
+                order if isinstance(order, relax.Expr) else relax.const(float(order), dtype=dtype)
+            )
             reci_order = (
                 relax.op.divide(relax.const(1.0, dtype), ord_expr)
                 if isinstance(order, relax.Expr)
@@ -86,7 +92,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             )
             return self.block_builder.emit(
                 relax.op.power(
-                    relax.op.sum(relax.op.power(relax.op.abs(data), ord_expr), axis=axis, keepdims=keepdims),
+                    relax.op.sum(
+                        relax.op.power(relax.op.abs(data), ord_expr), axis=axis, keepdims=keepdims
+                    ),
                     reci_order,
                 )
             )
@@ -226,7 +234,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             method="nearest_neighbor",
             align_corners=align_corners,
         )
-    
+
     ########## Manipulation ##########
 
     def _narrow(self, node: fx.Node) -> relax.Var:
