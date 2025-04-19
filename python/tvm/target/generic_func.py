@@ -17,14 +17,7 @@
 """Generic function."""
 
 import tvm._ffi
-
-try:
-    from decorator import decorate
-except ImportError:
-    # Allow decorator to be missing in runtime
-    if not tvm._ffi.base._RUNTIME_ONLY:
-        raise
-
+import functools
 from tvm.runtime import Object
 from .target import Target
 from . import _ffi_api
@@ -188,7 +181,8 @@ def override_native_generic_func(func_name):
                 return _do_reg(func)
             return _do_reg
 
-        def dispatch_func(func, *args, **kwargs):
+        @functools.wraps(fdefault)
+        def dispatch_func(*args, **kwargs):
             # pylint: disable=unused-argument
             """The wrapped dispath function"""
             if kwargs:
@@ -197,7 +191,7 @@ def override_native_generic_func(func_name):
                 )
             return generic_func_node(*args)
 
-        fresult = decorate(fdefault, dispatch_func)
+        fresult = functools.update_wrapper(dispatch_func, fdefault)
         fresult.fdefault = fdefault
         fresult.register = register
         fresult.generic_func_node = generic_func_node
@@ -296,7 +290,7 @@ def generic_func(fdefault):
                 return dispatch_dict[k]
         return fdefault
 
-    fdecorate = decorate(fdefault, dispatch_func)
+    fdecorate = functools.update_wrapper(dispatch_func, fdefault)
     fdecorate.register = register
     fdecorate.fdefault = fdefault
     fdecorate.dispatch_dict = dispatch_dict

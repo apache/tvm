@@ -31,7 +31,7 @@ HalideIR.
 import inspect
 import tvm._ffi
 import tvm.te.schedule
-from tvm._ffi.base import decorate
+import functools
 
 from .module import HybridModule
 from .parser import source_to_op
@@ -66,7 +66,7 @@ def script(pyfunc):
         _restore_runtime(func, intersect)
         return value
 
-    return decorate(pyfunc, wrapped_func)
+    return functools.update_wrapper(wrapped_func, pyfunc)
 
 
 def build(sch, inputs, outputs, name="hybrid_func"):
