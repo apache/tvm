@@ -45,6 +45,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
   decl_stream << "#define TVM_EXPORTS\n";
   decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
+  decl_stream << "#include \"tvm/ffi/c_api.h\"\n";
   decl_stream << "#include <math.h>\n";
   decl_stream << "#include <stdbool.h>\n";
   CodeGenCHost::InitGlobalContext();
@@ -80,10 +81,9 @@ void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func,
     PrintFuncPrefix(stream);
     PrintType(func->ret_type, stream);
     stream << " " << tvm::runtime::symbol::tvm_module_main
-           << "(void* args, int* arg_type_ids, int num_args, void* out_ret_value, "
-           << "int* out_ret_tcode, void* resource_handle) {\n";
+           << "(void* self, void* args,int num_args, void* result) {\n";
     stream << "  return " << global_symbol.value()
-           << "(args, arg_type_ids, num_args, out_ret_value, out_ret_tcode, resource_handle);\n";
+           << "(self, args, num_args, result);\n";
     stream << "}\n";
   }
 }

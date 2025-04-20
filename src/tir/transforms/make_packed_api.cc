@@ -40,12 +40,10 @@
 namespace tvm {
 namespace tir {
 
-static constexpr const char* kDeviceContextVar = "device_api_context";
-
 namespace {
 class ReturnRewriter : public StmtMutator {
  public:
-  explicit ReturnRewriter(Var ret_var, Var ret_tcode) : ret_var_(ret_var), ret_tcode_(ret_tcode) {}
+  explicit ReturnRewriter(Var ret_var) : ret_var_(ret_var) {}
 
   Stmt VisitStmt_(const ForNode* node) override {
     if (node->kind == ForKind::kParallel) in_parallel_ += 1;
@@ -70,10 +68,8 @@ class ReturnRewriter : public StmtMutator {
 
  private:
   struct ConvertedInfo {
-    int tcode{-1};
+    int type_index{-1};
     PrimExpr expr;
-    Buffer dummy_val_buffer;
-    Buffer dummy_tcode_buffer;
   };
 
   ConvertedInfo ConvertForFFI(PrimExpr val) {
@@ -82,40 +78,21 @@ class ReturnRewriter : public StmtMutator {
     // convert val's data type to FFI data type, return type code
     DataType dtype = val.dtype();
     if (dtype.is_bool()) {
-      info.tcode = kTVMArgBool;
+      info.type_index = ffi::TypeIndex::kTVMFFIBool;
       info.expr = Cast(DataType::Int(64), val);
 
     } else if (dtype.is_int() || dtype.is_uint()) {
-      info.tcode = kTVMArgInt;
+      info.type_index = ffi::TypeIndex::kTVMFFIInt;
       info.expr = Cast(DataType::Int(64), val);
     } else if (dtype.is_float()) {
-      info.tcode = kTVMArgFloat;
+      info.type_index = ffi::TypeIndex::kTVMFFIFloat;
       info.expr = Cast(DataType::Float(64), val);
     } else if (dtype.is_void()) {
-      info.tcode = kTVMNullptr;
+      info.type_index = ffi::TypeIndex::kTVMFFINone;
       info.expr = val;
     } else {
       LOG(FATAL) << "data type " << dtype << " not supported yet";
     }
-
-    // If multiple return locations have the same data type, use the
-    // same dummy buffer declaration.
-    auto it = dummy_val_buffer_map_.find(info.tcode);
-    if (it != dummy_val_buffer_map_.end()) {
-      info.dummy_val_buffer = it->second;
-    } else {
-      info.dummy_val_buffer = Buffer(ret_var_, info.expr.dtype(), {1}, {1}, ConstInt32(0),
-                                     ret_var_->name_hint, 0, 0, kDefault);
-      dummy_val_buffer_map_[info.tcode] = info.dummy_val_buffer;
-    }
-
-    // The tcode is always a 32-bit int, so we don't need to have a separate map.
-    if (!dummy_tcode_buffer_.defined()) {
-      dummy_tcode_buffer_ = Buffer(ret_tcode_, DataType::Int(32), {1}, {1}, ConstInt32(0),
-                                   ret_tcode_->name_hint, 0, 0, kDefault);
-    }
-    info.dummy_tcode_buffer = dummy_tcode_buffer_;
-
     return info;
   }
 
@@ -132,21 +109,12 @@ class ReturnRewriter : public StmtMutator {
                                  IntImm(DataType::Int(32), tir::builtin::kTVMFFIAnyUnionValue),
                                  info.expr}));
     Stmt ret_zero = Evaluate(tvm::ret(0));
-    return SeqStmt({store_val, store_tcode, ret_zero});
+    return SeqStmt({store_tindex, store_val, ret_zero});
   }
 
   Var ret_var_;
-  Var ret_tcode_;
   int in_parallel_{0};
-
-  std::unordered_map<int, Buffer> dummy_val_buffer_map_;
-  Buffer dummy_tcode_buffer_;
 };
-
-Stmt RewriteReturn(Stmt body, Var ret_var, Var ret_tcode) {
-  ReturnRewriter rewriter(ret_var, ret_tcode);
-  return rewriter(body);
-}
 
 class SubroutineCallRewriter : public StmtExprMutator {
  public:
@@ -254,14 +222,10 @@ PrimFunc MakePackedAPI(PrimFunc func) {
 
   // Data field definitions
   // The packed fields
+  Var v_self_handle("self_handle", DataType::Handle());
   Var v_packed_args("args", DataType::Handle());
-  Buffer buf_packed_arg_type_ids = decl_buffer({IntImm(DataType::Int(32), func_ptr->params.size())},
-                                               DataType::Int(32), "arg_type_ids");
   Var v_num_packed_args("num_args", DataType::Int(32));
-  Var v_out_ret_value("out_ret_value", PointerType(PrimType(DataType::Void())));
-  Var v_out_ret_tcode("out_ret_tcode", PointerType(PrimType(DataType::Int(32))));
-  Var v_resource_handle("resource_handle", DataType::Handle());
-  // The arguments of the function.
+  Var v_result("result", PointerType(PrimType(DataType::Void())));
 
   // The device context
   Var device_id("dev_id");
@@ -275,9 +239,9 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // ---------------------------
   // local function definitions
   // load i-th argument as type t
-  auto f_arg_value = [&](DataType arg_type, int i) {
+  auto f_load_arg_value = [&](DataType arg_type, int i) {
     Array<PrimExpr> call_args{v_packed_args, IntImm(DataType::Int(32), i),
-                              IntImm(DataType::Int(32), builtin::kTVMValueContent)};
+                              IntImm(DataType::Int(32), builtin::kTVMFFIAnyUnionValue)};
     // load 64 bit version
     DataType api_type = APIType(arg_type);
     PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args);
@@ -287,15 +251,6 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     }
     return res;
   };
-
-  // Find the device API context argument based on name
-  for (const auto& param : func_ptr->params) {
-    if (param->name_hint == kDeviceContextVar) {
-      num_args--;
-      v_resource_handle = param;
-      break;
-    }
-  }
 
   // Assert correct type codes for each argument.  This must be done
   // *before* any initialization steps produced by
@@ -311,74 +266,72 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   if (num_args > 0) {
     seq_init.push_back(
         MakeAssertNotNull(v_packed_args, name_hint + ": TVMValue* arg pointer was NULL"));
-    seq_init.push_back(
-        MakeAssertNotNull(buf_packed_arg_type_ids->data, name_hint + ": int* type_codes was NULL"));
   }
-
-  seq_init.emplace_back(DeclBuffer(buf_packed_arg_type_ids, nop));
 
   // Need to delay binding of the buffers, in case some arguments also
   // appear in the buffer.
   std::vector<std::pair<PrimExpr, Var>> var_def;
-  std::vector<std::pair<Var, Buffer>> buffer_def;
+  std::vector<std::tuple<Var, Buffer, Var>> buffer_def;
 
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
-
-    // Ignore the device context argument, as it will still be passed
-    // as a native argument.
-    if (param->name_hint == kDeviceContextVar) {
-      continue;
-    }
-
     PrimExpr arg_value;
-
-    // type code checks
-    Var tcode(param->name_hint + ".code", DataType::Int(32));
-    seq_init.emplace_back(
-        LetStmt(tcode, BufferLoad(buf_packed_arg_type_ids, {IntImm(DataType::Int(32), i)}), nop));
-    DataType t = param.dtype();
-    if (t.is_handle()) {
+    // type index checks
+    Var type_index(param->name_hint + ".type_index", DataType::Int(32));
+    seq_init.push_back(LetStmt(type_index,
+                               tir::Call(DataType::Int(32), builtin::tvm_struct_get(),
+                                         {v_packed_args, IntImm(DataType::Int(32), i),
+                                          IntImm(DataType::Int(32), builtin::kTVMFFIAnyTypeIndex)}),
+                               nop));
+    DataType dtype = param.dtype();
+    if (dtype.is_handle()) {
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be pointer";
-      seq_init.emplace_back(AssertStmt(tcode == kTVMOpaqueHandle || tcode == kTVMNDArrayHandle ||
-                                           tcode == kTVMDLTensorHandle || tcode == kTVMNullptr,
+      seq_init.emplace_back(AssertStmt(type_index == ffi::TypeIndex::kTVMFFINone ||
+                                           type_index == ffi::TypeIndex::kTVMFFIOpaquePtr ||
+                                           type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr ||
+                                           type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin,
                                        tvm::tir::StringImm(msg.str()), nop));
-
-      arg_value = f_arg_value(param.dtype(), i);
-    } else if (t.is_bool()) {
+      arg_value = f_load_arg_value(param.dtype(), i);
+    } else if (dtype.is_bool()) {
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be boolean";
-      seq_init.emplace_back(
-          AssertStmt(tcode == kTVMArgBool || tcode == kDLInt, tvm::tir::StringImm(msg.str()), nop));
+      seq_init.emplace_back(AssertStmt(
+          type_index == ffi::TypeIndex::kTVMFFIBool || type_index == ffi::TypeIndex::kTVMFFIInt,
+          tvm::tir::StringImm(msg.str()), nop));
+      arg_value = Cast(DataType::Bool(), f_load_arg_value(DataType::Int(64), i));
 
-      arg_value = cast(DataType::Bool(), f_arg_value(DataType::Int(64), i));
-
-    } else if (t.is_int() || t.is_uint()) {
+    } else if (dtype.is_int() || dtype.is_uint()) {
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be int";
-      seq_init.emplace_back(
-          AssertStmt(tcode == kDLInt || tcode == kTVMArgBool, tvm::tir::StringImm(msg.str()), nop));
-
-      arg_value = f_arg_value(t, i);
+      seq_init.emplace_back(AssertStmt(
+          type_index == ffi::TypeIndex::kTVMFFIInt || type_index == ffi::TypeIndex::kTVMFFIBool,
+          tvm::tir::StringImm(msg.str()), nop));
+      arg_value = f_load_arg_value(param.dtype(), i);
     } else {
-      ICHECK(t.is_float());
+      ICHECK(dtype.is_float());
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be float";
-      seq_init.emplace_back(AssertStmt(tcode == kDLFloat, tvm::tir::StringImm(msg.str()), nop));
-
-      arg_value = f_arg_value(param.dtype(), i);
+      seq_init.emplace_back(AssertStmt(type_index == ffi::TypeIndex::kTVMFFIFloat ||
+                                           type_index == ffi::TypeIndex::kTVMFFIInt ||
+                                           type_index == ffi::TypeIndex::kTVMFFIBool,
+                                       tvm::tir::StringImm(msg.str()), nop));
+      // use select so we can also handle int conversion to bool
+      arg_value = tir::Select(
+          type_index == ffi::TypeIndex::kTVMFFIFloat,
+          /* true_value = */ f_load_arg_value(param.dtype(), i),
+          /* false_value = */ Cast(param.dtype(), f_load_arg_value(DataType::Int(64), i)));
     }
-
     var_def.emplace_back(arg_value, param);
     if (func_ptr->buffer_map.count(param)) {
-      buffer_def.emplace_back(param, func_ptr->buffer_map[param]);
+      // buffer binding now depends on type index
+      // if the index is NDArray handle, we need to offset to get the DLTensor*
+      buffer_def.emplace_back(param, func_ptr->buffer_map[param], type_index);
     }
   }
 
-  Array<Var> args{v_packed_args,     buf_packed_arg_type_ids->data,
-                  v_num_packed_args, v_out_ret_value,
-                  v_out_ret_tcode,   v_resource_handle};
+  // signature: (void* self, TVMFFIAny* packed_args, int num_args, TVMFFIAny* v_result)
+  Array<Var> args{v_self_handle, v_packed_args, v_num_packed_args, v_result};
 
   // Arg definitions are defined before buffer binding to avoid the use before
   // def errors.
@@ -391,17 +344,17 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     binder.Bind(param, expr, name_hint + "." + param->name_hint, true);
   }
 
-  for (const auto& kv : buffer_def) {
-    binder.BindDLTensor(kv.second, device_type, device_id, kv.first,
-                        name_hint + "." + kv.first->name_hint);
-    arg_buffer_declarations.push_back(DeclBuffer(kv.second, nop));
+  for (const auto& [var, buffer, type_index] : buffer_def) {
+    binder.BindDLTensor(buffer, device_type, device_id, var, type_index,
+                        name_hint + "." + var->name_hint);
+    arg_buffer_declarations.push_back(DeclBuffer(buffer, nop));
   }
 
   func = WithAttrs(std::move(func),
                    {{tvm::attr::kCallingConv, static_cast<int>(CallingConv::kCPackedFunc)},
                     {tvm::attr::kTarget, target_host}});
 
-  Stmt body = RewriteReturn(func_ptr->body, v_out_ret_value, v_out_ret_tcode);
+  Stmt body = ReturnRewriter(v_result)(func_ptr->body);
   body = AttrStmt(make_zero(DataType::Int(32)), attr::compute_scope,
                   StringImm(name_hint + "_compute_"), body);
   // Set device context

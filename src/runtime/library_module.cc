@@ -24,6 +24,7 @@
 #include "library_module.h"
 
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/any.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 
@@ -48,15 +49,15 @@ class LibraryModuleNode final : public ModuleNode {
   };
 
   PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
-    TVMBackendPackedCFunc faddr;
+    TVMFFISafeCallType faddr;
     if (name == runtime::symbol::tvm_module_main) {
       const char* entry_name =
           reinterpret_cast<const char*>(lib_->GetSymbol(runtime::symbol::tvm_module_main));
       ICHECK(entry_name != nullptr)
           << "Symbol " << runtime::symbol::tvm_module_main << " is not presented";
-      faddr = reinterpret_cast<TVMBackendPackedCFunc>(lib_->GetSymbol(entry_name));
+      faddr = reinterpret_cast<TVMFFISafeCallType>(lib_->GetSymbol(entry_name));
     } else {
-      faddr = reinterpret_cast<TVMBackendPackedCFunc>(lib_->GetSymbol(name.c_str()));
+      faddr = reinterpret_cast<TVMFFISafeCallType>(lib_->GetSymbol(name.c_str()));
     }
     if (faddr == nullptr) return PackedFunc();
     return packed_func_wrapper_(faddr, sptr_to_self);
@@ -67,26 +68,11 @@ class LibraryModuleNode final : public ModuleNode {
   PackedFuncWrapper packed_func_wrapper_;
 };
 
-PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& sptr_to_self) {
-  return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-    TVMValue ret_value;
-    int ret_type_code = kTVMNullptr;
-    // Run legacy ABI translation.
-    std::vector<TVMValue> values(args.size());
-    std::vector<int> type_codes(args.size());
-    PackedArgsToLegacyTVMArgs(args.data(), args.size(), values.data(), type_codes.data());
-    // TODO(tqchen): use native convention that do not need ABI translation.
-    int ret = (*faddr)(values.data(), type_codes.data(), args.size(), &ret_value, &ret_type_code,
-                       nullptr);
-    // NOTE: It is important to keep the original error message.
-    // Using the `TVMThrowLastError()` function will also preserve the
-    // full stack trace for debugging in pdb.
-    if (ret != 0) {
-      TVMThrowLastError();
-    }
-    if (ret_type_code != kTVMNullptr) {
-      *rv = MoveLegacyTVMArgValueToAny(ret_value, ret_type_code);
-    }
+PackedFunc WrapPackedFunc(TVMFFISafeCallType faddr, const ObjectPtr<Object>& sptr_to_self) {
+  return ffi::Function::FromPacked([faddr, sptr_to_self](ffi::PackedArgs args, ffi::Any* rv) {
+    ICHECK_EQ(rv->type_index(), ffi::TypeIndex::kTVMFFINone);
+    TVM_FFI_CHECK_SAFE_CALL((*faddr)(nullptr, reinterpret_cast<const TVMFFIAny*>(args.data()),
+                                     args.size(), reinterpret_cast<TVMFFIAny*>(rv)));
   });
 }
 

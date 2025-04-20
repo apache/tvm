@@ -97,10 +97,11 @@ class ArgBinder {
    * \param device_type The device id to be binded.
    * \param device_id The device id to be binded.
    * \param handle The DLTensor handle.
+   * \param type_index The type index of the DLTensor handle.
    * \param arg_name argument name.
    */
   void BindDLTensor(const Buffer& buffer, const PrimExpr& device_type, const PrimExpr& device_id,
-                    const Var& handle, const std::string& arg_name);
+                    const Var& handle, const PrimExpr& type_index, const std::string& arg_name);
 
   /*! \return The defs generated in binding. */
   const std::vector<Var>& defs() const { return defs_; }
