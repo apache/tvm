@@ -507,7 +507,7 @@ def test_return_statement():
 
 
 def test_loop_jump_statement():
-    """`break` and `continue` evaluates to TIR intrisics"""
+    """`break` and `continue` evaluates to TIR intrinsics"""
 
     @T.prim_func
     def explicit():
