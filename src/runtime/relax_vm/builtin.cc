@@ -19,6 +19,7 @@
 /*!
  * \file src/runtime/relax_vm/builtin.cc
  */
+#include <tvm/ffi/any.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/shape_tuple.h>
 #include <tvm/runtime/data_type.h>
@@ -573,11 +574,10 @@ extern "C" {
  * \param anylist The handle to the anylist, backed by TVMRetValue*
  * \param int The index.
  * \param args The args stack.
- * \param type_codes The type codes stack.
  * \param arg_offset The offset of argument.
  * \return 0 when no error is thrown, -1 when failure happens
  */
-TVM_DLL int TVMBackendAnyListSetPackedArg(void* anylist, int index, TVMValue* args, int* type_codes,
+TVM_DLL int TVMBackendAnyListSetPackedArg(void* anylist, int index, TVMFFIAny* args,
                                           int arg_offset);
 /*!
  * \brief Backend function to get anylist item and set into Packed Func call arg stack.
@@ -597,15 +597,14 @@ TVM_DLL int TVMBackendAnyListResetItem(void* anylist, int index);
  * \param arg_offset The offset of argument.
  * \return 0 when no error is thrown, -1 when failure happens.
  */
-TVM_DLL int TVMBackendAnyListMoveFromPackedReturn(void* anylist, int index, TVMValue* args,
-                                                  int* type_codes, int ret_offset);
+TVM_DLL int TVMBackendAnyListMoveFromPackedReturn(void* anylist, int index, TVMFFIAny* args,
+                                                  int ret_offset);
 
-int TVMBackendAnyListSetPackedArg(void* anylist, int index, TVMValue* args, int* type_codes,
-                                  int arg_offset) {
+int TVMBackendAnyListSetPackedArg(void* anylist, int index, TVMFFIAny* args, int arg_offset) {
   using namespace tvm::runtime;
   API_BEGIN();
   auto* list = static_cast<TVMFFIAny*>(anylist);
-  AnyViewToLegacyTVMArgValue(list[index], args + arg_offset, type_codes + arg_offset);
+  args[arg_offset] = list[index];
   API_END();
 }
 
@@ -617,16 +616,12 @@ int TVMBackendAnyListResetItem(void* anylist, int index) {
   API_END();
 }
 
-int TVMBackendAnyListMoveFromPackedReturn(void* anylist, int index, TVMValue* args, int* type_codes,
+int TVMBackendAnyListMoveFromPackedReturn(void* anylist, int index, TVMFFIAny* args,
                                           int ret_offset) {
   using namespace tvm::runtime;
   API_BEGIN();
   auto* list = static_cast<Any*>(anylist);
-  if (type_codes[ret_offset] == kTVMStr || type_codes[ret_offset] == kTVMBytes) {
-    list[index] = LegacyTVMArgValueToAnyView(args[ret_offset], type_codes[ret_offset]);
-  } else {
-    list[index] = MoveLegacyTVMArgValueToAny(args[ret_offset], type_codes[ret_offset]);
-  }
+  list[index] = tvm::ffi::details::AnyUnsafe::MoveTVMFFIAnyToAny(std::move(args[ret_offset]));
   API_END();
 }
 }  // extern "C"

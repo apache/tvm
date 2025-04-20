@@ -490,11 +490,6 @@ TVM_DLL Pass LiftThreadBinding();
 TVM_DLL Pass CompactBufferAllocation(bool is_strict = true);
 
 /*!
- * This pass legalizes packed calls by wrapping their arguments into TVMValues
- */
-TVM_DLL Pass LegalizePackedCalls();
-
-/*!
  * \brief Remove match buffers inside the block. Also, it will validate the binding.
  * \return The pass.
  */

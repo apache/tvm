@@ -601,15 +601,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (auto opt_call_op = op->op.as<Op>()) {
     auto call_op = opt_call_op.value();
 
-    if (op->op.same_as(builtin::tvm_check_return())) {
-      const CallNode* call = op->args[2].as<CallNode>();
-      os << "if (";
-      VisitExpr_(call, os);
-      os << " != ";
-      PrintExpr(op->args[0], os);
-      os << " ) return ";
-      PrintExpr(op->args[1], os);
-    } else if (op->op.same_as(builtin::ret())) {
+    if (op->op.same_as(builtin::ret())) {
       os << "return ";
       PrintExpr(op->args[0], os);
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
@@ -1182,9 +1174,20 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
     } else if (call->op.same_as(builtin::tvm_struct_set())) {
       ICHECK_EQ(call->args.size(), 4);
       int kind = call->args[2].as<IntImmNode>()->value;
-      std::string ref = GetStructRef(call->args[3].dtype(), call->args[0], call->args[1], kind);
+      DataType store_dtype = call->args[3].dtype();
+      std::string ref = GetStructRef(store_dtype, call->args[0], call->args[1], kind);
       std::string value = PrintExpr(call->args[3]);
       std::string cast;
+
+      if (kind == builtin::kTVMFFIAnyUnionValue &&
+          (store_dtype.bits() < 64 || store_dtype.is_handle())) {
+        this->PrintIndent();
+        // when we set any union value, we need to be careful to
+        // clear off the union value to zero if the set size is less than 64 bits
+        this->stream << GetStructRef(DataType::Int(64), call->args[0], call->args[1], kind)
+                     << " = 0;\n";
+      }
+
       if (kind == builtin::kArrStrides) {
         // cast void* to int64_t*
         cast = call->args[3]->dtype.is_handle() ? "(int64_t*)" : "";

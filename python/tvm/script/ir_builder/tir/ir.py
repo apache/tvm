@@ -1875,7 +1875,6 @@ tvm_throw_last_error = _op_wrapper(_tir_op.tvm_throw_last_error)
 tvm_stack_alloca = _op_wrapper(_tir_op.tvm_stack_alloca)
 tvm_stack_make_shape = _op_wrapper(_tir_op.tvm_stack_make_shape)
 tvm_stack_make_array = _op_wrapper(_tir_op.tvm_stack_make_array)
-tvm_check_return = _op_wrapper(_tir_op.tvm_check_return)
 call_packed = _op_wrapper(_tir_op.call_packed)
 call_cpacked = _op_wrapper(_tir_op.call_cpacked)
 call_packed_lowered = _op_wrapper(_tir_op.call_packed_lowered)
@@ -2168,7 +2167,6 @@ __all__ = [
     "tvm_stack_alloca",
     "tvm_stack_make_shape",
     "tvm_stack_make_array",
-    "tvm_check_return",
     "call_packed",
     "call_cpacked",
     "call_packed_lowered",

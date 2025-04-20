@@ -97,26 +97,18 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   t_tvm_array_ = llvm::StructType::create({t_void_p_, t_tvm_device_, t_int_, t_tvm_type_,
                                            llvmGetPointerTo(t_tvm_shape_index_, 0),
                                            llvmGetPointerTo(t_tvm_shape_index_, 0), t_int64_});
-  // Defined in include/tvm/runtime/c_runtime_api.h:
-  // typedef union { ... } TVMValue;
-  t_tvm_value_ = llvm::StructType::create({t_float64_});
   // Defined in include/tvm/ffi/c_api.h:
   t_tvm_ffi_any_ = llvm::StructType::create({t_int32_, t_int32_, t_float64_});
   // Defined in include/tvm/runtime/c_backend_api.h:
   // typedef struct { void* sync_handle; int32_t num_task; } TVMParallelGroupEnv;
   t_tvm_parallel_group_env_ = llvm::StructType::create({llvmGetPointerTo(t_int32_, 0), t_int32_});
-  // Defined in include/tvm/runtime/c_backend_api.h:
-  // typedef int (*TVMBackendPackedCFunc)(TVMValue* args, int* type_codes, int num_args,
-  //                                      TVMValue* out_ret_value, int* out_ret_tcode,
-  //                                      void* resource_handle);
-  ftype_tvm_backend_packed_c_func_ =
-      llvm::FunctionType::get(t_int_,
-                              {t_void_p_, llvmGetPointerTo(t_int_, 0), t_int_, t_void_p_,
-                               llvmGetPointerTo(t_int_, 0), t_void_p_},
-                              false);
-  t_tvm_crt_func_registry_ = llvm::StructType::create(
-      {llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(ftype_tvm_backend_packed_c_func_, 0)});
-  t_tvm_crt_module_ = llvm::StructType::create({llvmGetPointerTo(t_tvm_crt_func_registry_, 0)});
+  // Defined in include/tvm/ffi/c_api.h:
+  // typedef int (*)(void* self, const TVMFFIAny* args, int32_t num_args,
+  //                 TVMFFIAny* result);
+  ftype_tvm_ffi_c_func_ = llvm::FunctionType::get(
+      t_int_,
+      {t_void_p_, llvmGetPointerTo(t_tvm_ffi_any_, 0), t_int_, llvmGetPointerTo(t_tvm_ffi_any_, 0)},
+      false);
   // Defined in include/tvm/runtime/c_backend_api.h:
   // typedef int (*FTVMParallelLambda)(int task_id, TVMParallelGroupEnv* penv, void* cdata);
   ftype_tvm_parallel_lambda_ = llvm::FunctionType::get(
@@ -124,15 +116,10 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   md_tbaa_ctx_ptr_ = md_builder_->createTBAAScalarTypeNode("ctx_ptr", md_tbaa_root_);
 
   // Runtime functions.
-
-  // Defined in include/tvm/runtime/c_runtime_api.h:
-  // int TVMFuncCall(TVMFunctionHandle func, TVMValue* arg_values, int* type_codes, int num_args,
-  //                 TVMValue* ret_val, int* ret_type_code);
-  ftype_tvm_func_call_ = llvm::FunctionType::get(
-      t_int_,
-      {t_tvm_func_handle_, llvmGetPointerTo(t_tvm_value_, 0), llvmGetPointerTo(t_int_, 0), t_int_,
-       llvmGetPointerTo(t_tvm_value_, 0), llvmGetPointerTo(t_int_, 0)},
-      false);
+  // Defined in include/tvm/ffi/c_api.h:
+  // int TVMFFIFuncCall(TVMFunctionHandle func, TVMFFIAny* args, int32_t num_args,
+  //                    TVMFFIAny* result);
+  ftype_tvm_ffi_func_call_ = ftype_tvm_ffi_c_func_;
   // Defined in include/tvm/runtime/c_backend_api.h:
   // int TVMBackendGetFuncFromEnv(void* mod_node, const char* func_name, TVMFunctionHandle* out);
   ftype_tvm_get_func_from_env_ = llvm::FunctionType::get(
@@ -168,14 +155,14 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
     f_tvm_register_system_symbol_ = nullptr;
   }
   if (dynamic_lookup || system_lib_prefix_.defined()) {
-    f_tvm_func_call_ = llvm::Function::Create(ftype_tvm_func_call_, llvm::Function::ExternalLinkage,
-                                              "TVMFuncCall", module_.get());
-    f_tvm_get_func_from_env_ =
-        llvm::Function::Create(ftype_tvm_get_func_from_env_, llvm::Function::ExternalLinkage,
-                               "TVMBackendGetFuncFromEnv", module_.get());
+    f_tvm_ffi_func_call_ = llvm::Function::Create(
+        ftype_tvm_ffi_func_call_, llvm::Function::ExternalLinkage, "TVMFFIFuncCall", module_.get());
     f_tvm_api_set_last_error_ =
         llvm::Function::Create(ftype_tvm_api_set_last_error_, llvm::Function::ExternalLinkage,
                                "TVMAPISetLastError", module_.get());
+    f_tvm_get_func_from_env_ =
+        llvm::Function::Create(ftype_tvm_get_func_from_env_, llvm::Function::ExternalLinkage,
+                               "TVMBackendGetFuncFromEnv", module_.get());
     f_tvm_parallel_launch_ =
         llvm::Function::Create(ftype_tvm_parallel_launch_, llvm::Function::ExternalLinkage,
                                "TVMBackendParallelLaunch", module_.get());
@@ -374,31 +361,6 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
         LOG(DEBUG) << "DataType " << t << " cannot be stored into a TVMFFIAny's value field";
       }
     }
-    case builtin::kTVMValueContent: {
-      ICHECK_EQ(t.lanes(), 1);
-      if (t.is_bool()) {
-        // The stride between adjacent entries is still
-        // `sizeof(TVMValue)==64`, even if the enum currently holds a
-        // boolean.
-        buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_int64_, 0));
-        buf = builder_->CreateInBoundsGEP(t_int64_, buf, index);
-        buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(DTypeToLLVMType(t), 0));
-        return TypedPointer(t_int8_, buf);
-      } else if (t.is_int() && t.bits() == 64) {
-        buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_int64_, 0));
-        return TypedPointer(t_int64_, builder_->CreateInBoundsGEP(t_int64_, buf, index));
-      } else if (t.is_float() && t.bits() == 64) {
-        buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_float64_, 0));
-        return TypedPointer(t_float64_, builder_->CreateInBoundsGEP(t_float64_, buf, index));
-      } else if (t.is_handle()) {
-        buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_value_, 0));
-        buf = builder_->CreateInBoundsGEP(t_tvm_value_, buf, index);
-        return TypedPointer(t_void_p_,
-                            builder_->CreatePointerCast(buf, llvmGetPointerTo(t_void_p_, 0)));
-      } else {
-        LOG(DEBUG) << "DataType " << t << " cannot be stored into a TVMValue";
-      }
-    }
     default:
       LOG(FATAL) << "unknown field code";
   }
@@ -482,7 +444,7 @@ void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
   } else {
     if (!dynamic_lookup) {
       gv_tvm_func_call_ =
-          InitContextPtr(llvmGetPointerTo(ftype_tvm_func_call_, 0), "__TVMFuncCall");
+          InitContextPtr(llvmGetPointerTo(ftype_tvm_ffi_func_call_, 0), "__TVMFFIFuncCall");
       gv_tvm_get_func_from_env_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_get_func_from_env_, 0),
                                                  "__TVMBackendGetFuncFromEnv");
       gv_tvm_api_set_last_error_ = InitContextPtr(
@@ -846,7 +808,7 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
 CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& args,
                                                          const DataType& r_type,
                                                          const int64_t begin, const int64_t end,
-                                                         bool use_string_lookup) {
+                                                         bool use_env_lookup) {
   std::string func_name = [&]() {
     auto ptr = args[0].as<StringImmNode>();
     ICHECK(ptr) << "Expected first argument of tir::Call to be "
@@ -857,49 +819,32 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
   // call the function
   int64_t nargs = end - begin;
   ICHECK_GE(nargs, 0);
-  llvm::Value* stack_value = MakeValue(args[1]);
-  llvm::Value* stack_tcode = MakeValue(args[2]);
-  llvm::Value* arg_value = builder_->CreateInBoundsGEP(
-      t_tvm_value_, builder_->CreatePointerCast(stack_value, llvmGetPointerTo(t_tvm_value_, 0)),
+  llvm::Value* stack_args = MakeValue(args[1]);
+  llvm::Value* packed_args = builder_->CreateInBoundsGEP(
+      t_tvm_ffi_any_, builder_->CreatePointerCast(stack_args, llvmGetPointerTo(t_tvm_ffi_any_, 0)),
       ConstInt32(begin));
-  TypedPointer arg_tcode =
-      CreateBufferPtr(stack_tcode, DataType::Int(32), {ConstInt32(begin)}, DataType::Int(32));
-  llvm::Value* ret_value = builder_->CreateInBoundsGEP(
-      t_tvm_value_, builder_->CreatePointerCast(stack_value, llvmGetPointerTo(t_tvm_value_, 0)),
+  llvm::Value* result = builder_->CreateInBoundsGEP(
+      t_tvm_ffi_any_, builder_->CreatePointerCast(stack_args, llvmGetPointerTo(t_tvm_ffi_any_, 0)),
       ConstInt32(end));
-  TypedPointer ret_tcode =
-      CreateBufferPtr(stack_tcode, DataType::Int(32), {ConstInt32(end)}, DataType::Int(32));
 
   llvm::FunctionType* callee_ftype = nullptr;
   llvm::Value* callee_value = nullptr;
   std::vector<llvm::Value*> call_args;
 
-  if (use_string_lookup) {
-    callee_ftype = ftype_tvm_func_call_;
+  if (use_env_lookup) {
+    callee_ftype = ftype_tvm_ffi_func_call_;
     callee_value = RuntimeTVMFuncCall();
     call_args.push_back(GetPackedFuncHandle(func_name));
-    call_args.insert(call_args.end(),
-                     {arg_value, arg_tcode.addr, ConstInt32(nargs), ret_value, ret_tcode.addr});
+    call_args.insert(call_args.end(), {packed_args, ConstInt32(nargs), result});
   } else {
-    callee_ftype = ftype_tvm_backend_packed_c_func_;
+    callee_ftype = ftype_tvm_ffi_c_func_;
     callee_value = module_->getFunction(func_name);
     if (callee_value == nullptr) {
-      callee_value =
-          llvm::Function::Create(ftype_tvm_backend_packed_c_func_, llvm::Function::ExternalLinkage,
-                                 func_name, module_.get());
+      callee_value = llvm::Function::Create(ftype_tvm_ffi_c_func_, llvm::Function::ExternalLinkage,
+                                            func_name, module_.get());
     }
-    // NOTE: This is a bugfix to a previous coupled convention(in lower_tvm_builtin)
-    // The begin, end should correspond to the right location in cpacked excluding resource handle.
-    // TODO(tqchen): upstream the fix.
-    // nargs -= 1;
-    call_args.insert(call_args.end(), {
-                                          builder_->CreateBitCast(arg_value, t_void_p_),
-                                          arg_tcode.addr,
-                                          ConstInt32(nargs),
-                                          builder_->CreateBitCast(ret_value, t_void_p_),
-                                          ret_tcode.addr,
-                                      });
     call_args.push_back(llvm::ConstantPointerNull::get(t_void_p_));
+    call_args.insert(call_args.end(), {packed_args, ConstInt32(nargs), result});
   }
 #if TVM_LLVM_VERSION >= 90
   auto call_callee = llvm::FunctionCallee(callee_ftype, callee_value);
@@ -917,8 +862,10 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
     // Load the return value and cast it to the designated type (r_type).
     DataType r_api_type = tir::APIType(r_type);
     llvm::Type* llvm_r_api_type = DTypeToLLVMType(r_api_type);
+    llvm::Value* result_value =
+        builder_->CreateInBoundsGEP(t_tvm_ffi_any_, result, {ConstInt32(0), ConstInt32(2)});
     llvm::Value* load_ptr =
-        builder_->CreatePointerCast(ret_value, llvmGetPointerTo(llvm_r_api_type, 0));
+        builder_->CreatePointerCast(result_value, llvmGetPointerTo(llvm_r_api_type, 0));
 #if TVM_LLVM_VERSION >= 110
     llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, llvm::Align(8));
 #elif TVM_LLVM_VERSION >= 80
@@ -931,11 +878,13 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
 
     // Load the return type code.
 #if TVM_LLVM_VERSION >= 110
-    pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, llvm::Align(8));
+    llvm::Value* result_type_index =
+        builder_->CreateInBoundsGEP(t_tvm_ffi_any_, result, {ConstInt32(0), ConstInt32(0)});
+    pc.ret_type_index = builder_->CreateAlignedLoad(t_int32_, result_type_index, llvm::Align(4));
 #elif TVM_LLVM_VERSION >= 80
-    pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.type, ret_tcode.addr, 8);
+    pc.ret_type_index = builder_->CreateAlignedLoad(t_int32_, result_type_index, 8);
 #else
-    pc.ret_tcode = builder_->CreateAlignedLoad(ret_tcode.addr, 8);
+    pc.ret_type_index = builder_->CreateAlignedLoad(result_type_index, 8);
 #endif
   }
 
@@ -943,21 +892,21 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
   return pc;
 }
 
-llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op, bool use_string_lookup) {
-  auto expected_num_args = use_string_lookup ? 5U : 6U;
-  ICHECK_EQ(op->args.size(), expected_num_args);
-  PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[3].as<IntImmNode>()->value,
-                                        op->args[4].as<IntImmNode>()->value, use_string_lookup);
+llvm::Value* CodeGenCPU::CreateCallPacked(const CallNode* op) {
+  ICHECK_EQ(op->args.size(), 4U);
+  bool use_string_lookup = op->op.same_as(builtin::tvm_call_packed_lowered());
+  PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[2].as<IntImmNode>()->value,
+                                        op->args[3].as<IntImmNode>()->value, use_string_lookup);
   return pc.ret_value;
 }
 
 llvm::Value* CodeGenCPU::CreateCallTracePacked(const CallNode* op) {
-  ICHECK_EQ(op->args.size(), 6U);
-  PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[3].as<IntImmNode>()->value,
-                                        op->args[4].as<IntImmNode>()->value, true);
+  ICHECK_EQ(op->args.size(), 5U);
+  PackedCall pc = MakeCallPackedLowered(op->args, op->dtype, op->args[2].as<IntImmNode>()->value,
+                                        op->args[3].as<IntImmNode>()->value, true);
   llvm::LLVMContext* ctx = llvm_target_->GetContext();
   // Get traced value.
-  llvm::Value* traced_value = MakeValue(op->args[5]);
+  llvm::Value* traced_value = MakeValue(op->args[4]);
   // The update_block handles case when we need to update the return value.
   llvm::BasicBlock* update_block = llvm::BasicBlock::Create(*ctx, "update_block", function_);
   // The continue_block handles case when we need to return original
@@ -965,8 +914,8 @@ llvm::Value* CodeGenCPU::CreateCallTracePacked(const CallNode* op) {
   llvm::BasicBlock* continue_block = llvm::BasicBlock::Create(*ctx, "continue_block", function_);
 
   // Check the ret_type_code and create cmp instruction.
-  llvm::Value* cmp =
-      builder_->CreateICmpNE(pc.ret_tcode, llvm::ConstantInt::get(t_int_, kTVMNullptr));
+  llvm::Value* cmp = builder_->CreateICmpNE(
+      pc.ret_type_index, llvm::ConstantInt::get(t_int_, ffi::TypeIndex::kTVMFFINone));
   builder_->CreateCondBr(cmp, update_block, continue_block);
   builder_->SetInsertPoint(update_block);
   builder_->CreateBr(continue_block);
@@ -979,7 +928,7 @@ llvm::Value* CodeGenCPU::CreateCallTracePacked(const CallNode* op) {
 }
 
 llvm::Value* CodeGenCPU::RuntimeTVMFuncCall() {
-  if (f_tvm_func_call_ != nullptr) return f_tvm_func_call_;
+  if (f_tvm_ffi_func_call_ != nullptr) return f_tvm_ffi_func_call_;
   return GetContextPtr(gv_tvm_func_call_);
 }
 
@@ -1022,11 +971,11 @@ void CodeGenCPU::AddStartupFunction() {
 
 llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
   if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
-    return CreateCallPacked(op, true /* use_string_lookup */);
+    return CreateCallPacked(op);
   } else if (op->op.same_as(builtin::tvm_call_trace_packed_lowered())) {
     return CreateCallTracePacked(op);
   } else if (op->op.same_as(builtin::tvm_call_cpacked_lowered())) {
-    return CreateCallPacked(op, false /* use_string_lookup */);
+    return CreateCallPacked(op);
   } else if (op->op.same_as(builtin::tvm_static_handle())) {
     return CreateStaticHandle();
   } else if (op->op.same_as(builtin::tvm_throw_last_error())) {
@@ -1083,10 +1032,6 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
       llvm::Value* num = ConstInt32(pval[0]);
       if (type == "shape") {
         return builder_->CreateAlloca(t_tvm_shape_index_, num);
-      } else if (type == "arg_value") {
-        return builder_->CreateAlloca(t_tvm_value_, num);
-      } else if (type == "arg_tcode") {
-        return builder_->CreateAlloca(t_int_, num);
       } else if (type == "tvm_ffi_any") {
         return builder_->CreateAlloca(t_tvm_ffi_any_, num);
       } else if (type == "array") {

@@ -319,24 +319,6 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     )
 
 
-def tvm_check_return(expected, return_unexpected, nested_call):
-    """Return new on stack dtype[num]
-    Parameters
-    ----------
-    expected : int
-        The expected return code.
-    return_unexpected : int
-        The unexpected return code.
-    nested_call : PrimExpr
-        The call expression to check return.
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin("int32", "tir.tvm_check_return", expected, return_unexpected, nested_call)
-
-
 def tvm_stack_alloca(dtype_str, num):
     """Return new on stack dtype[num]
 
