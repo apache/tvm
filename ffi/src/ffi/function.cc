@@ -39,8 +39,12 @@ class SafeCallContext {
     last_error_ = Any(AnyView::CopyFromTVMFFIAny(error_view[0]));
     // turn string into formal error.
     if (Optional<String> opt_str = last_error_.as<String>()) {
-      last_error_ = ::tvm::ffi::Error("RuntimeError", *opt_str, "");
+      last_error_ = ::tvm::ffi::Error("RuntimeError", *opt_str, TVM_FFI_TRACEBACK_HERE);
     }
+  }
+
+  void SetLastErrorCStr(const char* error_kind, const char* error_str) {
+    last_error_ = ::tvm::ffi::Error(error_kind, error_str, TVM_FFI_TRACEBACK_HERE);
   }
 
   void MoveFromLastError(TVMFFIAny* result) {
@@ -148,8 +152,17 @@ int TVMFFIFuncGetGlobal(const char* name, TVMFFIObjectHandle* out) {
   TVM_FFI_SAFE_CALL_END();
 }
 
+int TVMFFIFuncCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args, TVMFFIAny* result) {
+  using namespace tvm::ffi;
+  return reinterpret_cast<FunctionObj*>(func)->safe_call(func, args, num_args, result);
+}
+
 void TVMFFISetLastError(const TVMFFIAny* error_view) {
   tvm::ffi::SafeCallContext::ThreadLocal()->SetLastError(error_view);
+}
+
+void TVMFFISetLastErrorCStr(const char* error_kind, const char* error_str) {
+  tvm::ffi::SafeCallContext::ThreadLocal()->SetLastErrorCStr(error_kind, error_str);
 }
 
 void TVMFFIMoveFromLastError(TVMFFIAny* result) {

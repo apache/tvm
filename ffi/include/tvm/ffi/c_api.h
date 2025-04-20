@@ -181,7 +181,7 @@ typedef struct {
  * \param self The function handle
  * \param num_args Number if input arguments
  * \param args The input arguments to the call.
- * \param result Store output result
+ * \param result Store output result, the intiial state of result must be None
  *
  * \return The call return 0 if call is successful.
  *  It returns non-zero value if there is an error.
@@ -324,6 +324,18 @@ TVM_FFI_DLL int TVMFFIFuncCreate(void* self, TVMFFISafeCallType safe_call,
                                  void (*deleter)(void* self), TVMFFIObjectHandle* out);
 
 /*!
+ * \brief Call a FFIFunc by passing in arguments.
+ *
+ * \param func The resource handle of the C callback.
+ * \param args The input arguments to the call.
+ * \param num_args The number of input arguments.
+ * \param result The output result.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIFuncCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args,
+                               TVMFFIAny* result);
+
+/*!
  * \brief Register the function to runtime's global table.
  *
  * The registered function then can be pulled by the backend by the name.
@@ -360,6 +372,15 @@ TVM_FFI_DLL void TVMFFIMoveFromLastError(TVMFFIAny* result);
  *        It can be an object, or simply a raw c_str.
  */
 TVM_FFI_DLL void TVMFFISetLastError(const TVMFFIAny* error_view);
+
+/*!
+ * \brief Set the last error in TLS, which can be fetched by TVMFFIGetLastError.
+ *
+ * \param error_kind The kind of the error.
+ * \param error_str The error string.
+ * \note This is a convenient method for C API side to set error directly from string.
+ */
+TVM_FFI_DLL void TVMFFISetLastErrorCStr(const char* error_kind, const char* error_str);
 
 /*!
  * \brief Convert type key to type index.
