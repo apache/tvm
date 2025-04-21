@@ -21,7 +21,6 @@
 import abc
 from functools import reduce
 import math
-from re import X
 from typing import Callable, Dict, Optional, Tuple, Union, List
 
 from tvm import relax, tir
