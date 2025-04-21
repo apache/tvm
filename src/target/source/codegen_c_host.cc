@@ -222,8 +222,8 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
   const StringImmNode* func_name = op->args[0].as<StringImmNode>();
   ICHECK(func_name != nullptr)
       << "tvm_call_[c]packed_lowered expects first argument as function name";
-  int64_t begin = op->args[3].as<IntImmNode>()->value;
-  int64_t end = op->args[4].as<IntImmNode>()->value;
+  int64_t begin = op->args[2].as<IntImmNode>()->value;
+  int64_t end = op->args[3].as<IntImmNode>()->value;
   int64_t num_args = end - begin;
   ICHECK_GE(num_args, 0);
 

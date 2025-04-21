@@ -355,7 +355,7 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
         buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_float64_, 0));
         return TypedPointer(t_float64_, buf);
       } else if (t.is_handle()) {
-        builder_->CreatePointerCast(buf, llvmGetPointerTo(t_void_p_, 0));
+        buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_void_p_, 0));
         return TypedPointer(t_void_p_, buf);
       } else {
         LOG(DEBUG) << "DataType " << t << " cannot be stored into a TVMFFIAny's value field";
