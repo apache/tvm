@@ -64,41 +64,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         x = self.env[node.args[0]]
         return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.struct_info.dtype), x))
 
-    ########## Linear Algebra ##########
-
-    def _linalg_vector_norm(self, node: fx.Node) -> relax.Var:
-        data = self.env[node.args[0]]
-        dtype = data.struct_info.dtype
-        order = node.args[1] if len(node.args) > 1 else node.kwargs.get("p", 2)
-        axis = node.args[2] if len(node.args) > 2 else None
-        keepdims = node.args[3] if len(node.args) > 3 else False
-
-        if order == float("inf"):
-            return self.block_builder.emit(
-                relax.op.max(relax.op.abs(data), axis=axis, keepdims=keepdims)
-            )
-        elif order == float("-inf"):
-            return self.block_builder.emit(
-                relax.op.min(relax.op.abs(data), axis=axis, keepdims=keepdims)
-            )
-        else:
-            ord_expr = (
-                order if isinstance(order, relax.Expr) else relax.const(float(order), dtype=dtype)
-            )
-            reci_order = (
-                relax.op.divide(relax.const(1.0, dtype), ord_expr)
-                if isinstance(order, relax.Expr)
-                else relax.const(1.0 / order, dtype=dtype)
-            )
-            return self.block_builder.emit(
-                relax.op.power(
-                    relax.op.sum(
-                        relax.op.power(relax.op.abs(data), ord_expr), axis=axis, keepdims=keepdims
-                    ),
-                    reci_order,
-                )
-            )
-
     ########## Neural Network ##########
 
     def _batch_norm(self, node: fx.Node, training) -> relax.Var:
@@ -404,7 +369,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "__xor__.Tensor": self._binary_op(relax.op.bitwise_xor, operator.xor),
             "__xor__.Scalar": self._binary_op(relax.op.bitwise_xor, operator.xor),
             # linear algebra
-            "linalg_vector_norm.default": self._linalg_vector_norm,
+            "linalg_vector_norm.default": self._norm,
             # neural network
             "_native_batch_norm_legit_functional.default": self._batch_norm_legit_functional,
             "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
