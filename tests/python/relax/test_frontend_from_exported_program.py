@@ -17,6 +17,7 @@
 import operator
 import pytest
 import torch
+from torch import nn
 from torch.nn import Module
 from torch.export import export
 
@@ -4417,6 +4418,36 @@ def test_eye():
 
     example_args2 = (torch.randn(5, dtype=torch.float32),)
     verify_model(Eye2(), example_args2, {}, Expected2)
+
+def test_cross_entropy():
+
+    class CrossEntropyModule(Module):
+        def init(self):
+            super().init()
+            self.criterion = nn.CrossEntropyLoss()
+            self.target = torch.tensor([0, 1, 2, 1])
+
+        def forward(self, x):
+            return self.criterion(x, self.target)
+
+    raw_data = np.random.randn(4, 3).astype(np.float32)
+    torch_module = CrossEntropyModule().eval()
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            input: R.Tensor((3, 5), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 5), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 5), dtype="float32") = R.eye(3, 5, dtype="float32")
+                gv: R.Tuple(R.Tensor((3, 5), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args1 = (torch.randn(4, 3, dtype=torch.float32),)
+    verify_model(CrossEntropyModule(), example_args1, {}, Expected1)
+
 
 
 if __name__ == "__main__":
