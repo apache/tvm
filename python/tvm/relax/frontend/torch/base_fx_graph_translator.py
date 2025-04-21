@@ -1416,6 +1416,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         return self.block_builder.emit(relax.op.zeros_like(x))
 
+    def _eye(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        n = args[0]
+        m = args[1] if len(args) > 1 else n
+        dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
+        return self.block_builder.emit(relax.op.eye(n, m, dtype=dtype))
+
     def _fill(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
