@@ -263,8 +263,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   }()));
 
   if (num_args > 0) {
-    seq_init.push_back(
-        MakeAssertNotNull(v_packed_args, name_hint + ": TVMValue* arg pointer was NULL"));
+    seq_init.push_back(MakeAssertNotNull(v_packed_args, name_hint + ": args pointer is NULL"));
   }
 
   // Need to delay binding of the buffers, in case some arguments also
