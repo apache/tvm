@@ -4405,86 +4405,142 @@ def test_gather():
 
 
 def test_index_put():
-    # Test case 1: 2D input
+    # Test case 1: 1D input
+    class IndexPut1D(Module):
+        def forward(self, data, indices_0, values):
+            indices_tuple = (indices_0,)
+            return data.index_put_(indices_tuple, values, accumulate=False)
+
+    input_info_1d = [((64,), "float32"), ((128,), "int64"), ((128,), "float32")]
+
+    @I.ir_module
+    class Expected1D:
+        @R.function
+        def main(
+            data: R.Tensor((64,), dtype="float32"),
+            indices_0: R.Tensor((128,), dtype="int64"),
+            values: R.Tensor((128,), dtype="float32"),
+        ) -> R.Tensor((64,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((64,), dtype="float32") = R.index_put(
+                    data, R.tuple(indices_0), values, accumulate=False
+                )
+                gv: R.Tensor((64,), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    # Test case 2: 2D input
     class IndexPut2D(Module):
         def forward(self, data, indices_0, indices_1, values):
             indices_tuple = (indices_0, indices_1)
             return data.index_put_(indices_tuple, values, accumulate=False)
 
-    # Test case 2: 3D input
+    input_info_2d = [((32, 64), "float32"), ((128,), "int64"), ((128,), "int64"), ((128,), "float32")]
+
+    @I.ir_module
+    class Expected2D:
+        @R.function
+        def main(
+            data: R.Tensor((32, 64), dtype="float32"),
+            indices_0: R.Tensor((128,), dtype="int64"),
+            indices_1: R.Tensor((128,), dtype="int64"),
+            values: R.Tensor((128,), dtype="float32"),
+        ) -> R.Tensor((32, 64), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((32, 64), dtype="float32") = R.index_put(
+                    data, R.tuple(indices_0, indices_1), values, accumulate=False
+                )
+                gv: R.Tensor((32, 64), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    # Test case 3: 3D input
     class IndexPut3D(Module):
         def forward(self, data, indices_0, indices_1, indices_2, values):
             indices_tuple = (indices_0, indices_1, indices_2)
             return data.index_put_(indices_tuple, values, accumulate=False)
 
-        # Test case 3: 4D input
-    class IndexPut4D(Module):
-        def forward(self, data, indices_0, indices_1, indices_2, indices_3, values):
-            indices_tuple = (indices_0, indices_1, indices_2, indices_3)
-            return data.index_put_(indices_tuple, values, accumulate=False)
-        
-    @I.ir_module
-    class Expected2D:
-        @R.function
-        def main(
-            data: R.Tensor((4, 2), dtype="float32"),
-            indices_0: R.Tensor((2,), dtype="int64"),
-            indices_1: R.Tensor((2,), dtype="int64"),
-            values: R.Tensor((2,), "float32"),
-        ) -> R.Tensor((4, 2), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((4, 2), dtype="float32") = R.index_put(
-                    data, R.tuple(indices_0, indices_1), values, accumulate=False
-                )
-                gv: R.Tensor((4, 2), dtype="float32") = lv
-                R.output(gv)
-            return gv
-        
+    input_info_3d = [((16, 32, 64), "float32"), ((128,), "int64"), ((128,), "int64"), ((128,), "int64"), ((128,), "float32")]
+
     @I.ir_module
     class Expected3D:
         @R.function
         def main(
-            data: R.Tensor((4, 2, 3), dtype="float32"),
-            indices_0: R.Tensor((2,), dtype="int64"),
-            indices_1: R.Tensor((2,), dtype="int64"),
-            indices_2: R.Tensor((2,), dtype="int64"),
-            values: R.Tensor((2,), "float32"),
-        ) -> R.Tensor((4, 2, 3), dtype="float32"):
+            data: R.Tensor((16, 32, 64), dtype="float32"),
+            indices_0: R.Tensor((128,), dtype="int64"),
+            indices_1: R.Tensor((128,), dtype="int64"),
+            indices_2: R.Tensor((128,), dtype="int64"),
+            values: R.Tensor((128,), dtype="float32"),
+        ) -> R.Tensor((16, 32, 64), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((4, 2, 3), dtype="float32") = R.index_put(
+                lv: R.Tensor((16, 32, 64), dtype="float32") = R.index_put(
                     data, R.tuple(indices_0, indices_1, indices_2), values, accumulate=False
                 )
-                gv: R.Tensor((4, 2, 3), dtype="float32") = lv
+                gv: R.Tensor((16, 32, 64), dtype="float32") = lv
                 R.output(gv)
             return gv
+
+    # Test case 4: 4D input
+    class IndexPut4D(Module):
+        def forward(self, data, indices_0, indices_1, indices_2, indices_3, values):
+            indices_tuple = (indices_0, indices_1, indices_2, indices_3)
+            return data.index_put_(indices_tuple, values, accumulate=False)
+
+    input_info_4d = [((8, 16, 32, 64), "float32"), ((128,), "int64"), ((128,), "int64"), ((128,), "int64"), ((128,), "int64"), ((128,), "float32")]
 
     @I.ir_module
     class Expected4D:
         @R.function
         def main(
-            data: R.Tensor((4, 2, 3, 2), dtype="float32"),
-            indices_0: R.Tensor((2,), dtype="int64"),
-            indices_1: R.Tensor((2,), dtype="int64"),
-            indices_2: R.Tensor((2,), dtype="int64"),
-            indices_3: R.Tensor((2,), dtype="int64"),
-            values: R.Tensor((2,), "float32"),
-        ) -> R.Tensor((4, 2, 3, 2), dtype="float32"):
+            data: R.Tensor((8, 16, 32, 64), dtype="float32"),
+            indices_0: R.Tensor((128,), dtype="int64"),
+            indices_1: R.Tensor((128,), dtype="int64"),
+            indices_2: R.Tensor((128,), dtype="int64"),
+            indices_3: R.Tensor((128,), dtype="int64"),
+            values: R.Tensor((128,), dtype="float32"),
+        ) -> R.Tensor((8, 16, 32, 64), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((4, 2, 3, 2), dtype="float32") = R.index_put(
+                lv: R.Tensor((8, 16, 32, 64), dtype="float32") = R.index_put(
                     data, R.tuple(indices_0, indices_1, indices_2, indices_3), values, accumulate=False
                 )
-                gv: R.Tensor((4, 2, 3, 2), dtype="float32") = lv
+                gv: R.Tensor((8, 16, 32, 64), dtype="float32") = lv
                 R.output(gv)
             return gv
 
-    input_info_2d = [((4, 2), "float32"), ((2,), "int64"), ((2,), "int64"), ((2,), "float32")]
-    input_info_3d = [((4, 2, 3), "float32"), ((2,), "int64"), ((2,), "int64"), ((2,), "int64"), ((2,), "float32")]
-    input_info_4d = [((4, 2, 3, 2), "float32"), ((2,), "int64"), ((2,), "int64"), ((2,), "int64"), ((2,), "int64"), ((2,), "float32")]
+    # Test case 5: 5D input
+    class IndexPut5D(Module):
+        def forward(self, data, indices_0, indices_1, indices_2, indices_3, indices_4, values):
+            indices_tuple = (indices_0, indices_1, indices_2, indices_3, indices_4)
+            return data.index_put_(indices_tuple, values, accumulate=False)
+
+    input_info_5d = [((4, 8, 16, 32, 64), "float32"), ((128,), "int64"), ((128,), "int64"), ((128,), "int64"), ((128,), "int64"), ((128,), "int64"), ((128,), "float32")]
+
+    @I.ir_module
+    class Expected5D:
+        @R.function
+        def main(
+            data: R.Tensor((4, 8, 16, 32, 64), dtype="float32"),
+            indices_0: R.Tensor((128,), dtype="int64"),
+            indices_1: R.Tensor((128,), dtype="int64"),
+            indices_2: R.Tensor((128,), dtype="int64"),
+            indices_3: R.Tensor((128,), dtype="int64"),
+            indices_4: R.Tensor((128,), dtype="int64"),
+            values: R.Tensor((128,), dtype="float32"),
+        ) -> R.Tensor((4, 8, 16, 32, 64), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((4, 8, 16, 32, 64), dtype="float32") = R.index_put(
+                    data, R.tuple(indices_0, indices_1, indices_2, indices_3, indices_4), values, accumulate=False
+                )
+                gv: R.Tensor((4, 8, 16, 32, 64), dtype="float32") = lv
+                R.output(gv)
+            return gv
 
     # Run verification for each case
+    verify_model(IndexPut1D(), input_info_1d, {}, Expected1D)
     verify_model(IndexPut2D(), input_info_2d, {}, Expected2D)
     verify_model(IndexPut3D(), input_info_3d, {}, Expected3D)
     verify_model(IndexPut4D(), input_info_4d, {}, Expected4D)
+    verify_model(IndexPut5D(), input_info_5d, {}, Expected5D)
 
 
 def test_flip():
