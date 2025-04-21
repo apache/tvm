@@ -477,9 +477,9 @@ class TorchFXImporter(BaseFXGraphImporter):
         return filled
 
     def _inplace_copy(self, node: fx.Node) -> relax.Var:
-        dst = self.env[node.args[1]]
-        self.env[node.args[0]] = dst
-        return dst
+        src = self.env[node.args[1]]
+        self.env[node.args[0]] = src
+        return src
 
     def _masked_scatter(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
