@@ -103,6 +103,25 @@ inline bool ShouldExcludeFrame(const char* filename, const char* symbol) {
   return false;
 }
 
+/**
+ * \brief List frames that should stop the traceback.
+ * \param filename The filename of the frame.
+ * \param symbol The symbol name of the frame.
+ * \return true if the frame should stop the traceback.
+ * \note We stop traceback at the FFI boundary.
+ */
+inline bool ShouldStopTraceback(const char* filename, const char* symbol) {
+  if (symbol != nullptr) {
+    if (strncmp(symbol, "TVMFFIFuncCall", 14) == 0) {
+      return true;
+    }
+    if (strncmp(symbol, "TVMFuncCall", 11) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /*!
  * \brief storage to store traceback
  */
@@ -115,6 +134,9 @@ struct TracebackStorage {
     // skip frames with empty filename
     if (filename == nullptr) {
       if (func != nullptr) {
+        if (strncmp(func, "0x0", 3) == 0) {
+          return;
+        }
         filename = "<unknown>";
       } else {
         return;

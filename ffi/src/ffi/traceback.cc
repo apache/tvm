@@ -99,6 +99,9 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
   if (stack_trace->ExceedTracebackLimit()) {
     return 1;
   }
+  if (ShouldStopTraceback(filename, symbol)) {
+    return 1;
+  }
   if (ShouldExcludeFrame(filename, symbol)) {
     return 0;
   }
