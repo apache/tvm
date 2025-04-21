@@ -163,6 +163,13 @@ class ConstIntBoundAnalyzer {
    */
   TVM_DLL void Bind(const Var& var, const Range& range, bool allow_override = false);
 
+  /*!
+   * \brief Check if a variable is bound.
+   * \param var The variable.
+   * \return Whether the variable is bound.
+   */
+  TVM_DLL bool IsBound(const Var& var) const;
+
  private:
   friend class Analyzer;
   friend class ConstraintContext;

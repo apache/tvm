@@ -132,6 +132,8 @@ class ConstIntBoundAnalyzer::Impl
     var_map_[var] = info;
   }
 
+  bool IsBound(const Var& var) const { return var_map_.count(var); }
+
   Entry VisitExpr_(const LetNode* op) final {
     auto it = var_map_.find(op->var);
     // if the var has not been binded, update the info.
@@ -788,6 +790,10 @@ void ConstIntBoundAnalyzer::Update(const Var& var, const ConstIntBound& info, bo
 
 void ConstIntBoundAnalyzer::Bind(const Var& var, const Range& range, bool allow_override) {
   impl_->Bind(var, range, allow_override);
+}
+
+bool ConstIntBoundAnalyzer::IsBound(const Var& var) const {
+  return impl_->IsBound(var);
 }
 
 std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const PrimExpr& constraint) {
