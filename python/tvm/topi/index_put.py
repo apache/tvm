@@ -75,7 +75,6 @@ def index_put(data, indices, values, accumulate=False):
         values = ib.buffer_ptr(values_ptr)
         out = ib.buffer_ptr(out_ptr)
 
-        # Copy initial input data to output
         with ib.for_range(0, full_range, "i", kind="parallel") as i:
             out[i] = data[i]
 
@@ -117,3 +116,4 @@ def index_put(data, indices, values, accumulate=False):
         name="index_put.generic",
         tag="index_put.generic",
     )
+
