@@ -4543,6 +4543,32 @@ def test_select():
     verify_model(Select(), [([5, 3], "float32")], {}, Expected)
 
 
+def test_inplace_copy():
+    class Inplace_Copy(Module):
+        def forward(self, x, y):
+            x.copy_(y)
+            return x
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            inp_1: R.Tensor((1, 2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((1, 2, 3, 4), dtype="float32"):
+            with R.dataflow():
+                gv: R.Tensor((1, 2, 3, 4), dtype="float32") = inp_1
+                R.output(gv)
+            return gv
+
+    verify_model(
+        Inplace_Copy(),
+        [((1, 2, 3, 4), "float32"), ((1, 2, 3, 4), "float32")],
+        {},
+        Expected,
+    )
+
+
 def test_clone():
     class Clone(Module):
         def forward(self, x):
