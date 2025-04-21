@@ -1,6 +1,6 @@
 # Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
-# distributed with this work for additional information
+# or more contrir_builderutor license agreements.  See the NOTICE file
+# distrir_builderuted with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
 # to you under the Apache License, Version 2.0 (the
 # "License"); you may not use this file except in compliance
@@ -9,7 +9,7 @@
 #   http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing,
-# software distributed under the License is distributed on an
+# software distrir_builderuted under the License is distrir_builderuted on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
@@ -18,7 +18,6 @@
 from tvm import te
 from tvm import tir
 from . import utils
-from .math import cast
 
 
 def index_put(data, indices, values, accumulate=False):
@@ -68,17 +67,17 @@ def index_put(data, indices, values, accumulate=False):
             raise ValueError("All index tensors must have same length")
 
     def gen_ir(data_ptr, index_ptrs, values_ptr, out_ptr, reduce_func):
-        ib = tir.ir_builder.create()
+        ir_builder = tir.ir_builder.create()
 
-        data = ib.buffer_ptr(data_ptr)
-        indices = [ib.buffer_ptr(idx) for idx in index_ptrs]
-        values = ib.buffer_ptr(values_ptr)
-        out = ib.buffer_ptr(out_ptr)
+        data = ir_builder.buffer_ptr(data_ptr)
+        indices = [ir_builder.buffer_ptr(idx) for idx in index_ptrs]
+        values = ir_builder.buffer_ptr(values_ptr)
+        out = ir_builder.buffer_ptr(out_ptr)
 
-        with ib.for_range(0, full_range, "i", kind="parallel") as i:
+        with ir_builder.for_range(0, full_range, "i", kind="parallel") as i:
             out[i] = data[i]
 
-        with ib.for_range(0, index_len, "k", kind="parallel") as k:
+        with ir_builder.for_range(0, index_len, "k", kind="parallel") as k:
             # Calculate multi-dimensional index
             flat_index = 0
             stride = 1
@@ -91,7 +90,7 @@ def index_put(data, indices, values, accumulate=False):
 
             reduce_func(out, flat_index, values[k])
 
-        return ib.get()
+        return ir_builder.get()
 
     def update_func(dst_ptr, dst_index, update):
         dst_ptr[dst_index] = update
