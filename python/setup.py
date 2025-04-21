@@ -183,6 +183,25 @@ def config_cython():
                     language="c++",
                 )
             )
+
+        # the latest ffi source
+        for fn in os.listdir("tvm/ffi/cython"):
+            if not fn.endswith(".pyx"):
+                continue
+            ret.append(
+                Extension(
+                    f"tvm.ffi.cython.{fn[:-4]}",
+                    ["tvm/ffi/cython/%s" % fn],
+                    include_dirs=[
+                        "../ffi/include/",
+                        "../ffi/3rdparty/dlpack/include",
+                    ],
+                    extra_compile_args=extra_compile_args,
+                    library_dirs=library_dirs,
+                    libraries=libraries,
+                    language="c++",
+                )
+            )
         return cythonize(ret, compiler_directives={"language_level": 3})
     except ImportError as error:
         raise RuntimeError("Cython is not installed, please pip install cython")
