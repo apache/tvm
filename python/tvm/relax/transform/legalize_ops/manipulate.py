@@ -49,6 +49,7 @@ register_legalize(
     "relax.collapse_sum_like",
     _reshape(topi.collapse_sum, "collapse_sum", is_collapse_sum_like=True),
 )
+
 register_legalize("relax.collapse_sum_to", _reshape(topi.collapse_sum, "collapse_sum"))
 
 
@@ -182,6 +183,14 @@ def _gather_nd(bb: BlockBuilder, call: Call) -> Expr:
         return topi.gather_nd(data, indices, batch_dims)
 
     return bb.call_te(te_gather_nd, call.args[0], call.args[1], int(call.attrs.batch_dims))
+
+
+@register_legalize("relax.index_tensor")
+def _index_tensor(bb: BlockBuilder, call: Call) -> Expr:
+    t = call.args[1]
+    n_field = len(t.struct_info.fields)
+    fields = [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
+    return bb.call_te(topi.index_tensor, call.args[0], fields)
 
 
 @register_legalize("relax.scatter_elements")

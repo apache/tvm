@@ -207,6 +207,18 @@ Expr gather_elements(Expr data, Expr indices, int axis = 0);
 Expr gather_nd(Expr data, Expr indices, int batch_dims = 0);
 
 /*!
+ * \brief NumPy/PyTorch‑style advanced indexing with tensors.
+ * \param data The input tensor.
+ * \param indices  A Tuple expression (or list) containing the index tensors.
+ * \return The indexed tensor.
+ *
+ * \note When all shapes are static, Relax checks that the index shapes are
+ *       broadcast-compatible. Bounds checking of the values in indices is
+ *       deferred to runtime.
+ */
+Expr index_tensor(Expr data, Expr indices);
+
+/*!
  * \brief Scatter updates into an array according to indices.
  * \param data The input tensor.
  * \param indices The index positions to update in `data`.
