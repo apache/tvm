@@ -1148,6 +1148,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         index = self.env[node.args[2]]
         return self.block_builder.emit(relax.op.gather_elements(x, index, axis=dim))
 
+    def _index_tensor(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        indices = args[1]
+        return self.block_builder.emit(relax.op.index_tensor(args[0], indices))
+
     def _permute(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
@@ -1420,6 +1425,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _empty_like(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         return self.block_builder.emit(relax.op.zeros_like(x))
+
+    def _eye(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        n = args[0]
+        m = args[1] if len(args) > 1 else n
+        dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
+        return self.block_builder.emit(relax.op.eye(n, m, dtype=dtype))
 
     def _fill(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
