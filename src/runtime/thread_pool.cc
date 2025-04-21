@@ -103,18 +103,22 @@ class ParallelLauncher {
     if (!has_error_.load()) return 0;
     std::ostringstream os;
     for (size_t i = 0; i < par_errors_.size(); ++i) {
-      if (par_errors_[i].length() != 0) {
-        os << "Task " << i << " error: " << par_errors_[i] << '\n';
-        par_errors_[i].clear();
+      if (par_errors_[i] != nullptr) {
+        if (std::optional<tvm::ffi::Error> error = par_errors_[i].as<tvm::ffi::Error>()) {
+          os << "Task " << i << " error: " << (*error).what();
+        } else {
+          os << "Task " << i << " RuntimeError";
+        }
+        par_errors_[i] = nullptr;
       }
     }
-    TVMAPISetLastError(os.str().c_str());
+    TVMFFISetLastErrorCStr("RuntimeError", os.str().c_str());
     return -1;
   }
   // Signal that one job has finished.
   void SignalJobError(int task_id) {
     num_pending_.fetch_sub(1);
-    par_errors_[task_id] = TVMGetLastError();
+    TVMFFIMoveFromLastError(reinterpret_cast<TVMFFIAny*>(&par_errors_[task_id]));
     has_error_.store(true);
   }
   // Signal that one job has finished.
@@ -139,7 +143,7 @@ class ParallelLauncher {
   // The counter page.
   std::atomic<int32_t>* sync_counter_{nullptr};
   // The error message
-  std::vector<std::string> par_errors_;
+  std::vector<Any> par_errors_;
 };
 
 /*! \brief Lock-free single-producer-single-consumer queue for each thread */

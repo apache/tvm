@@ -1176,5 +1176,24 @@ def test_bool_return_value():
     assert not built(15)
 
 
+def test_invalid_arguments():
+    """Integers may be passed to functions accepting bool"""
+
+    @T.prim_func
+    def func(a0: T.bool, a1: T.Buffer([10], "float32")) -> T.int32:
+        T.func_attr({"target": T.target("llvm")})
+        return 0
+
+    built = tvm.compile(func)
+    with pytest.raises(RuntimeError):
+        built(1, 1)
+
+    with pytest.raises(RuntimeError):
+        built(1, tvm.nd.empty([10], "int32"))
+
+    with pytest.raises(RuntimeError):
+        built(False, tvm.nd.empty([11], "float32"))
+
+
 if __name__ == "__main__":
     tvm.testing.main()

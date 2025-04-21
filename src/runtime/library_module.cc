@@ -83,7 +83,7 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol) {
   }
   // Initialize the functions
   TVM_INIT_CONTEXT_FUNC(TVMFFIFuncCall);
-  TVM_INIT_CONTEXT_FUNC(TVMAPISetLastError);
+  TVM_INIT_CONTEXT_FUNC(TVMFFISetLastErrorCStr);
   TVM_INIT_CONTEXT_FUNC(TVMBackendGetFuncFromEnv);
   TVM_INIT_CONTEXT_FUNC(TVMBackendAllocWorkspace);
   TVM_INIT_CONTEXT_FUNC(TVMBackendFreeWorkspace);

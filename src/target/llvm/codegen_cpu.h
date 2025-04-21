@@ -93,7 +93,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::FunctionType* ftype_tvm_parallel_lambda_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_func_call_{nullptr};
   llvm::FunctionType* ftype_tvm_get_func_from_env_{nullptr};
-  llvm::FunctionType* ftype_tvm_api_set_last_error_{nullptr};
+  llvm::FunctionType* ftype_tvm_ffi_set_last_error_c_str_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_launch_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_barrier_{nullptr};
   llvm::FunctionType* ftype_tvm_register_system_symbol_{nullptr};
@@ -115,9 +115,9 @@ class CodeGenCPU : public CodeGenLLVM {
   void InitGlobalContext(bool dynamic_lookup);
   llvm::GlobalVariable* InitContextPtr(llvm::Type* type, std::string name);
   llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
-  llvm::Value* RuntimeTVMFuncCall();
+  llvm::Value* RuntimeTVMFFIFuncCall();
   llvm::Value* RuntimeTVMGetFuncFromEnv();
-  llvm::Value* RuntimeTVMAPISetLastError();
+  llvm::Value* RuntimeTVMFFISetLastErrorCStr();
   llvm::Value* RuntimeTVMParallelLaunch();
   llvm::Value* RuntimeTVMParallelBarrier();
   llvm::Value* CreateStaticHandle();
@@ -156,16 +156,16 @@ class CodeGenCPU : public CodeGenLLVM {
 
   // Context for injection lookup
   llvm::GlobalVariable* gv_mod_ctx_{nullptr};
-  llvm::GlobalVariable* gv_tvm_func_call_{nullptr};
+  llvm::GlobalVariable* gv_tvm_ffi_func_call_{nullptr};
   llvm::GlobalVariable* gv_tvm_get_func_from_env_{nullptr};
-  llvm::GlobalVariable* gv_tvm_api_set_last_error_{nullptr};
+  llvm::GlobalVariable* gv_tvm_ffi_set_last_error_c_str_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_launch_{nullptr};
   llvm::GlobalVariable* gv_tvm_parallel_barrier_{nullptr};
   std::unordered_map<String, llvm::GlobalVariable*> gv_func_map_;
   // context for direct dynamic lookup
   llvm::Function* f_tvm_ffi_func_call_{nullptr};
   llvm::Function* f_tvm_get_func_from_env_{nullptr};
-  llvm::Function* f_tvm_api_set_last_error_{nullptr};
+  llvm::Function* f_tvm_ffi_set_last_error_c_str_{nullptr};
   llvm::Function* f_tvm_parallel_launch_{nullptr};
   llvm::Function* f_tvm_parallel_barrier_{nullptr};
   llvm::Function* f_tvm_register_system_symbol_{nullptr};
