@@ -188,11 +188,11 @@ struct IndexPutAttrs : public tvm::AttrsNode<IndexPutAttrs> {
 
   TVM_DECLARE_ATTRS(IndexPutAttrs, "relax.attrs.IndexPutAttrs") {
     TVM_ATTR_FIELD(accumulate)
-      .set_default(false)
-      .describe(
-          "Whether to accumulate (add) values rather than replace. "
-          "If true, performs tensor[indices] += values, "
-          "otherwise performs tensor[indices] = values.");
+        .set_default(false)
+        .describe(
+            "Whether to accumulate (add) values rather than replace. "
+            "If true, performs tensor[indices] += values, "
+            "otherwise performs tensor[indices] = values.");
   }
 };  // struct IndexPutAttrs
 

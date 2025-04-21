@@ -2047,7 +2047,7 @@ StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
 
   // Check that the number of index tensors matches data dimensions
   if (!data_sinfo->IsUnknownNdim() &&
-    indices_tensors.size() != static_cast<size_t>(data_sinfo->ndim)) {
+      indices_tensors.size() != static_cast<size_t>(data_sinfo->ndim)) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "IndexPut requires the number of index tensors (" << indices_tensors.size()
                      << ") to match the data tensor dimensions (" << data_sinfo->ndim << ")");
