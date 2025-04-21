@@ -83,13 +83,13 @@ def index_put(data, indices, values, accumulate=False):
             # Calculate multi-dimensional index
             flat_index = 0
             stride = 1
-            for dim in range(len(shape)-1, -1, -1):
+            for dim in range(len(shape) - 1, -1, -1):
                 # Get index and shift to positive if needed
                 idx_val = indices[dim][k]
                 shifted_idx = idx_val + (idx_val < 0) * shape[dim]
                 flat_index += shifted_idx * stride
                 stride *= shape[dim]
-            
+
             reduce_func(out, flat_index, values[k])
 
         return ib.get()

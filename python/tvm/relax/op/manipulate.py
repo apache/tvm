@@ -600,7 +600,6 @@ def index_put(
     indices: Union[Expr, Tuple[Expr]],
     values: Expr,
     accumulate: bool = False,
-    reduction: str = "update"
 ) -> Expr:
     """This operation updates values in `data` at positions
     specified by `indices` with corresponding values from `values`. The `indices` is a tuple
@@ -617,6 +616,7 @@ def index_put(
         Values to place at the specified indices
     accumulate : bool
         Whether to accumulate (add) values rather than replace (default: False)
+
     Returns
     -------
     result : relax.Expr

@@ -206,7 +206,13 @@ def _index_put(bb: BlockBuilder, call: Call) -> Expr:
     else:
         indices_list = [indices]
 
-    return bb.call_te(topi.index_put, data, indices_list,  values, accumulate=accumulate,)
+    return bb.call_te(
+        topi.index_put,
+        data,
+        indices_list, 
+        values,
+        accumulate=accumulate,
+    )
 
 
 @register_legalize("relax.scatter_elements")

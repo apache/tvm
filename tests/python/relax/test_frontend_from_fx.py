@@ -4435,7 +4435,12 @@ def test_index_put():
             indices_tuple = (indices_0, indices_1)
             return data.index_put_(indices_tuple, values, accumulate=False)
 
-    input_info_2d = [((32, 64), "float32"), ((128,), "int64"), ((128,), "int64"), ((128,), "float32")]
+    input_info_2d = [
+        ((32, 64), "float32"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "float32"),
+    ]
 
     @I.ir_module
     class Expected2D:
@@ -4460,7 +4465,13 @@ def test_index_put():
             indices_tuple = (indices_0, indices_1, indices_2)
             return data.index_put_(indices_tuple, values, accumulate=False)
 
-    input_info_3d = [((16, 32, 64), "float32"), ((128,), "int64"), ((128,), "int64"), ((128,), "int64"), ((128,), "float32")]
+    input_info_3d = [
+        ((16, 32, 64), "float32"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "float32"),
+    ]
 
     @I.ir_module
     class Expected3D:
@@ -4486,7 +4497,14 @@ def test_index_put():
             indices_tuple = (indices_0, indices_1, indices_2, indices_3)
             return data.index_put_(indices_tuple, values, accumulate=False)
 
-    input_info_4d = [((8, 16, 32, 64), "float32"), ((128,), "int64"), ((128,), "int64"), ((128,), "int64"), ((128,), "int64"), ((128,), "float32")]
+    input_info_4d = [
+        ((8, 16, 32, 64), "float32"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "float32"),
+    ]
 
     @I.ir_module
     class Expected4D:
@@ -4501,7 +4519,10 @@ def test_index_put():
         ) -> R.Tensor((8, 16, 32, 64), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((8, 16, 32, 64), dtype="float32") = R.index_put(
-                    data, R.tuple(indices_0, indices_1, indices_2, indices_3), values, accumulate=False
+                    data,
+                    R.tuple(indices_0, indices_1, indices_2, indices_3),
+                    values,
+                    accumulate=False,
                 )
                 gv: R.Tensor((8, 16, 32, 64), dtype="float32") = lv
                 R.output(gv)
@@ -4513,7 +4534,15 @@ def test_index_put():
             indices_tuple = (indices_0, indices_1, indices_2, indices_3, indices_4)
             return data.index_put_(indices_tuple, values, accumulate=False)
 
-    input_info_5d = [((4, 8, 16, 32, 64), "float32"), ((128,), "int64"), ((128,), "int64"), ((128,), "int64"), ((128,), "int64"), ((128,), "int64"), ((128,), "float32")]
+    input_info_5d = [
+        ((4, 8, 16, 32, 64), "float32"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "float32")
+    ]
 
     @I.ir_module
     class Expected5D:
@@ -4529,7 +4558,10 @@ def test_index_put():
         ) -> R.Tensor((4, 8, 16, 32, 64), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((4, 8, 16, 32, 64), dtype="float32") = R.index_put(
-                    data, R.tuple(indices_0, indices_1, indices_2, indices_3, indices_4), values, accumulate=False
+                    data,
+                    R.tuple(indices_0, indices_1, indices_2, indices_3, indices_4),
+                    values,
+                    accumulate=False,
                 )
                 gv: R.Tensor((4, 8, 16, 32, 64), dtype="float32") = lv
                 R.output(gv)
