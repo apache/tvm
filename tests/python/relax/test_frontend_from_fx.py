@@ -4580,7 +4580,18 @@ def test_item():
                 R.output(gv)
             return gv
 
-    verify_model(Item(),[([1],"float32",)],{},Expected)
+    verify_model(
+        Item(),
+        [
+            (
+                [1],
+                "float32",
+            )
+        ],
+        {},
+        Expected,
+    )
+
 
 def test_numel():
     class Numel(Module):

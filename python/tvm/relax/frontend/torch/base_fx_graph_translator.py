@@ -21,6 +21,7 @@
 import abc
 from functools import reduce
 import math
+from re import X
 from typing import Callable, Dict, Optional, Tuple, Union, List
 
 from tvm import relax, tir
@@ -1515,10 +1516,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return x
 
     def _type_as(self, node: fx.Node) -> relax.Var:
-        input = self.env[node.args[0]]
+        x = self.env[node.args[0]]
         other = self.env[node.args[1]]
         dtype = other.struct_info.dtype
-        return self.block_builder.emit(relax.op.astype(input, dtype))
+        return self.block_builder.emit(relax.op.astype(x, dtype))
 
     ########## Others ##########
 
@@ -1604,12 +1605,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             assert False
 
     def _item(self, node: fx.Node) -> relax.Var:
-        input = self.env[node.args[0]]
-        return self.block_builder.emit(relax.op.take(input, relax.const(0, "int64"), axis=0))
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(relax.op.take(x, relax.const(0, "int64"), axis=0))
 
     def _zeros_inplace(self, node: fx.Node) -> relax.Var:
-        input = self.env[node.args[0]]
-        output = self.block_builder.emit(relax.op.zeros_like(input))
+        x = self.env[node.args[0]]
+        output = self.block_builder.emit(relax.op.zeros_like(x))
         self.env[node.args[0]] = output
         return output
 

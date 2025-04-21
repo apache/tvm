@@ -254,8 +254,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         return self.block_builder.emit(relax.op.one_hot(x, on_value, off_value, num_classes, axis))
 
     def _zeros(self, node: fx.Node) -> relax.Var:
-        import torch
-
         args = self.retrieve_args(node)
         size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
         dtype = self._convert_data_type(
