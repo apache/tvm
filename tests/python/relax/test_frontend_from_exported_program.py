@@ -3958,9 +3958,7 @@ def test_ones_like():
             input: R.Tensor((128, 128), dtype="float32")
         ) -> R.Tuple(R.Tensor((128, 128), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.ones_like(
-                    input, dtype="void"
-                )
+                lv: R.Tensor((128, 128), dtype="float32") = R.ones_like(input, dtype="void")
                 gv: R.Tuple(R.Tensor((128, 128), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -3982,9 +3980,7 @@ def test_zero_inplace():
             input: R.Tensor((128, 128), dtype="float32")
         ) -> R.Tuple(R.Tensor((128, 128), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(
-                    input, dtype="void"
-                )
+                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(input, dtype="void")
                 gv: R.Tuple(R.Tensor((128, 128), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -4006,9 +4002,7 @@ def test_zeros():
             input: R.Tensor((128, 128), dtype="float32")
         ) -> R.Tuple(R.Tensor((5, 2), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((5, 2), dtype="float32") = R.zeros(
-                    R.shape([5, 2]), dtype="float32"
-                )
+                lv: R.Tensor((5, 2), dtype="float32") = R.zeros(R.shape([5, 2]), dtype="float32")
                 gv: R.Tuple(R.Tensor((5, 2), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -4031,9 +4025,7 @@ def test_type_as():
             other: R.Tensor((128, 128), dtype="float16"),
         ) -> R.Tuple(R.Tensor((128, 128), dtype="float16")):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float16") = R.astype(
-                    input, dtype="float16"
-                )
+                lv: R.Tensor((128, 128), dtype="float16") = R.astype(input, dtype="float16")
                 gv: R.Tuple(R.Tensor((128, 128), dtype="float16")) = (lv,)
                 R.output(gv)
             return gv
@@ -4479,27 +4471,22 @@ def test_narrow():
 
 def test_item():
     class Item(Module):
-        def forward(self,x):
+        def forward(self, x):
             return x.item()
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(
-            input: R.Tensor((1,), dtype="float32")
-        ) -> R.Tuple(R.Tensor((), dtype="float32")):
+        def main(input: R.Tensor((1,), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((), dtype="float32") = R.take(
-                    input,
-                    R.const(0, "int64"),
-                    axis=0
-                )
+                lv: R.Tensor((), dtype="float32") = R.take(input, R.const(0, "int64"), axis=0)
                 gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
     example_args = (torch.randn(1, dtype=torch.float32),)
     verify_model(Item(), example_args, {}, Expected)
+
 
 if __name__ == "__main__":
     tvm.testing.main()

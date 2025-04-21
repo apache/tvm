@@ -4516,9 +4516,7 @@ def test_ones_like():
             inp_0: R.Tensor((128, 128), dtype="float32")
         ) -> R.Tensor((128, 128), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.ones_like(
-                    inp_0, dtype="void"
-                )
+                lv: R.Tensor((128, 128), dtype="float32") = R.ones_like(inp_0, dtype="void")
                 gv: R.Tensor((128, 128), dtype="float32") = lv
                 R.output(gv)
             return gv
@@ -4538,9 +4536,7 @@ def test_zero_inplace():
             inp_0: R.Tensor((128, 128), dtype="float32")
         ) -> R.Tensor((128, 128), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(
-                    inp_0, dtype="void"
-                )
+                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0, dtype="void")
                 gv: R.Tensor((128, 128), dtype="float32") = lv
                 R.output(gv)
             return gv
@@ -4561,9 +4557,7 @@ def test_type_as():
             inp_1: R.Tensor((128, 128), dtype="float32"),
         ) -> R.Tensor((128, 128), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((128, 128), dtype="float32") = R.astype(
-                    inp_0, dtype="float32"
-                )
+                lv: R.Tensor((128, 128), dtype="float32") = R.astype(inp_0, dtype="float32")
                 gv: R.Tensor((128, 128), dtype="float32") = lv
                 R.output(gv)
             return gv
@@ -4579,18 +4573,14 @@ def test_item():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(
-            inp_0: R.Tensor((1,), dtype="float32")
-        ) -> R.Tensor((), dtype="float32"):
+        def main(inp_0: R.Tensor((1,), dtype="float32")) -> R.Tensor((), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((), dtype="float32") = R.take(
-                    inp_0, R.const(0, "int64"), axis=0
-                )
+                lv: R.Tensor((), dtype="float32") = R.take(inp_0, R.const(0, "int64"), axis=0)
                 gv: R.Tensor((), dtype="float32") = lv
                 R.output(gv)
             return gv
 
-    verify_model(Item(),[([1,],"float32",)],{},Expected,)
+    verify_model(Item(),[([1],"float32",)],{},Expected)
 
 def test_numel():
     class Numel(Module):

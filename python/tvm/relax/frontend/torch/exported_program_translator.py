@@ -261,12 +261,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         dtype = self._convert_data_type(
             node.kwargs.get("dtype", torch.get_default_dtype()), self.env
         )
-        return self.block_builder.emit(
-            relax.op.zeros(
-                size,
-                dtype
-            )
-        )
+        return self.block_builder.emit(relax.op.zeros(size, dtype))
 
     ########## Others ##########
 

@@ -785,7 +785,7 @@ class TorchFXImporter(BaseFXGraphImporter):
                 relax.op.ones_like(self.env[node.args[0]])
             ),
             "tensor": self._tensor,
-            "zero_":self._zeros_inplace,
+            "zero_": self._zeros_inplace,
             # datatype
             "astype": self._type,
             "float": self._float,
