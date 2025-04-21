@@ -135,7 +135,7 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
           // Skip mutating the sampling instructions who have only single candidate.
           continue;
         }
-        const auto* d = TVM_TYPE_AS(decision, runtime::Int::ContainerType);
+        const auto* d = TVM_TYPE_AS(decision, IntImmNode);
         instructions.push_back(inst);
         decisions.push_back(d->value);
       }

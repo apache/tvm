@@ -27,7 +27,6 @@
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container/boxed_primitive.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>

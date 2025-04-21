@@ -875,11 +875,11 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
 #endif
 
     pc.ret_value = CreateCast(r_api_type, r_type, rvalue);
+    llvm::Value* result_type_index =
+        builder_->CreateInBoundsGEP(t_tvm_ffi_any_, result, {ConstInt32(0), ConstInt32(0)});
 
     // Load the return type code.
 #if TVM_LLVM_VERSION >= 110
-    llvm::Value* result_type_index =
-        builder_->CreateInBoundsGEP(t_tvm_ffi_any_, result, {ConstInt32(0), ConstInt32(0)});
     pc.ret_type_index = builder_->CreateAlignedLoad(t_int32_, result_type_index, llvm::Align(4));
 #elif TVM_LLVM_VERSION >= 80
     pc.ret_type_index = builder_->CreateAlignedLoad(t_int32_, result_type_index, 8);
