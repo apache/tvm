@@ -1769,6 +1769,8 @@ def test_binary2(op, relax_op):
 
 
 operator_binary_3 = [
+    (torch.ops.aten.bitwise_or_, R.bitwise_or),
+    (torch.ops.aten.bitwise_or, R.bitwise_or),
     (operator.lshift, R.left_shift),
     (operator.rshift, R.right_shift),
     (operator.and_, R.bitwise_and),

@@ -328,6 +328,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # binary
             "add.Tensor": self._binary_op(relax.op.add, operator.add),
             "add_.Tensor": self._binary_op(relax.op.add, operator.add),
+            "bitwise_or_.Scalar": self._binary_op(relax.op.bitwise_or, operator.or_),
+            "bitwise_or.Scalar": self._binary_op(relax.op.bitwise_or, operator.or_),
+            "bitwise_or_.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
+            "bitwise_or.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
             "div.Tensor": self._binary_op(relax.op.divide, operator.truediv),
             "eq.Scalar": self._binary_op(relax.op.equal, operator.eq),
             "eq.Tensor": self._binary_op(relax.op.equal, operator.eq),
