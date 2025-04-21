@@ -518,6 +518,11 @@ class TorchFXImporter(BaseFXGraphImporter):
         self.env[node.args[0]] = filled
         return filled
 
+    def _inplace_copy(self, node: fx.Node) -> relax.Var:
+        src = self.env[node.args[1]]
+        self.env[node.args[0]] = src
+        return src
+
     def _masked_scatter(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         mask = self.env[node.args[1]]
@@ -716,6 +721,8 @@ class TorchFXImporter(BaseFXGraphImporter):
             # binary
             "add": self._binary_op(relax.op.add, operator.add),
             "and_": self._binary_op(relax.op.bitwise_and, operator.and_),
+            "bitwise_or_": self._binary_op(relax.op.bitwise_or, operator.or_),
+            "bitwise_or": self._binary_op(relax.op.bitwise_or, operator.or_),
             "eq": self._binary_op(relax.op.equal, operator.eq),
             "floordiv": self._binary_op(relax.op.floor_divide, operator.floordiv),
             "ge": self._binary_op(relax.op.greater_equal, operator.ge),
@@ -824,6 +831,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "ones": self._ones,
             "one_hot": self._one_hot,
             "tensor": self._tensor,
+            "copy_": self._inplace_copy,
             # datatype
             "astype": self._type,
             "float": self._float,

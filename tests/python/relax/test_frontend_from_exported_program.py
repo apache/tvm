@@ -845,6 +845,8 @@ def test_tril_triu():
 operator_binary_1 = [
     (operator.add, R.add),
     (torch.ops.aten.add_, R.add),
+    (torch.ops.aten.bitwise_or, R.bitwise_or),
+    (torch.ops.aten.bitwise_or_, R.bitwise_or),
     (operator.sub, R.subtract),
     (operator.mul, R.multiply),
     (torch.ops.aten.mul_, R.multiply),
@@ -4487,6 +4489,46 @@ def test_norm():
 
     for (p, dim, keepdim), expected in norms:
         verify_model(Norm(p, dim=dim, keepdim=keepdim), example_args, {}, expected)
+
+
+def test_eye():
+    class Eye1(Module):
+        def forward(self, input):
+            return torch.eye(3, 5, dtype=torch.float32)
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            input: R.Tensor((3, 5), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 5), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 5), dtype="float32") = R.eye(3, 5, dtype="float32")
+                gv: R.Tuple(R.Tensor((3, 5), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class Eye2(Module):
+        def forward(self, input):
+            return torch.eye(5, dtype=torch.float32)
+
+    @tvm.script.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            input: R.Tensor((5,), dtype="float32")
+        ) -> R.Tuple(R.Tensor((5, 5), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5, 5), dtype="float32") = R.eye(5, dtype="float32")
+                gv: R.Tuple(R.Tensor((5, 5), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args1 = (torch.randn(3, 5, dtype=torch.float32),)
+    verify_model(Eye1(), example_args1, {}, Expected1)
+
+    example_args2 = (torch.randn(5, dtype=torch.float32),)
+    verify_model(Eye2(), example_args2, {}, Expected2)
 
 
 if __name__ == "__main__":
