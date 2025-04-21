@@ -29,7 +29,7 @@ def batch_to_space_nd(data, block_shape, crop_begin_list, crop_end_list):
         N-D Tensor with shape [batch, spatial_shape, remaining_shapes],
         where spatial_shape has M dimensions.
 
-    block_size : list of ints
+    block_shape : list of ints
         list of size [M] where M is number of spatial dims, specifies block
         size for each spatial dimension.
 

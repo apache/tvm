@@ -515,9 +515,9 @@ def conv2d_transpose(
 
 def pad(
     data: Expr,
-    pad_width: Tuple[Tuple[int, int], ...],
+    pad_width: Union[List[int], Tuple[int, ...]],
     pad_mode: Optional[str] = "constant",
-    pad_value: Optional[Union[float, Expr]] = 0.0,
+    pad_value: Optional[float] = 0.0,
 ):
     r"""Padding
 
@@ -528,14 +528,15 @@ def pad(
     ----------
     data: relax.Expr
         The input data to the operator
-    pad_width: Tuple[Tuple[int, int], ...], required
+    pad_width: Union[List[int], Tuple[int, ...]], required
         Number of values padded to the edges of each axis, in the format
         of ((before_1, after_1), ..., (before_N, after_N))
     pad_mode: Optional[str]
-        'constant', 'edge', or 'reflect'
-        'constant' pads with constant_value pad_value
-        'edge' pads using the edge values of the input array
-        'reflect' pads by reflecting values with respect to the edge
+        'constant', 'reflect', 'replicate', 'circular'
+        'constant' pads with constant value pad_value
+        'reflect' pads by mirroring values excluding the edge
+        'replicate' pads by repeating the edge values.
+        'circular' pads by looping values from the other side
         Default is 'constant'
     pad_value: Optional[Union[float, Expr]]
         The value used for padding. Default is 0.
@@ -1429,6 +1430,32 @@ def log_softmax(data: Expr, axis: int = -1) -> Expr:
         The computed result.
     """
     return _ffi_api.log_softmax(data, axis)  # type: ignore
+
+
+def prelu(data: Expr, alpha: Expr, axis: int = 1) -> Expr:
+    r"""Parametric Rectified Linear Unit (PReLU).
+
+    .. math::
+        PReLU(x) = x \text{ if } x > 0 \text{ else } \alpha * x
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor.
+
+    alpha : relax.Expr
+        The learnable slope tensor, applied channel-wise.
+
+    axis : int
+        The axis along which the `alpha` values are applied
+        Default is 1 (assuming NCHW format).
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.prelu(data, alpha, axis)
 
 
 def batch_norm(

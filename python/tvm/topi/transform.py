@@ -403,23 +403,25 @@ def concatenate(a_tuple, axis=0):
     return cpp.concatenate(a_tuple, axis)
 
 
-def stack(a, axis):
-    """Repeats the whole array multiple times.
+def stack(tensors, axis=0):
+    """Join a sequence of tensors along a new axis.
 
     Parameters
     ----------
-    a : tvm.te.Tensor
-        The tensor to be stacked.
+    tensors : tuple or list of tvm.te.Tensor
+        The tensors to be stacked. All tensors must have the same shape.
 
     axis : int, optional
-        The axis in the result array along which the input arrays are stacked.
-
+        The axis in the resulting tensor along which the input tensors will be stacked.
+        Negative values wrap around. Default is 0.
 
     Returns
     -------
     ret : tvm.te.Tensor
+        The stacked tensor with an additional dimension compared to the input tensors.
+
     """
-    return cpp.stack(a, axis)
+    return cpp.stack(tensors, axis)
 
 
 def split(ary, indices_or_sections, axis=0):
