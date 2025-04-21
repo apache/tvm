@@ -44,9 +44,34 @@ TEST(DType, StringConversion) {
   EXPECT_EQ(StringToDLDataType("bfloat16x2"), dtype);
 
   // test float8
-  dtype = DLDataType{kDLExtFloat8_e4m3fn, 8, 2};
+  dtype = DLDataType{kDLFloat8_e4m3fn, 8, 2};
   EXPECT_EQ(DLDataTypeToString(dtype), "float8_e4m3fnx2");
   EXPECT_EQ(StringToDLDataType("float8_e4m3fnx2"), dtype);
+}
+
+TEST(DType, StringConversionAllDLPackTypes) {
+  std::vector<std::pair<DLDataType, std::string>> test_cases = {
+      {DLDataType{kDLFloat, 32, 1}, "float32"},
+      {DLDataType{kDLInt, 16, 1}, "int16"},
+      {DLDataType{kDLUInt, 16, 1}, "uint16"},
+      {DLDataType{kDLBfloat, 16, 1}, "bfloat16"},
+      {DLDataType{kDLFloat8_e3m4, 8, 1}, "float8_e3m4"},
+      {DLDataType{kDLFloat8_e4m3, 8, 1}, "float8_e4m3"},
+      {DLDataType{kDLFloat8_e4m3b11fnuz, 8, 1}, "float8_e4m3b11fnuz"},
+      {DLDataType{kDLFloat8_e4m3fn, 8, 1}, "float8_e4m3fn"},
+      {DLDataType{kDLFloat8_e4m3fnuz, 8, 1}, "float8_e4m3fnuz"},
+      {DLDataType{kDLFloat8_e5m2, 8, 1}, "float8_e5m2"},
+      {DLDataType{kDLFloat8_e5m2fnuz, 8, 1}, "float8_e5m2fnuz"},
+      {DLDataType{kDLFloat8_e8m0fnu, 8, 1}, "float8_e8m0fnu"},
+      {DLDataType{kDLFloat6_e2m3fn, 6, 1}, "float6_e2m3fn"},
+      {DLDataType{kDLFloat6_e3m2fn, 6, 1}, "float6_e3m2fn"},
+      {DLDataType{kDLFloat4_e2m1fn, 4, 1}, "float4_e2m1fn"},
+  };
+
+  for (const auto& [dtype, str] : test_cases) {
+    EXPECT_EQ(DLDataTypeToString(dtype), str);
+    EXPECT_EQ(StringToDLDataType(str), dtype);
+  }
 }
 
 TEST(DataType, AnyConversion) {
