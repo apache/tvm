@@ -781,7 +781,11 @@ class TorchFXImporter(BaseFXGraphImporter):
             "new_ones": self._new_ones,
             "ones": self._ones,
             "one_hot": self._one_hot,
+            "ones_like": lambda node: self.block_builder.emit(
+                relax.op.ones_like(self.env[node.args[0]])
+            ),
             "tensor": self._tensor,
+            "zero_":self._zeros_inplace,
             # datatype
             "astype": self._type,
             "float": self._float,
@@ -789,10 +793,12 @@ class TorchFXImporter(BaseFXGraphImporter):
             "is_floating_point": self._is_floating_point,
             "to": self._to,
             "type": self._type,
+            "type_as": self._type_as,
             # other
             "getattr": self._getattr,
             "getitem": self._getitem,
             "sym_size.int": self._sym_size_int,
+            "item": self._item,
         }
 
     def update_convert_map(self, custom_convert_map: dict):
