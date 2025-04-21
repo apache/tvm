@@ -4382,7 +4382,6 @@ def test_eye():
         def forward(self, input):
             return torch.eye(3, 5, dtype=torch.float32)
 
-
     @tvm.script.ir_module
     class Expected1:
         @R.function
