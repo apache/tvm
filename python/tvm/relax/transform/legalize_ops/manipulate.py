@@ -209,7 +209,7 @@ def _index_put(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(
         topi.index_put,
         data,
-        indices_list, 
+        indices_list,
         values,
         accumulate=accumulate,
     )

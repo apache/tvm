@@ -4541,7 +4541,7 @@ def test_index_put():
         ((128,), "int64"),
         ((128,), "int64"),
         ((128,), "int64"),
-        ((128,), "float32")
+        ((128,), "float32"),
     ]
 
     @I.ir_module
