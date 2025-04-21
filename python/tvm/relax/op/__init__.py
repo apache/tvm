@@ -50,6 +50,7 @@ from .binary import (
     divide,
     equal,
     floor_divide,
+    log_add_exp,
     floor_mod,
     greater,
     greater_equal,
@@ -103,6 +104,7 @@ from .manipulate import (
     scatter_nd,
     split,
     squeeze,
+    stack,
     tile,
 )
 from .mask import masked_fill

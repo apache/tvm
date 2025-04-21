@@ -19,14 +19,46 @@ from __future__ import absolute_import as _abs
 
 import tvm
 from tvm import te
+from tvm.tir import if_then_else
 
 from .. import tag
 from ..utils import equal_const_int
 
 
+def get_padded_shape(data, pad_before, pad_after=None):
+    """
+    Calculates the output shape of a tensor after applying padding.
+
+    Args:
+        data (tvm.te.Tensor): The input tensor to which padding is applied.
+        pad_before : list / tuple of n ints
+            Pad width on each dimension to pad the before the axis begin.
+        pad_after : list / tuple of n ints, optional
+            Pad width each dimension to pad the after the axis end.
+
+    Raises:
+        ValueError: If `pad_before` or `pad_after` lengths mismatch with `data` dimensions.
+
+    Returns:
+        tuple: A tuple representing the padded shape of the tensor.
+    """
+    n = data.ndim
+    pad_after = pad_after if pad_after else pad_before
+
+    if len(pad_before) != n:
+        raise ValueError(f"pad_before length {len(pad_before)} != input dims {n}")
+    if len(pad_after) != n:
+        raise ValueError(f"pad_after length {len(pad_after)} != input dims {n}")
+
+    ana = tvm.arith.Analyzer()
+    out_shape = tuple(ana.simplify(data.shape[i] + pad_before[i] + pad_after[i]) for i in range(n))
+
+    return out_shape
+
+
 @tvm.te.tag_scope(tag=tag.INJECTIVE + ",pad")
 def pad(data, pad_before, pad_after=None, pad_value=0.0, name="PadInput", attrs=None):
-    """Pad Input with zeros.
+    """Pad Input with using pad values.
 
     Parameters
     ----------
@@ -143,5 +175,145 @@ def mirror_pad(data, pad_before, pad_after=None, mode="SYMMETRIC", name="MirrorP
             )
             mapped_tuple.append(mapped_axis)
         return data(*mapped_tuple)
+
+    return te.compute(out_shape, _pad, name=name)
+
+
+@tvm.te.tag_scope(tag=tag.INJECTIVE + ",pad")
+def reflect_pad(data, pad_before, pad_after=None, name="ReflectPadInput"):
+    """
+    Apply reflect padding to the input tensor.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        Input tensor.
+
+    pad_before : List[int]
+        Amount to pad before each dimension.
+
+    pad_after : List[int], optional
+        Amount to pad after each dimension. If None, defaults to pad_before.
+
+    name : str
+        Name of the resulting tensor.
+
+    Returns
+    -------
+    out : tvm.te.Tensor
+        Reflect-padded tensor.
+    """
+    out_shape = get_padded_shape(data, pad_before, pad_after)
+
+    def _pad(*indices):
+        index_tuple = []
+        for i in range(data.ndim):
+            idx = indices[i]
+            size = data.shape[i]
+            before = pad_before[i]
+
+            orig_idx = idx - before
+
+            reflected_idx = if_then_else(
+                orig_idx < 0,
+                -orig_idx,  # reflect from start (no repeat)
+                if_then_else(
+                    orig_idx >= size,
+                    (2 * size - 2) - orig_idx,  # reflect from end
+                    orig_idx,
+                ),
+            )
+            index_tuple.append(reflected_idx)
+        return data(*index_tuple)
+
+    return te.compute(out_shape, _pad, name=name)
+
+
+@tvm.te.tag_scope(tag=tag.INJECTIVE + ",pad")
+def replicate_pad(data, pad_before, pad_after=None, name="ReplicatePadInput"):
+    """
+    Apply replicate padding (edge padding) to the input tensor.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        Input tensor.
+
+    pad_before : List[int]
+        Amount to pad before each dimension.
+
+    pad_after : List[int], optional
+        Amount to pad after each dimension. If None, defaults to pad_before.
+
+    name : str
+        Name of the resulting tensor.
+
+    Returns
+    -------
+    out : tvm.te.Tensor
+        Replicate-padded tensor.
+    """
+    out_shape = get_padded_shape(data, pad_before, pad_after)
+
+    def _pad(*indices):
+        index_tuple = []
+        for i in range(data.ndim):
+            idx = indices[i]
+            size = data.shape[i]
+            before = pad_before[i]
+
+            orig_idx = idx - before
+            clamped_idx = if_then_else(
+                orig_idx < 0,
+                tvm.tir.const(0, "int32"),  # replicate first element
+                if_then_else(
+                    orig_idx >= size,
+                    size - 1,  # replicate last element
+                    orig_idx,
+                ),
+            )
+            index_tuple.append(clamped_idx)
+        return data(*index_tuple)
+
+    return te.compute(out_shape, _pad, name=name)
+
+
+@tvm.te.tag_scope(tag=tag.INJECTIVE + ",pad")
+def circular_pad(data, pad_before, pad_after=None, name="CircularPadInput"):
+    """
+    Apply circular padding (wrap around) to the input tensor.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        Input tensor.
+
+    pad_before : List[int]
+        Amount to pad before each dimension.
+
+    pad_after : List[int], optional
+        Amount to pad after each dimension. If None, defaults to pad_before.
+
+    name : str
+        Name of the resulting tensor.
+
+    Returns
+    -------
+    out : tvm.te.Tensor
+        Circular-padded tensor.
+    """
+    out_shape = get_padded_shape(data, pad_before, pad_after)
+
+    def _pad(*indices):
+        index_tuple = []
+        for i in range(data.ndim):
+            idx = indices[i]
+            size = data.shape[i]
+            before = pad_before[i]
+
+            orig_idx = idx - before
+            wrapped_idx = tvm.tir.indexmod(orig_idx + size, size)
+            index_tuple.append(wrapped_idx)
+        return data(*index_tuple)
 
     return te.compute(out_shape, _pad, name=name)

@@ -23,7 +23,7 @@ from functools import reduce
 import math
 from typing import Callable, Dict, Optional, Tuple, Union, List
 
-from tvm import relax
+from tvm import relax, tir
 
 
 class BaseFXGraphImporter(metaclass=abc.ABCMeta):
@@ -307,6 +307,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
 
+    def _prelu(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        alpha = self.env[node.args[1]]
+        axis = 0 if len(x.struct_info.shape) == 1 else 1
+        return self.block_builder.emit(relax.op.nn.prelu(x, alpha, axis))
+
     def _round(self, node: fx.Node) -> relax.Expr:
         if node.kwargs.get("decimals", 0) != 0:
             raise ValueError("specifying decimals for round is not supported yet")
@@ -400,6 +406,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return intrinsic_op(lhs, rhs)
 
         return convert
+
+    def _rsub(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        lhs = args[0]
+        rhs = args[1]
+
+        if isinstance(rhs, (int, float)):
+            rhs = relax.const(rhs)
+
+        return self.block_builder.emit(relax.op.subtract(rhs, lhs))
 
     ########## Linear Algebra ##########
 
@@ -885,6 +901,24 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
 
+    def _pad(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        pad = node.args[1]
+        mode = node.args[2] if len(node.args) > 2 else node.kwargs.get("mode", "constant")
+        value = node.args[3] if len(node.args) > 3 else node.kwargs.get("value", 0.0)
+        value = 0.0 if value is None else value
+
+        # Calculate symmetric padding width for each dimension
+        # and applying them in reverse order to match the input dimensions.
+        input_ndim = x.struct_info.ndim
+        pad_width = [0] * (input_ndim * 2)
+        pad_pairs = [pad[i : i + 2] for i in range(0, len(pad), 2)]
+        reversed_pairs = list(reversed(pad_pairs))
+        flattened = [value for pair in reversed_pairs for value in pair]
+        pad_width[-len(flattened) :] = flattened
+
+        return self.block_builder.emit(relax.op.nn.pad(x, pad_width, mode, value))
+
     def _scaled_dot_product_attention(self, node: fx.Node) -> relax.Var:
         transpose_S_H = lambda tensor: relax.op.permute_dims(tensor, [0, 2, 1, 3])
         query = transpose_S_H(self.env[node.args[0]])
@@ -926,6 +960,40 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
         keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
         return self.block_builder.emit(relax.op.mean(x, dim, keepdims=keepdim))
+
+    def _norm(self, node: fx.Node) -> relax.Var:
+        data = self.env[node.args[0]]
+        dtype = data.struct_info.dtype
+        order = node.args[1] if len(node.args) > 1 else node.kwargs.get("p", 2)
+        axis = node.args[2] if len(node.args) > 2 else None
+        keepdims = node.args[3] if len(node.args) > 3 else False
+
+        if order == float("inf"):
+            return self.block_builder.emit(
+                relax.op.max(relax.op.abs(data), axis=axis, keepdims=keepdims)
+            )
+        elif order == float("-inf"):
+            return self.block_builder.emit(
+                relax.op.min(relax.op.abs(data), axis=axis, keepdims=keepdims)
+            )
+        # frobenius_norm
+        elif order == "fro":
+            return self.block_builder.emit(
+                relax.op.sqrt(
+                    relax.op.sum(relax.op.multiply(data, data), axis=axis, keepdims=keepdims),
+                )
+            )
+        else:
+            reci_order = relax.const(1 / order, dtype=dtype)
+            order = relax.const(order, dtype=dtype)
+            return self.block_builder.emit(
+                relax.op.power(
+                    relax.op.sum(
+                        relax.op.power(relax.op.abs(data), order), axis=axis, keepdims=keepdims
+                    ),
+                    reci_order,
+                )
+            )
 
     def _prod(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -1096,12 +1164,98 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
         return self.block_builder.emit(relax.op.tile(x, dims))
 
+    def _roll(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        input_tensor = args[0]
+        shifts = args[1] if len(node.args) > 1 else node.kwargs.get("shifts", None)
+        dims = args[2] if len(node.args) > 2 else node.kwargs.get("dims", None)
+
+        # Get original shape
+        original_shape = self.shape_of(input_tensor)
+
+        def to_int(val):
+            if isinstance(val, tir.IntImm):
+                return int(val.value)
+            elif isinstance(val, int):
+                return val
+            elif hasattr(val, "__int__"):
+                return int(val)
+            raise TypeError(f"Unsupported type for shift/dim: {type(val)}")
+
+        def roll_single_dim(tensor: relax.Var, shift: int, dim: int) -> relax.Var:
+            shape = self.shape_of(tensor)
+
+            dim_size = shape.values[dim]
+            shift_val = to_int(shift)
+            dim_size_val = to_int(dim_size)
+            shift_mod = shift_val % dim_size_val
+            if shift_mod == 0:
+                return tensor
+
+            split_pos = dim_size_val - shift_mod
+            part1 = self.block_builder.emit(
+                relax.op.strided_slice(
+                    tensor,
+                    axes=[dim],
+                    begin=[0],
+                    end=[split_pos],
+                    strides=[1],
+                )
+            )
+            part2 = self.block_builder.emit(
+                relax.op.strided_slice(
+                    tensor,
+                    axes=[dim],
+                    begin=[split_pos],
+                    end=[dim_size_val],
+                    strides=[1],
+                )
+            )
+            return self.block_builder.emit(relax.op.concat([part2, part1], axis=dim))
+
+        # Handle dims=None (flatten -> roll -> reshape)
+        if dims is None:
+            flattened = self.block_builder.emit(relax.op.reshape(input_tensor, (-1,)))
+            shift_scalar = to_int(shifts[0] if isinstance(shifts, (list, tuple)) else shifts)
+            rolled = roll_single_dim(flattened, shift_scalar, 0)
+            return self.block_builder.emit(relax.op.reshape(rolled, original_shape))
+
+        # Normalize shifts and dims
+        if isinstance(shifts, (list, tuple)):
+            shifts = [to_int(s) for s in shifts]
+        else:
+            shifts = [to_int(shifts)]
+
+        if isinstance(dims, (list, tuple)):
+            dims = [to_int(d) for d in dims]
+        else:
+            dims = [to_int(dims)]
+
+        if len(shifts) != len(dims):
+            raise ValueError("shifts and dims must have the same length")
+
+        result = input_tensor
+        rank = len(original_shape.values)
+        for shift, dim in zip(shifts, dims):
+            if dim < 0:
+                dim += rank
+            result = roll_single_dim(result, shift, dim)
+
+        return result
+
     def _reshape(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
         args = self.retrieve_args(node)
         x = args[0]
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+        return self.block_builder.emit(relax.op.reshape(x, dims))
+
+    def _reshape_as(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        other = args[1]
+        dims = self.shape_of(other)
         return self.block_builder.emit(relax.op.reshape(x, dims))
 
     def _scatter(self, node: fx.Node) -> relax.Var:
@@ -1144,21 +1298,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _stack(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
+        tensor_list = args[0]
         axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
-        in_args = args[0]
-        assert all(
-            a.struct_info.shape[axis] == in_args[0].struct_info.shape[axis] for a in in_args[1:]
-        ), "Expect all dim at {} to be the same, get {}".format(
-            axis, [a.struct_info.shape for a in args]
-        )
-        cat = self.block_builder.emit(relax.op.concat(in_args, axis=axis))
-        s_shape = []
-        for idx, s in enumerate(cat.struct_info.shape):
-            if idx == axis:
-                s_shape.extend([len(in_args), in_args[0].struct_info.shape[axis]])
-            else:
-                s_shape.append(s)
-        return self.block_builder.emit(relax.op.reshape(cat, s_shape))
+        return self.block_builder.emit(relax.op.stack(tensor_list, axis=axis))
 
     def _take(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -1308,6 +1450,23 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1]
         index = self.env[node.args[2]]
         return self.block_builder.emit(relax.op.take(x, index, dim))
+
+    def _inplace_masked_fill(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        mask = self.env[node.args[1]]
+        value = node.args[2]
+        rx_value = relax.const(value)
+        values = self.block_builder.emit(relax.op.full_like(x, rx_value))
+        output = self.block_builder.emit(relax.op.where(mask, values, x))
+        self.env[node.args[0]] = output
+        return output
+
+    def _masked_fill(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        mask = self.env[node.args[1]]
+        rx_value = relax.const(node.args[2])
+        values = self.block_builder.emit(relax.op.full_like(x, rx_value))
+        return self.block_builder.emit(relax.op.where(mask, values, x))
 
     def _new_ones(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)

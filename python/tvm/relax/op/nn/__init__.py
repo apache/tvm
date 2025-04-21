@@ -43,6 +43,7 @@ from .nn import (
     max_pool3d,
     nll_loss,
     pad,
+    prelu,
     relu,
     rms_norm,
     selu,
