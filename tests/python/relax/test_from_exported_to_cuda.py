@@ -24,7 +24,6 @@ from torch import nn
 from torch.export import export
 from tvm.relax.frontend.torch import from_exported_program
 from torch.nn import Softmax, Upsample
-import torch.nn.functional as F
 
 
 def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev):
@@ -682,6 +681,39 @@ def test_sum(target, dev):
 
     torch_module = SumModel().eval()
     raw_data = np.random.rand(10, 10, 10).astype("float32")
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_mul(target, dev):
+    class MulModule(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.y = torch.tensor(np.random.rand(2, 3).astype("float32"))
+
+        def forward(self, x):
+            return x.mul(self.y)
+
+    torch_module = MulModule().eval()
+    raw_data = np.random.rand(2, 3).astype("float32")
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_concat(target, dev):
+    class ConcatFour(nn.Module):
+        def __init__(self, dim=0):
+            super(ConcatFour, self).__init__()
+            self.dim = dim
+            self.x2 = torch.randn(2, 3)
+            self.x3 = torch.randn(2, 3)
+            self.x4 = torch.randn(2, 3)
+
+        def forward(self, x):
+            return torch.cat((x, self.x2, self.x3, self.x4), dim=self.dim)
+
+    torch_module = ConcatFour().eval()
+    raw_data = np.random.rand(2, 3).astype("float32")
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
