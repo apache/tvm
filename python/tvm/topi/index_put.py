@@ -116,4 +116,3 @@ def index_put(data, indices, values, accumulate=False):
         name="index_put.generic",
         tag="index_put.generic",
     )
-
