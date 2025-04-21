@@ -453,6 +453,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "clone.default": lambda node: self.env[node.args[0]],
             "empty.memory_format": self._empty,
             "empty_like.default": self._empty_like,
+            "eye.default": self._eye,
             "eye.m": self._eye,
             "fill.Scalar": self._fill,
             "full.default": self._full,
