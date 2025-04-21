@@ -1972,6 +1972,128 @@ TVM_REGISTER_OP("relax.gather_nd")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGatherND)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.index_put */
+TVM_REGISTER_NODE_TYPE(IndexPutAttrs);
+
+Expr index_put(Expr data, Expr indices, Expr values, bool accumulate) {
+  auto attrs = make_object<IndexPutAttrs>();
+  attrs->accumulate = std::move(accumulate);
+  static const Op& op = Op::Get("relax.index_put");
+  return Call(op, {data, indices, values}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.index_put").set_body_typed(index_put);
+
+StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* values_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
+
+  auto diag_def = [&](const TensorStructInfoNode* sinfo, String name, String type_key) {
+    if (sinfo == nullptr) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "IndexPut requires the input " << name
+                       << " to be a Tensor. However, the given one is " << type_key);
+    }
+  };
+
+  diag_def(data_sinfo, "data", call->args[0]->struct_info_->GetTypeKey());
+  diag_def(values_sinfo, "values", call->args[2]->struct_info_->GetTypeKey());
+
+  // Handle indices: either a single tensor or a tuple of tensors
+  Array<TensorStructInfo> indices_tensors;
+
+  if (const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(call->args[1])) {
+    // Indices is a tuple of tensors
+    for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
+      const auto* tensor_sinfo = tuple_sinfo->fields[i].as<TensorStructInfoNode>();
+      if (tensor_sinfo == nullptr) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "IndexPut requires each index in the indices tuple to be a Tensor. "
+                         << "However, element " << i << " is "
+                         << tuple_sinfo->fields[i]->GetTypeKey());
+      }
+      indices_tensors.push_back(GetRef<TensorStructInfo>(tensor_sinfo));
+    }
+  } else if (const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1])) {
+    // Indices is a single tensor
+    indices_tensors.push_back(GetRef<TensorStructInfo>(tensor_sinfo));
+  } else {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "IndexPut requires indices to be a Tensor or a tuple of Tensors. "
+                     << "However, the given one is " << call->args[1]->struct_info_->GetTypeKey());
+  }
+
+  if (data_sinfo->IsUnknownNdim()) {
+    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
+  }
+
+  // Validate each index tensor
+  for (size_t i = 0; i < indices_tensors.size(); ++i) {
+    const auto& tensor_sinfo = indices_tensors[i];
+    if (!tensor_sinfo->IsUnknownNdim() && tensor_sinfo->ndim != 1) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "IndexPut requires each index tensor to be 1D. "
+                       << "However, index tensor " << i << " has ndim=" << tensor_sinfo->ndim);
+    }
+    if (tensor_sinfo->IsUnknownDtype()) {
+      LOG(WARNING) << "Data type of index tensor " << i
+                   << " has not been specified. Assume it has an integer type.";
+    } else if (!(tensor_sinfo->dtype.is_int() || tensor_sinfo->dtype.is_uint())) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "IndexPut requires each index tensor to have integer dtype. "
+                       << "However, index tensor " << i << " has dtype=" << tensor_sinfo->dtype);
+    }
+  }
+
+  // Check that the number of index tensors matches data dimensions
+  if (!data_sinfo->IsUnknownNdim() && indices_tensors.size() != static_cast<size_t>(data_sinfo->ndim)) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "IndexPut requires the number of index tensors (" << indices_tensors.size()
+                     << ") to match the data tensor dimensions (" << data_sinfo->ndim << ")");
+  }
+
+  // Check data and values dtype compatibility
+  if (data_sinfo->IsUnknownDtype() || values_sinfo->IsUnknownDtype()) {
+    auto diag_dtype = [&](const TensorStructInfoNode* sinfo, String name) {
+      if (sinfo->IsUnknownDtype()) {
+        LOG(WARNING) << "Data type of " << name
+                     << " has not been specified. Assume it has an integer type.";
+      }
+    };
+    diag_dtype(data_sinfo, "data");
+    diag_dtype(values_sinfo, "values");
+  } else if (data_sinfo->dtype != values_sinfo->dtype) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "IndexPut requires the input data to have the same type as values. "
+                     << "However, the given types are data: " << data_sinfo->dtype
+                     << ", values: " << values_sinfo->dtype);
+  }
+
+  // Check values shape compatibility
+  const auto* values_shape = values_sinfo->shape.as<ShapeExprNode>();
+  if (values_shape) {
+    if (values_sinfo->ndim != 1) {
+      LOG(WARNING) << "IndexPut typically expects values to be 1D, but got ndim="
+                   << values_sinfo->ndim;
+    }
+  }
+
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  if (data_shape) {
+    return TensorStructInfo(ShapeExpr(data_shape->values), data_sinfo->dtype, data_sinfo->vdevice);
+  }
+  return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.index_put")
+    .set_attrs_type<IndexPutAttrs>()
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor(s).")
+    .add_argument("values", "Tensor", "The values to put.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoIndexPut)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.scatter_elements */
 TVM_REGISTER_NODE_TYPE(ScatterElementsAttrs);
 

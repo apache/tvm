@@ -4169,6 +4169,110 @@ def test_gather():
     verify_model(Gather3(), example_args, {}, Expected3)
 
 
+def test_index_put():
+    # Test case 1: 2D input
+    class IndexPut2D(Module):
+        def forward(self, data, indices_0, indices_1, values):
+            indices_tuple = (indices_0, indices_1)
+            return data.index_put_(indices_tuple, values, accumulate=False)
+
+    # Test case 2: 3D input
+    class IndexPut3D(Module):
+        def forward(self, data, indices_0, indices_1, indices_2, values):
+            indices_tuple = (indices_0, indices_1, indices_2)
+            return data.index_put_(indices_tuple, values, accumulate=False)
+
+    # Test case 3: 4D input
+    class IndexPut4D(Module):
+        def forward(self, data, indices_0, indices_1, indices_2, indices_3, values):
+            indices_tuple = (indices_0, indices_1, indices_2, indices_3)
+            return data.index_put_(indices_tuple, values, accumulate=False)
+
+    @I.ir_module
+    class Expected2D:
+        @R.function
+        def main(
+            data: R.Tensor((4, 2), dtype="float32"),
+            indices_0: R.Tensor((2,), dtype="int64"),
+            indices_1: R.Tensor((2,), dtype="int64"),
+            values: R.Tensor((2,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((4, 2), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4, 2), dtype="float32") = R.index_put(
+                    data, R.tuple(indices_0, indices_1), values, accumulate=False
+                )
+                gv: R.Tuple(R.Tensor((4, 2), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected3D:
+        @R.function
+        def main(
+            data: R.Tensor((4, 2, 3), dtype="float32"),
+            indices_0: R.Tensor((2,), dtype="int64"),
+            indices_1: R.Tensor((2,), dtype="int64"),
+            indices_2: R.Tensor((2,), dtype="int64"),
+            values: R.Tensor((2,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((4, 2, 3), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4, 2, 3), dtype="float32") = R.index_put(
+                    data, R.tuple(indices_0, indices_1, indices_2), values, accumulate=False
+                )
+                gv: R.Tuple(R.Tensor((4, 2, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected4D:
+        @R.function
+        def main(
+            data: R.Tensor((4, 2, 3, 2), dtype="float32"),
+            indices_0: R.Tensor((2,), dtype="int64"),
+            indices_1: R.Tensor((2,), dtype="int64"),
+            indices_2: R.Tensor((2,), dtype="int64"),
+            indices_3: R.Tensor((2,), dtype="int64"),
+            values: R.Tensor((2,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((4, 2, 3, 2), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4, 2, 3, 2), dtype="float32") = R.index_put(
+                    data, R.tuple(indices_0, indices_1, indices_2, indices_3), values, accumulate=False
+                )
+                gv: R.Tuple(R.Tensor((4, 2, 3, 2), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    # Example arguments for tracing
+    example_args_2d = (
+        torch.randn(4, 2, dtype=torch.float32),
+        torch.randint(0, 4, (2,), dtype=torch.int64),
+        torch.randint(0, 2, (2,), dtype=torch.int64),
+        torch.randn(2, dtype=torch.float32),
+    )
+
+    example_args_3d = (
+        torch.randn(4, 2, 3, dtype=torch.float32),
+        torch.randint(0, 4, (2,), dtype=torch.int64),
+        torch.randint(0, 2, (2,), dtype=torch.int64),
+        torch.randint(0, 3, (2,), dtype=torch.int64),
+        torch.randn(2, dtype=torch.float32),
+    )
+
+    example_args_4d = (
+        torch.randn(4, 2, 3, 2, dtype=torch.float32),
+        torch.randint(0, 4, (2,), dtype=torch.int64),
+        torch.randint(0, 2, (2,), dtype=torch.int64),
+        torch.randint(0, 3, (2,), dtype=torch.int64),
+        torch.randint(0, 2, (2,), dtype=torch.int64),
+        torch.randn(2, dtype=torch.float32),
+    )
+
+    # Run verification for each case
+    verify_model(IndexPut2D(), example_args_2d, {}, Expected2D)
+    verify_model(IndexPut3D(), example_args_3d, {}, Expected3D)
+    verify_model(IndexPut4D(), example_args_4d, {}, Expected4D)
+
+    
 def test_flip():
     class Flip0(Module):
         def forward(self, data):

@@ -182,6 +182,20 @@ struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
   }
 };  // struct GatherNDAttrs
 
+/*! \brief Attributes used in index_put operator */
+struct IndexPutAttrs : public tvm::AttrsNode<IndexPutAttrs> {
+  bool accumulate;
+
+  TVM_DECLARE_ATTRS(IndexPutAttrs, "relax.attrs.IndexPutAttrs") {
+    TVM_ATTR_FIELD(accumulate)
+      .set_default(false)
+      .describe(
+          "Whether to accumulate (add) values rather than replace. "
+          "If true, performs tensor[indices] += values, "
+          "otherwise performs tensor[indices] = values.");
+  }
+};  // struct IndexPutAttrs
+
 /*! \brief Attributes used in scatter_elements operators */
 struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
   Integer axis;

@@ -193,6 +193,22 @@ def _index_tensor(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.index_tensor, call.args[0], fields)
 
 
+@register_legalize("relax.index_put")
+def _index_put(bb: BlockBuilder, call: Call) -> Expr:
+    data = call.args[0]
+    indices = call.args[1]
+    values = call.args[2]
+    accumulate = call.attrs.accumulate
+
+    # If indices is a Tuple, unpack it into individual tensors
+    if isinstance(indices, relax.Tuple):
+        indices_list = [indices.fields[i] for i in range(len(indices.fields))]
+    else:
+        indices_list = [indices]
+
+    return bb.call_te(topi.index_put, data, indices_list,  values, accumulate=accumulate,)
+
+
 @register_legalize("relax.scatter_elements")
 def _scatter_elements(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(

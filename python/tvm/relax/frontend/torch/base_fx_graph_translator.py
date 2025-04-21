@@ -1117,6 +1117,23 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
         index = self.env[node.args[2]]
         return self.block_builder.emit(relax.op.gather_elements(x, index, axis=dim))
+    
+    def _index_put_(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        tensor = args[0]
+        indices = args[1] if len(args) > 1 else node.kwargs.get("indices", ())
+        values = args[2] if len(args) > 2 else node.kwargs.get("values")
+        accumulate = args[3] if len(args) > 3 else node.kwargs.get("accumulate", False)
+
+        # Ensure accumulate is a boolean
+        if isinstance(accumulate, str):
+            accumulate = accumulate.lower() == "true"
+        elif not isinstance(accumulate, bool):
+            accumulate = bool(accumulate)
+        
+        if isinstance(indices, (list, tuple)):
+            indices = relax.Tuple(indices) if indices else relax.Tuple([])
+        return self.block_builder.emit(relax.op.index_put(tensor, indices, values, accumulate))
 
     def _index_tensor(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
