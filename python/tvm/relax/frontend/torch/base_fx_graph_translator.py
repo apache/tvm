@@ -1297,10 +1297,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.scatter_elements(x, index, src, axis=dim))
 
     def _sort(self, node: fx.Node) -> relax.Var:
+        # torch.sort() returns a tuple of values and indices
+        # we use argsort to get indices and gather_elements to get values
         x = self.env[node.args[0]]
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         descending = node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False)
-        return self.block_builder.emit(relax.op.sort(x, dim, descending))
+
+        indices = self.block_builder.emit(relax.op.argsort(x, dim, descending))
+        values = self.block_builder.emit(relax.op.gather_elements(x, indices, axis=dim))
+        return self.block_builder.emit(relax.Tuple([values, indices]))
 
     def _split(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
