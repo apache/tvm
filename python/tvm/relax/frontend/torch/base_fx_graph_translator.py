@@ -1418,14 +1418,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _eye(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
-        if len(args) == 1:
-            n = args[0]
-            m = n
-        elif len(args) == 2:
-            n = args[0]
-            m = args[1]
-        else:
-            raise ValueError("Invalid number of arguments for eye")
+        n = args[0]
+        m = args[1] if len(args) > 1 else n
         dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
         return self.block_builder.emit(relax.op.eye(n, m, dtype=dtype))
 
