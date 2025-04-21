@@ -1769,6 +1769,8 @@ def test_binary2(op, relax_op):
 
 
 operator_binary_3 = [
+    (torch.ops.aten.bitwise_or_, R.bitwise_or),
+    (torch.ops.aten.bitwise_or, R.bitwise_or),
     (operator.lshift, R.left_shift),
     (operator.rshift, R.right_shift),
     (operator.and_, R.bitwise_and),
@@ -4541,6 +4543,32 @@ def test_select():
             return gv
 
     verify_model(Select(), [([5, 3], "float32")], {}, Expected)
+
+
+def test_inplace_copy():
+    class Inplace_Copy(Module):
+        def forward(self, x, y):
+            x.copy_(y)
+            return x
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            inp_1: R.Tensor((1, 2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((1, 2, 3, 4), dtype="float32"):
+            with R.dataflow():
+                gv: R.Tensor((1, 2, 3, 4), dtype="float32") = inp_1
+                R.output(gv)
+            return gv
+
+    verify_model(
+        Inplace_Copy(),
+        [((1, 2, 3, 4), "float32"), ((1, 2, 3, 4), "float32")],
+        {},
+        Expected,
+    )
 
 
 def test_clone():
