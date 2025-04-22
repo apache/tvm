@@ -1060,6 +1060,34 @@ def test_binary3():
     verify_model(RSub2(), example_args2, {}, expected_rsub2)
 
 
+# IsIn
+
+def test_isin():
+    class IsInModel(torch.nn.Module):
+        def forward(self, x, test_elements):
+            return torch.isin(x, test_elements)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(x: R.Tensor((10, 10), dtype="float32"), test_elements: R.Tensor((8,), dtype="float32")) -> R.Tuple(R.Tensor((10, 10), dtype="bool")):
+            with R.dataflow():
+                lv: R.Tensor((10, 10, 1), dtype="float32") = R.expand_dims(x, axis=[-1])
+                lv1: R.Tensor((8,), dtype="float32") = R.reshape(test_elements, R.shape([8]))
+                lv2: R.Tensor((10, 10, 8), dtype="bool") = R.equal(lv, lv1)
+                lv3: R.Tensor((10, 10), dtype="bool") = R.sum(lv2, axis=[-1], keepdims=False)
+                lv4: R.Tensor((10, 10), dtype="bool") = R.greater(lv3, R.const(0.0, "float32"))
+                gv: R.Tuple(R.Tensor((10, 10), dtype="bool")) = (lv4,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(10, 10, dtype=torch.float32),
+        torch.randn(8, dtype=torch.float32),
+    )
+    verify_model(IsInModel(), example_args, {}, expected)
+
+
 def test_batchnorm2d():
     class BatchNorm2d(Module):
         def __init__(self):

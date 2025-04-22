@@ -693,6 +693,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "hardtanh": self._hardtanh,
             "isfinite": self._unary_op(relax.op.isfinite),
             "isinf": self._unary_op(relax.op.isinf),
+            "isin": self._isin,
             "isnan": self._unary_op(relax.op.isnan),
             "leaky_relu": self._leakyrelu,
             "log": self._unary_op(relax.op.log),

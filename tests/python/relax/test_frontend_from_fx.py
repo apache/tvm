@@ -1868,6 +1868,32 @@ def test_rsub():
     verify_model(RSub2(), input_info2, {}, expected_rsub2)
 
 
+# IsIn
+
+def test_isin():
+    input_info = [([10, 10], "float32"),([8,], "float32")]
+
+    class IsInModel(torch.nn.Module):
+        def forward(self, x, test_elements):
+            return torch.isin(x, test_elements)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(inp_0: R.Tensor((10, 10), dtype="float32"), inp_1: R.Tensor((8,), dtype="float32")) -> R.Tensor((10, 10), dtype="bool"):
+            with R.dataflow():
+                lv: R.Tensor((10, 10, 1), dtype="float32") = R.expand_dims(inp_0, axis=[-1])
+                lv1: R.Tensor((8,), dtype="float32") = R.reshape(inp_1, R.shape([8]))
+                lv2: R.Tensor((10, 10, 8), dtype="bool") = R.equal(lv, lv1)
+                lv3: R.Tensor((10, 10), dtype="bool") = R.sum(lv2, axis=[-1], keepdims=False)
+                lv4: R.Tensor((10, 10), dtype="bool") = R.greater(lv3, R.const(0.0, "float32"))
+                gv: R.Tensor((10, 10), dtype="bool") = lv4
+                R.output(gv)
+            return gv
+
+    verify_model(IsInModel(), input_info, {}, expected)
+
+
 def test_size():
     input_info = [([1, 3, 10, 10], "float32")]
 

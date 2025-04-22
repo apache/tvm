@@ -299,6 +299,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "hardtanh_.default": self._hardtanh,
             "isfinite.default": self._unary_op(relax.op.isfinite),
             "isinf.default": self._unary_op(relax.op.isinf),
+            "isin.Tensor_Tensor": self._isin,
             "isnan.default": self._unary_op(relax.op.isnan),
             "leaky_relu.default": self._leakyrelu,
             "leaky_relu_.default": self._leakyrelu,
