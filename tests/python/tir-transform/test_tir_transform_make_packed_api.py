@@ -60,6 +60,7 @@ def _find_compute_scope(func):
 
     return result
 
+
 @pytest.mark.parametrize("use_global_symbol", [True, False])
 def test_no_op_when_global_symbol_is_absent(use_global_symbol):
     func_attr = {"target": tvm.target.Target("llvm", host="llvm")}
@@ -272,6 +273,7 @@ def test_zero_arg_function():
                 T.tvm_struct_set(result, 0, 14, T.Cast("int64", T.int64(42)))
                 return 0
             return 0
+
     After = tvm.tir.transform.MakePackedAPI()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
