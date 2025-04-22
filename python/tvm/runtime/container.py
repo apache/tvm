@@ -87,7 +87,7 @@ class String(str, PyNativeObject):
         return val
 
 
-@tvm._ffi.register_object("runtime.ShapeTuple")
+@tvm._ffi.register_object("object.Shape")
 class ShapeTuple(Object):
     """TVM runtime ShapeTuple object.
     Parameters
