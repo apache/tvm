@@ -317,15 +317,15 @@ struct StringObjTrait {
 
   static void SHashReduce(const runtime::StringObj* key, SHashReducer hash_reduce) {
     hash_reduce->SHashReduceHashedValue(
-        ffi::details::StableHashBytes(key->bytes.data, key->bytes.size));
+        ffi::details::StableHashBytes(key->data, key->size));
   }
 
   static bool SEqualReduce(const runtime::StringObj* lhs, const runtime::StringObj* rhs,
                            SEqualReducer equal) {
     if (lhs == rhs) return true;
-    if (lhs->bytes.size != rhs->bytes.size) return false;
-    if (lhs->bytes.data == rhs->bytes.data) return true;
-    return std::memcmp(lhs->bytes.data, rhs->bytes.data, lhs->bytes.size) == 0;
+    if (lhs->size != rhs->size) return false;
+    if (lhs->data == rhs->data) return true;
+    return std::memcmp(lhs->data, rhs->data, lhs->size) == 0;
   }
 };
 
@@ -348,7 +348,7 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::StringObj, StringObjTrait)
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::StringObj>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::StringObj*>(node.get());
-      p->stream << '"' << support::StrEscape(op->bytes.data, op->bytes.size) << '"';
+      p->stream << '"' << support::StrEscape(op->data, op->size) << '"';
     });
 
 struct ModuleNodeTrait {

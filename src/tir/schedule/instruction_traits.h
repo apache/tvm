@@ -419,7 +419,7 @@ inline void PythonAPICall::AsPythonString(const Any& obj, std::ostream& os) {
   if (obj == nullptr) {
     os << "None";
   } else if (const auto* str = obj.as<ffi::StringObj>()) {
-    os << str->bytes.data;
+    os << str->data;
   } else if (const auto opt_int_imm = obj.as<IntImm>()) {
     os << (*opt_int_imm)->value;
   } else if (const auto opt_float_imm = obj.as<FloatImm>()) {

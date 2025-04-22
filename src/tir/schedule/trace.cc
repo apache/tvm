@@ -122,7 +122,7 @@ Array<Any> TranslateInputRVs(
       }
     } else if (const auto* str_obj = input.as<StringObj>()) {
       // Case 2. string => "content"
-      results.push_back(String('"' + std::string(str_obj->bytes.data) + '"'));
+      results.push_back(String('"' + std::string(str_obj->data) + '"'));
     } else if (input.as<IntImmNode>() || input.as<FloatImmNode>()) {
       // Case 3. integer or floating-point number
       results.push_back(input);
@@ -177,9 +177,9 @@ Array<Any> TranslateInputRVs(const Array<Any>& inputs,
     }
     const auto* str = input.as<ffi::StringObj>();
     CHECK(str) << "TypeError: Expect String, but gets: " << input.GetTypeKey();
-    CHECK_GT(str->bytes.size, 0) << "ValueError: Empty string is not allowed in input names";
-    const char* name = str->bytes.data;
-    int64_t size = str->bytes.size;
+    CHECK_GT(str->size, 0) << "ValueError: Empty string is not allowed in input names";
+    const char* name = str->data;
+    int64_t size = str->size;
     if (name[0] == '{' && name[size - 1] == '}') {
       Any obj = LoadJSON(name);
       // Case 6. IndexMap
@@ -359,7 +359,7 @@ Array<String> TraceNode::AsPython(bool remove_postproc) const {
     attrs.reserve(inst->attrs.size());
     for (const Any& obj : inst->attrs) {
       if (const auto* str = obj.as<StringObj>()) {
-        attrs.push_back(String('"' + std::string(str->bytes.data) + '"'));
+        attrs.push_back(String('"' + std::string(str->data) + '"'));
       } else {
         attrs.push_back(obj);
       }
@@ -424,7 +424,7 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
       const auto* arr = inst_entry.as<ArrayNode>();
       ICHECK(arr && arr->size() == 4);
       const auto* arr0 = arr->at(0).as<StringObj>();
-      kind = InstructionKind::Get(arr0->bytes.data);
+      kind = InstructionKind::Get(arr0->data);
       inputs = arr->at(1);
       attrs = arr->at(2);
       outputs = arr->at(3);

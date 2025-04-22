@@ -93,7 +93,7 @@ class RPCWrappedFunc : public Object {
     // to their remote variant.
     for (int i = 0; i < args.size(); ++i) {
       if (const auto* str = args[i].as<ffi::StringObj>()) {
-        packed_args[i] = str->bytes.data;
+        packed_args[i] = str->data;
         continue;
       }
       packed_args[i] = args[i];
