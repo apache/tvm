@@ -317,7 +317,6 @@ static inline __device__ __host__ half HALF_MATH_NAME(half x) {          \
 #if defined(__CUDA_ARCH__)
 #if (__CUDA_ARCH__ >= 530)
 CUDA_UNSUPPORTED_HALF_MATH_BINARY(hpow, powf)
-CUDA_UNSUPPORTED_HALF_MATH_UNARY(htanh, tanhf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(htan, tanf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(hatan, atanf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(herf, erf)
@@ -358,7 +357,6 @@ static inline __device__ __host__ nv_bfloat16 HALF_MATH_NAME(nv_bfloat16 x) {   
 }
 
 CUDA_UNSUPPORTED_HALF_MATH_BINARY(hpow, powf)
-CUDA_UNSUPPORTED_HALF_MATH_UNARY(htanh, tanhf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(htan, tanf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(hatan, atanf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(herf, erf)
