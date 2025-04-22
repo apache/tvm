@@ -1062,6 +1062,7 @@ def test_binary3():
 
 # IsIn
 
+
 def test_isin():
     class IsInModel(torch.nn.Module):
         def forward(self, x, test_elements):
@@ -1070,7 +1071,9 @@ def test_isin():
     @tvm.script.ir_module
     class expected:
         @R.function
-        def main(x: R.Tensor((10, 10), dtype="float32"), test_elements: R.Tensor((8,), dtype="float32")) -> R.Tuple(R.Tensor((10, 10), dtype="bool")):
+        def main(
+            x: R.Tensor((10, 10), dtype="float32"), test_elements: R.Tensor((8,), dtype="float32")
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="bool")):
             with R.dataflow():
                 lv: R.Tensor((10, 10, 1), dtype="float32") = R.expand_dims(x, axis=[-1])
                 lv1: R.Tensor((8,), dtype="float32") = R.reshape(test_elements, R.shape([8]))

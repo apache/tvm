@@ -1870,8 +1870,9 @@ def test_rsub():
 
 # IsIn
 
+
 def test_isin():
-    input_info = [([10, 10], "float32"),([8,], "float32")]
+    input_info = [([10, 10], "float32"), ([8], "float32")]
 
     class IsInModel(torch.nn.Module):
         def forward(self, x, test_elements):
@@ -1880,7 +1881,9 @@ def test_isin():
     @tvm.script.ir_module
     class expected:
         @R.function
-        def main(inp_0: R.Tensor((10, 10), dtype="float32"), inp_1: R.Tensor((8,), dtype="float32")) -> R.Tensor((10, 10), dtype="bool"):
+        def main(
+            inp_0: R.Tensor((10, 10), dtype="float32"), inp_1: R.Tensor((8,), dtype="float32")
+        ) -> R.Tensor((10, 10), dtype="bool"):
             with R.dataflow():
                 lv: R.Tensor((10, 10, 1), dtype="float32") = R.expand_dims(inp_0, axis=[-1])
                 lv1: R.Tensor((8,), dtype="float32") = R.reshape(inp_1, R.shape([8]))
