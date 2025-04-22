@@ -150,26 +150,15 @@ inline PrimExpr TVMArrayGet(DataType t, Var arr, builtin::TVMStructFieldKind kin
 }
 
 void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
-                             const PrimExpr& device_id, const Var& ptr_handle,
-                             const PrimExpr& type_index, const std::string& arg_name) {
+                             const PrimExpr& device_id, const Var& handle,
+                            const std::string& arg_name) {
   const DataType tvm_shape_type = DataType::ShapeIndex();
   const DataType tvm_ndim_type = DataType::Int(32);
   const Stmt nop = Evaluate(0);
 
   init_nest_.emplace_back(AssertStmt(
-      !Call(DataType::Bool(), builtin::isnullptr(), {ptr_handle}),
+      !Call(DataType::Bool(), builtin::isnullptr(), {handle}),
       tvm::tir::StringImm(arg_name + " is expected to have non-NULL DLTensor* pointer"), nop));
-
-  Var handle = Var(ptr_handle->name_hint + "_as_dltensor", DataType::Handle());
-
-  PrimExpr handle_from_ndarray = Call(DataType::Handle(), tir::builtin::handle_add_byte_offset(),
-                                      {ptr_handle, IntImm(DataType::Int(32), 16)});
-  // if the type index is not DLTensorPtr, we need to add the offset of the DLTensor header
-  // which always equals 16 bytes;
-  init_nest_.emplace_back(LetStmt(
-      handle,
-      Select(type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr, ptr_handle, handle_from_ndarray),
-      nop));
 
   // dimension checks
   PrimExpr v_ndim = TVMArrayGet(tvm_ndim_type, handle, builtin::kArrNDim);

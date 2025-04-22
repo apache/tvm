@@ -269,7 +269,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // Need to delay binding of the buffers, in case some arguments also
   // appear in the buffer.
   std::vector<std::pair<PrimExpr, Var>> var_def;
-  std::vector<std::tuple<Var, Buffer, Var>> buffer_def;
+  std::vector<std::pair<Var, Buffer>> buffer_def;
 
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
@@ -290,7 +290,12 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                                            type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr ||
                                            type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin,
                                        tvm::tir::StringImm(msg.str()), nop));
+      // if type_index is NDArray, we need to add the offset of the DLTensor header
+      // which always equals 16 bytes, this ensures that T.handle always shows up as a DLTensor*
       arg_value = f_load_arg_value(param.dtype(), i);
+      PrimExpr handle_from_ndarray = Call(DataType::Handle(), tir::builtin::handle_add_byte_offset(),
+                                      {arg_value, IntImm(DataType::Int(32), 16)});
+      arg_value = Select(type_index == ffi::TypeIndex::kTVMFFINDArray, handle_from_ndarray, arg_value);
     } else if (dtype.is_bool()) {
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be boolean";
@@ -324,7 +329,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     if (func_ptr->buffer_map.count(param)) {
       // buffer binding now depends on type index
       // if the index is NDArray handle, we need to offset to get the DLTensor*
-      buffer_def.emplace_back(param, func_ptr->buffer_map[param], type_index);
+      buffer_def.emplace_back(param, func_ptr->buffer_map[param]);
     }
   }
 
@@ -342,8 +347,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     binder.Bind(param, expr, name_hint + "." + param->name_hint, true);
   }
 
-  for (const auto& [var, buffer, type_index] : buffer_def) {
-    binder.BindDLTensor(buffer, device_type, device_id, var, type_index,
+  for (const auto& [var, buffer] : buffer_def) {
+    binder.BindDLTensor(buffer, device_type, device_id, var,
                         name_hint + "." + var->name_hint);
     arg_buffer_declarations.push_back(DeclBuffer(buffer, nop));
   }
