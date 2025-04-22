@@ -48,8 +48,7 @@ namespace tvm {
 namespace ffi {
 
 /*! \brief Base class for bytes and string. */
-class BytesObjBase : public Object, public TVMFFIByteArray {
-};
+class BytesObjBase : public Object, public TVMFFIByteArray {};
 
 /*!
  * \brief An object representing bytes.

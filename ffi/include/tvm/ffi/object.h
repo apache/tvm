@@ -52,9 +52,10 @@ struct StaticTypeKey {
   static constexpr const char* kTVMFFIRawStr = "const char*";
   static constexpr const char* kTVMFFIByteArrayPtr = "TVMFFIByteArray*";
   static constexpr const char* kTVMFFIObjectRValueRef = "ObjectRValueRef";
-  static constexpr const char* kTVMFFIShape = "object.Shape";
   static constexpr const char* kTVMFFIBytes = "object.Bytes";
   static constexpr const char* kTVMFFIStr = "object.String";
+  static constexpr const char* kTVMFFIShape = "object.Shape";
+  static constexpr const char* kTVMFFINDArray = "object.NDArray";
 };
 
 /*!

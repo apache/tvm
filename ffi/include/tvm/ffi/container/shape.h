@@ -28,10 +28,10 @@
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/type_traits.h>
 
-#include <vector>
-#include <ostream>
 #include <algorithm>
+#include <ostream>
 #include <utility>
+#include <vector>
 
 namespace tvm {
 namespace ffi {

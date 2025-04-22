@@ -438,6 +438,50 @@ TVM_FFI_DLL int TVMFFIRegisterTypeField(int32_t type_index, const TVMFFIFieldInf
 TVM_FFI_DLL int TVMFFIRegisterTypeMethod(int32_t type_index, const TVMFFIMethodInfo* info);
 
 //------------------------------------------------------------
+// Section: DLPack support APIs
+//------------------------------------------------------------
+/*!
+ * \brief Produce a managed NDArray from a DLPack tensor.
+ * \param from The source DLPack tensor.
+ * \param require_alignment The minimum alignment requored of the data + byte_offset.
+ * \param require_contiguous Boolean flag indicating if we need to check for contiguity.
+ * \param out The output NDArray handle.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFINDArrayFromDLPack(DLManagedTensor* from, int32_t require_alignment,
+                                        int32_t require_contiguous, TVMFFIObjectHandle* out);
+
+/*!
+ * \brief Produce a DLMangedTensor from the array that shares data memory with the array.
+ * \param from The source array.
+ * \param out The DLManagedTensor handle.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFINDArrayToDLPack(TVMFFIObjectHandle from, DLManagedTensor** out);
+
+/*!
+ * \brief Produce a managed NDArray from a DLPack tensor.
+ * \param from The source DLPack tensor.
+ * \param require_alignment The minimum alignment requored of the data + byte_offset.
+ * \param require_contiguous Boolean flag indicating if we need to check for contiguity.
+ * \param out The output NDArray handle.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFINDArrayFromDLPackVersioned(DLManagedTensorVersioned* from,
+                                                 int32_t require_alignment,
+                                                 int32_t require_contiguous,
+                                                 TVMFFIObjectHandle* out);
+
+/*!
+ * \brief Produce a DLMangedTensor from the array that shares data memory with the array.
+ * \param from The source array.
+ * \param out The DLManagedTensor handle.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFINDArrayToDLPackVersioned(TVMFFIObjectHandle from,
+                                               DLManagedTensorVersioned** out);
+
+//------------------------------------------------------------
 // Section: Backend noexcept functions for internal use
 //
 // These functions are used internally and do not throw error
