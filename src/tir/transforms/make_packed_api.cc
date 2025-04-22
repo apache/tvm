@@ -293,9 +293,11 @@ PrimFunc MakePackedAPI(PrimFunc func) {
       // if type_index is NDArray, we need to add the offset of the DLTensor header
       // which always equals 16 bytes, this ensures that T.handle always shows up as a DLTensor*
       arg_value = f_load_arg_value(param.dtype(), i);
-      PrimExpr handle_from_ndarray = Call(DataType::Handle(), tir::builtin::handle_add_byte_offset(),
-                                      {arg_value, IntImm(DataType::Int(32), 16)});
-      arg_value = Select(type_index == ffi::TypeIndex::kTVMFFINDArray, handle_from_ndarray, arg_value);
+      PrimExpr handle_from_ndarray =
+          Call(DataType::Handle(), tir::builtin::handle_add_byte_offset(),
+               {arg_value, IntImm(DataType::Int(32), 16)});
+      arg_value =
+          Select(type_index == ffi::TypeIndex::kTVMFFINDArray, handle_from_ndarray, arg_value);
     } else if (dtype.is_bool()) {
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be boolean";
@@ -348,8 +350,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   }
 
   for (const auto& [var, buffer] : buffer_def) {
-    binder.BindDLTensor(buffer, device_type, device_id, var,
-                        name_hint + "." + var->name_hint);
+    binder.BindDLTensor(buffer, device_type, device_id, var, name_hint + "." + var->name_hint);
     arg_buffer_declarations.push_back(DeclBuffer(buffer, nop));
   }
 

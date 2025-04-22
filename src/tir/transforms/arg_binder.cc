@@ -151,7 +151,7 @@ inline PrimExpr TVMArrayGet(DataType t, Var arr, builtin::TVMStructFieldKind kin
 
 void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
                              const PrimExpr& device_id, const Var& handle,
-                            const std::string& arg_name) {
+                             const std::string& arg_name) {
   const DataType tvm_shape_type = DataType::ShapeIndex();
   const DataType tvm_ndim_type = DataType::Int(32);
   const Stmt nop = Evaluate(0);

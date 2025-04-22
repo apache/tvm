@@ -24,10 +24,12 @@
 #ifndef TVM_RUNTIME_CONTAINER_SHAPE_TUPLE_H_
 #define TVM_RUNTIME_CONTAINER_SHAPE_TUPLE_H_
 
+#include <tvm/ffi/container/shape.h>
+
 #include <ostream>
 #include <utility>
 #include <vector>
-#include <tvm/ffi/container/shape.h>
+
 #include "./base.h"
 
 namespace tvm {

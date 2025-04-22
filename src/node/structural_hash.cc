@@ -316,8 +316,7 @@ struct StringObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
   static void SHashReduce(const runtime::StringObj* key, SHashReducer hash_reduce) {
-    hash_reduce->SHashReduceHashedValue(
-        ffi::details::StableHashBytes(key->data, key->size));
+    hash_reduce->SHashReduceHashedValue(ffi::details::StableHashBytes(key->data, key->size));
   }
 
   static bool SEqualReduce(const runtime::StringObj* lhs, const runtime::StringObj* rhs,
@@ -497,7 +496,7 @@ struct ShapeTupleObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
   static void SHashReduce(const ShapeTupleObj* self, SHashReducer hash_reduce) {
-    hash_reduce(self->size);
+    hash_reduce(static_cast<uint64_t>(self->size));
     for (uint32_t i = 0; i < self->size; ++i) {
       hash_reduce(self->data[i]);
     }

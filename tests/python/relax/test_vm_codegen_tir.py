@@ -89,7 +89,7 @@ def test_tir_call():
         def __vmtir__foo(ctx_ptr: T.handle, r: T.handle, c: T.handle, f: T.handle):
             T.func_attr({"global_symbol": "__vmtir__foo"})
             T.call_cpacked(
-                "shape_func", T.anylist_getitem(r, T.int32(0)), T.reinterpret("handle", T.uint64(0))
+                "shape_func", T.anylist_getitem(r, T.int32(0))
             )
             T.anylist_setitem_call_packed(
                 r, T.int32(1), "vm.builtin.copy", T.anylist_getitem(r, T.int32(0))
