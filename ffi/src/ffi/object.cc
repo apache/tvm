@@ -242,6 +242,7 @@ class TypeTable {
                               Object::_type_child_slots, Object::_type_child_slots_can_overflow,
                               -1);
     // reserve the static types
+    ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFINone, TypeIndex::kTVMFFINone);
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIInt, TypeIndex::kTVMFFIInt);
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIFloat, TypeIndex::kTVMFFIFloat);
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIBool, TypeIndex::kTVMFFIBool);
@@ -252,6 +253,7 @@ class TypeTable {
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIByteArrayPtr, TypeIndex::kTVMFFIByteArrayPtr);
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIObjectRValueRef,
                             TypeIndex::kTVMFFIObjectRValueRef);
+    // no need to reserve for object types as they will be registered
   }
 
   void ReserveBuiltinTypeIndex(const char* type_key, int32_t static_type_index) {

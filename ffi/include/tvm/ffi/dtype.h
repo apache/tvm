@@ -20,8 +20,6 @@
 /*!
  * \file tvm/ffi/dtype.h
  * \brief Data type handling.
- *
- * This file contains convenient methods for holding
  */
 #ifndef TVM_FFI_DTYPE_H_
 #define TVM_FFI_DTYPE_H_

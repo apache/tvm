@@ -63,7 +63,7 @@ class BytesObjBase : public Object {
 class BytesObj : public BytesObjBase {
  public:
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFIBytes;
-  static constexpr const char* _type_key = "object.Bytes";
+  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIBytes;
   static const constexpr bool _type_final = true;
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(BytesObj, Object);
 };
@@ -72,7 +72,7 @@ class BytesObj : public BytesObjBase {
 class StringObj : public BytesObjBase {
  public:
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFIStr;
-  static constexpr const char* _type_key = "object.String";
+  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIStr;
   static const constexpr bool _type_final = true;
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(StringObj, Object);
 };

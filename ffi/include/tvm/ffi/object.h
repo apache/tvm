@@ -52,6 +52,9 @@ struct StaticTypeKey {
   static constexpr const char* kTVMFFIRawStr = "const char*";
   static constexpr const char* kTVMFFIByteArrayPtr = "TVMFFIByteArray*";
   static constexpr const char* kTVMFFIObjectRValueRef = "ObjectRValueRef";
+  static constexpr const char* kTVMFFIShape = "object.Shape";
+  static constexpr const char* kTVMFFIBytes = "object.Bytes";
+  static constexpr const char* kTVMFFIStr = "object.String";
 };
 
 /*!
@@ -60,32 +63,7 @@ struct StaticTypeKey {
  * \return the type key
  */
 inline std::string TypeIndexToTypeKey(int32_t type_index) {
-  switch (type_index) {
-    case TypeIndex::kTVMFFIAny:
-      return StaticTypeKey::kTVMFFIAny;
-    case TypeIndex::kTVMFFINone:
-      return StaticTypeKey::kTVMFFINone;
-    case TypeIndex::kTVMFFIBool:
-      return StaticTypeKey::kTVMFFIBool;
-    case TypeIndex::kTVMFFIInt:
-      return StaticTypeKey::kTVMFFIInt;
-    case TypeIndex::kTVMFFIFloat:
-      return StaticTypeKey::kTVMFFIFloat;
-    case TypeIndex::kTVMFFIOpaquePtr:
-      return StaticTypeKey::kTVMFFIOpaquePtr;
-    case TypeIndex::kTVMFFIDataType:
-      return StaticTypeKey::kTVMFFIDataType;
-    case TypeIndex::kTVMFFIDevice:
-      return StaticTypeKey::kTVMFFIDevice;
-    case TypeIndex::kTVMFFIRawStr:
-      return StaticTypeKey::kTVMFFIRawStr;
-    case TypeIndex::kTVMFFIObjectRValueRef:
-      return StaticTypeKey::kTVMFFIObjectRValueRef;
-    default: {
-      const TypeInfo* type_info = TVMFFIGetTypeInfo(type_index);
-      return type_info->type_key;
-    }
-  }
+  return TVMFFIGetTypeInfo(type_index)->type_key;
 }
 
 namespace details {

@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/ffi/container/container_details.h
- * \brief Common utilities for container types.
+ * \brief Common utilities for typed container types.
  */
 #ifndef TVM_FFI_CONTAINER_CONTAINER_DETAILS_H_
 #define TVM_FFI_CONTAINER_CONTAINER_DETAILS_H_

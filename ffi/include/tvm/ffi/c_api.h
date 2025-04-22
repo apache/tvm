@@ -58,40 +58,72 @@ typedef enum {
   // - `Any::type_index` is never `kTVMFFIRawStr`
   // - `AnyView::type_index` can be `kTVMFFIRawStr`
   //
-  // NOTE: kTVMFFIAny is a root type of everything
-  // we include it so TypeIndex captures all possible runtime values.
-  // `kTVMFFIAny` code will never appear in Any::type_index.
-  // However, it may appear in field annotations during reflection.
-  //
+  /*
+   * \brief The root type of all FFI objects.
+   *
+   * We include it so TypeIndex captures all possible runtime values.
+   * `kTVMFFIAny` code will never appear in Any::type_index.
+   * However, it may appear in field annotations during reflection.
+   */
   kTVMFFIAny = -1,
+  /*! \brief None/nullptr value */
   kTVMFFINone = 0,
+  /*! \brief POD int value */
   kTVMFFIInt = 1,
+  /*! \brief POD bool value */
   kTVMFFIBool = 2,
+  /*! \brief POD float value */
   kTVMFFIFloat = 3,
+  /*! \brief Opaque pointer object */
   kTVMFFIOpaquePtr = 4,
+  /*! \brief DLDataType */
   kTVMFFIDataType = 5,
+  /*! \brief DLDevice */
   kTVMFFIDevice = 6,
+  /*! \brief DLTensor* */
   kTVMFFIDLTensorPtr = 7,
+  /*! \brief const char**/
   kTVMFFIRawStr = 8,
+  /*! \brief TVMFFIByteArray* */
   kTVMFFIByteArrayPtr = 9,
+  /*! \brief R-value reference to ObjectRef */
   kTVMFFIObjectRValueRef = 10,
-  // [Section] Static Boxed: [kTVMFFIStaticObjectBegin, kTVMFFIDynObjectBegin)
-  // roughly order in terms of their ptential dependencies
+  /*! \brief Start of statically defined objects. */
   kTVMFFIStaticObjectBegin = 64,
+  /*!
+   * \brief Object, all objects starts with TVMFFIObject as its header.
+   * \note We will also add other fields
+   */
   kTVMFFIObject = 64,
+  /*!
+   * \brief String object, layout = { TVMFFIObject, TVMFFIByteArray, ... }
+   */
   kTVMFFIStr = 65,
+  /*!
+   * \brief Bytes object, layout = { TVMFFIObject, TVMFFIByteArray, ... }
+   */
   kTVMFFIBytes = 66,
+  /*! \brief Error object. */
   kTVMFFIError = 67,
+  /*! \brief Function object. */
   kTVMFFIFunc = 68,
+  /*! \brief Array object. */
   kTVMFFIArray = 69,
+  /*! \brief Map object. */
   kTVMFFIMap = 70,
-  kTVMFFIShapeTuple = 71,
+  /*!
+   * \brief Shape object, layout = { TVMFFIObject, { const int64_t*, size_t }, ... }
+   */
+  kTVMFFIShape = 71,
+  /*!
+   * \brief NDArray object, layout = { TVMFFIObject, DLTensor, ... }
+   */
   kTVMFFINDArray = 72,
+  /*! \brief Runtime module object. */
   kTVMFFIRuntimeModule = 73,
   kTVMFFIStaticObjectEnd,
   // [Section] Dynamic Boxed: [kTVMFFIDynObjectBegin, +oo)
-  // kTVMFFIDynObject is used to indicate that the type index
-  // is dynamic and needs to be looked up at runtime
+  /*! \brief Start of type indices that are allocated at runtime. */
   kTVMFFIDynObjectBegin = 128
 #ifdef __cplusplus
 };
@@ -157,10 +189,9 @@ typedef struct TVMFFIAny {
 } TVMFFIAny;
 
 /*!
- *  \brief Byte array data structure used by String and Bytes.
+ * \brief Byte array data structure used by String and Bytes.
  *
- *  String and bytes follows the layout of C-style string,
- *  with a null-terminated character array and a size field.
+ * String and Bytes object layout = { TVMFFIObject, TVMFFIByteArray, ... }
  *
  * \note This byte array data structure layout differs in 32/64 bit platforms.
  *       as size_t equals to the size of the pointer, use this convetion to

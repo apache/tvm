@@ -20,6 +20,7 @@
 /*!
  * \file tvm/ffi/optional.h
  * \brief Runtime Optional container types.
+ * \note Optional<T> specializes for T is ObjectRef and used nullptr to indicate nullopt.
  */
 #ifndef TVM_FFI_OPTIONAL_H_
 #define TVM_FFI_OPTIONAL_H_
@@ -33,6 +34,9 @@
 
 namespace tvm {
 namespace ffi {
+
+// Note: We place optional in tvm/ffi instead of tvm/ffi/container
+// because optional itself is an inherent core component of the FFI system.
 
 template <typename T>
 inline constexpr bool is_optional_type_v = false;
