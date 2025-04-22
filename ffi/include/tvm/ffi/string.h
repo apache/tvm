@@ -48,10 +48,7 @@ namespace tvm {
 namespace ffi {
 
 /*! \brief Base class for bytes and string. */
-class BytesObjBase : public Object {
- public:
-  /*! \brief The internal byte array.*/
-  TVMFFIByteArray bytes;
+class BytesObjBase : public Object, public TVMFFIByteArray {
 };
 
 /*!
@@ -84,8 +81,8 @@ template <typename Base>
 class BytesObjStdImpl : public Base {
  public:
   explicit BytesObjStdImpl(std::string other) : data_{other} {
-    this->bytes.data = data_.data();
-    this->bytes.size = data_.size();
+    this->data = data_.data();
+    this->size = data_.size();
   }
 
  private:
@@ -99,8 +96,8 @@ TVM_FFI_INLINE ObjectPtr<Base> MakeInplaceBytes(const char* data, size_t length)
   static_assert(alignof(Base) % alignof(char) == 0);
   static_assert(sizeof(Base) % alignof(char) == 0);
   char* dest_data = reinterpret_cast<char*>(p.get()) + sizeof(Base);
-  p->bytes.data = dest_data;
-  p->bytes.size = length;
+  p->data = dest_data;
+  p->size = length;
   std::memcpy(dest_data, data, length);
   dest_data[length] = '\0';
   return p;
@@ -152,19 +149,19 @@ class Bytes : public ObjectRef {
    *
    * \return size_t string length
    */
-  size_t size() const { return get()->bytes.size; }
+  size_t size() const { return get()->size; }
   /*!
    * \brief Return the data pointer
    *
    * \return const char* data pointer
    */
-  const char* data() const { return get()->bytes.data; }
+  const char* data() const { return get()->data; }
   /*!
    * \brief Convert String to an std::string object
    *
    * \return std::string
    */
-  operator std::string() const { return std::string{get()->bytes.data, size()}; }
+  operator std::string() const { return std::string{get()->data, size()}; }
 
   TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Bytes, ObjectRef, BytesObj);
 
@@ -306,7 +303,7 @@ class String : public ObjectRef {
    *
    * \return const char*
    */
-  const char* c_str() const { return get()->bytes.data; }
+  const char* c_str() const { return get()->data; }
 
   /*!
    * \brief Return the length of the string
@@ -315,7 +312,7 @@ class String : public ObjectRef {
    */
   size_t size() const {
     const auto* ptr = get();
-    return ptr->bytes.size;
+    return ptr->size;
   }
 
   /*!
@@ -351,14 +348,14 @@ class String : public ObjectRef {
    *
    * \return const char* data pointer
    */
-  const char* data() const { return get()->bytes.data; }
+  const char* data() const { return get()->data; }
 
   /*!
    * \brief Convert String to an std::string object
    *
    * \return std::string
    */
-  operator std::string() const { return std::string{get()->bytes.data, size()}; }
+  operator std::string() const { return std::string{get()->data, size()}; }
 
   TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
 

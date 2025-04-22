@@ -441,7 +441,7 @@ struct AnyHash {
           src.data_.type_index == TypeIndex::kTVMFFIBytes) {
         const BytesObjBase* src_str =
             details::AnyUnsafe::CopyFromAnyStorageAfterCheck<const BytesObjBase*>(src);
-        return details::StableHashBytes(src_str->bytes.data, src_str->bytes.size);
+        return details::StableHashBytes(src_str->data, src_str->size);
       } else {
         return src.data_.v_uint64;
       }
@@ -469,8 +469,8 @@ struct AnyEqual {
           details::AnyUnsafe::CopyFromAnyStorageAfterCheck<const BytesObjBase*>(lhs);
       const BytesObjBase* rhs_str =
           details::AnyUnsafe::CopyFromAnyStorageAfterCheck<const BytesObjBase*>(rhs);
-      return Bytes::memncmp(lhs_str->bytes.data, rhs_str->bytes.data, lhs_str->bytes.size,
-                            rhs_str->bytes.size) == 0;
+      return Bytes::memncmp(lhs_str->data, rhs_str->data, lhs_str->size,
+                            rhs_str->size) == 0;
     }
     return false;
   }
