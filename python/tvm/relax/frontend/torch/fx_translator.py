@@ -161,12 +161,16 @@ class TorchFXImporter(BaseFXGraphImporter):
                 return output
 
             elif isinstance(lhs, relax.expr.Constant):
-                output = call_binary_op(relax_op, lhs, relax.const(rhs, dtype=lhs.struct_info.dtype))
+                output = call_binary_op(
+                    relax_op, lhs, relax.const(rhs, dtype=lhs.struct_info.dtype)
+                )
                 self.env[node.args[0]] = output
                 return output
 
             elif isinstance(rhs, relax.expr.Constant):
-                output = call_binary_op(relax_op, relax.const(lhs, dtype=rhs.struct_info.dtype), rhs)
+                output = call_binary_op(
+                    relax_op, relax.const(lhs, dtype=rhs.struct_info.dtype), rhs
+                )
                 self.env[node.args[0]] = output
                 return output
 
