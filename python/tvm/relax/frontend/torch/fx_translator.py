@@ -742,7 +742,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             ),
             "max": self._binary_op(relax.op.maximum, max),
             "min": self._binary_op(relax.op.minimum, min),
-            "mod": self._binary_op(relax.op.mod, operator.mod),
+            "mod": self._binary_op(relax.op.floor_mod, operator.mod),
             "mul": self._binary_op(relax.op.multiply, operator.mul),
             "ne": self._binary_op(relax.op.not_equal, operator.ne),
             "pow": self._binary_op(relax.op.power, operator.pow),
