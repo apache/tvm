@@ -39,18 +39,6 @@
 
 namespace tvm {
 namespace runtime {
-
-// deleter of RPC remote array
-static void RemoteNDArrayDeleter(TVMFFIObject* ptr_obj) {
-  auto* ptr = ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
-  RemoteSpace* space = static_cast<RemoteSpace*>(ptr->dl_tensor.data);
-  if (ptr->manager_ctx != nullptr) {
-    space->sess->FreeHandle(ptr->manager_ctx);
-  }
-  delete space;
-  delete ptr;
-}
-
 /*!
  * \brief Build a local NDArray with remote backing storage.
  * \param sess the RPCSession which owns the given handle.
@@ -66,16 +54,23 @@ NDArray NDArrayFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* ha
                                       void* remote_ndarray_handle) {
   ICHECK_EQ(sess->table_index(), GetRPCSessionIndex(dev))
       << "The Device given does not belong to the given session";
-  RemoteSpace* space = new RemoteSpace();
-  space->sess = sess;
-  space->data = handle;
-  std::vector<int64_t> shape_vec{template_tensor->shape,
-                                 template_tensor->shape + template_tensor->ndim};
-  NDArray::Container* data = new NDArray::Container(static_cast<void*>(space), std::move(shape_vec),
-                                                    template_tensor->dtype, dev);
-  data->manager_ctx = remote_ndarray_handle;
-  data->SetDeleter(RemoteNDArrayDeleter);
-  return NDArray(GetObjectPtr<Object>(data));
+  class RemoteSpaceAlloc {
+   public:
+    RemoteSpaceAlloc(RemoteSpace space) : space_(space) {}
+    void AllocData(DLTensor* tensor) {
+      // the pointer to the remote space is passed in as the data pointer
+      tensor->data = &(space_);
+    }
+    void FreeData(DLTensor* tensor) { space_.sess->FreeHandle(space_.data); }
+
+   private:
+    RemoteSpace space_;
+  };
+  RemoteSpace space;
+  space.sess = sess;
+  space.data = handle;
+  ffi::Shape shape(template_tensor->shape, template_tensor->shape + template_tensor->ndim);
+  return NDArray::FromNDAlloc(RemoteSpaceAlloc(space), shape, template_tensor->dtype, dev);
 }
 
 /*!

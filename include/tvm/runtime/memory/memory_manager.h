@@ -170,12 +170,6 @@ class StorageObj : public Object {
   TVM_DLL NDArray AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataType dtype,
                                      String scope = "global");
 
-  /*! \brief The deleter for an NDArray when allocated from underlying storage. */
-  static void ScopedDeleter(TVMFFIObject* ptr);
-
-  /*! \brief The deleter for an NDArray when allocated from underlying storage. */
-  static void Deleter(TVMFFIObject* ptr);
-
   ~StorageObj() {
     if (allocator) {
       allocator->Free(buffer);

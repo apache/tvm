@@ -82,7 +82,7 @@ class NodeIndexer : public AttrVisitor {
   void Visit(const char* key, DataType* value) final {}
 
   void Visit(const char* key, runtime::NDArray* value) final {
-    DLTensor* ptr = const_cast<DLTensor*>((*value).operator->());
+    DLTensor* ptr = const_cast<ffi::NDArrayObj*>((*value).operator->());
     if (tensor_index_.count(ptr)) return;
     ICHECK_EQ(tensor_index_.size(), tensor_list_.size());
     tensor_index_[ptr] = tensor_list_.size();
@@ -238,7 +238,7 @@ class JSONAttrGetter : public AttrVisitor {
   void Visit(const char* key, DataType* value) final { node_->attrs[key] = Type2String(*value); }
   void Visit(const char* key, runtime::NDArray* value) final {
     node_->attrs[key] =
-        std::to_string(tensor_index_->at(const_cast<DLTensor*>((*value).operator->())));
+        std::to_string(tensor_index_->at(const_cast<ffi::NDArrayObj*>((*value).operator->())));
   }
 
   void Visit(const char* key, Optional<int64_t>* value) final {

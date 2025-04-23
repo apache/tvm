@@ -46,7 +46,7 @@ from tvm._ffi._cy3.core import (
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("runtime.NDArray")
+@tvm._ffi.register_object("object.NDArray")
 class NDArray(NDArrayBase):
     """Lightweight NDArray class of TVM runtime.
 

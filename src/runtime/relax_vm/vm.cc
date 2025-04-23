@@ -111,7 +111,6 @@ Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc) {
 }
 
 TVMRetValue ConvertArgToDevice(AnyView input, Device dev, Allocator* alloc) {
-  // NOTE: NDArray::FromExternalDLTensor is not safe
   // in terms of memory-behavior.
   // To be extra careful, we copy DLTensor.
   // The developer can still explicitly allocate NDArray

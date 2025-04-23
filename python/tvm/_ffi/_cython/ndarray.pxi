@@ -26,7 +26,7 @@ cdef void _c_dlpack_deleter(object pycaps):
     cdef DLManagedTensor* dltensor
     if pycapsule.PyCapsule_IsValid(pycaps, _c_str_dltensor):
         dltensor = <DLManagedTensor*>pycapsule.PyCapsule_GetPointer(pycaps, _c_str_dltensor)
-        TVMDLManagedTensorCallDeleter(dltensor)
+        dltensor.deleter(dltensor)
 
 
 def _from_dlpack(object dltensor):

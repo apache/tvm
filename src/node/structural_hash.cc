@@ -368,17 +368,17 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::ModuleNode, ModuleNodeTrait)
 
 void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_reduce,
                  bool hash_data) {
-  ICHECK_EQ(arr->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
-  ICHECK(runtime::IsContiguous(arr->dl_tensor)) << "Can only hash contiguous tensor";
-  (*hash_reduce)(runtime::DataType(arr->dl_tensor.dtype));
-  (*hash_reduce)(arr->dl_tensor.ndim);
-  for (int i = 0; i < arr->dl_tensor.ndim; ++i) {
-    (*hash_reduce)(arr->dl_tensor.shape[i]);
+  ICHECK_EQ(arr->device.device_type, kDLCPU) << "can only compare CPU tensor";
+  ICHECK(runtime::IsContiguous(*arr)) << "Can only hash contiguous tensor";
+  (*hash_reduce)(runtime::DataType(arr->dtype));
+  (*hash_reduce)(arr->ndim);
+  for (int i = 0; i < arr->ndim; ++i) {
+    (*hash_reduce)(arr->shape[i]);
   }
   if (hash_data) {
     (*hash_reduce)
-        ->SHashReduceHashedValue(ffi::details::StableHashBytes(
-            static_cast<const char*>(arr->dl_tensor.data), runtime::GetDataSize(arr->dl_tensor)));
+        ->SHashReduceHashedValue(ffi::details::StableHashBytes(static_cast<const char*>(arr->data),
+                                                               runtime::GetDataSize(*arr)));
   }
 }
 
@@ -401,7 +401,7 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container, NDArrayContainerTrai
       dmlc::MemoryStringStream mstrm(&blob);
       support::Base64OutStream b64strm(&mstrm);
       const auto* ndarray = static_cast<const runtime::NDArray::Container*>(n);
-      runtime::SaveDLTensor(&b64strm, &ndarray->dl_tensor);
+      runtime::SaveDLTensor(&b64strm, ndarray);
       b64strm.Finish();
       return blob;
     });

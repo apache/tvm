@@ -24,11 +24,13 @@
 #ifndef TVM_RUNTIME_NDARRAY_H_
 #define TVM_RUNTIME_NDARRAY_H_
 
+#include <tvm/ffi/container/ndarray.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/container/optional.h>
 #include <tvm/runtime/container/shape_tuple.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/serializer.h>
 
@@ -38,43 +40,39 @@
 #include <vector>
 
 namespace tvm {
-
-// alias DLDevice
-using Device = DLDevice;
-
 namespace runtime {
+
+using ffi::GetDataSize;
+using ffi::IsAligned;
+using ffi::IsContiguous;
 
 /*!
  * \brief Managed NDArray.
  *  The array is backed by reference counted blocks.
  */
-class NDArray : public ObjectRef {
+class NDArray : public tvm::ffi::NDArray {
  public:
-  /*! \brief ContainerBase used to back the TVMArrayHandle */
-  class ContainerBase;
-  /*! \brief NDArray internal container type */
-  class Container;
-  /*! \brief Container type for Object system. */
-  using ContainerType = Container;
-  /*! \brief default constructor */
-  NDArray() {}
+  using Container = ffi::NDArrayObj;
+  NDArray() = default;
   /*!
    * \brief constructor.
    * \param data ObjectPtr to the data container.
    */
-  explicit NDArray(ObjectPtr<Object> data) : ObjectRef(data) {}
+  explicit NDArray(ObjectPtr<Object> data) : tvm::ffi::NDArray(data) {}
+  NDArray(ffi::NDArray&& other) : tvm::ffi::NDArray(std::move(other)) {}  // NOLINT(*)
+  NDArray(const ffi::NDArray& other) : tvm::ffi::NDArray(other) {}        // NOLINT(*)
 
-  /*! \brief reset the content of NDArray to be nullptr */
-  inline void reset();
-  /*!
-   * \return the reference counter
-   * \note this number is approximate in multi-threaded setting.
-   */
-  inline int use_count() const;
-  /*! \return Pointer to content of DLTensor */
-  inline const DLTensor* operator->() const;
-  /*! \return Whether the tensor is contiguous */
-  inline bool IsContiguous() const;
+  ShapeTuple Shape() const { return this->shape(); }
+  runtime::DataType DataType() const { return runtime::DataType(this->dtype()); }
+
+  // DLPack handling
+  static NDArray FromDLPack(DLManagedTensor* tensor) {
+    return tvm::ffi::NDArray::FromDLPack(tensor, kAllocAlignment, true);
+  }
+
+  static NDArray FromDLPackVersioned(DLManagedTensorVersioned* tensor) {
+    return tvm::ffi::NDArray::FromDLPackVersioned(tensor, kAllocAlignment, true);
+  }
   /*!
    * \brief Copy data content from another array.
    * \param other The source array to be copied from.
@@ -149,13 +147,6 @@ class NDArray : public ObjectRef {
    */
   TVM_DLL NDArray CreateView(ShapeTuple shape, DLDataType dtype,
                              uint64_t relative_byte_offset = 0) const;
-
-  /*!
-   * \brief Create a reference view of NDArray that
-   *  represents as DLManagedTensor.
-   * \return A DLManagedTensor
-   */
-  TVM_DLL DLManagedTensor* ToDLPack() const;
   /*!
    * \brief Create an empty NDArray.
    * \param shape The shape of the new array.
@@ -167,37 +158,6 @@ class NDArray : public ObjectRef {
   TVM_DLL static NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev,
                                Optional<String> mem_scope = NullOpt);
   /*!
-   * \brief Create a NDArray backed by an external DLTensor without memory copying.
-   *
-   * If DLTensor is not contiguous or has bad aligned data, It fails.
-   * This allows us to create a NDArray using the memory
-   * allocated by an external source. Responsibility for memory
-   * retaining lies with the external source.
-   * \param dl_tensor The DLTensor for NDArray base.
-   * \return The created NDArray view.
-   */
-  TVM_DLL static NDArray FromExternalDLTensor(const DLTensor& dl_tensor);
-  /*!
-   * \brief Create new NDArray, data is copied from DLTensor.
-   *
-   * \param dl_tensor The DLTensor to copy from.
-   * \param dev device location of the created NDArray.
-   * \return The created NDArray view.
-   */
-  TVM_DLL static NDArray NewFromDLTensor(DLTensor* dl_tensor, const Device& dev);
-  /*!
-   * \brief Create a NDArray backed by a dlpack tensor.
-   *
-   * This allows us to create a NDArray using the memory
-   * allocated by an external deep learning framework
-   * that is DLPack compatible.
-   *
-   * The memory is retained until the NDArray went out of scope.
-   * \param tensor The DLPack tensor to copy from.
-   * \return The created NDArray view.
-   */
-  TVM_DLL static NDArray FromDLPack(DLManagedTensor* tensor);
-  /*!
    * \brief Function to copy data from one array to another.
    * \param from The source array.
    * \param to The target array.
@@ -206,42 +166,9 @@ class NDArray : public ObjectRef {
   TVM_DLL static void CopyFromTo(const DLTensor* from, DLTensor* to,
                                  TVMStreamHandle stream = nullptr);
 
-  TVM_DLL ShapeTuple Shape() const;
-  TVM_DLL runtime::DataType DataType() const;
-  /*!
-   * \brief Check conditions for construction NDArray over DLTensor without copying.
-   * There are three conditions to check:
-   * 1. Destination device is the same as DLTensor device
-   * 2. Destination device id is the same as DLTensor device id
-   * 3. Memory in DLTensor is aligned as expected for NDArray
-   * \param tensor the DLTensor.
-   * \param dev destination device.
-   * \return true if all conditions are satisfied.
-   */
-  TVM_DLL static bool AbilityOfZeroCopyForDLTensor(DLTensor* tensor, const Device& dev);
-  // internal namespace
   struct Internal;
 
- private:
-  TVM_DLL static bool IsAligned(const DLTensor& tensor);
-
  protected:
-  /*!
-   * \brief Get mutable internal container pointer.
-   * \return a mutable container pointer.
-   */
-  inline Container* get_mutable() const;
-  // Helper functions for FFI handling.
-  /*!
-   * \brief Construct NDArray's Data field from array handle in FFI.
-   * \param handle The array handle.
-   * \return The corresponding ObjectPtr to the constructed container object.
-   *
-   * \note We keep a special calling convention for NDArray by passing
-   *       ContainerBase pointer in FFI.
-   *       As a result, the argument is compatible to DLTensor*.
-   */
-  inline static ObjectPtr<Object> FFIDataFromHandle(TVMArrayHandle handle);
   /*!
    * \brief DecRef resource managed by an FFI array handle.
    * \param handle The array handle.
@@ -262,187 +189,44 @@ class NDArray : public ObjectRef {
  */
 inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor);
 
-/*!
- * \brief The container base structure
- *        contains all the fields except for the Object header.
- *
- * \note We explicitly declare this structure in order to pass
- *       PackedFunc argument using ContainerBase*.
- */
-class NDArray::ContainerBase {
- public:
-  /*!
-   * \brief The corresponding dl_tensor field.
-   * \note it is important that the first field is DLTensor
-   *  So that this data structure is DLTensor compatible.
-   *  The head ptr of this struct can be viewed as DLTensor*.
-   */
-  DLTensor dl_tensor;
-
-  /*!
-   * \brief additional context, reserved for recycling
-   * \note We can attach additional content here
-   *  which the current container depend on
-   *  (e.g. reference to original memory when creating views).
-   */
-  void* manager_ctx{nullptr};
-
- protected:
-  /*!
-   * \brief The shape container,
-   *  can be used for shape data.
-   */
-  ShapeTuple shape_;
-};
-
-/*!
- * \brief Object container class that backs NDArray.
- * \note do not use this function directly, use NDArray.
- */
-class NDArray::Container : public Object, public NDArray::ContainerBase {
- public:
-  /*! \brief default constructor */
-  Container() {
-    // Initialize the type index.
-    header_.type_index = Container::RuntimeTypeIndex();
-    dl_tensor.data = nullptr;
-    dl_tensor.ndim = 0;
-    dl_tensor.shape = nullptr;
-    dl_tensor.strides = nullptr;
-    dl_tensor.byte_offset = 0;
-  }
-
-  Container(void* data, ShapeTuple shape, DLDataType dtype, Device dev) {
-    // Initialize the type index.
-    header_.type_index = Container::RuntimeTypeIndex();
-    dl_tensor.data = data;
-    shape_ = std::move(shape);
-    dl_tensor.ndim = static_cast<int>(shape_.size());
-    dl_tensor.shape = const_cast<ShapeTuple::index_type*>(shape_.data());
-    dl_tensor.dtype = dtype;
-    dl_tensor.strides = nullptr;
-    dl_tensor.byte_offset = 0;
-    dl_tensor.device = dev;
-  }
-  /*!
-   * \brief Set the deleter field.
-   * \param deleter The deleter.
-   */
-  void SetDeleter(ffi::FObjectDeleter deleter) { header_.deleter = deleter; }
-
-  // Expose DecRef and IncRef as public function
-  // NOTE: they are only for developer purposes only.
-  // using Object::DecRef;
-  // using Object::IncRef;
-
-  // Information for object protocol.
-  static constexpr const uint32_t _type_index = ffi::TypeIndex::kTVMFFINDArray;
-  static constexpr const uint32_t _type_child_slots = 0;
-  static constexpr const uint32_t _type_child_slots_can_overflow = true;
-  static constexpr const char* _type_key = "runtime.NDArray";
-  static const constexpr bool _type_final = true;
-  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(NDArray::Container, Object);
-
- protected:
-  friend class RPCWrappedFunc;
-  friend class NDArray;
-};
-
-// implementations of inline functions
-/*!
- * \brief return the size of data the DLTensor hold, in term of number of bytes
- *
- *  \param arr the input DLTensor
- *  \return number of  bytes of data in the DLTensor.
- */
-inline size_t GetDataSize(const DLTensor& arr) {
-  size_t size = 1;
-  for (tvm_index_t i = 0; i < arr.ndim; ++i) {
-    size *= static_cast<size_t>(arr.shape[i]);
-  }
-  size *= (arr.dtype.bits * arr.dtype.lanes + 7) / 8;
-  return size;
-}
-
-/*!
- * \brief check if a DLTensor is contiguous.
- * \param arr The input DLTensor.
- * \return The check result.
- */
-static inline bool IsContiguous(const DLTensor& arr) {
-  if (arr.strides == nullptr) return true;
-  int64_t expected_stride = 1;
-  for (int32_t i = arr.ndim; i != 0; --i) {
-    int32_t k = i - 1;
-    if (arr.shape[k] == 1) {
-      // Skip stride check if shape[k] is 1, where the dimension is contiguous
-      // regardless of the value of stride.
-      //
-      // For example, PyTorch will normalize stride to 1 if shape is 1 when exporting
-      // to DLPack.
-      // More context: https://github.com/pytorch/pytorch/pull/83158
-      continue;
-    }
-    if (arr.strides[k] != expected_stride) return false;
-    expected_stride *= arr.shape[k];
-  }
-  return true;
-}
-
-inline bool NDArray::IsContiguous() const {
-  return ::tvm::runtime::IsContiguous(get_mutable()->dl_tensor);
-}
-
 inline void NDArray::CopyFrom(const DLTensor* other) {
   ICHECK(data_ != nullptr);
-  CopyFromTo(other, &(get_mutable()->dl_tensor));
+  CopyFromTo(other, get_mutable());
 }
 
 inline void NDArray::CopyFrom(const NDArray& other) {
   ICHECK(data_ != nullptr);
   ICHECK(other.data_ != nullptr);
-  CopyFromTo(&(other.get_mutable()->dl_tensor), &(get_mutable()->dl_tensor));
+  CopyFromTo(other.get_mutable(), get_mutable());
 }
 
 inline void NDArray::CopyTo(DLTensor* other) const {
   ICHECK(data_ != nullptr);
-  CopyFromTo(&(get_mutable()->dl_tensor), other);
+  CopyFromTo(get_mutable(), other);
 }
 
 inline void NDArray::CopyTo(const NDArray& other) const {
   ICHECK(data_ != nullptr);
   ICHECK(other.data_ != nullptr);
-  CopyFromTo(&(get_mutable()->dl_tensor), &(other.get_mutable()->dl_tensor));
-}
-
-inline int NDArray::use_count() const { return data_.use_count(); }
-
-inline const DLTensor* NDArray::operator->() const { return &(get_mutable()->dl_tensor); }
-
-inline NDArray::Container* NDArray::get_mutable() const {
-  return static_cast<NDArray::Container*>(data_.get());
-}
-
-inline ObjectPtr<Object> NDArray::FFIDataFromHandle(TVMArrayHandle handle) {
-  return GetObjectPtr<Object>(
-      static_cast<NDArray::Container*>(reinterpret_cast<NDArray::ContainerBase*>(handle)));
+  CopyFromTo(get_mutable(), other.get_mutable());
 }
 
 inline TVMArrayHandle NDArray::FFIGetHandle(const ObjectRef& nd) {
   // NOTE: it is necessary to cast to container then to base
   //       so that the FFI handle uses the ContainerBase address.
-  auto ptr = reinterpret_cast<TVMArrayHandle>(static_cast<NDArray::ContainerBase*>(
-      static_cast<NDArray::Container*>(const_cast<Object*>(nd.get()))));
+  auto ptr = reinterpret_cast<TVMArrayHandle>(
+      TVMFFINDArrayGetDLTensorPtr(static_cast<ffi::NDArrayObj*>(const_cast<Object*>(nd.get()))));
   return ptr;
 }
 
 inline TVMArrayHandle ObjectHandleToTVMArrayHandle(Object* handle) {
   return reinterpret_cast<TVMArrayHandle>(
-      static_cast<NDArray::ContainerBase*>(static_cast<NDArray::Container*>(handle)));
+      TVMFFINDArrayGetDLTensorPtr(static_cast<ffi::NDArrayObj*>(handle)));
 }
 
 inline Object* TVMArrayHandleToObjectHandle(void* handle) {
-  return static_cast<NDArray::Container*>(reinterpret_cast<NDArray::ContainerBase*>(handle));
+  // NOTE: legacy patch here for TFM FFI
+  return reinterpret_cast<ffi::NDArrayObj*>(reinterpret_cast<char*>(handle) - sizeof(TVMFFIObject));
 }
 
 inline void NDArray::FFIDecRef(TVMArrayHandle handle) {

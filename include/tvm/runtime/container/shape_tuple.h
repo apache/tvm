@@ -35,6 +35,7 @@
 namespace tvm {
 namespace runtime {
 
+using Shape = tvm::ffi::Shape;
 using ShapeTuple = tvm::ffi::Shape;
 using ShapeTupleObj = tvm::ffi::ShapeObj;
 using IntTuple = ShapeTuple;

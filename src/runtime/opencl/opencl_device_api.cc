@@ -852,8 +852,7 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
   Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
                const std::string& mem_scope) override {
     if (AllowMemoryScope(mem_scope)) {
-      NDArray::Container container(nullptr, shape, type_hint, dev);
-      size_t size = DeviceAPI::Get(dev)->GetDataSize(container.dl_tensor);
+      size_t size = ffi::GetPackedDataSize(shape.Product(), type_hint);
       Buffer buf;
       buf.device = dev;
       buf.size = size;

@@ -34,37 +34,11 @@ namespace tvm {
 namespace runtime {
 namespace memory {
 
-static void BufferDeleter(TVMFFIObject* ptr_obj) {
-  auto* ptr = ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
-  ICHECK(ptr->manager_ctx != nullptr);
-  Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
-  MemoryManager::GetAllocator(buffer->device, buffer->alloc_type)->Free(*(buffer));
-  delete buffer;
-  delete ptr;
-}
-
 Storage::Storage(Buffer buffer, Allocator* allocator) {
   auto n = make_object<StorageObj>();
   n->buffer = std::move(buffer);
   n->allocator = allocator;
   data_ = std::move(n);
-}
-
-void StorageObj::Deleter(TVMFFIObject* ptr_obj) {
-  auto* ptr = ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
-  // When invoking AllocNDArray we don't own the underlying allocation
-  // and should not delete the buffer, but instead let it be reclaimed
-  // by the storage object's destructor.
-  //
-  // We did bump the reference count by 1 to keep alive the StorageObj
-  // allocation in case this NDArray is the sole owner.
-  //
-  // We decrement the object allowing for the buffer to release our
-  // reference count from allocation.
-  StorageObj* storage = reinterpret_cast<StorageObj*>(ptr->manager_ctx);
-  // storage->DecRef();
-  tvm::ffi::details::ObjectUnsafe::DecRefObjectHandle(storage);
-  delete ptr;
 }
 
 inline void VerifyDataType(DLDataType dtype) {
@@ -79,21 +53,10 @@ inline void VerifyDataType(DLDataType dtype) {
   ICHECK_EQ(dtype.bits & (dtype.bits - 1), 0);
 }
 
-inline size_t GetDataAlignment(const DLTensor& arr) {
-  size_t align = (arr.dtype.bits / 8) * arr.dtype.lanes;
+inline size_t GetDataAlignment(const DLDataType& dtype) {
+  size_t align = dtype.lanes * dtype.bits / 8;
   if (align < kAllocAlignment) return kAllocAlignment;
   return align;
-}
-
-void StorageObj::ScopedDeleter(TVMFFIObject* ptr_obj) {
-  auto* ptr = ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
-  StorageObj* storage = reinterpret_cast<StorageObj*>(ptr->manager_ctx);
-
-  // Let the device handle proper cleanup of view
-  storage->allocator->FreeView(ptr->dl_tensor.device, ptr->dl_tensor.data);
-  // storage->DecRef();
-  tvm::ffi::details::ObjectUnsafe::DecRefObjectHandle(storage);
-  delete ptr;
 }
 
 NDArray StorageObj::AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataType dtype,
@@ -102,58 +65,62 @@ NDArray StorageObj::AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataT
     return AllocNDArray(offset, shape, dtype);
   }
   VerifyDataType(dtype);
-  void* data = this->allocator->CreateView(this->buffer, shape, dtype, scope);
-  NDArray::Container* container = new NDArray::Container(data, shape, dtype, this->buffer.device);
-  container->dl_tensor.byte_offset = offset;
-  container->SetDeleter(StorageObj::ScopedDeleter);
-  size_t needed_size = DeviceAPI::Get(this->buffer.device)->GetDataSize(container->dl_tensor);
-  // this->IncRef();
-  tvm::ffi::details::ObjectUnsafe::IncRefObjectHandle(this);
-  container->manager_ctx = reinterpret_cast<void*>(this);
-  NDArray ret(GetObjectPtr<Object>(container));
-  // RAII in effect, now run the check.
+
+  struct StorageScopedAlloc {
+   public:
+    StorageScopedAlloc(Storage storage) : storage_(storage) {}
+
+    void AllocData(DLTensor* tensor, const ffi::Shape& shape, const String& scope,
+                   int64_t byte_offset) {
+      tensor->data = storage_->allocator->CreateView(storage_->buffer, shape, tensor->dtype, scope);
+      tensor->byte_offset = byte_offset;
+    }
+    void FreeData(DLTensor* tensor) { storage_->allocator->FreeView(tensor->device, tensor->data); }
+
+   private:
+    Storage storage_;
+  };
+
+  size_t needed_size = ffi::GetPackedDataSize(shape.Product(), dtype);
   ICHECK(offset + needed_size <= this->buffer.size)
       << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
       << offset << " in region that is " << this->buffer.size << "bytes";
-  return ret;
+
+  return NDArray::FromNDAlloc(StorageScopedAlloc(GetRef<Storage>(this)), shape, dtype,
+                              this->buffer.device, shape, scope, offset);
 }
 
 NDArray StorageObj::AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype) {
   VerifyDataType(dtype);
 
-  // crtical zone: allocate header, cannot throw
-  NDArray::Container* container =
-      new NDArray::Container(this->buffer.data, shape, dtype, this->buffer.device);
-  container->dl_tensor.byte_offset = offset;
-
-  container->SetDeleter(StorageObj::Deleter);
-  size_t needed_size = DeviceAPI::Get(this->buffer.device)->GetDataSize(container->dl_tensor);
-  // this->IncRef();
-  tvm::ffi::details::ObjectUnsafe::IncRefObjectHandle(this);
-  // The manager context pointer must continue to point to the storage object
-  // which owns the backing memory, and keeps track of the reference count.
-  //
-  // When we free a container we extract the storage object, decrement its
-  // reference count, then destroy the container, but leave the underlying
-  // buffer intact.
-  container->manager_ctx = reinterpret_cast<void*>(this);
-
-  if (this->buffer.device.device_type == kDLHexagon) {
-    // For Hexagon, non-zero offset support simply requires adjusting the
-    // beginning of data pointer
-    auto offset_ptr = reinterpret_cast<uint8_t*>(this->buffer.data) + offset;
-    container->dl_tensor.data = reinterpret_cast<void*>(offset_ptr);
-    container->dl_tensor.byte_offset = 0;
-  }
-
-  NDArray ret(GetObjectPtr<Object>(container));
-  // RAII in effect, now run the check.
-
+  size_t needed_size = ffi::GetPackedDataSize(shape.Product(), dtype);
   ICHECK(offset + needed_size <= this->buffer.size)
       << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
       << offset << " in region that is " << this->buffer.size << "bytes";
+  struct StorageAlloc {
+   public:
+    StorageAlloc(Storage storage) : storage_(storage) {}
 
-  return ret;
+    void AllocData(DLTensor* tensor, int64_t offset) {
+      if (storage_->buffer.device.device_type == kDLHexagon) {
+        // For Hexagon, non-zero offset support simply requires adjusting the
+        // beginning of data pointer
+        auto offset_ptr = reinterpret_cast<uint8_t*>(storage_->buffer.data) + offset;
+        tensor->data = reinterpret_cast<void*>(offset_ptr);
+        tensor->byte_offset = 0;
+      } else {
+        tensor->data = storage_->buffer.data;
+        tensor->byte_offset = offset;
+      }
+    }
+    void FreeData(DLTensor* tensor) {}
+
+   private:
+    Storage storage_;
+  };
+
+  return NDArray::FromNDAlloc(StorageAlloc(GetRef<Storage>(this)), shape, dtype,
+                              this->buffer.device, offset);
 }
 
 MemoryManager* MemoryManager::Global() {
@@ -248,19 +215,30 @@ void MemoryManager::Clear() {
 NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
                          Optional<String> mem_scope) {
   VerifyDataType(dtype);
-  NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, dev);
-  container->SetDeleter(BufferDeleter);
-  size_t size = DeviceAPI::Get(dev)->GetDataSize(container->dl_tensor, mem_scope);
-  size_t alignment = GetDataAlignment(container->dl_tensor);
-  Buffer* buffer = new Buffer;
+
+  struct BufferAlloc {
+   public:
+    BufferAlloc(Buffer buffer) : buffer_(buffer) {}
+
+    void AllocData(DLTensor* tensor) { tensor->data = buffer_.data; }
+    void FreeData(DLTensor* tensor) {
+      MemoryManager::GetAllocator(buffer_.device, buffer_.alloc_type)->Free(buffer_);
+    }
+
+   private:
+    Buffer buffer_;
+  };
+
+  size_t alignment = GetDataAlignment(dtype);
+  size_t size = ffi::GetPackedDataSize(shape.Product(), dtype);
+
+  Buffer buffer;
   if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
-    *buffer = this->Alloc(dev, size, alignment, dtype);
+    buffer = this->Alloc(dev, size, alignment, dtype);
   } else {
-    *buffer = this->Alloc(dev, shape, dtype, mem_scope.value());
+    buffer = this->Alloc(dev, shape, dtype, mem_scope.value());
   }
-  container->manager_ctx = reinterpret_cast<void*>(buffer);
-  container->dl_tensor.data = buffer->data;
-  return NDArray(GetObjectPtr<Object>(container));
+  return NDArray::FromNDAlloc(BufferAlloc(buffer), shape, dtype, dev);
 }
 
 bool Allocator::AllowMemoryScope(const std::string& mem_scope) const {
@@ -271,9 +249,8 @@ Buffer Allocator::Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
                         const std::string& mem_scope) {
   if (AllowMemoryScope(mem_scope)) {
     // by default, we can always redirect to the flat memory allocations
-    NDArray::Container container(nullptr, shape, type_hint, dev);
-    size_t size = DeviceAPI::Get(dev)->GetDataSize(container.dl_tensor);
-    size_t alignment = GetDataAlignment(container.dl_tensor);
+    size_t alignment = GetDataAlignment(type_hint);
+    size_t size = ffi::GetPackedDataSize(shape.Product(), type_hint);
     return Alloc(dev, size, alignment, type_hint);
   }
   LOG(FATAL) << "Allocator cannot allocate data space with "
