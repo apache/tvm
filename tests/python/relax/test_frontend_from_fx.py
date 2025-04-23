@@ -4947,19 +4947,16 @@ def test_norm():
             return gv
 
     norms = [
-        (float("inf"), None, False),
-        (float("-inf"), None, False),
-        (float(2), None, False),
-        (float(1.0), None, False),
-        (float(-4), None, True),
-        (float(0.5), None, True),
-        ("fro", None, False),
+        ((float("inf"), None, False), Expected1),
+        ((float("-inf"), None, False), Expected2),
+        ((float(2), None, False), Expected3),
+        ((float(1.0), None, False), Expected4),
+        ((float(-4), None, True), Expected5),
+        ((float(0.5), None, True), Expected6),
+        (("fro", None, False), Expected7),
     ]
 
-    for norm, expected in zip(
-        norms, [Expected1, Expected2, Expected3, Expected4, Expected5, Expected6, Expected7]
-    ):
-        p, dim, keepdim = norm
+    for (p, dim, keepdim), expected in norms:
         verify_model(Norm(p, dim=dim, keepdim=keepdim), input_info, {}, expected)
 
 

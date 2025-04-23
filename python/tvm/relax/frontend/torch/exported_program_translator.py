@@ -369,7 +369,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "__xor__.Tensor": self._binary_op(relax.op.bitwise_xor, operator.xor),
             "__xor__.Scalar": self._binary_op(relax.op.bitwise_xor, operator.xor),
             # linear algebra
-            "linalg_vector_norm.default": self._linalg_vector_norm,
+            "linalg_vector_norm.default": self._norm,
             # neural network
             "_native_batch_norm_legit_functional.default": self._batch_norm_legit_functional,
             "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
