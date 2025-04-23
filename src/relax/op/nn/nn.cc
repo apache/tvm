@@ -21,6 +21,7 @@
 
 #include <utility>
 #include <vector>
+#include "tvm/relax/attrs/nn.h"
 
 namespace tvm {
 namespace relax {
@@ -624,6 +625,115 @@ TVM_REGISTER_OP("relax.nn.group_norm")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.nn.instance_norm */
+TVM_REGISTER_NODE_TYPE(InstanceNormAttrs);
+
+Expr instance_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double epsilon, bool center,
+                bool scale) {
+  ObjectPtr<InstanceNormAttrs> attrs = make_object<InstanceNormAttrs>();
+  attrs->axes = std::move(axes);
+  attrs->epsilon = epsilon;
+  attrs->center = center;
+  attrs->scale = scale;
+
+  static const Op& op = Op::Get("relax.nn.instance_norm");
+  return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.nn.instance_norm").set_body_typed(instance_norm);
+
+StructInfo InferStructInfoInstanceNorm(const Call& call, const BlockBuilder& ctx) {
+  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+
+  const auto* attrs = call->attrs.as<InstanceNormAttrs>();
+  const TensorStructInfo& data_sinfo = input_sinfo[0];
+
+  // Check dtype: must be float/bfloat
+  if (!data_sinfo->IsUnknownDtype() && !data_sinfo->dtype.is_float() &&
+      !data_sinfo->dtype.is_bfloat()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "InstanceNorm requires the input data to have float or bfloat dtype. "
+                        "However, the given data dtype is "
+                     << data_sinfo->dtype);
+  }
+
+  // Check gamma and beta shapes and dtypes.
+  if (input_sinfo.size() > 1 && !input_sinfo[1]->IsUnknownDtype() &&
+      input_sinfo[1]->dtype != data_sinfo->dtype) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "InstanceNorm requires gamma to have the same dtype as data. "
+                        "However, the given gamma dtype is "
+                     << input_sinfo[1]->dtype);
+  }
+
+  if (input_sinfo.size() > 2 && !input_sinfo[2]->IsUnknownDtype() &&
+      input_sinfo[2]->dtype != data_sinfo->dtype) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "InstanceNorm requires beta to have the same dtype as data. "
+                        "However, the given beta dtype is "
+                     << input_sinfo[2]->dtype);
+  }
+
+  if (input_sinfo.size() > 1 && !input_sinfo[1]->IsUnknownNdim() && input_sinfo[1]->ndim != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "InstanceNorm requires gamma to have ndim=1. "
+                        "However, the given gamma ndim is "
+                     << input_sinfo[1]->ndim);
+  }
+
+  if (input_sinfo.size() > 2 && !input_sinfo[2]->IsUnknownNdim() && input_sinfo[2]->ndim != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "InstanceNorm requires beta to have ndim=1. "
+                        "However, the given beta ndim is "
+                     << input_sinfo[2]->ndim);
+  }
+
+  //The most tricky part: check if the dimension of gamma/beta matches the axis shape of data
+
+  return data_sinfo;
+}
+
+InferLayoutOutput InferLayoutInstanceNorm(const Call& call,
+                                       const Map<String, Array<String>>& desired_layouts,
+                                       const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+  std::vector<NLayout> initial_layouts;
+  for (size_t i = 0; i < 3; ++i) {
+    const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
+    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+    initial_layouts.push_back(InitialLayoutDecision(tensor_sinfo->ndim));
+  }
+  const auto* attrs = call->attrs.as<InstanceNormAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+
+  LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
+
+  //InstanceNorm typically normalize across spatial dimensions, but keep channel dim untouched
+  //So just keeping the layout as original.  Handling sub layouts are out of scope and should be handled by decompose/fusion methods
+
+  ObjectPtr<InstanceNormAttrs> new_attrs = make_object<InstanceNormAttrs>(*attrs);
+  //const auto* input_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  //int ndim = input_sinfo->ndim;  <- no need to normalize axes since it will most likely normalize across width/height axis
+  //std::vector<Integer> new_axis;
+  //for (const auto& axis : attrs->axes) {
+  //  new_axis.push_back(FindAxis(layout->layout, (axis->value + ndim) % ndim));
+  //}
+  //new_attrs->axes = std::move(new_axis);  <-  NO NEED to normalize as mentioned above
+  return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
+                           Attrs(new_attrs));
+}
+
+TVM_REGISTER_OP("relax.nn.instance_norm")
+    .set_attrs_type<InstanceNormAttrs>()
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "Input to which instance_norm will be applied.")
+    .add_argument("gamma", "Tensor", "The gamma scale factor.")
+    .add_argument("beta", "Tensor", "The beta offset factor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInstanceNorm)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutInstanceNorm)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
 /* relax.nn.rms_norm */
 TVM_REGISTER_NODE_TYPE(RMSNormAttrs);
 

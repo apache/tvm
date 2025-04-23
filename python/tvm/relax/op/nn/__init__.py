@@ -51,4 +51,5 @@ from .nn import (
     silu,
     softmax,
     softplus,
+    instance_norm
 )

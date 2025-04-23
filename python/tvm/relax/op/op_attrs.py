@@ -93,6 +93,9 @@ class BatchNormAttrs(Attrs):
 class LayerNormAttrs(Attrs):
     """Attributes used in layer_norm operator"""
 
+@tvm._ffi.register_object("relax.attrs.InstanceNormAttrs")
+class InstanceNormAttrs(Attrs):
+    """Attributes used in instance_norm operator"""
 
 @tvm._ffi.register_object("relax.attrs.DropoutAttrs")
 class DropoutAttrs(Attrs):

@@ -16,32 +16,94 @@
 # under the License.
 """Instance normalization operator."""
 from .. import cpp
+from tvm import te
+from tvm import topi
+from functools import reduce
+from typing import Union,List
 
+# def instance_norm(data, gamma, beta, axis, epsilon=1e-5):
+#     """Instance normalization operator.
 
-def instance_norm(data, gamma, beta, axis, epsilon=1e-5):
-    """Instance normalization operator.
+#     Parameters
+#     ----------
+#     data : tvm.te.Tensor
+#         N-D with shape (d_0, d_1, ..., d_{N-1})
+
+#     gamma: tvm.te.Tensor
+#         K-D with shape (r_0, r_1, ..., r_{K-1}) where K == len(axis) and d_{axis_k} == r_k
+
+#     beta: tvm.te.Tensor
+#         Optional, K-D with shape (r_0, r_1, ..., r_{K-1}) where K == len(axis) and d_{axis_k} == r_k
+
+#     axis : list of int
+#         Axis over the normalization applied (the axis along which the mean and variance are
+#         computed)
+
+#     epsilon : float
+#         The epsilon value to avoid division by zero.
+
+#     Returns
+#     -------
+#     result : tvm.te.Tensor
+#         N-D with shape (d_0, d_1, ..., d_{N-1})
+#     """
+#     return cpp.nn.instance_norm(data, gamma, beta, axis, epsilon)
+
+def instance_norm(
+    data: te.Tensor,
+    gamma: te.Tensor,
+    beta: te.Tensor,
+    axis: Union[int, List[int]] = [0, 1],
+    epsilon: float = 1e-5,
+) -> te.Tensor:
+    """Instance normalization over spatial dimensions.
+
+    Normalizes each instance in a batch independently per channel,
+    typically used in style transfer and vision models.
 
     Parameters
     ----------
-    data : tvm.te.Tensor
-        N-D with shape (d_0, d_1, ..., d_{N-1})
+    data : te.Tensor
+        Input tensor with shape [N, C, H, W].
 
-    gamma: tvm.te.Tensor
-        K-D with shape (r_0, r_1, ..., r_{K-1}) where K == len(axis) and d_{axis_k} == r_k
+    gamma : te.Tensor
+        Scale tensor of shape [C].
 
-    beta: tvm.te.Tensor
-        Optional, K-D with shape (r_0, r_1, ..., r_{K-1}) where K == len(axis) and d_{axis_k} == r_k
+    beta : te.Tensor
+        Offset tensor of shape [C].
 
-    axis : list of int
-        Axis over the normalization applied (the axis along which the mean and variance are
-        computed)
+    axis : int or list of int, default=[0, 1]
+        Axes to preserve (typically N and C). Reduction happens over the rest.
 
     epsilon : float
-        The epsilon value to avoid division by zero.
+        Small value added to variance to avoid divide-by-zero.
 
     Returns
     -------
-    result : tvm.te.Tensor
-        N-D with shape (d_0, d_1, ..., d_{N-1})
+    out : te.Tensor
+        Instance-normalized tensor with same shape as input.
     """
-    return cpp.nn.instance_norm(data, gamma, beta, axis, epsilon)
+    if isinstance(axis, int):
+        axis = [axis]
+
+    shape = [1] * len(data.shape)
+    for ax in axis:
+        print(type(int(ax)))
+        shape[int(ax)] = data.shape[int(ax)]
+
+    reduce_axes = [i for i in range(len(data.shape)) if i not in axis]
+    shape_prod = reduce(lambda x, y: x * y, [data.shape[ax] for ax in reduce_axes], 1)
+
+    mean = topi.sum(data, axis=reduce_axes) / shape_prod
+    mean_rs = topi.reshape(mean, shape)
+
+    var = topi.sum(topi.power(data - mean_rs, 2), axis=reduce_axes) / shape_prod
+    var_rs = topi.reshape(var, shape)
+
+    gamma_rs = topi.reshape(gamma, shape)
+    beta_rs = topi.reshape(beta, shape)
+
+    normalized = (data - mean_rs) / topi.sqrt(var_rs + epsilon)
+    out = normalized * gamma_rs + beta_rs
+
+    return out

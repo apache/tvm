@@ -2071,3 +2071,117 @@ def attention_var_len(
         causal_mask,
         window_size,
     )  # type: ignore
+
+
+def instance_norm(
+    data: Expr,
+    gamma: Expr,
+    beta: Expr,
+    axis: int,
+    epsilon: float = 1e-5,
+    center: bool = True,
+    scale: bool = True,
+
+) -> Expr:
+    r"""
+    Batch normalization layer (Ioffe and Szegedy, 2014).
+
+    Normalizes the input at each batch, i.e. applies a transformation
+    that maintains the mean activation close to 0 and the activation
+    standard deviation close to 1.
+
+    .. math::
+
+        data\_mean[i] = mean(data[:,i,:,...]) \\
+        data\_var[i] = var(data[:,i,:,...])
+
+    Both *mean* and *var* returns a scalar by treating the input as a vector.
+
+    Then compute the normalized output, which has the same shape as input, as following:
+
+    .. math::
+
+        out[:,i,:,...] = \frac{data[:,i,:,...] - data\_mean[i]}{\sqrt{data\_var[i]+\epsilon}}
+            * gamma[i] + beta[i]
+
+    Assume the input has size *k* on axis 1, then both ``gamma`` and ``beta``
+    have shape *(k,)*.
+
+    Besides the inputs and the outputs, this operator accepts two auxiliary
+    states, ``moving_mean`` and ``moving_var``, which are *k*-length
+    vectors. They are global statistics for the whole dataset, which are updated by
+
+    .. code:: python
+
+        moving_mean = moving_mean * momentum + data_mean * (1 - momentum)
+        moving_var = moving_var * momentum + data_var * (1 - momentum)
+
+    The parameter ``axis`` specifies which axis of the input shape denotes
+    the 'channel' (separately normalized groups).  The default is 1.
+    Specifying -1 sets the channel axis to be the last item in the input shape.
+
+    .. note::
+
+        This operator has two modes:
+
+        - Training mode.
+            - Use the mean and var computed from THIS batch to normalize.
+            - Update and then return the running mean and running var.
+
+        - Inference mode.
+            - Use the running_mean and running_var parameters to normalize.
+            - Do not update the running mean and running var. Just return the original value.
+
+        In the legalization stage, this operator will be legalized to the training mode by default.
+
+        You can use tvm.relax.transform.DecomposeOpsForInference to decompose the operator, so it
+        executes the inference mode computation. Similarly, use
+        tvm.relax.transform.DecomposeOpsForTraining to execute the training mode computation.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    gamma : relax.Expr
+        The gamma scale factor.
+
+    beta : relax.Expr
+        The beta offset factor.
+
+    moving_mean : relax.Expr
+        Running mean of input.
+
+    moving_var : relax.Expr
+        Running variance of input.
+
+    axis : int
+        The axis along which the normalization is applied.
+
+    epsilon : float
+        Small float added to variance to avoid dividing by zero.
+
+    center : bool
+        Indicating if the beta offset will be added to the normalized tensor.
+
+    scale : bool
+        Indicating if the gamma scale will be multiplied.
+
+    momentum : float
+        The value used for the moving_mean and moving_var update.
+
+    training : bool
+        A boolean value to indicate whether training or in eval mode. By default.
+          relax instance_norm is training mode. To transform it to inference mode,
+          can use DecomposeOpsForInference.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(axis, int):
+        axis = [axis]
+    return _ffi_api.instance_norm(  # type: ignore
+        data, gamma, beta, axis, epsilon, center, scale,
+    )

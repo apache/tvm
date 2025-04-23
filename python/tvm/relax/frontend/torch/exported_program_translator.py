@@ -25,6 +25,7 @@ from typing import Callable, Dict, List, Tuple
 import torch
 import tvm
 from tvm import relax
+import tvm.topi
 
 from .base_fx_graph_translator import BaseFXGraphImporter
 
@@ -99,7 +100,36 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 training=training,
             )[0]
         )
+    def _instance_norm(self, node: fx.Node, training) -> relax.Var:
+        import numpy as np
 
+        x = self.env[node.args[0]]
+        channel = int(self.shape_of(x)[1])
+        dtype = x.struct_info.dtype
+        weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
+        bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
+        running_mean = self.env.get(node.args[3], relax.const(np.zeros(channel), dtype=dtype))
+        running_var = self.env.get(node.args[4], relax.const(np.ones(channel), dtype=dtype))
+        ignore_running_stats = (
+            node.args[5] if len(node.args) > 5 else node.kwargs.get("track_running_stats", True)
+        )
+        track_running_stats = not ignore_running_stats
+        momentum = node.args[6] if len(node.args) > 6 else node.kwargs.get("momentum", 0.1)
+        eps = node.args[7] if len(node.args) > 7 else node.kwargs.get("eps", 1e-05)
+
+        if track_running_stats:
+            training = True
+
+        return self.block_builder.emit(
+            relax.op.nn.instance_norm(
+                data=x,
+                gamma=weight,
+                beta=bias,
+                axis=[0,1],  # Always over channel
+                epsilon=eps,
+            )
+        )
+        # return self.block_builder.emit_te(tvm.topi.nn.instance_norm,x,weight,bias,[0,1],eps)
     def _batch_norm_legit_functional(self, node: fx.Node) -> relax.Var:
         # This method is called for batch_norm in training mode
         # TODO does not have correctness!
@@ -112,6 +142,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # This method is called for batch_norm in eval mode
         training = False
         return self._batch_norm(node, training)
+
+    def _instance_norm_no_training(self, node: fx.Node) -> relax.Var:
+        # This method is called for batch_norm in eval mode
+        training = False
+        return self._instance_norm(node, training)
 
     def _group_norm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -387,6 +422,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "_native_batch_norm_legit_functional.default": self._batch_norm_legit_functional,
             "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
             "batch_norm.default": self._batch_norm_legit_no_training,
+            "instance_norm.default": self._instance_norm_no_training,
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
             "addmm.default": self._addmm,
             "avg_pool2d.default": self._avg_pool2d,
