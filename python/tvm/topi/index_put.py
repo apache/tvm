@@ -18,6 +18,7 @@
 from tvm import te
 from tvm import tir
 from . import utils
+import math
 
 
 def index_put(data, indices, values, accumulate=False):
@@ -56,14 +57,12 @@ def index_put(data, indices, values, accumulate=False):
 
     # Prepare ranges and strides
     shape = data.shape
-    full_range = 1
-    for dim in shape:
-        full_range *= dim
+    full_range = math.prod(data.shape)
 
     # Check all indices have same length
-    index_len = indices[0].shape[0]
+    index_len = len(indices[0])
     for idx in indices[1:]:
-        if not utils.equal_const_int(idx.shape[0], index_len):
+        if not utils.equal_const_int(len(idx), index_len):
             raise ValueError("All index tensors must have same length")
 
     def gen_ir(data_ptr, index_ptrs, values_ptr, out_ptr, reduce_func):

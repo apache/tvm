@@ -642,7 +642,7 @@ def index_put(
         ]
     """
     if not isinstance(indices, (list, tuple)):
-        indices = RxTuple(indices) if indices else RxTuple([])
+        indices = RxTuple(indices)
     return _ffi_api.index_put(data, indices, values, accumulate)  # type: ignore
 
 

@@ -1118,21 +1118,21 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         index = self.env[node.args[2]]
         return self.block_builder.emit(relax.op.gather_elements(x, index, axis=dim))
 
-    def _index_put_(self, node: fx.Node) -> relax.Var:
+    def _index_put(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         tensor = args[0]
-        indices = args[1] if len(args) > 1 else node.kwargs.get("indices", ())
+        indices = args[1] if len(args) > 1 else node.kwargs.get("indices")
         values = args[2] if len(args) > 2 else node.kwargs.get("values")
         accumulate = args[3] if len(args) > 3 else node.kwargs.get("accumulate", False)
 
-        # Ensure accumulate is a boolean
-        if isinstance(accumulate, str):
-            accumulate = accumulate.lower() == "true"
-        elif not isinstance(accumulate, bool):
-            accumulate = bool(accumulate)
+        if indices is None or values is None:
+            raise ValueError("'indices and values' arguments are required for index_put operation")
+        
+        if not isinstance(accumulate, bool):
+            raise TypeError("'accumulate' must be a boolean value, got {}".format(type(accumulate)))
 
         if isinstance(indices, (list, tuple)):
-            indices = relax.Tuple(indices) if indices else relax.Tuple([])
+            indices = relax.Tuple(indices)
         return self.block_builder.emit(relax.op.index_put(tensor, indices, values, accumulate))
 
     def _index_tensor(self, node: fx.Node) -> relax.Var:

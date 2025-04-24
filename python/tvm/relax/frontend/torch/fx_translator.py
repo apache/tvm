@@ -801,7 +801,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "flatten": self._flatten,
             "flip": self._flip,
             "gather": self._gather,
-            "index_put_": self._index_put_,
+            "index_put_": self._index_put,
             "narrow": self._narrow,
             "numel": self._numel,
             "permute": self._permute,
