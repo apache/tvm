@@ -2011,7 +2011,7 @@ def test_pixel_shuffle():
                 gv: R.Tuple(R.Tensor((1, 2, 20, 30), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
-    
+
     example_args = (torch.randn(1, 8, 10, 15, dtype=torch.float32),)
     verify_model(PixelShuffle1(upscale_factor=2), example_args, {}, expected)
     verify_model(PixelShuffle2(upscale_factor=2), example_args, {}, expected)

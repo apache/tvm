@@ -608,7 +608,7 @@ def test_pixel_shuffle():
 
         def forward(self, x):
             return torch.nn.functional.pixel_shuffle(x, self.upscale_factor)
-    
+
     @tvm.script.ir_module
     class expected:
         @R.function
@@ -618,7 +618,7 @@ def test_pixel_shuffle():
                 gv: R.Tensor((1, 2, 20, 30), dtype="float32") = lv
                 R.output(gv)
             return gv
-    
+
     input_infos = [([1, 8, 10, 15], "float32")]
     verify_model(PixelShuffle1(2), input_infos, {}, expected)
     verify_model(PixelShuffle2(2), input_infos, {}, expected)
