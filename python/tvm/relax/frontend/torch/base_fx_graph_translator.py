@@ -1462,11 +1462,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         if len(args) <= 3 or args[3] is None:
             import torch
+
             dtype = self._convert_data_type(str(torch.get_default_dtype()))
         else:
             dtype = self._convert_data_type(args[3])
 
-        return self.block_builder.emit(relax.op.arange(start=start, end=stop, step=step, dtype=dtype))
+        return self.block_builder.emit(
+            relax.op.arange(start=start, end=stop, step=step, dtype=dtype)
+        )
 
     def _masked_fill(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
