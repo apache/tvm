@@ -20,7 +20,10 @@ set -e
 set -u
 set -o pipefail
 
+VULKAN_VERSION=1.4.309
+UBUNTU_VERSION=jammy
+
 wget -qO - http://packages.lunarg.com/lunarg-signing-key-pub.asc | apt-key add -
-wget -qO /etc/apt/sources.list.d/lunarg-vulkan-1.2.135-xenial.list http://packages.lunarg.com/vulkan/1.2.135/lunarg-vulkan-1.2.135-xenial.list
+wget -qO /etc/apt/sources.list.d/lunarg-vulkan-${VULKAN_VERSION}-${UBUNTU_VERSION}.list http://packages.lunarg.com/vulkan/${VULKAN_VERSION}/lunarg-vulkan-${VULKAN_VERSION}-${UBUNTU_VERSION}.list
 apt-get update
 apt-install-and-clear -y vulkan-sdk
