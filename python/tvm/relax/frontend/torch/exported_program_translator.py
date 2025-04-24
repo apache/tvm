@@ -433,7 +433,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "flip.default": self._flip,
             "gather.default": self._gather,
             "index.Tensor": self._index_tensor,
-            "index_put_.default": self._index_put_,
+            "index_put_.default": self._index_put,
             "narrow.default": self._narrow,
             "permute.default": self._permute,
             "repeat.default": self._repeat,
