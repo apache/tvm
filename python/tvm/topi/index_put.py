@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """IndexPut operator"""
+import math
 from tvm import te
 from tvm import tir
 from . import utils
-import math
 
 
 def index_put(data, indices, values, accumulate=False):
