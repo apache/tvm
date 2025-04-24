@@ -853,7 +853,7 @@ operator_binary_1 = [
     (operator.truediv, R.divide),
     (operator.floordiv, R.floor_divide),
     (operator.pow, R.power),
-    (operator.mod, R.mod),
+    (operator.mod, R.floor_mod),
     (operator.and_, R.bitwise_and),
     (operator.or_, R.bitwise_or),
     (operator.xor, R.bitwise_xor),
