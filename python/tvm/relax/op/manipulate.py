@@ -562,7 +562,7 @@ def index_tensor(data: Expr, indices: Union[Expr, List[Expr]]) -> Expr:
         or a Python ``list`` / ``tuple`` that will be promoted to a
         tuple expression automatically. Each tensor must have an
         integer dtype.
-    
+
     Returns
     -------
     result : relax.Expr
