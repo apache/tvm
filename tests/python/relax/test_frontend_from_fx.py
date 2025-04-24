@@ -1654,7 +1654,7 @@ operator_binary_1 = [
     (operator.truediv, R.divide),
     (operator.floordiv, R.floor_divide),
     (operator.pow, R.power),
-    (operator.mod, R.mod),
+    (operator.mod, R.floor_mod),
 ]
 
 
@@ -1769,6 +1769,8 @@ def test_binary2(op, relax_op):
 
 
 operator_binary_3 = [
+    (torch.ops.aten.bitwise_or_, R.bitwise_or),
+    (torch.ops.aten.bitwise_or, R.bitwise_or),
     (operator.lshift, R.left_shift),
     (operator.rshift, R.right_shift),
     (operator.and_, R.bitwise_and),
@@ -4504,6 +4506,95 @@ def test_empty_like():
     verify_model(EmptyLike(), [([5], "float32")], {}, Expected)
 
 
+def test_ones_like():
+    class OnesLike(Module):
+        def forward(self, data):
+            return torch.ones_like(data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((128, 128), dtype="float32")
+        ) -> R.Tensor((128, 128), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.ones_like(inp_0, dtype="void")
+                gv: R.Tensor((128, 128), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(OnesLike(), [([128, 128], "float32")], {}, Expected)
+
+
+def test_zero_inplace():
+    class ZeroInplace(Module):
+        def forward(self, data):
+            return data.zero_()
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((128, 128), dtype="float32")
+        ) -> R.Tensor((128, 128), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0, dtype="void")
+                gv: R.Tensor((128, 128), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(ZeroInplace(), [([128, 128], "float32")], {}, Expected)
+
+
+def test_type_as():
+    class TypeAs(Module):
+        def forward(self, data, other):
+            return data.type_as(other)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((128, 128), dtype="float16"),
+            inp_1: R.Tensor((128, 128), dtype="float32"),
+        ) -> R.Tensor((128, 128), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.astype(inp_0, dtype="float32")
+                gv: R.Tensor((128, 128), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(TypeAs(), [([128, 128], "float16"), ([128, 128], "float32")], {}, Expected)
+
+
+def test_item():
+    class Item(Module):
+        def forward(self, data):
+            return data.item()
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(inp_0: R.Tensor((1,), dtype="float32")) -> R.Tensor((), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.take(inp_0, R.const(0, "int64"), axis=0)
+                gv: R.Tensor((), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(
+        Item(),
+        [
+            (
+                [1],
+                "float32",
+            )
+        ],
+        {},
+        Expected,
+    )
+
+
 def test_numel():
     class Numel(Module):
         def forward(self, data):
@@ -4541,6 +4632,32 @@ def test_select():
             return gv
 
     verify_model(Select(), [([5, 3], "float32")], {}, Expected)
+
+
+def test_inplace_copy():
+    class Inplace_Copy(Module):
+        def forward(self, x, y):
+            x.copy_(y)
+            return x
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32"),
+            inp_1: R.Tensor((1, 2, 3, 4), dtype="float32"),
+        ) -> R.Tensor((1, 2, 3, 4), dtype="float32"):
+            with R.dataflow():
+                gv: R.Tensor((1, 2, 3, 4), dtype="float32") = inp_1
+                R.output(gv)
+            return gv
+
+    verify_model(
+        Inplace_Copy(),
+        [((1, 2, 3, 4), "float32"), ((1, 2, 3, 4), "float32")],
+        {},
+        Expected,
+    )
 
 
 def test_clone():
@@ -4721,11 +4838,20 @@ def test_sort():
     class Expected:
         @R.function
         def main(
-            inp_0: R.Tensor((5, 3), dtype="float32"),
-        ) -> R.Tensor((5, 3), dtype="float32"):
+            inp_0: R.Tensor((5, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int32")):
             with R.dataflow():
-                lv: R.Tensor((5, 3), dtype="float32") = R.sort(inp_0, axis=1, descending=True)
-                gv: R.Tensor((5, 3), dtype="float32") = lv
+                lv: R.Tensor((5, 3), dtype="int32") = R.argsort(
+                    inp_0, axis=1, descending=True, dtype="int32"
+                )
+                lv1: R.Tensor((5, 3), dtype="float32") = R.gather_elements(inp_0, lv, axis=1)
+                lv2: R.Tuple(R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int32")) = (
+                    lv1,
+                    lv,
+                )
+                gv: R.Tuple(
+                    R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int32")
+                ) = lv2
                 R.output(gv)
             return gv
 
@@ -4910,19 +5036,16 @@ def test_norm():
             return gv
 
     norms = [
-        (float("inf"), None, False),
-        (float("-inf"), None, False),
-        (float(2), None, False),
-        (float(1.0), None, False),
-        (float(-4), None, True),
-        (float(0.5), None, True),
-        ("fro", None, False),
+        ((float("inf"), None, False), Expected1),
+        ((float("-inf"), None, False), Expected2),
+        ((float(2), None, False), Expected3),
+        ((float(1.0), None, False), Expected4),
+        ((float(-4), None, True), Expected5),
+        ((float(0.5), None, True), Expected6),
+        (("fro", None, False), Expected7),
     ]
 
-    for norm, expected in zip(
-        norms, [Expected1, Expected2, Expected3, Expected4, Expected5, Expected6, Expected7]
-    ):
-        p, dim, keepdim = norm
+    for (p, dim, keepdim), expected in norms:
         verify_model(Norm(p, dim=dim, keepdim=keepdim), input_info, {}, expected)
 
 

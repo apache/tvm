@@ -253,6 +253,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         return self.block_builder.emit(relax.op.one_hot(x, on_value, off_value, num_classes, axis))
 
+    def _zeros(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
+        dtype = self._convert_data_type(
+            node.kwargs.get("dtype", torch.get_default_dtype()), self.env
+        )
+        return self.block_builder.emit(relax.op.zeros(size, dtype))
+
     ########## Others ##########
 
     def create_convert_map(
@@ -328,6 +336,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # binary
             "add.Tensor": self._binary_op(relax.op.add, operator.add),
             "add_.Tensor": self._binary_op(relax.op.add, operator.add),
+            "bitwise_or_.Scalar": self._binary_op(relax.op.bitwise_or, operator.or_),
+            "bitwise_or.Scalar": self._binary_op(relax.op.bitwise_or, operator.or_),
+            "bitwise_or_.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
+            "bitwise_or.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
             "div.Tensor": self._binary_op(relax.op.divide, operator.truediv),
             "eq.Scalar": self._binary_op(relax.op.equal, operator.eq),
             "eq.Tensor": self._binary_op(relax.op.equal, operator.eq),
@@ -348,8 +360,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "min.other": self._binary_op(relax.op.minimum, min),
             "max.default": self._unary_op(relax.op.max),
             "min.default": self._unary_op(relax.op.min),
-            "remainder.Tensor": self._binary_op(relax.op.mod, operator.mod),
-            "remainder.Scalar": self._binary_op(relax.op.mod, operator.mod),
+            "remainder.Tensor": self._binary_op(relax.op.floor_mod, operator.mod),
+            "remainder.Scalar": self._binary_op(relax.op.floor_mod, operator.mod),
             "mul.Tensor": self._binary_op(relax.op.multiply, operator.mul),
             "mul_.Tensor": self._binary_op(relax.op.multiply, operator.mul),
             "ne.Tensor": self._binary_op(relax.op.not_equal, operator.ne),
@@ -365,7 +377,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "__xor__.Tensor": self._binary_op(relax.op.bitwise_xor, operator.xor),
             "__xor__.Scalar": self._binary_op(relax.op.bitwise_xor, operator.xor),
             # linear algebra
-            "linalg_vector_norm.default": self._linalg_vector_norm,
+            "linalg_vector_norm.default": self._norm,
             # neural network
             "_native_batch_norm_legit_functional.default": self._batch_norm_legit_functional,
             "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
@@ -420,12 +432,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "flatten.using_ints": self._flatten,
             "flip.default": self._flip,
             "gather.default": self._gather,
+            "index.Tensor": self._index_tensor,
             "narrow.default": self._narrow,
             "permute.default": self._permute,
             "repeat.default": self._repeat,
             "roll.default": self._roll,
             "select.int": self._select,
             "slice.Tensor": self._slice,
+            "sort.default": self._sort,
             "split.Tensor": self._split,
             "split_with_sizes.default": self._split,
             "squeeze.default": self._squeeze,
@@ -453,6 +467,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "clone.default": lambda node: self.env[node.args[0]],
             "empty.memory_format": self._empty,
             "empty_like.default": self._empty_like,
+            "eye.default": self._eye,
+            "eye.m": self._eye,
             "fill.Scalar": self._fill,
             "full.default": self._full,
             "full_like.default": self._full_like,
@@ -463,11 +479,18 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "new_ones.default": self._new_ones,
             "one_hot.default": self._one_hot,
             "ones.default": self._ones,
+            "ones_like.default": lambda node: self.block_builder.emit(
+                relax.op.ones_like(self.env[node.args[0]])
+            ),
+            "zero_.default": self._zeros_inplace,
+            "zeros.default": self._zeros,
             # datatype
             "to.dtype": self._to,
             "to.dtype_layout": self._to,
+            "type_as.default": self._type_as,
             # other
             "getitem": self._getitem,
+            "item.default": self._item,
         }
 
     def create_input_vars(
