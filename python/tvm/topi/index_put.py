@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """IndexPut operator"""
-import math
 from tvm import te
 from tvm import tir
 from . import utils
@@ -57,7 +56,9 @@ def index_put(data, indices, values, accumulate=False):
 
     # Prepare ranges and strides
     shape = data.shape
-    full_range = math.prod(data.shape)
+    full_range = 1
+    for dim in shape:
+        full_range *= dim
 
     # Check all indices have same length
     index_len = len(indices[0])
