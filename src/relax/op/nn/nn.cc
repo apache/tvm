@@ -709,17 +709,7 @@ InferLayoutOutput InferLayoutInstanceNorm(const Call& call,
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
 
-  //InstanceNorm typically normalize across spatial dimensions, but keep channel dim untouched
-  //So just keeping the layout as original.  Handling sub layouts are out of scope and should be handled by decompose/fusion methods
-
   ObjectPtr<InstanceNormAttrs> new_attrs = make_object<InstanceNormAttrs>(*attrs);
-  //const auto* input_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  //int ndim = input_sinfo->ndim;  <- no need to normalize axes since it will most likely normalize across width/height axis
-  //std::vector<Integer> new_axis;
-  //for (const auto& axis : attrs->axes) {
-  //  new_axis.push_back(FindAxis(layout->layout, (axis->value + ndim) % ndim));
-  //}
-  //new_attrs->axes = std::move(new_axis);  <-  NO NEED to normalize as mentioned above
   return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
                            Attrs(new_attrs));
 }

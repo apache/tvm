@@ -25,7 +25,6 @@ from typing import Callable, Dict, List, Tuple
 import torch
 import tvm
 from tvm import relax
-import tvm.topi
 
 from .base_fx_graph_translator import BaseFXGraphImporter
 

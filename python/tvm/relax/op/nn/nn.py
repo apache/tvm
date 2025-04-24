@@ -2077,109 +2077,63 @@ def instance_norm(
     data: Expr,
     gamma: Expr,
     beta: Expr,
-    axis: int,
+    axis: List[int],
     epsilon: float = 1e-5,
     center: bool = True,
     scale: bool = True,
-
 ) -> Expr:
     r"""
-    Instance normalization layer
+    Applies Instance Normalization to the input tensor.
 
-    Normalizes the input at each instance, i.e. applies a transformation
-    that maintains the mean activation close to 0 and the activation
-    standard deviation close to 1.
+    Instance Normalization is a technique commonly used in deep learning,
+    particularly in tasks such as style transfer, where the normalization is
+    applied per-instance (i.e., per-sample in a batch) rather than across a batch.
+    It normalizes the input tensor for each sample independently, along the
+    specified channel axis.
 
-    .. math::
-
-        data\_mean[i] = mean(data[:,i,:,...]) \\
-        data\_var[i] = var(data[:,i,:,...])
-
-    Both *mean* and *var* returns a scalar by treating the input as a vector.
-
-    Then compute the normalized output, which has the same shape as input, as following:
+    Mathematically, for each channel :math:`i` of the input, the normalized output is computed as:
 
     .. math::
 
-        out[:,i,:,...] = \frac{data[:,i,:,...] - data\_mean[i]}{\sqrt{data\_var[i]+\epsilon}}
-            * gamma[i] + beta[i]
+        \mu_i &= \text{mean}(x[:, i, ...]) \\
+        \sigma_i^2 &= \text{var}(x[:, i, ...]) \\
+        \hat{x}[:, i, ...] &= \frac{x[:, i, ...] - \mu_i}{\sqrt{\sigma_i^2 + \epsilon}}
 
-    Assume the input has size *k* on axis 1, then both ``gamma`` and ``beta``
-    have shape *(k,)*.
+        \text{output}[:, i, ...] = \gamma[i] \cdot \hat{x}[:, i, ...] + \beta[i]
 
-    Besides the inputs and the outputs, this operator accepts two auxiliary
-    states, ``moving_mean`` and ``moving_var``, which are *k*-length
-    vectors. They are global statistics for the whole dataset, which are updated by
-
-    .. code:: python
-
-        moving_mean = moving_mean * momentum + data_mean * (1 - momentum)
-        moving_var = moving_var * momentum + data_var * (1 - momentum)
-
-    The parameter ``axis`` specifies which axis of the input shape denotes
-    the 'channel' (separately normalized groups).  The default is 1.
-    Specifying -1 sets the channel axis to be the last item in the input shape.
-
-    .. note::
-
-        This operator has two modes:
-
-        - Training mode.
-            - Use the mean and var computed from THIS batch to normalize.
-            - Update and then return the running mean and running var.
-
-        - Inference mode.
-            - Use the running_mean and running_var parameters to normalize.
-            - Do not update the running mean and running var. Just return the original value.
-
-        In the legalization stage, this operator will be legalized to the training mode by default.
-
-        You can use tvm.relax.transform.DecomposeOpsForInference to decompose the operator, so it
-        executes the inference mode computation. Similarly, use
-        tvm.relax.transform.DecomposeOpsForTraining to execute the training mode computation.
+    where :math:`\gamma` and :math:`\beta` are learnable parameters of shape equal to the
+    number of channels.
 
     Parameters
     ----------
     data : relax.Expr
-        The input data to the operator.
+        The input tensor to be normalized.
 
     gamma : relax.Expr
-        The gamma scale factor.
+        The scale tensor (gamma) applied after normalization. Must have shape matching the number of channels.
 
     beta : relax.Expr
-        The beta offset factor.
+        The offset tensor (beta) applied after normalization. Must have shape matching the number of channels.
 
-    moving_mean : relax.Expr
-        Running mean of input.
+    axis : List[int], default = [0, 1]
+        The axes to retain during normalization. Typically `[0, 1]` corresponding to batch (N) and channel (C)
+        dimensions. Normalization is applied over the remaining spatial axes.
 
-    moving_var : relax.Expr
-        Running variance of input.
+    epsilon : float, optional
+        A small constant added to the variance to avoid division by zero. Default is 1e-5.
 
-    axis : int
-        The axis along which the normalization is applied.
+    center : bool, optional
+        If True, add `beta` to the normalized tensor. Default is True.
 
-    epsilon : float
-        Small float added to variance to avoid dividing by zero.
-
-    center : bool
-        Indicating if the beta offset will be added to the normalized tensor.
-
-    scale : bool
-        Indicating if the gamma scale will be multiplied.
-
-    momentum : float
-        The value used for the moving_mean and moving_var update.
-
-    training : bool
-        A boolean value to indicate whether training or in eval mode. By default.
-          relax instance_norm is training mode. To transform it to inference mode,
-          can use DecomposeOpsForInference.
+    scale : bool, optional
+        If True, multiply the normalized tensor by `gamma`. Default is True.
 
     Returns
     -------
     result : relax.Expr
-        The computed result.
+        The tensor after applying instance normalization.
     """
+
     if isinstance(axis, int):
         axis = [axis]
     return _ffi_api.instance_norm(  # type: ignore
