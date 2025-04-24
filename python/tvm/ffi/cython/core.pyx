@@ -15,6 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-def test_ffi():
-    print("Hello")
-    pass
+
+include "./base.pxi"
+include "./dtype.pxi"
+include "./object.pxi"
+include "./string.pxi"
+include "./function.pxi"
+include "./ndarray.pxi"

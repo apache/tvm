@@ -20,4 +20,9 @@ This module binds the TVM FFI C API to python.
 This is a standalone module that can be
 """
 
-from .cython.core import test_ffi
+from .dtype import dtype
+from .registry import register_object, get_global_func
+from .core import Object, Function
+from .string import String, Bytes
+
+__all__ = ["dtype", "Function", "Object", "register_object"]

@@ -190,7 +190,7 @@ def config_cython():
                 continue
             ret.append(
                 Extension(
-                    f"tvm.ffi.cython.{fn[:-4]}",
+                    f"tvm.ffi.{fn[:-4]}",
                     ["tvm/ffi/cython/%s" % fn],
                     include_dirs=[
                         "../ffi/include/",

@@ -14,4 +14,32 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""cython namespace"""
+
+from . import core
+
+class dtype(str):
+    """TVM FFI dtype class.
+
+    Parameters
+    ----------
+    dtype_str : str
+
+    Note
+    ----
+    This class subclasses str so it can be directly passed
+    into other array api's dtype arguments.
+    """
+    __slots__ = ["__tvm_ffi_object__"]
+    def __new__(cls, content):
+        val = str.__new__(cls, content)
+        val.__tvm_ffi_object__ = core.DataType(content)
+        return val
+
+    def __repr__(self):
+        return f"dtype('{self}')"
+
+    @property
+    def itemsize(self):
+        return self.__tvm_ffi_object__.itemsize
+
+core._set_class_dtype(dtype)
