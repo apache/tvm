@@ -688,8 +688,6 @@ StructInfo InferStructInfoInstanceNorm(const Call& call, const BlockBuilder& ctx
                      << input_sinfo[2]->ndim);
   }
 
-  //The most tricky part: check if the dimension of gamma/beta matches the axis shape of data
-
   return data_sinfo;
 }
 

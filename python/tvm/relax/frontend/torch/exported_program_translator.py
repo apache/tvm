@@ -118,7 +118,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 epsilon=eps,
             )
         )
-        # return self.block_builder.emit_te(tvm.topi.nn.instance_norm,x,weight,bias,[0,1],eps)
+
     def _batch_norm_legit_functional(self, node: fx.Node) -> relax.Var:
         # This method is called for batch_norm in training mode
         # TODO does not have correctness!
