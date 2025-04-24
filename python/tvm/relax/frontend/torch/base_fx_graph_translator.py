@@ -1127,7 +1127,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         if indices is None or values is None:
             raise ValueError("'indices and values' arguments are required for index_put operation")
-        
+
         if not isinstance(accumulate, bool):
             raise TypeError("'accumulate' must be a boolean value, got {}".format(type(accumulate)))
 
