@@ -74,7 +74,7 @@ class ObjectInternal {
    */
   static uint32_t ObjectTypeKey2Index(const std::string& type_key) {
     int32_t type_index;
-    TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKey2Index(type_key.c_str(), &type_index));
+    TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(type_key.c_str(), &type_index));
     return static_cast<uint32_t>(type_index);
   }
   /*!
