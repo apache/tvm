@@ -63,7 +63,11 @@ def pixel_shuffle(data, upscale_factor, name="PixelShuffle"):
         w_idx = tvm.tir.floordiv(w_out_idx, upscale_factor_const)
         w_offset = w_out_idx % upscale_factor_const
 
-        c_in_idx = (c_out_idx * upscale_factor_const * upscale_factor_const) + (h_offset * upscale_factor_const) + w_offset
+        c_in_idx = (
+            (c_out_idx * upscale_factor_const * upscale_factor_const)
+            + (h_offset * upscale_factor_const)
+            + w_offset
+        )
 
         index_tuple = batch_indices + (c_in_idx, h_idx, w_idx)
         return data[index_tuple]
