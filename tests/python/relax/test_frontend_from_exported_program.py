@@ -2005,9 +2005,13 @@ def test_pixel_shuffle():
     @tvm.script.ir_module
     class expected:
         @R.function
-        def main(x: R.Tensor((1, 8, 10, 15), dtype="float32")) -> R.Tuple(R.Tensor((1, 2, 20, 30), dtype="float32")):
+        def main(
+            x: R.Tensor((1, 8, 10, 15), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 2, 20, 30), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 2, 20, 30), dtype="float32") = R.nn.pixel_shuffle(x, upscale_factor=2)
+                lv: R.Tensor((1, 2, 20, 30), dtype="float32") = R.nn.pixel_shuffle(
+                    x, upscale_factor=2
+                )
                 gv: R.Tuple(R.Tensor((1, 2, 20, 30), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -2015,6 +2019,7 @@ def test_pixel_shuffle():
     example_args = (torch.randn(1, 8, 10, 15, dtype=torch.float32),)
     verify_model(PixelShuffle1(upscale_factor=2), example_args, {}, expected)
     verify_model(PixelShuffle2(upscale_factor=2), example_args, {}, expected)
+
 
 def test_einsum():
     class Einsum1(Module):

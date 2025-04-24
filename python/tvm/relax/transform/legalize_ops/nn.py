@@ -252,7 +252,7 @@ def _nn_pad(bb: BlockBuilder, call: Call) -> Expr:
 @register_legalize("relax.nn.pixel_shuffle")
 def _nn_pixel_shuffle(bb: BlockBuilder, call: Call) -> Expr:
     upscale_factor = call.attrs.upscale_factor
-    return bb.call_te(topi.nn.pixel_shuffle, call.args[0], upscale_factor= upscale_factor)
+    return bb.call_te(topi.nn.pixel_shuffle, call.args[0], upscale_factor=upscale_factor)
 
 
 @register_legalize("relax.nn.max_pool1d")

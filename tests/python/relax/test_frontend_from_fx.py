@@ -612,9 +612,13 @@ def test_pixel_shuffle():
     @tvm.script.ir_module
     class expected:
         @R.function
-        def main(inp_0: R.Tensor((1, 8, 10, 15), dtype="float32")) -> R.Tensor((1, 2, 20, 30), dtype="float32"):
+        def main(
+            inp_0: R.Tensor((1, 8, 10, 15), dtype="float32")
+        ) -> R.Tensor((1, 2, 20, 30), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((1, 2, 20, 30), dtype="float32") = R.nn.pixel_shuffle(inp_0, upscale_factor=2)
+                lv: R.Tensor((1, 2, 20, 30), dtype="float32") = R.nn.pixel_shuffle(
+                    inp_0, upscale_factor=2
+                )
                 gv: R.Tensor((1, 2, 20, 30), dtype="float32") = lv
                 R.output(gv)
             return gv
