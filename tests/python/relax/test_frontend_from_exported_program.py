@@ -4471,7 +4471,7 @@ def test_narrow():
     verify_model(Narrow(), example_args, {}, Expected)
 
 
- def test_item():
+def test_item():
     class Item(Module):
         def forward(self, x):
             return x.item()
