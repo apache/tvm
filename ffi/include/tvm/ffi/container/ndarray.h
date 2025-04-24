@@ -83,7 +83,13 @@ inline bool IsAligned(const DLTensor& arr, size_t alignment) {
  * \param dtype the data type of the array
  * \return the total number bytes needs to store packed data
  */
-inline size_t GetPackedDataSize(int64_t numel, DLDataType dtype) {
+inline size_t GetDataSize(int64_t numel, DLDataType dtype) {
+  // compatible handling sub-byte uint1(bool), which usually stored as uint8_t
+  // TODO: revisit and switch to kDLBool
+  if (dtype.code == kDLUInt && dtype.bits == 1 && dtype.lanes == 1) {
+    return numel;
+  }
+  // for other sub-byte types, packing is preferred
   return (numel * dtype.bits * dtype.lanes + 7) / 8;
 }
 
@@ -98,7 +104,7 @@ inline size_t GetDataSize(const DLTensor& arr) {
   for (int i = 0; i < arr.ndim; ++i) {
     size *= static_cast<size_t>(arr.shape[i]);
   }
-  return GetPackedDataSize(size, arr.dtype);
+  return GetDataSize(size, arr.dtype);
 }
 
 /*! \brief An object representing an NDArray. */

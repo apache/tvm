@@ -83,7 +83,7 @@ TEST(NDArray, DLPack) {
 
 TEST(NDArray, DLPackVersioned) {
   DLDataType dtype = DLDataType({kDLFloat4_e2m1fn, 4, 1});
-  EXPECT_EQ(GetPackedDataSize(2, dtype), 2 * 4 / 8);
+  EXPECT_EQ(GetDataSize(2, dtype), 2 * 4 / 8);
   NDArray nd = Empty({2}, dtype, DLDevice({kDLCPU, 0}));
   DLManagedTensorVersioned* dlpack = nd.ToDLPackVersioned();
   EXPECT_EQ(dlpack->version.major, DLPACK_MAJOR_VERSION);
