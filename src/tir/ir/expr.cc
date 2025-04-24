@@ -649,8 +649,8 @@ CommReducer::CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
       << "ValueError: The number of identities must equal to the number of elements in `results`";
 
   // Change the dtype of input vars to adapt to the dtype of identities
-  ArrayNode* p_lhs = lhs.CopyOnWrite();
-  ArrayNode* p_rhs = rhs.CopyOnWrite();
+  ArrayObj* p_lhs = lhs.CopyOnWrite();
+  ArrayObj* p_rhs = rhs.CopyOnWrite();
   std::unordered_map<const VarNode*, PrimExpr> var_map;
   var_map.reserve(n_group * 2);
   for (int i = 0; i < static_cast<int>(n_group); ++i) {
@@ -664,7 +664,7 @@ CommReducer::CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
     p_rhs->SetItem(i, r);
   }
 
-  ArrayNode* p_result = result.CopyOnWrite();
+  ArrayObj* p_result = result.CopyOnWrite();
   for (int i = 0; i < static_cast<int>(n_group); ++i) {
     p_result->SetItem(i, Substitute(result[i], var_map));
   }

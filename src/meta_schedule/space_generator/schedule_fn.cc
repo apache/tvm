@@ -54,7 +54,7 @@ class ScheduleFnNode : public SpaceGeneratorNode {
     if (auto sch = obj.as<tir::Schedule>()) {
       return {sch.value()};
     }
-    if (const auto* arr = obj.as<ffi::ArrayNode>()) {
+    if (const auto* arr = obj.as<ffi::ArrayObj>()) {
       Array<tir::Schedule> result;
       result.reserve(arr->size());
       for (Any val : *arr) {

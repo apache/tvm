@@ -111,13 +111,13 @@ class NodeIndexer : public AttrVisitor {
       return;
     }
     MakeNodeIndex(node);
-    if (auto opt_array = node.as<const ArrayNode*>()) {
-      const ArrayNode* n = opt_array.value();
+    if (auto opt_array = node.as<const ArrayObj*>()) {
+      const ArrayObj* n = opt_array.value();
       for (auto elem : *n) {
         MakeIndex(elem);
       }
-    } else if (auto opt_map = node.as<const MapNode*>()) {
-      const MapNode* n = opt_map.value();
+    } else if (auto opt_map = node.as<const MapObj*>()) {
+      const MapObj* n = opt_map.value();
       bool is_str_map = std::all_of(n->begin(), n->end(), [](const auto& v) {
         return v.first.template as<const ffi::StringObj*>().has_value();
       });
@@ -272,13 +272,13 @@ class JSONAttrGetter : public AttrVisitor {
     node_->attrs.clear();
     node_->data.clear();
 
-    if (auto opt_array = node.as<const ArrayNode*>()) {
-      const ArrayNode* n = opt_array.value();
+    if (auto opt_array = node.as<const ArrayObj*>()) {
+      const ArrayObj* n = opt_array.value();
       for (size_t i = 0; i < n->size(); ++i) {
         node_->data.push_back(node_index_->at(n->at(i)));
       }
-    } else if (auto opt_map = node.as<const MapNode*>()) {
-      const MapNode* n = opt_map.value();
+    } else if (auto opt_map = node.as<const MapObj*>()) {
+      const MapObj* n = opt_map.value();
       bool is_str_map = std::all_of(n->begin(), n->end(), [](const auto& v) {
         return v.first.template as<const ffi::StringObj*>().has_value();
       });
@@ -380,7 +380,7 @@ class FieldDependencyFinder : public AttrVisitor {
       return;
     }
     // Skip containers
-    if (jnode->type_key == ArrayNode::_type_key || jnode->type_key == MapNode::_type_key) {
+    if (jnode->type_key == ArrayObj::_type_key || jnode->type_key == MapObj::_type_key) {
       return;
     }
     jnode_ = jnode;
@@ -517,13 +517,13 @@ class JSONAttrSetter : public AttrVisitor {
   void SetAttrs(Any* node, JSONNode* jnode) {
     jnode_ = jnode;
     // handling Array
-    if (jnode->type_key == ArrayNode::_type_key) {
+    if (jnode->type_key == ArrayObj::_type_key) {
       Array<Any> result;
       for (auto index : jnode->data) {
         result.push_back(node_list_->at(index));
       }
       *node = result;
-    } else if (jnode->type_key == MapNode::_type_key) {
+    } else if (jnode->type_key == MapObj::_type_key) {
       Map<Any, Any> result;
       if (jnode->keys.empty()) {
         ICHECK_EQ(jnode->data.size() % 2, 0U);

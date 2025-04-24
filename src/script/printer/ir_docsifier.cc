@@ -138,13 +138,13 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
       }
       visited_.insert(obj);
       stack_.push_back(obj);
-      if (obj->IsInstance<ArrayNode>()) {
-        const ArrayNode* array = static_cast<const ArrayNode*>(obj);
+      if (obj->IsInstance<ArrayObj>()) {
+        const ArrayObj* array = static_cast<const ArrayObj*>(obj);
         for (Any element : *array) {
           this->RecursiveVisitAny(&element);
         }
-      } else if (obj->IsInstance<MapNode>()) {
-        const MapNode* map = static_cast<const MapNode*>(obj);
+      } else if (obj->IsInstance<MapObj>()) {
+        const MapObj* map = static_cast<const MapObj*>(obj);
         for (std::pair<Any, Any> kv : *map) {
           this->RecursiveVisitAny(&kv.first);
           this->RecursiveVisitAny(&kv.second);

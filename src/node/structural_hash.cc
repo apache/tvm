@@ -406,17 +406,17 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container, NDArrayContainerTrai
       return blob;
     });
 
-struct ArrayNodeTrait {
+struct ArrayObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
-  static void SHashReduce(const ArrayNode* key, SHashReducer hash_reduce) {
+  static void SHashReduce(const ArrayObj* key, SHashReducer hash_reduce) {
     hash_reduce(static_cast<uint64_t>(key->size()));
     for (uint32_t i = 0; i < key->size(); ++i) {
       hash_reduce(key->at(i));
     }
   }
 
-  static bool SEqualReduce(const ArrayNode* lhs, const ArrayNode* rhs, SEqualReducer equal) {
+  static bool SEqualReduce(const ArrayObj* lhs, const ArrayObj* rhs, SEqualReducer equal) {
     if (equal.IsPathTracingEnabled()) {
       return SEqualReduceTraced(lhs, rhs, equal);
     }
@@ -429,7 +429,7 @@ struct ArrayNodeTrait {
   }
 
  private:
-  static bool SEqualReduceTraced(const ArrayNode* lhs, const ArrayNode* rhs,
+  static bool SEqualReduceTraced(const ArrayObj* lhs, const ArrayObj* rhs,
                                  const SEqualReducer& equal) {
     uint32_t min_size = std::min(lhs->size(), rhs->size());
     const ObjectPathPair& array_paths = equal.GetCurrentObjectPaths();
@@ -487,9 +487,9 @@ struct ArrayNodeTrait {
     return false;
   }
 };
-TVM_REGISTER_REFLECTION_VTABLE(ArrayNode, ArrayNodeTrait)
+TVM_REGISTER_REFLECTION_VTABLE(ArrayObj, ArrayObjTrait)
     .set_creator([](const std::string&) -> ObjectPtr<Object> {
-      return ::tvm::runtime::make_object<ArrayNode>();
+      return ::tvm::runtime::make_object<ArrayObj>();
     });
 
 struct ShapeTupleObjTrait {
@@ -536,10 +536,10 @@ TVM_REGISTER_REFLECTION_VTABLE(ShapeTupleObj, ShapeTupleObjTrait)
       return blob;
     });
 
-struct MapNodeTrait {
+struct MapObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
-  static void SHashReduceForOMap(const MapNode* key, SHashReducer hash_reduce) {
+  static void SHashReduceForOMap(const MapObj* key, SHashReducer hash_reduce) {
     // SHash's var handling depends on the determinism of traversal.
     // NOTE: only book-keep the mapped hash keys.
     // This resolves common use cases where we want to store
@@ -575,7 +575,7 @@ struct MapNodeTrait {
     }
   }
 
-  static void SHashReduceForSMap(const MapNode* key, SHashReducer hash_reduce) {
+  static void SHashReduceForSMap(const MapObj* key, SHashReducer hash_reduce) {
     // NOTE: only book-keep the mapped hash keys.
     // This resolves common use cases where we want to store
     // Map<Var, Value> where Var is defined in the function
@@ -598,7 +598,7 @@ struct MapNodeTrait {
     }
   }
 
-  static void SHashReduce(const MapNode* key, SHashReducer hash_reduce) {
+  static void SHashReduce(const MapObj* key, SHashReducer hash_reduce) {
     bool is_str_map = std::all_of(key->begin(), key->end(), [](const auto& v) {
       return v.first.template as<const ffi::StringObj*>();
     });
@@ -609,7 +609,7 @@ struct MapNodeTrait {
     }
   }
 
-  static bool SEqualReduceTraced(const MapNode* lhs, const MapNode* rhs,
+  static bool SEqualReduceTraced(const MapObj* lhs, const MapObj* rhs,
                                  const SEqualReducer& equal) {
     const ObjectPathPair& map_paths = equal.GetCurrentObjectPaths();
     // First, check that every key from `lhs` is also in `rhs`,
@@ -649,7 +649,7 @@ struct MapNodeTrait {
     TVM_FFI_UNREACHABLE();
   }
 
-  static bool SEqualReduce(const MapNode* lhs, const MapNode* rhs, SEqualReducer equal) {
+  static bool SEqualReduce(const MapObj* lhs, const MapObj* rhs, SEqualReducer equal) {
     if (equal.IsPathTracingEnabled()) {
       return SEqualReduceTraced(lhs, rhs, equal);
     }
@@ -670,8 +670,8 @@ struct MapNodeTrait {
     return true;
   }
 };
-TVM_REGISTER_REFLECTION_VTABLE(MapNode, MapNodeTrait)
-    .set_creator([](const std::string&) -> ObjectPtr<Object> { return MapNode::Empty(); });
+TVM_REGISTER_REFLECTION_VTABLE(MapObj, MapObjTrait)
+    .set_creator([](const std::string&) -> ObjectPtr<Object> { return MapObj::Empty(); });
 
 struct ReportNodeTrait {
   static void VisitAttrs(runtime::profiling::ReportNode* report, AttrVisitor* attrs) {

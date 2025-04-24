@@ -40,7 +40,7 @@ Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, Optional<DataTy
   Expr shape_in_expr{nullptr};
   if (const auto* expr = shape.as<ExprNode>()) {
     shape_in_expr = GetRef<Expr>(expr);
-  } else if (const auto* _array = shape.as<ArrayNode>()) {
+  } else if (const auto* _array = shape.as<ArrayObj>()) {
     shape_in_expr = ShapeExpr(GetRef<Array<PrimExpr>>(_array));
   } else {
     LOG(FATAL)

@@ -75,8 +75,8 @@ ReprLegacyPrinter& operator<<(ReprLegacyPrinter& out, tir::ForKind type) {  // N
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<ArrayNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const ArrayNode*>(node.get());
+    .set_dispatch<ArrayObj>([](const ObjectRef& node, ReprLegacyPrinter* p) {
+      auto* op = static_cast<const ArrayObj*>(node.get());
       (*p) << '[';
       for (size_t i = 0; i < op->size(); ++i) {
         if (i != 0) {
@@ -88,8 +88,8 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<MapNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const MapNode*>(node.get());
+    .set_dispatch<MapObj>([](const ObjectRef& node, ReprLegacyPrinter* p) {
+      auto* op = static_cast<const MapObj*>(node.get());
       (*p) << '{';
       for (auto it = op->begin(); it != op->end(); ++it) {
         if (it != op->begin()) {

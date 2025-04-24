@@ -189,7 +189,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
           const ObjectRef& json_obj = json_objs[task_id];
           Workload workload{nullptr};
           try {
-            const ArrayNode* arr = json_obj.as<ArrayNode>();
+            const ArrayObj* arr = json_obj.as<ArrayObj>();
             ICHECK_EQ(arr->size(), 2);
             int64_t workload_index = arr->at(0).operator IntImm()->value;
             ICHECK(workload_index >= 0 && static_cast<size_t>(workload_index) < workloads.size());

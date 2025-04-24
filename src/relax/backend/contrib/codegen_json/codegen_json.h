@@ -111,7 +111,7 @@ class OpAttrExtractor : public AttrVisitor {
   }
 
   void Visit(const char* key, runtime::ObjectRef* value) final {
-    if (const auto* an = (*value).as<ArrayNode>()) {
+    if (const auto* an = (*value).as<ArrayObj>()) {
       std::vector<std::string> attr;
       for (size_t i = 0; i < an->size(); ++i) {
         if (const auto* im = (*an)[i].as<IntImmNode>()) {

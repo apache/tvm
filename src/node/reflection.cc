@@ -253,7 +253,7 @@ ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
   std::vector<AnyView> packed_args(kwargs.size() * 2);
   int index = 0;
 
-  for (const auto& kv : *static_cast<const MapNode*>(kwargs.get())) {
+  for (const auto& kv : *static_cast<const MapObj*>(kwargs.get())) {
     packed_args[index] = kv.first.operator String().c_str();
     packed_args[index + 1] = kv.second;
     index += 2;

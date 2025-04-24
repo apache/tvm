@@ -176,7 +176,7 @@ class NestedMsg : public ObjectRef {
   bool IsNull() const { return data_ == nullptr; }
 
   /*! \return Whether the nested message is nested */
-  bool IsNested() const { return data_ != nullptr && data_->IsInstance<ArrayNode>(); }
+  bool IsNested() const { return data_ != nullptr && data_->IsInstance<ArrayObj>(); }
 
   /*!
    * \return The underlying leaf value.

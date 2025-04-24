@@ -76,7 +76,7 @@ class TargetInternal {
   static std::string Interpret(const std::string& str);
   static std::string Uninterpret(const std::string& str);
   static std::string StringifyAtomicType(const Any& obj);
-  static std::string StringifyArray(const ArrayNode& array);
+  static std::string StringifyArray(const ArrayObj& array);
 
   static constexpr char quote = '\'';
   static constexpr char escape = '\\';
@@ -394,7 +394,7 @@ Any TargetInternal::ParseType(const std::string& str, const TargetKindNode::Valu
   } else if (info.type_index == Target::ContainerType::RuntimeTypeIndex()) {
     // Parsing target
     return Target(TargetInternal::FromString(interp_str));
-  } else if (info.type_index == ArrayNode::RuntimeTypeIndex()) {
+  } else if (info.type_index == ArrayObj::RuntimeTypeIndex()) {
     // Parsing array
     std::vector<ObjectRef> result;
     for (const std::string& substr : SplitString(interp_str, ',')) {
@@ -428,7 +428,7 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
       return opt.value();
     } else if (auto str = obj.as<String>()) {
       return Target(TargetInternal::FromString(str.value()));
-    } else if (const auto* ptr = obj.as<MapNode>()) {
+    } else if (const auto* ptr = obj.as<MapObj>()) {
       for (const auto& kv : *ptr) {
         if (!kv.first.as<StringObj>()) {
           TVM_FFI_THROW(TypeError)
@@ -440,9 +440,9 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
     }
     TVM_FFI_THROW(TypeError) << "Expect type 'dict' or 'str' to construct Target, but get: " +
                                     obj.GetTypeKey();
-  } else if (info.type_index == ArrayNode::RuntimeTypeIndex()) {
+  } else if (info.type_index == ArrayObj::RuntimeTypeIndex()) {
     // Parsing array
-    const auto* array = ObjTypeCheck<const ArrayNode*>(obj, "Array");
+    const auto* array = ObjTypeCheck<const ArrayObj*>(obj, "Array");
     std::vector<ObjectRef> result;
     for (const Any& e : *array) {
       try {
@@ -453,9 +453,9 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
       }
     }
     return Array<ObjectRef>(result);
-  } else if (info.type_index == MapNode::RuntimeTypeIndex()) {
+  } else if (info.type_index == MapObj::RuntimeTypeIndex()) {
     // Parsing map
-    const auto* map = ObjTypeCheck<const MapNode*>(obj, "Map");
+    const auto* map = ObjTypeCheck<const MapObj*>(obj, "Map");
     std::unordered_map<Any, Any, ffi::AnyHash, ffi::AnyEqual> result;
     for (const auto& kv : *map) {
       Any key, val;
@@ -502,7 +502,7 @@ std::string TargetInternal::StringifyAtomicType(const Any& obj) {
   TVM_FFI_UNREACHABLE();
 }
 
-std::string TargetInternal::StringifyArray(const ArrayNode& array) {
+std::string TargetInternal::StringifyArray(const ArrayObj& array) {
   std::vector<std::string> elements;
 
   for (const Any& item : array) {
@@ -531,7 +531,7 @@ Optional<String> TargetInternal::StringifyAttrsToRaw(const Map<String, ffi::Any>
     std::string value;
     // skip undefined attrs
     if (obj == nullptr) continue;
-    if (const auto* array = obj.as<ArrayNode>()) {
+    if (const auto* array = obj.as<ArrayObj>()) {
       value = String(StringifyArray(*array));
     } else {
       value = StringifyAtomicType(obj);
@@ -889,7 +889,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
     bool has_user_keys = config.count(kKeys);
     if (has_user_keys) {
       // user provided keys
-      if (const auto* cfg_keys = config[kKeys].as<ArrayNode>()) {
+      if (const auto* cfg_keys = config[kKeys].as<ArrayObj>()) {
         for (const Any& e : *cfg_keys) {
           if (auto key = e.as<String>()) {
             keys.push_back(key.value());

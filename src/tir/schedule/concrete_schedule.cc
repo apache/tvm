@@ -941,7 +941,7 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
     }
     return res_expr;
   }
-  if (const auto* arr = ann_val.as<ArrayNode>()) {
+  if (const auto* arr = ann_val.as<ArrayObj>()) {
     Array<Any> result;
     result.reserve(arr->size());
     for (size_t i = 0; i < arr->size(); i++) {
@@ -949,7 +949,7 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
     }
     return std::move(result);
   }
-  if (const auto* dict = ann_val.as<MapNode>()) {
+  if (const auto* dict = ann_val.as<MapObj>()) {
     Map<String, ffi::Any> result;
     for (auto it = dict->begin(); it != dict->end(); ++it) {
       const auto& key = it->first;

@@ -812,16 +812,16 @@ TVM_REGISTER_OP("relax.permute_dims")
 
 /* relax.reshape */
 Expr ConvertNewShapeToExpr(const Expr& data, const Variant<Expr, Array<PrimExpr>>& shape) {
-  const ArrayNode* array;
+  const ArrayObj* array;
   // Treat shape expressions as constant arrays to handle special values.
   if (const auto* e = shape.as<ShapeExprNode>()) {
-    array = e->values.as<ArrayNode>();
+    array = e->values.as<ArrayObj>();
     // Other non-shape expressions are used directly.
   } else if (const auto* e = shape.as<ExprNode>()) {
     return GetRef<Expr>(e);
     // Process special values in constants and produce an expression.
   } else {
-    array = shape.as<ArrayNode>();
+    array = shape.as<ArrayObj>();
   }
   CHECK(array != nullptr) << "Reshape only expects the input new shape to be either an Expr or an "
                              "Array of PrimExprs. However, the given new shape is "
@@ -973,7 +973,7 @@ Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis)
   ObjectPtr<SplitAttrs> attrs = make_object<SplitAttrs>();
   ObjectRef indices_or_sections_obj;
 
-  if (const auto* indices = indices_or_sections.as<ArrayNode>()) {
+  if (const auto* indices = indices_or_sections.as<ArrayObj>()) {
     for (int i = 0; i < static_cast<int>(indices->size()); ++i) {
       const auto* idx = indices->at(i).as<IntImmNode>();
       CHECK(idx != nullptr) << "Split op only accepts an array of integers as the indices. "

@@ -381,7 +381,7 @@ Map<String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
       if (Buffer new_buffer = GetRemappedBuffer(buffer); !new_buffer.same_as(buffer)) {
         return new_buffer;
       }
-    } else if (obj->IsInstance<ArrayNode>()) {
+    } else if (obj->IsInstance<ArrayObj>()) {
       return Downcast<Array<ObjectRef>>(obj).Map(f_mutate_obj);
     }
     return obj;

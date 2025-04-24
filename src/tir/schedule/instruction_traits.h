@@ -425,7 +425,7 @@ inline void PythonAPICall::AsPythonString(const Any& obj, std::ostream& os) {
   } else if (const auto opt_float_imm = obj.as<FloatImm>()) {
     os.precision(17);
     os << (*opt_float_imm)->value;
-  } else if (const auto* array = obj.as<ArrayNode>()) {
+  } else if (const auto* array = obj.as<ArrayObj>()) {
     os << '[';
     bool is_first = true;
     for (Any e : *array) {
@@ -437,7 +437,7 @@ inline void PythonAPICall::AsPythonString(const Any& obj, std::ostream& os) {
       AsPythonString(e, os);
     }
     os << ']';
-  } else if (const auto* dict = obj.as<MapNode>()) {
+  } else if (const auto* dict = obj.as<MapObj>()) {
     os << '{';
     bool is_first = true;
     std::vector<std::pair<std::string, std::string>> dict_items;

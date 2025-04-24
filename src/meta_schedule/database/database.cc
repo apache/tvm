@@ -51,7 +51,7 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
   IRModule mod{nullptr};
   THashCode shash = 0;
   try {
-    const ArrayNode* json_array = json_obj.as<ArrayNode>();
+    const ArrayObj* json_array = json_obj.as<ArrayObj>();
     CHECK(json_array && json_array->size() == 2);
     // Load json[0] => shash
     String str_shash = json_array->at(0);
@@ -134,7 +134,7 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
   Optional<Target> target;
   Optional<Array<ArgInfo>> args_info;
   try {
-    const ArrayNode* json_array = json_obj.as<ArrayNode>();
+    const ArrayObj* json_array = json_obj.as<ArrayObj>();
     CHECK(json_array && json_array->size() == 4);
     // Load json[1] => run_secs
     if (json_array->at(1) != nullptr) {
@@ -146,7 +146,7 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
     }
     // Load json[3] => args_info
     if (json_array->at(3) != nullptr) {
-      const ArrayNode* json_args_info = json_array->at(3).operator const ArrayNode*();
+      const ArrayObj* json_args_info = json_array->at(3).operator const ArrayObj*();
       Array<ArgInfo> info;
       info.reserve(json_args_info->size());
       for (Any json_arg_info : *json_args_info) {

@@ -945,7 +945,7 @@ void ScheduleStateNode::Replace(const tir::StmtSRef& _src_sref, const Stmt& tgt_
     }
     // Ensure the uniqueness of `this->mod` and `this->mod->functions`
     IRModuleNode* new_mod = this->mod.CopyOnWrite();
-    MapNode* new_map = new_mod->functions.CopyOnWrite();
+    MapObj* new_map = new_mod->functions.CopyOnWrite();
     // Move out the PrimFunc where the sref belong while ensuring uniqueness
     PrimFunc ref_new_func = Downcast<PrimFunc>(std::move(new_map->at(g_var)));
     ICHECK(ref_new_func.get() == g_func);

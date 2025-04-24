@@ -269,7 +269,7 @@ const String StringUtils::ToString(const runtime::ObjectRef& obj) {
     obj_string = std::to_string(n->value);
   } else if (const auto* n = obj.as<FloatImmNode>()) {
     obj_string = std::to_string(n->value);
-  } else if (const auto* n = obj.as<ArrayNode>()) {
+  } else if (const auto* n = obj.as<ArrayObj>()) {
     for (size_t i = 0; i < n->size(); i++) {
       obj_string = obj_string + ToString((*n)[i]);
       if (n->size() == 1 || i < n->size() - 1) {

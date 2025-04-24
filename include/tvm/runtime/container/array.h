@@ -30,12 +30,12 @@ namespace tvm {
 namespace runtime {
 
 using tvm::ffi::Array;
-using tvm::ffi::ArrayNode;
+using tvm::ffi::ArrayObj;
 
 }  // namespace runtime
 
 // expose class to root namespace
 using tvm::ffi::Array;
-using tvm::ffi::ArrayNode;
+using tvm::ffi::ArrayObj;
 }  // namespace tvm
 #endif  // TVM_RUNTIME_CONTAINER_ARRAY_H_

@@ -69,7 +69,7 @@ ArgInfo ArgInfo::FromJSON(const ObjectRef& json_obj) {
   // Step 1. Extract the tag
   String tag{runtime::ObjectPtr<runtime::StringObj>(nullptr)};
   try {
-    const ArrayNode* json_array = json_obj.as<ArrayNode>();
+    const ArrayObj* json_array = json_obj.as<ArrayObj>();
     CHECK(json_array && json_array->size() >= 1);
     tag = json_array->at(0);
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
@@ -129,7 +129,7 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
   DLDataType dtype;
   Array<Integer> shape;
   try {
-    const ArrayNode* json_array = json_obj.as<ArrayNode>();
+    const ArrayObj* json_array = json_obj.as<ArrayObj>();
     CHECK(json_array && json_array->size() == 3);
     // Load json[1] => dtype
     {

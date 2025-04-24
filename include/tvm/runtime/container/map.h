@@ -35,6 +35,6 @@ using tvm::ffi::Map;
 
 // expose the functions to the root namespace.
 using tvm::ffi::Map;
-using tvm::ffi::MapNode;
+using tvm::ffi::MapObj;
 }  // namespace tvm
 #endif  // TVM_RUNTIME_CONTAINER_MAP_H_

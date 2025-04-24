@@ -33,7 +33,7 @@ namespace tvm {
 namespace runtime {
 
 // Array
-TVM_REGISTER_OBJECT_TYPE(ArrayNode);
+TVM_REGISTER_OBJECT_TYPE(ArrayObj);
 
 TVM_REGISTER_GLOBAL("runtime.Array").set_body_packed([](ffi::PackedArgs args, Any* ret) {
   Array<Any> result;
@@ -44,9 +44,9 @@ TVM_REGISTER_GLOBAL("runtime.Array").set_body_packed([](ffi::PackedArgs args, An
 });
 
 TVM_REGISTER_GLOBAL("runtime.ArrayGetItem")
-    .set_body_typed([](const ffi::ArrayNode* n, int64_t i) -> Any { return n->at(i); });
+    .set_body_typed([](const ffi::ArrayObj* n, int64_t i) -> Any { return n->at(i); });
 
-TVM_REGISTER_GLOBAL("runtime.ArraySize").set_body_typed([](const ffi::ArrayNode* n) -> int64_t {
+TVM_REGISTER_GLOBAL("runtime.ArraySize").set_body_typed([](const ffi::ArrayObj* n) -> int64_t {
   return static_cast<int64_t>(n->size());
 });
 
@@ -69,17 +69,17 @@ TVM_REGISTER_GLOBAL("runtime.Map").set_body_packed([](ffi::PackedArgs args, Any*
   *ret = data;
 });
 
-TVM_REGISTER_GLOBAL("runtime.MapSize").set_body_typed([](const ffi::MapNode* n) -> int64_t {
+TVM_REGISTER_GLOBAL("runtime.MapSize").set_body_typed([](const ffi::MapObj* n) -> int64_t {
   return static_cast<int64_t>(n->size());
 });
 
 TVM_REGISTER_GLOBAL("runtime.MapGetItem")
-    .set_body_typed([](const ffi::MapNode* n, const Any& k) -> Any { return n->at(k); });
+    .set_body_typed([](const ffi::MapObj* n, const Any& k) -> Any { return n->at(k); });
 
 TVM_REGISTER_GLOBAL("runtime.MapCount")
-    .set_body_typed([](const ffi::MapNode* n, const Any& k) -> int64_t { return n->count(k); });
+    .set_body_typed([](const ffi::MapObj* n, const Any& k) -> int64_t { return n->count(k); });
 
-TVM_REGISTER_GLOBAL("runtime.MapItems").set_body_typed([](const ffi::MapNode* n) -> Array<Any> {
+TVM_REGISTER_GLOBAL("runtime.MapItems").set_body_typed([](const ffi::MapObj* n) -> Array<Any> {
   Array<Any> rkvs;
   for (const auto& kv : *n) {
     rkvs.push_back(kv.first);

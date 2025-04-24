@@ -64,12 +64,12 @@ Choice Choice::FromJSON(const ObjectRef& json) {
   String transform_func_key, constr_func_key;
   Array<Any> transform_func_args, constr_func_args;
   try {
-    const ArrayNode* arr = json.as<ArrayNode>();
+    const ArrayObj* arr = json.as<ArrayObj>();
     ICHECK(arr && arr->size() == 4);
     const auto* arr0 = arr->at(0).as<ffi::StringObj>();
-    const auto* arr1 = arr->at(1).as<ArrayNode>();
+    const auto* arr1 = arr->at(1).as<ArrayObj>();
     const auto* arr2 = arr->at(2).as<ffi::StringObj>();
-    const auto* arr3 = arr->at(3).as<ArrayNode>();
+    const auto* arr3 = arr->at(3).as<ArrayObj>();
     ICHECK(arr0 && arr1 && arr2 && arr3);
     transform_func_key = GetRef<String>(arr0);
     {
@@ -123,10 +123,10 @@ Knob Knob::FromJSON(const ObjectRef& json) {
   String name;
   Map<String, Choice> choices;
   try {
-    const ArrayNode* arr = json.as<ArrayNode>();
+    const ArrayObj* arr = json.as<ArrayObj>();
     ICHECK(arr && arr->size() == 2);
     const auto* arr0 = arr->at(0).as<ffi::StringObj>();
-    const auto* arr1 = arr->at(1).as<MapNode>();
+    const auto* arr1 = arr->at(1).as<MapObj>();
     ICHECK(arr0 && arr1);
     name = GetRef<String>(arr0);
     for (auto const& x : GetRef<Map<String, ffi::Any>>(arr1)) {
@@ -198,12 +198,12 @@ Trace Trace::FromJSON(const ObjectRef& json) {
   Array<Knob> knobs;
   Array<String> decisions;
   try {
-    const ArrayNode* arr = json.as<ArrayNode>();
+    const ArrayObj* arr = json.as<ArrayObj>();
     // A trace will have 2 or 3 entries depending on `include_irmod` parameter.
     ICHECK(arr && (arr->size() == 2 || arr->size() == 3));
 
-    const auto* arr0 = arr->at(0).as<ArrayNode>();
-    const auto* arr1 = arr->at(1).as<ArrayNode>();
+    const auto* arr0 = arr->at(0).as<ArrayObj>();
+    const auto* arr1 = arr->at(1).as<ArrayObj>();
     ICHECK(arr0 && arr1);
 
     for (const Any& elem : *arr0) {

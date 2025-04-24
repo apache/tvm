@@ -421,7 +421,7 @@ class SEqualHandlerDefault::Impl {
           cfg->path_to_underline.push_back(first_mismatch_->value()->lhs_path);
           // The TVMScriptPrinter::Script will fallback to Repr printer,
           // if the root node to print is not supported yet,
-          // e.g. Relax nodes, ArrayNode, MapNode, etc.
+          // e.g. Relax nodes, ArrayObj, MapObj, etc.
           oss << ":" << std::endl << TVMScriptPrinter::Script(root_lhs_.value(), cfg);
         }
       } else {
@@ -436,7 +436,7 @@ class SEqualHandlerDefault::Impl {
           cfg->path_to_underline.push_back(first_mismatch_->value()->rhs_path);
           // The TVMScriptPrinter::Script will fallback to Repr printer,
           // if the root node to print is not supported yet,
-          // e.g. Relax nodes, ArrayNode, MapNode, etc.
+          // e.g. Relax nodes, ArrayObj, MapObj, etc.
           oss << ":" << std::endl << TVMScriptPrinter::Script(root_rhs_.value(), cfg);
         }
       } else {

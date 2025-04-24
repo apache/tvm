@@ -45,7 +45,7 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
     os << std::setprecision(20) << float_imm->value;
   } else if (const auto* str = json_obj.as<runtime::StringObj>()) {
     os << '"' << support::StrEscape(str->data, str->size) << '"';
-  } else if (const auto* array = json_obj.as<ffi::ArrayNode>()) {
+  } else if (const auto* array = json_obj.as<ffi::ArrayObj>()) {
     os << "[";
     int n = array->size();
     for (int i = 0; i < n; ++i) {
@@ -55,7 +55,7 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
       JSONDumps(array->at(i), os);
     }
     os << "]";
-  } else if (const auto* dict = json_obj.as<ffi::MapNode>()) {
+  } else if (const auto* dict = json_obj.as<ffi::MapObj>()) {
     int n = dict->size();
     std::vector<std::pair<String, ffi::Any>> key_values;
     key_values.reserve(n);

@@ -126,10 +126,10 @@ Array<Any> TranslateInputRVs(
     } else if (input.as<IntImmNode>() || input.as<FloatImmNode>()) {
       // Case 3. integer or floating-point number
       results.push_back(input);
-    } else if (input.as<ArrayNode>()) {
+    } else if (input.as<ArrayObj>()) {
       // Case 4: array
       results.push_back(TranslateInputRVs(Downcast<Array<Any>>(Any(input)), rv_names));
-    } else if (input.as<MapNode>()) {
+    } else if (input.as<MapObj>()) {
       // Case 5: dict
       results.push_back(input);
     } else if (input.as<IndexMapNode>()) {
@@ -166,12 +166,12 @@ Array<Any> TranslateInputRVs(const Array<Any>& inputs,
       continue;
     }
     // Case 4. array
-    if (input.as<ArrayNode>()) {
+    if (input.as<ArrayObj>()) {
       results.push_back(TranslateInputRVs(Downcast<Array<Any>>(input), named_rvs));
       continue;
     }
     // Case 5. dict
-    if (input.as<MapNode>()) {
+    if (input.as<MapObj>()) {
       results.push_back(input);
       continue;
     }
@@ -378,10 +378,10 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
   Array<Any> json_decisions{nullptr};
   // Parse `json` into `json_insts` and `json_decisions`
   try {
-    const ArrayNode* arr = json.as<ArrayNode>();
+    const ArrayObj* arr = json.as<ArrayObj>();
     ICHECK(arr && arr->size() == 2);
-    const auto* arr0 = arr->at(0).as<ArrayNode>();
-    const auto* arr1 = arr->at(1).as<ArrayNode>();
+    const auto* arr0 = arr->at(0).as<ArrayObj>();
+    const auto* arr1 = arr->at(1).as<ArrayObj>();
     ICHECK(arr0 && arr1);
     json_insts = GetRef<Array<Any>>(arr0);
     json_decisions = GetRef<Array<Any>>(arr1);
@@ -397,7 +397,7 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
     int index = -1;
     Any decision{nullptr};
     try {
-      const ArrayNode* arr = decision_entry.as<ArrayNode>();
+      const ArrayObj* arr = decision_entry.as<ArrayObj>();
       ICHECK(arr && arr->size() == 2);
       auto arr0 = arr->at(0).as<IntImm>();
       ICHECK(arr0);
@@ -421,7 +421,7 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
     Array<String> outputs{ObjectPtr<Object>{nullptr}};
     // Parse the entry
     try {
-      const auto* arr = inst_entry.as<ArrayNode>();
+      const auto* arr = inst_entry.as<ArrayObj>();
       ICHECK(arr && arr->size() == 4);
       const auto* arr0 = arr->at(0).as<StringObj>();
       kind = InstructionKind::Get(arr0->data);

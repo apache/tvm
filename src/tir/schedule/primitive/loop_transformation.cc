@@ -77,13 +77,13 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
 /*! \brief Simplify the binding of block realize and update the opaque block reuse mapping */
 class IterMapSimplifyBlockBinding : public StmtExprMutator {
  public:
-  explicit IterMapSimplifyBlockBinding(MapNode* opaque_blocks, Map<Var, Range> loop_var2extent,
+  explicit IterMapSimplifyBlockBinding(MapObj* opaque_blocks, Map<Var, Range> loop_var2extent,
                                        bool preserve_unit_iters)
       : opaque_blocks_(opaque_blocks),
         loop_var2extent_(loop_var2extent),
         preserve_unit_iters_(preserve_unit_iters) {}
 
-  static For SimplifyBindings(Stmt stmt, const Array<StmtSRef>& loop_srefs, MapNode* opaque_blocks,
+  static For SimplifyBindings(Stmt stmt, const Array<StmtSRef>& loop_srefs, MapObj* opaque_blocks,
                               bool preserve_unit_iters) {
     Map<Var, Range> loop_var2extent;
     for (const StmtSRef& sref : loop_srefs) {
@@ -132,7 +132,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   }
 
   /*! \brief The reuse mapping */
-  MapNode* opaque_blocks_;
+  MapObj* opaque_blocks_;
   /*! \brief The range of loops */
   Map<Var, Range> loop_var2extent_;
   /*! \brief Internal analyzer */

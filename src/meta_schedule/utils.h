@@ -419,7 +419,7 @@ inline double GetRunMsMedian(const RunnerResult& runner_result) {
  * \return The array of floating point numbers
  */
 inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
-  const ArrayNode* arr = obj.as<ArrayNode>();
+  const ArrayObj* arr = obj.as<ArrayObj>();
   ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
   Array<FloatImm> results;
   results.reserve(arr->size());
@@ -446,7 +446,7 @@ inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
  * \return The array of integers
  */
 inline Array<Integer> AsIntArray(const ObjectRef& obj) {
-  const ArrayNode* arr = obj.as<ArrayNode>();
+  const ArrayObj* arr = obj.as<ArrayObj>();
   ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
   Array<Integer> results;
   results.reserve(arr->size());

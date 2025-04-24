@@ -250,7 +250,7 @@ TVM_REGISTER_GLOBAL("ir.IRModule")
           return DictAttrs();
         } else if (auto* as_dict_attrs = attrs.as<tvm::DictAttrsNode>()) {
           return GetRef<tvm::DictAttrs>(as_dict_attrs);
-        } else if (attrs.as<tvm::MapNode>()) {
+        } else if (attrs.as<tvm::MapObj>()) {
           return tvm::DictAttrs(Downcast<Map<String, Any>>(attrs));
         } else {
           LOG(FATAL) << "Expected attrs argument to be either DictAttrs or Map<String,ObjectRef>";

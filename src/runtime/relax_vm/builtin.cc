@@ -309,7 +309,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.check_prim_value_info").set_body_typed(CheckPrim
  */
 void CheckTupleInfo(ObjectRef arg, int64_t size, Optional<String> err_ctx) {
   // a function that lazily get context for error reporting
-  auto* ptr = arg.as<ffi::ArrayNode>();
+  auto* ptr = arg.as<ffi::ArrayObj>();
   CHECK(ptr != nullptr) << "TypeError: " << err_ctx.value_or("") << " expect a Tuple but get "
                         << arg->GetTypeKey();
   CHECK(static_cast<int64_t>(ptr->size()) == size)
@@ -495,8 +495,8 @@ TVM_REGISTER_GLOBAL("vm.builtin.tuple_getitem")
     .set_body_typed([](runtime::Array<Any> arr, int64_t index) { return arr[index]; });
 
 TVM_REGISTER_GLOBAL("vm.builtin.tuple_reset_item")
-    .set_body_typed([](const ffi::ArrayNode* arr, int64_t index) {
-      const_cast<ffi::ArrayNode*>(arr)->SetItem(index, nullptr);
+    .set_body_typed([](const ffi::ArrayObj* arr, int64_t index) {
+      const_cast<ffi::ArrayObj*>(arr)->SetItem(index, nullptr);
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.make_tuple").set_body_packed([](ffi::PackedArgs args, Any* rv) {
