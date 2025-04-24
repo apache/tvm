@@ -81,7 +81,7 @@ void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_retu
     TVMFFIAny ret_any = ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(rv));
     void* opaque_handle = ret_any.v_obj;
     packed_args[1] = opaque_handle;
-    if (ret_any.type_index == ffi::TypeIndex::kTVMFFIRuntimeModule) {
+    if (ret_any.type_index == ffi::TypeIndex::kTVMFFIModule) {
       packed_args[0] = static_cast<int32_t>(kTVMModuleHandle);
     } else if (ret_any.type_index == ffi::TypeIndex::kTVMFFIFunc) {
       packed_args[0] = static_cast<int32_t>(kTVMPackedFuncHandle);

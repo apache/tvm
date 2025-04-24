@@ -54,7 +54,7 @@ enum TypeIndex : int32_t {
   // Frontends can take benefit of these constants.
 
   /*! \brief runtime::Module. */
-  kRuntimeModule = TVMFFITypeIndex::kTVMFFIRuntimeModule,
+  kRuntimeModule = TVMFFITypeIndex::kTVMFFIModule,
   /*! \brief runtime::NDArray. */
   kRuntimeNDArray = TVMFFITypeIndex::kTVMFFINDArray,
   /*! \brief runtime::ShapeTuple. */

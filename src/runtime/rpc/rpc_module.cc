@@ -118,7 +118,7 @@ class RPCWrappedFunc : public Object {
           break;
         }
         case ffi::TypeIndex::kTVMFFIFunc:
-        case ffi::TypeIndex::kTVMFFIRuntimeModule: {
+        case ffi::TypeIndex::kTVMFFIModule: {
           packed_args[i] = UnwrapRemoteValueToHandle(args[i]);
           // hack, need to force set the type index to the correct one
           // so legacy RPC ABI translation can work
@@ -273,7 +273,7 @@ class RPCModuleNode final : public ModuleNode {
 
 void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
   // TODO(tqchen): only support Module unwrapping for now.
-  if (arg.type_index() == ffi::TypeIndex::kTVMFFIRuntimeModule) {
+  if (arg.type_index() == ffi::TypeIndex::kTVMFFIModule) {
     Module mod = arg;
     std::string tkey = mod->type_key();
     ICHECK_EQ(tkey, "rpc") << "ValueError: Cannot pass a non-RPC module to remote";
