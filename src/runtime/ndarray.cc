@@ -144,7 +144,7 @@ NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype,
   }();
   const auto& curr_dl_tensor = *get_mutable();
   size_t curr_size = GetDataSize(curr_dl_tensor);
-  size_t view_size = ffi::GetPackedDataSize(shape.Product(), dtype);
+  size_t view_size = ffi::GetDataSize(shape.Product(), dtype);
   CHECK_LE(relative_byte_offset + view_size, curr_size)
       << "ValueError: "
       << "View with shape " << shape << " and datatype " << dtype << " would have a size of "

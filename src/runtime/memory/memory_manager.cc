@@ -81,7 +81,7 @@ NDArray StorageObj::AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataT
     Storage storage_;
   };
 
-  size_t needed_size = ffi::GetPackedDataSize(shape.Product(), dtype);
+  size_t needed_size = ffi::GetDataSize(shape.Product(), dtype);
   ICHECK(offset + needed_size <= this->buffer.size)
       << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
       << offset << " in region that is " << this->buffer.size << "bytes";
@@ -93,7 +93,7 @@ NDArray StorageObj::AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataT
 NDArray StorageObj::AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype) {
   VerifyDataType(dtype);
 
-  size_t needed_size = ffi::GetPackedDataSize(shape.Product(), dtype);
+  size_t needed_size = ffi::GetDataSize(shape.Product(), dtype);
   ICHECK(offset + needed_size <= this->buffer.size)
       << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
       << offset << " in region that is " << this->buffer.size << "bytes";
@@ -230,7 +230,7 @@ NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
   };
 
   size_t alignment = GetDataAlignment(dtype);
-  size_t size = ffi::GetPackedDataSize(shape.Product(), dtype);
+  size_t size = ffi::GetDataSize(shape.Product(), dtype);
 
   Buffer buffer;
   if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
@@ -250,7 +250,7 @@ Buffer Allocator::Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
   if (AllowMemoryScope(mem_scope)) {
     // by default, we can always redirect to the flat memory allocations
     size_t alignment = GetDataAlignment(type_hint);
-    size_t size = ffi::GetPackedDataSize(shape.Product(), type_hint);
+    size_t size = ffi::GetDataSize(shape.Product(), type_hint);
     return Alloc(dev, size, alignment, type_hint);
   }
   LOG(FATAL) << "Allocator cannot allocate data space with "
