@@ -645,7 +645,6 @@ TVM_REGISTER_GLOBAL("relax.op.nn.instance_norm").set_body_typed(instance_norm);
 StructInfo InferStructInfoInstanceNorm(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
 
-  const auto* attrs = call->attrs.as<InstanceNormAttrs>();
   const TensorStructInfo& data_sinfo = input_sinfo[0];
 
   // Check dtype: must be float/bfloat
