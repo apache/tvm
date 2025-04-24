@@ -4647,6 +4647,9 @@ def test_linspace():
         def forward(self, input):
             return torch.linspace(0, 1, steps=9, dtype=torch.float32)
 
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
         def main(
             input: R.Tensor((9, 9), dtype="float32")
         ) -> R.Tuple(R.Tensor((9,), dtype="float32")):
