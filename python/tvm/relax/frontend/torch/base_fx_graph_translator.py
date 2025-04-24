@@ -1501,6 +1501,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return self.block_builder.emit(relax.op.astype(x, dtype))
         return x
 
+    def _type_as(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        other = self.env[node.args[1]]
+        dtype = other.struct_info.dtype
+        return self.block_builder.emit(relax.op.astype(x, dtype))
+
     ########## Others ##########
 
     def _getitem(self, node: fx.Node) -> relax.Var:
@@ -1583,6 +1589,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return relax.const(x.data.numpy()[node.args[1]], dtype)
         else:
             assert False
+
+    def _item(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(relax.op.take(x, relax.const(0, "int64"), axis=0))
+
+    def _zeros_inplace(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        output = self.block_builder.emit(relax.op.zeros_like(x))
+        self.env[node.args[0]] = output
+        return output
 
     @abc.abstractmethod
     def create_convert_map(

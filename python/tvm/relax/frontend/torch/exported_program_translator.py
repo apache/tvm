@@ -253,6 +253,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         return self.block_builder.emit(relax.op.one_hot(x, on_value, off_value, num_classes, axis))
 
+    def _zeros(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
+        dtype = self._convert_data_type(
+            node.kwargs.get("dtype", torch.get_default_dtype()), self.env
+        )
+        return self.block_builder.emit(relax.op.zeros(size, dtype))
+
     ########## Others ##########
 
     def create_convert_map(
@@ -470,11 +478,18 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "new_ones.default": self._new_ones,
             "one_hot.default": self._one_hot,
             "ones.default": self._ones,
+            "ones_like.default": lambda node: self.block_builder.emit(
+                relax.op.ones_like(self.env[node.args[0]])
+            ),
+            "zero_.default": self._zeros_inplace,
+            "zeros.default": self._zeros,
             # datatype
             "to.dtype": self._to,
             "to.dtype_layout": self._to,
+            "type_as.default": self._type_as,
             # other
             "getitem": self._getitem,
+            "item.default": self._item,
         }
 
     def create_input_vars(

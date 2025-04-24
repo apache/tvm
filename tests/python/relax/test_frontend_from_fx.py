@@ -4506,6 +4506,95 @@ def test_empty_like():
     verify_model(EmptyLike(), [([5], "float32")], {}, Expected)
 
 
+def test_ones_like():
+    class OnesLike(Module):
+        def forward(self, data):
+            return torch.ones_like(data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((128, 128), dtype="float32")
+        ) -> R.Tensor((128, 128), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.ones_like(inp_0, dtype="void")
+                gv: R.Tensor((128, 128), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(OnesLike(), [([128, 128], "float32")], {}, Expected)
+
+
+def test_zero_inplace():
+    class ZeroInplace(Module):
+        def forward(self, data):
+            return data.zero_()
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((128, 128), dtype="float32")
+        ) -> R.Tensor((128, 128), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0, dtype="void")
+                gv: R.Tensor((128, 128), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(ZeroInplace(), [([128, 128], "float32")], {}, Expected)
+
+
+def test_type_as():
+    class TypeAs(Module):
+        def forward(self, data, other):
+            return data.type_as(other)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((128, 128), dtype="float16"),
+            inp_1: R.Tensor((128, 128), dtype="float32"),
+        ) -> R.Tensor((128, 128), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.astype(inp_0, dtype="float32")
+                gv: R.Tensor((128, 128), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(TypeAs(), [([128, 128], "float16"), ([128, 128], "float32")], {}, Expected)
+
+
+def test_item():
+    class Item(Module):
+        def forward(self, data):
+            return data.item()
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(inp_0: R.Tensor((1,), dtype="float32")) -> R.Tensor((), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.take(inp_0, R.const(0, "int64"), axis=0)
+                gv: R.Tensor((), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(
+        Item(),
+        [
+            (
+                [1],
+                "float32",
+            )
+        ],
+        {},
+        Expected,
+    )
+
+
 def test_numel():
     class Numel(Module):
         def forward(self, data):
