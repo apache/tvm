@@ -2084,9 +2084,9 @@ def instance_norm(
 
 ) -> Expr:
     r"""
-    Batch normalization layer (Ioffe and Szegedy, 2014).
+    Instance normalization layer
 
-    Normalizes the input at each batch, i.e. applies a transformation
+    Normalizes the input at each instance, i.e. applies a transformation
     that maintains the mean activation close to 0 and the activation
     standard deviation close to 1.
 

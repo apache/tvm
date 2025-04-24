@@ -15,39 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 """Instance normalization operator."""
-from .. import cpp
 from tvm import te
 from tvm import topi
 from functools import reduce
 from typing import Union,List
-
-# def instance_norm(data, gamma, beta, axis, epsilon=1e-5):
-#     """Instance normalization operator.
-
-#     Parameters
-#     ----------
-#     data : tvm.te.Tensor
-#         N-D with shape (d_0, d_1, ..., d_{N-1})
-
-#     gamma: tvm.te.Tensor
-#         K-D with shape (r_0, r_1, ..., r_{K-1}) where K == len(axis) and d_{axis_k} == r_k
-
-#     beta: tvm.te.Tensor
-#         Optional, K-D with shape (r_0, r_1, ..., r_{K-1}) where K == len(axis) and d_{axis_k} == r_k
-
-#     axis : list of int
-#         Axis over the normalization applied (the axis along which the mean and variance are
-#         computed)
-
-#     epsilon : float
-#         The epsilon value to avoid division by zero.
-
-#     Returns
-#     -------
-#     result : tvm.te.Tensor
-#         N-D with shape (d_0, d_1, ..., d_{N-1})
-#     """
-#     return cpp.nn.instance_norm(data, gamma, beta, axis, epsilon)
 
 def instance_norm(
     data: te.Tensor,

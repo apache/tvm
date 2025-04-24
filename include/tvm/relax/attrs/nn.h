@@ -534,7 +534,7 @@ struct GroupNormAttrs : public tvm::AttrsNode<GroupNormAttrs> {
   }
 };  // struct GroupNormAttrs
 
-/*! \brief Attributes used in group_norm operator */
+/*! \brief Attributes used in instance_norm operator */
 struct InstanceNormAttrs : public tvm::AttrsNode<InstanceNormAttrs> {
   Array<Integer> axes;
   double epsilon;
@@ -542,7 +542,7 @@ struct InstanceNormAttrs : public tvm::AttrsNode<InstanceNormAttrs> {
   bool scale;
 
   TVM_DECLARE_ATTRS(InstanceNormAttrs, "relax.attrs.InstanceNormAttrs") {
-    TVM_ATTR_FIELD(axes).describe("The axis along which the normalization is applied.");
+    TVM_ATTR_FIELD(axes).describe("The axes along which the normalization is applied.");
     TVM_ATTR_FIELD(epsilon).describe("Small float added to variance to avoid dividing by zero");
     TVM_ATTR_FIELD(center).describe(
         "Indicating if the beta offset will be added to the normalized tensor.");

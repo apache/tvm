@@ -100,7 +100,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 training=training,
             )[0]
         )
-    def _instance_norm(self, node: fx.Node, training) -> relax.Var:
+    def _instance_norm(self, node: fx.Node) -> relax.Var:
         import numpy as np
 
         x = self.env[node.args[0]]
@@ -108,17 +108,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         dtype = x.struct_info.dtype
         weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
         bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
-        running_mean = self.env.get(node.args[3], relax.const(np.zeros(channel), dtype=dtype))
-        running_var = self.env.get(node.args[4], relax.const(np.ones(channel), dtype=dtype))
-        ignore_running_stats = (
-            node.args[5] if len(node.args) > 5 else node.kwargs.get("track_running_stats", True)
-        )
-        track_running_stats = not ignore_running_stats
-        momentum = node.args[6] if len(node.args) > 6 else node.kwargs.get("momentum", 0.1)
         eps = node.args[7] if len(node.args) > 7 else node.kwargs.get("eps", 1e-05)
-
-        if track_running_stats:
-            training = True
 
         return self.block_builder.emit(
             relax.op.nn.instance_norm(
@@ -145,8 +135,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def _instance_norm_no_training(self, node: fx.Node) -> relax.Var:
         # This method is called for batch_norm in eval mode
-        training = False
-        return self._instance_norm(node, training)
+        return self._instance_norm(node)
 
     def _group_norm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
