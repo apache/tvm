@@ -120,7 +120,7 @@ typedef enum {
    */
   kTVMFFINDArray = 72,
   /*! \brief Runtime module object. */
-  kTVMFFIRuntimeModule = 73,
+  kTVMFFIModule = 73,
   kTVMFFIStaticObjectEnd,
   // [Section] Dynamic Boxed: [kTVMFFIDynObjectBegin, +oo)
   /*! \brief Start of type indices that are allocated at runtime. */
