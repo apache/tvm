@@ -419,7 +419,7 @@ TVM_FFI_DLL void TVMFFISetLastErrorCStr(const char* error_kind, const char* erro
  * \param out_tindex the corresponding type index.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFITypeKey2Index(const char* type_key, int32_t* out_tindex);
+TVM_FFI_DLL int TVMFFITypeKeyToIndex(const char* type_key, int32_t* out_tindex);
 
 /*!
  * \brief Register type field information for rutnime reflection.

@@ -123,7 +123,7 @@ class ReflectionDef {
  */
 inline const TVMFFIFieldInfo* GetReflectionFieldInfo(const char* type_key, const char* field_name) {
   int32_t type_index;
-  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKey2Index(type_key, &type_index));
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(type_key, &type_index));
   const TypeInfo* info = TVMFFIGetTypeInfo(type_index);
   for (int32_t i = 0; i < info->num_fields; ++i) {
     if (std::strcmp(info->fields[i].name, field_name) == 0) {
@@ -163,7 +163,7 @@ class ReflectionFieldGetter {
  */
 inline int32_t TypeKey2Index(const char* type_key) {
   int32_t type_index;
-  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKey2Index(type_key, &type_index));
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(type_key, &type_index));
   return type_index;
 }
 

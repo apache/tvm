@@ -281,7 +281,7 @@ int TVMFFIObjectFree(TVMFFIObjectHandle handle) {
   TVM_FFI_SAFE_CALL_END();
 }
 
-int TVMFFITypeKey2Index(const char* type_key, int32_t* out_tindex) {
+int TVMFFITypeKeyToIndex(const char* type_key, int32_t* out_tindex) {
   TVM_FFI_SAFE_CALL_BEGIN();
   out_tindex[0] = tvm::ffi::TypeTable::Global()->TypeKey2Index(type_key);
   TVM_FFI_SAFE_CALL_END();
