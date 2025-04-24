@@ -417,42 +417,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return self.block_builder.emit(relax.op.subtract(rhs, lhs))
 
-    ########## Linear Algebra ##########
-
-    def _linalg_vector_norm(self, node: fx.Node) -> relax.Var:
-
-        args = self.retrieve_args(node)
-
-        data = args[0]
-        # Default ord=2 if not supplied
-        ord_val = args[1] if len(args) > 1 else 2.0
-        dim = args[2] if len(args) > 2 else None
-        keepdim = args[3] if len(args) > 3 else False
-
-        # If ord_val is a Python float/int, wrap it in a Relax const
-        # so that it matches data's dtype.
-        dtype = data.struct_info.dtype
-        ord_expr = (
-            ord_val if isinstance(ord_val, relax.Expr) else relax.const(float(ord_val), dtype)
-        )
-        # Reciprocal
-        reci_expr = (
-            relax.op.divide(relax.const(1.0, dtype), ord_expr)
-            if isinstance(ord_val, relax.Expr)
-            else relax.const(1.0 / float(ord_val), dtype)
-        )
-
-        # abs(data)
-        abs_data = self.block_builder.emit(relax.op.abs(data))
-        # abs_data^ord
-        abs_data_pow = self.block_builder.emit(relax.op.power(abs_data, ord_expr))
-        # sum over dim
-        reduced = self.block_builder.emit(relax.op.sum(abs_data_pow, dim, keepdims=keepdim))
-        # (sum(...))^(1/ord)
-        norm_val = self.block_builder.emit(relax.op.power(reduced, reci_expr))
-
-        return norm_val
-
     ########## Neural Network ##########
 
     def _adaptive_avg_pool2d(self, node: fx.Node) -> relax.Var:
@@ -980,16 +944,22 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         elif order == "fro":
             return self.block_builder.emit(
                 relax.op.sqrt(
-                    relax.op.sum(relax.op.multiply(data, data), axis=axis, keepdims=keepdims),
+                    relax.op.sum(relax.op.multiply(data, data), axis=axis, keepdims=keepdims)
                 )
             )
         else:
-            reci_order = relax.const(1 / order, dtype=dtype)
-            order = relax.const(order, dtype=dtype)
+            ord_expr = (
+                order if isinstance(order, relax.Expr) else relax.const(float(order), dtype=dtype)
+            )
+            reci_order = (
+                relax.op.divide(relax.const(1.0, dtype), ord_expr)
+                if isinstance(order, relax.Expr)
+                else relax.const(1.0 / order, dtype=dtype)
+            )
             return self.block_builder.emit(
                 relax.op.power(
                     relax.op.sum(
-                        relax.op.power(relax.op.abs(data), order), axis=axis, keepdims=keepdims
+                        relax.op.power(relax.op.abs(data), ord_expr), axis=axis, keepdims=keepdims
                     ),
                     reci_order,
                 )
@@ -1148,6 +1118,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         index = self.env[node.args[2]]
         return self.block_builder.emit(relax.op.gather_elements(x, index, axis=dim))
 
+    def _index_tensor(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        indices = args[1]
+        return self.block_builder.emit(relax.op.index_tensor(args[0], indices))
+
     def _permute(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
@@ -1273,10 +1248,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.scatter_elements(x, index, src, axis=dim))
 
     def _sort(self, node: fx.Node) -> relax.Var:
+        # torch.sort() returns a tuple of values and indices
+        # we use argsort to get indices and gather_elements to get values
         x = self.env[node.args[0]]
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         descending = node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False)
-        return self.block_builder.emit(relax.op.sort(x, dim, descending))
+
+        indices = self.block_builder.emit(relax.op.argsort(x, dim, descending))
+        values = self.block_builder.emit(relax.op.gather_elements(x, indices, axis=dim))
+        return self.block_builder.emit(relax.Tuple([values, indices]))
 
     def _split(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]

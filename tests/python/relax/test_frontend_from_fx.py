@@ -1769,6 +1769,8 @@ def test_binary2(op, relax_op):
 
 
 operator_binary_3 = [
+    (torch.ops.aten.bitwise_or_, R.bitwise_or),
+    (torch.ops.aten.bitwise_or, R.bitwise_or),
     (operator.lshift, R.left_shift),
     (operator.rshift, R.right_shift),
     (operator.and_, R.bitwise_and),
@@ -4836,11 +4838,20 @@ def test_sort():
     class Expected:
         @R.function
         def main(
-            inp_0: R.Tensor((5, 3), dtype="float32"),
-        ) -> R.Tensor((5, 3), dtype="float32"):
+            inp_0: R.Tensor((5, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int32")):
             with R.dataflow():
-                lv: R.Tensor((5, 3), dtype="float32") = R.sort(inp_0, axis=1, descending=True)
-                gv: R.Tensor((5, 3), dtype="float32") = lv
+                lv: R.Tensor((5, 3), dtype="int32") = R.argsort(
+                    inp_0, axis=1, descending=True, dtype="int32"
+                )
+                lv1: R.Tensor((5, 3), dtype="float32") = R.gather_elements(inp_0, lv, axis=1)
+                lv2: R.Tuple(R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int32")) = (
+                    lv1,
+                    lv,
+                )
+                gv: R.Tuple(
+                    R.Tensor((5, 3), dtype="float32"), R.Tensor((5, 3), dtype="int32")
+                ) = lv2
                 R.output(gv)
             return gv
 
@@ -5025,19 +5036,16 @@ def test_norm():
             return gv
 
     norms = [
-        (float("inf"), None, False),
-        (float("-inf"), None, False),
-        (float(2), None, False),
-        (float(1.0), None, False),
-        (float(-4), None, True),
-        (float(0.5), None, True),
-        ("fro", None, False),
+        ((float("inf"), None, False), Expected1),
+        ((float("-inf"), None, False), Expected2),
+        ((float(2), None, False), Expected3),
+        ((float(1.0), None, False), Expected4),
+        ((float(-4), None, True), Expected5),
+        ((float(0.5), None, True), Expected6),
+        (("fro", None, False), Expected7),
     ]
 
-    for norm, expected in zip(
-        norms, [Expected1, Expected2, Expected3, Expected4, Expected5, Expected6, Expected7]
-    ):
-        p, dim, keepdim = norm
+    for (p, dim, keepdim), expected in norms:
         verify_model(Norm(p, dim=dim, keepdim=keepdim), input_info, {}, expected)
 
 
