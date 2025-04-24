@@ -224,6 +224,70 @@ TVM_REGISTER_OP("relax.nn.pad")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPad)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.nn.pixel_shuffle */
+TVM_REGISTER_NODE_TYPE(PixelShuffleAttrs);
+
+Expr pixel_shuffle(Expr data, int upscale_factor) {
+  auto attrs = make_object<PixelShuffleAttrs>();
+  attrs->upscale_factor = upscale_factor;
+  static const Op& op = Op::Get("relax.nn.pixel_shuffle");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.nn.pixel_shuffle").set_body_typed(pixel_shuffle);
+
+StructInfo InferStructInfoPixelShuffle(const Call& call, const BlockBuilder& ctx) {
+  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  const auto* attrs = call->attrs.as<PixelShuffleAttrs>();
+  int r = attrs->upscale_factor;
+  ICHECK_GT(r, 0) << "Upscale factor must be positive";
+
+  const TensorStructInfo& input = input_sinfo[0];
+  int ndim = input->ndim;
+  ICHECK_GE(ndim, 3) << "PixelShuffle requires at least 3D input tensor";
+
+  if (!input->shape.defined()) {
+    return TensorStructInfo(input->dtype, ndim);
+  }
+
+  const auto* shape = input->shape.as<ShapeExprNode>();
+  Array<PrimExpr> in_shape = shape->values;
+
+  int channel_idx = ndim - 3;
+  int h_idx = ndim - 2;
+  int w_idx = ndim - 1;
+
+  PrimExpr c_in = in_shape[channel_idx];
+  PrimExpr h_in = in_shape[h_idx];
+  PrimExpr w_in = in_shape[w_idx];
+
+  PrimExpr r_expr = IntImm(DataType::Int(32), r);
+  PrimExpr r_squared = r_expr * r_expr;
+
+  // Output shape:
+  Array<PrimExpr> out_shape;
+  for (int i = 0; i < ndim; ++i) {
+    if (i == channel_idx) {
+      out_shape.push_back(c_in / r_squared);
+    } else if (i == h_idx) {
+      out_shape.push_back(h_in * r_expr);
+    } else if (i == w_idx) {
+      out_shape.push_back(w_in * r_expr);
+    } else {
+      out_shape.push_back(in_shape[i]);
+    }
+  }
+
+  return TensorStructInfo(ShapeExpr(out_shape), input->dtype);
+}
+
+TVM_REGISTER_OP("relax.nn.pixel_shuffle")
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attrs_type<PixelShuffleAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPixelShuffle)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.nn.batchnorm */
 bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
                             const Array<TensorStructInfo>& input_sinfo, Array<Integer> axes) {

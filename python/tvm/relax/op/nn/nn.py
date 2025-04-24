@@ -549,6 +549,39 @@ def pad(
     return _ffi_api.pad(data, pad_width, pad_mode, pad_value)
 
 
+def pixel_shuffle(data: Expr, upscale_factor: int):
+    r"""
+    Pixel Shuffle Operator
+
+    This operator performs the pixel shuffle operation on the input tensor,
+    which is often used for efficient sub-pixel convolution in image
+    super-resolution tasks. It rearranges elements in a tensor of shape 
+    (N, C × r^2, H, W) to a tensor of shape (N, C, H × r, W × r), where `r` 
+    is the upscale factor.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor to the pixel shuffle operator. It must have 4 dimensions 
+        with the format (N, C * r^2, H, W), where `r` is the upscale factor.
+
+    upscale_factor : int
+        The upscaling factor `r`. It determines how much to increase the spatial 
+        resolution (height and width) of the input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The transformed tensor with shape (N, C, H * r, W * r).
+
+    Example
+    -------
+    If the input tensor has shape (1, 8, 10, 15) and `upscale_factor` is 2, 
+    the resulting tensor will have shape (1, 2, 20, 30).
+    """
+    return _ffi_api.pixel_shuffle(data, upscale_factor)
+
+
 def max_pool1d(
     data: Expr,
     pool_size: Union[int, Tuple[int, int]] = (1,),

@@ -459,6 +459,13 @@ class TorchFXImporter(BaseFXGraphImporter):
         ceil_mode = module.ceil_mode
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+    
+    def _pixel_shuffle_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        upscale_factor = module.upscale_factor
+        
+        return self.block_builder.emit(relax.op.nn.pixel_shuffle(x, upscale_factor))
 
     ########## Linear Interpolation ##########
 
@@ -665,6 +672,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.Linear: self._linear_module,
             nn.MaxPool2d: self._max_pool2d_module,
             nn.modules.sparse.Embedding: self._embedding_module,
+            nn.PixelShuffle: self._pixel_shuffle_module,
             # tensor manipulation
             nn.Flatten: self._flatten_module,
             ## call_function and call_method
@@ -703,6 +711,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "log_softmax": self._log_softmax,
             "neg": self._unary_op(relax.op.negative),
             "pad": self._pad,
+            "pixel_shuffle": self._pixel_shuffle,
             "prelu": self._prelu,
             "reciprocal": self._reciprocal,
             "relu": self._unary_op(relax.op.nn.relu),

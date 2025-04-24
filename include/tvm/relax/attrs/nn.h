@@ -603,6 +603,15 @@ struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
   }
 };
 
+/*! \brief Attributes used for the pixel shuffle operator */
+struct PixelShuffleAttrs : public tvm::AttrsNode<PixelShuffleAttrs> {
+  int upscale_factor;
+
+  TVM_DECLARE_ATTRS(PixelShuffleAttrs, "relax.attrs.PixelShuffleAttrs") {
+    TVM_ATTR_FIELD(upscale_factor).describe("Scale factor for spatial upsampling.");
+  }
+};
+
 }  // namespace relax
 }  // namespace tvm
 
