@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/ffi/container/tuple.h
- * \brief Typed tuple like std::tuple backed by ArrayNode container.
+ * \brief Typed tuple like std::tuple backed by ArrayObj container.
  */
 #ifndef TVM_FFI_CONTAINER_TUPLE_H_
 #define TVM_FFI_CONTAINER_TUPLE_H_
@@ -34,7 +34,7 @@ namespace tvm {
 namespace ffi {
 
 /*!
- * \brief Typed tuple like std::tuple backed by ArrayNode container.
+ * \brief Typed tuple like std::tuple backed by ArrayObj container.
  *
  * Tuple implements in-place copy-on-write semantics.
  *
@@ -96,7 +96,7 @@ class Tuple : public ObjectRef {
   auto Get() const {
     static_assert(I < sizeof...(Types), "Tuple index out of bounds");
     using ReturnType = std::tuple_element_t<I, std::tuple<Types...>>;
-    const Any* ptr = GetArrayNode()->begin() + I;
+    const Any* ptr = GetArrayObj()->begin() + I;
     return details::AnyUnsafe::CopyFromAnyStorageAfterCheck<ReturnType>(*ptr);
   }
 
@@ -115,16 +115,16 @@ class Tuple : public ObjectRef {
     static_assert(I < sizeof...(Types), "Tuple index out of bounds");
     using T = std::tuple_element_t<I, std::tuple<Types...>>;
     this->CopyIfNotUnique();
-    Any* ptr = GetArrayNode()->MutableBegin() + I;
+    Any* ptr = GetArrayObj()->MutableBegin() + I;
     *ptr = T(std::forward<U>(item));
   }
 
   /*! \brief specify container node */
-  using ContainerType = ArrayNode;
+  using ContainerType = ArrayObj;
 
  private:
-  static ObjectPtr<ArrayNode> MakeDefaultTupleNode() {
-    ObjectPtr<ArrayNode> p = make_inplace_array_object<ArrayNode, Any>(sizeof...(Types));
+  static ObjectPtr<ArrayObj> MakeDefaultTupleNode() {
+    ObjectPtr<ArrayObj> p = make_inplace_array_object<ArrayObj, Any>(sizeof...(Types));
     p->capacity_ = sizeof...(Types);
     // immeidate set size to 0, to ensure exception safety
     p->size_ = 0;
@@ -135,8 +135,8 @@ class Tuple : public ObjectRef {
   }
 
   template <typename... UTypes>
-  static ObjectPtr<ArrayNode> MakeTupleNode(UTypes&&... args) {
-    ObjectPtr<ArrayNode> p = make_inplace_array_object<ArrayNode, Any>(sizeof...(Types));
+  static ObjectPtr<ArrayObj> MakeTupleNode(UTypes&&... args) {
+    ObjectPtr<ArrayObj> p = make_inplace_array_object<ArrayObj, Any>(sizeof...(Types));
     p->capacity_ = sizeof...(Types);
     // immeidate set size to 0, to ensure exception safety
     p->size_ = 0;
@@ -149,12 +149,12 @@ class Tuple : public ObjectRef {
   /*! \brief Copy on write */
   void CopyIfNotUnique() {
     if (!data_.unique()) {
-      ObjectPtr<ArrayNode> p = make_inplace_array_object<ArrayNode, Any>(sizeof...(Types));
+      ObjectPtr<ArrayObj> p = make_inplace_array_object<ArrayObj, Any>(sizeof...(Types));
       p->capacity_ = sizeof...(Types);
       // immeidate set size to 0, to ensure exception safety
       p->size_ = 0;
       Any* itr = p->MutableBegin();
-      const Any* read = GetArrayNode()->begin();
+      const Any* read = GetArrayObj()->begin();
       // increase size after each new to ensure exception safety
       for (size_t i = 0; i < sizeof...(Types); ++i) {
         new (itr++) Any(*read++);
@@ -164,8 +164,8 @@ class Tuple : public ObjectRef {
     }
   }
 
-  /*! \return The underlying ArrayNode */
-  ArrayNode* GetArrayNode() const { return static_cast<ArrayNode*>(data_.get()); }
+  /*! \return The underlying ArrayObj */
+  ArrayObj* GetArrayObj() const { return static_cast<ArrayObj*>(data_.get()); }
 
   template <typename... UTypes>
   friend class Tuple;
@@ -182,7 +182,7 @@ struct TypeTraits<Tuple<Types...>> : public ObjectRefTypeTraitsBase<Tuple<Types.
     if (src->type_index != TypeIndex::kTVMFFIArray) {
       return TypeTraitsBase::GetMismatchTypeInfo(src);
     }
-    const ArrayNode* n = reinterpret_cast<const ArrayNode*>(src->v_obj);
+    const ArrayObj* n = reinterpret_cast<const ArrayObj*>(src->v_obj);
     if (n->size() != sizeof...(Types)) {
       return "Array[size=" + std::to_string(n->size()) + "]";
     }
@@ -208,7 +208,7 @@ struct TypeTraits<Tuple<Types...>> : public ObjectRefTypeTraitsBase<Tuple<Types.
 
   static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIArray) return false;
-    const ArrayNode* n = reinterpret_cast<const ArrayNode*>(src->v_obj);
+    const ArrayObj* n = reinterpret_cast<const ArrayObj*>(src->v_obj);
     if (n->size() != sizeof...(Types)) return false;
     const TVMFFIAny* ffi_any_arr = reinterpret_cast<const TVMFFIAny*>(n->begin());
     return CheckAnyStorageHelper<0, Types...>(ffi_any_arr);
@@ -231,7 +231,7 @@ struct TypeTraits<Tuple<Types...>> : public ObjectRefTypeTraitsBase<Tuple<Types.
       const TVMFFIAny* src  //
   ) {
     if (src->type_index != TypeIndex::kTVMFFIArray) return std::nullopt;
-    const ArrayNode* n = reinterpret_cast<const ArrayNode*>(src->v_obj);
+    const ArrayObj* n = reinterpret_cast<const ArrayObj*>(src->v_obj);
     if (n->size() != sizeof...(Types)) return std::nullopt;
     // fast path, storage is already in the right type
     if (CheckAnyStorage(src)) {

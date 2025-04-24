@@ -48,7 +48,7 @@ namespace details {
  *
  * \code
  * // Example usage of the template to define a simple array wrapper
- * class ArrayNode : public tvm::ffi::details::InplaceArrayBase<ArrayNode, Elem> {
+ * class ArrayObj : public tvm::ffi::details::InplaceArrayBase<ArrayObj, Elem> {
  * public:
  *  // Wrap EmplaceInit to initialize the elements
  *  template <typename Iterator>

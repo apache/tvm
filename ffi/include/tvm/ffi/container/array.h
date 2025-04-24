@@ -42,7 +42,7 @@ namespace tvm {
 namespace ffi {
 
 /*! \brief array node content in array */
-class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any> {
+class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, Any> {
  public:
   /*! \return The size of the array */
   size_t size() const { return this->size_; }
@@ -74,14 +74,14 @@ class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any
    * \brief Constructs a container and copy from another
    * \param cap The capacity of the container
    * \param from Source of the copy
-   * \return Ref-counted ArrayNode requested
+   * \return Ref-counted ArrayObj requested
    */
-  static ObjectPtr<ArrayNode> CopyFrom(int64_t cap, ArrayNode* from) {
+  static ObjectPtr<ArrayObj> CopyFrom(int64_t cap, ArrayObj* from) {
     int64_t size = from->size_;
     if (size > cap) {
       TVM_FFI_THROW(ValueError) << "not enough capacity";
     }
-    ObjectPtr<ArrayNode> p = ArrayNode::Empty(cap);
+    ObjectPtr<ArrayObj> p = ArrayObj::Empty(cap);
     Any* write = p->MutableBegin();
     Any* read = from->MutableBegin();
     // To ensure exception safety, size is only incremented after the initialization succeeds
@@ -95,14 +95,14 @@ class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any
    * \brief Constructs a container and move from another
    * \param cap The capacity of the container
    * \param from Source of the move
-   * \return Ref-counted ArrayNode requested
+   * \return Ref-counted ArrayObj requested
    */
-  static ObjectPtr<ArrayNode> MoveFrom(int64_t cap, ArrayNode* from) {
+  static ObjectPtr<ArrayObj> MoveFrom(int64_t cap, ArrayObj* from) {
     int64_t size = from->size_;
     if (size > cap) {
       TVM_FFI_THROW(RuntimeError) << "not enough capacity";
     }
-    ObjectPtr<ArrayNode> p = ArrayNode::Empty(cap);
+    ObjectPtr<ArrayObj> p = ArrayObj::Empty(cap);
     Any* write = p->MutableBegin();
     Any* read = from->MutableBegin();
     // To ensure exception safety, size is only incremented after the initialization succeeds
@@ -117,10 +117,10 @@ class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any
    * \brief Constructs a container with n elements. Each element is a copy of val
    * \param n The size of the container
    * \param val The init value
-   * \return Ref-counted ArrayNode requested
+   * \return Ref-counted ArrayObj requested
    */
-  static ObjectPtr<ArrayNode> CreateRepeated(int64_t n, const Any& val) {
-    ObjectPtr<ArrayNode> p = ArrayNode::Empty(n);
+  static ObjectPtr<ArrayObj> CreateRepeated(int64_t n, const Any& val) {
+    ObjectPtr<ArrayObj> p = ArrayObj::Empty(n);
     Any* itr = p->MutableBegin();
     for (int64_t& i = p->size_ = 0; i < n; ++i) {
       new (itr++) Any(val);
@@ -131,7 +131,7 @@ class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIArray;
   static constexpr const char* _type_key = "object.Array";
   static const constexpr bool _type_final = true;
-  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ArrayNode, Object);
+  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ArrayObj, Object);
 
  private:
   /*! \return Size of initialized memory, used by InplaceArrayBase. */
@@ -144,13 +144,13 @@ class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any
   Any* MutableEnd() const { return MutableBegin() + size_; }
 
   /*!
-   * \brief Create an ArrayNode with the given capacity.
+   * \brief Create an ArrayObj with the given capacity.
    * \param n Required capacity
-   * \return Ref-counted ArrayNode requested
+   * \return Ref-counted ArrayObj requested
    */
-  static ObjectPtr<ArrayNode> Empty(int64_t n = kInitSize) {
+  static ObjectPtr<ArrayObj> Empty(int64_t n = kInitSize) {
     TVM_FFI_ICHECK_GE(n, 0);
-    ObjectPtr<ArrayNode> p = make_inplace_array_object<ArrayNode, Any>(n);
+    ObjectPtr<ArrayObj> p = make_inplace_array_object<ArrayObj, Any>(n);
     p->capacity_ = n;
     p->size_ = 0;
     return p;
@@ -165,7 +165,7 @@ class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any
    * \return Self
    */
   template <typename IterType>
-  ArrayNode* InitRange(int64_t idx, IterType first, IterType last) {
+  ArrayObj* InitRange(int64_t idx, IterType first, IterType last) {
     Any* itr = MutableBegin() + idx;
     for (; first != last; ++first) {
       Any ref = *first;
@@ -181,7 +181,7 @@ class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any
    * \param src_end The end point of copy (exclusive)
    * \return Self
    */
-  ArrayNode* MoveElementsLeft(int64_t dst, int64_t src_begin, int64_t src_end) {
+  ArrayObj* MoveElementsLeft(int64_t dst, int64_t src_begin, int64_t src_end) {
     Any* from = MutableBegin() + src_begin;
     Any* to = MutableBegin() + dst;
     while (src_begin++ != src_end) {
@@ -197,7 +197,7 @@ class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any
    * \param src_end The end point of move (exclusive)
    * \return Self
    */
-  ArrayNode* MoveElementsRight(int64_t dst, int64_t src_begin, int64_t src_end) {
+  ArrayObj* MoveElementsRight(int64_t dst, int64_t src_begin, int64_t src_end) {
     Any* from = MutableBegin() + src_end;
     Any* to = MutableBegin() + (src_end - src_begin + dst);
     while (src_begin++ != src_end) {
@@ -212,7 +212,7 @@ class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any
    * \param val Default value
    * \return Self
    */
-  ArrayNode* EnlargeBy(int64_t delta, const Any& val = Any()) {
+  ArrayObj* EnlargeBy(int64_t delta, const Any& val = Any()) {
     Any* itr = MutableEnd();
     while (delta-- > 0) {
       new (itr++) Any(val);
@@ -226,7 +226,7 @@ class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any
    * \param delta Size shrinked, should be positive
    * \return Self
    */
-  ArrayNode* ShrinkBy(int64_t delta) {
+  ArrayObj* ShrinkBy(int64_t delta) {
     Any* itr = MutableEnd();
     while (delta-- > 0) {
       (--itr)->Any::~Any();
@@ -241,14 +241,14 @@ class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any
   /*! \brief Number of elements allocated */
   int64_t capacity_;
 
-  /*! \brief Initial size of ArrayNode */
+  /*! \brief Initial size of ArrayObj */
   static constexpr int64_t kInitSize = 4;
 
   /*! \brief Expansion factor of the Array */
   static constexpr int64_t kIncFactor = 2;
 
   // CRTP parent class
-  friend InplaceArrayBase<ArrayNode, Any>;
+  friend InplaceArrayBase<ArrayObj, Any>;
 
   // Reference class
   template <typename, typename>
@@ -260,8 +260,8 @@ class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any
   template <typename, typename>
   friend struct TypeTraits;
 
-  // To specialize make_object<ArrayNode>
-  friend ObjectPtr<ArrayNode> make_object<>();
+  // To specialize make_object<ArrayObj>
+  friend ObjectPtr<ArrayObj> make_object<>();
 };
 
 /*! \brief Helper struct for type-checking
@@ -310,7 +310,7 @@ class Array : public ObjectRef {
   /*!
    * \brief default constructor
    */
-  Array() { data_ = ArrayNode::Empty(); }
+  Array() { data_ = ArrayObj::Empty(); }
   Array(Array<T>&& other) : ObjectRef(std::move(other.data_)) {}
   Array(const Array<T>& other) : ObjectRef(other.data_) {}
   template <typename U, typename = std::enable_if_t<details::type_contains_v<T, U>>>
@@ -377,7 +377,7 @@ class Array : public ObjectRef {
    * \param n The size of the container
    * \param val The init value
    */
-  explicit Array(const size_t n, const T& val) { data_ = ArrayNode::CreateRepeated(n, val); }
+  explicit Array(const size_t n, const T& val) { data_ = ArrayObj::CreateRepeated(n, val); }
 
  public:
   // iterators
@@ -392,21 +392,21 @@ class Array : public ObjectRef {
   using reverse_iterator = details::ReverseIterAdapter<ValueConverter, const Any*>;
 
   /*! \return begin iterator */
-  iterator begin() const { return iterator(GetArrayNode()->begin()); }
+  iterator begin() const { return iterator(GetArrayObj()->begin()); }
 
   /*! \return end iterator */
-  iterator end() const { return iterator(GetArrayNode()->end()); }
+  iterator end() const { return iterator(GetArrayObj()->end()); }
 
   /*! \return rbegin iterator */
   reverse_iterator rbegin() const {
-    // ArrayNode::end() is never nullptr
-    return reverse_iterator(GetArrayNode()->end() - 1);
+    // ArrayObj::end() is never nullptr
+    return reverse_iterator(GetArrayObj()->end() - 1);
   }
 
   /*! \return rend iterator */
   reverse_iterator rend() const {
-    // ArrayNode::begin() is never nullptr
-    return reverse_iterator(GetArrayNode()->begin() - 1);
+    // ArrayObj::begin() is never nullptr
+    return reverse_iterator(GetArrayObj()->begin() - 1);
   }
 
  public:
@@ -417,7 +417,7 @@ class Array : public ObjectRef {
    * \return the i-th element.
    */
   const T operator[](int64_t i) const {
-    ArrayNode* p = GetArrayNode();
+    ArrayObj* p = GetArrayObj();
     if (p == nullptr) {
       TVM_FFI_THROW(IndexError) << "cannot index a null array";
     }
@@ -429,14 +429,14 @@ class Array : public ObjectRef {
 
   /*! \return The size of the array */
   size_t size() const {
-    ArrayNode* p = GetArrayNode();
-    return p == nullptr ? 0 : GetArrayNode()->size_;
+    ArrayObj* p = GetArrayObj();
+    return p == nullptr ? 0 : GetArrayObj()->size_;
   }
 
   /*! \return The capacity of the array */
   size_t capacity() const {
-    ArrayNode* p = GetArrayNode();
-    return p == nullptr ? 0 : GetArrayNode()->capacity_;
+    ArrayObj* p = GetArrayObj();
+    return p == nullptr ? 0 : GetArrayObj()->capacity_;
   }
 
   /*! \return Whether array is empty */
@@ -444,7 +444,7 @@ class Array : public ObjectRef {
 
   /*! \return The first element of the array */
   const T front() const {
-    ArrayNode* p = GetArrayNode();
+    ArrayObj* p = GetArrayObj();
     if (p == nullptr || p->size_ == 0) {
       TVM_FFI_THROW(IndexError) << "cannot index a empty array";
     }
@@ -453,7 +453,7 @@ class Array : public ObjectRef {
 
   /*! \return The last element of the array */
   const T back() const {
-    ArrayNode* p = GetArrayNode();
+    ArrayObj* p = GetArrayObj();
     if (p == nullptr || p->size_ == 0) {
       TVM_FFI_THROW(IndexError) << "cannot index a empty array";
     }
@@ -467,7 +467,7 @@ class Array : public ObjectRef {
    * \param item The item to be pushed.
    */
   void push_back(const T& item) {
-    ArrayNode* p = CopyOnWrite(1);
+    ArrayObj* p = CopyOnWrite(1);
     p->EmplaceInit(p->size_++, item);
   }
 
@@ -481,7 +481,7 @@ class Array : public ObjectRef {
       TVM_FFI_THROW(RuntimeError) << "cannot insert a null array";
     }
     int64_t idx = std::distance(begin(), position);
-    int64_t size = GetArrayNode()->size_;
+    int64_t size = GetArrayObj()->size_;
     auto addr = CopyOnWrite(1)                               //
                     ->EnlargeBy(1)                           //
                     ->MoveElementsRight(idx + 1, idx, size)  //
@@ -507,7 +507,7 @@ class Array : public ObjectRef {
       TVM_FFI_THROW(RuntimeError) << "cannot insert a null array";
     }
     int64_t idx = std::distance(begin(), position);
-    int64_t size = GetArrayNode()->size_;
+    int64_t size = GetArrayObj()->size_;
     int64_t numel = std::distance(first, last);
     CopyOnWrite(numel)
         ->EnlargeBy(numel)
@@ -520,7 +520,7 @@ class Array : public ObjectRef {
     if (data_ == nullptr) {
       TVM_FFI_THROW(RuntimeError) << "cannot pop_back a null array";
     }
-    int64_t size = GetArrayNode()->size_;
+    int64_t size = GetArrayObj()->size_;
     if (size == 0) {
       TVM_FFI_THROW(RuntimeError) << "cannot pop_back an empty array";
     }
@@ -536,7 +536,7 @@ class Array : public ObjectRef {
       TVM_FFI_THROW(RuntimeError) << "cannot erase a null array";
     }
     int64_t st = std::distance(begin(), position);
-    int64_t size = GetArrayNode()->size_;
+    int64_t size = GetArrayObj()->size_;
     if (st < 0 || st >= size) {
       TVM_FFI_THROW(RuntimeError) << "cannot erase at index " << st << ", because Array size is "
                                   << size;
@@ -558,7 +558,7 @@ class Array : public ObjectRef {
     if (data_ == nullptr) {
       TVM_FFI_THROW(RuntimeError) << "cannot erase a null array";
     }
-    int64_t size = GetArrayNode()->size_;
+    int64_t size = GetArrayObj()->size_;
     int64_t st = std::distance(begin(), first);
     int64_t ed = std::distance(begin(), last);
     if (st >= ed) {
@@ -585,7 +585,7 @@ class Array : public ObjectRef {
       SwitchContainer(n);
       return;
     }
-    int64_t size = GetArrayNode()->size_;
+    int64_t size = GetArrayObj()->size_;
     if (size < n) {
       CopyOnWrite(n - size)->EnlargeBy(n - size);
     } else if (size > n) {
@@ -598,7 +598,7 @@ class Array : public ObjectRef {
    * \param n lower bound of the capacity
    */
   void reserve(int64_t n) {
-    if (data_ == nullptr || n > GetArrayNode()->capacity_) {
+    if (data_ == nullptr || n > GetArrayObj()->capacity_) {
       SwitchContainer(n);
     }
   }
@@ -606,7 +606,7 @@ class Array : public ObjectRef {
   /*! \brief Release reference to all the elements */
   void clear() {
     if (data_ != nullptr) {
-      ArrayNode* p = CopyOnWrite();
+      ArrayObj* p = CopyOnWrite();
       p->clear();
     }
   }
@@ -650,15 +650,15 @@ class Array : public ObjectRef {
    * \param value The value to be setted.
    */
   void Set(int64_t i, T value) {
-    ArrayNode* p = this->CopyOnWrite();
+    ArrayObj* p = this->CopyOnWrite();
     if (i < 0 || i >= p->size_) {
       TVM_FFI_THROW(IndexError) << "indexing " << i << " on an array of size " << p->size_;
     }
     *(p->MutableBegin() + i) = std::move(value);
   }
 
-  /*! \return The underlying ArrayNode */
-  ArrayNode* GetArrayNode() const { return static_cast<ArrayNode*>(data_.get()); }
+  /*! \return The underlying ArrayObj */
+  ArrayObj* GetArrayObj() const { return static_cast<ArrayObj*>(data_.get()); }
 
   /*!
    * \brief Helper function to apply a map function onto the array.
@@ -707,14 +707,14 @@ class Array : public ObjectRef {
     if (cap < 0) {
       TVM_FFI_THROW(ValueError) << "cannot construct an Array of negative size";
     }
-    ArrayNode* p = GetArrayNode();
+    ArrayObj* p = GetArrayObj();
     if (p != nullptr && data_.unique() && p->capacity_ >= cap) {
       // do not have to make new space
       p->clear();
     } else {
       // create new space
-      data_ = ArrayNode::Empty(cap);
-      p = GetArrayNode();
+      data_ = ArrayObj::Empty(cap);
+      p = GetArrayObj();
     }
     // To ensure exception safety, size is only incremented after the initialization succeeds
     Any* itr = p->MutableBegin();
@@ -731,18 +731,18 @@ class Array : public ObjectRef {
    *
    * \return Handle to the internal node container(which ganrantees to be unique)
    */
-  ArrayNode* CopyOnWrite() {
+  ArrayObj* CopyOnWrite() {
     if (data_ == nullptr) {
-      return SwitchContainer(ArrayNode::kInitSize);
+      return SwitchContainer(ArrayObj::kInitSize);
     }
     if (!data_.unique()) {
       return SwitchContainer(capacity());
     }
-    return static_cast<ArrayNode*>(data_.get());
+    return static_cast<ArrayObj*>(data_.get());
   }
 
   /*! \brief specify container node */
-  using ContainerType = ArrayNode;
+  using ContainerType = ArrayObj;
 
   /*!
    * \brief Agregate arguments into a single Array<T>
@@ -761,36 +761,36 @@ class Array : public ObjectRef {
   /*!
    * \brief Implement copy-on-write semantics, and ensures capacity is enough for extra elements.
    * \param reserve_extra Number of extra slots needed
-   * \return ArrayNode pointer to the unique copy
+   * \return ArrayObj pointer to the unique copy
    */
-  ArrayNode* CopyOnWrite(int64_t reserve_extra) {
-    ArrayNode* p = GetArrayNode();
+  ArrayObj* CopyOnWrite(int64_t reserve_extra) {
+    ArrayObj* p = GetArrayObj();
     if (p == nullptr) {
       // necessary to get around the constexpr address issue before c++17
-      const int64_t kInitSize = ArrayNode::kInitSize;
+      const int64_t kInitSize = ArrayObj::kInitSize;
       return SwitchContainer(std::max(kInitSize, reserve_extra));
     }
     if (p->capacity_ >= p->size_ + reserve_extra) {
       return CopyOnWrite();
     }
-    int64_t cap = p->capacity_ * ArrayNode::kIncFactor;
+    int64_t cap = p->capacity_ * ArrayObj::kIncFactor;
     cap = std::max(cap, p->size_ + reserve_extra);
     return SwitchContainer(cap);
   }
 
   /*!
-   * \brief Move or copy the ArrayNode to new address with the given capacity
+   * \brief Move or copy the ArrayObj to new address with the given capacity
    * \param capacity The capacity requirement of the new address
    */
-  ArrayNode* SwitchContainer(int64_t capacity) {
+  ArrayObj* SwitchContainer(int64_t capacity) {
     if (data_ == nullptr) {
-      data_ = ArrayNode::Empty(capacity);
+      data_ = ArrayObj::Empty(capacity);
     } else if (data_.unique()) {
-      data_ = ArrayNode::MoveFrom(capacity, GetArrayNode());
+      data_ = ArrayObj::MoveFrom(capacity, GetArrayObj());
     } else {
-      data_ = ArrayNode::CopyFrom(capacity, GetArrayNode());
+      data_ = ArrayObj::CopyFrom(capacity, GetArrayObj());
     }
-    return static_cast<ArrayNode*>(data_.get());
+    return static_cast<ArrayObj*>(data_.get());
   }
 
   /*! \brief Helper method for mutate/map
@@ -801,7 +801,7 @@ class Array : public ObjectRef {
    * Applies both mutate-in-place and copy-on-write optimizations, if
    * possible.
    *
-   * \param data A pointer to the ArrayNode containing input data.
+   * \param data A pointer to the ArrayObj containing input data.
    * Passed by value to allow for mutate-in-place optimizations.
    *
    * \param fmap The mapping function
@@ -821,7 +821,7 @@ class Array : public ObjectRef {
       return nullptr;
     }
 
-    TVM_FFI_ICHECK(data->IsInstance<ArrayNode>());
+    TVM_FFI_ICHECK(data->IsInstance<ArrayObj>());
 
     constexpr bool is_same_output_type = std::is_same_v<T, U>;
 
@@ -830,7 +830,7 @@ class Array : public ObjectRef {
         // Mutate-in-place path.  Only allowed if the output type U is
         // the same as type T, we have a mutable this*, and there are
         // no other shared copies of the array.
-        auto arr = static_cast<ArrayNode*>(data.get());
+        auto arr = static_cast<ArrayObj*>(data.get());
         for (auto it = arr->MutableBegin(); it != arr->MutableEnd(); it++) {
           T value = details::AnyUnsafe::CopyFromAnyStorageAfterCheck<T>(*it);
           // reset the original value to nullptr, to ensure unique ownership
@@ -844,8 +844,8 @@ class Array : public ObjectRef {
 
     constexpr bool compatible_types = is_valid_iterator_v<T, U*> || is_valid_iterator_v<U, T*>;
 
-    ObjectPtr<ArrayNode> output = nullptr;
-    auto arr = static_cast<ArrayNode*>(data.get());
+    ObjectPtr<ArrayObj> output = nullptr;
+    auto arr = static_cast<ArrayObj*>(data.get());
 
     auto it = arr->begin();
     if constexpr (compatible_types) {
@@ -870,7 +870,7 @@ class Array : public ObjectRef {
           // will be overwritten before returning, all objects will be
           // of type `U` for the calling scope.
           all_identical = false;
-          output = ArrayNode::CreateRepeated(arr->size(), Any());
+          output = ArrayObj::CreateRepeated(arr->size(), Any());
           output->InitRange(0, arr->begin(), it);
           output->SetItem(it - arr->begin(), std::move(mapped));
           it++;
@@ -890,7 +890,7 @@ class Array : public ObjectRef {
       // non-nullable type.  Since the default `Any()` will be
       // overwritten before returning, all objects will be of type `U`
       // for the calling scope.
-      output = ArrayNode::CreateRepeated(arr->size(), Any());
+      output = ArrayObj::CreateRepeated(arr->size(), Any());
     }
 
     // Normal path for incompatible types, or post-copy path for
@@ -936,10 +936,10 @@ inline Array<T> Concat(Array<T> lhs, const Array<T>& rhs) {
   return std::move(lhs);
 }
 
-// Specialize make_object<ArrayNode> to make sure it is correct.
+// Specialize make_object<ArrayObj> to make sure it is correct.
 template <>
-inline ObjectPtr<ArrayNode> make_object() {
-  return ArrayNode::Empty();
+inline ObjectPtr<ArrayObj> make_object() {
+  return ArrayObj::Empty();
 }
 
 // Traits for Array
@@ -956,7 +956,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
       return TypeTraitsBase::GetMismatchTypeInfo(src);
     }
     if constexpr (!std::is_same_v<T, Any>) {
-      const ArrayNode* n = reinterpret_cast<const ArrayNode*>(src->v_obj);
+      const ArrayObj* n = reinterpret_cast<const ArrayObj*>(src->v_obj);
       for (size_t i = 0; i < n->size(); i++) {
         const Any& any_v = (*n)[i];
         // CheckAnyStorage is cheaper than as<T>
@@ -977,7 +977,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
     if constexpr (std::is_same_v<T, Any>) {
       return true;
     } else {
-      const ArrayNode* n = reinterpret_cast<const ArrayNode*>(src->v_obj);
+      const ArrayObj* n = reinterpret_cast<const ArrayObj*>(src->v_obj);
       for (size_t i = 0; i < n->size(); i++) {
         const Any& any_v = (*n)[i];
         if (!details::AnyUnsafe::CheckAnyStorage<T>(any_v)) return false;
@@ -990,7 +990,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
     // try to run conversion.
     if (src->type_index != TypeIndex::kTVMFFIArray) return std::nullopt;
     if constexpr (!std::is_same_v<T, Any>) {
-      const ArrayNode* n = reinterpret_cast<const ArrayNode*>(src->v_obj);
+      const ArrayObj* n = reinterpret_cast<const ArrayObj*>(src->v_obj);
       bool storage_check = [&]() {
         for (size_t i = 0; i < n->size(); i++) {
           const Any& any_v = (*n)[i];
