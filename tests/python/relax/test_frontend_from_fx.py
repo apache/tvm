@@ -1654,7 +1654,7 @@ operator_binary_1 = [
     (operator.truediv, R.divide),
     (operator.floordiv, R.floor_divide),
     (operator.pow, R.power),
-    (operator.mod, R.mod),
+    (operator.mod, R.floor_mod),
 ]
 
 
