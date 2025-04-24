@@ -4646,7 +4646,7 @@ def test_linspace():
     class Linspace(Module):
         def forward(self, input):
             return torch.linspace(0, 1, steps=9, dtype=torch.float32)
-        
+
         def main(
             input: R.Tensor((9, 9), dtype="float32")
         ) -> R.Tuple(R.Tensor((9,), dtype="float32")):
