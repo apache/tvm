@@ -471,6 +471,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "eye.default": self._eye,
             "eye.m": self._eye,
             "fill.Scalar": self._fill,
+            "fill_.Scalar": self._fill_inplace,
             "full.default": self._full,
             "full_like.default": self._full_like,
             "index_select.default": self._index_select,
@@ -485,6 +486,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             ),
             "zero_.default": self._zeros_inplace,
             "zeros.default": self._zeros,
+            "zeros_like.default": self._zeros_like,
             # datatype
             "to.dtype": self._to,
             "to.dtype_layout": self._to,

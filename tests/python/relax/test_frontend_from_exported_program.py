@@ -3647,6 +3647,30 @@ def test_fill():
     verify_model(Fill(), example_args, {}, Expected)
 
 
+def test_fill_inplace():
+    class FillInplace(Module):
+        def forward(self, input: torch.Tensor):
+            input.fill_(1.5)  # In-place operation
+            return input
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.full_like(
+                    inp_0, R.const(1.5, "float32"), dtype="void"
+                )
+                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(10, 10, dtype=torch.float32),)
+    verify_model(FillInplace(), example_args, {}, Expected)
+
+
 def test_masked_fill():
     class Masked_Fill(Module):
         def forward(self, input: torch.Tensor, mask: torch.Tensor):
@@ -4012,6 +4036,27 @@ def test_zeros():
     example_args = (torch.rand(128, 128, dtype=torch.float32),)
 
     verify_model(Zeros(), example_args, {}, Expected)
+
+
+def test_zeros_like():
+    class ZerosLike(Module):
+        def forward(self, input):
+            return torch.zeros_like(input)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((128, 128), dtype="float32")
+        ) -> R.Tuple(R.Tensor((128, 128), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(input, dtype="void")
+                gv: R.Tuple(R.Tensor((128, 128), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.rand(128, 128, dtype=torch.float32),)
+    verify_model(ZerosLike(), example_args, {}, Expected)
 
 
 def test_type_as():
