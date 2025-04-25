@@ -481,6 +481,29 @@ TVM_FFI_DLL int TVMFFINDArrayFromDLPackVersioned(DLManagedTensorVersioned* from,
 TVM_FFI_DLL int TVMFFINDArrayToDLPackVersioned(TVMFFIObjectHandle from,
                                                DLManagedTensorVersioned** out);
 
+//---------------------------------------------------------------
+// Section: dtype string support APIs.
+// These APIs are used to simplify the dtype printings during FFI
+//---------------------------------------------------------------
+
+/*!
+ * \brief Convert a string to a DLDataType.
+ * \param str The string to convert.
+ * \param out The output DLDataType.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIDataTypeFromString(const char* str, DLDataType* out);
+
+/*!
+ * \brief Convert a DLDataType to a string.
+ * \param dtype The DLDataType to convert.
+ * \param out The output string.
+ * \return 0 when success, nonzero when failure happens
+ * \note out is a String object that needs to be freed by the caller via TVMFFIObjectFree.
+         The content of string can be accessed via TVMFFIObjectGetByteArrayPtr.
+ */
+TVM_FFI_DLL int TVMFFIDataTypeToString(DLDataType dtype, TVMFFIObjectHandle* out);
+
 //------------------------------------------------------------
 // Section: Backend noexcept functions for internal use
 //

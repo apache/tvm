@@ -62,6 +62,7 @@ add_library(tvm_ffi_objs OBJECT
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/object.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/function.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/ndarray.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/dtype.cc"
 )
 set_target_properties(
   tvm_ffi_objs PROPERTIES
