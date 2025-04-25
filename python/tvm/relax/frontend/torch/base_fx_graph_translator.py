@@ -1465,6 +1465,29 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self.env[node.args[0]] = output
         return output
 
+    def _linspace(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        start = args[0]
+        stop = args[1]
+        step = args[2]
+
+        if step != 1:
+            step = (stop - start) / (step - 1)
+            stop = stop + (step / 2)
+        else:
+            stop = start + step
+
+        if len(args) <= 3 or args[3] is None:
+            import torch
+
+            dtype = self._convert_data_type(str(torch.get_default_dtype()))
+        else:
+            dtype = self._convert_data_type(args[3])
+
+        return self.block_builder.emit(
+            relax.op.arange(start=start, end=stop, step=step, dtype=dtype)
+        )
+
     def _masked_fill(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         mask = self.env[node.args[1]]

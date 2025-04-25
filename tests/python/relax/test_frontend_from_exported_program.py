@@ -4817,5 +4817,26 @@ def test_eye():
     verify_model(Eye2(), example_args2, {}, Expected2)
 
 
+def test_linspace():
+    class Linspace(Module):
+        def forward(self, input):
+            return torch.linspace(0, 1, steps=9, dtype=torch.float32)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((9, 9), dtype="float32")
+        ) -> R.Tuple(R.Tensor((9,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((9,), dtype="float32") = R.arange(0, 1.0625, 0.125, dtype="float32")
+                gv: R.Tuple(R.Tensor((9,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(9, 9, dtype=torch.float32),)
+    verify_model(Linspace(), example_args, {}, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
