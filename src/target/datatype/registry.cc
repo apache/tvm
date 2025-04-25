@@ -78,8 +78,7 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t t
   if (datatype::Registry::Global()->GetTypeRegistered(type_code)) {
     ss << datatype::Registry::Global()->GetTypeName(type_code);
   } else {
-    std::ostringstream ss;
-    ffi::details::PrintDLDataTypeCodeAsStr(ss, static_cast<DLDataTypeCode>(type_code));
+    ss << ffi::details::DLDataTypeCodeAsCStr(static_cast<DLDataTypeCode>(type_code));
   }
 
   ss << ".";
@@ -87,7 +86,7 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t t
   if (datatype::Registry::Global()->GetTypeRegistered(src_type_code)) {
     ss << datatype::Registry::Global()->GetTypeName(src_type_code);
   } else {
-    ffi::details::PrintDLDataTypeCodeAsStr(ss, static_cast<DLDataTypeCode>(type_code));
+    ss << ffi::details::DLDataTypeCodeAsCStr(static_cast<DLDataTypeCode>(src_type_code));
   }
   return runtime::Registry::Get(ss.str());
 }
