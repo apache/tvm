@@ -4838,5 +4838,32 @@ def test_linspace():
     verify_model(Linspace(), example_args, {}, Expected)
 
 
+def test_bfloat16():
+    # TODO(mshr-h): Add tests for all the dtypes supported in fx frontend
+    example_args = (
+        torch.randn(10, 10, dtype=torch.bfloat16),
+        torch.randn(10, 10, dtype=torch.bfloat16),
+    )
+
+    class BFloat16Model(Module):
+        def forward(self, lhs: torch.Tensor, rhs: torch.Tensor):
+            return torch.ops.aten.add(lhs, rhs)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((10, 10), dtype="bfloat16"),
+            rhs: R.Tensor((10, 10), dtype="bfloat16"),
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="bfloat16")):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="bfloat16") = relax.op.add(lhs, rhs)
+                gv: R.Tuple(R.Tensor((10, 10), dtype="bfloat16")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(BFloat16Model(), example_args, {}, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
