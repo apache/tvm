@@ -719,7 +719,7 @@ class Function::Registry {
    */
   template <typename FLambda>
   Registry& set_body_packed(FLambda f) {
-    return set_body(ffi::Function::FromPacked(f));
+    return Register(ffi::Function::FromPacked(f));
   }
   /*!
    * \brief set the body of the function to the given function.
