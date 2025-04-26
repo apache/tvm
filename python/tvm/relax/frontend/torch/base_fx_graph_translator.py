@@ -417,6 +417,20 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return self.block_builder.emit(relax.op.subtract(rhs, lhs))
 
+    def _isin(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        elements = args[0]
+        test_elements = args[1]
+
+        expanded_elements = relax.op.expand_dims(elements, axis=-1)
+        flattened_test_elements = relax.op.reshape(test_elements, (-1,))
+
+        comparison = relax.op.equal(expanded_elements, flattened_test_elements)
+        summed = relax.op.sum(comparison, axis=-1)
+        result = relax.op.greater(summed, relax.const(0, dtype=elements.struct_info.dtype))
+
+        return self.block_builder.emit(result)
+
     ########## Neural Network ##########
 
     def _adaptive_avg_pool2d(self, node: fx.Node) -> relax.Var:
