@@ -112,6 +112,8 @@ class FunctionObj : public Object {
   // Implementing safe call style
   static int SafeCall(void* func, const TVMFFIAny* args, int32_t num_args, TVMFFIAny* result) {
     TVM_FFI_SAFE_CALL_BEGIN();
+    result->type_index = kTVMFFINone;
+    result->v_int64 = 0;
     FunctionObj* self = static_cast<FunctionObj*>(func);
     self->call(self, reinterpret_cast<const AnyView*>(args), num_args,
                reinterpret_cast<Any*>(result));

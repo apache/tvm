@@ -212,7 +212,7 @@ typedef struct {
  * \param self The function handle
  * \param num_args Number if input arguments
  * \param args The input arguments to the call.
- * \param result Store output result, the intiial state of result must be None
+ * \param result Store output result, the result must not initially contain object value.
  *
  * \return The call return 0 if call is successful.
  *  It returns non-zero value if there is an error.
