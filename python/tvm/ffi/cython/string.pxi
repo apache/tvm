@@ -23,15 +23,13 @@ def _string_obj_get_py_str(obj):
     return py_str(bytes.data)
 
 
-def _bytes_obj_get_py_bytearray(obj):
+def _bytes_obj_get_py_bytes(obj):
     cdef TVMFFIByteArray* bytes = TVMFFIBytesGetByteArrayPtr((<Object>obj).chandle)
-    cdef unsigned long long v_ptr
-    cdef unsigned long long size
-    res = bytearray(bytes.size)
-    v_ptr = res.data
-    size = res.size
-    memcpy(<void*>v_ptr, bytes.data,size)
-    return res
+    py_bytes = PyBytes_FromStringAndSize(NULL, bytes.size)
+    if py_bytes is None:
+        raise MemoryError("Failed to allocate bytes object")
+    memcpy(PyBytes_AsString(py_bytes), bytes.data, bytes.size)
+    return py_bytes
 
 
 cdef class ByteArrayArg:
@@ -39,9 +37,12 @@ cdef class ByteArrayArg:
     cdef object py_data
 
     def __cinit__(self, py_data):
-        if isinstance(py_data, bytes):
-            py_data = bytearray(py_data)
+        if isinstance(py_data, bytearray):
+            py_data = bytes(py_data)
+        cdef char* data
+        cdef Py_ssize_t size
         self.py_data = py_data
-        self.cdata.data = <const char*>(py_data.data)
-        self.cdata.size = py_data.size
+        PyBytes_AsStringAndSize(py_data, &data, &size)
+        self.cdata.data = data
+        self.cdata.size = size
 

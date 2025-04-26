@@ -16,16 +16,11 @@
 # under the License.
 
 _CLASS_OBJECT = None
-_CLASS_OBJECT_GENERIC = None
 _FUNC_CONVERT_TO_OBJECT = None
 
 def _set_class_object(cls):
     global _CLASS_OBJECT
     _CLASS_OBJECT = cls
-
-def _set_class_object_generic(cls):
-    global _CLASS_OBJECT_GENERIC
-    _CLASS_OBJECT_GENERIC = cls
 
 def _set_func_convert_to_object(func):
     global _FUNC_CONVERT_TO_OBJECT

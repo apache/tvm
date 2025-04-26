@@ -22,7 +22,21 @@ This is a standalone module that can be
 
 from .dtype import dtype
 from .registry import register_object, get_global_func
-from .core import Object, Function
+from .core import Object, ObjectGeneric, Function
+from .convert import convert
 from .string import String, Bytes
+from .error import register_error
 
-__all__ = ["dtype", "Function", "Object", "register_object"]
+__all__ = [
+    "dtype",
+    "Object",
+    "register_object",
+    "get_global_func",
+    "Object",
+    "ObjectGeneric",
+    "Function",
+    "convert",
+    "String",
+    "Bytes",
+    "register_error",
+]

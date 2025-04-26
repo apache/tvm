@@ -60,7 +60,7 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
             out[i].v_ptr = (<Object>arg).chandle
         elif isinstance(arg, PyNativeObject):
-            arg = arg.__tvm_object__
+            arg = arg.__tvm_ffi_object__
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
             out[i].v_ptr = (<Object>arg).chandle
         elif isinstance(arg, bool):
@@ -74,6 +74,11 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
         elif isinstance(arg, float):
             out[i].type_index = kTVMFFIFloat
             out[i].v_float64 = arg
+        elif isinstance(arg, _CLASS_DTYPE):
+            # dtype is a subclass of str, so this check occur before str
+            arg = arg.__tvm_ffi_object__
+            out[i].type_index = kTVMFFIDataType
+            out[i].v_dtype = (<DataType>arg).cdtype
         elif isinstance(arg, str):
             tstr = c_str(arg)
             out[i].type_index = kTVMFFIRawStr
@@ -81,21 +86,16 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
             temp_args.append(tstr)
         elif arg is None:
             out[i].type_index = kTVMFFINone
-            out[i].v_int64 = 0
         elif isinstance(arg, Number):
             out[i].type_index = kTVMFFIFloat
             out[i].v_float64 = arg
-        elif isinstance(arg, _CLASS_DTYPE):
-            arg = arg.__tvm_object__
-            out[i].type_index = kTVMFFIDataType
-            out[i].v_dtype = (<DataType>arg).cdtype
         elif isinstance(arg, (bytes, bytearray)):
             arg = ByteArrayArg(arg)
             out[i].type_index = kTVMFFIByteArrayPtr
             out[i].v_int64 = 0
             out[i].v_ptr = &((<ByteArrayArg>arg).cdata)
             temp_args.append(arg)
-        elif isinstance(arg, (list, tuple, dict, _CLASS_OBJECT_GENERIC)):
+        elif isinstance(arg, (list, tuple, dict, ObjectGeneric)):
             arg = _FUNC_CONVERT_TO_OBJECT(arg)
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
             out[i].v_ptr = (<Object>arg).chandle
@@ -103,35 +103,44 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
         elif isinstance(arg, ctypes.c_void_p):
             out[i].type_index = kTVMFFIOpaquePtr
             out[i].v_ptr = c_handle(arg)
+        elif hasattr(arg, "__tvm_ffi_object__"):
+            arg = arg.__tvm_ffi_object__
+            out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
+            out[i].v_ptr = (<Object>arg).chandle
+            temp_args.append(arg)
         elif callable(arg):
-            raise NotImplementedError()
+            arg = _convert_to_ffi_func(arg)
+            out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
+            out[i].v_ptr = (<Object>arg).chandle
+            temp_args.append(arg)
+        else:
+            raise TypeError("Unsupported argument type: %s" % type(arg))
 
 
 cdef inline int FuncCall3(void* chandle,
                           tuple args,
-                          TVMFFIAny* result) except -1:
+                          TVMFFIAny* result,
+                          int* c_api_ret_code) except -1:
     # fast path with stack alloca for less than 3 args
     cdef TVMFFIAny[3] packed_args
     cdef int nargs = len(args)
-    cdef int c_api_ret_code
     temp_args = []
     make_args(args, &packed_args[0], temp_args)
     with nogil:
-        c_api_ret_code = TVMFFIFuncCall(
+        c_api_ret_code[0] = TVMFFIFuncCall(
             chandle, &packed_args[0], nargs, result
         )
-    CHECK_CALL(c_api_ret_code)
     return 0
 
 
 cdef inline int FuncCall(void* chandle,
                          tuple args,
-                         TVMFFIAny* result) except -1:
+                         TVMFFIAny* result,
+                         int* c_api_ret_code) except -1:
     cdef int nargs = len(args)
-    cdef int c_api_ret_code
 
     if nargs <= 3:
-        FuncCall3(chandle, args, result)
+        FuncCall3(chandle, args, result, c_api_ret_code)
         return 0
 
     cdef vector[TVMFFIAny] packed_args
@@ -141,8 +150,8 @@ cdef inline int FuncCall(void* chandle,
     make_args(args, &packed_args[0], temp_args)
 
     with nogil:
-        c_api_ret_code = TVMFFIFuncCall(chandle, &packed_args[0], nargs, result)
-    CHECK_CALL(c_api_ret_code)
+        c_api_ret_code[0] = TVMFFIFuncCall(chandle, &packed_args[0], nargs, result)
+
     return 0
 
 
@@ -151,7 +160,9 @@ cdef inline int ConstructorCall(void* constructor_handle,
                                 void** handle) except -1:
     """Call contructor of a handle function"""
     cdef TVMFFIAny result
-    FuncCall(constructor_handle, args, &result)
+    cdef int c_api_ret_code
+    FuncCall(constructor_handle, args, &result, &c_api_ret_code)
+    CHECK_CALL(c_api_ret_code)
     handle[0] = result.v_ptr
     return 0
 
@@ -166,9 +177,15 @@ cdef class Function(Object):
     """
     def __call__(self, *args):
         cdef TVMFFIAny result
-        FuncCall(self.chandle, args, &result)
-        return make_ret(result)
-
+        cdef int c_api_ret_code
+        FuncCall(self.chandle, args, &result, &c_api_ret_code)
+        # NOTE: logic is same as check_call
+        # directly inline here to simplify traceback
+        if c_api_ret_code == 0:
+            return make_ret(result)
+        elif c_api_ret_code == -2:
+            raise raise_existing_error()
+        raise move_from_last_error()
 
 def _get_global_func(name, allow_missing):
     cdef TVMFFIObjectHandle chandle
@@ -183,3 +200,53 @@ def _get_global_func(name, allow_missing):
        return None
 
     raise ValueError("Cannot find global function %s" % name)
+
+
+_register_object_by_index(kTVMFFIFunc, Function)
+
+# handle callbacks
+cdef void tvm_ffi_callback_deleter(void* fhandle) with gil:
+    local_pyfunc = <object>(fhandle)
+    Py_DECREF(local_pyfunc)
+
+
+cdef int tvm_ffi_callback(void* context,
+                          const TVMFFIAny* packed_args,
+                          int32_t num_args,
+                          TVMFFIAny* result) with gil:
+    cdef list pyargs
+    cdef TVMFFIAny temp_result
+    local_pyfunc = <object>(context)
+    pyargs = []
+    for i in range(num_args):
+        CHECK_CALL(TVMFFIAnyViewToOwnedAny(&packed_args[i], &temp_result))
+        pyargs.append(make_ret(temp_result))
+
+    try:
+        rv = local_pyfunc(*pyargs)
+    except Exception as err:
+        set_last_ffi_error(err)
+        return -1
+
+    temp_args = []
+    make_args((rv,), &temp_result, temp_args)
+    if temp_result.type_index >= kTVMFFIStaticObjectBegin:
+        CHECK_CALL(TVMFFIAnyViewToOwnedAny(&temp_result, result))
+    else:
+        result[0] = temp_result
+
+    return 0
+
+
+def _convert_to_ffi_func(object pyfunc):
+    """Convert a python function to TVM FFI function"""
+    cdef TVMFFIObjectHandle chandle
+    Py_INCREF(pyfunc)
+    CHECK_CALL(TVMFFIFuncCreate(
+        <void*>(pyfunc),
+        tvm_ffi_callback,
+        tvm_ffi_callback_deleter,
+        &chandle))
+    ret = Function.__new__(Function)
+    (<Object>ret).chandle = chandle
+    return ret

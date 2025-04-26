@@ -20,6 +20,7 @@ from . import registry
 
 __all__ = ["String", "Bytes"]
 
+
 @registry.register_object("object.String")
 class String(str, core.PyNativeObject):
     """String object that is possibly returned by FFI call.
@@ -29,14 +30,15 @@ class String(str, core.PyNativeObject):
     This class subclasses str so it can be directly treated as str.
     There is no need to construct this object explicitly.
     """
-    __slots__ = ["__tvm_object__"]
+
+    __slots__ = ["__tvm_ffi_object__"]
 
     # pylint: disable=no-self-argument
     def __from_tvm_object__(cls, obj):
         """Construct from a given tvm object."""
         content = core._string_obj_get_py_str(obj)
         val = str.__new__(cls, content)
-        val.__tvm_object__ = obj
+        val.__tvm_ffi_object__ = obj
         return val
 
 
@@ -53,7 +55,7 @@ class Bytes(bytes, core.PyNativeObject):
     # pylint: disable=no-self-argument
     def __from_tvm_object__(cls, obj):
         """Construct from a given tvm object."""
-        content = core._bytes_obj_get_py_bytearray(obj)
+        content = core._bytes_obj_get_py_bytes(obj)
         val = bytes.__new__(cls, content)
-        val.__tvm_object__ = obj
+        val.__tvm_ffi_object__ = obj
         return val

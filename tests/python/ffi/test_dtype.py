@@ -15,11 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import numpy as np
+from tvm import ffi as tvm_ffi
 
-include "./base.pxi"
-include "./dtype.pxi"
-include "./object.pxi"
-include "./error.pxi"
-include "./string.pxi"
-include "./function.pxi"
-include "./ndarray.pxi"
+
+def test_dtype():
+    float32 = tvm_ffi.dtype("float32")
+    assert float32.__repr__() == "dtype('float32')"
+    assert type(float32) == tvm_ffi.dtype
+    x = np.array([1, 2, 3], dtype=float32)
+    assert x.dtype == float32

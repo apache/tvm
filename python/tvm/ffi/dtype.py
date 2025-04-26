@@ -17,6 +17,7 @@
 
 from . import core
 
+
 class dtype(str):
     """TVM FFI dtype class.
 
@@ -29,7 +30,9 @@ class dtype(str):
     This class subclasses str so it can be directly passed
     into other array api's dtype arguments.
     """
+
     __slots__ = ["__tvm_ffi_object__"]
+
     def __new__(cls, content):
         val = str.__new__(cls, content)
         val.__tvm_ffi_object__ = core.DataType(content)
@@ -41,5 +44,6 @@ class dtype(str):
     @property
     def itemsize(self):
         return self.__tvm_ffi_object__.itemsize
+
 
 core._set_class_dtype(dtype)
