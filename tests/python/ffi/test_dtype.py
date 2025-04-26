@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
 import numpy as np
 from tvm import ffi as tvm_ffi
 
@@ -25,3 +26,18 @@ def test_dtype():
     assert type(float32) == tvm_ffi.dtype
     x = np.array([1, 2, 3], dtype=float32)
     assert x.dtype == float32
+
+
+@pytest.mark.parametrize(
+    "dtype_str, expected_size",
+    [("float32", 4), ("float32x4", 16), ("float8_e5m2x4", 4), ("uint8", 1)],
+)
+def test_dtype_itemsize(dtype_str, expected_size):
+    dtype = tvm_ffi.dtype(dtype_str)
+    assert dtype.itemsize == expected_size
+
+
+@pytest.mark.parametrize("dtype_str", ["int32xvscalex4"])
+def test_dtype_itemmize_error(dtype_str):
+    with pytest.raises(ValueError):
+        tvm_ffi.dtype(dtype_str).itemsize

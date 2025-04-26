@@ -35,6 +35,21 @@ class ObjectGeneric:
         raise NotImplementedError()
 
 
+class ObjectRValueRef:
+    """Represent an RValue ref to an object that can be moved.
+
+    Parameters
+    ----------
+    obj : tvm.runtime.Object
+        The object that this value refers to
+    """
+
+    __slots__ = ["obj"]
+
+    def __init__(self, obj):
+        self.obj = obj
+
+
 cdef class Object:
     """Base class of all TVM FFI objects.
     """
@@ -83,6 +98,26 @@ cdef class Object:
         if not isinstance(other, Object):
             return False
         return self.chandle == (<Object>other).chandle
+
+    def _move(self):
+        """Create an RValue reference to the object and mark the object as moved.
+
+        This is a advanced developer API that can be useful when passing an
+        unique reference to an Object that you no longer needed to a function.
+
+        A unique reference can trigger copy on write optimization that avoids
+        copy when we transform an object.
+
+        Note
+        ----
+        All the reference of the object becomes invalid after it is moved.
+        Be very careful when using this feature.
+
+        Returns
+        -------
+        rvalue : The rvalue reference.
+        """
+        return ObjectRValueRef(self)
 
 
 class PyNativeObject:

@@ -47,7 +47,7 @@ class MSCArray(object):
         if isinstance(data, np.ndarray):
             return MSCFramework.MSC, "tensor", "cpu"
         if isinstance(data, tvm.runtime.NDArray):
-            device = tvm.runtime.Device.MASK2STR[data.device.device_type]
+            device = tvm.runtime.Device.DEVICE_TYPE_TO_NAME[data.device.device_type]
             if data.device.device_id:
                 device += ":{}".format(data.device.device_id)
             return MSCFramework.TVM, "tensor", device

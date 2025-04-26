@@ -45,6 +45,10 @@ def test_error_from_cxx():
     with pytest.raises(TypeError):
         fapply(test_raise_error, "TypeError", "error XYZ")
 
+    # wrong number of arguments
+    with pytest.raises(TypeError):
+        tvm_ffi.convert(lambda x: x)()
+
 
 def test_error_from_nested_pyfunc():
     fapply = tvm_ffi.convert(lambda f, *args: f(*args))

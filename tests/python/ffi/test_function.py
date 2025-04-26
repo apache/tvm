@@ -26,10 +26,14 @@ def test_echo():
     assert fecho(None) is None
 
     # test bool
-    assert fecho(True) is True
-    assert fecho(False) is False
+    bool_result = fecho(True)
+    assert isinstance(bool_result, bool)
+    assert bool_result is True
+    bool_result = fecho(False)
+    assert isinstance(bool_result, bool)
+    assert bool_result is False
 
-    # test int float
+    # test int/float
     assert fecho(1) == 1
     assert fecho(1.2) == 1.2
 
@@ -44,15 +48,30 @@ def test_echo():
     assert isinstance(bytes_result, bytes)
     assert bytes_result == b"abc"
     assert isinstance(bytes_result, tvm_ffi.Bytes)
+
     # test dtype
     dtype_result = fecho(tvm_ffi.dtype("float32"))
     assert isinstance(dtype_result, tvm_ffi.dtype)
     assert dtype_result == tvm_ffi.dtype("float32")
 
+    # test device
+    device_result = fecho(tvm_ffi.device("cuda:1"))
+    assert isinstance(device_result, tvm_ffi.Device)
+    assert device_result.device_type == tvm_ffi.Device.kDLCUDA
+    assert device_result.device_id == 1
+    assert str(device_result) == "cuda:1"
+    assert device_result.__repr__() == "device(type='cuda', index=1)"
+
     # test c_void_p
     c_void_p_result = fecho(ctypes.c_void_p(0x12345678))
     assert isinstance(c_void_p_result, ctypes.c_void_p)
     assert c_void_p_result.value == 0x12345678
+
+    # test function: aka object
+    fadd = tvm_ffi.convert(lambda a, b: a + b)
+    fadd1 = fecho(fadd)
+    assert fadd1(1, 2) == 3
+    assert fadd1.same_as(fadd)
 
 
 def test_pyfunc_convert():

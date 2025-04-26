@@ -273,7 +273,7 @@ class Device(ctypes.Structure):
     OpenCL.  Some properties may return None depending on whether an
     API exposes that particular property.
 
-    NOTE!  The integer values in MASK2STR and STR2MASK *must* correspond
+    NOTE!  The integer values in DEVICE_TYPE_TO_NAME and DEVICE_NAME_TO_TYPE *must* correspond
     to the values provided by the DLDeviceType and TVMDeviceExtType enums.
     """
 
@@ -293,7 +293,7 @@ class Device(ctypes.Structure):
     kDLHexagon = 16
 
     _fields_ = [("device_type", ctypes.c_int), ("device_id", ctypes.c_int)]
-    MASK2STR = {
+    DEVICE_TYPE_TO_NAME = {
         kDLCPU: "cpu",
         kDLCUDA: "cuda",
         kDLCUDAHost: "cuda_host",
@@ -310,7 +310,7 @@ class Device(ctypes.Structure):
         kDLHexagon: "hexagon",
     }
 
-    STR2MASK = {
+    DEVICE_NAME_TO_TYPE = {
         "llvm": kDLCPU,
         "stackvm": kDLCPU,
         "cpu": kDLCPU,
@@ -647,8 +647,12 @@ class Device(ctypes.Structure):
         if self.device_type >= RPC_SESS_MASK:
             tbl_id = self.device_type / RPC_SESS_MASK - 1
             dev_type = self.device_type % RPC_SESS_MASK
-            return "remote[%d]:%s(%d)" % (tbl_id, Device.MASK2STR[dev_type], self.device_id)
-        return "%s(%d)" % (Device.MASK2STR[self.device_type], self.device_id)
+            return "remote[%d]:%s(%d)" % (
+                tbl_id,
+                Device.DEVICE_TYPE_TO_NAME[dev_type],
+                self.device_id,
+            )
+        return "%s(%d)" % (Device.DEVICE_TYPE_TO_NAME[self.device_type], self.device_id)
 
 
 class TVMArray(ctypes.Structure):

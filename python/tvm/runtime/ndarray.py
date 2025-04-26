@@ -393,10 +393,10 @@ def device(dev_type, dev_id=0):
         else:
             raise ValueError(f"Invalid device string: {dev_type}")
 
-        if dev_type not in Device.STR2MASK:
+        if dev_type not in Device.DEVICE_NAME_TO_TYPE:
             raise ValueError(f"Unknown device type: {dev_type}")
 
-        return Device(Device.STR2MASK[dev_type], dev_id)
+        return Device(Device.DEVICE_NAME_TO_TYPE[dev_type], dev_id)
     return Device(dev_type, dev_id)
 
 

@@ -22,13 +22,17 @@ This is a standalone module that can be
 
 from .dtype import dtype
 from .registry import register_object, get_global_func
+from .core import Device
 from .core import Object, ObjectGeneric, Function
 from .convert import convert
 from .string import String, Bytes
 from .error import register_error
+from .ndarray import Device, device
+from .ndarray import cpu, cuda, rocm, opencl, metal, vpi, vulkan, ext_dev, hexagon, webgpu
 
 __all__ = [
     "dtype",
+    "Device",
     "Object",
     "register_object",
     "get_global_func",
@@ -39,4 +43,15 @@ __all__ = [
     "String",
     "Bytes",
     "register_error",
+    "Device",
+    "cpu",
+    "cuda",
+    "rocm",
+    "opencl",
+    "metal",
+    "vpi",
+    "vulkan",
+    "ext_dev",
+    "hexagon",
+    "webgpu",
 ]

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import ctypes
-from libc.stdint cimport int32_t, int64_t, uint64_t, uint32_t, uint8_t, uint16_t
+from libc.stdint cimport int32_t, int64_t, uint64_t, uint32_t, uint8_t, int16_t
 from libc.string cimport memcpy
 from libcpp.vector cimport vector
 from cpython.bytes cimport PyBytes_AsStringAndSize, PyBytes_FromStringAndSize, PyBytes_AsString
@@ -54,7 +54,7 @@ cdef extern from "tvm/ffi/c_api.h":
     ctypedef struct DLDataType:
         uint8_t code
         uint8_t bits
-        uint16_t lanes
+        int16_t lanes
 
     ctypedef struct DLDevice:
         int device_type
@@ -123,7 +123,7 @@ cdef extern from "tvm/ffi/c_api.h":
     const char* TVMFFITraceback(const char* filename, int lineno, const char* func) nogil;
     TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) nogil
     TVMFFIErrorInfo* TVMFFIErrorGetErrorInfoPtr(TVMFFIObjectHandle obj) nogil
-
+    DLDevice TVMFFIDLDeviceFromIntPair(int32_t device_type, int32_t device_id) nogil
 
 cdef inline py_str(const char* x):
     """Convert a c_char_p to a python string

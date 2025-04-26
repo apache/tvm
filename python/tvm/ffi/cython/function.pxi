@@ -37,6 +37,8 @@ cdef inline object make_ret(TVMFFIAny result):
         return ctypes_handle(result.v_ptr)
     elif type_index == kTVMFFIDataType:
         return make_ret_dtype(result)
+    elif type_index == kTVMFFIDevice:
+        return make_ret_device(result)
     elif type_index == kTVMFFIDLTensorPtr:
         return make_ret_dltensor(result)
     elif type_index == kTVMFFIObjectRValueRef:
@@ -79,6 +81,9 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
             arg = arg.__tvm_ffi_object__
             out[i].type_index = kTVMFFIDataType
             out[i].v_dtype = (<DataType>arg).cdtype
+        elif isinstance(arg, _CLASS_DEVICE):
+            out[i].type_index = kTVMFFIDevice
+            out[i].v_device = (<Device>arg).cdevice
         elif isinstance(arg, str):
             tstr = c_str(arg)
             out[i].type_index = kTVMFFIRawStr
@@ -108,6 +113,9 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
             out[i].v_ptr = (<Object>arg).chandle
             temp_args.append(arg)
+        elif isinstance(arg, ObjectRValueRef):
+            out[i].type_index = kTVMFFIObjectRValueRef
+            out[i].v_ptr = &((<Object>(arg.obj)).chandle)
         elif callable(arg):
             arg = _convert_to_ffi_func(arg)
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)

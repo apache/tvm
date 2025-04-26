@@ -166,7 +166,7 @@ then be registered with the following steps.
    enum value to a string representation.  This string representation
    should match the name given to ``TVM_REGISTER_GLOBAL``.
 
-#. Add entries to the ``MASK2STR`` and ``STR2MASK`` dictionaries of
+#. Add entries to the ``DEVICE_TYPE_TO_NAME`` and ``DEVICE_NAME_TO_TYPE`` dictionaries of
    :py:class:`tvm.runtime.Device` for the new enum value.
 
 

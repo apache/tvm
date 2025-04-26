@@ -37,6 +37,8 @@ cdef class DataType:
         CHECK_CALL(TVMFFIDataTypeFromString(c_str(dtype_str), &(self.cdtype)))
 
     def __eq__(self, other):
+        if not isinstance(other, DataType):
+            return False
         return (
             self.cdtype.code == other.cdtype.code
             and self.cdtype.bits == other.cdtype.bits

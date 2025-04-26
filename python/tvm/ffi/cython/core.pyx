@@ -18,6 +18,7 @@
 
 include "./base.pxi"
 include "./dtype.pxi"
+include "./device.pxi"
 include "./object.pxi"
 include "./error.pxi"
 include "./string.pxi"
