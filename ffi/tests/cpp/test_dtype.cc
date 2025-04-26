@@ -86,7 +86,7 @@ TEST(DataType, AnyConversion) {
         try {
           [[maybe_unused]] DLDataType v0 = view0;
         } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
+          EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
           EXPECT_NE(what.find("Cannot convert from type `None` to `DataType`"), std::string::npos);
           throw;

@@ -90,9 +90,9 @@ TEST(Variant, FromUnpacked) {
         try {
           fadd1(1.1);
         } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
+          EXPECT_STREQ(error->kind, "TypeError");
           EXPECT_STREQ(
-              error->message.c_str(),
+              error->message,
               "Mismatched type on argument #0 when calling: `(0: Variant<int, test.Int>) -> int`. "
               "Expected `Variant<int, test.Int>` but got `float`");
           throw;
@@ -116,8 +116,8 @@ TEST(Variant, FromUnpacked) {
         try {
           fadd2(Array<Any>({1, 1.1}));
         } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
-          EXPECT_STREQ(error->message.c_str(),
+          EXPECT_STREQ(error->kind, "TypeError");
+          EXPECT_STREQ(error->message,
                        "Mismatched type on argument #0 when calling: `(0: Array<Variant<int, "
                        "test.Int>>) -> int`. "
                        "Expected `Array<Variant<int, test.Int>>` but got `Array[index 1: float]`");

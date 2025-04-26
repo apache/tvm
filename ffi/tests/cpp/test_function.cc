@@ -84,8 +84,8 @@ TEST(Func, FromUnpacked) {
         try {
           fadd1(1.1);
         } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
-          EXPECT_STREQ(error->message.c_str(),
+          EXPECT_STREQ(error->kind, "TypeError");
+          EXPECT_STREQ(error->message,
                        "Mismatched type on argument #0 when calling: `(0: int) -> int`. "
                        "Expected `int` but got `float`");
           throw;
@@ -99,8 +99,8 @@ TEST(Func, FromUnpacked) {
         try {
           fadd1();
         } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
-          EXPECT_STREQ(error->message.c_str(),
+          EXPECT_STREQ(error->kind, "TypeError");
+          EXPECT_STREQ(error->message,
                        "Mismatched number of arguments when calling: `(0: int) -> int`. "
                        "Expected 1 but got 0 arguments");
           throw;
@@ -128,8 +128,8 @@ TEST(Func, FromUnpacked) {
         try {
           fpass_and_return();
         } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
-          EXPECT_STREQ(error->message.c_str(),
+          EXPECT_STREQ(error->kind, "TypeError");
+          EXPECT_STREQ(error->message,
                        "Mismatched number of arguments when calling: "
                        "`fpass_and_return(0: test.Int, 1: int, 2: AnyView) -> object.Function`. "
                        "Expected 3 but got 0 arguments");
@@ -157,7 +157,7 @@ TEST(Func, Global) {
   auto fnot_exist = Function::GetGlobal("testing.not_existing_func");
   EXPECT_TRUE(!fnot_exist);
 
-  Array<String> names = Function::GetGlobal("tvm_ffi.GlobalFunctionListNames").value()();
+  Array<String> names = Function::GetGlobal("ffi.GlobalFunctionListNames").value()();
 
   EXPECT_TRUE(std::find(names.begin(), names.end(), "testing.add1") != names.end());
 }
@@ -220,9 +220,9 @@ TEST(Func, ObjectRefWithFallbackTraits) {
         try {
           freturn_primexpr(TInt(1));
         } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
+          EXPECT_STREQ(error->kind, "TypeError");
           EXPECT_STREQ(
-              error->message.c_str(),
+              error->message,
               "Mismatched type on argument #0 when calling: `(0: test.PrimExpr) -> test.PrimExpr`. "
               "Expected `test.PrimExpr` but got `test.Int`");
           throw;

@@ -33,8 +33,8 @@ TEST(Error, Traceback) {
         try {
           ThrowRuntimeError();
         } catch (const Error& error) {
-          EXPECT_EQ(error->message, "test0");
-          EXPECT_EQ(error->kind, "RuntimeError");
+          EXPECT_STREQ(error->message, "test0");
+          EXPECT_STREQ(error->kind, "RuntimeError");
           std::string what = error.what();
           EXPECT_NE(what.find("line"), std::string::npos);
           EXPECT_NE(what.find("ThrowRuntimeError"), std::string::npos);
@@ -51,7 +51,7 @@ TEST(CheckError, Traceback) {
         try {
           TVM_FFI_ICHECK_GT(2, 3);
         } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "InternalError");
+          EXPECT_STREQ(error->kind, "InternalError");
           std::string what = error.what();
           EXPECT_NE(what.find("line"), std::string::npos);
           EXPECT_NE(what.find("2 > 3"), std::string::npos);
@@ -64,7 +64,7 @@ TEST(CheckError, Traceback) {
 TEST(Error, AnyConvert) {
   Any any = Error("TypeError", "here", "test0");
   Optional<Error> opt_err = any.as<Error>();
-  EXPECT_EQ(opt_err.value()->kind, "TypeError");
-  EXPECT_EQ(opt_err.value()->message, "here");
+  EXPECT_STREQ(opt_err.value()->kind, "TypeError");
+  EXPECT_STREQ(opt_err.value()->message, "here");
 }
 }  // namespace

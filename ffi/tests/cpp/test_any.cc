@@ -39,7 +39,7 @@ TEST(Any, Int) {
         try {
           [[maybe_unused]] int64_t v0 = view0;
         } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
+          EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
           EXPECT_NE(what.find("Cannot convert from type `None` to `int`"), std::string::npos);
           throw;
@@ -70,7 +70,7 @@ TEST(Any, bool) {
         try {
           [[maybe_unused]] bool v0 = view0;
         } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
+          EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
           EXPECT_NE(what.find("Cannot convert from type `None` to `bool`"), std::string::npos);
           throw;
@@ -122,7 +122,7 @@ TEST(Any, Float) {
         try {
           [[maybe_unused]] double v0 = view0;
         } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
+          EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
           EXPECT_NE(what.find("Cannot convert from type `None` to `float`"), std::string::npos);
           throw;
@@ -156,7 +156,7 @@ TEST(Any, Device) {
         try {
           [[maybe_unused]] DLDevice v0 = view0;
         } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
+          EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
           EXPECT_NE(what.find("Cannot convert from type `None` to `Device`"), std::string::npos);
           throw;
@@ -189,7 +189,7 @@ TEST(Any, DLTensor) {
         try {
           [[maybe_unused]] DLTensor* v0 = view0;
         } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
+          EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
           EXPECT_NE(what.find("Cannot convert from type `None` to `DLTensor*`"), std::string::npos);
           throw;
@@ -253,7 +253,7 @@ TEST(Any, Object) {
         try {
           [[maybe_unused]] TFloat v0 = view1;
         } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
+          EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
           std::cout << what;
           EXPECT_NE(what.find("Cannot convert from type `test.Int` to `test.Float`"),

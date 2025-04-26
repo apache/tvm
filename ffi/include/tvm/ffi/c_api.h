@@ -205,6 +205,20 @@ typedef struct {
 } TVMFFIByteArray;
 
 /*!
+ * \brief Method information that can appear in reflection table.
+ */
+typedef struct {
+  /*! \brief The kind of the error. */
+  const char* kind;
+  /*! \brief The message of the error. */
+  const char* message;
+  /*!
+   * \brief The traceback of the error.
+   */
+  const char* traceback;
+} TVMFFIErrorInfo;
+
+/*!
  * \brief Type that defines C-style safe call convention
  *
  * Safe call explicitly catches exception on function boundary.
@@ -355,6 +369,14 @@ TVM_FFI_DLL int TVMFFIFuncCreate(void* self, TVMFFISafeCallType safe_call,
                                  void (*deleter)(void* self), TVMFFIObjectHandle* out);
 
 /*!
+ * \brief Convert a AnyView to an owned Any.
+ * \param any The AnyView to convert.
+ * \param out The output Any, must be an empty object
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIAnyViewToOwnedAny(const TVMFFIAny* any_view, TVMFFIAny* out);
+
+/*!
  * \brief Call a FFIFunc by passing in arguments.
  *
  * \param func The resource handle of the C callback.
@@ -407,11 +429,20 @@ TVM_FFI_DLL void TVMFFISetLastError(const TVMFFIAny* error_view);
 /*!
  * \brief Set the last error in TLS, which can be fetched by TVMFFIGetLastError.
  *
- * \param error_kind The kind of the error.
- * \param error_str The error string.
+ * \param kind The kind of the error.
+ * \param message The error message.
+ * \param optional_extra_traceback The extra traceback, can be NULL.
  * \note This is a convenient method for C API side to set error directly from string.
  */
-TVM_FFI_DLL void TVMFFISetLastErrorCStr(const char* error_kind, const char* error_str);
+TVM_FFI_DLL void TVMFFISetLastErrorCStr(const char* kind, const char* message,
+                                        const char* optional_extra_traceback);
+
+/*!
+ * \brief Update the traceback of an Error object.
+ * \param obj The error handle.
+ * \param traceback The traceback to update.
+ */
+TVM_FFI_DLL void TVMFFIUpdateErrorTraceback(TVMFFIObjectHandle obj, const char* traceback);
 
 /*!
  * \brief Convert type key to type index.
@@ -587,6 +618,15 @@ inline int32_t TVMFFIObjectGetTypeIndex(TVMFFIObjectHandle obj) {
  */
 inline TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) {
   return reinterpret_cast<TVMFFIByteArray*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
+}
+
+/*!
+ * \brief Get the data pointer of a ErrorInfo from an Error object.
+ * \param obj The object handle.
+ * \return The data pointer.
+ */
+inline TVMFFIErrorInfo* TVMFFIErrorGetErrorInfoPtr(TVMFFIObjectHandle obj) {
+  return reinterpret_cast<TVMFFIErrorInfo*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
 }
 
 /*!

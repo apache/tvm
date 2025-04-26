@@ -67,21 +67,30 @@ struct EnvErrorAlreadySet : public std::exception {};
 /*!
  * \brief Error object class.
  */
-class ErrorObj : public Object {
+class ErrorObj : public Object, public TVMFFIErrorInfo {
  public:
-  /*! \brief The error kind */
-  std::string kind;
-  /*! \brief Message the error message. */
-  std::string message;
-  /*! \brief Backtrace, follows python convention(most recent last). */
-  std::string backtrace;
-  /*! \brief Full message in what_str */
-  std::string what_str;
+  /*!
+   * \brief Update the traceback of the error object.
+   * \param traceback The traceback to update.
+   */
+  void UpdateTraceback(const char* traceback) {
+    this->traceback_data_ = traceback;
+    this->traceback = this->traceback_data_.c_str();
+    this->what_data_ = (std::string("Traceback (most recent call last):\n") + this->traceback +
+                        this->kind + ": " + this->message + '\n');
+  }
 
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIError;
   static constexpr const char* _type_key = "object.Error";
 
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ErrorObj, Object);
+
+ private:
+  friend class Error;
+  std::string kind_data_;
+  std::string message_data_;
+  std::string traceback_data_;
+  std::string what_data_;
 };
 
 /*!
@@ -90,18 +99,20 @@ class ErrorObj : public Object {
  */
 class Error : public ObjectRef, public std::exception {
  public:
-  Error(std::string kind, std::string message, std::string backtrace) {
-    std::ostringstream what;
-    what << "Traceback (most recent call last):\n" << backtrace << kind << ": " << message << '\n';
+  Error(std::string kind, std::string message, std::string traceback) {
     ObjectPtr<ErrorObj> n = make_object<ErrorObj>();
-    n->kind = std::move(kind);
-    n->message = std::move(message);
-    n->backtrace = std::move(backtrace);
-    n->what_str = what.str();
+    n->kind_data_ = std::move(kind);
+    n->message_data_ = std::move(message);
+    n->traceback_data_ = std::move(traceback);
+    n->kind = n->kind_data_.c_str();
+    n->message = n->message_data_.c_str();
+    n->traceback = n->traceback_data_.c_str();
+    n->what_data_ = (std::string("Traceback (most recent call last):\n") + n->traceback + n->kind +
+                     ": " + n->message + '\n');
     data_ = std::move(n);
   }
 
-  const char* what() const noexcept(true) override { return get()->what_str.c_str(); }
+  const char* what() const noexcept(true) override { return get()->what_data_.c_str(); }
 
   TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Error, ObjectRef, ErrorObj);
 };

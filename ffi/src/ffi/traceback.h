@@ -72,11 +72,6 @@ inline bool ShouldExcludeFrame(const char* filename, const char* symbol) {
     if (strstr(filename, "src/ffi/traceback.cc")) {
       return true;
     }
-    // Python interpreter stack frames
-    if (strstr(filename, "/python-") || strstr(filename, "/Python/ceval.c") ||
-        strstr(filename, "/Modules/_ctypes")) {
-      return true;
-    }
     // C++ stdlib frames
     if (strstr(filename, "include/c++/")) {
       return true;
@@ -88,10 +83,9 @@ inline bool ShouldExcludeFrame(const char* filename, const char* symbol) {
     if (strstr(symbol, "__libc_")) {
       return true;
     }
-    // Python interpreter stack frames
-    if (strstr(symbol, "_Py") == symbol || strstr(symbol, "PyObject")) {
-      return true;
-    }
+  }
+  if (strncmp(symbol, "TVMFFISetLastErrorCStr", 22) == 0) {
+    return true;
   }
   // libffi.so stack frames.  These may also show up as numeric
   // addresses with no symbol name.  This could be improved in the
@@ -116,6 +110,12 @@ inline bool ShouldStopTraceback(const char* filename, const char* symbol) {
       return true;
     }
     if (strncmp(symbol, "TVMFuncCall", 11) == 0) {
+      return true;
+    }
+    // Python interpreter stack frames
+    // we stop traceback at the Python interpreter stack frames
+    // since these frame will be handled from by the python side.
+    if (strncmp(symbol, "_Py", 3) == 0 || strncmp(symbol, "PyObject", 9) == 0) {
       return true;
     }
   }

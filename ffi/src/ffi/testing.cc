@@ -19,13 +19,25 @@
 // This file is used for testing the FFI API.
 #include <tvm/ffi/function.h>
 
-
 namespace tvm {
 namespace ffi {
 
 TVM_FFI_REGISTER_GLOBAL("testing.echo").set_body_packed([](PackedArgs args, Any* ret) {
   *ret = args[0];
 });
+
+void TestApply(Function f, PackedArgs args, Any* ret) { f.CallPacked(args, ret); }
+
+TVM_FFI_REGISTER_GLOBAL("testing.apply").set_body_packed([](PackedArgs args, Any* ret) {
+  Function f = args[0];
+  TestApply(f, args.Slice(1), ret);
+});
+
+void TestRaiseError(String kind, String msg) {
+  throw ffi::Error(kind, msg, TVM_FFI_TRACEBACK_HERE);
+}
+
+TVM_FFI_REGISTER_GLOBAL("testing.test_raise_error").set_body_typed(TestRaiseError);
 
 }  // namespace ffi
 }  // namespace tvm
