@@ -637,5 +637,15 @@ inline TVMFFIErrorInfo* TVMFFIErrorGetErrorInfoPtr(TVMFFIObjectHandle obj) {
 inline DLTensor* TVMFFINDArrayGetDLTensorPtr(TVMFFIObjectHandle obj) {
   return reinterpret_cast<DLTensor*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
 }
+
+/*!
+ * \brief Create a DLDevice from a device type and device id.
+ * \param device_type The device type.
+ * \param device_id The device id.
+ * \return The DLDevice.
+ */
+inline DLDevice TVMFFIDLDeviceFromIntPair(int32_t device_type, int32_t device_id) {
+  return DLDevice{static_cast<DLDeviceType>(device_type), device_id};
+}
 #endif  // __cplusplus
 #endif  // TVM_FFI_C_API_H_
