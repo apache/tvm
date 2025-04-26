@@ -20,11 +20,12 @@
 """PyTorch ExportedProgram of Relax."""
 from collections import ChainMap, OrderedDict
 from functools import partial
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Tuple, Optional
 
 import torch
 import tvm
 from tvm import relax
+import sympy
 
 from .base_fx_graph_translator import BaseFXGraphImporter
 
@@ -497,11 +498,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def create_input_vars(
         self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var]]:
+    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var], Dict[tvm.tir.Var, Tuple[Optional[int], Optional[int]]]]:
         """Create relax input vars."""
         parameters_buffers_constants = OrderedDict()
         user_inputs = OrderedDict()
         torch_symbol_to_relax_var: Dict[str, tvm.tir.Var] = {}
+        relax_range_constraints: Dict[tvm.tir.Var, Tuple[Optional[int], Optional[int]]] = {}
 
         for spec in exported_program.graph_signature.input_specs:
             name_hint = spec.arg.name
@@ -519,13 +521,18 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 torch_shape = exported_program.state_dict[spec.target].shape
                 torch_dtype = exported_program.state_dict[spec.target].dtype
 
-            # TODO(mshr-h): Support range constraints
-            relax_shape = [
-                torch_symbol_to_relax_var.setdefault(str(s), tvm.tir.SizeVar(str(s), "int64"))
-                if isinstance(s, torch.SymInt)
-                else s
-                for s in torch_shape
-            ]
+            # UPDATED: Create SizeVars and map SymInts (removed original shape creation)
+            relax_shape = []
+            for s in torch_shape:
+                if isinstance(s, torch.SymInt):
+                    s_str = str(s)
+                    # Ensure SizeVar is created if not already present
+                    if s_str not in torch_symbol_to_relax_var:
+                        torch_symbol_to_relax_var[s_str] = tvm.tir.SizeVar(s_str, "int64")
+                    relax_shape.append(torch_symbol_to_relax_var[s_str])
+                else:
+                    relax_shape.append(s)
+            
             dtype = self._convert_data_type(torch_dtype)
 
             relax_var = relax.Var(name_hint, relax.TensorStructInfo(relax_shape, dtype))
@@ -534,7 +541,47 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             else:
                 parameters_buffers_constants[name_hint] = relax_var
 
-        return parameters_buffers_constants, user_inputs
+        # NEW: Process range constraints (basic support for simple SymInt keys)
+        if hasattr(exported_program, "range_constraints"):
+            for torch_sym_expr, value_range in exported_program.range_constraints.items():
+                # Basic support: Only handle constraints where the key is a simple SymInt
+                if isinstance(torch_sym_expr, torch.SymInt):
+                    s_str = str(torch_sym_expr)
+                    if s_str in torch_symbol_to_relax_var:
+                        relax_tir_var = torch_symbol_to_relax_var[s_str]
+
+                        # Extract bounds, using None for infinity
+                        min_val = int(value_range.lower) if value_range.lower != -sympy.oo else None
+                        max_val = int(value_range.upper) if value_range.upper != sympy.oo else None
+
+                        if relax_tir_var not in relax_range_constraints:
+                            relax_range_constraints[relax_tir_var] = (min_val, max_val)
+                        else:
+                            # Refine existing constraints if the new one is tighter
+                            existing_min, existing_max = relax_range_constraints[relax_tir_var]
+
+                            # Update min: take the max of lower bounds (None means -inf)
+                            if existing_min is None:
+                                new_min = min_val
+                            elif min_val is None:
+                                new_min = existing_min
+                            else:
+                                new_min = max(existing_min, min_val)
+
+                            # Update max: take the min of upper bounds (None means +inf)
+                            if existing_max is None:
+                                new_max = max_val
+                            elif max_val is None:
+                                new_max = existing_max
+                            else:
+                                new_max = min(existing_max, max_val)
+
+                            relax_range_constraints[relax_tir_var] = (new_min, new_max)
+                # else:
+                    # TODO: Handle complex expressions (e.g., s0 + 1) for advanced support
+                    # print(f"Skipping complex constraint expression: {torch_sym_expr}")
+
+        return parameters_buffers_constants, user_inputs, relax_range_constraints
 
     def from_exported_program(
         self,
@@ -546,15 +593,35 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         """Convert a PyTorch ExportedProgram to a Relax program."""
         from torch import fx  # type: ignore
 
-        # Create input variables.
-        parameter_buffer_constant_vars, user_input_vars = self.create_input_vars(exported_program)
+        # Create input variables and get range constraints.
+        parameter_buffer_constant_vars, user_input_vars, relax_range_constraints = self.create_input_vars(exported_program)
         inputs_vars = user_input_vars.copy()
         inputs_vars.update(parameter_buffer_constant_vars)
 
         # Initialize the block builder with a function and a dataflow block.
         self.block_builder = relax.BlockBuilder()
         func_name = "main"
-        func_attrs = {"num_input": len(user_input_vars)} if keep_params_as_input else None
+
+        # Prepare function attributes
+        func_attrs = {"num_input": len(user_input_vars)} if keep_params_as_input else {}
+
+        # NEW: Add range constraints to function attributes if they exist
+        if relax_range_constraints:
+            lower_bounds = {}
+            upper_bounds = {}
+            for tir_var, (min_val, max_val) in relax_range_constraints.items():
+                if min_val is not None:
+                    lower_bounds[tir_var] = tvm.tir.IntImm("int64", min_val)
+                if max_val is not None:
+                    upper_bounds[tir_var] = tvm.tir.IntImm("int64", max_val)
+
+            if lower_bounds:
+                func_attrs["tir_var_lower_bound"] = lower_bounds
+            if upper_bounds:
+                func_attrs["tir_var_upper_bound"] = upper_bounds
+
+        # Use None if func_attrs is empty, otherwise use the dictionary
+        final_func_attrs = func_attrs if func_attrs else None
 
         nodes: List[fx.Node] = exported_program.graph.nodes
 
@@ -562,7 +629,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         self._check_unsupported_func_type(nodes)
 
         with self.block_builder.function(
-            name=func_name, params=list(inputs_vars.values()).copy(), attrs=func_attrs
+            name=func_name, params=list(inputs_vars.values()).copy(), attrs=final_func_attrs
         ):
             output = None
             with self.block_builder.dataflow():
