@@ -1426,12 +1426,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dtype = x.struct_info.dtype
         value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
         return self.block_builder.emit(relax.op.full(x.struct_info.shape, value, dtype))
-    
+
     def _fill_inplace(self, node: fx.Node) -> relax.Var:
         target_tensor = self.env[node.args[0]]
         fill_value = relax.const(node.args[1])
         dtype = target_tensor.struct_info.dtype
-        filled_tensor = self.block_builder.emit(relax.op.full_like(target_tensor, fill_value, dtype))
+        filled_tensor = self.block_builder.emit(
+            relax.op.full_like(target_tensor, fill_value, dtype)
+        )
         self.env[node.args[0]] = filled_tensor
         return filled_tensor
 
@@ -1647,7 +1649,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         output = self.block_builder.emit(relax.op.zeros_like(x))
         self.env[node.args[0]] = output
         return output
-    
+
     def _zeros_like(self, node: fx.node) -> relax.Var:
         x = self.env[node.args[0]]
         return self.block_builder.emit(relax.op.zeros_like(x))
