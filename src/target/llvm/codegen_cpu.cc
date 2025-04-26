@@ -123,7 +123,9 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   // Defined in include/tvm/ffi/c_api.h:
   // void TVMFFISetLastErrorCStr(const char *kind, const char* msg);
   ftype_tvm_ffi_set_last_error_c_str_ = llvm::FunctionType::get(
-      t_void_, {llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(t_char_, 0)}, false);
+      t_void_,
+      {llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(t_char_, 0)},
+      false);
   // Defined in include/tvm/runtime/c_backend_api.h:
   // int TVMBackendGetFuncFromEnv(void* mod_node, const char* func_name, TVMFunctionHandle* out);
   ftype_tvm_get_func_from_env_ = llvm::FunctionType::get(
@@ -1067,7 +1069,8 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
 #else
   auto err_callee = RuntimeTVMFFISetLastErrorCStr();
 #endif
-  builder_->CreateCall(err_callee, {GetConstString("RuntimeError"), msg});
+  builder_->CreateCall(
+      err_callee, {GetConstString("RuntimeError"), msg, llvm::Constant::getNullValue(t_char_)});
   builder_->CreateRet(ConstInt32(-1));
   // otherwise set it to be new end.
   builder_->SetInsertPoint(end_block);

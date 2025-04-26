@@ -403,7 +403,7 @@ Any TargetInternal::ParseType(const std::string& str, const TargetKindNode::Valu
         result.push_back(parsed);
       } catch (const Error& e) {
         std::string index = "[" + std::to_string(result.size()) + "]";
-        throw Error(e->kind, index + e->message, e->backtrace);
+        throw Error(e->kind, std::string(e->message) + index, e->traceback);
       }
     }
     return Array<ObjectRef>(result);
@@ -449,7 +449,7 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
         result.push_back(TargetInternal::ParseType(e, *info.key));
       } catch (const Error& e) {
         std::string index = '[' + std::to_string(result.size()) + ']';
-        throw Error(e->kind, index + e->message, e->backtrace);
+        throw Error(e->kind, index + e->message, e->traceback);
       }
     }
     return Array<ObjectRef>(result);
@@ -462,14 +462,14 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
       try {
         key = TargetInternal::ParseType(kv.first, *info.key);
       } catch (const Error& e) {
-        throw Error(e->kind, e->message + ", during parse key of map", e->backtrace);
+        throw Error(e->kind, std::string(e->message) + ", during parse key of map", e->traceback);
       }
       try {
         val = TargetInternal::ParseType(kv.second, *info.val);
       } catch (const Error& e) {
         std::ostringstream os;
         os << ", during parseing value of map[\"" << key << "\"]";
-        throw Error(e->kind, e->message + os.str(), e->backtrace);
+        throw Error(e->kind, std::string(e->message) + os.str(), e->traceback);
       }
       result[key] = val;
     }
@@ -577,7 +577,7 @@ Target::Target(const String& tag_or_config_or_target_str) {
   } catch (const Error& e) {
     std::ostringstream os;
     os << ". Target creation from string failed: " << tag_or_config_or_target_str;
-    throw Error("ValueError", e->message + os.str(), e->backtrace);
+    throw Error("ValueError", std::string(e->message) + os.str(), e->traceback);
   }
   data_ = std::move(target);
 }
@@ -589,7 +589,7 @@ Target::Target(const Map<String, ffi::Any>& config) {
   } catch (const Error& e) {
     std::ostringstream os;
     os << ". Target creation from config dict failed: " << config;
-    throw Error("ValueError", e->message + os.str(), e->backtrace);
+    throw Error("ValueError", std::string(e->message) + os.str(), e->traceback);
   }
   data_ = std::move(target);
 }
@@ -819,8 +819,8 @@ ObjectPtr<Object> TargetInternal::FromRawString(const String& target_str) {
       std::string s_next = (iter + 1 < options.size()) ? options[iter + 1] : "";
       iter += ParseKVPair(RemovePrefixDashes(options[iter]), s_next, &key, &value);
     } catch (const Error& e) {
-      throw Error(e->kind, e->message + ", during parsing target `" + target_str + "`",
-                  e->backtrace);
+      throw Error(e->kind, std::string(e->message) + ", during parsing target `" + target_str + "`",
+                  e->traceback);
     }
     try {
       // check if `key` has been used
@@ -829,7 +829,8 @@ ObjectPtr<Object> TargetInternal::FromRawString(const String& target_str) {
       }
       config[key] = TargetInternal::ParseType(value, TargetInternal::FindTypeInfo(kind, key));
     } catch (const Error& e) {
-      throw Error(e->kind, e->message + ", during parsing target[\"" + key + "\"]", e->backtrace);
+      throw Error(e->kind, std::string(e->message) + ", during parsing target[\"" + key + "\"]",
+                  e->traceback);
     }
   }
   return TargetInternal::FromConfig(config);
@@ -935,7 +936,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
       const TargetKindNode::ValueTypeInfo& info = TargetInternal::FindTypeInfo(target->kind, key);
       attrs[key] = TargetInternal::ParseType(value, info);
     } catch (const Error& e) {
-      throw Error(e->kind, e->message + ", during parsing target[\"" + key + "\"]", e->backtrace);
+      throw Error(e->kind, std::string(e->message) + ", during parsing target[\"" + key + "\"]",
+                  e->traceback);
     }
   }
 

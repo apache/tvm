@@ -32,6 +32,14 @@ def _set_func_convert_to_object(func):
     _FUNC_CONVERT_TO_OBJECT = func
 
 
+class ObjectGeneric:
+    """Base class for all classes that can be converted to object."""
+
+    def asobject(self):
+        """Convert value to object"""
+        raise NotImplementedError()
+
+
 cdef class Object:
     """Base class of all TVM FFI objects.
     """
