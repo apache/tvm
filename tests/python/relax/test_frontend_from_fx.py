@@ -3451,7 +3451,7 @@ def test_meshgrid():
     class Meshgrid2(Module):
         def forward(self, input1, input2):
             return torch.meshgrid((input1, input2), indexing='xy')
-    
+
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -3471,7 +3471,7 @@ def test_meshgrid():
                 gv: R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")) = lv
                 R.output(gv)
             return gv
-    
+
     verify_model(Meshgrid1(), input_infos, {}, expected1)
     verify_model(Meshgrid2(), input_infos, {}, expected2)
 

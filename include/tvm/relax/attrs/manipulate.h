@@ -203,7 +203,7 @@ struct MeshgridAttrs : public tvm::AttrsNode<MeshgridAttrs> {
   TVM_DECLARE_ATTRS(MeshgridAttrs, "relax.attrs.MeshgridAttrs") {
     TVM_ATTR_FIELD(indexing).describe("Specifies how the grid dimensions are ordered.");
   }
-}; 
+};
 
 /*! \brief Attributes used in scatter_elements operators */
 struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {

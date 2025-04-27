@@ -3510,7 +3510,7 @@ def test_meshgrid_infer_struct_info():
     t2 = relax.Var("t2", R.Tensor("float32", ndim=1))
     t3 = relax.Var("t3", R.Tensor((5,), "float32", vdev0))
     t4 = relax.Var("t4", R.Tensor("float32"))
-    
+
     _check_inference(
         bb,
         relax.op.meshgrid((t0, t1), indexing="ij"),
@@ -3519,7 +3519,7 @@ def test_meshgrid_infer_struct_info():
             relax.TensorStructInfo((3, 4), "float32")
         ])
     )
-    
+
     _check_inference(
         bb,
         relax.op.meshgrid((t3, t1), indexing="ij"),
@@ -3528,7 +3528,7 @@ def test_meshgrid_infer_struct_info():
             relax.TensorStructInfo((5, 4), "float32", vdev0)
         ])
     )
-    
+
     _check_inference(
         bb,
         relax.op.meshgrid((t2, t1), indexing="xy"),
@@ -3537,7 +3537,7 @@ def test_meshgrid_infer_struct_info():
             relax.TensorStructInfo(dtype="float32", ndim=2)
         ])
     )
-    
+
     _check_inference(
         bb,
         relax.op.meshgrid((t4, t1), indexing="ij"),

@@ -1153,12 +1153,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         args = self.retrieve_args(node)
         indices = args[1]
         return self.block_builder.emit(relax.op.index_tensor(args[0], indices))
-    
+
     def _meshgrid(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         indexing = args[1] if len(node.args) > 1 else node.kwargs.get("indexing", "ij")
         input_list = args[0]
-        
+
         # Single input: return as-is, meshgrid not applicable.
         if len(input_list) == 1:
             return input_list
