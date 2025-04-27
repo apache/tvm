@@ -1653,6 +1653,7 @@ operator_binary_1 = [
     (operator.mul, R.multiply),
     (operator.truediv, R.divide),
     (operator.floordiv, R.floor_divide),
+    (torch.ops.aten.fmod, R.mod),
     (operator.pow, R.power),
     (operator.mod, R.floor_mod),
 ]

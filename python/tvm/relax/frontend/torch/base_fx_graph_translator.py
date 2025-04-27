@@ -409,6 +409,20 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return convert
 
+    def _fmod(self, node: fx.Node):
+        args = self.retrieve_args(node)
+        lhs = args[0]
+        rhs = args[1]
+        if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
+            return self.block_builder.emit(relax.op.mod(lhs, rhs))
+        elif isinstance(lhs, relax.Expr):
+            rhs = relax.const(rhs, lhs.struct_info.dtype)
+        elif isinstance(rhs, relax.Expr):
+            lhs = relax.const(lhs, rhs.struct_info.dtype)
+        else:
+            assert False
+        return self.block_builder.emit(relax.op.mod(lhs, rhs))
+
     def _rsub(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         lhs = args[0]
