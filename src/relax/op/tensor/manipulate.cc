@@ -2098,7 +2098,7 @@ TVM_REGISTER_OP("relax.index_put")
 /* relax.meshgrid */
 TVM_REGISTER_NODE_TYPE(MeshgridAttrs);
 
-Expr meshgrid(Expr tensors, Optional<String> indexing = String("ij")) {
+Expr meshgrid(Expr tensors, Optional<String> indexing) {
   ObjectPtr<MeshgridAttrs> attrs = make_object<MeshgridAttrs>();
   attrs->indexing = indexing;
   static const Op& op = Op::Get("relax.meshgrid");
