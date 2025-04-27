@@ -1920,7 +1920,7 @@ class Expand(OnnxOpConverter):
             # ONNX Expand operator requires preserving target rank and broadcasting
             # according to standard rules. Dimensions are right-aligned.
             data_shape = [dim.value for dim in data.struct_info.shape]
-            
+
             # Right-align the shapes
             if len(new_shape) > len(data_shape):
                 data_shape = [1] * (len(new_shape) - len(data_shape)) + data_shape

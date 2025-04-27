@@ -1696,7 +1696,7 @@ def test_expand(dynamic):
         in_shape = (3, 1)
         shape = (1, 1, 3, 1)
         data = np.random.uniform(size=in_shape).astype(np.float32)
-        ref_data = np.tile(data, (1,1,1,1))
+        ref_data = np.tile(data, (1, 1, 1, 1))
         _test_expand("expand_with_the_same_suffix_dims", data, shape, ref_data)
     else:
         in_shape = (1, 32, 32)
