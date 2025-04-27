@@ -24,8 +24,8 @@
 #include <tvm/ffi/container/ndarray.h>
 #include <tvm/ffi/function.h>
 
-int TVMFFINDArrayFromDLPack(DLManagedTensor* from, int64_t min_alignment,
-                            int64_t require_contiguous, TVMFFIObjectHandle* out) {
+int TVMFFINDArrayFromDLPack(DLManagedTensor* from, int32_t min_alignment,
+                            int32_t require_contiguous, TVMFFIObjectHandle* out) {
   TVM_FFI_SAFE_CALL_BEGIN();
   tvm::ffi::NDArray nd =
       tvm::ffi::NDArray::FromDLPack(from, static_cast<size_t>(min_alignment), require_contiguous);
