@@ -232,6 +232,14 @@ Expr index_tensor(Expr data, Expr indices);
 Expr index_put(Expr data, Expr indices, Expr values, bool accumulate = false);
 
 /*!
+ * \brief Generate coordinate grids from input 1D tensors.
+ * \param tensors A tuple of 1D tensors representing coordinate vectors.
+ * \param indexing Indexing mode, either "ij" (matrix indexing) or "xy" (Cartesian indexing).
+ * \return A tuple of tensors representing the coordinate grids.
+ */
+Expr meshgrid(Expr tensors, Optional<String> indexing = String("ij"));
+
+/*!
  * \brief Scatter updates into an array according to indices.
  * \param data The input tensor.
  * \param indices The index positions to update in `data`.

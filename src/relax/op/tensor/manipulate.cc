@@ -2095,6 +2095,110 @@ TVM_REGISTER_OP("relax.index_put")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoIndexPut)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.meshgrid */
+TVM_REGISTER_NODE_TYPE(MeshgridAttrs);
+
+Expr meshgrid(Expr tensors, Optional<String> indexing = String("ij")) {
+  ObjectPtr<MeshgridAttrs> attrs = make_object<MeshgridAttrs>();
+  attrs->indexing = indexing;
+  static const Op& op = Op::Get("relax.meshgrid");
+  return Call(op, {std::move(tensors)}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.meshgrid").set_body_typed(meshgrid);
+
+StructInfo InferStructInfoMeshgrid(const Call& call, const BlockBuilder& ctx) {
+
+  if (call->args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "meshgrid op expects 1 Tuple input argument.");
+  }
+  Array<TensorStructInfo> input_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[0]);
+
+  int n_inputs = input_sinfo.size();
+
+  if (n_inputs == 0) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "meshgrid expects at least one 1D tensor in the input Tuple.");
+  }
+
+  std::vector<PrimExpr> lengths;
+  DataType common_dtype = DataType::Void();
+  bool shape_unknown = false;
+  Optional<VDevice> vdev = NullOpt;
+  bool vdevice_unknown = false;
+
+  for (int i = 0; i < n_inputs; ++i) {
+    const TensorStructInfo& sinfo = input_sinfo[i];
+
+    if (sinfo->ndim != 1) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "meshgrid expects each input tensor to be 1D. Got ndim = "
+                       << sinfo->ndim << " at index " << i);
+    }
+
+    if (sinfo->dtype.is_void()) {
+      continue;
+    } else if (common_dtype.is_void()) {
+      common_dtype = sinfo->dtype;
+    } else if (sinfo->dtype != common_dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "meshgrid expects all input tensors to have the same dtype. Found "
+                       << sinfo->dtype << " and " << common_dtype);
+    }
+
+    const auto* shape_expr = sinfo->shape.as<ShapeExprNode>();
+    if (shape_expr && shape_expr->values.size() == 1) {
+      lengths.push_back(shape_expr->values[0]);
+    } else {
+      shape_unknown = true;
+    }
+
+    if (!vdevice_unknown) {
+      if (sinfo->vdevice.defined()) {
+        if (!vdev.defined()) {
+          vdev = sinfo->vdevice.value();
+        } else if (sinfo->vdevice.value() != vdev) {
+          vdevice_unknown = true;
+        }
+      }
+    }
+  }
+
+  Array<PrimExpr> out_shape;
+  if (!shape_unknown && lengths.size() == static_cast<size_t>(n_inputs)) {
+    for (const PrimExpr& dim : lengths) {
+      out_shape.push_back(dim);
+    }
+  }
+
+  Array<StructInfo> out_fields;
+  for (int i = 0; i < n_inputs; ++i) {
+    if (!out_shape.empty()) {
+      if (!vdevice_unknown) {
+        out_fields.push_back(TensorStructInfo(ShapeExpr(out_shape), common_dtype, vdev));
+      } else {
+        out_fields.push_back(TensorStructInfo(ShapeExpr(out_shape), common_dtype));
+      }
+    } else {
+      if (!vdevice_unknown) {
+        out_fields.push_back(TensorStructInfo(common_dtype, n_inputs, vdev));
+      } else {
+        out_fields.push_back(TensorStructInfo(common_dtype, n_inputs));
+      }
+    }
+  }
+
+  return TupleStructInfo(out_fields);
+}
+
+TVM_REGISTER_OP("relax.meshgrid")
+    .set_attrs_type<MeshgridAttrs>()
+    .set_num_inputs(1)
+    .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMeshgrid)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.scatter_elements */
 TVM_REGISTER_NODE_TYPE(ScatterElementsAttrs);
 

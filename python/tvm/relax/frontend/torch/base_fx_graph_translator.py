@@ -1153,6 +1153,26 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         args = self.retrieve_args(node)
         indices = args[1]
         return self.block_builder.emit(relax.op.index_tensor(args[0], indices))
+    
+    def _meshgrid(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        indexing = args[1] if len(node.args) > 1 else node.kwargs.get("indexing", "ij")
+        input_list = args[0]
+        
+        # Single input: return as-is, meshgrid not applicable.
+        if len(input_list) == 1:
+            return input_list
+        new_inputs = []
+        for i, item in enumerate(input_list):
+            if item.struct_info.ndim==1:
+                new_inputs.append(item)
+            elif item.struct_info.ndim==0: # Change scalar value into 1D
+                const_tensor = relax.op.reshape(item, (1,))
+                new_inputs.append(const_tensor)
+            else:
+                raise TypeError(f"Unsupported meshgrid input type at index {i}: {type(item)}")
+
+        return self.block_builder.emit(relax.op.meshgrid(new_inputs, indexing=indexing))
 
     def _permute(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
