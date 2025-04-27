@@ -890,7 +890,7 @@ inline bool Object::IsInstance() const {
       // The condition will be optimized by constant-folding.
       if (TargetType::_type_child_slots != 0) {
         uint32_t end = begin + TargetType::_type_child_slots;
-        if (self->type_index_ >= begin && self->type_index_ < end) return true;
+        if (self->type_index_ >= begin && self->type_index_ <= end) return true;
       } else {
         if (self->type_index_ == begin) return true;
       }
