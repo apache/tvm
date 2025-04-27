@@ -48,3 +48,6 @@ def convert(value: Any) -> Any:
         return None
     else:
         raise TypeError(f"don't know how to convert type {type(value)} to object")
+
+
+core._set_func_convert_to_object(convert)

@@ -29,6 +29,7 @@ from .string import String, Bytes
 from .error import register_error
 from .ndarray import Device, device
 from .ndarray import cpu, cuda, rocm, opencl, metal, vpi, vulkan, ext_dev, hexagon, webgpu
+from .ndarray import from_dlpack, NDArray
 
 __all__ = [
     "dtype",
@@ -54,4 +55,6 @@ __all__ = [
     "ext_dev",
     "hexagon",
     "webgpu",
+    "from_dlpack",
+    "NDArray",
 ]

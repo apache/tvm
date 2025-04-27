@@ -23,7 +23,10 @@ cdef inline object make_ret(TVMFFIAny result):
    # TODO: Implement
     cdef int32_t type_index
     type_index = result.type_index
-    if type_index >= kTVMFFIStaticObjectBegin:
+    if type_index == kTVMFFINDArray:
+        # specially handle NDArray as it needs a special dltensor field
+        return make_ndarray_from_any(result)
+    elif type_index >= kTVMFFIStaticObjectBegin:
         return make_ret_object(result)
     elif type_index == kTVMFFINone:
         return None
@@ -42,7 +45,7 @@ cdef inline object make_ret(TVMFFIAny result):
     elif type_index == kTVMFFIDLTensorPtr:
         return make_ret_dltensor(result)
     elif type_index == kTVMFFIObjectRValueRef:
-        raise NotImplementedError()
+        raise ValueError("Return value cannot be ObjectRValueRef")
     elif type_index == kTVMFFIByteArrayPtr:
         raise ValueError("Return value cannot be ByteArrayPtr")
     elif type_index == kTVMFFIRawStr:
@@ -58,7 +61,14 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
         if sizeof(void*) != 8:
             out[i].v_int64 = 0
 
-        if isinstance(arg, Object):
+        if isinstance(arg, NDArray):
+            if (<Object>arg).chandle != NULL:
+                out[i].type_index = kTVMFFINDArray
+                out[i].v_ptr = (<NDArray>arg).chandle
+            else:
+                out[i].type_index = kTVMFFIDLTensorPtr
+                out[i].v_ptr = (<NDArray>arg).cdltensor
+        elif isinstance(arg, Object):
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
             out[i].v_ptr = (<Object>arg).chandle
         elif isinstance(arg, PyNativeObject):

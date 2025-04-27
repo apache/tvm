@@ -15,12 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from tvm import ffi as tvm_ffi
+import numpy as np
 
-include "./base.pxi"
-include "./dtype.pxi"
-include "./device.pxi"
-include "./object.pxi"
-include "./error.pxi"
-include "./string.pxi"
-include "./ndarray.pxi"
-include "./function.pxi"
+
+def test_ndarray_attributes():
+    data = np.zeros((10, 8, 4, 2), dtype="int16")
+    x = tvm_ffi.from_dlpack(data)
+    assert isinstance(x, tvm_ffi.NDArray)
+    assert x.shape == (10, 8, 4, 2)
+    assert x.dtype == tvm_ffi.dtype("int16")
+    assert x.device.device_type == tvm_ffi.Device.kDLCPU
+    assert x.device.device_id == 0
+    x2 = np.from_dlpack(x)
+    np.testing.assert_equal(x2, data)

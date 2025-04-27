@@ -56,7 +56,8 @@ cdef class Object:
     cdef void* chandle
 
     def __dealloc__(self):
-        CHECK_CALL(TVMFFIObjectFree(self.chandle))
+        if self.chandle != NULL:
+            CHECK_CALL(TVMFFIObjectFree(self.chandle))
 
     def __init_handle_by_constructor__(self, fconstructor, *args):
         """Initialize the handle by calling constructor function.

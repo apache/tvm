@@ -19,7 +19,8 @@ from libc.stdint cimport int32_t, int64_t, uint64_t, uint32_t, uint8_t, int16_t
 from libc.string cimport memcpy
 from libcpp.vector cimport vector
 from cpython.bytes cimport PyBytes_AsStringAndSize, PyBytes_FromStringAndSize, PyBytes_AsString
-from cpython cimport Py_INCREF, Py_DECREF, PyErr_CheckSignals
+from cpython cimport Py_INCREF, Py_DECREF, PyErr_CheckSignals, PyCapsule_Destructor
+from cpython cimport pycapsule
 
 
 # Cython binding for TVM FFI C API
@@ -69,10 +70,21 @@ cdef extern from "tvm/ffi/c_api.h":
         int64_t* strides
         uint64_t byte_offset
 
+    ctypedef struct DLPackVersion:
+        uint32_t major
+        uint32_t minor
+
     ctypedef struct DLManagedTensor:
         DLTensor dl_tensor
         void* manager_ctx
         void (*deleter)(DLManagedTensor* self)
+
+    ctypedef struct DLManagedTensorVersioned:
+        DLPackVersion version
+        DLManagedTensor dl_tensor
+        void* manager_ctx
+        void (*deleter)(DLManagedTensorVersioned* self)
+        uint64_t flags
 
     ctypedef struct TVMFFIObject:
         int32_t type_index
@@ -121,9 +133,20 @@ cdef extern from "tvm/ffi/c_api.h":
     int TVMFFIDataTypeFromString(const char* str, DLDataType* out) nogil
     int TVMFFIDataTypeToString(DLDataType dtype, TVMFFIObjectHandle* out) nogil
     const char* TVMFFITraceback(const char* filename, int lineno, const char* func) nogil;
+    int TVMFFINDArrayFromDLPack(DLManagedTensor* src, int32_t require_alignment,
+                                int32_t require_contiguous, TVMFFIObjectHandle* out) nogil
+    int TVMFFINDArrayFromDLPackVersioned(DLManagedTensorVersioned* src,
+                                        int32_t require_alignment,
+                                        int32_t require_contiguous,
+                                        TVMFFIObjectHandle* out) nogil
+    int TVMFFINDArrayToDLPack(TVMFFIObjectHandle src, DLManagedTensor** out) nogil
+    int TVMFFINDArrayToDLPackVersioned(TVMFFIObjectHandle src,
+                                        DLManagedTensorVersioned** out) nogil
     TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) nogil
     TVMFFIErrorInfo* TVMFFIErrorGetErrorInfoPtr(TVMFFIObjectHandle obj) nogil
+    DLTensor* TVMFFINDArrayGetDLTensorPtr(TVMFFIObjectHandle obj) nogil
     DLDevice TVMFFIDLDeviceFromIntPair(int32_t device_type, int32_t device_id) nogil
+
 
 cdef inline py_str(const char* x):
     """Convert a c_char_p to a python string

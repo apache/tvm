@@ -16,6 +16,7 @@
 # under the License.
 
 import ctypes
+import numpy as np
 from tvm import ffi as tvm_ffi
 
 
@@ -72,6 +73,15 @@ def test_echo():
     fadd1 = fecho(fadd)
     assert fadd1(1, 2) == 3
     assert fadd1.same_as(fadd)
+
+    x = tvm_ffi.from_dlpack(np.arange(10, dtype="int32"))
+    assert isinstance(x, tvm_ffi.NDArray)
+    nd_result = fecho(x)
+    assert isinstance(nd_result, tvm_ffi.NDArray)
+    assert nd_result.shape == (10,)
+    assert nd_result.dtype == tvm_ffi.dtype("int32")
+    assert nd_result.device.device_type == tvm_ffi.Device.kDLCPU
+    assert nd_result.device.device_id == 0
 
 
 def test_pyfunc_convert():

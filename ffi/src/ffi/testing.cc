@@ -22,6 +22,10 @@
 namespace tvm {
 namespace ffi {
 
+TVM_FFI_REGISTER_GLOBAL("testing.nop").set_body_packed([](PackedArgs args, Any* ret) {
+  *ret = args[0];
+});
+
 TVM_FFI_REGISTER_GLOBAL("testing.echo").set_body_packed([](PackedArgs args, Any* ret) {
   *ret = args[0];
 });

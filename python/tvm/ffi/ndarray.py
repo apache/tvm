@@ -16,7 +16,7 @@
 # under the License.
 
 from . import core
-from .core import Device
+from .core import Device, NDArray, from_dlpack
 
 
 def device(dev_type, dev_id=0):
@@ -210,3 +210,20 @@ def webgpu(dev_id=0):
         The created device
     """
     return device(Device.kDLWebGPU, dev_id)
+
+
+__all__ = [
+    "from_dlpack",
+    "NDArray",
+    "device",
+    "cpu",
+    "cuda",
+    "rocm",
+    "opencl",
+    "metal",
+    "vpi",
+    "vulkan",
+    "ext_dev",
+    "hexagon",
+    "webgpu",
+]
