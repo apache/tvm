@@ -5249,5 +5249,27 @@ def test_norm():
         verify_model(Norm(p, dim=dim, keepdim=keepdim), input_info, {}, expected)
 
 
+def test_bfloat16():
+    # TODO(mshr-h): Add tests for all the dtypes supported in EP frontend
+    class BFloat16Model(Module):
+        def forward(self, lhs: torch.Tensor, rhs: torch.Tensor):
+            return torch.ops.aten.add(lhs, rhs)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((10, 10), dtype="bfloat16"),
+            rhs: R.Tensor((10, 10), dtype="bfloat16"),
+        ) -> R.Tensor((10, 10), dtype="bfloat16"):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="bfloat16") = relax.op.add(lhs, rhs)
+                gv: R.Tensor((10, 10), dtype="bfloat16") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(BFloat16Model(), [([10, 10], "bfloat16"), ([10, 10], "bfloat16")], {}, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
