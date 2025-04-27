@@ -886,7 +886,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     def _pixel_shuffle(self, node: fx.Node) -> relax.Var:
         data = self.env[node.args[0]]
         upscale_factor = node.args[1]
-        assert isinstance(upscale_factor, int), "PixelShuffle only accepts an integer upscale_factor."
+        assert isinstance(
+            upscale_factor, int
+        ), "PixelShuffle only accepts an integer upscale_factor."
 
         return self.block_builder.emit(relax.op.nn.pixel_shuffle(data, upscale_factor))
 
