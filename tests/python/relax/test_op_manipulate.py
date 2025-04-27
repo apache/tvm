@@ -3514,45 +3514,48 @@ def test_meshgrid_infer_struct_info():
     _check_inference(
         bb,
         relax.op.meshgrid((t0, t1), indexing="ij"),
-        relax.TupleStructInfo([
-            relax.TensorStructInfo((3, 4), "float32"),
-            relax.TensorStructInfo((3, 4), "float32")
-        ])
+        relax.TupleStructInfo(
+            [relax.TensorStructInfo((3, 4), "float32"), relax.TensorStructInfo((3, 4), "float32")]
+        ),
     )
 
     _check_inference(
         bb,
         relax.op.meshgrid((t3, t1), indexing="ij"),
-        relax.TupleStructInfo([
-            relax.TensorStructInfo((5, 4), "float32", vdev0),
-            relax.TensorStructInfo((5, 4), "float32", vdev0)
-        ])
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((5, 4), "float32", vdev0),
+                relax.TensorStructInfo((5, 4), "float32", vdev0),
+            ]
+        ),
     )
 
     _check_inference(
         bb,
         relax.op.meshgrid((t2, t1), indexing="xy"),
-        relax.TupleStructInfo([
-            relax.TensorStructInfo(dtype="float32", ndim=2),
-            relax.TensorStructInfo(dtype="float32", ndim=2)
-        ])
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo(dtype="float32", ndim=2),
+                relax.TensorStructInfo(dtype="float32", ndim=2),
+            ]
+        ),
     )
 
     _check_inference(
         bb,
         relax.op.meshgrid((t4, t1), indexing="ij"),
-        relax.TupleStructInfo([
-            relax.TensorStructInfo(dtype="float32", ndim=2),
-            relax.TensorStructInfo(dtype="float32", ndim=2)
-        ])
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo(dtype="float32", ndim=2),
+                relax.TensorStructInfo(dtype="float32", ndim=2),
+            ]
+        ),
     )
 
     _check_inference(
         bb,
         relax.op.meshgrid((t0,), indexing="ij"),
-        relax.TupleStructInfo([
-            relax.TensorStructInfo((3,), "float32")
-        ])
+        relax.TupleStructInfo([relax.TensorStructInfo((3,), "float32")]),
     )
 
 

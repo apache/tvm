@@ -1164,9 +1164,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return input_list
         new_inputs = []
         for i, item in enumerate(input_list):
-            if item.struct_info.ndim==1:
+            if item.struct_info.ndim == 1:
                 new_inputs.append(item)
-            elif item.struct_info.ndim==0: # Change scalar value into 1D
+            elif item.struct_info.ndim == 0:  # Change scalar value into 1D
                 const_tensor = relax.op.reshape(item, (1,))
                 new_inputs.append(const_tensor)
             else:

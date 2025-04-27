@@ -2886,37 +2886,52 @@ def test_flatten():
 def test_meshgrid():
     class Meshgrid1(Module):
         def forward(self, input1, input2):
-            return torch.meshgrid((input1, input2), indexing='ij')
+            return torch.meshgrid((input1, input2), indexing="ij")
 
     class Meshgrid2(Module):
         def forward(self, input1, input2):
-            return torch.meshgrid((input1, input2), indexing='xy')
+            return torch.meshgrid((input1, input2), indexing="xy")
 
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(input1: R.Tensor((3,), dtype="float32"), input2: R.Tensor((3,), dtype="float32")) -> R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")):
+        def main(
+            input1: R.Tensor((3,), dtype="float32"), input2: R.Tensor((3,), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")):
             with R.dataflow():
-                lv: R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")) = R.meshgrid((input1, input2), indexing="ij")
+                lv: R.Tuple(
+                    R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")
+                ) = R.meshgrid((input1, input2), indexing="ij")
                 lv1: R.Tensor((3, 3), dtype="float32") = lv[0]
                 lv2: R.Tensor((3, 3), dtype="float32") = lv[1]
-                gv: R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")) = lv1, lv2
+                gv: R.Tuple(
+                    R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")
+                ) = (lv1, lv2)
                 R.output(gv)
             return gv
 
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(input1: R.Tensor((3,), dtype="float32"), input2: R.Tensor((3,), dtype="float32")) -> R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")):
+        def main(
+            input1: R.Tensor((3,), dtype="float32"), input2: R.Tensor((3,), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")):
             with R.dataflow():
-                lv: R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")) = R.meshgrid((input1, input2), indexing="xy")
+                lv: R.Tuple(
+                    R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")
+                ) = R.meshgrid((input1, input2), indexing="xy")
                 lv1: R.Tensor((3, 3), dtype="float32") = lv[0]
                 lv2: R.Tensor((3, 3), dtype="float32") = lv[1]
-                gv: R.Tuple(R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")) = lv1, lv2
+                gv: R.Tuple(
+                    R.Tensor((3, 3), dtype="float32"), R.Tensor((3, 3), dtype="float32")
+                ) = (lv1, lv2)
                 R.output(gv)
             return gv
 
-    example_args = (torch.randn(3, dtype=torch.float32), torch.randn(3, dtype=torch.float32),)
+    example_args = (
+        torch.randn(3, dtype=torch.float32), 
+        torch.randn(3, dtype=torch.float32),
+    )
     verify_model(Meshgrid1(), example_args, {}, expected1)
     verify_model(Meshgrid2(), example_args, {}, expected2)
 

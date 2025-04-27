@@ -229,7 +229,9 @@ def _meshgrid(bb: BlockBuilder, call: Call) -> Expr:
     fields = (
         t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )
-    return bb.call_te(topi.meshgrid, fields, "ij" if call.attrs.indexing is None else call.attrs.indexing)
+    return bb.call_te(
+        topi.meshgrid, fields, "ij" if call.attrs.indexing is None else call.attrs.indexing
+    )
 
 
 @register_legalize("relax.scatter_elements")
