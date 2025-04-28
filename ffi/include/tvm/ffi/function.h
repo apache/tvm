@@ -744,6 +744,78 @@ class Function::Registry {
     return Register(Function::FromUnpacked(f, name_));
   }
 
+
+  /*!
+   * \brief set the body of the function to be the passed method pointer.
+   *        Note that this will ignore default arg values and always require all arguments to be
+   * provided.
+   *
+   * \code
+   *
+   * // objectRef subclass:
+   * struct Example : ObjectRef{
+   *    int DoThing(int x);
+   * }
+   * TVM_FFI_REGISTER_GLOBAL("Example_DoThing")
+   * .set_body_method(&Example::DoThing); // will have type int(self, int)
+   *
+   * // Object subclass:
+   * struct Example : Object{
+   *    int DoThing(int x);
+   * }
+   *
+   * TVM_FFI_REGISTER_GLOBAL("Example_DoThing")
+   * .set_body_method(&Example::DoThing); // will have type int(self, int)
+   *
+   * \endcode
+   *
+   * \param f the method pointer to forward to.
+   * \tparam T the type containing the method (inferred).
+   * \tparam R the return type of the function (inferred).
+   * \tparam Args the argument types of the function (inferred).
+   */
+  template <typename T, typename R, typename... Args>
+  Registry& set_body_method(R (T::*f)(Args...)) {
+   static_assert(std::is_base_of_v<ObjectRef, T> || std::is_base_of_v<Object, T>,
+                  "T must be derived from ObjectRef or Object");
+    if constexpr (std::is_base_of_v<ObjectRef, T>) {
+      auto fwrap = [f](T target, Args... params) -> R {
+        // call method pointer
+        return (target.*f)(params...);
+      };
+      return Register(ffi::Function::FromUnpacked(fwrap, name_));
+    }
+    if constexpr (std::is_base_of_v<Object, T>) {
+      auto fwrap = [f](const T* target, Args... params) -> R {
+        // call method pointer
+        return (const_cast<T*>(target)->*f)(params...);
+      };
+      return Register(ffi::Function::FromUnpacked(fwrap, name_));
+    }
+    return *this;
+  }
+
+  template <typename T, typename R, typename... Args>
+  Registry& set_body_method(R (T::*f)(Args...) const) {
+    static_assert(std::is_base_of_v<ObjectRef, T> || std::is_base_of_v<Object, T>,
+                  "T must be derived from ObjectRef or Object");
+    if constexpr (std::is_base_of_v<ObjectRef, T>) {
+      auto fwrap = [f](const T target, Args... params) -> R {
+        // call method pointer
+        return (target.*f)(params...);
+      };
+      return Register(ffi::Function::FromUnpacked(fwrap, name_));
+    }
+    if constexpr (std::is_base_of_v<Object, T>) {
+      auto fwrap = [f](const T* target, Args... params) -> R {
+        // call method pointer
+        return (target->*f)(params...);
+      };
+      return Register(ffi::Function::FromUnpacked(fwrap, name_));
+    }
+    return *this;
+  }
+
  protected:
   /*!
    * \brief set the body of the function to be f

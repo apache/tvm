@@ -58,6 +58,8 @@ class TIntObj : public TNumberObj {
 
   TIntObj(int64_t value) : value(value) {}
 
+  int64_t GetValue() const { return value; }
+
   static constexpr const char* _type_key = "test.Int";
 
   TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TIntObj, TNumberObj).def_readonly("value", &TIntObj::value);
@@ -66,6 +68,7 @@ class TIntObj : public TNumberObj {
 class TInt : public TNumber {
  public:
   explicit TInt(int64_t value) { data_ = make_object<TIntObj>(value); }
+
 
   TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TInt, TNumber, TIntObj);
 };
