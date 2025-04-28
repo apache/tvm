@@ -219,6 +219,19 @@ Expr gather_nd(Expr data, Expr indices, int batch_dims = 0);
 Expr index_tensor(Expr data, Expr indices);
 
 /*!
+ * \brief Put values into an array according to indices.
+ * \param data The input tensor to be modified.
+ * \param indices The index positions where values should be placed.
+ *                This should be a tuple of 1D tensors (one for each dimension).
+ * \param values The values to place at the specified indices.
+ * \param accumulate Whether to accumulate (add) values rather than replace.
+ *                  If true, equivalent to tensor[indices] += values.
+ *                  If false, equivalent to tensor[indices] = values.
+ * \return The computed result with values placed at specified indices.
+ */
+Expr index_put(Expr data, Expr indices, Expr values, bool accumulate = false);
+
+/*!
  * \brief Scatter updates into an array according to indices.
  * \param data The input tensor.
  * \param indices The index positions to update in `data`.

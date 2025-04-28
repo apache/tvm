@@ -595,6 +595,57 @@ def index_tensor(data: Expr, indices: Union[Expr, List[Expr]]) -> Expr:
     return _ffi_api.index_tensor(data, indices)  # type: ignore
 
 
+def index_put(
+    data: Expr,
+    indices: Union[Expr, Tuple[Expr]],
+    values: Expr,
+    accumulate: bool = False,
+) -> Expr:
+    """This operation updates values in `data` at positions
+    specified by `indices` with corresponding values from `values`. The `indices` is a tuple
+    of tensors where each tensor corresponds to a dimension in `data`.
+    When `accumulate` is True, the operation performs accumulation (addition) rather than
+    replacement. The `reduction` parameter allows specifying different reduction operations.
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor to be modified
+    indices : Union[Expr, Tuple[Expr]]
+        Tuple of index tensors (one for each dimension) specifying positions to update
+    values : relax.Expr
+        Values to place at the specified indices
+    accumulate : bool
+        Whether to accumulate (add) values rather than replace (default: False)
+
+    Returns
+    -------
+    result : relax.Expr
+        A new tensor with the same shape as data but with specified positions updated
+    Examples
+    --------
+    .. code-block:: python
+        # inputs
+        data = torch.zeros(3, 3)
+        indices = (torch.tensor([0, 2]), torch.tensor([1, 1]))
+        values = torch.tensor([1.0, 2.0])
+        # output
+        output = [
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 2.0, 0.0],
+        ]
+        # with accumulate=True
+        output = [
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 3.0, 0.0],
+        ]
+    """
+    if not isinstance(indices, (list, tuple)):
+        indices = RxTuple(indices)
+    return _ffi_api.index_put(data, indices, values, accumulate)  # type: ignore
+
+
 def scatter_elements(
     data: Expr, indices: Expr, updates: Expr, axis: int = 0, reduction: str = "update"
 ):

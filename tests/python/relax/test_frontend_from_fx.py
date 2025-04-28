@@ -1653,8 +1653,9 @@ operator_binary_1 = [
     (operator.mul, R.multiply),
     (operator.truediv, R.divide),
     (operator.floordiv, R.floor_divide),
+    (torch.ops.aten.fmod, R.mod),
     (operator.pow, R.power),
-    (operator.mod, R.mod),
+    (operator.mod, R.floor_mod),
 ]
 
 
@@ -1866,6 +1867,35 @@ def test_rsub():
 
     verify_model(RSub1(), input_info1, {}, expected_rsub1)
     verify_model(RSub2(), input_info2, {}, expected_rsub2)
+
+
+# IsIn
+
+
+def test_isin():
+    input_info = [([10, 10], "float32"), ([8], "float32")]
+
+    class IsInModel(torch.nn.Module):
+        def forward(self, x, test_elements):
+            return torch.isin(x, test_elements)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((10, 10), dtype="float32"), inp_1: R.Tensor((8,), dtype="float32")
+        ) -> R.Tensor((10, 10), dtype="bool"):
+            with R.dataflow():
+                lv: R.Tensor((10, 10, 1), dtype="float32") = R.expand_dims(inp_0, axis=[-1])
+                lv1: R.Tensor((8,), dtype="float32") = R.reshape(inp_1, R.shape([8]))
+                lv2: R.Tensor((10, 10, 8), dtype="bool") = R.equal(lv, lv1)
+                lv3: R.Tensor((10, 10), dtype="bool") = R.sum(lv2, axis=[-1], keepdims=False)
+                lv4: R.Tensor((10, 10), dtype="bool") = R.greater(lv3, R.const(0.0, "float32"))
+                gv: R.Tensor((10, 10), dtype="bool") = lv4
+                R.output(gv)
+            return gv
+
+    verify_model(IsInModel(), input_info, {}, expected)
 
 
 def test_size():
@@ -4404,6 +4434,177 @@ def test_gather():
     verify_model(Gather3(), [([2, 3], "float32"), ([2, 3], "int32")], {}, Expected3)
 
 
+def test_index_put():
+    # Test case 1: 1D input
+    class IndexPut1D(Module):
+        def forward(self, data, indices_0, values):
+            indices_tuple = (indices_0,)
+            return data.index_put_(indices_tuple, values, accumulate=False)
+
+    input_info_1d = [((64,), "float32"), ((128,), "int64"), ((128,), "float32")]
+
+    @I.ir_module
+    class Expected1D:
+        @R.function
+        def main(
+            data: R.Tensor((64,), dtype="float32"),
+            indices_0: R.Tensor((128,), dtype="int64"),
+            values: R.Tensor((128,), dtype="float32"),
+        ) -> R.Tensor((64,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((64,), dtype="float32") = R.index_put(
+                    data, R.tuple(indices_0), values, accumulate=False
+                )
+                gv: R.Tensor((64,), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    # Test case 2: 2D input
+    class IndexPut2D(Module):
+        def forward(self, data, indices_0, indices_1, values):
+            indices_tuple = (indices_0, indices_1)
+            return data.index_put_(indices_tuple, values, accumulate=False)
+
+    input_info_2d = [
+        ((32, 64), "float32"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "float32"),
+    ]
+
+    @I.ir_module
+    class Expected2D:
+        @R.function
+        def main(
+            data: R.Tensor((32, 64), dtype="float32"),
+            indices_0: R.Tensor((128,), dtype="int64"),
+            indices_1: R.Tensor((128,), dtype="int64"),
+            values: R.Tensor((128,), dtype="float32"),
+        ) -> R.Tensor((32, 64), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((32, 64), dtype="float32") = R.index_put(
+                    data, R.tuple(indices_0, indices_1), values, accumulate=False
+                )
+                gv: R.Tensor((32, 64), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    # Test case 3: 3D input
+    class IndexPut3D(Module):
+        def forward(self, data, indices_0, indices_1, indices_2, values):
+            indices_tuple = (indices_0, indices_1, indices_2)
+            return data.index_put_(indices_tuple, values, accumulate=False)
+
+    input_info_3d = [
+        ((16, 32, 64), "float32"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "float32"),
+    ]
+
+    @I.ir_module
+    class Expected3D:
+        @R.function
+        def main(
+            data: R.Tensor((16, 32, 64), dtype="float32"),
+            indices_0: R.Tensor((128,), dtype="int64"),
+            indices_1: R.Tensor((128,), dtype="int64"),
+            indices_2: R.Tensor((128,), dtype="int64"),
+            values: R.Tensor((128,), dtype="float32"),
+        ) -> R.Tensor((16, 32, 64), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((16, 32, 64), dtype="float32") = R.index_put(
+                    data, R.tuple(indices_0, indices_1, indices_2), values, accumulate=False
+                )
+                gv: R.Tensor((16, 32, 64), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    # Test case 4: 4D input
+    class IndexPut4D(Module):
+        def forward(self, data, indices_0, indices_1, indices_2, indices_3, values):
+            indices_tuple = (indices_0, indices_1, indices_2, indices_3)
+            return data.index_put_(indices_tuple, values, accumulate=False)
+
+    input_info_4d = [
+        ((8, 16, 32, 64), "float32"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "float32"),
+    ]
+
+    @I.ir_module
+    class Expected4D:
+        @R.function
+        def main(
+            data: R.Tensor((8, 16, 32, 64), dtype="float32"),
+            indices_0: R.Tensor((128,), dtype="int64"),
+            indices_1: R.Tensor((128,), dtype="int64"),
+            indices_2: R.Tensor((128,), dtype="int64"),
+            indices_3: R.Tensor((128,), dtype="int64"),
+            values: R.Tensor((128,), dtype="float32"),
+        ) -> R.Tensor((8, 16, 32, 64), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((8, 16, 32, 64), dtype="float32") = R.index_put(
+                    data,
+                    R.tuple(indices_0, indices_1, indices_2, indices_3),
+                    values,
+                    accumulate=False,
+                )
+                gv: R.Tensor((8, 16, 32, 64), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    # Test case 5: 5D input
+    class IndexPut5D(Module):
+        def forward(self, data, indices_0, indices_1, indices_2, indices_3, indices_4, values):
+            indices_tuple = (indices_0, indices_1, indices_2, indices_3, indices_4)
+            return data.index_put_(indices_tuple, values, accumulate=False)
+
+    input_info_5d = [
+        ((4, 8, 16, 32, 64), "float32"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "int64"),
+        ((128,), "float32"),
+    ]
+
+    @I.ir_module
+    class Expected5D:
+        @R.function
+        def main(
+            data: R.Tensor((4, 8, 16, 32, 64), dtype="float32"),
+            indices_0: R.Tensor((128,), dtype="int64"),
+            indices_1: R.Tensor((128,), dtype="int64"),
+            indices_2: R.Tensor((128,), dtype="int64"),
+            indices_3: R.Tensor((128,), dtype="int64"),
+            indices_4: R.Tensor((128,), dtype="int64"),
+            values: R.Tensor((128,), dtype="float32"),
+        ) -> R.Tensor((4, 8, 16, 32, 64), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((4, 8, 16, 32, 64), dtype="float32") = R.index_put(
+                    data,
+                    R.tuple(indices_0, indices_1, indices_2, indices_3, indices_4),
+                    values,
+                    accumulate=False,
+                )
+                gv: R.Tensor((4, 8, 16, 32, 64), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    # Run verification for each case
+    verify_model(IndexPut1D(), input_info_1d, {}, Expected1D)
+    verify_model(IndexPut2D(), input_info_2d, {}, Expected2D)
+    verify_model(IndexPut3D(), input_info_3d, {}, Expected3D)
+    verify_model(IndexPut4D(), input_info_4d, {}, Expected4D)
+    verify_model(IndexPut5D(), input_info_5d, {}, Expected5D)
+
+
 def test_flip():
     class Flip0(Module):
         def forward(self, data):
@@ -4504,6 +4705,115 @@ def test_empty_like():
             return gv
 
     verify_model(EmptyLike(), [([5], "float32")], {}, Expected)
+
+
+def test_ones_like():
+    class OnesLike(Module):
+        def forward(self, data):
+            return torch.ones_like(data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((128, 128), dtype="float32")
+        ) -> R.Tensor((128, 128), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.ones_like(inp_0, dtype="void")
+                gv: R.Tensor((128, 128), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(OnesLike(), [([128, 128], "float32")], {}, Expected)
+
+
+def test_zero_inplace():
+    class ZeroInplace(Module):
+        def forward(self, data):
+            return data.zero_()
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((128, 128), dtype="float32")
+        ) -> R.Tensor((128, 128), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0, dtype="void")
+                gv: R.Tensor((128, 128), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(ZeroInplace(), [([128, 128], "float32")], {}, Expected)
+
+
+def test_zeros_like():
+    class ZerosLike(Module):
+        def forward(self, data):
+            return torch.zeros_like(data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((128, 128), dtype="float32")
+        ) -> R.Tensor((128, 128), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0, dtype="void")
+                gv: R.Tensor((128, 128), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(ZerosLike(), [([128, 128], "float32")], {}, Expected)
+
+
+def test_type_as():
+    class TypeAs(Module):
+        def forward(self, data, other):
+            return data.type_as(other)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((128, 128), dtype="float16"),
+            inp_1: R.Tensor((128, 128), dtype="float32"),
+        ) -> R.Tensor((128, 128), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.astype(inp_0, dtype="float32")
+                gv: R.Tensor((128, 128), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(TypeAs(), [([128, 128], "float16"), ([128, 128], "float32")], {}, Expected)
+
+
+def test_item():
+    class Item(Module):
+        def forward(self, data):
+            return data.item()
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(inp_0: R.Tensor((1,), dtype="float32")) -> R.Tensor((), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.take(inp_0, R.const(0, "int64"), axis=0)
+                gv: R.Tensor((), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(
+        Item(),
+        [
+            (
+                [1],
+                "float32",
+            )
+        ],
+        {},
+        Expected,
+    )
 
 
 def test_numel():
@@ -4947,20 +5257,39 @@ def test_norm():
             return gv
 
     norms = [
-        (float("inf"), None, False),
-        (float("-inf"), None, False),
-        (float(2), None, False),
-        (float(1.0), None, False),
-        (float(-4), None, True),
-        (float(0.5), None, True),
-        ("fro", None, False),
+        ((float("inf"), None, False), Expected1),
+        ((float("-inf"), None, False), Expected2),
+        ((float(2), None, False), Expected3),
+        ((float(1.0), None, False), Expected4),
+        ((float(-4), None, True), Expected5),
+        ((float(0.5), None, True), Expected6),
+        (("fro", None, False), Expected7),
     ]
 
-    for norm, expected in zip(
-        norms, [Expected1, Expected2, Expected3, Expected4, Expected5, Expected6, Expected7]
-    ):
-        p, dim, keepdim = norm
+    for (p, dim, keepdim), expected in norms:
         verify_model(Norm(p, dim=dim, keepdim=keepdim), input_info, {}, expected)
+
+
+def test_bfloat16():
+    # TODO(mshr-h): Add tests for all the dtypes supported in EP frontend
+    class BFloat16Model(Module):
+        def forward(self, lhs: torch.Tensor, rhs: torch.Tensor):
+            return torch.ops.aten.add(lhs, rhs)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((10, 10), dtype="bfloat16"),
+            rhs: R.Tensor((10, 10), dtype="bfloat16"),
+        ) -> R.Tensor((10, 10), dtype="bfloat16"):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="bfloat16") = relax.op.add(lhs, rhs)
+                gv: R.Tensor((10, 10), dtype="bfloat16") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(BFloat16Model(), [([10, 10], "bfloat16"), ([10, 10], "bfloat16")], {}, Expected)
 
 
 if __name__ == "__main__":

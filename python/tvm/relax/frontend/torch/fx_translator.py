@@ -132,6 +132,54 @@ class TorchFXImporter(BaseFXGraphImporter):
 
         return convert
 
+    ########## Binary Ops ##############
+
+    def _binary_op_inplace(self, relax_op: Callable, intrinsic_op: Callable) -> Callable:
+        from torch import fx
+
+        def convert(node: fx.Node) -> relax.Var:
+            def promote_binary_op_args(lhs, rhs):
+                if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
+                    return lhs, rhs
+                elif isinstance(lhs, relax.Expr):
+                    assert isinstance(lhs.struct_info, relax.TensorStructInfo)
+                    return lhs, relax.const(rhs, lhs.struct_info.dtype)
+                elif isinstance(rhs, relax.Expr):
+                    assert isinstance(rhs.struct_info, relax.TensorStructInfo)
+                    return relax.const(lhs, rhs.struct_info.dtype), rhs
+                else:
+                    assert False
+
+            def call_binary_op(op, lhs, rhs):
+                lhs, rhs = promote_binary_op_args(lhs, rhs)
+                return self.block_builder.emit(op(lhs, rhs))
+
+            lhs, rhs = self.retrieve_args(node)
+            if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
+                output = call_binary_op(relax_op, lhs, rhs)
+                self.env[node.args[0]] = output
+                return output
+
+            elif isinstance(lhs, relax.expr.Constant):
+                output = call_binary_op(
+                    relax_op, lhs, relax.const(rhs, dtype=lhs.struct_info.dtype)
+                )
+                self.env[node.args[0]] = output
+                return output
+
+            elif isinstance(rhs, relax.expr.Constant):
+                output = call_binary_op(
+                    relax_op, relax.const(lhs, dtype=rhs.struct_info.dtype), rhs
+                )
+                self.env[node.args[0]] = output
+                return output
+
+            output = intrinsic_op(lhs, rhs)
+            self.env[node.args[0]] = output
+            return output
+
+        return convert
+
     ########## Neural Network ##########
 
     def _adaptive_avg_pool2d_module(self, node: fx.Node) -> relax.Var:
@@ -464,15 +512,6 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Creation ##########
 
-    def _inplace_fill(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        x = args[0]
-        dtype = x.struct_info.dtype
-        value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
-        filled = self.block_builder.emit(relax.op.full(x.struct_info.shape, value, dtype))
-        self.env[node.args[0]] = filled
-        return filled
-
     def _inplace_copy(self, node: fx.Node) -> relax.Var:
         src = self.env[node.args[1]]
         self.env[node.args[0]] = src
@@ -642,6 +681,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "hardtanh": self._hardtanh,
             "isfinite": self._unary_op(relax.op.isfinite),
             "isinf": self._unary_op(relax.op.isinf),
+            "isin": self._isin,
             "isnan": self._unary_op(relax.op.isnan),
             "leaky_relu": self._leakyrelu,
             "log": self._unary_op(relax.op.log),
@@ -676,10 +716,11 @@ class TorchFXImporter(BaseFXGraphImporter):
             # binary
             "add": self._binary_op(relax.op.add, operator.add),
             "and_": self._binary_op(relax.op.bitwise_and, operator.and_),
-            "bitwise_or_": self._binary_op(relax.op.bitwise_or, operator.or_),
+            "bitwise_or_": self._binary_op_inplace(relax.op.bitwise_or, operator.or_),
             "bitwise_or": self._binary_op(relax.op.bitwise_or, operator.or_),
             "eq": self._binary_op(relax.op.equal, operator.eq),
             "floordiv": self._binary_op(relax.op.floor_divide, operator.floordiv),
+            "fmod": self._fmod,
             "ge": self._binary_op(relax.op.greater_equal, operator.ge),
             "gt": self._binary_op(relax.op.greater, operator.gt),
             "iadd": self._binary_op(relax.op.add, operator.add),
@@ -691,7 +732,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             ),
             "max": self._binary_op(relax.op.maximum, max),
             "min": self._binary_op(relax.op.minimum, min),
-            "mod": self._binary_op(relax.op.mod, operator.mod),
+            "mod": self._binary_op(relax.op.floor_mod, operator.mod),
             "mul": self._binary_op(relax.op.multiply, operator.mul),
             "ne": self._binary_op(relax.op.not_equal, operator.ne),
             "pow": self._binary_op(relax.op.power, operator.pow),
@@ -750,6 +791,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "flatten": self._flatten,
             "flip": self._flip,
             "gather": self._gather,
+            "index_put_": self._index_put,
             "narrow": self._narrow,
             "numel": self._numel,
             "permute": self._permute,
@@ -776,6 +818,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "clone": lambda node: self.env[node.args[0]],
             "empty": self._empty,
             "empty_like": self._empty_like,
+            "fill": self._fill,
             "fill_": self._inplace_fill,
             "full": self._full,
             "index_select": self._index_select,
@@ -785,7 +828,12 @@ class TorchFXImporter(BaseFXGraphImporter):
             "new_ones": self._new_ones,
             "ones": self._ones,
             "one_hot": self._one_hot,
+            "ones_like": lambda node: self.block_builder.emit(
+                relax.op.ones_like(self.env[node.args[0]])
+            ),
             "tensor": self._tensor,
+            "zero_": self._zeros_inplace,
+            "zeros_like": self._zeros_like,
             "copy_": self._inplace_copy,
             # datatype
             "astype": self._type,
@@ -794,10 +842,12 @@ class TorchFXImporter(BaseFXGraphImporter):
             "is_floating_point": self._is_floating_point,
             "to": self._to,
             "type": self._type,
+            "type_as": self._type_as,
             # other
             "getattr": self._getattr,
             "getitem": self._getitem,
             "sym_size.int": self._sym_size_int,
+            "item": self._item,
         }
 
     def update_convert_map(self, custom_convert_map: dict):
