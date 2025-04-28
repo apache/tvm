@@ -2108,7 +2108,6 @@ Expr meshgrid(Expr tensors, Optional<String> indexing) {
 TVM_REGISTER_GLOBAL("relax.op.meshgrid").set_body_typed(meshgrid);
 
 StructInfo InferStructInfoMeshgrid(const Call& call, const BlockBuilder& ctx) {
-
   if (call->args.size() != 1) {
     ctx->ReportFatal(Diagnostic::Error(call) << "meshgrid op expects 1 Tuple input argument.");
   }
