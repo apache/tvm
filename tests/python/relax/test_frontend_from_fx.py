@@ -5292,5 +5292,23 @@ def test_bfloat16():
     verify_model(BFloat16Model(), [([10, 10], "bfloat16"), ([10, 10], "bfloat16")], {}, Expected)
 
 
+def test_eye():
+    import numpy as np
+
+    class Eye(Module):
+        def forward(self, input):
+            return torch.eye(3)
+
+    graph_model = fx.symbolic_trace(Eye())
+    mod = from_fx(graph_model, [([3, 3], "float32")])
+    assert len(mod["main"].body.blocks) == 1
+    assert len(mod["main"].body.blocks[0].bindings) == 1
+    assert isinstance(mod["main"].body.blocks[0].bindings[0].value, relax.Constant)
+    tvm.testing.assert_allclose(
+        mod["main"].body.blocks[0].bindings[0].value.data.numpy(),
+        np.eye(3, dtype="float32"),
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
