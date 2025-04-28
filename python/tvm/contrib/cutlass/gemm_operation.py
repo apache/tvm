@@ -345,9 +345,8 @@ def instantiate_gemm_template(attrs):
   status = gemm_op.initialize(arguments, workspace.get());
   CHECK(status == cutlass::Status::kSuccess);
 
-  auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-  ICHECK(func != nullptr);
-  cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+  auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+  cudaStream_t stream = static_cast<cudaStream_t>(func().operator void*());
 
   status = gemm_op(stream);
   CHECK(status == cutlass::Status::kSuccess);
@@ -429,9 +428,8 @@ def emit_fp16A_intB_matmul(attrs):
   int n = ${B_arg}->shape[1] * ${float_per_int};
   int k = ${B_arg}->shape[0];
 
-  auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-  ICHECK(func != nullptr);
-  cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+  auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+  cudaStream_t stream = static_cast<cudaStream_t>(func().operator void*());
     """,
         attrs,
     )

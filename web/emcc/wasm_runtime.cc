@@ -102,35 +102,35 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 
 }  // namespace detail
 
-TVM_REGISTER_GLOBAL("testing.echo").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("testing.echo").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   *ret = args[0];
 });
 
-TVM_REGISTER_GLOBAL("testing.call").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("testing.call").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   (args[0].operator PackedFunc()).CallPacked(args.Slice(1), ret);
 });
 
-TVM_REGISTER_GLOBAL("testing.ret_string").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("testing.ret_string").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   *ret = args[0].operator String();
 });
 
-TVM_REGISTER_GLOBAL("testing.log_info_str").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("testing.log_info_str").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   LOG(INFO) << args[0].operator String();
 });
 
-TVM_REGISTER_GLOBAL("testing.log_fatal_str").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("testing.log_fatal_str").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   LOG(FATAL) << args[0].operator String();
 });
 
 TVM_REGISTER_GLOBAL("testing.add_one").set_body_typed([](int x) { return x + 1; });
 
-TVM_REGISTER_GLOBAL("testing.wrap_callback").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("testing.wrap_callback").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   PackedFunc pf = args[0];
   *ret = runtime::TypedPackedFunc<void()>([pf]() { pf(); });
 });
 
 // internal function used for debug and testing purposes
-TVM_REGISTER_GLOBAL("testing.object_use_count").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("testing.object_use_count").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   runtime::ObjectRef obj = args[0];
   // subtract the current one because we always copy
   // and get another value.
@@ -161,19 +161,20 @@ void ArrayDecodeStorage(NDArray cpu_arr, std::string bytes, std::string format, 
 TVM_REGISTER_GLOBAL("tvmjs.array.decode_storage").set_body_typed(ArrayDecodeStorage);
 
 // Concatenate n TVMArrays
-TVM_REGISTER_GLOBAL("tvmjs.runtime.ArrayConcat").set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::vector<Any> data;
-  for (int i = 0; i < args.size(); ++i) {
-    // Get i-th TVMArray
-    auto* arr_i = args[i].as<ArrayObj>();
-    ICHECK(arr_i != nullptr);
-    for (size_t j = 0; j < arr_i->size(); ++j) {
-      // Push back each j-th element of the i-th array
-      data.push_back(arr_i->at(j));
-    }
-  }
-  *ret = Array<Any>(data);
-});
+TVM_REGISTER_GLOBAL("tvmjs.runtime.ArrayConcat")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      std::vector<Any> data;
+      for (int i = 0; i < args.size(); ++i) {
+        // Get i-th TVMArray
+        auto* arr_i = args[i].as<ArrayObj>();
+        ICHECK(arr_i != nullptr);
+        for (size_t j = 0; j < arr_i->size(); ++j) {
+          // Push back each j-th element of the i-th array
+          data.push_back(arr_i->at(j));
+        }
+      }
+      *ret = Array<Any>(data);
+    });
 
 NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
   // Get output shape
@@ -210,14 +211,15 @@ NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
 }
 
 // Concatenate n NDArrays
-TVM_REGISTER_GLOBAL("tvmjs.runtime.ConcatEmbeddings").set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::vector<NDArray> embeddings;
-  for (int i = 0; i < args.size(); ++i) {
-    embeddings.push_back(args[i].operator NDArray());
-  }
-  NDArray result = ConcatEmbeddings(std::move(embeddings));
-  *ret = result;
-});
+TVM_REGISTER_GLOBAL("tvmjs.runtime.ConcatEmbeddings")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      std::vector<NDArray> embeddings;
+      for (int i = 0; i < args.size(); ++i) {
+        embeddings.push_back(args[i].operator NDArray());
+      }
+      NDArray result = ConcatEmbeddings(std::move(embeddings));
+      *ret = result;
+    });
 
 }  // namespace runtime
 }  // namespace tvm

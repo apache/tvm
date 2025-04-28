@@ -34,28 +34,25 @@ TVM_REGISTER_OBJECT_TYPE(DRefObj);
 TVM_REGISTER_OBJECT_TYPE(SessionObj);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionThreaded").set_body_typed(Session::ThreadedSession);
 TVM_REGISTER_GLOBAL("runtime.disco.DRefDebugGetFromRemote")
-    .set_body_method<DRef>(&DRefObj::DebugGetFromRemote);
-TVM_REGISTER_GLOBAL("runtime.disco.DRefDebugCopyFrom")
-    .set_body_method<DRef>(&DRefObj::DebugCopyFrom);
+    .set_body_method(&DRefObj::DebugGetFromRemote);
+TVM_REGISTER_GLOBAL("runtime.disco.DRefDebugCopyFrom").set_body_method(&DRefObj::DebugCopyFrom);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionGetNumWorkers")
-    .set_body_method<Session>(&SessionObj::GetNumWorkers);
+    .set_body_method(&SessionObj::GetNumWorkers);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionGetGlobalFunc")
-    .set_body_method<Session>(&SessionObj::GetGlobalFunc);
+    .set_body_method(&SessionObj::GetGlobalFunc);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionCopyFromWorker0")
-    .set_body_method<Session>(&SessionObj::CopyFromWorker0);
+    .set_body_method(&SessionObj::CopyFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionCopyToWorker0")
-    .set_body_method<Session>(&SessionObj::CopyToWorker0);
-TVM_REGISTER_GLOBAL("runtime.disco.SessionSyncWorker")
-    .set_body_method<Session>(&SessionObj::SyncWorker);
+    .set_body_method(&SessionObj::CopyToWorker0);
+TVM_REGISTER_GLOBAL("runtime.disco.SessionSyncWorker").set_body_method(&SessionObj::SyncWorker);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionInitCCL")  //
-    .set_body_method<Session>(&SessionObj::InitCCL);
+    .set_body_method(&SessionObj::InitCCL);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionCallPacked")
     .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       Session self = args[0];
       *rv = SessionObj::FFI::CallWithPacked(self, args.Slice(1));
     });
-TVM_REGISTER_GLOBAL("runtime.disco.SessionShutdown")
-    .set_body_method<Session>(&SessionObj::Shutdown);
+TVM_REGISTER_GLOBAL("runtime.disco.SessionShutdown").set_body_method(&SessionObj::Shutdown);
 
 }  // namespace runtime
 }  // namespace tvm

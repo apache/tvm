@@ -696,8 +696,7 @@ TVM_REGISTER_GLOBAL("tir.CommReducer")
       return CommReducer(lhs, rhs, result, identity_element, span);
     });
 
-TVM_REGISTER_GLOBAL("tir.CommReducerCombine")
-    .set_body_method<tir::CommReducer>(&tir::CommReducerNode::operator());
+TVM_REGISTER_GLOBAL("tir.CommReducerCombine").set_body_method(&tir::CommReducerNode::operator());
 
 TVM_REGISTER_NODE_TYPE(CommReducerNode);
 

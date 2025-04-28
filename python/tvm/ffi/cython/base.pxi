@@ -117,8 +117,8 @@ cdef extern from "tvm/ffi/c_api.h":
         const char* traceback
 
     ctypedef int (*TVMFFISafeCallType)(
-        void* self, const TVMFFIAny* args, int32_t num_args,
-        TVMFFIAny* result) nogil
+        void* ctx, const TVMFFIAny* args, int32_t num_args,
+        TVMFFIAny* result) noexcept
 
     int TVMFFIObjectFree(TVMFFIObjectHandle obj) nogil
     int TVMFFIObjectGetTypeIndex(TVMFFIObjectHandle obj) nogil

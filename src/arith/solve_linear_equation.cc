@@ -454,19 +454,21 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   return transform;
 }
 
-TVM_REGISTER_GLOBAL("arith.SolveLinearEquations").set_body([](TVMArgs args, TVMRetValue* ret) {
-  if (args.size() == 1) {
-    *ret = SolveLinearEquations(args[0]);
-  } else if (args.size() == 3) {
-    Optional<Array<Var>> opt_vars = args[0];
-    Optional<Map<Var, Range>> opt_map = args[1];
-    Optional<Array<PrimExpr>> opt_relations = args[2];
-    IntConstraints problem(opt_vars.value_or({}), opt_map.value_or({}), opt_relations.value_or({}));
-    *ret = SolveLinearEquations(problem);
-  } else {
-    LOG(FATAL) << "arith.SolveLinearEquations expects 1 or 3 arguments, gets " << args.size();
-  }
-});
+TVM_REGISTER_GLOBAL("arith.SolveLinearEquations")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      if (args.size() == 1) {
+        *ret = SolveLinearEquations(args[0]);
+      } else if (args.size() == 3) {
+        Optional<Array<Var>> opt_vars = args[0];
+        Optional<Map<Var, Range>> opt_map = args[1];
+        Optional<Array<PrimExpr>> opt_relations = args[2];
+        IntConstraints problem(opt_vars.value_or({}), opt_map.value_or({}),
+                               opt_relations.value_or({}));
+        *ret = SolveLinearEquations(problem);
+      } else {
+        LOG(FATAL) << "arith.SolveLinearEquations expects 1 or 3 arguments, gets " << args.size();
+      }
+    });
 
 }  // namespace arith
 }  // namespace tvm

@@ -223,11 +223,10 @@ Array<runtime::Module> TensorRTCompiler(Array<Function> functions, Map<String, f
     std::string graph_json = serializer.GetJSON();
     VLOG(1) << "TensorRT JSON:" << std::endl << graph_json;
     auto constant_names = serializer.GetConstantNames();
-    const auto* pf = runtime::Registry::Get("runtime.tensorrt_runtime_create");
-    ICHECK(pf != nullptr) << "Cannot find TensorRT runtime module create function.";
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.tensorrt_runtime_create");
     std::string func_name = GetExtSymbol(func);
     VLOG(1) << "Creating tensorrt runtime::Module for '" << func_name << "'";
-    compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names));
   }
   return compiled_functions;
 }

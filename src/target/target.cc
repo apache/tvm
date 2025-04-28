@@ -794,9 +794,10 @@ ObjectPtr<Object> TargetInternal::FromString(const String& tag_or_config_or_targ
 }
 
 ObjectPtr<Object> TargetInternal::FromConfigString(const String& config_str) {
-  const auto* loader = tvm::runtime::Registry::Get("target._load_config_dict");
-  ICHECK(loader) << "AttributeError: \"target._load_config_dict\" is not registered. Please check "
-                    "if the python module is properly loaded";
+  const auto loader = tvm::ffi::Function::GetGlobal("target._load_config_dict");
+  ICHECK(loader.has_value())
+      << "AttributeError: \"target._load_config_dict\" is not registered. Please check "
+         "if the python module is properly loaded";
   Optional<Map<String, ffi::Any>> config = (*loader)(config_str);
   if (!config.defined()) {
     TVM_FFI_THROW(ValueError) << "Cannot load config dict with python JSON loader";
@@ -1008,7 +1009,7 @@ std::unordered_map<String, ffi::Any> TargetInternal::QueryDevice(int device_id,
 
 /**********  Registry  **********/
 
-TVM_REGISTER_GLOBAL("target.Target").set_body(TargetInternal::ConstructorDispatcher);
+TVM_REGISTER_GLOBAL("target.Target").set_body_packed(TargetInternal::ConstructorDispatcher);
 TVM_REGISTER_GLOBAL("target.TargetEnterScope").set_body_typed(TargetInternal::EnterScope);
 TVM_REGISTER_GLOBAL("target.TargetExitScope").set_body_typed(TargetInternal::ExitScope);
 TVM_REGISTER_GLOBAL("target.TargetCurrent").set_body_typed(Target::Current);

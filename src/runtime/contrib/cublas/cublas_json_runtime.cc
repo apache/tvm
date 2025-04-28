@@ -67,9 +67,8 @@ class CublasJSONRuntime : public JSONRuntimeBase {
   void Run(TVMArgs args) {
     auto* entry_ptr = tvm::contrib::CuBlasLtThreadEntry::ThreadLocal();
 
-    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-    ICHECK(func != nullptr);
-    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+    auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+    cudaStream_t stream = static_cast<cudaStream_t>(func().operator void*());
 
     std::vector<const DLTensor*> dl_tensors(NumEntries());
 

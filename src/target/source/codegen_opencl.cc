@@ -640,7 +640,6 @@ runtime::Module BuildOpenCL(IRModule mod, Target target) {
   }
 #endif
 
-  using tvm::runtime::Registry;
   bool output_ssa = false;
 
   Map<GlobalVar, PrimFunc> functions;
@@ -654,7 +653,7 @@ runtime::Module BuildOpenCL(IRModule mod, Target target) {
   }
 
   std::stringstream code;
-  const auto* fpostproc = Registry::Get("tvm_callback_opencl_postproc");
+  const auto fpostproc = tvm::ffi::Function::GetGlobal("tvm_callback_opencl_postproc");
   for (auto [gvar, prim_func] : functions) {
     code << "// Function: " << gvar->name_hint << std::endl;
     CodeGenOpenCL cg;

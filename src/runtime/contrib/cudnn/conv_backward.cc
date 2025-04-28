@@ -186,7 +186,7 @@ void BackwardFilterFindAlgo(int format, int dims, int groups, const int pad[], c
 }
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_data")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       int mode = args[0];
       int format = args[1];
       int algo = args[2];
@@ -207,7 +207,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_data")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.backward_data_find_algo")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       int format = args[0];
       int dims = args[1];
       int* pad = static_cast<int*>(static_cast<void*>(args[2]));
@@ -226,7 +226,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.backward_data_find_algo")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_filter")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       int mode = args[0];
       int format = args[1];
       int algo = args[2];
@@ -247,7 +247,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_filter")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.backward_filter_find_algo")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       int format = args[0];
       int dims = args[1];
       int* pad = static_cast<int*>(static_cast<void*>(args[2]));

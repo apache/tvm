@@ -306,9 +306,9 @@ pass is registered with an API endpoint as we will show later.
     Pass GetPass(const std::string& pass_name) {
       using tvm::runtime::Registry;
       std::string fpass_name = "relax.transform." + pass_name;
-      const auto* f = Registry::Get(fpass_name);
-      ICHECK(f != nullptr) << "Cannot find " << fpass_name
-                          << "to create the pass " << pass_name;
+      const std::optional<tvm::ffi::Function> f = tvm::ffi::Function::GetGlobal(fpass_name);
+      ICHECK(f.has_value()) << "Cannot find " << fpass_name
+                            << "to create the pass " << pass_name;
       return (*f)();
     }
 

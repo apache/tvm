@@ -24,57 +24,59 @@ namespace contrib {
 
 using namespace runtime;
 
-TVM_REGISTER_GLOBAL("tvm.contrib.mps.buffer2img").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* buf = args[0];
-  DLTensor* img = args[1];
-  // copy to temp
-  id<MTLBuffer> mtlbuf = (__bridge id<MTLBuffer>)(buf->data);
-  MetalThreadEntry* entry_ptr = MetalThreadEntry::ThreadLocal();
-  runtime::metal::MetalThreadEntry* rt = runtime::metal::MetalThreadEntry::ThreadLocal();
-  id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(buf->device);
-  id<MTLBuffer> temp = rt->GetTempBuffer(buf->device, [mtlbuf length]);
-  entry_ptr->metal_api->CopyDataFromTo((__bridge void*)mtlbuf, 0, (__bridge void*)temp, 0,
-                                       [mtlbuf length], buf -> device, buf -> device, buf -> dtype,
-                                       nullptr);
+TVM_REGISTER_GLOBAL("tvm.contrib.mps.buffer2img")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      DLTensor* buf = args[0];
+      DLTensor* img = args[1];
+      // copy to temp
+      id<MTLBuffer> mtlbuf = (__bridge id<MTLBuffer>)(buf->data);
+      MetalThreadEntry* entry_ptr = MetalThreadEntry::ThreadLocal();
+      runtime::metal::MetalThreadEntry* rt = runtime::metal::MetalThreadEntry::ThreadLocal();
+      id<MTLDevice> dev = entry_ptr->metal_api->GetDevice(buf->device);
+      id<MTLBuffer> temp = rt->GetTempBuffer(buf->device, [mtlbuf length]);
+      entry_ptr->metal_api->CopyDataFromTo((__bridge void*)mtlbuf, 0, (__bridge void*)temp, 0,
+                                           [mtlbuf length], buf -> device, buf -> device,
+                                           buf -> dtype, nullptr);
 
-  MPSImageDescriptor* desc =
-      [MPSImageDescriptor imageDescriptorWithChannelFormat:MPSImageFeatureChannelFormatFloat32
-                                                     width:buf->shape[2]
-                                                    height:buf->shape[1]
-                                           featureChannels:buf->shape[3]];
+      MPSImageDescriptor* desc =
+          [MPSImageDescriptor imageDescriptorWithChannelFormat:MPSImageFeatureChannelFormatFloat32
+                                                         width:buf->shape[2]
+                                                        height:buf->shape[1]
+                                               featureChannels:buf->shape[3]];
 
-  MPSImage* mpsimg = entry_ptr->AllocMPSImage(dev, desc);
+      MPSImage* mpsimg = entry_ptr->AllocMPSImage(dev, desc);
 
-  [mpsimg writeBytes:[temp contents]
-          dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
-          imageIndex:0];
+      [mpsimg writeBytes:[temp contents]
+              dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
+              imageIndex:0];
 
-  img->data = (__bridge void*)mpsimg;
+      img->data = (__bridge void*)mpsimg;
 
-  [mpsimg readBytes:[temp contents]
-         dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
-         imageIndex:0];
-});
+      [mpsimg readBytes:[temp contents]
+             dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
+             imageIndex:0];
+    });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.mps.img2buffer").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* img = args[0];
-  DLTensor* buf = args[1];
-  id<MTLBuffer> mtlbuf = (__bridge id<MTLBuffer>)(buf->data);
-  MPSImage* mpsimg = (__bridge MPSImage*)(img->data);
-  MetalThreadEntry* entry_ptr = MetalThreadEntry::ThreadLocal();
-  runtime::metal::MetalThreadEntry* rt = runtime::metal::MetalThreadEntry::ThreadLocal();
-  id<MTLBuffer> temp = rt->GetTempBuffer(buf->device, [mtlbuf length]);
+TVM_REGISTER_GLOBAL("tvm.contrib.mps.img2buffer")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      DLTensor* img = args[0];
+      DLTensor* buf = args[1];
+      id<MTLBuffer> mtlbuf = (__bridge id<MTLBuffer>)(buf->data);
+      MPSImage* mpsimg = (__bridge MPSImage*)(img->data);
+      MetalThreadEntry* entry_ptr = MetalThreadEntry::ThreadLocal();
+      runtime::metal::MetalThreadEntry* rt = runtime::metal::MetalThreadEntry::ThreadLocal();
+      id<MTLBuffer> temp = rt->GetTempBuffer(buf->device, [mtlbuf length]);
 
-  [mpsimg readBytes:[temp contents]
-         dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
-         imageIndex:0];
+      [mpsimg readBytes:[temp contents]
+             dataLayout:MPSDataLayoutHeightxWidthxFeatureChannels
+             imageIndex:0];
 
-  entry_ptr->metal_api->CopyDataFromTo((__bridge void*)temp, 0, (__bridge void*)mtlbuf, 0,
-                                       [mtlbuf length], buf -> device, buf -> device, buf -> dtype,
-                                       nullptr);
-});
+      entry_ptr->metal_api->CopyDataFromTo((__bridge void*)temp, 0, (__bridge void*)mtlbuf, 0,
+                                           [mtlbuf length], buf -> device, buf -> device,
+                                           buf -> dtype, nullptr);
+    });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   // MPS-NHWC
   DLTensor* data = args[0];
   DLTensor* weight = args[1];
@@ -97,8 +99,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d").set_body([](TVMArgs args, TVMRetVa
   int kW = weight->shape[2];
   int iCh = weight->shape[3];
 
-  auto f_buf2img = runtime::Registry::Get("tvm.contrib.mps.buffer2img");
-  auto f_img2buf = runtime::Registry::Get("tvm.contrib.mps.img2buffer");
+  const auto f_buf2img = tvm::ffi::Function::GetGlobal("tvm.contrib.mps.buffer2img");
+  const auto f_img2buf = tvm::ffi::Function::GetGlobal("tvm.contrib.mps.img2buffer");
   // Get Metal device API
   MetalThreadEntry* entry_ptr = MetalThreadEntry::ThreadLocal();
   runtime::metal::MetalThreadEntry* rt = runtime::metal::MetalThreadEntry::ThreadLocal();

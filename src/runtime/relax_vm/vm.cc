@@ -705,8 +705,8 @@ void VirtualMachineImpl::InitFuncPool() {
       // only look through imports first
       PackedFunc func = GetFuncFromImports(info.name);
       if (!func.defined()) {
-        const PackedFunc* p_func = Registry::Get(info.name);
-        if (p_func != nullptr) func = *(p_func);
+        const auto p_func = tvm::ffi::Function::GetGlobal(info.name);
+        if (p_func.has_value()) func = *(p_func);
       }
       ICHECK(func.defined())
           << "Error: Cannot find PackedFunc " << info.name
@@ -900,8 +900,8 @@ void VirtualMachineImpl::_SetInstrument(TVMArgs args, TVMRetValue* rv) {
     this->SetInstrument(args[0]);
   } else {
     String func_name = args[0];
-    const PackedFunc* factory = Registry::Get(func_name);
-    CHECK(factory) << "Cannot find factory " << func_name;
+    const auto factory = tvm::ffi::Function::GetGlobal(func_name);
+    CHECK(factory.has_value()) << "Cannot find factory " << func_name;
     TVMRetValue rv;
     factory->CallPacked(args.Slice(1), &rv);
     this->SetInstrument(rv);

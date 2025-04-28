@@ -38,7 +38,7 @@ namespace tvm {
 namespace runtime {
 namespace hexagon {
 
-TVM_REGISTER_GLOBAL("hexagon.run_all_tests").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("hexagon.run_all_tests").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   // gtest args are passed into this packed func as a singular string
   // split gtest args using <space> delimiter and build argument vector
   std::vector<std::string> parsed_args = tvm::support::Split(args[0], ' ');

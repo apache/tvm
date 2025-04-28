@@ -68,8 +68,9 @@ Module EdgeTPURuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.edgetpu_runtime.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = EdgeTPURuntimeCreate(args[0], args[1]);
-});
+TVM_REGISTER_GLOBAL("tvm.edgetpu_runtime.create")
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+      *rv = EdgeTPURuntimeCreate(args[0], args[1]);
+    });
 }  // namespace runtime
 }  // namespace tvm

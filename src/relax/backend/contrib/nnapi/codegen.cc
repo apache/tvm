@@ -256,10 +256,9 @@ Array<runtime::Module> NNAPICompiler(Array<Function> functions, Map<String, ffi:
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto* pf = runtime::Registry::Get("runtime.nnapi_runtime_create");
-    ICHECK(pf != nullptr) << "Cannot find NNAPI runtime module create function.";
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.nnapi_runtime_create");
     auto func_name = GetExtSymbol(func);
-    compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names));
   }
 
   return compiled_functions;

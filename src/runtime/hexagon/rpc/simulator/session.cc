@@ -1371,7 +1371,7 @@ std::optional<HEXAPI_Nullptr> SimulatorRPCChannel::to_nullptr(const detail::Mayb
 }
 
 TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       ICHECK(args.size() >= 4) << args.size() << " is less than 4";
 
       std::string session_name = args[0];

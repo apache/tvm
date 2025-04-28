@@ -334,10 +334,12 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       for (AttnKind attn_kind : attn_kinds_) {
         CHECK(attn_kind == AttnKind::kMHA);
       }
-      CHECK(Registry::Get("runtime.disco.nvshmem.init_nvshmem") != nullptr)
+      const auto f_nvshmem_init =
+          tvm::ffi::Function::GetGlobal("runtime.disco.nvshmem.init_nvshmem");
+      CHECK(f_nvshmem_init.has_value())
           << "NVSHMEM is not enabled. Please make sure NVSHMEM is enabled when compiling TVM.";
-      const PackedFunc* f_nvshmem_empty = runtime::Registry::Get("runtime.disco.nvshmem.empty");
-      ICHECK_NOTNULL(f_nvshmem_empty);
+      const auto f_nvshmem_empty = tvm::ffi::Function::GetGlobal("runtime.disco.nvshmem.empty");
+      ICHECK(f_nvshmem_empty.has_value());
       nvshmem_pages_ = (*f_nvshmem_empty)(
           ShapeTuple({num_layers, num_total_pages, 2, num_kv_heads, page_size, qk_head_dim}), dtype,
           device);
@@ -348,11 +350,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                 nvshmem_pages_.DataType().bytes()));
       }
 
-      const PackedFunc* f_transfer_kv_ptr = Registry::Get("nvshmem.KVTransfer");
-      const PackedFunc* f_transfer_kv_page_to_page_ptr =
-          Registry::Get("nvshmem.KVTransferPageToPage");
-      ICHECK_NOTNULL(f_transfer_kv_ptr);
-      ICHECK_NOTNULL(f_transfer_kv_page_to_page_ptr);
+      const auto f_transfer_kv_ptr = tvm::ffi::Function::GetGlobal("nvshmem.KVTransfer");
+      const auto f_transfer_kv_page_to_page_ptr =
+          tvm::ffi::Function::GetGlobal("nvshmem.KVTransferPageToPage");
+      ICHECK(f_transfer_kv_ptr.has_value());
+      ICHECK(f_transfer_kv_page_to_page_ptr.has_value());
       f_transfer_kv_ = *f_transfer_kv_ptr;
       f_transfer_kv_page_to_page_ = *f_transfer_kv_page_to_page_ptr;
     } else {

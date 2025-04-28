@@ -57,9 +57,9 @@ class SocketSessionObj : public BcastSessionObj {
   explicit SocketSessionObj(int num_nodes, int num_workers_per_node, int num_groups,
                             const String& host, int port)
       : num_nodes_(num_nodes), num_workers_per_node_(num_workers_per_node) {
-    const PackedFunc* f_create_local_session =
-        Registry::Get("runtime.disco.create_socket_session_local_workers");
-    ICHECK(f_create_local_session != nullptr)
+    const auto f_create_local_session =
+        tvm::ffi::Function::GetGlobal("runtime.disco.create_socket_session_local_workers");
+    ICHECK(f_create_local_session.has_value())
         << "Cannot find function runtime.disco.create_socket_session_local_workers";
     local_session_ = ((*f_create_local_session)(num_workers_per_node)).operator BcastSession();
     DRef f_init_workers =
@@ -269,8 +269,8 @@ class RemoteSocketSession {
 
  private:
   void InitLocalSession() {
-    const PackedFunc* f_create_local_session =
-        Registry::Get("runtime.disco.create_socket_session_local_workers");
+    const auto f_create_local_session =
+        tvm::ffi::Function::GetGlobal("runtime.disco.create_socket_session_local_workers");
     local_session_ = ((*f_create_local_session)(num_workers_per_node_)).operator BcastSession();
 
     DRef f_init_workers =

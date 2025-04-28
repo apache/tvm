@@ -431,13 +431,12 @@ void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NO
 }
 
 runtime::Module BuildMetal(IRModule mod, Target target) {
-  using tvm::runtime::Registry;
   bool output_ssa = false;
   mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
 
   std::ostringstream source_maker;
   std::unordered_map<std::string, std::string> smap;
-  const auto* fmetal_compile = Registry::Get("tvm_callback_metal_compile");
+  const auto fmetal_compile = tvm::ffi::Function::GetGlobal("tvm_callback_metal_compile");
   std::string fmt = fmetal_compile ? "metallib" : "metal";
 
   for (auto kv : mod->functions) {

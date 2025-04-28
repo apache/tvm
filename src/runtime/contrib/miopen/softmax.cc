@@ -80,12 +80,14 @@ void softmax_impl(TVMArgs args, TVMRetValue* ret, miopenSoftmaxAlgorithm_t alg) 
 }
 
 TVM_REGISTER_GLOBAL("tvm.contrib.miopen.softmax.forward")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       softmax_impl(args, ret, MIOPEN_SOFTMAX_ACCURATE);
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.miopen.log_softmax.forward")
-    .set_body([](TVMArgs args, TVMRetValue* ret) { softmax_impl(args, ret, MIOPEN_SOFTMAX_LOG); });
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      softmax_impl(args, ret, MIOPEN_SOFTMAX_LOG);
+    });
 
 }  // namespace miopen
 }  // namespace contrib

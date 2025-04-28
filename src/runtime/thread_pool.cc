@@ -379,7 +379,7 @@ class ThreadPool {
  * \brief args[0] is the AffinityMode, args[1] is the number of threads.
  *  args2 is a list of CPUs which is used to set the CPU affinity.
  */
-TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   threading::ThreadGroup::AffinityMode mode =
       static_cast<threading::ThreadGroup::AffinityMode>(static_cast<int>(args[0]));
   int nthreads = args[1];

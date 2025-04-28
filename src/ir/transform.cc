@@ -459,13 +459,13 @@ void SequentialNode::ResolveDependency(const IRModule& mod) {
 }
 
 Pass GetPass(const String& pass_name) {
-  using tvm::runtime::Registry;
-  const runtime::PackedFunc* f = nullptr;
+  std::optional<tvm::ffi::Function> f;
   if (pass_name.operator std::string().find("transform.") != std::string::npos) {
-    f = Registry::Get(pass_name);
-  } else if ((f = Registry::Get("transform." + pass_name))) {
+    f = tvm::ffi::Function::GetGlobal(pass_name);
+  } else {
+    f = tvm::ffi::Function::GetGlobal("transform." + pass_name);
   }
-  ICHECK(f != nullptr) << "Cannot use " << pass_name << " to create the pass";
+  ICHECK(f.has_value()) << "Cannot use " << pass_name << " to create the pass";
   return (*f)();
 }
 
@@ -538,7 +538,7 @@ TVM_REGISTER_GLOBAL("transform.PassInfo")
       return PassInfo(opt_level, name, required, traceable);
     });
 
-TVM_REGISTER_GLOBAL("transform.Info").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("transform.Info").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   Pass pass = args[0];
   *ret = pass->Info();
 });
@@ -586,7 +586,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(SequentialNode);
 
-TVM_REGISTER_GLOBAL("transform.Sequential").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("transform.Sequential").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   tvm::Array<Pass> passes = args[0];
   int opt_level = args[1];
   std::string name = args[2];
@@ -658,21 +658,16 @@ class PassContext::Internal {
   static void ExitScope(PassContext pass_ctx) { pass_ctx.ExitWithScope(); }
 };
 
-TVM_REGISTER_GLOBAL("transform.GetTraceStack")
-    .set_body_method<PassContext>(&PassContextNode::GetTraceStack);
-TVM_REGISTER_GLOBAL("transform.PushTrace")
-    .set_body_method<PassContext>(&PassContextNode::PushTrace);
-TVM_REGISTER_GLOBAL("transform.PopTrace").set_body_method<PassContext>(&PassContextNode::PopTrace);
+TVM_REGISTER_GLOBAL("transform.GetTraceStack").set_body_method(&PassContextNode::GetTraceStack);
+TVM_REGISTER_GLOBAL("transform.PushTrace").set_body_method(&PassContextNode::PushTrace);
+TVM_REGISTER_GLOBAL("transform.PopTrace").set_body_method(&PassContextNode::PopTrace);
 TVM_REGISTER_GLOBAL("transform.GetTraceStackSize")
-    .set_body_method<PassContext>(&PassContextNode::GetTraceStackSize);
-TVM_REGISTER_GLOBAL("transform.GetCurrentTrace")
-    .set_body_method<PassContext>(&PassContextNode::GetCurrentTrace);
-TVM_REGISTER_GLOBAL("transform.SetNumEvals")
-    .set_body_method<PassContext>(&PassContextNode::SetNumEvals);
-TVM_REGISTER_GLOBAL("transform.IncNumEvals")
-    .set_body_method<PassContext>(&PassContextNode::IncNumEvals);
+    .set_body_method(&PassContextNode::GetTraceStackSize);
+TVM_REGISTER_GLOBAL("transform.GetCurrentTrace").set_body_method(&PassContextNode::GetCurrentTrace);
+TVM_REGISTER_GLOBAL("transform.SetNumEvals").set_body_method(&PassContextNode::SetNumEvals);
+TVM_REGISTER_GLOBAL("transform.IncNumEvals").set_body_method(&PassContextNode::IncNumEvals);
 TVM_REGISTER_GLOBAL("transform.GetTuningAPIDatabase")
-    .set_body_method<PassContext>(&PassContextNode::GetTuningAPIDatabase);
+    .set_body_method(&PassContextNode::GetTuningAPIDatabase);
 
 TVM_REGISTER_GLOBAL("transform.GetCurrentPassContext").set_body_typed(PassContext::Current);
 

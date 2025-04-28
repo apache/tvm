@@ -236,7 +236,7 @@ def _get_global_func(name, allow_missing):
 
 
 # handle callbacks
-cdef void tvm_ffi_callback_deleter(void* fhandle) with gil:
+cdef void tvm_ffi_callback_deleter(void* fhandle) noexcept with gil:
     local_pyfunc = <object>(fhandle)
     Py_DECREF(local_pyfunc)
 
@@ -244,7 +244,7 @@ cdef void tvm_ffi_callback_deleter(void* fhandle) with gil:
 cdef int tvm_ffi_callback(void* context,
                           const TVMFFIAny* packed_args,
                           int32_t num_args,
-                          TVMFFIAny* result) with gil:
+                          TVMFFIAny* result) noexcept with gil:
     cdef list pyargs
     cdef TVMFFIAny temp_result
     local_pyfunc = <object>(context)

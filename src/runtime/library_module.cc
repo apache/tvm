@@ -96,21 +96,11 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol) {
 Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream) {
   std::string loadkey = "runtime.module.loadbinary_";
   std::string fkey = loadkey + type_key;
-  const PackedFunc* f = Registry::Get(fkey);
-  if (f == nullptr) {
-    std::string loaders = "";
-    for (auto reg_name : Registry::ListNames()) {
-      std::string name = reg_name;
-      if (name.find(loadkey, 0) == 0) {
-        if (loaders.size() > 0) {
-          loaders += ", ";
-        }
-        loaders += name.substr(loadkey.size());
-      }
-    }
+  const auto f = tvm::ffi::Function::GetGlobal(fkey);
+  if (!f.has_value()) {
     LOG(FATAL) << "Binary was created using {" << type_key
-               << "} but a loader of that name is not registered. Available loaders are " << loaders
-               << ". Perhaps you need to recompile with this runtime enabled.";
+               << "} but a loader of that name is not registered."
+               << "Perhaps you need to recompile with this runtime enabled.";
   }
 
   return (*f)(static_cast<void*>(stream));

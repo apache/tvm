@@ -1017,9 +1017,9 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleState")
       return ScheduleState(mod, debug_mask, enable_check);
     });
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStateGetBlockScope")
-    .set_body_method<ScheduleState>(&ScheduleStateNode::GetBlockScope);
+    .set_body_method(&ScheduleStateNode::GetBlockScope);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStateReplace")
-    .set_body_method<ScheduleState>(&ScheduleStateNode::Replace);
+    .set_body_method(&ScheduleStateNode::Replace);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStateGetSRef")
     .set_body_typed([](ScheduleState self, Stmt stmt) -> Optional<StmtSRef> {
       auto it = self->stmt2ref.find(stmt.get());

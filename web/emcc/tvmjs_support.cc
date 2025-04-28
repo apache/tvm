@@ -106,10 +106,10 @@ class AsyncLocalSession : public LocalSession {
   PackedFuncHandle GetFunction(const std::string& name) final {
     if (name == "runtime.RPCTimeEvaluator") {
       return get_time_eval_placeholder_.get();
-    } else if (auto* fp = tvm::runtime::Registry::Get(name)) {
+    } else if (auto fp = tvm::ffi::Function::GetGlobal(name)) {
       TVMFFIAny val = tvm::ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(tvm::ffi::Any(*fp));
       return val.v_obj;
-    } else if (auto* fp = tvm::runtime::Registry::Get("__async." + name)) {
+    } else if (auto fp = tvm::ffi::Function::GetGlobal("__async." + name)) {
       TVMFFIAny val = tvm::ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(tvm::ffi::Any(*fp));
       async_func_set_.insert(val.v_obj);
       return val.v_obj;
@@ -219,10 +219,10 @@ class AsyncLocalSession : public LocalSession {
       on_complete(RPCCode::kReturn, ffi::PackedArgs(packed_args, 1));
     } else {
       CHECK(dev.device_type == static_cast<DLDeviceType>(kDLWebGPU));
-      if (async_wait_ == nullptr) {
-        async_wait_ = tvm::runtime::Registry::Get("__async.wasm.WebGPUWaitForTasks");
+      if (!async_wait_.has_value()) {
+        async_wait_ = tvm::ffi::Function::GetGlobal("__async.wasm.WebGPUWaitForTasks");
       }
-      CHECK(async_wait_ != nullptr);
+      CHECK(async_wait_.has_value());
       PackedFunc packed_callback([on_complete](TVMArgs args, TVMRetValue*) {
         int code = args[0];
         on_complete(static_cast<RPCCode>(code), args.Slice(1));
@@ -236,7 +236,7 @@ class AsyncLocalSession : public LocalSession {
  private:
   std::unordered_set<void*> async_func_set_;
   std::unique_ptr<PackedFunc> get_time_eval_placeholder_ = std::make_unique<PackedFunc>();
-  const PackedFunc* async_wait_{nullptr};
+  std::optional<PackedFunc> async_wait_;
 
   // time evaluator
   PackedFunc GetTimeEvaluator(Optional<Module> opt_mod, std::string name, int device_type,
@@ -254,8 +254,8 @@ class AsyncLocalSession : public LocalSession {
                                    limit_zero_time_iterations, cooldown_interval_ms,
                                    repeats_to_cooldown);
     } else {
-      auto* pf = runtime::Registry::Get(name);
-      CHECK(pf != nullptr) << "Cannot find " << name << " in the global function";
+      auto pf = tvm::ffi::Function::GetGlobal(name);
+      CHECK(pf.has_value()) << "Cannot find " << name << " in the global function";
       return WrapWasmTimeEvaluator(*pf, dev, number, repeat, min_repeat_ms,
                                    limit_zero_time_iterations, cooldown_interval_ms,
                                    repeats_to_cooldown);
@@ -279,8 +279,8 @@ class AsyncLocalSession : public LocalSession {
           pf.CallPacked(invoke_args, &temp);
         }
       };
-      auto* time_exec = runtime::Registry::Get("__async.wasm.TimeExecution");
-      CHECK(time_exec != nullptr) << "Cannot find wasm.GetTimer in the global function";
+      auto time_exec = tvm::ffi::Function::GetGlobal("__async.wasm.TimeExecution");
+      CHECK(time_exec.has_value()) << "Cannot find wasm.GetTimer in the global function";
       (*time_exec)(TypedPackedFunc<void(int)>(finvoke), dev, number, repeat, min_repeat_ms,
                    limit_zero_time_iterations, cooldown_interval_ms, repeats_to_cooldown,
                    /*cache_flush_bytes=*/0, on_complete);

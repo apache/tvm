@@ -232,8 +232,9 @@ inline std::string DiscoDebugObject::SaveToStr() const {
     return result;
   } else if (auto opt_obj = this->data.as<ObjectRef>()) {
     ObjectRef obj = opt_obj.value();
-    const PackedFunc* f = runtime::Registry::Get("node.SaveJSON");
-    CHECK(f) << "ValueError: Cannot serialize object in non-debugging mode: " << obj->GetTypeKey();
+    const auto f = tvm::ffi::Function::GetGlobal("node.SaveJSON");
+    CHECK(f.has_value()) << "ValueError: Cannot serialize object in non-debugging mode: "
+                         << obj->GetTypeKey();
     std::string result = (*f)(obj);
     result.push_back('0');
     return result;
@@ -248,8 +249,8 @@ inline ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::string jso
   json_str.pop_back();
   ObjectPtr<DiscoDebugObject> result = make_object<DiscoDebugObject>();
   if (control_bit == '0') {
-    const PackedFunc* f = runtime::Registry::Get("node.LoadJSON");
-    CHECK(f) << "ValueError: Cannot deserialize object in non-debugging mode";
+    const auto f = tvm::ffi::Function::GetGlobal("node.LoadJSON");
+    CHECK(f.has_value()) << "ValueError: Cannot deserialize object in non-debugging mode";
     result->data = (*f)(json_str);
   } else if (control_bit == '1') {
     dmlc::MemoryStringStream mstrm(&json_str);

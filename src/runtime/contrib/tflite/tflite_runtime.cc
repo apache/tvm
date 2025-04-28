@@ -180,7 +180,7 @@ Module TFLiteRuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.tflite_runtime.create").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("tvm.tflite_runtime.create").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   *rv = TFLiteRuntimeCreate(args[0], args[1]);
 });
 

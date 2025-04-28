@@ -301,14 +301,11 @@ TVM_REGISTER_GLOBAL("ir.Module_Contains")
       }
     });
 
-TVM_REGISTER_GLOBAL("ir.Module_GetGlobalVar")
-    .set_body_method<IRModule>(&IRModuleNode::GetGlobalVar);
+TVM_REGISTER_GLOBAL("ir.Module_GetGlobalVar").set_body_method(&IRModuleNode::GetGlobalVar);
 
-TVM_REGISTER_GLOBAL("ir.Module_GetGlobalVars")
-    .set_body_method<IRModule>(&IRModuleNode::GetGlobalVars);
+TVM_REGISTER_GLOBAL("ir.Module_GetGlobalVars").set_body_method(&IRModuleNode::GetGlobalVars);
 
-TVM_REGISTER_GLOBAL("ir.Module_ContainGlobalVar")
-    .set_body_method<IRModule>(&IRModuleNode::ContainGlobalVar);
+TVM_REGISTER_GLOBAL("ir.Module_ContainGlobalVar").set_body_method(&IRModuleNode::ContainGlobalVar);
 
 TVM_REGISTER_GLOBAL("ir.Module_Lookup").set_body_typed([](IRModule mod, GlobalVar var) {
   return mod->Lookup(var);

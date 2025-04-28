@@ -154,7 +154,7 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
 }
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       int mode = args[0];
       int format = args[1];
       int algo = args[2];
@@ -175,7 +175,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d+bias+act.forward")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       int mode = args[0];
       int format = args[1];
       int algo = args[2];
@@ -199,7 +199,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d+bias+act.forward")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv3d.forward")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       int mode = args[0];
       int format = args[1];
       int algo = args[2];
@@ -220,7 +220,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv3d.forward")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.forward_find_algo")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       int format = args[0];
       int dims = args[1];
       int* pad = static_cast<int*>(static_cast<void*>(args[2]));

@@ -115,10 +115,9 @@ class ConstantFolder : public ExprMutator {
       // already scheduled to only work on GPU, we will need to skip this in the const folder for
       // now
       // TODO(Hongyi): further check and narrow the scope of foldable function
-      auto* pf = runtime::Registry::Get("tir.build");
-      ICHECK(pf != nullptr) << "Cannot find tir.build in registry";
+      const auto pf = tvm::ffi::Function::GetGlobalRequired("tir.build");
       func = WithAttr(func, tvm::attr::kGlobalSymbol, String("tir_function"));
-      runtime::Module rt_module = (*pf)(func, eval_cpu_target);
+      runtime::Module rt_module = pf(func, eval_cpu_target);
       build_func = rt_module.GetFunction("tir_function");
     } catch (const tvm::Error& err) {
       // build failure may happen in which case we skip
@@ -294,9 +293,8 @@ class ConstantFolder : public ExprMutator {
           is_known &= (val.dtype() == DataType::Int(64));
         }
         if (is_known) {
-          const auto* func = tvm::runtime::Registry::Get("relax.run.shape_to_tensor");
-          ICHECK(func != nullptr);
-          runtime::NDArray vals = (*func)(arr);
+          const auto func = tvm::ffi::Function::GetGlobalRequired("relax.run.shape_to_tensor");
+          runtime::NDArray vals = func(arr);
           return Constant(vals);
         }
       }

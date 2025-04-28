@@ -191,7 +191,7 @@ void HexagonDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void
 }
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy_dltensor")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       DLTensor* dst = args[0];
       DLTensor* src = args[1];
       int size = args[2];
@@ -209,102 +209,107 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy_dltensor")
       *rv = static_cast<int32_t>(0);
     });
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy").set_body([](TVMArgs args, TVMRetValue* rv) {
-  uint32_t queue_id = static_cast<int>(args[0]);
-  void* dst = args[1];
-  void* src = args[2];
-  uint32_t size = static_cast<int>(args[3]);
-  ICHECK(size > 0);
-  bool bypass_cache = args[4];
+TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy")
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+      uint32_t queue_id = static_cast<int>(args[0]);
+      void* dst = args[1];
+      void* src = args[2];
+      uint32_t size = static_cast<int>(args[3]);
+      ICHECK(size > 0);
+      bool bypass_cache = args[4];
 
-  int ret = DMA_RETRY;
-  do {
-    ret = HexagonDeviceAPI::Global()->UserDMA()->Copy(queue_id, dst, src, size, bypass_cache);
-  } while (ret == DMA_RETRY);
-  CHECK(ret == DMA_SUCCESS);
-  *rv = static_cast<int32_t>(ret);
-});
+      int ret = DMA_RETRY;
+      do {
+        ret = HexagonDeviceAPI::Global()->UserDMA()->Copy(queue_id, dst, src, size, bypass_cache);
+      } while (ret == DMA_RETRY);
+      CHECK(ret == DMA_SUCCESS);
+      *rv = static_cast<int32_t>(ret);
+    });
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.dma_wait").set_body([](TVMArgs args, TVMRetValue* rv) {
-  uint32_t queue_id = static_cast<int>(args[0]);
-  int inflight = args[1];
-  ICHECK(inflight >= 0);
-  HexagonDeviceAPI::Global()->UserDMA()->Wait(queue_id, inflight);
-  *rv = static_cast<int32_t>(0);
-});
+TVM_REGISTER_GLOBAL("device_api.hexagon.dma_wait")
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+      uint32_t queue_id = static_cast<int>(args[0]);
+      int inflight = args[1];
+      ICHECK(inflight >= 0);
+      HexagonDeviceAPI::Global()->UserDMA()->Wait(queue_id, inflight);
+      *rv = static_cast<int32_t>(0);
+    });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.dma_start_group")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       uint32_t queue_id = static_cast<int>(args[0]);
       HexagonDeviceAPI::Global()->UserDMA()->StartGroup(queue_id);
       *rv = static_cast<int32_t>(0);
     });
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.dma_end_group").set_body([](TVMArgs args, TVMRetValue* rv) {
-  uint32_t queue_id = static_cast<int>(args[0]);
-  HexagonDeviceAPI::Global()->UserDMA()->EndGroup(queue_id);
-  *rv = static_cast<int32_t>(0);
-});
+TVM_REGISTER_GLOBAL("device_api.hexagon.dma_end_group")
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+      uint32_t queue_id = static_cast<int>(args[0]);
+      HexagonDeviceAPI::Global()->UserDMA()->EndGroup(queue_id);
+      *rv = static_cast<int32_t>(0);
+    });
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.alloc_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
-  int32_t device_type = args[0];
-  int32_t device_id = args[1];
-  int32_t dtype_code_hint = args[2];
-  int32_t dtype_bits_hint = args[3];
-  std::string scope = args[4];
-  CHECK(scope.find("global.vtcm") != std::string::npos);
-  int64_t ndim = args[5];
-  CHECK((ndim == 1 || ndim == 2) && "Hexagon Device API supports only 1d and 2d allocations");
-  int64_t* shape = static_cast<int64_t*>(static_cast<void*>(args[6]));
+TVM_REGISTER_GLOBAL("device_api.hexagon.alloc_nd")
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+      int32_t device_type = args[0];
+      int32_t device_id = args[1];
+      int32_t dtype_code_hint = args[2];
+      int32_t dtype_bits_hint = args[3];
+      std::string scope = args[4];
+      CHECK(scope.find("global.vtcm") != std::string::npos);
+      int64_t ndim = args[5];
+      CHECK((ndim == 1 || ndim == 2) && "Hexagon Device API supports only 1d and 2d allocations");
+      int64_t* shape = static_cast<int64_t*>(static_cast<void*>(args[6]));
 
-  Device dev;
-  dev.device_type = static_cast<DLDeviceType>(device_type);
-  dev.device_id = device_id;
+      Device dev;
+      dev.device_type = static_cast<DLDeviceType>(device_type);
+      dev.device_id = device_id;
 
-  DLDataType type_hint;
-  type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
-  type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
-  type_hint.lanes = 1;
+      DLDataType type_hint;
+      type_hint.code = static_cast<decltype(type_hint.code)>(dtype_code_hint);
+      type_hint.bits = static_cast<decltype(type_hint.bits)>(dtype_bits_hint);
+      type_hint.lanes = 1;
 
-  HexagonDeviceAPI* hexapi = HexagonDeviceAPI::Global();
-  *rv = hexapi->AllocDataSpace(dev, ndim, shape, type_hint, String(scope));
-});
+      HexagonDeviceAPI* hexapi = HexagonDeviceAPI::Global();
+      *rv = hexapi->AllocDataSpace(dev, ndim, shape, type_hint, String(scope));
+    });
 
-TVM_REGISTER_GLOBAL("device_api.hexagon.free_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
-  int32_t device_type = args[0];
-  int32_t device_id = args[1];
-  std::string scope = args[2];
-  CHECK(scope.find("global.vtcm") != std::string::npos);
-  void* ptr = args[3];
+TVM_REGISTER_GLOBAL("device_api.hexagon.free_nd")
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+      int32_t device_type = args[0];
+      int32_t device_id = args[1];
+      std::string scope = args[2];
+      CHECK(scope.find("global.vtcm") != std::string::npos);
+      void* ptr = args[3];
 
-  Device dev;
-  dev.device_type = static_cast<DLDeviceType>(device_type);
-  dev.device_id = device_id;
+      Device dev;
+      dev.device_type = static_cast<DLDeviceType>(device_type);
+      dev.device_id = device_id;
 
-  HexagonDeviceAPI* hexapi = HexagonDeviceAPI::Global();
-  hexapi->FreeDataSpace(dev, ptr);
-  *rv = static_cast<int32_t>(0);
-});
+      HexagonDeviceAPI* hexapi = HexagonDeviceAPI::Global();
+      hexapi->FreeDataSpace(dev, ptr);
+      *rv = static_cast<int32_t>(0);
+    });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.acquire_resources")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       HexagonDeviceAPI* api = HexagonDeviceAPI::Global();
       api->AcquireResources();
     });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.release_resources")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       HexagonDeviceAPI* api = HexagonDeviceAPI::Global();
       api->ReleaseResources();
     });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.vtcm_device_bytes")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       HexagonDeviceAPI* api = HexagonDeviceAPI::Global();
       *rv = static_cast<int32_t>(api->VtcmPool()->VtcmDeviceBytes());
     });
 
-TVM_REGISTER_GLOBAL("device_api.hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.hexagon").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = HexagonDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });

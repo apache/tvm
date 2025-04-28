@@ -128,9 +128,8 @@ class CodeGenRunner : ExprMutator {
           extern_funcs_[gvar_node] = new_func;
           // Remove the global symbol and codegen attributes from the function so that it can be
           // removed the module.
-          static const runtime::PackedFunc* RemoveFuncAttrFunc =
-              runtime::Registry::Get("ir.BaseFuncWithoutAttr");
-          ICHECK(RemoveFuncAttrFunc);
+          const auto RemoveFuncAttrFunc = tvm::ffi::Function::GetGlobal("ir.BaseFuncWithoutAttr");
+          ICHECK(RemoveFuncAttrFunc.has_value());
           func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol);
           func = (*RemoveFuncAttrFunc)(func, attr::kCodegen);
           builder_->UpdateFunction(gvar, func);
@@ -192,8 +191,8 @@ class CodeGenRunner : ExprMutator {
       // Start the codegen process.
       // Get the codegen with its ffi key.
       String codegen_name = "relax.ext." + target;
-      auto codegen = runtime::Registry::Get(codegen_name);
-      ICHECK(codegen) << "Codegen is not found: " << codegen_name << "\n";
+      const auto codegen = tvm::ffi::Function::GetGlobal(codegen_name);
+      ICHECK(codegen.has_value()) << "Codegen is not found: " << codegen_name << "\n";
 
       Array<runtime::Module> compiled_functions = (*codegen)(functions, options, constant_names);
       ext_mods.insert(ext_mods.end(), compiled_functions.begin(), compiled_functions.end());

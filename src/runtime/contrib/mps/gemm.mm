@@ -24,7 +24,7 @@ namespace contrib {
 
 using namespace runtime;
 
-TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* A = args[0];
   DLTensor* B = args[1];
   DLTensor* C = args[2];

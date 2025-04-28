@@ -514,8 +514,8 @@ InferLayoutOutput ForwardInferLayoutPlugin(const Call& call,
     return InferLayoutOutput();
   }
   const auto& name = Downcast<ExternFunc>(call->args[0])->global_symbol;
-  const auto* pf = runtime::Registry::Get("msc.plugin.op.InferLayout" + name);
-  if (pf == nullptr) {
+  const auto pf = tvm::ffi::Function::GetGlobal("msc.plugin.op.InferLayout" + name);
+  if (!pf.has_value()) {
     return InferLayoutOutput();
   }
   const auto& args = Downcast<Tuple>(call->args[1]);

@@ -54,8 +54,8 @@ inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
   Array<PrimExpr> new_args;
 #if ENABLE_QHL
   // Check target for qfloat enablement
-  const auto* f = tvm::runtime::Registry::Get("target.TargetCurrent");
-  ICHECK(f != nullptr);
+  const auto f = tvm::ffi::Function::GetGlobal("target.TargetCurrent");
+  ICHECK(f.has_value()) << "target.TargetCurrent is not registered";
   const auto ret = (*f)(true);
   bool useqhl = true;
   if (auto opt_target = ret.as<Target>()) {
@@ -104,8 +104,8 @@ TVM_REGISTER_OP("tir.tanh")
 
 #if ENABLE_QHL
       // Check target for qfloat enablement
-      const auto* f = tvm::runtime::Registry::Get("target.TargetCurrent");
-      ICHECK(f != nullptr);
+      const auto f = tvm::ffi::Function::GetGlobal("target.TargetCurrent");
+      ICHECK(f.has_value()) << "target.TargetCurrent is not registered";
       const auto ret = (*f)(true);
       bool useqhl = true;
       if (auto opt_target = ret.as<Target>()) {
@@ -139,8 +139,8 @@ TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>(
       const PrimExpr& x = call->args[0];
 #if ENABLE_QHL
       // Check target for qfloat enablement
-      const auto* f = tvm::runtime::Registry::Get("target.TargetCurrent");
-      ICHECK(f != nullptr);
+      const auto f = tvm::ffi::Function::GetGlobal("target.TargetCurrent");
+      ICHECK(f.has_value()) << "target.TargetCurrent is not registered";
       const auto ret = (*f)(true);
       bool useqhl = true;
       if (auto opt_target = ret.as<Target>()) {
@@ -169,8 +169,8 @@ TVM_REGISTER_OP("tir.sigmoid")
       const PrimExpr& x = call->args[0];
 #if ENABLE_QHL
       // Check target for qfloat enablement
-      const auto* f = tvm::runtime::Registry::Get("target.TargetCurrent");
-      ICHECK(f != nullptr);
+      const auto f = tvm::ffi::Function::GetGlobal("target.TargetCurrent");
+      ICHECK(f.has_value()) << "target.TargetCurrent is not registered";
       const auto ret = (*f)(true);
       bool useqhl = true;
       if (auto opt_target = ret.as<Target>()) {

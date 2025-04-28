@@ -358,7 +358,7 @@ Storage VMAllocStorage(void* ctx_ptr, ShapeTuple buffer_shape, Index device_inde
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage").set_body_typed(VMAllocStorage);
 
-TVM_REGISTER_GLOBAL("vm.builtin.alloc_tensor").set_body_method<Storage>(&StorageObj::AllocNDArray);
+TVM_REGISTER_GLOBAL("vm.builtin.alloc_tensor").set_body_method(&StorageObj::AllocNDArray);
 
 //-------------------------------------------------
 //  Closure function handling, calling convention
@@ -472,10 +472,10 @@ TVM_REGISTER_GLOBAL("vm.builtin.invoke_debug_func")
       ObjectRef io_effect = args[0];
       ICHECK(!io_effect.defined()) << "ValueError: IOEffect is expected to be lowered to None.";
       String debug_func_name = args[1];
-      const PackedFunc* debug_func = runtime::Registry::Get(debug_func_name);
-      CHECK(debug_func) << "ValueError: " << debug_func_name << " is not found. "
-                        << "Use the decorator `@tvm.register_func(\"" << debug_func_name
-                        << "\")` to register it.";
+      const auto debug_func = tvm::ffi::Function::GetGlobal(debug_func_name);
+      CHECK(debug_func.has_value()) << "ValueError: " << debug_func_name << " is not found. "
+                                    << "Use the decorator `@tvm.register_func(\"" << debug_func_name
+                                    << "\")` to register it.";
       String line_info = args[2];
       std::vector<AnyView> call_args(num_args + 1);
       {

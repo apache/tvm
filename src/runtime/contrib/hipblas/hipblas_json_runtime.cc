@@ -64,10 +64,8 @@ class HipblasJSONRuntime : public JSONRuntimeBase {
 
   void Run(TVMArgs args) {
     auto* entry_ptr = tvm::contrib::HipBlasLtThreadEntry::ThreadLocal();
-
-    auto func = tvm::runtime::Registry::Get("runtime.get_rocm_stream");
-    ICHECK(func != nullptr);
-    hipStream_t stream = static_cast<hipStream_t>((*func)().operator void*());
+    static auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_rocm_stream");
+    hipStream_t stream = static_cast<hipStream_t>(func().operator void*());
 
     std::vector<const DLTensor*> dl_tensors(NumEntries());
 

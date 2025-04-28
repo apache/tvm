@@ -55,7 +55,9 @@ inline ssize_t RetryCallOnEINTR(FuncType func, GetErrorCodeFuncType fgeterrorcod
       // environment specific(e.g. python) signal exceptions.
       // This function will throw an exception if there is
       // if the process received a signal that requires TVM to return immediately (e.g. SIGINT).
-      runtime::EnvCheckSignals();
+      if (TVMFFIEnvCheckSignals() != 0) {
+        throw ffi::EnvErrorAlreadySet();
+      }
     } else {
       // other errors
       return ret;

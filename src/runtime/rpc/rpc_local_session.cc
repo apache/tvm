@@ -33,7 +33,7 @@ namespace tvm {
 namespace runtime {
 
 RPCSession::PackedFuncHandle LocalSession::GetFunction(const std::string& name) {
-  if (auto* fp = tvm::runtime::Registry::Get(name)) {
+  if (auto fp = tvm::ffi::Function::GetGlobal(name)) {
     // return raw handle because the remote need to explicitly manage it.
     Any ret = *fp;
     TVMFFIAny ret_any = ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(ret));

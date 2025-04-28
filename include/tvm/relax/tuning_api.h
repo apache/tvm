@@ -67,17 +67,17 @@ class ChoiceNode : public runtime::Object {
 
   /*! \brief Getter for constr_func. */
   const runtime::PackedFunc GetConstrFunc() {
-    const auto* constr_func = tvm::runtime::Registry::Get(constr_func_key);
-    ICHECK(constr_func != nullptr) << "constr_func_key is not registered: " << constr_func_key;
-    return *constr_func;
+    const auto constr_func = tvm::ffi::Function::GetGlobal(constr_func_key);
+    ICHECK(constr_func.has_value()) << "constr_func_key is not registered: " << constr_func_key;
+    return *std::move(constr_func);
   }
 
   /*! \brief Getter for transform_func. */
   const runtime::PackedFunc GetTransformFunc() {
-    auto* transform_func = tvm::runtime::Registry::Get(transform_func_key);
-    ICHECK(transform_func != nullptr)
+    auto transform_func = tvm::ffi::Function::GetGlobal(transform_func_key);
+    ICHECK(transform_func.has_value())
         << "transform_func_key is not registered: " << transform_func_key;
-    return *transform_func;
+    return *std::move(transform_func);
   }
 
   /*! \brief Perform constr_func. */

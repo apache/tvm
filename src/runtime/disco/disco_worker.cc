@@ -106,8 +106,8 @@ struct DiscoWorker::Impl {
   static void Shutdown(DiscoWorker* self) {}
 
   static void GetGlobalFunc(DiscoWorker* self, int reg_id, const std::string& name) {
-    const PackedFunc* pf = runtime::Registry::Get(name);
-    CHECK(pf) << "ValueError: Cannot find global function: " << name;
+    const auto pf = tvm::ffi::Function::GetGlobal(name);
+    CHECK(pf.has_value()) << "ValueError: Cannot find global function: " << name;
     if (reg_id != 0) {
       GetReg(self, reg_id) = *pf;
     }

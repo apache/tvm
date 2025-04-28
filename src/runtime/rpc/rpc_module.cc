@@ -404,8 +404,8 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
         } else {
           PackedFunc f_preproc;
           if (!f_preproc_name.empty()) {
-            auto* pf_preproc = runtime::Registry::Get(f_preproc_name);
-            ICHECK(pf_preproc != nullptr)
+            auto pf_preproc = tvm::ffi::Function::GetGlobal(f_preproc_name);
+            ICHECK(pf_preproc.has_value())
                 << "Cannot find " << f_preproc_name << " in the global function";
             f_preproc = *pf_preproc;
           }
@@ -416,12 +416,12 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
                                               repeats_to_cooldown, cache_flush_bytes, f_preproc);
         }
       } else {
-        auto* pf = runtime::Registry::Get(name);
-        ICHECK(pf != nullptr) << "Cannot find " << name << " in the global function";
+        auto pf = tvm::ffi::Function::GetGlobal(name);
+        ICHECK(pf.has_value()) << "Cannot find " << name << " in the global function";
         PackedFunc f_preproc;
         if (!f_preproc_name.empty()) {
-          auto* pf_preproc = runtime::Registry::Get(f_preproc_name);
-          ICHECK(pf_preproc != nullptr)
+          auto pf_preproc = tvm::ffi::Function::GetGlobal(f_preproc_name);
+          ICHECK(pf_preproc.has_value())
               << "Cannot find " << f_preproc_name << " in the global function";
           f_preproc = *pf_preproc;
         }
@@ -431,9 +431,8 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
       }
     });
 
-TVM_REGISTER_GLOBAL("cache_flush_cpu_non_first_arg").set_body([](TVMArgs args, TVMRetValue* rv) {
-  CPUCacheFlush(1, args);
-});
+TVM_REGISTER_GLOBAL("cache_flush_cpu_non_first_arg")
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) { CPUCacheFlush(1, args); });
 
 // server function registration.
 TVM_REGISTER_GLOBAL("tvm.rpc.server.ImportModule").set_body_typed([](Module parent, Module child) {
@@ -458,7 +457,7 @@ TVM_REGISTER_GLOBAL("rpc.ImportRemoteModule").set_body_typed([](Module parent, M
   static_cast<RPCModuleNode*>(parent.operator->())->ImportModule(child);
 });
 
-TVM_REGISTER_GLOBAL("rpc.SessTableIndex").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("rpc.SessTableIndex").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   Module m = args[0];
   std::string tkey = m->type_key();
   ICHECK_EQ(tkey, "rpc");

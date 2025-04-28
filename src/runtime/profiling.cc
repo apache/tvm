@@ -93,8 +93,9 @@ std::set<DLDeviceType> seen_devices;
 std::mutex seen_devices_lock;
 
 Timer Timer::Start(Device dev) {
-  auto f = Registry::Get(std::string("profiling.timer.") + DLDeviceType2Str(dev.device_type));
-  if (f == nullptr) {
+  auto f = tvm::ffi::Function::GetGlobal(std::string("profiling.timer.") +
+                                         DLDeviceType2Str(dev.device_type));
+  if (!f.has_value()) {
     {
       std::lock_guard<std::mutex> lock(seen_devices_lock);
       if (seen_devices.find(dev.device_type) == seen_devices.end()) {
@@ -787,7 +788,7 @@ TVM_REGISTER_OBJECT_TYPE(ReportNode);
 TVM_REGISTER_OBJECT_TYPE(DeviceWrapperNode);
 TVM_REGISTER_OBJECT_TYPE(MetricCollectorNode);
 
-TVM_REGISTER_GLOBAL("runtime.profiling.AsTable").set_body_method<Report>(&ReportNode::AsTable);
+TVM_REGISTER_GLOBAL("runtime.profiling.AsTable").set_body_method(&ReportNode::AsTable);
 TVM_REGISTER_GLOBAL("runtime.profiling.AsCSV").set_body_typed([](Report n) { return n->AsCSV(); });
 TVM_REGISTER_GLOBAL("runtime.profiling.AsJSON").set_body_typed([](Report n) {
   return n->AsJSON();

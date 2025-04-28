@@ -76,7 +76,7 @@ void init_tile_config(__tilecfg_u* dst, uint16_t cols, uint8_t rows) {
   _tile_loadconfig(dst->a);
 }
 
-TVM_REGISTER_GLOBAL("runtime.amx_tileconfig").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("runtime.amx_tileconfig").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   int rows = args[0];
   int cols = args[1];
   LOG(INFO) << "rows: " << rows << ", cols:" << cols;
@@ -89,7 +89,7 @@ TVM_REGISTER_GLOBAL("runtime.amx_tileconfig").set_body([](TVMArgs args, TVMRetVa
 });
 
 // register a global packed function in c++，to init the system for AMX config
-TVM_REGISTER_GLOBAL("runtime.amx_init").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("runtime.amx_init").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   // -----------Detect and request for AMX control----------------------
   uint64_t bitmask = 0;
   int64_t status = syscall(SYS_arch_prctl, ARCH_GET_XCOMP_PERM, &bitmask);

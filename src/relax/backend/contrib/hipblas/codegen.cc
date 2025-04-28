@@ -94,8 +94,7 @@ Array<runtime::Module> HipblasCompiler(Array<Function> functions, Map<String, ff
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto* pf = runtime::Registry::Get("runtime.HipblasJSONRuntimeCreate");
-    ICHECK(pf != nullptr) << "Cannot find HIPBLAS runtime module create function.";
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.HipblasJSONRuntimeCreate");
     auto func_name = GetExtSymbol(func);
     compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
   }

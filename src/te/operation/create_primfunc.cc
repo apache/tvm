@@ -742,9 +742,9 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
                                      /*ret_type=*/VoidType(),
                                      /*buffer_map=*/std::move(buffer_map)),
                             {{"global_symbol", String("main")}, {"tir.noalias", true}});
-  const auto* complete = runtime::Registry::Get("script.Complete");
-  ICHECK(complete);
-  func = (*complete)(std::move(func), info->root_alloc);
+  const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
+  ICHECK(fcomplete.has_value());
+  func = (*fcomplete)(std::move(func), info->root_alloc);
   return func;
 }
 
@@ -784,7 +784,7 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
   return CreatePrimFuncWithConstants(arg_list, {}, index_dtype_override);
 }
 
-TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   Array<ObjectRef> arg_list = args[0];
   std::optional<DataType> index_dtype_override{std::nullopt};
   // Add conversion to make std::optional compatible with FFI.
@@ -816,10 +816,9 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<ObjectRef>& arg_tir_var_list,
                                      /*ret_type=*/VoidType(),
                                      /*buffer_map=*/std::move(buffer_map)),
                             {{"global_symbol", String("main")}, {"tir.noalias", true}});
-
-  const auto* complete = runtime::Registry::Get("script.Complete");
-  ICHECK(complete);
-  func = (*complete)(std::move(func), info->root_alloc);
+  const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
+  ICHECK(fcomplete.has_value());
+  func = (*fcomplete)(std::move(func), info->root_alloc);
   return func;
 }
 

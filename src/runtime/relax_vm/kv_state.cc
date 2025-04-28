@@ -31,16 +31,14 @@ TVM_REGISTER_OBJECT_TYPE(AttentionKVCacheObj);
 TVM_REGISTER_OBJECT_TYPE(RNNStateObj);
 
 // KV State base methods
-TVM_REGISTER_GLOBAL("vm.builtin.kv_state_clear").set_body_method<KVState>(&KVStateObj::Clear);
-TVM_REGISTER_GLOBAL("vm.builtin.kv_state_add_sequence")
-    .set_body_method<KVState>(&KVStateObj::AddSequence);
+TVM_REGISTER_GLOBAL("vm.builtin.kv_state_clear").set_body_method(&KVStateObj::Clear);
+TVM_REGISTER_GLOBAL("vm.builtin.kv_state_add_sequence").set_body_method(&KVStateObj::AddSequence);
 TVM_REGISTER_GLOBAL("vm.builtin.kv_state_remove_sequence")
-    .set_body_method<KVState>(&KVStateObj::RemoveSequence);
-TVM_REGISTER_GLOBAL("vm.builtin.kv_state_fork_sequence")
-    .set_body_method<KVState>(&KVStateObj::ForkSequence);
-TVM_REGISTER_GLOBAL("vm.builtin.kv_state_popn").set_body_method<KVState>(&KVStateObj::PopN);
+    .set_body_method(&KVStateObj::RemoveSequence);
+TVM_REGISTER_GLOBAL("vm.builtin.kv_state_fork_sequence").set_body_method(&KVStateObj::ForkSequence);
+TVM_REGISTER_GLOBAL("vm.builtin.kv_state_popn").set_body_method(&KVStateObj::PopN);
 TVM_REGISTER_GLOBAL("vm.builtin.kv_state_begin_forward")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       CHECK(args.size() == 3 || args.size() == 4)
           << "KVState BeginForward only accepts 3 or 4 arguments";
       KVState kv_state = args[0];
@@ -52,30 +50,29 @@ TVM_REGISTER_GLOBAL("vm.builtin.kv_state_begin_forward")
       }
       kv_state->BeginForward(seq_ids, append_lengths, token_tree_parent_ptr);
     });
-TVM_REGISTER_GLOBAL("vm.builtin.kv_state_end_forward")
-    .set_body_method<KVState>(&KVStateObj::EndForward);
+TVM_REGISTER_GLOBAL("vm.builtin.kv_state_end_forward").set_body_method(&KVStateObj::EndForward);
 
 // Attention KV Cache methods
 TVM_REGISTER_GLOBAL("vm.builtin.kv_cache_disagg_prepare_recv")
-    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::DisaggPrepareRecv);
+    .set_body_method(&AttentionKVCacheObj::DisaggPrepareRecv);
 TVM_REGISTER_GLOBAL("vm.builtin.kv_cache_disagg_mark_send")
-    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::DisaggMarkSend);
+    .set_body_method(&AttentionKVCacheObj::DisaggMarkSend);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_enable_sliding_window_for_seq")
-    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::EnableSlidingWindowForSeq);
+    .set_body_method(&AttentionKVCacheObj::EnableSlidingWindowForSeq);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_commit_accepted_token_tree_nodes")
-    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::CommitAcceptedTokenTreeNodes);
+    .set_body_method(&AttentionKVCacheObj::CommitAcceptedTokenTreeNodes);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_empty")
-    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::Empty);
+    .set_body_method(&AttentionKVCacheObj::Empty);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_get_num_available_pages")
-    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::GetNumAvailablePages);
+    .set_body_method(&AttentionKVCacheObj::GetNumAvailablePages);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_get_total_sequence_length")
-    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::GetTotalSequenceLength);
+    .set_body_method(&AttentionKVCacheObj::GetTotalSequenceLength);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_get_query_positions")
-    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::GetQueryPositions);
+    .set_body_method(&AttentionKVCacheObj::GetQueryPositions);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_debug_get_kv")
-    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::DebugGetKV);
+    .set_body_method(&AttentionKVCacheObj::DebugGetKV);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_debug_get_kv_mla")
-    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::DebugGetKVMLA);
+    .set_body_method(&AttentionKVCacheObj::DebugGetKVMLA);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_attention_with_fused_qkv")
     .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id, double sm_scale,
                        NDArray qkv_data, NDArray o_data) {
@@ -107,14 +104,13 @@ TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_merge_attn_output_inplace")
     });
 
 // RNN State methods
-TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_get").set_body_method<RNNState>(&RNNStateObj::Get);
+TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_get").set_body_method(&RNNStateObj::Get);
 TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_set")
     .set_body_typed([](RNNState state, int64_t layer_id, int64_t state_id, NDArray data) {
       state->Set(layer_id, state_id, data);
       return state;
     });
-TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_debug_get")
-    .set_body_method<RNNState>(&RNNStateObj::DebugGet);
+TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_debug_get").set_body_method(&RNNStateObj::DebugGet);
 
 }  // namespace relax_vm
 }  // namespace runtime

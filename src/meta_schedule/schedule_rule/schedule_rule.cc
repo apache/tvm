@@ -403,11 +403,9 @@ TVM_REGISTER_OBJECT_TYPE(ScheduleRuleNode);
 TVM_REGISTER_NODE_TYPE(PyScheduleRuleNode);
 
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleInitializeWithTuneContext")
-    .set_body_method<ScheduleRule>(&ScheduleRuleNode::InitializeWithTuneContext);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleApply")
-    .set_body_method<ScheduleRule>(&ScheduleRuleNode::Apply);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleClone")
-    .set_body_method<ScheduleRule>(&ScheduleRuleNode::Clone);
+    .set_body_method(&ScheduleRuleNode::InitializeWithTuneContext);
+TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleApply").set_body_method(&ScheduleRuleNode::Apply);
+TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleClone").set_body_method(&ScheduleRuleNode::Clone);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRulePyScheduleRule")
     .set_body_typed(ScheduleRule::PyScheduleRule);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultLLVM")

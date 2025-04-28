@@ -53,19 +53,15 @@ struct TestAttrs : public AttrsNode<TestAttrs> {
 
 TVM_REGISTER_NODE_TYPE(TestAttrs);
 
-TVM_REGISTER_GLOBAL("testing.nop").set_body([](TVMArgs args, TVMRetValue* ret) {});
 
-TVM_REGISTER_GLOBAL("testing.echo").set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = args[0];
-});
-
-TVM_REGISTER_GLOBAL("testing.test_wrap_callback").set_body([](TVMArgs args, TVMRetValue* ret) {
-  PackedFunc pf = args[0];
-  *ret = runtime::TypedPackedFunc<void()>([pf]() { pf(); });
-});
+TVM_REGISTER_GLOBAL("testing.test_wrap_callback")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      PackedFunc pf = args[0];
+      *ret = runtime::TypedPackedFunc<void()>([pf]() { pf(); });
+    });
 
 TVM_REGISTER_GLOBAL("testing.test_wrap_callback_suppress_err")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       PackedFunc pf = args[0];
       auto result = runtime::TypedPackedFunc<void()>([pf]() {
         try {
@@ -77,18 +73,19 @@ TVM_REGISTER_GLOBAL("testing.test_wrap_callback_suppress_err")
     });
 
 TVM_REGISTER_GLOBAL("testing.test_raise_error_callback")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       std::string msg = args[0];
       *ret = runtime::TypedPackedFunc<void()>([msg]() { LOG(FATAL) << msg; });
     });
 
-TVM_REGISTER_GLOBAL("testing.test_check_eq_callback").set_body([](TVMArgs args, TVMRetValue* ret) {
-  std::string msg = args[0];
-  *ret =
-      runtime::TypedPackedFunc<void(int x, int y)>([msg](int x, int y) { CHECK_EQ(x, y) << msg; });
-});
+TVM_REGISTER_GLOBAL("testing.test_check_eq_callback")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      std::string msg = args[0];
+      *ret = runtime::TypedPackedFunc<void(int x, int y)>(
+          [msg](int x, int y) { CHECK_EQ(x, y) << msg; });
+    });
 
-TVM_REGISTER_GLOBAL("testing.device_test").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("testing.device_test").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   Device dev = args[0];
   int dtype = args[1];
   int did = args[2];
@@ -97,17 +94,9 @@ TVM_REGISTER_GLOBAL("testing.device_test").set_body([](TVMArgs args, TVMRetValue
   *ret = dev;
 });
 
-TVM_REGISTER_GLOBAL("testing.run_check_signal").set_body_typed([](int nsec) {
-  for (int i = 0; i < nsec; ++i) {
-    tvm::runtime::EnvCheckSignals();
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-  }
-  LOG(INFO) << "Function finished without catching signal";
-});
-
-TVM_REGISTER_GLOBAL("testing.identity_cpp").set_body([](TVMArgs args, TVMRetValue* ret) {
-  const auto* identity_func = tvm::runtime::Registry::Get("testing.identity_py");
-  ICHECK(identity_func != nullptr)
+TVM_REGISTER_GLOBAL("testing.identity_cpp").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+  const auto identity_func = tvm::ffi::Function::GetGlobal("testing.identity_py");
+  ICHECK(identity_func.has_value())
       << "AttributeError: \"testing.identity_py\" is not registered. Please check "
          "if the python module is properly loaded";
   *ret = (*identity_func)(args[0]);
@@ -126,7 +115,7 @@ void ErrorTest(int x, int y) {
 TVM_REGISTER_GLOBAL("testing.ErrorTest").set_body_typed(ErrorTest);
 
 // internal function used for debug and testing purposes
-TVM_REGISTER_GLOBAL("testing.object_use_count").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("testing.object_use_count").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   runtime::ObjectRef obj = args[0];
   // substract the current one because we always copy
   // and get another value.
@@ -178,13 +167,6 @@ TVM_REGISTER_GLOBAL("testing.sleep_in_ffi").set_body_typed([](double timeout) {
   std::this_thread::sleep_for(duration);
 });
 
-TVM_REGISTER_GLOBAL("testing.check_signals").set_body_typed([](double sleep_period) {
-  while (true) {
-    std::chrono::duration<int64_t, std::nano> duration(static_cast<int64_t>(sleep_period * 1e9));
-    std::this_thread::sleep_for(duration);
-    runtime::EnvCheckSignals();
-  }
-});
 
 TVM_REGISTER_GLOBAL("testing.ReturnsVariant").set_body_typed([](int x) -> Variant<String, IntImm> {
   if (x % 2 == 0) {
@@ -288,7 +270,7 @@ class TestingEventLogger {
   std::vector<Entry> entries_;
 };
 
-TVM_REGISTER_GLOBAL("testing.record_event").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("testing.record_event").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   if (args.size() != 0 && args[0].as<String>()) {
     TestingEventLogger::ThreadLocal()->Record(args[0]);
   } else {
@@ -296,7 +278,7 @@ TVM_REGISTER_GLOBAL("testing.record_event").set_body([](TVMArgs args, TVMRetValu
   }
 });
 
-TVM_REGISTER_GLOBAL("testing.reset_events").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("testing.reset_events").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   TestingEventLogger::ThreadLocal()->Reset();
 });
 

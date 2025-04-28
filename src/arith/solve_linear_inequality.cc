@@ -536,7 +536,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
 }
 
 TVM_REGISTER_GLOBAL("arith.SolveInequalitiesAsCondition")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       IntConstraints problem;
       PartialSolvedInequalities ret_ineq;
       if (args.size() == 1) {
@@ -552,20 +552,22 @@ TVM_REGISTER_GLOBAL("arith.SolveInequalitiesAsCondition")
       *ret = AsConditions(problem->variables, ret_ineq.first, ret_ineq.second);
     });
 
-TVM_REGISTER_GLOBAL("arith.SolveInequalitiesToRange").set_body([](TVMArgs args, TVMRetValue* ret) {
-  if (args.size() == 1) {
-    *ret = SolveInequalitiesToRange(args[0]);
-  } else if (args.size() == 3) {
-    Optional<Map<Var, Range>> opt_map = args[1];
-    IntConstraints problem(args[0], opt_map.value_or({}), args[2]);
-    *ret = SolveInequalitiesToRange(problem);
-  } else {
-    LOG(FATAL) << "arith.SolveInequalitiesToRange expects 1 or 3 arguments, gets " << args.size();
-  }
-});
+TVM_REGISTER_GLOBAL("arith.SolveInequalitiesToRange")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      if (args.size() == 1) {
+        *ret = SolveInequalitiesToRange(args[0]);
+      } else if (args.size() == 3) {
+        Optional<Map<Var, Range>> opt_map = args[1];
+        IntConstraints problem(args[0], opt_map.value_or({}), args[2]);
+        *ret = SolveInequalitiesToRange(problem);
+      } else {
+        LOG(FATAL) << "arith.SolveInequalitiesToRange expects 1 or 3 arguments, gets "
+                   << args.size();
+      }
+    });
 
 TVM_REGISTER_GLOBAL("arith.SolveInequalitiesDeskewRange")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       if (args.size() == 1) {
         *ret = SolveInequalitiesDeskewRange(args[0]);
       } else if (args.size() == 3) {

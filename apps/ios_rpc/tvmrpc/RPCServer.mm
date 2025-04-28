@@ -63,8 +63,8 @@ using FEventHandler = PackedFunc;
  */
 FEventHandler CreateServerEventHandler(NSOutputStream* outputStream, std::string name,
                                        std::string remote_key) {
-  const PackedFunc* event_handler_factory = Registry::Get("rpc.CreateEventDrivenServer");
-  ICHECK(event_handler_factory != nullptr)
+  auto event_handler_factory = tvm::ffi::Function::GetGlobal("rpc.CreateEventDrivenServer");
+  ICHECK(event_handler_factory.has_value())
       << "You are using tvm_runtime module built without RPC support. "
       << "Please rebuild it with USE_RPC flag.";
 

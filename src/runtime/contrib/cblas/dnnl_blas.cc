@@ -46,7 +46,7 @@ struct DNNLSgemmOp {
 };
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.dnnl.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.dnnl.matmul").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* A = args[0];
   ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
   CallGemm(args, ret, DNNLSgemmOp());

@@ -737,10 +737,9 @@ namespace transform {
 bool CheckDataTypeSupport(const Target& target, const std::string& support_func_name) {
   bool has_native_support = false;
   if (target->kind->name == "cuda") {
-    if (const PackedFunc* get_cv =
-            tvm::runtime::Registry::Get("tvm.contrib.nvcc.get_compute_version")) {
+    if (auto get_cv = tvm::ffi::Function::GetGlobal("tvm.contrib.nvcc.get_compute_version")) {
       std::string compute_version = (*get_cv)(target);
-      if (const PackedFunc* check_support = tvm::runtime::Registry::Get(support_func_name)) {
+      if (auto check_support = tvm::ffi::Function::GetGlobal(support_func_name)) {
         has_native_support = (*check_support)(compute_version);
       }
     }

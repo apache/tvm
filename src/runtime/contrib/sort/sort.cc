@@ -77,80 +77,81 @@ struct float16 {
 // If input tensor has dimension (d0, d1, ..., d(k-1), dk, d(k+1), ..., d(n-1))
 // and sort axis is dk. sort_num should have dimension of
 // (d1, d2, ..., d(k-1), d(k+1), ..., dn).
-TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort_nms").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* input = args[0];
-  DLTensor* sort_num = args[1];
-  DLTensor* output = args[2];
-  int32_t axis = args[3];
-  bool is_ascend = args[4];
+TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort_nms")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      DLTensor* input = args[0];
+      DLTensor* sort_num = args[1];
+      DLTensor* output = args[2];
+      int32_t axis = args[3];
+      bool is_ascend = args[4];
 
-  auto dtype = input->dtype;
-  auto data_ptr = static_cast<float*>(input->data);
-  auto sort_num_ptr = static_cast<int32_t*>(sort_num->data);
-  std::vector<std::pair<int32_t, float>> sorter;
-  int64_t axis_mul_before = 1;
-  int64_t axis_mul_after = 1;
+      auto dtype = input->dtype;
+      auto data_ptr = static_cast<float*>(input->data);
+      auto sort_num_ptr = static_cast<int32_t*>(sort_num->data);
+      std::vector<std::pair<int32_t, float>> sorter;
+      int64_t axis_mul_before = 1;
+      int64_t axis_mul_after = 1;
 
-  if (axis < 0) {
-    axis = input->ndim + axis;
-  }
+      if (axis < 0) {
+        axis = input->ndim + axis;
+      }
 
-  // Currently only supports input dtype to be float32.
-  ICHECK_EQ(dtype.code, 2) << "Currently only supports input dtype "
-                              "to be float.";
+      // Currently only supports input dtype to be float32.
+      ICHECK_EQ(dtype.code, 2) << "Currently only supports input dtype "
+                                  "to be float.";
 #if (__ARM_FEATURE_FP16_SCALAR_ARITHMETIC != 1)
-  ICHECK_EQ(dtype.bits, 32) << "Currently only supports input dtype "
-                               "to be float32.";
+      ICHECK_EQ(dtype.bits, 32) << "Currently only supports input dtype "
+                                   "to be float32.";
 #endif
-  ICHECK_LT(axis, input->ndim) << "Axis out of boundary for "
-                                  "input ndim "
-                               << input->ndim;
+      ICHECK_LT(axis, input->ndim) << "Axis out of boundary for "
+                                      "input ndim "
+                                   << input->ndim;
 
-  for (int i = 0; i < input->ndim; ++i) {
-    if (i < axis) {
-      axis_mul_before *= input->shape[i];
-    } else if (i > axis) {
-      axis_mul_after *= input->shape[i];
-    }
-  }
+      for (int i = 0; i < input->ndim; ++i) {
+        if (i < axis) {
+          axis_mul_before *= input->shape[i];
+        } else if (i > axis) {
+          axis_mul_after *= input->shape[i];
+        }
+      }
 
-  for (int64_t i = 0; i < axis_mul_before; ++i) {
-    for (int64_t j = 0; j < axis_mul_after; ++j) {
-      sorter.clear();
-      int32_t current_sort_num = *(sort_num_ptr + i * axis_mul_after + j);
-      int64_t base_idx = i * input->shape[axis] * axis_mul_after + j;
-      for (int64_t k = 0; k < current_sort_num; ++k) {
-        int64_t full_idx = base_idx + k * axis_mul_after;
-        sorter.emplace_back(std::make_pair(k, *(data_ptr + full_idx)));
-      }
-      if (is_ascend) {
+      for (int64_t i = 0; i < axis_mul_before; ++i) {
+        for (int64_t j = 0; j < axis_mul_after; ++j) {
+          sorter.clear();
+          int32_t current_sort_num = *(sort_num_ptr + i * axis_mul_after + j);
+          int64_t base_idx = i * input->shape[axis] * axis_mul_after + j;
+          for (int64_t k = 0; k < current_sort_num; ++k) {
+            int64_t full_idx = base_idx + k * axis_mul_after;
+            sorter.emplace_back(std::make_pair(k, *(data_ptr + full_idx)));
+          }
+          if (is_ascend) {
 #if (__ARM_FEATURE_FP16_SCALAR_ARITHMETIC == 1)
-        if (dtype.bits == 16) {
-          std::stable_sort(sorter.begin(), sorter.end(), CompareAscend<__fp16>);
-        } else {
+            if (dtype.bits == 16) {
+              std::stable_sort(sorter.begin(), sorter.end(), CompareAscend<__fp16>);
+            } else {
 #endif
-          std::stable_sort(sorter.begin(), sorter.end(), CompareAscend<float>);
+              std::stable_sort(sorter.begin(), sorter.end(), CompareAscend<float>);
 #if (__ARM_FEATURE_FP16_SCALAR_ARITHMETIC == 1)
+            }
+#endif
+          } else {
+#if (__ARM_FEATURE_FP16_SCALAR_ARITHMETIC == 1)
+            if (dtype.bits == 16) {
+              std::stable_sort(sorter.begin(), sorter.end(), CompareDescend<__fp16>);
+            } else {
+#endif
+              std::stable_sort(sorter.begin(), sorter.end(), CompareDescend<float>);
+#if (__ARM_FEATURE_FP16_SCALAR_ARITHMETIC == 1)
+            }
+#endif
+          }
+          for (int32_t k = 0; k < input->shape[axis]; ++k) {
+            *(static_cast<int32_t*>(output->data) + base_idx + k * axis_mul_after) =
+                k < static_cast<int32_t>(sorter.size()) ? sorter[k].first : k;
+          }
         }
-#endif
-      } else {
-#if (__ARM_FEATURE_FP16_SCALAR_ARITHMETIC == 1)
-        if (dtype.bits == 16) {
-          std::stable_sort(sorter.begin(), sorter.end(), CompareDescend<__fp16>);
-        } else {
-#endif
-          std::stable_sort(sorter.begin(), sorter.end(), CompareDescend<float>);
-#if (__ARM_FEATURE_FP16_SCALAR_ARITHMETIC == 1)
-        }
-#endif
       }
-      for (int32_t k = 0; k < input->shape[axis]; ++k) {
-        *(static_cast<int32_t*>(output->data) + base_idx + k * axis_mul_after) =
-            k < static_cast<int32_t>(sorter.size()) ? sorter[k].first : k;
-      }
-    }
-  }
-});
+    });
 
 template <typename DataType, typename OutType>
 void sort_impl(
@@ -215,7 +216,7 @@ void sort(DLTensor* input, DLTensor* output, int32_t axis, bool is_ascend) {
 // If input tensor has dimension (d0, d1, ..., d(k-1), dk, d(k+1), ..., d(n-1))
 // and sort axis is dk. sort_num should have dimension of
 // (d1, d2, ..., d(k-1), d(k+1), ..., dn).
-TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* input = args[0];
   DLTensor* output = args[1];
   int32_t axis = args[2];
@@ -310,7 +311,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort").set_body([](TVMArgs args, TVMRet
 // If input tensor has dimension (d0, d1, ..., d(k-1), dk, d(k+1), ..., d(n-1))
 // and sort axis is dk. sort_num should have dimension of
 // (d1, d2, ..., d(k-1), d(k+1), ..., dn).
-TVM_REGISTER_GLOBAL("tvm.contrib.sort.sort").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.sort.sort").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* input = args[0];
   DLTensor* output = args[1];
   int32_t axis = args[2];
@@ -439,7 +440,7 @@ void topk(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, int k, i
 // If input tensor has dimension (d0, d1, ..., d(k-1), dk, d(k+1), ..., d(n-1))
 // and sort axis is dk. sort_num should have dimension of
 // (d1, d2, ..., d(k-1), d(k+1), ..., dn).
-TVM_REGISTER_GLOBAL("tvm.contrib.sort.topk").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.sort.topk").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   DLTensor* input = args[0];
   DLTensor* values_out = nullptr;
   DLTensor* indices_out = nullptr;

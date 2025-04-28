@@ -46,21 +46,18 @@ namespace tvm {
 namespace runtime {
 
 std::string GetCustomTypeName(uint8_t type_code) {
-  auto f = tvm::runtime::Registry::Get("runtime._datatype_get_type_name");
-  ICHECK(f) << "Function runtime._datatype_get_type_name not found";
-  return (*f)(type_code).operator String();
+  const auto f = tvm::ffi::Function::GetGlobalRequired("runtime._datatype_get_type_name");
+  return f(type_code).operator String();
 }
 
 uint8_t GetCustomTypeCode(const std::string& type_name) {
-  auto f = tvm::runtime::Registry::Get("runtime._datatype_get_type_code");
-  ICHECK(f) << "Function runtime._datatype_get_type_code not found";
-  return (*f)(type_name).operator int();
+  const auto f = tvm::ffi::Function::GetGlobalRequired("runtime._datatype_get_type_code");
+  return f(type_name).operator int();
 }
 
 bool GetCustomTypeRegistered(uint8_t type_code) {
-  auto f = tvm::runtime::Registry::Get("runtime._datatype_get_type_registered");
-  ICHECK(f) << "Function runtime._datatype_get_type_registered not found";
-  return (*f)(type_code).operator bool();
+  const auto f = tvm::ffi::Function::GetGlobalRequired("runtime._datatype_get_type_registered");
+  return f(type_code).operator bool();
 }
 
 uint8_t ParseCustomDatatype(const std::string& s, const char** scan) {
@@ -129,8 +126,8 @@ class DeviceAPIManager {
   }
   DeviceAPI* GetAPI(const std::string name, bool allow_missing) {
     std::string factory = "device_api." + name;
-    auto* f = Registry::Get(factory);
-    if (f == nullptr) {
+    const auto f = tvm::ffi::Function::GetGlobal(factory);
+    if (!f.has_value()) {
       ICHECK(allow_missing) << "Device API " << name << " is not enabled.";
       return nullptr;
     }
@@ -749,7 +746,7 @@ int TVMDeviceCopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream
 
 // set device api
 TVM_REGISTER_GLOBAL(tvm::runtime::symbol::tvm_set_device)
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       DLDevice dev;
       dev.device_type = static_cast<DLDeviceType>(args[0].operator int());
       dev.device_id = args[1];
@@ -757,7 +754,7 @@ TVM_REGISTER_GLOBAL(tvm::runtime::symbol::tvm_set_device)
     });
 
 // set device api
-TVM_REGISTER_GLOBAL("runtime.GetDeviceAttr").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("runtime.GetDeviceAttr").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   DLDevice dev;
   dev.device_type = static_cast<DLDeviceType>(args[0].operator int());
   dev.device_id = args[1];

@@ -365,10 +365,10 @@ class BackwardBindingGenerator : private ExprVisitor {
     } else if (call_op == Op::Get("relax.call_tir_with_grad")) {
       // tir gradient registering
       auto te_grad_name = call->attrs.as<CallTIRWithGradAttrs>()->te_grad_name;
-      auto* grad_func = tvm::runtime::Registry::Get(te_grad_func_prefix + te_grad_name);
-      CHECK(grad_func) << "TIR gradient function " << te_grad_name << " is not registered";
+      const auto grad_func =
+          tvm::ffi::Function::GetGlobalRequired(te_grad_func_prefix + te_grad_name);
       Var partials =
-          (*grad_func)(checkpoint_var, Downcast<Call>(checkpoint_call), adjoint_var, builder_);
+          grad_func(checkpoint_var, Downcast<Call>(checkpoint_call), adjoint_var, builder_);
       Tuple args = Downcast<Tuple>(call->args[1]);
       auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(partials);
       if (!tuple_sinfo) {

@@ -301,7 +301,7 @@ NDArray AttentionKVCacheView(AttentionKVCacheLegacy cache, ShapeTuple shape) {
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_view")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       CHECK(args.size() == 1 || args.size() == 2)
           << "ValueError: `vm.builtin.attention_kv_cache_view` expects 1 or 2 arguments, but got "
           << args.size() << ".";

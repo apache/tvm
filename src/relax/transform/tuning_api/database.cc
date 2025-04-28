@@ -324,26 +324,25 @@ TVM_REGISTER_GLOBAL("relax.tuning_api.TuningRecord")
       return TuningRecord(trace, run_secs);
     });
 TVM_REGISTER_GLOBAL("relax.tuning_api.TuningRecordAsJSON")
-    .set_body_method<TuningRecord>(&TuningRecordNode::AsJSON);
+    .set_body_method(&TuningRecordNode::AsJSON);
 TVM_REGISTER_GLOBAL("relax.tuning_api.TuningRecordFromJSON").set_body_typed(TuningRecord::FromJSON);
 
 TVM_REGISTER_OBJECT_TYPE(DatabaseNode);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseHasWorkload")
-    .set_body_method<Database>(&DatabaseNode::HasWorkload);
+    .set_body_method(&DatabaseNode::HasWorkload);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseHasMeasurementRecord")
-    .set_body_method<Database>(&DatabaseNode::HasMeasurementRecord);
+    .set_body_method(&DatabaseNode::HasMeasurementRecord);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseHasTuningRecord")
-    .set_body_method<Database>(&DatabaseNode::HasTuningRecord);
+    .set_body_method(&DatabaseNode::HasTuningRecord);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseCommitMeasurementRecord")
-    .set_body_method<Database>(&DatabaseNode::CommitMeasurementRecord);
+    .set_body_method(&DatabaseNode::CommitMeasurementRecord);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseCommitWorkload")
-    .set_body_method<Database>(&DatabaseNode::CommitWorkload);
+    .set_body_method(&DatabaseNode::CommitWorkload);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseCommitTuningRecord")
-    .set_body_method<Database>(&DatabaseNode::CommitTuningRecord);
-TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseGetTopK")
-    .set_body_method<Database>(&DatabaseNode::GetTopK);
+    .set_body_method(&DatabaseNode::CommitTuningRecord);
+TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseGetTopK").set_body_method(&DatabaseNode::GetTopK);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseGetMeasurementRecord")
-    .set_body_method<Database>(&DatabaseNode::GetMeasurementRecord);
+    .set_body_method(&DatabaseNode::GetMeasurementRecord);
 
 TVM_REGISTER_NODE_TYPE(JSONDatabaseNode);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseJSONDatabase").set_body_typed(Database::JSONDatabase);

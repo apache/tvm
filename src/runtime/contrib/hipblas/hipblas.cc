@@ -407,30 +407,31 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, hipblasHandle_t hdl)
 }
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* A = args[0];
-  DLTensor* C = args[2];
+TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      DLTensor* A = args[0];
+      DLTensor* C = args[2];
 
-  HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal();
+      HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal();
 
-  if (TypeEqual(A->dtype, C->dtype)) {
-    ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
-           TypeMatch(A->dtype, kDLFloat, 64));
+      if (TypeEqual(A->dtype, C->dtype)) {
+        ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
+               TypeMatch(A->dtype, kDLFloat, 64));
 
-    if (TypeMatch(A->dtype, kDLFloat, 16)) {
-      CallGemm(args, ret, HipblasHgemmOp(entry_ptr->handle));
-    } else if (TypeMatch(A->dtype, kDLFloat, 32)) {
-      CallGemm(args, ret, HipblasSgemmOp(entry_ptr->handle));
-    } else {
-      CallGemm(args, ret, HipblasDgemmOp(entry_ptr->handle));
-    }
-  } else {
-    CallGemmEx(args, ret, entry_ptr->handle);
-  }
-});
+        if (TypeMatch(A->dtype, kDLFloat, 16)) {
+          CallGemm(args, ret, HipblasHgemmOp(entry_ptr->handle));
+        } else if (TypeMatch(A->dtype, kDLFloat, 32)) {
+          CallGemm(args, ret, HipblasSgemmOp(entry_ptr->handle));
+        } else {
+          CallGemm(args, ret, HipblasDgemmOp(entry_ptr->handle));
+        }
+      } else {
+        CallGemmEx(args, ret, entry_ptr->handle);
+      }
+    });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.batch_matmul")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       DLTensor* A = args[0];
       DLTensor* C = args[2];
 

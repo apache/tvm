@@ -67,10 +67,9 @@ runtime::Module Finalize(const std::string& code, const Array<String>& func_name
   default_headers << "#include <cutlass/tensor_ref.h>\n";
   default_headers << "#include <cutlass/util/host_tensor.h>\n";
 
-  const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
-  ICHECK(pf != nullptr) << "Cannot find CSource module to create the external runtime module";
+  const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.CSourceModuleCreate");
   VLOG(1) << "Generated CUTLASS code:" << std::endl << code;
-  return (*pf)(default_headers.str() + code, "cu", func_names, /*const_vars=*/Array<String>());
+  return pf(default_headers.str() + code, "cu", func_names, /*const_vars=*/Array<String>());
 }
 
 class CodegenResultNode : public Object {
@@ -128,11 +127,9 @@ GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string&
   }
   decl_stream << ");";
 
-  const auto* instantiate_template_func =
-      runtime::Registry::Get("contrib.cutlass.instantiate_template");
-  ICHECK(instantiate_template_func);
-
-  CodegenResult codegen_res = (*instantiate_template_func)(func_name, attrs, func_args);
+  const auto instantiate_template_func =
+      tvm::ffi::Function::GetGlobalRequired("contrib.cutlass.instantiate_template");
+  CodegenResult codegen_res = instantiate_template_func(func_name, attrs, func_args);
   ret.decl = codegen_res->code;
   ret.headers = codegen_res->headers;
 
@@ -369,17 +366,17 @@ class CutlassModuleCodegen {
 
 Array<runtime::Module> CUTLASSCompiler(Array<Function> functions, Map<String, ffi::Any> options,
                                        Map<Constant, String> /*unused*/) {
-  const auto* tune_func = runtime::Registry::Get("contrib.cutlass.tune_relax_function");
-  ICHECK(tune_func != nullptr)
+  const auto tune_func = tvm::ffi::Function::GetGlobal("contrib.cutlass.tune_relax_function");
+  ICHECK(tune_func.has_value())
       << "The packed function contrib.cutlass.tune_relax_function not found, "
          "please import tvm.contrib.cutlass.build";
 
   Array<Function> annotated_functions = (*tune_func)(functions, options);
 
   auto source_mod = CutlassModuleCodegen().CreateCSourceModule(annotated_functions, options);
-  const auto* pf = runtime::Registry::Get("contrib.cutlass.compile");
-  ICHECK(pf != nullptr) << "The packed function contrib.cutlass.compile not found, please import "
-                           "tvm.contrib.cutlass.build";
+  const auto pf = tvm::ffi::Function::GetGlobal("contrib.cutlass.compile");
+  ICHECK(pf.has_value()) << "The packed function contrib.cutlass.compile not found, please import "
+                            "tvm.contrib.cutlass.build";
   runtime::Module cutlass_mod = (*pf)(source_mod, options);
 
   return {cutlass_mod};

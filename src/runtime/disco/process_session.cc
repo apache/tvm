@@ -180,7 +180,7 @@ Session Session::ProcessSession(int num_workers, int num_group, String process_p
                                 String entrypoint) {
   CHECK_EQ(num_workers % num_group, 0)
       << "The number of workers should be divisible by the number of worker group.";
-  const PackedFunc* pf = Registry::Get(process_pool_creator);
+  const auto pf = tvm::ffi::Function::GetGlobal(process_pool_creator);
   CHECK(pf) << "ValueError: Cannot find function " << process_pool_creator
             << " in the registry. Please check if it is registered.";
   PackedFunc process_pool = (*pf)(num_workers, num_group, entrypoint);

@@ -199,14 +199,15 @@ Array<Var> UndefinedVars(const PrimExpr& expr, const Array<Var>& args) {
   return m.undefined_;
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.UndefinedVars").set_body([](TVMArgs args, TVMRetValue* rv) {
-  if (auto opt_stmt = args[0].as<Stmt>()) {
-    *rv = UndefinedVars(opt_stmt.value(), args[1]);
-  } else if (auto opt_expr = args[0].as<PrimExpr>()) {
-    *rv = UndefinedVars(opt_expr.value(), args[1]);
-  } else {
-    LOG(FATAL) << "either UndefinedVars(stmt, args) or UndefinedVars(expr, args) is expected";
-  }
-});
+TVM_REGISTER_GLOBAL("tir.analysis.UndefinedVars")
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+      if (auto opt_stmt = args[0].as<Stmt>()) {
+        *rv = UndefinedVars(opt_stmt.value(), args[1]);
+      } else if (auto opt_expr = args[0].as<PrimExpr>()) {
+        *rv = UndefinedVars(opt_expr.value(), args[1]);
+      } else {
+        LOG(FATAL) << "either UndefinedVars(stmt, args) or UndefinedVars(expr, args) is expected";
+      }
+    });
 }  // namespace tir
 }  // namespace tvm

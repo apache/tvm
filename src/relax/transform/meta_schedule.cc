@@ -44,10 +44,8 @@ class MetaScheduleTuner {
         max_trials_per_task_(max_trials_per_task),
         op_names_(op_names),
         params_(params) {
-    // candgen_func_ = runtime::Registry::Get("relax.tuning_api.default_generate_candidate");
-    // ICHECK(candgen_func_) << "Default candidate generation function is not found.";
-    normalize_mod_func_ = runtime::Registry::Get("tvm.meta_schedule.normalize_mod");
-    ICHECK(normalize_mod_func_) << "Normalization function is not found.";
+    normalize_mod_func_ = tvm::ffi::Function::GetGlobal("tvm.meta_schedule.normalize_mod");
+    ICHECK(normalize_mod_func_.has_value()) << "Normalization function is not found.";
   }
 
   // TODO(@sunggg): Currently, only supports basic arguments.
@@ -96,16 +94,15 @@ class MetaScheduleTuner {
   Integer max_trials_per_task_;
   Optional<Array<String>> op_names_;
   Map<String, runtime::NDArray> params_;
-  // const runtime::PackedFunc* candgen_func_;
-  const runtime::PackedFunc* normalize_mod_func_;
+  std::optional<tvm::ffi::Function> normalize_mod_func_;
 };
 
 Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = false) {
   using tvm::meta_schedule::Database;
   Target target = Target::Current(false);
-  const runtime::PackedFunc* normalize_mod_func_ =
-      runtime::Registry::Get("tvm.meta_schedule.normalize_mod");
-  ICHECK(normalize_mod_func_) << "Normalization function is not found.";
+  const std::optional<tvm::ffi::Function> normalize_mod_func_ =
+      tvm::ffi::Function::GetGlobalRequired("tvm.meta_schedule.normalize_mod");
+  ICHECK(normalize_mod_func_.has_value()) << "Normalization function is not found.";
 
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     Database database{nullptr};

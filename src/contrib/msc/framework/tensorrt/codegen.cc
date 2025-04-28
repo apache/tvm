@@ -119,9 +119,8 @@ void TensorRTCodeGen::CodeGenClassDefine() {
   stack_.func_arg("logger", "TRTLogger&").func_start();
   // save codegen before build
   if (config()->use_tools) {
-    const auto* pf = runtime::Registry::Get("msc_tool.codegen_step");
-    ICHECK(pf != nullptr) << "Cannot find msc_tool.codegen_step func.";
-    before_build_codes_ = (*pf)(GetStepCtx(), "before_build", graph()->name, config()->tools_tag);
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("msc_tool.codegen_step");
+    before_build_codes_ = pf(GetStepCtx(), "before_build", graph()->name, config()->tools_tag);
   }
   if (graph()->weight_holders.size() > 0) {
     stack_.func_call("TRTUtils::LoadWeights", "mWeights")
@@ -205,9 +204,8 @@ void TensorRTCodeGen::CodeGenClassDefine() {
   }
   // save codegen after build
   if (config()->use_tools) {
-    const auto* pf = runtime::Registry::Get("msc_tool.codegen_step");
-    ICHECK(pf != nullptr) << "Cannot find msc_tool.codegen_step func.";
-    after_build_codes_ = (*pf)(GetStepCtx(), "after_build", graph()->name, config()->tools_tag);
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("msc_tool.codegen_step");
+    after_build_codes_ = pf(GetStepCtx(), "after_build", graph()->name, config()->tools_tag);
   }
   // end define build method
   stack_.func_end("true");
@@ -610,10 +608,9 @@ Array<runtime::Module> MSCTensorRTCompiler(Array<Function> functions,
     MSCJSONSerializer serializer(constant_names, options);
     serializer.serialize(func);
     std::string graph_json = serializer.GetJSON();
-    const auto* pf = runtime::Registry::Get("runtime.msc_tensorrt_runtime_create");
-    ICHECK(pf != nullptr) << "Cannot find TensorRT runtime module create function.";
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.msc_tensorrt_runtime_create");
     VLOG(1) << "Creating msc_tensorrt runtime::Module for '" << func_name << "'";
-    compiled_functions.push_back((*pf)(func_name, graph_json, serializer.GetConstantNames()));
+    compiled_functions.push_back(pf(func_name, graph_json, serializer.GetConstantNames()));
   }
   return compiled_functions;
 }

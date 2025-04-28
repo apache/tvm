@@ -145,7 +145,7 @@ std::string DeviceTypeStr(DLDeviceType type) {
 
 Allocator* GetDeviceSpecificAllocator(Device dev, AllocatorType type) {
   std::string dev_str = DeviceTypeStr(dev.device_type);
-  auto* device_alloc_helper = tvm::runtime::Registry::Get("DeviceAllocator." + dev_str);
+  auto device_alloc_helper = tvm::ffi::Function::GetGlobal("DeviceAllocator." + dev_str);
   void* valloc;
   Allocator* allocator = nullptr;
   if (device_alloc_helper) {

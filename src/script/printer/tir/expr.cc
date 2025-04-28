@@ -254,7 +254,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           int n_args = call->args.size();
           int64_t id = call->args[0].as<IntImmNode>()->value;
           auto f_llvm_lookup_intrinsic_name =
-              tvm::runtime::Registry::Get("target.llvm_get_intrinsic_name");
+              tvm::ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
 
           Array<ExprDoc> args;
           args.reserve(n_args + 1);

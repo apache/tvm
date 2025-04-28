@@ -292,11 +292,11 @@ void MakeNode(const TVMArgs& args, TVMRetValue* rv) {
   *rv = ReflectionVTable::Global()->CreateObject(type_key, args.Slice(1));
 }
 
-TVM_REGISTER_GLOBAL("node.NodeGetAttr").set_body(NodeGetAttr);
+TVM_REGISTER_GLOBAL("node.NodeGetAttr").set_body_packed(NodeGetAttr);
 
-TVM_REGISTER_GLOBAL("node.NodeListAttrNames").set_body(NodeListAttrNames);
+TVM_REGISTER_GLOBAL("node.NodeListAttrNames").set_body_packed(NodeListAttrNames);
 
-TVM_REGISTER_GLOBAL("node.MakeNode").set_body(MakeNode);
+TVM_REGISTER_GLOBAL("node.MakeNode").set_body_packed(MakeNode);
 
 namespace {
 // Attribute visitor class for finding the attribute key by its address

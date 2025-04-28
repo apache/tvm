@@ -240,7 +240,7 @@ class CUDAGraphExtension : public VMExtension {
 };
 
 TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       ICHECK(args.size() == 5 || args.size() == 4);
       VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
       auto extension = vm->GetOrCreateExtension<CUDAGraphExtension>();
@@ -255,7 +255,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.get_cached_alloc")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       ICHECK_EQ(args.size(), 3);
       VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
       auto extension = vm->GetOrCreateExtension<CUDAGraphExtension>();

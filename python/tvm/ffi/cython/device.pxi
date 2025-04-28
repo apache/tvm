@@ -149,4 +149,3 @@ cdef inline object make_ret_device(TVMFFIAny result):
 
 
 _set_class_device(Device)
-

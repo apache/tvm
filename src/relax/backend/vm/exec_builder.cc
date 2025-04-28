@@ -330,7 +330,7 @@ void ExecBuilderNode::Formalize() {
 TVM_REGISTER_GLOBAL("relax.ExecBuilderCreate").set_body_typed(ExecBuilderNode::Create);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderConvertConstant")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       ExecBuilder builder = args[0];
       TVMRetValue rt;
       rt = args[1];
@@ -343,8 +343,7 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitFunction")
       builder->EmitFunction(func, num_inputs, param_names);
     });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderEndFunction")
-    .set_body_method<ExecBuilder>(&ExecBuilderNode::EndFunction);
+TVM_REGISTER_GLOBAL("relax.ExecBuilderEndFunction").set_body_method(&ExecBuilderNode::EndFunction);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderDeclareFunction")
     .set_body_typed([](ExecBuilder builder, String name, int32_t kind) {
@@ -366,8 +365,7 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitRet")
       builder->EmitRet(Instruction::Arg::FromData(data));
     });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitGoto")
-    .set_body_method<ExecBuilder>(&ExecBuilderNode::EmitGoto);
+TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitGoto").set_body_method(&ExecBuilderNode::EmitGoto);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitIf")
     .set_body_typed([](ExecBuilder builder, int64_t data, vm::Index false_offset) {

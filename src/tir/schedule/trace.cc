@@ -567,8 +567,7 @@ TVM_REGISTER_GLOBAL("tir.schedule.Trace")
                        Optional<Map<Instruction, Any>> decisions) {
       return Trace(insts.value_or(Array<Instruction>()), decisions.value_or({}));
     });
-TVM_REGISTER_GLOBAL("tir.schedule.TraceGetDecision")
-    .set_body_method<Trace>(&TraceNode::GetDecision);
+TVM_REGISTER_GLOBAL("tir.schedule.TraceGetDecision").set_body_method(&TraceNode::GetDecision);
 TVM_REGISTER_GLOBAL("tir.schedule.TraceAppend")
     .set_body_typed([](Trace self, Instruction inst, Optional<ObjectRef> decision) {
       if (decision.defined()) {
@@ -577,14 +576,13 @@ TVM_REGISTER_GLOBAL("tir.schedule.TraceAppend")
         return self->Append(inst);
       }
     });
-TVM_REGISTER_GLOBAL("tir.schedule.TracePop").set_body_method<Trace>(&TraceNode::Pop);
+TVM_REGISTER_GLOBAL("tir.schedule.TracePop").set_body_method(&TraceNode::Pop);
 TVM_REGISTER_GLOBAL("tir.schedule.TraceApplyToSchedule")
-    .set_body_method<Trace>(&TraceNode::ApplyToSchedule);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceAsJSON").set_body_method<Trace>(&TraceNode::AsJSON);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceAsPython").set_body_method<Trace>(&TraceNode::AsPython);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceWithDecision")
-    .set_body_method<Trace>(&TraceNode::WithDecision);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceSimplified").set_body_method<Trace>(&TraceNode::Simplified);
+    .set_body_method(&TraceNode::ApplyToSchedule);
+TVM_REGISTER_GLOBAL("tir.schedule.TraceAsJSON").set_body_method(&TraceNode::AsJSON);
+TVM_REGISTER_GLOBAL("tir.schedule.TraceAsPython").set_body_method(&TraceNode::AsPython);
+TVM_REGISTER_GLOBAL("tir.schedule.TraceWithDecision").set_body_method(&TraceNode::WithDecision);
+TVM_REGISTER_GLOBAL("tir.schedule.TraceSimplified").set_body_method(&TraceNode::Simplified);
 TVM_REGISTER_GLOBAL("tir.schedule.TraceApplyJSONToSchedule")
     .set_body_typed(Trace::ApplyJSONToSchedule);
 

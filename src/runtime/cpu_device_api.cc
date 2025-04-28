@@ -150,7 +150,7 @@ void CPUDeviceAPI::FreeWorkspace(Device dev, void* data) {
   dmlc::ThreadLocalStore<CPUWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
 
-TVM_REGISTER_GLOBAL("device_api.cpu").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.cpu").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = CPUDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });

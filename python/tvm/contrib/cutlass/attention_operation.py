@@ -147,9 +147,8 @@ def instantiate_attention_template(attrs):
   }
 
   CHECK(Attention::check_supported(p));
-  auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-  ICHECK(func != nullptr);
-  cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+  auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+  cudaStream_t stream = static_cast<cudaStream_t>(func().operator void*());
 
   kernel_fn<<<p.getBlocksGrid(), p.getThreadsGrid(), smem_bytes, stream>>>(p);
 
@@ -187,9 +186,8 @@ def instantiate_flash_attention_template(attrs):
     int v_batch_stride = v_row_stride * ${num_keys};
     int o_batch_stride = o_row_stride * ${num_queries};
 
-    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-    ICHECK(func != nullptr);
-    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+    auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+    cudaStream_t stream = static_cast<cudaStream_t>(func().operator void*());
 
     flash_attn::flash_attention_forward(
                             static_cast<const cutlass::half_t*>(${query}->data),
@@ -239,9 +237,8 @@ def instantiate_flash_attention_template(attrs):
     int v_batch_stride = v_row_stride * ${num_keys};
     int o_batch_stride = o_row_stride * ${num_queries};
 
-    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-    ICHECK(func != nullptr);
-    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+    auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+    cudaStream_t stream = static_cast<cudaStream_t>(func().operator void*());
 
     flash_attn::flash_attention_forward(
                             static_cast<const cutlass::half_t*>(${qkv}->data),
@@ -297,9 +294,8 @@ def instantiate_flash_attention_var_len_template(attrs):
     int v_row_stride = v_head_stride * ${num_kv_heads};
     int o_row_stride = o_head_stride * ${num_q_heads};
 
-    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-    ICHECK(func != nullptr);
-    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+    auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+    cudaStream_t stream = static_cast<cudaStream_t>(func().operator void*());
 
     flash_attn::flash_attention_var_len_forward(
                             static_cast<const cutlass::half_t*>(${query}->data),

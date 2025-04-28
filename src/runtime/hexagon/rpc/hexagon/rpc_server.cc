@@ -244,7 +244,7 @@ tvm::runtime::hexagon::HexagonRPCServer* get_hexagon_rpc_server(
 }  // namespace
 
 const tvm::runtime::PackedFunc get_runtime_func(const std::string& name) {
-  if (const tvm::runtime::PackedFunc* pf = tvm::runtime::Registry::Get(name)) {
+  if (const auto pf = tvm::ffi::Function::GetGlobal(name)) {
     return *pf;
   }
   return tvm::runtime::PackedFunc();
@@ -253,7 +253,7 @@ const tvm::runtime::PackedFunc get_runtime_func(const std::string& name) {
 void reset_device_api() {
   const tvm::runtime::PackedFunc api = get_runtime_func("device_api.hexagon");
   // Registering device_api.cpu as device_api.hexagon since we use hexagon as sub-target of LLVM.
-  tvm::runtime::Registry::Register("device_api.cpu", true).set_body(api);
+  tvm::runtime::Registry::Register("device_api.cpu", true).set_body_packed(api);
 }
 
 int __QAIC_HEADER(hexagon_rpc_open)(const char* uri, remote_handle64* handle) {
@@ -330,14 +330,14 @@ __attribute__((weak)) void _Parse_fde_instr() {}
 }
 
 TVM_REGISTER_GLOBAL("tvm.hexagon.load_module")
-    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
+    .set_body_packed([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
       std::string soname = args[0];
       tvm::ObjectPtr<tvm::runtime::Library> n = tvm::runtime::CreateDSOLibraryObject(soname);
       *rv = CreateModuleFromLibrary(n);
     });
 
 TVM_REGISTER_GLOBAL("tvm.hexagon.get_profile_output")
-    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
+    .set_body_packed([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
       std::string profiling_mode = args[0];
       std::string out_file = args[1];
       if (profiling_mode.compare("lwp") == 0) {
@@ -355,7 +355,7 @@ void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
 }
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.upload")
-    .set_body([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
+    .set_body_packed([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
       std::string file_name = args[0];
       std::string data = args[1];
       SaveBinaryToFile(file_name, data);

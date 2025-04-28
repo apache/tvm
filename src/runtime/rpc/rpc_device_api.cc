@@ -150,7 +150,7 @@ class RPCDeviceAPI final : public DeviceAPI {
   }
 };
 
-TVM_REGISTER_GLOBAL("device_api.rpc").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.rpc").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   static RPCDeviceAPI inst;
   DeviceAPI* ptr = &inst;
   *rv = static_cast<void*>(ptr);

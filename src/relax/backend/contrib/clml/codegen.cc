@@ -314,11 +314,10 @@ Array<runtime::Module> OpenCLMLCompiler(Array<Function> functions, Map<String, A
     serializer.serialize(func);
     std::string graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto* pf = runtime::Registry::Get("runtime.clml_runtime_create");
-    ICHECK(pf != nullptr) << "Cannot find OpenCLML runtime module create function.";
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.clml_runtime_create");
     std::string func_name = GetExtSymbol(func);
     VLOG(1) << "Creating clml runtime::Module for '" << func_name << "'";
-    compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names));
   }
   return compiled_functions;
 }

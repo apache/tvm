@@ -90,7 +90,7 @@ static void ReadInputsAndGenerateInputBin(TVMArgs args, const std::string& input
   file_out << std::endl << "\t]" << std::endl;
   file_out << "}" << std::endl;
 
-  const auto* json_to_bin = tvm::runtime::Registry::Get("tvm.mrvl.JsonToBin");
+  const auto json_to_bin = tvm::ffi::Function::GetGlobal("tvm.mrvl.JsonToBin");
   (*json_to_bin)(input_json, input_bin);
 }
 
@@ -100,7 +100,7 @@ static void RunInferenceOnMlModel(const std::string& symbol_name, const std::str
   auto command = bin_directory + "/mrvl-mlsim " + "-m " + bin_file + " -d " + input_bin + " -o " +
                  out_bin_prefix;
   std::string sim_directory = "mrvl_sw_sim_" + symbol_name;
-  const auto* run_sim = tvm::runtime::Registry::Get("tvm.mrvl.RunSim");
+  const auto run_sim = tvm::ffi::Function::GetGlobal("tvm.mrvl.RunSim");
   (*run_sim)(command, sim_directory);
 }
 
@@ -144,7 +144,7 @@ static void ReadOutputsAndUpdateRuntime(TVMArgs args, size_t num_inputs,
 static void CleanUp(TVMArgs args, const std::string& bin_file, const std::string& input_json,
                     const std::string& input_bin, const std::string& out_bin_prefix,
                     size_t num_outputs) {
-  const auto* clean_up = tvm::runtime::Registry::Get("tvm.mrvl.CleanUpSim");
+  const auto clean_up = tvm::ffi::Function::GetGlobal("tvm.mrvl.CleanUpSim");
   (*clean_up)(bin_file, input_json, input_bin, out_bin_prefix, num_outputs);
 }
 
@@ -153,14 +153,14 @@ void tvm::runtime::contrib::mrvl::RunMarvellSimulator(TVMArgs args, const std::s
                                                       size_t num_inputs, size_t num_outputs) {
   // check $PATH for the presence of MRVL dependent tools/scripts
   std::string file_name("mrvl-mlsim");
-  const auto* search_path = tvm::runtime::Registry::Get("tvm.mrvl.SearchPath");
+  const auto search_path = tvm::ffi::Function::GetGlobal("tvm.mrvl.SearchPath");
   std::string tools_directory = (*search_path)(file_name);
   if (tools_directory.empty()) {
     ICHECK(false) << "mrvl-mlsim simulator not found! Please specify the path to Marvell "
                      "tools by adding it to $PATH.";
   }
 
-  const auto* temp_dir = tvm::runtime::Registry::Get("tvm.mrvl.TempDir");
+  const auto temp_dir = tvm::ffi::Function::GetGlobal("tvm.mrvl.TempDir");
   std::string working_directory = (*temp_dir)();
   auto bin_file = working_directory + "/" + symbol_name + ".bin";
   auto input_json = working_directory + "/indata.json";

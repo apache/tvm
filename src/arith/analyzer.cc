@@ -268,7 +268,7 @@ PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
   return res;
 }
 
-TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   using runtime::PackedFunc;
   using runtime::TypedPackedFunc;
   auto self = std::make_shared<Analyzer>();

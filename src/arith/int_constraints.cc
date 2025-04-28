@@ -204,7 +204,7 @@ TVM_REGISTER_GLOBAL("arith.IntGroupBounds")
 TVM_REGISTER_GLOBAL("arith.IntGroupBounds_from_range").set_body_typed(IntGroupBounds::FromRange);
 
 TVM_REGISTER_GLOBAL("arith.IntGroupBounds_FindBestRange")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       ICHECK(args.size() == 1 || args.size() == 2);
       IntGroupBounds bounds = args[0];
       if (args.size() == 1) {

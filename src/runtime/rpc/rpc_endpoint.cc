@@ -592,8 +592,8 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
         constructor_args = args.Slice(1);
       }
 
-      auto* fconstructor = Registry::Get(constructor_name);
-      ICHECK(fconstructor != nullptr) << " Cannot find session constructor " << constructor_name;
+      auto fconstructor = tvm::ffi::Function::GetGlobal(constructor_name);
+      ICHECK(fconstructor.has_value()) << " Cannot find session constructor " << constructor_name;
       TVMRetValue con_ret;
 
       try {
@@ -812,12 +812,12 @@ void RPCEndpoint::Shutdown() {
 }
 
 void RPCEndpoint::ServerLoop() {
-  if (const auto* f = Registry::Get("tvm.rpc.server.start")) {
+  if (const auto f = tvm::ffi::Function::GetGlobal("tvm.rpc.server.start")) {
     (*f)();
   }
   TVMRetValue rv;
   ICHECK(HandleUntilReturnEvent(false, [](TVMArgs) {}) == RPCCode::kShutdown);
-  if (const auto* f = Registry::Get("tvm.rpc.server.shutdown")) {
+  if (const auto f = tvm::ffi::Function::GetGlobal("tvm.rpc.server.shutdown")) {
     (*f)();
   }
   channel_.reset(nullptr);

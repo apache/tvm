@@ -198,7 +198,7 @@ ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std:
         const std::string& name = shard_func.name;
         if (PackedFunc f = mod.defined() ? mod->GetFunction(name, true) : nullptr; f != nullptr) {
           n->shard_funcs_[name] = f;
-        } else if (const PackedFunc* f = runtime::Registry::Get(name)) {
+        } else if (const auto f = tvm::ffi::Function::GetGlobal(name)) {
           n->shard_funcs_[name] = *f;
         } else {
           LOG(FATAL) << "ValueError: Undefined function: " << name;

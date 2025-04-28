@@ -112,7 +112,7 @@ class SystemLibModuleRegistry {
   std::unordered_map<std::string, runtime::Module> lib_map_;
 };
 
-TVM_REGISTER_GLOBAL("runtime.SystemLib").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("runtime.SystemLib").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   std::string symbol_prefix = "";
   if (args.size() != 0) {
     symbol_prefix = args[0].operator std::string();

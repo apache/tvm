@@ -42,8 +42,8 @@ void tvm_cutlass_group_gemm_sm90(NDArray x, NDArray weight, NDArray indptr, NDAr
                                  NDArray out) {
   // Workspace is used for storing device-side group gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
-  auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-  ICHECK(func != nullptr);
+  static auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+  cudaStream_t stream = static_cast<cudaStream_t>(func().operator void*());
   CHECK_EQ(x->ndim, 2);
   CHECK_EQ(weight->ndim, 3);
   CHECK_EQ(indptr->ndim, 1);
@@ -54,7 +54,6 @@ void tvm_cutlass_group_gemm_sm90(NDArray x, NDArray weight, NDArray indptr, NDAr
   int k = weight->shape[2];
   float alpha = 1.0f;
   float beta = 0.0f;
-  cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
   cutlass_group_gemm(static_cast<ElementA*>(x->data), static_cast<ElementB*>(weight->data),
                      static_cast<int64_t*>(indptr->data), static_cast<uint8_t*>(workspace->data),
                      workspace->shape[0], n, k, num_groups, alpha, beta,

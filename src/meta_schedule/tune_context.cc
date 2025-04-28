@@ -73,9 +73,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuneContext")
     });
 TVM_REGISTER_GLOBAL("meta_schedule._SHash2Hex").set_body_typed(SHash2Hex);
 TVM_REGISTER_GLOBAL("meta_schedule.TuneContextInitialize")
-    .set_body_method<TuneContext>(&TuneContextNode::Initialize);
-TVM_REGISTER_GLOBAL("meta_schedule.TuneContextClone")
-    .set_body_method<TuneContext>(&TuneContextNode::Clone);
+    .set_body_method(&TuneContextNode::Initialize);
+TVM_REGISTER_GLOBAL("meta_schedule.TuneContextClone").set_body_method(&TuneContextNode::Clone);
 
 }  // namespace meta_schedule
 }  // namespace tvm

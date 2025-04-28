@@ -41,9 +41,9 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
     if (Optional<String> ann = tir::GetAnn<String>(sch->GetSRef(block_rv), "schedule_rule")) {
       if (ann.value() != "None") {
         for (const String& key : keys) {
-          if (const runtime::PackedFunc* custom_schedule_fn =
-                  runtime::Registry::Get(GetCustomRuleName(ann.value(), key))) {
-            Array<tir::Schedule> result = ((*custom_schedule_fn)(sch, block_rv));
+          if (const auto custom_schedule_fn =
+                  tvm::ffi::Function::GetGlobal(GetCustomRuleName(ann.value(), key))) {
+            Array<tir::Schedule> result = (*custom_schedule_fn)(sch, block_rv);
             return result;
           }
         }

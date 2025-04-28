@@ -36,73 +36,6 @@
 namespace tvm {
 namespace runtime {
 
-struct Registry::Manager {
-  // map storing the functions.
-  // We deliberately used raw pointer.
-  // This is because PackedFunc can contain callbacks into the host language (Python) and the
-  // resource can become invalid because of indeterministic order of destruction and forking.
-  // The resources will only be recycled during program exit.
-  std::unordered_map<String, Registry*> fmap;
-  // mutex
-  std::mutex mutex;
-
-  Manager() {}
-
-  static Manager* Global() {
-    // We deliberately leak the Manager instance, to avoid leak sanitizers
-    // complaining about the entries in Manager::fmap being leaked at program
-    // exit.
-    static Manager* inst = new Manager();
-    return inst;
-  }
-};
-
-Registry& Registry::set_body(PackedFunc f) {  // NOLINT(*)
-  func_ = f;
-  return *this;
-}
-
-Registry& Registry::Register(const String& name, bool can_override) {  // NOLINT(*)
-  Manager* m = Manager::Global();
-  std::lock_guard<std::mutex> lock(m->mutex);
-  if (m->fmap.count(name)) {
-    ICHECK(can_override) << "Global PackedFunc " << name << " is already registered";
-  }
-
-  Registry* r = new Registry();
-  r->name_ = name;
-  m->fmap[name] = r;
-  return *r;
-}
-
-bool Registry::Remove(const String& name) {
-  Manager* m = Manager::Global();
-  std::lock_guard<std::mutex> lock(m->mutex);
-  auto it = m->fmap.find(name);
-  if (it == m->fmap.end()) return false;
-  m->fmap.erase(it);
-  return true;
-}
-
-const PackedFunc* Registry::Get(const String& name) {
-  Manager* m = Manager::Global();
-  std::lock_guard<std::mutex> lock(m->mutex);
-  auto it = m->fmap.find(name);
-  if (it == m->fmap.end()) return nullptr;
-  return &(it->second->func_);
-}
-
-std::vector<String> Registry::ListNames() {
-  Manager* m = Manager::Global();
-  std::lock_guard<std::mutex> lock(m->mutex);
-  std::vector<String> keys;
-  keys.reserve(m->fmap.size());
-  for (const auto& kv : m->fmap) {
-    keys.push_back(kv.first);
-  }
-  return keys;
-}
-
 /*!
  * \brief Execution environment specific API registry.
  *
@@ -290,15 +223,15 @@ typedef dmlc::ThreadLocalStore<TVMFuncThreadLocalEntry> TVMFuncThreadLocalStore;
 int TVMFuncRegisterGlobal(const char* name, TVMFunctionHandle f, int override) {
   API_BEGIN();
   using tvm::runtime::GetRef;
-  tvm::runtime::Registry::Register(name, override != 0)
-      .set_body(GetRef<tvm::ffi::Function>(static_cast<tvm::ffi::FunctionObj*>(f)));
+  tvm::ffi::Function::SetGlobal(
+      name, GetRef<tvm::ffi::Function>(static_cast<tvm::ffi::FunctionObj*>(f)), override != 0);
   API_END();
 }
 
 int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
   API_BEGIN();
-  const tvm::runtime::PackedFunc* fp = tvm::runtime::Registry::Get(name);
-  if (fp != nullptr) {
+  const auto fp = tvm::ffi::Function::GetGlobal(name);
+  if (fp.has_value()) {
     TVMFFIAny val = tvm::ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(tvm::ffi::Any(*fp));
     *out = val.v_obj;
   } else {
@@ -310,7 +243,7 @@ int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
 int TVMFuncListGlobalNames(int* out_size, const char*** out_array) {
   API_BEGIN();
   TVMFuncThreadLocalEntry* ret = TVMFuncThreadLocalStore::Get();
-  ret->ret_vec_str = tvm::runtime::Registry::ListNames();
+  ret->ret_vec_str = tvm::ffi::Function::ListGlobalNames();
   ret->ret_vec_charp.clear();
   for (size_t i = 0; i < ret->ret_vec_str.size(); ++i) {
     ret->ret_vec_charp.push_back(ret->ret_vec_str[i].c_str());
@@ -322,7 +255,7 @@ int TVMFuncListGlobalNames(int* out_size, const char*** out_array) {
 
 int TVMFuncRemoveGlobal(const char* name) {
   API_BEGIN();
-  tvm::runtime::Registry::Remove(name);
+  tvm::ffi::Function::RemoveGlobal(name);
   API_END();
 }
 

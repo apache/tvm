@@ -33,7 +33,7 @@ using namespace tvm;
 using namespace tvm::runtime;
 
 #define TOPI_REGISTER_BCAST_OP(OpName, Op)                                              \
-  TVM_REGISTER_GLOBAL(OpName).set_body([](TVMArgs args, TVMRetValue* rv) {              \
+  TVM_REGISTER_GLOBAL(OpName).set_body_packed([](TVMArgs args, TVMRetValue* rv) {       \
     bool lhs_is_tensor = args[0].as<tvm::te::Tensor>().has_value();                     \
     bool rhs_is_tensor = args[1].as<tvm::te::Tensor>().has_value();                     \
     if (lhs_is_tensor && rhs_is_tensor) {                                               \
@@ -73,7 +73,7 @@ TOPI_REGISTER_BCAST_OP("topi.not_equal", topi::not_equal);
 TOPI_REGISTER_BCAST_OP("topi.greater_equal", topi::greater_equal);
 TOPI_REGISTER_BCAST_OP("topi.less_equal", topi::less_equal);
 
-TVM_REGISTER_GLOBAL("topi.broadcast_to").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("topi.broadcast_to").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   *rv = broadcast_to(args[0], args[1]);
 });
 

@@ -80,7 +80,7 @@ Which eventually jumps to the following line in C++, which creates a RPC client 
 [https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L123-L129](https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L123-L129)
 
 ```cpp
-TVM_REGISTER_GLOBAL("rpc.Connect").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("rpc.Connect").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   std::string url = args[0];
   int port = args[1];
   std::string key = args[2];
@@ -95,7 +95,7 @@ TVM_REGISTER_GLOBAL("rpc.Connect").set_body([](TVMArgs args, TVMRetValue* rv) {
 
 ```cpp
 TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       std::string session_name = args[0];
       int remote_stack_size_bytes = args[1];
       HexagonTransportChannel* hexagon_channel =

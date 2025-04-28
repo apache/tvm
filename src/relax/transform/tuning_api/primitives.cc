@@ -148,9 +148,9 @@ Trace::Trace() { data_ = make_object<TraceNode>(); }
 Trace::Trace(IRModule in_mod, Array<Knob> knobs, Array<String> decisions) {
   ICHECK(knobs.size() == decisions.size()) << "Size of knobs and decisions should match";
   // Deep-copy IRModule
-  auto func_deepcopy = runtime::Registry::Get("relax.tuning_api.deepcopy_irmodule");
-  ICHECK(func_deepcopy);
-  IRModule out_mod = (*func_deepcopy)(in_mod);
+  const auto func_deepcopy =
+      tvm::ffi::Function::GetGlobalRequired("relax.tuning_api.deepcopy_irmodule");
+  IRModule out_mod = func_deepcopy(in_mod);
   // Apply the decision history if provided
   int size = knobs.size();
   for (int i = 0; i < size; i++) {
@@ -236,38 +236,36 @@ TVM_REGISTER_GLOBAL("relax.tuning_api.Choice")
                        String constr_func_key, Array<Any> constr_func_args) {
       return Choice(transform_func_key, transform_func_args, constr_func_key, constr_func_args);
     });
-TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceAsJSON").set_body_method<Choice>(&ChoiceNode::AsJSON);
+TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceAsJSON").set_body_method(&ChoiceNode::AsJSON);
 TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceFromJSON").set_body_typed(Choice::FromJSON);
 TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceGetTransformFunc")
-    .set_body_method<Choice>(&ChoiceNode::GetTransformFunc);
+    .set_body_method(&ChoiceNode::GetTransformFunc);
 TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceGetConstrFunc")
-    .set_body_method<Choice>(&ChoiceNode::GetConstrFunc);
+    .set_body_method(&ChoiceNode::GetConstrFunc);
 TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceApplyTransformFunc")
-    .set_body_method<Choice>(&ChoiceNode::ApplyTransformFunc);
-TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceCheckConstr")
-    .set_body_method<Choice>(&ChoiceNode::CheckConstr);
+    .set_body_method(&ChoiceNode::ApplyTransformFunc);
+TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceCheckConstr").set_body_method(&ChoiceNode::CheckConstr);
 
 TVM_REGISTER_NODE_TYPE(KnobNode);
 TVM_REGISTER_GLOBAL("relax.tuning_api.Knob")
     .set_body_typed([](String name, Map<String, Choice> choices) { return Knob(name, choices); });
-TVM_REGISTER_GLOBAL("relax.tuning_api.KnobAsJSON").set_body_method<Knob>(&KnobNode::AsJSON);
+TVM_REGISTER_GLOBAL("relax.tuning_api.KnobAsJSON").set_body_method(&KnobNode::AsJSON);
 TVM_REGISTER_GLOBAL("relax.tuning_api.KnobFromJSON").set_body_typed(Knob::FromJSON);
 TVM_REGISTER_GLOBAL("relax.tuning_api.KnobIsValidDecision")
-    .set_body_method<Knob>(&KnobNode::IsValidDecision);
-TVM_REGISTER_GLOBAL("relax.tuning_api.KnobApply").set_body_method<Knob>(&KnobNode::Apply);
+    .set_body_method(&KnobNode::IsValidDecision);
+TVM_REGISTER_GLOBAL("relax.tuning_api.KnobApply").set_body_method(&KnobNode::Apply);
 
 TVM_REGISTER_NODE_TYPE(TraceNode);
 TVM_REGISTER_GLOBAL("relax.tuning_api.Trace")
     .set_body_typed([](IRModule in_mod, Array<Knob> knobs, Array<String> decisions) {
       return Trace(in_mod, knobs, decisions);
     });
-TVM_REGISTER_GLOBAL("relax.tuning_api.TraceVerify").set_body_method<Trace>(&TraceNode::Verify);
-TVM_REGISTER_GLOBAL("relax.tuning_api.TraceAdd").set_body_method<Trace>(&TraceNode::Add);
-TVM_REGISTER_GLOBAL("relax.tuning_api.TraceSetPerf").set_body_method<Trace>(&TraceNode::SetPerf);
-TVM_REGISTER_GLOBAL("relax.tuning_api.TraceSetOutMod")
-    .set_body_method<Trace>(&TraceNode::SetOutMod);
+TVM_REGISTER_GLOBAL("relax.tuning_api.TraceVerify").set_body_method(&TraceNode::Verify);
+TVM_REGISTER_GLOBAL("relax.tuning_api.TraceAdd").set_body_method(&TraceNode::Add);
+TVM_REGISTER_GLOBAL("relax.tuning_api.TraceSetPerf").set_body_method(&TraceNode::SetPerf);
+TVM_REGISTER_GLOBAL("relax.tuning_api.TraceSetOutMod").set_body_method(&TraceNode::SetOutMod);
 
-TVM_REGISTER_GLOBAL("relax.tuning_api.TraceAsJSON").set_body_method<Trace>(&TraceNode::AsJSON);
+TVM_REGISTER_GLOBAL("relax.tuning_api.TraceAsJSON").set_body_method(&TraceNode::AsJSON);
 TVM_REGISTER_GLOBAL("relax.tuning_api.TraceFromJSON").set_body_typed(Trace::FromJSON);
 }  // namespace relax
 }  // namespace tvm

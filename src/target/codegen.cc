@@ -51,8 +51,8 @@ runtime::Module Build(IRModule mod, Target target) {
 
   // the build function.
   std::string build_f_name = "target.build." + target->kind->name;
-  const PackedFunc* bf = runtime::Registry::Get(build_f_name);
-  ICHECK(bf != nullptr) << build_f_name << " is not enabled";
+  const auto bf = tvm::ffi::Function::GetGlobal(build_f_name);
+  ICHECK(bf.has_value()) << build_f_name << " is not enabled";
   return (*bf)(mod, target);
 }
 
@@ -355,8 +355,8 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   // Call codegen_blob to generate LLVM module
   std::string codegen_f_name = "codegen.codegen_blob";
   // the codegen function.
-  const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
-  ICHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
+  const auto codegen_f = tvm::ffi::Function::GetGlobal(codegen_f_name);
+  ICHECK(codegen_f.has_value()) << "codegen.codegen_blob is not presented.";
   return (*codegen_f)(ffi::Bytes(blob), system_lib, llvm_target_string, c_symbol_prefix);
 }
 
