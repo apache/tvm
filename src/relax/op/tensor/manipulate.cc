@@ -2131,8 +2131,8 @@ StructInfo InferStructInfoMeshgrid(const Call& call, const BlockBuilder& ctx) {
 
     if (sinfo->ndim != 1) {
       ctx->ReportFatal(Diagnostic::Error(call)
-                       << "meshgrid expects each input tensor to be 1D. Got ndim = "
-                       << sinfo->ndim << " at index " << i);
+                       << "meshgrid expects each input tensor to be 1D. Got ndim = " << sinfo->ndim
+                       << " at index " << i);
     }
 
     if (sinfo->dtype.is_void()) {
