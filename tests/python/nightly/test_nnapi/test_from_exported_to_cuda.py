@@ -21,9 +21,11 @@ import tvm.testing
 import numpy as np
 import torch
 from torch import nn
+from torch.nn import functional as F
 from torch.export import export
 from tvm.relax.frontend.torch import from_exported_program
 from torch.nn import Softmax, Upsample
+
 
 
 def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev):
