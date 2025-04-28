@@ -27,7 +27,6 @@ from tvm.relax.frontend.torch import from_exported_program
 from torch.nn import Softmax, Upsample
 
 
-
 def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev):
     """
     This util ensures that a torch module can successfully be exported to TVM
@@ -1053,6 +1052,7 @@ def test_interpolate(target, dev):
     raw_data = np.random.randn(2, 3, 8, 8).astype(np.float32)
     torch_module = InterpolateModule().eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
 
 if __name__ == "__main__":
     tvm.testing.main()
