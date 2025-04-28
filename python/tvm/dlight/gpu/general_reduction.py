@@ -158,12 +158,17 @@ class GeneralReduction(GPUScheduleRule):
                     other_loops.append(loop_rv)
             sch.reorder(*s_loops, *other_loops)
 
+
         loops = sch.get_loops(block_infos[-1].block_rv)
         bx = sch.fuse(*loops[:num_leading_s])
         r_loop, tx = sch.split(loops[-1], [None, len_tx])
         sch.reorder(tx, r_loop)
         sch.bind(bx, "blockIdx.x")
-        sch.bind(tx, "threadIdx.x")
+
+        ana = arith.Analyzer()
+        if ana.can_prove_equal(sch.get(tx).extent, len_tx):
+            sch.bind(tx, "threadIdx.x")
+
         sch.annotate(r_loop, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
         sch.annotate(r_loop, ann_key="pragma_unroll_explicit", ann_val=1)
 
@@ -175,7 +180,10 @@ class GeneralReduction(GPUScheduleRule):
             r_loop = sch.fuse(*sch.get_loops(block)[-num_trailing_r:])
             r_loop, tx = sch.split(r_loop, [None, len_tx])
             sch.reorder(tx, r_loop)
-            sch.bind(tx, "threadIdx.x")
+
+            if ana.can_prove_equal(sch.get(tx).extent, len_tx):   
+                sch.bind(tx, "threadIdx.x")                       
+            
             sch.annotate(r_loop, ann_key="pragma_auto_unroll_max_step", ann_val=unroll_depth)
             sch.annotate(r_loop, ann_key="pragma_unroll_explicit", ann_val=1)
 
