@@ -433,7 +433,7 @@ class StructInfoBaseChecker
     }
 
     // Check purity: Pure functions are a subtype of impure functions
-    if (lhs->purity && !rhs->purity) {
+    if (lhs->IsPure() && !rhs->IsPure()) {
       return BaseCheckResult::kFailL0;
     }
 
@@ -752,7 +752,8 @@ class StructInfoBasePreconditionCollector
     }
 
     // Check purity: Pure functions are a subtype of impure functions
-    if (lhs->purity && !rhs->purity) {
+    // Check purity:
+    if (lhs->IsPure() && !rhs->IsPure()) {
       return Bool(false);
     }
 
@@ -1072,8 +1073,16 @@ class StructInfoLCAFinder
     auto* rhs = other.as<FuncStructInfoNode>();
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
 
-    // the unified function is pure only if both are pure
-    bool purity = lhs->purity && rhs->purity;
+    Optional<Bool> purity = [&]() -> Optional<Bool> {
+      if (lhs->purity.defined() && rhs->purity.defined()) {
+        // The unified function is pure only if both are pure
+        return Bool(lhs->purity.value() && rhs->purity.value());
+      } else {
+        // If either function has unknown purity, then the unified
+        // function has unknown purity.
+        return NullOpt;
+      }
+    }();
 
     // lhs opaque handling
     if (lhs->IsOpaque()) {

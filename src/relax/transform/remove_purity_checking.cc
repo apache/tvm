@@ -33,7 +33,7 @@ class PurityRemover : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Function RemovePurity(Function func) {
-    bool purity = func->is_pure;
+    bool purity = func->is_pure.value_or(Bool(false))->value;
     auto ret = func;
     if (purity) {
       ret = std::move(WithAttr<Function>(func, relax::attr::kForcePure, Bool(true)));

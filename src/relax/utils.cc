@@ -224,7 +224,24 @@ bool IsImpureCall(const Call& call) {
   }
   // the StructInfo must be FuncStructInfo
   auto func_struct_info = GetStructInfoAs<FuncStructInfoNode>(call->op);
-  return !func_struct_info->purity;
+  bool is_pure = func_struct_info->purity.value_or(Bool(false))->value;
+  return !is_pure;
+}
+
+std::optional<bool> GetPurity(const Call& call) {
+  if (auto op_ptr = call->op.as<OpNode>()) {
+    auto op = GetRef<Op>(op_ptr);
+    static auto purity_map = Op::GetAttrMap<Bool>("FPurity");
+    ICHECK(purity_map.count(op)) << "Cannot find the registered purity of this op: " << op->name;
+    return purity_map[op]->value;
+  }
+  // the StructInfo must be FuncStructInfo
+  auto func_struct_info = GetStructInfoAs<FuncStructInfoNode>(call->op);
+  if (func_struct_info->purity.defined()) {
+    return func_struct_info->purity.value()->value;
+  } else {
+    return std::nullopt;
+  }
 }
 
 Expr GetBoundValue(const Binding& b) {

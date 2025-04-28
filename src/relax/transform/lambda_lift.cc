@@ -379,7 +379,7 @@ class LambdaLifter : public ExprMutator {
             return purity_map.get(op.value(), Bool(false))->value;
           } else if (const auto* func_sinfo =
                          orig_call->op->struct_info_.as<FuncStructInfoNode>()) {
-            return func_sinfo->purity;
+            return func_sinfo->purity.value_or(Bool(false))->value;
           } else {
             LOG(FATAL) << "Could not determine purity of call to " << orig_call->op
                        << ", as it is neither a tvm::Op (type = \"" << orig_call->op->GetTypeKey()

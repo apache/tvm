@@ -24,25 +24,32 @@ namespace relax {
 namespace distributed {
 
 DeviceMesh::DeviceMesh(ShapeTuple shape, Array<Integer> device_ids) {
+  device_ids = device_ids.Map(
+      [](const Integer& id) -> Integer { return IntImm(DataType::Int(64), id->value); });
+
   int prod = 1;
   for (int i = 0; i < static_cast<int>(shape.size()); i++) {
     prod *= shape[i];
   }
-  ObjectPtr<DeviceMeshNode> n = make_object<DeviceMeshNode>();
   CHECK_EQ(prod, static_cast<int>(device_ids.size()))
       << "The number of device ids must match the product of the shape";
+
+  ObjectPtr<DeviceMeshNode> n = make_object<DeviceMeshNode>();
   n->shape = std::move(shape);
   n->device_ids = std::move(device_ids);
   data_ = std::move(n);
 }
 
 DeviceMesh::DeviceMesh(ShapeTuple shape, Range device_range) {
-  ObjectPtr<DeviceMeshNode> n = make_object<DeviceMeshNode>();
+  int64_t range_start = device_range->min.as<IntImmNode>()->value;
+  int64_t range_extent = device_range->extent.as<IntImmNode>()->value;
+
+  device_range = Range::FromMinExtent(IntImm(DataType::Int(64), range_start),
+                                      IntImm(DataType::Int(64), range_extent));
+
   Array<Integer> device_ids;
-  int range_start = device_range->min.as<IntImmNode>()->value;
-  int range_extent = device_range->extent.as<IntImmNode>()->value;
-  for (int i = range_start; i < range_start + range_extent; i++) {
-    device_ids.push_back(i);
+  for (int64_t i = range_start; i < range_start + range_extent; i++) {
+    device_ids.push_back(IntImm(DataType::Int(64), i));
   }
   int prod = 1;
   for (int i = 0; i < static_cast<int>(shape.size()); i++) {
@@ -50,6 +57,8 @@ DeviceMesh::DeviceMesh(ShapeTuple shape, Range device_range) {
   }
   CHECK_EQ(prod, static_cast<int>(device_ids.size()))
       << "The number of device ids must match the product of the shape";
+
+  ObjectPtr<DeviceMeshNode> n = make_object<DeviceMeshNode>();
   n->device_ids = std::move(device_ids);
   n->shape = std::move(shape);
   n->device_range = std::move(device_range);
@@ -58,11 +67,15 @@ DeviceMesh::DeviceMesh(ShapeTuple shape, Range device_range) {
 
 TVM_REGISTER_NODE_TYPE(DeviceMeshNode);
 TVM_REGISTER_GLOBAL("relax.distributed.DeviceMesh")
-    .set_body_typed([](ShapeTuple shape, Array<Integer> device_ids, Optional<Range> device_range) {
-      if (device_range.defined())
-        return DeviceMesh(shape, device_range.value());
-      else
-        return DeviceMesh(shape, device_ids);
+    .set_body_typed([](ShapeTuple shape, Variant<Array<Integer>, Range> device_ids) {
+      if (auto arr = device_ids.as<Array<Integer>>()) {
+        return DeviceMesh(shape, arr.value());
+      } else if (auto range = device_ids.as<Range>()) {
+        return DeviceMesh(shape, range.value());
+      } else {
+        LOG(FATAL) << "Unreachable, "
+                   << "variant must contain one of the allowed types";
+      }
     });
 
 }  // namespace distributed

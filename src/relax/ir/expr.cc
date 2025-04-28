@@ -555,8 +555,8 @@ TVM_REGISTER_GLOBAL("relax.SeqExpr")
 
 TVM_REGISTER_NODE_TYPE(FunctionNode);
 
-Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info, bool is_pure,
-                   DictAttrs attrs, Span span) {
+Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
+                   Optional<Bool> is_pure, DictAttrs attrs, Span span) {
   if (!attrs.defined()) {
     attrs = DictAttrs();
   }
@@ -570,6 +570,17 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
     CHECK(param->struct_info_.defined())
         << "relax.Function requires params to contain struct_info_";
     param_sinfo.push_back(GetStructInfo(param));
+  }
+
+  if (!is_pure.defined()) {
+    if (attrs.defined() && attrs->dict.defined()) {
+      if (auto opt_force_pure = attrs->dict.Get(relax::attr::kForcePure)) {
+        bool force_pure = Downcast<IntImm>(opt_force_pure.value())->value;
+        if (force_pure) {
+          is_pure = Bool(true);
+        }
+      }
+    }
   }
 
   Optional<StructInfo> body_sinfo;
@@ -626,12 +637,12 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
 
 TVM_REGISTER_GLOBAL("relax.Function")
     .set_body_typed([](Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
-                       bool is_pure, DictAttrs attrs, Span span) {
+                       Optional<Bool> is_pure, DictAttrs attrs, Span span) {
       return Function(params, body, ret_struct_info, is_pure, attrs, span);
     });
 
-Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, bool is_pure,
-                               DictAttrs attrs, Span span) {
+Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info,
+                               Optional<Bool> is_pure, DictAttrs attrs, Span span) {
   Array<StructInfo> param_sinfo;
   for (const Var& param : params) {
     ICHECK(param->checked_type_.defined())
@@ -653,7 +664,7 @@ Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, bo
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->params = std::move(params);
   n->body = std::move(body);
-  n->is_pure = is_pure;
+  n->is_pure = std::move(is_pure);
   n->checked_type_ = GetStaticType(finfo);
   n->struct_info_ = std::move(finfo);
   n->ret_struct_info = std::move(ret_struct_info);
@@ -663,8 +674,8 @@ Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, bo
 }
 
 TVM_REGISTER_GLOBAL("relax.FunctionCreateEmpty")
-    .set_body_typed([](Array<Var> params, StructInfo ret_struct_info, bool is_pure, DictAttrs attrs,
-                       Span span) {
+    .set_body_typed([](Array<Var> params, StructInfo ret_struct_info, Optional<Bool> is_pure,
+                       DictAttrs attrs, Span span) {
       return Function::CreateEmpty(params, ret_struct_info, is_pure, attrs, span);
     });
 

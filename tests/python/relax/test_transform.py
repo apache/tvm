@@ -129,19 +129,19 @@ def test_call_tir_rewrite():
 def test_transform_remove_purity_checking():
     @tvm.script.ir_module
     class Before:
-        @R.function
+        @R.function(pure=True)
         def base(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             y = R.add(x, x)
             z = R.add(x, y)
             return z
 
-        @R.function
+        @R.function(pure=True)
         def use_call_pure_packed(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             y = R.add(x, x)
             z = R.call_pure_packed("vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32")))
             return z
 
-        @R.function
+        @R.function(pure=True)
         def use_invoke_pure_closure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             closure = R.make_closure(Before.base, ())
             res = R.invoke_pure_closure(closure, (x,), sinfo_args=R.Tensor((), "int32"))
@@ -152,9 +152,9 @@ def test_transform_remove_purity_checking():
             y = R.print(format="I am impure!")
             return y
 
-        @R.function
+        @R.function(pure=True)
         def nested_pure_func() -> R.Tensor((), "int32"):
-            @R.function
+            @R.function(pure=True)
             def nested(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
                 y = R.add(x, x)
                 q = R.call_pure_packed(
@@ -179,21 +179,21 @@ def test_transform_remove_purity_checking():
 
     @tvm.script.ir_module
     class Expected:
-        @R.function
+        @R.function(pure=True)
         def base(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             R.func_attr({"relax.force_pure": True})
             y = R.add(x, x)
             z = R.add(x, y)
             return z
 
-        @R.function
+        @R.function(pure=True)
         def use_call_pure_packed(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             R.func_attr({"relax.force_pure": True})
             y = R.add(x, x)
             z = R.call_packed("vm.builtin.copy", y, sinfo_args=(R.Tensor((), dtype="int32")))
             return z
 
-        @R.function
+        @R.function(pure=True)
         def use_invoke_pure_closure(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
             R.func_attr({"relax.force_pure": True})
             closure = R.make_closure(Expected.base, ())
@@ -205,11 +205,11 @@ def test_transform_remove_purity_checking():
             y = R.print(format="I am impure!")
             return y
 
-        @R.function
+        @R.function(pure=True)
         def nested_pure_func() -> R.Tensor((), "int32"):
             R.func_attr({"relax.force_pure": True})
 
-            @R.function
+            @R.function(pure=True)
             def nested(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
                 R.func_attr({"relax.force_pure": True})
                 y = R.add(x, x)

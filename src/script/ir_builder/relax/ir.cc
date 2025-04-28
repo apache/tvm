@@ -52,7 +52,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
 
 /////////////////////////////// Function ////////////////////////////////
 
-FunctionFrame Function(const Bool& is_pure, const Bool& is_private) {
+FunctionFrame Function(const Optional<Bool>& is_pure, const Bool& is_private) {
   ObjectPtr<FunctionFrameNode> n = make_object<FunctionFrameNode>();
   const IRBuilder& ir_builder = IRBuilder::Current();
   Optional<tvm::IRModule> mod = NullOpt;

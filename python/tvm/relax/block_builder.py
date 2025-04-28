@@ -209,7 +209,7 @@ class BlockBuilder(Object):
         name: str,
         params: Optional[Union[Var, Tuple, List[Var]]] = None,
         attrs: Optional[Dict[str, Object]] = None,
-        pure: bool = True,
+        pure: Optional[bool] = None,
         private: bool = False,
     ) -> FunctionScope:
         """Annotate a Relax function.
@@ -227,7 +227,7 @@ class BlockBuilder(Object):
         attrs : Dict[str, Object], optional
             The function attrs
 
-        pure : bool, optional
+        pure : Optional[bool]
             Whether the function is annotated as pure.
 
         private : bool, optional
@@ -235,6 +235,7 @@ class BlockBuilder(Object):
             If the function is private, it will not have a global symbol attribute.
             If it is not private and not an inner function, then it will have
             a global symbol attribute (mapped to the function's name)
+
 
         Returns
         -------
