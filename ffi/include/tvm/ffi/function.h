@@ -385,6 +385,13 @@ class Function : public ObjectRef {
       return std::nullopt;
     }
   }
+
+  static std::optional<Function> GetGlobal(const std::string& name) {
+    return GetGlobal(name.c_str());
+  }
+
+  static std::optional<Function> GetGlobal(const String& name) { return GetGlobal(name.c_str()); }
+
   /*!
    * \brief Get global function by name and throw an error if it is not found.
    * \param name The name of the function
@@ -398,6 +405,13 @@ class Function : public ObjectRef {
     }
     return res.value();
   }
+
+  static Function GetGlobalRequired(const std::string& name) {
+    return GetGlobalRequired(name.c_str());
+  }
+
+  static Function GetGlobalRequired(const String& name) { return GetGlobalRequired(name.c_str()); }
+
   /*!
    * \brief Set global function by name
    * \param name The name of the function
@@ -408,7 +422,28 @@ class Function : public ObjectRef {
     TVM_FFI_CHECK_SAFE_CALL(
         TVMFFIFuncSetGlobal(name, details::ObjectUnsafe::GetHeader(func.get()), override));
   }
-
+  /*!
+   * \brief List all global names
+   * \return A vector of all global names
+   * \note This function do not depend on Array so core do not have container dep.
+   */
+  static std::vector<String> ListGlobalNames() {
+    Function fname_functor = GetGlobalRequired("ffi.FunctionListGlobalNamesFunctor")();
+    std::vector<String> names;
+    int len = fname_functor(-1);
+    for (int i = 0; i < len; ++i) {
+      names.push_back(fname_functor(i));
+    }
+    return names;
+  }
+  /**
+   * \brief Remove a global function by name
+   * \param name The name of the function
+   */
+  static void RemoveGlobal(const String& name) {
+    static Function fremove = GetGlobalRequired("ffi.FunctionRemoveGlobal");
+    fremove(name);
+  }
   /*!
    * \brief Constructing a packed function from a normal function.
    *

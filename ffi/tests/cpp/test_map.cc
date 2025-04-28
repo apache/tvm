@@ -244,8 +244,8 @@ TEST(Map, AnyConvertCheck) {
 }
 
 TEST(Map, PackedFuncGetItem) {
-  Function f = Function::FromUnpacked(
-      [](const MapObj* n, const Any& k) -> Any { return n->at(k); }, "map_get_item");
+  Function f = Function::FromUnpacked([](const MapObj* n, const Any& k) -> Any { return n->at(k); },
+                                      "map_get_item");
   Map<String, int64_t> map{{"x", 1}, {"y", 2}};
   Any k("x");
   Any v = f(map, k);

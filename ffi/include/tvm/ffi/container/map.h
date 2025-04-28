@@ -215,8 +215,7 @@ class MapObj : public Object {
 };
 
 /*! \brief A specialization of small-sized hash map */
-class SmallMapObj : public MapObj,
-                     public details::InplaceArrayBase<SmallMapObj, MapObj::KVType> {
+class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj, MapObj::KVType> {
  private:
   static constexpr uint64_t kInitSize = 2;
   static constexpr uint64_t kMaxSize = 4;
@@ -1005,10 +1004,10 @@ class DenseMapObj : public MapObj {
 
 #define TVM_DISPATCH_MAP(base, var, body)     \
   {                                           \
-    using TSmall = SmallMapObj*;             \
-    using TDense = DenseMapObj*;             \
+    using TSmall = SmallMapObj*;              \
+    using TDense = DenseMapObj*;              \
     uint64_t slots = base->slots_;            \
-    if (slots <= SmallMapObj::kMaxSize) {    \
+    if (slots <= SmallMapObj::kMaxSize) {     \
       TSmall var = static_cast<TSmall>(base); \
       body;                                   \
     } else {                                  \
@@ -1019,10 +1018,10 @@ class DenseMapObj : public MapObj {
 
 #define TVM_DISPATCH_MAP_CONST(base, var, body) \
   {                                             \
-    using TSmall = const SmallMapObj*;         \
-    using TDense = const DenseMapObj*;         \
+    using TSmall = const SmallMapObj*;          \
+    using TDense = const DenseMapObj*;          \
     uint64_t slots = base->slots_;              \
-    if (slots <= SmallMapObj::kMaxSize) {      \
+    if (slots <= SmallMapObj::kMaxSize) {       \
       TSmall var = static_cast<TSmall>(base);   \
       body;                                     \
     } else {                                    \
