@@ -1457,6 +1457,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
         return self.block_builder.emit(relax.op.full(x.struct_info.shape, value, dtype))
 
+    def _inplace_fill(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        dtype = x.struct_info.dtype
+        value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
+        filled = self.block_builder.emit(relax.op.full(x.struct_info.shape, value, dtype))
+        self.env[node.args[0]] = filled
+        return filled
+
     def _full(self, node: fx.Node) -> relax.Var:
         import torch
 
@@ -1669,6 +1678,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         output = self.block_builder.emit(relax.op.zeros_like(x))
         self.env[node.args[0]] = output
         return output
+
+    def _zeros_like(self, node: fx.node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(relax.op.zeros_like(x))
 
     @abc.abstractmethod
     def create_convert_map(

@@ -4747,6 +4747,26 @@ def test_zero_inplace():
     verify_model(ZeroInplace(), [([128, 128], "float32")], {}, Expected)
 
 
+def test_zeros_like():
+    class ZerosLike(Module):
+        def forward(self, data):
+            return torch.zeros_like(data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((128, 128), dtype="float32")
+        ) -> R.Tensor((128, 128), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0, dtype="void")
+                gv: R.Tensor((128, 128), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(ZerosLike(), [([128, 128], "float32")], {}, Expected)
+
+
 def test_type_as():
     class TypeAs(Module):
         def forward(self, data, other):

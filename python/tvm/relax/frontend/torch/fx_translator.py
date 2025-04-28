@@ -515,15 +515,6 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Creation ##########
 
-    def _inplace_fill(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        x = args[0]
-        dtype = x.struct_info.dtype
-        value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
-        filled = self.block_builder.emit(relax.op.full(x.struct_info.shape, value, dtype))
-        self.env[node.args[0]] = filled
-        return filled
-
     def _inplace_copy(self, node: fx.Node) -> relax.Var:
         src = self.env[node.args[1]]
         self.env[node.args[0]] = src
@@ -830,6 +821,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "clone": lambda node: self.env[node.args[0]],
             "empty": self._empty,
             "empty_like": self._empty_like,
+            "fill": self._fill,
             "fill_": self._inplace_fill,
             "full": self._full,
             "index_select": self._index_select,
@@ -844,6 +836,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             ),
             "tensor": self._tensor,
             "zero_": self._zeros_inplace,
+            "zeros_like": self._zeros_like,
             "copy_": self._inplace_copy,
             # datatype
             "astype": self._type,
