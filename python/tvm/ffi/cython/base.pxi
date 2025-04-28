@@ -19,8 +19,9 @@ from libc.stdint cimport int32_t, int64_t, uint64_t, uint32_t, uint8_t, int16_t
 from libc.string cimport memcpy
 from libcpp.vector cimport vector
 from cpython.bytes cimport PyBytes_AsStringAndSize, PyBytes_FromStringAndSize, PyBytes_AsString
-from cpython cimport Py_INCREF, Py_DECREF, PyErr_CheckSignals, PyCapsule_Destructor
-from cpython cimport pycapsule
+from cpython cimport Py_INCREF, Py_DECREF
+from cpython cimport PyErr_CheckSignals, PyGILState_Ensure, PyGILState_Release
+from cpython cimport pycapsule, PyCapsule_Destructor
 
 
 # Cython binding for TVM FFI C API
@@ -134,6 +135,7 @@ cdef extern from "tvm/ffi/c_api.h":
     void TVMFFIErrorUpdateTraceback(TVMFFIObjectHandle error, const char* traceback) nogil
     int TVMFFIErrorCreate(const char* kind, const char* message, const char* traceback,
                           TVMFFIObjectHandle* out) nogil
+    int TVMFFIEnvRegisterCAPI(const char* name, void* ptr) nogil
     int TVMFFITypeKeyToIndex(const char* type_key, int32_t* out_tindex) nogil
     int TVMFFIDataTypeFromString(const char* str, DLDataType* out) nogil
     int TVMFFIDataTypeToString(DLDataType dtype, TVMFFIObjectHandle* out) nogil
@@ -191,3 +193,14 @@ cdef inline void* c_handle(object handle):
     cdef unsigned long long v_ptr
     v_ptr = handle.value
     return <void*>(v_ptr)
+
+
+cdef _init_env_api():
+    # Initialize env api for signal handling
+    # Also registers the gil state release and ensure as PyErr_CheckSignals
+    # function is called with gil released and we need to regrab the gil
+    CHECK_CALL(TVMFFIEnvRegisterCAPI(c_str("PyErr_CheckSignals"), <void*>PyErr_CheckSignals))
+    CHECK_CALL(TVMFFIEnvRegisterCAPI(c_str("PyGILState_Ensure"), <void*>PyGILState_Ensure))
+    CHECK_CALL(TVMFFIEnvRegisterCAPI(c_str("PyGILState_Release"), <void*>PyGILState_Release))
+
+_init_env_api()

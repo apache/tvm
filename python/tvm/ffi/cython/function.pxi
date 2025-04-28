@@ -202,7 +202,7 @@ class Function(Object):
         if c_api_ret_code == 0:
             return make_ret(result)
         elif c_api_ret_code == -2:
-            raise raise_existing_error()
+            raise_existing_error()
         raise move_from_last_error().py_error()
 
 _register_object_by_index(kTVMFFIFunc, Function)
