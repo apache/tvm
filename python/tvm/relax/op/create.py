@@ -17,7 +17,7 @@
 """Creation operators."""
 from typing import Optional, Tuple, Union
 
-from tvm import DataType, DataTypeCode
+from tvm import DataType
 from tvm.ir.expr import PrimExpr
 
 from . import _ffi_api

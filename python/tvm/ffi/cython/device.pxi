@@ -114,24 +114,30 @@ cdef class Device:
         if not isinstance(other, Device):
             return False
         return (
-            self.cdevice.device_type == other.cdevice.device_type
-            and self.cdevice.device_id == other.cdevice.device_id
+            self.cdevice.device_type == (<Device>other).cdevice.device_type
+            and self.cdevice.device_id == (<Device>other).cdevice.device_id
         )
 
     def __ne__(self, other):
         return not self.__eq__(other)
 
+    def __device_type_name__(self):
+        return self.DEVICE_TYPE_TO_NAME[self.cdevice.device_type]
+
     def __str__(self):
         cdef int dev_type = self.cdevice.device_type
-        name = self.DEVICE_TYPE_TO_NAME[dev_type]
+        name = self.__device_type_name__()
         index = self.cdevice.device_id
         return f"{name}:{index}"
 
     def __repr__(self):
         cdef int dev_type = self.cdevice.device_type
-        name = self.DEVICE_TYPE_TO_NAME[dev_type]
+        name = self.__device_type_name__()
         index = self.cdevice.device_id
         return f"device(type='{name}', index={index})"
+
+    def __hash__(self):
+        return hash((self.cdevice.device_type, self.cdevice.device_id))
 
     @property
     def device_type(self):
@@ -143,7 +149,7 @@ cdef class Device:
 
 
 cdef inline object make_ret_device(TVMFFIAny result):
-    ret = Device.__new__(Device)
+    ret = _CLASS_DEVICE.__new__(_CLASS_DEVICE)
     (<Device>ret).cdevice = result.v_device
     return ret
 

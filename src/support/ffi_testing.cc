@@ -113,14 +113,6 @@ void ErrorTest(int x, int y) {
 
 TVM_REGISTER_GLOBAL("testing.ErrorTest").set_body_typed(ErrorTest);
 
-// internal function used for debug and testing purposes
-TVM_REGISTER_GLOBAL("testing.object_use_count").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  auto obj = args[0].cast<ObjectRef>();
-  // substract the current one because we always copy
-  // and get another value.
-  *ret = (obj.use_count() - 1);
-});
-
 class FrontendTestModuleNode : public runtime::ModuleNode {
  public:
   const char* type_key() const final { return "frontend_test"; }

@@ -28,7 +28,7 @@ from typing import Any, Callable, List, Dict, Optional
 import tvm
 from .. import tir
 from ..tir import PrimExpr
-from ..runtime import String, convert_to_object
+from ..runtime import String
 from . import _ffi_api
 from .expr import Tuple as rx_Tuple
 from .expr import Expr, ShapeExpr, Function, PrimValue, StringImm, te_tensor
@@ -100,7 +100,7 @@ def convert_to_expr(value: Any) -> Expr:
     if isinstance(value, float):
         return PrimValue(tir.FloatImm("float64", value))
 
-    tvm_value = convert_to_object(value)
+    tvm_value = tvm.ffi.convert(value)
     # Case 1
     if isinstance(tvm_value, Expr):  # type: ignore
         return tvm_value

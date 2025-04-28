@@ -279,8 +279,22 @@ int TVMArrayCopyFromBytes(TVMArrayHandle handle, void* data, size_t nbytes) {
   API_END();
 }
 
+TVM_REGISTER_GLOBAL("runtime.TVMArrayCopyFromBytes")
+    .set_body_typed([](DLTensor* arr, void* data, size_t nbytes) {
+      ArrayCopyFromBytes(arr, data, nbytes);
+    });
+
 int TVMArrayCopyToBytes(TVMArrayHandle handle, void* data, size_t nbytes) {
   API_BEGIN();
   ArrayCopyToBytes(handle, data, nbytes);
   API_END();
 }
+
+TVM_REGISTER_GLOBAL("runtime.TVMArrayCopyToBytes")
+    .set_body_typed([](DLTensor* arr, void* data, size_t nbytes) {
+      ArrayCopyToBytes(arr, data, nbytes);
+    });
+
+TVM_REGISTER_GLOBAL("runtime.TVMArrayCopyFromTo").set_body_typed([](DLTensor* from, DLTensor* to) {
+  NDArray::CopyFromTo(from, to);
+});

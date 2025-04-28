@@ -661,6 +661,10 @@ int TVMStreamCreate(int device_type, int device_id, TVMStreamHandle* out) {
   API_END();
 }
 
+TVM_REGISTER_GLOBAL("runtime.Device_StreamCreate").set_body_typed([](DLDevice dev) {
+  return reinterpret_cast<int64_t>(DeviceAPIManager::Get(dev)->CreateStream(dev));
+});
+
 int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream) {
   API_BEGIN();
   DLDevice dev;
@@ -669,6 +673,10 @@ int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream) {
   DeviceAPIManager::Get(dev)->FreeStream(dev, stream);
   API_END();
 }
+
+TVM_REGISTER_GLOBAL("runtime.Device_StreamFree").set_body_typed([](DLDevice dev, int64_t stream) {
+  DeviceAPIManager::Get(dev)->FreeStream(dev, reinterpret_cast<TVMStreamHandle>(stream));
+});
 
 int TVMSetStream(int device_type, int device_id, TVMStreamHandle stream) {
   API_BEGIN();
@@ -679,6 +687,10 @@ int TVMSetStream(int device_type, int device_id, TVMStreamHandle stream) {
   API_END();
 }
 
+TVM_REGISTER_GLOBAL("runtime.Device_SetStream").set_body_typed([](DLDevice dev, int64_t stream) {
+  DeviceAPIManager::Get(dev)->SetStream(dev, reinterpret_cast<TVMStreamHandle>(stream));
+});
+
 int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream) {
   API_BEGIN();
   DLDevice dev;
@@ -687,6 +699,10 @@ int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream) {
   DeviceAPIManager::Get(dev)->StreamSync(dev, stream);
   API_END();
 }
+
+TVM_REGISTER_GLOBAL("runtime.Device_StreamSync").set_body_typed([](DLDevice dev, int64_t stream) {
+  DeviceAPIManager::Get(dev)->StreamSync(dev, reinterpret_cast<TVMStreamHandle>(stream));
+});
 
 int TVMStreamStreamSynchronize(int device_type, int device_id, TVMStreamHandle src,
                                TVMStreamHandle dst) {
@@ -697,6 +713,12 @@ int TVMStreamStreamSynchronize(int device_type, int device_id, TVMStreamHandle s
   DeviceAPIManager::Get(dev)->SyncStreamFromTo(dev, src, dst);
   API_END();
 }
+
+TVM_REGISTER_GLOBAL("runtime.Device_StreamSyncFromTo")
+    .set_body_typed([](DLDevice dev, int64_t src, int64_t dst) {
+      DeviceAPIManager::Get(dev)->SyncStreamFromTo(dev, reinterpret_cast<TVMStreamHandle>(src),
+                                                   reinterpret_cast<TVMStreamHandle>(dst));
+    });
 
 int TVMCbArgToReturn(TVMValue* value, int* code) {
   API_BEGIN();

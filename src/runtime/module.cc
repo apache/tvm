@@ -193,10 +193,6 @@ TVM_REGISTER_GLOBAL("runtime.ModuleGetFormat").set_body_typed([](Module mod) {
 });
 
 TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile").set_body_typed(Module::LoadFromFile);
-TVM_REGISTER_GLOBAL("runtime.ModuleGetFunction")
-    .set_body_typed([](Module mod, String name, bool query_imports) {
-      return mod->GetFunction(name, query_imports);
-    });
 
 TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
     .set_body_typed([](Module mod, String name, String fmt) { mod->SaveToFile(name, fmt); });
@@ -210,6 +206,14 @@ TVM_REGISTER_GLOBAL("runtime.ModuleImplementsFunction")
       return mod->ImplementsFunction(std::move(name), query_imports);
     });
 
-TVM_REGISTER_OBJECT_TYPE(ModuleNode);
+TVM_REGISTER_GLOBAL("runtime.ModuleGetFunction")
+    .set_body_typed([](Module mod, String name, bool query_imports) {
+      return mod->GetFunction(name, query_imports);
+    });
+
+TVM_REGISTER_GLOBAL("runtime.ModuleImport").set_body_typed([](Module mod, Module other) {
+  mod->Import(other);
+});
+
 }  // namespace runtime
 }  // namespace tvm

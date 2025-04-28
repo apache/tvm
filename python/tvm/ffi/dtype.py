@@ -16,7 +16,31 @@
 # under the License.
 """dtype class."""
 # pylint: disable=invalid-name
+from enum import IntEnum
+
 from . import core
+import numpy as np
+
+
+class DataTypeCode(IntEnum):
+    """DataType code in DLTensor."""
+
+    INT = 0
+    UINT = 1
+    FLOAT = 2
+    HANDLE = 3
+    BFLOAT = 4
+    Float8E3M4 = 7
+    Float8E4M3 = 8
+    Float8E4M3B11FNUZ = 9
+    Float8E4M3FN = 10
+    Float8E4M3FNUZ = 11
+    Float8E5M2 = 12
+    Float8E5M2FNUZ = 13
+    Float8E8M0FNU = 14
+    Float6E2M3FN = 15
+    Float6E3M2FN = 16
+    Float4E2M1FN = 17
 
 
 class dtype(str):
@@ -34,7 +58,25 @@ class dtype(str):
 
     __slots__ = ["__tvm_ffi_dtype__"]
 
+    NUMPY_DTYPE_TO_STR = {
+        np.dtype(np.bool_): "bool",
+        np.dtype(np.int8): "int8",
+        np.dtype(np.int16): "int16",
+        np.dtype(np.int32): "int32",
+        np.dtype(np.int64): "int64",
+        np.dtype(np.uint8): "uint8",
+        np.dtype(np.uint16): "uint16",
+        np.dtype(np.uint32): "uint32",
+        np.dtype(np.uint64): "uint64",
+        np.dtype(np.float16): "float16",
+        np.dtype(np.float32): "float32",
+        np.dtype(np.float64): "float64",
+    }
+    if hasattr(np, "float_"):
+        NUMPY_DTYPE_TO_STR[np.dtype(np.float_)] = "float64"
+
     def __new__(cls, content):
+        content = str(content)
         val = str.__new__(cls, content)
         val.__tvm_ffi_dtype__ = core.DataType(content)
         return val
@@ -46,5 +88,27 @@ class dtype(str):
     def itemsize(self):
         return self.__tvm_ffi_dtype__.itemsize
 
+    @property
+    def type_code(self):
+        return self.__tvm_ffi_dtype__.type_code
+
+    @property
+    def bits(self):
+        return self.__tvm_ffi_dtype__.bits
+
+    @property
+    def lanes(self):
+        return self.__tvm_ffi_dtype__.lanes
+
+
+try:
+    import ml_dtypes
+
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(ml_dtypes.bfloat16)] = "bfloat16"
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(ml_dtypes.float8_e4m3fn)] = "float8_e4m3fn"
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(ml_dtypes.float8_e5m2)] = "float8_e5m2"
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(ml_dtypes.float4_e2m1fn)] = "float4_e2m1fn"
+except ImportError:
+    pass
 
 core._set_class_dtype(dtype)

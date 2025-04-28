@@ -38,7 +38,7 @@ def convert(value: Any) -> Any:
         return value
     elif isinstance(value, core.PyNativeObject):
         return value
-    elif isinstance(value, (bool, Number)):
+    elif isinstance(value, (bool, Number, str, bytes, bytearray)):
         return value
     elif isinstance(value, (list, tuple)):
         return container.Array(value)

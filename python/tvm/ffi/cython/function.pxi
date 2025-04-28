@@ -267,10 +267,7 @@ cdef int tvm_ffi_callback(void* context,
 
     temp_args = []
     make_args((rv,), &temp_result, temp_args)
-    if temp_result.type_index >= kTVMFFIStaticObjectBegin:
-        CHECK_CALL(TVMFFIAnyViewToOwnedAny(&temp_result, result))
-    else:
-        result[0] = temp_result
+    CHECK_CALL(TVMFFIAnyViewToOwnedAny(&temp_result, result))
 
     return 0
 

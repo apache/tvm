@@ -25,6 +25,7 @@ Some performance critical functions are implemented by cython
 and have a ctypes fallback implementation.
 """
 from . import _pyversion
-from .base import register_error
+from . import base
 from .registry import register_object, register_func
-from .registry import _init_api, get_global_func, get_object_type_index
+from .registry import _init_api, get_global_func
+from tvm.ffi import register_error

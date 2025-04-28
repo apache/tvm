@@ -49,6 +49,18 @@ cdef class DataType:
         return not self.__eq__(other)
 
     @property
+    def type_code(self):
+        return self.cdtype.code
+
+    @property
+    def bits(self):
+        return self.cdtype.bits
+
+    @property
+    def lanes(self):
+        return self.cdtype.lanes
+
+    @property
     def itemsize(self):
         """Get the number of bytes of a single element of this data type. When the number of lanes
         is greater than 1, the itemsize is the size of the vector type.

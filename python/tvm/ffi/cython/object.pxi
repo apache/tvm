@@ -59,6 +59,10 @@ cdef class Object:
         if self.chandle != NULL:
             CHECK_CALL(TVMFFIObjectFree(self.chandle))
 
+    property handle:
+        def __get__(self):
+            return ctypes_handle(self.chandle)
+
     def __init_handle_by_constructor__(self, fconstructor, *args):
         """Initialize the handle by calling constructor function.
 
@@ -99,6 +103,18 @@ cdef class Object:
         if not isinstance(other, Object):
             return False
         return self.chandle == (<Object>other).chandle
+
+    def __hash__(self):
+        cdef uint64_t hash_value = <uint64_t>self.chandle
+        return hash_value
+
+    def __eq__(self, other):
+        if not isinstance(other, Object):
+            return False
+        return self.chandle == (<Object>other).chandle
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
 
     def _move(self):
         """Create an RValue reference to the object and mark the object as moved.

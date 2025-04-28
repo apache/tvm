@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import gc
 import ctypes
 import numpy as np
 from tvm import ffi as tvm_ffi
@@ -91,6 +92,12 @@ def test_echo():
     check_ndarray()
 
 
+def test_return_raw_str_bytes():
+    assert tvm_ffi.convert(lambda: "hello")() == "hello"
+    assert tvm_ffi.convert(lambda: b"hello")() == b"hello"
+    assert tvm_ffi.convert(lambda: bytearray(b"hello"))() == b"hello"
+
+
 def test_pyfunc_convert():
     def add(a, b):
         return a + b
@@ -120,3 +127,39 @@ def test_global_func():
     tvm_ffi.registry.remove_global_func("mytest.echo")
     assert "mytest.echo" not in tvm_ffi.registry.list_global_func_names()
     assert tvm_ffi.get_global_func("mytest.echo", allow_missing=True) is None
+
+
+def test_rvalue_ref():
+    use_count = tvm_ffi.get_global_func("testing.object_use_count")
+
+    def callback(x, expected_count):
+        # The use count of TVM FFI objects is decremented as part of
+        # `ObjectRef.__del__`, which runs when the Python object is
+        # destructed.  However, Python object destruction is not
+        # deterministic, and even CPython's reference-counting is
+        # considered an implementation detail.  Therefore, to ensure
+        # correct results from this test, `gc.collect()` must be
+        # explicitly called.
+        gc.collect()
+        assert expected_count == use_count(x)
+        return x._move()
+
+    f = tvm_ffi.convert(callback)
+
+    def check0():
+        x = tvm_ffi.convert([1, 2])
+        assert use_count(x) == 1
+        f(x, 2)
+        y = f(x._move(), 1)
+        assert x.handle.value == None
+
+    def check1():
+        x = tvm_ffi.convert([1, 2])
+        assert use_count(x) == 1
+        y = f(x, 2)
+        z = f(x._move(), 2)
+        assert x.handle.value == None
+        assert y.handle.value is not None
+
+    check0()
+    check1()

@@ -34,7 +34,7 @@ import tvm.ir._ffi_api
 from tvm import ir
 from tvm.ir import Op, PrimExpr
 from tvm.ir.base import Span
-from tvm.runtime import DataType, DataTypeCode, Object, ObjectGeneric, Scriptable, const
+from tvm.runtime import Object, ObjectGeneric, Scriptable, DataType, DataTypeCode, const
 
 from . import _ffi_api
 from . import generic as _generic

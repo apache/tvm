@@ -22,7 +22,7 @@ from typing import Union
 
 import tvm._ffi
 from tvm._ffi import register_func as _register_func
-from tvm._ffi.runtime_ctypes import Device
+from tvm.runtime import Device
 from tvm.runtime import Object, convert
 from tvm.runtime.container import String
 from tvm.ir.container import Map, Array

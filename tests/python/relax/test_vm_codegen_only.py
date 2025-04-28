@@ -65,7 +65,6 @@ def test_vm_to_device(exec_mode):
         def foo(x: R.Tensor((3, 4), "float32")):
             R.func_attr({"global_symbol": "foo"})
             # Copy x to the first cpu: device_type=1 and device_id=0.
-            # More device info. please take a look at python/tvm/_ffi/runtime_ctypes.py
             z = R.call_packed(
                 "vm.builtin.to_device", x, 1, 0, sinfo_args=(R.Tensor((3, 4), dtype="float32"))
             )

@@ -126,7 +126,7 @@ def _get_irmod_elemwise_add(shape: list, dtype: str, mem_scope: str) -> tvm.ir.m
         # ---- ------ -----
         # estimated_vtcm_budget_bytes = HVX_VECTOR_BYTES * 1024
 
-        # dtype_bits = tvm._ffi.runtime_ctypes.DataType(dtype).bits
+        # dtype_bits = tvm.runtime.DataType(dtype).bits
         # assert dtype_bits % 8 == 0
         # dtype_bytes = dtype_bits // 8
 
@@ -389,7 +389,7 @@ def test_elemwise_add(hexagon_session: Session):
                 512,
                 2048,
             ]:
-                dtype_bits = tvm._ffi.runtime_ctypes.DataType(dtype).bits
+                dtype_bits = tvm.runtime.DataType(dtype).bits
                 assert dtype_bits % 8 == 0
                 dtype_bytes = dtype_bits // 8
 

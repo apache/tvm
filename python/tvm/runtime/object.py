@@ -16,17 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name, unused-import
 """Runtime Object API"""
-import ctypes
 
-from tvm._ffi.base import _LIB, _RUNTIME_ONLY, c_str, check_call
-from tvm._ffi.runtime_ctypes import ObjectRValueRef
-from tvm._ffi._cy3.core import (
-    ObjectBase,
-    PyNativeObject,
-    StringGetPyString,
-    _set_class_object,
-    _set_class_object_generic,
-)
+import tvm.ffi.core
 
 from . import _ffi_api, _ffi_node_api
 
@@ -36,7 +27,7 @@ def _new_object(cls):
     return cls.__new__(cls)
 
 
-class Object(ObjectBase):
+class Object(tvm.ffi.core.Object):
     """Base class for all tvm's runtime objects."""
 
     __slots__ = []
@@ -54,11 +45,6 @@ class Object(ObjectBase):
         return sorted([fnames(i) for i in range(size)] + class_names)
 
     def __getattr__(self, name):
-        # specially check handle since
-        # this is required for PackedFunc calls
-        if name == "handle":
-            raise AttributeError("handle is not set")
-
         try:
             return _ffi_node_api.NodeGetAttr(self, name)
         except AttributeError:
@@ -78,8 +64,7 @@ class Object(ObjectBase):
         return (_new_object, (cls,), self.__getstate__())
 
     def __getstate__(self):
-        handle = self.handle
-        if handle is not None:
+        if not self._handle_is_none():
             # need to explicit convert to str in case String
             # returned and triggered another infinite recursion in get state
             return {"handle": str(_ffi_node_api.SaveJSON(self))}
@@ -88,39 +73,8 @@ class Object(ObjectBase):
     def __setstate__(self, state):
         # pylint: disable=assigning-non-slot, assignment-from-no-return
         handle = state["handle"]
-        self.handle = None
         if handle is not None:
             self.__init_handle_by_constructor__(_ffi_node_api.LoadJSON, handle)
 
-    def _move(self):
-        """Create an RValue reference to the object and mark the object as moved.
 
-        This is a advanced developer API that can be useful when passing an
-        unique reference to an Object that you no longer needed to a function.
-
-        A unique reference can trigger copy on write optimization that avoids
-        copy when we transform an object.
-
-        Note
-        ----
-        All the reference of the object becomes invalid after it is moved.
-        Be very careful when using this feature.
-
-        Examples
-        --------
-
-        .. code-block:: python
-
-           x = tvm.tir.Var("x", "int32")
-           x0 = x
-           some_packed_func(x._move())
-           # both x0 and x will points to None after the function call.
-
-        Returns
-        -------
-        rvalue : The rvalue reference.
-        """
-        return ObjectRValueRef(self)
-
-
-_set_class_object(Object)
+tvm.ffi.core._set_class_object(Object)

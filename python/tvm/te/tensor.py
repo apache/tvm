@@ -18,7 +18,7 @@
 # pylint: disable=invalid-name
 import tvm._ffi
 
-from tvm.runtime import Object, ObjectGeneric, convert_to_object
+from tvm.runtime import Object, ObjectGeneric
 from tvm.tir import expr as _expr, DataProducer
 
 from . import _ffi_api
@@ -58,7 +58,6 @@ class Tensor(DataProducer, _expr.ExprOp):
             raise ValueError(
                 f"Need to provide {ndim} index in tensor but {len(indices)} was provided"
             )
-        indices = convert_to_object(indices)
         return _expr.ProducerLoad(self, indices)
 
     def __getitem__(self, indices):

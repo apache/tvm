@@ -18,7 +18,7 @@
 from typing import Union
 
 from .._ffi import get_global_func
-from .._ffi.runtime_ctypes import Device
+from ..runtime import Device
 from ..runtime.ndarray import device
 from . import Target
 

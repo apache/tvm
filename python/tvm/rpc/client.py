@@ -26,7 +26,7 @@ import tvm._ffi
 from tvm._ffi.base import TVMError
 from tvm.contrib import utils
 from tvm.runtime import ndarray as nd
-from tvm._ffi.runtime_ctypes import Device
+from tvm.runtime import Device
 
 from . import _ffi_api, base, server
 

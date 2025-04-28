@@ -21,7 +21,7 @@ This is a standalone module that can be
 """
 
 from .registry import register_object, register_func, get_global_func, _init_api
-from .dtype import dtype
+from .dtype import dtype, DataTypeCode
 from .core import String, Bytes
 from .core import Object, ObjectGeneric, Function
 from .convert import convert
@@ -34,6 +34,7 @@ from .container import Array, Map
 
 __all__ = [
     "dtype",
+    "DataTypeCode",
     "Device",
     "Object",
     "register_object",

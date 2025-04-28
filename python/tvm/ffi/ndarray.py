@@ -68,6 +68,8 @@ def device(dev_type, dev_id=0):
       assert tvm.ffi.device("cuda:0") == tvm.ffi.cuda(1)
       assert tvm.ffi.device("cpu", 0) == tvm.ffi.cpu(0)
     """
+    if isinstance(dev_type, str):
+        dev_type = dev_type.split(" ")[0]
     return core._CLASS_DEVICE(dev_type, dev_id)
 
 
