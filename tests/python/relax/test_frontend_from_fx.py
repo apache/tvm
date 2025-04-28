@@ -3203,8 +3203,8 @@ def test_inplace_fill():
         @R.function
         def main(inp_0: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((10, 10), dtype="float32") = R.full_like(
-                    inp_0, R.const(1.5, "float32"), dtype="float32"
+                lv: R.Tensor((10, 10), dtype="float32") = R.full(
+                    R.shape([10, 10]), R.const(1.5, "float32"), dtype="float32"
                 )
                 gv: R.Tensor((10, 10), dtype="float32") = lv
                 R.output(gv)

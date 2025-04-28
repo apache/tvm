@@ -3650,24 +3650,26 @@ def test_fill():
 def test_fill_inplace():
     class FillInplace(Module):
         def forward(self, input: torch.Tensor):
-            input.fill_(1.5)  # In-place operation
+            input.fill_(42.0)
             return input
 
     @tvm.script.ir_module
     class Expected:
         @R.function
         def main(
-            inp_0: R.Tensor((10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+            x: R.Tensor((2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((10, 10), dtype="float32") = R.full_like(
-                    inp_0, R.const(1.5, "float32"), dtype="float32"
+                lv: R.Tensor((2, 3), dtype="float32") = R.full(
+                    R.shape([2, 3]),
+                    R.const(42.0, "float32"),
+                    dtype="float32"
                 )
-                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv,)
+                gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
-    example_args = (torch.randn(10, 10, dtype=torch.float32),)
+    example_args = (torch.randn(2, 3, dtype=torch.float32),)
     verify_model(FillInplace(), example_args, {}, Expected)
 
 

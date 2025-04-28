@@ -820,7 +820,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "empty": self._empty,
             "empty_like": self._empty_like,
             "fill": self._fill,
-            "fill_": self._fill_inplace,
+            "fill_": self._inplace_fill,
             "full": self._full,
             "index_select": self._index_select,
             "masked_fill_": self._inplace_masked_fill,
