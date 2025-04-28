@@ -205,6 +205,14 @@ typedef struct {
 } TVMFFIByteArray;
 
 /*!
+ * \brief Shape array used in shape object following header.
+ */
+typedef struct {
+  const int64_t* data;
+  size_t size;
+} TVMFFIShapeArray;
+
+/*!
  * \brief Method information that can appear in reflection table.
  */
 typedef struct {
@@ -627,6 +635,15 @@ inline TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) {
  */
 inline TVMFFIErrorInfo* TVMFFIErrorGetErrorInfoPtr(TVMFFIObjectHandle obj) {
   return reinterpret_cast<TVMFFIErrorInfo*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
+}
+
+/*!
+ * \brief Get the data pointer of a shape array from a shape object.
+ * \param obj The object handle.
+ * \return The data pointer.
+ */
+inline TVMFFIShapeArray* TVMFFIShapeGetShapeArrayPtr(TVMFFIObjectHandle obj) {
+  return reinterpret_cast<TVMFFIShapeArray*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
 }
 
 /*!

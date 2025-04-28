@@ -282,6 +282,9 @@ struct is_valid_iterator
 template <typename T, typename IterType>
 struct is_valid_iterator<Optional<T>, IterType> : is_valid_iterator<T, IterType> {};
 
+template <typename IterType>
+struct is_valid_iterator<Any, IterType> : std::true_type {};
+
 template <typename T, typename IterType>
 inline constexpr bool is_valid_iterator_v = is_valid_iterator<T, IterType>::value;
 

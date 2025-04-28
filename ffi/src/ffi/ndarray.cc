@@ -24,6 +24,15 @@
 #include <tvm/ffi/container/ndarray.h>
 #include <tvm/ffi/function.h>
 
+namespace tvm {
+namespace ffi {
+// Shape
+TVM_FFI_REGISTER_GLOBAL("ffi.Shape").set_body_packed([](ffi::PackedArgs args, Any* ret) {
+  *ret = Shape(args.data(), args.data() + args.size());
+});
+}  // namespace ffi
+}  // namespace tvm
+
 int TVMFFINDArrayFromDLPack(DLManagedTensor* from, int32_t min_alignment,
                             int32_t require_contiguous, TVMFFIObjectHandle* out) {
   TVM_FFI_SAFE_CALL_BEGIN();

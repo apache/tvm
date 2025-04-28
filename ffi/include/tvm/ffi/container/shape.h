@@ -37,12 +37,9 @@ namespace tvm {
 namespace ffi {
 
 /*! \brief An object representing a shape tuple. */
-class ShapeObj : public Object {
+class ShapeObj : public Object, public TVMFFIShapeArray {
  public:
   using index_type = int64_t;
-
-  const int64_t* data;
-  size_t size;
 
   /*! \brief Get "numel", meaning the number of elements of an array if the array has this shape */
   int64_t Product() const {

@@ -193,5 +193,13 @@ TVM_FFI_REGISTER_GLOBAL("ffi.GlobalFunctionRemove")
     });
 
 TVM_FFI_REGISTER_GLOBAL("ffi.GlobalFunctionListNames").set_body_typed([]() {
-  return tvm::ffi::GlobalFunctionTable::Global()->ListNames();
+  tvm::ffi::Array<tvm::ffi::String> names = tvm::ffi::GlobalFunctionTable::Global()->ListNames();
+  auto return_functor = [names](int64_t i) -> tvm::ffi::Any {
+    if (i < 0) {
+      return names.size();
+    } else {
+      return names[i];
+    }
+  };
+  return tvm::ffi::Function::FromUnpacked(return_functor);
 });
