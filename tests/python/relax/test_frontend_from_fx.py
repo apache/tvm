@@ -3442,7 +3442,20 @@ def test_datatype():
 
 
 def test_meshgrid():
-    input_infos = [([3,], "float32"), ([3,], "float32")]
+    input_infos = [
+        (
+            [
+                3,
+            ],
+            "float32",
+        ),
+        (
+            [
+                3,
+            ],
+            "float32",
+        ),
+    ]
 
     class Meshgrid1(Module):
         def forward(self, input1, input2):
