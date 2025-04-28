@@ -370,9 +370,9 @@ TVM_FFI_DLL int TVMFFIObjectFree(TVMFFIObjectHandle obj);
  */
 TVM_FFI_DLL int TVMFFITypeKeyToIndex(const char* type_key, int32_t* out_tindex);
 
-//------------------------------------------------------------
-// Section: Function calling APIs
-//------------------------------------------------------------
+//-----------------------------------------------------------------------
+// Section: Function calling APIs and support API for func implementation
+//-----------------------------------------------------------------------
 /*!
  * \brief Create a FFIFunc by passing in callbacks from C callback.
  *
@@ -471,6 +471,21 @@ TVM_FFI_DLL int TVMFFIErrorCreate(const char* kind, const char* message, const c
  * \param traceback The traceback to update.
  */
 TVM_FFI_DLL void TVMFFIErrorUpdateTraceback(TVMFFIObjectHandle obj, const char* traceback);
+
+/*!
+ * \brief Check if there are any signals raised in the surrounding env.
+ * \return 0 when success, nonzero when failure happens
+ * \note Under python this function redirects to PyErr_CheckSignals
+ */
+TVM_FFI_DLL int TVMFFIEnvCheckSignals();
+
+/*!
+ * \brief Register a symbol into the from the surrounding env.
+ * \param name The name of the symbol.
+ * \param symbol The symbol to register.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIEnvRegisterCAPI(const char* name, void* symbol);
 
 //------------------------------------------------------------
 // Section: Type reflection support APIs

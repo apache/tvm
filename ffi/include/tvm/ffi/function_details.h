@@ -237,21 +237,21 @@ struct typed_packed_call_dispatcher<void> {
 };
 
 /*!
-  * \brief Move the safe call raised error to the caller
-  * \return The error
-  */
+ * \brief Move the safe call raised error to the caller
+ * \return The error
+ */
 TVM_FFI_INLINE static Error MoveFromSafeCallRaised() {
   TVMFFIObjectHandle handle;
   TVMFFIErrorMoveFromRaised(&handle);
   // handle is owned by caller
-  return Error(details::ObjectUnsafe::ObjectPtrFromOwned<Object>(
-    static_cast<TVMFFIObject*>(handle)));
+  return Error(
+      details::ObjectUnsafe::ObjectPtrFromOwned<Object>(static_cast<TVMFFIObject*>(handle)));
 }
 
 /*!
-  * \brief Set the safe call raised error
-  * \param error The error
-  */
+ * \brief Set the safe call raised error
+ * \param error The error
+ */
 TVM_FFI_INLINE static void SetSafeCallRaised(const Error& error) {
   TVMFFIErrorSetRaised(details::ObjectUnsafe::TVMFFIObjectPtrFromObjectRef(error));
 }

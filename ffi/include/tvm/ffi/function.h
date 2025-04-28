@@ -49,31 +49,31 @@ namespace ffi {
 /*!
  * \brief Marks the end of safe call.
  */
-#define TVM_FFI_SAFE_CALL_END()                                                     \
-  return 0;                                                                         \
-  }                                                                                 \
-  catch (const ::tvm::ffi::Error& err) {                                            \
-    ::tvm::ffi::details::SetSafeCallRaised(err);                                    \
-    return -1;                                                                      \
-  }                                                                                 \
-  catch (const ::tvm::ffi::EnvErrorAlreadySet&) {                                   \
-    return -2;                                                                      \
-  }                                                                                 \
-  catch (const std::exception& ex) {                                               \
+#define TVM_FFI_SAFE_CALL_END()                                                                \
+  return 0;                                                                                    \
+  }                                                                                            \
+  catch (const ::tvm::ffi::Error& err) {                                                       \
+    ::tvm::ffi::details::SetSafeCallRaised(err);                                               \
+    return -1;                                                                                 \
+  }                                                                                            \
+  catch (const ::tvm::ffi::EnvErrorAlreadySet&) {                                              \
+    return -2;                                                                                 \
+  }                                                                                            \
+  catch (const std::exception& ex) {                                                           \
     ::tvm::ffi::details::SetSafeCallRaised(::tvm::ffi::Error("InternalError", ex.what(), "")); \
-    return -1;                                                                      \
-  }                                                                                 \
+    return -1;                                                                                 \
+  }                                                                                            \
   TVM_FFI_UNREACHABLE()
 
-#define TVM_FFI_CHECK_SAFE_CALL(func)                                               \
-  {                                                                                 \
-    int ret_code = (func);                                                          \
-    if (ret_code != 0) {                                                            \
-      if (ret_code == -2) {                                                         \
-        throw ::tvm::ffi::EnvErrorAlreadySet();                                     \
-      }                                                                             \
-      throw ::tvm::ffi::details::MoveFromSafeCallRaised();                         \
-    }                                                                               \
+#define TVM_FFI_CHECK_SAFE_CALL(func)                      \
+  {                                                        \
+    int ret_code = (func);                                 \
+    if (ret_code != 0) {                                   \
+      if (ret_code == -2) {                                \
+        throw ::tvm::ffi::EnvErrorAlreadySet();            \
+      }                                                    \
+      throw ::tvm::ffi::details::MoveFromSafeCallRaised(); \
+    }                                                      \
   }
 
 /*!

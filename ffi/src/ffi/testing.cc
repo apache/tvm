@@ -19,6 +19,10 @@
 // This file is used for testing the FFI API.
 #include <tvm/ffi/function.h>
 
+#include <chrono>
+#include <iostream>
+#include <thread>
+
 namespace tvm {
 namespace ffi {
 
@@ -42,6 +46,16 @@ void TestRaiseError(String kind, String msg) {
 }
 
 TVM_FFI_REGISTER_GLOBAL("testing.test_raise_error").set_body_typed(TestRaiseError);
+
+TVM_FFI_REGISTER_GLOBAL("testing.run_check_signal").set_body_typed([](int nsec) {
+  for (int i = 0; i < nsec; ++i) {
+    if (TVMFFIEnvCheckSignals() != 0) {
+      throw ffi::EnvErrorAlreadySet();
+    }
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+  }
+  std::cout << "Function finished without catching signal" << std::endl;
+});
 
 }  // namespace ffi
 }  // namespace tvm

@@ -61,6 +61,17 @@ namespace ffi {
  *  python interpreter). The TVM FFI should catch this error
  *  and return a proper code tell the frontend caller about
  *  this fact.
+ *
+ * \code
+ *
+ * void ExampleLongRunningFunction() {
+ *   if (TVMFFIEnvCheckSignals() != 0) {
+ *     throw ::tvm::ffi::EnvErrorAlreadySet();
+ *   }
+ *   // do work here
+ * }
+ *
+ * \endcode
  */
 struct EnvErrorAlreadySet : public std::exception {};
 
