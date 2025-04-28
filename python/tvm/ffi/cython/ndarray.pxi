@@ -149,6 +149,12 @@ def from_dlpack(ext_tensor, *, required_alignment=8, required_contiguous=True):
     return make_ndarray_from_chandle(chandle)
 
 
+# helper class for shape handling
+def _shape_obj_get_py_tuple(obj):
+    cdef TVMFFIShapeArray* shape = TVMFFIShapeGetShapeArrayPtr((<Object>obj).chandle)
+    return tuple(shape.data[i] for i in range(shape.size))
+
+
 cdef class NDArray(Object):
     """N-dimensional array that is compatible with DLPack.
     """

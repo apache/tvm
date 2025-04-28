@@ -97,3 +97,19 @@ def test_pyfunc_convert():
 
     fapply = tvm_ffi.convert(fapply)
     assert fapply(add, 1, 3.3) == 4.3
+
+
+def test_global_func():
+    @tvm_ffi.register_func("mytest.echo")
+    def echo(x):
+        return x
+
+    f = tvm_ffi.get_global_func("mytest.echo")
+    assert f.same_as(echo)
+    assert f(1) == 1
+
+    assert "mytest.echo" in tvm_ffi.registry.list_global_func_names()
+
+    tvm_ffi.registry.remove_global_func("mytest.echo")
+    assert "mytest.echo" not in tvm_ffi.registry.list_global_func_names()
+    assert tvm_ffi.get_global_func("mytest.echo", allow_missing=True) is None

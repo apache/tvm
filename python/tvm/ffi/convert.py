@@ -15,8 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from numbers import Number
 from typing import Any
 from . import core
+from . import container
 
 
 def convert(value: Any) -> Any:
@@ -34,12 +36,14 @@ def convert(value: Any) -> Any:
     """
     if isinstance(value, core.Object):
         return value
-    elif isinstance(value, (bool, int, float)):
+    elif isinstance(value, core.PyNativeObject):
+        return value
+    elif isinstance(value, (bool, Number)):
         return value
     elif isinstance(value, (list, tuple)):
-        raise NotImplementedError("list and tuple are not supported yet")
+        return container.Array(value)
     elif isinstance(value, dict):
-        raise NotImplementedError("dict are not supported yet")
+        return container.Map(value)
     elif isinstance(value, core.ObjectGeneric):
         return value.asobject()
     elif callable(value):

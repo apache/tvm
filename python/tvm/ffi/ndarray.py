@@ -15,8 +15,31 @@
 # specific language governing permissions and limitations
 # under the License.
 
+from numbers import Integral
 from . import core
 from .core import Device, NDArray, from_dlpack
+from . import registry
+from . import _ffi_api
+
+
+@registry.register_object("object.Shape")
+class Shape(tuple, core.PyNativeObject):
+    """Shape object that is possibly returned by FFI call."""
+
+    def __new__(cls, content):
+        if any(not isinstance(x, Integral) for x in content):
+            raise ValueError("Shape must be a tuple of integers")
+        val = tuple.__new__(cls, content)
+        val.__init_tvm_ffi_object_by_constructor__(_ffi_api.Shape, *content)
+        return val
+
+    # pylint: disable=no-self-argument
+    def __from_tvm_ffi_object__(cls, obj):
+        """Construct from a given tvm object."""
+        content = core._shape_obj_get_py_tuple(obj)
+        val = tuple.__new__(cls, content)
+        val.__tvm_ffi_object__ = obj
+        return val
 
 
 def device(dev_type, dev_id=0):

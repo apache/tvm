@@ -125,7 +125,7 @@ class PyNativeObject:
     """Base class of all TVM objects that also subclass python's builtin types."""
     __slots__ = []
 
-    def __init_object_by_constructor__(self, fconstructor, *args):
+    def __init_tvm_ffi_object_by_constructor__(self, fconstructor, *args):
         """Initialize the internal tvm_ffi_object by calling constructor function.
 
         Parameters
@@ -180,7 +180,7 @@ cdef inline object make_ret_object(TVMFFIAny result):
             if issubclass(cls, PyNativeObject):
                 obj = Object.__new__(Object)
                 (<Object>obj).chandle = result.v_obj
-                return cls.__from_tvm_object__(cls, obj)
+                return cls.__from_tvm_ffi_object__(cls, obj)
             obj = cls.__new__(cls)
         else:
             obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)

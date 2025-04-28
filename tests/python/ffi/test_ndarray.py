@@ -29,3 +29,19 @@ def test_ndarray_attributes():
     assert x.device.device_id == 0
     x2 = np.from_dlpack(x)
     np.testing.assert_equal(x2, data)
+
+
+def test_shape_object():
+    shape = tvm_ffi.Shape((10, 8, 4, 2))
+    assert isinstance(shape, tvm_ffi.Shape)
+    assert shape == (10, 8, 4, 2)
+
+    fecho = tvm_ffi.convert(lambda x: x)
+    shape2 = fecho(shape)
+    assert shape2.__tvm_ffi_object__.same_as(shape.__tvm_ffi_object__)
+    assert isinstance(shape2, tvm_ffi.Shape)
+    assert isinstance(shape2, tuple)
+
+    shape3 = tvm_ffi.convert(shape)
+    assert shape3.__tvm_ffi_object__.same_as(shape.__tvm_ffi_object__)
+    assert isinstance(shape3, tvm_ffi.Shape)

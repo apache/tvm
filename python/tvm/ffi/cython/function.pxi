@@ -185,7 +185,7 @@ cdef inline int ConstructorCall(void* constructor_handle,
     return 0
 
 
-cdef class Function(Object):
+class Function(Object):
     """The Function object used in TVM FFI.
 
     See Also
@@ -196,7 +196,7 @@ cdef class Function(Object):
     def __call__(self, *args):
         cdef TVMFFIAny result
         cdef int c_api_ret_code
-        FuncCall(self.chandle, args, &result, &c_api_ret_code)
+        FuncCall((<Object>self).chandle, args, &result, &c_api_ret_code)
         # NOTE: logic is same as check_call
         # directly inline here to simplify traceback
         if c_api_ret_code == 0:
@@ -204,6 +204,21 @@ cdef class Function(Object):
         elif c_api_ret_code == -2:
             raise raise_existing_error()
         raise move_from_last_error()
+
+_register_object_by_index(kTVMFFIFunc, Function)
+
+
+def _register_global_func(name, pyfunc, override):
+    cdef TVMFFIObjectHandle chandle
+    cdef int c_api_ret_code
+    cdef int ioverride = override
+
+    if not isinstance(pyfunc, Function):
+        pyfunc = _convert_to_ffi_func(pyfunc)
+
+    CHECK_CALL(TVMFFIFuncSetGlobal(c_str(name), (<Object>pyfunc).chandle, ioverride))
+    return pyfunc
+
 
 def _get_global_func(name, allow_missing):
     cdef TVMFFIObjectHandle chandle
@@ -219,8 +234,6 @@ def _get_global_func(name, allow_missing):
 
     raise ValueError("Cannot find global function %s" % name)
 
-
-_register_object_by_index(kTVMFFIFunc, Function)
 
 # handle callbacks
 cdef void tvm_ffi_callback_deleter(void* fhandle) with gil:

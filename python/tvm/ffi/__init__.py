@@ -20,23 +20,27 @@ This module binds the TVM FFI C API to python.
 This is a standalone module that can be
 """
 
+from .registry import register_object, register_func, get_global_func, _init_api
 from .dtype import dtype
-from .registry import register_object, get_global_func
+from .core import String, Bytes
 from .core import Device
 from .core import Object, ObjectGeneric, Function
 from .convert import convert
-from .string import String, Bytes
 from .error import register_error
 from .ndarray import Device, device
 from .ndarray import cpu, cuda, rocm, opencl, metal, vpi, vulkan, ext_dev, hexagon, webgpu
-from .ndarray import from_dlpack, NDArray
+from .ndarray import from_dlpack, NDArray, Shape
+from .container import Array, Map
+
 
 __all__ = [
     "dtype",
     "Device",
     "Object",
     "register_object",
+    "register_func",
     "get_global_func",
+    "_init_api",
     "Object",
     "ObjectGeneric",
     "Function",
@@ -45,6 +49,7 @@ __all__ = [
     "Bytes",
     "register_error",
     "Device",
+    "device",
     "cpu",
     "cuda",
     "rocm",
@@ -57,4 +62,7 @@ __all__ = [
     "webgpu",
     "from_dlpack",
     "NDArray",
+    "Shape",
+    "Array",
+    "Map",
 ]

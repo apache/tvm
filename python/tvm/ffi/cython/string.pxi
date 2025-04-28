@@ -25,11 +25,7 @@ def _string_obj_get_py_str(obj):
 
 def _bytes_obj_get_py_bytes(obj):
     cdef TVMFFIByteArray* bytes = TVMFFIBytesGetByteArrayPtr((<Object>obj).chandle)
-    py_bytes = PyBytes_FromStringAndSize(NULL, bytes.size)
-    if py_bytes is None:
-        raise MemoryError("Failed to allocate bytes object")
-    memcpy(PyBytes_AsString(py_bytes), bytes.data, bytes.size)
-    return py_bytes
+    return PyBytes_FromStringAndSize(bytes.data, bytes.size)
 
 
 cdef class ByteArrayArg:
@@ -46,3 +42,42 @@ cdef class ByteArrayArg:
         self.cdata.data = data
         self.cdata.size = size
 
+
+class String(str, PyNativeObject):
+    __slots__ = ["__tvm_ffi_object__"]
+    """String object that is possibly returned by FFI call.
+
+    Note
+    ----
+    This class subclasses str so it can be directly treated as str.
+    There is no need to construct this object explicitly.
+    """
+    # pylint: disable=no-self-argument
+    def __from_tvm_ffi_object__(cls, obj):
+        """Construct from a given tvm object."""
+        content = _string_obj_get_py_str(obj)
+        val = str.__new__(cls, content)
+        val.__tvm_ffi_object__ = obj
+        return val
+
+_register_object_by_index(kTVMFFIStr, String)
+
+
+class Bytes(bytes, PyNativeObject):
+    """Bytes object that is possibly returned by FFI call.
+
+    Note
+    ----
+    This class subclasses bytes so it can be directly treated as bytes.
+    There is no need to construct this object explicitly.
+    """
+
+    # pylint: disable=no-self-argument
+    def __from_tvm_ffi_object__(cls, obj):
+        """Construct from a given tvm object."""
+        content = _bytes_obj_get_py_bytes(obj)
+        val = bytes.__new__(cls, content)
+        val.__tvm_ffi_object__ = obj
+        return val
+
+_register_object_by_index(kTVMFFIBytes, Bytes)

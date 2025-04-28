@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import sys
 from . import core
 
 
@@ -51,6 +52,41 @@ def register_object(type_key=None):
     return register(type_key)
 
 
+def register_func(func_name, f=None, override=False):
+    """Register global function
+
+    Parameters
+    ----------
+    func_name : str or function
+        The function name
+
+    f : function, optional
+        The function to be registered.
+
+    override: boolean optional
+        Whether override existing entry.
+
+    Returns
+    -------
+    fregister : function
+        Register function if f is not specified.
+    """
+    if callable(func_name):
+        f = func_name
+        func_name = f.__name__
+
+    if not isinstance(func_name, str):
+        raise ValueError("expect string function name")
+
+    def register(myf):
+        """internal register function"""
+        return core._register_global_func(func_name, myf, override)
+
+    if f:
+        return register(f)
+    return register
+
+
 def get_global_func(name, allow_missing=False):
     """Get a global function by name
 
@@ -70,4 +106,66 @@ def get_global_func(name, allow_missing=False):
     return core._get_global_func(name, allow_missing)
 
 
-__all__ = ["register_object", "get_global_func"]
+def list_global_func_names():
+    """Get list of global functions registered.
+
+    Returns
+    -------
+    names : list
+       List of global functions names.
+    """
+    name_functor = get_global_func("ffi.GlobalFunctionListNames")()
+    len = name_functor(-1)
+    return [name_functor(i) for i in range(len)]
+
+
+def remove_global_func(name):
+    """Remove a global function by name
+
+    Parameters
+    ----------
+    name : str
+        The name of the global function
+    """
+    get_global_func("ffi.GlobalFunctionRemove")(name)
+
+
+def _init_api(namespace, target_module_name=None):
+    """Initialize api for a given module name
+
+    namespace : str
+       The namespace of the source registry
+
+    target_module_name : str
+       The target module name if different from namespace
+    """
+    target_module_name = target_module_name if target_module_name else namespace
+
+    if namespace.startswith("tvm."):
+        prefix = namespace[4:]
+    else:
+        prefix = namespace
+
+    target_module = sys.modules[target_module_name]
+
+    for name in list_global_func_names():
+        if not name.startswith(prefix):
+            continue
+
+        fname = name[len(prefix) + 1 :]
+        if fname.find(".") != -1:
+            continue
+
+        f = get_global_func(name)
+        f.__name__ = fname
+        setattr(target_module, f.__name__, f)
+
+
+__all__ = [
+    "register_object",
+    "register_func",
+    "get_global_func",
+    "list_global_func_names",
+    "remove_global_func",
+    "_init_api",
+]
