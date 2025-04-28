@@ -3509,7 +3509,7 @@ def test_meshgrid_infer_struct_info():
     t1 = relax.Var("t1", R.Tensor((4,), "float32"))
     t2 = relax.Var("t2", R.Tensor("float32", ndim=1))
     t3 = relax.Var("t3", R.Tensor((5,), "float32", vdev0))
-    t4 = relax.Var("t4", R.Tensor((10,),"float32"))
+    t4 = relax.Var("t4", R.Tensor((10,), "float32"))
 
     _check_inference(
         bb,
