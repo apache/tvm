@@ -268,7 +268,7 @@ class PassContext : public ObjectRef {
   template <typename ValueType>
   static int32_t RegisterConfigOption(const char* key) {
     // NOTE: we could further update the function later.
-    int32_t tindex = ffi::details::TypeToRuntimeTypeIndex<ValueType>::v();
+    int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
     auto* reflection = ReflectionVTable::Global();
     auto type_key = ffi::TypeIndexToTypeKey(tindex);
 

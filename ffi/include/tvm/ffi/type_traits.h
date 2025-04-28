@@ -93,6 +93,26 @@ struct TypeTraitsBase {
   }
 };
 
+template <typename T, typename = void>
+struct TypeToFieldStaticTypeIndex {
+  static constexpr int32_t value = TypeIndex::kTVMFFIAny;
+};
+
+template <typename T>
+struct TypeToFieldStaticTypeIndex<T, std::enable_if_t<TypeTraits<T>::convert_enabled>> {
+  static constexpr int32_t value = TypeTraits<T>::field_static_type_index;
+};
+
+template <typename T, typename = void>
+struct TypeToRuntimeTypeIndex {
+  static int32_t v() { return TypeToFieldStaticTypeIndex<T>::value; }
+};
+
+template <typename T>
+struct TypeToRuntimeTypeIndex<T, std::enable_if_t<std::is_base_of_v<ObjectRef, T>>> {
+  static int32_t v() { return T::ContainerType::RuntimeTypeIndex(); }
+};
+
 // None
 template <>
 struct TypeTraits<std::nullptr_t> : public TypeTraitsBase {

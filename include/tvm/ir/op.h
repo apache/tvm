@@ -359,7 +359,7 @@ inline OpRegEntry& OpRegEntry::set_attrs_type() {  // NOLINT(*)
 
 inline OpRegEntry& OpRegEntry::set_attrs_type_key(const String& key) {  // NOLINT(*)
   get()->attrs_type_key = key;
-  get()->attrs_type_index = tvm::ffi::TypeKey2Index(key.c_str());
+  get()->attrs_type_index = tvm::ffi::TypeKeyToIndex(key.c_str());
   return *this;
 }
 

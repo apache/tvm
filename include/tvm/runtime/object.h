@@ -25,7 +25,6 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/object.h>
-#include <tvm/ffi/reflection.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/container/optional.h>
 

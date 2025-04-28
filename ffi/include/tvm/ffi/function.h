@@ -752,14 +752,14 @@ class Function::Registry {
    * \code
    *
    * // objectRef subclass:
-   * struct Example : ObjectRef{
+   * struct Example : ObjectRef {
    *    int DoThing(int x);
    * }
    * TVM_FFI_REGISTER_GLOBAL("Example_DoThing")
    * .set_body_method(&Example::DoThing); // will have type int(self, int)
    *
    * // Object subclass:
-   * struct Example : Object{
+   * struct Example : Object {
    *    int DoThing(int x);
    * }
    *
