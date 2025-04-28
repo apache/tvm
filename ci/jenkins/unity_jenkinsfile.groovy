@@ -30,8 +30,8 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_gpu = 'tlcpack/ci-gpu:20250226-223225-63bc315f_patch'
-ci_cpu = 'tlcpack/ci-cpu:20250226-223225-63bc315f_patch'
+ci_gpu = 'tlcpack/ci-gpu:20250428-080833-03eadc65'
+ci_cpu = 'tlcpack/ci-cpu:20250428-080833-03eadc65'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
