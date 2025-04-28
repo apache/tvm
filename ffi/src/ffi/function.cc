@@ -35,18 +35,19 @@ namespace ffi {
 
 class SafeCallContext {
  public:
-  void SetLastError(const TVMFFIAny* error_view) {
-    last_error_ = Any(AnyView::CopyFromTVMFFIAny(error_view[0]));
-    // turn string into formal error.
-    if (Optional<String> opt_str = last_error_.as<String>()) {
-      last_error_ = ::tvm::ffi::Error("RuntimeError", *opt_str, TVM_FFI_TRACEBACK_HERE);
-    }
+  void SetRaised(TVMFFIObjectHandle error) {
+    last_error_ = details::ObjectUnsafe::ObjectPtrFromUnowned<ErrorObj>(
+      static_cast<TVMFFIObject*>(error)
+    );
   }
 
-  void SetLastError(Error error) { last_error_ = std::move(error); }
+  void SetRaisedByCstr(const char* kind, const char* message, const char* traceback) {
+    Error error(kind, message, traceback);
+    last_error_ = details::ObjectUnsafe::ObjectPtrFromObjectRef<ErrorObj>(std::move(error));
+  }
 
-  void MoveFromLastError(TVMFFIAny* result) {
-    *result = details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(last_error_));
+  void MoveFromRaised(TVMFFIObjectHandle* result) {
+    result[0] = details::ObjectUnsafe::MoveObjectPtrToTVMFFIObjectPtr(std::move(last_error_));
   }
 
   static SafeCallContext* ThreadLocal() {
@@ -55,7 +56,7 @@ class SafeCallContext {
   }
 
  private:
-  Any last_error_;
+  ObjectPtr<ErrorObj> last_error_;
 };
 
 /*!
@@ -163,36 +164,35 @@ int TVMFFIFuncCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args, T
   return reinterpret_cast<FunctionObj*>(func)->safe_call(func, args, num_args, result);
 }
 
-void TVMFFISetLastError(const TVMFFIAny* error_view) {
-  tvm::ffi::SafeCallContext::ThreadLocal()->SetLastError(error_view);
-}
 
-void TVMFFISetLastErrorCStr(const char* kind, const char* message,
-                            const char* optional_extra_traceback) {
+void TVMFFIErrorSetRaisedByCStr(const char* kind, const char* message) {
   // NOTE: run traceback here to simplify the depth of tracekback
-  std::string traceback = TVM_FFI_TRACEBACK_HERE;
-  if (optional_extra_traceback != nullptr) {
-    traceback += optional_extra_traceback;
-  }
-  tvm::ffi::SafeCallContext::ThreadLocal()->SetLastError(
-      ::tvm::ffi::Error(kind, message, traceback));
+  tvm::ffi::SafeCallContext::ThreadLocal()->SetRaisedByCstr(kind, message, TVM_FFI_TRACEBACK_HERE);
 }
 
-void TVMFFIMoveFromLastError(TVMFFIAny* result) {
-  tvm::ffi::SafeCallContext::ThreadLocal()->MoveFromLastError(result);
+void TVMFFIErrorSetRaised(TVMFFIObjectHandle error) {
+  tvm::ffi::SafeCallContext::ThreadLocal()->SetRaised(error);
 }
 
-void TVMFFIUpdateErrorTraceback(TVMFFIObjectHandle obj, const char* traceback) {
+void TVMFFIErrorMoveFromRaised(TVMFFIObjectHandle* result) {
+  tvm::ffi::SafeCallContext::ThreadLocal()->MoveFromRaised(result);
+}
+
+void TVMFFIErrorUpdateTraceback(TVMFFIObjectHandle obj, const char* traceback) {
   static_cast<tvm::ffi::ErrorObj*>(reinterpret_cast<tvm::ffi::Object*>(obj))
       ->UpdateTraceback(traceback);
 }
 
-TVM_FFI_REGISTER_GLOBAL("ffi.GlobalFunctionRemove")
+TVM_FFI_REGISTER_GLOBAL("ffi.FunctionRemoveGlobal")
     .set_body_typed([](const tvm::ffi::String& name) -> bool {
       return tvm::ffi::GlobalFunctionTable::Global()->Remove(name);
     });
 
-TVM_FFI_REGISTER_GLOBAL("ffi.GlobalFunctionListNames").set_body_typed([]() {
+TVM_FFI_REGISTER_GLOBAL("ffi.FunctionListGlobalNamesFunctor").set_body_typed([]() {
+  // NOTE: we return functor instead of array
+  // so list global function names do not need to depend on array
+  // this is because list global function names usually is a core api that happens
+  // before array ffi functions are available.
   tvm::ffi::Array<tvm::ffi::String> names = tvm::ffi::GlobalFunctionTable::Global()->ListNames();
   auto return_functor = [names](int64_t i) -> tvm::ffi::Any {
     if (i < 0) {

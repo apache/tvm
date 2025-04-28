@@ -53,16 +53,14 @@ namespace ffi {
   return 0;                                                                         \
   }                                                                                 \
   catch (const ::tvm::ffi::Error& err) {                                            \
-    ::tvm::ffi::AnyView error_as_any(err);                                          \
-    TVMFFISetLastError(reinterpret_cast<TVMFFIAny*>(&error_as_any));                \
+    ::tvm::ffi::details::SetSafeCallRaised(err);                                    \
     return -1;                                                                      \
   }                                                                                 \
   catch (const ::tvm::ffi::EnvErrorAlreadySet&) {                                   \
     return -2;                                                                      \
   }                                                                                 \
-  catch (const std::exception& err) {                                               \
-    ::tvm::ffi::Any error_as_any(tvm::ffi::Error("InternalError", err.what(), "")); \
-    TVMFFISetLastError(reinterpret_cast<TVMFFIAny*>(&error_as_any));                \
+  catch (const std::exception& ex) {                                               \
+    ::tvm::ffi::details::SetSafeCallRaised(::tvm::ffi::Error("InternalError", ex.what(), "")); \
     return -1;                                                                      \
   }                                                                                 \
   TVM_FFI_UNREACHABLE()
@@ -74,13 +72,7 @@ namespace ffi {
       if (ret_code == -2) {                                                         \
         throw ::tvm::ffi::EnvErrorAlreadySet();                                     \
       }                                                                             \
-      ::tvm::ffi::Any error_any;                                                    \
-      TVMFFIMoveFromLastError(reinterpret_cast<TVMFFIAny*>(&error_any));            \
-      if (std::optional<tvm::ffi::Error> error = error_any.as<tvm::ffi::Error>()) { \
-        throw *std::move(error);                                                    \
-      } else {                                                                      \
-        TVM_FFI_THROW(RuntimeError) << "Error encountered";                         \
-      }                                                                             \
+      throw ::tvm::ffi::details::MoveFromSafeCallRaised();                         \
     }                                                                               \
   }
 
@@ -416,6 +408,7 @@ class Function : public ObjectRef {
     TVM_FFI_CHECK_SAFE_CALL(
         TVMFFIFuncSetGlobal(name, details::ObjectUnsafe::GetHeader(func.get()), override));
   }
+
   /*!
    * \brief Constructing a packed function from a normal function.
    *
@@ -489,9 +482,9 @@ class Function : public ObjectRef {
   }
 
   /*! \return Whether the packed function is nullptr */
-  bool operator==(std::nullptr_t) const { return data_ == nullptr; }
+  TVM_FFI_INLINE bool operator==(std::nullptr_t) const { return data_ == nullptr; }
   /*! \return Whether the packed function is not nullptr */
-  bool operator!=(std::nullptr_t) const { return data_ != nullptr; }
+  TVM_FFI_INLINE bool operator!=(std::nullptr_t) const { return data_ != nullptr; }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS(Function, ObjectRef, FunctionObj);
 

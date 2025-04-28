@@ -84,7 +84,7 @@ inline bool ShouldExcludeFrame(const char* filename, const char* symbol) {
       return true;
     }
   }
-  if (strncmp(symbol, "TVMFFISetLastErrorCStr", 22) == 0) {
+  if (strncmp(symbol, "TVMFFIErrorSetRaisedByCStr", 26) == 0) {
     return true;
   }
   // libffi.so stack frames.  These may also show up as numeric

@@ -157,8 +157,12 @@ TEST(Func, Global) {
   auto fnot_exist = Function::GetGlobal("testing.not_existing_func");
   EXPECT_TRUE(!fnot_exist);
 
-  Array<String> names = Function::GetGlobal("ffi.GlobalFunctionListNames").value()();
-
+  Function fname_functor = Function::GetGlobal("ffi.FunctionListGlobalNamesFunctor").value()();
+  Array<String> names;
+  int len = fname_functor(-1);
+  for (int i = 0; i < len; ++i) {
+    names.push_back(fname_functor(i));
+  }
   EXPECT_TRUE(std::find(names.begin(), names.end(), "testing.add1") != names.end());
 }
 

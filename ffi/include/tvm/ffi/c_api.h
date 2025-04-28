@@ -241,10 +241,10 @@ typedef struct {
  *
  *  Possible return error of the API functions:
  *  * 0: success
- *  * -1: error happens, can be retrieved by TVMFFIGetLastError
+ *  * -1: error happens, can be retrieved by TVMFFIErrorMoveFromRaised
  *  * -2: a frontend error occurred and recorded in the frontend.
  *
- * \note We decided to leverage TVMFFIGetLastError and TVMFFISetLastError
+ * \note We decided to leverage TVMFFIErrorMoveFromRaised and TVMFFIErrorSetRaisedByConsume
  *  for C function error propagation. This design choice, while
  *  introducing a dependency for TLS runtime, simplifies error
  *  propgation in chains of calls in compiler codegen.
@@ -363,6 +363,17 @@ typedef struct {
 TVM_FFI_DLL int TVMFFIObjectFree(TVMFFIObjectHandle obj);
 
 /*!
+ * \brief Convert type key to type index.
+ * \param type_key The key of the type.
+ * \param out_tindex the corresponding type index.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFITypeKeyToIndex(const char* type_key, int32_t* out_tindex);
+
+//------------------------------------------------------------
+// Section: Function calling APIs
+//------------------------------------------------------------
+/*!
  * \brief Create a FFIFunc by passing in callbacks from C callback.
  *
  * The registered function then can be pulled by the backend by the name.
@@ -424,42 +435,46 @@ TVM_FFI_DLL int TVMFFIFuncGetGlobal(const char* name, TVMFFIObjectHandle* out);
  *
  * \note This function clears the error stored in the TLS.
  */
-TVM_FFI_DLL void TVMFFIMoveFromLastError(TVMFFIAny* result);
+TVM_FFI_DLL void TVMFFIErrorMoveFromRaised(TVMFFIObjectHandle* result);
 
 /*!
- * \brief Set the last error in TLS, which can be fetched by TVMFFIGetLastError.
+ * \brief Set raised error in TLS, which can be fetched by TVMFFIErrorMoveFromRaised.
  *
- * \param error_view The error in format of any view.
- *        It can be an object, or simply a raw c_str.
+ * \param error The error object handle
  */
-TVM_FFI_DLL void TVMFFISetLastError(const TVMFFIAny* error_view);
+TVM_FFI_DLL void TVMFFIErrorSetRaised(TVMFFIObjectHandle error);
 
 /*!
- * \brief Set the last error in TLS, which can be fetched by TVMFFIGetLastError.
+ * \brief Set raised error in TLS, which can be fetched by TVMFFIMoveFromRaised.
  *
  * \param kind The kind of the error.
  * \param message The error message.
- * \param optional_extra_traceback The extra traceback, can be NULL.
  * \note This is a convenient method for C API side to set error directly from string.
  */
-TVM_FFI_DLL void TVMFFISetLastErrorCStr(const char* kind, const char* message,
-                                        const char* optional_extra_traceback);
+TVM_FFI_DLL void TVMFFIErrorSetRaisedByCStr(const char* kind, const char* message);
+
+/*!
+ * \brief Create an initial error object.
+ *
+ * \param kind The kind of the error.
+ * \param message The error message.
+ * \param traceback The traceback of the error.
+ * \param out The output Error object handle.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIErrorCreate(const char* kind, const char* message, const char* traceback,
+                                  TVMFFIObjectHandle* out);
 
 /*!
  * \brief Update the traceback of an Error object.
  * \param obj The error handle.
  * \param traceback The traceback to update.
  */
-TVM_FFI_DLL void TVMFFIUpdateErrorTraceback(TVMFFIObjectHandle obj, const char* traceback);
+TVM_FFI_DLL void TVMFFIErrorUpdateTraceback(TVMFFIObjectHandle obj, const char* traceback);
 
-/*!
- * \brief Convert type key to type index.
- * \param type_key The key of the type.
- * \param out_tindex the corresponding type index.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFITypeKeyToIndex(const char* type_key, int32_t* out_tindex);
-
+//------------------------------------------------------------
+// Section: Type reflection support APIs
+//------------------------------------------------------------
 /*!
  * \brief Register type field information for rutnime reflection.
  * \param type_index The type index
@@ -467,14 +482,6 @@ TVM_FFI_DLL int TVMFFITypeKeyToIndex(const char* type_key, int32_t* out_tindex);
  * \return 0 when success, nonzero when failure happens
  */
 TVM_FFI_DLL int TVMFFIRegisterTypeField(int32_t type_index, const TVMFFIFieldInfo* info);
-
-/*!
- * \brief Register type method information for rutnime reflection.
- * \param type_index The type index
- * \param info The method info to be registered.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFIRegisterTypeMethod(int32_t type_index, const TVMFFIMethodInfo* info);
 
 //------------------------------------------------------------
 // Section: DLPack support APIs
