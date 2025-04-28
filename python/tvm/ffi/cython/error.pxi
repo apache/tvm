@@ -27,7 +27,20 @@ _TRACEBACK_TO_STR = None
 
 
 cdef class Error(Object):
-    """Base class for all FFI errors, usually they are attached to errors"""
+    """Base class for all FFI errors, usually they are attached to errors
+
+    Note
+    ----
+    Do not directly raise this object, instead use the `py_error` method
+    to convert it to a python error then raise it.
+    """
+
+    def __init__(self, kind, message, traceback):
+        CHECK_CALL(
+            TVMFFIErrorCreate(
+                c_str(kind), c_str(message), c_str(traceback),
+                &(<Object>self).chandle))
+
     def update_traceback(self, traceback):
         """Update the traceback of the error
 
@@ -36,7 +49,17 @@ cdef class Error(Object):
         traceback : str
             The traceback to update.
         """
-        TVMFFIUpdateErrorTraceback(self.chandle, c_str(traceback))
+        TVMFFIErrorUpdateTraceback(self.chandle, c_str(traceback))
+
+    def py_error(self):
+        """
+        Convert the FFI error to the python error
+        """
+        error_cls = ERROR_NAME_TO_TYPE.get(self.kind, RuntimeError)
+        py_error = error_cls(self.message)
+        py_error = _WITH_APPEND_TRACEBACK(py_error, self.traceback)
+        py_error.__tvm_ffi_error__ = self
+        return py_error
 
     @property
     def kind(self):
@@ -53,23 +76,11 @@ cdef class Error(Object):
 _register_object_by_index(kTVMFFIError, Error)
 
 
-cdef inline object move_from_last_error():
+cdef inline Error move_from_last_error():
     # raise last error
-    cdef TVMFFIAny result
-    cdef TVMFFIErrorInfo* error_info
-    TVMFFIMoveFromLastError(&result)
-    if result.type_index != kTVMFFIError:
-        if result.type_index >= kTVMFFIStaticObjectBegin:
-            TVMFFIObjectFree(result.v_ptr)
-        return RuntimeError("Error happened in FFI call type_index=%d" % result.type_index)
     error = Error.__new__(Error)
-    (<Object>error).chandle = result.v_ptr
-    error_info = TVMFFIErrorGetErrorInfoPtr(result.v_ptr)
-    error_cls = ERROR_NAME_TO_TYPE.get(error.kind, RuntimeError)
-    py_error = error_cls(error.message)
-    py_error = _WITH_APPEND_TRACEBACK(py_error, error.traceback)
-    py_error.__tvm_ffi_error__ = error
-    return py_error
+    TVMFFIErrorMoveFromRaised(&(<Object>error).chandle)
+    return error
 
 
 cdef inline int raise_existing_error() except -2:
@@ -79,25 +90,34 @@ cdef inline int raise_existing_error() except -2:
 cdef inline int set_last_ffi_error(error) except -1:
     """Set the last FFI error"""
     cdef Error ffi_error
-    cdef TVMFFIAny temp_args
 
     kind = ERROR_TYPE_TO_NAME.get(type(error), "RuntimeError")
     message = error.__str__()
     py_traceback = _TRACEBACK_TO_STR(error.__traceback__)
+    c_traceback = py_str(TVMFFITraceback("<unknown>", 0, "<unknown>"))
 
     # error comes from an exception thrown from C++ side
     if hasattr(error, "__tvm_ffi_error__"):
         # already have stack trace
         ffi_error = error.__tvm_ffi_error__
-        c_traceback = py_str(TVMFFITraceback("<unknown>", 0, "<unknown>"))
         # attach the python traceback together with the C++ traceback to get full trace
         ffi_error.update_traceback(c_traceback + py_traceback)
-        temp_args.v_int64 = 0
-        temp_args.type_index = kTVMFFIError
-        temp_args.v_ptr = ffi_error.chandle
-        TVMFFISetLastError(&temp_args)
+        TVMFFIErrorSetRaised(ffi_error.chandle)
     else:
-        TVMFFISetLastErrorCStr(c_str(kind), c_str(message), c_str(py_traceback))
+        ffi_error = Error(kind, message, c_traceback + py_traceback)
+        TVMFFIErrorSetRaised(ffi_error.chandle)
+
+
+def _convert_to_ffi_error(error):
+    """Convert the python error to the FFI error"""
+    py_traceback = _TRACEBACK_TO_STR(error.__traceback__)
+    if hasattr(error, "__tvm_ffi_error__"):
+        error.__tvm_ffi_error__.update_traceback(py_traceback)
+        return error.__tvm_ffi_error__
+    else:
+        kind = ERROR_TYPE_TO_NAME.get(type(error), "RuntimeError")
+        message = error.__str__()
+        return Error(kind, message, py_traceback)
 
 
 cdef inline int CHECK_CALL(int ret) except -2:
@@ -107,4 +127,4 @@ cdef inline int CHECK_CALL(int ret) except -2:
     # -2 brings exception
     if ret == -2:
         raise raise_existing_error()
-    raise move_from_last_error()
+    raise move_from_last_error().py_error()

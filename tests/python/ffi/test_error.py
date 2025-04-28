@@ -80,3 +80,29 @@ def test_error_from_nested_pyfunc():
         pos_lambda = traceback.find("<lambda>")
         assert pos_cxx_raise > pos_lambda
         assert pos_lambda > pos_cxx_apply
+
+
+def test_error_traceback_update():
+    fecho = tvm_ffi.get_global_func("testing.echo")
+
+    def raise_error():
+        raise ValueError("error XYZ")
+
+    try:
+        raise_error()
+    except ValueError as e:
+        ffi_error = tvm_ffi.convert(e)
+        assert ffi_error.traceback.find("raise_error") != -1
+
+    def raise_cxx_error():
+        cxx_test_raise_error = tvm_ffi.get_global_func("testing.test_raise_error")
+        cxx_test_raise_error("ValueError", "error XYZ")
+
+    try:
+        raise_cxx_error()
+    except ValueError as e:
+        assert e.__tvm_ffi_error__.traceback.find("raise_cxx_error") == -1
+        ffi_error1 = tvm_ffi.convert(e)
+        ffi_error2 = fecho(e)
+        assert ffi_error1.traceback.find("raise_cxx_error") != -1
+        assert ffi_error2.traceback.find("raise_cxx_error") != -1

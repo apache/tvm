@@ -104,21 +104,19 @@ class ParallelLauncher {
     std::ostringstream os;
     for (size_t i = 0; i < par_errors_.size(); ++i) {
       if (par_errors_[i] != nullptr) {
-        if (std::optional<tvm::ffi::Error> error = par_errors_[i].as<tvm::ffi::Error>()) {
-          os << "Task " << i << " error: " << (*error).what();
-        } else {
-          os << "Task " << i << " RuntimeError";
+        if (par_errors_[i]) {
+          os << "Task " << i << " error: " << (*par_errors_[i]).what();
         }
         par_errors_[i] = nullptr;
       }
     }
-    TVMFFISetLastErrorCStr("RuntimeError", os.str().c_str(), nullptr);
+    TVMFFIErrorSetRaisedByCStr("RuntimeError", os.str().c_str());
     return -1;
   }
   // Signal that one job has finished.
   void SignalJobError(int task_id) {
     num_pending_.fetch_sub(1);
-    TVMFFIMoveFromLastError(reinterpret_cast<TVMFFIAny*>(&par_errors_[task_id]));
+    par_errors_[task_id] = tvm::ffi::details::MoveFromSafeCallRaised();
     has_error_.store(true);
   }
   // Signal that one job has finished.
@@ -143,7 +141,7 @@ class ParallelLauncher {
   // The counter page.
   std::atomic<int32_t>* sync_counter_{nullptr};
   // The error message
-  std::vector<Any> par_errors_;
+  std::vector<Optional<tvm::ffi::Error>> par_errors_;
 };
 
 /*! \brief Lock-free single-producer-single-consumer queue for each thread */

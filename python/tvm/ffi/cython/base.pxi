@@ -128,11 +128,12 @@ cdef extern from "tvm/ffi/c_api.h":
     int TVMFFIAnyViewToOwnedAny(const TVMFFIAny* any_view, TVMFFIAny* out) nogil
     int TVMFFIFuncSetGlobal(const char* name, TVMFFIObjectHandle f, int override) nogil
     int TVMFFIFuncGetGlobal(const char* name, TVMFFIObjectHandle* out) nogil
-    void TVMFFIMoveFromLastError(TVMFFIAny* result) nogil
-    void TVMFFISetLastError(const TVMFFIAny* error_view) nogil
-    void TVMFFISetLastErrorCStr(const char* kind, const char* message,
-                                const char* optional_extra_traceback) nogil
-    void TVMFFIUpdateErrorTraceback(TVMFFIObjectHandle error, const char* traceback) nogil
+    void TVMFFIErrorMoveFromRaised(TVMFFIObjectHandle* result) nogil
+    void TVMFFIErrorSetRaised(TVMFFIObjectHandle error) nogil
+    void TVMFFIErrorSetRaisedCStr(const char* kind, const char* message) nogil
+    void TVMFFIErrorUpdateTraceback(TVMFFIObjectHandle error, const char* traceback) nogil
+    int TVMFFIErrorCreate(const char* kind, const char* message, const char* traceback,
+                          TVMFFIObjectHandle* out) nogil
     int TVMFFITypeKeyToIndex(const char* type_key, int32_t* out_tindex) nogil
     int TVMFFIDataTypeFromString(const char* str, DLDataType* out) nogil
     int TVMFFIDataTypeToString(DLDataType dtype, TVMFFIObjectHandle* out) nogil

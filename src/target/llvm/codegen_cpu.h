@@ -93,7 +93,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::FunctionType* ftype_tvm_parallel_lambda_{nullptr};
   llvm::FunctionType* ftype_tvm_ffi_func_call_{nullptr};
   llvm::FunctionType* ftype_tvm_get_func_from_env_{nullptr};
-  llvm::FunctionType* ftype_tvm_ffi_set_last_error_c_str_{nullptr};
+  llvm::FunctionType* ftype_tvm_ffi_error_set_raised_by_c_str_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_launch_{nullptr};
   llvm::FunctionType* ftype_tvm_parallel_barrier_{nullptr};
   llvm::FunctionType* ftype_tvm_register_system_symbol_{nullptr};
@@ -117,7 +117,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
   llvm::Value* RuntimeTVMFFIFuncCall();
   llvm::Value* RuntimeTVMGetFuncFromEnv();
-  llvm::Value* RuntimeTVMFFISetLastErrorCStr();
+  llvm::Value* RuntimeTVMFFIErrorSetRaisedByCStr();
   llvm::Value* RuntimeTVMParallelLaunch();
   llvm::Value* RuntimeTVMParallelBarrier();
   llvm::Value* CreateStaticHandle();
@@ -165,7 +165,7 @@ class CodeGenCPU : public CodeGenLLVM {
   // context for direct dynamic lookup
   llvm::Function* f_tvm_ffi_func_call_{nullptr};
   llvm::Function* f_tvm_get_func_from_env_{nullptr};
-  llvm::Function* f_tvm_ffi_set_last_error_c_str_{nullptr};
+  llvm::Function* f_tvm_ffi_set_raised_by_c_str_{nullptr};
   llvm::Function* f_tvm_parallel_launch_{nullptr};
   llvm::Function* f_tvm_parallel_barrier_{nullptr};
   llvm::Function* f_tvm_register_system_symbol_{nullptr};

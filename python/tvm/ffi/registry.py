@@ -114,7 +114,7 @@ def list_global_func_names():
     names : list
        List of global functions names.
     """
-    name_functor = get_global_func("ffi.GlobalFunctionListNames")()
+    name_functor = get_global_func("ffi.FunctionListGlobalNamesFunctor")()
     len = name_functor(-1)
     return [name_functor(i) for i in range(len)]
 
@@ -127,7 +127,7 @@ def remove_global_func(name):
     name : str
         The name of the global function
     """
-    get_global_func("ffi.GlobalFunctionRemove")(name)
+    get_global_func("ffi.FunctionRemoveGlobal")(name)
 
 
 def _init_api(namespace, target_module_name=None):

@@ -481,13 +481,7 @@ void TVMThrowLastError() {
     throw *internal;
   } else {
     // redirect to tvm-ffi error handling.
-    ::tvm::ffi::Any error_any;
-    TVMFFIMoveFromLastError(reinterpret_cast<TVMFFIAny*>(&error_any));
-    if (std::optional<tvm::ffi::Error> error = error_any.as<tvm::ffi::Error>()) {
-      throw *std::move(error);
-    } else {
-      TVM_FFI_THROW(RuntimeError) << "Error encountered";
-    }
+    throw ::tvm::ffi::details::MoveFromSafeCallRaised();
   }
 }
 

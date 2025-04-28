@@ -164,7 +164,6 @@ int TVMFFIFuncCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args, T
   return reinterpret_cast<FunctionObj*>(func)->safe_call(func, args, num_args, result);
 }
 
-
 void TVMFFIErrorSetRaisedByCStr(const char* kind, const char* message) {
   // NOTE: run traceback here to simplify the depth of tracekback
   tvm::ffi::SafeCallContext::ThreadLocal()->SetRaisedByCstr(kind, message, TVM_FFI_TRACEBACK_HERE);
@@ -181,6 +180,14 @@ void TVMFFIErrorMoveFromRaised(TVMFFIObjectHandle* result) {
 void TVMFFIErrorUpdateTraceback(TVMFFIObjectHandle obj, const char* traceback) {
   static_cast<tvm::ffi::ErrorObj*>(reinterpret_cast<tvm::ffi::Object*>(obj))
       ->UpdateTraceback(traceback);
+}
+
+int TVMFFIErrorCreate(const char* kind, const char* message, const char* traceback,
+                       TVMFFIObjectHandle* out) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  tvm::ffi::Error error(kind, message, traceback);
+  *out = tvm::ffi::details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(error));
+  TVM_FFI_SAFE_CALL_END();
 }
 
 TVM_FFI_REGISTER_GLOBAL("ffi.FunctionRemoveGlobal")

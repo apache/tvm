@@ -118,8 +118,8 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
         elif isinstance(arg, ctypes.c_void_p):
             out[i].type_index = kTVMFFIOpaquePtr
             out[i].v_ptr = c_handle(arg)
-        elif hasattr(arg, "__tvm_ffi_error__"):
-            arg = arg.__tvm_ffi_error__
+        elif isinstance(arg, Exception):
+            arg = _convert_to_ffi_error(arg)
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
             out[i].v_ptr = (<Object>arg).chandle
             temp_args.append(arg)
@@ -203,7 +203,7 @@ class Function(Object):
             return make_ret(result)
         elif c_api_ret_code == -2:
             raise raise_existing_error()
-        raise move_from_last_error()
+        raise move_from_last_error().py_error()
 
 _register_object_by_index(kTVMFFIFunc, Function)
 

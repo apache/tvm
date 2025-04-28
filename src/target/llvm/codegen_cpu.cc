@@ -121,11 +121,9 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   //                    TVMFFIAny* result);
   ftype_tvm_ffi_func_call_ = ftype_tvm_ffi_c_func_;
   // Defined in include/tvm/ffi/c_api.h:
-  // void TVMFFISetLastErrorCStr(const char *kind, const char* msg);
-  ftype_tvm_ffi_set_last_error_c_str_ = llvm::FunctionType::get(
-      t_void_,
-      {llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(t_char_, 0)},
-      false);
+  // void TVMFFIErrorSetRaisedByCStr(const char *kind, const char* msg);
+  ftype_tvm_ffi_error_set_raised_by_c_str_ = llvm::FunctionType::get(
+      t_void_, {llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(t_char_, 0)}, false);
   // Defined in include/tvm/runtime/c_backend_api.h:
   // int TVMBackendGetFuncFromEnv(void* mod_node, const char* func_name, TVMFunctionHandle* out);
   ftype_tvm_get_func_from_env_ = llvm::FunctionType::get(
@@ -159,9 +157,9 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   if (dynamic_lookup || system_lib_prefix_.defined()) {
     f_tvm_ffi_func_call_ = llvm::Function::Create(
         ftype_tvm_ffi_func_call_, llvm::Function::ExternalLinkage, "TVMFFIFuncCall", module_.get());
-    f_tvm_ffi_set_last_error_c_str_ =
-        llvm::Function::Create(ftype_tvm_ffi_set_last_error_c_str_, llvm::Function::ExternalLinkage,
-                               "TVMFFISetLastErrorCStr", module_.get());
+    f_tvm_ffi_set_raised_by_c_str_ = llvm::Function::Create(
+        ftype_tvm_ffi_error_set_raised_by_c_str_, llvm::Function::ExternalLinkage,
+        "TVMFFIErrorSetRaisedByCStr", module_.get());
     f_tvm_get_func_from_env_ =
         llvm::Function::Create(ftype_tvm_get_func_from_env_, llvm::Function::ExternalLinkage,
                                "TVMBackendGetFuncFromEnv", module_.get());
@@ -449,8 +447,9 @@ void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
           InitContextPtr(llvmGetPointerTo(ftype_tvm_ffi_func_call_, 0), "__TVMFFIFuncCall");
       gv_tvm_get_func_from_env_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_get_func_from_env_, 0),
                                                  "__TVMBackendGetFuncFromEnv");
-      gv_tvm_ffi_set_last_error_c_str_ = InitContextPtr(
-          llvmGetPointerTo(ftype_tvm_ffi_set_last_error_c_str_, 0), "__TVMFFISetLastErrorCStr");
+      gv_tvm_ffi_set_last_error_c_str_ =
+          InitContextPtr(llvmGetPointerTo(ftype_tvm_ffi_error_set_raised_by_c_str_, 0),
+                         "__TVMFFIErrorSetRaisedByCStr");
       gv_tvm_parallel_launch_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_parallel_launch_, 0),
                                                "__TVMBackendParallelLaunch");
       gv_tvm_parallel_barrier_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_parallel_barrier_, 0),
@@ -938,8 +937,8 @@ llvm::Value* CodeGenCPU::RuntimeTVMGetFuncFromEnv() {
   if (f_tvm_get_func_from_env_ != nullptr) return f_tvm_get_func_from_env_;
   return GetContextPtr(gv_tvm_get_func_from_env_);
 }
-llvm::Value* CodeGenCPU::RuntimeTVMFFISetLastErrorCStr() {
-  if (f_tvm_ffi_set_last_error_c_str_ != nullptr) return f_tvm_ffi_set_last_error_c_str_;
+llvm::Value* CodeGenCPU::RuntimeTVMFFIErrorSetRaisedByCStr() {
+  if (f_tvm_ffi_set_raised_by_c_str_ != nullptr) return f_tvm_ffi_set_raised_by_c_str_;
   return GetContextPtr(gv_tvm_ffi_set_last_error_c_str_);
 }
 llvm::Value* CodeGenCPU::RuntimeTVMParallelLaunch() {
@@ -1064,13 +1063,12 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
   builder_->SetInsertPoint(fail_block);
 
 #if TVM_LLVM_VERSION >= 90
-  auto err_callee =
-      llvm::FunctionCallee(ftype_tvm_ffi_set_last_error_c_str_, RuntimeTVMFFISetLastErrorCStr());
+  auto err_callee = llvm::FunctionCallee(ftype_tvm_ffi_error_set_raised_by_c_str_,
+                                         RuntimeTVMFFIErrorSetRaisedByCStr());
 #else
-  auto err_callee = RuntimeTVMFFISetLastErrorCStr();
+  auto err_callee = RuntimeTVMFFIErrorSetRaisedByCStr();
 #endif
-  builder_->CreateCall(
-      err_callee, {GetConstString("RuntimeError"), msg, llvm::Constant::getNullValue(t_char_)});
+  builder_->CreateCall(err_callee, {GetConstString("RuntimeError"), msg});
   builder_->CreateRet(ConstInt32(-1));
   // otherwise set it to be new end.
   builder_->SetInsertPoint(end_block);

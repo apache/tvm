@@ -50,6 +50,8 @@ def convert(value: Any) -> Any:
         return core._convert_to_ffi_func(value)
     elif value is None:
         return None
+    elif isinstance(value, Exception):
+        return core._convert_to_ffi_error(value)
     else:
         raise TypeError(f"don't know how to convert type {type(value)} to object")
 
