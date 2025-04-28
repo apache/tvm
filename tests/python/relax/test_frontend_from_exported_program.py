@@ -3661,9 +3661,7 @@ def test_fill_inplace():
         ) -> R.Tuple(R.Tensor((2, 3), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((2, 3), dtype="float32") = R.full(
-                    R.shape([2, 3]),
-                    R.const(42.0, "float32"),
-                    dtype="float32"
+                    R.shape([2, 3]), R.const(42.0, "float32"), dtype="float32"
                 )
                 gv: R.Tuple(R.Tensor((2, 3), dtype="float32")) = (lv,)
                 R.output(gv)
