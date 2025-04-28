@@ -65,8 +65,10 @@ cdef class DataType:
 
     def __str__(self):
         cdef TVMFFIObjectHandle dtype_str
+        cdef TVMFFIByteArray* bytes
         CHECK_CALL(TVMFFIDataTypeToString(self.cdtype, &dtype_str))
-        res = py_str(TVMFFIBytesGetByteArrayPtr(dtype_str).data)
+        bytes = TVMFFIBytesGetByteArrayPtr(dtype_str)
+        res = py_str(PyBytes_FromStringAndSize(bytes.data, bytes.size))
         CHECK_CALL(TVMFFIObjectFree(dtype_str))
         return res
 
@@ -75,5 +77,5 @@ cdef inline object make_ret_dtype(TVMFFIAny result):
     cdtype = DataType.__new__(DataType)
     (<DataType>cdtype).cdtype = result.v_dtype
     val = str.__new__(_CLASS_DTYPE, cdtype.__str__())
-    val.__tvm_ffi_object__ = cdtype
+    val.__tvm_ffi_dtype__ = cdtype
     return val

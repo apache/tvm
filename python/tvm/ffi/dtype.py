@@ -31,11 +31,11 @@ class dtype(str):
     into other array api's dtype arguments.
     """
 
-    __slots__ = ["__tvm_ffi_object__"]
+    __slots__ = ["__tvm_ffi_dtype__"]
 
     def __new__(cls, content):
         val = str.__new__(cls, content)
-        val.__tvm_ffi_object__ = core.DataType(content)
+        val.__tvm_ffi_dtype__ = core.DataType(content)
         return val
 
     def __repr__(self):
@@ -43,7 +43,7 @@ class dtype(str):
 
     @property
     def itemsize(self):
-        return self.__tvm_ffi_object__.itemsize
+        return self.__tvm_ffi_dtype__.itemsize
 
 
 core._set_class_dtype(dtype)

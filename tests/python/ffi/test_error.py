@@ -36,9 +36,9 @@ def test_error_from_cxx():
     try:
         test_raise_error("ValueError", "error XYZ")
     except ValueError as e:
-        assert e.__tvm_ffi_object__.kind == "ValueError"
-        assert e.__tvm_ffi_object__.message == "error XYZ"
-        assert e.__tvm_ffi_object__.traceback.find("testing.cc") != -1
+        assert e.__tvm_ffi_error__.kind == "ValueError"
+        assert e.__tvm_ffi_error__.message == "error XYZ"
+        assert e.__tvm_ffi_error__.traceback.find("testing.cc") != -1
 
     fapply = tvm_ffi.convert(lambda f, *args: f(*args))
 
@@ -61,17 +61,17 @@ def test_error_from_nested_pyfunc():
         try:
             fapply(cxx_test_raise_error, "ValueError", "error XYZ")
         except ValueError as e:
-            assert e.__tvm_ffi_object__.kind == "ValueError"
-            assert e.__tvm_ffi_object__.message == "error XYZ"
-            assert e.__tvm_ffi_object__.traceback.find("testing.cc") != -1
-            record_object.append(e.__tvm_ffi_object__)
+            assert e.__tvm_ffi_error__.kind == "ValueError"
+            assert e.__tvm_ffi_error__.message == "error XYZ"
+            assert e.__tvm_ffi_error__.traceback.find("testing.cc") != -1
+            record_object.append(e.__tvm_ffi_error__)
             raise e
 
     try:
         cxx_test_apply(raise_error)
     except ValueError as e:
-        traceback = e.__tvm_ffi_object__.traceback
-        assert e.__tvm_ffi_object__.same_as(record_object[0])
+        traceback = e.__tvm_ffi_error__.traceback
+        assert e.__tvm_ffi_error__.same_as(record_object[0])
         assert traceback.count("TestRaiseError") == 1
         assert traceback.count("TestApply") == 1
         assert traceback.count("<lambda>") == 1

@@ -18,12 +18,12 @@
 
 # helper class for string/bytes handling
 
-def _string_obj_get_py_str(obj):
+cdef inline str _string_obj_get_py_str(obj):
     cdef TVMFFIByteArray* bytes = TVMFFIBytesGetByteArrayPtr((<Object>obj).chandle)
-    return py_str(bytes.data)
+    return py_str(PyBytes_FromStringAndSize(bytes.data, bytes.size))
 
 
-def _bytes_obj_get_py_bytes(obj):
+cdef inline bytes _bytes_obj_get_py_bytes(obj):
     cdef TVMFFIByteArray* bytes = TVMFFIBytesGetByteArrayPtr((<Object>obj).chandle)
     return PyBytes_FromStringAndSize(bytes.data, bytes.size)
 

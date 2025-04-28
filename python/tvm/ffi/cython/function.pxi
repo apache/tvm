@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import ctypes
-from numbers import Number, Integral
+from numbers import Real, Integral
 
 
 cdef inline object make_ret(TVMFFIAny result):
@@ -88,7 +88,7 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
             out[i].v_float64 = arg
         elif isinstance(arg, _CLASS_DTYPE):
             # dtype is a subclass of str, so this check occur before str
-            arg = arg.__tvm_ffi_object__
+            arg = arg.__tvm_ffi_dtype__
             out[i].type_index = kTVMFFIDataType
             out[i].v_dtype = (<DataType>arg).cdtype
         elif isinstance(arg, _CLASS_DEVICE):
@@ -101,7 +101,7 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
             temp_args.append(tstr)
         elif arg is None:
             out[i].type_index = kTVMFFINone
-        elif isinstance(arg, Number):
+        elif isinstance(arg, Real):
             out[i].type_index = kTVMFFIFloat
             out[i].v_float64 = arg
         elif isinstance(arg, (bytes, bytearray)):
@@ -118,8 +118,8 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
         elif isinstance(arg, ctypes.c_void_p):
             out[i].type_index = kTVMFFIOpaquePtr
             out[i].v_ptr = c_handle(arg)
-        elif hasattr(arg, "__tvm_ffi_object__"):
-            arg = arg.__tvm_ffi_object__
+        elif hasattr(arg, "__tvm_ffi_error__"):
+            arg = arg.__tvm_ffi_error__
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
             out[i].v_ptr = (<Object>arg).chandle
             temp_args.append(arg)

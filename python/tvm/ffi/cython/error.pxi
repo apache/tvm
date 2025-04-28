@@ -68,7 +68,7 @@ cdef inline object move_from_last_error():
     error_cls = ERROR_NAME_TO_TYPE.get(error.kind, RuntimeError)
     py_error = error_cls(error.message)
     py_error = _WITH_APPEND_TRACEBACK(py_error, error.traceback)
-    py_error.__tvm_ffi_object__ = error
+    py_error.__tvm_ffi_error__ = error
     return py_error
 
 
@@ -86,9 +86,9 @@ cdef inline int set_last_ffi_error(error) except -1:
     py_traceback = _TRACEBACK_TO_STR(error.__traceback__)
 
     # error comes from an exception thrown from C++ side
-    if hasattr(error, "__tvm_ffi_object__"):
+    if hasattr(error, "__tvm_ffi_error__"):
         # already have stack trace
-        ffi_error = error.__tvm_ffi_object__
+        ffi_error = error.__tvm_ffi_error__
         c_traceback = py_str(TVMFFITraceback("<unknown>", 0, "<unknown>"))
         # attach the python traceback together with the C++ traceback to get full trace
         ffi_error.update_traceback(c_traceback + py_traceback)
