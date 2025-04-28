@@ -166,7 +166,7 @@ class TypeTable {
     return allocated_tindex;
   }
 
-  int32_t TypeKey2Index(const std::string& type_key) {
+  int32_t TypeKeyToIndex(const std::string& type_key) {
     auto it = type_key2index_.find(type_key);
     TVM_FFI_ICHECK(it != type_key2index_.end()) << "Cannot find type `" << type_key << "`";
     return it->second;
@@ -283,7 +283,7 @@ int TVMFFIObjectFree(TVMFFIObjectHandle handle) {
 
 int TVMFFITypeKeyToIndex(const char* type_key, int32_t* out_tindex) {
   TVM_FFI_SAFE_CALL_BEGIN();
-  out_tindex[0] = tvm::ffi::TypeTable::Global()->TypeKey2Index(type_key);
+  out_tindex[0] = tvm::ffi::TypeTable::Global()->TypeKeyToIndex(type_key);
   TVM_FFI_SAFE_CALL_END();
 }
 

@@ -17,11 +17,11 @@
  * under the License.
  */
 /*!
- * \file tvm/ffi/reflection.h
+ * \file tvm/ffi/reflection/reflection.h
  * \brief Base reflection support to access object fields.
  */
-#ifndef TVM_FFI_REFLECTION_H_
-#define TVM_FFI_REFLECTION_H_
+#ifndef TVM_FFI_REFLECTION_REFLECTION_H_
+#define TVM_FFI_REFLECTION_REFLECTION_H_
 
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/c_api.h>
@@ -68,6 +68,8 @@ inline int64_t GetFieldByteOffsetToObject(T Class::*field_ptr) {
   return field_offset_to_class - details::ObjectUnsafe::GetObjectOffsetToSubclass<Class>();
 }
 
+struct ReflectionDefFinish {};
+
 class ReflectionDef {
  public:
   explicit ReflectionDef(int32_t type_index) : type_index_(type_index) {}
@@ -84,7 +86,7 @@ class ReflectionDef {
     return *this;
   }
 
-  operator int32_t() const { return type_index_; }
+  operator details::EmptyStruct() const { return details::EmptyStruct(); }
 
  private:
   template <typename Class, typename T>
@@ -156,48 +158,13 @@ class ReflectionFieldGetter {
   const TVMFFIFieldInfo* field_info_;
 };
 
+/*!
+ * helper macro to define a reflection definition for an object
+ */
+#define TVM_FFI_REFLECTION_DEF(TypeName)                 \
+  TVM_FFI_STR_CONCAT(TVM_FFI_REG_VAR_DEF, __COUNTER__) = \
+      ::tvm::ffi::details::ReflectionDef(TypeName::_GetOrAllocRuntimeTypeIndex())
 }  // namespace details
-
-/*!
- * \brief helper function to get type index from key
- */
-inline int32_t TypeKey2Index(const char* type_key) {
-  int32_t type_index;
-  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(type_key, &type_index));
-  return type_index;
-}
-
-/*!
- * \brief helper macro to declare a base object type that can be inherited.
- * \param TypeName The name of the current type.
- * \param ParentType The name of the ParentType
- */
-#define TVM_FFI_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)                                \
-  static constexpr int32_t _type_depth = ParentType::_type_depth + 1;                         \
-  static int32_t _GetOrAllocRuntimeTypeIndex() {                                              \
-    static_assert(!ParentType::_type_final, "ParentType marked as final");                    \
-    static_assert(TypeName::_type_child_slots == 0 || ParentType::_type_child_slots == 0 ||   \
-                      TypeName::_type_child_slots < ParentType::_type_child_slots,            \
-                  "Need to set _type_child_slots when parent specifies it.");                 \
-    static int32_t tindex = TVMFFIGetOrAllocTypeIndex(                                        \
-        TypeName::_type_key, -1, TypeName::_type_depth, TypeName::_type_child_slots,          \
-        TypeName::_type_child_slots_can_overflow, ParentType::_GetOrAllocRuntimeTypeIndex()); \
-    return tindex;                                                                            \
-  }                                                                                           \
-  static int32_t RuntimeTypeIndex() { return _GetOrAllocRuntimeTypeIndex(); }                 \
-  static inline int32_t _type_index =                                                         \
-      ::tvm::ffi::details::ReflectionDef(_GetOrAllocRuntimeTypeIndex())
-
-/*!
- * \brief helper macro to declare type information in a final class.
- * \param TypeName The name of the current type.
- * \param ParentType The name of the ParentType
- */
-#define TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TypeName, ParentType) \
-  static const constexpr int _type_child_slots = 0;             \
-  static const constexpr bool _type_final = true;               \
-  TVM_FFI_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)
-
 }  // namespace ffi
 }  // namespace tvm
-#endif  // TVM_FFI_REFLECTION_H_
+#endif  // TVM_FFI_REFLECTION_REFLECTION_H_

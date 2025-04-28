@@ -22,7 +22,7 @@
 
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
-#include <tvm/ffi/reflection.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
 
 namespace tvm {
@@ -62,13 +62,14 @@ class TIntObj : public TNumberObj {
 
   static constexpr const char* _type_key = "test.Int";
 
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TIntObj, TNumberObj).def_readonly("value", &TIntObj::value);
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TIntObj, TNumberObj);
+
+  TVM_FFI_REFLECTION_DEF(TIntObj).def_readonly("value", &TIntObj::value);
 };
 
 class TInt : public TNumber {
  public:
   explicit TInt(int64_t value) { data_ = make_object<TIntObj>(value); }
-
 
   TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TInt, TNumber, TIntObj);
 };
@@ -82,6 +83,8 @@ class TFloatObj : public TNumberObj {
   static constexpr const char* _type_key = "test.Float";
   TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TFloatObj, TNumberObj);
 };
+
+TVM_FFI_REFLECTION_DEF(TFloatObj).def_readonly("value", &TFloatObj::value);
 
 class TFloat : public TNumber {
  public:

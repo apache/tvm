@@ -235,11 +235,9 @@ TEST(Func, ObjectRefWithFallbackTraits) {
       ::tvm::ffi::Error);
 }
 
+TVM_FFI_REGISTER_GLOBAL("testing.Int_GetValue").set_body_method(&TIntObj::GetValue);
 
 TEST(Func, Register) {
-  TVM_FFI_REGISTER_GLOBAL("testing.Int_GetValue")
-      .set_body_method(&TIntObj::GetValue);
-
   Function fget_value = Function::GetGlobalRequired("testing.Int_GetValue");
   TInt a(12);
   EXPECT_EQ(fget_value(a).operator int(), 12);

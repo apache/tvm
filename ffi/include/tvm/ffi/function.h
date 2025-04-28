@@ -744,7 +744,6 @@ class Function::Registry {
     return Register(Function::FromUnpacked(f, name_));
   }
 
-
   /*!
    * \brief set the body of the function to be the passed method pointer.
    *        Note that this will ignore default arg values and always require all arguments to be
@@ -776,7 +775,7 @@ class Function::Registry {
    */
   template <typename T, typename R, typename... Args>
   Registry& set_body_method(R (T::*f)(Args...)) {
-   static_assert(std::is_base_of_v<ObjectRef, T> || std::is_base_of_v<Object, T>,
+    static_assert(std::is_base_of_v<ObjectRef, T> || std::is_base_of_v<Object, T>,
                   "T must be derived from ObjectRef or Object");
     if constexpr (std::is_base_of_v<ObjectRef, T>) {
       auto fwrap = [f](T target, Args... params) -> R {
@@ -816,6 +815,8 @@ class Function::Registry {
     return *this;
   }
 
+  operator details::EmptyStruct() const { return details::EmptyStruct(); }
+
  protected:
   /*!
    * \brief set the body of the function to be f
@@ -830,8 +831,17 @@ class Function::Registry {
   const char* name_;
 };
 
-#define TVM_FFI_FUNC_REG_VAR_DEF \
-  static TVM_FFI_ATTRIBUTE_UNUSED ::tvm::ffi::Function::Registry& __mk_##TVMFFI
+/*!
+ * \brief helper function to get type index from key
+ */
+inline int32_t TypeKeyToIndex(const char* type_key) {
+  int32_t type_index;
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(type_key, &type_index));
+  return type_index;
+}
+
+#define TVM_FFI_REG_VAR_DEF \
+  static inline TVM_FFI_ATTRIBUTE_UNUSED ::tvm::ffi::details::EmptyStruct __mk_##TVMFFI
 
 /*!
  * \brief Register a function globally.
@@ -843,7 +853,7 @@ class Function::Registry {
  * \endcode
  */
 #define TVM_FFI_REGISTER_GLOBAL(OpName) \
-  TVM_FFI_STR_CONCAT(TVM_FFI_FUNC_REG_VAR_DEF, __COUNTER__) = ::tvm::ffi::Function::Registry(OpName)
+  TVM_FFI_STR_CONCAT(TVM_FFI_REG_VAR_DEF, __COUNTER__) = ::tvm::ffi::Function::Registry(OpName)
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_FUNCTION_H_

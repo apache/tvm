@@ -36,6 +36,11 @@ namespace tvm {
 namespace ffi {
 namespace details {
 
+/*!
+ * \brief Empty struct, used to reduce unused variable in global static initialization.
+ */
+struct EmptyStruct {};
+
 template <typename ArgType>
 struct Arg2Str {
   template <size_t i>
