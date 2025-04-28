@@ -356,6 +356,74 @@ def test_shape_expr():
     _assert_print(obj, "R.shape([1, 2, 3])")
 
 
+def test_inline_scalar():
+    @R.function
+    def func() -> R.Tensor([], "int64"):
+        return R.const(1, "int64")
+
+    _assert_print(
+        func,
+        """
+# from tvm.script import relax as R
+
+@R.function
+def func() -> R.Tensor((), dtype="int64"):
+    return R.const(1, "int64")
+        """,
+    )
+
+
+def test_small_1d_inline_tensor():
+    @R.function
+    def func() -> R.Tensor([2], "int64"):
+        return R.const([1, 2], "int64")
+
+    _assert_print(
+        func,
+        """
+# from tvm.script import relax as R
+
+@R.function
+def func() -> R.Tensor((2,), dtype="int64"):
+    return R.const([1, 2], R.Tensor((2,), dtype="int64"))
+        """,
+    )
+
+
+def test_large_1d_inline_tensor():
+    @R.function
+    def func() -> R.Tensor([17], "int64"):
+        return R.const([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17], "int64")
+
+    _assert_print(
+        func,
+        """
+# from tvm.script import relax as R
+
+@R.function
+def func() -> R.Tensor((17,), dtype="int64"):
+    return R.const(metadata["runtime.NDArray"][0], R.Tensor((17,), dtype="int64"))
+        """,
+    )
+
+
+def test_small_2d_inline_tensor():
+    @R.function
+    def func() -> R.Tensor([2, 2], "int64"):
+        return R.const([[1, 2], [3, 4]], "int64")
+
+    _assert_print(
+        func,
+        """
+# from tvm.script import relax as R
+
+@R.function
+def func() -> R.Tensor((2, 2), dtype="int64"):
+    return R.const([[1, 2], [3, 4]], R.Tensor((2, 2), dtype="int64"))
+        """,
+    )
+
+
 def test_call():
     x = tir.Var("x", "int64")
     a = relax.Var("a", relax.TensorStructInfo([1, x, 3], "float32"))
