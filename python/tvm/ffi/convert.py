@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""Conversion utilities to bring python objects into ffi values."""
 from numbers import Number
 from typing import Any
 from . import core
@@ -22,7 +22,7 @@ from . import container
 
 
 def convert(value: Any) -> Any:
-    """Convert a python object to value that can be processed by TVM FFI.
+    """Convert a python object to ffi values.
 
     Parameters
     ----------

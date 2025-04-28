@@ -14,9 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""FFI registry to register function and objects."""
 import sys
 from . import core
+
+# whether we simplify skip unknown objects regtistration
+_SKIP_UNKNOWN_OBJECTS = False
 
 
 def register_object(type_key=None):
@@ -43,6 +46,8 @@ def register_object(type_key=None):
     def register(cls):
         """internal register function"""
         type_index = core._object_type_key_to_index(object_name)
+        if type_index is None and not _SKIP_UNKNOWN_OBJECTS:
+            raise ValueError("Cannot find object type index for %s" % object_name)
         core._register_object_by_index(type_index, cls)
         return cls
 
@@ -115,8 +120,8 @@ def list_global_func_names():
        List of global functions names.
     """
     name_functor = get_global_func("ffi.FunctionListGlobalNamesFunctor")()
-    len = name_functor(-1)
-    return [name_functor(i) for i in range(len)]
+    num_names = name_functor(-1)
+    return [name_functor(i) for i in range(num_names)]
 
 
 def remove_global_func(name):

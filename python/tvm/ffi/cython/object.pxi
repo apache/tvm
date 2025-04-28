@@ -164,8 +164,9 @@ def _register_object_by_index(int index, object cls):
 def _object_type_key_to_index(str type_key):
     """get the type index of object class"""
     cdef int32_t tidx
-    CHECK_CALL(TVMFFITypeKeyToIndex(c_str(type_key), &tidx))
-    return tidx
+    if TVMFFITypeKeyToIndex(c_str(type_key), &tidx) == 0:
+        return tidx
+    return None
 
 
 cdef inline object make_ret_object(TVMFFIAny result):

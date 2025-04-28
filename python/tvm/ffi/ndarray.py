@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""NDArray related objects and functions."""
 
 from numbers import Integral
 from . import core

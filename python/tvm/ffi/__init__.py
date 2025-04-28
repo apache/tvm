@@ -23,7 +23,6 @@ This is a standalone module that can be
 from .registry import register_object, register_func, get_global_func, _init_api
 from .dtype import dtype
 from .core import String, Bytes
-from .core import Device
 from .core import Object, ObjectGeneric, Function
 from .convert import convert
 from .error import register_error

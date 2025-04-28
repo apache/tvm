@@ -14,11 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+"""Container classes."""
+from typing import Any, List, Dict
 from . import core
 from . import _ffi_api
 from .registry import register_object
-from typing import Any, List, Dict
 
 __all__ = ["Array", "Map"]
 
