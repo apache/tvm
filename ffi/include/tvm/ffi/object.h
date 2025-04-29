@@ -672,7 +672,8 @@ TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index) {
   int32_t begin = target_type_index;
   // The condition will be optimized by constant-folding.
   if constexpr (TargetType::_type_child_slots != 0) {
-    int32_t end = begin + TargetType::_type_child_slots;
+    // total_slots = child_slots + 1 (including self)
+    int32_t end = begin + TargetType::_type_child_slots + 1;
     if (object_type_index >= begin && object_type_index < end) return true;
   } else {
     if (object_type_index == begin) return true;
