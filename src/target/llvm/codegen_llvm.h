@@ -264,7 +264,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
     int alignment{0};
   };
   /*!
-   * \brief Convert tvm::runtime::String into llvm::StringRef
+   * \brief Convert tvm::ffi::String into llvm::StringRef
    */
   static llvm::StringRef MakeStringRef(const String& string) {
     return llvm::StringRef(string.c_str(), string.size());

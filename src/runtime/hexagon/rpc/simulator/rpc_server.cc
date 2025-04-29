@@ -303,7 +303,7 @@ int main(int argc, char* argv[]) {
 
   const auto api = tvm::ffi::Function::GetGlobal("device_api.hexagon");
   ICHECK(api.has_value());
-  tvm::runtime::Registry::Register("device_api.cpu", true).set_body_packed(*api);
+  tvm::ffi::Function::SetGlobal("device_api.cpu", *api, true);
 
   tvm::runtime::hexagon::SimulatorRPCServer server;
 

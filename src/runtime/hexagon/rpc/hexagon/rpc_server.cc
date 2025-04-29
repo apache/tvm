@@ -253,7 +253,7 @@ const tvm::runtime::PackedFunc get_runtime_func(const std::string& name) {
 void reset_device_api() {
   const tvm::runtime::PackedFunc api = get_runtime_func("device_api.hexagon");
   // Registering device_api.cpu as device_api.hexagon since we use hexagon as sub-target of LLVM.
-  tvm::runtime::Registry::Register("device_api.cpu", true).set_body_packed(api);
+  tvm::ffi::Function::SetGlobal("device_api.cpu", api, true);
 }
 
 int __QAIC_HEADER(hexagon_rpc_open)(const char* uri, remote_handle64* handle) {

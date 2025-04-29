@@ -16,6 +16,7 @@
 # under the License.
 
 import pytest
+import platform
 from tvm import ffi as tvm_ffi
 
 
@@ -38,7 +39,7 @@ def test_error_from_cxx():
     except ValueError as e:
         assert e.__tvm_ffi_error__.kind == "ValueError"
         assert e.__tvm_ffi_error__.message == "error XYZ"
-        assert e.__tvm_ffi_error__.traceback.find("testing.cc") != -1
+        assert e.__tvm_ffi_error__.traceback.find("TestRaiseError") != -1
 
     fapply = tvm_ffi.convert(lambda f, *args: f(*args))
 
@@ -50,6 +51,10 @@ def test_error_from_cxx():
         tvm_ffi.convert(lambda x: x)()
 
 
+@pytest.mark.skipif(
+    "32bit" in platform.architecture(),
+    reason="libbacktrace file name support is not available in i386 yet",
+)
 def test_error_from_nested_pyfunc():
     fapply = tvm_ffi.convert(lambda f, *args: f(*args))
     cxx_test_raise_error = tvm_ffi.get_global_func("testing.test_raise_error")
@@ -63,7 +68,7 @@ def test_error_from_nested_pyfunc():
         except ValueError as e:
             assert e.__tvm_ffi_error__.kind == "ValueError"
             assert e.__tvm_ffi_error__.message == "error XYZ"
-            assert e.__tvm_ffi_error__.traceback.find("testing.cc") != -1
+            assert e.__tvm_ffi_error__.traceback.find("TestRaiseError") != -1
             record_object.append(e.__tvm_ffi_error__)
             raise e
 

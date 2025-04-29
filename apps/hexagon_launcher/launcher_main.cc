@@ -102,7 +102,7 @@ int main(int argc, char* argv[]) {
   for (int i = 0, e = config.inputs.size(); i != e; ++i) {
     const TensorConfig& tc = config.inputs[i];
     input_meta->ndim = tc.shape.size();
-    input_meta->dtype = tvm::runtime::StringToDLDataType(tc.dtype);
+    input_meta->dtype = tvm::ffi::StringToDLDataType(tc.dtype);
     std::copy(tc.shape.begin(), tc.shape.end(), input_meta->shape);
 
     auto* input_data = session.alloc<unsigned char>(input_meta->data_size());

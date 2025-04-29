@@ -27,7 +27,9 @@
 #include <tvm/ir/transform.h>
 #include <tvm/meta_schedule/database.h>
 
+#include <utility>
 #include <vector>
+
 namespace tvm {
 namespace relax {
 

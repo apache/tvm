@@ -68,7 +68,7 @@ NDArray StorageObj::AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataT
 
   struct StorageScopedAlloc {
    public:
-    StorageScopedAlloc(Storage storage) : storage_(storage) {}
+    explicit StorageScopedAlloc(Storage storage) : storage_(storage) {}
 
     void AllocData(DLTensor* tensor, const ffi::Shape& shape, const String& scope,
                    int64_t byte_offset) {
@@ -97,9 +97,9 @@ NDArray StorageObj::AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dt
   ICHECK(offset + needed_size <= this->buffer.size)
       << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
       << offset << " in region that is " << this->buffer.size << "bytes";
-  struct StorageAlloc {
+  class StorageAlloc {
    public:
-    StorageAlloc(Storage storage) : storage_(storage) {}
+    explicit StorageAlloc(Storage storage) : storage_(storage) {}
 
     void AllocData(DLTensor* tensor, int64_t offset) {
       if (storage_->buffer.device.device_type == kDLHexagon) {
@@ -216,9 +216,9 @@ NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
                          Optional<String> mem_scope) {
   VerifyDataType(dtype);
 
-  struct BufferAlloc {
+  class BufferAlloc {
    public:
-    BufferAlloc(Buffer buffer) : buffer_(buffer) {}
+    explicit BufferAlloc(Buffer buffer) : buffer_(buffer) {}
 
     void AllocData(DLTensor* tensor) { tensor->data = buffer_.data; }
     void FreeData(DLTensor* tensor) {

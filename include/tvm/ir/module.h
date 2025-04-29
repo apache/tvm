@@ -302,8 +302,6 @@ namespace attr {
  * \brief Name of the module
  *
  * Type: String
- *
- * \sa tvm::runtime::String
  */
 constexpr const char* kModuleName = "mod_name";
 

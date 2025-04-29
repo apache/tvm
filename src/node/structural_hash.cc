@@ -609,8 +609,7 @@ struct MapObjTrait {
     }
   }
 
-  static bool SEqualReduceTraced(const MapObj* lhs, const MapObj* rhs,
-                                 const SEqualReducer& equal) {
+  static bool SEqualReduceTraced(const MapObj* lhs, const MapObj* rhs, const SEqualReducer& equal) {
     const ObjectPathPair& map_paths = equal.GetCurrentObjectPaths();
     // First, check that every key from `lhs` is also in `rhs`,
     // and their values are mapped to each other.

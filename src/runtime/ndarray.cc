@@ -158,7 +158,7 @@ NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype,
   // helper allocator class that retains ref count of original NDArray
   class ViewBasedAlloc {
    public:
-    ViewBasedAlloc(NDArray source) : source_(source) {}
+    explicit ViewBasedAlloc(NDArray source) : source_(source) {}
     void AllocData(DLTensor* tensor, int64_t byte_offset) {
       tensor->data = source_.get_mutable()->data;
       tensor->byte_offset = byte_offset;

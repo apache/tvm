@@ -393,7 +393,8 @@ void thrust_scan(DLTensor* data, DLTensor* output, bool exclusive, DLTensor* wor
   }
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
+.set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   ICHECK(args.num_args == 2 || args.num_args == 3 || args.num_args == 4);
   DLTensor* data = args[0];
   DLTensor* output = args[1];

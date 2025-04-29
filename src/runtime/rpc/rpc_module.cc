@@ -56,7 +56,7 @@ NDArray NDArrayFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* ha
       << "The Device given does not belong to the given session";
   class RemoteSpaceAlloc {
    public:
-    RemoteSpaceAlloc(RemoteSpace space) : space_(space) {}
+    explicit RemoteSpaceAlloc(RemoteSpace space) : space_(space) {}
     void AllocData(DLTensor* tensor) {
       // the pointer to the remote space is passed in as the data pointer
       tensor->data = &(space_);

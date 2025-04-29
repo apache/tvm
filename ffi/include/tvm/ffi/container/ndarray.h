@@ -29,6 +29,8 @@
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/type_traits.h>
 
+#include <utility>
+
 namespace tvm {
 namespace ffi {
 
@@ -85,7 +87,7 @@ inline bool IsAligned(const DLTensor& arr, size_t alignment) {
  */
 inline size_t GetDataSize(int64_t numel, DLDataType dtype) {
   // compatible handling sub-byte uint1(bool), which usually stored as uint8_t
-  // TODO: revisit and switch to kDLBool
+  // TODO(tqchen): revisit and switch to kDLBool
   if (dtype.code == kDLUInt && dtype.bits == 1 && dtype.lanes == 1) {
     return numel;
   }
@@ -197,7 +199,7 @@ class NDArrayObjFromNDAlloc : public NDArrayObj {
 template <typename TDLPackManagedTensor>
 class NDArrayObjFromDLPack : public NDArrayObj {
  public:
-  NDArrayObjFromDLPack(TDLPackManagedTensor* tensor) : tensor_(tensor) {
+  explicit NDArrayObjFromDLPack(TDLPackManagedTensor* tensor) : tensor_(tensor) {
     *static_cast<DLTensor*>(this) = tensor_->dl_tensor;
     // set strides to nullptr if the tensor is contiguous.
     if (IsContiguous(tensor->dl_tensor)) {

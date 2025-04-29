@@ -151,7 +151,7 @@ const tvm::runtime::PackedFunc get_module_func(tvm::runtime::Module module,
 
 void reset_device_api() {
   const tvm::runtime::PackedFunc api = get_runtime_func("device_api.hexagon");
-  tvm::runtime::Registry::Register("device_api.cpu", true).set_body_packed(api);
+  tvm::ffi::Function::SetGlobal("device_api.cpu", api, true);
 }
 
 tvm::runtime::Module load_module(const std::string& file_name) {

@@ -21,6 +21,8 @@ import numpy as np
 
 def test_ndarray_attributes():
     data = np.zeros((10, 8, 4, 2), dtype="int16")
+    if not hasattr(data, "__dlpack__"):
+        return
     x = tvm_ffi.from_dlpack(data)
     assert isinstance(x, tvm_ffi.NDArray)
     assert x.shape == (10, 8, 4, 2)

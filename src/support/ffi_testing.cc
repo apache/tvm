@@ -53,7 +53,6 @@ struct TestAttrs : public AttrsNode<TestAttrs> {
 
 TVM_REGISTER_NODE_TYPE(TestAttrs);
 
-
 TVM_REGISTER_GLOBAL("testing.test_wrap_callback")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       PackedFunc pf = args[0];
@@ -166,7 +165,6 @@ TVM_REGISTER_GLOBAL("testing.sleep_in_ffi").set_body_typed([](double timeout) {
   std::chrono::duration<int64_t, std::nano> duration(static_cast<int64_t>(timeout * 1e9));
   std::this_thread::sleep_for(duration);
 });
-
 
 TVM_REGISTER_GLOBAL("testing.ReturnsVariant").set_body_typed([](int x) -> Variant<String, IntImm> {
   if (x % 2 == 0) {
