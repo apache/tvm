@@ -3243,6 +3243,31 @@ def test_inplace_fill():
     verify_model(InplaceFill(), [([10, 10], "float32")], {}, Expected)
 
 
+def test_masked_fill_inplace():
+    class Masked_Fill_Inplace(Module):
+        def forward(self, input: torch.Tensor, mask: torch.Tensor):
+            input.masked_fill_(mask, 1.5)
+            return input
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((10, 10), dtype="float32"), mask: R.Tensor((10, 10), dtype="bool")
+        ) -> R.Tensor((10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.full_like(
+                    input, R.const(1.5, "float32"), dtype="void"
+                )
+                lv1: R.Tensor((10, 10), dtype="float32") = R.where(mask, lv, input)
+                gv: R.Tensor((10, 10), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    input_info = [((10, 10), "float32"), ((10, 10), "bool")]
+    verify_model(Masked_Fill_Inplace(), input_info, {}, Expected)
+
+
 def test_arange():
     import numpy as np
 
