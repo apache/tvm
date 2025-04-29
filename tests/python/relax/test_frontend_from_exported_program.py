@@ -3751,6 +3751,30 @@ def test_new_ones():
     verify_model(NewOnes(), example_args, {}, expected1)
 
 
+def test_new_zeros():
+    class NewZeros(Module):
+        def forward(self, x):
+            return x.new_zeros(1, 2, 3)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            x: R.Tensor((1, 2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 2, 3), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 3), dtype="float32") = R.full(
+                    (1, 2, 3), R.const(0, "float32"), dtype="float32"  # Changed to 0
+                )
+                gv: R.Tuple(R.Tensor((1, 2, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 2, 3, dtype=torch.float32),)
+    verify_model(NewZeros(), example_args, {}, expected1)
+
+
 def test_to_copy():
     # float
     class ToFloat(Module):

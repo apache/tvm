@@ -829,6 +829,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "masked_fill": self._masked_fill,
             "masked_scatter": self._masked_scatter,
             "new_ones": self._new_ones,
+            "new_zeros": self._new_zeros,
             "ones": self._ones,
             "one_hot": self._one_hot,
             "ones_like": lambda node: self.block_builder.emit(

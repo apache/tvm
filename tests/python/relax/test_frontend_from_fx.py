@@ -3327,6 +3327,29 @@ def test_new_ones():
     verify_model(NewOnes(), input_info, {}, expected1)
 
 
+def test_new_zeros():
+    input_info = [([1, 2, 3], "float32")]
+
+    class NewZeros(Module):
+        def forward(self, x):
+            return x.new_zeros(1, 2, 3)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(x: R.Tensor((1, 2, 3), dtype="float32")) -> R.Tensor((1, 2, 3), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 3), dtype="float32") = R.full(
+                    (1, 2, 3), R.const(0, "float32"), dtype="float32"  # Changed to 0
+                )
+                gv: R.Tensor((1, 2, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(NewZeros(), input_info, {}, expected1)
+
+
 def test_expand():
     input_info = [([1, 2, 3, 4], "float32")]
 
