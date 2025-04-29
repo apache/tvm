@@ -31,6 +31,7 @@
 #include <tvm/ffi/optional.h>
 
 #include <algorithm>
+#include <limits>
 #include <string>
 #include <type_traits>
 #include <unordered_map>
@@ -198,7 +199,7 @@ class MapObj : public Object {
    * \param kv The entry to be inserted
    * \param map The pointer to the map, can be changed if re-hashing happens
    */
-  static inline void InsertMaybeReHash(const KVType& kv, ObjectPtr<Object>* map);
+  static inline void InsertMaybeReHash(KVType&& kv, ObjectPtr<Object>* map);
   /*!
    * \brief Create an empty container with elements copying from another SmallMapObj
    * \param from The source container
@@ -290,12 +291,15 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
       return;
     }
     KVType* begin = static_cast<KVType*>(AddressOf(0));
-    KVType* last = begin + (size_ - 1);
-    if (index + 1 == size_) {
-      last->first.Any::~Any();
-      last->second.Any::~Any();
-    } else {
-      *(begin + index) = std::move(*last);
+    // call destructor to destroy the item in `begin + index`
+    (begin + index)->KVType::~KVType();
+    // IMPORTANT: We do direct raw memmove to bring later items to the current position
+    // to preserve the order of insertion.
+    // This works because direct memory copy preserves the Any's move semantics.
+    if (index + 1 < size_) {
+      std::memmove(reinterpret_cast<char*>(begin + index),
+                   reinterpret_cast<char*>(begin + index + 1),
+                   (size_ - index - 1) * sizeof(KVType));
     }
     size_ -= 1;
   }
@@ -343,7 +347,7 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
    * \param kv The entry to be inserted
    * \param map The pointer to the map, can be changed if re-hashing happens
    */
-  static void InsertMaybeReHash(const KVType& kv, ObjectPtr<Object>* map) {
+  static void InsertMaybeReHash(KVType&& kv, ObjectPtr<Object>* map) {
     SmallMapObj* map_node = static_cast<SmallMapObj*>(map->get());
     iterator itr = map_node->find(kv.first);
     if (itr.index < map_node->size_) {
@@ -352,7 +356,7 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
     }
     if (map_node->size_ < map_node->slots_) {
       KVType* ptr = static_cast<KVType*>(map_node->AddressOf(map_node->size_));
-      new (ptr) KVType(kv);
+      new (ptr) KVType(std::move(kv));
       ++map_node->size_;
       return;
     }
@@ -360,7 +364,7 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
     next_size = std::min(next_size, uint64_t(kMaxSize));
     TVM_FFI_ICHECK_GT(next_size, map_node->slots_);
     ObjectPtr<Object> new_map = CreateFromRange(next_size, map_node->begin(), map_node->end());
-    InsertMaybeReHash(kv, &new_map);
+    InsertMaybeReHash(std::move(kv), &new_map);
     *map = std::move(new_map);
   }
   /*!
@@ -460,13 +464,24 @@ class DenseMapObj : public MapObj {
   static constexpr uint8_t kProtectedSlot = uint8_t(0b11111110);
   /*! \brief Number of probing choices available */
   static constexpr int kNumJumpDists = 126;
+  /*! \brief Index indicator to indicate an invalid index */
+  static constexpr uint64_t kInvalidIndex = std::numeric_limits<uint64_t>::max();
   /*! \brief Head of the implicit linked list */
   struct ListNode;
+  /*! \brief item type of the dense map, including a kv data and prev/next pointer */
+  struct ItemType {
+    KVType data;
+    uint64_t prev = kInvalidIndex;
+    uint64_t next = kInvalidIndex;
+
+    explicit ItemType(KVType&& data) : data(std::move(data)) {}
+    explicit ItemType(key_type key, mapped_type value) : data(key, value) {}
+  };
   /*! \brief POD type of a block of memory */
   struct Block {
-    uint8_t bytes[kBlockCap + kBlockCap * sizeof(KVType)];
+    uint8_t bytes[kBlockCap + kBlockCap * sizeof(ItemType)];
   };
-  static_assert(sizeof(Block) == kBlockCap * (sizeof(KVType) + 1), "sizeof(Block) incorrect");
+  static_assert(sizeof(Block) == kBlockCap * (sizeof(ItemType) + 1), "sizeof(Block) incorrect");
   static_assert(std::is_standard_layout<Block>::value, "Block is not standard layout");
 
  public:
@@ -510,21 +525,74 @@ class DenseMapObj : public MapObj {
     }
   }
   /*! \return begin iterator */
-  iterator begin() const {
-    if (slots_ == 0) {
-      return iterator(0, this);
-    }
-    for (uint64_t index = 0; index <= slots_; ++index) {
-      if (!ListNode(index, this).IsEmpty()) {
-        return iterator(index, this);
-      }
-    }
-    return iterator(slots_ + 1, this);
-  }
+  iterator begin() const { return iterator(iter_list_head_, this); }
   /*! \return end iterator */
-  iterator end() const { return slots_ == 0 ? iterator(0, this) : iterator(slots_ + 1, this); }
+  iterator end() const { return iterator(kInvalidIndex, this); }
 
  private:
+  /*!
+   * \brief Unlink the entry from iterator list
+   * \param node The node to be unlinked
+   * \note This function is usually used before deletion,
+   *       and it does not change data content of the node.
+   */
+  void IterListUnlink(ListNode node) {
+    // update head and tail of iterator list if needed
+    if (node.Item().prev == kInvalidIndex) {
+      iter_list_head_ = node.Item().next;
+    } else {
+      ListNode prev_node(node.Item().prev, this);
+      prev_node.Item().next = node.Item().next;
+    }
+    if (node.Item().next == kInvalidIndex) {
+      iter_list_tail_ = node.Item().prev;
+    } else {
+      ListNode next_node(node.Item().next, this);
+      next_node.Item().prev = node.Item().prev;
+    }
+  }
+  /*!
+   * \brief Insert the entry into tail of iterator list
+   * \param node The node to be inserted
+   * \note this function does not change data content of the node.
+   */
+  void IterListPushBack(ListNode node) {
+    node.Item().prev = iter_list_tail_;
+    node.Item().next = kInvalidIndex;
+    if (iter_list_tail_ != kInvalidIndex) {
+      ListNode prev_node(iter_list_tail_, this);
+      prev_node.Item().next = node.index;
+    }
+    if (iter_list_head_ == kInvalidIndex) {
+      iter_list_head_ = node.index;
+    }
+    iter_list_tail_ = node.index;
+  }
+  /*!
+   * \brief Replace node src by dst in the iter list
+   * \param src The source node
+   * \param dst The destination node, must be empty
+   * \note This function does not change data content of the nodes,
+   *       which needs to be updated by the caller.
+   */
+  void IterListReplaceNodeBy(ListNode src, ListNode dst) {
+    // set link correctly on the dst
+    dst.Item().prev = src.Item().prev;
+    dst.Item().next = src.Item().next;
+    // update prev and next of dst
+    if (dst.Item().prev == kInvalidIndex) {
+      iter_list_head_ = dst.index;
+    } else {
+      ListNode prev_node(dst.Item().prev, this);
+      prev_node.Item().next = dst.index;
+    }
+    if (dst.Item().next == kInvalidIndex) {
+      iter_list_tail_ = dst.index;
+    } else {
+      ListNode next_node(dst.Item().next, this);
+      next_node.Item().prev = dst.index;
+    }
+  }
   /*!
    * \brief Search for the given key
    * \param key The key
@@ -568,7 +636,7 @@ class DenseMapObj : public MapObj {
     // `iter` can be: 1) empty; 2) body of an irrelevant list; 3) head of the relevant list
     // Case 1: empty
     if (iter.IsEmpty()) {
-      iter.NewHead(KVType(key, Any(nullptr)));
+      iter.NewHead(ItemType(key, Any(nullptr)));
       this->size_ += 1;
       *result = iter;
       return true;
@@ -585,6 +653,8 @@ class DenseMapObj : public MapObj {
     do {
       // find equal item, do not insert
       if (AnyEqual()(key, next.Key())) {
+        // we plan to take next, so we need to unlink it from iterator list
+        IterListUnlink(next);
         *result = next;
         return true;
       }
@@ -601,7 +671,7 @@ class DenseMapObj : public MapObj {
     if (!iter.GetNextEmpty(this, &jump, result)) {
       return false;
     }
-    result->NewTail(KVType(key, Any(nullptr)));
+    result->NewTail(ItemType(key, Any(nullptr)));
     // link `iter` to `empty`, and move forward
     iter.SetJump(jump);
     this->size_ += 1;
@@ -641,7 +711,13 @@ class DenseMapObj : public MapObj {
         return false;
       }
       // move `r` to `empty`
-      empty.NewTail(std::move(r.Data()));
+      // first move the data over
+      empty.NewTail(ItemType(std::move(r.Data())));
+      // then move link list chain of r to empty
+      // this needs to happen after NewTail so empty's prev/next get updated
+      IterListReplaceNodeBy(r, empty);
+      // explicit call destructor to destroy the item in `r`
+      r.DestructData();
       // clear the metadata of `r`
       r_meta = r.Meta();
       if (is_first) {
@@ -657,7 +733,7 @@ class DenseMapObj : public MapObj {
     } while (r.MoveToNext(this, r_meta));
     // finally we have done moving the linked list
     // fill data_ into `target`
-    target.NewHead(KVType(key, Any(nullptr)));
+    target.NewHead(ItemType(key, Any(nullptr)));
     this->size_ += 1;
     *result = target;
     return true;
@@ -674,13 +750,28 @@ class DenseMapObj : public MapObj {
         // cut the link if there is any
         iter.FindPrev(this).SetJump(0);
       }
-      iter.Data().KVType::~KVType();
+      // unlink the node from iterator list
+      IterListUnlink(iter);
+      // IMPORTANT: must explicit call destructor `iter` to avoid memory leak
+      // This is because we need to recycle iter's data
+      iter.DestructData();
+      // set the meta data to be empty
       iter.SetEmpty();
     } else {
       ListNode last = iter, prev = iter;
       for (last.MoveToNext(this); last.HasNext(); prev = last, last.MoveToNext(this)) {
       }
+      // needs to first unlink iter from the list
+      IterListUnlink(iter);
+      // move data from last to iter
       iter.Data() = std::move(last.Data());
+      // Move link chain of iter to last as we stores last node to the new iter loc.
+      IterListReplaceNodeBy(last, iter);
+      // IMPORTANT: must explicit call destructor `last` to avoid memory leak
+      // likely we don't need this in this particular case because Any move behavior
+      // keep it here to be safe so code do not depend on specific move behavior of KVType
+      last.DestructData();
+      // set the meta data to be empty
       last.SetEmpty();
       prev.SetJump(0);
     }
@@ -690,12 +781,12 @@ class DenseMapObj : public MapObj {
     uint64_t n_blocks = CalcNumBlocks(this->slots_);
     for (uint64_t bi = 0; bi < n_blocks; ++bi) {
       uint8_t* meta_ptr = data_[bi].bytes;
-      KVType* data_ptr = reinterpret_cast<KVType*>(data_[bi].bytes + kBlockCap);
+      ItemType* data_ptr = reinterpret_cast<ItemType*>(data_[bi].bytes + kBlockCap);
       for (int j = 0; j < kBlockCap; ++j, ++meta_ptr, ++data_ptr) {
         uint8_t& meta = *meta_ptr;
         if (meta != uint8_t(kProtectedSlot) && meta != uint8_t(kEmptySlot)) {
           meta = uint8_t(kEmptySlot);
-          data_ptr->KVType::~KVType();
+          data_ptr->ItemType::~ItemType();
         }
       }
     }
@@ -724,6 +815,8 @@ class DenseMapObj : public MapObj {
     p->slots_ = n_slots - 1;
     p->size_ = 0;
     p->fib_shift_ = fib_shift;
+    p->iter_list_head_ = kInvalidIndex;
+    p->iter_list_tail_ = kInvalidIndex;
     for (uint64_t i = 0; i < n_blocks; ++i, ++block) {
       std::fill(block->bytes, block->bytes + kBlockCap, uint8_t(kEmptySlot));
     }
@@ -741,17 +834,19 @@ class DenseMapObj : public MapObj {
     p->slots_ = from->slots_;
     p->size_ = from->size_;
     p->fib_shift_ = from->fib_shift_;
+    p->iter_list_head_ = from->iter_list_head_;
+    p->iter_list_tail_ = from->iter_list_tail_;
     for (uint64_t bi = 0; bi < n_blocks; ++bi) {
       uint8_t* meta_ptr_from = from->data_[bi].bytes;
-      KVType* data_ptr_from = reinterpret_cast<KVType*>(from->data_[bi].bytes + kBlockCap);
+      ItemType* data_ptr_from = reinterpret_cast<ItemType*>(from->data_[bi].bytes + kBlockCap);
       uint8_t* meta_ptr_to = p->data_[bi].bytes;
-      KVType* data_ptr_to = reinterpret_cast<KVType*>(p->data_[bi].bytes + kBlockCap);
+      ItemType* data_ptr_to = reinterpret_cast<ItemType*>(p->data_[bi].bytes + kBlockCap);
       for (int j = 0; j < kBlockCap;
            ++j, ++meta_ptr_from, ++data_ptr_from, ++meta_ptr_to, ++data_ptr_to) {
         uint8_t& meta = *meta_ptr_to = *meta_ptr_from;
         TVM_FFI_ICHECK(meta != kProtectedSlot);
         if (meta != uint8_t(kEmptySlot)) {
-          new (data_ptr_to) KVType(*data_ptr_from);
+          new (data_ptr_to) ItemType(*data_ptr_from);
         }
       }
     }
@@ -762,33 +857,37 @@ class DenseMapObj : public MapObj {
    * \param kv The entry to be inserted
    * \param map The pointer to the map, can be changed if re-hashing happens
    */
-  static void InsertMaybeReHash(const KVType& kv, ObjectPtr<Object>* map) {
+  static void InsertMaybeReHash(KVType&& kv, ObjectPtr<Object>* map) {
     DenseMapObj* map_node = static_cast<DenseMapObj*>(map->get());
     ListNode iter;
     // Try to insert. If succeed, we simply return
     if (map_node->TryInsert(kv.first, &iter)) {
-      iter.Val() = kv.second;
+      iter.Val() = std::move(kv.second);
+      // update the iter list relation
+      map_node->IterListPushBack(iter);
       return;
     }
     TVM_FFI_ICHECK_GT(map_node->slots_, uint64_t(SmallMapObj::kMaxSize));
     // Otherwise, start rehash
     ObjectPtr<Object> p = Empty(map_node->fib_shift_ - 1, map_node->slots_ * 2 + 2);
-    // Insert the given `kv` into the new hash map
-    InsertMaybeReHash(kv, &p);
-    uint64_t n_blocks = CalcNumBlocks(map_node->slots_);
-    // Then Insert data from the original block.
-    for (uint64_t bi = 0; bi < n_blocks; ++bi) {
-      uint8_t* meta_ptr = map_node->data_[bi].bytes;
-      KVType* data_ptr = reinterpret_cast<KVType*>(map_node->data_[bi].bytes + kBlockCap);
-      for (int j = 0; j < kBlockCap; ++j, ++meta_ptr, ++data_ptr) {
-        uint8_t& meta = *meta_ptr;
-        if (meta != uint8_t(kProtectedSlot) && meta != uint8_t(kEmptySlot)) {
-          meta = uint8_t(kEmptySlot);
-          KVType kv = std::move(*data_ptr);
-          InsertMaybeReHash(kv, &p);
-        }
-      }
+
+    // need to insert in the same order as the original map
+    for (uint64_t index = map_node->iter_list_head_; index != kInvalidIndex;) {
+      ListNode node(index, map_node);
+      // now try move src_data into the new map, note that src may still not
+      // be fully consumed into the call, but destructor will be called.
+      InsertMaybeReHash(std::move(node.Data()), &p);
+      // Important, needs to explicit call destructor in case move did remove
+      // node's internal item
+      index = node.Item().next;
+      // IMPORTANT: must explicit call destructor `node` to avoid memory leak
+      // We must call node.DestructData() here.
+      // This is because std::move() arguments in IterMaybeReHash may or may not
+      // explicitly move out the node.Data()
+      // Remove this call will cause memory leak very likely.
+      node.DestructData();
     }
+    InsertMaybeReHash(std::move(kv), &p);
     map_node->ReleaseMemory();
     *map = p;
   }
@@ -803,12 +902,12 @@ class DenseMapObj : public MapObj {
    * \return The increased pointer
    */
   uint64_t IncItr(uint64_t index) const {
-    for (++index; index <= slots_; ++index) {
-      if (!ListNode(index, this).IsEmpty()) {
-        return index;
-      }
+    // keep at the end of iterator
+    if (index == kInvalidIndex) {
+      return index;
     }
-    return slots_ + 1;
+    ListNode node(index, this);
+    return node.Item().next;
   }
   /*!
    * \brief Decrement the pointer
@@ -816,13 +915,13 @@ class DenseMapObj : public MapObj {
    * \return The decreased pointer
    */
   uint64_t DecItr(uint64_t index) const {
-    while (index != 0) {
-      index -= 1;
-      if (!ListNode(index, this).IsEmpty()) {
-        return index;
-      }
+    // this is the end iterator, we need to return tail.
+    if (index == kInvalidIndex) {
+      return iter_list_tail_;
     }
-    return slots_ + 1;
+    // circle around the iterator list, which is OK
+    ListNode node(index, this);
+    return node.Item().prev;
   }
   /*!
    * \brief De-reference the pointer
@@ -887,10 +986,12 @@ class DenseMapObj : public MapObj {
     /*! \brief Metadata on the entry */
     uint8_t& Meta() const { return *(block->bytes + index % kBlockCap); }
     /*! \brief Data on the entry */
-    KVType& Data() const {
-      return *(reinterpret_cast<KVType*>(block->bytes + kBlockCap +
-                                         (index % kBlockCap) * sizeof(KVType)));
+    ItemType& Item() const {
+      return *(reinterpret_cast<ItemType*>(block->bytes + kBlockCap +
+                                           (index % kBlockCap) * sizeof(ItemType)));
     }
+    /*! \brief Data on the entry */
+    KVType& Data() const { return Item().data; }
     /*! \brief Key on the entry */
     key_type& Key() const { return Data().first; }
     /*! \brief Value on the entry */
@@ -905,19 +1006,24 @@ class DenseMapObj : public MapObj {
     bool IsProtected() const { return Meta() == uint8_t(kProtectedSlot); }
     /*! \brief Set the entry to be empty */
     void SetEmpty() const { Meta() = uint8_t(kEmptySlot); }
+    /*! \brief Destruct the item in the entry */
+    void DestructData() const {
+      // explict call destructor to destroy the item
+      (&Data())->KVType::~KVType();
+    }
     /*! \brief Set the entry to be protected */
     void SetProtected() const { Meta() = uint8_t(kProtectedSlot); }
     /*! \brief Set the entry's jump to its next entry */
     void SetJump(uint8_t jump) const { (Meta() &= 0b10000000) |= jump; }
     /*! \brief Construct a head of linked list in-place */
-    void NewHead(KVType v) const {
+    void NewHead(ItemType v) const {
       Meta() = 0b00000000;
-      new (&Data()) KVType(std::move(v));
+      new (&Item()) ItemType(std::move(v));
     }
     /*! \brief Construct a tail of linked list in-place */
-    void NewTail(KVType v) const {
+    void NewTail(ItemType v) const {
       Meta() = 0b10000000;
-      new (&Data()) KVType(std::move(v));
+      new (&Item()) ItemType(std::move(v));
     }
     /*! \brief If the entry has next entry on the linked list */
     bool HasNext() const { return NextProbeLocation(Meta() & 0b01111111) != 0; }
@@ -969,6 +1075,11 @@ class DenseMapObj : public MapObj {
   uint32_t fib_shift_;
   /*! \brief array of data blocks */
   Block* data_;
+  /*! \brief the head of iterator list */
+  uint64_t iter_list_head_ = kInvalidIndex;
+  /*! \brief the tail of iterator list */
+  uint64_t iter_list_tail_ = kInvalidIndex;
+
   static uint64_t NextProbeLocation(size_t index) {
     /* clang-format off */
     /*! \brief Candidates of probing distance */
@@ -1108,29 +1219,29 @@ inline ObjectPtr<Object> MapObj::CreateFromRange(IterType first, IterType last) 
   ObjectPtr<Object> obj = DenseMapObj::Empty(fib_shift, n_slots);
   for (; first != last; ++first) {
     KVType kv(*first);
-    DenseMapObj::InsertMaybeReHash(kv, &obj);
+    DenseMapObj::InsertMaybeReHash(std::move(kv), &obj);
   }
   return obj;
 }
 
-inline void MapObj::InsertMaybeReHash(const KVType& kv, ObjectPtr<Object>* map) {
+inline void MapObj::InsertMaybeReHash(KVType&& kv, ObjectPtr<Object>* map) {
   constexpr uint64_t kSmallMapMaxSize = SmallMapObj::kMaxSize;
   MapObj* base = static_cast<MapObj*>(map->get());
 #if TVM_FFI_DEBUG_WITH_ABI_CHANGE
   base->state_marker++;
 #endif  // TVM_FFI_DEBUG_WITH_ABI_CHANGE
   if (base->slots_ < kSmallMapMaxSize) {
-    SmallMapObj::InsertMaybeReHash(kv, map);
+    SmallMapObj::InsertMaybeReHash(std::move(kv), map);
   } else if (base->slots_ == kSmallMapMaxSize) {
     if (base->size_ < base->slots_) {
-      SmallMapObj::InsertMaybeReHash(kv, map);
+      SmallMapObj::InsertMaybeReHash(std::move(kv), map);
     } else {
       ObjectPtr<Object> new_map = MapObj::CreateFromRange(base->begin(), base->end());
-      DenseMapObj::InsertMaybeReHash(kv, &new_map);
+      DenseMapObj::InsertMaybeReHash(std::move(kv), &new_map);
       *map = std::move(new_map);
     }
   } else {
-    DenseMapObj::InsertMaybeReHash(kv, map);
+    DenseMapObj::InsertMaybeReHash(std::move(kv), map);
   }
 }
 
@@ -1344,6 +1455,18 @@ class Map : public ObjectRef {
       return copy;
     }
 
+    /*! \brief Prefix self decrement, e.g. --iter */
+    iterator& operator--() {
+      --itr;
+      return *this;
+    }
+    /*! \brief Suffix self decrement */
+    iterator operator--(int) {
+      iterator copy = *this;
+      --(*this);
+      return copy;
+    }
+
    private:
     iterator(const MapObj::iterator& itr)  // NOLINT(*)
         : itr(itr) {}
@@ -1454,7 +1577,7 @@ struct TypeTraits<Map<K, V>> : public ObjectRefTypeTraitsBase<Map<K, V>> {
         auto k = kv.first.as<K>();
         auto v = kv.second.as<V>();
         if (!k.has_value() || !v.has_value()) return std::nullopt;
-        ret.Set(std::move(k.value()), std::move(v.value()));
+        ret.Set(*std::move(k), *std::move(v));
       }
       return ret;
     } else {

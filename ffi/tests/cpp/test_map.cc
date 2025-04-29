@@ -263,4 +263,97 @@ TEST(Map, Upcast) {
   Map<String, Array<Any>> m3 = m2;
 }
 
+template <typename K, typename V>
+void PrintMap(const Map<K, V>& m0) {
+  std::cout << "{";
+  for (auto it = m0.begin(); it != m0.end(); ++it) {
+    if (it != m0.begin()) {
+      std::cout << ", ";
+    }
+    std::cout << (*it).first << ": " << (*it).second;
+  }
+  std::cout << "}" << std::endl;
+}
+
+TEST(Map, MapInsertOrder) {
+  // test that map preserves the insertion order
+  auto get_reverse_order = [](size_t size) {
+    std::vector<int> reverse_order;
+    for (int i = size; i != 0; --i) {
+      reverse_order.push_back(i - 1);
+    }
+    return reverse_order;
+  };
+
+  auto check_map = [&](Map<String, int> m0, size_t size, const std::vector<int>& order) {
+    auto lhs = m0.begin();
+    auto rhs = order.begin();
+    while (lhs != m0.end()) {
+      TVM_FFI_ICHECK_EQ((*lhs).first, "hello" + std::to_string(*rhs));
+      TVM_FFI_ICHECK_EQ((*lhs).second, *rhs);
+      ++lhs;
+      ++rhs;
+    }
+    lhs = m0.end();
+    rhs = order.begin() + size;
+    do {
+      --lhs;
+      --rhs;
+      TVM_FFI_ICHECK_EQ((*lhs).first, "hello" + std::to_string(*rhs));
+      TVM_FFI_ICHECK_EQ((*lhs).second, *rhs);
+    } while (lhs != m0.begin());
+  };
+
+  auto check_order = [&](std::vector<int> order) {
+    Map<String, int> m0;
+    for (size_t i = 0; i < order.size(); ++i) {
+      m0.Set("hello" + std::to_string(order[i]), order[i]);
+      check_map(m0, i + 1, order);
+    }
+    check_map(m0, order.size(), order);
+    // erase a few items
+    m0.erase("hello" + std::to_string(order[0]));
+    auto item0 = order[0];
+    order.erase(order.begin());
+    check_map(m0, order.size(), order);
+    // erase the middle part
+    if (order.size() > 1) {
+      m0.erase("hello" + std::to_string(order[1]));
+      order.erase(order.begin() + 1);
+      check_map(m0, order.size(), order);
+    }
+    // erase the end
+    m0.erase("hello" + std::to_string(order.back()));
+    auto item2 = order.back();
+    order.erase(order.end() - 1);
+    check_map(m0, order.size(), order);
+    EXPECT_NE(m0.size(), 0);
+    // put back some items
+    order.push_back(item2);
+    m0.Set("hello" + std::to_string(item2), item2);
+    check_map(m0, order.size(), order);
+    order.push_back(item0);
+    m0.Set("hello" + std::to_string(item0), item0);
+    check_map(m0, order.size(), order);
+  };
+  // test with 17 items: DenseMapObj
+  check_order(get_reverse_order(17));
+  // test with 4 items: SmallMapObj
+  check_order(get_reverse_order(4));
+}
+
+TEST(Map, EmptyIter) {
+  Map<String, int> m0;
+  EXPECT_EQ(m0.begin(), m0.end());
+  // create a big map and then erase to keep a dense map empty
+  for (int i = 0; i < 10; ++i) {
+    m0.Set("hello" + std::to_string(i), i);
+  }
+  for (int i = 0; i < 10; ++i) {
+    m0.erase("hello" + std::to_string(i));
+  }
+  EXPECT_EQ(m0.size(), 0);
+  // now m0 is dense map with all empty slots
+  EXPECT_EQ(m0.begin(), m0.end());
+}
 }  // namespace
