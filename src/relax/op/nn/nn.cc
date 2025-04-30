@@ -268,7 +268,7 @@ StructInfo InferStructInfoPixelShuffle(const Call& call, const BlockBuilder& ctx
   const auto* r2_imm = r_squared.as<IntImmNode>();
 
   ICHECK_EQ(c_in_imm->value % r2_imm->value, 0)
-    << "Number of input channels must be divisible by the square of the upscale factor";
+      << "Number of input channels must be divisible by the square of the upscale factor";
 
   // Output shape:
   Array<PrimExpr> out_shape;
