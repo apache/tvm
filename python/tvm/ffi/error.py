@@ -16,56 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name
 """Error handling."""
-import types
 import re
 from . import core
-
-
-def _append_traceback_frame(tb, func_name, filepath, lineno):
-    """Append one line of traceback.
-
-    Parameters
-    ----------
-    tb : types.TracebackType
-        The traceback to append to.
-    func_name : str
-        The name of the function to append.
-    filepath : str
-        The filepath to append.
-    lineno : int
-        The line number to append.
-    """
-    # Python do not have ways to directly construct a frame object.
-    # So we compile a dummy function to Python bytecode.
-    # Compile a dummy function to Python bytecode, so that with the
-    # filepath that we want to appear in the traceback.  Any external
-    # debugger (e.g. pdb) that catches the exception will use the
-    # filepath to show code snippets from that FFI file.
-    header = "" if lineno is None else "\n" * (lineno - 1)
-    code = compile(
-        f"{header}def dummy_func(): raise NotImplementedError()",
-        filepath,
-        "exec",
-    )
-
-    # Replacing the name by updating the bytecode allows the function
-    # name to be values that would normally be forbidden by python
-    # syntax.  For example, "operator()".
-    code = code.replace(co_consts=(code.co_consts[0].replace(co_name=func_name), func_name, None))
-    namespace = {}
-    exec(code, namespace)  # pylint: disable=exec-used
-    dummy_func = namespace["dummy_func"]
-
-    # Execute the dummy function in order to generate a stack frame.
-    dummy_tb = None
-    try:
-        dummy_func()
-    except NotImplementedError as err:
-        dummy_tb = err.__traceback__
-
-    # Insert the dummy function into the stack trace.
-    new_frame = dummy_tb.tb_next
-    return types.TracebackType(tb, new_frame.tb_frame, new_frame.tb_lasti, new_frame.tb_lineno)
 
 
 def _parse_traceback(traceback):
@@ -100,7 +52,7 @@ def _with_append_traceback(py_error, traceback):
     """Append the traceback to the py_error and return it"""
     tb = py_error.__traceback__
     for filename, lineno, func in reversed(_parse_traceback(traceback)):
-        tb = _append_traceback_frame(tb, func, filename, lineno)
+        tb = core._append_traceback_frame(tb, filename, lineno, func)
     return py_error.with_traceback(tb)
 
 
