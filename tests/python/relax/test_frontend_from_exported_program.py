@@ -3764,9 +3764,7 @@ def test_new_zeros():
         ) -> R.Tuple(R.Tensor((1, 128, 128), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 128, 128), dtype="float32") = R.full(
-                    R.shape([1, 128, 128]),
-                    R.const(0, "float32"), 
-                    dtype="float32"
+                    R.shape([1, 128, 128]), R.const(0, "float32"), dtype="float32"
                 )
                 gv: R.Tuple(R.Tensor((1, 128, 128), dtype="float32")) = (lv,)
                 R.output(gv)

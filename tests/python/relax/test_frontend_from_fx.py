@@ -3337,7 +3337,9 @@ def test_new_zeros():
     @tvm.script.ir_module
     class expected:
         @R.function
-        def main(x: R.Tensor((1, 128, 128), dtype="float32")) -> R.Tensor((1, 128, 128), dtype="float32"):
+        def main(
+            x: R.Tensor((1, 128, 128), dtype="float32")
+        ) -> R.Tensor((1, 128, 128), dtype="float32"):
             # block 0
             with R.dataflow():
                 lv: R.Tensor((1, 128, 128), dtype="float32") = R.full(
