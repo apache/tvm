@@ -207,8 +207,8 @@ inline DLDataType StringViewToDLDataType_(std::string_view str) {
   const char* scan;
 
   auto parse_float = [&](const std::string_view& str, int offset, int code, int bits) {
-    dtype.code = code;
-    dtype.bits = bits;
+    dtype.code = static_cast<uint8_t>(code);
+    dtype.bits = static_cast<uint8_t>(bits);
     scan = str.data() + offset;
     char* endpt = nullptr;
     if (*scan == 'x') {
@@ -288,7 +288,7 @@ inline DLDataType StringViewToDLDataType_(std::string_view str) {
     dtype.bits = 16;
     scan = str.data() + 6;
   } else if (str.compare(0, 6, "custom") == 0) {
-    dtype.code = details::ParseCustomDataTypeCode(str, &scan);
+    dtype.code = static_cast<uint8_t>(details::ParseCustomDataTypeCode(str, &scan));
   } else {
     scan = str.data();
     TVM_FFI_THROW(ValueError) << "unknown dtype `" << str << '`';

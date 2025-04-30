@@ -84,8 +84,8 @@ class ErrorObj : public Object, public TVMFFIErrorInfo {
    * \brief Update the traceback of the error object.
    * \param traceback The traceback to update.
    */
-  void UpdateTraceback(const char* traceback) {
-    this->traceback_data_ = traceback;
+  void UpdateTraceback(const char* traceback_str) {
+    this->traceback_data_ = traceback_str;
     this->traceback = this->traceback_data_.c_str();
     this->what_data_ = (std::string("Traceback (most recent call last):\n") + this->traceback +
                         this->kind + ": " + this->message + '\n');
@@ -135,11 +135,6 @@ class ErrorBuilder {
   explicit ErrorBuilder(std::string kind, std::string traceback, bool log_before_throw)
       : kind_(kind), traceback_(traceback), log_before_throw_(log_before_throw) {}
 
-// MSVC disable warning in error builder as it is exepected
-#ifdef _MSC_VER
-#pragma disagnostic push
-#pragma warning(disable : 4722)
-#endif
   // avoid inline to reduce binary size, error throw path do not need to be fast
   [[noreturn]] ~ErrorBuilder() noexcept(false) {
     ::tvm::ffi::Error error(std::move(kind_), stream_.str(), std::move(traceback_));
@@ -148,9 +143,6 @@ class ErrorBuilder {
     }
     throw error;
   }
-#ifdef _MSC_VER
-#pragma disagnostic pop
-#endif
 
   std::ostringstream& stream() { return stream_; }
 

@@ -107,7 +107,7 @@ class InplaceArrayBase {
    * \brief Destroy the Inplace Array Base object
    */
   ~InplaceArrayBase() {
-    if (!(std::is_standard_layout<ElemType>::value && std::is_trivial<ElemType>::value)) {
+    if constexpr (!(std::is_standard_layout<ElemType>::value && std::is_trivial<ElemType>::value)) {
       size_t size = Self()->GetSize();
       for (size_t i = 0; i < size; ++i) {
         ElemType* fp = reinterpret_cast<ElemType*>(AddressOf(i));

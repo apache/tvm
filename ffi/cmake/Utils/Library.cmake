@@ -28,6 +28,17 @@ function(add_dsymutil target_name)
   endif()
 endfunction()
 
+function(add_msvc_compact_defs target_name)
+  # running if we are under msvc
+  if(MSVC)
+    target_compile_definitions(${target_name} PUBLIC -DWIN32_LEAN_AND_MEAN)
+    target_compile_definitions(${target_name} PUBLIC -D_CRT_SECURE_NO_WARNINGS)
+    target_compile_definitions(${target_name} PUBLIC -D_SCL_SECURE_NO_WARNINGS)
+    target_compile_definitions(${target_name} PUBLIC -D_ENABLE_EXTENDED_ALIGNED_STORAGE)
+    target_compile_definitions(${target_name} PUBLIC -DNOMINMAX)
+  endif()
+endfunction()
+
 function(add_target_from_obj target_name obj_target_name)
   add_library(${target_name}_static STATIC $<TARGET_OBJECTS:${obj_target_name}>)
   set_target_properties(

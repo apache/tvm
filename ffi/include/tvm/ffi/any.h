@@ -304,6 +304,7 @@ class Any {
     }
     return *std::move(opt);
   }
+
   /*
    * \brief Check if the two Any are same type and value in shallow comparison.
    * \param other The other Any

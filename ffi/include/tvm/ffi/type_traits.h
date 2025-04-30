@@ -140,9 +140,7 @@ struct TypeTraits<std::nullptr_t> : public TypeTraitsBase {
     return nullptr;
   }
 
-  static TVM_FFI_INLINE std::nullptr_t MoveFromAnyStorageAfterCheck(TVMFFIAny* src) {
-    return nullptr;
-  }
+  static TVM_FFI_INLINE std::nullptr_t MoveFromAnyStorageAfterCheck(TVMFFIAny*) { return nullptr; }
 
   static TVM_FFI_INLINE std::optional<std::nullptr_t> TryConvertFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFINone) {
@@ -256,7 +254,7 @@ struct TypeTraits<Int, std::enable_if_t<std::is_integral_v<Int>>> : public TypeT
     return src->type_index == TypeIndex::kTVMFFIInt;
   }
 
-  static TVM_FFI_INLINE int CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE Int CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
     return static_cast<Int>(src->v_int64);
   }
 
@@ -406,7 +404,7 @@ struct TypeTraits<DLTensor*> : public TypeTraitsBase {
     result->v_ptr = src;
   }
 
-  static TVM_FFI_INLINE void MoveToAny(DLTensor* src, TVMFFIAny* result) {
+  static TVM_FFI_INLINE void MoveToAny(DLTensor*, TVMFFIAny*) {
     TVM_FFI_THROW(RuntimeError)
         << "DLTensor* cannot be held in Any as it does not retain ownership, use NDArray instead";
   }

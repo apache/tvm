@@ -59,6 +59,7 @@ target_link_libraries(tvm_ffi_header INTERFACE dlpack_header)
 ########## Target: `tvm_ffi` ##########
 add_library(tvm_ffi_objs OBJECT
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/traceback.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/traceback_win.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/object.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/function.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/ndarray.cc"
@@ -109,6 +110,8 @@ target_link_libraries(tvm_ffi_static PUBLIC tvm_ffi_header)
 
 install(TARGETS tvm_ffi_static DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_ffi_shared DESTINATION lib${LIB_SUFFIX})
+
+add_msvc_compact_defs(tvm_ffi_objs)
 
 ########## Adding tests ##########
 

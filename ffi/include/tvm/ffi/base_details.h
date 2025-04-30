@@ -32,6 +32,10 @@
 #include <utility>
 
 #if defined(_MSC_VER)
+#include <windows.h>
+#endif
+
+#if defined(_MSC_VER)
 #define TVM_FFI_INLINE __forceinline
 #else
 #define TVM_FFI_INLINE inline __attribute__((always_inline))
@@ -95,8 +99,8 @@
 #define TVM_FFI_LOG_EXCEPTION_CALL_END(Name)                                              \
   }                                                                                       \
   catch (const std::exception& err) {                                                     \
-    std::cout << "Exception caught during " << #Name << ":\n" << err.what() << std::endl; \
-    throw err;                                                                            \
+    std::cerr << "Exception caught during " << #Name << ":\n" << err.what() << std::endl; \
+    exit(-1);                                                                             \
   }
 
 /*!
@@ -197,7 +201,7 @@ TVM_FFI_INLINE uint64_t StableHashBytes(const char* data, size_t size) {
   const char* end = it + size;
   uint64_t result = 0;
   for (; it + 8 <= end; it += 8) {
-    if (TVM_FFI_IO_NO_ENDIAN_SWAP) {
+    if constexpr (TVM_FFI_IO_NO_ENDIAN_SWAP) {
       u.a[0] = it[0];
       u.a[1] = it[1];
       u.a[2] = it[2];
@@ -240,7 +244,7 @@ TVM_FFI_INLINE uint64_t StableHashBytes(const char* data, size_t size) {
       it += 1;
       a += 1;
     }
-    if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
+    if constexpr (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
       std::swap(u.a[0], u.a[7]);
       std::swap(u.a[1], u.a[6]);
       std::swap(u.a[2], u.a[5]);

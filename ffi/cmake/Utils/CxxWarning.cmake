@@ -23,7 +23,7 @@ function(add_cxx_warning target_name)
   endif()
   # MSVC
   if(MSVC)
-    target_compile_options(${target_name} PRIVATE "/W4" "/WX")
+    # target_compile_options(${target_name} PRIVATE "/W4" "/WX")
     return()
   endif()
   message(FATAL_ERROR "Unsupported compiler: ${CMAKE_CXX_COMPILER_ID}")

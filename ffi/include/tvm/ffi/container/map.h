@@ -292,7 +292,10 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
     }
     KVType* begin = static_cast<KVType*>(AddressOf(0));
     // call destructor to destroy the item in `begin + index`
-    (begin + index)->KVType::~KVType();
+    // Explicit call Any::~Any() to destroy the Any object
+    // Favor this over ~KVType as MSVC may not support ~KVType (need the original name)
+    (begin + index)->first.Any::~Any();
+    (begin + index)->second.Any::~Any();
     // IMPORTANT: We do direct raw memmove to bring later items to the current position
     // to preserve the order of insertion.
     // This works because direct memory copy preserves the Any's move semantics.
@@ -1008,8 +1011,10 @@ class DenseMapObj : public MapObj {
     void SetEmpty() const { Meta() = uint8_t(kEmptySlot); }
     /*! \brief Destruct the item in the entry */
     void DestructData() const {
-      // explict call destructor to destroy the item
-      (&Data())->KVType::~KVType();
+      // explicit call destructor to destroy the item
+      // Favor this over ~KVType as MSVC may not support ~KVType (need the original name)
+      (&Data())->first.Any::~Any();
+      (&Data())->second.Any::~Any();
     }
     /*! \brief Set the entry to be protected */
     void SetProtected() const { Meta() = uint8_t(kProtectedSlot); }

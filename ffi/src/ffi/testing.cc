@@ -26,6 +26,12 @@
 namespace tvm {
 namespace ffi {
 
+void TestRaiseError(String kind, String msg) {
+  throw ffi::Error(kind, msg, TVM_FFI_TRACEBACK_HERE);
+}
+
+TVM_FFI_REGISTER_GLOBAL("testing.test_raise_error").set_body_typed(TestRaiseError);
+
 TVM_FFI_REGISTER_GLOBAL("testing.nop").set_body_packed([](PackedArgs args, Any* ret) {
   *ret = args[0];
 });
@@ -40,12 +46,6 @@ TVM_FFI_REGISTER_GLOBAL("testing.apply").set_body_packed([](PackedArgs args, Any
   Function f = args[0];
   TestApply(f, args.Slice(1), ret);
 });
-
-void TestRaiseError(String kind, String msg) {
-  throw ffi::Error(kind, msg, TVM_FFI_TRACEBACK_HERE);
-}
-
-TVM_FFI_REGISTER_GLOBAL("testing.test_raise_error").set_body_typed(TestRaiseError);
 
 TVM_FFI_REGISTER_GLOBAL("testing.run_check_signal").set_body_typed([](int nsec) {
   for (int i = 0; i < nsec; ++i) {

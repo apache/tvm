@@ -39,7 +39,6 @@ TVM_FFI_REGISTER_GLOBAL("ffi.ArrayGetItem")
 TVM_FFI_REGISTER_GLOBAL("ffi.ArraySize").set_body_typed([](const ffi::ArrayObj* n) -> int64_t {
   return static_cast<int64_t>(n->size());
 });
-
 // Map
 TVM_FFI_REGISTER_GLOBAL("ffi.Map").set_body_packed([](ffi::PackedArgs args, Any* ret) {
   TVM_FFI_ICHECK_EQ(args.size() % 2, 0);
@@ -60,33 +59,35 @@ TVM_FFI_REGISTER_GLOBAL("ffi.MapGetItem")
 TVM_FFI_REGISTER_GLOBAL("ffi.MapCount")
     .set_body_typed([](const ffi::MapObj* n, const Any& k) -> int64_t { return n->count(k); });
 
+// Favor struct outside function scope as MSVC may have bug for in fn scope struct.
+class MapForwardIterFunctor {
+ public:
+  MapForwardIterFunctor(ffi::MapObj::iterator iter, ffi::MapObj::iterator end)
+      : iter_(iter), end_(end) {}
+  // 0 get current key
+  // 1 get current value
+  // 2 move to next: return true if success, false if end
+  Any operator()(int command) const {
+    if (command == 0) {
+      return (*iter_).first;
+    } else if (command == 1) {
+      return (*iter_).second;
+    } else {
+      ++iter_;
+      if (iter_ == end_) {
+        return false;
+      }
+      return true;
+    }
+  }
+
+ private:
+  mutable ffi::MapObj::iterator iter_;
+  ffi::MapObj::iterator end_;
+};
+
 TVM_FFI_REGISTER_GLOBAL("ffi.MapForwardIterFunctor")
     .set_body_typed([](const ffi::MapObj* n) -> ffi::Function {
-      class MapForwardIterFunctor {
-       public:
-        MapForwardIterFunctor(ffi::MapObj::iterator iter, ffi::MapObj::iterator end)
-            : iter_(iter), end_(end) {}
-        // 0 get current key
-        // 1 get current value
-        // 2 move to next: return true if success, false if end
-        Any operator()(int command) const {
-          if (command == 0) {
-            return (*iter_).first;
-          } else if (command == 1) {
-            return (*iter_).second;
-          } else {
-            ++iter_;
-            if (iter_ == end_) {
-              return false;
-            }
-            return true;
-          }
-        }
-
-       private:
-        mutable ffi::MapObj::iterator iter_;
-        ffi::MapObj::iterator end_;
-      };
       return ffi::Function::FromUnpacked(MapForwardIterFunctor(n->begin(), n->end()));
     });
 

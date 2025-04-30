@@ -346,9 +346,9 @@ class Function : public ObjectRef {
   static Function ImportFromExternDLL(Function other) {
     const FunctionObj* other_func = static_cast<const FunctionObj*>(other.get());
     // the other function comes from the same dll, no action needed
-    if (other_func->safe_call == FunctionObj::SafeCall ||
-        other_func->safe_call == details::ImportedFunctionObjImpl::SafeCall ||
-        other_func->safe_call == details::ExternCFunctionObjImpl::SafeCall) {
+    if (other_func->safe_call == &(FunctionObj::SafeCall) ||
+        other_func->safe_call == &(details::ImportedFunctionObjImpl::SafeCall) ||
+        other_func->safe_call == &(details::ExternCFunctionObjImpl::SafeCall)) {
       return other;
     }
     // the other function coems from a different library

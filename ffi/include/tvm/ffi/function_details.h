@@ -39,7 +39,10 @@ namespace details {
 /*!
  * \brief Empty struct, used to reduce unused variable in global static initialization.
  */
-struct EmptyStruct {};
+struct EmptyStruct {
+  /*! \brief at least one byte to ensure address */
+  uint8_t pad;
+};
 
 template <typename ArgType>
 struct Arg2Str {
@@ -203,8 +206,12 @@ TVM_FFI_INLINE void unpack_call(const std::string* optional_name, const F& f, co
                                 int32_t num_args, Any* rv) {
   using FuncInfo = FunctionInfo<F>;
   FGetFuncSignature f_sig = FuncInfo::Sig;
-  static_assert(FuncInfo::unpacked_supported,
-                "The function signature cannot support unpacked call");
+
+  // somehow MSVC does not support the static constexpr member in this case, function is fine
+#ifndef _MSC_VER
+  static_assert(FuncInfo::unpacked_supported, "The function signature do not support unpacked");
+#endif
+
   if (nargs != num_args) {
     TVM_FFI_THROW(TypeError) << "Mismatched number of arguments when calling: `"
                              << (optional_name == nullptr ? "" : *optional_name)

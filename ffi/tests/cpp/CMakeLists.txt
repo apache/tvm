@@ -17,6 +17,7 @@ set_target_properties(
 add_cxx_warning(tvm_ffi_tests)
 add_sanitizer_address(tvm_ffi_tests)
 add_dsymutil(tvm_ffi_tests)
+add_msvc_compact_defs(tvm_ffi_tests)
 target_link_libraries(tvm_ffi_tests PRIVATE tvm_ffi_shared)
 
 add_googletest(tvm_ffi_tests)
