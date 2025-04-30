@@ -1534,6 +1534,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         values = self.block_builder.emit(relax.op.full_like(x, rx_value))
         return self.block_builder.emit(relax.op.where(mask, values, x))
 
+    #new-zeros op
     def _new_ones(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         self_var = args[0]
