@@ -785,17 +785,8 @@ if(TVM_IS_DEBUG_BUILD)
   endif()
 endif()
 
-# Run dsymutil to generate debugging symbols for backtraces
-if(APPLE AND TVM_IS_DEBUG_BUILD)
-  find_program(DSYMUTIL dsymutil)
-  mark_as_advanced(DSYMUTIL)
-  add_custom_command(TARGET tvm
-      POST_BUILD
-      COMMAND ${DSYMUTIL} ARGS $<TARGET_FILE:tvm>
-      COMMENT "Running dsymutil"
-      VERBATIM
-		  )
-endif()
+add_dsymutil(tvm)
+add_dsymutil(tvm_runtime)
 
 if(BUILD_FOR_HEXAGON)
   # Wrap pthread_create to allow setting custom stack size.

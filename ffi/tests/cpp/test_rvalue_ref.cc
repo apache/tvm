@@ -37,7 +37,7 @@ TEST(RValueRef, Basic) {
         arr.push_back(val);
         return arr;
       });
-  Array<int> a = append(RValueRef(std::move(Array<int>({1, 2}))), 3, true);
+  Array<int> a = append(RValueRef(Array<int>({1, 2})), 3, true);
   EXPECT_EQ(a.size(), 3);
   a = append(RValueRef(std::move(a)), 4, true);
   EXPECT_EQ(a.size(), 4);
@@ -90,8 +90,8 @@ TEST(RValueRef, ParamChecking) {
     TPrimExpr expr = *std::move(a);
     return expr->dtype;
   });
-  EXPECT_EQ(func3(RValueRef(String("int32"))), "int32");
+  EXPECT_EQ(func3(RValueRef(String("int32"))).operator String(), "int32");
   // triggered a lvalue based conversion
-  EXPECT_EQ(func3(String("int32")), "int32");
+  EXPECT_EQ(func3(String("int32")).operator String(), "int32");
 }
 }  // namespace

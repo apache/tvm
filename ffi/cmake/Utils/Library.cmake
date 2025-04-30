@@ -14,6 +14,19 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+function(add_dsymutil target_name)
+  # running dsymutil on macos to generate debugging symbols for backtraces
+  if(APPLE)
+    find_program(DSYMUTIL dsymutil)
+    mark_as_advanced(DSYMUTIL)
+    add_custom_command(TARGET ${target_name}
+        POST_BUILD
+        COMMAND ${DSYMUTIL} ARGS $<TARGET_FILE:${target_name}>
+        COMMENT "[COMMAND] dsymutil $<TARGET_FILE:${target_name}>"
+        VERBATIM
+    )
+  endif()
+endfunction()
 
 function(add_target_from_obj target_name obj_target_name)
   add_library(${target_name}_static STATIC $<TARGET_OBJECTS:${obj_target_name}>)
@@ -42,4 +55,5 @@ function(add_target_from_obj target_name obj_target_name)
       MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
     )
   endif()
+  add_dsymutil(${target_name}_shared)
 endfunction()
