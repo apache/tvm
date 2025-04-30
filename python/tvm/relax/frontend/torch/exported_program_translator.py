@@ -436,6 +436,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "index.Tensor": self._index_tensor,
             "index_put_.default": self._index_put,
             "meshgrid.indexing": self._meshgrid,
+            "meshgrid.default": self._meshgrid,
             "narrow.default": self._narrow,
             "permute.default": self._permute,
             "repeat.default": self._repeat,
