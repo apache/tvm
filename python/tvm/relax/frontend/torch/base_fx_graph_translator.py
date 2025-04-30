@@ -1534,7 +1534,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         values = self.block_builder.emit(relax.op.full_like(x, rx_value))
         return self.block_builder.emit(relax.op.where(mask, values, x))
 
-    #new-zeros op
     def _new_ones(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         self_var = args[0]
@@ -1552,16 +1551,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     
     def _new_zeros(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
-        self_var = args[0]
-        size = args[1] if isinstance(args[1], (list, tuple)) else args[1:]
-        if not isinstance(size, (list, tuple)):
-            size = (size,)
+        input_tensor = args[0]
+        size = args[1] if isinstance(args[1], (list, tuple)) else (args[1],) if len(args[1:]) == 1 else args[1:]
         size = relax.ShapeExpr(size)
         return self.block_builder.emit(
             relax.op.full(
                 size,
-                relax.const(0, self_var.struct_info.dtype),
-                self_var.struct_info.dtype,
+                relax.const(0, input_tensor.struct_info.dtype),
+                input_tensor.struct_info.dtype,
             )
         )
 
