@@ -1923,7 +1923,7 @@ def test_div_mode():
     # Case 2: Division with trunc rounding
     class DivTruncModel(torch.nn.Module):
         def forward(self, x, y):
-            return torch.div(x, y, rounding_mode='trunc')
+            return torch.div(x, y, rounding_mode="trunc")
 
     @tvm.script.ir_module
     class expected_div_trunc:
@@ -1943,7 +1943,7 @@ def test_div_mode():
     # Case 3: Division with floor rounding
     class DivFloorModel(torch.nn.Module):
         def forward(self, x, y):
-            return torch.div(x, y, rounding_mode='floor')
+            return torch.div(x, y, rounding_mode="floor")
 
     @tvm.script.ir_module
     class expected_div_floor:
@@ -2925,6 +2925,7 @@ def test_extended_unary_ops():
             return gv
 
     verify_model(Trunc(), input_info, {}, expected_trunc)
+
 
 def test_interpolate():
     input_info = [([1, 3, 10, 10], "float32")]

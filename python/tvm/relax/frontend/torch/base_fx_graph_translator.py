@@ -446,16 +446,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         result = relax.op.greater(summed, relax.const(0, dtype=elements.struct_info.dtype))
 
         return self.block_builder.emit(result)
-    
+
     def _div_Tensor_mode(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         inp_1 = args[0]
         inp_2 = args[1]
-        
+
         # Handle scalar cases
         if isinstance(inp_2, (int, float)):
             inp_2 = relax.const(inp_2)
-        
+
         # Get rounding_mode from node kwargs
         rounding_mode = args[2] if len(node.args) > 2 else node.kwargs.get("rounding_mode", None)
 
