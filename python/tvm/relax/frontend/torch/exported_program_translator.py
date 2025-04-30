@@ -484,6 +484,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "masked_fill.Scalar": self._masked_fill,
             "masked_fill_.Scalar": self._inplace_masked_fill,
             "new_ones.default": self._new_ones,
+            "new_zeros.default": self._new_zeros,
             "one_hot.default": self._one_hot,
             "ones.default": self._ones,
             "ones_like.default": lambda node: self.block_builder.emit(
