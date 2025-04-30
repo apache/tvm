@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
+import pytest
 import tvm.ffi as tvm_ffi
 
 
@@ -46,17 +46,26 @@ def test_int_map():
     assert 3 in dd
     assert 4 in dd
     assert 5 not in amap
-    assert {x for x in amap} == {3, 4}
-    assert set(amap.keys()) == {3, 4}
-    assert set(amap.values()) == {2, 3}
+    assert tuple(amap.items()) == ((3, 2), (4, 3))
+    assert tuple(amap.keys()) == (3, 4)
+    assert tuple(amap.values()) == (2, 3)
 
 
 def test_str_map():
-    amap = tvm_ffi.convert({"a": 2, "b": 3})
-    assert "a" in amap
-    assert len(amap) == 2
-    dd = dict(amap.items())
-    assert amap["a"] == 2
-    assert amap.get("b") == 3
-    assert "a" in dd
-    assert "b" in dd
+    data = []
+    for i in reversed(range(10)):
+        data.append((f"a{i}", i))
+    amap = tvm_ffi.convert({k: v for k, v in data})
+    assert tuple(amap.items()) == tuple(data)
+    for k, v in data:
+        assert k in amap
+        assert amap[k] == v
+        assert amap.get(k) == v
+
+    assert tuple(k for k in amap) == tuple(k for k, _ in data)
+
+
+def test_key_not_found():
+    amap = tvm_ffi.convert({3: 2, 4: 3})
+    with pytest.raises(KeyError):
+        amap[5]

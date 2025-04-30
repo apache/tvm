@@ -241,7 +241,7 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
   const mapped_type& at(const key_type& key) const {
     iterator itr = find(key);
     if (itr.index >= size_) {
-      TVM_FFI_THROW(IndexError) << "key is not in Map";
+      TVM_FFI_THROW(KeyError) << "key is not in Map";
     }
     return itr->second;
   }
@@ -253,7 +253,7 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
   mapped_type& at(const key_type& key) {
     iterator itr = find(key);
     if (itr.index >= size_) {
-      TVM_FFI_THROW(IndexError) << "key is not in Map";
+      TVM_FFI_THROW(KeyError) << "key is not in Map";
     }
     return itr->second;
   }

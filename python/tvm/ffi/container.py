@@ -15,7 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Container classes."""
-from typing import Any, List, Dict
+import collections.abc
+
+from typing import Any, Mapping, Sequence
 from . import core
 from . import _ffi_api
 from .registry import register_object
@@ -63,10 +65,10 @@ def getitem_helper(obj, elem_getter, length, idx):
 
 
 @register_object("object.Array")
-class Array(core.Object):
+class Array(core.Object, collections.abc.Sequence):
     """Array container"""
 
-    def __init__(self, input_list: List[Any]):
+    def __init__(self, input_list: Sequence[Any]):
         self.__init_handle_by_constructor__(_ffi_api.Array, *input_list)
 
     def __getitem__(self, idx):
@@ -76,11 +78,72 @@ class Array(core.Object):
         return _ffi_api.ArraySize(self)
 
 
-@register_object("object.Map")
-class Map(core.Object):
-    """Map container"""
+class KeysView(collections.abc.KeysView):
+    """Helper class to return keys view"""
 
-    def __init__(self, input_dict: Dict[Any, Any]):
+    def __init__(self, backend_map):
+        self._backend_map = backend_map
+
+    def __len__(self):
+        return len(self._backend_map)
+
+    def __iter__(self):
+        if self.__len__() == 0:
+            return
+        functor = _ffi_api.MapForwardIterFunctor(self._backend_map)
+        while True:
+            k = functor(0)
+            yield k
+            if not functor(2):
+                break
+
+
+class ValuesView(collections.abc.ValuesView):
+    """Helper class to return values view"""
+
+    def __init__(self, backend_map):
+        self._backend_map = backend_map
+
+    def __len__(self):
+        return len(self._backend_map)
+
+    def __iter__(self):
+        if self.__len__() == 0:
+            return
+        functor = _ffi_api.MapForwardIterFunctor(self._backend_map)
+        while True:
+            v = functor(1)
+            yield v
+            if not functor(2):
+                break
+
+
+class ItemsView(collections.abc.ItemsView):
+    """Helper class to return items view"""
+
+    def __init__(self, backend_map):
+        self.backend_map = backend_map
+
+    def __len__(self):
+        return len(self.backend_map)
+
+    def __iter__(self):
+        if self.__len__() == 0:
+            return
+        functor = _ffi_api.MapForwardIterFunctor(self.backend_map)
+        while True:
+            k = functor(0)
+            v = functor(1)
+            yield (k, v)
+            if not functor(2):
+                break
+
+
+@register_object("object.Map")
+class Map(core.Object, collections.abc.Mapping):
+    """Map container."""
+
+    def __init__(self, input_dict: Mapping[Any, Any]):
         list_kvs = []
         for k, v in input_dict.items():
             list_kvs.append(k)
@@ -93,29 +156,21 @@ class Map(core.Object):
     def __contains__(self, k):
         return _ffi_api.MapCount(self, k) != 0
 
-    def __iter__(self):
-        akvs = _ffi_api.MapItems(self)
-        for i in range(len(self)):
-            yield akvs[i * 2]
-
-    def __dir__(self):
-        return sorted(dir(self.__class__) + ["type_key"])
-
     def keys(self):
-        return iter(self)
+        return KeysView(self)
 
     def values(self):
-        akvs = _ffi_api.MapItems(self)
-        for i in range(len(self)):
-            yield akvs[i * 2 + 1]
+        return ValuesView(self)
 
     def items(self):
         """Get the items from the map"""
-        akvs = _ffi_api.MapItems(self)
-        return [(akvs[i], akvs[i + 1]) for i in range(0, len(akvs), 2)]
+        return ItemsView(self)
 
     def __len__(self):
         return _ffi_api.MapSize(self)
+
+    def __iter__(self):
+        return iter(self.keys())
 
     def get(self, key, default=None):
         """Get an element with a default value.
