@@ -334,6 +334,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "tanh.default": self._unary_op(relax.op.tanh),
             "tril.default": self._tril_triu(relax.op.tril),
             "triu.default": self._tril_triu(relax.op.triu),
+            "trunc.default": self._unary_op(relax.op.trunc),
             # binary
             "add.Tensor": self._binary_op(relax.op.add, operator.add),
             "add_.Tensor": self._binary_op(relax.op.add, operator.add),
@@ -342,6 +343,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "bitwise_or_.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
             "bitwise_or.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
             "div.Tensor": self._binary_op(relax.op.divide, operator.truediv),
+            "div.Tensor_mode": self._div_Tensor_mode,
             "eq.Scalar": self._binary_op(relax.op.equal, operator.eq),
             "eq.Tensor": self._binary_op(relax.op.equal, operator.eq),
             "floor_divide.default": self._binary_op(relax.op.floor_divide, operator.floordiv),

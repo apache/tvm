@@ -71,6 +71,7 @@ operator_basic_unary = [
     (torch.square, R.square),
     (torch.tan, R.tan),
     (torch.tanh, R.tanh),
+    (torch.trunc, R.trunc),
 ]
 
 
@@ -1090,6 +1091,70 @@ def test_isin():
         torch.randn(8, dtype=torch.float32),
     )
     verify_model(IsInModel(), example_args, {}, expected)
+
+
+def test_div_mode():
+    # Case 1: Basic division (no rounding mode)
+    class DivModel(torch.nn.Module):
+        def forward(self, a, b):
+            return torch.div(a, b)
+
+    @tvm.script.ir_module
+    class expected_div:
+        @R.function
+        def main(
+            a: R.Tensor((64, 64), dtype="float32"), b: R.Tensor((64,), dtype="float32")
+        ) -> R.Tuple(R.Tensor((64, 64), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((64, 64), dtype="float32") = R.divide(a, b)
+                gv: R.Tuple(R.Tensor((64, 64), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(64, 64, dtype=torch.float32),
+        torch.randn(64, dtype=torch.float32),
+    )
+    verify_model(DivModel(), example_args, {}, expected_div)
+
+    # Case 2: Division with trunc rounding
+    class DivTruncModel(torch.nn.Module):
+        def forward(self, a, b):
+            return torch.div(a, b, rounding_mode='trunc')
+
+    @tvm.script.ir_module
+    class expected_div_trunc:
+        @R.function
+        def main(
+            a: R.Tensor((64, 64), dtype="float32"), b: R.Tensor((64,), dtype="float32")
+        ) -> R.Tuple(R.Tensor((64, 64), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((64, 64), dtype="float32") = R.divide(a, b)
+                lv1: R.Tensor((64, 64), dtype="float32") = R.trunc(lv)
+                gv: R.Tuple(R.Tensor((64, 64), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    verify_model(DivTruncModel(), example_args, {}, expected_div_trunc)
+
+    # Case 3: Division with floor rounding
+    class DivFloorModel(torch.nn.Module):
+        def forward(self, a, b):
+            return torch.div(a, b, rounding_mode='floor')
+
+    @tvm.script.ir_module
+    class expected_div_floor:
+        @R.function
+        def main(
+            a: R.Tensor((64, 64), dtype="float32"), b: R.Tensor((64,), dtype="float32")
+        ) -> R.Tuple(R.Tensor((64, 64), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((64, 64), dtype="float32") = R.floor_divide(a, b)
+                gv: R.Tuple(R.Tensor((64, 64), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(DivFloorModel(), example_args, {}, expected_div_floor)
 
 
 def test_batchnorm2d():
