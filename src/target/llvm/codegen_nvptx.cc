@@ -331,7 +331,7 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   const auto flibdevice_path = tvm::ffi::Function::GetGlobal("tvm_callback_libdevice_path");
   if (flibdevice_path.has_value()) {
-    std::string path = (*flibdevice_path)(compute_ver);
+    std::string path = (*flibdevice_path)(compute_ver).cast<std::string>();
     if (path.length() != 0) {
       std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(path);
       mlib->setTargetTriple(llvm_target->GetTargetTriple());

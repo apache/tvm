@@ -31,7 +31,7 @@ size_t CallbackChannel::Send(const void* data, size_t size) {
   TVMFFIByteArray bytes;
   bytes.data = static_cast<const char*>(data);
   bytes.size = size;
-  int64_t n = fsend_(&bytes);
+  int64_t n = fsend_(&bytes).cast<int64_t>();
   if (n == -1) {
     LOG(FATAL) << "CallbackChannel::Send";
   }

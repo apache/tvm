@@ -79,8 +79,8 @@ void BcastSessionObj::SyncWorker(int worker_id) {
   BcastSessionObj::Internal::BroadcastUnpacked(this, DiscoAction::kSyncWorker, worker_id);
   TVMArgs args = this->RecvReplyPacked(worker_id);
   ICHECK_EQ(args.size(), 2);
-  DiscoAction action = static_cast<DiscoAction>(args[0].operator int());
-  int ret_worker_id = args[1];
+  DiscoAction action = static_cast<DiscoAction>(args[0].cast<int>());
+  int ret_worker_id = args[1].cast<int>();
   ICHECK(action == DiscoAction::kSyncWorker);
   ICHECK_EQ(ret_worker_id, worker_id);
 }
@@ -92,7 +92,7 @@ DRef BcastSessionObj::CallWithPacked(const TVMArgs& args) {
   // tranlsate args into remote calling convention
   int reg_id = AllocateReg();
   {
-    DRef func = args[2];
+    DRef func = args[2].cast<DRef>();
     args_vec[0] = static_cast<int>(DiscoAction::kCallPacked);
     args_vec[1] = reg_id;
     args_vec[2] = func->reg_id;

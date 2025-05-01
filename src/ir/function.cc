@@ -53,7 +53,7 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttrs")
         return WithAttrs(Downcast<tir::PrimFunc>(std::move(func)), attr_map);
       }
       if (const auto f = tvm::ffi::Function::GetGlobal("relax.FuncWithAttrs")) {
-        if (Optional<BaseFunc> ret = (*f)(func, attr_map)) {
+        if (auto ret = (*f)(func, attr_map).cast<Optional<BaseFunc>>()) {
           return ret.value();
         }
       }

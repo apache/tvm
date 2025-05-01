@@ -738,9 +738,9 @@ bool CheckDataTypeSupport(const Target& target, const std::string& support_func_
   bool has_native_support = false;
   if (target->kind->name == "cuda") {
     if (auto get_cv = tvm::ffi::Function::GetGlobal("tvm.contrib.nvcc.get_compute_version")) {
-      std::string compute_version = (*get_cv)(target);
+      std::string compute_version = (*get_cv)(target).cast<std::string>();
       if (auto check_support = tvm::ffi::Function::GetGlobal(support_func_name)) {
-        has_native_support = (*check_support)(compute_version);
+        has_native_support = (*check_support)(compute_version).cast<bool>();
       }
     }
   }

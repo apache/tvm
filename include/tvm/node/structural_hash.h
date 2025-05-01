@@ -131,7 +131,7 @@ class StructuralHash : public BaseValueHash {
    */
   TVM_FFI_INLINE uint64_t operator()(const ffi::Any& key) const {
     if (key.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-      return operator()(key.operator ObjectRef());
+      return operator()(key.cast<ObjectRef>());
     }
     return HashPODValueInAny(key);
   }
@@ -225,7 +225,7 @@ class SHashReducer {
    */
   void operator()(const ffi::Any& key) const {
     if (key.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-      return operator()(key.operator ObjectRef());
+      return operator()(key.cast<ObjectRef>());
     }
     // POD value can always use v_int64 to get the hash value
     handler_->SHashReduceHashedValue(BaseValueHash().HashPODValueInAny(key));

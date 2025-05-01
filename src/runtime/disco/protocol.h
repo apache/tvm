@@ -207,7 +207,7 @@ inline void DiscoProtocol<SubClassType>::ReadObject(int* tcode, TVMValue* value)
     self->template Read<uint64_t>(&size);
     std::string data(size, '\0');
     self->template ReadArray<char>(data.data(), size);
-    result = ffi::ObjectRef(DiscoDebugObject::LoadFromStr(std::move(data))->data);
+    result = DiscoDebugObject::LoadFromStr(std::move(data))->data.cast<ObjectRef>();
   } else {
     LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
                << Object::TypeIndex2Key(type_index) << " (type_index = " << type_index << ")";
@@ -235,7 +235,7 @@ inline std::string DiscoDebugObject::SaveToStr() const {
     const auto f = tvm::ffi::Function::GetGlobal("node.SaveJSON");
     CHECK(f.has_value()) << "ValueError: Cannot serialize object in non-debugging mode: "
                          << obj->GetTypeKey();
-    std::string result = (*f)(obj);
+    std::string result = (*f)(obj).cast<std::string>();
     result.push_back('0');
     return result;
   }

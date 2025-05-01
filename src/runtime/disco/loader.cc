@@ -180,7 +180,7 @@ ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std:
                                  std::string shard_info, Module mod) {
   if (shard_info.empty() && mod.defined()) {
     if (PackedFunc get_shard_info = mod->GetFunction("get_shard_info"); get_shard_info != nullptr) {
-      shard_info = get_shard_info().operator String();
+      shard_info = get_shard_info().cast<String>();
     }
   }
   ObjectPtr<ShardLoaderObj> n = make_object<ShardLoaderObj>();

@@ -354,8 +354,7 @@ String UnpackedInstTraits<TTraits>::AsPython(const Array<Any>& inputs, const Arr
   });
   ffi::Any rv;
   pf.CallPacked(ffi::PackedArgs(packed_args, kNumArgs), &rv);
-  String result = rv;
-  return result;
+  return rv.cast<String>();
 }
 
 template <class TTraits>
@@ -409,7 +408,7 @@ TVM_ALWAYS_INLINE Array<Any> UnpackedInstTraits<TTraits>::_ConvertOutputs(const 
   } else if (is_single_obj) {
     return {rv};
   } else if (is_array) {
-    return rv;
+    return rv.cast<runtime::Array<Any>>();
   }
 }
 

@@ -77,8 +77,8 @@ void init_tile_config(__tilecfg_u* dst, uint16_t cols, uint8_t rows) {
 }
 
 TVM_REGISTER_GLOBAL("runtime.amx_tileconfig").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  int rows = args[0];
-  int cols = args[1];
+  int rows = args[0].cast<int>();
+  int cols = args[1].cast<int>();
   LOG(INFO) << "rows: " << rows << ", cols:" << cols;
   // -----------Config for AMX tile resgister----------------------
   __tilecfg_u cfg;

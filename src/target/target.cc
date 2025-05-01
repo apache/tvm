@@ -399,7 +399,7 @@ Any TargetInternal::ParseType(const std::string& str, const TargetKindNode::Valu
     std::vector<ObjectRef> result;
     for (const std::string& substr : SplitString(interp_str, ',')) {
       try {
-        ObjectRef parsed = TargetInternal::ParseType(substr, *info.key);
+        ObjectRef parsed = TargetInternal::ParseType(substr, *info.key).cast<ObjectRef>();
         result.push_back(parsed);
       } catch (const Error& e) {
         std::string index = "[" + std::to_string(result.size()) + "]";
@@ -446,7 +446,7 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
     std::vector<ObjectRef> result;
     for (const Any& e : *array) {
       try {
-        result.push_back(TargetInternal::ParseType(e, *info.key));
+        result.push_back(TargetInternal::ParseType(e, *info.key).cast<ObjectRef>());
       } catch (const Error& e) {
         std::string index = '[' + std::to_string(result.size()) + ']';
         throw Error(e->kind, index + e->message, e->traceback);
@@ -771,8 +771,8 @@ void TargetInternal::ConstructorDispatcher(TVMArgs args, TVMRetValue* rv) {
     return;
   } else if (args.size() == 2) {
     if (args[0].as<Target>().has_value() && args[1].as<Target>().has_value()) {
-      Target target = args[0];
-      Target host = args[1];
+      Target target = args[0].cast<Target>();
+      Target host = args[1].cast<Target>();
       *rv = Target(target, host);
     } else {
       LOG(FATAL) << "ValueError: Invalid type of arguments. Expect 2 Target arguments.";
@@ -798,7 +798,7 @@ ObjectPtr<Object> TargetInternal::FromConfigString(const String& config_str) {
   ICHECK(loader.has_value())
       << "AttributeError: \"target._load_config_dict\" is not registered. Please check "
          "if the python module is properly loaded";
-  Optional<Map<String, ffi::Any>> config = (*loader)(config_str);
+  auto config = (*loader)(config_str).cast<Optional<Map<String, ffi::Any>>>();
   if (!config.defined()) {
     TVM_FFI_THROW(ValueError) << "Cannot load config dict with python JSON loader";
   }
@@ -923,7 +923,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
   }
   // parse host
   if (config.count(kHost)) {
-    target->host = PackedFunc(ConstructorDispatcher)(config[kHost]).operator Target();
+    target->host = PackedFunc(ConstructorDispatcher)(config[kHost]).cast<Target>();
     config.erase(kHost);
   } else {
     target->host = NullOpt;
@@ -964,7 +964,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
   }
   // do extra pre-processing
   if (target->kind->preprocessor != nullptr) {
-    target->attrs = target->kind->preprocessor(Map<String, ffi::Any>(attrs));
+    target->attrs =
+        target->kind->preprocessor(Map<String, ffi::Any>(attrs)).cast<Map<String, ffi::Any>>();
   } else {
     target->attrs = attrs;
   }
@@ -988,7 +989,7 @@ std::unordered_map<String, ffi::Any> TargetInternal::QueryDevice(int device_id,
 
   TVMRetValue ret;
   api->GetAttr(device, runtime::kExist, &ret);
-  bool device_exists = ret;
+  bool device_exists = ret.cast<bool>();
   if (!device_exists) {
     ICHECK(device_exists) << "Requested reading the parameters for " << target->kind->name
                           << " from device_id " << device_id << ", but device_id " << device_id

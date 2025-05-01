@@ -67,11 +67,11 @@ typedef dmlc::ThreadLocalStore<RocBlasThreadEntry> RocBlasThreadStore;
 // matrix multiplication for row major
 TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      DLTensor* A = args[0];
-      DLTensor* B = args[1];
-      DLTensor* C = args[2];
-      bool transa = args[3];
-      bool transb = args[4];
+      auto A = args[0].cast<DLTensor*>();
+      auto B = args[1].cast<DLTensor*>();
+      auto C = args[2].cast<DLTensor*>();
+      bool transa = args[3].cast<bool>();
+      bool transb = args[4].cast<bool>();
       // call gemm for simple compact code.
       ICHECK_EQ(A->ndim, 2);
       ICHECK_EQ(B->ndim, 2);
@@ -105,11 +105,11 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul")
 
 TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.batch_matmul")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      DLTensor* A = args[0];
-      DLTensor* B = args[1];
-      DLTensor* C = args[2];
-      bool transa = args[3];
-      bool transb = args[4];
+      auto A = args[0].cast<DLTensor*>();
+      auto B = args[1].cast<DLTensor*>();
+      auto C = args[2].cast<DLTensor*>();
+      bool transa = args[3].cast<bool>();
+      bool transb = args[4].cast<bool>();
       // call gemm for simple compact code.
       ICHECK_EQ(A->ndim, 3);
       ICHECK_EQ(B->ndim, 3);

@@ -103,7 +103,7 @@ Optional<ObjectRef> ModuleGetAttr(const String& key) {
   if (IRBuilder::IsInScope()) {
     IRModuleFrame frame = FindModuleFrame();
     if (frame->attrs.find(key) != frame->attrs.end()) {
-      return frame->attrs[key];
+      return frame->attrs[key].cast<ObjectRef>();
     }
   }
   return NullOpt;

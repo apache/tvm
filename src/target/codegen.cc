@@ -53,7 +53,7 @@ runtime::Module Build(IRModule mod, Target target) {
   std::string build_f_name = "target.build." + target->kind->name;
   const auto bf = tvm::ffi::Function::GetGlobal(build_f_name);
   ICHECK(bf.has_value()) << build_f_name << " is not enabled";
-  return (*bf)(mod, target);
+  return (*bf)(mod, target).cast<runtime::Module>();
 }
 
 /*! \brief Helper class to serialize module */
@@ -357,7 +357,8 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   // the codegen function.
   const auto codegen_f = tvm::ffi::Function::GetGlobal(codegen_f_name);
   ICHECK(codegen_f.has_value()) << "codegen.codegen_blob is not presented.";
-  return (*codegen_f)(ffi::Bytes(blob), system_lib, llvm_target_string, c_symbol_prefix);
+  return (*codegen_f)(ffi::Bytes(blob), system_lib, llvm_target_string, c_symbol_prefix)
+      .cast<runtime::Module>();
 }
 
 TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);

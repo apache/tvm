@@ -32,17 +32,17 @@ std::string RPCGetPath(const std::string& name) {
   // do live lookup everytime as workpath can change.
   const auto f = tvm::ffi::Function::GetGlobal("tvm.rpc.server.workpath");
   ICHECK(f.has_value()) << "require tvm.rpc.server.workpath";
-  return (*f)(name);
+  return (*f)(name).cast<std::string>();
 }
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.upload").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  std::string file_name = RPCGetPath(args[0]);
-  std::string data = args[1];
+  std::string file_name = RPCGetPath(args[0].cast<std::string>());
+  auto data = args[1].cast<std::string>();
   SaveBinaryToFile(file_name, data);
 });
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.download").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  std::string file_name = RPCGetPath(args[0]);
+  std::string file_name = RPCGetPath(args[0].cast<std::string>());
   std::string data;
   LoadBinaryFromFile(file_name, &data);
   LOG(INFO) << "Download " << file_name << "... nbytes=" << data.size();
@@ -50,7 +50,7 @@ TVM_REGISTER_GLOBAL("tvm.rpc.server.download").set_body_packed([](TVMArgs args, 
 });
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.remove").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  std::string file_name = RPCGetPath(args[0]);
+  std::string file_name = RPCGetPath(args[0].cast<std::string>());
   RemoveFile(file_name);
 });
 

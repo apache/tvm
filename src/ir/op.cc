@@ -138,7 +138,7 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
       auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
       // enable resgiteration and override of certain properties
       if (attr_key == "num_inputs" && plevel > 128) {
-        reg.set_num_inputs(value);
+        reg.set_num_inputs(value.cast<int>());
       } else if (attr_key == "attrs_type_key" && plevel > 128) {
         LOG(FATAL) << "attrs type key no longer supported";
       } else {

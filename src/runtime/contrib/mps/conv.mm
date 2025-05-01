@@ -26,8 +26,8 @@ using namespace runtime;
 
 TVM_REGISTER_GLOBAL("tvm.contrib.mps.buffer2img")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      DLTensor* buf = args[0];
-      DLTensor* img = args[1];
+      auto buf = args[0].cast<DLTensor*>();
+      auto img = args[1].cast<DLTensor*>();
       // copy to temp
       id<MTLBuffer> mtlbuf = (__bridge id<MTLBuffer>)(buf->data);
       MetalThreadEntry* entry_ptr = MetalThreadEntry::ThreadLocal();
@@ -59,8 +59,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.buffer2img")
 
 TVM_REGISTER_GLOBAL("tvm.contrib.mps.img2buffer")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      DLTensor* img = args[0];
-      DLTensor* buf = args[1];
+      auto img = args[0].cast<DLTensor*>();
+      auto buf = args[1].cast<DLTensor*>();
       id<MTLBuffer> mtlbuf = (__bridge id<MTLBuffer>)(buf->data);
       MPSImage* mpsimg = (__bridge MPSImage*)(img->data);
       MetalThreadEntry* entry_ptr = MetalThreadEntry::ThreadLocal();
@@ -78,11 +78,11 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.img2buffer")
 
 TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   // MPS-NHWC
-  DLTensor* data = args[0];
-  DLTensor* weight = args[1];
-  DLTensor* output = args[2];
-  int pad = args[3];
-  int stride = args[4];
+  auto data = args[0].cast<DLTensor*>();
+  auto weight = args[1].cast<DLTensor*>();
+  auto output = args[2].cast<DLTensor*>();
+  int pad = args[3].cast<int>();
+  int stride = args[4].cast<int>();
 
   ICHECK_EQ(data->ndim, 4);
   ICHECK_EQ(weight->ndim, 4);

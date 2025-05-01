@@ -349,14 +349,14 @@ extern "C" void dnnl_binary_op(float* data, float* weight, float* out, int algo_
 
 // DNNL Conv2d single OP
 TVM_REGISTER_GLOBAL("tvm.contrib.dnnl.conv2d").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* input = args[0];
-  DLTensor* weights = args[1];
-  DLTensor* output = args[2];
+  auto input = args[0].cast<DLTensor*>();
+  auto weights = args[1].cast<DLTensor*>();
+  auto output = args[2].cast<DLTensor*>();
   int p_Ph0_ = args[3], p_Pw0_ = args[4], p_Ph1_ = args[5], p_Pw1_ = args[6], p_Sh_ = args[7],
       p_Sw_ = args[8], p_G_ = args[9];
-  bool channel_last = args[10];
-  bool pre_cast = args[11];
-  bool post_cast = args[12];
+  bool channel_last = args[10].cast<bool>();
+  bool pre_cast = args[11].cast<bool>();
+  bool post_cast = args[12].cast<bool>();
 
   int p_N_ = input->shape[0], p_C_ = input->shape[1], p_H_ = input->shape[2],
       p_W_ = input->shape[3], p_O_ = output->shape[1], p_Kh_ = weights->shape[2],

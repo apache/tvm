@@ -118,7 +118,7 @@ class RPCEndpoint {
    *  auto args = session_constructor_args;
    *  int n = args.size();
    *  if (n != 0) {
-   *    std::string constructor = args[0];
+   *    auto constructor = args[0].cast<std::string>();
    *    server.serving_session_ = GetGlobalFunc(constructor)(
    *        args[1], args[2] ... args[n - 1])
    *  } else {

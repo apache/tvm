@@ -111,15 +111,15 @@ TVM_REGISTER_GLOBAL("testing.call").set_body_packed([](TVMArgs args, TVMRetValue
 });
 
 TVM_REGISTER_GLOBAL("testing.ret_string").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  *ret = args[0].operator String();
+  *ret = args[0].cast<String>();
 });
 
 TVM_REGISTER_GLOBAL("testing.log_info_str").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  LOG(INFO) << args[0].operator String();
+  LOG(INFO) << args[0].cast<String>();
 });
 
 TVM_REGISTER_GLOBAL("testing.log_fatal_str").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  LOG(FATAL) << args[0].operator String();
+  LOG(FATAL) << args[0].cast<String>();
 });
 
 TVM_REGISTER_GLOBAL("testing.add_one").set_body_typed([](int x) { return x + 1; });
@@ -131,7 +131,7 @@ TVM_REGISTER_GLOBAL("testing.wrap_callback").set_body_packed([](TVMArgs args, TV
 
 // internal function used for debug and testing purposes
 TVM_REGISTER_GLOBAL("testing.object_use_count").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  runtime::ObjectRef obj = args[0];
+  auto obj = args[0].cast<ffi::ObjectRef>();
   // subtract the current one because we always copy
   // and get another value.
   *ret = (obj.use_count() - 1);

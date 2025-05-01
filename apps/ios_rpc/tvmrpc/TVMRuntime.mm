@@ -53,13 +53,13 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   static const std::string base_ = NSTemporaryDirectory().UTF8String;
-  const std::string path = args[0];
+  const auto path = args[0].cast<std::string>();
   *rv = base_ + "/" + path;
 });
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module")
     .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-      std::string name = args[0];
+      auto name = args[0].cast<std::string>();
       std::string fmt = GetFileFormat(name, "");
       NSString* base;
       if (fmt == "dylib") {

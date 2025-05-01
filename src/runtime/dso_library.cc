@@ -149,10 +149,9 @@ ObjectPtr<Library> CreateDSOLibraryObject(std::string library_path) {
   return n;
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_so")
-    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-      ObjectPtr<Library> n = CreateDSOLibraryObject(args[0]);
-      *rv = CreateModuleFromLibrary(n);
-    });
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_so").set_body_typed([](std::string library_path) {
+  ObjectPtr<Library> n = CreateDSOLibraryObject(library_path);
+  return CreateModuleFromLibrary(n);
+});
 }  // namespace runtime
 }  // namespace tvm

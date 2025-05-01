@@ -43,7 +43,8 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
         for (const String& key : keys) {
           if (const auto custom_schedule_fn =
                   tvm::ffi::Function::GetGlobal(GetCustomRuleName(ann.value(), key))) {
-            Array<tir::Schedule> result = (*custom_schedule_fn)(sch, block_rv);
+            Array<tir::Schedule> result =
+                (*custom_schedule_fn)(sch, block_rv).cast<Array<tir::Schedule>>();
             return result;
           }
         }

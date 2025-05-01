@@ -335,6 +335,7 @@ inline TDoc IRDocsifierNode::AsDoc(const Any& value, const ObjectPath& path) con
         return Downcast<TDoc>(d);
       } else {
         LOG(FATAL) << "TypeError: Cannot handle Any type: `" << value.GetTypeKey() << "`";
+        TVM_FFI_UNREACHABLE();
       }
     }
   }

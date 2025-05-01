@@ -50,7 +50,7 @@ EnvFunc EnvFunc::Get(const String& name) { return EnvFunc(CreateEnvNode(name)); 
 TVM_REGISTER_GLOBAL("ir.EnvFuncGet").set_body_typed(EnvFunc::Get);
 
 TVM_REGISTER_GLOBAL("ir.EnvFuncCall").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  EnvFunc env = args[0];
+  EnvFunc env = args[0].cast<EnvFunc>();
   ICHECK_GE(args.size(), 1);
   env->func.CallPacked(args.Slice(1), rv);
 });

@@ -457,11 +457,11 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
 TVM_REGISTER_GLOBAL("arith.SolveLinearEquations")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       if (args.size() == 1) {
-        *ret = SolveLinearEquations(args[0]);
+        *ret = SolveLinearEquations(args[0].cast<IntConstraints>());
       } else if (args.size() == 3) {
-        Optional<Array<Var>> opt_vars = args[0];
-        Optional<Map<Var, Range>> opt_map = args[1];
-        Optional<Array<PrimExpr>> opt_relations = args[2];
+        auto opt_vars = args[0].cast<Optional<Array<Var>>>();
+        auto opt_map = args[1].cast<Optional<Map<Var, Range>>>();
+        auto opt_relations = args[2].cast<Optional<Array<PrimExpr>>>();
         IntConstraints problem(opt_vars.value_or({}), opt_map.value_or({}),
                                opt_relations.value_or({}));
         *ret = SolveLinearEquations(problem);

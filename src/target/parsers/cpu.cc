@@ -33,7 +33,7 @@ Optional<String> DetectSystemTriple() {
   auto pf = tvm::ffi::Function::GetGlobal("target.llvm_get_system_triple");
   ICHECK(pf.has_value()) << "The target llvm_get_system_triple was not found, "
                             "please compile with USE_LLVM = ON";
-  return (*pf)();
+  return (*pf)().cast<String>();
 #endif
   return {};
 }

@@ -151,7 +151,7 @@ struct CCLThreadLocalContext {
   deviceStream_t GetDefaultStream() {
     const auto func = tvm::ffi::Function::GetGlobal("runtime.get_" TVM_DISCO_DEVICE_NAME "_stream");
     ICHECK(func.has_value());
-    deviceStream_t stream = static_cast<deviceStream_t>((*func)().operator void*());
+    deviceStream_t stream = static_cast<deviceStream_t>((*func)().cast<void*>());
     return stream == nullptr ? default_stream : stream;
   }
 

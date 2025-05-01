@@ -169,16 +169,19 @@ class FlashInferPagedPrefillFunc : public PagedPrefillFunc {
     IntTuple plan_info_vec;
     if (attn_kind == AttnKind::kMHA) {
       // Todo(tvm-team): enable cuda graph
-      plan_info_vec = plan_func_(
-          float_workspace_buffer, int_workspace_buffer, page_locked_int_workspace_buffer,
-          qo_indptr->as_ndarray(), page_indptr->as_ndarray(), IntTuple(std::move(kv_len)),
-          total_qo_len, batch_size, num_qo_heads, num_kv_heads, page_size,
-          /*enable_cuda_graph=*/false, qk_head_dim, v_head_dim, causal, copy_stream);
+      plan_info_vec =
+          plan_func_(float_workspace_buffer, int_workspace_buffer, page_locked_int_workspace_buffer,
+                     qo_indptr->as_ndarray(), page_indptr->as_ndarray(),
+                     IntTuple(std::move(kv_len)), total_qo_len, batch_size, num_qo_heads,
+                     num_kv_heads, page_size,
+                     /*enable_cuda_graph=*/false, qk_head_dim, v_head_dim, causal, copy_stream)
+              .cast<IntTuple>();
     } else if (attn_kind == AttnKind::kMLA) {
       plan_info_vec =
           plan_func_(float_workspace_buffer, int_workspace_buffer, page_locked_int_workspace_buffer,
                      qo_indptr->as_ndarray(), page_indptr->as_ndarray(),
-                     IntTuple(std::move(kv_len)), num_qo_heads, v_head_dim, causal, copy_stream);
+                     IntTuple(std::move(kv_len)), num_qo_heads, v_head_dim, causal, copy_stream)
+              .cast<IntTuple>();
     }
 
     if (cached_buffers_.size() <= static_cast<size_t>(depth)) {
@@ -274,7 +277,8 @@ class FlashInferRaggedPrefillFunc : public RaggedPrefillFunc {
         plan_func_(float_workspace_buffer, int_workspace_buffer, page_locked_int_workspace_buffer,
                    qo_indptr->as_ndarray(), kv_indptr->as_ndarray(), IntTuple(std::move(kv_len)),
                    total_qo_len, batch_size, num_qo_heads, num_kv_heads, /*page_size=*/1,
-                   /*enable_cuda_graph=*/false, qk_head_dim, v_head_dim, causal, copy_stream);
+                   /*enable_cuda_graph=*/false, qk_head_dim, v_head_dim, causal, copy_stream)
+            .cast<IntTuple>();
   }
 
  private:
@@ -366,11 +370,13 @@ class FlashInferPagedDecodeFunc : public PagedDecodeFunc {
                     RoPEMode rope_mode, DataType q_dtype, DataType kv_dtype,
                     TVMStreamHandle copy_stream) final {
     // Todo(tvm-team): enable cuda graph
-    IntTuple plan_info_vec = plan_func_(
-        float_workspace_buffer, int_workspace_buffer, page_locked_int_workspace_buffer,
-        page_indptr->as_ndarray(), batch_size, num_qo_heads, num_kv_heads, page_size,
-        /*enable_cuda_graph=*/false, static_cast<int64_t>(rope_mode == RoPEMode::kInline),
-        /*window_left=*/-1, qk_head_dim, v_head_dim, q_dtype, kv_dtype, copy_stream);
+    IntTuple plan_info_vec =
+        plan_func_(float_workspace_buffer, int_workspace_buffer, page_locked_int_workspace_buffer,
+                   page_indptr->as_ndarray(), batch_size, num_qo_heads, num_kv_heads, page_size,
+                   /*enable_cuda_graph=*/false,
+                   static_cast<int64_t>(rope_mode == RoPEMode::kInline),
+                   /*window_left=*/-1, qk_head_dim, v_head_dim, q_dtype, kv_dtype, copy_stream)
+            .cast<IntTuple>();
 
     if (cached_buffers_.size() <= static_cast<size_t>(depth)) {
       cached_buffers_.resize(depth + 1);

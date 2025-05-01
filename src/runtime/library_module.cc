@@ -103,7 +103,7 @@ Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream) {
                << "Perhaps you need to recompile with this runtime enabled.";
   }
 
-  return (*f)(static_cast<void*>(stream));
+  return (*f)(static_cast<void*>(stream)).cast<Module>();
 }
 
 /*!

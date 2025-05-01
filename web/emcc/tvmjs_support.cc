@@ -134,7 +134,7 @@ class AsyncLocalSession : public LocalSession {
     auto it = async_func_set_.find(func);
     if (it != async_func_set_.end()) {
       PackedFunc packed_callback([callback, this](TVMArgs args, TVMRetValue*) {
-        int code = args[0];
+        int code = args[0].cast<int>();
         TVMRetValue rv;
         rv = args[1];
         if (code == static_cast<int>(RPCCode::kReturn)) {
@@ -224,7 +224,7 @@ class AsyncLocalSession : public LocalSession {
       }
       CHECK(async_wait_.has_value());
       PackedFunc packed_callback([on_complete](TVMArgs args, TVMRetValue*) {
-        int code = args[0];
+        int code = args[0].cast<int>();
         on_complete(static_cast<RPCCode>(code), args.Slice(1));
       });
       (*async_wait_)(packed_callback);

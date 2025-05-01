@@ -762,15 +762,15 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
 
 TVM_REGISTER_GLOBAL("device_api.opencl.alloc_nd")
     .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-      int32_t device_type = args[0];
-      int32_t device_id = args[1];
-      int32_t dtype_code_hint = args[2];
-      int32_t dtype_bits_hint = args[3];
-      std::string scope = args[4];
+      int32_t device_type = args[0].cast<int32_t>();
+      int32_t device_id = args[1].cast<int32_t>();
+      int32_t dtype_code_hint = args[2].cast<int32_t>();
+      int32_t dtype_bits_hint = args[3].cast<int32_t>();
+      auto scope = args[4].cast<std::string>();
       CHECK(scope.find("texture") != std::string::npos);
-      int64_t ndim = args[5];
+      int64_t ndim = args[5].cast<int64_t>();
       CHECK_EQ(ndim, 2);
-      int64_t* shape = static_cast<int64_t*>(static_cast<void*>(args[6]));
+      int64_t* shape = static_cast<int64_t*>(args[6].cast<void*>());
       int64_t width = shape[0];
       int64_t height = shape[1];
 
@@ -789,11 +789,11 @@ TVM_REGISTER_GLOBAL("device_api.opencl.alloc_nd")
     });
 
 TVM_REGISTER_GLOBAL("device_api.opencl.free_nd").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  int32_t device_type = args[0];
-  int32_t device_id = args[1];
-  std::string scope = args[2];
+  int32_t device_type = args[0].cast<int32_t>();
+  int32_t device_id = args[1].cast<int32_t>();
+  auto scope = args[2].cast<std::string>();
   CHECK(scope.find("texture") != std::string::npos);
-  void* data = args[3];
+  void* data = args[3].cast<void*>();
   OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
   Device dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);

@@ -56,8 +56,8 @@ The following code block provides an example in C++
 
     void MyAdd(TVMArgs args, TVMRetValue* rv) {
       // automatically convert arguments to desired type.
-      int a = args[0];
-      int b = args[1];
+      int a = args[0].cast<int>();
+      int b = args[1].cast<int>();
       // automatically assign value return to rv
       *rv = a + b;
     }

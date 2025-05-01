@@ -489,7 +489,7 @@ AttrFrame Attr(ffi::Any node, String attr_key, PrimExpr value) {
     node = node.as<PrimExpr>().value();
   }
   ObjectPtr<AttrFrameNode> n = make_object<AttrFrameNode>();
-  n->node = node;
+  n->node = node.cast<ObjectRef>();
   n->attr_key = attr_key;
   n->value = value;
   return AttrFrame(n);

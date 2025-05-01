@@ -305,9 +305,9 @@ TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_view")
       CHECK(args.size() == 1 || args.size() == 2)
           << "ValueError: `vm.builtin.attention_kv_cache_view` expects 1 or 2 arguments, but got "
           << args.size() << ".";
-      AttentionKVCacheLegacy cache = args[0];
+      AttentionKVCacheLegacy cache = args[0].cast<AttentionKVCacheLegacy>();
       if (args.size() == 2) {
-        ShapeTuple shape = args[1];
+        ShapeTuple shape = args[1].cast<ShapeTuple>();
         *rv = cache->View(shape);
       } else {
         std::vector<ShapeTuple::index_type> shape;

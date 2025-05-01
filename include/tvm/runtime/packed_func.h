@@ -341,52 +341,38 @@ struct ModuleVTableEntryHelper {};
 template <typename T, typename R, typename... Args>
 struct ModuleVTableEntryHelper<R (T::*)(Args...) const> {
   using MemFnType = R (T::*)(Args...) const;
-  using IndexSeq = std::index_sequence_for<Args...>;
-  static constexpr const std::size_t LenArgs = sizeof...(Args);
-
-  template <std::size_t... Is>
-  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args,
-                                     std::index_sequence<Is...>) {
-    *rv = (self->*f)(args[Is]...);
+  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args) {
+    auto wrapped = [self, f](Args... args) -> R { return (self->*f)(std::forward<Args>(args)...); };
+    ffi::details::unpack_call<R, sizeof...(Args)>(nullptr, wrapped, args.data(), args.size(), rv);
   }
 };
 
 template <typename T, typename R, typename... Args>
 struct ModuleVTableEntryHelper<R (T::*)(Args...)> {
   using MemFnType = R (T::*)(Args...);
-  using IndexSeq = std::index_sequence_for<Args...>;
-  static constexpr const std::size_t LenArgs = sizeof...(Args);
-
-  template <std::size_t... Is>
-  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args,
-                                     std::index_sequence<Is...>) {
-    *rv = (self->*f)(args[Is]...);
+  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args) {
+    auto wrapped = [self, f](Args... args) -> R { return (self->*f)(std::forward<Args>(args)...); };
+    ffi::details::unpack_call<R, sizeof...(Args)>(nullptr, wrapped, args.data(), args.size(), rv);
   }
 };
 
 template <typename T, typename... Args>
 struct ModuleVTableEntryHelper<void (T::*)(Args...) const> {
   using MemFnType = void (T::*)(Args...) const;
-  using IndexSeq = std::index_sequence_for<Args...>;
-  static constexpr const std::size_t LenArgs = sizeof...(Args);
-
-  template <std::size_t... Is>
-  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args,
-                                     std::index_sequence<Is...>) {
-    (self->*f)(args[Is]...);
+  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args) {
+    auto wrapped = [self, f](Args... args) -> void { (self->*f)(std::forward<Args>(args)...); };
+    ffi::details::unpack_call<void, sizeof...(Args)>(nullptr, wrapped, args.data(), args.size(),
+                                                     rv);
   }
 };
 
 template <typename T, typename... Args>
 struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
   using MemFnType = void (T::*)(Args...);
-  using IndexSeq = std::index_sequence_for<Args...>;
-  static constexpr const std::size_t LenArgs = sizeof...(Args);
-
-  template <std::size_t... Is>
-  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args,
-                                     std::index_sequence<Is...>) {
-    (self->*f)(args[Is]...);
+  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args) {
+    auto wrapped = [self, f](Args... args) -> void { (self->*f)(std::forward<Args>(args)...); };
+    ffi::details::unpack_call<void, sizeof...(Args)>(nullptr, wrapped, args.data(), args.size(),
+                                                     rv);
   }
 };
 }  // namespace details
@@ -404,16 +390,13 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
     return (this->*f)(_name);                       \
   }                                                 \
   }  // NOLINT(*)
-#define TVM_MODULE_VTABLE_ENTRY(Name, MemFunc)                                                    \
-  if (_name == Name) {                                                                            \
-    return ffi::Function::FromPacked([_self](ffi::PackedArgs args, Any* rv) -> void {             \
-      using Helper = ::tvm::runtime::details::ModuleVTableEntryHelper<decltype(MemFunc)>;         \
-      SelfPtr self = static_cast<SelfPtr>(_self.get());                                           \
-      CHECK_EQ(args.size(), Helper::LenArgs)                                                      \
-          << "Function `" << self->type_key() << "::" << Name << "` requires " << Helper::LenArgs \
-          << " arguments, but got " << args.size();                                               \
-      Helper::Call(rv, self, MemFunc, args, Helper::IndexSeq{});                                  \
-    });                                                                                           \
+#define TVM_MODULE_VTABLE_ENTRY(Name, MemFunc)                                            \
+  if (_name == Name) {                                                                    \
+    return ffi::Function::FromPacked([_self](ffi::PackedArgs args, Any* rv) -> void {     \
+      using Helper = ::tvm::runtime::details::ModuleVTableEntryHelper<decltype(MemFunc)>; \
+      SelfPtr self = static_cast<SelfPtr>(_self.get());                                   \
+      Helper::Call(rv, self, MemFunc, args);                                              \
+    });                                                                                   \
   }
 #define TVM_MODULE_VTABLE_ENTRY_PACKED(Name, MemFunc)                  \
   if (_name == Name) {                                                 \

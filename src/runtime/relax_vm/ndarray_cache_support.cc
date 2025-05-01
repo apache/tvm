@@ -270,15 +270,15 @@ TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.get").set_body_typed(NDArrayCache:
 TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.update")
     .set_body_packed([](ffi::PackedArgs args, Any* rv) {
       CHECK(args.size() == 2 || args.size() == 3);
-      String name = args[0];
-      bool is_override = args.size() == 2 ? false : args[2].operator bool();
+      String name = args[0].cast<String>();
+      bool is_override = args.size() == 2 ? false : args[2].cast<bool>();
 
       NDArray arr;
       if (auto opt_nd = args[1].as<NDArray>()) {
         arr = opt_nd.value();
       } else {
         // We support converting DLTensors to NDArrays as RPC references are always DLTensors
-        DLTensor* tensor = args[1];
+        auto tensor = args[1].cast<DLTensor*>();
         std::vector<int64_t> shape;
         for (int64_t i = 0; i < tensor->ndim; i++) {
           shape.push_back(tensor->shape[i]);
@@ -368,7 +368,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name_unpacked")
           LOG(FATAL) << "ValueError: Expect string as input, but get " << args[i].GetTypeKey()
                      << " at " << i;
         }
-        names.push_back(args[i]);
+        names.push_back(args[i].cast<String>());
       }
       *rv = ParamModuleNode::GetParamByName(names);
     });

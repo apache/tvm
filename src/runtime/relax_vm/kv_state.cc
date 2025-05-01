@@ -41,12 +41,12 @@ TVM_REGISTER_GLOBAL("vm.builtin.kv_state_begin_forward")
     .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       CHECK(args.size() == 3 || args.size() == 4)
           << "KVState BeginForward only accepts 3 or 4 arguments";
-      KVState kv_state = args[0];
-      IntTuple seq_ids = args[1];
-      IntTuple append_lengths = args[2];
+      KVState kv_state = args[0].cast<KVState>();
+      IntTuple seq_ids = args[1].cast<IntTuple>();
+      IntTuple append_lengths = args[2].cast<IntTuple>();
       Optional<IntTuple> token_tree_parent_ptr;
       if (args.size() == 4) {
-        token_tree_parent_ptr = args[3].operator Optional<IntTuple>();
+        token_tree_parent_ptr = args[3].cast<Optional<IntTuple>>();
       }
       kv_state->BeginForward(seq_ids, append_lengths, token_tree_parent_ptr);
     });

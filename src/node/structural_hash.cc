@@ -137,7 +137,7 @@ class SHashHandlerDefault::Impl {
     if (value.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
       return BaseValueHash().HashPODValueInAny(value);
     }
-    ObjectRef object = value.operator ObjectRef();
+    ObjectRef object = value.cast<ObjectRef>();
     ICHECK_EQ(task_stack_.size(), 0U);
     ICHECK_EQ(pending_tasks_.size(), 0U);
     ICHECK_EQ(result_stack_.size(), 0U);
@@ -551,7 +551,7 @@ struct MapObjTrait {
       uint64_t hashed_value;
       // skip non-object keys
       if (kv.first.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-        if (hash_reduce->LookupHashedValue(kv.first, &hashed_value)) {
+        if (hash_reduce->LookupHashedValue(kv.first.cast<ObjectRef>(), &hashed_value)) {
           temp.emplace_back(hashed_value, kv.second);
         }
       }
@@ -583,7 +583,7 @@ struct MapObjTrait {
     using KV = std::pair<String, Any>;
     std::vector<KV> temp;
     for (const auto& kv : *key) {
-      temp.push_back(std::make_pair(kv.first.operator String(), kv.second));
+      temp.push_back(std::make_pair(kv.first.cast<String>(), kv.second));
     }
     // sort by the hash key of the keys.
     std::sort(temp.begin(), temp.end(),

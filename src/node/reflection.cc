@@ -180,28 +180,26 @@ class NodeAttrSetter : public AttrVisitor {
   std::string type_key;
   std::unordered_map<std::string, runtime::TVMArgValue> attrs;
 
-  void Visit(const char* key, double* value) final { *value = GetAttr(key).operator double(); }
-  void Visit(const char* key, int64_t* value) final { *value = GetAttr(key).operator int64_t(); }
-  void Visit(const char* key, uint64_t* value) final { *value = GetAttr(key).operator uint64_t(); }
-  void Visit(const char* key, int* value) final { *value = GetAttr(key).operator int(); }
-  void Visit(const char* key, bool* value) final { *value = GetAttr(key).operator bool(); }
+  void Visit(const char* key, double* value) final { *value = GetAttr(key).cast<double>(); }
+  void Visit(const char* key, int64_t* value) final { *value = GetAttr(key).cast<int64_t>(); }
+  void Visit(const char* key, uint64_t* value) final { *value = GetAttr(key).cast<uint64_t>(); }
+  void Visit(const char* key, int* value) final { *value = GetAttr(key).cast<int>(); }
+  void Visit(const char* key, bool* value) final { *value = GetAttr(key).cast<bool>(); }
   void Visit(const char* key, std::string* value) final {
-    *value = GetAttr(key).operator std::string();
+    *value = GetAttr(key).cast<std::string>();
   }
-  void Visit(const char* key, void** value) final { *value = GetAttr(key).operator void*(); }
-  void Visit(const char* key, DataType* value) final { *value = GetAttr(key).operator DataType(); }
+  void Visit(const char* key, void** value) final { *value = GetAttr(key).cast<void*>(); }
+  void Visit(const char* key, DataType* value) final { *value = GetAttr(key).cast<DataType>(); }
   void Visit(const char* key, runtime::NDArray* value) final {
-    *value = GetAttr(key).operator runtime::NDArray();
+    *value = GetAttr(key).cast<runtime::NDArray>();
   }
-  void Visit(const char* key, ObjectRef* value) final {
-    *value = GetAttr(key).operator ObjectRef();
-  }
+  void Visit(const char* key, ObjectRef* value) final { *value = GetAttr(key).cast<ObjectRef>(); }
 
   void Visit(const char* key, Optional<double>* value) final {
-    *value = GetAttr(key).operator Optional<double>();
+    *value = GetAttr(key).cast<Optional<double>>();
   }
   void Visit(const char* key, Optional<int64_t>* value) final {
-    *value = GetAttr(key).operator Optional<int64_t>();
+    *value = GetAttr(key).cast<Optional<int64_t>>();
   }
 
  private:
@@ -221,7 +219,7 @@ void InitNodeByPackedArgs(ReflectionVTable* reflection, Object* n, const TVMArgs
   setter.type_key = n->GetTypeKey();
   ICHECK_EQ(args.size() % 2, 0);
   for (int i = 0; i < args.size(); i += 2) {
-    setter.attrs.emplace(args[i].operator std::string(), args[i + 1]);
+    setter.attrs.emplace(args[i].cast<std::string>(), args[i + 1]);
   }
   reflection->VisitAttrs(n, &setter);
 
@@ -254,7 +252,7 @@ ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
   int index = 0;
 
   for (const auto& kv : *static_cast<const MapObj*>(kwargs.get())) {
-    packed_args[index] = kv.first.operator String().c_str();
+    packed_args[index] = kv.first.cast<String>().c_str();
     packed_args[index + 1] = kv.second;
     index += 2;
   }
@@ -264,18 +262,18 @@ ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
 
 // Expose to FFI APIs.
 void NodeGetAttr(TVMArgs args, TVMRetValue* ret) {
-  Object* self = const_cast<Object*>(args[0].operator const Object*());
-  *ret = ReflectionVTable::Global()->GetAttr(self, args[1]);
+  Object* self = const_cast<Object*>(args[0].cast<const Object*>());
+  *ret = ReflectionVTable::Global()->GetAttr(self, args[1].cast<std::string>());
 }
 
 void NodeListAttrNames(TVMArgs args, TVMRetValue* ret) {
-  Object* self = const_cast<Object*>(args[0].operator const Object*());
+  Object* self = const_cast<Object*>(args[0].cast<const Object*>());
 
   auto names =
       std::make_shared<std::vector<std::string>>(ReflectionVTable::Global()->ListAttrNames(self));
 
   *ret = PackedFunc([names](TVMArgs args, TVMRetValue* rv) {
-    int64_t i = args[0];
+    int64_t i = args[0].cast<int64_t>();
     if (i == -1) {
       *rv = static_cast<int64_t>(names->size());
     } else {
@@ -288,7 +286,7 @@ void NodeListAttrNames(TVMArgs args, TVMRetValue* ret) {
 // args format:
 //   key1, value1, ..., key_n, value_n
 void MakeNode(const TVMArgs& args, TVMRetValue* rv) {
-  std::string type_key = args[0];
+  auto type_key = args[0].cast<std::string>();
   *rv = ReflectionVTable::Global()->CreateObject(type_key, args.Slice(1));
 }
 

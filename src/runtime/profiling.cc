@@ -109,7 +109,7 @@ Timer Timer::Start(Device dev) {
     t->Start();
     return t;
   } else {
-    Timer t = f->operator()(dev);
+    Timer t = f->operator()(dev).cast<Timer>();
     t->Start();
     return t;
   }
@@ -166,7 +166,7 @@ void Profiler::StopCall(std::unordered_map<std::string, ObjectRef> extra_metrics
   for (const auto& obj : cf.extra_collectors) {
     auto collector_metrics = obj.first->Stop(obj.second);
     for (auto& p : collector_metrics) {
-      cf.extra_metrics[p.first] = p.second;
+      cf.extra_metrics[p.first] = p.second.cast<ObjectRef>();
     }
   }
   in_flight_.pop();
@@ -334,7 +334,7 @@ String ReportNode::AsJSON() const {
     s << "{";
     for (const auto& kv : calls[i]) {
       s << "\"" << kv.first << "\":";
-      metric_as_json(s, kv.second);
+      metric_as_json(s, kv.second.cast<ObjectRef>());
       if (j < calls[i].size() - 1) {
         s << ",";
       }
@@ -354,7 +354,7 @@ String ReportNode::AsJSON() const {
     s << "\"" << dev_kv.first << "\":{";
     for (const auto& metric_kv : dev_kv.second) {
       s << "\"" << metric_kv.first << "\":";
-      metric_as_json(s, metric_kv.second);
+      metric_as_json(s, metric_kv.second.cast<ObjectRef>());
       if (j < dev_kv.second.size() - 1) {
         s << ",";
       }
@@ -372,7 +372,7 @@ String ReportNode::AsJSON() const {
   size_t k = 0;
   for (const auto& kv : configuration) {
     s << "\"" << kv.first << "\":";
-    metric_as_json(s, kv.second);
+    metric_as_json(s, kv.second.cast<ObjectRef>());
     if (k < configuration.size() - 1) {
       s << ",";
     }
@@ -511,7 +511,7 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
                                    return std::string(call_metric.first) == metric;
                                  });
           if (it != call.end()) {
-            per_call.push_back((*it).second);
+            per_call.push_back((*it).second.cast<ObjectRef>());
           }
         }
         if (per_call.size() > 0) {
@@ -607,7 +607,7 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
         // fill empty data with empty strings
         cols[i].push_back("");
       } else {
-        cols[i].push_back(print_metric((*it).second));
+        cols[i].push_back(print_metric((*it).second.cast<ObjectRef>()));
       }
     }
   }
@@ -647,7 +647,7 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
   // Add configuration information. It will not be aligned with the columns.
   s << std::endl << "Configuration" << std::endl << "-------------" << std::endl;
   for (auto kv : configuration) {
-    s << kv.first << ": " << print_metric(kv.second) << std::endl;
+    s << kv.first << ": " << print_metric(kv.second.cast<ObjectRef>()) << std::endl;
   }
   return s.str();
 }

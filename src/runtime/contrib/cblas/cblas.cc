@@ -124,7 +124,7 @@ struct CblasDgemmBatchIterativeOp {
 
 // matrix multiplication for row major
 TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* A = args[0];
+  auto A = args[0].cast<DLTensor*>();
   ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
 
   if (TypeMatch(A->dtype, kDLFloat, 32))
@@ -135,7 +135,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul").set_body_packed([](TVMArgs args,
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      DLTensor* A = args[0];
+      auto A = args[0].cast<DLTensor*>();
       ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
       if (TypeMatch(A->dtype, kDLFloat, 32)) {
         CallBatchGemm(args, ret, CblasSgemmBatchOp());
@@ -146,7 +146,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul")
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul_iterative")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      DLTensor* A = args[0];
+      auto A = args[0].cast<DLTensor*>();
       ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
       if (TypeMatch(A->dtype, kDLFloat, 32)) {
         CallBatchGemm(args, ret, CblasSgemmBatchIterativeOp());

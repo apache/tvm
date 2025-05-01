@@ -33,9 +33,9 @@ namespace miopen {
 using namespace runtime;
 
 void softmax_impl(TVMArgs args, TVMRetValue* ret, miopenSoftmaxAlgorithm_t alg) {
-  DLTensor* x = args[0];
-  DLTensor* y = args[1];
-  int axis = args[2];
+  auto x = args[0].cast<DLTensor*>();
+  auto y = args[1].cast<DLTensor*>();
+  int axis = args[2].cast<int>();
   int ndim = x->ndim;
   int64_t* shape = x->shape;
   if (axis < 0) axis += ndim;

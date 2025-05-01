@@ -117,7 +117,7 @@ class ConstantFolder : public ExprMutator {
       // TODO(Hongyi): further check and narrow the scope of foldable function
       const auto pf = tvm::ffi::Function::GetGlobalRequired("tir.build");
       func = WithAttr(func, tvm::attr::kGlobalSymbol, String("tir_function"));
-      runtime::Module rt_module = pf(func, eval_cpu_target);
+      runtime::Module rt_module = pf(func, eval_cpu_target).cast<runtime::Module>();
       build_func = rt_module.GetFunction("tir_function");
     } catch (const tvm::Error& err) {
       // build failure may happen in which case we skip
@@ -294,7 +294,7 @@ class ConstantFolder : public ExprMutator {
         }
         if (is_known) {
           const auto func = tvm::ffi::Function::GetGlobalRequired("relax.run.shape_to_tensor");
-          runtime::NDArray vals = func(arr);
+          runtime::NDArray vals = func(arr).cast<runtime::NDArray>();
           return Constant(vals);
         }
       }

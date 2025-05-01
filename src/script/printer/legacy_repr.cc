@@ -82,7 +82,7 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
         if (i != 0) {
           (*p) << ", ";
         }
-        p->Print(op->at(i));
+        p->Print(op->at(i).cast<ObjectRef>());
       }
       (*p) << ']';
     });
@@ -98,10 +98,10 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
         if (it->first.as<ffi::StringObj>()) {
           (*p) << '\"' << Downcast<ffi::String>(it->first) << "\": ";
         } else {
-          p->Print(it->first);
+          p->Print(it->first.cast<ObjectRef>());
           (*p) << ": ";
         }
-        p->Print(it->second);
+        p->Print(it->second.cast<ObjectRef>());
       }
       (*p) << '}';
     });

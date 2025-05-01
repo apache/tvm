@@ -371,7 +371,7 @@ Map<String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
     const Map<String, ffi::Any>& annotations) {
   auto new_annotations = annotations;
 
-  std::function<ObjectRef(const Any&)> f_mutate_obj =
+  std::function<ObjectRef(const ObjectRef&)> f_mutate_obj =
       [this, &f_mutate_obj](const ObjectRef& obj) -> ObjectRef {
     if (!obj.defined()) {
       return obj;
@@ -387,9 +387,9 @@ Map<String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
     return obj;
   };
   for (const auto& [key, value] : annotations) {
-    if (auto* object_ptr = value.as<Object>()) {
-      auto new_value = f_mutate_obj(GetRef<ObjectRef>(object_ptr));
-      if (!new_value.same_as(value)) {
+    if (auto opt_object_ref = value.as<ObjectRef>()) {
+      auto new_value = f_mutate_obj(*opt_object_ref);
+      if (!new_value.same_as(*opt_object_ref)) {
         new_annotations.Set(key, new_value);
       }
     }

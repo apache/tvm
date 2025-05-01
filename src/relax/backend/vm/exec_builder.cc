@@ -331,7 +331,7 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderCreate").set_body_typed(ExecBuilderNode::C
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderConvertConstant")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      ExecBuilder builder = args[0];
+      ExecBuilder builder = args[0].cast<ExecBuilder>();
       TVMRetValue rt;
       rt = args[1];
       *ret = builder->ConvertConstant(rt).data();

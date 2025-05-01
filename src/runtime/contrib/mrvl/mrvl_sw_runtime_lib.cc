@@ -74,7 +74,7 @@ static void ReadInputsAndGenerateInputBin(TVMArgs args, const std::string& input
       NDArray arr = args[i];
       tensor = arr.operator->();
     } else {
-      tensor = args[i].operator DLTensor*();
+      tensor = args[i].cast<DLTensor*>();
     }
     std::vector<int64_t> shape;
     for (int64_t i = 0; i < tensor->ndim; i++) {

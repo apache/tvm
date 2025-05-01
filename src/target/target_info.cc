@@ -45,7 +45,7 @@ MemoryInfo GetMemoryInfo(const std::string& scope) {
     LOG(WARNING) << "MemoryInfo for scope = " << scope << " is undefined";
     return MemoryInfo();
   } else {
-    return (*f)();
+    return (*f)().cast<MemoryInfo>();
   }
 }
 

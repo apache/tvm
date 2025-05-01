@@ -273,11 +273,11 @@ void CallHipblasLt(hipblasLtHandle_t hdl, hipStream_t stream,
 }
 
 inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, hipblasHandle_t hdl) {
-  DLTensor* A = args[0];
-  DLTensor* B = args[1];
-  DLTensor* C = args[2];
-  bool transa = args[3];
-  bool transb = args[4];
+  auto A = args[0].cast<DLTensor*>();
+  auto B = args[1].cast<DLTensor*>();
+  auto C = args[2].cast<DLTensor*>();
+  bool transa = args[3].cast<bool>();
+  bool transb = args[4].cast<bool>();
   ICHECK_EQ(A->ndim, 2);
   ICHECK_EQ(B->ndim, 2);
   ICHECK_EQ(C->ndim, 2);
@@ -331,11 +331,11 @@ inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, hipblasHandle_t hdl) {
 }
 
 inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, hipblasHandle_t hdl) {
-  DLTensor* A = args[0];
-  DLTensor* B = args[1];
-  DLTensor* C = args[2];
-  bool transa = args[3];
-  bool transb = args[4];
+  auto A = args[0].cast<DLTensor*>();
+  auto B = args[1].cast<DLTensor*>();
+  auto C = args[2].cast<DLTensor*>();
+  bool transa = args[3].cast<bool>();
+  bool transb = args[4].cast<bool>();
   ICHECK_EQ(A->ndim, 3);
   ICHECK_EQ(B->ndim, 3);
   ICHECK_EQ(C->ndim, 3);
@@ -409,8 +409,8 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, hipblasHandle_t hdl)
 // matrix multiplication for row major
 TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      DLTensor* A = args[0];
-      DLTensor* C = args[2];
+      auto A = args[0].cast<DLTensor*>();
+      auto C = args[2].cast<DLTensor*>();
 
       HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal();
 
@@ -432,8 +432,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul")
 
 TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.batch_matmul")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      DLTensor* A = args[0];
-      DLTensor* C = args[2];
+      auto A = args[0].cast<DLTensor*>();
+      auto C = args[2].cast<DLTensor*>();
 
       HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal();
 

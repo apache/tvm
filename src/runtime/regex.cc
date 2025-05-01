@@ -35,7 +35,7 @@ bool regex_match(const std::string& match_against, const std::string& regex_patt
       << "RuntimeError: "
       << "The PackedFunc 'tvm.runtime.regex_match' has not been registered.  "
       << "This can occur if the TVM Python library has not yet been imported.";
-  return (*regex_match_func)(regex_pattern, match_against);
+  return (*regex_match_func)(regex_pattern, match_against).cast<bool>();
 }
 
 }  // namespace runtime

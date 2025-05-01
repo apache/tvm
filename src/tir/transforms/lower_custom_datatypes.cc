@@ -56,7 +56,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
       ICHECK(lower) << "Cast lowering function for target " << target_ << " destination type "
                     << static_cast<unsigned>(type_code) << " source type "
                     << static_cast<unsigned>(src_type_code) << " not found";
-      return (*lower)(expr);
+      return (*lower)(expr).cast<PrimExpr>();
     }
     return expr;
   }
@@ -68,7 +68,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
       auto lower = datatype::GetFloatImmLowerFunc(target_, type_code);
       ICHECK(lower) << "FloatImm lowering function for target " << target_ << " type "
                     << static_cast<unsigned>(type_code) << " not found";
-      return (*lower)(e);
+      return (*lower)(e).cast<PrimExpr>();
     }
     return e;
   }
@@ -191,7 +191,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
       ICHECK(lower) << "Intrinsic lowering function for target " << target_ << ", intrinsic name "
                     << op->name << ", type " << static_cast<unsigned>(call->dtype.code())
                     << " not found";
-      return (*lower)(expr);
+      return (*lower)(expr).cast<PrimExpr>();
     }
     return expr;
   }
@@ -206,7 +206,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
       auto lower = datatype::Get##OP##LowerFunc(target_, type_code);                 \
       ICHECK(lower) << #OP " lowering function for target " << target_ << " type "   \
                     << static_cast<unsigned>(type_code) << " not found";             \
-      return (*lower)(expr);                                                         \
+      return (*lower)(expr).cast<PrimExpr>();                                        \
     }                                                                                \
     return expr;                                                                     \
   }

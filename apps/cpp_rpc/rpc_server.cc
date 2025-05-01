@@ -398,8 +398,6 @@ void RPCServerCreate(std::string host, int port, int port_end, std::string track
   rpc.Start();
 }
 
-TVM_REGISTER_GLOBAL("rpc.ServerCreate").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  RPCServerCreate(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
-});
+TVM_REGISTER_GLOBAL("rpc.ServerCreate").set_body_typed(RPCServerCreate);
 }  // namespace runtime
 }  // namespace tvm

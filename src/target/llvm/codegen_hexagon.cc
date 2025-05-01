@@ -583,7 +583,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
         << "unexpected -mcpu value in target:" << mcpu;
     extra_args.Set("hex_arch", llvm::StringRef(mcpu).drop_front(strlen("hexagon")).str());
   }
-  int rc = (*f)(so_name, o_names, extra_args);
+  int rc = (*f)(so_name, o_names, extra_args).cast<int>();
   ICHECK(rc == 0) << "Failed to link " << so_name;
 
   return HexagonModuleCreate(so_name, "so", ExtractFuncInfo(mod), asm_str, obj_str, ir_str, bc_str);

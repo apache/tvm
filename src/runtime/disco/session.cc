@@ -49,7 +49,7 @@ TVM_REGISTER_GLOBAL("runtime.disco.SessionInitCCL")  //
     .set_body_method(&SessionObj::InitCCL);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionCallPacked")
     .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-      Session self = args[0];
+      Session self = args[0].cast<Session>();
       *rv = SessionObj::FFI::CallWithPacked(self, args.Slice(1));
     });
 TVM_REGISTER_GLOBAL("runtime.disco.SessionShutdown").set_body_method(&SessionObj::Shutdown);

@@ -72,9 +72,9 @@ RandomThreadLocalEntry* RandomThreadLocalEntry::ThreadLocal() {
 TVM_REGISTER_GLOBAL("tvm.contrib.random.randint")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       RandomThreadLocalEntry* entry = RandomThreadLocalEntry::ThreadLocal();
-      int64_t low = args[0];
-      int64_t high = args[1];
-      DLTensor* out = args[2];
+      int64_t low = args[0].cast<int64_t>();
+      int64_t high = args[1].cast<int64_t>();
+      auto out = args[2].cast<DLTensor*>();
       ICHECK_GT(high, low) << "high must be bigger than low";
       ICHECK(out->strides == nullptr);
 
@@ -106,32 +106,32 @@ TVM_REGISTER_GLOBAL("tvm.contrib.random.randint")
 TVM_REGISTER_GLOBAL("tvm.contrib.random.uniform")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       RandomThreadLocalEntry* entry = RandomThreadLocalEntry::ThreadLocal();
-      double low = args[0];
-      double high = args[1];
-      DLTensor* out = args[2];
+      double low = args[0].cast<double>();
+      double high = args[1].cast<double>();
+      auto out = args[2].cast<DLTensor*>();
       entry->random_engine.SampleUniform(out, low, high);
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.random.normal")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       RandomThreadLocalEntry* entry = RandomThreadLocalEntry::ThreadLocal();
-      double loc = args[0];
-      double scale = args[1];
-      DLTensor* out = args[2];
+      double loc = args[0].cast<double>();
+      double scale = args[1].cast<double>();
+      auto out = args[2].cast<DLTensor*>();
       entry->random_engine.SampleNormal(out, loc, scale);
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.random.random_fill")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       RandomThreadLocalEntry* entry = RandomThreadLocalEntry::ThreadLocal();
-      DLTensor* out = args[0];
+      auto out = args[0].cast<DLTensor*>();
       entry->random_engine.RandomFill(out);
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.random.random_fill_for_measure")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) -> void {
       const auto curand = tvm::ffi::Function::GetGlobal("runtime.contrib.curand.RandomFill");
-      DLTensor* out = args[0];
+      auto out = args[0].cast<DLTensor*>();
       if (curand.has_value() && out->device.device_type == DLDeviceType::kDLCUDA) {
         if (out->dtype.code == DLDataTypeCode::kDLFloat) {
           (*curand)(out);

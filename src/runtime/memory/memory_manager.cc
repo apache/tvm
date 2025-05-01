@@ -149,7 +149,7 @@ Allocator* GetDeviceSpecificAllocator(Device dev, AllocatorType type) {
   void* valloc;
   Allocator* allocator = nullptr;
   if (device_alloc_helper) {
-    valloc = (*device_alloc_helper)(dev, static_cast<int>(type));
+    valloc = (*device_alloc_helper)(dev, static_cast<int>(type)).cast<void*>();
     allocator = static_cast<Allocator*>(valloc);
   }
   if (nullptr == allocator) {

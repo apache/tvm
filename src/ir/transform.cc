@@ -466,7 +466,7 @@ Pass GetPass(const String& pass_name) {
     f = tvm::ffi::Function::GetGlobal("transform." + pass_name);
   }
   ICHECK(f.has_value()) << "Cannot use " << pass_name << " to create the pass";
-  return (*f)();
+  return (*f)().cast<Pass>();
 }
 
 // TODO(zhiics): we currently only sequentially execute each pass in
@@ -539,7 +539,7 @@ TVM_REGISTER_GLOBAL("transform.PassInfo")
     });
 
 TVM_REGISTER_GLOBAL("transform.Info").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  Pass pass = args[0];
+  Pass pass = args[0].cast<Pass>();
   *ret = pass->Info();
 });
 
@@ -587,11 +587,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(SequentialNode);
 
 TVM_REGISTER_GLOBAL("transform.Sequential").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  tvm::Array<Pass> passes = args[0];
-  int opt_level = args[1];
-  std::string name = args[2];
-  tvm::Array<runtime::String> required = args[3];
-  bool traceable = args[4];
+  auto passes = args[0].cast<tvm::Array<Pass>>();
+  int opt_level = args[1].cast<int>();
+  std::string name = args[2].cast<std::string>();
+  auto required = args[3].cast<tvm::Array<runtime::String>>();
+  bool traceable = args[4].cast<bool>();
   PassInfo pass_info = PassInfo(opt_level, name, required, /* traceable */ traceable);
   *ret = Sequential(passes, pass_info);
 });

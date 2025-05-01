@@ -126,7 +126,7 @@ inline bool using_ipython() {
   bool flag = false;
   const auto f_using_ipython = tvm::ffi::Function::GetGlobal("meta_schedule.using_ipython");
   if (f_using_ipython) {
-    flag = (*f_using_ipython)();
+    flag = (*f_using_ipython)().cast<bool>();
   }
   return flag;
 }
@@ -263,9 +263,7 @@ inline std::vector<support::LinearCongruentialEngine::TRandState> ForkSeed(
  * \param mod The IRModule to make a deep copy.
  * \return The deep copy of the IRModule.
  */
-inline IRModule DeepCopyIRModule(IRModule mod) {
-  return LoadJSON(SaveJSON(mod)).operator IRModule();
-}
+inline IRModule DeepCopyIRModule(IRModule mod) { return LoadJSON(SaveJSON(mod)).cast<IRModule>(); }
 
 /*!
  * \brief Concatenate strings
@@ -383,7 +381,7 @@ inline int GetTargetNumCores(const Target& target) {
     static const auto f_cpu_count = tvm::ffi::Function::GetGlobal("meta_schedule.cpu_count");
     ICHECK(f_cpu_count.has_value())
         << "ValueError: Cannot find the packed function \"meta_schedule._cpu_count\"";
-    num_cores = (*f_cpu_count)(false);
+    num_cores = (*f_cpu_count)(false).cast<int>();
     LOG(FATAL)
         << "Target does not have attribute \"num-cores\", physical core number must be "
            "defined! For example, on the local machine, the target must be \"llvm -num-cores "
@@ -456,6 +454,7 @@ inline Array<Integer> AsIntArray(const ObjectRef& obj) {
         return (*opt_int_imm)->value;
       } else {
         LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << val.GetTypeKey();
+        TVM_FFI_UNREACHABLE();
       }
     }();
     results.push_back(Integer(int_value));
@@ -618,7 +617,7 @@ class BlockCollector : public tir::StmtVisitor {
     // Otherwise collect all blocks.
     Bool collect_block = Bool(true);
     if (f_block_filter_ != nullptr) {
-      collect_block = f_block_filter_(GetRef<tir::Block>(block));
+      collect_block = f_block_filter_(GetRef<tir::Block>(block)).cast<Bool>();
     }
     if (collect_block) {
       blocks_to_collect_.push_back(block->name_hint);

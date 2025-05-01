@@ -61,7 +61,7 @@ class SocketSessionObj : public BcastSessionObj {
         tvm::ffi::Function::GetGlobal("runtime.disco.create_socket_session_local_workers");
     ICHECK(f_create_local_session.has_value())
         << "Cannot find function runtime.disco.create_socket_session_local_workers";
-    local_session_ = ((*f_create_local_session)(num_workers_per_node)).operator BcastSession();
+    local_session_ = ((*f_create_local_session)(num_workers_per_node)).cast<BcastSession>();
     DRef f_init_workers =
         local_session_->GetGlobalFunc("runtime.disco.socket_session_init_workers");
     local_session_->CallPacked(f_init_workers, num_nodes_, /*node_id=*/0, num_groups,
@@ -107,7 +107,7 @@ class SocketSessionObj : public BcastSessionObj {
       remote_channels_[node_id - 1]->Send(ffi::PackedArgs(packed_args, 5));
       TVMArgs args = this->RecvReplyPacked(worker_id);
       ICHECK_EQ(args.size(), 2);
-      ICHECK(static_cast<DiscoAction>(args[0].operator int()) == DiscoAction::kDebugGetFromRemote);
+      ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) == DiscoAction::kDebugGetFromRemote);
       TVMRetValue result;
       result = args[1];
       return result;
@@ -134,7 +134,7 @@ class SocketSessionObj : public BcastSessionObj {
       TVMRetValue result;
       TVMArgs args = this->RecvReplyPacked(worker_id);
       ICHECK_EQ(args.size(), 1);
-      ICHECK(static_cast<DiscoAction>(args[0].operator int()) == DiscoAction::kDebugSetRegister);
+      ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) == DiscoAction::kDebugSetRegister);
     }
   }
 
@@ -222,10 +222,10 @@ class RemoteSocketSession {
     channel_ = std::make_unique<DiscoSocketChannel>(socket_);
     TVMArgs metadata = channel_->Recv();
     ICHECK_EQ(metadata.size(), 4);
-    num_nodes_ = metadata[0].operator int();
-    num_workers_per_node_ = metadata[1].operator int();
-    num_groups_ = metadata[2].operator int();
-    node_id_ = metadata[3].operator int();
+    num_nodes_ = metadata[0].cast<int>();
+    num_workers_per_node_ = metadata[1].cast<int>();
+    num_groups_ = metadata[2].cast<int>();
+    node_id_ = metadata[3].cast<int>();
     CHECK_GE(num_local_workers, num_workers_per_node_);
     InitLocalSession();
   }
@@ -233,8 +233,8 @@ class RemoteSocketSession {
   void MainLoop() {
     while (true) {
       TVMArgs args = channel_->Recv();
-      DiscoSocketAction action = static_cast<DiscoSocketAction>(args[0].operator int());
-      int worker_id = args[1].operator int();
+      DiscoSocketAction action = static_cast<DiscoSocketAction>(args[0].cast<int>());
+      int worker_id = args[1].cast<int>();
       int local_worker_id = worker_id - node_id_ * num_workers_per_node_;
       switch (action) {
         case DiscoSocketAction::kSend: {
@@ -271,7 +271,7 @@ class RemoteSocketSession {
   void InitLocalSession() {
     const auto f_create_local_session =
         tvm::ffi::Function::GetGlobal("runtime.disco.create_socket_session_local_workers");
-    local_session_ = ((*f_create_local_session)(num_workers_per_node_)).operator BcastSession();
+    local_session_ = ((*f_create_local_session)(num_workers_per_node_)).cast<BcastSession>();
 
     DRef f_init_workers =
         local_session_->GetGlobalFunc("runtime.disco.socket_session_init_workers");

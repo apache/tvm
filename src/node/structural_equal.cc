@@ -191,9 +191,9 @@ bool SEqualReducer::AnyEqual(const ffi::Any& lhs, const ffi::Any& rhs,
   }
   if (lhs.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
     if (paths) {
-      return operator()(lhs.operator ObjectRef(), rhs.operator ObjectRef(), paths.value());
+      return operator()(lhs.cast<ObjectRef>(), rhs.cast<ObjectRef>(), paths.value());
     } else {
-      return operator()(lhs.operator ObjectRef(), rhs.operator ObjectRef());
+      return operator()(lhs.cast<ObjectRef>(), rhs.cast<ObjectRef>());
     }
   }
   if (ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(lhs)->v_uint64 ==
@@ -368,7 +368,7 @@ class SEqualHandlerDefault::Impl {
     }
 
     // normal object ref path
-    if (!SEqualReduce(lhs, rhs, map_free_vars, current_paths)) {
+    if (!SEqualReduce(lhs.cast<ObjectRef>(), rhs.cast<ObjectRef>(), map_free_vars, current_paths)) {
       return false;
     }
 
@@ -422,7 +422,8 @@ class SEqualHandlerDefault::Impl {
           // The TVMScriptPrinter::Script will fallback to Repr printer,
           // if the root node to print is not supported yet,
           // e.g. Relax nodes, ArrayObj, MapObj, etc.
-          oss << ":" << std::endl << TVMScriptPrinter::Script(root_lhs_.value(), cfg);
+          oss << ":" << std::endl
+              << TVMScriptPrinter::Script(root_lhs_.value().cast<ObjectRef>(), cfg);
         }
       } else {
         oss << ":" << std::endl << lhs;
@@ -437,7 +438,8 @@ class SEqualHandlerDefault::Impl {
           // The TVMScriptPrinter::Script will fallback to Repr printer,
           // if the root node to print is not supported yet,
           // e.g. Relax nodes, ArrayObj, MapObj, etc.
-          oss << ":" << std::endl << TVMScriptPrinter::Script(root_rhs_.value(), cfg);
+          oss << ":" << std::endl
+              << TVMScriptPrinter::Script(root_rhs_.value().cast<ObjectRef>(), cfg);
         }
       } else {
         oss << ":" << std::endl << rhs;

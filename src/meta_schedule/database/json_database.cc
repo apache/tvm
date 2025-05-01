@@ -166,7 +166,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
     n->workloads2idx_.reserve(n_objs);
     workloads.reserve(n_objs);
     for (int i = 0; i < n_objs; ++i) {
-      Workload workload = Workload::FromJSON(json_objs[i]);
+      Workload workload = Workload::FromJSON(json_objs[i].cast<ObjectRef>());
       auto recalc_hash = n->GetModuleEquality().Hash(workload->mod);
       // Todo(tvm-team): re-enable the shash check when we get environment
       // independent structural hash values.
@@ -186,15 +186,15 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
     records.resize(json_objs.size(), TuningRecord{nullptr});
     support::parallel_for_dynamic(
         0, json_objs.size(), num_threads, [&](int thread_id, int task_id) {
-          const ObjectRef& json_obj = json_objs[task_id];
+          auto json_obj = json_objs[task_id].cast<ObjectRef>();
           Workload workload{nullptr};
           try {
             const ArrayObj* arr = json_obj.as<ArrayObj>();
             ICHECK_EQ(arr->size(), 2);
-            int64_t workload_index = arr->at(0).operator IntImm()->value;
+            int64_t workload_index = arr->at(0).cast<IntImm>()->value;
             ICHECK(workload_index >= 0 && static_cast<size_t>(workload_index) < workloads.size());
             workload = workloads[workload_index];
-            records[task_id] = TuningRecord::FromJSON(arr->at(1), workload);
+            records[task_id] = TuningRecord::FromJSON(arr->at(1).cast<ObjectRef>(), workload);
           } catch (std::runtime_error& e) {
             LOG(FATAL) << "ValueError: Unable to parse TuningRecord, on line " << (task_id + 1)
                        << " of file " << path_tuning_record << ". The workload is:\n"

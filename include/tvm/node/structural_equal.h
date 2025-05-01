@@ -140,7 +140,7 @@ class StructuralEqual : public BaseValueEqual {
                                  bool map_free_params = false) const {
     if (lhs.type_index() != rhs.type_index()) return false;
     if (lhs.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-      return operator()(lhs.operator ObjectRef(), rhs.operator ObjectRef(), map_free_params);
+      return operator()(lhs.cast<ObjectRef>(), rhs.cast<ObjectRef>(), map_free_params);
     }
     // POD value can always use v_int64 to get the hash value
     return (ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(lhs)->v_uint64 ==
@@ -216,7 +216,7 @@ class SEqualReducer {
      */
     TVM_FFI_INLINE ffi::Any MapLhsToRhs(const ffi::Any& lhs) {
       if (lhs.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-        return MapLhsToRhs(lhs.operator ObjectRef());
+        return MapLhsToRhs(lhs.cast<ObjectRef>());
       } else {
         return lhs;
       }

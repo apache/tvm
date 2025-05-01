@@ -141,7 +141,7 @@ class ConstLoaderModuleNode : public ModuleNode {
       if (init != nullptr) {
         auto md = GetRequiredConstants(symbol);
         // Initialize the module with constants.
-        int ret = init(md);
+        int ret = init(md).cast<int>();
         // Report the error if initialization is failed.
         ICHECK_EQ(ret, 0) << TVMGetLastError();
         break;

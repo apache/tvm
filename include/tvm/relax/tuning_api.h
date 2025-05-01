@@ -86,7 +86,7 @@ class ChoiceNode : public runtime::Object {
   bool CheckConstr(IRModule mod) {
     Array<Any> args(constr_func_args);
     args.insert(args.begin(), GetRef<IRModule>(mod.CopyOnWrite()));
-    return CallPackedWithArgsInArray(GetConstrFunc(), args);
+    return CallPackedWithArgsInArray(GetConstrFunc(), args).cast<bool>();
   }
 
   /*! \brief Perform transform_func. */
@@ -95,7 +95,7 @@ class ChoiceNode : public runtime::Object {
     if (CheckConstr(mod)) {
       Array<Any> args(transform_func_args);
       args.insert(args.begin(), GetRef<IRModule>(mod.CopyOnWrite()));
-      return CallPackedWithArgsInArray(GetTransformFunc(), args);
+      return CallPackedWithArgsInArray(GetTransformFunc(), args).cast<IRModule>();
     }
     return mod;
   }

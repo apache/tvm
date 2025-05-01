@@ -62,13 +62,13 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj) {
     CHECK(json_array && json_array->size() == 2);
     // Load json[0] => trace
     {
-      const ObjectRef& json_trace = json_array->at(0);
+      const ObjectRef& json_trace = json_array->at(0).cast<ObjectRef>();
       trace = Trace::FromJSON(json_trace);
     }
 
     // Load json[1] => run_secs
     if (json_array->at(1) != nullptr) {
-      run_secs = meta_schedule::AsFloatArray(json_array->at(1));
+      run_secs = meta_schedule::AsFloatArray(json_array->at(1).cast<ObjectRef>());
     }
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
@@ -268,7 +268,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
             ICHECK_EQ(arr->size(), 3);
             workload_idxs[task_id] = Downcast<Integer>(arr->at(0)).IntValue();
             targets[task_id] = Target(Downcast<Map<String, ffi::Any>>(arr->at(1)));
-            records[task_id] = TuningRecord::FromJSON(arr->at(2));
+            records[task_id] = TuningRecord::FromJSON(arr->at(2).cast<ObjectRef>());
           } catch (std::runtime_error& e) {
             LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                        << "\nThe error is: " << e.what();
@@ -300,7 +300,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
             ICHECK_EQ(arr->size(), 3);
             workload_idxs[task_id] = Downcast<Integer>(arr->at(0)).IntValue();
             targets[task_id] = Target(Downcast<Map<String, ffi::Any>>(arr->at(1)));
-            measurements[task_id] = meta_schedule::AsFloatArray(arr->at(2));
+            measurements[task_id] = meta_schedule::AsFloatArray(arr->at(2).cast<ObjectRef>());
           } catch (std::runtime_error& e) {
             LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                        << "\nThe error is: " << e.what();

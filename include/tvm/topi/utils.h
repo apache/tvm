@@ -42,7 +42,7 @@ inline Optional<Array<Integer>> ArrayOrInt(AnyView arg) {
     result.push_back(opt_int.value());
     return result;
   } else {
-    return arg;
+    return arg.cast<Array<Integer>>();
   }
 }
 }  // namespace topi

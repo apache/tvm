@@ -540,10 +540,11 @@ TVM_REGISTER_GLOBAL("arith.SolveInequalitiesAsCondition")
       IntConstraints problem;
       PartialSolvedInequalities ret_ineq;
       if (args.size() == 1) {
-        problem = args[0];
+        problem = args[0].cast<IntConstraints>();
         ret_ineq = SolveLinearInequalities(problem);
       } else if (args.size() == 3) {
-        problem = IntConstraints(args[0], args[1], args[2]);
+        problem = IntConstraints(args[0].cast<Array<Var>>(), args[1].cast<Map<Var, Range>>(),
+                                 args[2].cast<Array<PrimExpr>>());
         ret_ineq = SolveLinearInequalities(problem);
       } else {
         LOG(FATAL) << "arith.SolveInequalitiesAsCondition expects 1 or 3 arguments, gets "
@@ -555,10 +556,11 @@ TVM_REGISTER_GLOBAL("arith.SolveInequalitiesAsCondition")
 TVM_REGISTER_GLOBAL("arith.SolveInequalitiesToRange")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       if (args.size() == 1) {
-        *ret = SolveInequalitiesToRange(args[0]);
+        *ret = SolveInequalitiesToRange(args[0].cast<IntConstraints>());
       } else if (args.size() == 3) {
-        Optional<Map<Var, Range>> opt_map = args[1];
-        IntConstraints problem(args[0], opt_map.value_or({}), args[2]);
+        auto opt_map = args[1].cast<Optional<Map<Var, Range>>>();
+        IntConstraints problem(args[0].cast<Array<Var>>(), opt_map.value_or({}),
+                               args[2].cast<Array<PrimExpr>>());
         *ret = SolveInequalitiesToRange(problem);
       } else {
         LOG(FATAL) << "arith.SolveInequalitiesToRange expects 1 or 3 arguments, gets "
@@ -569,10 +571,11 @@ TVM_REGISTER_GLOBAL("arith.SolveInequalitiesToRange")
 TVM_REGISTER_GLOBAL("arith.SolveInequalitiesDeskewRange")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       if (args.size() == 1) {
-        *ret = SolveInequalitiesDeskewRange(args[0]);
+        *ret = SolveInequalitiesDeskewRange(args[0].cast<IntConstraints>());
       } else if (args.size() == 3) {
-        Optional<Map<Var, Range>> opt_map = args[1];
-        IntConstraints problem(args[0], opt_map.value_or({}), args[2]);
+        auto opt_map = args[1].cast<Optional<Map<Var, Range>>>();
+        IntConstraints problem(args[0].cast<Array<Var>>(), opt_map.value_or({}),
+                               args[2].cast<Array<PrimExpr>>());
         *ret = SolveInequalitiesDeskewRange(problem);
       } else {
         LOG(FATAL) << "arith.SolveInequalitiesDeskewRange expects 1 or 3 arguments, gets "

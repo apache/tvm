@@ -642,10 +642,20 @@ TVM_REGISTER_NODE_TYPE(BufferNode);
 
 TVM_REGISTER_GLOBAL("tir.Buffer").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   ICHECK_EQ(args.size(), 11);
-  auto buffer_type = args[8].operator String();
+  auto buffer_type = args[8].cast<String>();
   BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
-  *ret = Buffer(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], type,
-                args[9], args[10]);
+  auto data = args[0].cast<Var>();
+  auto dtype = args[1].cast<DataType>();
+  auto shape = args[2].cast<Array<PrimExpr>>();
+  auto strides = args[3].cast<Array<PrimExpr>>();
+  auto elem_offset = args[4].cast<PrimExpr>();
+  auto name = args[5].cast<String>();
+  auto data_alignment = args[6].cast<int>();
+  auto offset_factor = args[7].cast<int>();
+  auto axis_separators = args[9].cast<Array<IntImm>>();
+  auto span = args[10].cast<Span>();
+  *ret = Buffer(data, dtype, shape, strides, elem_offset, name, data_alignment, offset_factor, type,
+                axis_separators, span);
 });
 
 TVM_REGISTER_GLOBAL("tir.BufferAccessPtr").set_body_method(&Buffer::access_ptr);

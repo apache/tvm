@@ -39,7 +39,7 @@ def instantiate_rms_norm_template(attrs):
     cutlass::TensorRef<data_type, RowMajor> _output((data_type*)out0->data, layout_2D);
 
     auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-    cudaStream_t stream = static_cast<cudaStream_t>(func().operator void*());
+    cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
 
     cutlass::rmsnorm(size, _output, _input, _weight, stream, ${rms_eps});
     """

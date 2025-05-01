@@ -425,7 +425,7 @@ def instantiate_conv2d_template(attrs):
   ${split_k_update}
 
   auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-  cudaStream_t stream = static_cast<cudaStream_t>(func().operator void*());
+  cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
 
   status = conv2d_op(stream);
   CHECK(status == cutlass::Status::kSuccess);

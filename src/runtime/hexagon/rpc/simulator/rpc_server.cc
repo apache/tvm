@@ -334,15 +334,15 @@ __attribute__((weak)) void _Parse_fde_instr() {}
 
 TVM_REGISTER_GLOBAL("tvm.hexagon.load_module")
     .set_body_packed([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
-      std::string soname = args[0];
+      auto soname = args[0].cast<std::string>();
       tvm::ObjectPtr<tvm::runtime::Library> n = tvm::runtime::CreateDSOLibraryObject(soname);
       *rv = CreateModuleFromLibrary(n);
     });
 
 TVM_REGISTER_GLOBAL("tvm.hexagon.get_profile_output")
     .set_body_packed([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
-      std::string profiling_mode = args[0];
-      std::string out_file = args[1];
+      auto profiling_mode = args[0].cast<std::string>();
+      auto out_file = args[1].cast<std::string>();
       if (profiling_mode.compare("lwp") == 0) {
         *rv = WriteLWPOutput(out_file);
       } else {
@@ -359,7 +359,7 @@ void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.upload")
     .set_body_packed([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
-      std::string file_name = args[0];
-      std::string data = args[1];
+      auto file_name = args[0].cast<std::string>();
+      auto data = args[1].cast<std::string>();
       SaveBinaryToFile(file_name, data);
     });

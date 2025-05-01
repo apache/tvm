@@ -327,7 +327,7 @@ class PyExprMutatorNode : public Object, public ExprMutator {
 
   Expr VisitExpr(const Expr& expr) {
     if (f_visit_expr != nullptr) {
-      return builder_->Normalize(f_visit_expr(expr));
+      return builder_->Normalize(f_visit_expr(expr).cast<Expr>());
     } else {
       static FType vtable = InitVTable();
       return builder_->Normalize(vtable(expr, this));

@@ -1374,9 +1374,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
     .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       ICHECK(args.size() >= 4) << args.size() << " is less than 4";
 
-      std::string session_name = args[0];
-      int stack_size = args[1];
-      std::string sim_args = args[2];
+      auto session_name = args[0].cast<std::string>();
+      int stack_size = args[1].cast<int>();
+      auto sim_args = args[2].cast<std::string>();
       auto channel = std::make_unique<SimulatorRPCChannel>(stack_size, sim_args);
       std::shared_ptr<RPCEndpoint> endpoint =
           RPCEndpoint::Create(std::move(channel), session_name, "", nullptr);

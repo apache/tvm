@@ -210,7 +210,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param arg The argument value.
    */
   static VirtualMachine* GetContextPtr(TVMArgValue arg) {
-    return static_cast<VirtualMachine*>(arg.operator void*());
+    return static_cast<VirtualMachine*>(arg.cast<void*>());
   }
 
   ~VirtualMachine() {}

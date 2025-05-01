@@ -226,7 +226,7 @@ Array<runtime::Module> TensorRTCompiler(Array<Function> functions, Map<String, f
     const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.tensorrt_runtime_create");
     std::string func_name = GetExtSymbol(func);
     VLOG(1) << "Creating tensorrt runtime::Module for '" << func_name << "'";
-    compiled_functions.push_back(pf(func_name, graph_json, constant_names));
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<runtime::Module>());
   }
   return compiled_functions;
 }

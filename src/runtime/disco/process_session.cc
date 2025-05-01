@@ -70,7 +70,7 @@ class ProcessSessionObj final : public BcastSessionObj {
     read_fds.reserve(num_workers - 1);
     write_fds.reserve(num_workers - 1);
     for (int i = 1; i < num_workers; ++i) {
-      IntTuple fds = process_pool(i);
+      IntTuple fds = process_pool(i).cast<IntTuple>();
       CHECK_EQ(fds.size(), 2) << "ValueError: process_pool(" << i << ") should return a tuple of "
                               << "size 2, but got a tuple of size " << fds.size() << ".";
       read_fds.push_back(fds[0]);
@@ -107,7 +107,7 @@ class ProcessSessionObj final : public BcastSessionObj {
     }
     TVMArgs args = this->RecvReplyPacked(worker_id);
     ICHECK_EQ(args.size(), 2);
-    ICHECK(static_cast<DiscoAction>(args[0].operator int()) == DiscoAction::kDebugGetFromRemote);
+    ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) == DiscoAction::kDebugGetFromRemote);
     TVMRetValue result;
     result = args[1];
     return result;
@@ -133,7 +133,7 @@ class ProcessSessionObj final : public BcastSessionObj {
     TVMRetValue result;
     TVMArgs args = this->RecvReplyPacked(worker_id);
     ICHECK_EQ(args.size(), 1);
-    ICHECK(static_cast<DiscoAction>(args[0].operator int()) == DiscoAction::kDebugSetRegister);
+    ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) == DiscoAction::kDebugSetRegister);
   }
 
   void BroadcastPacked(const TVMArgs& args) final {
@@ -183,7 +183,7 @@ Session Session::ProcessSession(int num_workers, int num_group, String process_p
   const auto pf = tvm::ffi::Function::GetGlobal(process_pool_creator);
   CHECK(pf) << "ValueError: Cannot find function " << process_pool_creator
             << " in the registry. Please check if it is registered.";
-  PackedFunc process_pool = (*pf)(num_workers, num_group, entrypoint);
+  auto process_pool = (*pf)(num_workers, num_group, entrypoint).cast<PackedFunc>();
   auto n = make_object<ProcessSessionObj>(num_workers, num_group, process_pool);
   return Session(n);
 }

@@ -85,7 +85,7 @@ Module Module::LoadFromFile(const String& file_name, const String& format) {
                         << " resolved to (" << load_f_name << ") in the global registry."
                         << "Ensure that you have loaded the correct runtime code, and"
                         << "that you are on the correct hardware architecture.";
-  Module m = (*f)(file_name, format);
+  Module m = (*f)(file_name, format).cast<Module>();
   return m;
 }
 
@@ -159,7 +159,7 @@ bool RuntimeEnabled(const String& target_str) {
   } else if (target.length() >= 4 && target.substr(0, 4) == "llvm") {
     const auto pf = tvm::ffi::Function::GetGlobal("codegen.llvm_target_enabled");
     if (!pf.has_value()) return false;
-    return (*pf)(target);
+    return (*pf)(target).cast<bool>();
   } else {
     LOG(FATAL) << "Unknown optional runtime " << target;
   }

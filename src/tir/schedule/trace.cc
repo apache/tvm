@@ -112,7 +112,7 @@ Array<Any> TranslateInputRVs(
     } else if (input.as<BlockRVNode>() ||  // RV: block
                input.as<LoopRVNode>() ||   // RV: loop
                input.as<VarNode>()) {      // RV: var
-      auto it = rv_names.find(input);
+      auto it = rv_names.find(input.cast<ObjectRef>());
       if (it != rv_names.end()) {
         // Case 1. BlockRV, LoopRV, VarRV
         results.push_back(it->second);
@@ -233,8 +233,9 @@ Array<String> TranslateAddOutputRVs(
   results.reserve(outputs.size());
   for (const Any& output : outputs) {
     int i = rv_names->size();
-    ICHECK(!rv_names->count(output))
-        << "ValueError: The random variable has been produced once: " << rv_names->at(output);
+    ICHECK(!rv_names->count(output.cast<ObjectRef>()))
+        << "ValueError: The random variable has been produced once: "
+        << rv_names->at(output.cast<ObjectRef>());
     String result{ObjectPtr<StringObj>{nullptr}};
     if (output == nullptr) {
       result = "_";
@@ -250,7 +251,7 @@ Array<String> TranslateAddOutputRVs(
       throw;
     }
     results.push_back(result);
-    rv_names->emplace(output, std::move(result));
+    rv_names->emplace(output.cast<ObjectRef>(), std::move(result));
   }
   return results;
 }
@@ -260,7 +261,7 @@ void TranslateAddOutputRVs(const Array<String>& old_outputs, const Array<Any>& n
   ICHECK_EQ(old_outputs.size(), new_outputs.size());
   int n = old_outputs.size();
   for (int i = 0; i < n; ++i) {
-    named_rvs->emplace(Downcast<String>(old_outputs[i]), new_outputs[i]);
+    named_rvs->emplace(Downcast<String>(old_outputs[i]), new_outputs[i].cast<ObjectRef>());
   }
 }
 
@@ -333,7 +334,7 @@ ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
                                                             : ObjectRef(inst->attrs),
         /* 3: outputs   */ TranslateAddOutputRVs(inst->outputs, &rv_names),
     });
-    if (Optional<ObjectRef> decision = this->GetDecision(inst)) {
+    if (auto decision = this->GetDecision(inst).cast<Optional<ObjectRef>>()) {
       json_decisions.push_back(Array<ObjectRef>{
           /* 0: index    */ Integer(i),
           /* 1: decision */ decision.value(),
@@ -414,7 +415,7 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
   // Parse `json_insts`
   std::unordered_map<std::string, ObjectRef> named_rvs{{"None", ObjectRef{nullptr}}};
   int i = 0;
-  for (const ObjectRef& inst_entry : json_insts) {
+  for (const Any& inst_entry : json_insts) {
     InstructionKind kind{nullptr};
     Array<Any> inputs{nullptr};
     Array<Any> attrs{nullptr};
@@ -425,9 +426,9 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
       ICHECK(arr && arr->size() == 4);
       const auto* arr0 = arr->at(0).as<StringObj>();
       kind = InstructionKind::Get(arr0->data);
-      inputs = arr->at(1);
-      attrs = arr->at(2);
-      outputs = arr->at(3);
+      inputs = arr->at(1).cast<Array<Any>>();
+      attrs = arr->at(2).cast<Array<Any>>();
+      outputs = arr->at(3).cast<Array<String>>();
     } catch (const tvm::Error& e) {
       LOG(FATAL) << "ValueError: Each entry of a json instruction should be a tuple [inst_name, "
                     "inputs, attrs, outputs], but gets: "
@@ -498,8 +499,8 @@ Trace TraceNode::Simplified(bool remove_postproc) const {
       } else if (obj.as<BlockRVNode>() || obj.as<LoopRVNode>() || obj.as<VarNode>()) {
         used_rvs.insert(obj.as<Object>());
         continue;
-      } else if (obj.as<PrimExprNode>()) {
-        PostOrderVisit(obj, [&used_rvs](const ObjectRef& obj) -> void {
+      } else if (auto prim_expr = obj.as<PrimExpr>()) {
+        PostOrderVisit(*prim_expr, [&used_rvs](const ObjectRef& obj) -> void {
           if (obj.as<VarNode>()) {
             used_rvs.insert(obj.get());
           }

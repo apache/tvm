@@ -51,7 +51,7 @@ DictDoc PrototxtPrinter::ToDictDoc(const Map<String, ffi::Any>& dict) {
     if (pair.second.as<DictDocNode>()) {
       values.push_back(Downcast<DictDoc>(pair.second));
     } else {
-      values.push_back(ToLiteralDoc(pair.second));
+      values.push_back(ToLiteralDoc(pair.second.cast<ObjectRef>()));
     }
   }
   return DictDoc(keys, values);
@@ -65,7 +65,7 @@ DictDoc PrototxtPrinter::ToDictDoc(const std::vector<std::pair<String, Any>>& di
     if (pair.second.as<DictDocNode>()) {
       values.push_back(Downcast<DictDoc>(pair.second));
     } else {
-      values.push_back(ToLiteralDoc(pair.second));
+      values.push_back(ToLiteralDoc(pair.second.cast<ObjectRef>()));
     }
   }
   return DictDoc(keys, values);

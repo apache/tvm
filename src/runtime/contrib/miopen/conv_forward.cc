@@ -36,24 +36,24 @@ using namespace runtime;
 
 TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      const int mode = args[0];
-      const int dtype = args[1];
-      const int pad_h = args[2];
-      const int pad_w = args[3];
-      const int stride_h = args[4];
-      const int stride_w = args[5];
-      const int dilation_h = args[6];
-      const int dilation_w = args[7];
-      const int x_dim0 = args[8];
-      const int x_dim1 = args[9];
-      const int x_dim2 = args[10];
-      const int x_dim3 = args[11];
-      const int w_dim0 = args[12];
-      const int w_dim1 = args[13];
-      const int w_dim2 = args[14];
-      const int w_dim3 = args[15];
-      const int n_group = args[16];
-      void* out_shape = args[17];
+      const int mode = args[0].cast<int>();
+      const int dtype = args[1].cast<int>();
+      const int pad_h = args[2].cast<int>();
+      const int pad_w = args[3].cast<int>();
+      const int stride_h = args[4].cast<int>();
+      const int stride_w = args[5].cast<int>();
+      const int dilation_h = args[6].cast<int>();
+      const int dilation_w = args[7].cast<int>();
+      const int x_dim0 = args[8].cast<int>();
+      const int x_dim1 = args[9].cast<int>();
+      const int x_dim2 = args[10].cast<int>();
+      const int x_dim3 = args[11].cast<int>();
+      const int w_dim0 = args[12].cast<int>();
+      const int w_dim1 = args[13].cast<int>();
+      const int w_dim2 = args[14].cast<int>();
+      const int w_dim3 = args[15].cast<int>();
+      const int n_group = args[16].cast<int>();
+      void* out_shape = args[17].cast<void*>();
 
       MIOpenThreadEntry* entry_ptr = MIOpenThreadEntry::ThreadLocal();
       assert(n_group > 0 && "Group Size > 0 is expected");
@@ -150,18 +150,18 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
 
 TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.forward")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      const int mode = args[0];
-      const int dtype = args[1];
-      const int pad_h = args[2];
-      const int pad_w = args[3];
-      const int stride_h = args[4];
-      const int stride_w = args[5];
-      const int dilation_h = args[6];
-      const int dilation_w = args[7];
-      const int algo = args[8];
-      const DLTensor* x = args[9];
-      const DLTensor* w = args[10];
-      const DLTensor* y = args[11];
+      const int mode = args[0].cast<int>();
+      const int dtype = args[1].cast<int>();
+      const int pad_h = args[2].cast<int>();
+      const int pad_w = args[3].cast<int>();
+      const int stride_h = args[4].cast<int>();
+      const int stride_w = args[5].cast<int>();
+      const int dilation_h = args[6].cast<int>();
+      const int dilation_w = args[7].cast<int>();
+      const int algo = args[8].cast<int>();
+      const auto x = args[9].cast<DLTensor*>();
+      const auto w = args[10].cast<DLTensor*>();
+      const auto y = args[11].cast<DLTensor*>();
 
       MIOpenThreadEntry* entry_ptr = MIOpenThreadEntry::ThreadLocal();
       entry_ptr->conv_entry.fwd_algo = static_cast<miopenConvFwdAlgorithm_t>(algo);

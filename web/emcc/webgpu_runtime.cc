@@ -176,14 +176,14 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
       });
     } else if (name == "webgpu.get_shader") {
       return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
-        std::string name = args[0];
+        auto name = args[0].cast<std::string>();
         auto it = smap_.find(name);
         ICHECK(it != smap_.end()) << "Cannot find code " << name;
         *rv = it->second;
       });
     } else if (name == "webgpu.update_prebuild") {
       return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
-        std::string name = args[0];
+        auto name = args[0].cast<std::string>();
         PackedFunc func = args[1];
         prebuild_[name] = func;
       });

@@ -131,7 +131,7 @@ class JSONRuntimeBase : public ModuleNode {
           }
         } else {
           // Profile the subgraph.
-          profiling::Profiler* prof = static_cast<profiling::Profiler*>(rv->operator void*());
+          profiling::Profiler* prof = static_cast<profiling::Profiler*>(rv->cast<void*>());
           this->RunProfile(prof);
         }
         // String vendor_prof = this->RunProfile(prof);
@@ -142,7 +142,7 @@ class JSONRuntimeBase : public ModuleNode {
         ICHECK_EQ(args.size(), 1U);
         std::lock_guard<std::mutex> guard(this->initialize_mutex_);
         if (!this->initialized_) {
-          this->Init(args[0]);
+          this->Init(args[0].cast<Array<NDArray>>());
           this->initialized_ = true;
         }
         *rv = 0;
@@ -212,7 +212,7 @@ class JSONRuntimeBase : public ModuleNode {
         NDArray arr = opt_nd.value();
         arg = arr.operator->();
       } else {
-        arg = args[i].operator DLTensor*();
+        arg = args[i].cast<DLTensor*>();
       }
 
       // Assign input/output the NDArray pointers to data entry so that we can directly

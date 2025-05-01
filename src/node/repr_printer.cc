@@ -48,30 +48,31 @@ void ReprPrinter::Print(const ffi::Any& node) {
       break;
     }
     case ffi::TypeIndex::kTVMFFIInt: {
-      stream << node.operator int64_t();
+      stream << node.cast<int64_t>();
       break;
     }
     case ffi::TypeIndex::kTVMFFIBool: {
-      stream << node.operator bool();
+      stream << node.cast<bool>();
       break;
     }
     case ffi::TypeIndex::kTVMFFIFloat: {
-      stream << node.operator double();
+      stream << node.cast<double>();
       break;
     }
     case ffi::TypeIndex::kTVMFFIOpaquePtr: {
-      stream << node.operator void*();
+      stream << node.cast<void*>();
       break;
-      case ffi::TypeIndex::kTVMFFIDataType:
-        stream << node.operator DataType();
-        break;
+    }
+    case ffi::TypeIndex::kTVMFFIDataType: {
+      stream << node.cast<DataType>();
+      break;
     }
     case ffi::TypeIndex::kTVMFFIDevice: {
-      runtime::operator<<(stream, node.operator Device());
+      runtime::operator<<(stream, node.cast<Device>());
       break;
     }
     case ffi::TypeIndex::kTVMFFIObject: {
-      Print(node.operator ObjectRef());
+      Print(node.cast<ObjectRef>());
       break;
     }
     default: {

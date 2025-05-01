@@ -55,7 +55,7 @@ DictAttrs WithoutAttr(DictAttrs attrs, const std::string& key) {
 
 void DictAttrsNode::InitByPackedArgs(const runtime::TVMArgs& args, bool allow_unknown) {
   for (int i = 0; i < args.size(); i += 2) {
-    String key = args[i];
+    String key = args[i].cast<String>();
     ffi::AnyView val = args[i + 1];
     dict.Set(key, val);
   }

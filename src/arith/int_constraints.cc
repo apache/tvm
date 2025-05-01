@@ -206,11 +206,11 @@ TVM_REGISTER_GLOBAL("arith.IntGroupBounds_from_range").set_body_typed(IntGroupBo
 TVM_REGISTER_GLOBAL("arith.IntGroupBounds_FindBestRange")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       ICHECK(args.size() == 1 || args.size() == 2);
-      IntGroupBounds bounds = args[0];
+      auto bounds = args[0].cast<IntGroupBounds>();
       if (args.size() == 1) {
         *ret = bounds.FindBestRange();
       } else if (args.size() == 2) {
-        *ret = bounds.FindBestRange(args[1]);
+        *ret = bounds.FindBestRange(args[1].cast<Map<Var, Range>>());
       }
     });
 

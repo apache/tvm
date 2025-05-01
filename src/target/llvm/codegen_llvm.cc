@@ -123,9 +123,9 @@ std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(LLVMTarget* llvm_target) {
   std::string factory_template = "tvm.codegen.llvm.target_";
   void* handle = nullptr;
   if (auto f = tvm::ffi::Function::GetGlobal(factory_template + target)) {
-    handle = (*f)();
+    handle = (*f)().cast<void*>();
   } else if (auto f = tvm::ffi::Function::GetGlobal(factory_template + "cpu")) {
-    handle = (*f)();
+    handle = (*f)().cast<void*>();
   } else {
     LOG(FATAL) << "no factory function for codegen for target " << target;
   }

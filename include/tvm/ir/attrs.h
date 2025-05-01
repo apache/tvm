@@ -263,7 +263,7 @@ class DictAttrs : public Attrs {
     const DictAttrsNode* node = this->as<DictAttrsNode>();
     auto it = node->dict.find(attr_key);
     if (it != node->dict.end()) {
-      return (*it).second;
+      return (*it).second.cast<TObjectRef>();
     } else {
       return default_value;
     }
@@ -599,7 +599,7 @@ struct AttrInitEntry {
 // from Expr types into the constants.
 template <typename T>
 inline void SetValue(T* ptr, const ffi::AnyView& val) {
-  *ptr = val.operator T();
+  *ptr = val.cast<T>();
 }
 
 template <typename T>
@@ -607,7 +607,7 @@ inline void SetIntValue(T* ptr, const ffi::AnyView& val) {
   if (auto opt_int = val.as<int64_t>()) {
     *ptr = static_cast<T>(opt_int.value());
   } else {
-    IntImm expr = val;
+    IntImm expr = val.cast<IntImm>();
     *ptr = static_cast<T>(expr->value);
   }
 }
@@ -615,7 +615,7 @@ inline void SetIntValue(T* ptr, const ffi::AnyView& val) {
 // Workaround for GCC8.1 / GCC8.2
 template <>
 inline void SetValue<DataType>(DataType* ptr, const ffi::AnyView& val) {
-  *ptr = DataType(val.operator DLDataType());
+  *ptr = DataType(val.cast<DLDataType>());
 }
 
 template <>
@@ -632,7 +632,7 @@ inline void SetValue<double>(double* ptr, const ffi::AnyView& val) {
   if (auto opt_double = val.as<double>()) {
     *ptr = opt_double.value();
   } else {
-    ObjectRef expr = val;
+    ObjectRef expr = val.cast<ObjectRef>();
     ICHECK(expr.defined());
     if (const IntImmNode* op = expr.as<IntImmNode>()) {
       *ptr = static_cast<double>(op->value);
@@ -887,7 +887,7 @@ class AttrsNode : public BaseAttrsNode {
       // linear search.
       auto ffind = [&args](const char* key, ffi::AnyView* val) {
         for (int i = 0; i < args.size(); i += 2) {
-          if (!std::strcmp(key, args[i].operator const char*())) {
+          if (!std::strcmp(key, args[i].cast<const char*>())) {
             *val = args[i + 1];
             return true;
           }
@@ -901,7 +901,7 @@ class AttrsNode : public BaseAttrsNode {
       // construct a map then do lookup.
       std::unordered_map<std::string, runtime::TVMArgValue> kwargs;
       for (int i = 0; i < args.size(); i += 2) {
-        kwargs[args[i].operator std::string()] = args[i + 1];
+        kwargs[args[i].cast<std::string>()] = args[i + 1];
       }
       auto ffind = [&kwargs](const char* key, ffi::AnyView* val) {
         auto it = kwargs.find(key);
@@ -919,7 +919,7 @@ class AttrsNode : public BaseAttrsNode {
     if (hit_count * 2 != args.size() && !allow_unknown) {
       for (int i = 0; i < args.size(); i += 2) {
         ::tvm::detail::AttrExistVisitor visitor;
-        visitor.key_ = args[i].operator std::string();
+        visitor.key_ = args[i].cast<std::string>();
         self()->_tvm_VisitAttrs(visitor);
         if (!visitor.exist_) {
           std::ostringstream os;

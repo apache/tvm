@@ -50,7 +50,7 @@ class ScheduleFnNode : public SpaceGeneratorNode {
     if (rv == nullptr) {
       return {sch};
     }
-    ObjectRef obj = rv;
+    ObjectRef obj = rv.cast<ObjectRef>();
     if (auto sch = obj.as<tir::Schedule>()) {
       return {sch.value()};
     }

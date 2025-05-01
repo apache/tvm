@@ -74,7 +74,7 @@ Any IndexIntoNestedObject(Any obj, TVMArgs args, int starting_arg_idx) {
     if (!obj.as<ffi::ArrayObj>()) {
       LOG(FATAL) << "ValueError: Attempted to index into an object that is not an Array.";
     }
-    int index = args[i];
+    int index = args[i].cast<int>();
     auto arr = Downcast<ffi::Array<Any>>(obj);
     // make sure the index is in bounds
     if (index >= static_cast<int>(arr.size())) {
@@ -515,7 +515,7 @@ void VirtualMachineImpl::SetInput(std::string func_name, bool with_param_module,
     for (int i = 0; i < args.size(); ++i) {
       if (with_param_module && i == args.size() - 1) {
         // call param func to get the arguments(usually corresponds to param pack.)
-        func_args[i] = (args[i].operator Module()).GetFunction("get_params")();
+        func_args[i] = (args[i].cast<Module>()).GetFunction("get_params")();
       } else {
         func_args[i] = ConvertArgToDevice(args[i], devices[0], allocators[0]);
       }
@@ -615,7 +615,7 @@ Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const String& func_na
     // NOTE: should not capture strong ref to self and avoid cyclic ref.
     auto impl = PackedFunc([gf_idx](TVMArgs args, TVMRetValue* rv) {
       // Per convention, ctx ptr is a VirtualMachine*
-      VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].operator void*());
+      VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].cast<void*>());
 
       std::vector<RegType> inputs(args.size() - 1);
       for (size_t i = 0; i < inputs.size(); ++i) {
@@ -632,7 +632,7 @@ Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const String& func_na
                                 << finfo.name;
     auto impl = PackedFunc([this, finfo, tir_func](TVMArgs args, TVMRetValue* rv) {
       // Per convention, ctx ptr is a VirtualMachine*
-      VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].operator void*());
+      VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].cast<void*>());
       ICHECK(ctx_ptr == this);
       ICHECK_EQ(args.size() - 1, finfo.num_args)
           << "Function " << finfo.name << " expects " << finfo.num_args << " arguments";
@@ -766,7 +766,7 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
   ICHECK_LT(static_cast<size_t>(instr.func_idx), this->func_pool_.size());
 
   if (instrument_ == nullptr) {
-    this->InvokeClosurePacked(func_pool_[instr.func_idx], args, &ret);
+    this->InvokeClosurePacked(func_pool_[instr.func_idx].cast<ObjectRef>(), args, &ret);
   } else {
     // insert light-weight instrument callback
     call_args[0] = func_pool_[instr.func_idx];
@@ -779,7 +779,8 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
     std::vector<std::unique_ptr<std::string>> temp_dtype;
     for (int i = 0; i < instr.num_args; ++i) {
       if (call_args[i + args_begin_offset].type_index() == ffi::TypeIndex::kTVMFFIDataType) {
-        std::string str_dtype = DLDataTypeToString(call_args[i + args_begin_offset]);
+        std::string str_dtype =
+            DLDataTypeToString(call_args[i + args_begin_offset].cast<DLDataType>());
         temp_dtype.emplace_back(std::make_unique<std::string>(str_dtype));
         call_args[i + args_begin_offset] = *temp_dtype.back();
       }
@@ -790,7 +791,7 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
       ret_kind = opt_int.value();
     }
     if (ret_kind != static_cast<int>(VMInstrumentReturnKind::kSkipRun)) {
-      this->InvokeClosurePacked(func_pool_[instr.func_idx], args, &ret);
+      this->InvokeClosurePacked(func_pool_[instr.func_idx].cast<ObjectRef>(), args, &ret);
       call_args[2] = false;
       call_args[3] = ret;
       instrument_.CallPacked(call_args.data(), call_args.size(), &rv);
@@ -838,7 +839,7 @@ void VirtualMachineImpl::RunLoop() {
         break;
       }
       case Opcode::If: {
-        int64_t cond_val = ReadRegister(curr_frame, instr.cond);
+        int64_t cond_val = ReadRegister(curr_frame, instr.cond).cast<int64_t>();
         if (cond_val != 0) {
           pc_++;
         } else {
@@ -862,9 +863,9 @@ void VirtualMachineImpl::_Init(TVMArgs args, TVMRetValue* rv) {
   std::vector<Device> devices;
   std::vector<AllocatorType> alloc_types;
   for (int i = 0; i < args.size(); i += 3) {
-    int device_type = args[i];
-    int device_id = args[i + 1];
-    int alloc_type = args[i + 2];
+    int device_type = args[i].cast<int>();
+    int device_id = args[i + 1].cast<int>();
+    int alloc_type = args[i + 2].cast<int>();
     devices.push_back(Device{DLDeviceType(device_type), device_id});
     alloc_types.push_back(AllocatorType(alloc_type));
   }
@@ -873,12 +874,12 @@ void VirtualMachineImpl::_Init(TVMArgs args, TVMRetValue* rv) {
 
 void VirtualMachineImpl::_SaveClosure(TVMArgs args, TVMRetValue* rv) {
   ICHECK_GE(args.size(), 3);
-  std::string func_name = args[0];
-  this->SaveClosure(func_name, args[1], args[2], args.Slice(3));
+  std::string func_name = args[0].cast<std::string>();
+  this->SaveClosure(func_name, args[1].cast<String>(), args[2].cast<bool>(), args.Slice(3));
 }
 
 void VirtualMachineImpl::_InvokeClosure(TVMArgs args, TVMRetValue* rv) {
-  this->InvokeClosurePacked(args[0], args.Slice(1), rv);
+  this->InvokeClosurePacked(args[0].cast<ObjectRef>(), args.Slice(1), rv);
 }
 
 void VirtualMachineImpl::_InvokeClosureStateful(std::string func_name) {
@@ -891,25 +892,25 @@ void VirtualMachineImpl::_InvokeClosureStateful(std::string func_name) {
                << "; use `set_input` first.";
     return;
   }
-  outputs_[func_name] =
-      this->InvokeClosureInternal(func_pool_[m.at(func_name)], inputs_[func_name]);
+  outputs_[func_name] = this->InvokeClosureInternal(func_pool_[m.at(func_name)].cast<ObjectRef>(),
+                                                    inputs_[func_name]);
 }
 
 void VirtualMachineImpl::_SetInstrument(TVMArgs args, TVMRetValue* rv) {
   if (args[0].as<ffi::Function>()) {
-    this->SetInstrument(args[0]);
+    this->SetInstrument(args[0].cast<PackedFunc>());
   } else {
-    String func_name = args[0];
+    String func_name = args[0].cast<String>();
     const auto factory = tvm::ffi::Function::GetGlobal(func_name);
     CHECK(factory.has_value()) << "Cannot find factory " << func_name;
     TVMRetValue rv;
     factory->CallPacked(args.Slice(1), &rv);
-    this->SetInstrument(rv);
+    this->SetInstrument(rv.cast<PackedFunc>());
   }
 }
 
 void VirtualMachineImpl::_GetOutputArity(TVMArgs args, TVMRetValue* rv) {
-  std::string func_name = args[0];
+  std::string func_name = args[0].cast<std::string>();
   RegType out = LookupVMOutput(func_name);
   Any obj = IndexIntoNestedObject(out, args, 1);
   if (const auto* arr = obj.as<ffi::ArrayObj>()) {
@@ -920,7 +921,7 @@ void VirtualMachineImpl::_GetOutputArity(TVMArgs args, TVMRetValue* rv) {
 }
 
 void VirtualMachineImpl::_GetOutput(TVMArgs args, TVMRetValue* rv) {
-  std::string func_name = args[0];
+  std::string func_name = args[0].cast<std::string>();
   RegType out = LookupVMOutput(func_name);
   Any obj = IndexIntoNestedObject(out, args, 1);
   if (obj.as<ffi::ArrayObj>()) {
@@ -932,12 +933,12 @@ void VirtualMachineImpl::_GetOutput(TVMArgs args, TVMRetValue* rv) {
 }
 
 void VirtualMachineImpl::_SetInputWithoutParamModule(TVMArgs args, TVMRetValue* rv) {
-  std::string func_name = args[0];
+  std::string func_name = args[0].cast<std::string>();
   this->SetInput(func_name, false, args.Slice(1));
 }
 
 void VirtualMachineImpl::_SetInputWithParamModule(TVMArgs args, TVMRetValue* rv) {
-  std::string func_name = args[0];
+  std::string func_name = args[0].cast<std::string>();
   this->SetInput(func_name, true, args.Slice(1));
 }
 
@@ -981,7 +982,7 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
   PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
     if (name == "profile") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        std::string f_name = args[0];
+        std::string f_name = args[0].cast<std::string>();
         VMClosure clo = this->GetClosure(f_name);
 
         std::vector<Device> devices;

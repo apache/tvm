@@ -97,7 +97,7 @@ class RPCWrappedFunc : public Object {
       switch (args[i].type_index()) {
         case ffi::TypeIndex::kTVMFFINDArray: {
           // Pass NDArray as DLTensor
-          auto dptr = std::make_unique<DLTensor>(*args[i].operator NDArray().operator->());
+          auto dptr = std::make_unique<DLTensor>(*args[i].cast<NDArray>().operator->());
           dptr->device = RemoveSessMask(dptr->device);
           dptr->data = static_cast<RemoteSpace*>(dptr->data)->data;
           packed_args[i] = dptr.get();
@@ -106,7 +106,7 @@ class RPCWrappedFunc : public Object {
         }
         case ffi::TypeIndex::kTVMFFIDLTensorPtr: {
           // translate to a remote view of DLTensor
-          auto dptr = std::make_unique<DLTensor>(*args[i].operator DLTensor*());
+          auto dptr = std::make_unique<DLTensor>(*args[i].cast<DLTensor*>());
           dptr->device = RemoveSessMask(dptr->device);
           dptr->data = static_cast<RemoteSpace*>(dptr->data)->data;
           packed_args[i] = dptr.get();
@@ -114,7 +114,7 @@ class RPCWrappedFunc : public Object {
           break;
         }
         case ffi::TypeIndex::kTVMFFIDevice: {
-          packed_args[i] = RemoveSessMask(args[i].operator DLDevice());
+          packed_args[i] = RemoveSessMask(args[i].cast<DLDevice>());
           break;
         }
         case ffi::TypeIndex::kTVMFFIFunc:
@@ -274,7 +274,7 @@ class RPCModuleNode final : public ModuleNode {
 void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
   // TODO(tqchen): only support Module unwrapping for now.
   if (arg.type_index() == ffi::TypeIndex::kTVMFFIModule) {
-    Module mod = arg;
+    Module mod = arg.cast<Module>();
     std::string tkey = mod->type_key();
     ICHECK_EQ(tkey, "rpc") << "ValueError: Cannot pass a non-RPC module to remote";
     auto* rmod = static_cast<RPCModuleNode*>(mod.operator->());
@@ -289,31 +289,31 @@ void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
 }
 
 void RPCWrappedFunc::WrapRemoteReturnToValue(TVMArgs args, TVMRetValue* rv) const {
-  int tcode = args[0];
+  int tcode = args[0].cast<int>();
   // TODO(tqchen): move to RPC to new ABI
   if (tcode == kTVMNullptr) {
     *rv = nullptr;
     return;
   } else if (tcode == kTVMPackedFuncHandle) {
     ICHECK_EQ(args.size(), 2);
-    void* handle = args[1];
+    void* handle = args[1].cast<void*>();
     auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
     *rv = PackedFunc([wf](TVMArgs args, TVMRetValue* rv) { return wf->operator()(args, rv); });
   } else if (tcode == kTVMModuleHandle) {
     ICHECK_EQ(args.size(), 2);
-    void* handle = args[1];
+    void* handle = args[1].cast<void*>();
     auto n = make_object<RPCModuleNode>(handle, sess_);
     *rv = Module(n);
   } else if (tcode == kTVMNDArrayHandle || tcode == kTVMDLTensorHandle) {
     ICHECK_EQ(args.size(), 3);
-    DLTensor* tensor = args[1];
-    void* nd_handle = args[2];
+    auto tensor = args[1].cast<DLTensor*>();
+    void* nd_handle = args[2].cast<void*>();
     *rv = NDArrayFromRemoteOpaqueHandle(sess_, tensor->data, tensor,
                                         AddRPCSessionMask(tensor->device, sess_->table_index()),
                                         nd_handle);
   } else if (tcode == kTVMObjectHandle) {
     ICHECK_EQ(args.size(), 2);
-    void* handle = args[1];
+    void* handle = args[1].cast<void*>();
     auto n = make_object<RPCObjectRefObj>(handle, sess_);
     *rv = ObjectRef(n);
   } else {
@@ -380,8 +380,8 @@ inline void CPUCacheFlushImpl(const char* addr, unsigned int len) {
 
 inline void CPUCacheFlush(int begin_index, const TVMArgs& args) {
   for (int i = begin_index; i < args.size(); i++) {
-    CPUCacheFlushImpl(static_cast<char*>((args[i].operator DLTensor*()->data)),
-                      GetDataSize(*(args[i].operator DLTensor*())));
+    CPUCacheFlushImpl(static_cast<char*>((args[i].cast<DLTensor*>()->data)),
+                      GetDataSize(*(args[i].cast<DLTensor*>())));
   }
 }
 
@@ -458,7 +458,7 @@ TVM_REGISTER_GLOBAL("rpc.ImportRemoteModule").set_body_typed([](Module parent, M
 });
 
 TVM_REGISTER_GLOBAL("rpc.SessTableIndex").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  Module m = args[0];
+  Module m = args[0].cast<Module>();
   std::string tkey = m->type_key();
   ICHECK_EQ(tkey, "rpc");
   *rv = static_cast<RPCModuleNode*>(m.operator->())->sess()->table_index();

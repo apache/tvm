@@ -71,7 +71,7 @@ ArgInfo ArgInfo::FromJSON(const ObjectRef& json_obj) {
   try {
     const ArrayObj* json_array = json_obj.as<ArrayObj>();
     CHECK(json_array && json_array->size() >= 1);
-    tag = json_array->at(0);
+    tag = json_array->at(0).cast<String>();
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                << "\nThe error is: " << e.what();
@@ -133,11 +133,11 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
     CHECK(json_array && json_array->size() == 3);
     // Load json[1] => dtype
     {
-      String dtype_str = json_array->at(1);
+      String dtype_str = json_array->at(1).cast<String>();
       dtype = runtime::StringToDLDataType(dtype_str);
     }
     // Load json[2] => shape
-    shape = AsIntArray(json_array->at(2));
+    shape = AsIntArray(json_array->at(2).cast<ObjectRef>());
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                << "\nThe error is: " << e.what();

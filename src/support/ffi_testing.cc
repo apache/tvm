@@ -55,13 +55,13 @@ TVM_REGISTER_NODE_TYPE(TestAttrs);
 
 TVM_REGISTER_GLOBAL("testing.test_wrap_callback")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      PackedFunc pf = args[0];
+      PackedFunc pf = args[0].cast<PackedFunc>();
       *ret = runtime::TypedPackedFunc<void()>([pf]() { pf(); });
     });
 
 TVM_REGISTER_GLOBAL("testing.test_wrap_callback_suppress_err")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      PackedFunc pf = args[0];
+      PackedFunc pf = args[0].cast<PackedFunc>();
       auto result = runtime::TypedPackedFunc<void()>([pf]() {
         try {
           pf();
@@ -73,21 +73,21 @@ TVM_REGISTER_GLOBAL("testing.test_wrap_callback_suppress_err")
 
 TVM_REGISTER_GLOBAL("testing.test_raise_error_callback")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      std::string msg = args[0];
+      auto msg = args[0].cast<std::string>();
       *ret = runtime::TypedPackedFunc<void()>([msg]() { LOG(FATAL) << msg; });
     });
 
 TVM_REGISTER_GLOBAL("testing.test_check_eq_callback")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      std::string msg = args[0];
+      auto msg = args[0].cast<std::string>();
       *ret = runtime::TypedPackedFunc<void(int x, int y)>(
           [msg](int x, int y) { CHECK_EQ(x, y) << msg; });
     });
 
 TVM_REGISTER_GLOBAL("testing.device_test").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  Device dev = args[0];
-  int dtype = args[1];
-  int did = args[2];
+  auto dev = args[0].cast<Device>();
+  int dtype = args[1].cast<int>();
+  int did = args[2].cast<int>();
   CHECK_EQ(static_cast<int>(dev.device_type), dtype);
   CHECK_EQ(static_cast<int>(dev.device_id), did);
   *ret = dev;
@@ -115,7 +115,7 @@ TVM_REGISTER_GLOBAL("testing.ErrorTest").set_body_typed(ErrorTest);
 
 // internal function used for debug and testing purposes
 TVM_REGISTER_GLOBAL("testing.object_use_count").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  runtime::ObjectRef obj = args[0];
+  auto obj = args[0].cast<ObjectRef>();
   // substract the current one because we always copy
   // and get another value.
   *ret = (obj.use_count() - 1);
@@ -270,7 +270,7 @@ class TestingEventLogger {
 
 TVM_REGISTER_GLOBAL("testing.record_event").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   if (args.size() != 0 && args[0].as<String>()) {
-    TestingEventLogger::ThreadLocal()->Record(args[0]);
+    TestingEventLogger::ThreadLocal()->Record(args[0].cast<String>());
   } else {
     TestingEventLogger::ThreadLocal()->Record("X");
   }

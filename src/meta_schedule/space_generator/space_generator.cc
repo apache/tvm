@@ -26,13 +26,13 @@ String GetRuleKindFromTarget(const Target& target) {
   if (target->kind->name == "llvm") {
     static auto target_has_feature_fn_ptr =
         tvm::ffi::Function::GetGlobalRequired("target.target_has_feature");
-    bool have_avx512vnni = target_has_feature_fn_ptr("avx512vnni", target);
-    bool have_avxvnni = target_has_feature_fn_ptr("avxvnni", target);
+    bool have_avx512vnni = target_has_feature_fn_ptr("avx512vnni", target).cast<bool>();
+    bool have_avxvnni = target_has_feature_fn_ptr("avxvnni", target).cast<bool>();
     if (have_avx512vnni || have_avxvnni) {
       return "vnni";
     } else {
-      bool have_avx512f = target_has_feature_fn_ptr("avx512f", target);
-      bool have_avx512bw = target_has_feature_fn_ptr("avx512bw", target);
+      bool have_avx512f = target_has_feature_fn_ptr("avx512f", target).cast<bool>();
+      bool have_avx512bw = target_has_feature_fn_ptr("avx512bw", target).cast<bool>();
       if (have_avx512bw && have_avx512f) {
         return "avx512";
       }

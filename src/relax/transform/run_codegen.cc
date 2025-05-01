@@ -130,8 +130,8 @@ class CodeGenRunner : ExprMutator {
           // removed the module.
           const auto RemoveFuncAttrFunc = tvm::ffi::Function::GetGlobal("ir.BaseFuncWithoutAttr");
           ICHECK(RemoveFuncAttrFunc.has_value());
-          func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol);
-          func = (*RemoveFuncAttrFunc)(func, attr::kCodegen);
+          func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol).cast<Function>();
+          func = (*RemoveFuncAttrFunc)(func, attr::kCodegen).cast<Function>();
           builder_->UpdateFunction(gvar, func);
           return create_call_dps_packed(new_func, ret_sinfo);
         }
@@ -194,7 +194,8 @@ class CodeGenRunner : ExprMutator {
       const auto codegen = tvm::ffi::Function::GetGlobal(codegen_name);
       ICHECK(codegen.has_value()) << "Codegen is not found: " << codegen_name << "\n";
 
-      Array<runtime::Module> compiled_functions = (*codegen)(functions, options, constant_names);
+      Array<runtime::Module> compiled_functions =
+          (*codegen)(functions, options, constant_names).cast<Array<runtime::Module>>();
       ext_mods.insert(ext_mods.end(), compiled_functions.begin(), compiled_functions.end());
     }
 

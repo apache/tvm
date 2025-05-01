@@ -28,22 +28,23 @@ using runtime::TVMRetValue;
 
 TVM_REGISTER_GLOBAL("dtype.register_custom_type")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      datatype::Registry::Global()->Register(args[0], static_cast<uint8_t>(args[1].operator int()));
+      datatype::Registry::Global()->Register(args[0].cast<std::string>(),
+                                             static_cast<uint8_t>(args[1].cast<int>()));
     });
 
 TVM_REGISTER_GLOBAL("dtype.get_custom_type_code")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      *ret = datatype::Registry::Global()->GetTypeCode(args[0]);
+      *ret = datatype::Registry::Global()->GetTypeCode(args[0].cast<std::string>());
     });
 
 TVM_REGISTER_GLOBAL("dtype.get_custom_type_name")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      *ret = Registry::Global()->GetTypeName(args[0].operator int());
+      *ret = Registry::Global()->GetTypeName(args[0].cast<int>());
     });
 
 TVM_REGISTER_GLOBAL("runtime._datatype_get_type_registered")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      *ret = Registry::Global()->GetTypeRegistered(args[0].operator int());
+      *ret = Registry::Global()->GetTypeRegistered(args[0].cast<int>());
     });
 
 Registry* Registry::Global() {
@@ -128,7 +129,7 @@ uint64_t ConvertConstScalar(uint8_t type_code, double value) {
   ss << "tvm.datatype.convertconstscalar.float.";
   ss << datatype::Registry::Global()->GetTypeName(type_code);
   auto make_const_scalar_func = tvm::ffi::Function::GetGlobal(ss.str());
-  return (*make_const_scalar_func)(value).operator uint64_t();
+  return (*make_const_scalar_func)(value).cast<uint64_t>();
 }
 
 }  // namespace datatype

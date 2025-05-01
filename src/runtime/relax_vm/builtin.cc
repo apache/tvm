@@ -121,23 +121,23 @@ void MatchShape(ffi::PackedArgs args, Any* rv) {
   if (auto opt_nd = args[0].as<NDArray>()) {
     input_shape = opt_nd.value().Shape();
   } else {
-    input_shape = args[0];
+    input_shape = args[0].cast<ShapeTuple>();
   }
   auto heap = args[1].as<DLTensor*>();
   int64_t* heap_data = heap.has_value() ? static_cast<int64_t*>((*heap)->data) : nullptr;
-  int64_t size = args[2];
+  int64_t size = args[2].cast<int64_t>();
   const int64_t kBeginCode = 3;
   ICHECK_LE(kBeginCode + size * 2, args.size());
   // a function that lazily get context for error reporting
   const int64_t kErrorContextOffset = kBeginCode + size * 2;
-  Optional<String> err_ctx = args[kErrorContextOffset];
+  Optional<String> err_ctx = args[kErrorContextOffset].cast<String>();
 
   CHECK_EQ(input_shape.size(), size)
       << "RuntimeError: " << err_ctx.value_or("") << " match_cast shape size mismatch.";
 
   for (int64_t i = 0; i < size; ++i) {
-    MatchShapeCode code = static_cast<MatchShapeCode>(args[kBeginCode + i * 2].operator int());
-    int64_t reg = args[kBeginCode + i * 2 + 1];
+    MatchShapeCode code = static_cast<MatchShapeCode>(args[kBeginCode + i * 2].cast<int>());
+    int64_t reg = args[kBeginCode + i * 2 + 1].cast<int64_t>();
 
     if (code == MatchShapeCode::kAssertEqualToImm) {
       CHECK_EQ(input_shape[i], reg)
@@ -194,14 +194,14 @@ void MakeShape(ffi::PackedArgs args, Any* rv) {
   // NOTE: heap can be nullptr
   auto heap = args[0].as<DLTensor*>();
   int64_t* heap_data = heap.has_value() ? static_cast<int64_t*>((*heap)->data) : nullptr;
-  int64_t size = args[1];
+  int64_t size = args[1].cast<int64_t>();
   const int64_t kBeginCode = 2;
 
   std::vector<int64_t> shape(size);
 
   for (int64_t i = 0; i < size; ++i) {
-    MakeShapeCode code = static_cast<MakeShapeCode>(args[kBeginCode + i * 2].operator int());
-    int64_t reg = args[kBeginCode + i * 2 + 1];
+    MakeShapeCode code = static_cast<MakeShapeCode>(args[kBeginCode + i * 2].cast<int>());
+    int64_t reg = args[kBeginCode + i * 2 + 1].cast<int64_t>();
     if (code == MakeShapeCode::kUseImm) {
       shape[i] = reg;
     } else {
@@ -223,16 +223,16 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_shape").set_body_packed(MakeShape);
  */
 void CheckTensorInfo(ffi::PackedArgs args, Any* rv) {
   AnyView arg = args[0];
-  int ndim = args[1];
+  int ndim = args[1].cast<int>();
   DataType dtype;
   Optional<String> err_ctx;
 
   if (args.size() == 3) {
     dtype = DataType::Void();
-    err_ctx = args[2].operator Optional<String>();
+    err_ctx = args[2].cast<Optional<String>>();
   } else {
-    dtype = args[2];
-    err_ctx = args[3].operator Optional<String>();
+    dtype = args[2].cast<DataType>();
+    err_ctx = args[3].cast<Optional<String>>();
   }
 
   auto opt_ptr = arg.as<DLTensor*>();
@@ -285,15 +285,15 @@ void CheckPrimValueInfo(AnyView arg, DataType dtype, Optional<String> err_ctx) {
     LOG(FATAL) << "TypeError: " << err_ctx.value_or("") << ", expected dtype " << dtype
                << ", but received ObjectRef of type " << opt_obj.value()->GetTypeKey();
   } else if (dtype.is_bool()) {
-    arg.operator bool();
+    arg.cast<bool>();
   } else if (dtype.is_int()) {
-    arg.operator int64_t();
+    arg.cast<int64_t>();
   } else if (dtype.is_uint()) {
-    arg.operator uint64_t();
+    arg.cast<uint64_t>();
   } else if (dtype.is_float()) {
-    arg.operator double();
+    arg.cast<double>();
   } else if (dtype.is_handle()) {
-    arg.operator void*();
+    arg.cast<void*>();
   } else {
     LOG(FATAL) << "TypeError: " << err_ctx.value_or("") << ", unsupported dtype " << dtype;
   }
@@ -364,7 +364,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_tensor").set_body_method(&StorageObj::Allo
 //  Closure function handling, calling convention
 //-------------------------------------------------
 TVM_REGISTER_GLOBAL("vm.builtin.make_closure").set_body_packed([](ffi::PackedArgs args, Any* rv) {
-  VMClosure clo = args[0];
+  VMClosure clo = args[0].cast<VMClosure>();
   std::vector<Any> saved_args;
   saved_args.resize(args.size() - 1);
   for (size_t i = 0; i < saved_args.size(); ++i) {
@@ -377,13 +377,13 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_closure").set_body_packed([](ffi::PackedArg
 TVM_REGISTER_GLOBAL("vm.builtin.invoke_closure").set_body_packed([](ffi::PackedArgs args, Any* rv) {
   // args[0]: vm; args[1]: closure; args[2, 3, ...]: function arguments
   VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
-  ObjectRef vm_closure = args[1];
+  ObjectRef vm_closure = args[1].cast<ObjectRef>();
   vm->InvokeClosurePacked(vm_closure, args.Slice(2), rv);
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.call_tir_dyn").set_body_packed([](ffi::PackedArgs args, Any* rv) {
-  ffi::Function func = args[0];
-  ShapeTuple to_unpack = args[args.size() - 1];
+  ffi::Function func = args[0].cast<ffi::Function>();
+  ShapeTuple to_unpack = args[args.size() - 1].cast<ShapeTuple>();
   size_t num_tensor_args = args.size() - 2;
 
   std::vector<AnyView> packed_args(num_tensor_args + to_unpack.size());
@@ -425,7 +425,7 @@ bool ReadIfCond(AnyView cond) {
   if (auto opt_int = cond.as<bool>()) {
     return opt_int.value();
   }
-  NDArray arr = cond.operator tvm::runtime::NDArray();
+  NDArray arr = cond.cast<tvm::runtime::NDArray>();
   if (arr->device.device_type != kDLCPU) {
     arr = arr.CopyTo(DLDevice{kDLCPU, 0});
   }
@@ -469,14 +469,14 @@ TVM_REGISTER_GLOBAL("vm.builtin.invoke_debug_func")
     .set_body_packed([](ffi::PackedArgs args, Any* rv) -> void {
       ICHECK_GE(args.size(), 3);
       int num_args = args.size() - 3;
-      ObjectRef io_effect = args[0];
+      ObjectRef io_effect = args[0].cast<ObjectRef>();
       ICHECK(!io_effect.defined()) << "ValueError: IOEffect is expected to be lowered to None.";
-      String debug_func_name = args[1];
+      String debug_func_name = args[1].cast<String>();
       const auto debug_func = tvm::ffi::Function::GetGlobal(debug_func_name);
       CHECK(debug_func.has_value()) << "ValueError: " << debug_func_name << " is not found. "
                                     << "Use the decorator `@tvm.register_func(\"" << debug_func_name
                                     << "\")` to register it.";
-      String line_info = args[2];
+      String line_info = args[2].cast<String>();
       std::vector<AnyView> call_args(num_args + 1);
       {
         call_args[0] = line_info;

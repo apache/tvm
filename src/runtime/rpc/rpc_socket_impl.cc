@@ -125,10 +125,10 @@ void RPCServerLoop(PackedFunc fsend, PackedFunc frecv) {
 }
 
 TVM_REGISTER_GLOBAL("rpc.Connect").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  std::string url = args[0];
-  int port = args[1];
-  std::string key = args[2];
-  bool enable_logging = args[3];
+  auto url = args[0].cast<std::string>();
+  int port = args[1].cast<int>();
+  auto key = args[2].cast<std::string>();
+  bool enable_logging = args[3].cast<bool>();
   *rv = RPCClientConnect(url, port, key, enable_logging, args.Slice(4));
 });
 
@@ -136,8 +136,8 @@ TVM_REGISTER_GLOBAL("rpc.ServerLoop").set_body_packed([](TVMArgs args, TVMRetVal
   if (auto opt_int = args[0].as<int64_t>()) {
     RPCServerLoop(opt_int.value());
   } else {
-    RPCServerLoop(args[0].operator tvm::runtime::PackedFunc(),
-                  args[1].operator tvm::runtime::PackedFunc());
+    RPCServerLoop(args[0].cast<tvm::runtime::PackedFunc>(),
+                  args[1].cast<tvm::runtime::PackedFunc>());
   }
 });
 

@@ -54,12 +54,12 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
     const ArrayObj* json_array = json_obj.as<ArrayObj>();
     CHECK(json_array && json_array->size() == 2);
     // Load json[0] => shash
-    String str_shash = json_array->at(0);
+    String str_shash = json_array->at(0).cast<String>();
     // Load json[1] => mod
     {
-      String b64_mod = json_array->at(1);
+      String b64_mod = json_array->at(1).cast<String>();
       std::string json_mod = Base64Decode(b64_mod);
-      mod = LoadJSON(json_mod).operator IRModule();
+      mod = LoadJSON(json_mod).cast<IRModule>();
       std::stringstream(str_shash) >> shash;
     }
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
@@ -138,25 +138,25 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
     CHECK(json_array && json_array->size() == 4);
     // Load json[1] => run_secs
     if (json_array->at(1) != nullptr) {
-      run_secs = AsFloatArray(json_array->at(1));
+      run_secs = AsFloatArray(json_array->at(1).cast<ObjectRef>());
     }
     // Load json[2] => target
     if (json_array->at(2) != nullptr) {
-      target = Target(json_array->at(2).operator Map<String, ffi::Any>());
+      target = Target(json_array->at(2).cast<Map<String, ffi::Any>>());
     }
     // Load json[3] => args_info
     if (json_array->at(3) != nullptr) {
-      const ArrayObj* json_args_info = json_array->at(3).operator const ArrayObj*();
+      const ArrayObj* json_args_info = json_array->at(3).cast<const ArrayObj*>();
       Array<ArgInfo> info;
       info.reserve(json_args_info->size());
       for (Any json_arg_info : *json_args_info) {
-        info.push_back(ArgInfo::FromJSON(json_arg_info));
+        info.push_back(ArgInfo::FromJSON(json_arg_info.cast<ObjectRef>()));
       }
       args_info = info;
     }
     // Load json[0] => trace
     {
-      const ObjectRef& json_trace = json_array->at(0);
+      auto json_trace = json_array->at(0).cast<ObjectRef>();
       tir::Schedule sch =
           tir::Schedule::Traced(workload->mod, /*seed=*/-1, /*debug_mask=*/0,
                                 /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);

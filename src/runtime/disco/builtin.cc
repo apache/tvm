@@ -55,7 +55,7 @@ Module LoadVMModule(std::string path, Device device) {
   CHECK(vm_load_executable != nullptr)
       << "ValueError: File `" << path
       << "` is not built by RelaxVM, because `vm_load_executable` does not exist";
-  Module mod = vm_load_executable();
+  auto mod = vm_load_executable().cast<Module>();
   PackedFunc vm_initialization = mod.GetFunction("vm_initialization");
   CHECK(vm_initialization != nullptr)
       << "ValueError: File `" << path

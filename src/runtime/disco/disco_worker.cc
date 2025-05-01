@@ -39,8 +39,8 @@ void DiscoWorker::SetRegister(int reg_id, AnyView value) {
   TVMRetValue& rv = register_file.at(reg_id);
   if (rv.type_index() == ffi::TypeIndex::kTVMFFINDArray &&
       value.type_index() == ffi::TypeIndex::kTVMFFINDArray) {
-    NDArray dst = rv;
-    NDArray src = value;
+    NDArray dst = rv.cast<NDArray>();
+    NDArray src = value.cast<NDArray>();
     dst.CopyFrom(src);
   } else {
     rv = value;
@@ -53,8 +53,8 @@ struct DiscoWorker::Impl {
     using namespace tvm;
     while (true) {
       TVMArgs args = self->channel->Recv();
-      DiscoAction action = static_cast<DiscoAction>(args[0].operator int());
-      int64_t reg_id = args[1];
+      DiscoAction action = static_cast<DiscoAction>(args[0].cast<int>());
+      int64_t reg_id = args[1].cast<int64_t>();
       switch (action) {
         case DiscoAction::kShutDown: {
           Shutdown(self);
@@ -65,13 +65,13 @@ struct DiscoWorker::Impl {
           break;
         }
         case DiscoAction::kGetGlobalFunc: {
-          GetGlobalFunc(self, reg_id, args[2]);
+          GetGlobalFunc(self, reg_id, args[2].cast<std::string>());
           break;
         }
         case DiscoAction::kCallPacked: {
-          int func_reg_id = args[2];
+          int func_reg_id = args[2].cast<int>();
           CHECK_LT(func_reg_id, self->register_file.size());
-          PackedFunc func = GetReg(self, func_reg_id);
+          PackedFunc func = GetReg(self, func_reg_id).cast<PackedFunc>();
           CHECK(func.defined());
           CallPacked(self, reg_id, func, args.Slice(3));
           break;
@@ -89,12 +89,12 @@ struct DiscoWorker::Impl {
           break;
         }
         case DiscoAction::kDebugGetFromRemote: {
-          int worker_id = args[2];
+          int worker_id = args[2].cast<int>();
           DebugGetFromRemote(self, reg_id, worker_id);
           break;
         }
         case DiscoAction::kDebugSetRegister: {
-          int worker_id = args[2];
+          int worker_id = args[2].cast<int>();
           AnyView value = args[3];
           DebugSetRegister(self, reg_id, worker_id, value);
           break;
@@ -123,7 +123,7 @@ struct DiscoWorker::Impl {
   static void CopyFromWorker0(DiscoWorker* self, int reg_id) {
     if (self->worker_id == 0) {
       NDArray tgt = GetNDArrayFromHost(self);
-      NDArray src = GetReg(self, reg_id);
+      NDArray src = GetReg(self, reg_id).cast<NDArray>();
       tgt.CopyFrom(src);
     }
   }
@@ -131,7 +131,7 @@ struct DiscoWorker::Impl {
   static void CopyToWorker0(DiscoWorker* self, int reg_id) {
     if (self->worker_id == 0) {
       NDArray src = GetNDArrayFromHost(self);
-      NDArray tgt = GetReg(self, reg_id);
+      NDArray tgt = GetReg(self, reg_id).cast<NDArray>();
       tgt.CopyFrom(src);
     }
   }

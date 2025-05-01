@@ -354,7 +354,7 @@ PackedFunc OpenCLModuleNode::GetFunction(const String& name,
     });
   } else if (name == "opencl.SetPreCompiledPrograms") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      this->SetPreCompiledPrograms(args[0]);
+      this->SetPreCompiledPrograms(args[0].cast<std::string>());
     });
   }
   return OpenCLModuleNodeBase::GetFunction(name, sptr_to_self);

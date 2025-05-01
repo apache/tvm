@@ -115,7 +115,7 @@ class SystemLibModuleRegistry {
 TVM_REGISTER_GLOBAL("runtime.SystemLib").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   std::string symbol_prefix = "";
   if (args.size() != 0) {
-    symbol_prefix = args[0].operator std::string();
+    symbol_prefix = args[0].cast<std::string>();
   }
   *rv = SystemLibModuleRegistry::Global()->GetOrCreateModule(symbol_prefix);
 });

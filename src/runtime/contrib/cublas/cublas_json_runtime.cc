@@ -68,7 +68,7 @@ class CublasJSONRuntime : public JSONRuntimeBase {
     auto* entry_ptr = tvm::contrib::CuBlasLtThreadEntry::ThreadLocal();
 
     auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-    cudaStream_t stream = static_cast<cudaStream_t>(func().operator void*());
+    cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
 
     std::vector<const DLTensor*> dl_tensors(NumEntries());
 
@@ -81,7 +81,7 @@ class CublasJSONRuntime : public JSONRuntimeBase {
         NDArray arr = opt_nd.value();
         arg = arr.operator->();
       } else {
-        arg = args[i].operator DLTensor*();
+        arg = args[i].cast<DLTensor*>();
       }
 
       dl_tensors[eid] = arg;

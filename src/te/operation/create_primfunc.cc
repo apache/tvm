@@ -744,7 +744,7 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
                             {{"global_symbol", String("main")}, {"tir.noalias", true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
   ICHECK(fcomplete.has_value());
-  func = (*fcomplete)(std::move(func), info->root_alloc);
+  func = (*fcomplete)(std::move(func), info->root_alloc).cast<PrimFunc>();
   return func;
 }
 
@@ -785,11 +785,11 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
 }
 
 TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  Array<ObjectRef> arg_list = args[0];
+  Array<ObjectRef> arg_list = args[0].cast<Array<ObjectRef>>();
   std::optional<DataType> index_dtype_override{std::nullopt};
   // Add conversion to make std::optional compatible with FFI.
   if (args[1] != nullptr) {
-    index_dtype_override = args[1].operator DataType();
+    index_dtype_override = args[1].cast<DataType>();
   }
   *ret = CreatePrimFunc(arg_list, index_dtype_override);
 });
@@ -818,7 +818,7 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<ObjectRef>& arg_tir_var_list,
                             {{"global_symbol", String("main")}, {"tir.noalias", true}});
   const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
   ICHECK(fcomplete.has_value());
-  func = (*fcomplete)(std::move(func), info->root_alloc);
+  func = (*fcomplete)(std::move(func), info->root_alloc).cast<PrimFunc>();
   return func;
 }
 

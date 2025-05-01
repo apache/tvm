@@ -118,7 +118,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   TensorRegistry::DLTensorProvider makeIODataProvider(const TVMArgs& args) const {
     std::map<uint32_t, const DLTensor*> io_map;  // eid to dl tensor map
     for (size_t i = 0; i < run_arg_eid_.size(); i++) {
-      io_map[run_arg_eid_[i]] = args[i].operator DLTensor*();
+      io_map[run_arg_eid_[i]] = args[i].cast<DLTensor*>();
     }
 
     // lambda with captured IO data handlers

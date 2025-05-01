@@ -70,10 +70,10 @@ static inline int DetectROCMmaxThreadsPerBlock() {
   if (api != nullptr) {
     TVMRetValue val;
     api->GetAttr(tvm_dev, tvm::runtime::kExist, &val);
-    if (val.operator int() == 1) {
+    if (val.cast<int>() == 1) {
       tvm::runtime::DeviceAPI::Get(tvm_dev)->GetAttr(tvm_dev, tvm::runtime::kMaxThreadsPerBlock,
                                                      &val);
-      return val.operator int();
+      return val.cast<int>();
     }
   }
   LOG(WARNING) << "Cannot get maximum number of threads for AMD codegen";
@@ -279,7 +279,7 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
   auto fbitcode = tvm::ffi::Function::GetGlobalRequired("tvm_callback_rocm_bitcode_path");
-  Array<runtime::String> bitcode_files = fbitcode();
+  auto bitcode_files = fbitcode().cast<Array<runtime::String>>();
 
   for (auto& bitcode_path : bitcode_files) {
     std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(bitcode_path);
@@ -351,7 +351,7 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
   arr.data = &obj[0];
   arr.size = obj.length();
 
-  std::string hsaco = (*flink)(&arr);
+  std::string hsaco = (*flink)(&arr).cast<std::string>();
   std::string ll(data_ll.begin(), data_ll.end());
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(mod), ll, assembly);
 }

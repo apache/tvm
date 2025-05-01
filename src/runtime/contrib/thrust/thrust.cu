@@ -234,10 +234,10 @@ void thrust_sort_common(DLTensor* input, DLTensor* values_out, DLTensor* indices
 
 TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   ICHECK_GE(args.num_args, 4);
-  DLTensor* input = args[0];
-  DLTensor* values_out = args[1];
-  DLTensor* indices_out = args[2];
-  bool is_ascend = args[3];
+  auto input = args[0].cast<DLTensor*>();
+  auto values_out = args[1].cast<DLTensor*>();
+  auto indices_out = args[2].cast<DLTensor*>();
+  bool is_ascend = args[3].cast<bool>();
   DLTensor* workspace = nullptr;
   if (args.num_args == 5) {
     workspace = args[4];
@@ -281,11 +281,11 @@ void thrust_stable_sort_by_key(DLTensor* keys_in, DLTensor* values_in, DLTensor*
 TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       ICHECK_GE(args.num_args, 5);
-      DLTensor* keys_in = args[0];
-      DLTensor* values_in = args[1];
-      DLTensor* keys_out = args[2];
-      DLTensor* values_out = args[3];
-      bool for_scatter = args[4];
+      auto keys_in = args[0].cast<DLTensor*>();
+      auto values_in = args[1].cast<DLTensor*>();
+      auto keys_out = args[2].cast<DLTensor*>();
+      auto values_out = args[3].cast<DLTensor*>();
+      bool for_scatter = args[4].cast<bool>();
       DLTensor* workspace = nullptr;
       if (args.num_args == 6) {
         workspace = args[5];
@@ -396,8 +396,8 @@ void thrust_scan(DLTensor* data, DLTensor* output, bool exclusive, DLTensor* wor
 TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
 .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   ICHECK(args.num_args == 2 || args.num_args == 3 || args.num_args == 4);
-  DLTensor* data = args[0];
-  DLTensor* output = args[1];
+  auto data = args[0].cast<DLTensor*>();
+  auto output = args[1].cast<DLTensor*>();
   bool exclusive = false;
   DLTensor* workspace = nullptr;
 

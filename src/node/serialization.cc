@@ -284,7 +284,7 @@ class JSONAttrGetter : public AttrVisitor {
       });
       if (is_str_map) {
         for (const auto& kv : *n) {
-          node_->keys.push_back(kv.first.operator String());
+          node_->keys.push_back(kv.first.cast<String>());
           node_->data.push_back(node_index_->at(kv.second));
         }
       } else {
@@ -306,19 +306,19 @@ class JSONAttrGetter : public AttrVisitor {
       switch (node.type_index()) {
         case ffi::TypeIndex::kTVMFFIBool:
         case ffi::TypeIndex::kTVMFFIInt: {
-          node_->attrs["v_int64"] = std::to_string(node.operator int64_t());
+          node_->attrs["v_int64"] = std::to_string(node.cast<int64_t>());
           break;
         }
         case ffi::TypeIndex::kTVMFFIFloat: {
-          node_->attrs["v_float64"] = std::to_string(node.operator double());
+          node_->attrs["v_float64"] = std::to_string(node.cast<double>());
           break;
         }
         case ffi::TypeIndex::kTVMFFIDataType: {
-          node_->attrs["v_type"] = Type2String(DataType(node.operator DLDataType()));
+          node_->attrs["v_type"] = Type2String(DataType(node.cast<DLDataType>()));
           break;
         }
         case ffi::TypeIndex::kTVMFFIDevice: {
-          DLDevice dev = node.operator DLDevice();
+          DLDevice dev = node.cast<DLDevice>();
           node_->attrs["v_device_type"] = std::to_string(dev.device_type);
           node_->attrs["v_device_id"] = std::to_string(dev.device_id);
           break;
@@ -376,7 +376,8 @@ class FieldDependencyFinder : public AttrVisitor {
       return;
     }
     // Skip the objects that have their own string repr
-    if (jnode->repr_bytes.length() > 0 || reflection_->GetReprBytes(node, nullptr)) {
+    if (jnode->repr_bytes.length() > 0 ||
+        reflection_->GetReprBytes(node.cast<const Object*>(), nullptr)) {
       return;
     }
     // Skip containers
@@ -476,7 +477,7 @@ class JSONAttrSetter : public AttrVisitor {
     size_t index;
     ParseValue(key, &index);
     ICHECK_LE(index, node_list_->size());
-    *value = node_list_->at(index);
+    *value = node_list_->at(index).cast<ObjectRef>();
   }
 
   static Any CreateInitAny(ReflectionVTable* reflection, JSONNode* jnode) {

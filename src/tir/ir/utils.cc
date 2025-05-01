@@ -30,7 +30,7 @@ namespace tir {
 
 ffi::Any NormalizeAttributeObject(ffi::Any obj) {
   if (obj.type_index() == ffi::TypeIndex::kTVMFFIBool) {
-    return Bool(obj.operator bool());
+    return Bool(obj.cast<bool>());
   } else if (auto opt_int = obj.as<int>()) {
     return Integer(opt_int.value());
   } else if (auto opt_float = obj.as<double>()) {
@@ -42,7 +42,7 @@ ffi::Any NormalizeAttributeObject(ffi::Any obj) {
     bool is_same = true;
 
     for (const auto& [key, obj] : opt_map.value()) {
-      ObjectRef new_obj = NormalizeAttributeObject(obj);
+      ObjectRef new_obj = NormalizeAttributeObject(obj.cast<ObjectRef>()).cast<ObjectRef>();
       is_same = is_same && obj.same_as(new_obj);
       new_map.Set(key, new_obj);
     }

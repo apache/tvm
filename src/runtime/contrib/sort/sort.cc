@@ -79,11 +79,11 @@ struct float16 {
 // (d1, d2, ..., d(k-1), d(k+1), ..., dn).
 TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort_nms")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      DLTensor* input = args[0];
-      DLTensor* sort_num = args[1];
-      DLTensor* output = args[2];
-      int32_t axis = args[3];
-      bool is_ascend = args[4];
+      auto input = args[0].cast<DLTensor*>();
+      auto sort_num = args[1].cast<DLTensor*>();
+      auto output = args[2].cast<DLTensor*>();
+      int32_t axis = args[3].cast<int>();
+      bool is_ascend = args[4].cast<bool>();
 
       auto dtype = input->dtype;
       auto data_ptr = static_cast<float*>(input->data);
@@ -217,10 +217,10 @@ void sort(DLTensor* input, DLTensor* output, int32_t axis, bool is_ascend) {
 // and sort axis is dk. sort_num should have dimension of
 // (d1, d2, ..., d(k-1), d(k+1), ..., dn).
 TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* input = args[0];
-  DLTensor* output = args[1];
-  int32_t axis = args[2];
-  bool is_ascend = args[3];
+  auto input = args[0].cast<DLTensor*>();
+  auto output = args[1].cast<DLTensor*>();
+  int32_t axis = args[2].cast<int32_t>();
+  bool is_ascend = args[3].cast<bool>();
   if (axis < 0) {
     axis = input->ndim + axis;
   }
@@ -312,10 +312,10 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort").set_body_packed([](TVMArgs args,
 // and sort axis is dk. sort_num should have dimension of
 // (d1, d2, ..., d(k-1), d(k+1), ..., dn).
 TVM_REGISTER_GLOBAL("tvm.contrib.sort.sort").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* input = args[0];
-  DLTensor* output = args[1];
-  int32_t axis = args[2];
-  bool is_ascend = args[3];
+  auto input = args[0].cast<DLTensor*>();
+  auto output = args[1].cast<DLTensor*>();
+  int32_t axis = args[2].cast<int32_t>();
+  bool is_ascend = args[3].cast<bool>();
   if (axis < 0) {
     axis = input->ndim + axis;
   }
@@ -441,20 +441,20 @@ void topk(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, int k, i
 // and sort axis is dk. sort_num should have dimension of
 // (d1, d2, ..., d(k-1), d(k+1), ..., dn).
 TVM_REGISTER_GLOBAL("tvm.contrib.sort.topk").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* input = args[0];
+  auto input = args[0].cast<DLTensor*>();
   DLTensor* values_out = nullptr;
   DLTensor* indices_out = nullptr;
-  int k = args[args.size() - 4];
-  int axis = args[args.size() - 3];
-  std::string ret_type = args[args.size() - 2];
-  bool is_ascend = args[args.size() - 1];
+  int k = args[args.size() - 4].cast<int>();
+  int axis = args[args.size() - 3].cast<int>();
+  std::string ret_type = args[args.size() - 2].cast<std::string>();
+  bool is_ascend = args[args.size() - 1].cast<bool>();
   if (ret_type == "both") {
-    values_out = args[1];
-    indices_out = args[2];
+    values_out = args[1].cast<DLTensor*>();
+    indices_out = args[2].cast<DLTensor*>();
   } else if (ret_type == "values") {
-    values_out = args[1];
+    values_out = args[1].cast<DLTensor*>();
   } else if (ret_type == "indices") {
-    indices_out = args[1];
+    indices_out = args[1].cast<DLTensor*>();
   } else {
     LOG(FATAL) << "Unsupported ret type: " << ret_type;
   }

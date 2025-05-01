@@ -274,7 +274,7 @@ void TracedScheduleNode::Reorder(const Array<LoopRV>& ordered_loop_rvs) {
 
   static const InstructionKind& kind = InstructionKind::Get("Reorder");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
-                                      /*inputs=*/Any(ordered_loop_rvs),
+                                      /*inputs=*/ordered_loop_rvs,
                                       /*attrs=*/{},
                                       /*outputs=*/{}));
 }

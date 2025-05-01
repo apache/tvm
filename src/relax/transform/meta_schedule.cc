@@ -76,7 +76,7 @@ class MetaScheduleTuner {
     Choice choice("tvm.meta_schedule.tune_tir", {target_, work_dir_, max_trials_global_},
                   "relax.tuning_api.Choice.default_constr_func", {});
     Knob knob("meta_schedule.tune_primfunc", {{"0", choice}});
-    knob->Apply((*normalize_mod_func_)(f), "0");
+    knob->Apply((*normalize_mod_func_)(f).cast<IRModule>(), "0");
     /*
     // TODO(@sunggg): revisit when we have a solution for large params
     Trace trace = Trace((*normalize_mod_func_)(f), {}, {});
@@ -125,7 +125,7 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
       if (const auto* prim_func_node = base_func.as<tir::PrimFuncNode>()) {
         tir::PrimFunc prim_func = GetRef<tir::PrimFunc>(prim_func_node);
 
-        IRModule tir_mod = (*normalize_mod_func_)(prim_func);
+        IRModule tir_mod = (*normalize_mod_func_)(prim_func).cast<IRModule>();
         if (Optional<meta_schedule::TuningRecord> opt_record =
                 database->QueryTuningRecord(tir_mod, target, gv->name_hint)) {
           meta_schedule::TuningRecord record = opt_record.value();

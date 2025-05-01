@@ -115,7 +115,7 @@ Module CreatePipeClient(std::vector<std::string> cmd) {
 TVM_REGISTER_GLOBAL("rpc.CreatePipeClient").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   std::vector<std::string> cmd;
   for (int i = 0; i < args.size(); ++i) {
-    cmd.push_back(args[i].operator std::string());
+    cmd.push_back(args[i].cast<std::string>());
   }
   *rv = CreatePipeClient(cmd);
 });

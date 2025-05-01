@@ -94,7 +94,7 @@ TVM_REGISTER_OBJECT_TYPE(ShapeTupleObj);
 TVM_REGISTER_GLOBAL("runtime.ShapeTuple").set_body_packed([](ffi::PackedArgs args, Any* ret) {
   std::vector<ShapeTuple::index_type> shape;
   for (int i = 0; i < args.size(); ++i) {
-    shape.push_back(args[i]);
+    shape.push_back(args[i].cast<ShapeTuple::index_type>());
   }
   *ret = ShapeTuple(shape);
 });

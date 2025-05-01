@@ -131,7 +131,7 @@ static bool DetectDeviceFlag(Device device, runtime::DeviceAttrKind flag, TVMRet
   }
   // Check if the device exists
   api->GetAttr(device, runtime::kExist, val);
-  int exists = *val;
+  int exists = val->cast<int>();
   if (!exists) {
     return false;
   }
@@ -173,7 +173,7 @@ TargetJSON UpdateCUDAAttrs(TargetJSON target) {
       LOG(WARNING) << "Unable to detect CUDA version, default to \"-arch=sm_50\" instead";
       archInt = 50;
     } else {
-      archInt = std::stod(version.operator std::string()) * 10 + 0.1;
+      archInt = std::stod(version.cast<std::string>()) * 10 + 0.1;
     }
     target.Set("arch", String("sm_") + std::to_string(archInt));
   }
@@ -201,7 +201,7 @@ TargetJSON UpdateNVPTXAttrs(TargetJSON target) {
       LOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_50\" instead";
       arch = 50;
     } else {
-      arch = std::stod(version.operator std::string()) * 10 + 0.1;
+      arch = std::stod(version.cast<std::string>()) * 10 + 0.1;
     }
     target.Set("mcpu", String("sm_") + std::to_string(arch));
   }
@@ -224,7 +224,7 @@ TargetJSON UpdateROCmAttrs(TargetJSON target) {
   } else {
     TVMRetValue val;
     if (const auto f_get_rocm_arch = tvm::ffi::Function::GetGlobal("tvm_callback_rocm_get_arch")) {
-      arch = (*f_get_rocm_arch)().operator std::string();
+      arch = (*f_get_rocm_arch)().cast<std::string>();
     }
     target.Set("mcpu", String(arch));
   }
@@ -238,7 +238,7 @@ TargetJSON UpdateROCmAttrs(TargetJSON target) {
     LOG(WARNING) << "Unable to detect ROCm version, assuming >= 3.5";
     version = 305;
   } else {
-    version = val.operator int();
+    version = val.cast<int>();
   }
   if (version < 305) {
     Array<String> mattr;

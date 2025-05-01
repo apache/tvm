@@ -120,7 +120,8 @@ void TensorRTCodeGen::CodeGenClassDefine() {
   // save codegen before build
   if (config()->use_tools) {
     const auto pf = tvm::ffi::Function::GetGlobalRequired("msc_tool.codegen_step");
-    before_build_codes_ = pf(GetStepCtx(), "before_build", graph()->name, config()->tools_tag);
+    before_build_codes_ =
+        pf(GetStepCtx(), "before_build", graph()->name, config()->tools_tag).cast<Array<String>>();
   }
   if (graph()->weight_holders.size() > 0) {
     stack_.func_call("TRTUtils::LoadWeights", "mWeights")
@@ -205,7 +206,8 @@ void TensorRTCodeGen::CodeGenClassDefine() {
   // save codegen after build
   if (config()->use_tools) {
     const auto pf = tvm::ffi::Function::GetGlobalRequired("msc_tool.codegen_step");
-    after_build_codes_ = pf(GetStepCtx(), "after_build", graph()->name, config()->tools_tag);
+    after_build_codes_ =
+        pf(GetStepCtx(), "after_build", graph()->name, config()->tools_tag).cast<Array<String>>();
   }
   // end define build method
   stack_.func_end("true");
@@ -610,7 +612,8 @@ Array<runtime::Module> MSCTensorRTCompiler(Array<Function> functions,
     std::string graph_json = serializer.GetJSON();
     const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.msc_tensorrt_runtime_create");
     VLOG(1) << "Creating msc_tensorrt runtime::Module for '" << func_name << "'";
-    compiled_functions.push_back(pf(func_name, graph_json, serializer.GetConstantNames()));
+    compiled_functions.push_back(
+        pf(func_name, graph_json, serializer.GetConstantNames()).cast<runtime::Module>());
   }
   return compiled_functions;
 }

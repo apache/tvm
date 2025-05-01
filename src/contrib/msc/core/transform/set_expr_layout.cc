@@ -519,7 +519,7 @@ InferLayoutOutput ForwardInferLayoutPlugin(const Call& call,
     return InferLayoutOutput();
   }
   const auto& args = Downcast<Tuple>(call->args[1]);
-  return (*pf)(args->fields, var_layout_map);
+  return (*pf)(args->fields, var_layout_map).cast<InferLayoutOutput>();
 }
 
 // nn ops

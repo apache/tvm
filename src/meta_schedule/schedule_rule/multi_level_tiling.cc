@@ -102,7 +102,7 @@ void MultiLevelTilingNode::InitializeWithTuneContext(const TuneContext& context)
 
 // Entry of the mega rule; Inherited from ScheduleRuleNode
 Array<Schedule> MultiLevelTilingNode::Apply(const Schedule& sch, const BlockRV& block_rv) {
-  if ((filter_fn_ && filter_fn_.value()(sch, sch->GetSRef(block_rv))) ||
+  if ((filter_fn_ && filter_fn_.value()(sch, sch->GetSRef(block_rv)).cast<bool>()) ||
       NeedsMultiLevelTiling(sch->state(), sch->GetSRef(block_rv))) {
     sch->Annotate(block_rv, tir::attr::meta_schedule_tiling_structure, structure);
 

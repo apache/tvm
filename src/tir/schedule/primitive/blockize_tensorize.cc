@@ -833,7 +833,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
     block->body = impl_block->body;
     block->match_buffers = std::move(match_buffer_regions);
     for (const auto& [key, val] : impl_block->annotations) {
-      if (block->annotations.count(key) && block->annotations[key] != val) {
+      if (block->annotations.count(key) && !ffi::AnyEqual()(block->annotations[key], val)) {
         LOG(WARNING) << "Conflict of annotation \"" << key << "\". Tensor intrinsic and schedule "
                      << "has different values : " << block->annotations[key] << " vs " << val << " "
                      << "The value from tensor intrinsic is skipped.";

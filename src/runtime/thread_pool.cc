@@ -381,11 +381,11 @@ class ThreadPool {
  */
 TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   threading::ThreadGroup::AffinityMode mode =
-      static_cast<threading::ThreadGroup::AffinityMode>(static_cast<int>(args[0]));
-  int nthreads = args[1];
+      static_cast<threading::ThreadGroup::AffinityMode>(args[0].cast<int>());
+  int nthreads = args[1].cast<int>();
   std::vector<unsigned int> cpus;
   if (args.size() >= 3) {
-    Array<String> cpu_array = args[2];
+    auto cpu_array = args[2].cast<Array<String>>();
     for (auto cpu : cpu_array) {
       ICHECK(IsNumber(cpu)) << "The CPU core information '" << cpu << "' is not a number.";
       cpus.push_back(std::stoi(cpu));

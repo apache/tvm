@@ -41,7 +41,7 @@ Choice::Choice(String transform_func_key, Array<Any> transform_func_args, String
 // TODO(sunggg): Currently, it only supports an array of primitive data types.
 ObjectRef ChoiceNode::AsJSON() const {
   Array<ObjectRef> json_transfrom_args, json_constr_args;
-  for (ObjectRef arg : this->transform_func_args) {
+  for (Any arg : this->transform_func_args) {
     std::string json_arg = tvm::SaveJSON(arg);
     std::string b64_arg = meta_schedule::Base64Encode(json_arg);
     json_transfrom_args.push_back(String(b64_arg));
@@ -131,7 +131,7 @@ Knob Knob::FromJSON(const ObjectRef& json) {
     name = GetRef<String>(arr0);
     for (auto const& x : GetRef<Map<String, ffi::Any>>(arr1)) {
       String decision = x.first;
-      Choice choice = Choice::FromJSON(x.second);
+      Choice choice = Choice::FromJSON(x.second.cast<ObjectRef>());
       choices.Set(decision, choice);
     }
   } catch (const tvm::Error& e) {
@@ -150,7 +150,7 @@ Trace::Trace(IRModule in_mod, Array<Knob> knobs, Array<String> decisions) {
   // Deep-copy IRModule
   const auto func_deepcopy =
       tvm::ffi::Function::GetGlobalRequired("relax.tuning_api.deepcopy_irmodule");
-  IRModule out_mod = func_deepcopy(in_mod);
+  IRModule out_mod = func_deepcopy(in_mod).cast<IRModule>();
   // Apply the decision history if provided
   int size = knobs.size();
   for (int i = 0; i < size; i++) {
@@ -207,7 +207,7 @@ Trace Trace::FromJSON(const ObjectRef& json) {
     ICHECK(arr0 && arr1);
 
     for (const Any& elem : *arr0) {
-      knobs.push_back(Knob::FromJSON(elem));
+      knobs.push_back(Knob::FromJSON(elem.cast<ObjectRef>()));
     }
 
     for (const Any& elem : *arr1) {

@@ -347,7 +347,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   auto maybe_level = target.Get("opt-level");
 #if TVM_LLVM_VERSION <= 170
   if (maybe_level.has_value()) {
-    int level = maybe_level.value().operator int();
+    int level = maybe_level.value().cast<int>();
     if (level <= 0) {
       opt_level_ = llvm::CodeGenOpt::None;
     } else if (level == 1) {
@@ -385,7 +385,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
 
   auto GetBoolFlag = [&target](llvm::StringRef name) -> bool {
     if (auto flag = target.Get(name.str())) {
-      return flag.value().operator bool();
+      return flag.value().cast<bool>();
     } else {
       return false;
     }
