@@ -592,6 +592,42 @@ def test_pad():
     verify_model(PadModel(pad=[1, 1, 2, 2], mode="circular"), input_infos, {}, expected_circular)
 
 
+def test_pixel_shuffle():
+    class PixelShuffle1(torch.nn.Module):
+        def __init__(self, upscale_factor=2):
+            super().__init__()
+            self.pixel_shuffle = torch.nn.PixelShuffle(upscale_factor)
+
+        def forward(self, x):
+            return self.pixel_shuffle(x)
+
+    class PixelShuffle2(torch.nn.Module):
+        def __init__(self, upscale_factor=2):
+            super().__init__()
+            self.upscale_factor = upscale_factor
+
+        def forward(self, x):
+            return torch.nn.functional.pixel_shuffle(x, self.upscale_factor)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 8, 10, 15), dtype="float32")
+        ) -> R.Tensor((1, 2, 20, 30), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 20, 30), dtype="float32") = R.nn.pixel_shuffle(
+                    inp_0, upscale_factor=2
+                )
+                gv: R.Tensor((1, 2, 20, 30), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    input_infos = [([1, 8, 10, 15], "float32")]
+    verify_model(PixelShuffle1(2), input_infos, {}, expected)
+    verify_model(PixelShuffle2(2), input_infos, {}, expected)
+
+
 def test_linear():
     # nn.Linear
     class Dense1(Module):
