@@ -26,9 +26,19 @@
 
 namespace tvm {
 namespace ffi {
+
 // Shape
 TVM_FFI_REGISTER_GLOBAL("ffi.Shape").set_body_packed([](ffi::PackedArgs args, Any* ret) {
-  *ret = Shape(args.data(), args.data() + args.size());
+  int64_t* mutable_data;
+  ObjectPtr<ShapeObj> shape = details::MakeEmptyShape(args.size(), &mutable_data);
+  for (int i = 0; i < args.size(); ++i) {
+    if (auto opt_int = args[i].as<int64_t>()) {
+      mutable_data[i] = *opt_int;
+    } else {
+      TVM_FFI_THROW(ValueError) << "Expect shape to take list of int arguments";
+    }
+  }
+  *ret = Shape(shape);
 });
 }  // namespace ffi
 }  // namespace tvm

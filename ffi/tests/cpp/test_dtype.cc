@@ -84,7 +84,7 @@ TEST(DataType, AnyConversion) {
   EXPECT_THROW(
       {
         try {
-          [[maybe_unused]] DLDataType v0 = view0;
+          [[maybe_unused]] auto v0 = view0.cast<DLDataType>();
         } catch (const Error& error) {
           EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
@@ -97,7 +97,7 @@ TEST(DataType, AnyConversion) {
   DLDataType dtype{kDLFloat, 32, 1};
 
   AnyView view1_dtype = dtype;
-  DLDataType dtype_v1 = view1_dtype;
+  auto dtype_v1 = view1_dtype.cast<DLDataType>();
   EXPECT_EQ(dtype_v1.code, kDLFloat);
   EXPECT_EQ(dtype_v1.bits, 32);
   EXPECT_EQ(dtype_v1.lanes, 1);

@@ -54,7 +54,7 @@ TEST(Map, PODKey) {
 
   auto it = map0.find(1.1);
   EXPECT_TRUE(it != map0.end());
-  EXPECT_EQ((*it).second.operator int(), 3);
+  EXPECT_EQ((*it).second.cast<int>(), 3);
 }
 
 TEST(Map, Object) {
@@ -160,39 +160,39 @@ TEST(Map, AnyImplicitConversion) {
 
   // check will trigger copy
   AnyView view0 = map0;
-  Map<int, double> map1 = view0;
+  auto map1 = view0.cast<Map<int, double>>();
   EXPECT_TRUE(!map1.same_as(map0));
   EXPECT_EQ(map1[1], 2);
   EXPECT_EQ(map1[2], 3.1);
   EXPECT_EQ(map1.use_count(), 1);
 
-  Map<int, Any> map2 = view0;
+  auto map2 = view0.cast<Map<int, Any>>();
   EXPECT_TRUE(map2.same_as(map0));
   EXPECT_EQ(map2.use_count(), 2);
 
-  Map<Any, double> map3 = view0;
+  auto map3 = view0.cast<Map<Any, double>>();
   EXPECT_TRUE(!map3.same_as(map0));
   EXPECT_EQ(map3.use_count(), 1);
 
   Map<Any, Any> map4{{"yes", 1.1}, {"no", 2.2}};
   Any any1 = map4;
 
-  Map<String, double> map5 = any1;
+  auto map5 = any1.cast<Map<String, double>>();
   EXPECT_TRUE(map5.same_as(map4));
   EXPECT_EQ(map5.use_count(), 3);
 
-  Map<String, Any> map6 = any1;
+  auto map6 = any1.cast<Map<String, Any>>();
   EXPECT_TRUE(map6.same_as(map4));
   EXPECT_EQ(map6.use_count(), 4);
 
-  EXPECT_EQ(map6["yes"].operator double(), 1.1);
-  EXPECT_EQ(map6["no"].operator double(), 2.2);
+  EXPECT_EQ(map6["yes"].cast<double>(), 1.1);
+  EXPECT_EQ(map6["no"].cast<double>(), 2.2);
 
-  Map<Any, Any> map7 = any1;
+  auto map7 = any1.cast<Map<Any, Any>>();
   EXPECT_TRUE(map7.same_as(map4));
   EXPECT_EQ(map7.use_count(), 5);
 
-  Map<Any, TPrimExpr> map8 = any1;
+  auto map8 = any1.cast<Map<Any, TPrimExpr>>();
   EXPECT_TRUE(!map8.same_as(map4));
   EXPECT_EQ(map8.use_count(), 1);
   EXPECT_EQ(map8["yes"]->value, 1.1);
@@ -201,10 +201,10 @@ TEST(Map, AnyImplicitConversion) {
 
 TEST(Map, AnyConvertCheck) {
   Map<Any, Any> map = {{11, 1.1}};
-  EXPECT_EQ(map[11].operator double(), 1.1);
+  EXPECT_EQ(map[11].cast<double>(), 1.1);
 
   AnyView view0 = map;
-  Map<int64_t, double> arr1 = view0;
+  auto arr1 = view0.cast<Map<int64_t, double>>();
   EXPECT_EQ(arr1[11], 1.1);
 
   Any any1 = map;
@@ -213,7 +213,7 @@ TEST(Map, AnyConvertCheck) {
   EXPECT_THROW(
       {
         try {
-          [[maybe_unused]] WrongMap arr2 = any1;
+          [[maybe_unused]] auto arr2 = any1.cast<WrongMap>();
         } catch (const Error& error) {
           EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
@@ -230,7 +230,7 @@ TEST(Map, AnyConvertCheck) {
   EXPECT_THROW(
       {
         try {
-          [[maybe_unused]] WrongMap2 arr2 = any1;
+          [[maybe_unused]] auto arr2 = any1.cast<WrongMap2>();
         } catch (const Error& error) {
           EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
@@ -249,14 +249,14 @@ TEST(Map, PackedFuncGetItem) {
   Map<String, int64_t> map{{"x", 1}, {"y", 2}};
   Any k("x");
   Any v = f(map, k);
-  EXPECT_EQ(v.operator int(), 1);
+  EXPECT_EQ(v.cast<int>(), 1);
 }
 
 TEST(Map, Upcast) {
   Map<int, int> m0 = {{1, 2}, {3, 4}};
   Map<Any, Any> m1 = m0;
-  EXPECT_EQ(m1[1].operator int(), 2);
-  EXPECT_EQ(m1[3].operator int(), 4);
+  EXPECT_EQ(m1[1].cast<int>(), 2);
+  EXPECT_EQ(m1[3].cast<int>(), 4);
   static_assert(details::type_contains_v<Map<Any, Any>, Map<String, int>>);
 
   Map<String, Array<int>> m2 = {{"x", {1}}, {"y", {2}}};

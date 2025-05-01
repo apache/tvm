@@ -37,7 +37,7 @@ TEST(Any, Int) {
   EXPECT_THROW(
       {
         try {
-          [[maybe_unused]] int64_t v0 = view0;
+          [[maybe_unused]] auto v0 = view0.cast<int>();
         } catch (const Error& error) {
           EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
@@ -51,7 +51,7 @@ TEST(Any, Int) {
   EXPECT_EQ(view1.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFIInt);
   EXPECT_EQ(view1.CopyToTVMFFIAny().v_int64, 1);
 
-  int32_t int_v1 = view1;
+  auto int_v1 = view1.cast<int>();
   EXPECT_EQ(int_v1, 1);
 
   int64_t v1 = 2;
@@ -68,7 +68,7 @@ TEST(Any, bool) {
   EXPECT_THROW(
       {
         try {
-          [[maybe_unused]] bool v0 = view0;
+          [[maybe_unused]] auto v0 = view0.cast<bool>();
         } catch (const Error& error) {
           EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
@@ -82,7 +82,7 @@ TEST(Any, bool) {
   EXPECT_EQ(view1.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFIBool);
   EXPECT_EQ(view1.CopyToTVMFFIAny().v_int64, 1);
 
-  int32_t int_v1 = view1;
+  auto int_v1 = view1.cast<int>();
   EXPECT_EQ(int_v1, 1);
 
   bool v1 = false;
@@ -120,7 +120,7 @@ TEST(Any, Float) {
   EXPECT_THROW(
       {
         try {
-          [[maybe_unused]] double v0 = view0;
+          [[maybe_unused]] auto v0 = view0.cast<double>();
         } catch (const Error& error) {
           EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
@@ -131,7 +131,7 @@ TEST(Any, Float) {
       ::tvm::ffi::Error);
 
   AnyView view1_int = 1;
-  float float_v1 = view1_int;
+  auto float_v1 = view1_int.cast<float>();
   EXPECT_EQ(float_v1, 1);
 
   AnyView view2 = 2.2;
@@ -154,7 +154,7 @@ TEST(Any, Device) {
   EXPECT_THROW(
       {
         try {
-          [[maybe_unused]] DLDevice v0 = view0;
+          [[maybe_unused]] auto v0 = view0.cast<DLDevice>();
         } catch (const Error& error) {
           EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
@@ -167,7 +167,7 @@ TEST(Any, Device) {
   DLDevice device{kDLCUDA, 1};
 
   AnyView view1_device = device;
-  DLDevice dtype_v1 = view1_device;
+  auto dtype_v1 = view1_device.cast<DLDevice>();
   EXPECT_EQ(dtype_v1.device_type, kDLCUDA);
   EXPECT_EQ(dtype_v1.device_id, 1);
 
@@ -187,7 +187,7 @@ TEST(Any, DLTensor) {
   EXPECT_THROW(
       {
         try {
-          [[maybe_unused]] DLTensor* v0 = view0;
+          [[maybe_unused]] auto v0 = view0.cast<DLTensor*>();
         } catch (const Error& error) {
           EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
@@ -200,7 +200,7 @@ TEST(Any, DLTensor) {
   DLTensor dltensor;
 
   AnyView view1_dl = &dltensor;
-  DLTensor* dl_v1 = view1_dl;
+  auto dl_v1 = view1_dl.cast<DLTensor*>();
   EXPECT_EQ(dl_v1, &dltensor);
 }
 
@@ -225,7 +225,7 @@ TEST(Any, Object) {
   EXPECT_EQ(v1.use_count(), 2);
 
   // convert to weak raw object ptr
-  const TIntObj* v1_ptr = view2;
+  const TIntObj* v1_ptr = view2.cast<const TIntObj*>();
   EXPECT_EQ(v1.use_count(), 2);
   EXPECT_EQ(v1_ptr->value, 11);
   Any any2 = v1_ptr;
@@ -239,7 +239,7 @@ TEST(Any, Object) {
 
   // convert to ObjectRef
   {
-    TNumber v1_obj_ref = view2;
+    auto v1_obj_ref = view2.cast<TNumber>();
     EXPECT_EQ(v1.use_count(), 3);
     any2 = v1_obj_ref;
     EXPECT_EQ(v1.use_count(), 4);
@@ -251,7 +251,7 @@ TEST(Any, Object) {
   EXPECT_THROW(
       {
         try {
-          [[maybe_unused]] TFloat v0 = view1;
+          [[maybe_unused]] auto v0 = view1.cast<TFloat>();
         } catch (const Error& error) {
           EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
@@ -263,13 +263,13 @@ TEST(Any, Object) {
       },
       ::tvm::ffi::Error);
   // Try to convert to number
-  TNumber number0 = any1;
+  auto number0 = any1.cast<TNumber>();
   EXPECT_EQ(v1.use_count(), 3);
   EXPECT_TRUE(number0.as<TIntObj>());
   EXPECT_EQ(number0.as<TIntObj>()->value, 11);
   EXPECT_TRUE(!any1.as<int>().has_value());
 
-  TInt int1 = view2;
+  auto int1 = view2.cast<TInt>();
   EXPECT_EQ(v1.use_count(), 4);
   any1.reset();
   EXPECT_EQ(v1.use_count(), 3);
@@ -278,63 +278,63 @@ TEST(Any, Object) {
 TEST(Any, ObjectRefWithFallbackTraits) {
   // Test case for TPrimExpr fallback from Any
   Any any1 = TPrimExpr("float32", 3.14);
-  TPrimExpr v0 = any1;
+  auto v0 = any1.cast<TPrimExpr>();
   EXPECT_EQ(v0->value, 3.14);
   EXPECT_EQ(v0->dtype, "float32");
 
   any1 = true;
-  TPrimExpr v1 = any1;
+  auto v1 = any1.cast<TPrimExpr>();
   EXPECT_EQ(v1->value, 1);
   EXPECT_EQ(v1->dtype, "bool");
 
   any1 = int64_t(42);
-  TPrimExpr v2 = any1;
+  auto v2 = any1.cast<TPrimExpr>();
   EXPECT_EQ(v2->value, 42);
   EXPECT_EQ(v2->dtype, "int64");
 
   any1 = 2.718;
-  TPrimExpr v3 = any1;
+  auto v3 = any1.cast<TPrimExpr>();
   EXPECT_EQ(v3->value, 2.718);
   EXPECT_EQ(v3->dtype, "float32");
 
   // Test case for TPrimExpr fallback from AnyView
   TPrimExpr texpr1("float32", 3.14);
   AnyView view1 = texpr1;
-  TPrimExpr v4 = view1;
+  auto v4 = view1.cast<TPrimExpr>();
   EXPECT_EQ(v4->value, 3.14);
   EXPECT_EQ(v4->dtype, "float32");
 
   view1 = true;
-  TPrimExpr v5 = view1;
+  auto v5 = view1.cast<TPrimExpr>();
   EXPECT_EQ(v5->value, 1);
   EXPECT_EQ(v5->dtype, "bool");
 
   view1 = int64_t(42);
-  TPrimExpr v6 = view1;
+  auto v6 = view1.cast<TPrimExpr>();
   EXPECT_EQ(v6->value, 42);
   EXPECT_EQ(v6->dtype, "int64");
 
   view1 = 2.718;
-  TPrimExpr v7 = view1;
+  auto v7 = view1.cast<TPrimExpr>();
   EXPECT_EQ(v7->value, 2.718);
   EXPECT_EQ(v7->dtype, "float32");
 
   // Test case for TPrimExpr fallback from Any with String
   any1 = std::string("test_string");
-  TPrimExpr v8 = any1;
+  auto v8 = any1.cast<TPrimExpr>();
   EXPECT_EQ(v8->dtype, "test_string");
   EXPECT_EQ(v8->value, 0);
 
   // Test case for TPrimExpr fallback from AnyView with String
   view1 = "test_string";
-  TPrimExpr v9 = view1;
+  auto v9 = view1.cast<TPrimExpr>();
   EXPECT_EQ(v9->dtype, "test_string");
   EXPECT_EQ(v9->value, 0);
 }
 
 TEST(Any, ObjectMove) {
   Any any1 = TPrimExpr("float32", 3.14);
-  TPrimExpr v0 = std::move(any1);
+  auto v0 = std::move(any1).cast<TPrimExpr>();
   EXPECT_EQ(v0->value, 3.14);
   EXPECT_EQ(v0.use_count(), 1);
 }

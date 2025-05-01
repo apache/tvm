@@ -73,12 +73,12 @@ TEST(Tuple, AnyConvert) {
   EXPECT_EQ(arr0[1].as<TInt>().value()->value, 2);
 
   // directly reuse the underlying storage.
-  Tuple<int, TInt> tuple1 = view0;
+  auto tuple1 = view0.cast<Tuple<int, TInt>>();
   EXPECT_TRUE(tuple0.same_as(tuple1));
 
   Any any0 = view0;
   // trigger a copy due to implict conversion
-  Tuple<TPrimExpr, TInt> tuple2 = any0;
+  auto tuple2 = any0.cast<Tuple<TPrimExpr, TInt>>();
   EXPECT_TRUE(!tuple0.same_as(tuple2));
   EXPECT_EQ(tuple2.Get<0>()->value, 1);
   EXPECT_EQ(tuple2.Get<1>()->value, 2);
@@ -89,10 +89,10 @@ TEST(Tuple, FromUnpacked) {
   Function fadd1 = Function::FromUnpacked([](const Tuple<int, TPrimExpr>& a) -> int {
     return a.Get<0>() + static_cast<int>(a.Get<1>()->value);
   });
-  int b = fadd1(Tuple<int, float>(1, 2));
+  int b = fadd1(Tuple<int, float>(1, 2)).cast<int>();
   EXPECT_EQ(b, 3);
 
-  int c = fadd1(Array<Any>({1, 2}));
+  int c = fadd1(Array<Any>({1, 2})).cast<int>();
   EXPECT_EQ(c, 3);
 
   // convert that triggers error
@@ -130,8 +130,8 @@ TEST(Tuple, FromUnpacked) {
 TEST(Tuple, Upcast) {
   Tuple<int, float> t0(1, 2.0f);
   Tuple<Any, Any> t1 = t0;
-  EXPECT_EQ(t1.Get<0>().operator int(), 1);
-  EXPECT_EQ(t1.Get<1>().operator float(), 2.0f);
+  EXPECT_EQ(t1.Get<0>().cast<int>(), 1);
+  EXPECT_EQ(t1.Get<1>().cast<float>(), 2.0f);
   static_assert(details::type_contains_v<Tuple<Any, Any>, Tuple<int, float>>);
   static_assert(details::type_contains_v<Tuple<Any, float>, Tuple<int, float>>);
   static_assert(details::type_contains_v<Tuple<TNumber, float>, Tuple<TInt, float>>);

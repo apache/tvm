@@ -105,7 +105,7 @@ class AnyView {
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
-  TVM_FFI_INLINE operator T() const {
+  TVM_FFI_INLINE T cast() const {
     std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
     if (!opt.has_value()) {
       TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
@@ -280,7 +280,7 @@ class Any {
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
-  TVM_FFI_INLINE operator T() const& {
+  TVM_FFI_INLINE T cast() const& {
     std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
     if (!opt.has_value()) {
       TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
@@ -291,7 +291,7 @@ class Any {
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::storage_enabled>>
-  TVM_FFI_INLINE operator T() && {
+  TVM_FFI_INLINE T cast() && {
     if (TypeTraits<T>::CheckAnyStorage(&data_)) {
       return TypeTraits<T>::MoveFromAnyStorageAfterCheck(&data_);
     }

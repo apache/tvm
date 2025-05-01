@@ -115,7 +115,7 @@ inline T Downcast(const Any& ref) {
   if constexpr (std::is_same_v<T, Any>) {
     return ref;
   } else {
-    return ref.operator T();
+    return ref.cast<T>();
   }
 }
 
@@ -131,7 +131,7 @@ inline T Downcast(Any&& ref) {
   if constexpr (std::is_same_v<T, Any>) {
     return std::move(ref);
   } else {
-    return std::move(ref).operator T();
+    return std::move(ref).cast<T>();
   }
 }
 
@@ -148,7 +148,7 @@ inline OptionalType Downcast(const std::optional<Any>& ref) {
     if constexpr (std::is_same_v<OptionalType, Any>) {
       return ref.value();
     } else {
-      return ref.value().operator OptionalType();
+      return ref.value().cast<OptionalType>();
     }
   } else {
     return OptionalType(std::nullopt);

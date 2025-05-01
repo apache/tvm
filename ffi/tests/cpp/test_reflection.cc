@@ -42,11 +42,11 @@ TEST(Reflection, GetFieldByteOffset) {
 TEST(Reflection, FieldGetter) {
   ObjectRef a = TInt(10);
   details::ReflectionFieldGetter getter(details::GetReflectionFieldInfo("test.Int", "value"));
-  EXPECT_EQ(getter(a).operator int(), 10);
+  EXPECT_EQ(getter(a).cast<int>(), 10);
 
   ObjectRef b = TFloat(10.0);
   details::ReflectionFieldGetter getter_float(
       details::GetReflectionFieldInfo("test.Float", "value"));
-  EXPECT_EQ(getter_float(b).operator double(), 10.0);
+  EXPECT_EQ(getter_float(b).cast<double>(), 10.0);
 }
 }  // namespace

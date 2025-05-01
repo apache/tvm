@@ -32,50 +32,50 @@ using namespace tvm::ffi::testing;
 TEST(Func, FromPacked) {
   Function fadd1 = Function::FromPacked([](const AnyView* args, int32_t num_args, Any* rv) {
     EXPECT_EQ(num_args, 1);
-    int32_t a = args[0];
+    int32_t a = args[0].cast<int32_t>();
     *rv = a + 1;
   });
-  int b = fadd1(1);
+  int b = fadd1(1).cast<int>();
   EXPECT_EQ(b, 2);
 
   Function fadd2 = Function::FromPacked([](const AnyView* args, int32_t num_args, Any* rv) {
     EXPECT_EQ(num_args, 1);
-    TInt a = args[0];
+    auto a = args[0].cast<TInt>();
     EXPECT_EQ(a.use_count(), 2);
     *rv = a->value + 1;
   });
-  EXPECT_EQ(fadd2(TInt(12)).operator int(), 13);
+  EXPECT_EQ(fadd2(TInt(12)).cast<int>(), 13);
 }
 
 TEST(Func, PackedArgs) {
   Function fadd1 = Function::FromPacked([](PackedArgs args, Any* rv) {
     EXPECT_EQ(args.size(), 1);
-    int32_t a = args[0];
+    int32_t a = args[0].cast<int>();
     *rv = a + 1;
   });
-  int b = fadd1(1);
+  int b = fadd1(1).cast<int>();
   EXPECT_EQ(b, 2);
 
   Function fadd2 = Function::FromPacked([](PackedArgs args, Any* rv) {
     EXPECT_EQ(args.size(), 1);
-    TInt a = args[0];
+    TInt a = args[0].cast<TInt>();
     EXPECT_EQ(a.use_count(), 2);
     *rv = a->value + 1;
   });
-  EXPECT_EQ(fadd2(TInt(12)).operator int(), 13);
+  EXPECT_EQ(fadd2(TInt(12)).cast<int>(), 13);
 
   TInt v(12);
   AnyView data[3];
   PackedArgs::Fill(data, 3, 1, v);
-  EXPECT_EQ(data[0].operator int(), 3);
-  EXPECT_EQ(data[1].operator int(), 1);
-  EXPECT_EQ(data[2].operator TInt()->value, 12);
+  EXPECT_EQ(data[0].cast<int>(), 3);
+  EXPECT_EQ(data[1].cast<int>(), 1);
+  EXPECT_EQ(data[2].cast<TInt>()->value, 12);
 }
 
 TEST(Func, FromUnpacked) {
   // try decution
   Function fadd1 = Function::FromUnpacked([](const int32_t& a) -> int { return a + 1; });
-  int b = fadd1(1);
+  int b = fadd1(1).cast<int>();
   EXPECT_EQ(b, 2);
 
   // convert that triggers error
@@ -120,8 +120,8 @@ TEST(Func, FromUnpacked) {
       },
       "fpass_and_return");
   TInt a(11);
-  Function fret = fpass_and_return(std::move(a), 11, 11);
-  EXPECT_EQ(fret(12).operator int(), 23);
+  auto fret = fpass_and_return(std::move(a), 11, 11).cast<Function>();
+  EXPECT_EQ(fret(12).cast<int>(), 23);
 
   EXPECT_THROW(
       {
@@ -140,28 +140,29 @@ TEST(Func, FromUnpacked) {
 
   Function fconcact =
       Function::FromUnpacked([](const String& a, const String& b) -> String { return a + b; });
-  EXPECT_EQ(fconcact("abc", "def").operator String(), "abcdef");
+  EXPECT_EQ(fconcact("abc", "def").cast<String>(), "abcdef");
 }
 
 TEST(Func, PassReturnAny) {
-  Function fadd_one = Function::FromUnpacked([](Any a) -> Any { return a.operator int() + 1; });
-  EXPECT_EQ(fadd_one(1).operator int(), 2);
+  Function fadd_one = Function::FromUnpacked([](Any a) -> Any { return a.cast<int>() + 1; });
+  EXPECT_EQ(fadd_one(1).cast<int>(), 2);
 }
 
 TEST(Func, Global) {
   Function::SetGlobal("testing.add1",
                       Function::FromUnpacked([](const int32_t& a) -> int { return a + 1; }));
   auto fadd1 = Function::GetGlobalRequired("testing.add1");
-  int b = fadd1(1);
+  int b = fadd1(1).cast<int>();
   EXPECT_EQ(b, 2);
   auto fnot_exist = Function::GetGlobal("testing.not_existing_func");
   EXPECT_TRUE(!fnot_exist);
 
-  Function fname_functor = Function::GetGlobal("ffi.FunctionListGlobalNamesFunctor").value()();
+  auto fname_functor =
+      Function::GetGlobal("ffi.FunctionListGlobalNamesFunctor").value()().cast<Function>();
   Array<String> names;
-  int len = fname_functor(-1);
+  int len = fname_functor(-1).cast<int>();
   for (int i = 0; i < len; ++i) {
-    names.push_back(fname_functor(i));
+    names.push_back(fname_functor(i).cast<String>());
   }
   EXPECT_TRUE(std::find(names.begin(), names.end(), "testing.add1") != names.end());
 }
@@ -172,7 +173,7 @@ TEST(Func, TypedFunction) {
 
   TypedFunction<int(int)> fadd2([](int a) -> int { return a + 2; });
   EXPECT_EQ(fadd2(1), 3);
-  EXPECT_EQ(fadd2.packed()(1).operator int(), 3);
+  EXPECT_EQ(fadd2.packed()(1).cast<int>(), 3);
 
   TypedFunction<void(int)> fcheck_int;
   EXPECT_TRUE(fcheck_int == nullptr);
@@ -184,14 +185,14 @@ TEST(Func, TypedFunctionAsAny) {
   TypedFunction<int(int)> fadd1 = [](int a) -> int { return a + 1; };
   Any fany(std::move(fadd1));
   EXPECT_TRUE(fadd1 == nullptr);
-  TypedFunction<int(int)> fadd1_dup = fany;
+  auto fadd1_dup = fany.cast<TypedFunction<int(int)>>();
   EXPECT_EQ(fadd1_dup(1), 2);
 }
 
 TEST(Func, TypedFunctionAsAnyView) {
   TypedFunction<int(int)> fadd2 = [](int a) -> int { return a + 2; };
   AnyView fview(fadd2);
-  TypedFunction<int(int)> fadd2_dup = fview;
+  auto fadd2_dup = fview.cast<TypedFunction<int(int)>>();
   EXPECT_EQ(fadd2_dup(1), 3);
 }
 
@@ -200,22 +201,22 @@ TEST(Func, ObjectRefWithFallbackTraits) {
   // through TPrimExpr
   Function freturn_primexpr = Function::FromUnpacked([](TPrimExpr a) -> TPrimExpr { return a; });
 
-  TPrimExpr result_int = freturn_primexpr(1);
+  auto result_int = freturn_primexpr(1).cast<TPrimExpr>();
   EXPECT_EQ(result_int->dtype, "int64");
   EXPECT_EQ(result_int->value, 1);
 
   // Test case for float
-  TPrimExpr result_float = freturn_primexpr(2.5);
+  auto result_float = freturn_primexpr(2.5).cast<TPrimExpr>();
   EXPECT_EQ(result_float->dtype, "float32");
   EXPECT_EQ(result_float->value, 2.5);
 
   // Test case for bool
-  TPrimExpr result_bool = freturn_primexpr(true);
+  auto result_bool = freturn_primexpr(true).cast<TPrimExpr>();
   EXPECT_EQ(result_bool->dtype, "bool");
   EXPECT_EQ(result_bool->value, 1);
 
   // Test case for string
-  TPrimExpr result_string = freturn_primexpr("test_string");
+  auto result_string = freturn_primexpr("test_string").cast<TPrimExpr>();
   EXPECT_EQ(result_string->dtype, "test_string");
   EXPECT_EQ(result_string->value, 0);
 
@@ -240,6 +241,6 @@ TVM_FFI_REGISTER_GLOBAL("testing.Int_GetValue").set_body_method(&TIntObj::GetVal
 TEST(Func, Register) {
   Function fget_value = Function::GetGlobalRequired("testing.Int_GetValue");
   TInt a(12);
-  EXPECT_EQ(fget_value(a).operator int(), 12);
+  EXPECT_EQ(fget_value(a).cast<int>(), 12);
 }
 }  // namespace

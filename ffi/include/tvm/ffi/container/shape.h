@@ -68,10 +68,16 @@ class ShapeObjStdImpl : public ShapeObj {
   std::vector<int64_t> data_;
 };
 
-TVM_FFI_INLINE ObjectPtr<ShapeObj> MakeEmptyShape() {
-  ObjectPtr<ShapeObj> p = make_object<ShapeObj>();
-  p->data = nullptr;
-  p->size = 0;
+TVM_FFI_INLINE ObjectPtr<ShapeObj> MakeEmptyShape(size_t length, int64_t** mutable_data) {
+  ObjectPtr<ShapeObj> p = make_inplace_array_object<ShapeObj, int64_t>(length);
+  static_assert(alignof(ShapeObj) % alignof(int64_t) == 0);
+  static_assert(sizeof(ShapeObj) % alignof(int64_t) == 0);
+  int64_t* data = reinterpret_cast<int64_t*>(reinterpret_cast<char*>(p.get()) + sizeof(ShapeObj));
+  if (mutable_data) {
+    *mutable_data = data;
+  }
+  p->data = data;
+  p->size = length;
   return p;
 }
 
@@ -79,14 +85,9 @@ TVM_FFI_INLINE ObjectPtr<ShapeObj> MakeEmptyShape() {
 template <typename IterType>
 TVM_FFI_INLINE ObjectPtr<ShapeObj> MakeInplaceShape(IterType begin, IterType end) {
   size_t length = std::distance(begin, end);
-  ObjectPtr<ShapeObj> p = make_inplace_array_object<ShapeObj, int64_t>(length);
-  static_assert(alignof(ShapeObj) % alignof(int64_t) == 0);
-  static_assert(sizeof(ShapeObj) % alignof(int64_t) == 0);
-  int64_t* dest_data =
-      reinterpret_cast<int64_t*>(reinterpret_cast<char*>(p.get()) + sizeof(ShapeObj));
-  p->data = dest_data;
-  p->size = length;
-  std::copy(begin, end, dest_data);
+  int64_t* mutable_data;
+  ObjectPtr<ShapeObj> p = MakeEmptyShape(length, &mutable_data);
+  std::copy(begin, end, mutable_data);
   return p;
 }
 
@@ -101,7 +102,7 @@ class Shape : public ObjectRef {
   using index_type = ShapeObj::index_type;
 
   /*! \brief Default constructor */
-  Shape() : ObjectRef(details::MakeEmptyShape()) {}
+  Shape() : ObjectRef(details::MakeEmptyShape(0, nullptr)) {}
 
   /*!
    * \brief Constructor from iterator

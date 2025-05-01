@@ -37,12 +37,12 @@ TEST(RValueRef, Basic) {
         arr.push_back(val);
         return arr;
       });
-  Array<int> a = append(RValueRef(Array<int>({1, 2})), 3, true);
+  auto a = append(RValueRef(Array<int>({1, 2})), 3, true).cast<Array<int>>();
   EXPECT_EQ(a.size(), 3);
-  a = append(RValueRef(std::move(a)), 4, true);
+  a = append(RValueRef(std::move(a)), 4, true).cast<Array<int>>();
   EXPECT_EQ(a.size(), 4);
   // pass in lvalue instead, the append still will succeed but array will not be unique
-  a = append(a, 5, false);
+  a = append(a, 5, false).cast<Array<int>>();
   EXPECT_EQ(a.size(), 5);
 }
 
@@ -90,8 +90,8 @@ TEST(RValueRef, ParamChecking) {
     TPrimExpr expr = *std::move(a);
     return expr->dtype;
   });
-  EXPECT_EQ(func3(RValueRef(String("int32"))).operator String(), "int32");
+  EXPECT_EQ(func3(RValueRef(String("int32"))).cast<String>(), "int32");
   // triggered a lvalue based conversion
-  EXPECT_EQ(func3(String("int32")).operator String(), "int32");
+  EXPECT_EQ(func3(String("int32")).cast<String>(), "int32");
 }
 }  // namespace

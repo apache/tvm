@@ -29,7 +29,7 @@ namespace details {
  */
 inline String DLDataTypeCodeGetCustomTypeName(DLDataTypeCode type_code) {
   static Function fget_custom_type_name = Function::GetGlobalRequired("dtype.get_custom_type_name");
-  return fget_custom_type_name(static_cast<int>(type_code)).operator String();
+  return fget_custom_type_name(static_cast<int>(type_code)).cast<String>();
 }
 
 /*!
@@ -65,7 +65,7 @@ inline int ParseCustomDataTypeCode(const std::string_view& str, const char** sca
   auto type_name = str.substr(7, custom_name_len);
   TVM_FFI_ICHECK(str.data() == tmp);
   static Function fget_custom_type_code = Function::GetGlobalRequired("dtype.get_custom_type_code");
-  return fget_custom_type_code(std::string(type_name));
+  return fget_custom_type_code(std::string(type_name)).cast<int>();
 }
 
 /*

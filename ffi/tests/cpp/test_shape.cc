@@ -55,7 +55,7 @@ TEST(Shape, AnyConvert) {
   Shape shape0 = Shape({1, 2, 3});
   Any any0 = shape0;
 
-  Shape shape1 = any0;
+  auto shape1 = any0.cast<Shape>();
   EXPECT_EQ(shape1.size(), 3);
   EXPECT_EQ(shape1[0], 1);
   EXPECT_EQ(shape1[1], 2);
@@ -63,7 +63,7 @@ TEST(Shape, AnyConvert) {
 
   Array<Any> arr({1, 2});
   AnyView any_view0 = arr;
-  Shape shape2 = any_view0;
+  auto shape2 = any_view0.cast<Shape>();
   EXPECT_EQ(shape2.size(), 2);
   EXPECT_EQ(shape2[0], 1);
   EXPECT_EQ(shape2[1], 2);

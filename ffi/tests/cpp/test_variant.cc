@@ -47,14 +47,14 @@ TEST(Variant, AnyConvert) {
 
   // implicit convert to variant
   Any any0 = 1;
-  Variant<TPrimExpr, Array<TPrimExpr>> v1 = any0;
+  auto v1 = any0.cast<Variant<TPrimExpr, Array<TPrimExpr>>>();
   EXPECT_EQ(v1.Get<TPrimExpr>()->value, 1);
 
   // move from any to variant
   Variant<TInt, int> v2 = TInt(1);
   Any any1 = std::move(v2);
-  Variant<TInt, int> v3 = std::move(any1);
-  TInt v4 = std::move(v3).Get<TInt>();
+  auto v3 = std::move(any1).cast<Variant<TInt, int>>();
+  auto v4 = std::move(v3).Get<TInt>();
   EXPECT_EQ(v4->value, 1);
   EXPECT_EQ(v4.use_count(), 1);
 }
@@ -81,7 +81,7 @@ TEST(Variant, FromUnpacked) {
       return a.Get<TInt>()->value + 1;
     }
   });
-  int b = fadd1(1);
+  int b = fadd1(1).cast<int>();
   EXPECT_EQ(b, 2);
 
   // convert that triggers error
@@ -107,7 +107,7 @@ TEST(Variant, FromUnpacked) {
       return a[0].Get<TInt>()->value + 1;
     }
   });
-  int c = fadd2(Array<Any>({1, 2}));
+  int c = fadd2(Array<Any>({1, 2})).cast<int>();
   EXPECT_EQ(c, 2);
 
   // convert that triggers error

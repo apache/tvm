@@ -43,7 +43,7 @@ TVM_FFI_REGISTER_GLOBAL("testing.echo").set_body_packed([](PackedArgs args, Any*
 void TestApply(Function f, PackedArgs args, Any* ret) { f.CallPacked(args, ret); }
 
 TVM_FFI_REGISTER_GLOBAL("testing.apply").set_body_packed([](PackedArgs args, Any* ret) {
-  Function f = args[0];
+  auto f = args[0].cast<Function>();
   TestApply(f, args.Slice(1), ret);
 });
 

@@ -42,11 +42,11 @@ TEST(Optional, TInt) {
 
   Any z_any = std::move(y);
   EXPECT_TRUE(z_any != nullptr);
-  EXPECT_EQ((z_any.operator TInt())->value, 11);
+  EXPECT_EQ((z_any.cast<TInt>())->value, 11);
   EXPECT_TRUE(!y.has_value());
 
   // move from any to optional
-  Optional<TInt> y2 = std::move(z_any);
+  auto y2 = std::move(z_any).cast<Optional<TInt>>();
   EXPECT_EQ(y2.use_count(), 1);
   EXPECT_TRUE(y2.has_value());
   EXPECT_EQ(y2.value_or(TInt(12))->value, 11);
@@ -73,14 +73,14 @@ TEST(Optional, AnyConvert_int) {
   EXPECT_TRUE(opt_v0.has_value());
 
   AnyView view0 = opt_v0;
-  EXPECT_EQ(view0.operator int(), 1);
+  EXPECT_EQ(view0.cast<int>(), 1);
 
   Any any1;
-  Optional<int> opt_v1 = std::move(any1);
+  auto opt_v1 = std::move(any1).cast<Optional<int>>();
   EXPECT_TRUE(!opt_v1.has_value());
   Optional<int> opt_v2 = 11;
   Any any2 = std::move(opt_v2);
-  EXPECT_EQ(any2.operator int(), 11);
+  EXPECT_EQ(any2.cast<int>(), 11);
 }
 
 TEST(Optional, AnyConvert_Array) {
@@ -88,21 +88,21 @@ TEST(Optional, AnyConvert_Array) {
   Array<Array<TNumber>> arr_nested = {{}, {TInt(1), TFloat(2)}};
   view0 = arr_nested;
 
-  Optional<Array<Array<TNumber>>> opt_arr = view0;
+  auto opt_arr = view0.cast<Optional<Array<Array<TNumber>>>>();
   EXPECT_EQ(arr_nested.use_count(), 2);
 
-  Optional<Array<Array<TNumber>>> arr1 = view0;
+  auto arr1 = view0.cast<Optional<Array<Array<TNumber>>>>();
   EXPECT_EQ(arr_nested.use_count(), 3);
   EXPECT_EQ(arr1.value()[1][1].as<TFloatObj>()->value, 2);
 
   Any any1;
-  Optional<Array<Array<TNumber>>> arr2 = any1;
+  auto arr2 = any1.cast<Optional<Array<Array<TNumber>>>>();
   EXPECT_TRUE(!arr2.has_value());
 
   EXPECT_THROW(
       {
         try {
-          [[maybe_unused]] Optional<Array<Array<int>>> arr2 = view0;
+          [[maybe_unused]] auto arr2 = view0.cast<Optional<Array<Array<int>>>>();
         } catch (const Error& error) {
           EXPECT_STREQ(error->kind, "TypeError");
           std::string what = error.what();
@@ -167,7 +167,7 @@ TEST(Optional, OptionalInArray) {
   }
 
   Any any = arr;
-  Array<Optional<Array<TInt>>> opt_arr = any;
+  auto opt_arr = any.cast<Array<Optional<Array<TInt>>>>();
   EXPECT_EQ(opt_arr[0].value()[0]->value, 0);
 }
 }  // namespace

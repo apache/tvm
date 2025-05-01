@@ -429,11 +429,12 @@ class Function : public ObjectRef {
    * \note This function do not depend on Array so core do not have container dep.
    */
   static std::vector<String> ListGlobalNames() {
-    Function fname_functor = GetGlobalRequired("ffi.FunctionListGlobalNamesFunctor")();
+    Function fname_functor =
+        GetGlobalRequired("ffi.FunctionListGlobalNamesFunctor")().cast<Function>();
     std::vector<String> names;
-    int len = fname_functor(-1);
+    int len = fname_functor(-1).cast<int>();
     for (int i = 0; i < len; ++i) {
-      names.push_back(fname_functor(i));
+      names.push_back(fname_functor(i).cast<String>());
     }
     return names;
   }

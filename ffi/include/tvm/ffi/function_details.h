@@ -236,7 +236,12 @@ template <typename R>
 struct typed_packed_call_dispatcher {
   template <typename F, typename... Args>
   TVM_FFI_INLINE static R run(const F& f, Args&&... args) {
-    return f(std::forward<Args>(args)...);
+    Any res = f(std::forward<Args>(args)...);
+    if constexpr (std::is_same_v<R, Any>) {
+      return res;
+    } else {
+      return std::move(res).cast<R>();
+    }
   }
 };
 
