@@ -58,7 +58,7 @@ using tvm::runtime::NDArray;
 
 template <typename TileShape, typename ClusterShape, typename ElementD, typename SchedulerType,
           int ScaleGranularityM = 1>
-struct CutlassFP8ScaledBlockwiseGemmRunner {
+struct CutlassFP8GroupwiseScaledGemmRunner {
   using ElementAccumulator = float;
   using ElementCompute = float;
   using ElementBlockScale = float;
@@ -149,53 +149,14 @@ struct CutlassFP8ScaledBlockwiseGemmRunner {
 
 template <typename TileShape, typename ClusterShape, typename ElementA, typename ElementB,
           typename ElementD, typename ElementBlockScale>
-void cutlass_fp8_blockwise_scaled_gemm(ElementA* a, ElementB* b, ElementBlockScale* scales_a,
-                                       ElementBlockScale* scales_b, ElementD* out,
-                                       uint8_t* workspace, int64_t workspace_size, int64_t m,
-                                       int64_t n, int64_t k, cudaStream_t stream) {
+void cutlass_fp8_groupwise_scaled_mm_sm90(ElementA* a, ElementB* b, ElementBlockScale* scales_a,
+                                          ElementBlockScale* scales_b, ElementD* out,
+                                          uint8_t* workspace, int64_t workspace_size, int64_t m,
+                                          int64_t n, int64_t k, int64_t l, cudaStream_t stream) {
   if (k > 3 * n) {
     using SchedulerType = cutlass::gemm::StreamKScheduler;
     using Runner =
-        CutlassFP8ScaledBlockwiseGemmRunner<TileShape, ClusterShape, ElementD, SchedulerType>;
-    using StrideA = typename Runner::StrideA;
-    using StrideB = typename Runner::StrideB;
-    using StrideD = typename Runner::StrideD;
-
-    Runner runner;
-    StrideA stride_a = cute::make_stride(k, Int<1>{}, m * k);
-    StrideB stride_b = cute::make_stride(k, Int<1>{}, n * k);
-    StrideD stride_d = cute::make_stride(n, Int<1>{}, m * n);
-    ProblemShape problem_size{static_cast<int>(m), static_cast<int>(n), static_cast<int>(k), 1};
-    runner.run_gemm(a, b, scales_a, scales_b, out, &problem_size, &stride_a, &stride_b, &stride_d,
-                    workspace, workspace_size, stream);
-  } else {
-    using SchedulerType = cutlass::gemm::PersistentScheduler;
-    using Runner =
-        CutlassFP8ScaledBlockwiseGemmRunner<TileShape, ClusterShape, ElementD, SchedulerType>;
-    using StrideA = typename Runner::StrideA;
-    using StrideB = typename Runner::StrideB;
-    using StrideD = typename Runner::StrideD;
-
-    Runner runner;
-    StrideA stride_a = cute::make_stride(k, Int<1>{}, m * k);
-    StrideB stride_b = cute::make_stride(k, Int<1>{}, n * k);
-    StrideD stride_d = cute::make_stride(n, Int<1>{}, m * n);
-    ProblemShape problem_size{static_cast<int>(m), static_cast<int>(n), static_cast<int>(k), 1};
-    runner.run_gemm(a, b, scales_a, scales_b, out, &problem_size, &stride_a, &stride_b, &stride_d,
-                    workspace, workspace_size, stream);
-  }
-}
-
-template <typename TileShape, typename ClusterShape, typename ElementA, typename ElementB,
-          typename ElementD, typename ElementBlockScale>
-void cutlass_fp8_blockwise_scaled_bmm(ElementA* a, ElementB* b, ElementBlockScale* scales_a,
-                                      ElementBlockScale* scales_b, ElementD* out,
-                                      uint8_t* workspace, int64_t workspace_size, int64_t m,
-                                      int64_t n, int64_t k, int64_t l, cudaStream_t stream) {
-  if (k > 3 * n) {
-    using SchedulerType = cutlass::gemm::StreamKScheduler;
-    using Runner =
-        CutlassFP8ScaledBlockwiseGemmRunner<TileShape, ClusterShape, ElementD, SchedulerType>;
+        CutlassFP8GroupwiseScaledGemmRunner<TileShape, ClusterShape, ElementD, SchedulerType>;
     using StrideA = typename Runner::StrideA;
     using StrideB = typename Runner::StrideB;
     using StrideD = typename Runner::StrideD;
@@ -211,7 +172,7 @@ void cutlass_fp8_blockwise_scaled_bmm(ElementA* a, ElementB* b, ElementBlockScal
   } else {
     using SchedulerType = cutlass::gemm::PersistentScheduler;
     using Runner =
-        CutlassFP8ScaledBlockwiseGemmRunner<TileShape, ClusterShape, ElementD, SchedulerType>;
+        CutlassFP8GroupwiseScaledGemmRunner<TileShape, ClusterShape, ElementD, SchedulerType>;
     using StrideA = typename Runner::StrideA;
     using StrideB = typename Runner::StrideB;
     using StrideD = typename Runner::StrideD;

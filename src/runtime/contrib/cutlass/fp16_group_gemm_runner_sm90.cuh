@@ -169,11 +169,11 @@ __global__ void prepare_group_gemm_arguments(
 }
 
 template <typename ElementA, typename ElementB, typename ElementC>
-void cutlass_group_gemm(ElementA* x, ElementB* weight, int64_t* indptr, uint8_t* workspace,
-                        int64_t workspace_size, int64_t n, int64_t k, int64_t num_groups,
-                        std::variant<float, const float*> alpha,
-                        std::variant<float, const float*> beta, ElementC* out,
-                        cudaStream_t stream) {
+void cutlass_group_gemm_sm90(ElementA* x, ElementB* weight, int64_t* indptr, uint8_t* workspace,
+                             int64_t workspace_size, int64_t n, int64_t k, int64_t num_groups,
+                             std::variant<float, const float*> alpha,
+                             std::variant<float, const float*> beta, ElementC* out,
+                             cudaStream_t stream) {
   using Runner = CutlassGroupGemmRunner<ElementA, ElementB, ElementC>;
   using StrideA = typename Runner::StrideA;
   using StrideB = typename Runner::StrideB;

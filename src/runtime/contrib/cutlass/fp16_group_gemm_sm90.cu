@@ -19,13 +19,27 @@
 
 #include <cuda_fp16.h>
 #include <float.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/function.h>
 
-#include "group_gemm_runner.cuh"
+#include "fp16_group_gemm.cuh"
+#include "fp16_group_gemm_runner_sm90.cuh"
+
+namespace tvm {
+namespace runtime {
 
 #if defined(CUTLASS_ARCH_MMA_MODIFIABLE_TMA_SM90_SUPPORTED)
+
+template <typename ElementA, typename ElementB, typename ElementC>
+struct CutlassGroupGemm<90, ElementA, ElementB, ElementC> {
+  static void run(ElementA* A, ElementB* B, int64_t* indptr, uint8_t* workspace, int workspace_size,
+                  int N, int K, int num_groups, float alpha, float beta, ElementC* C,
+                  cudaStream_t stream) {
+    cutlass_group_gemm_sm90<ElementA, ElementB, ElementC>(A, B, indptr, workspace, workspace_size,
+                                                          N, K, num_groups, alpha, beta, C, stream);
+  }
+};
 
 template <>
 struct KernelTraits<cutlass::half_t> {
@@ -34,36 +48,21 @@ struct KernelTraits<cutlass::half_t> {
   using ClusterShape = Shape<_2, _2, _1>;    // Shape of the threadblocks in a cluster
 };
 
-namespace tvm {
-namespace runtime {
+template <>
+struct KernelTraits<cutlass::bfloat16_t> {
+  using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecializedCooperative;
+  using TileShape = Shape<_128, _256, _64>;  // Threadblock-level tile size
+  using ClusterShape = Shape<_2, _2, _1>;    // Shape of the threadblocks in a cluster
+};
 
-template <typename ElementA, typename ElementB, typename ElementC>
 void tvm_cutlass_group_gemm_sm90(NDArray x, NDArray weight, NDArray indptr, NDArray workspace,
                                  NDArray out) {
-  // Workspace is used for storing device-side group gemm arguments and cutlass internal workspace.
-  // Recommened size is 4MB.
-  static auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-  cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
-  CHECK_EQ(x->ndim, 2);
-  CHECK_EQ(weight->ndim, 3);
-  CHECK_EQ(indptr->ndim, 1);
-  CHECK_EQ(workspace->ndim, 1);
-  CHECK_EQ(out->ndim, 2);
-  int num_groups = weight->shape[0];
-  int n = weight->shape[1];
-  int k = weight->shape[2];
-  float alpha = 1.0f;
-  float beta = 0.0f;
-  cutlass_group_gemm(static_cast<ElementA*>(x->data), static_cast<ElementB*>(weight->data),
-                     static_cast<int64_t*>(indptr->data), static_cast<uint8_t*>(workspace->data),
-                     workspace->shape[0], n, k, num_groups, alpha, beta,
-                     static_cast<ElementC*>(out->data), stream);
+  tvm_cutlass_group_gemm_impl<90>(x, weight, indptr, workspace, out);
 }
 
-TVM_FFI_REGISTER_GLOBAL("cutlass.group_gemm_fp16_sm90")
-    .set_body_typed(tvm_cutlass_group_gemm_sm90<cutlass::half_t, cutlass::half_t, cutlass::half_t>);
+TVM_FFI_REGISTER_GLOBAL("cutlass.group_gemm").set_body_typed(tvm_cutlass_group_gemm_sm90);
+
+#endif  // CUTLASS_ARCH_MMA_MODIFIABLE_TMA_SM90_SUPPORTED
 
 }  // namespace runtime
 }  // namespace tvm
-
-#endif  // CUTLASS_ARCH_MMA_MODIFIABLE_TMA_SM90_SUPPORTED
