@@ -1725,6 +1725,61 @@ def group_norm(
     )
 
 
+def instance_norm(
+    data: Expr,
+    gamma: Expr,
+    beta: Expr,
+    channel_axis: int,
+    axes: List[int],
+    epsilon: float = 1e-5,
+    center: bool = True,
+    scale: bool = True,
+) -> Expr:
+    r"""
+    Instance normalization
+
+    Parameters
+    ----------
+    data : relax.Expr
+        Input to which instance_norm will be applied.
+
+    gamma : relax.Expr
+        The gamma scale factor.
+
+    beta : relax.Expr
+        The beta offset factor.
+
+    axes : Union[int, List[int]]
+        The axes that along which the normalization is applied.
+
+    epsilon : float
+        Small float added to variance to avoid dividing by zero.
+
+    center : bool
+        Indicating if the beta offset will be added to the normalized tensor.
+
+    scale : bool
+        Indicating if the gamma scale will be multiplied.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(axes, int):
+        axes = [axes]
+    return _ffi_api.instance_norm(  # type: ignore
+        data,
+        gamma,
+        beta,
+        channel_axis,
+        axes,
+        epsilon,
+        center,
+        scale,
+    )
+
+
 def rms_norm(
     data: Expr,
     weight: Expr,
@@ -2071,71 +2126,3 @@ def attention_var_len(
         causal_mask,
         window_size,
     )  # type: ignore
-
-
-def instance_norm(
-    data: Expr,
-    gamma: Expr,
-    beta: Expr,
-    axis: List[int],
-    epsilon: float = 1e-5,
-    center: bool = True,
-    scale: bool = True,
-) -> Expr:
-    r"""
-    Applies Instance Normalization to the input tensor.
-
-    Instance Normalization is a technique commonly used in deep learning,
-    particularly in tasks such as style transfer, where the normalization is
-    applied per-instance (i.e., per-sample in a batch) rather than across a batch.
-    It normalizes the input tensor for each sample independently, along the
-    specified channel axis.
-
-    Mathematically, for each channel :math:`i` of the input, the normalized output is computed as:
-
-    .. math::
-
-        \mu_i &= \text{mean}(x[:, i, ...]) \\
-        \sigma_i^2 &= \text{var}(x[:, i, ...]) \\
-        \hat{x}[:, i, ...] &= \frac{x[:, i, ...] - \mu_i}{\sqrt{\sigma_i^2 + \epsilon}}
-
-        \text{output}[:, i, ...] = \gamma[i] \cdot \hat{x}[:, i, ...] + \beta[i]
-
-    where :math:`\gamma` and :math:`\beta` are learnable parameters of shape equal to the
-    number of channels.
-
-    Parameters
-    ----------
-    data : relax.Expr
-        The input tensor to be normalized.
-
-    gamma : relax.Expr
-        The scale tensor (gamma) applied after normalization. Must have shape matching the number of channels.
-
-    beta : relax.Expr
-        The offset tensor (beta) applied after normalization. Must have shape matching the number of channels.
-
-    axis : List[int], default = [0, 1]
-        The axes to retain during normalization. Typically `[0, 1]` corresponding to batch (N) and channel (C)
-        dimensions. Normalization is applied over the remaining spatial axes.
-
-    epsilon : float, optional
-        A small constant added to the variance to avoid division by zero. Default is 1e-5.
-
-    center : bool, optional
-        If True, add `beta` to the normalized tensor. Default is True.
-
-    scale : bool, optional
-        If True, multiply the normalized tensor by `gamma`. Default is True.
-
-    Returns
-    -------
-    result : relax.Expr
-        The tensor after applying instance normalization.
-    """
-
-    if isinstance(axis, int):
-        axis = [axis]
-    return _ffi_api.instance_norm(  # type: ignore
-        data, gamma, beta, axis, epsilon, center, scale,
-    )

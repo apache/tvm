@@ -536,13 +536,16 @@ struct GroupNormAttrs : public tvm::AttrsNode<GroupNormAttrs> {
 
 /*! \brief Attributes used in instance_norm operator */
 struct InstanceNormAttrs : public tvm::AttrsNode<InstanceNormAttrs> {
+  int channel_axis;
   Array<Integer> axes;
   double epsilon;
   bool center;
   bool scale;
 
   TVM_DECLARE_ATTRS(InstanceNormAttrs, "relax.attrs.InstanceNormAttrs") {
-    TVM_ATTR_FIELD(axes).describe("The axes along which the normalization is applied.");
+    TVM_ATTR_FIELD(channel_axis).describe("The axis that represents the channel.");
+    TVM_ATTR_FIELD(axes).describe(
+        "The axes that along which the normalization is applied.");
     TVM_ATTR_FIELD(epsilon).describe("Small float added to variance to avoid dividing by zero");
     TVM_ATTR_FIELD(center).describe(
         "Indicating if the beta offset will be added to the normalized tensor.");
