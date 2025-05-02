@@ -835,6 +835,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "fill_": self._inplace_fill,
             "full": self._full,
             "index_select": self._index_select,
+            "linspace": self._linspace,
             "masked_fill_": self._inplace_masked_fill,
             "masked_fill": self._masked_fill,
             "masked_scatter": self._masked_scatter,
