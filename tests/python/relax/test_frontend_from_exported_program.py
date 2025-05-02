@@ -4627,60 +4627,56 @@ def test_dynamic_shape():
     verify_model(DynamicModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes)
     
 def test_dynamic_shape_with_constraints():
+        # Define SymInts with constraints
         B = torch.export.Dim("B", min=2, max=10)
-        S = torch.export.Dim("S", min=1)
-        # Use a tuple for args
-        example_args = (torch.randn(3, 4, dtype=torch.float32),)
-        # Dynamic shapes dict maps arg index to shape spec {dim_index: Dim obj}
-        dynamic_shapes = {0: {0: B, 1: S}}
+        # Use B again for another dimension to test refinement (max(10, 15) -> 15)
+        B_refined = torch.export.Dim("B", min=3, max=15) 
+        S = torch.export.Dim("S", min=1) # Test min constraint only (-> (1, None))
+
+        # Example args matching initial B dim (max=10)
+        example_args = (torch.randn(3, 4, dtype=torch.float32), torch.randn(5, 2, dtype=torch.float32)) 
+        
+        # Dynamic shapes using the Dim objects
+        # Input 0: Dim 0 uses B (min=2, max=10), Dim 1 uses S (min=1)
+        # Input 1: Dim 0 uses B_refined (min=3, max=15)
+        # The final constraint for tir.Var("B") should be max(2,3) to min(10,15) => min=3, max=10
+        dynamic_shapes = {0: {0: B, 1: S}, 1: {0: B_refined}}
 
         class SimpleDynamic(torch.nn.Module):
-            def forward(self, x):
-                return torch.relu(x)
+            # Simple op, the main thing is testing the input signature and constraints
+            def forward(self, x, y):
+                # Add tensors with different shapes requires broadcasting, 
+                # but we only care about the input signature here.
+                # Use an op that doesn't depend on exact shapes matching.
+                return torch.relu(x) # Return just one to simplify output signature
 
-        # Explicit export and import
-        exported_program = torch.export.export(SimpleDynamic(), args=example_args, dynamic_shapes=dynamic_shapes)
-        mod = from_exported_program(exported_program)
-
-        # Get relax vars and check attributes
-        main_func = mod["main"]
-        assert len(main_func.params) == 1
-        input_struct_info = main_func.params[0].struct_info
-        assert isinstance(input_struct_info, tvm.relax.TensorStructInfo)
-        assert len(input_struct_info.shape) == 2
-        B_relax = input_struct_info.shape[0]
-        S_relax = input_struct_info.shape[1]
-
-        assert "tir_var_lower_bound" in main_func.attrs
-        assert "tir_var_upper_bound" in main_func.attrs
-        lower_bounds = main_func.attrs["tir_var_lower_bound"]
-        upper_bounds = main_func.attrs["tir_var_upper_bound"]
-
-        # Check the specific bounds match the Dim constraints
-        assert isinstance(B_relax, tvm.tir.Var)
-        assert isinstance(S_relax, tvm.tir.Var)
-        assert lower_bounds[B_relax].value == 2
-        assert upper_bounds[B_relax].value == 10
-        assert lower_bounds[S_relax].value == 1
-        assert S_relax not in upper_bounds # No upper bound specified for S
-
-        # Define expected module with attributes using tir.Var
-        B_tir = T.Var("B", "int64")
-        S_tir = T.Var("S", "int64")
+        # Define the expected Relax IRModule
         @tvm.script.ir_module
         class Expected:
-            @R.function(attrs={"tir_var_upper_bound": {B_tir: 10}, "tir_var_lower_bound": {B_tir: 2, S_tir: 1}})
-            def main(x: R.Tensor((B_tir, S_tir), dtype="float32")) -> R.Tuple(R.Tensor((B_tir, S_tir), dtype="float32")):
-                # Ensuretir.Var from the signature are used inside the function body for consistency
+            @R.function
+            def main(
+                # Note: B has refined constraints: min=3, max=10
+                # Note: S has constraints: min=1
+                x: R.Tensor((B, S), dtype="float32"), 
+                y: R.Tensor((B, 2), dtype="float32") 
+            ) -> R.Tuple(R.Tensor((B, S), dtype="float32")):
+                B = T.int64()
+                S = T.int64()
+                # tell TIR about the constraints via function attributes
+                T.func_attr({
+                    "tir_var_lower_bound": {B: 3, S: 1}, 
+                    "tir_var_upper_bound": {B: 10}
+                })
                 with R.dataflow():
-                    lv: R.Tensor((B_tir, S_tir), dtype="float32") = R.nn.relu(x)
+                    # The actual body isn't the focus, just the signature
+                    lv: R.Tensor((B, S), dtype="float32") = R.relu(x)
                     # Output must be a tuple
-                    gv: R.Tuple(R.Tensor((B_tir, S_tir), dtype="float32")) = (lv,)
+                    gv: R.Tuple(R.Tensor((B, S), dtype="float32")) = (lv,)
                     R.output(gv)
                 return gv
 
-        # Assert structural equality, which also compares function attributes
-        tvm.ir.assert_structural_equal(mod, Expected)
+        # Use verify_model utility
+        verify_model(SimpleDynamic(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes)
 
 
 def test_broadcast_to():
