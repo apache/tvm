@@ -180,7 +180,7 @@ class NDArrayObjFromNDAlloc : public NDArrayObj {
                         ExtraArgs&&... extra_args)
       : alloc_(alloc) {
     this->device = device;
-    this->ndim = shape.size();
+    this->ndim = static_cast<int>(shape.size());
     this->dtype = dtype;
     this->shape = const_cast<int64_t*>(shape.data());
     this->strides = nullptr;

@@ -111,7 +111,7 @@ target_link_libraries(tvm_ffi_static PUBLIC tvm_ffi_header)
 install(TARGETS tvm_ffi_static DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_ffi_shared DESTINATION lib${LIB_SUFFIX})
 
-add_msvc_compact_defs(tvm_ffi_objs)
+add_msvc_flags(tvm_ffi_objs)
 
 ########## Adding tests ##########
 

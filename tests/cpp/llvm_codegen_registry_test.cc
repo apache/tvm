@@ -55,7 +55,7 @@ TEST(LLVMCodeGen, CodeGenFactoryWorks) {
   std::initializer_list<std::string> all_targets = {ALL_TARGETS};
   for (const std::string& s : all_targets) {
     if (auto pf = tvm::ffi::Function::GetGlobal("tvm.codegen.llvm.target_" + s)) {
-      auto cg = static_cast<void*>((*pf)());
+      auto cg = (*pf)().cast<void*>();
       EXPECT_NE(cg, nullptr);
       delete static_cast<tvm::codegen::CodeGenLLVM*>(cg);
     }

@@ -279,7 +279,7 @@ TEST(Map, MapInsertOrder) {
   // test that map preserves the insertion order
   auto get_reverse_order = [](size_t size) {
     std::vector<int> reverse_order;
-    for (int i = size; i != 0; --i) {
+    for (int i = static_cast<int>(size); i != 0; --i) {
       reverse_order.push_back(i - 1);
     }
     return reverse_order;

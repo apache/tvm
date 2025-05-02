@@ -72,7 +72,7 @@ TEST(Array, Map) {
   // Basic functionality
   TInt x(1), y(1);
   Array<TInt> var_arr{x, y};
-  Array<TNumber> expr_arr = var_arr.Map([](TInt var) -> TNumber { return TFloat(var->value + 1); });
+  Array<TNumber> expr_arr = var_arr.Map([](TInt var) -> TNumber { return TFloat(static_cast<double>(var->value + 1)); });
 
   EXPECT_NE(var_arr.get(), expr_arr.get());
   EXPECT_TRUE(expr_arr[0]->IsInstance<TFloatObj>());
@@ -94,7 +94,7 @@ TEST(Array, PushPop) {
     ASSERT_EQ(a.front(), b.front());
     ASSERT_EQ(a.back(), b.back());
     ASSERT_EQ(a.size(), b.size());
-    int n = a.size();
+    int n = static_cast<int>(a.size());
     for (int j = 0; j < n; ++j) {
       ASSERT_EQ(a[j], b[j]);
     }
@@ -105,7 +105,7 @@ TEST(Array, PushPop) {
     ASSERT_EQ(a.size(), b.size());
     a.pop_back();
     b.pop_back();
-    int n = a.size();
+    int n = static_cast<int>(a.size());
     for (int j = 0; j < n; ++j) {
       ASSERT_EQ(a[j], b[j]);
     }
@@ -161,8 +161,8 @@ TEST(Array, InsertEraseRange) {
 
   static_assert(std::is_same_v<decltype(*range_a.begin()), int>);
   for (size_t n = 1; n <= 10; ++n) {
-    a.insert(a.end(), n);
-    b.insert(b.end(), n);
+    a.insert(a.end(), static_cast<int>(n));
+    b.insert(b.end(), static_cast<int>(n));
     for (size_t pos = 0; pos <= n; ++pos) {
       a.insert(a.begin() + pos, range_a.begin(), range_a.end());
       b.insert(b.begin() + pos, range_b.begin(), range_b.end());

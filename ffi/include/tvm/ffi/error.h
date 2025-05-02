@@ -134,7 +134,12 @@ class ErrorBuilder {
  public:
   explicit ErrorBuilder(std::string kind, std::string traceback, bool log_before_throw)
       : kind_(kind), traceback_(traceback), log_before_throw_(log_before_throw) {}
-
+      
+// MSVC disable warning in error builder as it is exepected
+#ifdef _MSC_VER
+#pragma disagnostic push
+#pragma warning(disable : 4722)
+#endif
   // avoid inline to reduce binary size, error throw path do not need to be fast
   [[noreturn]] ~ErrorBuilder() noexcept(false) {
     ::tvm::ffi::Error error(std::move(kind_), stream_.str(), std::move(traceback_));
@@ -143,6 +148,9 @@ class ErrorBuilder {
     }
     throw error;
   }
+#ifdef _MSC_VER
+#pragma disagnostic pop
+#endif
 
   std::ostringstream& stream() { return stream_; }
 

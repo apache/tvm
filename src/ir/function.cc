@@ -58,6 +58,7 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttrs")
         }
       }
       LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
+      TVM_FFI_UNREACHABLE();
     });
 
 TVM_REGISTER_GLOBAL("ir.BaseFuncWithoutAttr")
@@ -69,7 +70,7 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithoutAttr")
         return WithoutAttr(Downcast<relax::Function>(std::move(func)), key);
       } else {
         LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
-        return func;
+        TVM_FFI_UNREACHABLE();
       }
     });
 

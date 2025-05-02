@@ -74,7 +74,7 @@ TEST(Variant, ObjectPtrHashEqual) {
 
 TEST(Variant, FromUnpacked) {
   // try decution
-  Function fadd1 = Function::FromUnpacked([](const Variant<int, TInt>& a) -> int {
+  Function fadd1 = Function::FromUnpacked([](const Variant<int, TInt>& a) -> int64_t {
     if (auto opt_int = a.as<int>()) {
       return opt_int.value() + 1;
     } else {
@@ -100,7 +100,7 @@ TEST(Variant, FromUnpacked) {
       },
       ::tvm::ffi::Error);
 
-  Function fadd2 = Function::FromUnpacked([](const Array<Variant<int, TInt>>& a) -> int {
+  Function fadd2 = Function::FromUnpacked([](const Array<Variant<int, TInt>>& a) -> int64_t {
     if (auto opt_int = a[0].as<int>()) {
       return opt_int.value() + 1;
     } else {

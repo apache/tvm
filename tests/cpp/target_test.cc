@@ -462,7 +462,7 @@ TEST(TargetCreation, DetectSystemTriple) {
   }
 
   Optional<String> mtriple = target->GetAttr<String>("mtriple");
-  ASSERT_TRUE(mtriple.value() == String((*pf)()));
+  ASSERT_TRUE(mtriple.value() == (*pf)().cast<String>());
 }
 
 #endif

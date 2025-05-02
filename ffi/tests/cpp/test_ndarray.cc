@@ -41,7 +41,7 @@ TEST(NDArray, Basic) {
   EXPECT_EQ(shape[2], 3);
   EXPECT_EQ(nd.dtype(), DLDataType({kDLFloat, 32, 1}));
   for (int64_t i = 0; i < shape.Product(); ++i) {
-    reinterpret_cast<float*>(nd->data)[i] = i;
+    reinterpret_cast<float*>(nd->data)[i] = static_cast<float>(i);
   }
 
   Any any0 = nd;

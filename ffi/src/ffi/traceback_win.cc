@@ -45,6 +45,7 @@ std::string Traceback() {
   HANDLE process = GetCurrentProcess();
   HANDLE thread = GetCurrentThread();
 
+  SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_UNDNAME);
   SymInitialize(process, NULL, TRUE);
   CONTEXT context = {};
   RtlCaptureContext(&context);
@@ -83,7 +84,8 @@ std::string Traceback() {
     const char* symbol = "<unknown>";
     int lineno = 0;
     // Get file and line number
-    IMAGEHLP_LINE64 line_info = {};
+    IMAGEHLP_LINE64 line_info;
+    ZeroMemory(&line_info, sizeof(IMAGEHLP_LINE64));
     line_info.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
     DWORD displacement32 = 0;
 

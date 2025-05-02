@@ -29,14 +29,6 @@
 
 #include "../../../meta_schedule/utils.h"
 
-namespace tvm {
-namespace meta_schedule {
-
-void JSONFileAppendLine(const String& path, const std::string& line);
-std::vector<ObjectRef> JSONFileReadLines(const String& path, int num_threads, bool allow_missing);
-
-}  // namespace meta_schedule
-}  // namespace tvm
 
 namespace tvm {
 namespace relax {
@@ -237,20 +229,20 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
   // Load `n->workloads2idx_` from `path_workload`
   std::vector<meta_schedule::Workload> workloads;
   {
-    std::vector<ObjectRef> json_objs =
+    std::vector<Any> json_objs =
         meta_schedule::JSONFileReadLines(path_workload, num_threads, allow_missing);
     int n_objs = json_objs.size();
     n->workloads2idx_.reserve(n_objs);
     workloads.reserve(n_objs);
     for (int i = 0; i < n_objs; ++i) {
-      meta_schedule::Workload workload = meta_schedule::Workload::FromJSON(json_objs[i]);
+      meta_schedule::Workload workload = meta_schedule::Workload::FromJSON(json_objs[i].cast<ObjectRef>());
       n->workloads2idx_.emplace(workload, i);
       workloads.push_back(workload);
     }
   }
   // Load `n->tuning_records_` from `path_tuning_record`
   {
-    std::vector<ObjectRef> json_objs =
+    std::vector<Any> json_objs =
         meta_schedule::JSONFileReadLines(path_tuning_record, num_threads, allow_missing);
 
     std::vector<int> workload_idxs;
@@ -262,7 +254,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
     records.resize(size, TuningRecord{nullptr});
     support::parallel_for_dynamic(
         0, json_objs.size(), num_threads, [&](int thread_id, int task_id) {
-          const ObjectRef& json_obj = json_objs[task_id];
+          const ObjectRef& json_obj = json_objs[task_id].cast<ObjectRef>();
           try {
             const ArrayObj* arr = json_obj.as<ArrayObj>();
             ICHECK_EQ(arr->size(), 3);
@@ -283,7 +275,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
 
   // Load `n->measuremet_log` from `path_measurement_record`
   {
-    std::vector<ObjectRef> json_objs =
+    std::vector<Any> json_objs =
         meta_schedule::JSONFileReadLines(path_measurement_record, num_threads, allow_missing);
     std::vector<int> workload_idxs;
     std::vector<Target> targets;
@@ -294,7 +286,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
     measurements.resize(size, Array<FloatImm>({}));
     support::parallel_for_dynamic(
         0, json_objs.size(), num_threads, [&](int thread_id, int task_id) {
-          const ObjectRef& json_obj = json_objs[task_id];
+          const ObjectRef& json_obj = json_objs[task_id].cast<ObjectRef>();
           try {
             const ArrayObj* arr = json_obj.as<ArrayObj>();
             ICHECK_EQ(arr->size(), 3);

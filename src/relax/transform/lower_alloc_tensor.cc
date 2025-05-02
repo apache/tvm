@@ -59,6 +59,7 @@ class Mutator : public ExprMutator {
         LOG(FATAL) << "Shape argument for " << alloc_tensor_op << " should be a ShapeExpr, "
                    << "or a variable that holds a ShapeExpr.  "
                    << "However, received argument " << shape_arg << " with struct info " << sinfo;
+        TVM_FFI_UNREACHABLE();
       }();
 
       PrimExpr nbytes = [&]() -> PrimExpr {

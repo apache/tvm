@@ -48,7 +48,7 @@ TEST(RValueRef, Basic) {
 
 TEST(RValueRef, ParamChecking) {
   // try decution
-  Function fadd1 = Function::FromUnpacked([](TInt a) -> int { return a->value + 1; });
+  Function fadd1 = Function::FromUnpacked([](TInt a) -> int64_t { return a->value + 1; });
 
   // convert that triggers error
   EXPECT_THROW(

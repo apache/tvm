@@ -79,8 +79,11 @@ struct FuncFunctorImpl {
   using RetType = R;
   /*! \brief total number of arguments*/
   static constexpr size_t num_args = sizeof...(Args);
+  // MSVC is not that friendly to in-template nested bool evaluation
+#ifndef _MSC_VER
   /*! \brief Whether this function can be converted to ffi::Function via FromUnpacked */
   static constexpr bool unpacked_supported = (ArgSupported<Args> && ...) && (RetSupported<R>);
+#endif
 
   static TVM_FFI_INLINE std::string Sig() {
     using IdxSeq = std::make_index_sequence<sizeof...(Args)>;

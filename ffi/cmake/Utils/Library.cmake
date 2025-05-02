@@ -28,7 +28,7 @@ function(add_dsymutil target_name)
   endif()
 endfunction()
 
-function(add_msvc_compact_defs target_name)
+function(add_msvc_flags target_name)
   # running if we are under msvc
   if(MSVC)
     target_compile_definitions(${target_name} PUBLIC -DWIN32_LEAN_AND_MEAN)
@@ -36,6 +36,7 @@ function(add_msvc_compact_defs target_name)
     target_compile_definitions(${target_name} PUBLIC -D_SCL_SECURE_NO_WARNINGS)
     target_compile_definitions(${target_name} PUBLIC -D_ENABLE_EXTENDED_ALIGNED_STORAGE)
     target_compile_definitions(${target_name} PUBLIC -DNOMINMAX)
+    target_compile_options(${target_name} PRIVATE "/Z7")
   endif()
 endfunction()
 
@@ -60,11 +61,7 @@ function(add_target_from_obj target_name obj_target_name)
   add_dependencies(${target_name} ${target_name}_static ${target_name}_shared)
   if (MSVC)
     target_compile_definitions(${obj_target_name} PRIVATE TVM_FFI_EXPORTS)
-    set_target_properties(
-      ${obj_target_name} ${target_name}_shared ${target_name}_static
-      PROPERTIES
-      MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
-    )
   endif()
   add_dsymutil(${target_name}_shared)
+  add_msvc_flags(${target_name}_shared)
 endfunction()

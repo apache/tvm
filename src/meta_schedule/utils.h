@@ -45,6 +45,7 @@
 #include <algorithm>
 #include <string>
 #include <unordered_set>
+#include <sstream>
 #include <utility>
 #include <vector>
 
@@ -636,6 +637,8 @@ class BlockCollector : public tir::StmtVisitor {
   String func_name_;
 };
 
+void JSONFileAppendLine(const String& path, const std::string& line);
+std::vector<Any> JSONFileReadLines(const String& path, int num_threads, bool allow_missing);
 }  // namespace meta_schedule
 }  // namespace tvm
 

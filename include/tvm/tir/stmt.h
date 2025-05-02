@@ -816,13 +816,18 @@ class SeqStmt : public Stmt {
     static Optional<SeqStmt> AsSeqStmt(const T& t) {
       if constexpr (std::is_same_v<T, SeqStmt>) {
         return t;
-      } else if constexpr (!std::is_base_of_v<T, SeqStmt>) {
-        return NullOpt;
-      } else if (auto* ptr = t.template as<SeqStmtNode>()) {
-        return GetRef<SeqStmt>(ptr);
-      } else {
+      }
+      if constexpr (!std::is_base_of_v<T, SeqStmt>) {
         return NullOpt;
       }
+      if constexpr (std::is_base_of_v<Stmt, T>) {
+        if (const SeqStmtNode* ptr = t.template as<SeqStmtNode>()) {
+          return GetRef<SeqStmt>(ptr);
+        } else {
+          return NullOpt;
+        }
+      }
+      return NullOpt;
     }
 
     template <typename T>

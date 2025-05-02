@@ -28,6 +28,7 @@
 #include <string>
 #include <unordered_map>
 #include <utility>
+#include <cctype>
 
 #include "tvm/ir/expr.h"
 

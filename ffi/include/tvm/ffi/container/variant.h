@@ -34,6 +34,7 @@
 
 namespace tvm {
 namespace ffi {
+
 /*!
  * \brief A typed variant container.
  *
@@ -42,10 +43,8 @@ namespace ffi {
 template <typename... V>
 class Variant {
  public:
-  static constexpr bool all_compatible_with_any_v = (TypeTraits<V>::storage_enabled && ...);
-  static_assert(all_compatible_with_any_v,
+  static_assert(details::all_storage_enabled_v<V...>,
                 "All types used in Variant<...> must be compatible with Any");
-
   /*
    * \brief Helper utility to check if the type can be contained in the variant
    */

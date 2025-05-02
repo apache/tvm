@@ -159,7 +159,6 @@ if(MSVC)
   add_definitions(-D_SCL_SECURE_NO_WARNINGS)
   add_definitions(-D_ENABLE_EXTENDED_ALIGNED_STORAGE)
   add_definitions(-DNOMINMAX)
-
   # regeneration does not work well with msbuild custom rules.
   set(CMAKE_SUPPRESS_REGENERATION ON)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc")
@@ -761,9 +760,9 @@ install(
 
 # More target definitions
 if(MSVC)
-  target_compile_definitions(tvm_objs PRIVATE -DTVM_EXPORTS)
-  target_compile_definitions(tvm_libinfo_objs PRIVATE -DTVM_EXPORTS)
-  target_compile_definitions(tvm_runtime_objs PRIVATE -DTVM_EXPORTS)
+  target_compile_definitions(tvm_objs PRIVATE -DTVM_EXPORTS -DTVM_FFI_EXPORTS)
+  target_compile_definitions(tvm_libinfo_objs PRIVATE -DTVM_EXPORTS -DTVM_FFI_EXPORTS)
+  target_compile_definitions(tvm_runtime_objs PRIVATE -DTVM_EXPORTS -DTVM_FFI_EXPORTS)
 endif()
 
 set(TVM_IS_DEBUG_BUILD OFF)

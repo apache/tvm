@@ -63,9 +63,10 @@ class TIntObj : public TNumberObj {
   static constexpr const char* _type_key = "test.Int";
 
   TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TIntObj, TNumberObj);
-
-  TVM_FFI_REFLECTION_DEF(TIntObj).def_readonly("value", &TIntObj::value);
 };
+
+TVM_FFI_REFLECTION_DEF(TIntObj).def_readonly("value", &TIntObj::value);
+
 
 class TInt : public TNumber {
  public:
@@ -123,15 +124,15 @@ struct TypeTraits<testing::TPrimExpr>
     : public ObjectRefWithFallbackTraitsBase<testing::TPrimExpr, StrictBool, int64_t, double,
                                              String> {
   static TVM_FFI_INLINE testing::TPrimExpr ConvertFallbackValue(StrictBool value) {
-    return testing::TPrimExpr("bool", value);
+    return testing::TPrimExpr("bool", static_cast<double>(value));
   }
 
   static TVM_FFI_INLINE testing::TPrimExpr ConvertFallbackValue(int64_t value) {
-    return testing::TPrimExpr("int64", value);
+    return testing::TPrimExpr("int64", static_cast<double>(value));
   }
 
   static TVM_FFI_INLINE testing::TPrimExpr ConvertFallbackValue(double value) {
-    return testing::TPrimExpr("float32", value);
+    return testing::TPrimExpr("float32", static_cast<double>(value));
   }
   // hack into the dtype to store string
   static TVM_FFI_INLINE testing::TPrimExpr ConvertFallbackValue(String value) {

@@ -98,7 +98,7 @@ class ParallelLauncher {
   // Wait n jobs to finish
   int WaitForJobs() {
     while (num_pending_.load() != 0) {
-      tvm::runtime::threading::Yield();
+      tvm::runtime::threading::YieldThread();
     }
     if (!has_error_.load()) return 0;
     std::ostringstream os;
@@ -163,7 +163,7 @@ class SpscTaskQueue {
    */
   void Push(const Task& input) {
     while (!Enqueue(input)) {
-      tvm::runtime::threading::Yield();
+      tvm::runtime::threading::YieldThread();
     }
     if (pending_.fetch_add(1) == -1) {
       std::unique_lock<std::mutex> lock(mutex_);
@@ -182,7 +182,7 @@ class SpscTaskQueue {
     // If a new task comes to the queue quickly, this wait avoid the worker from sleeping.
     // The default spin count is set by following the typical omp convention
     for (uint32_t i = 0; i < spin_count && pending_.load() == 0; ++i) {
-      tvm::runtime::threading::Yield();
+      tvm::runtime::threading::YieldThread();
     }
     if (pending_.fetch_sub(1) == 0) {
       std::unique_lock<std::mutex> lock(mutex_);
@@ -511,7 +511,7 @@ int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
   for (int i = 0; i < num_task; ++i) {
     if (i != task_id) {
       while (sync_counter[i * kSyncStride].load(std::memory_order_relaxed) <= old_counter) {
-        tvm::runtime::threading::Yield();
+        tvm::runtime::threading::YieldThread();
       }
     }
   }

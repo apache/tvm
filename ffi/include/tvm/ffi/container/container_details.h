@@ -275,6 +275,15 @@ class ReverseIterAdapter {
 template <typename T>
 inline constexpr bool storage_enabled_v = std::is_same_v<T, Any> || TypeTraits<T>::storage_enabled;
 
+/*!
+ * \brief Check if all T are compatible with Any.
+ *
+ * \tparam T The type to check.
+ * \return True if T is compatible with Any, false otherwise.
+ */
+template <typename ...T>
+inline constexpr bool all_storage_enabled_v = (storage_enabled_v<T> && ...);
+
 /**
  * \brief Check if Any storage of Derived can always be directly used as Base.
  *
