@@ -5396,5 +5396,23 @@ def test_eye():
     )
 
 
+def test_linspace():
+    import numpy as np
+
+    class Linspace(Module):
+        def forward(self, input):
+            return torch.linspace(0, 1, steps=9)
+
+    graph_model = fx.symbolic_trace(Linspace())
+    mod = from_fx(graph_model, [([9, 9], "float32")])
+    assert len(mod["main"].body.blocks) == 1
+    assert len(mod["main"].body.blocks[0].bindings) == 1
+    assert isinstance(mod["main"].body.blocks[0].bindings[0].value, relax.Constant)
+    tvm.testing.assert_allclose(
+        mod["main"].body.blocks[0].bindings[0].value.data.numpy(),
+        np.linspace(0, 1, num=9, dtype="float32"),
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()
