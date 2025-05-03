@@ -20,6 +20,8 @@ import torch
 from torch.nn import Module
 from torch.export import export
 
+import tvm.tir as tir  # pylint: disable=unused-import, consider-using-from-import
+
 import tvm
 from tvm import relax
 import tvm.testing
@@ -4626,64 +4628,61 @@ def test_dynamic_shape():
 
     verify_model(DynamicModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes)
 
-#ADDED blank line
+
 def test_dynamic_shape_with_constraints():
-        # Define SymInts with constraints
-        B = torch.export.Dim("B", min=2, max=10)
-        # Use B again for another dimension to test refinement (max(10, 15) -> 15)
-        B_refined = torch.export.Dim("B", min=3, max=15) 
-        S = torch.export.Dim("S", min=1) # Test min constraint only (-> (1, None))
+    # Define SymInts with constraints
+    B = torch.export.Dim("B", min=2, max=10)
+    # Use B again for another dimension to test refinement (max(10, 15) -> 15)
+    B_refined = torch.export.Dim("B", min=3, max=15)
+    S = torch.export.Dim("S", min=1)  # Test min constraint only (-> (1, None))
 
-        # Example args matching initial B dim (max=10)
-        example_args = (torch.randn(3, 4, dtype=torch.float32), torch.randn(5, 2, dtype=torch.float32)) 
-        
-        # Dynamic shapes using the Dim objects
-        # Input 0: Dim 0 uses B (min=2, max=10), Dim 1 uses S (min=1)
-        # Input 1: Dim 0 uses B_refined (min=3, max=15)
-        # The final constraint for tir.Var("B") should be max(2,3) to min(10,15) => min=3, max=10
-        dynamic_shapes = {0: {0: B, 1: S}, 1: {0: B_refined}}
+    # Example args matching initial B dim (max=10)
+    example_args = (torch.randn(3, 4, dtype=torch.float32), torch.randn(5, 2, dtype=torch.float32))
 
-        class SimpleDynamic(torch.nn.Module):
-            # Simple op, the main thing is testing the input signature and constraints
-            def forward(self, x, y):
-                # Add tensors with different shapes requires broadcasting, 
-                # but we only care about the input signature here.
-                # Use an op that doesn't depend on exact shapes matching.
-                return torch.relu(x) # Return just one to simplify output signature
+    # Dynamic shapes using the Dim objects
+    # Input 0: Dim 0 uses B (min=2, max=10), Dim 1 uses S (min=1)
+    # Input 1: Dim 0 uses B_refined (min=3, max=15)
+    # The final constraint for tir.Var("B") should be max(2,3) to min(10,15) => min=3, max=10
+    dynamic_shapes = {0: {0: B, 1: S}, 1: {0: B_refined}}
 
-        # NEW: Define TIR Vars for TVMScript parsing
-        B = tir.Var("B", "int64")
-        S = tir.Var("S", "int64")
-        
-        # Define the expected Relax IRModule
-        @tvm.script.ir_module
-        class Expected:
-            @R.function
-            def main(
-                # Note: B has refined constraints: min=3, max=10
-                # Note: S has constraints: min=1
-                x: R.Tensor((B, S), dtype="float32"), 
-                y: R.Tensor((B, 2), dtype="float32") 
-            ) -> R.Tuple(R.Tensor((B, S), dtype="float32")):
-                B = T.int64()
-                S = T.int64()
-                # tell TIR about the constraints via function attributes
-                T.func_attr({
-                    "tir_var_lower_bound": {B: 3, S: 1}, 
-                    "tir_var_upper_bound": {B: 10}
-                })
-                with R.dataflow():
-                    # The actual body isn't the focus, just the signature
-                    lv: R.Tensor((B, S), dtype="float32") = R.relu(x)
-                    # Output must be a tuple
-                    gv: R.Tuple(R.Tensor((B, S), dtype="float32")) = (lv,)
-                    R.output(gv)
-                return gv
+    class SimpleDynamic(torch.nn.Module):
+        # Simple op, the main thing is testing the input signature and constraints
+        def forward(self, x, y):
+            # Add tensors with different shapes requires broadcasting,
+            # but we only care about the input signature here.
+            # Use an op that doesn't depend on exact shapes matching.
+            return torch.relu(x)  # Return just one to simplify output signature
 
-        # Use verify_model utility
-        verify_model(SimpleDynamic(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes)
+    # NEW: Define TIR Vars for TVMScript parsing
+    B = tir.Var("B", "int64")
+    S = tir.Var("S", "int64")
 
-#ADDED blank line
+    # Define the expected Relax IRModule
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            # Note: B has refined constraints: min=3, max=10
+            # Note: S has constraints: min=1
+            x: R.Tensor((B, S), dtype="float32"),
+            y: R.Tensor((B, 2), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((B, S), dtype="float32")):
+            B = T.int64()
+            S = T.int64()
+            # tell TIR about the constraints via function attributes
+            T.func_attr({"tir_var_lower_bound": {B: 3, S: 1}, "tir_var_upper_bound": {B: 10}})
+            with R.dataflow():
+                # The actual body isn't the focus, just the signature
+                lv: R.Tensor((B, S), dtype="float32") = R.relu(x)
+                # Output must be a tuple
+                gv: R.Tuple(R.Tensor((B, S), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    # Use verify_model utility
+    verify_model(SimpleDynamic(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes)
+
+
 def test_broadcast_to():
     class BroadcastTo(Module):
         def forward(self, x):
