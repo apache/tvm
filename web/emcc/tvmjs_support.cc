@@ -157,8 +157,10 @@ class AsyncLocalSession : public LocalSession {
     } else if (func == get_time_eval_placeholder_.get()) {
       // special handle time evaluator.
       try {
-        PackedFunc retfunc = this->GetTimeEvaluator(args[0], args[1], args[2], args[3], args[4],
-                                                    args[5], args[6], args[7], args[8], args[9]);
+        PackedFunc retfunc = this->GetTimeEvaluator(
+            args[0].cast<ffi::Optional<Module>>(), args[1].cast<std::string>(), args[2].cast<int>(),
+            args[3].cast<int>(), args[4].cast<int>(), args[5].cast<int>(), args[6].cast<int>(),
+            args[7].cast<int>(), args[8].cast<int>(), args[9].cast<int>());
         TVMRetValue rv;
         rv = retfunc;
         this->EncodeReturn(std::move(rv), [&](TVMArgs encoded_args) {
@@ -269,7 +271,7 @@ class AsyncLocalSession : public LocalSession {
     auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
                    cooldown_interval_ms, repeats_to_cooldown](TVMArgs args, TVMRetValue* rv) {
       // the function is a async function.
-      PackedFunc on_complete = args[args.size() - 1];
+      PackedFunc on_complete = args[args.size() - 1].cast<PackedFunc>();
 
       std::vector<AnyView> packed_args(args.data(), args.data() + args.size() - 1);
       auto finvoke = [pf, packed_args](int n) {

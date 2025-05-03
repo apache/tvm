@@ -107,7 +107,7 @@ TVM_REGISTER_GLOBAL("testing.echo").set_body_packed([](TVMArgs args, TVMRetValue
 });
 
 TVM_REGISTER_GLOBAL("testing.call").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  (args[0].operator PackedFunc()).CallPacked(args.Slice(1), ret);
+  (args[0].cast<PackedFunc>()).CallPacked(args.Slice(1), ret);
 });
 
 TVM_REGISTER_GLOBAL("testing.ret_string").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
@@ -125,7 +125,7 @@ TVM_REGISTER_GLOBAL("testing.log_fatal_str").set_body_packed([](TVMArgs args, TV
 TVM_REGISTER_GLOBAL("testing.add_one").set_body_typed([](int x) { return x + 1; });
 
 TVM_REGISTER_GLOBAL("testing.wrap_callback").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  PackedFunc pf = args[0];
+  PackedFunc pf = args[0].cast<PackedFunc>();
   *ret = runtime::TypedPackedFunc<void()>([pf]() { pf(); });
 });
 
@@ -215,7 +215,7 @@ TVM_REGISTER_GLOBAL("tvmjs.runtime.ConcatEmbeddings")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       std::vector<NDArray> embeddings;
       for (int i = 0; i < args.size(); ++i) {
-        embeddings.push_back(args[i].operator NDArray());
+        embeddings.push_back(args[i].cast<NDArray>());
       }
       NDArray result = ConcatEmbeddings(std::move(embeddings));
       *ret = result;

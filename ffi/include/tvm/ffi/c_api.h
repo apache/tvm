@@ -399,8 +399,8 @@ TVM_FFI_DLL int TVMFFITypeKeyToIndex(const char* type_key, int32_t* out_tindex);
  * \param out The output of the function.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFIFuncCreate(void* self, TVMFFISafeCallType safe_call,
-                                 void (*deleter)(void* self), TVMFFIObjectHandle* out);
+TVM_FFI_DLL int TVMFFIFunctionCreate(void* self, TVMFFISafeCallType safe_call,
+                                     void (*deleter)(void* self), TVMFFIObjectHandle* out);
 
 /*!
  * \brief Convert a AnyView to an owned Any.

@@ -226,8 +226,8 @@ class EnvCAPIRegistry {
 }  // namespace ffi
 }  // namespace tvm
 
-int TVMFFIFuncCreate(void* self, TVMFFISafeCallType safe_call, void (*deleter)(void* self),
-                     TVMFFIObjectHandle* out) {
+int TVMFFIFunctionCreate(void* self, TVMFFISafeCallType safe_call, void (*deleter)(void* self),
+                         TVMFFIObjectHandle* out) {
   TVM_FFI_SAFE_CALL_BEGIN();
   tvm::ffi::Function func = tvm::ffi::Function::FromExternC(self, safe_call, deleter);
   *out = tvm::ffi::details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(func));

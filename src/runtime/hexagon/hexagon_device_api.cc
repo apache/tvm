@@ -211,10 +211,10 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy_dltensor")
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy")
     .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-      uint32_t queue_id = static_cast<int>(args[0]);
+      uint32_t queue_id = args[0].cast<uint32_t>();
       void* dst = args[1].cast<void*>();
       void* src = args[2].cast<void*>();
-      uint32_t size = static_cast<int>(args[3]);
+      uint32_t size = args[3].cast<uint32_t>();
       ICHECK(size > 0);
       bool bypass_cache = args[4].cast<bool>();
 
@@ -228,7 +228,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.dma_copy")
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.dma_wait")
     .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-      uint32_t queue_id = static_cast<int>(args[0]);
+      uint32_t queue_id = args[0].cast<uint32_t>();
       int inflight = args[1].cast<int>();
       ICHECK(inflight >= 0);
       HexagonDeviceAPI::Global()->UserDMA()->Wait(queue_id, inflight);
@@ -237,14 +237,14 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.dma_wait")
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.dma_start_group")
     .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-      uint32_t queue_id = static_cast<int>(args[0]);
+      uint32_t queue_id = args[0].cast<uint32_t>();
       HexagonDeviceAPI::Global()->UserDMA()->StartGroup(queue_id);
       *rv = static_cast<int32_t>(0);
     });
 
 TVM_REGISTER_GLOBAL("device_api.hexagon.dma_end_group")
     .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-      uint32_t queue_id = static_cast<int>(args[0]);
+      uint32_t queue_id = args[0].cast<uint32_t>();
       HexagonDeviceAPI::Global()->UserDMA()->EndGroup(queue_id);
       *rv = static_cast<int32_t>(0);
     });
@@ -259,7 +259,7 @@ TVM_REGISTER_GLOBAL("device_api.hexagon.alloc_nd")
       CHECK(scope.find("global.vtcm") != std::string::npos);
       int64_t ndim = args[5].cast<int64_t>();
       CHECK((ndim == 1 || ndim == 2) && "Hexagon Device API supports only 1d and 2d allocations");
-      int64_t* shape = static_cast<int64_t*>(static_cast<void*>(args[6]));
+      int64_t* shape = static_cast<int64_t*>(args[6].cast<void*>());
 
       Device dev;
       dev.device_type = static_cast<DLDeviceType>(device_type);

@@ -184,7 +184,7 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
     } else if (name == "webgpu.update_prebuild") {
       return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
         auto name = args[0].cast<std::string>();
-        PackedFunc func = args[1];
+        PackedFunc func = args[1].cast<PackedFunc>();
         prebuild_[name] = func;
       });
     }
