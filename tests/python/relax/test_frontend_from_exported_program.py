@@ -4625,7 +4625,8 @@ def test_dynamic_shape():
     dynamic_shapes = {"x1": {0: batch}, "x2": {0: batch}}
 
     verify_model(DynamicModel(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes)
-    
+
+#ADDED blank line
 def test_dynamic_shape_with_constraints():
         # Define SymInts with constraints
         B = torch.export.Dim("B", min=2, max=10)
@@ -4650,6 +4651,10 @@ def test_dynamic_shape_with_constraints():
                 # Use an op that doesn't depend on exact shapes matching.
                 return torch.relu(x) # Return just one to simplify output signature
 
+        # NEW: Define TIR Vars for TVMScript parsing
+        B = tir.Var("B", "int64")
+        S = tir.Var("S", "int64")
+        
         # Define the expected Relax IRModule
         @tvm.script.ir_module
         class Expected:
@@ -4678,7 +4683,7 @@ def test_dynamic_shape_with_constraints():
         # Use verify_model utility
         verify_model(SimpleDynamic(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes)
 
-
+#ADDED blank line
 def test_broadcast_to():
     class BroadcastTo(Module):
         def forward(self, x):
