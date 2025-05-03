@@ -78,7 +78,7 @@ struct EnvErrorAlreadySet : public std::exception {};
 /*!
  * \brief Error object class.
  */
-class ErrorObj : public Object, public TVMFFIErrorInfo {
+class ErrorObj : public Object, public TVMFFIErrorCell {
  public:
   /*!
    * \brief Update the traceback of the error object.

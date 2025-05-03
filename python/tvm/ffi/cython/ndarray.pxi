@@ -151,7 +151,7 @@ def from_dlpack(ext_tensor, *, required_alignment=8, required_contiguous=True):
 
 # helper class for shape handling
 def _shape_obj_get_py_tuple(obj):
-    cdef TVMFFIShapeArray* shape = TVMFFIShapeGetShapeArrayPtr((<Object>obj).chandle)
+    cdef TVMFFIShapeCell* shape = TVMFFIShapeGetCellPtr((<Object>obj).chandle)
     return tuple(shape.data[i] for i in range(shape.size))
 
 

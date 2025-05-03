@@ -100,15 +100,15 @@ cdef class Error(Object):
 
     @property
     def kind(self):
-        return py_str(TVMFFIErrorGetErrorInfoPtr(self.chandle).kind)
+        return py_str(TVMFFIErrorGetCellPtr(self.chandle).kind)
 
     @property
     def message(self):
-        return py_str(TVMFFIErrorGetErrorInfoPtr(self.chandle).message)
+        return py_str(TVMFFIErrorGetCellPtr(self.chandle).message)
 
     @property
     def traceback(self):
-        return py_str(TVMFFIErrorGetErrorInfoPtr(self.chandle).traceback)
+        return py_str(TVMFFIErrorGetCellPtr(self.chandle).traceback)
 
 _register_object_by_index(kTVMFFIError, Error)
 

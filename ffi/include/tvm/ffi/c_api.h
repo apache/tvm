@@ -205,15 +205,15 @@ typedef struct {
 } TVMFFIByteArray;
 
 /*!
- * \brief Shape array used in shape object following header.
+ * \brief Shape cell used in shape object following header.
  */
 typedef struct {
   const int64_t* data;
   size_t size;
-} TVMFFIShapeArray;
+} TVMFFIShapeCell;
 
 /*!
- * \brief Method information that can appear in reflection table.
+ * \brief Error cell used in error object following header.
  */
 typedef struct {
   /*! \brief The kind of the error. */
@@ -224,7 +224,7 @@ typedef struct {
    * \brief The traceback of the error.
    */
   const char* traceback;
-} TVMFFIErrorInfo;
+} TVMFFIErrorCell;
 
 /*!
  * \brief Type that defines C-style safe call convention
@@ -262,7 +262,7 @@ typedef int (*TVMFFISafeCallType)(void* self, const TVMFFIAny* args, int32_t num
                                   TVMFFIAny* result);
 
 /*!
- * \brief Object cell for function object.
+ * \brief Object cell for function object following header.
  */
 typedef struct {
   /*! \brief A C API compatible call with exception catching. */
@@ -670,8 +670,8 @@ inline TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) {
  * \param obj The object handle.
  * \return The data pointer.
  */
-inline TVMFFIErrorInfo* TVMFFIErrorGetErrorInfoPtr(TVMFFIObjectHandle obj) {
-  return reinterpret_cast<TVMFFIErrorInfo*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
+inline TVMFFIErrorCell* TVMFFIErrorGetCellPtr(TVMFFIObjectHandle obj) {
+  return reinterpret_cast<TVMFFIErrorCell*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
 }
 
 /*!
@@ -679,7 +679,7 @@ inline TVMFFIErrorInfo* TVMFFIErrorGetErrorInfoPtr(TVMFFIObjectHandle obj) {
  * \param obj The object handle.
  * \return The data pointer.
  */
-inline TVMFFIFunctionCell* TVMFFIFunctionGetFunctionCellPtr(TVMFFIObjectHandle obj) {
+inline TVMFFIFunctionCell* TVMFFIFunctionGetCellPtr(TVMFFIObjectHandle obj) {
   return reinterpret_cast<TVMFFIFunctionCell*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
 }
 
@@ -688,8 +688,8 @@ inline TVMFFIFunctionCell* TVMFFIFunctionGetFunctionCellPtr(TVMFFIObjectHandle o
  * \param obj The object handle.
  * \return The data pointer.
  */
-inline TVMFFIShapeArray* TVMFFIShapeGetShapeArrayPtr(TVMFFIObjectHandle obj) {
-  return reinterpret_cast<TVMFFIShapeArray*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
+inline TVMFFIShapeCell* TVMFFIShapeGetCellPtr(TVMFFIObjectHandle obj) {
+  return reinterpret_cast<TVMFFIShapeCell*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
 }
 
 /*!

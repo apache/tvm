@@ -120,11 +120,11 @@ cdef extern from "tvm/ffi/c_api.h":
         const char* data
         size_t size
 
-    ctypedef struct TVMFFIShapeArray:
+    ctypedef struct TVMFFIShapeCell:
         const int64_t* data
         size_t size
 
-    ctypedef struct TVMFFIErrorInfo:
+    ctypedef struct TVMFFIErrorCell:
         const char* kind
         const char* message
         const char* traceback
@@ -163,8 +163,8 @@ cdef extern from "tvm/ffi/c_api.h":
     int TVMFFINDArrayToDLPackVersioned(TVMFFIObjectHandle src,
                                         DLManagedTensorVersioned** out) nogil
     TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) nogil
-    TVMFFIErrorInfo* TVMFFIErrorGetErrorInfoPtr(TVMFFIObjectHandle obj) nogil
-    TVMFFIShapeArray* TVMFFIShapeGetShapeArrayPtr(TVMFFIObjectHandle obj) nogil
+    TVMFFIErrorCell* TVMFFIErrorGetCellPtr(TVMFFIObjectHandle obj) nogil
+    TVMFFIShapeCell* TVMFFIShapeGetCellPtr(TVMFFIObjectHandle obj) nogil
     DLTensor* TVMFFINDArrayGetDLTensorPtr(TVMFFIObjectHandle obj) nogil
     DLDevice TVMFFIDLDeviceFromIntPair(int32_t device_type, int32_t device_id) nogil
 

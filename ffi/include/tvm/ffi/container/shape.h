@@ -37,7 +37,7 @@ namespace tvm {
 namespace ffi {
 
 /*! \brief An object representing a shape tuple. */
-class ShapeObj : public Object, public TVMFFIShapeArray {
+class ShapeObj : public Object, public TVMFFIShapeCell {
  public:
   using index_type = int64_t;
 
