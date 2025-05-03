@@ -95,7 +95,7 @@ inline TVMFFIAny LegacyTVMArgValueToFFIAny(TVMValue value, int type_code) {
       return res;
     }
     case kTVMPackedFuncHandle: {
-      res.type_index = ffi::TypeIndex::kTVMFFIFunc;
+      res.type_index = ffi::TypeIndex::kTVMFFIFunction;
       res.v_obj = static_cast<TVMFFIObject*>(value.v_handle);
       return res;
     }
@@ -215,7 +215,7 @@ inline void AnyViewToLegacyTVMArgValue(TVMFFIAny src, TVMValue* value, int* type
       value[0].v_handle = src.v_obj;
       break;
     }
-    case ffi::TypeIndex::kTVMFFIFunc: {
+    case ffi::TypeIndex::kTVMFFIFunction: {
       type_code[0] = kTVMPackedFuncHandle;
       value[0].v_handle = src.v_obj;
       break;

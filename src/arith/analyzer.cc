@@ -297,10 +297,9 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body_packed([](TVMArgs args, TVM
         }
       });
     } else if (name == "rewrite_simplify") {
-      return PackedFunc(
-          [self](TVMArgs args, TVMRetValue* ret) {
-            *ret = self->rewrite_simplify(args[0].cast<PrimExpr>());
-          });
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        *ret = self->rewrite_simplify(args[0].cast<PrimExpr>());
+      });
     } else if (name == "get_rewrite_simplify_stats") {
       return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
         *ret = self->rewrite_simplify.GetStatsCounters();
@@ -309,10 +308,9 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body_packed([](TVMArgs args, TVM
       return PackedFunc(
           [self](TVMArgs args, TVMRetValue* ret) { self->rewrite_simplify.ResetStatsCounters(); });
     } else if (name == "canonical_simplify") {
-      return PackedFunc(
-          [self](TVMArgs args, TVMRetValue* ret) {
-            *ret = self->canonical_simplify(args[0].cast<PrimExpr>());
-          });
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        *ret = self->canonical_simplify(args[0].cast<PrimExpr>());
+      });
     } else if (name == "int_set") {
       return PackedFunc(
           [self](TVMArgs args, TVMRetValue* ret) { *ret = self->int_set(args[0].cast<Var>()); });
@@ -339,10 +337,9 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body_packed([](TVMArgs args, TVM
         *ret = ffi::Function::FromPacked(fexit);
       });
     } else if (name == "can_prove_equal") {
-      return PackedFunc(
-          [self](TVMArgs args, TVMRetValue* ret) {
-            *ret = self->CanProveEqual(args[0].cast<PrimExpr>(), args[1].cast<PrimExpr>());
-          });
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        *ret = self->CanProveEqual(args[0].cast<PrimExpr>(), args[1].cast<PrimExpr>());
+      });
     } else if (name == "get_enabled_extensions") {
       return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
         *ret = static_cast<std::int64_t>(self->rewrite_simplify.GetEnabledExtensions());

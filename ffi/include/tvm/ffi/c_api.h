@@ -106,7 +106,7 @@ typedef enum {
   /*! \brief Error object. */
   kTVMFFIError = 67,
   /*! \brief Function object. */
-  kTVMFFIFunc = 68,
+  kTVMFFIFunction = 68,
   /*! \brief Array object. */
   kTVMFFIArray = 69,
   /*! \brief Map object. */
@@ -232,11 +232,14 @@ typedef struct {
  * Safe call explicitly catches exception on function boundary.
  *
  * \param self The function handle
- * \param num_args Number if input arguments
+ * \param num_args Number of input arguments
  * \param args The input arguments to the call.
- * \param result Store output result, the result must not initially contain object value.
+ * \param result Store output result.
  *
- * \return The call return 0 if call is successful.
+ * IMPORTANT: caller must initialize result->type_index to be kTVMFFINone,
+ * or any other value smaller than kTVMFFIStaticObjectBegin.
+ *
+ * \return The call returns 0 if call is successful.
  *  It returns non-zero value if there is an error.
  *
  *  Possible return error of the API functions:
@@ -244,15 +247,27 @@ typedef struct {
  *  * -1: error happens, can be retrieved by TVMFFIErrorMoveFromRaised
  *  * -2: a frontend error occurred and recorded in the frontend.
  *
- * \note We decided to leverage TVMFFIErrorMoveFromRaised and TVMFFIErrorSetRaisedByConsume
+ * \note We decided to leverage TVMFFIErrorMoveFromRaised and TVMFFIErrorSetRaised
  *  for C function error propagation. This design choice, while
  *  introducing a dependency for TLS runtime, simplifies error
  *  propgation in chains of calls in compiler codegen.
  *  As we do not need to propagate error through argument but simply
  *  set them in the runtime environment.
+ *
+ * \sa TVMFFIErrorMoveFromRaised
+ * \sa TVMFFIErrorSetRaised
+ * \sa TVMFFIErrorSetRaisedByCStr
  */
 typedef int (*TVMFFISafeCallType)(void* self, const TVMFFIAny* args, int32_t num_args,
                                   TVMFFIAny* result);
+
+/*!
+ * \brief Object cell for function object.
+ */
+typedef struct {
+  /*! \brief A C API compatible call with exception catching. */
+  TVMFFISafeCallType safe_call;
+} TVMFFIFunctionCell;
 
 /*!
  * \brief Getter that can take address of a field and set the result.
@@ -401,11 +416,11 @@ TVM_FFI_DLL int TVMFFIAnyViewToOwnedAny(const TVMFFIAny* any_view, TVMFFIAny* ou
  * \param func The resource handle of the C callback.
  * \param args The input arguments to the call.
  * \param num_args The number of input arguments.
- * \param result The output result.
+ * \param result The output result, caller must ensure result->type_index is set to kTVMFFINone.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFIFuncCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args,
-                               TVMFFIAny* result);
+TVM_FFI_DLL int TVMFFIFunctionCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args,
+                                   TVMFFIAny* result);
 
 /*!
  * \brief Register the function to runtime's global table.
@@ -417,7 +432,7 @@ TVM_FFI_DLL int TVMFFIFuncCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t
  * \param override Whether allow override already registered function.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFIFuncSetGlobal(const char* name, TVMFFIObjectHandle f, int override);
+TVM_FFI_DLL int TVMFFIFunctionSetGlobal(const char* name, TVMFFIObjectHandle f, int override);
 
 /*!
  * \brief Get a global function.
@@ -426,7 +441,7 @@ TVM_FFI_DLL int TVMFFIFuncSetGlobal(const char* name, TVMFFIObjectHandle f, int 
  * \param out the result function pointer, NULL if it does not exist.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFIFuncGetGlobal(const char* name, TVMFFIObjectHandle* out);
+TVM_FFI_DLL int TVMFFIFunctionGetGlobal(const char* name, TVMFFIObjectHandle* out);
 
 /*!
  * \brief Move the last error from the environment to result.
@@ -657,6 +672,15 @@ inline TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) {
  */
 inline TVMFFIErrorInfo* TVMFFIErrorGetErrorInfoPtr(TVMFFIObjectHandle obj) {
   return reinterpret_cast<TVMFFIErrorInfo*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
+}
+
+/*!
+ * \brief Get the data pointer of a function cell from a function object.
+ * \param obj The object handle.
+ * \return The data pointer.
+ */
+inline TVMFFIFunctionCell* TVMFFIFunctionGetFunctionCellPtr(TVMFFIObjectHandle obj) {
+  return reinterpret_cast<TVMFFIFunctionCell*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
 }
 
 /*!

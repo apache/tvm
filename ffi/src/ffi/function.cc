@@ -241,7 +241,7 @@ int TVMFFIAnyViewToOwnedAny(const TVMFFIAny* any_view, TVMFFIAny* out) {
   TVM_FFI_SAFE_CALL_END();
 }
 
-int TVMFFIFuncSetGlobal(const char* name, TVMFFIObjectHandle f, int override) {
+int TVMFFIFunctionSetGlobal(const char* name, TVMFFIObjectHandle f, int override) {
   using namespace tvm::ffi;
   TVM_FFI_SAFE_CALL_BEGIN();
   GlobalFunctionTable::Global()->Update(name, GetRef<Function>(static_cast<FunctionObj*>(f)),
@@ -249,7 +249,7 @@ int TVMFFIFuncSetGlobal(const char* name, TVMFFIObjectHandle f, int override) {
   TVM_FFI_SAFE_CALL_END();
 }
 
-int TVMFFIFuncGetGlobal(const char* name, TVMFFIObjectHandle* out) {
+int TVMFFIFunctionGetGlobal(const char* name, TVMFFIObjectHandle* out) {
   using namespace tvm::ffi;
   TVM_FFI_SAFE_CALL_BEGIN();
   const Function* fp = GlobalFunctionTable::Global()->Get(name);
@@ -262,7 +262,8 @@ int TVMFFIFuncGetGlobal(const char* name, TVMFFIObjectHandle* out) {
   TVM_FFI_SAFE_CALL_END();
 }
 
-int TVMFFIFuncCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args, TVMFFIAny* result) {
+int TVMFFIFunctionCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args,
+                       TVMFFIAny* result) {
   using namespace tvm::ffi;
   // NOTE: this is a tail call
   return reinterpret_cast<FunctionObj*>(func)->safe_call(func, args, num_args, result);

@@ -57,7 +57,7 @@ cdef extern from "tvm/ffi/c_api.h":
         kTVMFFIStr = 65
         kTVMFFIBytes = 66
         kTVMFFIError = 67
-        kTVMFFIFunc = 68
+        kTVMFFIFunction = 68
         kTVMFFIArray = 69
         kTVMFFIMap = 70
         kTVMFFIShape = 71
@@ -135,13 +135,13 @@ cdef extern from "tvm/ffi/c_api.h":
 
     int TVMFFIObjectFree(TVMFFIObjectHandle obj) nogil
     int TVMFFIObjectGetTypeIndex(TVMFFIObjectHandle obj) nogil
-    int TVMFFIFuncCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args,
-                       TVMFFIAny* result) nogil
-    int TVMFFIFuncCreate(void* self, TVMFFISafeCallType safe_call,
+    int TVMFFIFunctionCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args,
+                           TVMFFIAny* result) nogil
+    int TVMFFIFunctionCreate(void* self, TVMFFISafeCallType safe_call,
                          void (*deleter)(void*), TVMFFIObjectHandle* out) nogil
     int TVMFFIAnyViewToOwnedAny(const TVMFFIAny* any_view, TVMFFIAny* out) nogil
-    int TVMFFIFuncSetGlobal(const char* name, TVMFFIObjectHandle f, int override) nogil
-    int TVMFFIFuncGetGlobal(const char* name, TVMFFIObjectHandle* out) nogil
+    int TVMFFIFunctionSetGlobal(const char* name, TVMFFIObjectHandle f, int override) nogil
+    int TVMFFIFunctionGetGlobal(const char* name, TVMFFIObjectHandle* out) nogil
     void TVMFFIErrorMoveFromRaised(TVMFFIObjectHandle* result) nogil
     void TVMFFIErrorSetRaised(TVMFFIObjectHandle error) nogil
     void TVMFFIErrorSetRaisedCStr(const char* kind, const char* message) nogil

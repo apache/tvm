@@ -29,7 +29,6 @@
 
 #include "../../../meta_schedule/utils.h"
 
-
 namespace tvm {
 namespace relax {
 
@@ -235,7 +234,8 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
     n->workloads2idx_.reserve(n_objs);
     workloads.reserve(n_objs);
     for (int i = 0; i < n_objs; ++i) {
-      meta_schedule::Workload workload = meta_schedule::Workload::FromJSON(json_objs[i].cast<ObjectRef>());
+      meta_schedule::Workload workload =
+          meta_schedule::Workload::FromJSON(json_objs[i].cast<ObjectRef>());
       n->workloads2idx_.emplace(workload, i);
       workloads.push_back(workload);
     }

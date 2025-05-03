@@ -83,7 +83,7 @@ void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_retu
     packed_args[1] = opaque_handle;
     if (ret_any.type_index == ffi::TypeIndex::kTVMFFIModule) {
       packed_args[0] = static_cast<int32_t>(kTVMModuleHandle);
-    } else if (ret_any.type_index == ffi::TypeIndex::kTVMFFIFunc) {
+    } else if (ret_any.type_index == ffi::TypeIndex::kTVMFFIFunction) {
       packed_args[0] = static_cast<int32_t>(kTVMPackedFuncHandle);
     } else {
       packed_args[0] = static_cast<int32_t>(kTVMObjectHandle);

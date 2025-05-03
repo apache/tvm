@@ -81,19 +81,18 @@ namespace ffi {
  * \brief Object container class that backs ffi::Function
  * \note Do not use this function directly, use ffi::Function
  */
-class FunctionObj : public Object {
+class FunctionObj : public Object, public TVMFFIFunctionCell {
  public:
   typedef void (*FCall)(const FunctionObj*, const AnyView*, int32_t, Any*);
-  /*! \brief A C++ style call implementation */
+  using TVMFFIFunctionCell::safe_call;
+  /*! \brief A C++ style call implementation, with exception propagation in c++ style. */
   FCall call;
-  /*! \brief A C API compatible call with exception catching. */
-  TVMFFISafeCallType safe_call;
 
   TVM_FFI_INLINE void CallPacked(const AnyView* args, int32_t num_args, Any* result) const {
     this->call(this, args, num_args, result);
   }
 
-  static constexpr const uint32_t _type_index = TypeIndex::kTVMFFIFunc;
+  static constexpr const uint32_t _type_index = TypeIndex::kTVMFFIFunction;
   static constexpr const char* _type_key = "object.Function";
 
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(FunctionObj, Object);
@@ -105,8 +104,7 @@ class FunctionObj : public Object {
   // Implementing safe call style
   static int SafeCall(void* func, const TVMFFIAny* args, int32_t num_args, TVMFFIAny* result) {
     TVM_FFI_SAFE_CALL_BEGIN();
-    result->type_index = kTVMFFINone;
-    result->v_int64 = 0;
+    TVM_FFI_ICHECK_LT(result->type_index, TypeIndex::kTVMFFIStaticObjectBegin);
     FunctionObj* self = static_cast<FunctionObj*>(func);
     self->call(self, reinterpret_cast<const AnyView*>(args), num_args,
                reinterpret_cast<Any*>(result));
@@ -133,8 +131,8 @@ class FunctionObjImpl : public FunctionObj {
    * \param callable The type-erased callable object.
    */
   explicit FunctionObjImpl(TCallable callable) : callable_(callable) {
-    this->call = Call;
     this->safe_call = SafeCall;
+    this->call = Call;
   }
 
  private:
@@ -378,7 +376,7 @@ class Function : public ObjectRef {
    */
   static std::optional<Function> GetGlobal(const char* name) {
     TVMFFIObjectHandle handle;
-    TVM_FFI_CHECK_SAFE_CALL(TVMFFIFuncGetGlobal(name, &handle));
+    TVM_FFI_CHECK_SAFE_CALL(TVMFFIFunctionGetGlobal(name, &handle));
     if (handle != nullptr) {
       return Function(
           details::ObjectUnsafe::ObjectPtrFromOwned<Object>(static_cast<Object*>(handle)));
@@ -421,7 +419,7 @@ class Function : public ObjectRef {
    */
   static void SetGlobal(const char* name, Function func, bool override = false) {
     TVM_FFI_CHECK_SAFE_CALL(
-        TVMFFIFuncSetGlobal(name, details::ObjectUnsafe::GetHeader(func.get()), override));
+        TVMFFIFunctionSetGlobal(name, details::ObjectUnsafe::GetHeader(func.get()), override));
   }
   /*!
    * \brief List all global names
@@ -706,7 +704,7 @@ inline constexpr bool use_default_type_traits_v<TypedFunction<FType>> = false;
 
 template <typename FType>
 struct TypeTraits<TypedFunction<FType>> : public TypeTraitsBase {
-  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIFunc;
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIFunction;
 
   static TVM_FFI_INLINE void CopyToAnyView(const TypedFunction<FType>& src, TVMFFIAny* result) {
     TypeTraits<Function>::CopyToAnyView(src.packed(), result);
@@ -717,7 +715,7 @@ struct TypeTraits<TypedFunction<FType>> : public TypeTraitsBase {
   }
 
   static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
-    return src->type_index == TypeIndex::kTVMFFIFunc;
+    return src->type_index == TypeIndex::kTVMFFIFunction;
   }
 
   static TVM_FFI_INLINE TypedFunction<FType> CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {

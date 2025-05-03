@@ -33,7 +33,6 @@
 namespace tvm {
 namespace ffi {
 
-
 /*!
  * \brief Typed tuple like std::tuple backed by ArrayObj container.
  *
@@ -44,7 +43,8 @@ namespace ffi {
 template <typename... Types>
 class Tuple : public ObjectRef {
  public:
-  static_assert(details::all_storage_enabled_v<Types...>, "All types used in Tuple<...> must be compatible with Any");
+  static_assert(details::all_storage_enabled_v<Types...>,
+                "All types used in Tuple<...> must be compatible with Any");
 
   Tuple() : ObjectRef(MakeDefaultTupleNode()) {}
   Tuple(const Tuple<Types...>& other) : ObjectRef(other) {}

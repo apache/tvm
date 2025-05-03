@@ -70,7 +70,7 @@ class LibraryModuleNode final : public ModuleNode {
 
 PackedFunc WrapPackedFunc(TVMFFISafeCallType faddr, const ObjectPtr<Object>& sptr_to_self) {
   return ffi::Function::FromPacked([faddr, sptr_to_self](ffi::PackedArgs args, ffi::Any* rv) {
-    ICHECK_EQ(rv->type_index(), ffi::TypeIndex::kTVMFFINone);
+    ICHECK_LT(rv->type_index(), ffi::TypeIndex::kTVMFFIStaticObjectBegin);
     TVM_FFI_CHECK_SAFE_CALL((*faddr)(nullptr, reinterpret_cast<const TVMFFIAny*>(args.data()),
                                      args.size(), reinterpret_cast<TVMFFIAny*>(rv)));
   });
@@ -82,7 +82,7 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol) {
     *fp = FuncName;                                                                    \
   }
   // Initialize the functions
-  TVM_INIT_CONTEXT_FUNC(TVMFFIFuncCall);
+  TVM_INIT_CONTEXT_FUNC(TVMFFIFunctionCall);
   TVM_INIT_CONTEXT_FUNC(TVMFFIErrorSetRaisedByCStr);
   TVM_INIT_CONTEXT_FUNC(TVMBackendGetFuncFromEnv);
   TVM_INIT_CONTEXT_FUNC(TVMBackendAllocWorkspace);

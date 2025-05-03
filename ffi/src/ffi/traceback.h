@@ -106,10 +106,7 @@ inline bool ShouldExcludeFrame(const char* filename, const char* symbol) {
  */
 inline bool ShouldStopTraceback(const char* filename, const char* symbol) {
   if (symbol != nullptr) {
-    if (strncmp(symbol, "TVMFFIFuncCall", 14) == 0) {
-      return true;
-    }
-    if (strncmp(symbol, "TVMFuncCall", 11) == 0) {
+    if (strncmp(symbol, "TVMFFIFunctionCall", 14) == 0) {
       return true;
     }
     // Python interpreter stack frames

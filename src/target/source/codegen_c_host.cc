@@ -244,7 +244,7 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
   this->PrintIndent();
 
   if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
-    this->stream << "if (TVMFFIFuncCall(" << packed_func_name << ", ";
+    this->stream << "if (TVMFFIFunctionCall(" << packed_func_name << ", ";
   } else {
     this->stream << "if (" << packed_func_name << "(NULL, ";
   }

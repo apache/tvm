@@ -145,7 +145,7 @@ cdef inline int FuncCall3(void* chandle,
     temp_args = []
     make_args(args, &packed_args[0], temp_args)
     with nogil:
-        c_api_ret_code[0] = TVMFFIFuncCall(
+        c_api_ret_code[0] = TVMFFIFunctionCall(
             chandle, &packed_args[0], nargs, result
         )
     return 0
@@ -168,7 +168,7 @@ cdef inline int FuncCall(void* chandle,
     make_args(args, &packed_args[0], temp_args)
 
     with nogil:
-        c_api_ret_code[0] = TVMFFIFuncCall(chandle, &packed_args[0], nargs, result)
+        c_api_ret_code[0] = TVMFFIFunctionCall(chandle, &packed_args[0], nargs, result)
 
     return 0
 
@@ -179,6 +179,9 @@ cdef inline int ConstructorCall(void* constructor_handle,
     """Call contructor of a handle function"""
     cdef TVMFFIAny result
     cdef int c_api_ret_code
+    # IMPORTANT: caller need to initialize result->type_index to kTVMFFINone
+    result.type_index = kTVMFFINone
+    result.v_int64 = 0
     FuncCall(constructor_handle, args, &result, &c_api_ret_code)
     CHECK_CALL(c_api_ret_code)
     handle[0] = result.v_ptr
@@ -196,6 +199,9 @@ class Function(Object):
     def __call__(self, *args):
         cdef TVMFFIAny result
         cdef int c_api_ret_code
+        # IMPORTANT: caller need to initialize result->type_index to kTVMFFINone
+        result.type_index = kTVMFFINone
+        result.v_int64 = 0
         FuncCall((<Object>self).chandle, args, &result, &c_api_ret_code)
         # NOTE: logic is same as check_call
         # directly inline here to simplify traceback
@@ -205,7 +211,7 @@ class Function(Object):
             raise_existing_error()
         raise move_from_last_error().py_error()
 
-_register_object_by_index(kTVMFFIFunc, Function)
+_register_object_by_index(kTVMFFIFunction, Function)
 
 
 def _register_global_func(name, pyfunc, override):
@@ -216,14 +222,14 @@ def _register_global_func(name, pyfunc, override):
     if not isinstance(pyfunc, Function):
         pyfunc = _convert_to_ffi_func(pyfunc)
 
-    CHECK_CALL(TVMFFIFuncSetGlobal(c_str(name), (<Object>pyfunc).chandle, ioverride))
+    CHECK_CALL(TVMFFIFunctionSetGlobal(c_str(name), (<Object>pyfunc).chandle, ioverride))
     return pyfunc
 
 
 def _get_global_func(name, allow_missing):
     cdef TVMFFIObjectHandle chandle
 
-    CHECK_CALL(TVMFFIFuncGetGlobal(c_str(name), &chandle))
+    CHECK_CALL(TVMFFIFunctionGetGlobal(c_str(name), &chandle))
     if chandle != NULL:
         ret = Function.__new__(Function)
         (<Object>ret).chandle = chandle
@@ -273,7 +279,7 @@ def _convert_to_ffi_func(object pyfunc):
     """Convert a python function to TVM FFI function"""
     cdef TVMFFIObjectHandle chandle
     Py_INCREF(pyfunc)
-    CHECK_CALL(TVMFFIFuncCreate(
+    CHECK_CALL(TVMFFIFunctionCreate(
         <void*>(pyfunc),
         tvm_ffi_callback,
         tvm_ffi_callback_deleter,

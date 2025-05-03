@@ -67,7 +67,6 @@ class TIntObj : public TNumberObj {
 
 TVM_FFI_REFLECTION_DEF(TIntObj).def_readonly("value", &TIntObj::value);
 
-
 class TInt : public TNumber {
  public:
   explicit TInt(int64_t value) { data_ = make_object<TIntObj>(value); }

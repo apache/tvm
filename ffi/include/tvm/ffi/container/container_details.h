@@ -281,7 +281,7 @@ inline constexpr bool storage_enabled_v = std::is_same_v<T, Any> || TypeTraits<T
  * \tparam T The type to check.
  * \return True if T is compatible with Any, false otherwise.
  */
-template <typename ...T>
+template <typename... T>
 inline constexpr bool all_storage_enabled_v = (storage_enabled_v<T> && ...);
 
 /**

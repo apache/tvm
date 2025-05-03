@@ -117,7 +117,7 @@ class RPCWrappedFunc : public Object {
           packed_args[i] = RemoveSessMask(args[i].cast<DLDevice>());
           break;
         }
-        case ffi::TypeIndex::kTVMFFIFunc:
+        case ffi::TypeIndex::kTVMFFIFunction:
         case ffi::TypeIndex::kTVMFFIModule: {
           packed_args[i] = UnwrapRemoteValueToHandle(args[i]);
           // hack, need to force set the type index to the correct one

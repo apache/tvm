@@ -117,7 +117,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
 
   // Runtime functions.
   // Defined in include/tvm/ffi/c_api.h:
-  // int TVMFFIFuncCall(TVMFunctionHandle func, TVMFFIAny* args, int32_t num_args,
+  // int TVMFFIFunctionCall(TVMFunctionHandle func, TVMFFIAny* args, int32_t num_args,
   //                    TVMFFIAny* result);
   ftype_tvm_ffi_func_call_ = ftype_tvm_ffi_c_func_;
   // Defined in include/tvm/ffi/c_api.h:
@@ -155,8 +155,9 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
     f_tvm_register_system_symbol_ = nullptr;
   }
   if (dynamic_lookup || system_lib_prefix_.defined()) {
-    f_tvm_ffi_func_call_ = llvm::Function::Create(
-        ftype_tvm_ffi_func_call_, llvm::Function::ExternalLinkage, "TVMFFIFuncCall", module_.get());
+    f_tvm_ffi_func_call_ =
+        llvm::Function::Create(ftype_tvm_ffi_func_call_, llvm::Function::ExternalLinkage,
+                               "TVMFFIFunctionCall", module_.get());
     f_tvm_ffi_set_raised_by_c_str_ = llvm::Function::Create(
         ftype_tvm_ffi_error_set_raised_by_c_str_, llvm::Function::ExternalLinkage,
         "TVMFFIErrorSetRaisedByCStr", module_.get());
@@ -444,7 +445,7 @@ void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
   } else {
     if (!dynamic_lookup) {
       gv_tvm_ffi_func_call_ =
-          InitContextPtr(llvmGetPointerTo(ftype_tvm_ffi_func_call_, 0), "__TVMFFIFuncCall");
+          InitContextPtr(llvmGetPointerTo(ftype_tvm_ffi_func_call_, 0), "__TVMFFIFunctionCall");
       gv_tvm_get_func_from_env_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_get_func_from_env_, 0),
                                                  "__TVMBackendGetFuncFromEnv");
       gv_tvm_ffi_set_last_error_c_str_ =
@@ -834,7 +835,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
 
   if (use_env_lookup) {
     callee_ftype = ftype_tvm_ffi_func_call_;
-    callee_value = RuntimeTVMFFIFuncCall();
+    callee_value = RuntimeTVMFFIFunctionCall();
     call_args.push_back(GetPackedFuncHandle(func_name));
     call_args.insert(call_args.end(), {packed_args, ConstInt32(nargs), result});
   } else {
@@ -928,7 +929,7 @@ llvm::Value* CodeGenCPU::CreateCallTracePacked(const CallNode* op) {
   return phi_rvalue;
 }
 
-llvm::Value* CodeGenCPU::RuntimeTVMFFIFuncCall() {
+llvm::Value* CodeGenCPU::RuntimeTVMFFIFunctionCall() {
   if (f_tvm_ffi_func_call_ != nullptr) return f_tvm_ffi_func_call_;
   return GetContextPtr(gv_tvm_ffi_func_call_);
 }

@@ -72,7 +72,8 @@ TEST(Array, Map) {
   // Basic functionality
   TInt x(1), y(1);
   Array<TInt> var_arr{x, y};
-  Array<TNumber> expr_arr = var_arr.Map([](TInt var) -> TNumber { return TFloat(static_cast<double>(var->value + 1)); });
+  Array<TNumber> expr_arr =
+      var_arr.Map([](TInt var) -> TNumber { return TFloat(static_cast<double>(var->value + 1)); });
 
   EXPECT_NE(var_arr.get(), expr_arr.get());
   EXPECT_TRUE(expr_arr[0]->IsInstance<TFloatObj>());
