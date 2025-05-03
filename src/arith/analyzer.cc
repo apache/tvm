@@ -312,8 +312,9 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body_packed([](TVMArgs args, TVM
         *ret = self->canonical_simplify(args[0].cast<PrimExpr>());
       });
     } else if (name == "int_set") {
-      return PackedFunc(
-          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->int_set(args[0].cast<Var>()); });
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        *ret = self->int_set(args[0].cast<PrimExpr>(), args[1].cast<Map<Var, IntSet>>());
+      });
     } else if (name == "bind") {
       return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
         if (auto opt_range = args[1].as<Range>()) {

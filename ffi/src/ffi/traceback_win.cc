@@ -23,22 +23,21 @@
  */
 #ifdef _MSC_VER
 
+#include <dbghelp.h>
+#include <windows.h>
+#pragma comment(lib, "DbgHelp.lib")
+
 #include <tvm/ffi/c_api.h>
 #include <tvm/ffi/error.h>
+
+#include <iostream>
+#include <vector>
 
 #include "./traceback.h"
 
 namespace tvm {
 namespace ffi {
 namespace {
-
-#include <dbghelp.h>
-#include <windows.h>
-
-#include <iostream>
-#include <vector>
-
-#pragma comment(lib, "DbgHelp.lib")
 
 std::string Traceback() {
   TracebackStorage traceback;

@@ -352,8 +352,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.dnnl.conv2d").set_body_packed([](TVMArgs args, 
   auto input = args[0].cast<DLTensor*>();
   auto weights = args[1].cast<DLTensor*>();
   auto output = args[2].cast<DLTensor*>();
-  int p_Ph0_ = args[3], p_Pw0_ = args[4], p_Ph1_ = args[5], p_Pw1_ = args[6], p_Sh_ = args[7],
-      p_Sw_ = args[8], p_G_ = args[9];
+  int p_Ph0_ = args[3].cast<int>(), p_Pw0_ = args[4].cast<int>(), p_Ph1_ = args[5].cast<int>(),
+      p_Pw1_ = args[6].cast<int>(), p_Sh_ = args[7].cast<int>(), p_Sw_ = args[8].cast<int>(),
+      p_G_ = args[9].cast<int>();
   bool channel_last = args[10].cast<bool>();
   bool pre_cast = args[11].cast<bool>();
   bool post_cast = args[12].cast<bool>();

@@ -160,9 +160,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
       int algo = args[2].cast<int>();
       int pad_v[2], stride_v[2], dilation_v[2];
       for (int i = 0; i < 2; i++) {
-        pad_v[i] = args[3 + i];
-        stride_v[i] = args[5 + i];
-        dilation_v[i] = args[7 + i];
+        pad_v[i] = args[3 + i].cast<int>();
+        stride_v[i] = args[5 + i].cast<int>();
+        dilation_v[i] = args[7 + i].cast<int>();
       }
       auto x = args[9].cast<DLTensor*>();
       auto w = args[10].cast<DLTensor*>();
@@ -181,9 +181,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d+bias+act.forward")
       int algo = args[2].cast<int>();
       int pad_v[2], stride_v[2], dilation_v[2];
       for (int i = 0; i < 2; i++) {
-        pad_v[i] = args[3 + i];
-        stride_v[i] = args[5 + i];
-        dilation_v[i] = args[7 + i];
+        pad_v[i] = args[3 + i].cast<int>();
+        stride_v[i] = args[5 + i].cast<int>();
+        dilation_v[i] = args[7 + i].cast<int>();
       }
       int act = args[9].cast<int>();
       double coef = args[10].cast<double>();
@@ -205,9 +205,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv3d.forward")
       int algo = args[2].cast<int>();
       int pad_v[3], stride_v[3], dilation_v[3];
       for (int i = 0; i < 3; i++) {
-        pad_v[i] = args[3 + i];
-        stride_v[i] = args[6 + i];
-        dilation_v[i] = args[9 + i];
+        pad_v[i] = args[3 + i].cast<int>();
+        stride_v[i] = args[6 + i].cast<int>();
+        dilation_v[i] = args[9 + i].cast<int>();
       }
       auto x = args[12].cast<DLTensor*>();
       auto w = args[13].cast<DLTensor*>();
@@ -223,12 +223,12 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.forward_find_algo")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       int format = args[0].cast<int>();
       int dims = args[1].cast<int>();
-      int* pad = static_cast<int*>(static_cast<void*>(args[2]));
-      int* stride = static_cast<int*>(static_cast<void*>(args[3]));
-      int* dilation = static_cast<int*>(static_cast<void*>(args[4]));
-      int* x_dim = static_cast<int*>(static_cast<void*>(args[5]));
-      int* w_dim = static_cast<int*>(static_cast<void*>(args[6]));
-      int* y_dim = static_cast<int*>(static_cast<void*>(args[7]));
+      int* pad = static_cast<int*>(args[2].cast<void*>());
+      int* stride = static_cast<int*>(args[3].cast<void*>());
+      int* dilation = static_cast<int*>(args[4].cast<void*>());
+      int* x_dim = static_cast<int*>(args[5].cast<void*>());
+      int* w_dim = static_cast<int*>(args[6].cast<void*>());
+      int* y_dim = static_cast<int*>(args[7].cast<void*>());
       auto data_dtype = args[8].cast<std::string>();
       auto conv_dtype = args[9].cast<std::string>();
       int groups = args[10].cast<int>();

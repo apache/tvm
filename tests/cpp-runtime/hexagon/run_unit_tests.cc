@@ -83,7 +83,7 @@ class GtestPrinter : public testing::EmptyTestEventListener {
 TVM_REGISTER_GLOBAL("hexagon.run_unit_tests").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   // gtest args are passed into this packed func as a singular string
   // split gtest args using <space> delimiter and build argument vector
-  std::vector<std::string> parsed_args = tvm::support::Split(args[0], ' ');
+  std::vector<std::string> parsed_args = tvm::support::Split(args[0].cast<std::string>(), ' ');
   std::vector<char*> argv;
 
   // add executable name

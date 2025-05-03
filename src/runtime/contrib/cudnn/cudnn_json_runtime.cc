@@ -156,7 +156,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
                            input_dims.data(), kernel_dims.data(), output_dims.data(), conv_dtype,
                            conv_dtype, false, &best_algo);
 
-    int algo = best_algo.operator int();
+    int algo = best_algo.cast<int>();
     std::function<void()> op_exec = [=]() {
       auto stream = static_cast<cudaStream_t>(GetCUDAStream());
       CUDNN_CALL(cudnnSetStream(entry_ptr->handle, stream));

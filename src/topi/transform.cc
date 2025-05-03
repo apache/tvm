@@ -42,7 +42,7 @@ TVM_REGISTER_GLOBAL("topi.expand_dims").set_body_packed([](TVMArgs args, TVMRetV
 });
 
 TVM_REGISTER_GLOBAL("topi.transpose").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  *rv = transpose(args[0].cast<te::Tensor>(), args[1].cast<Array<Integer>>());
+  *rv = transpose(args[0].cast<te::Tensor>(), args[1].cast<Optional<Array<Integer>>>());
 });
 
 TVM_REGISTER_GLOBAL("topi.flip").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
@@ -108,7 +108,8 @@ TVM_REGISTER_GLOBAL("topi.take").set_body_packed([](TVMArgs args, TVMRetValue* r
     int batch_dims = args[2].cast<int>();
     int axis = args[3].cast<int>();
     auto mode = args[4].cast<std::string>();
-    *rv = take(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(), batch_dims, axis, mode);
+    *rv = take(args[0].cast<te::Tensor>(), args[1].cast<ffi::Variant<te::Tensor, PrimExpr>>(),
+               batch_dims, axis, mode);
   }
 });
 

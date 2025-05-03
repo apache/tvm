@@ -78,7 +78,7 @@ TEST(Tuple, AnyConvert) {
 
   Any any0 = view0;
   // trigger a copy due to implict conversion
-  auto tuple2 = any0.cast<Tuple<TPrimExpr, TInt>>() ;
+  auto tuple2 = any0.cast<Tuple<TPrimExpr, TInt>>();
   EXPECT_TRUE(!tuple0.same_as(tuple2));
   EXPECT_EQ(tuple2.get<0>()->value, 1);
   EXPECT_EQ(tuple2.get<1>()->value, 2);
