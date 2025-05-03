@@ -716,9 +716,9 @@ Stmt BufferCompactorCompact(
     if (it != storage_align.end()) {
       std::vector<DimAlignInfo> dim_aligns(buffer->shape.size());
       for (const StorageAlignTuple& dim_align : (*it).second) {
-        int dim = dim_align.Get<1>();
-        int factor = dim_align.Get<2>();
-        int offset = dim_align.Get<3>();
+        int dim = dim_align.get<1>();
+        int factor = dim_align.get<2>();
+        int offset = dim_align.get<3>();
         dim_aligns.at(dim) = {factor, offset};
       }
       alloc_info.dim_aligns = std::move(dim_aligns);

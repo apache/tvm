@@ -179,7 +179,7 @@ TVM_REGISTER_GLOBAL("testing.AcceptsVariant")
       if (auto opt_str = arg.as<String>()) {
         return opt_str.value()->GetTypeKey();
       } else {
-        return arg.Get<Integer>()->GetTypeKey();
+        return arg.get<Integer>()->GetTypeKey();
       }
     });
 

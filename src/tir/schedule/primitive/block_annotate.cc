@@ -238,7 +238,7 @@ void StorageAlign(ScheduleState self, const StmtSRef& block_sref, int buffer_ind
   StorageAlignTuple new_storage_align_tuple{buffer_index, axis, factor, offset};
   for (size_t j = 0; j < storage_align_annotation.size(); ++j) {
     const auto& storage_align_tuple = storage_align_annotation[j];
-    if (storage_align_tuple.Get<0>() == buffer_index && storage_align_tuple.Get<1>() == axis) {
+    if (storage_align_tuple.get<0>() == buffer_index && storage_align_tuple.get<1>() == axis) {
       storage_align_annotation.Set(j, std::move(new_storage_align_tuple));
       found = true;
       break;
