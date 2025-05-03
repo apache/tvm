@@ -28,16 +28,16 @@ using namespace tvm::ffi::testing;
 
 TEST(Tuple, Basic) {
   Tuple<int, float> tuple0(1, 2.0f);
-  EXPECT_EQ(tuple0.Get<0>(), 1);
-  EXPECT_EQ(tuple0.Get<1>(), 2.0f);
+  EXPECT_EQ(tuple0.get<0>(), 1);
+  EXPECT_EQ(tuple0.get<1>(), 2.0f);
 
   Tuple<int, float> tuple1 = tuple0;
   EXPECT_EQ(tuple0.use_count(), 2);
 
   // test copy on write
   tuple1.Set<0>(3);
-  EXPECT_EQ(tuple0.Get<0>(), 1);
-  EXPECT_EQ(tuple1.Get<0>(), 3);
+  EXPECT_EQ(tuple0.get<0>(), 1);
+  EXPECT_EQ(tuple1.get<0>(), 3);
 
   EXPECT_EQ(tuple0.use_count(), 1);
   EXPECT_EQ(tuple1.use_count(), 1);
@@ -45,7 +45,7 @@ TEST(Tuple, Basic) {
   // copy on write not triggered because
   // tuple1 is unique.
   tuple1.Set<1>(4);
-  EXPECT_EQ(tuple1.Get<1>(), 4.0f);
+  EXPECT_EQ(tuple1.get<1>(), 4.0f);
   EXPECT_EQ(tuple1.use_count(), 1);
 
   // default state
@@ -53,15 +53,15 @@ TEST(Tuple, Basic) {
   EXPECT_EQ(tuple2.use_count(), 1);
   tuple2.Set<0>(1);
   tuple2.Set<1>(2.0f);
-  EXPECT_EQ(tuple2.Get<0>(), 1);
-  EXPECT_EQ(tuple2.Get<1>(), 2.0f);
+  EXPECT_EQ(tuple2.get<0>(), 1);
+  EXPECT_EQ(tuple2.get<1>(), 2.0f);
 
   // tuple of object and primitive
   Tuple<TInt, int> tuple3(1, 2);
-  EXPECT_EQ(tuple3.Get<0>()->value, 1);
-  EXPECT_EQ(tuple3.Get<1>(), 2);
+  EXPECT_EQ(tuple3.get<0>()->value, 1);
+  EXPECT_EQ(tuple3.get<1>(), 2);
   tuple3.Set<0>(4);
-  EXPECT_EQ(tuple3.Get<0>()->value, 4);
+  EXPECT_EQ(tuple3.get<0>()->value, 4);
 }
 
 TEST(Tuple, AnyConvert) {
@@ -78,16 +78,16 @@ TEST(Tuple, AnyConvert) {
 
   Any any0 = view0;
   // trigger a copy due to implict conversion
-  auto tuple2 = any0.cast<Tuple<TPrimExpr, TInt>>();
+  auto tuple2 = any0.cast<Tuple<TPrimExpr, TInt>>() ;
   EXPECT_TRUE(!tuple0.same_as(tuple2));
-  EXPECT_EQ(tuple2.Get<0>()->value, 1);
-  EXPECT_EQ(tuple2.Get<1>()->value, 2);
+  EXPECT_EQ(tuple2.get<0>()->value, 1);
+  EXPECT_EQ(tuple2.get<1>()->value, 2);
 }
 
 TEST(Tuple, FromUnpacked) {
   // try decution
   Function fadd1 = Function::FromUnpacked([](const Tuple<int, TPrimExpr>& a) -> int {
-    return a.Get<0>() + static_cast<int>(a.Get<1>()->value);
+    return a.get<0>() + static_cast<int>(a.get<1>()->value);
   });
   int b = fadd1(Tuple<int, float>(1, 2)).cast<int>();
   EXPECT_EQ(b, 3);
@@ -130,8 +130,8 @@ TEST(Tuple, FromUnpacked) {
 TEST(Tuple, Upcast) {
   Tuple<int, float> t0(1, 2.0f);
   Tuple<Any, Any> t1 = t0;
-  EXPECT_EQ(t1.Get<0>().cast<int>(), 1);
-  EXPECT_EQ(t1.Get<1>().cast<float>(), 2.0f);
+  EXPECT_EQ(t1.get<0>().cast<int>(), 1);
+  EXPECT_EQ(t1.get<1>().cast<float>(), 2.0f);
   static_assert(details::type_contains_v<Tuple<Any, Any>, Tuple<int, float>>);
   static_assert(details::type_contains_v<Tuple<Any, float>, Tuple<int, float>>);
   static_assert(details::type_contains_v<Tuple<TNumber, float>, Tuple<TInt, float>>);

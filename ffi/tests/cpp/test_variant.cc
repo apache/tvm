@@ -31,13 +31,13 @@ using namespace tvm::ffi::testing;
 
 TEST(Variant, Basic) {
   Variant<int, float> v1 = 1;
-  EXPECT_EQ(v1.Get<int>(), 1);
+  EXPECT_EQ(v1.get<int>(), 1);
   EXPECT_EQ(v1.as<float>().value(), 1.0f);
 
   Variant<int, float> v2 = 2.0f;
-  EXPECT_EQ(v2.Get<float>(), 2.0f);
+  EXPECT_EQ(v2.get<float>(), 2.0f);
   v2 = v1;
-  EXPECT_EQ(v2.Get<int>(), 1);
+  EXPECT_EQ(v2.get<int>(), 1);
 }
 
 TEST(Variant, AnyConvert) {
@@ -48,13 +48,13 @@ TEST(Variant, AnyConvert) {
   // implicit convert to variant
   Any any0 = 1;
   auto v1 = any0.cast<Variant<TPrimExpr, Array<TPrimExpr>>>();
-  EXPECT_EQ(v1.Get<TPrimExpr>()->value, 1);
+  EXPECT_EQ(v1.get<TPrimExpr>()->value, 1);
 
   // move from any to variant
   Variant<TInt, int> v2 = TInt(1);
   Any any1 = std::move(v2);
   auto v3 = std::move(any1).cast<Variant<TInt, int>>();
-  auto v4 = std::move(v3).Get<TInt>();
+  auto v4 = std::move(v3).get<TInt>();
   EXPECT_EQ(v4->value, 1);
   EXPECT_EQ(v4.use_count(), 1);
 }
@@ -78,7 +78,7 @@ TEST(Variant, FromUnpacked) {
     if (auto opt_int = a.as<int>()) {
       return opt_int.value() + 1;
     } else {
-      return a.Get<TInt>()->value + 1;
+      return a.get<TInt>()->value + 1;
     }
   });
   int b = fadd1(1).cast<int>();
@@ -104,7 +104,7 @@ TEST(Variant, FromUnpacked) {
     if (auto opt_int = a[0].as<int>()) {
       return opt_int.value() + 1;
     } else {
-      return a[0].Get<TInt>()->value + 1;
+      return a[0].get<TInt>()->value + 1;
     }
   });
   int c = fadd2(Array<Any>({1, 2})).cast<int>();
@@ -131,7 +131,7 @@ TEST(Variant, Upcast) {
   Array<int> a0 = {1, 2, 3};
   static_assert(details::type_contains_v<Array<Variant<int, float>>, Array<int>>);
   Array<Variant<int, float>> a1 = a0;
-  EXPECT_EQ(a1[0].Get<int>(), 1);
+  EXPECT_EQ(a1[0].get<int>(), 1);
 }
 
 }  // namespace

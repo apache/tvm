@@ -91,9 +91,10 @@ class Tuple : public ObjectRef {
    *
    * \tparam I The index of the element to get
    * \return The I-th element of the tuple
+   * \note We use stl style since get usually is like a getter.
    */
   template <size_t I>
-  auto Get() const {
+  auto get() const {
     static_assert(I < sizeof...(Types), "Tuple index out of bounds");
     using ReturnType = std::tuple_element_t<I, std::tuple<Types...>>;
     const Any* ptr = GetArrayObj()->begin() + I;
@@ -109,6 +110,8 @@ class Tuple : public ObjectRef {
    *
    * \note This function will perform copy on write if underlying
    *       container is not uniquely owned.
+   *       We use CamelCase since Set can cause copy on write
+   *       and is more complicated than simple field setter.
    */
   template <size_t I, typename U>
   void Set(U&& item) {

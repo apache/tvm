@@ -93,12 +93,12 @@ class Variant {
   }
 
   template <typename T, typename = enable_if_variant_contains_t<T>>
-  TVM_FFI_INLINE T Get() const& {
+  TVM_FFI_INLINE T get() const& {
     return data_.cast<T>();
   }
 
   template <typename T, typename = enable_if_variant_contains_t<T>>
-  TVM_FFI_INLINE T Get() && {
+  TVM_FFI_INLINE T get() && {
     return std::move(data_).cast<T>();
   }
 
