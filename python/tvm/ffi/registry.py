@@ -46,7 +46,9 @@ def register_object(type_key=None):
     def register(cls):
         """internal register function"""
         type_index = core._object_type_key_to_index(object_name)
-        if type_index is None and not _SKIP_UNKNOWN_OBJECTS:
+        if type_index is None:
+            if _SKIP_UNKNOWN_OBJECTS:
+                return cls
             raise ValueError("Cannot find object type index for %s" % object_name)
         core._register_object_by_index(type_index, cls)
         return cls

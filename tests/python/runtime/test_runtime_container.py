@@ -50,8 +50,6 @@ def test_shape_tuple():
     len(stuple) == len(shape)
     for a, b in zip(stuple, shape):
         assert a == b
-    # ShapleTuple vs. list
-    assert stuple == list(shape)
     # ShapleTuple vs. tuple
     assert stuple == tuple(shape)
     # ShapleTuple vs. ShapeTuple

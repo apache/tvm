@@ -79,8 +79,7 @@ class DPackedFunc(DRef):
     """A PackedFunc in a Disco session."""
 
     def __init__(self, dref: DRef, session: "Session") -> None:
-        self.handle = dref.handle
-        dref.handle = None
+        self.__move_handle_from__(dref)
         self.session = session
 
     def __call__(self, *args) -> DRef:
@@ -91,8 +90,7 @@ class DModule(DRef):
     """A Module in a Disco session."""
 
     def __init__(self, dref: DRef, session: "Session") -> None:
-        self.handle = dref.handle
-        dref.handle = None
+        self.__move_handle_from__(dref)
         self.session = session
 
     def __getitem__(self, name: str) -> DPackedFunc:

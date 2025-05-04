@@ -131,14 +131,14 @@ def from_dlpack(ext_tensor, *, required_alignment=8, required_contiguous=True):
                 )
     else:
         if pycapsule.PyCapsule_IsValid(ext_tensor, _c_str_dltensor_versioned):
-            return _from_dlpack_versioned(
+            _from_dlpack_versioned(
                 ext_tensor,
                 required_alignment,
                 required_contiguous,
                 &chandle
             )
         elif pycapsule.PyCapsule_IsValid(ext_tensor, _c_str_dltensor):
-            return _from_dlpack(
+            _from_dlpack(
                 ext_tensor,
                 required_alignment,
                 required_contiguous,

@@ -88,7 +88,7 @@ class RPCSession(object):
         """
         dev = nd.device(dev_type, dev_id)
         encode = (self._tbl_index + 1) * base.RPC_SESS_MASK
-        dev.device_type += encode
+        dev = nd.device(dev.device_type + encode, dev.device_id)
         dev._rpc_sess = self
         return dev
 

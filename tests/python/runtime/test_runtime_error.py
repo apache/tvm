@@ -28,9 +28,8 @@ import tvm.testing
 
 
 def test_op_translation_to_not_implemented():
-    ferror = tvm.testing.test_raise_error_callback("OpNotImplemented: myop")
     try:
-        ferror()
+        tvm.testing.test_raise_error("OpNotImplemented", "myop")
         assert False
     except tvm.error.OpNotImplemented as e:
         assert isinstance(e, NotImplementedError)

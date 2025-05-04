@@ -39,8 +39,6 @@ def _wrap_class_function_pass(pass_cls, pass_info):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
-            # initialize handle in cass pass_cls creation failed.fg
-            self.handle = None
             inst = pass_cls(*args, **kwargs)
 
             # it is important not to capture self to

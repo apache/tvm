@@ -34,7 +34,6 @@ from . import _ffi_api
 
 
 from tvm.ffi import (
-    from_dlpack,
     device,
     cpu,
     cuda,
@@ -47,6 +46,28 @@ from tvm.ffi import (
     hexagon,
     webgpu,
 )
+
+
+def from_dlpack(ext_tensor):
+    """
+    Convert an external tensor to an NDArray.
+
+    Parameters
+    ----------
+    ext_tensor : object
+        The external tensor to convert.
+
+    required_alignment : int
+        The minimum required alignment to check for the tensor.
+
+    required_contiguous : bool
+        Whether to check for contiguous memory.
+    """
+    return tvm.ffi.from_dlpack(
+        ext_tensor,
+        required_alignment=64,
+        required_contiguous=True,
+    )
 
 
 @tvm._ffi.register_object("object.NDArray")

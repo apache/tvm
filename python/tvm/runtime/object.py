@@ -58,7 +58,7 @@ class Object(tvm.ffi.core.Object):
         return (_new_object, (cls,), self.__getstate__())
 
     def __getstate__(self):
-        if not self._handle_is_none():
+        if not self.__chandle__() == 0:
             # need to explicit convert to str in case String
             # returned and triggered another infinite recursion in get state
             return {"handle": str(_ffi_node_api.SaveJSON(self))}

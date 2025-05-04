@@ -24,6 +24,13 @@ def _set_class_device(cls):
     _CLASS_DEVICE = cls
 
 
+def _create_device_from_tuple(cls, device_type, device_id):
+    cdef DLDevice cdevice = TVMFFIDLDeviceFromIntPair(device_type, device_id)
+    ret = cls.__new__(cls)
+    (<Device>ret).cdevice = cdevice
+    return ret
+
+
 cdef class Device:
     """Device is a wrapper around DLDevice.
 
@@ -109,6 +116,10 @@ cdef class Device:
         if not isinstance(device_id, int):
             raise TypeError(f"Invalid device id: {device_id}")
         self.cdevice = TVMFFIDLDeviceFromIntPair(device_type, device_id)
+
+    def __reduce__(self):
+        cls = type(self)
+        return (_create_device_from_tuple, (cls, self.cdevice.device_type, self.cdevice.device_id))
 
     def __eq__(self, other):
         if not isinstance(other, Device):

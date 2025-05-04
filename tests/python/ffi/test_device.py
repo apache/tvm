@@ -16,6 +16,7 @@
 # under the License.
 
 import pytest
+import pickle
 from tvm.ffi import Device
 from tvm import ffi as tvm_ffi
 
@@ -84,3 +85,10 @@ def test_deive_type_error(dev_type, dev_id):
 def test_deive_id_error():
     with pytest.raises(TypeError):
         dev = tvm_ffi.device(dev_type="cpu", dev_id="?")
+
+
+def test_device_pickle():
+    device = tvm_ffi.device("cuda", 0)
+    device_pickled = pickle.loads(pickle.dumps(device))
+    assert device_pickled.device_type == device.device_type
+    assert device_pickled.device_id == device.device_id

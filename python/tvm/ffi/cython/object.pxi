@@ -67,6 +67,10 @@ cdef class Object:
     def __ctypes_handle__(self):
         return ctypes_handle(self.chandle)
 
+    def __chandle__(self):
+        cdef uint64_t chandle = <uint64_t>self.chandle
+        return chandle
+
     def __repr__(self):
         return __object_repr__(self)
 
@@ -134,6 +138,11 @@ cdef class Object:
         rvalue : The rvalue reference.
         """
         return ObjectRValueRef(self)
+
+    def __move_handle_from__(self, other):
+        """Move the handle from other to self"""
+        self.chandle = (<Object>other).chandle
+        (<Object>other).chandle = NULL
 
 
 class PyNativeObject:

@@ -23,6 +23,16 @@ def _set_class_dtype(cls):
     _CLASS_DTYPE = cls
 
 
+def _create_dtype_from_tuple(cls, code, bits, lanes):
+    cdef DLDataType cdtype
+    cdtype.code = code
+    cdtype.bits = bits
+    cdtype.lanes = lanes
+    ret = cls.__new__(cls)
+    (<DLDataType>ret).cdtype = cdtype
+    return ret
+
+
 cdef class DataType:
     """DataType is a wrapper around DLDataType.
 
@@ -35,6 +45,11 @@ cdef class DataType:
 
     def __init__(self, dtype_str):
         CHECK_CALL(TVMFFIDataTypeFromString(c_str(dtype_str), &(self.cdtype)))
+
+    def __reduce__(self):
+        cls = type(self)
+        return (_create_dtype_from_tuple,
+                (cls, self.cdtype.code, self.cdtype.bits, self.cdtype.lanes))
 
     def __eq__(self, other):
         if not isinstance(other, DataType):

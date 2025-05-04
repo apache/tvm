@@ -190,8 +190,8 @@ def test_rpc_echo():
         assert bytes(fecho(bytearray(b"123"))) == b"123"
 
         with pytest.raises(RuntimeError):
-            raise_err = remote.get_function("testing.test_raise_error_callback")("RuntimeError")
-            raise_err()
+            raise_err = remote.get_function("testing.test_raise_error")
+            raise_err("RuntimeError", "msg")
 
         remote.cpu().sync()
         # tests around system lib are not threadsafe by design
