@@ -115,14 +115,6 @@ cdef class Object:
         cdef uint64_t hash_value = <uint64_t>self.chandle
         return hash_value
 
-    def __eq__(self, other):
-        if not isinstance(other, Object):
-            return False
-        return self.chandle == (<Object>other).chandle
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
     def _move(self):
         """Create an RValue reference to the object and mark the object as moved.
 

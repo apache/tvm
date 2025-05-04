@@ -16,7 +16,7 @@
 # under the License.
 
 import pytest
-
+import numpy as np
 import tvm
 import tvm.testing
 from tvm import te, tir
@@ -214,10 +214,8 @@ def test_function_call_with_null_data_pointer():
 
     built = tvm.compile(func, target="llvm")
 
-    A = tvm.nd.empty([16, 16], "int32", tvm.cpu())
+    A = tvm.nd.array(np.zeros([16], dtype="int32"))
     B = tvm.nd.empty([16, 16], "int32", tvm.cpu())
-
-    A.handle.contents.data = 0
 
     with pytest.raises(tvm.TVMError):
         built(A, B)
@@ -233,10 +231,8 @@ def test_function_call_with_wrong_dimensionality():
 
     built = tvm.compile(func, target="llvm")
 
-    A = tvm.nd.empty([16], "int32", tvm.cpu())
+    A = tvm.nd.array(np.zeros([16], dtype="int32"))
     B = tvm.nd.empty([16], "int32", tvm.cpu())
-
-    A.handle.contents.data = 0
 
     with pytest.raises(tvm.TVMError):
         built(A, B)
