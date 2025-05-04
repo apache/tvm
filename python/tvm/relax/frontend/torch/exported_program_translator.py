@@ -596,6 +596,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         max_val : Optional[int]
             The maximum value (inclusive) or None if no maximum
         """
+
         if relax_tir_var not in constraints_dict:
             constraints_dict[relax_tir_var] = (min_val, max_val)
         else:
@@ -650,13 +651,13 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         if relax_range_constraints:
             lower_bounds = {}
             upper_bounds = {}
-            for tir_var, (min_val, max_val) in relax_range_constraints.items():
-                if min_val is not None:
+            for var, (lower, upper) in relax_range_constraints.items():
+                if lower is not None:
                     # For min constraints, use the exact value
-                    lower_bounds[tir_var] = tvm.tir.IntImm("int64", min_val)
-                if max_val is not None:
+                    lower_bounds[var] = tvm.tir.IntImm("int64", lower)
+                if upper is not None:
                     # For max constraints, use the exact value or MAX_INT64 if None
-                    upper_bounds[tir_var] = tvm.tir.IntImm("int64", max_val)
+                    upper_bounds[var] = tvm.tir.IntImm("int64", upper)
 
             if lower_bounds:
                 func_attrs["tir_var_lower_bound"] = lower_bounds
