@@ -1,5 +1,6 @@
 from tvm import ffi as tvm_ffi
 
+
 def test_string():
     fecho = tvm_ffi.get_global_func("testing.echo")
     s = tvm_ffi.String("hello")

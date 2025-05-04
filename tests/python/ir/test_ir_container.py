@@ -43,12 +43,6 @@ def test_dir_array():
     assert dir(a)
 
 
-def test_getattr_array():
-    a = tvm.runtime.convert([1, 2, 3])
-    assert getattr(a, "type_key") == "object.Array"
-    assert not hasattr(a, "test_key")
-
-
 def test_map():
     a = te.var("a")
     b = te.var("b")
@@ -96,7 +90,7 @@ def test_getattr_map():
     a = te.var("a")
     b = te.var("b")
     amap = tvm.runtime.convert({a: 2, b: 3})
-    assert isinstance(amap, tvm.runtime.Map)
+    assert isinstance(amap, tvm.ffi.Map)
 
 
 def test_in_container():
