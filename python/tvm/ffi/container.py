@@ -77,6 +77,9 @@ class Array(core.Object, collections.abc.Sequence):
     def __len__(self):
         return _ffi_api.ArraySize(self)
 
+    def __repr__(self):
+        return "[" + ", ".join([x.__repr__() for x in self]) + "]"
+
 
 class KeysView(collections.abc.KeysView):
     """Helper class to return keys view"""
@@ -189,3 +192,6 @@ class Map(core.Object, collections.abc.Mapping):
             The result value.
         """
         return self[key] if key in self else default
+
+    def __repr__(self):
+        return "{" + ", ".join([f"{k.__repr__()}: {v.__repr__()}" for k, v in self.items()]) + "}"

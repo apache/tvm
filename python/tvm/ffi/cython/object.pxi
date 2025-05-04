@@ -27,6 +27,11 @@ def _set_func_convert_to_object(func):
     _FUNC_CONVERT_TO_OBJECT = func
 
 
+def __object_repr__(obj):
+    """Object repr function that can be overridden by assigning to it"""
+    return type(obj).__name__ + "(" + obj.__ctypes_handle__().value + ")"
+
+
 class ObjectGeneric:
     """Base class for all classes that can be converted to object."""
 
@@ -61,6 +66,9 @@ cdef class Object:
 
     def __ctypes_handle__(self):
         return ctypes_handle(self.chandle)
+
+    def __repr__(self):
+        return __object_repr__(self)
 
     def __init_handle_by_constructor__(self, fconstructor, *args):
         """Initialize the handle by calling constructor function.

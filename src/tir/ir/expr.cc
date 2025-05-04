@@ -559,12 +559,14 @@ Call::Call(DataType dtype, RelaxExpr op, Array<PrimExpr> args, Span span) {
 
 TVM_REGISTER_GLOBAL("tir.Call")
     .set_body_typed([](Optional<DataType> dtype, RelaxExpr op,
-                       Array<Variant<runtime::String, IterVar, BufferRegion, PrimExpr>> args,
+                       Array<Variant<runtime::String, DLDataType, IterVar, BufferRegion, PrimExpr>> args,
                        Span span) {
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
         if (auto opt_str = it.as<String>()) {
           prim_expr_args.push_back(StringImm(opt_str.value()));
+        } else if (auto opt_dtype = it.as<DLDataType>()) {
+          prim_expr_args.push_back(StringImm(ffi::DLDataTypeToString(opt_dtype.value())));
         } else if (const auto* iter_var = it.as<IterVarNode>()) {
           prim_expr_args.push_back(iter_var->var);
         } else if (const auto* br = it.as<BufferRegionNode>()) {

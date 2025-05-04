@@ -32,12 +32,6 @@ class Object(tvm.ffi.core.Object):
 
     __slots__ = []
 
-    def __repr__(self):
-        return _ffi_node_api.AsRepr(self)
-
-    def legacy_repr(self):
-        return _ffi_node_api.AsLegacyRepr(self)
-
     def __dir__(self):
         class_names = dir(self.__class__)
         fnames = _ffi_node_api.NodeListAttrNames(self)

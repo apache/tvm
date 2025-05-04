@@ -18,6 +18,7 @@
 # pylint: disable=invalid-name, unused-argument
 """FFI for tvm.node"""
 import tvm._ffi
+import tvm.ffi.core
 
 
 # The implementations below are default ones when the corresponding
@@ -25,10 +26,6 @@ import tvm._ffi
 # They will be overriden via _init_api to the ones registered
 # via TVM_REGISTER_GLOBAL in the compiler mode.
 def AsRepr(obj):
-    return type(obj).__name__ + "(" + obj.__ctypes_handle__().value + ")"
-
-
-def AsLegacyRepr(obj):
     return type(obj).__name__ + "(" + obj.__ctypes_handle__().value + ")"
 
 
@@ -51,3 +48,6 @@ def LoadJSON(json_str):
 # Exports functions registered via TVM_REGISTER_GLOBAL with the "node" prefix.
 # e.g. TVM_REGISTER_GLOBAL("node.AsRepr")
 tvm._ffi._init_api("node", __name__)
+
+# override the default repr function for tvm.ffi.core.Object
+tvm.ffi.core.__object_repr__ = AsRepr
