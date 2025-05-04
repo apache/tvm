@@ -52,6 +52,11 @@ class String(str, PyNativeObject):
     This class subclasses str so it can be directly treated as str.
     There is no need to construct this object explicitly.
     """
+    def __new__(cls, value):
+        val = str.__new__(cls, value)
+        val.__init_tvm_ffi_object_by_constructor__(_STR_CONSTRUCTOR, value)
+        return val
+
     # pylint: disable=no-self-argument
     def __from_tvm_ffi_object__(cls, obj):
         """Construct from a given tvm object."""
@@ -71,6 +76,10 @@ class Bytes(bytes, PyNativeObject):
     This class subclasses bytes so it can be directly treated as bytes.
     There is no need to construct this object explicitly.
     """
+    def __new__(cls, value):
+        val = bytes.__new__(cls, value)
+        val.__init_tvm_ffi_object_by_constructor__(_BYTES_CONSTRUCTOR, value)
+        return val
 
     # pylint: disable=no-self-argument
     def __from_tvm_ffi_object__(cls, obj):
@@ -81,3 +90,8 @@ class Bytes(bytes, PyNativeObject):
         return val
 
 _register_object_by_index(kTVMFFIBytes, Bytes)
+
+# We special handle str/bytes constructor in cython to avoid extra cyclic deps
+# as the str/bytes construction must be done in the inner loop of function call
+_STR_CONSTRUCTOR = None
+_BYTES_CONSTRUCTOR = None

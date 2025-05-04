@@ -329,3 +329,11 @@ TVM_FFI_REGISTER_GLOBAL("ffi.FunctionListGlobalNamesFunctor").set_body_typed([](
   };
   return tvm::ffi::Function::FromUnpacked(return_functor);
 });
+
+TVM_FFI_REGISTER_GLOBAL("ffi.String").set_body_typed([](tvm::ffi::String val) -> tvm::ffi::String {
+  return val;
+});
+
+TVM_FFI_REGISTER_GLOBAL("ffi.Bytes").set_body_typed([](tvm::ffi::Bytes val) -> tvm::ffi::Bytes {
+  return val;
+});

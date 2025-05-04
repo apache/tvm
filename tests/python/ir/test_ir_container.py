@@ -96,8 +96,7 @@ def test_getattr_map():
     a = te.var("a")
     b = te.var("b")
     amap = tvm.runtime.convert({a: 2, b: 3})
-    assert getattr(amap, "type_key") == "object.Map"
-    assert not hasattr(amap, "test_key")
+    assert isinstance(amap, tvm.runtime.Map)
 
 
 def test_in_container():

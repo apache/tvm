@@ -59,9 +59,8 @@ cdef class Object:
         if self.chandle != NULL:
             CHECK_CALL(TVMFFIObjectFree(self.chandle))
 
-    property handle:
-        def __get__(self):
-            return ctypes_handle(self.chandle)
+    def __ctypes_handle__(self):
+        return ctypes_handle(self.chandle)
 
     def __init_handle_by_constructor__(self, fconstructor, *args):
         """Initialize the handle by calling constructor function.

@@ -25,11 +25,11 @@ import tvm._ffi
 # They will be overriden via _init_api to the ones registered
 # via TVM_REGISTER_GLOBAL in the compiler mode.
 def AsRepr(obj):
-    return obj.type_key() + "(" + obj.handle.value + ")"
+    return type(obj).__name__ + "(" + obj.__ctypes_handle__().value + ")"
 
 
 def AsLegacyRepr(obj):
-    return obj.type_key() + "(" + obj.handle.value + ")"
+    return type(obj).__name__ + "(" + obj.__ctypes_handle__().value + ")"
 
 
 def NodeListAttrNames(obj):

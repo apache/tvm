@@ -151,15 +151,15 @@ def test_rvalue_ref():
         assert use_count(x) == 1
         f(x, 2)
         y = f(x._move(), 1)
-        assert x.handle.value == None
+        assert x.__ctypes_handle__().value == None
 
     def check1():
         x = tvm_ffi.convert([1, 2])
         assert use_count(x) == 1
         y = f(x, 2)
         z = f(x._move(), 2)
-        assert x.handle.value == None
-        assert y.handle.value is not None
+        assert x.__ctypes_handle__().value == None
+        assert y.__ctypes_handle__().value is not None
 
     check0()
     check1()

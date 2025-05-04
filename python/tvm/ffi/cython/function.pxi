@@ -284,3 +284,6 @@ def _convert_to_ffi_func(object pyfunc):
     ret = Function.__new__(Function)
     (<Object>ret).chandle = chandle
     return ret
+
+_STR_CONSTRUCTOR = _get_global_func("ffi.String", False)
+_BYTES_CONSTRUCTOR = _get_global_func("ffi.Bytes", False)

@@ -38,12 +38,16 @@ def convert(value: Any) -> Any:
         return value
     elif isinstance(value, core.PyNativeObject):
         return value
-    elif isinstance(value, (bool, Number, str, bytes, bytearray)):
+    elif isinstance(value, (bool, Number)):
         return value
     elif isinstance(value, (list, tuple)):
         return container.Array(value)
     elif isinstance(value, dict):
         return container.Map(value)
+    elif isinstance(value, str):
+        return core.String(value)
+    elif isinstance(value, (bytes, bytearray)):
+        return core.Bytes(value)
     elif isinstance(value, core.ObjectGeneric):
         return value.asobject()
     elif callable(value):
