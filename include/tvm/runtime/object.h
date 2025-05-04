@@ -889,7 +889,7 @@ inline bool Object::IsInstance() const {
       uint32_t begin = TargetType::RuntimeTypeIndex();
       // The condition will be optimized by constant-folding.
       if (TargetType::_type_child_slots != 0) {
-        uint32_t end = begin + TargetType::_type_child_slots;
+        uint32_t end = begin + TargetType::_type_child_slots + 1;
         if (self->type_index_ >= begin && self->type_index_ < end) return true;
       } else {
         if (self->type_index_ == begin) return true;
