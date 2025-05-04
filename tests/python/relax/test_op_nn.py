@@ -1822,5 +1822,25 @@ def test_pad_infer_struct_info():
     )
 
 
+def test_pixel_shuffle_infer_struct_info():
+    bb = relax.BlockBuilder()
+    x1 = relax.Var("x1", R.Tensor((1, 8, 10, 15), "float32"))
+    x2 = relax.Var("x2", R.Tensor((2, 6, 18, 5, 4), "float32"))
+
+    upscale_factor1 = 2
+    _check_inference(
+        bb,
+        relax.op.nn.pixel_shuffle(x1, upscale_factor1),
+        relax.TensorStructInfo((1, 2, 20, 30), dtype="float32"),
+    )
+
+    upscale_factor2 = 3
+    _check_inference(
+        bb,
+        relax.op.nn.pixel_shuffle(x2, upscale_factor2),
+        relax.TensorStructInfo((2, 6, 2, 15, 12), dtype="float32"),
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()

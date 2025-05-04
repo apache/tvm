@@ -592,6 +592,42 @@ def test_pad():
     verify_model(PadModel(pad=[1, 1, 2, 2], mode="circular"), input_infos, {}, expected_circular)
 
 
+def test_pixel_shuffle():
+    class PixelShuffle1(torch.nn.Module):
+        def __init__(self, upscale_factor=2):
+            super().__init__()
+            self.pixel_shuffle = torch.nn.PixelShuffle(upscale_factor)
+
+        def forward(self, x):
+            return self.pixel_shuffle(x)
+
+    class PixelShuffle2(torch.nn.Module):
+        def __init__(self, upscale_factor=2):
+            super().__init__()
+            self.upscale_factor = upscale_factor
+
+        def forward(self, x):
+            return torch.nn.functional.pixel_shuffle(x, self.upscale_factor)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 8, 10, 15), dtype="float32")
+        ) -> R.Tensor((1, 2, 20, 30), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 20, 30), dtype="float32") = R.nn.pixel_shuffle(
+                    inp_0, upscale_factor=2
+                )
+                gv: R.Tensor((1, 2, 20, 30), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    input_infos = [([1, 8, 10, 15], "float32")]
+    verify_model(PixelShuffle1(2), input_infos, {}, expected)
+    verify_model(PixelShuffle2(2), input_infos, {}, expected)
+
+
 def test_linear():
     # nn.Linear
     class Dense1(Module):
@@ -1653,6 +1689,7 @@ operator_binary_1 = [
     (operator.mul, R.multiply),
     (operator.truediv, R.divide),
     (operator.floordiv, R.floor_divide),
+    (torch.ops.aten.fmod, R.mod),
     (operator.pow, R.power),
     (operator.mod, R.floor_mod),
 ]
@@ -3242,6 +3279,31 @@ def test_inplace_fill():
     verify_model(InplaceFill(), [([10, 10], "float32")], {}, Expected)
 
 
+def test_masked_fill_inplace():
+    class Masked_Fill_Inplace(Module):
+        def forward(self, input: torch.Tensor, mask: torch.Tensor):
+            input.masked_fill_(mask, 1.5)
+            return input
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((10, 10), dtype="float32"), mask: R.Tensor((10, 10), dtype="bool")
+        ) -> R.Tensor((10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.full_like(
+                    input, R.const(1.5, "float32"), dtype="void"
+                )
+                lv1: R.Tensor((10, 10), dtype="float32") = R.where(mask, lv, input)
+                gv: R.Tensor((10, 10), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    input_info = [((10, 10), "float32"), ((10, 10), "bool")]
+    verify_model(Masked_Fill_Inplace(), input_info, {}, Expected)
+
+
 def test_arange():
     import numpy as np
 
@@ -3324,6 +3386,31 @@ def test_new_ones():
             return gv
 
     verify_model(NewOnes(), input_info, {}, expected1)
+
+
+def test_new_zeros():
+    input_info = [([1, 128, 128], "float32")]
+
+    class NewZeros(Module):
+        def forward(self, x):
+            return x.new_zeros(1, 128, 128)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 128, 128), dtype="float32")
+        ) -> R.Tensor((1, 128, 128), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 128, 128), dtype="float32") = R.full(
+                    (1, 128, 128), R.const(0.0, "float32"), dtype="float32"
+                )
+                gv: R.Tensor((1, 128, 128), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(NewZeros(), input_info, {}, expected)
 
 
 def test_expand():
@@ -4746,6 +4833,26 @@ def test_zero_inplace():
     verify_model(ZeroInplace(), [([128, 128], "float32")], {}, Expected)
 
 
+def test_zeros_like():
+    class ZerosLike(Module):
+        def forward(self, data):
+            return torch.zeros_like(data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((128, 128), dtype="float32")
+        ) -> R.Tensor((128, 128), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.zeros_like(inp_0, dtype="void")
+                gv: R.Tensor((128, 128), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(ZerosLike(), [([128, 128], "float32")], {}, Expected)
+
+
 def test_type_as():
     class TypeAs(Module):
         def forward(self, data, other):
@@ -5247,6 +5354,64 @@ def test_norm():
 
     for (p, dim, keepdim), expected in norms:
         verify_model(Norm(p, dim=dim, keepdim=keepdim), input_info, {}, expected)
+
+
+def test_bfloat16():
+    # TODO(mshr-h): Add tests for all the dtypes supported in EP frontend
+    class BFloat16Model(Module):
+        def forward(self, lhs: torch.Tensor, rhs: torch.Tensor):
+            return torch.ops.aten.add(lhs, rhs)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            lhs: R.Tensor((10, 10), dtype="bfloat16"),
+            rhs: R.Tensor((10, 10), dtype="bfloat16"),
+        ) -> R.Tensor((10, 10), dtype="bfloat16"):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="bfloat16") = relax.op.add(lhs, rhs)
+                gv: R.Tensor((10, 10), dtype="bfloat16") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(BFloat16Model(), [([10, 10], "bfloat16"), ([10, 10], "bfloat16")], {}, Expected)
+
+
+def test_eye():
+    import numpy as np
+
+    class Eye(Module):
+        def forward(self, input):
+            return torch.eye(3)
+
+    graph_model = fx.symbolic_trace(Eye())
+    mod = from_fx(graph_model, [([3, 3], "float32")])
+    assert len(mod["main"].body.blocks) == 1
+    assert len(mod["main"].body.blocks[0].bindings) == 1
+    assert isinstance(mod["main"].body.blocks[0].bindings[0].value, relax.Constant)
+    tvm.testing.assert_allclose(
+        mod["main"].body.blocks[0].bindings[0].value.data.numpy(),
+        np.eye(3, dtype="float32"),
+    )
+
+
+def test_linspace():
+    import numpy as np
+
+    class Linspace(Module):
+        def forward(self, input):
+            return torch.linspace(0, 1, steps=9)
+
+    graph_model = fx.symbolic_trace(Linspace())
+    mod = from_fx(graph_model, [([9, 9], "float32")])
+    assert len(mod["main"].body.blocks) == 1
+    assert len(mod["main"].body.blocks[0].bindings) == 1
+    assert isinstance(mod["main"].body.blocks[0].bindings[0].value, relax.Constant)
+    tvm.testing.assert_allclose(
+        mod["main"].body.blocks[0].bindings[0].value.data.numpy(),
+        np.linspace(0, 1, num=9, dtype="float32"),
+    )
 
 
 if __name__ == "__main__":

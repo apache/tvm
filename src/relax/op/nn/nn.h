@@ -75,6 +75,9 @@ Expr softplus(Expr data, double beta, double threshold);
 /*! \brief LogSoftmax function. */
 Expr log_softmax(Expr data, int axis);
 
+/*! \brief Pixel Shuffle function. */
+Expr pixel_shuffle(Expr data, int upscale_factor);
+
 /*! \brief Compute batch normalization. */
 Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,  //
                 int axis, double epsilon, bool center, bool scale, double momentum, bool training);

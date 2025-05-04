@@ -58,6 +58,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return "float32"
         elif input_type in ["float16", "torch.float16", torch.float16]:
             return "float16"
+        elif input_type in ["bfloat16", "torch.bfloat16", torch.bfloat16]:
+            return "bfloat16"
         elif input_type in ["int64", "torch.int64", torch.int64]:
             return "int64"
         elif input_type in ["int32", "torch.int32", torch.int32]:
@@ -406,6 +408,20 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return intrinsic_op(lhs, rhs)
 
         return convert
+
+    def _fmod(self, node: fx.Node):
+        args = self.retrieve_args(node)
+        lhs = args[0]
+        rhs = args[1]
+        if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
+            return self.block_builder.emit(relax.op.mod(lhs, rhs))
+        elif isinstance(lhs, relax.Expr):
+            rhs = relax.const(rhs, lhs.struct_info.dtype)
+        elif isinstance(rhs, relax.Expr):
+            lhs = relax.const(lhs, rhs.struct_info.dtype)
+        else:
+            assert False
+        return self.block_builder.emit(relax.op.mod(lhs, rhs))
 
     def _rsub(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -896,6 +912,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         pad_width[-len(flattened) :] = flattened
 
         return self.block_builder.emit(relax.op.nn.pad(x, pad_width, mode, value))
+
+    def _pixel_shuffle(self, node: fx.Node) -> relax.Var:
+        data = self.env[node.args[0]]
+        upscale_factor = node.args[1]
+        assert isinstance(
+            upscale_factor, int
+        ), "PixelShuffle only accepts an integer upscale_factor."
+
+        return self.block_builder.emit(relax.op.nn.pixel_shuffle(data, upscale_factor))
 
     def _scaled_dot_product_attention(self, node: fx.Node) -> relax.Var:
         transpose_S_H = lambda tensor: relax.op.permute_dims(tensor, [0, 2, 1, 3])
@@ -1441,6 +1466,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
         return self.block_builder.emit(relax.op.full(x.struct_info.shape, value, dtype))
 
+    def _inplace_fill(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        dtype = x.struct_info.dtype
+        value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
+        filled = self.block_builder.emit(relax.op.full(x.struct_info.shape, value, dtype))
+        self.env[node.args[0]] = filled
+        return filled
+
     def _full(self, node: fx.Node) -> relax.Var:
         import torch
 
@@ -1521,6 +1555,25 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 size,
                 relax.const(1, self_var.struct_info.dtype),
                 self_var.struct_info.dtype,
+            )
+        )
+
+    def _new_zeros(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        input_tensor = args[0]
+        size = (
+            args[1]
+            if isinstance(args[1], (list, tuple))
+            else (args[1],)
+            if len(args[1:]) == 1
+            else args[1:]
+        )
+        size = relax.ShapeExpr(size)
+        return self.block_builder.emit(
+            relax.op.full(
+                size,
+                relax.const(0, input_tensor.struct_info.dtype),
+                input_tensor.struct_info.dtype,
             )
         )
 
@@ -1653,6 +1706,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         output = self.block_builder.emit(relax.op.zeros_like(x))
         self.env[node.args[0]] = output
         return output
+
+    def _zeros_like(self, node: fx.node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(relax.op.zeros_like(x))
 
     @abc.abstractmethod
     def create_convert_map(
