@@ -26,7 +26,11 @@ import torch
 import tvm
 from tvm import relax
 import tvm.tir as tir  # pylint: disable=unused-import, consider-using-from-import
+from tvm.relax.frontend.torch.log import get_logger
 from .base_fx_graph_translator import BaseFXGraphImporter
+
+
+logger = get_logger(__name__)
 
 
 class ExportedProgramImporter(BaseFXGraphImporter):
@@ -580,7 +584,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     # Helper method for handling range constraints
     def _add_range_constraint(self, constraints_dict, relax_tir_var, min_val, max_val):
         """Adds or refines a range constraint for a TIR variable.
-        
+
         Parameters
         ----------
         constraints_dict : Dict[tvm.tir.Var, Tuple[Optional[int], Optional[int]]]
@@ -597,7 +601,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         else:
             # Refine existing constraints if the new one is tighter
             existing_min, existing_max = constraints_dict[relax_tir_var]
-            
+
             # Merge lower bounds (take the max)
             if existing_min is None:
                 new_min = min_val
