@@ -1,5 +1,5 @@
 # Licensed to the Apache Software Foundation (ASF) under one
-# or more contributor license agreements.  See the NOTICE file
+# or more contributor license agreements. See the NOTICE file
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
 # to you under the Apache License, Version 2.0 (the
@@ -507,9 +507,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "item.default": self._item,
         }
 
-    def create_input_vars(
-        self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[
+    def create_input_vars(self, exported_program: torch.export.ExportedProgram) -> Tuple[
         Dict[str, relax.Var],
         Dict[str, relax.Var],
         Dict[tvm.tir.Var, Tuple[Optional[int], Optional[int]]],
