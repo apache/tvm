@@ -35,3 +35,55 @@
                         relax_range_constraints, relax_tir_var, min_val, max_val
                     )
         # ... existing code ...
+
+    def create_output_vars(
+        # ... existing code ...
+        ret_struct_info=output_struct_info,
+        attrs=relax.attrs.FuncAttrs(
+            {
+                "num_input": len(user_inputs),
+                # Populate bounds from the collected constraints
+                "tir_var_upper_bound": {
+                    var: T.int64(upper)
+                    for var, (lower, upper) in relax_range_constraints.items()
+                    if upper is not None
+                },
+                "tir_var_lower_bound": {
+                    var: T.int64(lower)
+                    for var, (lower, upper) in relax_range_constraints.items()
+                    if lower is not None
+                },
+            }
+        ),
+    )
+    # ... existing code ...
+
+    output_vars = [relax.Var(name, sinfo) for name, sinfo in zip(output_names, output_struct_info)]
+    inputs = list(parameters_buffers_constants.values()) + list(user_inputs.values())
+
+    # Add the constraints info to the function attributes
+    func = relax.Function(
+        inputs,
+        output_vars,
+        None, # body is filled later
+        ret_struct_info=output_struct_info,
+        attrs=relax.attrs.FuncAttrs(
+            {
+                "num_input": len(user_inputs),
+                # Populate bounds from the collected constraints
+                "tir_var_upper_bound": {
+                    var: T.int64(upper) 
+                    for var, (lower, upper) in relax_range_constraints.items() 
+                    if upper is not None
+                },
+                "tir_var_lower_bound": {
+                    var: T.int64(lower) 
+                    for var, (lower, upper) in relax_range_constraints.items() 
+                    if lower is not None
+                },
+            }
+        ),
+    )
+
+    builder = relax.BlockBuilder()
+    # ... existing code ...
