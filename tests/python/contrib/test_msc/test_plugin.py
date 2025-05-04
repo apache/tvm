@@ -265,7 +265,7 @@ def _run_relax(relax_mod, target_name, data):
         relax_exec = tvm.compile(relax_mod, target)
         runnable = tvm.relax.VirtualMachine(relax_exec, device)
     data = tvm.nd.array(data, device)
-    return runnable["main"](data).asnumpy()
+    return runnable["main"](data).numpy()
 
 
 def _test_tvm_plugin(manager, target):

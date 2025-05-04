@@ -96,7 +96,7 @@ class MSCArray(object):
             if self._type == "var":
                 shape = [int(s) for s in self._meta_data.struct_info.shape]
                 return np.zeros(shape, dtype=self._meta_data.struct_info.dtype)
-            return self._meta_data.asnumpy()
+            return self._meta_data.numpy()
         if self._framework == MSCFramework.TORCH:
             return self._meta_data.detach().cpu().numpy()
         return self._meta_data

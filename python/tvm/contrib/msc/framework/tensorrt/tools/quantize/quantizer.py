@@ -186,7 +186,7 @@ class TensorRTQuantizerFactory(object):
                 if self._stage == QuantizeStage.GATHER:
                     saver = self._calibrate_savers[self._graph_id]
                     saver.save_batch(
-                        {name: data.asnumpy() for name, data in step_context["datas"].items()}
+                        {name: data.numpy() for name, data in step_context["datas"].items()}
                     )
                     for name, data in step_context["datas"].items():
                         self.debug_tensors(name, "any", "ctx_gather", {"gather": data})

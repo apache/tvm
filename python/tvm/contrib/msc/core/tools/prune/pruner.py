@@ -440,7 +440,7 @@ class BasePruner(WeightTool):
                 pruned_graphs.append(graph)
 
         def _flatten_size(weights):
-            weight_size = sum([w.asnumpy().size for w in weights.values()])
+            weight_size = sum([w.numpy().size for w in weights.values()])
             return weight_size / 2**20
 
         raw_size = _flatten_size(weights)

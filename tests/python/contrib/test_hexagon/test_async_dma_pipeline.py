@@ -295,7 +295,7 @@ def evaluate(
 
     time = timer(a_hexagon, b_hexagon, c_hexagon)
     if expected_output is not None:
-        tvm.testing.assert_allclose(c_hexagon.asnumpy(), expected_output)
+        tvm.testing.assert_allclose(c_hexagon.numpy(), expected_output)
     return round(time.mean * 1000, 4)
 
 

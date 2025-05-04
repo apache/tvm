@@ -151,16 +151,6 @@ class NDArray(tvm.ffi.core.NDArray):
     def __str__(self):
         return str(self.numpy())
 
-    def asnumpy(self):
-        """Convert this array to numpy array. This API will be deprecated in TVM v0.8 release.
-        Please use `numpy` instead."""
-        warnings.warn(
-            "NDArray.asnumpy() will be deprecated in TVM v0.8 release. "
-            "Please use NDArray.numpy() instead.",
-            DeprecationWarning,
-        )
-        return self.numpy()
-
     def numpy(self):
         """Convert this array to numpy array
 
