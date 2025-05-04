@@ -28,4 +28,4 @@ from . import _pyversion
 from . import base
 from .registry import register_object, register_func
 from .registry import _init_api, get_global_func
-from tvm.ffi import register_error
+from ..ffi import register_error

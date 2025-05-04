@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=used-before-assignment
+# pylint: disable=used-before-assignment,broad-exception-caught
 """RPC client tools"""
 import os
 import socket

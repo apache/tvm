@@ -1,3 +1,4 @@
+import pickle
 from tvm import ffi as tvm_ffi
 
 
@@ -11,6 +12,10 @@ def test_string():
     s3 = tvm_ffi.convert("hello")
     assert isinstance(s3, tvm_ffi.String)
     assert isinstance(s3, str)
+
+    s4 = pickle.loads(pickle.dumps(s))
+    assert s4 == "hello"
+    assert isinstance(s4, tvm_ffi.String)
 
 
 def test_bytes():
@@ -27,3 +32,7 @@ def test_bytes():
     b4 = tvm_ffi.convert(bytearray(b"hello"))
     assert isinstance(b4, tvm_ffi.Bytes)
     assert isinstance(b4, bytes)
+
+    b5 = pickle.loads(pickle.dumps(b))
+    assert b5 == b"hello"
+    assert isinstance(b5, tvm_ffi.Bytes)

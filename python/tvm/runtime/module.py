@@ -102,7 +102,7 @@ class Module(tvm.ffi.Object):
     """Runtime Module."""
 
     def __new__(cls):
-        instance = super().__new__(cls)
+        instance = super(Module, cls).__new__(cls)  # pylint: disable=no-value-for-parameter
         instance.entry_name = "__tvm_main__"
         instance._entry = None
         return instance

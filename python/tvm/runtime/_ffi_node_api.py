@@ -48,6 +48,3 @@ def LoadJSON(json_str):
 # Exports functions registered via TVM_REGISTER_GLOBAL with the "node" prefix.
 # e.g. TVM_REGISTER_GLOBAL("node.AsRepr")
 tvm._ffi._init_api("node", __name__)
-
-# override the default repr function for tvm.ffi.core.Object
-tvm.ffi.core.__object_repr__ = AsRepr

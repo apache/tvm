@@ -541,7 +541,9 @@ class State:
                                 "_workload.json", "_candidates.json"
                             ),
                         )
-                    except tvm._ffi.base.TVMError:  # pylint: disable=protected-access
+                    except (
+                        tvm._ffi.base.TVMError
+                    ):  # pylint: disable=protected-access,broad-exception-caught
                         continue
                     candidates, results = [], []
                     tuning_records = database.get_all_tuning_records()

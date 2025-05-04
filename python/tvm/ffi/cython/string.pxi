@@ -65,6 +65,7 @@ class String(str, PyNativeObject):
         val.__tvm_ffi_object__ = obj
         return val
 
+
 _register_object_by_index(kTVMFFIStr, String)
 
 
@@ -88,6 +89,7 @@ class Bytes(bytes, PyNativeObject):
         val = bytes.__new__(cls, content)
         val.__tvm_ffi_object__ = obj
         return val
+
 
 _register_object_by_index(kTVMFFIBytes, Bytes)
 

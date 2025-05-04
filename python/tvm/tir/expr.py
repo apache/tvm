@@ -69,7 +69,7 @@ def _dtype_is_float(value):
     )  # type: ignore
 
 
-class ExprOp(object):
+class ExprOp:
     """Operator overloading for Expr like expressions."""
 
     # TODO(tkonolige): use inspect to add source information to these objects
@@ -395,7 +395,7 @@ class SizeVar(Var):
 
 
 @tvm._ffi.register_object("tir.IterVar")
-class IterVar(Object, ExprOp, Scriptable):
+class IterVar(ExprOp, Object, Scriptable):
     """Represent iteration variable.
 
     IterVar represents axis iterations in the computation.

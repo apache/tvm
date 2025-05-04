@@ -33,7 +33,7 @@ import tvm.ffi
 from . import _ffi_api
 
 
-from tvm.ffi import (
+from ..ffi import (
     device,
     cpu,
     cuda,

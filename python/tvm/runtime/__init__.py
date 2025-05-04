@@ -41,7 +41,7 @@ from .params import (
     load_param_dict_from_file,
 )
 
-from tvm.ffi import convert, dtype as DataType, DataTypeCode
 from . import disco
 
 from .support import _regex_match
+from ..ffi import convert, dtype as DataType, DataTypeCode

@@ -71,7 +71,6 @@ TVM_REGISTER_GLOBAL("testing.test_wrap_callback_suppress_err")
       *ret = result;
     });
 
-
 TVM_REGISTER_GLOBAL("testing.test_check_eq_callback")
     .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       auto msg = args[0].cast<std::string>();

@@ -328,6 +328,22 @@ struct StringObjTrait {
   }
 };
 
+struct BytesObjTrait {
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
+  static void SHashReduce(const ffi::BytesObj* key, SHashReducer hash_reduce) {
+    hash_reduce->SHashReduceHashedValue(ffi::details::StableHashBytes(key->data, key->size));
+  }
+
+  static bool SEqualReduce(const ffi::BytesObj* lhs, const ffi::BytesObj* rhs,
+                           SEqualReducer equal) {
+    if (lhs == rhs) return true;
+    if (lhs->size != rhs->size) return false;
+    if (lhs->data == rhs->data) return true;
+    return std::memcmp(lhs->data, rhs->data, lhs->size) == 0;
+  }
+};
+
 struct RefToObjectPtr : public ObjectRef {
   static ObjectPtr<Object> Get(const ObjectRef& ref) {
     return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(ref);
@@ -348,6 +364,20 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::StringObj>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::StringObj*>(node.get());
       p->stream << '"' << support::StrEscape(op->data, op->size) << '"';
+    });
+
+TVM_REGISTER_REFLECTION_VTABLE(ffi::BytesObj, BytesObjTrait)
+    .set_creator([](const std::string& bytes) {
+      return RefToObjectPtr::Get(runtime::String(bytes));
+    })
+    .set_repr_bytes([](const Object* n) -> std::string {
+      return GetRef<ffi::Bytes>(static_cast<const ffi::BytesObj*>(n)).operator std::string();
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ffi::BytesObj>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const ffi::BytesObj*>(node.get());
+      p->stream << "b\"" << support::StrEscape(op->data, op->size) << '"';
     });
 
 struct ModuleNodeTrait {

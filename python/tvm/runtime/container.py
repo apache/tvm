@@ -16,3 +16,6 @@
 # under the License.
 """Runtime container structures."""
 from tvm.ffi import String, Shape as ShapeTuple
+
+
+__all__ = ["ShapeTuple", "String"]

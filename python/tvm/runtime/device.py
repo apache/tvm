@@ -16,12 +16,11 @@
 # under the License.
 """Common runtime ctypes."""
 # pylint: disable=invalid-name
+import json
+
 import tvm.ffi
-from tvm.ffi import dtype as DataType, DataTypeCode
 
 from . import _ffi_api
-
-import json
 
 
 RPC_SESS_MASK = 128

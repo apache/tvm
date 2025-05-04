@@ -17,9 +17,9 @@
 """dtype class."""
 # pylint: disable=invalid-name
 from enum import IntEnum
+import numpy as np
 
 from . import core
-import numpy as np
 
 
 class DataTypeCode(IntEnum):

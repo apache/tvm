@@ -18,13 +18,9 @@
 # pylint: disable=invalid-name, import-outside-toplevel
 """Base library for TVM FFI."""
 import ctypes
-import functools
 import os
-import re
 import sys
-import types
 
-from typing import Callable, Sequence, Optional
 
 import numpy as np
 
@@ -64,10 +60,11 @@ _LIB, _LIB_NAME = _load_lib()
 # Whether we are runtime only
 _RUNTIME_ONLY = "runtime" in _LIB_NAME
 
-import tvm.ffi.registry
 
 if _RUNTIME_ONLY:
-    tvm.ffi.registry._SKIP_UNKNOWN_OBJECTS = True
+    from ..ffi import registry as _tvm_ffi_registry
+
+    _tvm_ffi_registry._SKIP_UNKNOWN_OBJECTS = True
 
 # The FFI mode of TVM
 _FFI_MODE = os.environ.get("TVM_FFI", "auto")

@@ -16,3 +16,5 @@
 # under the License.
 """Additional container data structures used across IR variants."""
 from tvm.ffi import Array, Map
+
+__all__ = ["Array", "Map"]

@@ -32,6 +32,31 @@ def __object_repr__(obj):
     return type(obj).__name__ + "(" + obj.__ctypes_handle__().value + ")"
 
 
+def __object_save_json__(obj):
+    """Object repr function that can be overridden by assigning to it"""
+    raise NotImplementedError("JSON serialization depends on downstream init")
+
+
+def __object_load_json__(json_str):
+    """Object repr function that can be overridden by assigning to it"""
+    raise NotImplementedError("JSON serialization depends on downstream init")
+
+
+def __object_dir__(obj):
+    """Object dir function that can be overridden by assigning to it"""
+    return []
+
+
+def __object_getattr__(obj, name):
+    """Object getattr function that can be overridden by assigning to it"""
+    raise AttributeError()
+
+
+def _new_object(cls):
+    """Helper function for pickle"""
+    return cls.__new__(cls)
+
+
 class ObjectGeneric:
     """Base class for all classes that can be converted to object."""
 
@@ -71,8 +96,45 @@ cdef class Object:
         cdef uint64_t chandle = <uint64_t>self.chandle
         return chandle
 
+    def __reduce__(self):
+        cls = type(self)
+        return (_new_object, (cls,), self.__getstate__())
+
+    def __getstate__(self):
+        if not self.__chandle__() == 0:
+            # need to explicit convert to str in case String
+            # returned and triggered another infinite recursion in get state
+            return {"handle": str(__object_save_json__(self))}
+        return {"handle": None}
+
+    def __setstate__(self, state):
+        # pylint: disable=assigning-non-slot, assignment-from-no-return
+        handle = state["handle"]
+        if handle is not None:
+            self.__init_handle_by_constructor__(__object_load_json__, handle)
+        else:
+            self.chandle = NULL
+
+    def __getattr__(self, name):
+        try:
+            return __object_getattr__(self, name)
+        except AttributeError:
+            raise AttributeError(f"{type(self)} has no attribute {name}")
+
+    def __dir__(self):
+        return __object_dir__(self)
+
     def __repr__(self):
         return __object_repr__(self)
+
+    def __eq__(self, other):
+        return self.same_as(other)
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
+    def __init_handle_by_load_json__(self, json_str):
+        raise NotImplementedError("JSON serialization depends on downstream init")
 
     def __init_handle_by_constructor__(self, fconstructor, *args):
         """Initialize the handle by calling constructor function.
