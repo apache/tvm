@@ -58,6 +58,10 @@ class CodeGenWebGPU final : public CodeGenC {
   // assignment printing
   void PrintSSAAssign(const std::string& target, const std::string& src, DataType type) final;
 
+  // overload printing vector element load/store
+  void PrintVecElemLoad(const std::string& vec, DataType t, int i, std::ostream& os) final;
+  void PrintVecElemStore(const std::string& vec, DataType t, int i, const std::string& value) final;
+
   // overload visitor
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;   // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) final;        // NOLINT(*)
