@@ -652,10 +652,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             for var, (lower, upper) in relax_range_constraints.items():
                 if lower is not None:
                     # For min constraints, use the exact value
-                    lower_bounds[var] = tvm.tir.IntImm("int64", lower)
+                    lower_bounds[var] = tvm.tir.IntImm("int64", int(lower))
                 if upper is not None:
                     # For max constraints, use the exact value or MAX_INT64 if None
-                    upper_bounds[var] = tvm.tir.IntImm("int64", upper)
+                    upper_bounds[var] = tvm.tir.IntImm("int64", int(upper))
 
             if lower_bounds:
                 func_attrs["tir_var_lower_bound"] = lower_bounds

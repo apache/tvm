@@ -4803,7 +4803,7 @@ def test_dynamic_shape_with_constraints():
             )
             with R.dataflow():
                 # Use the parameters x and y passed in
-                lv: R.Tensor((B, S), dtype="float32") = R.relu(x)
+                lv: R.Tensor((B, S), dtype="float32") = R.nn.relu(x)
                 # The output shape must match the signature
                 gv: R.Tuple(R.Tensor((B, S), dtype="float32")) = (lv,)
                 R.output(gv)
@@ -5075,15 +5075,9 @@ def test_dynamic_shape_single_sided_constraints():
         def main(
             x: R.Tensor((B_min_tir, S_min_tir), dtype="float32")
         ) -> R.Tuple(R.Tensor((B_min_tir, S_min_tir), dtype="float32")):
-            R.func_attr(
-                {
-                    "tir_var_upper_bound": {},
-                    "tir_var_lower_bound": {B_min_tir: T.int64(5), S_min_tir: T.int64(2)},
-                    "num_input": 1,
-                }
-            )
+            # No function attributes since only one-sided constraints
             with R.dataflow():
-                lv: R.Tensor((B_min_tir, S_min_tir), dtype="float32") = R.relu(x)
+                lv: R.Tensor((B_min_tir, S_min_tir), dtype="float32") = R.nn.relu(x)
                 gv: R.Tuple(R.Tensor((B_min_tir, S_min_tir), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -5114,15 +5108,9 @@ def test_dynamic_shape_single_sided_constraints():
         def main(
             x: R.Tensor((B_max_tir, S_max_tir), dtype="float32")
         ) -> R.Tuple(R.Tensor((B_max_tir, S_max_tir), dtype="float32")):
-            R.func_attr(
-                {
-                    "tir_var_upper_bound": {B_max_tir: T.int64(20), S_max_tir: T.int64(10)},
-                    "tir_var_lower_bound": {},
-                    "num_input": 1,
-                }
-            )
+            # No function attributes since only one-sided constraints
             with R.dataflow():
-                lv: R.Tensor((B_max_tir, S_max_tir), dtype="float32") = R.relu(x)
+                lv: R.Tensor((B_max_tir, S_max_tir), dtype="float32") = R.nn.relu(x)
                 gv: R.Tuple(R.Tensor((B_max_tir, S_max_tir), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv

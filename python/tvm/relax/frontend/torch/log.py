@@ -1,15 +1,14 @@
-"""Simple logging module for TVM Relax PyTorch frontend."""
 import logging
 
 
-def get_logger(name):
+def get_logger(name: str) -> logging.Logger:
     """Get a logger with a specific name.
-    
+
     Parameters
     ----------
     name : str
         The name of the logger.
-        
+
     Returns
     -------
     logging.Logger
