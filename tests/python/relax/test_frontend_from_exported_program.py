@@ -5130,7 +5130,7 @@ def test_dynamic_shape_single_sided_constraints():
                 lv: R.Tensor((B_max_tir, S_max_tir), dtype="float32") = R.relu(x)
                 gv: R.Tuple(R.Tensor((B_max_tir, S_max_tir), dtype="float32")) = (lv,)
                 R.output(gv)
-            return gv            
+            return gv
     # Model just needs to accept the inputs
     class SimpleModelMax(torch.nn.Module):
         def forward(self, x):
@@ -5138,10 +5138,8 @@ def test_dynamic_shape_single_sided_constraints():
 
     verify_model(
         SimpleModelMax(), example_args_max, {}, ExpectedMax, dynamic_shapes=dynamic_shapes_max
-        )
+    )
 
-# Test symbolic shapes in output
-# ... rest of file ...
 
 def test_bfloat16():
     # TODO(mshr-h): Add tests for all the dtypes supported in fx frontend
