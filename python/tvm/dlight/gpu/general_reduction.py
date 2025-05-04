@@ -39,8 +39,8 @@ class GeneralReduction(GPUScheduleRule):
             return None
 
         if target.kind.name == "cuda":
-            len_tx = 256 # Number of threads per block
-            unroll_depth = 256 # How many iterations of loop to unroll
+            len_tx = 256
+            unroll_depth = 256
         elif target.kind.name == "opencl":
             len_tx = 256
             unroll_depth = 64
@@ -60,7 +60,6 @@ class GeneralReduction(GPUScheduleRule):
 
         # Align the number of block iters of the last block.
         num_last_block_iter = len(block_infos[-1].dom_kind())
-
         if num_last_block_iter < len(dom_kind):
             # If the last block is a scalar value, there is nothing left to
             # tile/parallelise, and  `iters` is an empty tuple.
