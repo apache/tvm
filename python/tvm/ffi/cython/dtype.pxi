@@ -28,7 +28,7 @@ def _create_dtype_from_tuple(cls, code, bits, lanes):
     cdtype.code = code
     cdtype.bits = bits
     cdtype.lanes = lanes
-    ret = cls.__new__(cls)
+    ret = cls.__new__(cls, str(cdtype))
     (<DataType>ret).cdtype = cdtype
     return ret
 

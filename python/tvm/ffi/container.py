@@ -100,6 +100,9 @@ class KeysView(collections.abc.KeysView):
             if not functor(2):
                 break
 
+    def __contains__(self, k):
+        return self._backend_map.__contains__(k)
+
 
 class ValuesView(collections.abc.ValuesView):
     """Helper class to return values view"""

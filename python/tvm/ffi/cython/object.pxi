@@ -125,7 +125,8 @@ cdef class Object:
         return __object_dir__(self)
 
     def __repr__(self):
-        return __object_repr__(self)
+        # make sure repr is a raw string
+        return str(__object_repr__(self))
 
     def __eq__(self, other):
         return self.same_as(other)

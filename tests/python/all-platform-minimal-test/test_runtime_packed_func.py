@@ -45,7 +45,6 @@ def test_get_callback_with_node():
     x = T.int32(10)
 
     def test(y):
-        assert y.handle != x.handle
         return y
 
     f2 = tvm.runtime.convert(test)

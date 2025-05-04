@@ -54,3 +54,11 @@ def test_dtype_pickle(dtype_str):
     assert dtype_pickled.type_code == dtype.type_code
     assert dtype_pickled.bits == dtype.bits
     assert dtype_pickled.lanes == dtype.lanes
+
+
+def test_dtype_with_lanes():
+    dtype = tvm_ffi.dtype("float32")
+    dtype_with_lanes = dtype.with_lanes(4)
+    assert dtype_with_lanes.type_code == dtype.type_code
+    assert dtype_with_lanes.bits == dtype.bits
+    assert dtype_with_lanes.lanes == 4

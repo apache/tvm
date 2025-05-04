@@ -78,7 +78,7 @@ def test_vm_to_device(exec_mode):
     res = check_saved_func(vm, "foo", inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
     # check the resulting tensor is on cpu:0
-    assert str(res.device) == "cpu(0)"
+    assert res.device == tvm.cpu(0)
     assert res.device.device_type == 1
     assert res.device.device_id == 0
 

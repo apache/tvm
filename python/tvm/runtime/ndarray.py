@@ -92,7 +92,7 @@ class NDArray(tvm.ffi.core.NDArray):
         ):
             raise ValueError("Array only support set from numpy array")
         if isinstance(value, NDArray):
-            if value.handle is not self.handle:
+            if not value.same_as(self):
                 value.copyto(self)
         elif isinstance(value, (np.ndarray, np.generic)):
             self.copyfrom(value)
@@ -128,7 +128,7 @@ class NDArray(tvm.ffi.core.NDArray):
         shape, dtype = self.shape, self.dtype
         if t.lanes > 1:
             shape = shape + (t.lanes,)
-            t.lanes = 1
+            t = t.with_lanes(1)
             dtype = str(t)
 
         if source_array.shape != shape:
@@ -185,7 +185,7 @@ class NDArray(tvm.ffi.core.NDArray):
         old_dtype = dtype
         if t.lanes > 1:
             shape = shape + (t.lanes,)
-            t.lanes = 1
+            t = t.with_lanes(1)
             dtype = str(t)
         if dtype == "int4":
             dtype = "int8"

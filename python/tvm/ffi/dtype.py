@@ -84,6 +84,27 @@ class dtype(str):
     def __repr__(self):
         return f"dtype('{self}')"
 
+    def with_lanes(self, lanes):
+        """
+        Create a new dtype with the given number of lanes.
+
+        Parameters
+        ----------
+        lanes : int
+            The number of lanes.
+
+        Returns
+        -------
+        dtype
+            The new dtype with the given number of lanes.
+        """
+        cdtype = core._create_dtype_from_tuple(
+            core.DataType, self.__tvm_ffi_dtype__.type_code, self.__tvm_ffi_dtype__.bits, lanes
+        )
+        val = str.__new__(dtype, str(cdtype))
+        val.__tvm_ffi_dtype__ = cdtype
+        return val
+
     @property
     def itemsize(self):
         return self.__tvm_ffi_dtype__.itemsize
