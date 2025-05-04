@@ -30,6 +30,7 @@
 
 #include <limits>
 #include <memory>
+#include <string>
 #include <unordered_map>
 #include <vector>
 
@@ -779,6 +780,9 @@ class TVM_DLL Analyzer {
    * \note Analyzer will call into sub-analyzers to get the result.
    */
   PrimExpr Simplify(const PrimExpr& expr, int steps = 2);
+
+  static runtime::TypedPackedFunc<PackedFunc(std::string)> AsFunc(
+      std::shared_ptr<Analyzer> analyzer);
 };
 
 }  // namespace arith
