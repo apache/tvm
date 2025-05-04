@@ -2017,6 +2017,42 @@ def test_pad():
     verify_model(PadModel(pad=[1, 1, 2, 2], mode="circular"), example_args, {}, expected_circular)
 
 
+def test_pixel_shuffle():
+    class PixelShuffle1(torch.nn.Module):
+        def __init__(self, upscale_factor=2):
+            super().__init__()
+            self.pixel_shuffle = torch.nn.PixelShuffle(upscale_factor)
+
+        def forward(self, x):
+            return self.pixel_shuffle(x)
+
+    class PixelShuffle2(torch.nn.Module):
+        def __init__(self, upscale_factor=2):
+            super().__init__()
+            self.upscale_factor = upscale_factor
+
+        def forward(self, x):
+            return torch.nn.functional.pixel_shuffle(x, self.upscale_factor)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            x: R.Tensor((1, 8, 10, 15), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 2, 20, 30), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 20, 30), dtype="float32") = R.nn.pixel_shuffle(
+                    x, upscale_factor=2
+                )
+                gv: R.Tuple(R.Tensor((1, 2, 20, 30), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 8, 10, 15, dtype=torch.float32),)
+    verify_model(PixelShuffle1(upscale_factor=2), example_args, {}, expected)
+    verify_model(PixelShuffle2(upscale_factor=2), example_args, {}, expected)
+
+
 def test_einsum():
     class Einsum1(Module):
         def __init__(self):
@@ -3727,6 +3763,30 @@ def test_masked_fill():
     verify_model(Masked_Fill(), example_args, {}, Expected)
 
 
+def test_masked_fill_inplace():
+    class Masked_Fill_Inplace(Module):
+        def forward(self, input: torch.Tensor, mask: torch.Tensor):
+            return input.masked_fill_(mask, 1.5)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((128, 128), dtype="float32"), mask: R.Tensor((128, 128), dtype="bool")
+        ) -> R.Tuple(R.Tensor((128, 128), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((128, 128), dtype="float32") = R.full_like(
+                    input, R.const(1.5, "float32"), dtype="void"
+                )
+                lv1: R.Tensor((128, 128), dtype="float32") = R.where(mask, lv, input)
+                gv: R.Tuple(R.Tensor((128, 128), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(128, 128, dtype=torch.float32), torch.rand(128, 128) < 0.5)
+    verify_model(Masked_Fill_Inplace(), example_args, {}, Expected)
+
+
 def test_new_ones():
     class NewOnes(Module):
         def forward(self, x):
@@ -3749,6 +3809,29 @@ def test_new_ones():
 
     example_args = (torch.randn(1, 2, 3, dtype=torch.float32),)
     verify_model(NewOnes(), example_args, {}, expected1)
+
+
+def test_new_zeros():
+    class NewZeros(torch.nn.Module):
+        def forward(self, x):
+            return x.new_zeros(1, 128, 128)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            x: R.Tensor((1, 128, 128), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 128, 128), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 128, 128), dtype="float32") = R.full(
+                    R.shape([1, 128, 128]), R.const(0, "float32"), dtype="float32"
+                )
+                gv: R.Tuple(R.Tensor((1, 128, 128), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 128, 128, dtype=torch.float32),)
+    verify_model(NewZeros(), example_args, {}, expected1)
 
 
 def test_to_copy():

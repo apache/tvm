@@ -913,6 +913,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return self.block_builder.emit(relax.op.nn.pad(x, pad_width, mode, value))
 
+    def _pixel_shuffle(self, node: fx.Node) -> relax.Var:
+        data = self.env[node.args[0]]
+        upscale_factor = node.args[1]
+        assert isinstance(
+            upscale_factor, int
+        ), "PixelShuffle only accepts an integer upscale_factor."
+
+        return self.block_builder.emit(relax.op.nn.pixel_shuffle(data, upscale_factor))
+
     def _scaled_dot_product_attention(self, node: fx.Node) -> relax.Var:
         transpose_S_H = lambda tensor: relax.op.permute_dims(tensor, [0, 2, 1, 3])
         query = transpose_S_H(self.env[node.args[0]])
@@ -1546,6 +1555,25 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 size,
                 relax.const(1, self_var.struct_info.dtype),
                 self_var.struct_info.dtype,
+            )
+        )
+
+    def _new_zeros(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        input_tensor = args[0]
+        size = (
+            args[1]
+            if isinstance(args[1], (list, tuple))
+            else (args[1],)
+            if len(args[1:]) == 1
+            else args[1:]
+        )
+        size = relax.ShapeExpr(size)
+        return self.block_builder.emit(
+            relax.op.full(
+                size,
+                relax.const(0, input_tensor.struct_info.dtype),
+                input_tensor.struct_info.dtype,
             )
         )
 

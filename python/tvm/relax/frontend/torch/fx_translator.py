@@ -460,6 +460,13 @@ class TorchFXImporter(BaseFXGraphImporter):
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
 
+    def _pixel_shuffle_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        upscale_factor = module.upscale_factor
+
+        return self.block_builder.emit(relax.op.nn.pixel_shuffle(x, upscale_factor))
+
     ########## Linear Interpolation ##########
 
     def _lerp(self, node: fx.Node) -> relax.Var:
@@ -656,6 +663,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.Linear: self._linear_module,
             nn.MaxPool2d: self._max_pool2d_module,
             nn.modules.sparse.Embedding: self._embedding_module,
+            nn.PixelShuffle: self._pixel_shuffle_module,
             # tensor manipulation
             nn.Flatten: self._flatten_module,
             ## call_function and call_method
@@ -695,6 +703,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "log_softmax": self._log_softmax,
             "neg": self._unary_op(relax.op.negative),
             "pad": self._pad,
+            "pixel_shuffle": self._pixel_shuffle,
             "prelu": self._prelu,
             "reciprocal": self._reciprocal,
             "relu": self._unary_op(relax.op.nn.relu),
@@ -821,14 +830,17 @@ class TorchFXImporter(BaseFXGraphImporter):
             "clone": lambda node: self.env[node.args[0]],
             "empty": self._empty,
             "empty_like": self._empty_like,
+            "eye": self._eye,
             "fill": self._fill,
             "fill_": self._inplace_fill,
             "full": self._full,
             "index_select": self._index_select,
+            "linspace": self._linspace,
             "masked_fill_": self._inplace_masked_fill,
             "masked_fill": self._masked_fill,
             "masked_scatter": self._masked_scatter,
             "new_ones": self._new_ones,
+            "new_zeros": self._new_zeros,
             "ones": self._ones,
             "one_hot": self._one_hot,
             "ones_like": lambda node: self.block_builder.emit(
