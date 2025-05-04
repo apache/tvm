@@ -38,13 +38,6 @@ class GeneralReduction(GPUScheduleRule):
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
 
-        print("\n##########################################################################################")
-        print("                      ENTERING general_reduction.py     ")
-        print("##########################################################################################\n")
-
-        print("func:")
-        print(func)
-
         if target.kind.name == "cuda":
             len_tx = 256 # Number of threads per block
             unroll_depth = 256 # How many iterations of loop to unroll
@@ -61,12 +54,6 @@ class GeneralReduction(GPUScheduleRule):
         if block_infos is None or len(block_infos) == 0:
             return None
 
-        print("block_infos:")
-        for block_info in block_infos:
-            print(block_info)
-
-        print("len(block_infos):", len(block_infos))
-
         dom_kind = block_infos[0].dom_kind()
         num_leading_s = len(dom_kind) - len(dom_kind.lstrip("S"))
         num_trailing_r = len(dom_kind) - len(dom_kind.rstrip("R"))
@@ -74,21 +61,12 @@ class GeneralReduction(GPUScheduleRule):
         # Align the number of block iters of the last block.
         num_last_block_iter = len(block_infos[-1].dom_kind())
 
-        print("num_last_block_iter:", num_last_block_iter)
-        print("len(dom_kind)",len(dom_kind))
-        print("dom_kind:", dom_kind)
- 
-
         if num_last_block_iter < len(dom_kind):
-            # FIXME: this block of code makes CrossEntropyLoss work but Sort fail. 
-            # # If the last block is a scalar value, there is nothing left to
-            # # tile/parallelise, and  `iters` is an empty tuple.
-            # # Add a unit thread loop so the final write happens inside a valid
-            # # GPU thread environment.
+            # If the last block is a scalar value, there is nothing left to
+            # tile/parallelise, and  `iters` is an empty tuple.
+            # Add a unit thread loop so the final write happens inside a valid
+            # GPU thread environment.
             if num_last_block_iter == 0:
-                print("ENTERING THE THING!!!!!!!!!!!!!!!!!")
-                # assert 0, "ENTERING THE THING!!!!!!!!!!!!!!!!!"
-                
                 # Put every block (both the running reductions and the final
                 # scalar write) inside a trivial GPU thread. The very first block
                 # gets a `blockIdx.x` wrapper so that kernels still have a unique
@@ -102,9 +80,7 @@ class GeneralReduction(GPUScheduleRule):
 
                 return sch
 
-
             def f_layout_mapping(*iters):
-                print("iters:", iters)
                 analyzer = arith.Analyzer()
                 # Try to match the iters of last block to the iters of the first block.
                 # For matched positions, use the iter from the input `iters`.
@@ -129,8 +105,6 @@ class GeneralReduction(GPUScheduleRule):
                 ) + list(iters)
 
             index_map = tir.IndexMap.from_func(f_layout_mapping, ndim=num_last_block_iter)
-            print("index_map:")
-            print(index_map)
             sch.transform_block_layout(block_infos[-1].block_rv, index_map)
 
         try:
