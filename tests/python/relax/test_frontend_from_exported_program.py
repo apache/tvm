@@ -4653,34 +4653,39 @@ def test_dynamic_shape_with_constraints():
             # Use an op that doesn't depend on exact shapes matching.
             return torch.relu(x)  # Return just one to simplify output signature
 
-    # NEW: Define TIR Vars for TVMScript parsing
-    B = tir.Var("B", "int64")
-    S = tir.Var("S", "int64")
+        # Define the expected Relax IRModule
+        @tvm.script.ir_module
+        class Expected:
+            # TIR Vars B and S are now defined outside this class scope
+            # and are captured by the tvm.script parser.
 
-    # Define the expected Relax IRModule
-    @tvm.script.ir_module
-    class Expected:
-        @R.function
-        def main(
-            # Note: B has refined constraints: min=3, max=10
-            # Note: S has constraints: min=1
-            x: R.Tensor((B, S), dtype="float32"),
-            y: R.Tensor((B, 2), dtype="float32"),
-        ) -> R.Tuple(R.Tensor((B, S), dtype="float32")):
-            B = T.int64()
-            S = T.int64()
-            # tell TIR about the constraints via function attributes
-            T.func_attr({"tir_var_lower_bound": {B: 3, S: 1}, "tir_var_upper_bound": {B: 10}})
-            with R.dataflow():
-                # The actual body isn't the focus, just the signature
-                lv: R.Tensor((B, S), dtype="float32") = R.relu(x)
-                # Output must be a tuple
-                gv: R.Tuple(R.Tensor((B, S), dtype="float32")) = (lv,)
-                R.output(gv)
-            return gv
+            @R.function
+            def main(
+                x: R.Tensor((B, S), dtype="float32"),  # Uses B, S defined outside
+                y: R.Tensor((B, 2), dtype="float32"),  # Uses B defined outside
+            ) -> R.Tuple(R.Tensor((B, S), dtype="float32")):
+                # Remove internal TIR Var definitions
+                # B = tir.Var("B", "int64")
+                # S = tir.Var("S", "int64")
 
-    # Use verify_model utility
-    verify_model(SimpleDynamic(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes)
+                # Add expected constraints as function attributes
+                R.func_attr(
+                    {
+                        "tir_var_upper_bound": {B: T.int64(10), S: T.int64(9223372036854775807)},
+                        "tir_var_lower_bound": {B: T.int64(3), S: T.int64(1)},
+                        "num_input": 2, # Two user inputs: x and y
+                    }
+                )
+                with R.dataflow():
+                    # Use the parameters x and y passed in
+                    lv: R.Tensor((B, S), dtype="float32") = R.relu(x)
+                    # The output shape must match the signature
+                    gv: R.Tuple(R.Tensor((B, S), dtype="float32")) = (lv,)
+                    R.output(gv)
+                return gv
+
+        # Verify the model conversion, including constraints
+        verify_model(SimpleDynamic(), example_args, {}, Expected, dynamic_shapes=dynamic_shapes)
 
 
 def test_broadcast_to():
@@ -4924,6 +4929,83 @@ def test_linspace():
     example_args = (torch.randn(9, 9, dtype=torch.float32),)
     verify_model(Linspace(), example_args, {}, Expected)
 
+
+def test_dynamic_shape_single_sided_constraints():
+    """Test importing ExportedProgram with single-sided constraints (min only or max only)."""
+
+    # --- Test Case 1: Min constraint only --- 
+    B_min = torch.export.Dim("B_min", min=5)
+    S_min = torch.export.Dim("S_min", min=2)
+
+    example_args_min = (torch.randn(6, 3, dtype=torch.float32),)
+    dynamic_shapes_min = {0: {0: B_min, 1: S_min}}
+
+    # Define the expected Relax IRModule for min-only
+    B_min_tir = tir.Var("B_min", "int64")
+    S_min_tir = tir.Var("S_min", "int64")
+
+    @tvm.script.ir_module
+    class ExpectedMin:
+        @R.function
+        def main(x: R.Tensor((B_min_tir, S_min_tir), dtype="float32")) -> R.Tuple(R.Tensor((B_min_tir, S_min_tir), dtype="float32")):
+            R.func_attr(
+                {
+                    "tir_var_upper_bound": {},
+                    "tir_var_lower_bound": {B_min_tir: T.int64(5), S_min_tir: T.int64(2)},
+                    "num_input": 1,
+                }
+            )
+            with R.dataflow():
+                lv: R.Tensor((B_min_tir, S_min_tir), dtype="float32") = R.relu(x)
+                gv: R.Tuple(R.Tensor((B_min_tir, S_min_tir), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+    
+    # Model just needs to accept the inputs
+    class SimpleModelMin(torch.nn.Module):
+        def forward(self, x):
+            return torch.relu(x)
+
+    verify_model(SimpleModelMin(), example_args_min, {}, ExpectedMin, dynamic_shapes=dynamic_shapes_min)
+
+    # --- Test Case 2: Max constraint only --- 
+    B_max = torch.export.Dim("B_max", max=20)
+    S_max = torch.export.Dim("S_max", max=10)
+
+    example_args_max = (torch.randn(15, 8, dtype=torch.float32),)
+    dynamic_shapes_max = {0: {0: B_max, 1: S_max}}
+
+    # Define the expected Relax IRModule for max-only
+    B_max_tir = tir.Var("B_max", "int64")
+    S_max_tir = tir.Var("S_max", "int64")
+
+    @tvm.script.ir_module
+    class ExpectedMax:
+        @R.function
+        def main(x: R.Tensor((B_max_tir, S_max_tir), dtype="float32")) -> R.Tuple(R.Tensor((B_max_tir, S_max_tir), dtype="float32")):
+            R.func_attr(
+                {
+                    "tir_var_upper_bound": {B_max_tir: T.int64(20), S_max_tir: T.int64(10)},
+                    "tir_var_lower_bound": {},
+                    "num_input": 1,
+                }
+            )
+            with R.dataflow():
+                lv: R.Tensor((B_max_tir, S_max_tir), dtype="float32") = R.relu(x)
+                gv: R.Tuple(R.Tensor((B_max_tir, S_max_tir), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+            
+    # Model just needs to accept the inputs
+    class SimpleModelMax(torch.nn.Module):
+        def forward(self, x):
+            return torch.relu(x)
+
+    verify_model(SimpleModelMax(), example_args_max, {}, ExpectedMax, dynamic_shapes=dynamic_shapes_max)
+
+
+# Test symbolic shapes in output
+# ... rest of file ...
 
 if __name__ == "__main__":
     tvm.testing.main()

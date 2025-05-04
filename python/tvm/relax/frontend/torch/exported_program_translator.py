@@ -545,7 +545,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         # Extract range constraints for TIR vars
         if hasattr(exported_program, "range_constraints") and exported_program.range_constraints:
-            for torch_sym_expr, constraint in exported_program.range_constraints.items():
+            for torch_sym_expr, rc in exported_program.range_constraints.items():
                 # Convert sympy expression to string for mapping
                 torch_sym_expr_str = str(torch_sym_expr)
 
@@ -554,8 +554,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                     # TODO(sjt): Handle SymFloat, SymBool cases as well.
                     # Note: min / max could be int or SymInt objects.
                     # Need to handle symbolic shapes as well.
-                    min_val = constraint.min
-                    max_val = constraint.max
+                    min_val = rc.lower
+                    max_val = rc.upper
                     # Call helper to add/refine constraint
                     self._add_range_constraint(
                         relax_range_constraints, relax_tir_var, min_val, max_val
