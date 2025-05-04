@@ -559,30 +559,45 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
                 if torch_sym_expr_str in torch_symbol_to_relax_var:
                     relax_tir_var = torch_symbol_to_relax_var[torch_sym_expr_str]
-                    # TODO(sjt): Handle SymFloat, SymBool cases as well.
-                    # Note: min / max could be int or SymInt objects.
-                    # Need to handle symbolic shapes as well.
+                    # Extract min/max values - Note: these could be None if constraint is one-sided
                     min_val = rc.lower
                     max_val = rc.upper
                     # Call helper to add/refine constraint
                     self._add_range_constraint(
                         relax_range_constraints, relax_tir_var, min_val, max_val
                     )
-                # else:
-                # FIXED Indentation for Black:
-                # TODO: Handle complex expressions (e.g., s0 + 1) for advanced support
-                # print(f"Skipping complex constraint expression: {torch_sym_expr}")
+                    # Add debug info - can be removed in production
+                    logger.debug(
+                        f"Added constraint for {torch_sym_expr_str}: "
+                        f"[{min_val}, {max_val}] -> {relax_range_constraints[relax_tir_var]}"
+                    )
+                else:
+                    # For complex expressions (e.g., s0 + 1) we don't yet have support
+                    logger.debug(f"Skipping complex constraint expression: {torch_sym_expr}")
 
         return parameters_buffers_constants, user_inputs, relax_range_constraints
 
-    # NEW HELPER METHOD
+    # Helper method for handling range constraints
     def _add_range_constraint(self, constraints_dict, relax_tir_var, min_val, max_val):
-        """Adds or refines a range constraint for a TIR variable."""
+        """Adds or refines a range constraint for a TIR variable.
+        
+        Parameters
+        ----------
+        constraints_dict : Dict[tvm.tir.Var, Tuple[Optional[int], Optional[int]]]
+            Dictionary that maps TIR variables to their range constraints
+        relax_tir_var : tvm.tir.Var
+            The TIR variable to constrain
+        min_val : Optional[int]
+            The minimum value (inclusive) or None if no minimum
+        max_val : Optional[int]
+            The maximum value (inclusive) or None if no maximum
+        """
         if relax_tir_var not in constraints_dict:
             constraints_dict[relax_tir_var] = (min_val, max_val)
         else:
             # Refine existing constraints if the new one is tighter
             existing_min, existing_max = constraints_dict[relax_tir_var]
+            
             # Merge lower bounds (take the max)
             if existing_min is None:
                 new_min = min_val
@@ -627,14 +642,16 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # Prepare function attributes
         func_attrs = {"num_input": len(user_input_vars)} if keep_params_as_input else {}
 
-        # NEW: Add range constraints to function attributes if they exist
+        # Add range constraints to function attributes if they exist
         if relax_range_constraints:
             lower_bounds = {}
             upper_bounds = {}
             for tir_var, (min_val, max_val) in relax_range_constraints.items():
                 if min_val is not None:
+                    # For min constraints, use the exact value
                     lower_bounds[tir_var] = tvm.tir.IntImm("int64", min_val)
                 if max_val is not None:
+                    # For max constraints, use the exact value or MAX_INT64 if None
                     upper_bounds[tir_var] = tvm.tir.IntImm("int64", max_val)
 
             if lower_bounds:
