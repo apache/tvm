@@ -4802,7 +4802,7 @@ def test_dynamic_shape_with_constraints():
                     {
                         "tir_var_upper_bound": {B: T.int64(10), S: T.int64(9223372036854775807)},
                         "tir_var_lower_bound": {B: T.int64(3), S: T.int64(1)},
-                        "num_input": 2, # Two user inputs: x and y
+                        "num_input": 2,  # Two user inputs: x and y
                     }
                 )
                 with R.dataflow():
@@ -5063,7 +5063,7 @@ def test_linspace():
 def test_dynamic_shape_single_sided_constraints():
     """Test importing ExportedProgram with single-sided constraints (min only or max only)."""
 
-    # --- Test Case 1: Min constraint only --- 
+    # --- Test Case 1: Min constraint only ---
     B_min = torch.export.Dim("B_min", min=5)
     S_min = torch.export.Dim("S_min", min=2)
 
@@ -5077,7 +5077,9 @@ def test_dynamic_shape_single_sided_constraints():
     @tvm.script.ir_module
     class ExpectedMin:
         @R.function
-        def main(x: R.Tensor((B_min_tir, S_min_tir), dtype="float32")) -> R.Tuple(R.Tensor((B_min_tir, S_min_tir), dtype="float32")):
+        def main(
+            x: R.Tensor((B_min_tir, S_min_tir), dtype="float32")
+        ) -> R.Tuple(R.Tensor((B_min_tir, S_min_tir), dtype="float32")):
             R.func_attr(
                 {
                     "tir_var_upper_bound": {},
@@ -5096,9 +5098,11 @@ def test_dynamic_shape_single_sided_constraints():
         def forward(self, x):
             return torch.relu(x)
 
-    verify_model(SimpleModelMin(), example_args_min, {}, ExpectedMin, dynamic_shapes=dynamic_shapes_min)
+    verify_model(
+        SimpleModelMin(), example_args_min, {}, ExpectedMin, dynamic_shapes=dynamic_shapes_min
+    )
 
-    # --- Test Case 2: Max constraint only --- 
+    # --- Test Case 2: Max constraint only ---
     B_max = torch.export.Dim("B_max", max=20)
     S_max = torch.export.Dim("S_max", max=10)
 
@@ -5112,7 +5116,9 @@ def test_dynamic_shape_single_sided_constraints():
     @tvm.script.ir_module
     class ExpectedMax:
         @R.function
-        def main(x: R.Tensor((B_max_tir, S_max_tir), dtype="float32")) -> R.Tuple(R.Tensor((B_max_tir, S_max_tir), dtype="float32")):
+        def main(
+            x: R.Tensor((B_max_tir, S_max_tir), dtype="float32")
+        ) -> R.Tuple(R.Tensor((B_max_tir, S_max_tir), dtype="float32")):
             R.func_attr(
                 {
                     "tir_var_upper_bound": {B_max_tir: T.int64(20), S_max_tir: T.int64(10)},
@@ -5124,15 +5130,15 @@ def test_dynamic_shape_single_sided_constraints():
                 lv: R.Tensor((B_max_tir, S_max_tir), dtype="float32") = R.relu(x)
                 gv: R.Tuple(R.Tensor((B_max_tir, S_max_tir), dtype="float32")) = (lv,)
                 R.output(gv)
-            return gv
-            
+            return gv            
     # Model just needs to accept the inputs
     class SimpleModelMax(torch.nn.Module):
         def forward(self, x):
             return torch.relu(x)
 
-    verify_model(SimpleModelMax(), example_args_max, {}, ExpectedMax, dynamic_shapes=dynamic_shapes_max)
-
+    verify_model(
+        SimpleModelMax(), example_args_max, {}, ExpectedMax, dynamic_shapes=dynamic_shapes_max
+        )
 
 # Test symbolic shapes in output
 # ... rest of file ...
