@@ -57,5 +57,9 @@ TVM_FFI_REGISTER_GLOBAL("testing.run_check_signal").set_body_typed([](int nsec) 
   std::cout << "Function finished without catching signal" << std::endl;
 });
 
+TVM_FFI_REGISTER_GLOBAL("testing.object_use_count").set_body_typed([](const Object* obj) {
+  return obj->use_count();
+});
+
 }  // namespace ffi
 }  // namespace tvm

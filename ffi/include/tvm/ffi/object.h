@@ -179,6 +179,12 @@ class Object {
 
   bool unique() const { return use_count() == 1; }
 
+  /*!
+   * \return The usage count of the cell.
+   * \note We use stl style naming to be consistent with known API in shared_ptr.
+   */
+  int32_t use_count() const { return details::AtomicLoadRelaxed(&(header_.ref_counter)); }
+
   // Information about the object
   static constexpr const char* _type_key = "object.Object";
 
@@ -219,12 +225,6 @@ class Object {
       }
     }
   }
-
-  /*!
-   * \return The usage count of the cell.
-   * \note We use stl style naming to be consistent with known API in shared_ptr.
-   */
-  int32_t use_count() const { return details::AtomicLoadRelaxed(&(header_.ref_counter)); }
 
   // friend classes
   template <typename>

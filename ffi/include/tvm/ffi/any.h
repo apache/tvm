@@ -166,16 +166,27 @@ TVM_FFI_INLINE void InplaceConvertAnyViewToAny(TVMFFIAny* data,
                                                [[maybe_unused]] size_t extra_any_bytes = 0) {
   if (data->type_index >= TVMFFITypeIndex::kTVMFFIStaticObjectBegin) {
     details::ObjectUnsafe::IncRefObjectHandle(data->v_obj);
-  } else if (data->type_index == TypeIndex::kTVMFFIRawStr) {
-    // convert raw string to owned string object
-    String temp(data->v_c_str);
-    data->type_index = TypeIndex::kTVMFFIStr;
-    data->v_obj = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(temp));
-  } else if (data->type_index == TypeIndex::kTVMFFIByteArrayPtr) {
-    // convert byte array to owned bytes object
-    Bytes temp(*static_cast<TVMFFIByteArray*>(data->v_ptr));
-    data->type_index = TypeIndex::kTVMFFIBytes;
-    data->v_obj = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(temp));
+  } else if (data->type_index >= TypeIndex::kTVMFFIRawStr) {
+    if (data->type_index == TypeIndex::kTVMFFIRawStr) {
+      // convert raw string to owned string object
+      String temp(data->v_c_str);
+      data->type_index = TypeIndex::kTVMFFIStr;
+      data->v_obj = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(temp));
+    } else if (data->type_index == TypeIndex::kTVMFFIByteArrayPtr) {
+      // convert byte array to owned bytes object
+      Bytes temp(*static_cast<TVMFFIByteArray*>(data->v_ptr));
+      data->type_index = TypeIndex::kTVMFFIBytes;
+      data->v_obj = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(temp));
+    } else if (data->type_index == TypeIndex::kTVMFFIObjectRValueRef) {
+      // convert rvalue ref to owned object
+      Object** obj_addr = static_cast<Object**>(data->v_ptr);
+      TVM_FFI_ICHECK(obj_addr[0] != nullptr) << "RValueRef already moved";
+      ObjectRef temp(details::ObjectUnsafe::ObjectPtrFromOwned<Object>(obj_addr[0]));
+      // set the rvalue ref to nullptr to avoid double move
+      obj_addr[0] = nullptr;
+      data->type_index = temp->type_index();
+      data->v_obj = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(temp));
+    }
   }
 }
 }  // namespace details
