@@ -5006,7 +5006,7 @@ def test_cross_entropy():
 
     example_args1 = (torch.randn(4, 3, dtype=torch.float32),)
     verify_model(CrossEntropyModule(), example_args1, {}, Expected1)
-    
+
 def test_linspace():
     class Linspace(Module):
         def forward(self, input):
@@ -5057,3 +5057,4 @@ def test_bfloat16():
 
 if __name__ == "__main__":
     tvm.testing.main()
+1

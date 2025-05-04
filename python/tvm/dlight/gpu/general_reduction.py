@@ -38,9 +38,16 @@ class GeneralReduction(GPUScheduleRule):
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
 
+        print("\n##########################################################################################")
+        print("                      ENTERING general_reduction.py     ")
+        print("##########################################################################################\n")
+
+        print("func:")
+        print(func)
+
         if target.kind.name == "cuda":
-            len_tx = 256
-            unroll_depth = 256
+            len_tx = 256 # Number of threads per block
+            unroll_depth = 256 # How many iterations of loop to unroll
         elif target.kind.name == "opencl":
             len_tx = 256
             unroll_depth = 64
@@ -54,6 +61,13 @@ class GeneralReduction(GPUScheduleRule):
         if block_infos is None or len(block_infos) == 0:
             return None
 
+        print("block_infos:")
+        for block_info in block_infos:
+            print(block_info)
+
+        print("len(block_infos):")
+        print(len(block_infos))
+
         dom_kind = block_infos[0].dom_kind()
         num_leading_s = len(dom_kind) - len(dom_kind.lstrip("S"))
         num_trailing_r = len(dom_kind) - len(dom_kind.rstrip("R"))
@@ -61,23 +75,24 @@ class GeneralReduction(GPUScheduleRule):
         # Align the number of block iters of the last block.
         num_last_block_iter = len(block_infos[-1].dom_kind())
 
-        # If the last block is a scalar value, there is nothing left to
-        # tile/parallelise, and  `iters` is an empty tuple.
-        # Add a unit thread loop so the final write happens inside a valid
-        # GPU thread environment.
-        if num_last_block_iter == 0:
-            # Put every block (both the running reductions and the final
-            # scalar write) inside a trivial GPU thread. The very first block
-            # gets a `blockIdx.x` wrapper so that kernels still have a unique
-            # block scope.
-            for i, info in enumerate(block_infos):
-                loop_rv = sch.add_unit_loop(info.block_rv)
-                if i == 0:
-                    sch.bind(loop_rv, "blockIdx.x")
-                else:
-                    sch.bind(loop_rv, "threadIdx.x")
+        # FIXME: this block of code makes CrossEntropyLoss work but Sort fail. 
+        # # If the last block is a scalar value, there is nothing left to
+        # # tile/parallelise, and  `iters` is an empty tuple.
+        # # Add a unit thread loop so the final write happens inside a valid
+        # # GPU thread environment.
+        # if num_last_block_iter == 0:
+        #     # Put every block (both the running reductions and the final
+        #     # scalar write) inside a trivial GPU thread. The very first block
+        #     # gets a `blockIdx.x` wrapper so that kernels still have a unique
+        #     # block scope.
+        #     for i, info in enumerate(block_infos):
+        #         loop_rv = sch.add_unit_loop(info.block_rv)
+        #         if i == 0:
+        #             sch.bind(loop_rv, "blockIdx.x")
+        #         else:
+        #             sch.bind(loop_rv, "threadIdx.x")
 
-            return sch
+        #     return sch
 
         if num_last_block_iter < len(dom_kind):
 
