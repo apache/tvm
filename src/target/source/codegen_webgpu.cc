@@ -348,6 +348,17 @@ void CodeGenWebGPU::PrintSSAAssign(const std::string& target, const std::string&
   stream << " = " << src << ";\n";
 }
 
+void CodeGenWebGPU::PrintVecElemLoad(const std::string& vec, DataType t, int i,
+                                     std::ostream& os) {  // NOLINT(*)
+  os << vec << "[" << i << "]";
+}
+
+void CodeGenWebGPU::PrintVecElemStore(const std::string& vec, DataType t, int i,
+                                      const std::string& value) {
+  this->PrintIndent();
+  stream << vec << "[" << i << "] = " << value << ";\n";
+}
+
 void CodeGenWebGPU::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   int lanes = op->dtype.lanes();
