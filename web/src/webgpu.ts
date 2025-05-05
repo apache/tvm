@@ -110,10 +110,16 @@ export async function detectGPUDevice(powerPreference: "low-power" | "high-perfo
       );
     }
 
-    const requiredFeatures: GPUFeatureName[] = [];
+    // TODO(Charlie): cannot type annotate because @webgpu/types
+    // does not have "subgroups" as GPUFeatureName yet
+    // const requiredFeatures: GPUFeatureName[] = [];
+    const requiredFeatures = [];
     // Always require f16 if available
     if (adapter.features.has("shader-f16")) {
       requiredFeatures.push("shader-f16");
+    }
+    if (adapter.features.has("subgroups")) {
+      requiredFeatures.push("subgroups");
     }
 
     // requestAdapterInfo() is deprecated, causing requestAdapterInfo to raise
