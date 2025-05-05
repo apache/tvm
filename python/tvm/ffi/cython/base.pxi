@@ -128,6 +128,7 @@ cdef extern from "tvm/ffi/c_api.h":
         TVMFFIByteArray kind
         TVMFFIByteArray message
         TVMFFIByteArray traceback
+        void (*update_traceback)(TVMFFIObjectHandle self, const TVMFFIByteArray* traceback)
 
     ctypedef int (*TVMFFISafeCallType)(
         void* ctx, const TVMFFIAny* args, int32_t num_args,
@@ -144,7 +145,6 @@ cdef extern from "tvm/ffi/c_api.h":
     int TVMFFIFunctionGetGlobal(TVMFFIByteArray* name, TVMFFIObjectHandle* out) nogil
     void TVMFFIErrorMoveFromRaised(TVMFFIObjectHandle* result) nogil
     void TVMFFIErrorSetRaised(TVMFFIObjectHandle error) nogil
-    void TVMFFIErrorUpdateTraceback(TVMFFIObjectHandle error, TVMFFIByteArray* traceback) nogil
     TVMFFIObjectHandle TVMFFIErrorCreate(TVMFFIByteArray* kind, TVMFFIByteArray* message,
                                          TVMFFIByteArray* traceback) nogil
     int TVMFFIEnvRegisterCAPI(TVMFFIByteArray* name, void* ptr) nogil

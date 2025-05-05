@@ -28,6 +28,8 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/type_traits.h>
 
+#include <string>
+
 namespace tvm {
 namespace ffi {
 namespace details {

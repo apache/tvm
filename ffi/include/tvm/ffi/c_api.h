@@ -224,6 +224,12 @@ typedef struct {
    * \brief The traceback of the error.
    */
   TVMFFIByteArray traceback;
+  /*!
+   * \brief Function handle to update the traceback of the error.
+   * \param self The self object handle.
+   * \param traceback The traceback to update.
+   */
+  void (*update_traceback)(TVMFFIObjectHandle self, const TVMFFIByteArray* traceback);
 } TVMFFIErrorCell;
 
 /*!
@@ -482,14 +488,6 @@ TVM_FFI_DLL void TVMFFIErrorSetRaisedByCStr(const char* kind, const char* messag
 TVM_FFI_DLL TVMFFIObjectHandle TVMFFIErrorCreate(const TVMFFIByteArray* kind,
                                                  const TVMFFIByteArray* message,
                                                  const TVMFFIByteArray* traceback);
-
-/*!
- * \brief Update the traceback of an Error object.
- * \param obj The error handle.
- * \param traceback The traceback to update.
- */
-TVM_FFI_DLL void TVMFFIErrorUpdateTraceback(TVMFFIObjectHandle obj,
-                                            const TVMFFIByteArray* traceback);
 
 /*!
  * \brief Check if there are any signals raised in the surrounding env.

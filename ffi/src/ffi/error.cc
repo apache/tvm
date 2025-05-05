@@ -67,13 +67,6 @@ void TVMFFIErrorMoveFromRaised(TVMFFIObjectHandle* result) {
   tvm::ffi::SafeCallContext::ThreadLocal()->MoveFromRaised(result);
 }
 
-void TVMFFIErrorUpdateTraceback(TVMFFIObjectHandle obj, const TVMFFIByteArray* traceback) {
-  TVM_FFI_LOG_EXCEPTION_CALL_BEGIN();
-  static_cast<tvm::ffi::ErrorObj*>(reinterpret_cast<tvm::ffi::Object*>(obj))
-      ->UpdateTraceback(traceback);
-  TVM_FFI_LOG_EXCEPTION_CALL_END(TVMFFIErrorUpdateTraceback);
-}
-
 TVMFFIObjectHandle TVMFFIErrorCreate(const TVMFFIByteArray* kind, const TVMFFIByteArray* message,
                                      const TVMFFIByteArray* traceback) {
   TVM_FFI_LOG_EXCEPTION_CALL_BEGIN();

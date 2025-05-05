@@ -81,26 +81,39 @@ struct EnvErrorAlreadySet : public std::exception {};
  */
 class ErrorObj : public Object, public TVMFFIErrorCell {
  public:
-  /*!
-   * \brief Update the traceback of the error object.
-   * \param traceback The traceback to update.
-   */
-  void UpdateTraceback(const TVMFFIByteArray* traceback_str) {
-    this->traceback_data_ = std::string(traceback_str->data, traceback_str->size);
-    this->traceback = TVMFFIByteArray{this->traceback_data_.data(), this->traceback_data_.length()};
-  }
-
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIError;
   static constexpr const char* _type_key = "object.Error";
 
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ErrorObj, Object);
+};
+
+namespace details {
+class ErrorObjFromStd : public ErrorObj {
+ public:
+  ErrorObjFromStd(std::string kind, std::string message, std::string traceback)
+      : kind_data_(kind), message_data_(message), traceback_data_(traceback) {
+    this->kind = TVMFFIByteArray{kind_data_.data(), kind_data_.length()};
+    this->message = TVMFFIByteArray{message_data_.data(), message_data_.length()};
+    this->traceback = TVMFFIByteArray{traceback_data_.data(), traceback_data_.length()};
+    this->update_traceback = UpdateTraceback;
+  }
 
  private:
-  friend class Error;
+  /*!
+   * \brief Update the traceback of the error object.
+   * \param traceback The traceback to update.
+   */
+  static void UpdateTraceback(TVMFFIObjectHandle self, const TVMFFIByteArray* traceback_str) {
+    ErrorObjFromStd* obj = static_cast<ErrorObjFromStd*>(self);
+    obj->traceback_data_ = std::string(traceback_str->data, traceback_str->size);
+    obj->traceback = TVMFFIByteArray{obj->traceback_data_.data(), obj->traceback_data_.length()};
+  }
+
   std::string kind_data_;
   std::string message_data_;
   std::string traceback_data_;
 };
+}  // namespace details
 
 /*!
  * \brief Managed reference to ErrorObj
@@ -109,14 +122,7 @@ class ErrorObj : public Object, public TVMFFIErrorCell {
 class Error : public ObjectRef, public std::exception {
  public:
   Error(std::string kind, std::string message, std::string traceback) {
-    ObjectPtr<ErrorObj> n = make_object<ErrorObj>();
-    n->kind_data_ = std::move(kind);
-    n->message_data_ = std::move(message);
-    n->traceback_data_ = std::move(traceback);
-    n->kind = TVMFFIByteArray{n->kind_data_.data(), n->kind_data_.length()};
-    n->message = TVMFFIByteArray{n->message_data_.data(), n->message_data_.length()};
-    n->traceback = TVMFFIByteArray{n->traceback_data_.data(), n->traceback_data_.length()};
-    data_ = std::move(n);
+    data_ = make_object<details::ErrorObjFromStd>(kind, message, traceback);
   }
 
   Error(std::string kind, std::string message, const TVMFFIByteArray* traceback)
@@ -135,6 +141,11 @@ class Error : public ObjectRef, public std::exception {
   std::string traceback() const {
     ErrorObj* obj = static_cast<ErrorObj*>(data_.get());
     return std::string(obj->traceback.data, obj->traceback.size);
+  }
+
+  void UpdateTraceback(const TVMFFIByteArray* traceback_str) {
+    ErrorObj* obj = static_cast<ErrorObj*>(data_.get());
+    obj->update_traceback(obj, traceback_str);
   }
 
   const char* what() const noexcept(true) override {

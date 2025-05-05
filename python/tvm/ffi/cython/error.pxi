@@ -89,7 +89,7 @@ cdef class Error(Object):
             The traceback to update.
         """
         cdef ByteArrayArg traceback_arg = ByteArrayArg(c_str(traceback))
-        TVMFFIErrorUpdateTraceback(self.chandle, traceback_arg.cptr())
+        TVMFFIErrorGetCellPtr(self.chandle).update_traceback(self.chandle, traceback_arg.cptr())
 
     def py_error(self):
         """

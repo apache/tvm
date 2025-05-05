@@ -411,7 +411,9 @@ class Function : public ObjectRef {
     return res.value();
   }
 
-  static Function GetGlobalRequired(const std::string& name) { return GetGlobalRequired(name); }
+  static Function GetGlobalRequired(const std::string& name) {
+    return GetGlobalRequired(std::string_view(name.data(), name.length()));
+  }
 
   static Function GetGlobalRequired(const String& name) {
     return GetGlobalRequired(std::string_view(name.data(), name.length()));
