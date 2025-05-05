@@ -23,9 +23,8 @@
  */
 #ifdef _MSC_VER
 
-#include <dbghelp.h>
 #include <windows.h>
-#pragma comment(lib, "DbgHelp.lib")
+#include <dbghelp.h>  // NOLINT(*)
 
 #include <tvm/ffi/c_api.h>
 #include <tvm/ffi/error.h>

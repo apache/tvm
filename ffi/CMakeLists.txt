@@ -104,6 +104,13 @@ if (TARGET libbacktrace)
   target_link_libraries(tvm_ffi_shared PRIVATE libbacktrace)
   target_link_libraries(tvm_ffi_static PRIVATE libbacktrace)
 endif ()
+
+if (MSVC)
+  target_link_libraries(tvm_ffi_objs PRIVATE DbgHelp.lib)
+  target_link_libraries(tvm_ffi_shared PRIVATE DbgHelp.lib)
+  target_link_libraries(tvm_ffi_static PRIVATE DbgHelp.lib)
+endif ()
+
 target_link_libraries(tvm_ffi_objs PUBLIC tvm_ffi_header)
 target_link_libraries(tvm_ffi_shared PUBLIC tvm_ffi_header)
 target_link_libraries(tvm_ffi_static PUBLIC tvm_ffi_header)
