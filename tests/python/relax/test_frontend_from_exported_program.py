@@ -530,7 +530,7 @@ def test_extended_unary_ops():
             return torch.ops.aten.relu6_(x)
 
     @tvm.script.ir_module
-    class expected1:
+    class expected_relu6_1:
         @R.function
         def main(
             x: R.Tensor((1, 3, 10, 10), dtype="float32")
@@ -544,7 +544,7 @@ def test_extended_unary_ops():
             return gv
 
     @tvm.script.ir_module
-    class expected2:
+    class expected_relu6_2:
         @R.function
         def main(
             x: R.Tensor((1, 3, 10, 10), dtype="float32")
@@ -555,9 +555,9 @@ def test_extended_unary_ops():
                 R.output(gv)
             return gv
 
-    verify_model(ReLU6_1(), example_args, {}, expected1)
-    verify_model(ReLU6_2(), example_args, {}, expected2)
-    verify_model(ReLU6_3(), example_args, {}, expected2)
+    verify_model(ReLU6_1(), example_args, {}, expected_relu6_1)
+    verify_model(ReLU6_2(), example_args, {}, expected_relu6_2)
+    verify_model(ReLU6_3(), example_args, {}, expected_relu6_2)
 
 
 def test_hardtanh():
