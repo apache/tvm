@@ -385,6 +385,7 @@ def test_nn():
     class Model(Module):
         def test(self, x: Tensor, weight: Tensor, bias: Tensor):
             relu_out = op.relu(x)
+            relu6_out = op.relu6(x)
             silu_out = op.silu(x)
             gelu_out = op.gelu(x)
             sigmoid_out = op.sigmoid(x)
@@ -409,6 +410,7 @@ def test_nn():
         R.func_attr({"num_input": 4})
         with R.dataflow():
             relu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu(x)
+            relu6: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu6(x)
             silu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.silu(x)
             gelu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.gelu(x)
             sigmoid: R.Tensor((2, 3, 4, 5), dtype="float32") = R.sigmoid(x)

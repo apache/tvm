@@ -1267,6 +1267,25 @@ def relu(data: Expr) -> Expr:
     return _ffi_api.relu(data)  # type: ignore
 
 
+def relu6(data: Expr) -> Expr:
+    r"""ReLU6 activation function.
+
+    .. math::
+        \text{ReLU6}(x) = \min(\max(x, 0), 6)
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.relu6(data)
+
+
 def leakyrelu(data: Expr, alpha: float = 0.01) -> Expr:
     """Rectified linear unit.
 

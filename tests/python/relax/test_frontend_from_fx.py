@@ -2665,27 +2665,30 @@ def test_extended_unary_ops():
     verify_model(ReLU1(), input_info, {}, expected_relu)
 
     # relu6
-    class ReLU6(Module):
+    class ReLU6_1(torch.nn.Module):
         def __init__(self):
             super().__init__()
             self.relu6 = torch.nn.ReLU6()
 
-        def forward(self, input):
-            return self.relu6(input)
+        def forward(self, x):
+            return self.relu6(x)
+
+    class ReLU6_2(torch.nn.Module):
+        def forward(self, x):
+            return torch.nn.functional.relu6(x)
 
     @tvm.script.ir_module
-    class expected_relu6:
+    class expected:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(input_1, 0, 6)
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu6(inp_0)
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
                 R.output(gv)
             return gv
 
-    verify_model(ReLU6(), input_info, {}, expected_relu6)
+    verify_model(ReLU6_1(), input_info, {}, expected)
+    verify_model(ReLU6_2(), input_info, {}, expected)
 
     # selu
     class Selu1(Module):

@@ -930,6 +930,28 @@ def relu(x: Tensor, name: str = "relu") -> Tensor:
     return wrap_nested(_op.nn.relu(x._expr), name)
 
 
+def relu6(x: Tensor, name: str = "relu6") -> Tensor:
+    r"""ReLU6 activation function.
+
+    .. math::
+        \text{ReLU6}(x) = \min(\max(x, 0), 6)
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.nn.relu6(x._expr), name)
+
+
 def silu(x: Tensor, name: str = "silu") -> Tensor:
     r"""Sigmoid Linear Unit function
 
