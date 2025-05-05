@@ -53,8 +53,12 @@ def relu6(x):
     y : tvm.te.Tensor
         The result, clipped between 0 and 6.
     """
-    return te.compute(x.shape,
-                      lambda *i: tvm.te.min(tvm.te.max(x(*i), tvm.tir.const(0, x.dtype)), tvm.tir.const(6, x.dtype)))
+    return te.compute(
+        x.shape,
+        lambda *i: tvm.te.min(
+            tvm.te.max(x(*i), tvm.tir.const(0, x.dtype)), tvm.tir.const(6, x.dtype)
+        ),
+    )
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)

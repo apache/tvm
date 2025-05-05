@@ -532,9 +532,13 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(x, R.prim_value(T.float64(0.0)), R.prim_value(T.float64(6.0)))
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(
+                    x, R.prim_value(T.float64(0.0)), R.prim_value(T.float64(6.0))
+                )
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
@@ -542,7 +546,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(x: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu6(x)
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
@@ -552,6 +558,7 @@ def test_extended_unary_ops():
     verify_model(ReLU6_1(), example_args, {}, expected1)
     verify_model(ReLU6_2(), example_args, {}, expected2)
     verify_model(ReLU6_3(), example_args, {}, expected2)
+
 
 def test_hardtanh():
     class Hardtanh(torch.nn.Module):

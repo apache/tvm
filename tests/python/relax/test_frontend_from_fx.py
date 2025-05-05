@@ -2680,7 +2680,9 @@ def test_extended_unary_ops():
     @tvm.script.ir_module
     class expected:
         @R.function
-        def main(inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu6(inp_0)
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
