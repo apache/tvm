@@ -81,11 +81,11 @@ def test_max_pool1d_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
     c = tir.Var("c", "int64")
-    l = tir.Var("l", "int64")
+    w = tir.Var("w", "int64")
     c16 = tir.Var("c16", "int64")
 
-    x0 = relax.Var("x", R.Tensor((n, c, l), "float32"))
-    x1 = relax.Var("x", R.Tensor((n, c, l, c16), "float32"))
+    x0 = relax.Var("x", R.Tensor((n, c, w), "float32"))
+    x1 = relax.Var("x", R.Tensor((n, c, w, c16), "float32"))
 
     _check_inference(
         bb,
@@ -96,23 +96,23 @@ def test_max_pool1d_infer_struct_info_shape_symbolic():
             (
                 n,
                 c,
-                tvm.tir.floordiv(l - 1, 3) + 1,
+                tvm.tir.floordiv(w - 1, 3) + 1,
             ),
             "float32",
         ),
     )
     _check_inference(
         bb,
-        relax.op.nn.max_pool1d(x1, layout="NCL16c", out_layout="NLC"),
-        relax.TensorStructInfo((n, l, c * 16), "float32"),
+        relax.op.nn.max_pool1d(x1, layout="NCW16c", out_layout="NWC"),
+        relax.TensorStructInfo((n, w, c * 16), "float32"),
     )
 
 
 def test_max_pool1d_infer_struct_info_shape_var():
     bb = relax.BlockBuilder()
-    s0 = relax.Var("s", relax.ShapeStructInfo(ndim=3))  # For NCL layout
-    s1 = relax.Var("s", relax.ShapeStructInfo(ndim=4))  # For packed format like NCL16c
-    s2 = relax.Var("s", relax.ShapeStructInfo())        # Unknown shape
+    s0 = relax.Var("s", relax.ShapeStructInfo(ndim=3))
+    s1 = relax.Var("s", relax.ShapeStructInfo(ndim=4))
+    s2 = relax.Var("s", relax.ShapeStructInfo())
 
     x0 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
     x1 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
@@ -123,7 +123,7 @@ def test_max_pool1d_infer_struct_info_shape_var():
     )
     _check_inference(
         bb,
-        relax.op.nn.max_pool1d(x1, layout="NCL16c"),
+        relax.op.nn.max_pool1d(x1, layout="NCW16c"),
         relax.TensorStructInfo(dtype="float32", ndim=4),
     )
     _check_inference(
@@ -135,7 +135,7 @@ def test_max_pool1d_infer_struct_info_shape_var():
 
 def test_max_pool1d_infer_struct_info_ceil_mode():
     bb = relax.BlockBuilder()
-    x = relax.Var("x", R.Tensor((2, 3, 32), "float32"))  # Shape: (N, C, L)
+    x = relax.Var("x", R.Tensor((2, 3, 32), "float32"))
 
     _check_inference(
         bb,
@@ -152,8 +152,8 @@ def test_max_pool1d_infer_struct_info_ceil_mode_symbolic():
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
     c = tir.Var("c", "int64")
-    l = tir.Var("l", "int64")  # Length dimension for 1D
-    x = relax.Var("x", R.Tensor((n, c, l), "float32"))
+    w = tir.Var("w", "int64")
+    x = relax.Var("x", R.Tensor((n, c, w), "float32"))
 
     _check_inference(
         bb,
@@ -161,7 +161,7 @@ def test_max_pool1d_infer_struct_info_ceil_mode_symbolic():
             x, pool_size=3, strides=2, padding=1, dilation=2, ceil_mode=True
         ),
         relax.TensorStructInfo(
-            (n, c, tvm.tir.floordiv(l, 2)),
+            (n, c, tvm.tir.floordiv(w, 2)),
             "float32"
         ),
     )
@@ -210,26 +210,26 @@ def test_max_pool1d_infer_struct_info_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 28), "float32"))
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.max_pool1d(x, layout="OIW"))  # Invalid layout
+        bb.normalize(relax.op.nn.max_pool1d(x, layout="OIW"))
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.max_pool1d(x, out_layout="OWI"))  # Invalid out_layout
+        bb.normalize(relax.op.nn.max_pool1d(x, out_layout="OWI"))
 
 
 def test_max_pool1d_wrong_input_ndim():
     bb = relax.BlockBuilder()
-    x0 = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))  # 4D input (invalid for 1D pooling)
-    x1 = relax.Var("x", R.Tensor("float32", ndim=2))          # 2D input (also invalid)
+    x0 = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=5))
 
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.max_pool1d(x0))  # Should raise: expected 3D input for NCW layout
+        bb.normalize(relax.op.nn.max_pool1d(x0))
 
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.max_pool1d(x1))  # Should raise: expected ndim == 3
+        bb.normalize(relax.op.nn.max_pool1d(x1))
 
 
 def test_max_pool1d_infer_struct_info_wrong_input_type():
     bb = relax.BlockBuilder()
-    x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28)))  # Not a tensor
+    x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28)))
     x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 28), "float32")))  # Function, not tensor
 
     with pytest.raises(TVMError):
@@ -577,9 +577,9 @@ def test_max_pool3d_infer_struct_info_shape_symbolic():
 
 def test_max_pool3d_infer_struct_info_shape_var():
     bb = relax.BlockBuilder()
-    s0 = relax.Var("s", relax.ShapeStructInfo(ndim=5))  # NDHWC or NCDHW shape
-    s1 = relax.Var("s", relax.ShapeStructInfo(ndim=6))  # e.g., NCDHW16c
-    s2 = relax.Var("s", relax.ShapeStructInfo())        # unknown rank
+    s0 = relax.Var("s", relax.ShapeStructInfo(ndim=5))
+    s1 = relax.Var("s", relax.ShapeStructInfo(ndim=6))
+    s2 = relax.Var("s", relax.ShapeStructInfo())
     x0 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
     x1 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
     x2 = relax.Var("x", relax.TensorStructInfo(s2, "float32"))
