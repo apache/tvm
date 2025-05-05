@@ -28,7 +28,6 @@
 #include <tvm/runtime/packed_func.h>
 
 #include <memory>
-#include <mutex>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -95,7 +94,6 @@ class AttrRegistry {
    */
   void UpdateAttr(const String& attr_name, const KeyType& key, Any value, int plevel) {
     using runtime::TVMRetValue;
-    std::lock_guard<std::mutex> lock(mutex_);
     auto& op_map = attrs_[attr_name];
     if (op_map == nullptr) {
       op_map.reset(new AttrRegistryMapContainerMap<KeyType>());
@@ -122,7 +120,6 @@ class AttrRegistry {
    * \param key The key to the attribute table.
    */
   void ResetAttr(const String& attr_name, const KeyType& key) {
-    std::lock_guard<std::mutex> lock(mutex_);
     auto& op_map = attrs_[attr_name];
     if (op_map == nullptr) {
       return;
@@ -139,7 +136,6 @@ class AttrRegistry {
    * \return The result attribute map.
    */
   const AttrRegistryMapContainerMap<KeyType>& GetAttrMap(const String& attr_name) {
-    std::lock_guard<std::mutex> lock(mutex_);
     auto it = attrs_.find(attr_name);
     if (it == attrs_.end()) {
       LOG(FATAL) << "Attribute \'" << attr_name << "\' is not registered";
@@ -152,10 +148,7 @@ class AttrRegistry {
    * \param attr_name The name of the attribute.
    * \return The check result.
    */
-  bool HasAttrMap(const String& attr_name) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return attrs_.count(attr_name);
-  }
+  bool HasAttrMap(const String& attr_name) { return attrs_.count(attr_name); }
 
   /*!
    * \return a global singleton of the registry.
@@ -166,8 +159,6 @@ class AttrRegistry {
   }
 
  private:
-  // mutex to avoid registration from multiple threads.
-  std::mutex mutex_;
   // entries in the registry
   std::vector<std::unique_ptr<EntryType>> entries_;
   // map from name to entries.

@@ -23,8 +23,10 @@
  */
 #ifdef _MSC_VER
 
+// clang-format off
 #include <windows.h>
 #include <dbghelp.h>  // NOLINT(*)
+// clang-format on
 
 #include <tvm/ffi/c_api.h>
 #include <tvm/ffi/error.h>
