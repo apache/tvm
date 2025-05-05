@@ -1857,6 +1857,8 @@ pow = _op_wrapper(_tir_op.pow)  # pylint: disable=redefined-builtin
 q_multiply_shift = _op_wrapper(_tir_op.q_multiply_shift)
 q_multiply_shift_per_axis = _op_wrapper(_tir_op.q_multiply_shift_per_axis)
 ret = _op_wrapper(_tir_op.ret)
+continue_loop = _op_wrapper(_tir_op.continue_loop)
+break_loop = _op_wrapper(_tir_op.break_loop)
 round = _op_wrapper(_tir_op.round)  # pylint: disable=redefined-builtin
 rsqrt = _op_wrapper(_tir_op.rsqrt)
 shift_left = _op_wrapper(_tir_op.shift_left)
@@ -2148,6 +2150,8 @@ __all__ = [
     "q_multiply_shift",
     "q_multiply_shift_per_axis",
     "ret",
+    "continue_loop",
+    "break_loop",
     "reinterpret",
     "round",
     "rsqrt",

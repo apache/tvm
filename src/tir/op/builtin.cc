@@ -48,6 +48,14 @@ TIR_DEFINE_BUILTIN_FUNC(ret)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kControlJump))
     .set_num_inputs(1);
 
+TIR_DEFINE_BUILTIN_FUNC(continue_loop)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kControlJump))
+    .set_num_inputs(0);
+
+TIR_DEFINE_BUILTIN_FUNC(break_loop)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kControlJump))
+    .set_num_inputs(0);
+
 TIR_DEFINE_BUILTIN_FUNC(likely)
     .set_num_inputs(1)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kExprAnnotation))

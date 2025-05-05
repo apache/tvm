@@ -46,6 +46,14 @@ namespace builtin {
  */
 TVM_DLL const Op& ret();
 /*!
+ * \brief Loop continue.
+ */
+TVM_DLL const Op& continue_loop();
+/*!
+ * \brief Loop break.
+ */
+TVM_DLL const Op& break_loop();
+/*!
  * \brief Reinterpret the value using the target type.
  */
 TVM_DLL const Op& reinterpret();

@@ -401,7 +401,14 @@ def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
         The call expression.
     """
     return call_intrin(
-        "handle", "tir.tvm_stack_make_array", data, shape, strides, ndim, arr_dtype, elem_offset
+        "handle",
+        "tir.tvm_stack_make_array",
+        data,
+        shape,
+        strides,
+        ndim,
+        arr_dtype,
+        elem_offset,
     )
 
 
@@ -1376,7 +1383,13 @@ def ptx_cp_async(dtype, shared_ptr, shared_offset, global_ptr, global_offset, by
         The call expression.
     """
     return call_intrin(
-        dtype, "tir.ptx_cp_async", shared_ptr, shared_offset, global_ptr, global_offset, bytes
+        dtype,
+        "tir.ptx_cp_async",
+        shared_ptr,
+        shared_offset,
+        global_ptr,
+        global_offset,
+        bytes,
     )
 
 
@@ -1691,7 +1704,15 @@ def simdgroup_store(
         The call expression.
     """
     return call_intrin(
-        "handle", "tir.simdgroup_store", d, index, ptr, stride, col, row, transpose_matrix
+        "handle",
+        "tir.simdgroup_store",
+        d,
+        index,
+        ptr,
+        stride,
+        col,
+        row,
+        transpose_matrix,
     )
 
 
@@ -1850,6 +1871,40 @@ def ret(val, span=None):
     """
 
     return _ffi_api.ret(val, span)
+
+
+def continue_loop(span=None):
+    """Create a tir intrinsic call to represent continue expression
+
+    Parameters
+    ----------
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    ret : PrimExpr
+        The continue expression
+    """
+
+    return _ffi_api.continue_loop(span)
+
+
+def break_loop(span=None):
+    """Create a tir intrinsic call to represent break expression
+
+    Parameters
+    ----------
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    ret : PrimExpr
+        The break expression
+    """
+
+    return _ffi_api.break_loop(span)
 
 
 def any(*args, span=None):
