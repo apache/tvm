@@ -984,6 +984,100 @@ def test_prelu():
     verify_model(Prelu2(), input_info, {}, expected)
 
 
+def test_maxpool1d():
+    input_info = [([1, 3, 10], "float32")]
+
+    class MaxPool1d(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.MaxPool1d(kernel_size=2)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    class MaxPool1d_functional(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, input):
+            return torch.nn.functional.max_pool1d(input, kernel_size=2)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tensor((1, 3, 5), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 5), dtype="float32") = R.nn.max_pool1d(
+                    input_1,
+                    pool_size=[2],
+                    strides=[2],
+                    dilation=[1],
+                    padding=[0, 0],
+                    layout="NCW",
+                    out_layout="NCW"
+                )
+                gv: R.Tensor((1, 3, 5), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    class MaxPool1d2(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.MaxPool1d(kernel_size=3, stride=1, padding=1)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tensor((1, 3, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10), dtype="float32") = R.nn.max_pool1d(
+                    input_1,
+                    pool_size=[3],
+                    strides=[1],
+                    dilation=[1],
+                    padding=[1, 1],
+                    layout="NCW",
+                    out_layout="NCW"
+                )
+                gv: R.Tensor((1, 3, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    class MaxPool1d3(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.MaxPool1d(kernel_size=3, stride=2, dilation=2)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tensor((1, 3, 3), dtype="float32"):  # Corrected here
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 3), dtype="float32") = R.nn.max_pool1d(
+                    input_1,
+                    pool_size=[3],
+                    strides=[2],
+                    dilation=[2],
+                    padding=[0, 0],
+                    layout="NCW",
+                    out_layout="NCW"
+                )
+                gv: R.Tensor((1, 3, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(MaxPool1d(), input_info, {}, expected1)
+    verify_model(MaxPool1d_functional(), input_info, {}, expected1)
+    verify_model(MaxPool1d2(), input_info, {}, expected2)
+    verify_model(MaxPool1d3(), input_info, {}, expected3)
+
+
 def test_maxpool2d():
     input_info = [([1, 3, 10, 10], "float32")]
 
@@ -1085,6 +1179,106 @@ def test_maxpool2d():
     verify_model(MaxPool2d_functional(), input_info, {}, expected1)
     verify_model(MaxPool2d2(), input_info, {}, expected2)
     verify_model(MaxPool2d3(), input_info, {}, expected3)
+
+
+def test_maxpool3d():
+    input_info = [([1, 3, 10, 10, 10], "float32")]
+
+    class MaxPool3d(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.MaxPool3d(kernel_size=[1, 1, 1])
+
+        def forward(self, input):
+            return self.pool(input)
+
+    class MaxPool3d_functional(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, input):
+            return torch.nn.functional.max_pool3d(input, kernel_size=[1, 1, 1])
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10, 10), dtype="float32") = R.nn.max_pool3d(
+                    input_1,
+                    pool_size=[1, 1, 1],
+                    strides=[1, 1, 1],
+                    dilation=[1, 1, 1],
+                    padding=[0, 0, 0, 0, 0, 0],
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                gv: R.Tensor((1, 3, 10, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    class MaxPool3d2(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.MaxPool3d(kernel_size=[2, 2, 2], dilation=[1, 2, 2])
+
+        def forward(self, input):
+            return self.pool(input)
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 5, 4, 4), dtype="float32"):  # Fixed here
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 5, 4, 4), dtype="float32") = R.nn.max_pool3d(
+                    input_1,
+                    pool_size=[2, 2, 2],
+                    strides=[2, 2, 2],
+                    dilation=[1, 2, 2],
+                    padding=[0, 0, 0, 0, 0, 0],
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                gv: R.Tensor((1, 3, 5, 4, 4), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    class MaxPool3d3(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.MaxPool3d(kernel_size=[3, 3, 3], padding=1, stride=2)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 5, 5, 5), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 5, 5, 5), dtype="float32") = R.nn.max_pool3d(
+                    input_1,
+                    pool_size=[3, 3, 3],
+                    strides=[2, 2, 2],
+                    dilation=[1, 1, 1],
+                    padding=[1, 1, 1, 1, 1, 1],
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                gv: R.Tensor((1, 3, 5, 5, 5), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(MaxPool3d(), input_info, {}, expected1)
+    verify_model(MaxPool3d_functional(), input_info, {}, expected1)
+    verify_model(MaxPool3d2(), input_info, {}, expected2)
+    verify_model(MaxPool3d3(), input_info, {}, expected3)
 
 
 def test_avgpool2d():

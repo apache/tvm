@@ -862,6 +862,48 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         bias = args[2] if len(args) > 2 else None
         return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
 
+    def _max_pool1d_impl(
+        self,
+        x: relax.Expr,
+        kernel_size: Union[int, Tuple[int]] = 1,
+        stride: Optional[Union[int, Tuple[int]]] = None,
+        padding: Optional[int] = 0,
+        dilation: Optional[int] = 1,
+        ceil_mode: Optional[bool] = False,
+    ) -> relax.Var:
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 2:
+            x = relax.op.expand_dims(x, axis=0)
+
+        stride = kernel_size if stride is None else stride
+
+        result = self.block_builder.emit(
+            relax.op.nn.max_pool1d(
+                x,
+                pool_size=kernel_size,
+                strides=stride,
+                padding=padding,
+                dilation=dilation,
+                ceil_mode=ceil_mode,
+                layout="NCW",
+            )
+        )
+
+        if x_ndim == 2:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _max_pool1d(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        kernel_size = args[1]
+        stride = args[2] if len(args) > 2 else None
+        padding = args[3] if len(args) > 3 else 0
+        dilation = args[4] if len(args) > 4 else 1
+        ceil_mode = args[5] if len(args) > 5 else False
+
+        return self._max_pool1d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
     def _max_pool2d_impl(
         self,
         x: relax.Expr,
@@ -871,8 +913,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dilation: Optional[int] = 1,
         ceil_mode: Optional[bool] = False,
     ) -> relax.Var:
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 3:
+            x = relax.op.expand_dims(x, axis=0)
+
         stride = kernel_size if stride is None else stride
-        return self.block_builder.emit(
+
+        result = self.block_builder.emit(
             relax.op.nn.max_pool2d(
                 x,
                 pool_size=kernel_size,
@@ -884,6 +931,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             )
         )
 
+        if x_ndim == 3:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
     def _max_pool2d(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
@@ -894,6 +945,47 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         ceil_mode = args[5] if len(args) > 5 else False
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
+    def _max_pool3d_impl(
+        self,
+        x: relax.Expr,
+        kernel_size: Union[int, Tuple[int, int, int]] = (1, 1, 1),
+        stride: Optional[Union[int, Tuple[int, int, int]]] = None,
+        padding: Optional[int] = 0,
+        dilation: Optional[int] = 1,
+        ceil_mode: Optional[bool] = False,
+    ) -> relax.Var:
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 4:
+            x = relax.op.expand_dims(x, axis=0)
+
+        stride = kernel_size if stride is None else stride
+
+        result = self.block_builder.emit(
+            relax.op.nn.max_pool3d(
+                x,
+                pool_size=kernel_size,
+                strides=stride,
+                padding=padding,
+                dilation=dilation,
+                ceil_mode=ceil_mode,
+                layout="NCDHW",
+            )
+        )
+
+        if x_ndim == 4:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _max_pool3d(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        kernel_size = args[1]
+        stride = args[2] if len(args) > 2 else None
+        padding = args[3] if len(args) > 3 else 0
+        dilation = args[4] if len(args) > 4 else 1
+        ceil_mode = args[5] if len(args) > 5 else False
+        return self._max_pool3d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
 
     def _pad(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
