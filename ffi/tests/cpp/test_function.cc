@@ -84,10 +84,10 @@ TEST(Func, FromUnpacked) {
         try {
           fadd1(1.1);
         } catch (const Error& error) {
-          EXPECT_STREQ(error->kind, "TypeError");
-          EXPECT_STREQ(error->message,
-                       "Mismatched type on argument #0 when calling: `(0: int) -> int`. "
-                       "Expected `int` but got `float`");
+          EXPECT_EQ(error.kind(), "TypeError");
+          EXPECT_EQ(error.message(),
+                    "Mismatched type on argument #0 when calling: `(0: int) -> int`. "
+                    "Expected `int` but got `float`");
           throw;
         }
       },
@@ -99,10 +99,10 @@ TEST(Func, FromUnpacked) {
         try {
           fadd1();
         } catch (const Error& error) {
-          EXPECT_STREQ(error->kind, "TypeError");
-          EXPECT_STREQ(error->message,
-                       "Mismatched number of arguments when calling: `(0: int) -> int`. "
-                       "Expected 1 but got 0 arguments");
+          EXPECT_EQ(error.kind(), "TypeError");
+          EXPECT_EQ(error.message(),
+                    "Mismatched number of arguments when calling: `(0: int) -> int`. "
+                    "Expected 1 but got 0 arguments");
           throw;
         }
       },
@@ -128,11 +128,11 @@ TEST(Func, FromUnpacked) {
         try {
           fpass_and_return();
         } catch (const Error& error) {
-          EXPECT_STREQ(error->kind, "TypeError");
-          EXPECT_STREQ(error->message,
-                       "Mismatched number of arguments when calling: "
-                       "`fpass_and_return(0: test.Int, 1: int, 2: AnyView) -> object.Function`. "
-                       "Expected 3 but got 0 arguments");
+          EXPECT_EQ(error.kind(), "TypeError");
+          EXPECT_EQ(error.message(),
+                    "Mismatched number of arguments when calling: "
+                    "`fpass_and_return(0: test.Int, 1: int, 2: AnyView) -> object.Function`. "
+                    "Expected 3 but got 0 arguments");
           throw;
         }
       },
@@ -225,9 +225,9 @@ TEST(Func, ObjectRefWithFallbackTraits) {
         try {
           freturn_primexpr(TInt(1));
         } catch (const Error& error) {
-          EXPECT_STREQ(error->kind, "TypeError");
-          EXPECT_STREQ(
-              error->message,
+          EXPECT_EQ(error.kind(), "TypeError");
+          EXPECT_EQ(
+              error.message(),
               "Mismatched type on argument #0 when calling: `(0: test.PrimExpr) -> test.PrimExpr`. "
               "Expected `test.PrimExpr` but got `test.Int`");
           throw;

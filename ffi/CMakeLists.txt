@@ -61,6 +61,7 @@ add_library(tvm_ffi_objs OBJECT
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/traceback.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/traceback_win.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/object.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/error.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/function.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/ndarray.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/dtype.cc"

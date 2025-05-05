@@ -74,6 +74,7 @@ class StringObj : public BytesObjBase {
 };
 
 namespace details {
+
 // String moved from std::string
 // without having to trigger a copy
 template <typename Base>
@@ -234,6 +235,14 @@ class String : public ObjectRef {
       : ObjectRef(details::MakeInplaceBytes<StringObj>(other, std::strlen(other))) {}
 
   /*!
+   * \brief constructor from raw string
+   *
+   * \param other a char array.
+   */
+  String(const char* other, size_t size)  // NOLINT(*)
+      : ObjectRef(details::MakeInplaceBytes<StringObj>(other, size)) {}
+
+  /*!
    * \brief Construct a new string object
    * \param other The std::string object to be copied
    */
@@ -382,6 +391,11 @@ class String : public ObjectRef {
   friend String operator+(const String& lhs, const char* rhs);
   friend String operator+(const char* lhs, const String& rhs);
 };
+
+/*! \brief Convert TVMFFIByteArray to std::string_view */
+TVM_FFI_INLINE std::string_view ToStringView(TVMFFIByteArray str) {
+  return std::string_view(str.data, str.size);
+}
 
 // const char*, requirement: not nullable, do not retain ownership
 template <int N>

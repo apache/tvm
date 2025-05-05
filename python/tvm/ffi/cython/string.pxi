@@ -28,20 +28,6 @@ cdef inline bytes _bytes_obj_get_py_bytes(obj):
     return PyBytes_FromStringAndSize(bytes.data, bytes.size)
 
 
-cdef class ByteArrayArg:
-    cdef TVMFFIByteArray cdata
-    cdef object py_data
-
-    def __cinit__(self, py_data):
-        if isinstance(py_data, bytearray):
-            py_data = bytes(py_data)
-        cdef char* data
-        cdef Py_ssize_t size
-        self.py_data = py_data
-        PyBytes_AsStringAndSize(py_data, &data, &size)
-        self.cdata.data = data
-        self.cdata.size = size
-
 
 class String(str, PyNativeObject):
     __slots__ = ["__tvm_ffi_object__"]

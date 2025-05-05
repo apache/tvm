@@ -215,7 +215,7 @@ TEST(Map, AnyConvertCheck) {
         try {
           [[maybe_unused]] auto arr2 = any1.cast<WrongMap>();
         } catch (const Error& error) {
-          EXPECT_STREQ(error->kind, "TypeError");
+          EXPECT_EQ(error.kind(), "TypeError");
           std::string what = error.what();
           EXPECT_NE(
               what.find(
@@ -232,7 +232,7 @@ TEST(Map, AnyConvertCheck) {
         try {
           [[maybe_unused]] auto arr2 = any1.cast<WrongMap2>();
         } catch (const Error& error) {
-          EXPECT_STREQ(error->kind, "TypeError");
+          EXPECT_EQ(error.kind(), "TypeError");
           std::string what = error.what();
           EXPECT_NE(what.find("Cannot convert from type `Map[some key is int, V]` to "
                               "`Map<test.Number, float>`"),

@@ -251,7 +251,8 @@ def _register_object_by_index(int index, object cls):
 def _object_type_key_to_index(str type_key):
     """get the type index of object class"""
     cdef int32_t tidx
-    if TVMFFITypeKeyToIndex(c_str(type_key), &tidx) == 0:
+    type_key_arg = ByteArrayArg(c_str(type_key))
+    if TVMFFITypeKeyToIndex(type_key_arg.cptr(), &tidx) == 0:
         return tidx
     return None
 

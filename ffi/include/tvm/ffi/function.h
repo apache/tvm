@@ -374,9 +374,10 @@ class Function : public ObjectRef {
    * \return The global function.
    * \note This function will return std::nullopt if the function is not found.
    */
-  static std::optional<Function> GetGlobal(const char* name) {
+  static std::optional<Function> GetGlobal(std::string_view name) {
     TVMFFIObjectHandle handle;
-    TVM_FFI_CHECK_SAFE_CALL(TVMFFIFunctionGetGlobal(name, &handle));
+    TVMFFIByteArray name_arr{name.data(), name.size()};
+    TVM_FFI_CHECK_SAFE_CALL(TVMFFIFunctionGetGlobal(&name_arr, &handle));
     if (handle != nullptr) {
       return Function(
           details::ObjectUnsafe::ObjectPtrFromOwned<Object>(static_cast<Object*>(handle)));
@@ -386,18 +387,23 @@ class Function : public ObjectRef {
   }
 
   static std::optional<Function> GetGlobal(const std::string& name) {
-    return GetGlobal(name.c_str());
+    return GetGlobal(std::string_view(name.data(), name.length()));
   }
 
-  static std::optional<Function> GetGlobal(const String& name) { return GetGlobal(name.c_str()); }
+  static std::optional<Function> GetGlobal(const String& name) {
+    return GetGlobal(std::string_view(name.data(), name.length()));
+  }
 
+  static std::optional<Function> GetGlobal(const char* name) {
+    return GetGlobal(std::string_view(name));
+  }
   /*!
    * \brief Get global function by name and throw an error if it is not found.
    * \param name The name of the function
    * \return The global function
    * \note This function will throw an error if the function is not found.
    */
-  static Function GetGlobalRequired(const char* name) {
+  static Function GetGlobalRequired(std::string_view name) {
     std::optional<Function> res = GetGlobal(name);
     if (!res.has_value()) {
       TVM_FFI_THROW(ValueError) << "Function " << name << " not found";
@@ -405,21 +411,25 @@ class Function : public ObjectRef {
     return res.value();
   }
 
-  static Function GetGlobalRequired(const std::string& name) {
-    return GetGlobalRequired(name.c_str());
+  static Function GetGlobalRequired(const std::string& name) { return GetGlobalRequired(name); }
+
+  static Function GetGlobalRequired(const String& name) {
+    return GetGlobalRequired(std::string_view(name.data(), name.length()));
   }
 
-  static Function GetGlobalRequired(const String& name) { return GetGlobalRequired(name.c_str()); }
-
+  static Function GetGlobalRequired(const char* name) {
+    return GetGlobalRequired(std::string_view(name));
+  }
   /*!
    * \brief Set global function by name
    * \param name The name of the function
    * \param func The function
    * \param override Whether to override when there is duplication.
    */
-  static void SetGlobal(const char* name, Function func, bool override = false) {
+  static void SetGlobal(std::string_view name, Function func, bool override = false) {
+    TVMFFIByteArray name_arr{name.data(), name.size()};
     TVM_FFI_CHECK_SAFE_CALL(
-        TVMFFIFunctionSetGlobal(name, details::ObjectUnsafe::GetHeader(func.get()), override));
+        TVMFFIFunctionSetGlobal(&name_arr, details::ObjectUnsafe::GetHeader(func.get()), override));
   }
   /*!
    * \brief List all global names
@@ -876,9 +886,10 @@ class Function::Registry {
 /*!
  * \brief helper function to get type index from key
  */
-inline int32_t TypeKeyToIndex(const char* type_key) {
+inline int32_t TypeKeyToIndex(std::string_view type_key) {
   int32_t type_index;
-  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(type_key, &type_index));
+  TVMFFIByteArray type_key_array = {type_key.data(), type_key.size()};
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(&type_key_array, &type_index));
   return type_index;
 }
 

@@ -33,31 +33,6 @@
 namespace tvm {
 namespace ffi {
 
-class SafeCallContext {
- public:
-  void SetRaised(TVMFFIObjectHandle error) {
-    last_error_ =
-        details::ObjectUnsafe::ObjectPtrFromUnowned<ErrorObj>(static_cast<TVMFFIObject*>(error));
-  }
-
-  void SetRaisedByCstr(const char* kind, const char* message, const char* traceback) {
-    Error error(kind, message, traceback);
-    last_error_ = details::ObjectUnsafe::ObjectPtrFromObjectRef<ErrorObj>(std::move(error));
-  }
-
-  void MoveFromRaised(TVMFFIObjectHandle* result) {
-    result[0] = details::ObjectUnsafe::MoveObjectPtrToTVMFFIObjectPtr(std::move(last_error_));
-  }
-
-  static SafeCallContext* ThreadLocal() {
-    static thread_local SafeCallContext ctx;
-    return &ctx;
-  }
-
- private:
-  ObjectPtr<ErrorObj> last_error_;
-};
-
 /*!
  * \brief Global function table.
  *
@@ -241,18 +216,20 @@ int TVMFFIAnyViewToOwnedAny(const TVMFFIAny* any_view, TVMFFIAny* out) {
   TVM_FFI_SAFE_CALL_END();
 }
 
-int TVMFFIFunctionSetGlobal(const char* name, TVMFFIObjectHandle f, int override) {
+int TVMFFIFunctionSetGlobal(const TVMFFIByteArray* name, TVMFFIObjectHandle f, int override) {
   using namespace tvm::ffi;
   TVM_FFI_SAFE_CALL_BEGIN();
-  GlobalFunctionTable::Global()->Update(name, GetRef<Function>(static_cast<FunctionObj*>(f)),
+  String name_str(name->data, name->size);
+  GlobalFunctionTable::Global()->Update(name_str, GetRef<Function>(static_cast<FunctionObj*>(f)),
                                         override != 0);
   TVM_FFI_SAFE_CALL_END();
 }
 
-int TVMFFIFunctionGetGlobal(const char* name, TVMFFIObjectHandle* out) {
+int TVMFFIFunctionGetGlobal(const TVMFFIByteArray* name, TVMFFIObjectHandle* out) {
   using namespace tvm::ffi;
   TVM_FFI_SAFE_CALL_BEGIN();
-  const Function* fp = GlobalFunctionTable::Global()->Get(name);
+  String name_str(name->data, name->size);
+  const Function* fp = GlobalFunctionTable::Global()->Get(name_str);
   if (fp != nullptr) {
     tvm::ffi::Function func(*fp);
     *out = tvm::ffi::details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(func));
@@ -269,32 +246,6 @@ int TVMFFIFunctionCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_arg
   return reinterpret_cast<FunctionObj*>(func)->safe_call(func, args, num_args, result);
 }
 
-void TVMFFIErrorSetRaisedByCStr(const char* kind, const char* message) {
-  // NOTE: run traceback here to simplify the depth of tracekback
-  tvm::ffi::SafeCallContext::ThreadLocal()->SetRaisedByCstr(kind, message, TVM_FFI_TRACEBACK_HERE);
-}
-
-void TVMFFIErrorSetRaised(TVMFFIObjectHandle error) {
-  tvm::ffi::SafeCallContext::ThreadLocal()->SetRaised(error);
-}
-
-void TVMFFIErrorMoveFromRaised(TVMFFIObjectHandle* result) {
-  tvm::ffi::SafeCallContext::ThreadLocal()->MoveFromRaised(result);
-}
-
-void TVMFFIErrorUpdateTraceback(TVMFFIObjectHandle obj, const char* traceback) {
-  static_cast<tvm::ffi::ErrorObj*>(reinterpret_cast<tvm::ffi::Object*>(obj))
-      ->UpdateTraceback(traceback);
-}
-
-int TVMFFIErrorCreate(const char* kind, const char* message, const char* traceback,
-                      TVMFFIObjectHandle* out) {
-  TVM_FFI_SAFE_CALL_BEGIN();
-  tvm::ffi::Error error(kind, message, traceback);
-  *out = tvm::ffi::details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(error));
-  TVM_FFI_SAFE_CALL_END();
-}
-
 int TVMFFIEnvCheckSignals() { return tvm::ffi::EnvCAPIRegistry::Global()->EnvCheckSignals(); }
 
 /*!
@@ -303,9 +254,10 @@ int TVMFFIEnvCheckSignals() { return tvm::ffi::EnvCAPIRegistry::Global()->EnvChe
  * \param symbol The symbol to register.
  * \return 0 when success, nonzero when failure happens
  */
-int TVMFFIEnvRegisterCAPI(const char* name, void* symbol) {
+int TVMFFIEnvRegisterCAPI(const TVMFFIByteArray* name, void* symbol) {
   TVM_FFI_SAFE_CALL_BEGIN();
-  tvm::ffi::EnvCAPIRegistry::Global()->Register(name, symbol);
+  std::string s_name(name->data, name->size);
+  tvm::ffi::EnvCAPIRegistry::Global()->Register(s_name, symbol);
   TVM_FFI_SAFE_CALL_END();
 }
 

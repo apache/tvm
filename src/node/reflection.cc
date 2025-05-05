@@ -168,7 +168,8 @@ ReflectionVTable* ReflectionVTable::Global() {
 ObjectPtr<Object> ReflectionVTable::CreateInitObject(const std::string& type_key,
                                                      const std::string& repr_bytes) const {
   int32_t tindex;
-  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(type_key.c_str(), &tindex));
+  TVMFFIByteArray type_key_arr{type_key.data(), type_key.length()};
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(&type_key_arr, &tindex));
   if (static_cast<size_t>(tindex) >= fcreate_.size() || fcreate_[tindex] == nullptr) {
     LOG(FATAL) << "TypeError: " << type_key << " is not registered via TVM_REGISTER_NODE_TYPE";
   }

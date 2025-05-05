@@ -239,7 +239,7 @@ TEST(Array, AnyConvertCheck) {
         try {
           [[maybe_unused]] auto arr2 = any1.cast<Array<int>>();
         } catch (const Error& error) {
-          EXPECT_STREQ(error->kind, "TypeError");
+          EXPECT_EQ(error.kind(), "TypeError");
           std::string what = error.what();
           EXPECT_NE(what.find("Cannot convert from type `Array[index 0: float]` to `Array<int>`"),
                     std::string::npos);
@@ -258,7 +258,7 @@ TEST(Array, AnyConvertCheck) {
         try {
           [[maybe_unused]] auto arr2 = any1.cast<Array<Array<int>>>();
         } catch (const Error& error) {
-          EXPECT_STREQ(error->kind, "TypeError");
+          EXPECT_EQ(error.kind(), "TypeError");
           std::string what = error.what();
           EXPECT_NE(what.find("`Array[index 1: Array[index 0: test.Int]]` to `Array<Array<int>>`"),
                     std::string::npos);

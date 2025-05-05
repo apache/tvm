@@ -44,7 +44,8 @@ cdef class DataType:
     cdef DLDataType cdtype
 
     def __init__(self, dtype_str):
-        CHECK_CALL(TVMFFIDataTypeFromString(c_str(dtype_str), &(self.cdtype)))
+        cdef ByteArrayArg dtype_str_arg = ByteArrayArg(c_str(dtype_str))
+        CHECK_CALL(TVMFFIDataTypeFromString(dtype_str_arg.cptr(), &(self.cdtype)))
 
     def __reduce__(self):
         cls = type(self)

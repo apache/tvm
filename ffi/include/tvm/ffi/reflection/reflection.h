@@ -70,7 +70,7 @@ class ReflectionDef {
   template <typename Class, typename T>
   void RegisterField(const char* name, T Class::*field_ptr, bool readonly) {
     TVMFFIFieldInfo info;
-    info.name = name;
+    info.name = TVMFFIByteArray{name, std::char_traits<char>::length(name)};
     info.field_static_type_index = TypeToFieldStaticTypeIndex<T>::value;
     // store byte offset and setter, getter
     // so the same setter can be reused for all the same type
@@ -101,12 +101,14 @@ class ReflectionDef {
 /*!
  * \brief helper function to get reflection field info by type key and field name
  */
-inline const TVMFFIFieldInfo* GetReflectionFieldInfo(const char* type_key, const char* field_name) {
+inline const TVMFFIFieldInfo* GetReflectionFieldInfo(std::string_view type_key,
+                                                     const char* field_name) {
   int32_t type_index;
-  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(type_key, &type_index));
+  TVMFFIByteArray type_key_array = {type_key.data(), type_key.size()};
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(&type_key_array, &type_index));
   const TypeInfo* info = TVMFFIGetTypeInfo(type_index);
   for (int32_t i = 0; i < info->num_fields; ++i) {
-    if (std::strcmp(info->fields[i].name, field_name) == 0) {
+    if (std::strncmp(info->fields[i].name.data, field_name, info->fields[i].name.size) == 0) {
       return &(info->fields[i]);
     }
   }

@@ -64,7 +64,8 @@ struct StaticTypeKey {
  * \return the type key
  */
 inline std::string TypeIndexToTypeKey(int32_t type_index) {
-  return TVMFFIGetTypeInfo(type_index)->type_key;
+  const TypeInfo* type_info = TVMFFIGetTypeInfo(type_index);
+  return std::string(type_info->type_key.data, type_info->type_key.size);
 }
 
 namespace details {
@@ -155,7 +156,7 @@ class Object {
   std::string GetTypeKey() const {
     // the function checks that the info exists
     const TypeInfo* type_info = TVMFFIGetTypeInfo(header_.type_index);
-    return type_info->type_key;
+    return std::string(type_info->type_key.data, type_info->type_key.size);
   }
 
   /*!
@@ -174,7 +175,7 @@ class Object {
    */
   static std::string TypeIndex2Key(int32_t tindex) {
     const TypeInfo* type_info = TVMFFIGetTypeInfo(tindex);
-    return type_info->type_key;
+    return std::string(type_info->type_key.data, type_info->type_key.size);
   }
 
   bool unique() const { return use_count() == 1; }
@@ -536,19 +537,20 @@ struct ObjectPtrEqual {
 };
 
 // If dynamic type is enabled, we still need to register the runtime type of parent
-#define TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType)                             \
-  static constexpr int32_t _type_depth = ParentType::_type_depth + 1;                       \
-  static int32_t _GetOrAllocRuntimeTypeIndex() {                                            \
-    static_assert(!ParentType::_type_final, "ParentType marked as final");                  \
-    static_assert(TypeName::_type_child_slots == 0 || ParentType::_type_child_slots == 0 || \
-                      TypeName::_type_child_slots < ParentType::_type_child_slots,          \
-                  "Need to set _type_child_slots when parent specifies it.");               \
-    static int32_t tindex = TVMFFIGetOrAllocTypeIndex(                                      \
-        TypeName::_type_key, TypeName::_type_index, TypeName::_type_depth,                  \
-        TypeName::_type_child_slots, TypeName::_type_child_slots_can_overflow,              \
-        ParentType::_GetOrAllocRuntimeTypeIndex());                                         \
-    return tindex;                                                                          \
-  }                                                                                         \
+#define TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType)                               \
+  static constexpr int32_t _type_depth = ParentType::_type_depth + 1;                         \
+  static int32_t _GetOrAllocRuntimeTypeIndex() {                                              \
+    static_assert(!ParentType::_type_final, "ParentType marked as final");                    \
+    static_assert(TypeName::_type_child_slots == 0 || ParentType::_type_child_slots == 0 ||   \
+                      TypeName::_type_child_slots < ParentType::_type_child_slots,            \
+                  "Need to set _type_child_slots when parent specifies it.");                 \
+    TVMFFIByteArray type_key{TypeName::_type_key,                                             \
+                             std::char_traits<char>::length(TypeName::_type_key)};            \
+    static int32_t tindex = TVMFFIGetOrAllocTypeIndex(                                        \
+        &type_key, TypeName::_type_index, TypeName::_type_depth, TypeName::_type_child_slots, \
+        TypeName::_type_child_slots_can_overflow, ParentType::_GetOrAllocRuntimeTypeIndex()); \
+    return tindex;                                                                            \
+  }                                                                                           \
   static inline int32_t _register_type_index = _GetOrAllocRuntimeTypeIndex()
 
 /*!
@@ -572,8 +574,10 @@ struct ObjectPtrEqual {
     static_assert(TypeName::_type_child_slots == 0 || ParentType::_type_child_slots == 0 ||   \
                       TypeName::_type_child_slots < ParentType::_type_child_slots,            \
                   "Need to set _type_child_slots when parent specifies it.");                 \
+    TVMFFIByteArray type_key{TypeName::_type_key,                                             \
+                             std::char_traits<char>::length(TypeName::_type_key)};            \
     static int32_t tindex = TVMFFIGetOrAllocTypeIndex(                                        \
-        TypeName::_type_key, -1, TypeName::_type_depth, TypeName::_type_child_slots,          \
+        &type_key, -1, TypeName::_type_depth, TypeName::_type_child_slots,                    \
         TypeName::_type_child_slots_can_overflow, ParentType::_GetOrAllocRuntimeTypeIndex()); \
     return tindex;                                                                            \
   }                                                                                           \

@@ -104,7 +104,7 @@ TEST(Optional, AnyConvert_Array) {
         try {
           [[maybe_unused]] auto arr2 = view0.cast<Optional<Array<Array<int>>>>();
         } catch (const Error& error) {
-          EXPECT_STREQ(error->kind, "TypeError");
+          EXPECT_EQ(error.kind(), "TypeError");
           std::string what = error.what();
           std::cout << what << std::endl;
           EXPECT_NE(what.find("to `Optional<Array<Array<int>>>`"), std::string::npos);

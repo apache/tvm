@@ -56,10 +56,10 @@ TEST(RValueRef, ParamChecking) {
         try {
           fadd1(RValueRef(TInt(1)));
         } catch (const Error& error) {
-          EXPECT_STREQ(error->kind, "TypeError");
-          EXPECT_STREQ(error->message,
-                       "Mismatched type on argument #0 when calling: `(0: test.Int) -> int`. "
-                       "Expected `test.Int` but got `ObjectRValueRef`");
+          EXPECT_EQ(error.kind(), "TypeError");
+          EXPECT_EQ(error.message(),
+                    "Mismatched type on argument #0 when calling: `(0: test.Int) -> int`. "
+                    "Expected `test.Int` but got `ObjectRValueRef`");
           throw;
         }
       },
@@ -76,9 +76,9 @@ TEST(RValueRef, ParamChecking) {
         try {
           fadd2(RValueRef(Array<Any>({1, 2.2})));
         } catch (const Error& error) {
-          EXPECT_STREQ(error->kind, "TypeError");
-          EXPECT_STREQ(
-              error->message,
+          EXPECT_EQ(error.kind(), "TypeError");
+          EXPECT_EQ(
+              error.message(),
               "Mismatched type on argument #0 when calling: `(0: RValueRef<Array<int>>) -> int`. "
               "Expected `RValueRef<Array<int>>` but got `RValueRef<Array[index 1: float]>`");
           throw;

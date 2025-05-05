@@ -108,7 +108,7 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
             arg = ByteArrayArg(arg)
             out[i].type_index = kTVMFFIByteArrayPtr
             out[i].v_int64 = 0
-            out[i].v_ptr = &((<ByteArrayArg>arg).cdata)
+            out[i].v_ptr = (<ByteArrayArg>arg).cptr()
             temp_args.append(arg)
         elif isinstance(arg, (list, tuple, dict, ObjectGeneric)):
             arg = _FUNC_CONVERT_TO_OBJECT(arg)
@@ -218,18 +218,20 @@ def _register_global_func(name, pyfunc, override):
     cdef TVMFFIObjectHandle chandle
     cdef int c_api_ret_code
     cdef int ioverride = override
+    cdef ByteArrayArg name_arg = ByteArrayArg(c_str(name))
 
     if not isinstance(pyfunc, Function):
         pyfunc = _convert_to_ffi_func(pyfunc)
 
-    CHECK_CALL(TVMFFIFunctionSetGlobal(c_str(name), (<Object>pyfunc).chandle, ioverride))
+    CHECK_CALL(TVMFFIFunctionSetGlobal(name_arg.cptr(), (<Object>pyfunc).chandle, ioverride))
     return pyfunc
 
 
 def _get_global_func(name, allow_missing):
     cdef TVMFFIObjectHandle chandle
+    cdef ByteArrayArg name_arg = ByteArrayArg(c_str(name))
 
-    CHECK_CALL(TVMFFIFunctionGetGlobal(c_str(name), &chandle))
+    CHECK_CALL(TVMFFIFunctionGetGlobal(name_arg.cptr(), &chandle))
     if chandle != NULL:
         ret = Function.__new__(Function)
         (<Object>ret).chandle = chandle

@@ -86,7 +86,7 @@ class TypeTable {
       // after this line
       this->type_index = type_index;
       this->type_depth = type_depth;
-      this->type_key = this->type_key_data.c_str();
+      this->type_key = TVMFFIByteArray{this->type_key_data.data(), this->type_key_data.length()};
       this->type_key_hash = std::hash<std::string>()(this->type_key_data);
       this->type_acenstors = type_acenstors_data.data();
       // initialize the reflection information
@@ -121,7 +121,7 @@ class TypeTable {
         TVM_FFI_ICHECK_LT(static_type_index, type_table_.size());
         TVM_FFI_ICHECK(type_table_[static_type_index] == nullptr)
             << "Conflicting static index " << static_type_index << " between "
-            << type_table_[static_type_index]->type_key << " and " << type_key;
+            << ToStringView(type_table_[static_type_index]->type_key) << " and " << type_key;
         return static_type_index;
       }
       TVM_FFI_ICHECK_NOTNULL(parent);
@@ -135,7 +135,7 @@ class TypeTable {
       }
       // Step 2: allocate from overflow
       TVM_FFI_ICHECK(parent->child_slots_can_overflow)
-          << "Reach maximum number of sub-classes for " << parent->type_key;
+          << "Reach maximum number of sub-classes for " << ToStringView(parent->type_key);
       // allocate new entries.
       int32_t allocated_tindex = type_counter_;
       type_counter_ += num_slots;
@@ -166,9 +166,10 @@ class TypeTable {
     return allocated_tindex;
   }
 
-  int32_t TypeKeyToIndex(const std::string& type_key) {
-    auto it = type_key2index_.find(type_key);
-    TVM_FFI_ICHECK(it != type_key2index_.end()) << "Cannot find type `" << type_key << "`";
+  int32_t TypeKeyToIndex(const TVMFFIByteArray* type_key) {
+    std::string type_key_str(type_key->data, type_key->size);
+    auto it = type_key2index_.find(type_key_str);
+    TVM_FFI_ICHECK(it != type_key2index_.end()) << "Cannot find type `" << type_key_str << "`";
     return it->second;
   }
 
@@ -211,10 +212,10 @@ class TypeTable {
 
     for (const auto& ptr : type_table_) {
       if (ptr != nullptr && num_children[ptr->type_index] >= min_children_count) {
-        std::cerr << '[' << ptr->type_index << "]\t" << ptr->type_key;
+        std::cerr << '[' << ptr->type_index << "]\t" << ToStringView(ptr->type_key);
         if (ptr->type_depth != 0) {
           int32_t parent_index = ptr->type_acenstors[ptr->type_depth - 1];
-          std::cerr << "\tparent=" << type_table_[parent_index]->type_key;
+          std::cerr << "\tparent=" << ToStringView(type_table_[parent_index]->type_key);
         } else {
           std::cerr << "\tparent=root";
         }
@@ -260,9 +261,9 @@ class TypeTable {
     this->GetOrAllocTypeIndex(type_key, static_type_index, 0, 0, false, -1);
   }
 
-  const char* CopyString(const char* c_str) {
-    std::unique_ptr<std::string> val = std::make_unique<std::string>(c_str);
-    const char* c_val = val->c_str();
+  TVMFFIByteArray CopyString(TVMFFIByteArray str) {
+    std::unique_ptr<std::string> val = std::make_unique<std::string>(str.data, str.size);
+    TVMFFIByteArray c_val{val->data(), val->length()};
     string_pool_.emplace_back(std::move(val));
     return c_val;
   }
@@ -281,7 +282,7 @@ int TVMFFIObjectFree(TVMFFIObjectHandle handle) {
   TVM_FFI_SAFE_CALL_END();
 }
 
-int TVMFFITypeKeyToIndex(const char* type_key, int32_t* out_tindex) {
+int TVMFFITypeKeyToIndex(const TVMFFIByteArray* type_key, int32_t* out_tindex) {
   TVM_FFI_SAFE_CALL_BEGIN();
   out_tindex[0] = tvm::ffi::TypeTable::Global()->TypeKeyToIndex(type_key);
   TVM_FFI_SAFE_CALL_END();
@@ -293,12 +294,13 @@ int TVMFFIRegisterTypeField(int32_t type_index, const TVMFFIFieldInfo* info) {
   TVM_FFI_SAFE_CALL_END();
 }
 
-int32_t TVMFFIGetOrAllocTypeIndex(const char* type_key, int32_t static_type_index,
+int32_t TVMFFIGetOrAllocTypeIndex(const TVMFFIByteArray* type_key, int32_t static_type_index,
                                   int32_t type_depth, int32_t num_child_slots,
                                   int32_t child_slots_can_overflow, int32_t parent_type_index) {
   TVM_FFI_LOG_EXCEPTION_CALL_BEGIN();
+  std::string s_type_key = std::string(type_key->data, type_key->size);
   return tvm::ffi::TypeTable::Global()->GetOrAllocTypeIndex(
-      type_key, static_type_index, type_depth, num_child_slots, child_slots_can_overflow,
+      s_type_key, static_type_index, type_depth, num_child_slots, child_slots_can_overflow,
       parent_type_index);
   TVM_FFI_LOG_EXCEPTION_CALL_END(TVMFFIGetOrAllocTypeIndex);
 }

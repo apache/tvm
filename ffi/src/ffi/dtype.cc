@@ -314,9 +314,9 @@ inline DLDataType StringViewToDLDataType_(std::string_view str) {
 }  // namespace ffi
 }  // namespace tvm
 
-int TVMFFIDataTypeFromString(const char* str, DLDataType* out) {
+int TVMFFIDataTypeFromString(const TVMFFIByteArray* str, DLDataType* out) {
   TVM_FFI_SAFE_CALL_BEGIN();
-  *out = tvm::ffi::StringViewToDLDataType_(std::string_view(str));
+  *out = tvm::ffi::StringViewToDLDataType_(std::string_view(str->data, str->size));
   TVM_FFI_SAFE_CALL_END();
 }
 

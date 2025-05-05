@@ -115,7 +115,7 @@ inline const char* DLDataTypeCodeAsCStr(DLDataTypeCode type_code) {  // NOLINT(*
 
 inline DLDataType StringToDLDataType(const String& str) {
   DLDataType out;
-  TVM_FFI_CHECK_SAFE_CALL(TVMFFIDataTypeFromString(str.c_str(), &out));
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFIDataTypeFromString(str.get(), &out));
   return out;
 }
 

@@ -125,9 +125,9 @@ cdef extern from "tvm/ffi/c_api.h":
         size_t size
 
     ctypedef struct TVMFFIErrorCell:
-        const char* kind
-        const char* message
-        const char* traceback
+        TVMFFIByteArray kind
+        TVMFFIByteArray message
+        TVMFFIByteArray traceback
 
     ctypedef int (*TVMFFISafeCallType)(
         void* ctx, const TVMFFIAny* args, int32_t num_args,
@@ -140,19 +140,18 @@ cdef extern from "tvm/ffi/c_api.h":
     int TVMFFIFunctionCreate(void* self, TVMFFISafeCallType safe_call,
                          void (*deleter)(void*), TVMFFIObjectHandle* out) nogil
     int TVMFFIAnyViewToOwnedAny(const TVMFFIAny* any_view, TVMFFIAny* out) nogil
-    int TVMFFIFunctionSetGlobal(const char* name, TVMFFIObjectHandle f, int override) nogil
-    int TVMFFIFunctionGetGlobal(const char* name, TVMFFIObjectHandle* out) nogil
+    int TVMFFIFunctionSetGlobal(TVMFFIByteArray* name, TVMFFIObjectHandle f, int override) nogil
+    int TVMFFIFunctionGetGlobal(TVMFFIByteArray* name, TVMFFIObjectHandle* out) nogil
     void TVMFFIErrorMoveFromRaised(TVMFFIObjectHandle* result) nogil
     void TVMFFIErrorSetRaised(TVMFFIObjectHandle error) nogil
-    void TVMFFIErrorSetRaisedCStr(const char* kind, const char* message) nogil
-    void TVMFFIErrorUpdateTraceback(TVMFFIObjectHandle error, const char* traceback) nogil
-    int TVMFFIErrorCreate(const char* kind, const char* message, const char* traceback,
-                          TVMFFIObjectHandle* out) nogil
-    int TVMFFIEnvRegisterCAPI(const char* name, void* ptr) nogil
-    int TVMFFITypeKeyToIndex(const char* type_key, int32_t* out_tindex) nogil
-    int TVMFFIDataTypeFromString(const char* str, DLDataType* out) nogil
+    void TVMFFIErrorUpdateTraceback(TVMFFIObjectHandle error, TVMFFIByteArray* traceback) nogil
+    TVMFFIObjectHandle TVMFFIErrorCreate(TVMFFIByteArray* kind, TVMFFIByteArray* message,
+                                         TVMFFIByteArray* traceback) nogil
+    int TVMFFIEnvRegisterCAPI(TVMFFIByteArray* name, void* ptr) nogil
+    int TVMFFITypeKeyToIndex(TVMFFIByteArray* type_key, int32_t* out_tindex) nogil
+    int TVMFFIDataTypeFromString(TVMFFIByteArray* str, DLDataType* out) nogil
     int TVMFFIDataTypeToString(DLDataType dtype, TVMFFIObjectHandle* out) nogil
-    const char* TVMFFITraceback(const char* filename, int lineno, const char* func) nogil;
+    const TVMFFIByteArray* TVMFFITraceback(const char* filename, int lineno, const char* func) nogil;
     int TVMFFINDArrayFromDLPack(DLManagedTensor* src, int32_t require_alignment,
                                 int32_t require_contiguous, TVMFFIObjectHandle* out) nogil
     int TVMFFINDArrayFromDLPackVersioned(DLManagedTensorVersioned* src,
@@ -169,6 +168,24 @@ cdef extern from "tvm/ffi/c_api.h":
     DLDevice TVMFFIDLDeviceFromIntPair(int32_t device_type, int32_t device_id) nogil
 
 
+cdef class ByteArrayArg:
+    cdef TVMFFIByteArray cdata
+    cdef object py_data
+
+    def __cinit__(self, py_data):
+        if isinstance(py_data, bytearray):
+            py_data = bytes(py_data)
+        cdef char* data
+        cdef Py_ssize_t size
+        self.py_data = py_data
+        PyBytes_AsStringAndSize(py_data, &data, &size)
+        self.cdata.data = data
+        self.cdata.size = size
+
+    cdef inline TVMFFIByteArray* cptr(self):
+        return &self.cdata
+
+
 cdef inline py_str(const char* x):
     """Convert a c_char_p to a python string
 
@@ -178,6 +195,10 @@ cdef inline py_str(const char* x):
         A char pointer that can be passed to C API
     """
     return x.decode("utf-8")
+
+
+cdef inline str bytearray_to_str(const TVMFFIByteArray* x):
+    return PyBytes_FromStringAndSize(x.data, x.size).decode("utf-8")
 
 
 cdef inline c_str(pystr):
@@ -212,8 +233,11 @@ cdef _init_env_api():
     # Initialize env api for signal handling
     # Also registers the gil state release and ensure as PyErr_CheckSignals
     # function is called with gil released and we need to regrab the gil
-    CHECK_CALL(TVMFFIEnvRegisterCAPI(c_str("PyErr_CheckSignals"), <void*>PyErr_CheckSignals))
-    CHECK_CALL(TVMFFIEnvRegisterCAPI(c_str("PyGILState_Ensure"), <void*>PyGILState_Ensure))
-    CHECK_CALL(TVMFFIEnvRegisterCAPI(c_str("PyGILState_Release"), <void*>PyGILState_Release))
+    cdef ByteArrayArg pyerr_check_signals_arg = ByteArrayArg(c_str("PyErr_CheckSignals"))
+    cdef ByteArrayArg pygilstate_ensure_arg = ByteArrayArg(c_str("PyGILState_Ensure"))
+    cdef ByteArrayArg pygilstate_release_arg = ByteArrayArg(c_str("PyGILState_Release"))
+    CHECK_CALL(TVMFFIEnvRegisterCAPI(pyerr_check_signals_arg.cptr(), <void*>PyErr_CheckSignals))
+    CHECK_CALL(TVMFFIEnvRegisterCAPI(pygilstate_ensure_arg.cptr(), <void*>PyGILState_Ensure))
+    CHECK_CALL(TVMFFIEnvRegisterCAPI(pygilstate_release_arg.cptr(), <void*>PyGILState_Release))
 
 _init_env_api()

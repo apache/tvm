@@ -33,6 +33,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <utility>
 
 /*!
@@ -84,11 +85,9 @@ class ErrorObj : public Object, public TVMFFIErrorCell {
    * \brief Update the traceback of the error object.
    * \param traceback The traceback to update.
    */
-  void UpdateTraceback(const char* traceback_str) {
-    this->traceback_data_ = traceback_str;
-    this->traceback = this->traceback_data_.c_str();
-    this->what_data_ = (std::string("Traceback (most recent call last):\n") + this->traceback +
-                        this->kind + ": " + this->message + '\n');
+  void UpdateTraceback(const TVMFFIByteArray* traceback_str) {
+    this->traceback_data_ = std::string(traceback_str->data, traceback_str->size);
+    this->traceback = TVMFFIByteArray{this->traceback_data_.data(), this->traceback_data_.length()};
   }
 
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIError;
@@ -101,7 +100,6 @@ class ErrorObj : public Object, public TVMFFIErrorCell {
   std::string kind_data_;
   std::string message_data_;
   std::string traceback_data_;
-  std::string what_data_;
 };
 
 /*!
@@ -115,15 +113,39 @@ class Error : public ObjectRef, public std::exception {
     n->kind_data_ = std::move(kind);
     n->message_data_ = std::move(message);
     n->traceback_data_ = std::move(traceback);
-    n->kind = n->kind_data_.c_str();
-    n->message = n->message_data_.c_str();
-    n->traceback = n->traceback_data_.c_str();
-    n->what_data_ = (std::string("Traceback (most recent call last):\n") + n->traceback + n->kind +
-                     ": " + n->message + '\n');
+    n->kind = TVMFFIByteArray{n->kind_data_.data(), n->kind_data_.length()};
+    n->message = TVMFFIByteArray{n->message_data_.data(), n->message_data_.length()};
+    n->traceback = TVMFFIByteArray{n->traceback_data_.data(), n->traceback_data_.length()};
     data_ = std::move(n);
   }
 
-  const char* what() const noexcept(true) override { return get()->what_data_.c_str(); }
+  Error(std::string kind, std::string message, const TVMFFIByteArray* traceback)
+      : Error(kind, message, std::string(traceback->data, traceback->size)) {}
+
+  std::string kind() const {
+    ErrorObj* obj = static_cast<ErrorObj*>(data_.get());
+    return std::string(obj->kind.data, obj->kind.size);
+  }
+
+  std::string message() const {
+    ErrorObj* obj = static_cast<ErrorObj*>(data_.get());
+    return std::string(obj->message.data, obj->message.size);
+  }
+
+  std::string traceback() const {
+    ErrorObj* obj = static_cast<ErrorObj*>(data_.get());
+    return std::string(obj->traceback.data, obj->traceback.size);
+  }
+
+  const char* what() const noexcept(true) override {
+    thread_local std::string what_data;
+    ErrorObj* obj = static_cast<ErrorObj*>(data_.get());
+    what_data = (std::string("Traceback (most recent call last):\n") +
+                 std::string(obj->traceback.data, obj->traceback.size) +
+                 std::string(obj->kind.data, obj->kind.size) + std::string(": ") +
+                 std::string(obj->message.data, obj->message.size) + '\n');
+    return what_data.c_str();
+  }
 
   TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Error, ObjectRef, ErrorObj);
 };
@@ -134,6 +156,9 @@ class ErrorBuilder {
  public:
   explicit ErrorBuilder(std::string kind, std::string traceback, bool log_before_throw)
       : kind_(kind), traceback_(traceback), log_before_throw_(log_before_throw) {}
+
+  explicit ErrorBuilder(std::string kind, const TVMFFIByteArray* traceback, bool log_before_throw)
+      : ErrorBuilder(kind, std::string(traceback->data, traceback->size), log_before_throw) {}
 
 // MSVC disable warning in error builder as it is exepected
 #ifdef _MSC_VER

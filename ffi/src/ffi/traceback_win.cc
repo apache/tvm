@@ -122,9 +122,12 @@ std::string Traceback() {
 }  // namespace ffi
 }  // namespace tvm
 
-const char* TVMFFITraceback(const char*, int, const char*) {
+const TVMFFIByteArray* TVMFFITraceback() {
   static thread_local std::string traceback_str;
+  static thread_local TVMFFIByteArray traceback_array;
   traceback_str = ::tvm::ffi::Traceback();
-  return traceback_str.c_str();
+  traceback_array.data = traceback_str.data();
+  traceback_array.size = traceback_str.size();
+  return &traceback_array;
 }
 #endif  // _MSC_VER

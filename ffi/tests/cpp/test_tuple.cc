@@ -101,11 +101,11 @@ TEST(Tuple, FromUnpacked) {
         try {
           fadd1(Array<Any>({1.1, 2}));
         } catch (const Error& error) {
-          EXPECT_STREQ(error->kind, "TypeError");
-          EXPECT_STREQ(error->message,
-                       "Mismatched type on argument #0 when calling: `(0: Tuple<int, "
-                       "test.PrimExpr>) -> int`. "
-                       "Expected `Tuple<int, test.PrimExpr>` but got `Array[index 0: float]`");
+          EXPECT_EQ(error.kind(), "TypeError");
+          EXPECT_EQ(error.message(),
+                    "Mismatched type on argument #0 when calling: `(0: Tuple<int, "
+                    "test.PrimExpr>) -> int`. "
+                    "Expected `Tuple<int, test.PrimExpr>` but got `Array[index 0: float]`");
           throw;
         }
       },
@@ -116,11 +116,11 @@ TEST(Tuple, FromUnpacked) {
         try {
           fadd1(Array<Any>({1.1}));
         } catch (const Error& error) {
-          EXPECT_STREQ(error->kind, "TypeError");
-          EXPECT_STREQ(error->message,
-                       "Mismatched type on argument #0 when calling: `(0: Tuple<int, "
-                       "test.PrimExpr>) -> int`. "
-                       "Expected `Tuple<int, test.PrimExpr>` but got `Array[size=1]`");
+          EXPECT_EQ(error.kind(), "TypeError");
+          EXPECT_EQ(error.message(),
+                    "Mismatched type on argument #0 when calling: `(0: Tuple<int, "
+                    "test.PrimExpr>) -> int`. "
+                    "Expected `Tuple<int, test.PrimExpr>` but got `Array[size=1]`");
           throw;
         }
       },

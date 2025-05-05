@@ -434,10 +434,13 @@ void* TVMGetLastPythonError() {
 
 const char* TVMGetLastBacktrace() {
   const auto& last_error = TVMAPIRuntimeStore::Get()->last_error;
+  static thread_local std::string traceback;
   if (const auto* wrapped = std::get_if<WrappedPythonError>(&last_error)) {
-    return (*wrapped)->traceback;
+    traceback = wrapped->traceback();
+    return traceback.c_str();
   } else if (const auto* wrapped = std::get_if<InternalError>(&last_error)) {
-    return (*wrapped)->traceback;
+    traceback = wrapped->traceback();
+    return traceback.c_str();
   } else {
     return nullptr;
   }

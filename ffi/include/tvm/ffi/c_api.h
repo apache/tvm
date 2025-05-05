@@ -217,13 +217,13 @@ typedef struct {
  */
 typedef struct {
   /*! \brief The kind of the error. */
-  const char* kind;
+  TVMFFIByteArray kind;
   /*! \brief The message of the error. */
-  const char* message;
+  TVMFFIByteArray message;
   /*!
    * \brief The traceback of the error.
    */
-  const char* traceback;
+  TVMFFIByteArray traceback;
 } TVMFFIErrorCell;
 
 /*!
@@ -288,7 +288,7 @@ typedef int (*TVMFFIFieldSetter)(void* field, const TVMFFIAny* value);
  */
 typedef struct {
   /*! \brief The name of the field. */
-  const char* name;
+  TVMFFIByteArray name;
   /*!
    * \brief Records the static type kind of the field.
    *
@@ -326,7 +326,7 @@ typedef struct {
  */
 typedef struct {
   /*! \brief The name of the field. */
-  const char* name;
+  TVMFFIByteArray name;
   /*!
    * \brief The method wrapped as Function
    * \note The first argument to the method is always the self.
@@ -346,7 +346,7 @@ typedef struct {
   /*! \brief number of parent types in the type hierachy. */
   int32_t type_depth;
   /*! \brief the unique type key to identify the type. */
-  const char* type_key;
+  TVMFFIByteArray type_key;
   /*! \brief Cached hash value of the type key, used for consistent structural hashing. */
   uint64_t type_key_hash;
   /*!
@@ -383,7 +383,7 @@ TVM_FFI_DLL int TVMFFIObjectFree(TVMFFIObjectHandle obj);
  * \param out_tindex the corresponding type index.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFITypeKeyToIndex(const char* type_key, int32_t* out_tindex);
+TVM_FFI_DLL int TVMFFITypeKeyToIndex(const TVMFFIByteArray* type_key, int32_t* out_tindex);
 
 //-----------------------------------------------------------------------
 // Section: Function calling APIs and support API for func implementation
@@ -432,7 +432,8 @@ TVM_FFI_DLL int TVMFFIFunctionCall(TVMFFIObjectHandle func, TVMFFIAny* args, int
  * \param override Whether allow override already registered function.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFIFunctionSetGlobal(const char* name, TVMFFIObjectHandle f, int override);
+TVM_FFI_DLL int TVMFFIFunctionSetGlobal(const TVMFFIByteArray* name, TVMFFIObjectHandle f,
+                                        int override);
 
 /*!
  * \brief Get a global function.
@@ -441,7 +442,7 @@ TVM_FFI_DLL int TVMFFIFunctionSetGlobal(const char* name, TVMFFIObjectHandle f, 
  * \param out the result function pointer, NULL if it does not exist.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFIFunctionGetGlobal(const char* name, TVMFFIObjectHandle* out);
+TVM_FFI_DLL int TVMFFIFunctionGetGlobal(const TVMFFIByteArray* name, TVMFFIObjectHandle* out);
 
 /*!
  * \brief Move the last error from the environment to result.
@@ -474,18 +475,21 @@ TVM_FFI_DLL void TVMFFIErrorSetRaisedByCStr(const char* kind, const char* messag
  * \param kind The kind of the error.
  * \param message The error message.
  * \param traceback The traceback of the error.
- * \param out The output Error object handle.
- * \return 0 when success, nonzero when failure happens
+ * \return The created error object handle.
+ * \note This function is different from other functions as it is used in error handling loop.
+ *       So we do not follow normal error handling patterns via returning error code.
  */
-TVM_FFI_DLL int TVMFFIErrorCreate(const char* kind, const char* message, const char* traceback,
-                                  TVMFFIObjectHandle* out);
+TVM_FFI_DLL TVMFFIObjectHandle TVMFFIErrorCreate(const TVMFFIByteArray* kind,
+                                                 const TVMFFIByteArray* message,
+                                                 const TVMFFIByteArray* traceback);
 
 /*!
  * \brief Update the traceback of an Error object.
  * \param obj The error handle.
  * \param traceback The traceback to update.
  */
-TVM_FFI_DLL void TVMFFIErrorUpdateTraceback(TVMFFIObjectHandle obj, const char* traceback);
+TVM_FFI_DLL void TVMFFIErrorUpdateTraceback(TVMFFIObjectHandle obj,
+                                            const TVMFFIByteArray* traceback);
 
 /*!
  * \brief Check if there are any signals raised in the surrounding env.
@@ -500,7 +504,7 @@ TVM_FFI_DLL int TVMFFIEnvCheckSignals();
  * \param symbol The symbol to register.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFIEnvRegisterCAPI(const char* name, void* symbol);
+TVM_FFI_DLL int TVMFFIEnvRegisterCAPI(const TVMFFIByteArray* name, void* symbol);
 
 //------------------------------------------------------------
 // Section: Type reflection support APIs
@@ -568,7 +572,7 @@ TVM_FFI_DLL int TVMFFINDArrayToDLPackVersioned(TVMFFIObjectHandle from,
  * \param out The output DLDataType.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFIDataTypeFromString(const char* str, DLDataType* out);
+TVM_FFI_DLL int TVMFFIDataTypeFromString(const TVMFFIByteArray* str, DLDataType* out);
 
 /*!
  * \brief Convert a DLDataType to a string.
@@ -598,7 +602,8 @@ TVM_FFI_DLL int TVMFFIDataTypeToString(DLDataType dtype, TVMFFIObjectHandle* out
  * \note filename func and lino are only used as a backup info, most cases they are not needed.
  *  The return value is set to const char* to be more compatible across dll boundaries.
  */
-TVM_FFI_DLL const char* TVMFFITraceback(const char* filename, int lineno, const char* func);
+TVM_FFI_DLL const TVMFFIByteArray* TVMFFITraceback(const char* filename, int lineno,
+                                                   const char* func);
 
 /*!
  * \brief Initialize the type info during runtime.
@@ -619,8 +624,9 @@ TVM_FFI_DLL const char* TVMFFITraceback(const char* filename, int lineno, const 
  *
  * \return 0 if success, -1 if error occured
  */
-TVM_FFI_DLL int32_t TVMFFIGetOrAllocTypeIndex(const char* type_key, int32_t static_type_index,
-                                              int32_t type_depth, int32_t num_child_slots,
+TVM_FFI_DLL int32_t TVMFFIGetOrAllocTypeIndex(const TVMFFIByteArray* type_key,
+                                              int32_t static_type_index, int32_t type_depth,
+                                              int32_t num_child_slots,
                                               int32_t child_slots_can_overflow,
                                               int32_t parent_type_index);
 

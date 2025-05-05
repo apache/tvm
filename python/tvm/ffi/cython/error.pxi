@@ -73,10 +73,12 @@ cdef class Error(Object):
     """
 
     def __init__(self, kind, message, traceback):
-        CHECK_CALL(
-            TVMFFIErrorCreate(
-                c_str(kind), c_str(message), c_str(traceback),
-                &(<Object>self).chandle))
+        cdef ByteArrayArg kind_arg = ByteArrayArg(c_str(kind))
+        cdef ByteArrayArg message_arg = ByteArrayArg(c_str(message))
+        cdef ByteArrayArg traceback_arg = ByteArrayArg(c_str(traceback))
+        (<Object>self).chandle = TVMFFIErrorCreate(
+            kind_arg.cptr(), message_arg.cptr(), traceback_arg.cptr()
+        )
 
     def update_traceback(self, traceback):
         """Update the traceback of the error
@@ -86,7 +88,8 @@ cdef class Error(Object):
         traceback : str
             The traceback to update.
         """
-        TVMFFIErrorUpdateTraceback(self.chandle, c_str(traceback))
+        cdef ByteArrayArg traceback_arg = ByteArrayArg(c_str(traceback))
+        TVMFFIErrorUpdateTraceback(self.chandle, traceback_arg.cptr())
 
     def py_error(self):
         """
@@ -100,15 +103,15 @@ cdef class Error(Object):
 
     @property
     def kind(self):
-        return py_str(TVMFFIErrorGetCellPtr(self.chandle).kind)
+        return bytearray_to_str(&(TVMFFIErrorGetCellPtr(self.chandle).kind))
 
     @property
     def message(self):
-        return py_str(TVMFFIErrorGetCellPtr(self.chandle).message)
+        return bytearray_to_str(&(TVMFFIErrorGetCellPtr(self.chandle).message))
 
     @property
     def traceback(self):
-        return py_str(TVMFFIErrorGetCellPtr(self.chandle).traceback)
+        return bytearray_to_str(&(TVMFFIErrorGetCellPtr(self.chandle).traceback))
 
 _register_object_by_index(kTVMFFIError, Error)
 
@@ -131,7 +134,7 @@ cdef inline int set_last_ffi_error(error) except -1:
     kind = ERROR_TYPE_TO_NAME.get(type(error), "RuntimeError")
     message = error.__str__()
     py_traceback = _TRACEBACK_TO_STR(error.__traceback__)
-    c_traceback = py_str(TVMFFITraceback("<unknown>", 0, "<unknown>"))
+    c_traceback = bytearray_to_str(TVMFFITraceback("<unknown>", 0, "<unknown>"))
 
     # error comes from an exception thrown from C++ side
     if hasattr(error, "__tvm_ffi_error__"):
