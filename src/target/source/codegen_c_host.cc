@@ -242,7 +242,11 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
   std::string result = name_supply_->FreshName("result");
   this->stream << "TVMFFIAny " << result << ";\n";
   this->PrintIndent();
-
+  // must make sure type_index is set to none
+  this->stream << result << ".type_index = kTVMFFINone;\n";
+  this->PrintIndent();
+  this->stream << result << ".v_int64 = 0;\n";
+  this->PrintIndent();
   if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
     this->stream << "if (TVMFFIFunctionCall(" << packed_func_name << ", ";
   } else {
