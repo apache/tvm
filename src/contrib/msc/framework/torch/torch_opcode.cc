@@ -829,6 +829,7 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
                std::make_shared<TorchPoolCodeGen>("nn.MaxPool2d", "functional.max_pool2d"));
   map->emplace("nn.nll_loss", std::make_shared<TorchNllLossCodeGen>("", "functional.nll_loss"));
   map->emplace("nn.relu", std::make_shared<TorchSimpleCodeGen>("nn.ReLU", "functional.relu"));
+  map->emplace("nn.relu6", std::make_shared<TorchSimpleCodeGen>("nn.ReLU6", "functional.relu6"));
   map->emplace("nn.silu", std::make_shared<TorchSimpleCodeGen>("nn.SiLU", "functional.silu"));
 
   // image ops
