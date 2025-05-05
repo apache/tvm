@@ -36,14 +36,6 @@ namespace tvm {
 namespace ffi {
 namespace details {
 
-/*!
- * \brief Empty struct, used to reduce unused variable in global static initialization.
- */
-struct EmptyStruct {
-  /*! \brief at least one byte to ensure address */
-  uint8_t pad;
-};
-
 template <typename ArgType>
 struct Arg2Str {
   template <size_t i>
@@ -167,46 +159,10 @@ class ArgValueWithContext {
   FGetFuncSignature f_sig_;
 };
 
-template <typename R, int nleft, int index, typename F>
-struct unpack_call_dispatcher {
-  template <typename... Args>
-  TVM_FFI_INLINE static void run(const std::string* optional_name, FGetFuncSignature f_sig,
-                                 const F& f, const AnyView* args, int32_t num_args, Any* rv,
-                                 Args&&... unpacked_args) {
-    // construct a movable argument value
-    // which allows potential move of argument to the input of F.
-    unpack_call_dispatcher<R, nleft - 1, index + 1, F>::run(
-        optional_name, f_sig, f, args, num_args, rv, std::forward<Args>(unpacked_args)...,
-        ArgValueWithContext(args, index, optional_name, f_sig));
-  }
-};
-
-template <typename R, int index, typename F>
-struct unpack_call_dispatcher<R, 0, index, F> {
-  template <typename... Args>
-  TVM_FFI_INLINE static void run(const std::string*, FGetFuncSignature, const F& f, const AnyView*,
-                                 int32_t, Any* rv, Args&&... unpacked_args) {
-    using RetType = decltype(f(std::forward<Args>(unpacked_args)...));
-    if constexpr (std::is_same_v<RetType, R>) {
-      *rv = f(std::forward<Args>(unpacked_args)...);
-    } else {
-      *rv = R(f(std::forward<Args>(unpacked_args)...));
-    }
-  }
-};
-
-template <int index, typename F>
-struct unpack_call_dispatcher<void, 0, index, F> {
-  template <typename... Args>
-  TVM_FFI_INLINE static void run(const std::string*, FGetFuncSignature, const F& f, const AnyView*,
-                                 int32_t, Any*, Args&&... unpacked_args) {
-    f(std::forward<Args>(unpacked_args)...);
-  }
-};
-
-template <typename R, int nargs, typename F>
-TVM_FFI_INLINE void unpack_call(const std::string* optional_name, const F& f, const AnyView* args,
-                                int32_t num_args, Any* rv) {
+template <typename R, std::size_t... Is, typename F>
+TVM_FFI_INLINE void unpack_call(std::index_sequence<Is...>, const std::string* optional_name,
+                                const F& f, [[maybe_unused]] const AnyView* args,
+                                [[maybe_unused]] int32_t num_args, [[maybe_unused]] Any* rv) {
   using FuncInfo = FunctionInfo<F>;
   FGetFuncSignature f_sig = FuncInfo::Sig;
 
@@ -214,47 +170,20 @@ TVM_FFI_INLINE void unpack_call(const std::string* optional_name, const F& f, co
 #ifndef _MSC_VER
   static_assert(FuncInfo::unpacked_supported, "The function signature do not support unpacked");
 #endif
-
+  constexpr size_t nargs = sizeof...(Is);
   if (nargs != num_args) {
     TVM_FFI_THROW(TypeError) << "Mismatched number of arguments when calling: `"
                              << (optional_name == nullptr ? "" : *optional_name)
                              << (f_sig == nullptr ? "" : (*f_sig)()) << "`. Expected " << nargs
                              << " but got " << num_args << " arguments";
   }
-  unpack_call_dispatcher<R, nargs, 0, F>::run(optional_name, f_sig, f, args, num_args, rv);
+  // use index sequence to do recursive-less unpacking
+  if constexpr (std::is_same_v<R, void>) {
+    f(ArgValueWithContext(args, Is, optional_name, f_sig)...);
+  } else {
+    *rv = R(f(ArgValueWithContext(args, Is, optional_name, f_sig)...));
+  }
 }
-
-template <typename FType>
-struct unpack_call_by_signature {};
-
-template <typename R, typename... Args>
-struct unpack_call_by_signature<R(Args...)> {
-  template <typename F>
-  TVM_FFI_INLINE static void run(const F& f, const AnyView* args, int32_t num_args, Any* rv) {
-    unpack_call<R, sizeof...(Args)>(nullptr, f, args, num_args, rv);
-  }
-};
-
-template <typename R>
-struct typed_packed_call_dispatcher {
-  template <typename F, typename... Args>
-  TVM_FFI_INLINE static R run(const F& f, Args&&... args) {
-    Any res = f(std::forward<Args>(args)...);
-    if constexpr (std::is_same_v<R, Any>) {
-      return res;
-    } else {
-      return std::move(res).cast<R>();
-    }
-  }
-};
-
-template <>
-struct typed_packed_call_dispatcher<void> {
-  template <typename F, typename... Args>
-  TVM_FFI_INLINE static void run(const F& f, Args&&... args) {
-    f(std::forward<Args>(args)...);
-  }
-};
 
 /*!
  * \brief Move the safe call raised error to the caller

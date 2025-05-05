@@ -453,8 +453,8 @@ class Function : public ObjectRef {
   static Function FromUnpacked(TCallable callable) {
     using FuncInfo = details::FunctionInfo<TCallable>;
     auto call_packed = [callable](const AnyView* args, int32_t num_args, Any* rv) mutable -> void {
-      details::unpack_call<typename FuncInfo::RetType, FuncInfo::num_args>(nullptr, callable, args,
-                                                                           num_args, rv);
+      details::unpack_call<typename FuncInfo::RetType>(
+          std::make_index_sequence<FuncInfo::num_args>{}, nullptr, callable, args, num_args, rv);
     };
     return FromPackedInternal(call_packed);
   }
@@ -469,8 +469,8 @@ class Function : public ObjectRef {
     using FuncInfo = details::FunctionInfo<TCallable>;
     auto call_packed = [callable, name](const AnyView* args, int32_t num_args,
                                         Any* rv) mutable -> void {
-      details::unpack_call<typename FuncInfo::RetType, FuncInfo::num_args>(&name, callable, args,
-                                                                           num_args, rv);
+      details::unpack_call<typename FuncInfo::RetType>(
+          std::make_index_sequence<FuncInfo::num_args>{}, &name, callable, args, num_args, rv);
     };
     return FromPackedInternal(call_packed);
   }
@@ -674,7 +674,16 @@ class TypedFunction<R(Args...)> {
    * \returns The return value.
    */
   TVM_FFI_INLINE R operator()(Args... args) const {
-    return details::typed_packed_call_dispatcher<R>::run(packed_, std::forward<Args>(args)...);
+    if constexpr (std::is_same_v<R, void>) {
+      packed_(std::forward<Args>(args)...);
+    } else {
+      Any res = packed_(std::forward<Args>(args)...);
+      if constexpr (std::is_same_v<R, Any>) {
+        return res;
+      } else {
+        return std::move(res).cast<R>();
+      }
+    }
   }
   /*!
    * \brief convert to PackedFunc
@@ -850,8 +859,6 @@ class Function::Registry {
     return *this;
   }
 
-  operator details::EmptyStruct() const { return details::EmptyStruct(); }
-
  protected:
   /*!
    * \brief set the body of the function to be f
@@ -875,8 +882,8 @@ inline int32_t TypeKeyToIndex(const char* type_key) {
   return type_index;
 }
 
-#define TVM_FFI_REG_VAR_DEF \
-  static inline TVM_FFI_ATTRIBUTE_UNUSED ::tvm::ffi::details::EmptyStruct __mk_##TVMFFI
+#define TVM_FFI_FUNC_REG_VAR_DEF \
+  static inline TVM_FFI_ATTRIBUTE_UNUSED ::tvm::ffi::Function::Registry& __##TVMFFIFuncReg
 
 /*!
  * \brief Register a function globally.
@@ -888,7 +895,7 @@ inline int32_t TypeKeyToIndex(const char* type_key) {
  * \endcode
  */
 #define TVM_FFI_REGISTER_GLOBAL(OpName) \
-  TVM_FFI_STR_CONCAT(TVM_FFI_REG_VAR_DEF, __COUNTER__) = ::tvm::ffi::Function::Registry(OpName)
+  TVM_FFI_STR_CONCAT(TVM_FFI_FUNC_REG_VAR_DEF, __COUNTER__) = ::tvm::ffi::Function::Registry(OpName)
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_FUNCTION_H_

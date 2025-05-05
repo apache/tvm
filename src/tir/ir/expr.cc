@@ -558,36 +558,37 @@ Call::Call(DataType dtype, RelaxExpr op, Array<PrimExpr> args, Span span) {
 }
 
 TVM_REGISTER_GLOBAL("tir.Call")
-    .set_body_typed([](Optional<DataType> dtype, RelaxExpr op,
-                       Array<Variant<runtime::String, DLDataType, IterVar, BufferRegion, PrimExpr>> args,
-                       Span span) {
-      Array<PrimExpr> prim_expr_args;
-      for (const auto& it : args) {
-        if (auto opt_str = it.as<String>()) {
-          prim_expr_args.push_back(StringImm(opt_str.value()));
-        } else if (auto opt_dtype = it.as<DLDataType>()) {
-          prim_expr_args.push_back(StringImm(ffi::DLDataTypeToString(opt_dtype.value())));
-        } else if (const auto* iter_var = it.as<IterVarNode>()) {
-          prim_expr_args.push_back(iter_var->var);
-        } else if (const auto* br = it.as<BufferRegionNode>()) {
-          Array<PrimExpr> indices;
-          for (Range r : br->region) {
-            if (is_one(r->extent)) {
-              indices.push_back(r->min);
-            } else if (r->extent.as<IntImmNode>()) {
-              indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), r->extent));
+    .set_body_typed(
+        [](Optional<DataType> dtype, RelaxExpr op,
+           Array<Variant<runtime::String, DLDataType, IterVar, BufferRegion, PrimExpr>> args,
+           Span span) {
+          Array<PrimExpr> prim_expr_args;
+          for (const auto& it : args) {
+            if (auto opt_str = it.as<String>()) {
+              prim_expr_args.push_back(StringImm(opt_str.value()));
+            } else if (auto opt_dtype = it.as<DLDataType>()) {
+              prim_expr_args.push_back(StringImm(ffi::DLDataTypeToString(opt_dtype.value())));
+            } else if (const auto* iter_var = it.as<IterVarNode>()) {
+              prim_expr_args.push_back(iter_var->var);
+            } else if (const auto* br = it.as<BufferRegionNode>()) {
+              Array<PrimExpr> indices;
+              for (Range r : br->region) {
+                if (is_one(r->extent)) {
+                  indices.push_back(r->min);
+                } else if (r->extent.as<IntImmNode>()) {
+                  indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), r->extent));
+                } else {
+                  LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: "
+                             << GetRef<BufferRegion>(br);
+                }
+              }
+              prim_expr_args.push_back(BufferLoad(br->buffer, indices));
             } else {
-              LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: "
-                         << GetRef<BufferRegion>(br);
+              prim_expr_args.push_back(Downcast<PrimExpr>(it));
             }
           }
-          prim_expr_args.push_back(BufferLoad(br->buffer, indices));
-        } else {
-          prim_expr_args.push_back(Downcast<PrimExpr>(it));
-        }
-      }
-      return Call(dtype.value_or(DataType::Void()), op, prim_expr_args, span);
-    });
+          return Call(dtype.value_or(DataType::Void()), op, prim_expr_args, span);
+        });
 
 TVM_REGISTER_NODE_TYPE(CallNode);
 

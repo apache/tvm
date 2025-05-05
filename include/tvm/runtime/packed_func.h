@@ -343,7 +343,8 @@ struct ModuleVTableEntryHelper<R (T::*)(Args...) const> {
   using MemFnType = R (T::*)(Args...) const;
   static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args) {
     auto wrapped = [self, f](Args... args) -> R { return (self->*f)(std::forward<Args>(args)...); };
-    ffi::details::unpack_call<R, sizeof...(Args)>(nullptr, wrapped, args.data(), args.size(), rv);
+    ffi::details::unpack_call<R>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
+                                 args.data(), args.size(), rv);
   }
 };
 
@@ -352,7 +353,8 @@ struct ModuleVTableEntryHelper<R (T::*)(Args...)> {
   using MemFnType = R (T::*)(Args...);
   static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args) {
     auto wrapped = [self, f](Args... args) -> R { return (self->*f)(std::forward<Args>(args)...); };
-    ffi::details::unpack_call<R, sizeof...(Args)>(nullptr, wrapped, args.data(), args.size(), rv);
+    ffi::details::unpack_call<R>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
+                                 args.data(), args.size(), rv);
   }
 };
 
@@ -361,8 +363,8 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...) const> {
   using MemFnType = void (T::*)(Args...) const;
   static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args) {
     auto wrapped = [self, f](Args... args) -> void { (self->*f)(std::forward<Args>(args)...); };
-    ffi::details::unpack_call<void, sizeof...(Args)>(nullptr, wrapped, args.data(), args.size(),
-                                                     rv);
+    ffi::details::unpack_call<void>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
+                                    args.data(), args.size(), rv);
   }
 };
 
@@ -371,8 +373,8 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
   using MemFnType = void (T::*)(Args...);
   static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args) {
     auto wrapped = [self, f](Args... args) -> void { (self->*f)(std::forward<Args>(args)...); };
-    ffi::details::unpack_call<void, sizeof...(Args)>(nullptr, wrapped, args.data(), args.size(),
-                                                     rv);
+    ffi::details::unpack_call<void>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
+                                    args.data(), args.size(), rv);
   }
 };
 }  // namespace details
@@ -446,8 +448,9 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
     TVM_FFI_SAFE_CALL_BEGIN();                                                               \
     using FuncInfo = ::tvm::ffi::details::FunctionInfo<decltype(Function)>;                  \
     static std::string name = #ExportName;                                                   \
-    ::tvm::ffi::details::unpack_call<typename FuncInfo::RetType, FuncInfo::num_args>(        \
-        &name, Function, reinterpret_cast<const ::tvm::ffi::AnyView*>(args), num_args,       \
+    ::tvm::ffi::details::unpack_call<typename FuncInfo::RetType>(                            \
+        std::make_index_sequence<FuncInfo::num_args>{}, &name, Function,                     \
+        reinterpret_cast<const ::tvm::ffi::AnyView*>(args), num_args,                        \
         reinterpret_cast<::tvm::ffi::Any*>(result));                                         \
     TVM_FFI_SAFE_CALL_END();                                                                 \
   }                                                                                          \

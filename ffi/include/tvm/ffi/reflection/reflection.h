@@ -66,8 +66,6 @@ class ReflectionDef {
     return *this;
   }
 
-  operator details::EmptyStruct() const { return details::EmptyStruct(); }
-
  private:
   template <typename Class, typename T>
   void RegisterField(const char* name, T Class::*field_ptr, bool readonly) {
@@ -138,11 +136,14 @@ class ReflectionFieldGetter {
   const TVMFFIFieldInfo* field_info_;
 };
 
+#define TVM_FFI_REFLECTION_REG_VAR_DEF \
+  static inline TVM_FFI_ATTRIBUTE_UNUSED ::tvm::ffi::details::ReflectionDef& __TVMFFIReflectionReg
+
 /*!
  * helper macro to define a reflection definition for an object
  */
-#define TVM_FFI_REFLECTION_DEF(TypeName)                 \
-  TVM_FFI_STR_CONCAT(TVM_FFI_REG_VAR_DEF, __COUNTER__) = \
+#define TVM_FFI_REFLECTION_DEF(TypeName)                            \
+  TVM_FFI_STR_CONCAT(TVM_FFI_REFLECTION_REG_VAR_DEF, __COUNTER__) = \
       ::tvm::ffi::details::ReflectionDef(TypeName::_GetOrAllocRuntimeTypeIndex())
 }  // namespace details
 }  // namespace ffi

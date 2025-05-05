@@ -94,12 +94,12 @@ class Variant {
 
   template <typename T, typename = enable_if_variant_contains_t<T>>
   TVM_FFI_INLINE T get() const& {
-    return data_.cast<T>();
+    return data_.template cast<T>();
   }
 
   template <typename T, typename = enable_if_variant_contains_t<T>>
   TVM_FFI_INLINE T get() && {
-    return std::move(data_).cast<T>();
+    return std::move(data_).template cast<T>();
   }
 
   TVM_FFI_INLINE std::string GetTypeKey() const { return data_.GetTypeKey(); }
