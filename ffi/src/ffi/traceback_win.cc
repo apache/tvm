@@ -122,7 +122,7 @@ std::string Traceback() {
 }  // namespace ffi
 }  // namespace tvm
 
-const TVMFFIByteArray* TVMFFITraceback() {
+const TVMFFIByteArray* TVMFFITraceback(const char* filename, int lineno, const char* func) {
   static thread_local std::string traceback_str;
   static thread_local TVMFFIByteArray traceback_array;
   traceback_str = ::tvm::ffi::Traceback();

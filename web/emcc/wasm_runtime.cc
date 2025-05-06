@@ -53,8 +53,13 @@
 #include "src/runtime/system_library.cc"
 #include "src/runtime/workspace_pool.cc"
 // relax setup
+#include "ffi/src/ffi/container.cc"
+#include "ffi/src/ffi/dtype.cc"
+#include "ffi/src/ffi/error.cc"
 #include "ffi/src/ffi/function.cc"
+#include "ffi/src/ffi/ndarray.cc"
 #include "ffi/src/ffi/object.cc"
+#include "ffi/src/ffi/testing.cc"
 #include "ffi/src/ffi/traceback.cc"
 #include "src/runtime/memory/memory_manager.cc"
 #include "src/runtime/nvtx.cc"
