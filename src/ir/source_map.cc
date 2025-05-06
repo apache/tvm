@@ -208,10 +208,10 @@ tvm::String Source::GetLine(int line) {
   return line_text;
 }
 
-TVM_REGISTER_NODE_TYPE(SourceMapNode);
+TVM_REGISTER_NODE_TYPE(SourceMapObj);
 
 SourceMap::SourceMap(Map<SourceName, Source> source_map) {
-  auto n = make_object<SourceMapNode>();
+  auto n = make_object<SourceMapObj>();
   n->source_map = std::move(source_map);
   data_ = std::move(n);
 }

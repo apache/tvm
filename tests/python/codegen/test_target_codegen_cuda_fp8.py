@@ -46,7 +46,7 @@ def test_e4m3_conversions():
         B: T.Buffer((64,), dtype),
         C: T.Buffer((64,), dtype),
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         # with T.block("root"):
         for i in range(64):
             with T.block("C"):
@@ -93,7 +93,7 @@ def test_e4m3_packing():
         R: T.Buffer((length,), packed_dtype),
         B: T.Buffer((length,), native_dtype),
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         # with T.block("root"):
         for i in range(length):
             with T.block("R"):
@@ -156,7 +156,7 @@ def test_e4m3_vector_conversions(native_dtype, promoted_dtype):
         B: T.Buffer((vector_length,), native_dtype),
         C: T.Buffer((vector_length,), native_dtype),
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         # with T.block("root"):
         for i in range(vector_length):
             with T.block("C"):
@@ -291,7 +291,7 @@ def test_half4_vector_add():
         B: T.Buffer((length,), vec_dtype),
         C: T.Buffer((length,), vec_dtype),
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         # with T.block("root"):
         for i in range(length):
             with T.block("C"):
@@ -609,7 +609,7 @@ class BaseFP8E4M3QuantScaleOnly:
             scale: T.Buffer(scale_shape, model_dtype),
             dequantize: T.Buffer(out_shape, model_dtype),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i0, i1 in T.grid(T.int64(packed_weight_shape[0]), T.int64(packed_weight_shape[1])):
                 with T.block("dequantize"):
@@ -867,7 +867,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
             indptr: T.Buffer((1, 2), "int32"),
             o: T.Buffer((2, spatial_size), "float16"),
         ):
-            T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+            T.func_attr({"op_pattern": 4, "tir.noalias": True})
             num_seq = T.int64()
             x = T.match_buffer(x_handle, (num_seq, reduce_size), "float16")
             for expert_id in T.thread_binding(2, thread="blockIdx.y"):

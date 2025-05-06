@@ -122,10 +122,10 @@ std::unique_ptr<CodeGenLLVM> CodeGenLLVM::Create(LLVMTarget* llvm_target) {
   std::string target = llvm_target->GetOrCreateTargetMachine()->getTarget().getName();
   std::string factory_template = "tvm.codegen.llvm.target_";
   void* handle = nullptr;
-  if (const PackedFunc* f = runtime::Registry::Get(factory_template + target)) {
-    handle = (*f)();
-  } else if (const PackedFunc* f = runtime::Registry::Get(factory_template + "cpu")) {
-    handle = (*f)();
+  if (auto f = tvm::ffi::Function::GetGlobal(factory_template + target)) {
+    handle = (*f)().cast<void*>();
+  } else if (auto f = tvm::ffi::Function::GetGlobal(factory_template + "cpu")) {
+    handle = (*f)().cast<void*>();
   } else {
     LOG(FATAL) << "no factory function for codegen for target " << target;
   }
@@ -1418,6 +1418,10 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     return llvm::Constant::getNullValue(t_void_p_);
   } else if (op->op.same_as(builtin::isnullptr())) {
     return builder_->CreateIsNull(MakeValue(op->args[0]));
+  } else if (op->op.same_as(builtin::handle_add_byte_offset())) {
+    llvm::Value* ptr = MakeValue(op->args[0]);
+    llvm::Value* offset = MakeValue(op->args[1]);
+    return builder_->CreateInBoundsGEP(t_int8_, ptr, offset);
   } else if (op->op.same_as(builtin::large_uint_imm())) {
     ICHECK_EQ(op->args.size(), 2U);
     uint64_t low = static_cast<uint64_t>(Downcast<IntImm>(op->args[0])->value);
@@ -2309,7 +2313,7 @@ llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm)
       return nullptr;
     }
 
-    return dbg_info_->di_builder_->createBasicType(DLDataType2String(dtype),
+    return dbg_info_->di_builder_->createBasicType(DLDataTypeToString(dtype).operator std::string(),
                                                    dtype.bits() * dtype.lanes(), dwarf_type);
 
   } else {

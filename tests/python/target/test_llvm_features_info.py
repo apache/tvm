@@ -23,7 +23,6 @@ LLVM_VERSION = codegen.llvm_version_major()
 
 
 def test_llvm_targets(capfd):
-
     ##
     ## check LLVM backend
     ##
@@ -69,7 +68,6 @@ min_llvm_version, llvm_target, cpu_arch, cpu_features, is_supported = tvm.testin
 
 
 def test_target_features(min_llvm_version, llvm_target, cpu_arch, cpu_features, is_supported):
-
     target = Target("llvm -mtriple=%s-- -mcpu=%s" % (llvm_target, cpu_arch))
 
     ##

@@ -51,8 +51,7 @@ def test_tvm_script_create_scalable_tir_intrin():
 
 
 def test_invalid_data_type():
-    err_msg = "Invalid data type. Expected 'vscale' but got '4'"
-    with pytest.raises(AssertionError, match=err_msg):
+    with pytest.raises(ValueError):
         tvm.DataType("float32x4xvscale")
 
 

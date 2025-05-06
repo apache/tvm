@@ -26,6 +26,9 @@
 #include <tvm/node/functor.h>
 #include <tvm/node/object_path.h>
 #include <tvm/node/reflection.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
 
 #include <iostream>
@@ -148,7 +151,7 @@ class PrinterConfigNode : public Object {
 
 class PrinterConfig : public ObjectRef {
  public:
-  explicit PrinterConfig(Map<String, ObjectRef> config_dict = Map<String, ObjectRef>());
+  explicit PrinterConfig(Map<String, Any> config_dict = Map<String, Any>());
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PrinterConfig, runtime::ObjectRef,
                                                     PrinterConfigNode);

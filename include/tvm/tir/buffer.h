@@ -259,7 +259,8 @@ class Buffer : public ObjectRef {
  */
 TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
                            String name = "buffer", String storage_scope = "",
-                           Array<IntImm> axis_separators = {}, Span span = Span());
+                           Optional<Array<IntImm>> axis_separators = std::nullopt,
+                           Span span = Span());
 
 /*!
  * \brief Base node for data producers.
@@ -273,7 +274,7 @@ TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Flo
  *
  * \sa tvm::te::Tensor
  */
-class DataProducerNode : public Object {
+class DataProducerNode : public PrimExprConvertibleNode {
  public:
   /*! \brief destructor. */
   virtual ~DataProducerNode() {}
@@ -303,16 +304,16 @@ class DataProducerNode : public Object {
   static constexpr const char* _type_key = "tir.DataProducer";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_BASE_OBJECT_INFO(DataProducerNode, Object);
+  TVM_DECLARE_BASE_OBJECT_INFO(DataProducerNode, PrimExprConvertibleNode);
 };
 
 /*!
  * \brief Managed reference to DataProducerNode.
  * \sa DataProducerNode
  */
-class DataProducer : public ObjectRef {
+class DataProducer : public PrimExprConvertible {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(DataProducer, ObjectRef, DataProducerNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(DataProducer, PrimExprConvertible, DataProducerNode);
 };
 
 /*!

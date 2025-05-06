@@ -317,6 +317,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
         return doc.value();
       }
       LOG(FATAL) << "IndexError: Buffer is not defined in the environment: " << buffer;
+      TVM_FFI_UNREACHABLE();
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

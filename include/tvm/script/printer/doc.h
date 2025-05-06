@@ -22,6 +22,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/device_api.h>
 
 #include <string>
 
@@ -80,7 +81,6 @@ class Doc : public ObjectRef {
   Doc() = default;
 
  public:
-  virtual ~Doc() = default;
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Doc, ObjectRef, DocNode);
 };
 
@@ -299,8 +299,18 @@ class LiteralDoc : public ExprDoc {
    * \param p The object path
    */
   static LiteralDoc DataType(const runtime::DataType& v, const Optional<ObjectPath>& p) {
-    std::string dtype = v.is_void() ? "void" : runtime::DLDataType2String(v);
+    std::string dtype = v.is_void() ? "void" : runtime::DLDataTypeToString(v);
     return LiteralDoc::Str(dtype, p);
+  }
+  /*!
+   * \brief Create a LiteralDoc to represent device.
+   * \param v The device.
+   * \param p The object path
+   */
+  static LiteralDoc Device(const DLDevice& v, const Optional<ObjectPath>& p) {
+    std::ostringstream os;
+    runtime::operator<<(os, v);
+    return LiteralDoc::Str(os.str(), p);
   }
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LiteralDoc, ExprDoc, LiteralDocNode);

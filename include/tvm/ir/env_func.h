@@ -139,8 +139,16 @@ class TypedEnvFunc<R(Args...)> : public ObjectRef {
   R operator()(Args... args) const {
     const EnvFuncNode* n = operator->();
     ICHECK(n != nullptr);
-    return runtime::detail::typed_packed_call_dispatcher<R>::run(n->func,
-                                                                 std::forward<Args>(args)...);
+    if constexpr (std::is_same_v<R, void>) {
+      n->func(std::forward<Args>(args)...);
+    } else {
+      Any res = n->func(std::forward<Args>(args)...);
+      if constexpr (std::is_same_v<R, Any>) {
+        return res;
+      } else {
+        return std::move(res).cast<R>();
+      }
+    }
   }
   /*! \brief specify container node */
   using ContainerType = EnvFuncNode;

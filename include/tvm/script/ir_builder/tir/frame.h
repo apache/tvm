@@ -78,7 +78,7 @@ class PrimFuncFrameNode : public TIRFrameNode {
   /*! \brief Maps some parameters to specific Buffer data structures. */
   Map<tvm::tir::Var, tvm::tir::Buffer> buffer_map;
   /*! \brief Additional attributes storing the meta-data */
-  Map<String, ObjectRef> attrs;
+  Map<String, Any> attrs;
   /*! \brief The variable map bound to thread env. */
   Map<tvm::tir::Var, tvm::tir::IterVar> env_threads;
   /*! \brief The buffer allocated in root block. */
@@ -139,7 +139,7 @@ class BlockFrameNode : public TIRFrameNode {
   /*! \brief The match buffer regions. */
   Array<tvm::tir::MatchBufferRegion> match_buffers;
   /*! \brief The annotation of the block. */
-  Optional<Map<String, ObjectRef>> annotations;
+  Optional<Map<String, Any>> annotations;
   /*! \brief The corresponding values of the iter vars. */
   Array<PrimExpr> iter_values;
   /*!
@@ -452,7 +452,7 @@ class AllocateFrameNode : public TIRFrameNode {
   /*! \brief The condition. */
   PrimExpr condition;
   /*! \brief Additional annotation hints. */
-  Map<String, ObjectRef> annotations;
+  Map<String, Any> annotations;
   /*! \brief The buffer var. */
   tvm::tir::Var buffer_var;
 
@@ -503,7 +503,7 @@ class AllocateConstFrameNode : public TIRFrameNode {
   /*! \brief The buffer var */
   tvm::tir::Var buffer_var;
   /*! \brief Additional annotations about the allocation. */
-  Map<String, ObjectRef> annotations;
+  Map<String, Any> annotations;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     TIRFrameNode::VisitAttrs(v);

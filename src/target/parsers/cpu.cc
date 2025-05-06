@@ -30,16 +30,16 @@ namespace cpu {
 
 Optional<String> DetectSystemTriple() {
 #ifdef TVM_LLVM_VERSION
-  auto pf = tvm::runtime::Registry::Get("target.llvm_get_system_triple");
-  ICHECK(pf != nullptr) << "The target llvm_get_system_triple was not found, "
-                           "please compile with USE_LLVM = ON";
-  return (*pf)();
+  auto pf = tvm::ffi::Function::GetGlobal("target.llvm_get_system_triple");
+  ICHECK(pf.has_value()) << "The target llvm_get_system_triple was not found, "
+                            "please compile with USE_LLVM = ON";
+  return (*pf)().cast<String>();
 #endif
   return {};
 }
 
 TargetJSON ParseTarget(TargetJSON target) {
-  String kind = Downcast<String>(target.Get("kind"));
+  String kind = Downcast<String>(target.Get("kind").value());
   Optional<String> mtriple = Downcast<Optional<String>>(target.Get("mtriple"));
   Optional<String> mcpu = Downcast<Optional<String>>(target.Get("mcpu"));
 

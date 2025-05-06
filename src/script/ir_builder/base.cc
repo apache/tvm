@@ -102,18 +102,18 @@ void Namer::Name(ObjectRef node, String name) {
 TVM_REGISTER_NODE_TYPE(IRBuilderFrameNode);
 TVM_REGISTER_NODE_TYPE(IRBuilderNode);
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderFrameEnter")
-    .set_body_method<IRBuilderFrame>(&IRBuilderFrameNode::EnterWithScope);
+    .set_body_method(&IRBuilderFrameNode::EnterWithScope);
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderFrameExit")
-    .set_body_method<IRBuilderFrame>(&IRBuilderFrameNode::ExitWithScope);
+    .set_body_method(&IRBuilderFrameNode::ExitWithScope);
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderFrameAddCallback")
-    .set_body_method<IRBuilderFrame>(&IRBuilderFrameNode::AddCallback);
+    .set_body_method(&IRBuilderFrameNode::AddCallback);
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilder").set_body_typed([]() { return IRBuilder(); });
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderEnter").set_body_method(&IRBuilder::EnterWithScope);
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderExit").set_body_method(&IRBuilder::ExitWithScope);
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderCurrent").set_body_typed(IRBuilder::Current);
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderIsInScope").set_body_typed(IRBuilder::IsInScope);
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderGet")
-    .set_body_method<IRBuilder>(&IRBuilderNode::Get<ObjectRef>);
+    .set_body_method(&IRBuilderNode::Get<ObjectRef>);
 TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderName").set_body_typed(IRBuilder::Name<ObjectRef>);
 
 }  // namespace ir_builder
