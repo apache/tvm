@@ -179,8 +179,8 @@ TVM_REGISTER_GLOBAL("topi.nn.group_norm").set_body([](TVMArgs args, TVMRetValue*
 
 /* Ops from nn/instance_norm.h */
 TVM_REGISTER_GLOBAL("topi.nn.instance_norm").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = nn::instance_norm(args[0], args[1], args[2], args[3],
-                          args[4], static_cast<double>(args[5]));
+  *rv =
+      nn::instance_norm(args[0], args[1], args[2], args[3], args[4], static_cast<double>(args[5]));
 });
 
 /* Ops from nn/rms_norm.h */

@@ -626,8 +626,8 @@ TVM_REGISTER_OP("relax.nn.group_norm")
 /* relax.nn.instance_norm */
 TVM_REGISTER_NODE_TYPE(InstanceNormAttrs);
 
-Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis,
-                  Array<Integer> axes, double epsilon, bool center, bool scale) {
+Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, Array<Integer> axes,
+                   double epsilon, bool center, bool scale) {
   ObjectPtr<InstanceNormAttrs> attrs = make_object<InstanceNormAttrs>();
   attrs->channel_axis = std::move(channel_axis);
   attrs->axes = std::move(axes);
@@ -663,33 +663,33 @@ StructInfo InferStructInfoInstanceNorm(const Call& call, const BlockBuilder& ctx
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   for (int i = 1; i < static_cast<int>(op->arguments.size()); ++i) {
-      if (input_sinfo[i]->dtype != data_sinfo->dtype) {
+    if (input_sinfo[i]->dtype != data_sinfo->dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << op << " expects that all inputs must have the same dtype, but got "
+                       << input_sinfo[i]->dtype << " and " << data_sinfo->dtype);
+    } else if (input_sinfo[i]->ndim != 1) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << op << " expects that all inputs must have ndim=1, but got "
+                       << input_sinfo[i]->ndim);
+    }
+    const auto* shape = input_sinfo[i]->shape.as<ShapeExprNode>();
+    if (shape != nullptr && data_shape != nullptr) {
+      PrimExpr channel_size = data_shape->values[channel_axis];
+      PrimExpr input_size = shape->values[0];
+      if (analyzer->CanProve(channel_size != input_size)) {
         ctx->ReportFatal(Diagnostic::Error(call)
-                         << op << " expects that all inputs must have the same dtype, but got "
-                         << input_sinfo[i]->dtype << " and " << data_sinfo->dtype);
-      } else if (input_sinfo[i]->ndim != 1) {
-        ctx->ReportFatal(Diagnostic::Error(call)
-                         << op << " expects that all inputs must have ndim=1, but got "
-                         << input_sinfo[i]->ndim);
-      }
-      const auto* shape = input_sinfo[i]->shape.as<ShapeExprNode>();
-      if (shape != nullptr && data_shape != nullptr) {
-        PrimExpr channel_size = data_shape->values[channel_axis];
-        PrimExpr input_size = shape->values[0];
-        if (analyzer->CanProve(channel_size != input_size)) {
-          ctx->ReportFatal(Diagnostic::Error(call)
-                           << op << " expects that the size of input " << i
-                           << " must be equal to the size of channel_axis, but got " << input_size
-                           << " and " << channel_size);
-        }
+                         << op << " expects that the size of input " << i
+                         << " must be equal to the size of channel_axis, but got " << input_size
+                         << " and " << channel_size);
       }
     }
-    return data_sinfo;
+  }
+  return data_sinfo;
 }
 
 InferLayoutOutput InferLayoutInstanceNorm(const Call& call,
-                                       const Map<String, Array<String>>& desired_layouts,
-                                       const VarLayoutMap& var_layout_map) {
+                                          const Map<String, Array<String>>& desired_layouts,
+                                          const VarLayoutMap& var_layout_map) {
   ICHECK(NoDesiredLayout(call, desired_layouts));
   std::vector<NLayout> initial_layouts;
   for (size_t i = 0; i < 3; ++i) {
