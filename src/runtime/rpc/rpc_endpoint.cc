@@ -167,21 +167,19 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
 
   /*!
    * \brief Validate that the arguments can be sent through RPC.
-   * \param arg_values The argument values.
-   * \param type_codes The type codes.
+   * \param args The arguments.
    */
-  void ValidateArguments(const TVMValue* arg_values, const int* type_codes, int num_args) {
-    TVMArgs args(arg_values, type_codes, num_args);
-    for (int i = 0; i < num_args; ++i) {
-      int tcode = type_codes[i];
-      if (tcode == kTVMObjectHandle || tcode == kTVMObjectRValueRefArg) {
-        if (!args[i].IsObjectRef<RPCObjectRef>()) {
-          LOG(FATAL) << "ValueError: Cannot pass argument " << i << ", type "
-                     << args[i].AsObjectRef<ObjectRef>()->GetTypeKey()
-                     << " is not supported by RPC";
+  void ValidateArguments(ffi::PackedArgs args) {
+    for (int i = 0; i < args.size(); ++i) {
+      if (args[i] == nullptr) continue;
+      if (args[i].type_index() == ffi::TypeIndex::kTVMFFIModule) continue;
+      if (const Object* obj = args[i].as<Object>()) {
+        if (!obj->IsInstance<RPCObjectRefObj>()) {
+          LOG(FATAL) << "ValueError: Cannot pass argument " << i << ", type " << obj->GetTypeKey()
+                     << " (type_index = " << obj->type_index() << ")";
         }
-      } else if (tcode == kDLDevice) {
-        DLDevice dev = args[i];
+      } else if (auto opt_device = args[i].as<DLDevice>()) {
+        DLDevice dev = opt_device.value();
         ICHECK(!IsRPCSessionDevice(dev)) << "InternalError: cannot pass RPC device in the channel";
       }
     }
@@ -244,6 +242,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     } else {
       LOG(FATAL) << "ValueError: Object type is not supported in RPC calling convention: "
                  << obj->GetTypeKey() << " (type_index = " << obj->type_index() << ")";
+      TVM_FFI_UNREACHABLE();
     }
   }
 
@@ -262,7 +261,10 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       // this is because we want to enable multi-hop RPC
       // and next hop would also need to check the object index
       RPCObjectRef rpc_obj(make_object<RPCObjectRefObj>(reinterpret_cast<void*>(handle), nullptr));
-      TVMArgsSetter(value, tcode)(0, rpc_obj);
+      // Legacy ABI translation
+      // TODO(tqchen): remove this once we have upgraded to new ABI
+      AnyView rpc_obj_view = rpc_obj;
+      AnyViewToLegacyTVMArgValue(rpc_obj_view.CopyToTVMFFIAny(), value, tcode);
       object_arena_.push_back(rpc_obj);
     } else {
       LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
@@ -399,7 +401,12 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     int* tcodes;
     int num_args;
     RPCReference::RecvPackedSeq(&values, &tcodes, &num_args, this);
-    return TVMArgs(values, tcodes, num_args);
+
+    // Legacy ABI translation
+    // TODO(tqchen): remove this once we have upgraded to new ABI
+    AnyView* packed_args = reinterpret_cast<AnyView*>(this->ArenaAlloc<TVMFFIAny>(num_args));
+    LegacyTVMArgsToPackedArgs(values, tcodes, num_args, packed_args);
+    return ffi::PackedArgs(packed_args, num_args);
   }
 
   /*!
@@ -419,7 +426,12 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
    * \param args The arguments.
    */
   void ReturnPackedSeq(TVMArgs args) {
-    RPCReference::ReturnPackedSeq(args.values, args.type_codes, args.size(), this);
+    // Legacy ABI translation
+    // TODO(tqchen): remove this once we have upgraded to new ABI
+    TVMValue* values = this->ArenaAlloc<TVMValue>(args.size());
+    int* tcodes = this->ArenaAlloc<int>(args.size());
+    PackedArgsToLegacyTVMArgs(args.data(), args.size(), values, tcodes);
+    RPCReference::ReturnPackedSeq(values, tcodes, args.size(), this);
   }
 
   /*!
@@ -432,7 +444,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     if (code == RPCCode::kException) {
       // switch to the state before sending exception.
       this->SwitchToState(kRecvPacketNumBytes);
-      String msg = args[0];
+      String msg = args[0].cast<String>();
       if (!support::StartsWith(msg, "RPCSessionTimeoutError: ")) {
         msg = "RPCError: Error caught from RPC call:\n" + msg;
       }
@@ -474,7 +486,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       auto on_copy_complete = [this, elem_bytes, data_bytes, temp_data, fcopyack](RPCCode status,
                                                                                   TVMArgs args) {
         if (status == RPCCode::kException) {
-          this->ReturnException(args.values[0].v_str);
+          this->ReturnException(args[0].cast<const char*>());
           this->SwitchToState(kRecvPacketNumBytes);
         } else {
           // endian aware handling
@@ -518,7 +530,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
 
       auto on_copy_complete = [this](RPCCode status, TVMArgs args) {
         if (status == RPCCode::kException) {
-          this->ReturnException(args.values[0].v_str);
+          this->ReturnException(args[0].cast<const char*>());
           this->SwitchToState(kRecvPacketNumBytes);
         } else {
           this->ReturnVoid();
@@ -539,17 +551,16 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     TVMArgs args = RecvPackedSeq();
 
     this->SwitchToState(kWaitForAsyncCallback);
-    GetServingSession()->AsyncCallFunc(
-        reinterpret_cast<void*>(call_handle), args.values, args.type_codes, args.size(),
-        [this](RPCCode status, TVMArgs args) {
-          if (status == RPCCode::kException) {
-            this->ReturnException(args.values[0].v_str);
-          } else {
-            ValidateArguments(args.values, args.type_codes, args.size());
-            this->ReturnPackedSeq(args);
-          }
-          this->SwitchToState(kRecvPacketNumBytes);
-        });
+    GetServingSession()->AsyncCallFunc(reinterpret_cast<void*>(call_handle), args,
+                                       [this](RPCCode status, TVMArgs args) {
+                                         if (status == RPCCode::kException) {
+                                           this->ReturnException(args[0].cast<const char*>());
+                                         } else {
+                                           ValidateArguments(args);
+                                           this->ReturnPackedSeq(args);
+                                         }
+                                         this->SwitchToState(kRecvPacketNumBytes);
+                                       });
   }
 
   void HandleInitServer() {
@@ -572,18 +583,18 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
           << ", client protocol=" << client_protocol_ver;
 
       std::string constructor_name;
-      TVMArgs constructor_args = TVMArgs(nullptr, nullptr, 0);
+      ffi::PackedArgs constructor_args = ffi::PackedArgs(nullptr, 0);
 
       if (args.size() == 0) {
         constructor_name = "rpc.LocalSession";
         serving_session_ = std::make_shared<LocalSession>();
       } else {
-        constructor_name = args[0].operator std::string();
-        constructor_args = TVMArgs(args.values + 1, args.type_codes + 1, args.size() - 1);
+        constructor_name = args[0].cast<std::string>();
+        constructor_args = args.Slice(1);
       }
 
-      auto* fconstructor = Registry::Get(constructor_name);
-      ICHECK(fconstructor != nullptr) << " Cannot find session constructor " << constructor_name;
+      auto fconstructor = tvm::ffi::Function::GetGlobal(constructor_name);
+      ICHECK(fconstructor.has_value()) << " Cannot find session constructor " << constructor_name;
       TVMRetValue con_ret;
 
       try {
@@ -593,11 +604,12 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
                    << " Error caught from session constructor " << constructor_name << ":\n"
                    << e.what();
       }
-
-      ICHECK_EQ(con_ret.type_code(), kTVMModuleHandle)
+      auto opt_con_ret = con_ret.as<runtime::Module>();
+      // Legacy ABI translation
+      ICHECK(opt_con_ret.has_value())
           << "Server[" << name_ << "]:"
           << " Constructor " << constructor_name << " need to return an RPCModule";
-      Module mod = con_ret;
+      Module mod = opt_con_ret.value();
       std::string tkey = mod->type_key();
       ICHECK_EQ(tkey, "rpc") << "Constructor " << constructor_name << " to return an RPCModule";
       serving_session_ = RPCModuleGetSession(mod);
@@ -612,13 +624,13 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   void HandleSyscallStreamSync() {
     TVMArgs args = RecvPackedSeq();
     try {
-      Device dev = args[0];
-      TVMStreamHandle handle = args[1];
+      auto dev = args[0].cast<Device>();
+      TVMStreamHandle handle = args[1].cast<void*>();
 
       this->SwitchToState(kWaitForAsyncCallback);
       GetServingSession()->AsyncStreamWait(dev, handle, [this](RPCCode status, TVMArgs args) {
         if (status == RPCCode::kException) {
-          this->ReturnException(args.values[0].v_str);
+          this->ReturnException(args[0].cast<const char*>());
         } else {
           this->ReturnVoid();
         }
@@ -637,12 +649,9 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     try {
       TVMRetValue rv;
       f(GetServingSession(), args, &rv);
-      TVMValue ret_value;
-      int ret_tcode;
-      TVMArgsSetter setter(&ret_value, &ret_tcode);
-      setter(0, rv);
-
-      this->ReturnPackedSeq(TVMArgs(&ret_value, &ret_tcode, 1));
+      AnyView packed_args[1];
+      packed_args[0] = rv;
+      this->ReturnPackedSeq(ffi::PackedArgs(packed_args, 1));
     } catch (const std::exception& e) {
       this->ReturnException(e.what());
     }
@@ -733,16 +742,22 @@ void RPCEndpoint::Init() {
   // Quick function to for syscall remote.
   syscall_remote_ = PackedFunc([this](TVMArgs all_args, TVMRetValue* rv) {
     std::lock_guard<std::mutex> lock(mutex_);
-    RPCCode code = static_cast<RPCCode>(all_args[0].operator int());
-    TVMArgs args(all_args.values + 1, all_args.type_codes + 1, all_args.num_args - 1);
+    RPCCode code = static_cast<RPCCode>(all_args[0].cast<int>());
+    ffi::PackedArgs args = all_args.Slice(1);
+    // Legacy ABI translation
+    // TODO(tqchen): remove this once we have upgraded to new ABI
+    TVMValue* values = handler_->ArenaAlloc<TVMValue>(args.size());
+    int* tcodes = handler_->ArenaAlloc<int>(args.size());
+    PackedArgsToLegacyTVMArgs(args.data(), args.size(), values, tcodes);
 
-    uint64_t packet_nbytes = sizeof(code) + handler_->PackedSeqGetNumBytes(
-                                                args.values, args.type_codes, args.num_args, true);
+    // run transmission
+    uint64_t packet_nbytes =
+        sizeof(code) + handler_->PackedSeqGetNumBytes(values, tcodes, args.size(), true);
 
     // All packet begins with packet nbytes
     handler_->Write(packet_nbytes);
     handler_->Write(code);
-    handler_->SendPackedSeq(args.values, args.type_codes, args.num_args, true);
+    handler_->SendPackedSeq(values, tcodes, args.size(), true);
 
     code = HandleUntilReturnEvent(true, [rv](TVMArgs args) {
       ICHECK_EQ(args.size(), 1);
@@ -798,12 +813,12 @@ void RPCEndpoint::Shutdown() {
 }
 
 void RPCEndpoint::ServerLoop() {
-  if (const auto* f = Registry::Get("tvm.rpc.server.start")) {
+  if (const auto f = tvm::ffi::Function::GetGlobal("tvm.rpc.server.start")) {
     (*f)();
   }
   TVMRetValue rv;
   ICHECK(HandleUntilReturnEvent(false, [](TVMArgs) {}) == RPCCode::kShutdown);
-  if (const auto* f = Registry::Get("tvm.rpc.server.shutdown")) {
+  if (const auto f = tvm::ffi::Function::GetGlobal("tvm.rpc.server.shutdown")) {
     (*f)();
   }
   channel_.reset(nullptr);
@@ -833,39 +848,50 @@ void RPCEndpoint::InitRemoteSession(TVMArgs args) {
   std::string protocol_ver = kRPCProtocolVer;
   uint64_t length = protocol_ver.length();
 
-  uint64_t packet_nbytes =
-      sizeof(code) + sizeof(length) + length +
-      handler_->PackedSeqGetNumBytes(args.values, args.type_codes, args.num_args, true);
+  // Legacy ABI translation
+  // TODO(tqchen): remove this once we have upgraded to new ABI
+  TVMValue* values = handler_->ArenaAlloc<TVMValue>(args.size());
+  int* tcodes = handler_->ArenaAlloc<int>(args.size());
+  PackedArgsToLegacyTVMArgs(args.data(), args.size(), values, tcodes);
+
+  // run transmission
+  uint64_t packet_nbytes = sizeof(code) + sizeof(length) + length +
+                           handler_->PackedSeqGetNumBytes(values, tcodes, args.size(), true);
 
   // All packet begins with packet nbytes
   handler_->Write(packet_nbytes);
   handler_->Write(code);
   handler_->Write(length);
   handler_->WriteArray(protocol_ver.data(), length);
-  handler_->SendPackedSeq(args.values, args.type_codes, args.num_args, true);
+  handler_->SendPackedSeq(values, tcodes, args.size(), true);
 
   code = HandleUntilReturnEvent(true, [](TVMArgs args) {});
   ICHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
 }
 
 // Get remote function with name
-void RPCEndpoint::CallFunc(RPCSession::PackedFuncHandle h, const TVMValue* arg_values,
-                           const int* arg_type_codes, int num_args,
+void RPCEndpoint::CallFunc(RPCSession::PackedFuncHandle h, ffi::PackedArgs args,
                            RPCSession::FEncodeReturn encode_return) {
   std::lock_guard<std::mutex> lock(mutex_);
 
-  handler_->ValidateArguments(arg_values, arg_type_codes, num_args);
+  handler_->ValidateArguments(args);
   RPCCode code = RPCCode::kCallFunc;
   uint64_t handle = reinterpret_cast<uint64_t>(h);
 
-  uint64_t packet_nbytes =
-      sizeof(code) + sizeof(handle) +
-      handler_->PackedSeqGetNumBytes(arg_values, arg_type_codes, num_args, true);
+  // Legacy ABI translation
+  // TODO(tqchen): remove this once we have upgraded to new ABI
+  TVMValue* values = handler_->ArenaAlloc<TVMValue>(args.size());
+  int* tcodes = handler_->ArenaAlloc<int>(args.size());
+  PackedArgsToLegacyTVMArgs(args.data(), args.size(), values, tcodes);
+
+  // run transmission
+  uint64_t packet_nbytes = sizeof(code) + sizeof(handle) +
+                           handler_->PackedSeqGetNumBytes(values, tcodes, args.size(), true);
 
   handler_->Write(packet_nbytes);
   handler_->Write(code);
   handler_->Write(handle);
-  handler_->SendPackedSeq(arg_values, arg_type_codes, num_args, true);
+  handler_->SendPackedSeq(values, tcodes, args.size(), true);
 
   code = HandleUntilReturnEvent(true, encode_return);
   ICHECK(code == RPCCode::kReturn) << "code=" << RPCCodeToString(code);
@@ -915,24 +941,23 @@ void RPCEndpoint::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes
 
 // SysCallEventHandler functions
 void RPCGetGlobalFunc(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  std::string name = args[0];
+  auto name = args[0].cast<std::string>();
   *rv = handler->GetFunction(name);
 }
 
 void RPCFreeHandle(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  void* handle = args[0];
-  int type_code = args[1];
-  handler->FreeHandle(handle, type_code);
+  void* handle = args[0].cast<void*>();
+  handler->FreeHandle(handle);
 }
 
 void RPCDevSetDevice(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  Device dev = args[0];
+  auto dev = args[0].cast<Device>();
   handler->GetDeviceAPI(dev)->SetDevice(dev);
 }
 
 void RPCDevGetAttr(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  Device dev = args[0];
-  DeviceAttrKind kind = static_cast<DeviceAttrKind>(args[1].operator int());
+  auto dev = args[0].cast<Device>();
+  DeviceAttrKind kind = static_cast<DeviceAttrKind>(args[1].cast<int>());
   if (kind == kExist) {
     DeviceAPI* api = handler->GetDeviceAPI(dev, true);
     if (api != nullptr) {
@@ -946,41 +971,35 @@ void RPCDevGetAttr(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
 }
 
 void RPCDevAllocData(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  Device dev = args[0];
-  uint64_t nbytes = args[1];
-  uint64_t alignment = args[2];
-  DLDataType type_hint = args[3];
+  auto dev = args[0].cast<Device>();
+  uint64_t nbytes = args[1].cast<uint64_t>();
+  uint64_t alignment = args[2].cast<uint64_t>();
+  DLDataType type_hint = args[3].cast<DLDataType>();
   void* data = handler->GetDeviceAPI(dev)->AllocDataSpace(dev, nbytes, alignment, type_hint);
   *rv = data;
 }
 
 void RPCDevAllocDataWithScope(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  DLTensor* arr = args[0];
+  auto arr = args[0].cast<DLTensor*>();
   Device dev = arr->device;
   int ndim = arr->ndim;
   int64_t* shape = arr->shape;
   DLDataType dtype = arr->dtype;
-  int tcode = args[1].type_code();
-  Optional<String> mem_scope = NullOpt;
-  if (tcode == kTVMStr) {
-    mem_scope = args[1].operator String();
-  } else {
-    ICHECK_EQ(tcode, kTVMNullptr);
-  }
+  auto mem_scope = args[1].cast<Optional<String>>();
   void* data = handler->GetDeviceAPI(dev)->AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
   *rv = data;
 }
 
 void RPCDevFreeData(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  Device dev = args[0];
-  void* ptr = args[1];
+  auto dev = args[0].cast<Device>();
+  void* ptr = args[1].cast<void*>();
   handler->GetDeviceAPI(dev)->FreeDataSpace(dev, ptr);
 }
 
 void RPCCopyAmongRemote(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  DLTensor* from = args[0];
-  DLTensor* to = args[1];
-  TVMStreamHandle stream = args[2];
+  auto from = args[0].cast<DLTensor*>();
+  auto to = args[1].cast<DLTensor*>();
+  TVMStreamHandle stream = args[2].cast<void*>();
 
   Device dev = from->device;
   if (dev.device_type == kDLCPU) {
@@ -993,25 +1012,25 @@ void RPCCopyAmongRemote(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
 }
 
 void RPCDevCreateStream(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  Device dev = args[0];
+  auto dev = args[0].cast<Device>();
   void* data = handler->GetDeviceAPI(dev)->CreateStream(dev);
   *rv = data;
 }
 
 void RPCDevFreeStream(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  Device dev = args[0];
-  TVMStreamHandle stream = args[1];
+  auto dev = args[0].cast<Device>();
+  TVMStreamHandle stream = args[1].cast<void*>();
   handler->GetDeviceAPI(dev)->FreeStream(dev, stream);
 }
 
 void RPCDevSetStream(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  Device dev = args[0];
-  TVMStreamHandle stream = args[1];
+  auto dev = args[0].cast<Device>();
+  TVMStreamHandle stream = args[1].cast<void*>();
   handler->GetDeviceAPI(dev)->SetStream(dev, stream);
 }
 
 void RPCDevGetCurrentStream(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
-  Device dev = args[0];
+  auto dev = args[0].cast<Device>();
   *rv = handler->GetDeviceAPI(dev)->GetCurrentStream(dev);
 }
 
@@ -1079,12 +1098,12 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
 
   // function overrides
   PackedFuncHandle GetFunction(const std::string& name) final {
-    return endpoint_->SysCallRemote(RPCCode::kGetGlobalFunc, name);
+    return endpoint_->SysCallRemote(RPCCode::kGetGlobalFunc, name).cast<void*>();
   }
 
-  void CallFunc(PackedFuncHandle func, const TVMValue* arg_values, const int* arg_type_codes,
-                int num_args, const FEncodeReturn& fencode_return) final {
-    endpoint_->CallFunc(func, arg_values, arg_type_codes, num_args, fencode_return);
+  void CallFunc(PackedFuncHandle func, ffi::PackedArgs args,
+                const FEncodeReturn& fencode_return) final {
+    endpoint_->CallFunc(func, args, fencode_return);
   }
 
   void CopyToRemote(void* local_from_bytes, DLTensor* remote_to, uint64_t nbytes) final {
@@ -1139,9 +1158,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     }
   }
 
-  void FreeHandle(void* handle, int type_code) final {
-    endpoint_->SysCallRemote(RPCCode::kFreeHandle, handle, type_code);
-  }
+  void FreeHandle(void* handle) final { endpoint_->SysCallRemote(RPCCode::kFreeHandle, handle); }
 
   void SetDevice(Device dev) final { endpoint_->SysCallRemote(RPCCode::kDevSetDevice, dev); }
 
@@ -1155,7 +1172,8 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
   }
 
   void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
-    return endpoint_->SysCallRemote(RPCCode::kDevAllocData, dev, nbytes, alignment, type_hint);
+    return endpoint_->SysCallRemote(RPCCode::kDevAllocData, dev, nbytes, alignment, type_hint)
+        .cast<void*>();
   }
 
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
@@ -1169,10 +1187,13 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     temp.strides = nullptr;
     temp.byte_offset = 0;
     if (mem_scope.defined()) {
-      return endpoint_->SysCallRemote(RPCCode::kDevAllocDataWithScope, &temp,
-                                      static_cast<std::string>(mem_scope.value()));
+      return endpoint_
+          ->SysCallRemote(RPCCode::kDevAllocDataWithScope, &temp,
+                          static_cast<std::string>(mem_scope.value()))
+          .cast<void*>();
     } else {
-      return endpoint_->SysCallRemote(RPCCode::kDevAllocDataWithScope, &temp, nullptr);
+      return endpoint_->SysCallRemote(RPCCode::kDevAllocDataWithScope, &temp, nullptr)
+          .cast<void*>();
     }
   }
 
@@ -1181,11 +1202,11 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
   }
 
   void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) final {
-    endpoint_->SysCallRemote(RPCCode::kCopyAmongRemote, from, to, stream);
+    endpoint_->SysCallRemote(RPCCode::kCopyAmongRemote, from, to, stream).cast<void*>();
   }
 
   TVMStreamHandle CreateStream(Device dev) final {
-    return endpoint_->SysCallRemote(RPCCode::kDevCreateStream, dev);
+    return endpoint_->SysCallRemote(RPCCode::kDevCreateStream, dev).cast<void*>();
   }
 
   void FreeStream(Device dev, TVMStreamHandle stream) final {
@@ -1201,7 +1222,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
   }
 
   TVMStreamHandle GetCurrentStream(Device dev) final {
-    return endpoint_->SysCallRemote(RPCCode::kDevGetCurrentStream, dev);
+    return endpoint_->SysCallRemote(RPCCode::kDevGetCurrentStream, dev).cast<void*>();
   }
 
   DeviceAPI* GetDeviceAPI(Device dev, bool allow_missing) final { return this; }
@@ -1220,10 +1241,10 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     if (rpc_func == nullptr) {
       rpc_chunk_max_size_bytes_ = (int64_t)kRPCMaxTransferSizeBytesDefault;
     } else {
-      CallFunc(rpc_func, nullptr, nullptr, 0, [this](TVMArgs args) {
+      CallFunc(rpc_func, ffi::PackedArgs(nullptr, 0), [this](TVMArgs args) {
         // Use args[1] as return value, args[0] is tcode
         // Look at RPCWrappedFunc in src/runtime/rpc/rpc_module.cc
-        rpc_chunk_max_size_bytes_ = (int64_t)args[1];
+        rpc_chunk_max_size_bytes_ = args[1].cast<int64_t>();
         ICHECK_GT(rpc_chunk_max_size_bytes_, 0)
             << "RPC max transfer size is <= 0! (remote value = " << rpc_chunk_max_size_bytes_
             << ")";

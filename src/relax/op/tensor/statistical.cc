@@ -153,7 +153,7 @@ StructInfo InferStructInfoScan(const Call& call, const BlockBuilder& ctx) {
 
   DataType out_type = attrs->dtype.is_void() ? data_sinfo->dtype : attrs->dtype;
 
-  if (!attrs->axis.defined()) {
+  if (!attrs->axis.has_value()) {
     // flattened
     const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
     if (data_shape == nullptr) {
@@ -176,10 +176,10 @@ StructInfo InferStructInfoScan(const Call& call, const BlockBuilder& ctx) {
 }
 
 /* relax.cumprod */
-Expr cumprod(Expr data, Optional<Integer> axis, DataType dtype, Bool exclusive) {
+Expr cumprod(Expr data, Optional<int64_t> axis, Optional<DataType> dtype, Bool exclusive) {
   auto attrs = make_object<ScanopAttrs>();
   attrs->axis = std::move(axis);
-  attrs->dtype = std::move(dtype);
+  attrs->dtype = std::move(dtype.value_or(DataType::Void()));
   attrs->exclusive = std::move(exclusive);
 
   static const Op& op = Op::Get("relax.cumprod");
@@ -196,10 +196,10 @@ TVM_REGISTER_OP("relax.cumprod")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.cumsum */
-Expr cumsum(Expr data, Optional<Integer> axis, DataType dtype, Bool exclusive) {
+Expr cumsum(Expr data, Optional<int64_t> axis, Optional<DataType> dtype, Bool exclusive) {
   auto attrs = make_object<ScanopAttrs>();
   attrs->axis = std::move(axis);
-  attrs->dtype = std::move(dtype);
+  attrs->dtype = std::move(dtype.value_or(DataType::Void()));
   attrs->exclusive = std::move(exclusive);
 
   static const Op& op = Op::Get("relax.cumsum");

@@ -24,6 +24,7 @@
 #include "library_module.h"
 
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/any.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 
@@ -48,15 +49,15 @@ class LibraryModuleNode final : public ModuleNode {
   };
 
   PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
-    TVMBackendPackedCFunc faddr;
+    TVMFFISafeCallType faddr;
     if (name == runtime::symbol::tvm_module_main) {
       const char* entry_name =
           reinterpret_cast<const char*>(lib_->GetSymbol(runtime::symbol::tvm_module_main));
       ICHECK(entry_name != nullptr)
           << "Symbol " << runtime::symbol::tvm_module_main << " is not presented";
-      faddr = reinterpret_cast<TVMBackendPackedCFunc>(lib_->GetSymbol(entry_name));
+      faddr = reinterpret_cast<TVMFFISafeCallType>(lib_->GetSymbol(entry_name));
     } else {
-      faddr = reinterpret_cast<TVMBackendPackedCFunc>(lib_->GetSymbol(name.c_str()));
+      faddr = reinterpret_cast<TVMFFISafeCallType>(lib_->GetSymbol(name.c_str()));
     }
     if (faddr == nullptr) return PackedFunc();
     return packed_func_wrapper_(faddr, sptr_to_self);
@@ -67,23 +68,11 @@ class LibraryModuleNode final : public ModuleNode {
   PackedFuncWrapper packed_func_wrapper_;
 };
 
-PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& sptr_to_self) {
-  return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-    TVMValue ret_value;
-    int ret_type_code = kTVMNullptr;
-    auto arg_values = const_cast<TVMValue*>(args.values);
-    auto arg_type_codes = const_cast<int*>(args.type_codes);
-    int ret =
-        (*faddr)(arg_values, arg_type_codes, args.num_args, &ret_value, &ret_type_code, nullptr);
-    // NOTE: It is important to keep the original error message.
-    // Using the `TVMThrowLastError()` function will also preserve the
-    // full stack trace for debugging in pdb.
-    if (ret != 0) {
-      TVMThrowLastError();
-    }
-    if (ret_type_code != kTVMNullptr) {
-      *rv = TVMRetValue::MoveFromCHost(ret_value, ret_type_code);
-    }
+PackedFunc WrapPackedFunc(TVMFFISafeCallType faddr, const ObjectPtr<Object>& sptr_to_self) {
+  return ffi::Function::FromPacked([faddr, sptr_to_self](ffi::PackedArgs args, ffi::Any* rv) {
+    ICHECK_LT(rv->type_index(), ffi::TypeIndex::kTVMFFIStaticObjectBegin);
+    TVM_FFI_CHECK_SAFE_CALL((*faddr)(nullptr, reinterpret_cast<const TVMFFIAny*>(args.data()),
+                                     args.size(), reinterpret_cast<TVMFFIAny*>(rv)));
   });
 }
 
@@ -93,8 +82,8 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol) {
     *fp = FuncName;                                                                    \
   }
   // Initialize the functions
-  TVM_INIT_CONTEXT_FUNC(TVMFuncCall);
-  TVM_INIT_CONTEXT_FUNC(TVMAPISetLastError);
+  TVM_INIT_CONTEXT_FUNC(TVMFFIFunctionCall);
+  TVM_INIT_CONTEXT_FUNC(TVMFFIErrorSetRaisedByCStr);
   TVM_INIT_CONTEXT_FUNC(TVMBackendGetFuncFromEnv);
   TVM_INIT_CONTEXT_FUNC(TVMBackendAllocWorkspace);
   TVM_INIT_CONTEXT_FUNC(TVMBackendFreeWorkspace);
@@ -107,24 +96,14 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol) {
 Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream) {
   std::string loadkey = "runtime.module.loadbinary_";
   std::string fkey = loadkey + type_key;
-  const PackedFunc* f = Registry::Get(fkey);
-  if (f == nullptr) {
-    std::string loaders = "";
-    for (auto reg_name : Registry::ListNames()) {
-      std::string name = reg_name;
-      if (name.find(loadkey, 0) == 0) {
-        if (loaders.size() > 0) {
-          loaders += ", ";
-        }
-        loaders += name.substr(loadkey.size());
-      }
-    }
+  const auto f = tvm::ffi::Function::GetGlobal(fkey);
+  if (!f.has_value()) {
     LOG(FATAL) << "Binary was created using {" << type_key
-               << "} but a loader of that name is not registered. Available loaders are " << loaders
-               << ". Perhaps you need to recompile with this runtime enabled.";
+               << "} but a loader of that name is not registered."
+               << "Perhaps you need to recompile with this runtime enabled.";
   }
 
-  return (*f)(static_cast<void*>(stream));
+  return (*f)(static_cast<void*>(stream)).cast<Module>();
 }
 
 /*!

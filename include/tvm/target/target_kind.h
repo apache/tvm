@@ -39,7 +39,7 @@ class Target;
 /*!
  * \brief Map containing parsed features of a specific Target
  */
-using TargetFeatures = Map<String, ObjectRef>;
+using TargetFeatures = Map<String, ffi::Any>;
 
 /*!
  * \brief TargetParser to apply on instantiation of a given TargetKind
@@ -48,7 +48,7 @@ using TargetFeatures = Map<String, ObjectRef>;
  *
  * \return The transformed Target JSON object.
  */
-using TargetJSON = Map<String, ObjectRef>;
+using TargetJSON = Map<String, ffi::Any>;
 using FTVMTargetParser = runtime::TypedPackedFunc<TargetJSON(TargetJSON)>;
 
 namespace detail {
@@ -92,14 +92,14 @@ class TargetKindNode : public Object {
   /*! \brief Stores the required type_key and type_index of a specific attr of a target */
   struct ValueTypeInfo {
     String type_key;
-    uint32_t type_index;
+    int32_t type_index;
     std::unique_ptr<ValueTypeInfo> key;
     std::unique_ptr<ValueTypeInfo> val;
   };
   /*! \brief A hash table that stores the type information of each attr of the target key */
   std::unordered_map<String, ValueTypeInfo> key2vtype_;
   /*! \brief A hash table that stores the default value of each attr of the target key */
-  std::unordered_map<String, ObjectRef> key2default_;
+  std::unordered_map<String, ffi::Any> key2default_;
   /*! \brief Index used for internal lookup of attribute registry */
   uint32_t index_;
 
@@ -218,7 +218,7 @@ class TargetKindRegEntry {
    * \tparam ValueType The value type to be registered
    */
   template <typename ValueType>
-  inline TargetKindRegEntry& add_attr_option(const String& key, ObjectRef default_value);
+  inline TargetKindRegEntry& add_attr_option(const String& key, ffi::Any default_value);
   /*! \brief Set name of the TargetKind to be the same as registry if it is empty */
   inline TargetKindRegEntry& set_name();
   /*!
@@ -279,7 +279,7 @@ struct ValueTypeInfoMaker<ValueType, std::false_type, std::false_type> {
   using ValueTypeInfo = TargetKindNode::ValueTypeInfo;
 
   ValueTypeInfo operator()() const {
-    uint32_t tindex = ValueType::ContainerType::_GetOrAllocRuntimeTypeIndex();
+    int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
     ValueTypeInfo info;
     info.type_index = tindex;
     info.type_key = runtime::Object::TypeIndex2Key(tindex);
@@ -351,8 +351,7 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_default_keys(std::vector<Stri
 template <typename FLambda>
 inline TargetKindRegEntry& TargetKindRegEntry::set_attrs_preprocessor(FLambda f) {
   LOG(WARNING) << "set_attrs_preprocessor is deprecated please use set_target_parser instead";
-  using FType = typename tvm::runtime::detail::function_signature<FLambda>::FType;
-  kind_->preprocessor = tvm::runtime::TypedPackedFunc<FType>(std::move(f)).packed();
+  kind_->preprocessor = ffi::Function::FromUnpacked(std::move(f));
   return *this;
 }
 
@@ -371,7 +370,7 @@ inline TargetKindRegEntry& TargetKindRegEntry::add_attr_option(const String& key
 
 template <typename ValueType>
 inline TargetKindRegEntry& TargetKindRegEntry::add_attr_option(const String& key,
-                                                               ObjectRef default_value) {
+                                                               Any default_value) {
   add_attr_option<ValueType>(key);
   kind_->key2default_[key] = default_value;
   return *this;
@@ -415,8 +414,8 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
           .add_attr_option<String>("model")                       \
           .add_attr_option<Array<String>>("libs")                 \
           .add_attr_option<Target>("host")                        \
-          .add_attr_option<runtime::Int>("from_device")           \
-          .add_attr_option<runtime::Int>("target_device_type")
+          .add_attr_option<int64_t>("from_device")                \
+          .add_attr_option<int64_t>("target_device_type")
 
 }  // namespace tvm
 

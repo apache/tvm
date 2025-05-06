@@ -88,7 +88,7 @@ def normalize_weights(
         weight_t = graph.find_tensor(ref_t.name)
         if weight_t.ndim == 1:
             if ref_t.ndim != weight_t.ndim:
-                return tvm.nd.array(data.asnumpy().reshape(weight_t.get_shape()))
+                return tvm.nd.array(data.numpy().reshape(weight_t.get_shape()))
             return data
         if ref_t.layout and weight_t.layout:
             ref_layout, weight_layout = ref_t.layout.name, weight_t.layout.name
@@ -97,7 +97,7 @@ def normalize_weights(
                     l in ref_layout for l in weight_layout
                 ), "layout mismatch {} compare to {}".format(ref_t, weight_t)
                 permute = [ref_layout.index(l) for l in weight_layout]
-                return tvm.nd.array(data.asnumpy().transpose(*permute))
+                return tvm.nd.array(data.numpy().transpose(*permute))
         return data
 
     weights = {t.name: _to_data(t, d) for t, d in t_weights.items() if graph.has_tensor(t.name)}

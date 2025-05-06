@@ -76,7 +76,7 @@ NDArrayCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const picojson::
   NDArrayCacheMetadata::FileRecord::ParamRecord result;
   std::string dtype = GetValue<std::string>(json, "dtype");
   result.name = GetValue<std::string>(json, "name");
-  result.dtype = DataType(String2DLDataType(dtype));
+  result.dtype = DataType(StringToDLDataType(dtype));
   result.format = GetValue<std::string>(json, "format");
   result.nbytes = GetValue<int64_t>(json, "nbytes");
   result.byte_offset = GetValue<int64_t>(json, "byteOffset");
@@ -267,28 +267,29 @@ class NDArrayCache {
 };
 
 TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.get").set_body_typed(NDArrayCache::Get);
-TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.update").set_body([](TVMArgs args, TVMRetValue* rv) {
-  CHECK(args.size() == 2 || args.size() == 3);
-  String name = args[0];
-  bool is_override = args.size() == 2 ? false : args[2];
+TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.update")
+    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
+      CHECK(args.size() == 2 || args.size() == 3);
+      String name = args[0].cast<String>();
+      bool is_override = args.size() == 2 ? false : args[2].cast<bool>();
 
-  NDArray arr;
-  if (args[1].type_code() == kTVMNDArrayHandle) {
-    arr = args[1];
-  } else {
-    // We support converting DLTensors to NDArrays as RPC references are always DLTensors
-    DLTensor* tensor = args[1];
-    std::vector<int64_t> shape;
-    for (int64_t i = 0; i < tensor->ndim; i++) {
-      shape.push_back(tensor->shape[i]);
-    }
-    arr = NDArray::Empty(shape, tensor->dtype, tensor->device);
-    arr.CopyFrom(tensor);
-    TVMSynchronize(arr->device.device_type, arr->device.device_id, nullptr);
-  }
+      NDArray arr;
+      if (auto opt_nd = args[1].as<NDArray>()) {
+        arr = opt_nd.value();
+      } else {
+        // We support converting DLTensors to NDArrays as RPC references are always DLTensors
+        auto tensor = args[1].cast<DLTensor*>();
+        std::vector<int64_t> shape;
+        for (int64_t i = 0; i < tensor->ndim; i++) {
+          shape.push_back(tensor->shape[i]);
+        }
+        arr = NDArray::Empty(shape, tensor->dtype, tensor->device);
+        arr.CopyFrom(tensor);
+        TVMSynchronize(arr->device.device_type, arr->device.device_id, nullptr);
+      }
 
-  NDArrayCache::Update(name, arr, is_override);
-});
+      NDArrayCache::Update(name, arr, is_override);
+    });
 TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.remove").set_body_typed(NDArrayCache::Remove);
 TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.clear").set_body_typed(NDArrayCache::Clear);
 TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.load").set_body_typed(NDArrayCache::Load);
@@ -359,15 +360,15 @@ TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache").set_body_typed(ParamMod
 TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name")
     .set_body_typed(ParamModuleNode::GetParamByName);
 TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name_unpacked")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
       Array<String> names;
       names.reserve(args.size());
       for (int i = 0; i < args.size(); ++i) {
-        if (args[i].type_code() != kTVMStr) {
-          LOG(FATAL) << "ValueError: Expect string as input, but get " << args[i].type_code()
+        if (!args[i].as<String>()) {
+          LOG(FATAL) << "ValueError: Expect string as input, but get " << args[i].GetTypeKey()
                      << " at " << i;
         }
-        names.push_back(args[i]);
+        names.push_back(args[i].cast<String>());
       }
       *rv = ParamModuleNode::GetParamByName(names);
     });

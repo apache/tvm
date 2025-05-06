@@ -869,7 +869,7 @@ class Conv2dInt8_TensorCore_with_predicate_before:
 class Conv2dInt8_TensorCore_with_predicate_after:
     @T.prim_func
     def main(p0: T.Buffer((16, 56, 56, 64), "int8"), p1: T.Buffer((256, 1, 1, 64), "int8"), p2: T.Buffer((1, 1, 1, 256), "int32"), p3: T.Buffer((1, 1, 1, 256), "int32"), p4: T.Buffer((256,), "int32"), p5: T.Buffer((256,), "int32"), p6: T.Buffer((256,), "int32"), p7: T.Buffer((), "int32"), p8: T.Buffer((1,), "int32"), p9: T.Buffer((16, 56, 56, 256), "int32"), compute: T.Buffer((16, 56, 56, 256), "int32")):
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -1311,7 +1311,7 @@ def test_compute_inline_softmax():
     # fmt: off
     @T.prim_func
     def before(p_lv44: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         n, m = T.int64(), T.int64()
         lv44 = T.match_buffer(p_lv44, (T.int64(1), T.int64(32), n, m))
         var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), n, m), "float16")
@@ -1357,7 +1357,7 @@ def test_compute_inline_softmax():
 
     @T.prim_func
     def after(p_lv44: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         n, m = T.int64(), T.int64()
         lv44 = T.match_buffer(p_lv44, (T.int64(1), T.int64(32), n, m))
         var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), n, m), "float16")
@@ -1405,7 +1405,7 @@ def test_reverse_compute_inline_layer_norm():
     # fmt: off
     @T.prim_func
     def before(p_lv6: T.handle, weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), p_output0: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         n = T.int64()
         lv6 = T.match_buffer(p_lv6, (T.int64(1), n, T.int64(2560)))
         var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(2560)), "float16")
@@ -1446,7 +1446,7 @@ def test_reverse_compute_inline_layer_norm():
 
     @T.prim_func
     def after(p_lv6: T.handle, weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), p_output0: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         n = T.int64()
         lv6 = T.match_buffer(p_lv6, (T.int64(1), n, T.int64(2560)))
         var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(2560)), "float16")

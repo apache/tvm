@@ -227,7 +227,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     }
   }
   // llvm module target
-  if (Downcast<String>(target.Get("kind")) == "llvm") {
+  if (Downcast<String>(target.Get("kind").value()) == "llvm") {
     // legalize -mcpu with the target -mtriple
     auto arches = GetAllLLVMTargetArches();
     bool has_arch =
@@ -276,7 +276,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   }
 
   // LLVM JIT engine options
-  if (const auto& v = Downcast<Optional<String>>(target.Get("jit"))) {
+  if (const auto& v = Downcast<Optional<String>>(target.Get("jit").value_or(nullptr))) {
     String value = v.value();
     if ((value == "mcjit") || (value == "orcjit")) {
       jit_engine_ = value;
@@ -286,7 +286,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   }
 
   // TVM & LLVM vector width options
-  if (const auto& w = Downcast<Optional<runtime::Int>>(target.Get("vector-width"))) {
+  if (const auto& w = Downcast<Optional<int64_t>>(target.Get("vector-width").value_or(nullptr))) {
     vector_width_ = w.value();
     if ((vector_width_ <= 0) || (vector_width_ > 65536)) {
       LOG(FATAL) << "Invalid -vector-width value: " << vector_width_;
@@ -341,13 +341,13 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   target_options_.NoNaNsFPMath = true;
   target_options_.FloatABIType = float_abi;
   if (target.find("mabi") != target.end()) {
-    target_options_.MCOptions.ABIName = Downcast<String>(target.Get("mabi"));
+    target_options_.MCOptions.ABIName = Downcast<String>(target.Get("mabi").value());
   }
 
-  auto maybe_level = target.Get("opt-level").as<runtime::Int>();
+  auto maybe_level = target.Get("opt-level");
 #if TVM_LLVM_VERSION <= 170
-  if (maybe_level.defined()) {
-    int level = maybe_level.value()->value;
+  if (maybe_level.has_value()) {
+    int level = maybe_level.value().cast<int>();
     if (level <= 0) {
       opt_level_ = llvm::CodeGenOpt::None;
     } else if (level == 1) {
@@ -362,8 +362,8 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     opt_level_ = defaults::opt_level;
   }
 #else
-  if (maybe_level.defined()) {
-    int level = maybe_level.value()->value;
+  if (maybe_level.has_value()) {
+    int level = maybe_level.value().cast<int>();
     if (level <= 0) {
       opt_level_ = llvm::CodeGenOptLevel::None;
     } else if (level == 1) {
@@ -385,7 +385,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
 
   auto GetBoolFlag = [&target](llvm::StringRef name) -> bool {
     if (auto flag = target.Get(name.str())) {
-      return Downcast<runtime::Bool>(flag);
+      return flag.value().cast<bool>();
     } else {
       return false;
     }

@@ -66,7 +66,7 @@ def to_torch(
                     continue
                 w_tensor = graph.find_tensor(name)
                 w_name = w_tensor.alias or name
-                state_dict[w_name] = torch.from_numpy(data.asnumpy())
+                state_dict[w_name] = torch.from_numpy(data.numpy())
             torch.save(state_dict, folder.relpath(graph.name + ".pth"))
 
     def _bind_weights(model: torch.nn.Module, folder: msc_utils.MSCDirectory) -> torch.nn.Module:

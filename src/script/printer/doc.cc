@@ -241,11 +241,10 @@ TVM_REGISTER_GLOBAL("script.printer.DocSetSourcePaths")
 
 TVM_REGISTER_NODE_TYPE(ExprDocNode);
 TVM_REGISTER_GLOBAL("script.printer.ExprDocAttr")
-    .set_body_method<ExprDoc, ExprDocNode, ExprDoc, String>(&ExprDocNode::Attr);
-TVM_REGISTER_GLOBAL("script.printer.ExprDocIndex")
-    .set_body_method<ExprDoc>(&ExprDocNode::operator[]);
+    .set_body_method<ExprDocNode, ExprDoc, String>(&ExprDocNode::Attr);
+TVM_REGISTER_GLOBAL("script.printer.ExprDocIndex").set_body_method(&ExprDocNode::operator[]);
 TVM_REGISTER_GLOBAL("script.printer.ExprDocCall")
-    .set_body_method<ExprDoc, ExprDocNode, ExprDoc, Array<ExprDoc>, Array<String>, Array<ExprDoc>>(
+    .set_body_method<ExprDocNode, ExprDoc, Array<ExprDoc>, Array<String>, Array<ExprDoc>>(
         &ExprDocNode::Call);
 
 TVM_REGISTER_NODE_TYPE(StmtDocNode);

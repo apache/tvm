@@ -154,8 +154,8 @@ struct MKLDgemmBatchIterativeOp {
 };
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.mkl.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* A = args[0];
+TVM_REGISTER_GLOBAL("tvm.contrib.mkl.matmul").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+  auto A = args[0].cast<DLTensor*>();
   ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
 
   if (TypeMatch(A->dtype, kDLFloat, 32))
@@ -165,29 +165,31 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mkl.matmul").set_body([](TVMArgs args, TVMRetVa
 });
 
 // integer matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.mkl.matmul_u8s8s32").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* A = args[0];
-  DLTensor* B = args[1];
-  DLTensor* C = args[2];
-  ICHECK(TypeMatch(A->dtype, kDLUInt, 8) && TypeMatch(B->dtype, kDLInt, 8) &&
-         TypeMatch(C->dtype, kDLInt, 32));
+TVM_REGISTER_GLOBAL("tvm.contrib.mkl.matmul_u8s8s32")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      auto A = args[0].cast<DLTensor*>();
+      auto B = args[1].cast<DLTensor*>();
+      auto C = args[2].cast<DLTensor*>();
+      ICHECK(TypeMatch(A->dtype, kDLUInt, 8) && TypeMatch(B->dtype, kDLInt, 8) &&
+             TypeMatch(C->dtype, kDLInt, 32));
 
-  CallU8S8S32Gemm(args, ret, MKLGemmU8S8S32Op());
-});
+      CallU8S8S32Gemm(args, ret, MKLGemmU8S8S32Op());
+    });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.mkl.batch_matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* A = args[0];
-  ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
-  if (TypeMatch(A->dtype, kDLFloat, 32)) {
-    CallBatchGemm(args, ret, MKLSgemmBatchOp());
-  } else {
-    CallBatchGemm(args, ret, MKLDgemmBatchOp());
-  }
-});
+TVM_REGISTER_GLOBAL("tvm.contrib.mkl.batch_matmul")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      auto A = args[0].cast<DLTensor*>();
+      ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
+      if (TypeMatch(A->dtype, kDLFloat, 32)) {
+        CallBatchGemm(args, ret, MKLSgemmBatchOp());
+      } else {
+        CallBatchGemm(args, ret, MKLDgemmBatchOp());
+      }
+    });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.mkl.batch_matmul_iterative")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      DLTensor* A = args[0];
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      auto A = args[0].cast<DLTensor*>();
       ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
       if (TypeMatch(A->dtype, kDLFloat, 32)) {
         CallBatchGemm(args, ret, MKLSgemmBatchIterativeOp());

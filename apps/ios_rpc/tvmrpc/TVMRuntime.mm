@@ -51,36 +51,37 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 
 }  // namespace detail
 
-TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   static const std::string base_ = NSTemporaryDirectory().UTF8String;
-  const std::string path = args[0];
+  const auto path = args[0].cast<std::string>();
   *rv = base_ + "/" + path;
 });
 
-TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::string name = args[0];
-  std::string fmt = GetFileFormat(name, "");
-  NSString* base;
-  if (fmt == "dylib") {
-    // only load dylib from frameworks.
-    NSBundle* bundle = [NSBundle mainBundle];
-    base = [[bundle privateFrameworksPath] stringByAppendingPathComponent:@"tvm"];
+TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module")
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+      auto name = args[0].cast<std::string>();
+      std::string fmt = GetFileFormat(name, "");
+      NSString* base;
+      if (fmt == "dylib") {
+        // only load dylib from frameworks.
+        NSBundle* bundle = [NSBundle mainBundle];
+        base = [[bundle privateFrameworksPath] stringByAppendingPathComponent:@"tvm"];
 
-    if (Registry::Get("runtime.module.loadfile_dylib_custom")) {
-      // Custom dso loader is present. Will use it.
-      base = NSTemporaryDirectory();
-      fmt = "dylib_custom";
-    }
-  } else {
-    // Load other modules in tempdir.
-    base = NSTemporaryDirectory();
-  }
-  NSString* path =
-      [base stringByAppendingPathComponent:[NSString stringWithUTF8String:name.c_str()]];
-  name = [path UTF8String];
-  *rv = Module::LoadFromFile(name, fmt);
-  LOG(INFO) << "Load module from " << name << " ...";
-});
+        if (tvm::ffi::Function::GetGlobal("runtime.module.loadfile_dylib_custom")) {
+          // Custom dso loader is present. Will use it.
+          base = NSTemporaryDirectory();
+          fmt = "dylib_custom";
+        }
+      } else {
+        // Load other modules in tempdir.
+        base = NSTemporaryDirectory();
+      }
+      NSString* path =
+          [base stringByAppendingPathComponent:[NSString stringWithUTF8String:name.c_str()]];
+      name = [path UTF8String];
+      *rv = Module::LoadFromFile(name, fmt);
+      LOG(INFO) << "Load module from " << name << " ...";
+    });
 
 #if defined(USE_CUSTOM_DSO_LOADER) && USE_CUSTOM_DSO_LOADER == 1
 
@@ -108,7 +109,7 @@ class UnsignedDSOLoader final : public Library {
 
 // Add UnsignedDSOLoader plugin in global registry
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_dylib_custom")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       auto n = make_object<UnsignedDSOLoader>();
       n->Init(args[0]);
       *rv = CreateModuleFromLibrary(n);

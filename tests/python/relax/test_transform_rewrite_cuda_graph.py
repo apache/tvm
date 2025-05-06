@@ -197,7 +197,7 @@ def test_tuple():
     class Expected:
         @T.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
-            T.func_attr({"global_symbol": "exp", "tir.noalias": T.bool(True)})
+            T.func_attr({"global_symbol": "exp", "tir.noalias": True})
             # with T.block("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
@@ -298,7 +298,7 @@ def test_vm_builtin():
     class Expected:
         @T.prim_func
         def exp(rxplaceholder: T.Buffer((T.int64(2), T.int64(4)), "float32"), compute: T.Buffer((T.int64(2), T.int64(4)), "float32")):
-            T.func_attr({"global_symbol": "exp", "tir.noalias": T.bool(True)})
+            T.func_attr({"global_symbol": "exp", "tir.noalias": True})
             # with T.block("root"):
             for i0_i1_fused_0 in T.thread_binding(T.int64(1), thread="blockIdx.x"):
                 for i0_i1_fused_1 in T.thread_binding(T.int64(8), thread="threadIdx.x"):
@@ -403,7 +403,7 @@ def test_capture_fixed_inputs():
                 (T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"
             ),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             pad_temp = T.alloc_buffer(
                 (T.int64(16), T.int64(34), T.int64(34), T.int64(16)), "float16"
@@ -465,7 +465,7 @@ def test_capture_fixed_inputs():
             C: T.Buffer((T.int64(16),), "float16"),
             T_layer_norm: T.Buffer((T.int64(16), T.int64(32), T.int64(32), T.int64(16)), "float16"),
         ):
-            T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+            T.func_attr({"op_pattern": 4, "tir.noalias": True})
             # with T.block("root"):
             A_red_temp_v0 = T.alloc_buffer((T.int64(16), T.int64(32), T.int64(32)))
             A_red_temp_v1 = T.alloc_buffer((T.int64(16), T.int64(32), T.int64(32)))

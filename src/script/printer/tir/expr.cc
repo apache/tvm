@@ -74,6 +74,7 @@ Doc PrintVar(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d)
     return doc.value();
   }
   LOG(FATAL) << "IndexError: Variable is not defined in the environment: " << var->name_hint;
+  TVM_FFI_UNREACHABLE();
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
@@ -254,7 +255,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           int n_args = call->args.size();
           int64_t id = call->args[0].as<IntImmNode>()->value;
           auto f_llvm_lookup_intrinsic_name =
-              tvm::runtime::Registry::Get("target.llvm_get_intrinsic_name");
+              tvm::ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
 
           Array<ExprDoc> args;
           args.reserve(n_args + 1);
@@ -264,7 +265,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
           for (int i = 0; i < n_args; ++i) {
             if ((i == 0) && (f_llvm_lookup_intrinsic_name)) {
-              String name = (*f_llvm_lookup_intrinsic_name)(id);
+              String name = (*f_llvm_lookup_intrinsic_name)(id).cast<String>();
               args.push_back(LiteralDoc::Str(name.c_str(), call_p->Attr("args")->ArrayIndex(i)));
             } else {
               args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayIndex(i)));

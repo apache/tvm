@@ -1020,7 +1020,7 @@ def recursive_floordiv_floormod(A: T.Buffer((16, 64, 1, 8, 8, 32), "float32"),
 
 @T.prim_func
 def recursive_floordiv_floormod_after_reverse_compute_at(A: T.Buffer((16, 64, 1, 8, 8, 32), "float32"), C: T.Buffer((3, 512, 512), "float32")) -> None:
-    T.func_attr({"tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": True})
     # with T.block("root"):
     B = T.alloc_buffer((1, 128, 16, 8, 2, 32, 2))
     for axis1, axis2, axis3 in T.grid(1, 128, 16):

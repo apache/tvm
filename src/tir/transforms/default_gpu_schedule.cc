@@ -86,8 +86,7 @@ IRModule MarkScheduled(const IRModule& mod) {
   for (const auto& [gv, base_func] : mod->functions) {
     if (const auto* prim_func_node = base_func.as<tir::PrimFuncNode>()) {
       tir::PrimFunc prim_func = GetRef<tir::PrimFunc>(prim_func_node);
-      tir::PrimFunc new_prim_func =
-          WithAttr(std::move(prim_func), tir::attr::kIsScheduled, Bool(true));
+      tir::PrimFunc new_prim_func = WithAttr(std::move(prim_func), tir::attr::kIsScheduled, true);
       result.Set(gv, new_prim_func);
     } else {
       result.Set(gv, base_func);
@@ -120,7 +119,7 @@ bool IsScheduledOnGPU(const BaseFunc& func) {
 }
 
 Pass DefaultGPUSchedule() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule m, PassContext pc) {
         tir::Schedule sch = tir::Schedule::Traced(m, /*seed=*/-1, /*debug_mask=*/0,
                                                   tir::ScheduleErrorRenderLevel::kDetail);

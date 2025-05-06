@@ -124,21 +124,20 @@ void RPCServerLoop(PackedFunc fsend, PackedFunc frecv) {
       ->ServerLoop();
 }
 
-TVM_REGISTER_GLOBAL("rpc.Connect").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::string url = args[0];
-  int port = args[1];
-  std::string key = args[2];
-  bool enable_logging = args[3];
-  *rv = RPCClientConnect(url, port, key, enable_logging,
-                         TVMArgs(args.values + 4, args.type_codes + 4, args.size() - 4));
+TVM_REGISTER_GLOBAL("rpc.Connect").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+  auto url = args[0].cast<std::string>();
+  int port = args[1].cast<int>();
+  auto key = args[2].cast<std::string>();
+  bool enable_logging = args[3].cast<bool>();
+  *rv = RPCClientConnect(url, port, key, enable_logging, args.Slice(4));
 });
 
-TVM_REGISTER_GLOBAL("rpc.ServerLoop").set_body([](TVMArgs args, TVMRetValue* rv) {
-  if (args[0].type_code() == kDLInt) {
-    RPCServerLoop(args[0]);
+TVM_REGISTER_GLOBAL("rpc.ServerLoop").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+  if (auto opt_int = args[0].as<int64_t>()) {
+    RPCServerLoop(opt_int.value());
   } else {
-    RPCServerLoop(args[0].operator tvm::runtime::PackedFunc(),
-                  args[1].operator tvm::runtime::PackedFunc());
+    RPCServerLoop(args[0].cast<tvm::runtime::PackedFunc>(),
+                  args[1].cast<tvm::runtime::PackedFunc>());
   }
 });
 

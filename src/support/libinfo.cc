@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 
@@ -265,8 +267,8 @@ namespace tvm {
  * \brief Get a dictionary containing compile-time info, including cmake flags and git commit hash
  * \return The compile-time info
  */
-TVM_DLL Map<String, String> GetLibInfo() {
-  Map<String, String> result = {
+TVM_DLL ffi::Map<ffi::String, ffi::String> GetLibInfo() {
+  ffi::Map<ffi::String, ffi::String> result = {
       {"BUILD_STATIC_RUNTIME", TVM_INFO_BUILD_STATIC_RUNTIME},
       {"BUILD_DUMMY_LIBTVM", TVM_INFO_BUILD_DUMMY_LIBTVM},
       {"COMPILER_RT_PATH", TVM_INFO_COMPILER_RT_PATH},

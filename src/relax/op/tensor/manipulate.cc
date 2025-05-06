@@ -116,7 +116,7 @@ TVM_REGISTER_OP("relax.broadcast_to")
 /* relax.concat */
 TVM_REGISTER_NODE_TYPE(ConcatAttrs);
 
-Expr concat(Expr tensors, Optional<Integer> axis) {
+Expr concat(Expr tensors, Optional<int64_t> axis) {
   ObjectPtr<ConcatAttrs> attrs = make_object<ConcatAttrs>();
   attrs->axis = std::move(axis);
 
@@ -190,7 +190,7 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<ConcatAttrs>();
-  int output_ndim = attrs->axis.defined() ? kUnknownNDim : 1;
+  int output_ndim = attrs->axis.has_value() ? kUnknownNDim : 1;
   DataType output_dtype = DataType::Void();
   Optional<VDevice> vdev = NullOpt;
   bool shape_unknown = false;
@@ -269,7 +269,7 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
   }
 
   int axis =
-      attrs->axis.defined() ? NormalizeAxis(call, ctx, output_ndim, attrs->axis.value()->value) : 0;
+      attrs->axis.has_value() ? NormalizeAxis(call, ctx, output_ndim, attrs->axis.value()) : 0;
   // If there is only one input tensor, no action is needed.
   if (tensor_sinfo.size() == 1) {
     return tensor_sinfo[0];
@@ -316,7 +316,7 @@ InferLayoutOutput InferLayoutConcat(const Call& call,
   }
   output_layouts.push_back(layout);
   ObjectPtr<ConcatAttrs> new_attrs = make_object<ConcatAttrs>(*attrs);
-  new_attrs->axis = Integer(FindAxis(layout->layout, attrs->axis.value_or(0)->value));
+  new_attrs->axis = FindAxis(layout->layout, attrs->axis.value_or(0));
   return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
 }
 
@@ -812,16 +812,16 @@ TVM_REGISTER_OP("relax.permute_dims")
 
 /* relax.reshape */
 Expr ConvertNewShapeToExpr(const Expr& data, const Variant<Expr, Array<PrimExpr>>& shape) {
-  const ArrayNode* array;
+  const ArrayObj* array;
   // Treat shape expressions as constant arrays to handle special values.
   if (const auto* e = shape.as<ShapeExprNode>()) {
-    array = e->values.as<ArrayNode>();
+    array = e->values.as<ArrayObj>();
     // Other non-shape expressions are used directly.
   } else if (const auto* e = shape.as<ExprNode>()) {
     return GetRef<Expr>(e);
     // Process special values in constants and produce an expression.
   } else {
-    array = shape.as<ArrayNode>();
+    array = shape.as<ArrayObj>();
   }
   CHECK(array != nullptr) << "Reshape only expects the input new shape to be either an Expr or an "
                              "Array of PrimExprs. However, the given new shape is "
@@ -971,25 +971,26 @@ TVM_REGISTER_NODE_TYPE(SplitAttrs);
 
 Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis) {
   ObjectPtr<SplitAttrs> attrs = make_object<SplitAttrs>();
-  if (const auto* indices = indices_or_sections.as<ArrayNode>()) {
+  ObjectRef indices_or_sections_obj;
+
+  if (const auto* indices = indices_or_sections.as<ArrayObj>()) {
     for (int i = 0; i < static_cast<int>(indices->size()); ++i) {
       const auto* idx = indices->at(i).as<IntImmNode>();
       CHECK(idx != nullptr) << "Split op only accepts an array of integers as the indices. "
                                "However, the given indices "
                             << indices_or_sections << " contains some non-integer.";
     }
-    indices_or_sections = ConvertIntImmToInt64(GetRef<Array<IntImm>>(indices));
+    indices_or_sections_obj = ConvertIntImmToInt64(GetRef<Array<IntImm>>(indices));
   } else if (const auto* n_section = indices_or_sections.as<IntImmNode>()) {
     CHECK_GT(n_section->value, 0) << "Split op expects the input number of sections to be a "
                                      "positive integer. However, the given number of sections is "
                                   << n_section->value;
-    indices_or_sections = IntImm(DataType::Int(64), n_section->value);
+    indices_or_sections_obj = IntImm(DataType::Int(64), n_section->value);
   } else {
     LOG(FATAL) << "Split op expects the input indices_or_sections to be either an Array of "
-                  "PrimExpr or an integer. However, the given one is "
-               << indices_or_sections->GetTypeKey();
+                  "PrimExpr or an integer.";
   }
-  attrs->indices_or_sections = indices_or_sections;
+  attrs->indices_or_sections = indices_or_sections_obj;
   attrs->axis = axis;
 
   static const Op& op = Op::Get("relax.split");
@@ -1645,7 +1646,7 @@ TVM_REGISTER_OP("relax.collapse_sum_to")
 /* relax.repeat */
 TVM_REGISTER_NODE_TYPE(RepeatAttrs);
 
-Expr repeat(Expr data, int repeats, Optional<Integer> axis) {
+Expr repeat(Expr data, int repeats, Optional<int64_t> axis) {
   auto attrs = make_object<RepeatAttrs>();
   attrs->repeats = std::move(repeats);
   attrs->axis = std::move(axis);
@@ -1662,8 +1663,8 @@ StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<RepeatAttrs>();
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
 
-  if (attrs->axis.defined() && !data_sinfo->IsUnknownNdim()) {
-    int axis = attrs->axis.value()->value;
+  if (attrs->axis.has_value() && !data_sinfo->IsUnknownNdim()) {
+    int axis = attrs->axis.value();
     int ndim = data_sinfo->ndim;
     if (axis < -ndim || axis >= ndim) {
       ctx->ReportFatal(
@@ -1675,7 +1676,7 @@ StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
   }
 
   if (data_shape == nullptr) {
-    if (attrs->axis.defined()) {
+    if (attrs->axis.has_value()) {
       if (analyzer->CanProveEqual(attrs->repeats, 1)) {
         // the shape does not changes
         return data_sinfo;
@@ -1687,14 +1688,14 @@ StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  if (!attrs->axis.defined()) {
+  if (!attrs->axis.has_value()) {
     PrimExpr new_shape =
         analyzer->Simplify(ComputeShapeProduct(data_shape->values) * attrs->repeats);
     return TensorStructInfo(ShapeExpr(Array<PrimExpr>({new_shape})), data_sinfo->dtype,
                             data_sinfo->vdevice);
   }
 
-  int axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value()->value);
+  int axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value());
   auto shape_array = data_shape->values;
   shape_array.Set(axis, analyzer->Simplify(shape_array[axis] * attrs->repeats));
   return TensorStructInfo(ShapeExpr(shape_array), data_sinfo->dtype, data_sinfo->vdevice);

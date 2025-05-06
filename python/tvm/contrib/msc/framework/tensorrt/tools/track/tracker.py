@@ -82,7 +82,7 @@ class TensorRTTrackerFactory(object):
                         continue
                     consumer = self._track_tensors[name]["consumer"]
                     strategys = self._get_tensor_strategys(name, consumer)
-                    self._track_tensor(data.asnumpy(), name, consumer, strategys)
+                    self._track_tensor(data.numpy(), name, consumer, strategys)
                 return super()._execute_before_forward(step_context)
 
             def _execute_after_forward(self, step_context: dict) -> dict:
@@ -104,7 +104,7 @@ class TensorRTTrackerFactory(object):
                         continue
                     consumer = self._track_tensors[name]["consumer"]
                     strategys = self._get_tensor_strategys(name, consumer)
-                    self._track_tensor(data.asnumpy(), name, consumer, strategys)
+                    self._track_tensor(data.numpy(), name, consumer, strategys)
                 return super()._execute_after_forward(step_context)
 
             def _process_tensor(

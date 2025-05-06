@@ -143,7 +143,7 @@ def benchmark(
 
         _, profile_result = rpc_run(
             rt_mod,
-            device_type=dev.MASK2STR[dev.device_type],
+            device_type=dev.DEVICE_TYPE_TO_NAME[dev.device_type],
             args=[w.numpy() if isinstance(w, tvm.nd.NDArray) else w for w in input_tensors],
             rpc_config=rpc_config,
             evaluator_config=evaluator_config,

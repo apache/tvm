@@ -119,9 +119,9 @@ void TensorRTCodeGen::CodeGenClassDefine() {
   stack_.func_arg("logger", "TRTLogger&").func_start();
   // save codegen before build
   if (config()->use_tools) {
-    const auto* pf = runtime::Registry::Get("msc_tool.codegen_step");
-    ICHECK(pf != nullptr) << "Cannot find msc_tool.codegen_step func.";
-    before_build_codes_ = (*pf)(GetStepCtx(), "before_build", graph()->name, config()->tools_tag);
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("msc_tool.codegen_step");
+    before_build_codes_ =
+        pf(GetStepCtx(), "before_build", graph()->name, config()->tools_tag).cast<Array<String>>();
   }
   if (graph()->weight_holders.size() > 0) {
     stack_.func_call("TRTUtils::LoadWeights", "mWeights")
@@ -205,9 +205,9 @@ void TensorRTCodeGen::CodeGenClassDefine() {
   }
   // save codegen after build
   if (config()->use_tools) {
-    const auto* pf = runtime::Registry::Get("msc_tool.codegen_step");
-    ICHECK(pf != nullptr) << "Cannot find msc_tool.codegen_step func.";
-    after_build_codes_ = (*pf)(GetStepCtx(), "after_build", graph()->name, config()->tools_tag);
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("msc_tool.codegen_step");
+    after_build_codes_ =
+        pf(GetStepCtx(), "after_build", graph()->name, config()->tools_tag).cast<Array<String>>();
   }
   // end define build method
   stack_.func_end("true");
@@ -548,7 +548,7 @@ const Array<Doc> TensorRTCodeGen::GetOpCodes(const MSCJoint& node) {
   try {
     return it->second->GetDocs();
   } catch (runtime::InternalError& err) {
-    LOG(WARNING) << "Failed to get docs for " << node << " : " << err.message();
+    LOG(WARNING) << "Failed to get docs for " << node << " : " << err.what();
     throw err;
   }
 }
@@ -596,7 +596,7 @@ TVM_REGISTER_GLOBAL("msc.framework.tensorrt.GetTensorRTRoot").set_body_typed([](
  * \return Runtime modules.
  */
 Array<runtime::Module> MSCTensorRTCompiler(Array<Function> functions,
-                                           Map<String, ObjectRef> target_option,
+                                           Map<String, ffi::Any> target_option,
                                            Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
   for (const auto& func : functions) {
@@ -610,10 +610,10 @@ Array<runtime::Module> MSCTensorRTCompiler(Array<Function> functions,
     MSCJSONSerializer serializer(constant_names, options);
     serializer.serialize(func);
     std::string graph_json = serializer.GetJSON();
-    const auto* pf = runtime::Registry::Get("runtime.msc_tensorrt_runtime_create");
-    ICHECK(pf != nullptr) << "Cannot find TensorRT runtime module create function.";
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.msc_tensorrt_runtime_create");
     VLOG(1) << "Creating msc_tensorrt runtime::Module for '" << func_name << "'";
-    compiled_functions.push_back((*pf)(func_name, graph_json, serializer.GetConstantNames()));
+    compiled_functions.push_back(
+        pf(func_name, graph_json, serializer.GetConstantNames()).cast<runtime::Module>());
   }
   return compiled_functions;
 }

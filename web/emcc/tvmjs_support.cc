@@ -106,46 +106,35 @@ class AsyncLocalSession : public LocalSession {
   PackedFuncHandle GetFunction(const std::string& name) final {
     if (name == "runtime.RPCTimeEvaluator") {
       return get_time_eval_placeholder_.get();
-    } else if (auto* fp = tvm::runtime::Registry::Get(name)) {
-      // return raw handle because the remote need to explicitly manage it.
-      tvm::runtime::TVMRetValue ret;
-      ret = *fp;
-      TVMValue val;
-      int type_code;
-      ret.MoveToCHost(&val, &type_code);
-      return val.v_handle;
-    } else if (auto* fp = tvm::runtime::Registry::Get("__async." + name)) {
-      tvm::runtime::TVMRetValue ret;
-      ret = *fp;
-      TVMValue val;
-      int type_code;
-      ret.MoveToCHost(&val, &type_code);
-      auto* rptr = val.v_handle;
-      async_func_set_.insert(rptr);
-      return rptr;
+    } else if (auto fp = tvm::ffi::Function::GetGlobal(name)) {
+      TVMFFIAny val = tvm::ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(tvm::ffi::Any(*fp));
+      return val.v_obj;
+    } else if (auto fp = tvm::ffi::Function::GetGlobal("__async." + name)) {
+      TVMFFIAny val = tvm::ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(tvm::ffi::Any(*fp));
+      async_func_set_.insert(val.v_obj);
+      return val.v_obj;
     } else {
       return nullptr;
     }
   }
 
-  void FreeHandle(void* handle, int type_code) final {
-    if (type_code == kTVMPackedFuncHandle) {
+  void FreeHandle(void* handle) final {
+    {
       auto it = async_func_set_.find(handle);
       if (it != async_func_set_.end()) {
         async_func_set_.erase(it);
       }
     }
     if (handle != get_time_eval_placeholder_.get()) {
-      LocalSession::FreeHandle(handle, type_code);
+      LocalSession::FreeHandle(handle);
     }
   }
 
-  void AsyncCallFunc(PackedFuncHandle func, const TVMValue* arg_values, const int* arg_type_codes,
-                     int num_args, FAsyncCallback callback) final {
+  void AsyncCallFunc(PackedFuncHandle func, ffi::PackedArgs args, FAsyncCallback callback) final {
     auto it = async_func_set_.find(func);
     if (it != async_func_set_.end()) {
       PackedFunc packed_callback([callback, this](TVMArgs args, TVMRetValue*) {
-        int code = args[0];
+        int code = args[0].cast<int>();
         TVMRetValue rv;
         rv = args[1];
         if (code == static_cast<int>(RPCCode::kReturn)) {
@@ -159,36 +148,33 @@ class AsyncLocalSession : public LocalSession {
         }
       });
 
-      TVMRetValue temp;
-      std::vector<TVMValue> values(arg_values, arg_values + num_args);
-      std::vector<int> type_codes(arg_type_codes, arg_type_codes + num_args);
-      values.emplace_back(TVMValue());
-      type_codes.emplace_back(0);
-
-      TVMArgsSetter setter(&values[0], &type_codes[0]);
+      std::vector<AnyView> packed_args(args.data(), args.data() + args.size());
       // pass the callback as the last argument.
-      setter(num_args, packed_callback);
-
-      auto* pf = static_cast<PackedFuncObj*>(func);
-      pf->CallPacked(TVMArgs(values.data(), type_codes.data(), num_args + 1), &temp);
+      packed_args.emplace_back(AnyView(packed_callback));
+      auto* pf = static_cast<ffi::FunctionObj*>(func);
+      Any temp;
+      pf->CallPacked(packed_args.data(), packed_args.size(), &temp);
     } else if (func == get_time_eval_placeholder_.get()) {
       // special handle time evaluator.
       try {
-        TVMArgs args(arg_values, arg_type_codes, num_args);
-        PackedFunc retfunc = this->GetTimeEvaluator(args[0], args[1], args[2], args[3], args[4],
-                                                    args[5], args[6], args[7], args[8], args[9]);
+        PackedFunc retfunc = this->GetTimeEvaluator(
+            args[0].cast<ffi::Optional<Module>>(), args[1].cast<std::string>(), args[2].cast<int>(),
+            args[3].cast<int>(), args[4].cast<int>(), args[5].cast<int>(), args[6].cast<int>(),
+            args[7].cast<int>(), args[8].cast<int>(), args[9].cast<int>());
         TVMRetValue rv;
         rv = retfunc;
         this->EncodeReturn(std::move(rv), [&](TVMArgs encoded_args) {
+          const void* pf = encoded_args[0].as<ffi::FunctionObj>();
+          ICHECK(pf != nullptr);
           // mark as async.
-          async_func_set_.insert(encoded_args.values[1].v_handle);
+          async_func_set_.insert(const_cast<void*>(pf));
           callback(RPCCode::kReturn, encoded_args);
         });
       } catch (const std::runtime_error& e) {
         this->SendException(callback, e.what());
       }
     } else {
-      LocalSession::AsyncCallFunc(func, arg_values, arg_type_codes, num_args, callback);
+      LocalSession::AsyncCallFunc(func, args, callback);
     }
   }
 
@@ -230,20 +216,18 @@ class AsyncLocalSession : public LocalSession {
 
   void AsyncStreamWait(Device dev, TVMStreamHandle stream, FAsyncCallback on_complete) final {
     if (dev.device_type == kDLCPU) {
-      TVMValue value;
-      int32_t tcode = kTVMNullptr;
-      value.v_handle = nullptr;
-      on_complete(RPCCode::kReturn, TVMArgs(&value, &tcode, 1));
+      AnyView packed_args[1];
+      packed_args[0] = nullptr;
+      on_complete(RPCCode::kReturn, ffi::PackedArgs(packed_args, 1));
     } else {
       CHECK(dev.device_type == static_cast<DLDeviceType>(kDLWebGPU));
-      if (async_wait_ == nullptr) {
-        async_wait_ = tvm::runtime::Registry::Get("__async.wasm.WebGPUWaitForTasks");
+      if (!async_wait_.has_value()) {
+        async_wait_ = tvm::ffi::Function::GetGlobal("__async.wasm.WebGPUWaitForTasks");
       }
-      CHECK(async_wait_ != nullptr);
+      CHECK(async_wait_.has_value());
       PackedFunc packed_callback([on_complete](TVMArgs args, TVMRetValue*) {
-        int code = args[0];
-        on_complete(static_cast<RPCCode>(code),
-                    TVMArgs(args.values + 1, args.type_codes + 1, args.size() - 1));
+        int code = args[0].cast<int>();
+        on_complete(static_cast<RPCCode>(code), args.Slice(1));
       });
       (*async_wait_)(packed_callback);
     }
@@ -254,7 +238,7 @@ class AsyncLocalSession : public LocalSession {
  private:
   std::unordered_set<void*> async_func_set_;
   std::unique_ptr<PackedFunc> get_time_eval_placeholder_ = std::make_unique<PackedFunc>();
-  const PackedFunc* async_wait_{nullptr};
+  std::optional<PackedFunc> async_wait_;
 
   // time evaluator
   PackedFunc GetTimeEvaluator(Optional<Module> opt_mod, std::string name, int device_type,
@@ -272,8 +256,8 @@ class AsyncLocalSession : public LocalSession {
                                    limit_zero_time_iterations, cooldown_interval_ms,
                                    repeats_to_cooldown);
     } else {
-      auto* pf = runtime::Registry::Get(name);
-      CHECK(pf != nullptr) << "Cannot find " << name << " in the global function";
+      auto pf = tvm::ffi::Function::GetGlobal(name);
+      CHECK(pf.has_value()) << "Cannot find " << name << " in the global function";
       return WrapWasmTimeEvaluator(*pf, dev, number, repeat, min_repeat_ms,
                                    limit_zero_time_iterations, cooldown_interval_ms,
                                    repeats_to_cooldown);
@@ -287,21 +271,18 @@ class AsyncLocalSession : public LocalSession {
     auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
                    cooldown_interval_ms, repeats_to_cooldown](TVMArgs args, TVMRetValue* rv) {
       // the function is a async function.
-      PackedFunc on_complete = args[args.size() - 1];
-      // keep argument alive in finvoke so that they
-      // can be used throughout the async benchmark
-      std::vector<TVMValue> values(args.values, args.values + args.size() - 1);
-      std::vector<int> type_codes(args.type_codes, args.type_codes + args.size() - 1);
+      PackedFunc on_complete = args[args.size() - 1].cast<PackedFunc>();
 
-      auto finvoke = [pf, values, type_codes](int n) {
+      std::vector<AnyView> packed_args(args.data(), args.data() + args.size() - 1);
+      auto finvoke = [pf, packed_args](int n) {
         TVMRetValue temp;
-        TVMArgs invoke_args(values.data(), type_codes.data(), values.size());
+        TVMArgs invoke_args(packed_args.data(), packed_args.size());
         for (int i = 0; i < n; ++i) {
           pf.CallPacked(invoke_args, &temp);
         }
       };
-      auto* time_exec = runtime::Registry::Get("__async.wasm.TimeExecution");
-      CHECK(time_exec != nullptr) << "Cannot find wasm.GetTimer in the global function";
+      auto time_exec = tvm::ffi::Function::GetGlobal("__async.wasm.TimeExecution");
+      CHECK(time_exec.has_value()) << "Cannot find wasm.GetTimer in the global function";
       (*time_exec)(TypedPackedFunc<void(int)>(finvoke), dev, number, repeat, min_repeat_ms,
                    limit_zero_time_iterations, cooldown_interval_ms, repeats_to_cooldown,
                    /*cache_flush_bytes=*/0, on_complete);

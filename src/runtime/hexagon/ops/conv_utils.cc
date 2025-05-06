@@ -167,7 +167,7 @@ std::tuple<int, int, int, int> getHWIO(const DLTensor* hwio_flat) {
 
 SDLTensor<4> prepare_hwio_8b(tvm::runtime::DeviceAPI* device_api, const DLTensor* hwio_flat,
                              int num_chunks, void** ptr_table, int wgt_zp) {
-  tvm::runtime::String vtcm_scope = "global.vtcm";
+  tvm::ffi::String vtcm_scope = "global.vtcm";
 
   auto [h, w, i, o] = getHWIO(hwio_flat);
   int64_t shape_1d[] = {h * w * i * o};
@@ -182,7 +182,7 @@ SDLTensor<4> prepare_hwio_8b(tvm::runtime::DeviceAPI* device_api, const DLTensor
 
 SDLTensor<4> prepare_hwio(tvm::runtime::DeviceAPI* device_api, const DLTensor* hwio_flat,
                           int num_chunks, void** ptr_table) {
-  tvm::runtime::String vtcm_scope = "global.vtcm";
+  tvm::ffi::String vtcm_scope = "global.vtcm";
 
   // Allocate one block for filter data. We will need to create our own
   // pointer table. The reason is that filter chunks cannot be padded

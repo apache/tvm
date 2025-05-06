@@ -19,6 +19,7 @@
 #ifndef TVM_RUNTIME_RELAX_VM_NDARRAY_CACHE_SUPPORT_H_
 #define TVM_RUNTIME_RELAX_VM_NDARRAY_CACHE_SUPPORT_H_
 
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 

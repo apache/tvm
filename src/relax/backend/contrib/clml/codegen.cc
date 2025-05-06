@@ -305,8 +305,7 @@ void CollectCLMLFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node)
  * \param functions The extern functions to be compiled via OpenCLML
  * \return Runtime modules.
  */
-Array<runtime::Module> OpenCLMLCompiler(Array<Function> functions,
-                                        Map<String, ObjectRef> /*unused*/,
+Array<runtime::Module> OpenCLMLCompiler(Array<Function> functions, Map<String, Any> /*unused*/,
                                         Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
   for (const auto& func : functions) {
@@ -315,11 +314,10 @@ Array<runtime::Module> OpenCLMLCompiler(Array<Function> functions,
     serializer.serialize(func);
     std::string graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto* pf = runtime::Registry::Get("runtime.clml_runtime_create");
-    ICHECK(pf != nullptr) << "Cannot find OpenCLML runtime module create function.";
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.clml_runtime_create");
     std::string func_name = GetExtSymbol(func);
     VLOG(1) << "Creating clml runtime::Module for '" << func_name << "'";
-    compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<runtime::Module>());
   }
   return compiled_functions;
 }

@@ -35,27 +35,27 @@
 TEST(LLVMCodeGen, CodeGenFactoryPresent) {
   std::initializer_list<std::string> cpu_targets = {CPU_TARGETS};
   for (const std::string& s : cpu_targets) {
-    auto* pf = tvm::runtime::Registry::Get("tvm.codegen.llvm.target_" + s);
-    EXPECT_NE(pf, nullptr);
+    auto pf = tvm::ffi::Function::GetGlobal("tvm.codegen.llvm.target_" + s);
+    EXPECT_TRUE(pf.has_value());
   }
 
   std::initializer_list<std::string> optional_targets = {OPTIONAL_TARGETS};
   for (const std::string& s : optional_targets) {
-    if (tvm::runtime::Registry::Get("device_api." + s)) {
-      auto* pf = tvm::runtime::Registry::Get("tvm.codegen.llvm.target_" + s);
-      EXPECT_NE(pf, nullptr);
+    if (tvm::ffi::Function::GetGlobal("device_api." + s)) {
+      auto pf = tvm::ffi::Function::GetGlobal("tvm.codegen.llvm.target_" + s);
+      EXPECT_TRUE(pf.has_value());
     }
   }
 
-  auto* pf_bad = tvm::runtime::Registry::Get("tvm.codegen.llvm.target_invalid-target");
-  EXPECT_EQ(pf_bad, nullptr);
+  auto pf_bad = tvm::ffi::Function::GetGlobal("tvm.codegen.llvm.target_invalid-target");
+  EXPECT_FALSE(pf_bad.has_value());
 }
 
 TEST(LLVMCodeGen, CodeGenFactoryWorks) {
   std::initializer_list<std::string> all_targets = {ALL_TARGETS};
   for (const std::string& s : all_targets) {
-    if (auto* pf = tvm::runtime::Registry::Get("tvm.codegen.llvm.target_" + s)) {
-      auto* cg = static_cast<void*>((*pf)());
+    if (auto pf = tvm::ffi::Function::GetGlobal("tvm.codegen.llvm.target_" + s)) {
+      auto cg = (*pf)().cast<void*>();
       EXPECT_NE(cg, nullptr);
       delete static_cast<tvm::codegen::CodeGenLLVM*>(cg);
     }

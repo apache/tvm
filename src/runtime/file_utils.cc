@@ -30,6 +30,7 @@
 
 #include <fstream>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -38,7 +39,7 @@ namespace runtime {
 void FunctionInfo::Save(dmlc::JSONWriter* writer) const {
   std::vector<std::string> sarg_types(arg_types.size());
   for (size_t i = 0; i < arg_types.size(); ++i) {
-    sarg_types[i] = DLDataType2String(arg_types[i]);
+    sarg_types[i] = DLDataTypeToString(arg_types[i]);
   }
   writer->BeginObject();
   writer->WriteObjectKeyValue("name", name);
@@ -58,7 +59,7 @@ void FunctionInfo::Load(dmlc::JSONReader* reader) {
   helper.ReadAllFields(reader);
   arg_types.resize(sarg_types.size());
   for (size_t i = 0; i < arg_types.size(); ++i) {
-    arg_types[i] = String2DLDataType(sarg_types[i]);
+    arg_types[i] = StringToDLDataType(sarg_types[i]);
   }
 }
 
@@ -238,10 +239,7 @@ std::string SaveParams(const Map<String, NDArray>& params) {
 
 TVM_REGISTER_GLOBAL("runtime.SaveParams").set_body_typed([](const Map<String, NDArray>& params) {
   std::string s = ::tvm::runtime::SaveParams(params);
-  // copy return array so it is owned by the ret value
-  TVMRetValue rv;
-  rv = TVMByteArray{s.data(), s.size()};
-  return rv;
+  return ffi::Bytes(std::move(s));
 });
 
 TVM_REGISTER_GLOBAL("runtime.SaveParamsToFile")
@@ -250,7 +248,7 @@ TVM_REGISTER_GLOBAL("runtime.SaveParamsToFile")
       SaveParams(&strm, params);
     });
 
-TVM_REGISTER_GLOBAL("runtime.LoadParams").set_body_typed([](const String& s) {
+TVM_REGISTER_GLOBAL("runtime.LoadParams").set_body_typed([](const ffi::Bytes& s) {
   return ::tvm::runtime::LoadParams(s);
 });
 

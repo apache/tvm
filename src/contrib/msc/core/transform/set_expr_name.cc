@@ -209,8 +209,7 @@ class RelaxExprNameSetter : public ExprVisitor {
       try {
         input_types = ExprUtils::GetInputTypes(optype, val->args.size(), true);
       } catch (runtime::InternalError& err) {
-        LOG(WARNING) << "Failed to GetInputTypes for " << GetRef<Call>(val) << " : "
-                     << err.message();
+        LOG(WARNING) << "Failed to GetInputTypes for " << GetRef<Call>(val) << " : " << err.what();
         throw err;
       }
       for (size_t i = 0; i < input_types.size(); i++) {
@@ -318,8 +317,7 @@ namespace transform {
 
 Pass SetRelaxExprName(const String& entry_name, const String& target,
                       const Map<String, String>& var_names) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule m, PassContext pc) {
     relax::SetRelaxExprName(m, m->Lookup(entry_name), target, var_names);
     return m;
   };

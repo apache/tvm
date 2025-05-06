@@ -224,9 +224,8 @@ class ScheduleNode : public runtime::Object {
    * \param decision The sampling decision
    * \return The random variable sampled from candidates
    */
-  virtual ExprRV SampleCategorical(const Array<runtime::Int>& candidates,
-                                   const Array<runtime::Float>& probs,
-                                   Optional<runtime::Int> decision = NullOpt) = 0;
+  virtual ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
+                                   Optional<Integer> decision = NullOpt) = 0;
   /*!
    * \brief Sample the factors to perfect tile a specific loop
    * \param loop_rv The loop to be tiled
@@ -707,15 +706,14 @@ class ScheduleNode : public runtime::Object {
    * \param ann_key The annotation key
    * \param ann_val The annotation value, a string or a ExprRV
    */
-  virtual void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) = 0;
+  virtual void Annotate(const LoopRV& loop_rv, const String& ann_key, const Any& ann_val) = 0;
   /*!
    * \brief Annotate a block with a key value pair
    * \param block_rv The block to be annotated
    * \param ann_key The annotation key
    * \param ann_val The annotation value, a string or a ExprRV
    */
-  virtual void Annotate(const BlockRV& block_rv, const String& ann_key,
-                        const ObjectRef& ann_val) = 0;
+  virtual void Annotate(const BlockRV& block_rv, const String& ann_key, const Any& ann_val) = 0;
   /*!
    * \brief Unannotate a loop's annotation with key ann_key
    * \param loop_rv The loop to be unannotated

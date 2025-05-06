@@ -32,9 +32,9 @@ namespace contrib {
 using namespace runtime;
 
 void softmax_impl(cudnnSoftmaxAlgorithm_t alg, TVMArgs args, TVMRetValue* ret) {
-  DLTensor* x = args[0];
-  DLTensor* y = args[1];
-  int axis = args[2];
+  auto x = args[0].cast<DLTensor*>();
+  auto y = args[1].cast<DLTensor*>();
+  int axis = args[2].cast<int>();
   int ndim = x->ndim;
   int64_t* shape = x->shape;
   if (axis < 0) axis += ndim;
@@ -78,12 +78,14 @@ void softmax_impl(cudnnSoftmaxAlgorithm_t alg, TVMArgs args, TVMRetValue* ret) {
 }
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       softmax_impl(CUDNN_SOFTMAX_ACCURATE, args, ret);
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.log_softmax.forward")
-    .set_body([](TVMArgs args, TVMRetValue* ret) { softmax_impl(CUDNN_SOFTMAX_LOG, args, ret); });
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      softmax_impl(CUDNN_SOFTMAX_LOG, args, ret);
+    });
 
 }  // namespace contrib
 }  // namespace tvm

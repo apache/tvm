@@ -117,7 +117,7 @@ struct BaseCollectInfo {
         },
         tuple_var);
     Function func(params, body, GetStructInfo(tuple_var));
-    func = WithAttr(func, attr::kNumInput, Integer(0));
+    func = WithAttr(func, attr::kNumInput, 0);
     func = CopyWithNewVars(func);
     func = BundleModelParams(func);
     func = Downcast<Function>(CanonicalizeBindings(func));
@@ -396,7 +396,7 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
           // In-place update the set in global info by unioning with the local set, variable
           // mappings are applied.
           for (const auto& relax_or_tir_var : source_set) {
-            if (relax_or_tir_var->IsInstance<relax::VarNode>()) {
+            if (relax_or_tir_var.as<relax::VarNode>()) {
               if (auto it = var_remap.find(Downcast<Var>(relax_or_tir_var));
                   it != var_remap.end()) {
                 target_set.insert(Downcast<relax::Var>((*it).second));
@@ -710,15 +710,16 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
                   << "However, the IRModule does not contain a function names '" << name << "'";
 
       auto base_func = mod->functions.Get(gvar.value());
-      ICHECK(base_func) << "Ill-formed IRModule.  "
-                        << "The map from name to GlobalVar found " << gvar.value()
-                        << " for the function name '" << name
-                        << "', but this GlobalVar does not appear in the IRModule";
+      ICHECK(base_func.has_value())
+          << "Ill-formed IRModule.  "
+          << "The map from name to GlobalVar found " << gvar.value() << " for the function name '"
+          << name << "', but this GlobalVar does not appear in the IRModule";
 
-      auto func = base_func.as<Function>();
+      auto func = base_func.value().as<Function>();
       CHECK(func) << "When LiftTransformParams is called with a list of function names, "
                   << "only functions in the list must be relax functions.  "
-                  << "However, the function " << name << " is of type " << base_func->GetTypeKey();
+                  << "However, the function " << name << " is of type "
+                  << base_func.value()->GetTypeKey();
       CHECK(func.value()->GetAttr<Integer>(attr::kNumInput))
           << "When LiftTransformParams is called with a list of function names, "
           << "all functions in the list must have the kNumInput ('" << attr::kNumInput
@@ -754,7 +755,6 @@ Pass PartitionTransformParams(Variant<Bool, Array<String>> shared_transform) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     std::optional<GlobalCollectInfo> global_collect_info;
 
-    CHECK(shared_transform.defined()) << "shared_transform is not defined";
     CHECK((shared_transform.as<Bool>() || shared_transform.as<Array<String>>()))
         << "shared_transform should be a boolean or an array of function names";
 

@@ -110,7 +110,7 @@ def const(
     - bool maps to "bool"
     - other using the same default rule as numpy.
     """
-    struct_info = tvm.runtime.convert_to_object(struct_info)
+    struct_info = tvm.runtime.convert(struct_info)
     if not isinstance(struct_info, DTensorStructInfo):
         raise TypeError("struct_info needs to be an instance of DTensorStructInfo. ")
     dtype = str(struct_info.tensor_sinfo.dtype)

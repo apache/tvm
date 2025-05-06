@@ -65,13 +65,13 @@ class IRDocsifierFunctor {
     uint32_t type_index = obj.defined() ? obj->type_index() : 0;
     const runtime::PackedFunc* pf = nullptr;
     if ((pf = LookupDispatchTable(token, type_index)) != nullptr) {
-      return (*pf)(obj, args...);
+      return (*pf)(obj, args...).template cast<R>();
     }
     if ((pf = LookupDispatchTable("", type_index)) != nullptr) {
-      return (*pf)(obj, args...);
+      return (*pf)(obj, args...).template cast<R>();
     }
     if ((pf = LookupFallback()) != nullptr) {
-      return (*pf)(obj, args...);
+      return (*pf)(obj, args...).template cast<R>();
     }
 
     LOG(WARNING) << "ObjectFunctor calls un-registered function on type: "

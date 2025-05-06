@@ -47,7 +47,7 @@ class MSCArray(object):
         if isinstance(data, np.ndarray):
             return MSCFramework.MSC, "tensor", "cpu"
         if isinstance(data, tvm.runtime.NDArray):
-            device = tvm.runtime.Device.MASK2STR[data.device.device_type]
+            device = tvm.runtime.Device.DEVICE_TYPE_TO_NAME[data.device.device_type]
             if data.device.device_id:
                 device += ":{}".format(data.device.device_id)
             return MSCFramework.TVM, "tensor", device
@@ -96,7 +96,7 @@ class MSCArray(object):
             if self._type == "var":
                 shape = [int(s) for s in self._meta_data.struct_info.shape]
                 return np.zeros(shape, dtype=self._meta_data.struct_info.dtype)
-            return self._meta_data.asnumpy()
+            return self._meta_data.numpy()
         if self._framework == MSCFramework.TORCH:
             return self._meta_data.detach().cpu().numpy()
         return self._meta_data

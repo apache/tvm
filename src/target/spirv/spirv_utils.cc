@@ -111,14 +111,13 @@ class SPIRVTools {
 
 std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> LowerToSPIRV(
     IRModule mod, Target target) {
-  using tvm::runtime::Registry;
   using tvm::runtime::SPIRVShader;
 
   std::ostringstream code_data;
   SPIRVTools spirv_tools(target);
   std::unordered_map<std::string, SPIRVShader> smap;
 
-  const auto* postproc = Registry::Get("tvm_callback_vulkan_postproc");
+  auto postproc = tvm::ffi::Function::GetGlobal("tvm_callback_vulkan_postproc");
 
   mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
 
@@ -157,11 +156,11 @@ std::pair<std::unordered_map<std::string, runtime::SPIRVShader>, std::string> Lo
       spirv_tools.ValidateShader(shader.data);
     }
 
-    if (postproc != nullptr) {
-      TVMByteArray arr;
+    if (postproc) {
+      TVMFFIByteArray arr;
       arr.data = reinterpret_cast<const char*>(dmlc::BeginPtr(shader.data));
       arr.size = shader.data.size() * sizeof(uint32_t);
-      std::string transformed = (*postproc)(arr, target);
+      std::string transformed = (*postproc)(&arr, target).cast<std::string>();
       ICHECK_EQ(transformed.length() % 4U, 0U);
       shader.data.resize(transformed.size() / 4U);
       std::copy(transformed.begin(), transformed.end(),

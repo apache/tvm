@@ -32,7 +32,7 @@ def relax_check_gradients(
     op_func: Callable,
     inputs_numpy: List[np.array],
     target: Union[str, tvm.target.Target],
-    dev: tvm._ffi.runtime_ctypes.Device,
+    dev: tvm.runtime.Device,
     tuple_input: bool = False,
     ignore_grads: List[int] = [],
     **kwargs,  # attr for operators
@@ -54,7 +54,7 @@ def relax_check_gradients(
     target : Union[str, tvm.target.Target]
         The building target.
 
-    dev : tvm._ffi.runtime_ctypes.Device
+    dev : tvm.runtime.Device
         The device to deploy the module.
 
     tuple_input : bool

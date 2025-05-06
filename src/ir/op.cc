@@ -138,18 +138,11 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
       auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
       // enable resgiteration and override of certain properties
       if (attr_key == "num_inputs" && plevel > 128) {
-        reg.set_num_inputs(value);
+        reg.set_num_inputs(value.cast<int>());
       } else if (attr_key == "attrs_type_key" && plevel > 128) {
         LOG(FATAL) << "attrs type key no longer supported";
       } else {
-        // normal attr table override.
-        if (value.type_code() == kTVMPackedFuncHandle) {
-          // do an eager copy of the PackedFunc
-          PackedFunc f = value;
-          reg.set_attr(attr_key, f, plevel);
-        } else {
-          reg.set_attr(attr_key, value, plevel);
-        }
+        reg.set_attr(attr_key, value, plevel);
       }
     });
 
@@ -159,16 +152,11 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
                                                                      plevel);
     });
 
-// helper to get internal dev function in objectref.
-struct Op2ObjectPtr : public ObjectRef {
-  static ObjectPtr<Object> Get(const Op& op) { return GetDataPtr<Object>(op); }
-};
-
 ObjectPtr<Object> CreateOp(const std::string& name) {
   // Hack use TVMRetValue as exchange
   auto op = Op::Get(name);
   ICHECK(op.defined()) << "Cannot find op \'" << name << '\'';
-  return Op2ObjectPtr::Get(op);
+  return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(op);
 }
 
 TVM_REGISTER_NODE_TYPE(OpNode).set_creator(CreateOp).set_repr_bytes(

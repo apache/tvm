@@ -366,18 +366,17 @@ TVM_REGISTER_OBJECT_TYPE(TaskSchedulerNode);
 TVM_REGISTER_NODE_TYPE(PyTaskSchedulerNode);
 TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerPyTaskScheduler")
     .set_body_typed(TaskScheduler::PyTaskScheduler);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTune")
-    .set_body_method<TaskScheduler>(&TaskSchedulerNode::Tune);
+TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTune").set_body_method(&TaskSchedulerNode::Tune);
 TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerJoinRunningTask")
-    .set_body_method<TaskScheduler>(&TaskSchedulerNode::JoinRunningTask);
+    .set_body_method(&TaskSchedulerNode::JoinRunningTask);
 TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerNextTaskId")
-    .set_body_method<TaskScheduler>(&TaskSchedulerNode::NextTaskId);
+    .set_body_method(&TaskSchedulerNode::NextTaskId);
 TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTerminateTask")
-    .set_body_method<TaskScheduler>(&TaskSchedulerNode::TerminateTask);
+    .set_body_method(&TaskSchedulerNode::TerminateTask);
 TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTouchTask")
-    .set_body_method<TaskScheduler>(&TaskSchedulerNode::TouchTask);
+    .set_body_method(&TaskSchedulerNode::TouchTask);
 TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerPrintTuningStatistics")
-    .set_body_method<TaskScheduler>(&TaskSchedulerNode::PrintTuningStatistics);
+    .set_body_method(&TaskSchedulerNode::PrintTuningStatistics);
 
 }  // namespace meta_schedule
 }  // namespace tvm

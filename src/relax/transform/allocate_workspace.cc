@@ -196,8 +196,7 @@ class WorkspaceProvider : ExprMutator {
 namespace transform {
 
 Pass AllocateWorkspace() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::WorkspaceProvider(m).Run(); };
+  auto pass_func = [=](IRModule m, PassContext pc) { return relax::WorkspaceProvider(m).Run(); };
 
   return CreateModulePass(pass_func, 0, "AllocateWorkspace", {});
 }

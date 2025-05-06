@@ -58,8 +58,8 @@ class WebGPUThreadEntry {
 class WebGPUDeviceAPI : public DeviceAPI {
  public:
   WebGPUDeviceAPI() {
-    auto* fp = tvm::runtime::Registry::Get("wasm.WebGPUDeviceAPI");
-    CHECK(fp != nullptr) << "Cannot find wasm.WebGPUContext in the env";
+    auto fp = tvm::ffi::Function::GetGlobal("wasm.WebGPUDeviceAPI");
+    CHECK(fp.has_value()) << "Cannot find wasm.WebGPUContext in the env";
     auto getter = TypedPackedFunc<PackedFunc(std::string)>(*fp);
     alloc_space_ = getter("deviceAllocDataSpace");
     free_space_ = getter("deviceFreeDataSpace");
@@ -113,8 +113,8 @@ class WebGPUDeviceAPI : public DeviceAPI {
   }
 
   void StreamSync(Device dev, TVMStreamHandle stream) final {
-    static const PackedFunc* func = runtime::Registry::Get("__asyncify.WebGPUWaitForTasks");
-    ICHECK(func != nullptr) << "Stream sync inside c++ only supported in asyncify mode";
+    static auto func = tvm::ffi::Function::GetGlobal("__asyncify.WebGPUWaitForTasks");
+    ICHECK(func.has_value()) << "Stream sync inside c++ only supported in asyncify mode";
     (*func)();
   }
 
@@ -158,8 +158,8 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
   explicit WebGPUModuleNode(std::unordered_map<std::string, std::string> smap,
                             std::unordered_map<std::string, FunctionInfo> fmap)
       : smap_(smap), fmap_(fmap) {
-    auto* fp = tvm::runtime::Registry::Get("wasm.WebGPUCreateShader");
-    CHECK(fp != nullptr);
+    auto fp = tvm::ffi::Function::GetGlobal("wasm.WebGPUCreateShader");
+    CHECK(fp.has_value());
     create_shader_ = *fp;
   }
 
@@ -176,15 +176,15 @@ class WebGPUModuleNode final : public runtime::ModuleNode {
       });
     } else if (name == "webgpu.get_shader") {
       return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
-        std::string name = args[0];
+        auto name = args[0].cast<std::string>();
         auto it = smap_.find(name);
         ICHECK(it != smap_.end()) << "Cannot find code " << name;
         *rv = it->second;
       });
     } else if (name == "webgpu.update_prebuild") {
       return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
-        std::string name = args[0];
-        PackedFunc func = args[1];
+        auto name = args[0].cast<std::string>();
+        PackedFunc func = args[1].cast<PackedFunc>();
         prebuild_[name] = func;
       });
     }
@@ -242,7 +242,7 @@ Module WebGPUModuleLoadBinary(void* strm) {
 // for now webgpu is hosted via a vulkan module.
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_webgpu").set_body_typed(WebGPUModuleLoadBinary);
 
-TVM_REGISTER_GLOBAL("device_api.webgpu").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.webgpu").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = WebGPUDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });

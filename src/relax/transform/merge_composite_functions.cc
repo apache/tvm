@@ -181,7 +181,10 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   }
 
   Optional<String> GetCodegenName(Group* group) {
-    return Downcast<Optional<String>>(group->attrs.Get(attr::kCodegen));
+    if (auto opt_str = group->attrs.Get(attr::kCodegen)) {
+      return Downcast<String>(opt_str.value());
+    }
+    return std::nullopt;
   }
 
   Group* CreateNewGroup(const CallNode* call) {
@@ -410,7 +413,7 @@ IRModule MergeCompositeFunctions(IRModule mod) {
 namespace transform {
 
 Pass MergeCompositeFunctions() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule mod, PassContext pc) { return relax::MergeCompositeFunctions(mod); };
   return CreateModulePass(/*pass_function=*/pass_func,              //
                           /*opt_level=*/0,                          //

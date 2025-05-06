@@ -59,7 +59,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
     if (op->kind != ForKind::kThreadBinding) {
       return StmtExprMutator::VisitStmt_(op);
     }
-    Map<String, ObjectRef> annotations = op->annotations;
+    Map<String, Any> annotations = op->annotations;
     Stmt stmt = UnifyThreadBindingImpl(op, op->loop_var, op->thread_binding.value(),
                                        Range::FromMinExtent(op->min, op->extent));
     if (annotations.empty()) {

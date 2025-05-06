@@ -662,7 +662,7 @@ class AutoCopyMutator : public StmtExprMutator {
   Stmt VisitStmt_(const BlockNode* op) final {
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(op));
     // only rewrite the block annotated with "auto_copy"
-    if (GetAnn<Integer>(op, tir::attr::auto_copy).value_or(0)->value == 0) {
+    if (!GetAnn<bool>(op, tir::attr::auto_copy).value_or(false)) {
       BlockNode* n = block.CopyOnWrite();
       n->alloc_buffers = padder.PadSharedMemory(std::move(n->alloc_buffers));
       return std::move(block);

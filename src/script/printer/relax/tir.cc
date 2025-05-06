@@ -66,6 +66,7 @@ Doc PrintTIRVar(tir::Var n, ObjectPath n_p, IRDocsifier d) {
     return doc.value();
   }
   LOG(FATAL) << "IndexError: Variable is not defined in the environment: " << n;
+  TVM_FFI_UNREACHABLE();
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable).set_dispatch<tir::Var>("relax", PrintTIRVar);

@@ -1025,9 +1025,9 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     // To store the 32x8 output back to a 16x16 tile in shared or global memory, we invert this map
     // to determine the output location for each 8 element.
 
-    const auto* index_map_func =
-        runtime::Registry::Get("tir.index_map.shared_16x16_to_ldmatrix_32x8_layout");
-    ICHECK(index_map_func);
+    const auto index_map_func =
+        tvm::ffi::Function::GetGlobal("tir.index_map.shared_16x16_to_ldmatrix_32x8_layout");
+    ICHECK(index_map_func.has_value());
 
     arith::Analyzer analyzer;
     auto inverse_index_map =

@@ -30,15 +30,6 @@
 #include "../../../meta_schedule/utils.h"
 
 namespace tvm {
-namespace meta_schedule {
-
-void JSONFileAppendLine(const String& path, const std::string& line);
-std::vector<ObjectRef> JSONFileReadLines(const String& path, int num_threads, bool allow_missing);
-
-}  // namespace meta_schedule
-}  // namespace tvm
-
-namespace tvm {
 namespace relax {
 
 TuningRecord::TuningRecord(Trace trace, Optional<Array<FloatImm>> run_secs) {
@@ -49,6 +40,7 @@ TuningRecord::TuningRecord(Trace trace, Optional<Array<FloatImm>> run_secs) {
 }
 
 ObjectRef TuningRecordNode::AsJSON(bool include_irmod) const {
+  LOG(INFO) << "TuningRecordNode::AsJSON " << AsLegacyRepr(trace->AsJSON(include_irmod));
   return Array<ObjectRef>{trace->AsJSON(include_irmod),  //
                           run_secs};
 }
@@ -57,17 +49,17 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj) {
   Trace trace{nullptr};
   Optional<Array<FloatImm>> run_secs{nullptr};
   try {
-    const ArrayNode* json_array = json_obj.as<ArrayNode>();
+    const ArrayObj* json_array = json_obj.as<ArrayObj>();
     CHECK(json_array && json_array->size() == 2);
     // Load json[0] => trace
     {
-      const ObjectRef& json_trace = json_array->at(0);
+      const ObjectRef& json_trace = json_array->at(0).cast<ObjectRef>();
       trace = Trace::FromJSON(json_trace);
     }
 
     // Load json[1] => run_secs
-    if (json_array->at(1).defined()) {
-      run_secs = meta_schedule::AsFloatArray(json_array->at(1));
+    if (json_array->at(1) != nullptr) {
+      run_secs = meta_schedule::AsFloatArray(json_array->at(1).cast<ObjectRef>());
     }
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
@@ -197,7 +189,7 @@ class JSONDatabaseNode : public DatabaseNode {
     this->tuning_records_[key].insert(record);
 
     meta_schedule::JSONFileAppendLine(
-        this->path_tuning_record, meta_schedule::JSONDumps(Array<ObjectRef>{
+        this->path_tuning_record, meta_schedule::JSONDumps(Array<Any>{
                                       Integer(workload_idx), target->Export(), record->AsJSON()}));
   }
 
@@ -236,20 +228,21 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
   // Load `n->workloads2idx_` from `path_workload`
   std::vector<meta_schedule::Workload> workloads;
   {
-    std::vector<ObjectRef> json_objs =
+    std::vector<Any> json_objs =
         meta_schedule::JSONFileReadLines(path_workload, num_threads, allow_missing);
     int n_objs = json_objs.size();
     n->workloads2idx_.reserve(n_objs);
     workloads.reserve(n_objs);
     for (int i = 0; i < n_objs; ++i) {
-      meta_schedule::Workload workload = meta_schedule::Workload::FromJSON(json_objs[i]);
+      meta_schedule::Workload workload =
+          meta_schedule::Workload::FromJSON(json_objs[i].cast<ObjectRef>());
       n->workloads2idx_.emplace(workload, i);
       workloads.push_back(workload);
     }
   }
   // Load `n->tuning_records_` from `path_tuning_record`
   {
-    std::vector<ObjectRef> json_objs =
+    std::vector<Any> json_objs =
         meta_schedule::JSONFileReadLines(path_tuning_record, num_threads, allow_missing);
 
     std::vector<int> workload_idxs;
@@ -261,13 +254,13 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
     records.resize(size, TuningRecord{nullptr});
     support::parallel_for_dynamic(
         0, json_objs.size(), num_threads, [&](int thread_id, int task_id) {
-          const ObjectRef& json_obj = json_objs[task_id];
+          const ObjectRef& json_obj = json_objs[task_id].cast<ObjectRef>();
           try {
-            const ArrayNode* arr = json_obj.as<ArrayNode>();
+            const ArrayObj* arr = json_obj.as<ArrayObj>();
             ICHECK_EQ(arr->size(), 3);
             workload_idxs[task_id] = Downcast<Integer>(arr->at(0)).IntValue();
-            targets[task_id] = Target(Downcast<Map<String, ObjectRef>>(arr->at(1)));
-            records[task_id] = TuningRecord::FromJSON(arr->at(2));
+            targets[task_id] = Target(Downcast<Map<String, ffi::Any>>(arr->at(1)));
+            records[task_id] = TuningRecord::FromJSON(arr->at(2).cast<ObjectRef>());
           } catch (std::runtime_error& e) {
             LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                        << "\nThe error is: " << e.what();
@@ -282,7 +275,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
 
   // Load `n->measuremet_log` from `path_measurement_record`
   {
-    std::vector<ObjectRef> json_objs =
+    std::vector<Any> json_objs =
         meta_schedule::JSONFileReadLines(path_measurement_record, num_threads, allow_missing);
     std::vector<int> workload_idxs;
     std::vector<Target> targets;
@@ -293,13 +286,13 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
     measurements.resize(size, Array<FloatImm>({}));
     support::parallel_for_dynamic(
         0, json_objs.size(), num_threads, [&](int thread_id, int task_id) {
-          const ObjectRef& json_obj = json_objs[task_id];
+          const ObjectRef& json_obj = json_objs[task_id].cast<ObjectRef>();
           try {
-            const ArrayNode* arr = json_obj.as<ArrayNode>();
+            const ArrayObj* arr = json_obj.as<ArrayObj>();
             ICHECK_EQ(arr->size(), 3);
             workload_idxs[task_id] = Downcast<Integer>(arr->at(0)).IntValue();
-            targets[task_id] = Target(Downcast<Map<String, ObjectRef>>(arr->at(1)));
-            measurements[task_id] = meta_schedule::AsFloatArray(arr->at(2));
+            targets[task_id] = Target(Downcast<Map<String, ffi::Any>>(arr->at(1)));
+            measurements[task_id] = meta_schedule::AsFloatArray(arr->at(2).cast<ObjectRef>());
           } catch (std::runtime_error& e) {
             LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                        << "\nThe error is: " << e.what();
@@ -323,26 +316,25 @@ TVM_REGISTER_GLOBAL("relax.tuning_api.TuningRecord")
       return TuningRecord(trace, run_secs);
     });
 TVM_REGISTER_GLOBAL("relax.tuning_api.TuningRecordAsJSON")
-    .set_body_method<TuningRecord>(&TuningRecordNode::AsJSON);
+    .set_body_method(&TuningRecordNode::AsJSON);
 TVM_REGISTER_GLOBAL("relax.tuning_api.TuningRecordFromJSON").set_body_typed(TuningRecord::FromJSON);
 
 TVM_REGISTER_OBJECT_TYPE(DatabaseNode);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseHasWorkload")
-    .set_body_method<Database>(&DatabaseNode::HasWorkload);
+    .set_body_method(&DatabaseNode::HasWorkload);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseHasMeasurementRecord")
-    .set_body_method<Database>(&DatabaseNode::HasMeasurementRecord);
+    .set_body_method(&DatabaseNode::HasMeasurementRecord);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseHasTuningRecord")
-    .set_body_method<Database>(&DatabaseNode::HasTuningRecord);
+    .set_body_method(&DatabaseNode::HasTuningRecord);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseCommitMeasurementRecord")
-    .set_body_method<Database>(&DatabaseNode::CommitMeasurementRecord);
+    .set_body_method(&DatabaseNode::CommitMeasurementRecord);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseCommitWorkload")
-    .set_body_method<Database>(&DatabaseNode::CommitWorkload);
+    .set_body_method(&DatabaseNode::CommitWorkload);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseCommitTuningRecord")
-    .set_body_method<Database>(&DatabaseNode::CommitTuningRecord);
-TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseGetTopK")
-    .set_body_method<Database>(&DatabaseNode::GetTopK);
+    .set_body_method(&DatabaseNode::CommitTuningRecord);
+TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseGetTopK").set_body_method(&DatabaseNode::GetTopK);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseGetMeasurementRecord")
-    .set_body_method<Database>(&DatabaseNode::GetMeasurementRecord);
+    .set_body_method(&DatabaseNode::GetMeasurementRecord);
 
 TVM_REGISTER_NODE_TYPE(JSONDatabaseNode);
 TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseJSONDatabase").set_body_typed(Database::JSONDatabase);

@@ -154,18 +154,19 @@ PackedFunc TFLiteRuntime::GetFunction(const String& name, const ObjectPtr<Object
   // Return member functions during query.
   if (name == "set_input") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      int in_idx = args[0];
+      int in_idx = args[0].cast<int>();
       ICHECK_GE(in_idx, 0);
-      this->SetInput(in_idx, args[1]);
+      this->SetInput(in_idx, args[1].cast<DLTensor*>());
     });
   } else if (name == "get_output") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->GetOutput(args[0]); });
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      *rv = this->GetOutput(args[0].cast<int>());
+    });
   } else if (name == "invoke") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->Invoke(); });
   } else if (name == "set_num_threads") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      int num_threads = args[0];
+      int num_threads = args[0].cast<int>();
       CHECK_GE(num_threads, 1);
       this->SetNumThreads(num_threads);
     });
@@ -180,8 +181,8 @@ Module TFLiteRuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.tflite_runtime.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = TFLiteRuntimeCreate(args[0], args[1]);
+TVM_REGISTER_GLOBAL("tvm.tflite_runtime.create").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+  *rv = TFLiteRuntimeCreate(args[0].cast<std::string>(), args[1].cast<Device>());
 });
 
 TVM_REGISTER_GLOBAL("target.runtime.tflite").set_body_typed(TFLiteRuntimeCreate);

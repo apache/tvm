@@ -47,7 +47,7 @@ def test_transform_fuse_transpose_matmul():
             w: T.Buffer((T.int64(128), T.int64(256)), "float32"),
             NT_matmul: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i0, i1, k in T.grid(T.int64(128), T.int64(128), T.int64(256)):
                 with T.block("NT_matmul"):
@@ -102,7 +102,7 @@ def test_transform_fuse_transpose_matmul_const():
             w: T.Buffer((T.int64(128), T.int64(256)), "float32"),
             NT_matmul: T.Buffer((T.int64(128), T.int64(128)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i0, i1, k in T.grid(T.int64(128), T.int64(128), T.int64(256)):
                 with T.block("NT_matmul"):

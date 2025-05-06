@@ -35,6 +35,7 @@
  *
  * We can evolve this implementation as we build more LM verticals.
  */
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/shape_tuple.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
@@ -225,7 +226,6 @@ class AttentionKVCacheLegacyObj : public Object {
     this->fill_count += value->shape[0];
   }
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.vm.AttentionKVCacheLegacy";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttentionKVCacheLegacyObj, Object);
 };
@@ -301,13 +301,13 @@ NDArray AttentionKVCacheView(AttentionKVCacheLegacy cache, ShapeTuple shape) {
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_view")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       CHECK(args.size() == 1 || args.size() == 2)
           << "ValueError: `vm.builtin.attention_kv_cache_view` expects 1 or 2 arguments, but got "
           << args.size() << ".";
-      AttentionKVCacheLegacy cache = args[0];
+      AttentionKVCacheLegacy cache = args[0].cast<AttentionKVCacheLegacy>();
       if (args.size() == 2) {
-        ShapeTuple shape = args[1];
+        ShapeTuple shape = args[1].cast<ShapeTuple>();
         *rv = cache->View(shape);
       } else {
         std::vector<ShapeTuple::index_type> shape;

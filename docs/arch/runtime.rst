@@ -56,8 +56,8 @@ The following code block provides an example in C++
 
     void MyAdd(TVMArgs args, TVMRetValue* rv) {
       // automatically convert arguments to desired type.
-      int a = args[0];
-      int b = args[1];
+      int a = args[0].cast<int>();
+      int b = args[1].cast<int>();
       // automatically assign value return to rv
       *rv = a + b;
     }
@@ -81,7 +81,7 @@ The following example registers PackedFunc in C++ and calls from python.
 
     // register a global packed function in c++
     TVM_REGISTER_GLOBAL("myadd")
-    .set_body(MyAdd);
+    .set_body_packed(MyAdd);
 
 .. code:: python
 
@@ -111,7 +111,7 @@ we can pass functions from python (as PackedFunc) to C++.
 .. code:: c
 
     TVM_REGISTER_GLOBAL("callhello")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
       PackedFunc f = args[0];
       f("hello world");
     });

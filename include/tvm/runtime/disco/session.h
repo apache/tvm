@@ -148,7 +148,8 @@ class DRefObj : public Object {
 
   static constexpr const char* _type_key = "runtime.disco.DRef";
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeDiscoDRef;
-  TVM_DECLARE_FINAL_OBJECT_INFO(DRefObj, Object);
+  static const constexpr bool _type_final = true;
+  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(DRefObj, Object);
 
   /*! \brief The id of the register */
   int64_t reg_id;
@@ -242,7 +243,7 @@ class SessionObj : public Object {
    * \param value The value to be set.
    * \param worker_id The id of the worker to be set.
    */
-  TVM_DLL virtual void DebugSetRegister(int64_t reg_id, TVMArgValue value, int worker_id) = 0;
+  TVM_DLL virtual void DebugSetRegister(int64_t reg_id, AnyView value, int worker_id) = 0;
 
   struct FFI;
   friend struct SessionObj::FFI;
@@ -282,7 +283,7 @@ class Session : public ObjectRef {
   TVM_DLL static Session ProcessSession(int num_workers, int num_groups,
                                         String process_pool_creator, String entrypoint);
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Session, ObjectRef, SessionObj);
+  TVM_FFI_DEFINE_MUTABLE_OBJECT_REF_METHODS(Session, ObjectRef, SessionObj);
 };
 
 /*!
@@ -337,14 +338,13 @@ template <typename... Args>
 DRef SessionObj::CallPacked(const DRef& func, Args&&... args) {
   constexpr int offset = 3;
   constexpr int kNumArgs = offset + sizeof...(Args);
-  TVMValue values[kNumArgs];
-  int type_codes[kNumArgs];
-  PackArgs(values, type_codes,
-           /*.0=*/static_cast<int>(DiscoAction::kCallPacked),  // action
-           /*.1=*/0,     // reg_id, which will be updated by this->CallWithPacked
-           /*.2=*/func,  // the function to be called
-           std::forward<Args>(args)...);
-  return this->CallWithPacked(TVMArgs(values, type_codes, kNumArgs));
+  AnyView packed_args[kNumArgs];
+  ffi::PackedArgs::Fill(packed_args,
+                        /*.0=*/static_cast<int>(DiscoAction::kCallPacked),  // action
+                        /*.1=*/0,     // reg_id, which will be updated by this->CallWithPacked
+                        /*.2=*/func,  // the function to be called
+                        std::forward<Args>(args)...);
+  return this->CallWithPacked(ffi::PackedArgs(packed_args, kNumArgs));
 }
 
 }  // namespace runtime

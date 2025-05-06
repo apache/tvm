@@ -283,7 +283,7 @@ int conv2d_packed_quant(TVMValue* args, int* type_codes, int num_args, TVMValue*
 
   auto* device_api = tvm::runtime::DeviceAPI::Get(conv_utils::hexagon_device, false);
   ICHECK(device_api != nullptr);
-  tvm::runtime::String vtcm_scope = "global.vtcm";
+  tvm::ffi::String vtcm_scope = "global.vtcm";
 
   auto act_vtcm =
       conv_utils::prepare_nhwc<uint8_t, 8, 8, 32>(device_api, act_flat, /*copy_data=*/true);

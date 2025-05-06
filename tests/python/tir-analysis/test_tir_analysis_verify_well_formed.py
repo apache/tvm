@@ -226,7 +226,6 @@ def test_buffer_bind_scope_defines_buffer_obj():
     class mod:
         @T.prim_func
         def func(A: T.Buffer([256, 256], "float32")):
-
             for tile_i, tile_j in T.grid(16, 16):
                 B = T.Buffer([16, 16], "float32")
                 T.attr(
@@ -253,7 +252,6 @@ def test_buffer_bind_scope_defines_symbolic_variables():
     class mod:
         @T.prim_func
         def func(A: T.Buffer([256, 256], "int32")):
-
             for tile_i, tile_j in T.grid(16, 16):
                 elem_offset = T.int32()
                 B = T.Buffer([16, 16], "int32", elem_offset=elem_offset)
@@ -300,7 +298,6 @@ def test_block_match_buffer_defines_symbolic_variables():
     class mod:
         @T.prim_func
         def func(A: T.Buffer([256, 256], "int32")):
-
             for iters in T.grid(16, 16, 16, 16):
                 with T.block("compute"):
                     tile_i, tile_j, i, j = T.axis.remap("SSSS", iters)

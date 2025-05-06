@@ -258,7 +258,7 @@ enum IterVarType : int {
  *
  *  The dtype of the extent of the `dom` of the IterVar must match the dtype of the internal Var.
  */
-class IterVarNode : public Object {
+class IterVarNode : public PrimExprConvertibleNode {
  public:
   /*!
    * \brief the domain of iteration, if known, can be None
@@ -279,6 +279,8 @@ class IterVarNode : public Object {
    *        Reserved debug information.
    */
   mutable Span span;
+
+  PrimExpr ToPrimExpr() const final { return var; }
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dom", &dom);
@@ -303,7 +305,7 @@ class IterVarNode : public Object {
   static constexpr const char* _type_key = "tir.IterVar";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(IterVarNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(IterVarNode, PrimExprConvertibleNode);
 };
 
 /*!
@@ -312,7 +314,7 @@ class IterVarNode : public Object {
  *
  *  The dtype of the extent of the `dom` of the IterVar must match the dtype of the internal Var.
  */
-class IterVar : public ObjectRef {
+class IterVar : public PrimExprConvertible {
  public:
   TVM_DLL IterVar(Range dom, Var var, IterVarType iter_type, String thread_tag = "",
                   Span span = Span());
@@ -321,7 +323,7 @@ class IterVar : public ObjectRef {
    */
   inline operator PrimExpr() const;
 
-  TVM_DEFINE_OBJECT_REF_METHODS(IterVar, ObjectRef, IterVarNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(IterVar, PrimExprConvertible, IterVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IterVarNode);
 };
 

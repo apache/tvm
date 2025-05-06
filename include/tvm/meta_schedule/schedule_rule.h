@@ -154,12 +154,12 @@ class ScheduleRule : public runtime::ObjectRef {
    * ignored  by default. This function should return True for a block that should be tiled.
    * \return The schedule rule created
    */
-  TVM_DLL static ScheduleRule MultiLevelTiling(String structure,                             //
-                                               Optional<Array<String>> tile_binds,           //
-                                               Optional<Integer> max_innermost_factor,       //
-                                               Optional<Array<Integer>> vector_load_lens,    //
-                                               Optional<Map<String, ObjectRef>> reuse_read,  //
-                                               Optional<Map<String, ObjectRef>> reuse_write,
+  TVM_DLL static ScheduleRule MultiLevelTiling(String structure,                            //
+                                               Optional<Array<String>> tile_binds,          //
+                                               Optional<Integer> max_innermost_factor,      //
+                                               Optional<Array<Integer>> vector_load_lens,   //
+                                               Optional<Map<String, ffi::Any>> reuse_read,  //
+                                               Optional<Map<String, ffi::Any>> reuse_write,
                                                Optional<runtime::PackedFunc> filter_fn = NullOpt);
 
   /*!
@@ -182,7 +182,7 @@ class ScheduleRule : public runtime::ObjectRef {
   TVM_DLL static ScheduleRule MultiLevelTilingWithIntrin(
       String intrin_name, String structure, Optional<Array<String>> tile_binds,
       Optional<Integer> max_innermost_factor, Optional<Array<Integer>> vector_load_lens,
-      Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write);
+      Optional<Map<String, ffi::Any>> reuse_read, Optional<Map<String, ffi::Any>> reuse_write);
 
   /*!
    * \brief Extension of MultiLevelTiling for auto-tensorization with multiple groups of candidate
@@ -207,8 +207,8 @@ class ScheduleRule : public runtime::ObjectRef {
   TVM_DLL static ScheduleRule MultiLevelTilingTensorCore(
       Array<Map<String, String>> intrin_groups, String structure,
       Optional<Array<String>> tile_binds, Optional<Integer> max_innermost_factor,
-      Optional<Array<Integer>> vector_load_lens, Optional<Map<String, ObjectRef>> reuse_read,
-      Optional<Map<String, ObjectRef>> reuse_write, bool use_software_pipeline);
+      Optional<Array<Integer>> vector_load_lens, Optional<Map<String, ffi::Any>> reuse_read,
+      Optional<Map<String, ffi::Any>> reuse_write, bool use_software_pipeline);
 
   /*!
    * \brief Extension of MultiLevelTiling for backends with wide vectors.
@@ -223,7 +223,7 @@ class ScheduleRule : public runtime::ObjectRef {
    */
   TVM_DLL static ScheduleRule MultiLevelTilingWideVector(
       String structure, Integer vector_length_in_bits, Optional<Integer> max_innermost_factor,
-      Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write);
+      Optional<Map<String, ffi::Any>> reuse_read, Optional<Map<String, ffi::Any>> reuse_write);
 
   /*!
    * \brief Create a rule: add-rfactor to some blocks if needed
@@ -241,7 +241,7 @@ class ScheduleRule : public runtime::ObjectRef {
    * \param thread_extents Candidates of thread axis extent (values are required to be positive).
    * \return The schedule rule created
    */
-  TVM_DLL static ScheduleRule CrossThreadReduction(Array<runtime::Int> thread_extents);
+  TVM_DLL static ScheduleRule CrossThreadReduction(Array<Integer> thread_extents);
   /*!
    * \brief A rule that randomly select a compute-at location for a free block
    * \return The schedule rule created
@@ -260,9 +260,9 @@ class ScheduleRule : public runtime::ObjectRef {
    * \param unroll_explicit Whether to explicitly unroll the loop, or just add an "unroll" pragma.
    * \return The schedule rule created
    */
-  TVM_DLL static ScheduleRule ParallelizeVectorizeUnroll(int max_jobs_per_core,                 //
-                                                         int max_vectorize_extent,              //
-                                                         Array<runtime::Int> unroll_max_steps,  //
+  TVM_DLL static ScheduleRule ParallelizeVectorizeUnroll(int max_jobs_per_core,            //
+                                                         int max_vectorize_extent,         //
+                                                         Array<Integer> unroll_max_steps,  //
                                                          bool unroll_explicit);
   /*!
    * \brief Auto bind loops around the block to BlockIdx and ThreadIdx

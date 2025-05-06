@@ -189,7 +189,7 @@ Module CoreMLRuntimeCreate(const std::string& symbol, const std::string& model_p
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.coreml_runtime.create").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("tvm.coreml_runtime.create").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   *rv = CoreMLRuntimeCreate(args[0], args[1]);
 });
 

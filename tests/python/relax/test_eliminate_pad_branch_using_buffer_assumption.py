@@ -48,7 +48,7 @@ class AddBefore:
                 "op_attrs": {"lhs_axis": 0, "op_name": "qnn.add", "rhs_axis": 0},
                 "op_pattern": 0,
                 "operator_name": "add",
-                "tir.noalias": T.bool(True),
+                "tir.noalias": True,
             }
         )
         # with T.block("root"):
@@ -151,7 +151,7 @@ class AddExpected:
                 "op_attrs": {"lhs_axis": 0, "op_name": "qnn.add", "rhs_axis": 0},
                 "op_pattern": 0,
                 "operator_name": "add",
-                "tir.noalias": T.bool(True),
+                "tir.noalias": True,
             }
         )
         # with T.block("root"):
@@ -249,7 +249,7 @@ class SubBefore:
                 "op_attrs": {"lhs_axis": 0, "op_name": "qnn.subtract", "rhs_axis": 0},
                 "op_pattern": 0,
                 "operator_name": "sub",
-                "tir.noalias": T.bool(True),
+                "tir.noalias": True,
             }
         )
         # with T.block("root"):
@@ -352,7 +352,7 @@ class SubExpected:
                 "op_attrs": {"lhs_axis": 0, "op_name": "qnn.subtract", "rhs_axis": 0},
                 "op_pattern": 0,
                 "operator_name": "sub",
-                "tir.noalias": T.bool(True),
+                "tir.noalias": True,
             }
         )
         # with T.block("root"):
@@ -450,7 +450,7 @@ class MulBefore:
                 "op_attrs": {"lhs_axis": 0, "op_name": "qnn.mul", "rhs_axis": 0},
                 "op_pattern": 0,
                 "operator_name": "mul",
-                "tir.noalias": T.bool(True),
+                "tir.noalias": True,
             }
         )
         # with T.block("root"):
@@ -553,7 +553,7 @@ class MulExpected:
                 "op_attrs": {"lhs_axis": 0, "op_name": "qnn.mul", "rhs_axis": 0},
                 "op_pattern": 0,
                 "operator_name": "mul",
-                "tir.noalias": T.bool(True),
+                "tir.noalias": True,
             }
         )
         # with T.block("root"):

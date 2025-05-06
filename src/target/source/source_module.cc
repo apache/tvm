@@ -252,9 +252,9 @@ runtime::Module DeviceSourceModuleCreate(
 TVM_REGISTER_GLOBAL("runtime.SourceModuleCreate").set_body_typed(SourceModuleCreate);
 
 TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate")
-    .set_body_typed([](String code, String fmt, Array<String> func_names,
-                       Array<String> const_vars) {
-      return CSourceModuleCreate(code, fmt, func_names, const_vars);
+    .set_body_typed([](String code, String fmt, Optional<Array<String>> func_names,
+                       Optional<Array<String>> const_vars) {
+      return CSourceModuleCreate(code, fmt, func_names.value_or({}), const_vars.value_or({}));
     });
 
 }  // namespace codegen

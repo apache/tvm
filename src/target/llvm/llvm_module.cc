@@ -184,19 +184,19 @@ PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Objec
 
   std::lock_guard<std::mutex> lock(mutex_);
 
-  TVMBackendPackedCFunc faddr;
+  TVMFFISafeCallType faddr;
   With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
   if (name == runtime::symbol::tvm_module_main) {
     const char* entry_name = reinterpret_cast<const char*>(
         GetGlobalAddr(runtime::symbol::tvm_module_main, *llvm_target));
     ICHECK(entry_name != nullptr) << "Symbol " << runtime::symbol::tvm_module_main
                                   << " is not presented";
-    faddr = reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(entry_name, *llvm_target));
+    faddr = reinterpret_cast<TVMFFISafeCallType>(GetFunctionAddr(entry_name, *llvm_target));
   } else {
-    faddr = reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(name, *llvm_target));
+    faddr = reinterpret_cast<TVMFFISafeCallType>(GetFunctionAddr(name, *llvm_target));
   }
   if (faddr == nullptr) return PackedFunc();
-  return WrapPackedFunc(faddr, sptr_to_self);
+  return tvm::runtime::WrapPackedFunc(faddr, sptr_to_self);
 }
 
 namespace {
@@ -350,7 +350,6 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   // makes sense when we start to use multiple modules.
   cg->Init("TVMMod", llvm_target.get(), system_lib_prefix, system_lib_prefix.defined(), false);
   cg->SetFastMathFlags(llvm_target->GetFastMathFlags());
-
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
   if (entry_func.length() != 0) {
     cg->AddMainFunction(entry_func);

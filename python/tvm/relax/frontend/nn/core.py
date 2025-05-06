@@ -639,7 +639,7 @@ def _from_dlpack(tensor) -> NDArray:
     return ndarray.array(
         tensor.numpy(),
         device=Device(
-            Device.STR2MASK[device_type],
+            Device.DEVICE_NAME_TO_TYPE[device_type],
             device_id,
         ),
     )

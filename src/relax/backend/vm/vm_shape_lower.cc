@@ -593,10 +593,10 @@ class VMShapeLowerMutator
     // the shape_func to indicate that this is a host function
     // This could require us to attach target to the relax function here.
     tir::PrimFunc shape_func(params, body, ret_type, buffer_map);
-    if (shape_func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget) == nullptr) {
+    if (!shape_func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget).has_value()) {
       // kTarget and kIsHostFunc are mutually exclusive
       shape_func =
-          WithAttr<tir::PrimFunc>(std::move(shape_func), tvm::tir::attr::kIsHostFunc, Integer(1));
+          WithAttr<tir::PrimFunc>(std::move(shape_func), tvm::tir::attr::kIsHostFunc, true);
     }
     GlobalVar shape_func_var = builder_->AddFunction(shape_func, "shape_func");
     builder_->Emit(Call(shape_func_var, {shape_heap_}), "_");
@@ -807,8 +807,9 @@ class VMShapeLowerMutator
 namespace transform {
 
 Pass VMShapeLower(bool emit_err_ctx) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) { return VMShapeLowerMutator::Lower(mod, emit_err_ctx); };
+  auto pass_func = [=](IRModule mod, PassContext pc) {
+    return VMShapeLowerMutator::Lower(mod, emit_err_ctx);
+  };
   return CreateModulePass(pass_func, 0, "VMShapeLower", {});
 }
 

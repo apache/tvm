@@ -133,56 +133,6 @@ bool DFPatternMatcher::VisitDFPattern_(const NotPatternNode* op, const Expr& exp
   return !VisitDFPattern(op->reject, expr);
 }
 
-bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
-  switch (rhs.type_code()) {
-    case kDLInt:
-      if (auto* val = lhs.as<IntImmNode>()) {
-        return val->value == rhs.operator int64_t();
-      }
-      break;
-    case kDLFloat:
-      if (auto* val = lhs.as<FloatImmNode>()) {
-        return val->value == rhs.operator double();
-      }
-      break;
-    case kTVMStr:
-      if (auto* val = lhs.as<tir::StringImmNode>()) {
-        return val->value == rhs.operator std::string();
-      } else if (auto* val = lhs.as<StringObj>()) {
-        return val->data == rhs.operator std::string();
-      }
-      break;
-    case kTVMDataType:
-      if (auto* val = lhs.as<tir::StringImmNode>()) {
-        return rhs.operator std::string() == val->value;
-      } else if (auto* val = lhs.as<StringObj>()) {
-        return rhs.operator std::string() == val->data;
-      } else {
-        ICHECK(false) << "PatternMatcher: Unsupported TVMDataType " << lhs;
-      }
-      break;
-    case kTVMObjectHandle:
-      if (rhs.IsObjectRef<String>()) {
-        if (auto* val = lhs.as<tir::StringImmNode>()) {
-          return rhs.operator String() == val->value;
-        } else if (auto* val = lhs.as<StringObj>()) {
-          return rhs.operator String() == val->data;
-        }
-      } else {
-        // Compare the objects for structural equality
-        static auto* structural_equal = runtime::Registry::Get("node.StructuralEqual");
-        ICHECK(structural_equal) << "node.StructuralEqual is not registered.";
-        if ((*structural_equal)(lhs, GetRef<ObjectRef>(rhs.ptr<Object>()), false, true)) {
-          return true;
-        }
-      }
-      break;
-    default:
-      ICHECK(false) << "Unsupported type code in Pattern Node " << rhs.type_code();
-  }
-  return false;
-}
-
 bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, const Expr& expr0) {
   auto expr = UnwrapBindings(expr0, var2val_);
   bool matches = VisitDFPattern(attr_pattern->pattern, expr);
@@ -197,7 +147,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
       if (Op::HasAttrMap(attr_name)) {
         auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
         if (op_map.count(op)) {
-          matches &= MatchRetValue(attr_value, op_map[op]);
+          matches &= StructuralEqual()(attr_value, op_map[op]);
         } else {
           matches = false;
         }
@@ -219,7 +169,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
     for (auto kv : attributes) {
       std::string attr = kv.first;
       if (matches && std::find(attr_names.begin(), attr_names.end(), attr) != attr_names.end()) {
-        matches &= MatchRetValue(kv.second, reflection->GetAttr(attrs_node, attr));
+        matches &= StructuralEqual()(kv.second, reflection->GetAttr(attrs_node, attr));
       } else {
         matches = false;
         break;

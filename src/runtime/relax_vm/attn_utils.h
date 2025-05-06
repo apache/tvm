@@ -730,7 +730,7 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     if (shape.defined()) {
       ICHECK_EQ(shape.value().size(), 1);
       copy_dst.ndim = 1;
-      copy_dst.shape = shape.value()->data;
+      copy_dst.shape = const_cast<int64_t*>(shape.value()->data);
     }
     copy_dst.byte_offset = dst_elem_offset * sizeof(int32_t);
 

@@ -182,7 +182,7 @@ TEST_F(OpenCLCompileBin, SourceVsBinaryCompilationPerf) {
     Timestamp comp_end = std::chrono::high_resolution_clock::now();
     auto get_pre_compiled_f =
         module.GetFunction("opencl.GetPreCompiledPrograms", GetObjectPtr<Object>(&module));
-    bytes = String(get_pre_compiled_f());
+    bytes = get_pre_compiled_f().cast<String>();
     std::chrono::duration duration =
         std::chrono::duration_cast<std::chrono::nanoseconds>(comp_end - comp_start);
     compileFromSourceTimeMS = duration.count() * 1e-6;

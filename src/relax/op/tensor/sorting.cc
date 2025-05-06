@@ -142,6 +142,7 @@ StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
     return output_sinfos[1];
   }
   LOG(FATAL) << "Unsupported ret type: " << ret_type;
+  TVM_FFI_UNREACHABLE();
 }
 
 TVM_REGISTER_OP("relax.topk")

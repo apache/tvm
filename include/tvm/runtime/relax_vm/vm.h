@@ -76,7 +76,6 @@ class VMClosureObj : public Object {
    */
   PackedFunc impl;
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.vm.Closure";
   TVM_DECLARE_FINAL_OBJECT_INFO(VMClosureObj, Object);
 };
@@ -108,7 +107,6 @@ class VMClosure : public ObjectRef {
  */
 class VMExtensionNode : public Object {
  protected:
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "runtime.VMExtension";
   TVM_DECLARE_BASE_OBJECT_INFO(VMExtensionNode, Object);
 };
@@ -156,8 +154,8 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param args The input arguments.
    * \param rv The return value.
    */
-  virtual void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, TVMArgs args,
-                                   TVMRetValue* rv) = 0;
+  virtual void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, ffi::PackedArgs args,
+                                   Any* rv) = 0;
   /*!
    * \brief Set an instrumentation function.
    *
@@ -212,7 +210,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param arg The argument value.
    */
   static VirtualMachine* GetContextPtr(TVMArgValue arg) {
-    return static_cast<VirtualMachine*>(arg.operator void*());
+    return static_cast<VirtualMachine*>(arg.cast<void*>());
   }
 
   ~VirtualMachine() {}

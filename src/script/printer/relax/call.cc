@@ -79,6 +79,24 @@ class AttrPrinter : public tvm::AttrVisitor {
     LOG(FATAL) << "TypeError: NDArray is not allowed in Attrs";
   }
 
+  void Visit(const char* key, Optional<double>* value) final {
+    keys->push_back(key);
+    if (value->has_value()) {
+      values->push_back(LiteralDoc::Float(value->value(), p->Attr(key)));
+    } else {
+      values->push_back(LiteralDoc::None(p->Attr(key)));
+    }
+  }
+
+  void Visit(const char* key, Optional<int64_t>* value) final {
+    keys->push_back(key);
+    if (value->has_value()) {
+      values->push_back(LiteralDoc::Int(value->value(), p->Attr(key)));
+    } else {
+      values->push_back(LiteralDoc::None(p->Attr(key)));
+    }
+  }
+
   ObjectPath p;
   const IRDocsifier& d;
   Array<String>* keys;
@@ -325,11 +343,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
               kwargs_values.push_back(LiteralDoc::Str(n->attrs->GetTypeKey(), n_p->Attr("attrs")));
             }
             if (const auto* attrs = n->attrs.as<tvm::DictAttrsNode>()) {
-              std::vector<std::pair<String, ObjectRef>> sorted;
+              std::vector<std::pair<String, ffi::Any>> sorted;
               for (const auto& kv : attrs->dict) {
                 sorted.push_back(kv);
               }
-              std::sort(sorted.begin(), sorted.end());
+              std::sort(sorted.begin(), sorted.end(),
+                        [](const auto& a, const auto& b) { return a.first < b.first; });
               for (const auto& kv : sorted) {
                 kwargs_keys.push_back(kv.first);
                 kwargs_values.push_back(
