@@ -182,12 +182,28 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Neural Network ##########
 
+    def _adaptive_avg_pool1d_module(self, node: fx.Node) -> relax.Var:
+        module = self.named_modules[node.target]
+        x = self.env[node.args[0]]
+        output_size = module.output_size
+        return self.block_builder.emit(
+            relax.op.nn.adaptive_avg_pool1d(x, output_size, layout="NCW")  # (N, C, L)
+        )
+
     def _adaptive_avg_pool2d_module(self, node: fx.Node) -> relax.Var:
         module = self.named_modules[node.target]
         x = self.env[node.args[0]]
         output_size = module.output_size
         return self.block_builder.emit(
             relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
+        )
+
+    def _adaptive_avg_pool3d_module(self, node: fx.Node) -> relax.Var:
+        module = self.named_modules[node.target]
+        x = self.env[node.args[0]]
+        output_size = module.output_size
+        return self.block_builder.emit(
+            relax.op.nn.adaptive_avg_pool3d(x, output_size, layout="NCDHW")  # (N, C, D, H, W)
         )
 
     def _avg_pool2d_module(self, node: fx.Node) -> relax.Var:
@@ -649,7 +665,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.Softplus: self._softplus_module,
             nn.Tanh: self._unary_op(relax.op.tanh),
             # neural network
+            nn.AdaptiveAvgPool1d: self._adaptive_avg_pool1d_module,
             nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d_module,
+            nn.AdaptiveAvgPool3d: self._adaptive_avg_pool3d_module,
             nn.AvgPool2d: self._avg_pool2d_module,
             nn.BatchNorm2d: self._batch_norm_2d_module,
             nn.Conv1d: self._conv1d_module,
@@ -755,7 +773,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             "truediv": self._binary_op(relax.op.divide, operator.truediv),
             "xor": self._binary_op(relax.op.bitwise_xor, operator.xor),
             # neural network
+            "adaptive_avg_pool1d": self._adaptive_avg_pool1d,
             "adaptive_avg_pool2d": self._adaptive_avg_pool2d,
+            "adaptive_avg_pool3d": self._adaptive_avg_pool3d,
             "addmm": self._addmm,
             "avg_pool2d": self._avg_pool2d,
             "baddbmm": self._baddbmm,

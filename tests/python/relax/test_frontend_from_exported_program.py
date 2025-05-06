@@ -1145,6 +1145,38 @@ def test_batchnorm2d():
     verify_model(model, example_args, binding, expected1)
 
 
+def test_adaptive_avgpool1d():
+    class AdaptiveAvgPool1d0(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AdaptiveAvgPool1d(output_size=5)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    class AdaptiveAvgPool1d1(torch.nn.Module):
+        def forward(self, input):
+            return torch.nn.functional.adaptive_avg_pool1d(input, output_size=5)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 5), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 5), dtype="float32") = R.nn.adaptive_avg_pool1d(
+                    input_1, output_size=[5], layout="NCW"
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 5), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, dtype=torch.float32),)
+    verify_model(AdaptiveAvgPool1d0(), example_args, {}, expected1)
+    verify_model(AdaptiveAvgPool1d1(), example_args, {}, expected1)
+
+
 def test_adaptive_avgpool2d():
     class AdaptiveAvgPool2d0(Module):
         def __init__(self):
@@ -1176,6 +1208,38 @@ def test_adaptive_avgpool2d():
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     verify_model(AdaptiveAvgPool2d0(), example_args, {}, expected1)
     verify_model(AdaptiveAvgPool2d1(), example_args, {}, expected1)
+
+
+def test_adaptive_avgpool3d():
+    class AdaptiveAvgPool3d0(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AdaptiveAvgPool3d([4, 4, 4])
+
+        def forward(self, input):
+            return self.pool(input)
+
+    class AdaptiveAvgPool3d1(torch.nn.Module):
+        def forward(self, input):
+            return torch.nn.functional.adaptive_avg_pool3d(input, [4, 4, 4])
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 4, 4, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 4, 4, 4), dtype="float32") = R.nn.adaptive_avg_pool3d(
+                    input_1, output_size=[4, 4, 4], layout="NCDHW", out_layout="NCDHW"
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 4, 4, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 8, 8, 8, dtype=torch.float32),)
+    verify_model(AdaptiveAvgPool3d0(), example_args, {}, expected1)
+    verify_model(AdaptiveAvgPool3d1(), example_args, {}, expected1)
 
 
 def test_addmm():
