@@ -1208,7 +1208,7 @@ def test_avg_pool3d_infer_struct_info():
     _check_inference(
         bb,
         relax.op.nn.avg_pool3d(x0, out_layout="NCDHW"),
-        relax.TensorStructInfo((2, 32, 32, 32, 3), "float32"),
+        relax.TensorStructInfo((2, 3, 32, 32, 32), "float32"),
     )
     _check_inference(
         bb,
