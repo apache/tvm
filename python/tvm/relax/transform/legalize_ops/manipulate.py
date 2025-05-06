@@ -215,6 +215,25 @@ def _index_put(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.meshgrid")
+def _meshgrid(bb: BlockBuilder, call: Call) -> Expr:
+    t = call.args[0]
+    n_field = len(t.struct_info.fields)
+    while isinstance(t, Var):
+        binding = bb.lookup_binding(t)
+        if not isinstance(binding, (Tuple, Var)):
+            break
+        t = binding
+
+    assert isinstance(t, (Tuple, Var))
+    fields = (
+        t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
+    )
+    return bb.call_te(
+        topi.meshgrid, fields, "ij" if call.attrs.indexing is None else call.attrs.indexing
+    )
+
+
 @register_legalize("relax.scatter_elements")
 def _scatter_elements(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(

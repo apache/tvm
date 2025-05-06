@@ -196,6 +196,15 @@ struct IndexPutAttrs : public tvm::AttrsNode<IndexPutAttrs> {
   }
 };  // struct IndexPutAttrs
 
+/*! \brief Attribute used in meshgrid operator */
+struct MeshgridAttrs : public tvm::AttrsNode<MeshgridAttrs> {
+  Optional<String> indexing;
+
+  TVM_DECLARE_ATTRS(MeshgridAttrs, "relax.attrs.MeshgridAttrs") {
+    TVM_ATTR_FIELD(indexing).describe("Specifies how the grid dimensions are ordered.");
+  }
+};
+
 /*! \brief Attributes used in scatter_elements operators */
 struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
   Integer axis;

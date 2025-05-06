@@ -3502,6 +3502,51 @@ def test_scatter_nd_infer_struct_info():
     )
 
 
+def test_meshgrid_infer_struct_info():
+    bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
+    t0 = relax.Var("t0", R.Tensor((3,), "float32"))
+    t1 = relax.Var("t1", R.Tensor((4,), "float32"))
+    t2 = relax.Var("t2", R.Tensor("float32", ndim=1))
+    t3 = relax.Var("t3", R.Tensor((5,), "float32", vdev0))
+
+    _check_inference(
+        bb,
+        relax.op.meshgrid((t0, t1), indexing="ij"),
+        relax.TupleStructInfo(
+            [relax.TensorStructInfo((3, 4), "float32"), relax.TensorStructInfo((3, 4), "float32")]
+        ),
+    )
+
+    _check_inference(
+        bb,
+        relax.op.meshgrid((t3, t1), indexing="ij"),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo((5, 4), "float32", vdev0),
+                relax.TensorStructInfo((5, 4), "float32", vdev0),
+            ]
+        ),
+    )
+
+    _check_inference(
+        bb,
+        relax.op.meshgrid((t2, t1), indexing="xy"),
+        relax.TupleStructInfo(
+            [
+                relax.TensorStructInfo(dtype="float32", ndim=2),
+                relax.TensorStructInfo(dtype="float32", ndim=2),
+            ]
+        ),
+    )
+
+    _check_inference(
+        bb,
+        relax.op.meshgrid((t0,), indexing="ij"),
+        relax.TupleStructInfo([relax.TensorStructInfo((3,), "float32")]),
+    )
+
+
 def test_one_hot_infer_struct_info():
     bb = relax.BlockBuilder()
 
