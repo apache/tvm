@@ -146,7 +146,7 @@ def test_max_pool1d_infer_struct_info_ceil_mode():
     _check_inference(
         bb,
         relax.op.nn.max_pool1d(x, pool_size=5, strides=2, ceil_mode=True),
-        relax.TensorStructInfo((2, 3, 14), "float32"),
+        relax.TensorStructInfo((2, 3, 15), "float32"),
     )
 
 
