@@ -84,7 +84,7 @@ void FuncName(String name);
  * \brief The PrimFunc annotation statement.
  * \param attrs The annotations of the PrimFunc.
  */
-void FuncAttrs(Map<String, ObjectRef> attrs);
+void FuncAttrs(Map<String, ffi::Any> attrs);
 
 /*!
  * \brief The PrimFunc return type statement.
@@ -112,7 +112,7 @@ Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape, DataType dtype = Data
                    Optional<Var> data = NullOpt, Array<PrimExpr> strides = {},
                    PrimExpr elem_offset = PrimExpr(), String storage_scope = "global",
                    int align = -1, int offset_factor = 0, String buffer_type = "default",
-                   Array<IntImm> axis_separators = {});
+                   Optional<Array<IntImm>> axis_separators = std::nullopt);
 
 /*!
  * \brief The block declaration statement.
@@ -150,7 +150,7 @@ void Writes(Array<ObjectRef> buffer_slices);
  * \brief The block annotation statement.
  * \param attrs The annotation of the block.
  */
-void BlockAttrs(Map<String, ObjectRef> attrs);
+void BlockAttrs(Map<String, ffi::Any> attrs);
 
 /*!
  * \brief The buffer allocation function.
@@ -170,7 +170,7 @@ Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
                    Optional<Var> data = NullOpt, Array<PrimExpr> strides = {},
                    PrimExpr elem_offset = PrimExpr(), String storage_scope = "", int align = -1,
                    int offset_factor = 0, String buffer_type = "default",
-                   Array<IntImm> axis_separators = {});
+                   Optional<Array<IntImm>> axis_separators = std::nullopt);
 namespace axis {
 
 /*!
@@ -227,8 +227,7 @@ Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype = DataTy
  * \param annotations The optional annotations of the For statement.
  * \return The ForFrame.
  */
-ForFrame Serial(PrimExpr start, PrimExpr stop,
-                Optional<Map<String, ObjectRef>> annotations = NullOpt);
+ForFrame Serial(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annotations = NullOpt);
 /*!
  * \brief The parallel For statement.
  * \param start The minimum value of iteration.
@@ -236,8 +235,7 @@ ForFrame Serial(PrimExpr start, PrimExpr stop,
  * \param annotations The optional annotations of the For statement.
  * \return The ForFrame.
  */
-ForFrame Parallel(PrimExpr start, PrimExpr stop,
-                  Optional<Map<String, ObjectRef>> annotations = NullOpt);
+ForFrame Parallel(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annotations = NullOpt);
 /*!
  * \brief The vectorized For statement.
  * \param start The minimum value of iteration.
@@ -246,7 +244,7 @@ ForFrame Parallel(PrimExpr start, PrimExpr stop,
  * \return The ForFrame.
  */
 ForFrame Vectorized(PrimExpr start, PrimExpr stop,
-                    Optional<Map<String, ObjectRef>> annotations = NullOpt);
+                    Optional<Map<String, Any>> annotations = NullOpt);
 /*!
  * \brief The unrolled For statement.
  * \param start The minimum value of iteration.
@@ -254,8 +252,7 @@ ForFrame Vectorized(PrimExpr start, PrimExpr stop,
  * \param annotations The optional annotations of the For statement.
  * \return The ForFrame.
  */
-ForFrame Unroll(PrimExpr start, PrimExpr stop,
-                Optional<Map<String, ObjectRef>> annotations = NullOpt);
+ForFrame Unroll(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annotations = NullOpt);
 /*!
  * \brief The thread-binding For statement.
  * \param start The minimum value of iteration.
@@ -265,7 +262,7 @@ ForFrame Unroll(PrimExpr start, PrimExpr stop,
  * \return The ForFrame.
  */
 ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
-                       Optional<Map<String, ObjectRef>> annotations = NullOpt);
+                       Optional<Map<String, Any>> annotations = NullOpt);
 /*!
  * \brief The grid For statement.
  * \param extents The extents of the iteration.
@@ -313,7 +310,7 @@ RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope, 
  */
 AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_scope = "",
                        Optional<PrimExpr> condition = NullOpt,
-                       Optional<Map<String, ObjectRef>> annotations = NullOpt);
+                       Optional<Map<String, Any>> annotations = NullOpt);
 
 /*!
  * \brief The allocate constant node.
@@ -324,7 +321,7 @@ AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_s
  * \return The created AllocateConstFrame.
  */
 AllocateConstFrame AllocateConst(NDArray data, DataType dtype, Array<PrimExpr> extents,
-                                 Optional<Map<String, ObjectRef>> annotations = NullOpt);
+                                 Optional<Map<String, Any>> annotations = NullOpt);
 
 /*!
  * \brief Create an attribute.
@@ -333,7 +330,7 @@ AllocateConstFrame AllocateConst(NDArray data, DataType dtype, Array<PrimExpr> e
  * \param value The value of the attribute.
  * \return The result AttrFrame.
  */
-AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value);
+AttrFrame Attr(ffi::Any node, String attr_key, PrimExpr value);
 
 /*!
  * \brief Create a while loop.

@@ -31,23 +31,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<runtime::Bool>("", [](runtime::Bool obj, ObjectPath p, IRDocsifier d) -> Doc {
-      return LiteralDoc::Boolean(obj->value, p);
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<runtime::Int>("", [](runtime::Int obj, ObjectPath p, IRDocsifier d) -> Doc {
-      return LiteralDoc::Int(obj->value, p);
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<runtime::Float>("", [](runtime::Float obj, ObjectPath p, IRDocsifier d) -> Doc {
-      return LiteralDoc::Float(obj->value, p);
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Array<ObjectRef>>(  //
-        "", [](Array<ObjectRef> array, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<Array<Any>>(  //
+        "", [](Array<Any> array, ObjectPath p, IRDocsifier d) -> Doc {
           int n = array.size();
           Array<ExprDoc> results;
           results.reserve(n);
@@ -58,9 +43,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Map<ObjectRef, ObjectRef>>(  //
-        "", [](Map<ObjectRef, ObjectRef> dict, ObjectPath p, IRDocsifier d) -> Doc {
-          using POO = std::pair<ObjectRef, ObjectRef>;
+    .set_dispatch<Map<Any, Any>>(  //
+        "", [](Map<Any, Any> dict, ObjectPath p, IRDocsifier d) -> Doc {
+          using POO = std::pair<Any, Any>;
           std::vector<POO> items{dict.begin(), dict.end()};
           bool is_str_map = true;
           for (const auto& kv : items) {
@@ -72,10 +57,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           if (is_str_map) {
             std::sort(items.begin(), items.end(), [](const POO& lhs, const POO& rhs) {
               return Downcast<String>(lhs.first) < Downcast<String>(rhs.first);
-            });
-          } else {
-            std::sort(items.begin(), items.end(), [](const POO& lhs, const POO& rhs) {
-              return lhs.first.get() < rhs.first.get();
             });
           }
           int n = dict.size();

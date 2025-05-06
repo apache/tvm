@@ -513,17 +513,6 @@ def LowerTVMBuiltin():
     return _ffi_api.LowerTVMBuiltin()  # type: ignore
 
 
-def LegalizePackedCalls():
-    """Legalize packed calls to have its arguments wrapped in TVMValues
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LegalizePackedCalls()  # type: ignore
-
-
 def LowerIntrin():
     """Lower target specific intrinsic calls.
 

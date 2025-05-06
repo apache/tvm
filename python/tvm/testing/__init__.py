@@ -27,7 +27,7 @@ from ._ffi_api import (
     object_use_count,
     run_check_signal,
     test_check_eq_callback,
-    test_raise_error_callback,
+    test_raise_error,
     test_wrap_callback,
 )
 from .popen_pool import (

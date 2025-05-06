@@ -211,7 +211,7 @@ class MetalWrappedFunc {
       id<MTLComputeCommandEncoder> encoder = [cb computeCommandEncoder];
       [encoder setComputePipelineState:scache_[device_id]];
       for (size_t i = 0; i < num_buffer_args_; ++i) {
-        void* buf = args[static_cast<int>(i)];
+        void* buf = args[static_cast<int>(i)].cast<void*>();
         [encoder setBuffer:(id<MTLBuffer>)(buf) offset:0 atIndex:i];
       }
       if (num_pack_args_ != 0) {

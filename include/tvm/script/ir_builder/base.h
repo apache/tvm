@@ -99,8 +99,6 @@ class IRBuilderFrameNode : public runtime::Object {
  */
 class IRBuilderFrame : public runtime::ObjectRef {
  public:
-  /*! \brief Default destructor. */
-  virtual ~IRBuilderFrame() = default;
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRBuilderFrame, ObjectRef, IRBuilderFrameNode);
 
  protected:

@@ -251,12 +251,12 @@ ROCMThreadEntry::ROCMThreadEntry() : pool(kDLROCM, ROCMDeviceAPI::Global()) {}
 
 ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() { return ROCMThreadStore::Get(); }
 
-TVM_REGISTER_GLOBAL("device_api.rocm").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.rocm").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = ROCMDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
 
-TVM_REGISTER_GLOBAL("device_api.rocm_host").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.rocm_host").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = ROCMDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });

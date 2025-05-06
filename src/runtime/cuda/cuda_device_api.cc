@@ -286,12 +286,12 @@ CUDAThreadEntry::CUDAThreadEntry() : pool(kDLCUDA, CUDADeviceAPI::Global()) {}
 
 CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() { return CUDAThreadStore::Get(); }
 
-TVM_REGISTER_GLOBAL("device_api.cuda").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.cuda").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = CUDADeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
 
-TVM_REGISTER_GLOBAL("device_api.cuda_host").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.cuda_host").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   DeviceAPI* ptr = CUDADeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });

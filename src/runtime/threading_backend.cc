@@ -369,7 +369,7 @@ int ThreadGroup::Configure(AffinityMode mode, int nthreads, bool exclude_worker0
   return impl_->Configure(mode, nthreads, exclude_worker0, cpus);
 }
 
-void Yield() {
+void YieldThread() {
 #ifdef __hexagon__
   // QuRT doesn't have a yield API, so instead we sleep for the minimum amount
   // of time to let the OS schedule another thread. std::this_thread::yield()

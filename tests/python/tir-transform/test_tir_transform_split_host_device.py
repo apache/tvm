@@ -82,7 +82,7 @@ class TestSplitHostDevice(BaseCompare):
                 T.func_attr(
                     {
                         "target": T.target("cuda"),
-                        "tir.noalias": T.bool(True),
+                        "tir.noalias": True,
                         "tir.is_global_func": True,
                     }
                 )
@@ -119,7 +119,7 @@ class TestSplitHostDeviceOnCPU(BaseCompare):
                 T.func_attr(
                     {
                         "target": T.target("llvm"),
-                        "tir.noalias": T.bool(True),
+                        "tir.noalias": True,
                         "tir.is_global_func": True,
                     }
                 )
@@ -160,7 +160,7 @@ class TestSplitHostDeviceWithoutFuncHostAttribute(BaseCompare):
                 T.func_attr(
                     {
                         "target": T.target("cuda"),
-                        "tir.noalias": T.bool(True),
+                        "tir.noalias": True,
                         "tir.is_global_func": True,
                     }
                 )
@@ -221,7 +221,7 @@ class TestSplitHostDeviceNameCollision(BaseCompare):
                 T.func_attr(
                     {
                         "target": T.target("cuda"),
-                        "tir.noalias": T.bool(True),
+                        "tir.noalias": True,
                         "tir.is_global_func": True,
                     }
                 )

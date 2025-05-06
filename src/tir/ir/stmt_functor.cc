@@ -437,11 +437,11 @@ Stmt StmtMutator::VisitStmt_(const PrefetchNode* op) {
 Stmt StmtMutator::VisitStmt_(const SeqStmtNode* op) {
   Array<Stmt> seq = Internal::Mutate(this, op->seq);
   if (seq.same_as(op->seq)) {
-    return GetRef<Stmt>(op);
+    return SeqStmt::Flatten(GetRef<Stmt>(op));
   } else {
-    auto n = CopyOnWrite(op);
-    n->seq = std::move(seq);
-    return Stmt(n);
+    auto node = CopyOnWrite(op);
+    node->seq = std::move(seq);
+    return SeqStmt::Flatten(SeqStmt(node));
   }
 }
 
@@ -616,12 +616,12 @@ class IRTransformer final : public StmtExprMutator {
       return fmutate(node);
     }
     if (f_preorder_ != nullptr) {
-      T pre = f_preorder_(node);
+      T pre = f_preorder_(node).template cast<T>();
       if (pre.defined()) return pre;
     }
     T new_node = fmutate(node);
     if (f_postorder_ != nullptr) {
-      T post = f_postorder_(new_node);
+      T post = f_postorder_(new_node).template cast<T>();
       if (post.defined()) return post;
     }
     return new_node;
@@ -638,7 +638,7 @@ Stmt IRTransform(Stmt ir_node, const runtime::PackedFunc& f_preorder,
   std::unordered_set<uint32_t> only_type_index;
   if (only_enable.defined()) {
     for (auto s : only_enable.value()) {
-      only_type_index.insert(Object::TypeKey2Index(s.c_str()));
+      only_type_index.insert(ffi::TypeKeyToIndex(s.c_str()));
     }
   }
   IRTransformer transform(f_preorder, f_postorder, only_type_index);
@@ -675,6 +675,11 @@ class IRSubstitute : public StmtExprMutator {
     return VisitBufferAccess(std::move(node));
   }
 
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    auto node = Downcast<DeclBuffer>(StmtExprMutator::VisitStmt_(op));
+    return VisitBufferAccess(std::move(node));
+  }
+
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     Buffer new_buf = GetRemappedBuffer(node->buffer);
@@ -694,10 +699,25 @@ class IRSubstitute : public StmtExprMutator {
       return it->second;
     }
 
-    auto new_buffer_var = vmap_(buf->data);
-    if (new_buffer_var.defined() && !new_buffer_var.value().same_as(buf->data)) {
+    PrimExpr new_buffer_var_expr = VisitExpr(buf->data);
+    CHECK(new_buffer_var_expr->IsInstance<VarNode>())
+        << "Buffer " << buf << " uses backing allocation " << buf->data
+        << ", which was substituted into the expression " << new_buffer_var_expr << ".  "
+        << "However, this expression is of type " << new_buffer_var_expr->GetTypeKey()
+        << " and the backing allocation must be a tir::Var";
+
+    Var buffer_var = Downcast<Var>(new_buffer_var_expr);
+    auto elem_offset = VisitExpr(buf->elem_offset);
+    auto shape = buf->shape.Map([this](const auto& expr) { return VisitExpr(expr); });
+    auto strides = buf->strides.Map([this](const auto& expr) { return VisitExpr(expr); });
+
+    if (!buffer_var.same_as(buf->data) || !elem_offset.same_as(buf->elem_offset) ||
+        !shape.same_as(buf->shape) || !strides.same_as(buf->strides)) {
       auto writer = buf.CopyOnWrite();
-      writer->data = Downcast<Var>(new_buffer_var);
+      writer->data = buffer_var;
+      writer->elem_offset = elem_offset;
+      writer->shape = shape;
+      writer->strides = strides;
     }
 
     buf_remap_[key] = buf;
@@ -708,8 +728,8 @@ class IRSubstitute : public StmtExprMutator {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
     // remap var node in attr
-    if (const auto* var_node = op->node.as<VarNode>()) {
-      if (auto mapped_var = vmap_(GetRef<Var>(var_node))) {
+    if (auto var_node = op->node.as<Var>()) {
+      if (auto mapped_var = vmap_(var_node.value())) {
         return AttrStmt(mapped_var, op->attr_key, op->value, op->body);
       }
     }
@@ -770,10 +790,10 @@ void PreOrderVisit(const ObjectRef& stmt_or_expr,
   };
 
   PreOrderVisitor visitor(fvisit);
-  if (const auto* stmt = stmt_or_expr.as<StmtNode>()) {
-    visitor(GetRef<Stmt>(stmt));
-  } else if (const auto* expr = stmt_or_expr.as<PrimExprNode>()) {
-    visitor(GetRef<PrimExpr>(expr));
+  if (auto stmt = stmt_or_expr.as<Stmt>()) {
+    visitor(stmt.value());
+  } else if (auto expr = stmt_or_expr.as<PrimExpr>()) {
+    visitor(expr.value());
   } else {
     LOG(FATAL) << "InternalError: PreOrderVisit does not accept object with type: "
                << stmt_or_expr->GetTypeKey();
@@ -840,8 +860,8 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
     // remap var node in attr
-    if (const auto* var_node = op->node.as<VarNode>()) {
-      if (auto mapped_var = vmap_(GetRef<Var>(var_node))) {
+    if (auto var_node = op->node.as<Var>()) {
+      if (auto mapped_var = vmap_(var_node.value())) {
         return AttrStmt(mapped_var, op->attr_key, op->value, op->body);
       }
     }
@@ -879,7 +899,7 @@ TVM_REGISTER_GLOBAL("tir.PostOrderVisit").set_body_typed([](ObjectRef node, Pack
 });
 
 TVM_REGISTER_GLOBAL("tir.PreOrderVisit").set_body_typed([](ObjectRef node, PackedFunc f) {
-  tir::PreOrderVisit(node, [f](const ObjectRef& n) { return f(n); });
+  tir::PreOrderVisit(node, [f](const ObjectRef& n) { return f(n).cast<bool>(); });
 });
 
 TVM_REGISTER_GLOBAL("tir.Substitute")

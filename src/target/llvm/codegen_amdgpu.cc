@@ -70,10 +70,10 @@ static inline int DetectROCMmaxThreadsPerBlock() {
   if (api != nullptr) {
     TVMRetValue val;
     api->GetAttr(tvm_dev, tvm::runtime::kExist, &val);
-    if (val.operator int() == 1) {
+    if (val.cast<int>() == 1) {
       tvm::runtime::DeviceAPI::Get(tvm_dev)->GetAttr(tvm_dev, tvm::runtime::kMaxThreadsPerBlock,
                                                      &val);
-      return val.operator int();
+      return val.cast<int>();
     }
   }
   LOG(WARNING) << "Cannot get maximum number of threads for AMD codegen";
@@ -278,8 +278,8 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
 
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
-  const auto* find_rocm_bitcodes = tvm::runtime::Registry::Get("tvm_callback_rocm_bitcode_path");
-  Array<runtime::String> bitcode_files = (*find_rocm_bitcodes)();
+  auto fbitcode = tvm::ffi::Function::GetGlobalRequired("tvm_callback_rocm_bitcode_path");
+  auto bitcode_files = fbitcode().cast<Array<runtime::String>>();
 
   for (auto& bitcode_path : bitcode_files) {
     std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(bitcode_path);
@@ -343,14 +343,15 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
   passAsm.run(*mAsm);
   std::string assembly(dataAsm.begin(), dataAsm.end());
 
-  const auto* f = tvm::runtime::Registry::Get("tvm_callback_rocm_link");
-  ICHECK(f != nullptr) << "Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm";
+  auto flink = tvm::ffi::Function::GetGlobal("tvm_callback_rocm_link");
+  ICHECK(flink.has_value())
+      << "Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm";
 
-  TVMByteArray arr;
+  TVMFFIByteArray arr;
   arr.data = &obj[0];
   arr.size = obj.length();
 
-  std::string hsaco = (*f)(arr);
+  std::string hsaco = (*flink)(&arr).cast<std::string>();
   std::string ll(data_ll.begin(), data_ll.end());
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(mod), ll, assembly);
 }
@@ -358,7 +359,7 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 TVM_REGISTER_GLOBAL("target.build.rocm").set_body_typed(BuildAMDGPU);
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_rocm")
-    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+    .set_body_packed([](const TVMArgs& targs, TVMRetValue* rv) {
       *rv = static_cast<void*>(new CodeGenAMDGPU());
     });
 

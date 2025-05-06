@@ -202,7 +202,7 @@ Pass VerifyMemory() {
           }
           LOG(FATAL) << "RuntimeError: Memory verification failed with the following errors:\n"
                      << s.str() << "  Did you forget to bind?\n"
-                     << func;
+                     << func.value();
         }
       }
     }

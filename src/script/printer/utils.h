@@ -80,10 +80,11 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
   std::ostringstream os;
   if (!d->metadata.empty()) {
     if (d->cfg->show_meta) {
-      os << "metadata = tvm.ir.load_json(\""
+      os << "metadata = tvm.ir.load_json(\"\"\""
          << support::StrEscape(
-                SaveJSON(Map<String, ObjectRef>(d->metadata.begin(), d->metadata.end())))
-         << "\")\n";
+                SaveJSON(Map<String, ffi::Any>(d->metadata.begin(), d->metadata.end())), false,
+                false)
+         << "\"\"\")\n";
     } else {
       f->stmts.push_back(
           CommentDoc("Metadata omitted. Use show_meta=True in script() method to show it."));
@@ -118,7 +119,7 @@ inline ExprDoc Relax(const IRDocsifier& d, const String& attr) {
 }
 
 inline std::string DType2Str(const runtime::DataType& dtype) {
-  return dtype.is_void() ? "void" : runtime::DLDataType2String(dtype);
+  return dtype.is_void() ? "void" : runtime::DLDataTypeToString(dtype);
 }
 
 /*! \brief Add headers as comments to doc if needed */

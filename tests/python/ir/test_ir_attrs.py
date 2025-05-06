@@ -35,12 +35,12 @@ def test_make_attrs():
 
 def test_dict_attrs():
     dattr = tvm.ir.make_node("DictAttrs", x=1, y=10, name="xyz", padding=(0, 0))
-    assert dattr.x.value == 1
+    assert dattr.x == 1
     datrr = tvm.ir.load_json(tvm.ir.save_json(dattr))
     assert dattr.name == "xyz"
     assert isinstance(dattr, tvm.ir.DictAttrs)
     assert "name" in dattr
-    assert dattr["x"].value == 1
+    assert dattr["x"] == 1
     assert len(dattr) == 4
     assert len([x for x in dattr.keys()]) == 4
     assert len(dattr.items()) == 4

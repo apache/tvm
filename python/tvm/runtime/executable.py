@@ -31,7 +31,6 @@ class Executable:
         """Initialize the Executable object."""
         self.mod: Module = mod
         self._jitted_mod: Optional[Module] = None
-        self.entry_name = mod.entry_name
 
     def __getitem__(self, name: str) -> PackedFunc:
         """Get the PackedFunc from the jitted module."""
@@ -39,7 +38,7 @@ class Executable:
 
     def __call__(self, *args, **kwargs) -> Any:
         """Call the executable."""
-        return self.jit().get_function(self.entry_name, query_imports=True)(*args, **kwargs)
+        return self.jit().entry_func(*args, **kwargs)
 
     def jit(
         self,

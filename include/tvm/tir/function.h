@@ -25,6 +25,8 @@
 #define TVM_TIR_FUNCTION_H_
 
 #include <tvm/ir/function.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
@@ -222,7 +224,7 @@ class TensorIntrin : public ObjectRef {
    */
   TVM_DLL static Optional<TensorIntrin> Get(String name, bool allow_missing = false);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode)
+  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode);
 };
 
 /*!

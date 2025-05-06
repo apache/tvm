@@ -27,12 +27,12 @@ def test_all_targets_device_type_verify():
     all_targets = [tvm.target.Target(t) for t in tvm.target.Target.list_kinds()]
 
     for tgt in all_targets:
-        if tgt.kind.name not in tvm._ffi.runtime_ctypes.Device.STR2MASK:
-            raise KeyError("Cannot find target kind: %s in Device.STR2MASK" % tgt.kind.name)
+        if tgt.kind.name not in tvm.runtime.Device.DEVICE_NAME_TO_TYPE:
+            raise KeyError(
+                "Cannot find target kind: %s in Device.DEVICE_NAME_TO_TYPE" % tgt.kind.name
+            )
 
-        assert (
-            tgt.get_target_device_type() == tvm._ffi.runtime_ctypes.Device.STR2MASK[tgt.kind.name]
-        )
+        assert tgt.get_target_device_type() == tvm.runtime.Device.DEVICE_NAME_TO_TYPE[tgt.kind.name]
 
 
 def test_target_string_parse():
