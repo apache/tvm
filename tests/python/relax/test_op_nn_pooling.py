@@ -221,9 +221,7 @@ def test_max_pool1d_wrong_input_ndim():
 def test_max_pool1d_infer_struct_info_wrong_input_type():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28)))
-    x1 = relax.Var(
-        "x", relax.FuncStructInfo([], R.Tensor((2, 3, 28), "float32"))
-    )
+    x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 28), "float32")))
 
     with pytest.raises(TVMError):
         bb.normalize(relax.op.nn.max_pool1d(x0))
