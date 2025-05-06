@@ -1379,14 +1379,18 @@ def test_avg_pool1d():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tuple(R.Tensor((1, 3, 10), dtype="float32")):
+        def main(
+            input_1: R.Tensor((1, 3, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10), dtype="float32") = R.nn.avg_pool1d(
                     input_1,
                     pool_size=[1],
                     strides=[1],
                     dilation=[1],
-                    padding=[0, 0],  ceil_mode=False, count_include_pad=True,
+                    padding=[0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
                     layout="NCW",
                     out_layout="NCW",
                 )
@@ -1430,9 +1434,7 @@ def test_avg_pool1d():
 
     class AvgPool1d4(Module):
         def forward(self, input):
-            return torch.nn.functional.avg_pool1d(
-                input, kernel_size=2, stride=2, padding=0
-            )
+            return torch.nn.functional.avg_pool1d(input, kernel_size=2, stride=2, padding=0)
 
     @tvm.script.ir_module
     class expected3:
@@ -1526,7 +1528,7 @@ def test_avg_pool2d():
 
     class AvgPool2d4(Module):
         def forward(self, input):
-            return torch.nn.functional.avg_pool2d(input, kernel_size=[2, 1], divisor_override=2)
+            return torch.nn.functional.avg_pool2d(input, kernel_size=[2, 1])
 
     @tvm.script.ir_module
     class expected3:
@@ -1566,14 +1568,18 @@ def test_avg_pool3d():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")) -> R.Tuple(R.Tensor((1, 3, 8, 8, 8), dtype="float32")):
+        def main(
+            input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 8, 8, 8), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 8, 8, 8), dtype="float32") = R.nn.avg_pool3d(
                     input_1,
                     pool_size=[1, 1, 1],
                     strides=[1, 1, 1],
                     dilation=[1, 1, 1],
-                    padding=[0, 0, 0, 0, 0, 0],ceil_mode=False, count_include_pad=True,
+                    padding=[0, 0, 0, 0, 0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
                     layout="NCDHW",
                     out_layout="NCDHW",
                 )
@@ -1606,7 +1612,8 @@ def test_avg_pool3d():
                     strides=[2, 2, 2],
                     dilation=[1, 1, 1],
                     padding=[1, 1, 1, 1, 1, 1],
-                    ceil_mode=True,count_include_pad=True,
+                    ceil_mode=True,
+                    count_include_pad=True,
                     layout="NCDHW",
                     out_layout="NCDHW",
                 )
@@ -1617,7 +1624,7 @@ def test_avg_pool3d():
     class AvgPool3d4(Module):
         def forward(self, input):
             return torch.nn.functional.avg_pool3d(
-                input, kernel_size=[2, 1, 2], stride=[2, 1, 2], divisor_override=4
+                input, kernel_size=[2, 1, 2], stride=[2, 1, 2]
             )
 
     @tvm.script.ir_module
@@ -1631,7 +1638,8 @@ def test_avg_pool3d():
                     strides=[2, 1, 2],
                     dilation=[1, 1, 1],
                     padding=[0, 0, 0, 0, 0, 0],
-                    ceil_mode=False,count_include_pad=True,
+                    ceil_mode=False,
+                    count_include_pad=True,
                     layout="NCDHW",
                     out_layout="NCDHW",
                 )

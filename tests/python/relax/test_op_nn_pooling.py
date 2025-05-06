@@ -1181,12 +1181,14 @@ def test_avg_pool3d_infer_struct_info():
         relax.TensorStructInfo((2, 3, 28, 30, 30), "float32"),
     )
     _check_inference(
-        bb, relax.op.nn.avg_pool3d(x0, padding=1), relax.TensorStructInfo((2, 3, 34, 34, 34), "float32")
+        bb,
+        relax.op.nn.avg_pool3d(x0, padding=1),
+        relax.TensorStructInfo((2, 3, 34, 34, 34), "float32"),
     )
     _check_inference(
         bb,
         relax.op.nn.avg_pool3d(x0, padding=[1, 2, 3]),
-        relax.TensorStructInfo((2, 3, 34, 36, 35), "float32"),
+        relax.TensorStructInfo((2, 3, 34, 36, 38), "float32"),
     )
     _check_inference(
         bb,
@@ -1252,7 +1254,7 @@ def test_avg_pool3d_infer_struct_info_shape_symbolic():
     )
     _check_inference(
         bb,
-        relax.op.nn.avg_pool3d(x1, layout="NCDHW16c", out_layout="NHWC"),
+        relax.op.nn.avg_pool3d(x1, layout="NCDHW16c", out_layout="NDHWC"),
         relax.TensorStructInfo((n, id_, ih, iw, c * 16), "float32"),
     )
 
@@ -1309,7 +1311,12 @@ def test_avg_pool3d_infer_struct_info_ceil_mode_symbolic():
     _check_inference(
         bb,
         relax.op.nn.avg_pool3d(
-            x, pool_size=(3, 3, 3), strides=(2, 2, 2), padding=(1, 1, 1), dilation=(2, 2, 2), ceil_mode=True
+            x,
+            pool_size=(3, 3, 3),
+            strides=(2, 2, 2),
+            padding=(1, 1, 1),
+            dilation=(2, 2, 2),
+            ceil_mode=True,
         ),
         relax.TensorStructInfo(
             (
@@ -1343,7 +1350,9 @@ def test_avg_pool3d_infer_struct_info_more_input_dtype():
 
 def test_avg_pool3d_stride_padding_dilation_int64():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28, 28), "float32"))
-    avg_pool3d = relax.op.nn.avg_pool3d(x, (3, 3, 3), strides=(1, 1, 1), padding=(1, 1, 1), dilation=(1, 1, 1))
+    avg_pool3d = relax.op.nn.avg_pool3d(
+        x, (3, 3, 3), strides=(1, 1, 1), padding=(1, 1, 1), dilation=(1, 1, 1)
+    )
 
     assert avg_pool3d.attrs.strides[0].dtype == "int64"
     assert avg_pool3d.attrs.strides[1].dtype == "int64"
