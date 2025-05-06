@@ -1005,7 +1005,9 @@ def test_maxpool1d():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tensor((1, 3, 5), dtype="float32"):
+        def main(
+            input_1: R.Tensor((1, 3, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 5), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 5), dtype="float32") = R.nn.max_pool1d(
                     input_1,
@@ -1014,7 +1016,7 @@ def test_maxpool1d():
                     dilation=[1],
                     padding=[0, 0],
                     layout="NCW",
-                    out_layout="NCW"
+                    out_layout="NCW",
                 )
                 gv: R.Tensor((1, 3, 5), dtype="float32") = lv
                 R.output(gv)
@@ -1031,7 +1033,9 @@ def test_maxpool1d():
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tensor((1, 3, 10), dtype="float32"):
+        def main(
+            input_1: R.Tensor((1, 3, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10), dtype="float32") = R.nn.max_pool1d(
                     input_1,
@@ -1040,7 +1044,7 @@ def test_maxpool1d():
                     dilation=[1],
                     padding=[1, 1],
                     layout="NCW",
-                    out_layout="NCW"
+                    out_layout="NCW",
                 )
                 gv: R.Tensor((1, 3, 10), dtype="float32") = lv
                 R.output(gv)
@@ -1057,7 +1061,9 @@ def test_maxpool1d():
     @tvm.script.ir_module
     class expected3:
         @R.function
-        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")) -> R.Tensor((1, 3, 3), dtype="float32"):  # Corrected here
+        def main(
+            input_1: R.Tensor((1, 3, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 3), dtype="float32"):  # Corrected here
             with R.dataflow():
                 lv: R.Tensor((1, 3, 3), dtype="float32") = R.nn.max_pool1d(
                     input_1,
@@ -1066,7 +1072,7 @@ def test_maxpool1d():
                     dilation=[2],
                     padding=[0, 0],
                     layout="NCW",
-                    out_layout="NCW"
+                    out_layout="NCW",
                 )
                 gv: R.Tensor((1, 3, 3), dtype="float32") = lv
                 R.output(gv)

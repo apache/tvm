@@ -49,9 +49,7 @@ def test_max_pool1d_infer_struct_info():
     x4 = relax.Var("x", R.Tensor())
     x5 = relax.Var("x", R.Tensor((2, 3, 32), "float32", vdev0))
 
-    _check_inference(
-        bb, relax.op.nn.max_pool1d(x0), relax.TensorStructInfo((2, 3, 32), "float32")
-    )
+    _check_inference(bb, relax.op.nn.max_pool1d(x0), relax.TensorStructInfo((2, 3, 32), "float32"))
     _check_inference(
         bb, relax.op.nn.max_pool1d(x5), relax.TensorStructInfo((2, 3, 32), "float32", vdev0)
     )
@@ -62,18 +60,23 @@ def test_max_pool1d_infer_struct_info():
         bb, relax.op.nn.max_pool1d(x0, strides=2), relax.TensorStructInfo((2, 3, 16), "float32")
     )
     _check_inference(
-        bb, relax.op.nn.max_pool1d(x0, padding=1), relax.TensorStructInfo((2, 3, 32), "float32")
+        bb, relax.op.nn.max_pool1d(x0, padding=1), relax.TensorStructInfo((2, 3, 34), "float32")
     )
     _check_inference(
         bb, relax.op.nn.max_pool1d(x0, dilation=2), relax.TensorStructInfo((2, 3, 32), "float32")
     )
     _check_inference(
-        bb, relax.op.nn.max_pool1d(x0, layout="NCW", out_layout="NWC"),
-        relax.TensorStructInfo((2, 32, 3), "float32")
+        bb,
+        relax.op.nn.max_pool1d(x0, layout="NCW", out_layout="NWC"),
+        relax.TensorStructInfo((2, 32, 3), "float32"),
     )
-    _check_inference(bb, relax.op.nn.max_pool1d(x1), relax.TensorStructInfo(dtype="float32", ndim=3))
+    _check_inference(
+        bb, relax.op.nn.max_pool1d(x1), relax.TensorStructInfo(dtype="float32", ndim=3)
+    )
     _check_inference(bb, relax.op.nn.max_pool1d(x2), relax.TensorStructInfo(dtype="", ndim=3))
-    _check_inference(bb, relax.op.nn.max_pool1d(x3), relax.TensorStructInfo(dtype="float32", ndim=3))
+    _check_inference(
+        bb, relax.op.nn.max_pool1d(x3), relax.TensorStructInfo(dtype="float32", ndim=3)
+    )
     _check_inference(bb, relax.op.nn.max_pool1d(x4), relax.TensorStructInfo(dtype="", ndim=3))
 
 
@@ -89,9 +92,7 @@ def test_max_pool1d_infer_struct_info_shape_symbolic():
 
     _check_inference(
         bb,
-        relax.op.nn.max_pool1d(
-            x0, pool_size=3, strides=3, padding=2, dilation=2
-        ),
+        relax.op.nn.max_pool1d(x0, pool_size=3, strides=3, padding=2, dilation=2),
         relax.TensorStructInfo(
             (
                 n,
@@ -148,6 +149,7 @@ def test_max_pool1d_infer_struct_info_ceil_mode():
         relax.TensorStructInfo((2, 3, 14), "float32"),
     )
 
+
 def test_max_pool1d_infer_struct_info_ceil_mode_symbolic():
     bb = relax.BlockBuilder()
     n = tir.Var("n", "int64")
@@ -157,13 +159,8 @@ def test_max_pool1d_infer_struct_info_ceil_mode_symbolic():
 
     _check_inference(
         bb,
-        relax.op.nn.max_pool1d(
-            x, pool_size=3, strides=2, padding=1, dilation=2, ceil_mode=True
-        ),
-        relax.TensorStructInfo(
-            (n, c, tvm.tir.floordiv(w, 2)),
-            "float32"
-        ),
+        relax.op.nn.max_pool1d(x, pool_size=3, strides=2, padding=1, dilation=2, ceil_mode=True),
+        relax.TensorStructInfo((n, c, tvm.tir.floordiv(w, 2)), "float32"),
     )
 
 
@@ -173,15 +170,9 @@ def test_max_pool1d_infer_struct_info_more_input_dtype():
     x1 = relax.Var("x", R.Tensor((2, 3, 32), "int8"))
     x2 = relax.Var("x", R.Tensor((2, 3, 32), "int64"))
 
-    _check_inference(
-        bb, relax.op.nn.max_pool1d(x0), relax.TensorStructInfo((2, 3, 32), "float16")
-    )
-    _check_inference(
-        bb, relax.op.nn.max_pool1d(x1), relax.TensorStructInfo((2, 3, 32), "int8")
-    )
-    _check_inference(
-        bb, relax.op.nn.max_pool1d(x2), relax.TensorStructInfo((2, 3, 32), "int64")
-    )
+    _check_inference(bb, relax.op.nn.max_pool1d(x0), relax.TensorStructInfo((2, 3, 32), "float16"))
+    _check_inference(bb, relax.op.nn.max_pool1d(x1), relax.TensorStructInfo((2, 3, 32), "int8"))
+    _check_inference(bb, relax.op.nn.max_pool1d(x2), relax.TensorStructInfo((2, 3, 32), "int64"))
 
 
 def test_max_pool1d_stride_padding_dilation_int64():
@@ -230,7 +221,9 @@ def test_max_pool1d_wrong_input_ndim():
 def test_max_pool1d_infer_struct_info_wrong_input_type():
     bb = relax.BlockBuilder()
     x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28)))
-    x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 28), "float32")))  # Function, not tensor
+    x1 = relax.Var(
+        "x", relax.FuncStructInfo([], R.Tensor((2, 3, 28), "float32"))
+    )
 
     with pytest.raises(TVMError):
         bb.normalize(relax.op.nn.max_pool1d(x0))
@@ -498,7 +491,9 @@ def test_max_pool3d_infer_struct_info():
         relax.TensorStructInfo((2, 3, 14, 28, 30), "float32"),
     )
     _check_inference(
-        bb, relax.op.nn.max_pool3d(x0, padding=1), relax.TensorStructInfo((2, 3, 18, 34, 34), "float32")
+        bb,
+        relax.op.nn.max_pool3d(x0, padding=1),
+        relax.TensorStructInfo((2, 3, 18, 34, 34), "float32"),
     )
     _check_inference(
         bb,
@@ -528,7 +523,7 @@ def test_max_pool3d_infer_struct_info():
     _check_inference(
         bb,
         relax.op.nn.max_pool3d(x6, layout="NCDHW16c", out_layout="NDHWC16c"),
-        relax.TensorStructInfo((2, 32, 32, 32, 4, 16), "float32"),
+        relax.TensorStructInfo((2, 16, 32, 32, 4, 16), "float32"),
     )
     _check_inference(
         bb, relax.op.nn.max_pool3d(x2), relax.TensorStructInfo(dtype="float32", ndim=5)
@@ -611,7 +606,7 @@ def test_max_pool3d_infer_struct_info_ceil_mode():
     _check_inference(
         bb,
         relax.op.nn.max_pool3d(x, pool_size=(5, 3, 3), strides=2, ceil_mode=True),
-        relax.TensorStructInfo((2, 3, 14, 16, 16), "float32"),
+        relax.TensorStructInfo((2, 3, 15, 16, 16), "float32"),
     )
 
 
@@ -627,9 +622,17 @@ def test_max_pool3d_infer_struct_info_ceil_mode_symbolic():
     _check_inference(
         bb,
         relax.op.nn.max_pool3d(
-            x, pool_size=(3, 3, 3), strides=(2, 2, 2), padding=(1, 1, 1), dilation=(2, 2, 2), ceil_mode=True
+            x,
+            pool_size=(3, 3, 3),
+            strides=(2, 2, 2),
+            padding=(1, 1, 1),
+            dilation=(2, 2, 2),
+            ceil_mode=True,
         ),
-        relax.TensorStructInfo((n, c, tvm.tir.floordiv(id_, 2), tvm.tir.floordiv(ih, 2), tvm.tir.floordiv(iw, 2)), "float32"),
+        relax.TensorStructInfo(
+            (n, c, tvm.tir.floordiv(id_, 2), tvm.tir.floordiv(ih, 2), tvm.tir.floordiv(iw, 2)),
+            "float32",
+        ),
     )
 
 
@@ -641,7 +644,9 @@ def test_max_pool3d_infer_struct_info_more_input_dtype():
     _check_inference(
         bb, relax.op.nn.max_pool3d(x0), relax.TensorStructInfo((2, 3, 32, 32, 32), "float16")
     )
-    _check_inference(bb, relax.op.nn.max_pool3d(x1), relax.TensorStructInfo((2, 3, 32, 32, 32), "int8"))
+    _check_inference(
+        bb, relax.op.nn.max_pool3d(x1), relax.TensorStructInfo((2, 3, 32, 32, 32), "int8")
+    )
     _check_inference(
         bb, relax.op.nn.max_pool3d(x2), relax.TensorStructInfo((2, 3, 32, 32, 32), "int64")
     )
@@ -649,7 +654,9 @@ def test_max_pool3d_infer_struct_info_more_input_dtype():
 
 def test_max_pool3d_stride_padding_dilation_int64():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28, 28), "float32"))
-    max_pool3d = relax.op.nn.max_pool3d(x, (3, 3, 3), strides=(1, 1, 1), padding=(1, 1, 1), dilation=(1, 1, 1))
+    max_pool3d = relax.op.nn.max_pool3d(
+        x, (3, 3, 3), strides=(1, 1, 1), padding=(1, 1, 1), dilation=(1, 1, 1)
+    )
 
     assert max_pool3d.attrs.strides[0].dtype == "int64"
     assert max_pool3d.attrs.strides[1].dtype == "int64"

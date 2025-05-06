@@ -95,7 +95,7 @@ StructInfo InferStructInfoPool1D(const Call& call, const BlockBuilder& ctx) {
 
   PrimExpr numerator_w = input_w + padding_w - attrs->dilation[0] * (kernel_w - 1) - 1;
   if (attrs->ceil_mode) {
-    numerator_w += attrs->strides[1] - 1;
+    numerator_w += attrs->strides[0] - 1;
   }
   out_NCW_shape[2] = analyzer->Simplify(floordiv(numerator_w, attrs->strides[0]) + 1);
 
