@@ -626,8 +626,8 @@ TVM_REGISTER_OP("relax.nn.group_norm")
 /* relax.nn.instance_norm */
 TVM_REGISTER_NODE_TYPE(InstanceNormAttrs);
 
-Expr instance_norm(Expr data, Expr gamma, Expr beta,int channel_axis, Array<Integer> axes, double epsilon, bool center,
-                bool scale) {
+Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis,
+                  Array<Integer> axes, double epsilon, bool center, bool scale) {
   ObjectPtr<InstanceNormAttrs> attrs = make_object<InstanceNormAttrs>();
   attrs->channel_axis = std::move(channel_axis);
   attrs->axes = std::move(axes);

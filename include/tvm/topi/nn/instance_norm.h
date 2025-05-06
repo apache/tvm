@@ -50,8 +50,8 @@ using namespace tvm::te;
  * \param tag The tag to mark the operation.
  * \return The normalized tensor, with the same shape as data.
  */
-inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tensor& beta,int channel_axis,
-                            const Array<Integer>& axis, double epsilon,
+inline Tensor instance_norm(const Tensor& data, const Tensor& gamma, const Tensor& beta,
+                            int channel_axis, const Array<Integer>& axis, double epsilon,
                             std::string name = "T_instance_norm", std::string tag = kInjective) {
   const auto& data_type = data->dtype;
   const auto& gamma_type = gamma.defined() ? gamma->dtype : data_type;
