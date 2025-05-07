@@ -40,7 +40,7 @@ namespace relax {
 
 using runtime::Map;
 
-using FCheck = runtime::TypedPackedFunc<bool(Var, Array<Var>, Array<Var>, Map<Var, Expr>)>;
+using FCheck = ffi::TypedFunction<bool(Var, Array<Var>, Array<Var>, Map<Var, Expr>)>;
 
 /*! \brief Group shapes of the RHS matrices by rank. Matrices in a group whose batch sizes
   are compatible are combined.
@@ -117,7 +117,7 @@ Patterns CreatePatterns(const BranchInfo& branch_info) {
 }
 
 /*! \brief Create a rewriter for the given parallel matmul branches. */
-runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> GetRewriter(
+ffi::TypedFunction<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> GetRewriter(
     const Patterns& patterns, const BranchInfo& branch_info, FCheck check) {
   auto batch_dims_compatible = [](size_t rhs_dim, const std::vector<size_t>& indices,
                                   const std::vector<Array<PrimExpr>>& rhs_shapes) {

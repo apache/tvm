@@ -134,7 +134,7 @@ class GradientBasedNode final : public TaskSchedulerNode {
   }
 };
 
-TaskScheduler TaskScheduler::GradientBased(PackedFunc logger, double alpha, int window_size,
+TaskScheduler TaskScheduler::GradientBased(ffi::Function logger, double alpha, int window_size,
                                            support::LinearCongruentialEngine::TRandState seed) {
   ObjectPtr<GradientBasedNode> n = make_object<GradientBasedNode>();
   n->logger = logger;

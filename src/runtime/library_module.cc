@@ -38,7 +38,7 @@ namespace runtime {
 // Library module that exposes symbols from a library.
 class LibraryModuleNode final : public ModuleNode {
  public:
-  explicit LibraryModuleNode(ObjectPtr<Library> lib, PackedFuncWrapper wrapper)
+  explicit LibraryModuleNode(ObjectPtr<Library> lib, FFIFunctionWrapper wrapper)
       : lib_(lib), packed_func_wrapper_(wrapper) {}
 
   const char* type_key() const final { return "library"; }
@@ -48,7 +48,7 @@ class LibraryModuleNode final : public ModuleNode {
     return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
   };
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     TVMFFISafeCallType faddr;
     if (name == runtime::symbol::tvm_module_main) {
       const char* entry_name =
@@ -59,16 +59,16 @@ class LibraryModuleNode final : public ModuleNode {
     } else {
       faddr = reinterpret_cast<TVMFFISafeCallType>(lib_->GetSymbol(name.c_str()));
     }
-    if (faddr == nullptr) return PackedFunc();
+    if (faddr == nullptr) return ffi::Function();
     return packed_func_wrapper_(faddr, sptr_to_self);
   }
 
  private:
   ObjectPtr<Library> lib_;
-  PackedFuncWrapper packed_func_wrapper_;
+  FFIFunctionWrapper packed_func_wrapper_;
 };
 
-PackedFunc WrapPackedFunc(TVMFFISafeCallType faddr, const ObjectPtr<Object>& sptr_to_self) {
+ffi::Function WrapFFIFunction(TVMFFISafeCallType faddr, const ObjectPtr<Object>& sptr_to_self) {
   return ffi::Function::FromPacked([faddr, sptr_to_self](ffi::PackedArgs args, ffi::Any* rv) {
     ICHECK_LT(rv->type_index(), ffi::TypeIndex::kTVMFFIStaticObjectBegin);
     TVM_FFI_CHECK_SAFE_CALL((*faddr)(nullptr, reinterpret_cast<const TVMFFIAny*>(args.data()),
@@ -114,7 +114,7 @@ Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream) {
  * \param dso_ctx_addr the output dso module
  */
 void ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib,
-                       PackedFuncWrapper packed_func_wrapper, runtime::Module* root_module,
+                       FFIFunctionWrapper packed_func_wrapper, runtime::Module* root_module,
                        runtime::ModuleNode** dso_ctx_addr = nullptr) {
   ICHECK(mblob != nullptr);
   uint64_t nbytes = 0;
@@ -180,7 +180,7 @@ void ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib,
   }
 }
 
-Module CreateModuleFromLibrary(ObjectPtr<Library> lib, PackedFuncWrapper packed_func_wrapper) {
+Module CreateModuleFromLibrary(ObjectPtr<Library> lib, FFIFunctionWrapper packed_func_wrapper) {
   InitContextFunctions([lib](const char* fname) { return lib->GetSymbol(fname); });
   auto n = make_object<LibraryModuleNode>(lib, packed_func_wrapper);
   // Load the imported modules

@@ -214,7 +214,7 @@ enum class BaseCheckResult {
    * - (b) We automatically insert match_cast at function boundary, so
    *       we can erase (int)->int argument as (object)->int.
    *       The input shape/type mismatch will be detected by runtime checks at function boundary.
-   *       This behavior is also consistent with the PackedFunc behavior.
+   *       This behavior is also consistent with the ffi::Function behavior.
    *
    * \note This level means there is no problem about static known information.
    *       It is OK for the checker to do best effort and return this value.

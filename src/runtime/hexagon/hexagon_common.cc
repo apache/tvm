@@ -90,7 +90,7 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 }  // namespace detail
 
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon")
-    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       ObjectPtr<Library> n = CreateDSOLibraryObject(args[0].cast<String>());
       *rv = CreateModuleFromLibrary(n);
     });

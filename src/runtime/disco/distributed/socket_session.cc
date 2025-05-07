@@ -42,10 +42,10 @@ class DiscoSocketChannel : public DiscoChannel {
 
   DiscoSocketChannel(DiscoSocketChannel&& other) = delete;
   DiscoSocketChannel(const DiscoSocketChannel& other) = delete;
-  void Send(const TVMArgs& args) { message_queue_.Send(args); }
-  TVMArgs Recv() { return message_queue_.Recv(); }
-  void Reply(const TVMArgs& args) { message_queue_.Send(args); }
-  TVMArgs RecvReply() { return message_queue_.Recv(); }
+  void Send(const ffi::PackedArgs& args) { message_queue_.Send(args); }
+  ffi::PackedArgs Recv() { return message_queue_.Recv(); }
+  void Reply(const ffi::PackedArgs& args) { message_queue_.Send(args); }
+  ffi::PackedArgs RecvReply() { return message_queue_.Recv(); }
 
  private:
   TCPSocket socket_;
@@ -96,7 +96,7 @@ class SocketSessionObj : public BcastSessionObj {
 
   int64_t GetNumWorkers() final { return num_nodes_ * num_workers_per_node_; }
 
-  TVMRetValue DebugGetFromRemote(int64_t reg_id, int worker_id) final {
+  ffi::Any DebugGetFromRemote(int64_t reg_id, int worker_id) final {
     int node_id = worker_id / num_workers_per_node_;
     if (node_id == 0) {
       return local_session_->DebugGetFromRemote(reg_id, worker_id);
@@ -105,10 +105,10 @@ class SocketSessionObj : public BcastSessionObj {
       ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoSocketAction::kSend), worker_id,
                             static_cast<int>(DiscoAction::kDebugGetFromRemote), reg_id, worker_id);
       remote_channels_[node_id - 1]->Send(ffi::PackedArgs(packed_args, 5));
-      TVMArgs args = this->RecvReplyPacked(worker_id);
+      ffi::PackedArgs args = this->RecvReplyPacked(worker_id);
       ICHECK_EQ(args.size(), 2);
       ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) == DiscoAction::kDebugGetFromRemote);
-      TVMRetValue result;
+      ffi::Any result;
       result = args[1];
       return result;
     }
@@ -131,14 +131,14 @@ class SocketSessionObj : public BcastSessionObj {
                               value);
         remote_channels_[node_id - 1]->Send(ffi::PackedArgs(packed_args, 6));
       }
-      TVMRetValue result;
-      TVMArgs args = this->RecvReplyPacked(worker_id);
+      ffi::Any result;
+      ffi::PackedArgs args = this->RecvReplyPacked(worker_id);
       ICHECK_EQ(args.size(), 1);
       ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) == DiscoAction::kDebugSetRegister);
     }
   }
 
-  void BroadcastPacked(const TVMArgs& args) final {
+  void BroadcastPacked(const ffi::PackedArgs& args) final {
     local_session_->BroadcastPacked(args);
     std::vector<AnyView> packed_args(args.size() + 2);
     ffi::PackedArgs::Fill(packed_args.data(), static_cast<int>(DiscoSocketAction::kSend), -1);
@@ -148,7 +148,7 @@ class SocketSessionObj : public BcastSessionObj {
     }
   }
 
-  void SendPacked(int worker_id, const TVMArgs& args) final {
+  void SendPacked(int worker_id, const ffi::PackedArgs& args) final {
     int node_id = worker_id / num_workers_per_node_;
     if (node_id == 0) {
       local_session_->SendPacked(worker_id, args);
@@ -161,7 +161,7 @@ class SocketSessionObj : public BcastSessionObj {
     remote_channels_[node_id - 1]->Send(ffi::PackedArgs(packed_args.data(), packed_args.size()));
   }
 
-  TVMArgs RecvReplyPacked(int worker_id) final {
+  ffi::PackedArgs RecvReplyPacked(int worker_id) final {
     int node_id = worker_id / num_workers_per_node_;
     if (node_id == 0) {
       return local_session_->RecvReplyPacked(worker_id);
@@ -220,7 +220,7 @@ class RemoteSocketSession {
                  << ", errno = " << Socket::GetLastErrorCode();
     }
     channel_ = std::make_unique<DiscoSocketChannel>(socket_);
-    TVMArgs metadata = channel_->Recv();
+    ffi::PackedArgs metadata = channel_->Recv();
     ICHECK_EQ(metadata.size(), 4);
     num_nodes_ = metadata[0].cast<int>();
     num_workers_per_node_ = metadata[1].cast<int>();
@@ -232,7 +232,7 @@ class RemoteSocketSession {
 
   void MainLoop() {
     while (true) {
-      TVMArgs args = channel_->Recv();
+      ffi::PackedArgs args = channel_->Recv();
       DiscoSocketAction action = static_cast<DiscoSocketAction>(args[0].cast<int>());
       int worker_id = args[1].cast<int>();
       int local_worker_id = worker_id - node_id_ * num_workers_per_node_;

@@ -50,7 +50,7 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
         }
         std::ostringstream os;
         os << "Unknown schedule rule \"" << ann.value() << "\" for target keys \"" << keys
-           << "\". Checked PackedFuncs:";
+           << "\". Checked ffi::Functions:";
         for (const String& key : keys) {
           os << "\n  " << GetCustomRuleName(ann.value(), key);
         }

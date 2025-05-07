@@ -128,7 +128,7 @@ class RPCEndpoint {
    *
    * \param session_constructor_args Optional sequence of the remote sesssion constructor.
    */
-  void InitRemoteSession(TVMArgs session_constructor_args);
+  void InitRemoteSession(ffi::PackedArgs session_constructor_args);
 
   /*!
    * \brief Call into remote function
@@ -168,7 +168,7 @@ class RPCEndpoint {
    * \return The returned remote value.
    */
   template <typename... Args>
-  inline TVMRetValue SysCallRemote(RPCCode fcode, Args&&... args);
+  inline ffi::Any SysCallRemote(RPCCode fcode, Args&&... args);
   /*!
    * \brief Create a RPC session with given channel.
    * \param channel The communication channel.
@@ -180,7 +180,7 @@ class RPCEndpoint {
    */
   static std::shared_ptr<RPCEndpoint> Create(std::unique_ptr<RPCChannel> channel, std::string name,
                                              std::string remote_key,
-                                             TypedPackedFunc<void()> fcleanup = nullptr);
+                                             ffi::TypedFunction<void()> fcleanup = nullptr);
 
  private:
   class EventHandler;
@@ -199,13 +199,13 @@ class RPCEndpoint {
   // Event handler.
   std::shared_ptr<EventHandler> handler_;
   // syscall remote with specified function code.
-  PackedFunc syscall_remote_;
+  ffi::Function syscall_remote_;
   // The name of the session.
   std::string name_;
   // The remote key
   std::string remote_key_;
   // Invoked when the RPC session is terminated
-  TypedPackedFunc<void()> fcleanup_;
+  ffi::TypedFunction<void()> fcleanup_;
 };
 
 /*!
@@ -217,7 +217,7 @@ std::shared_ptr<RPCSession> CreateClientSession(std::shared_ptr<RPCEndpoint> end
 
 // implementation of inline functions
 template <typename... Args>
-inline TVMRetValue RPCEndpoint::SysCallRemote(RPCCode code, Args&&... args) {
+inline ffi::Any RPCEndpoint::SysCallRemote(RPCCode code, Args&&... args) {
   return syscall_remote_(static_cast<int>(code), std::forward<Args>(args)...);
 }
 

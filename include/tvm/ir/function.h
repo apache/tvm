@@ -50,16 +50,16 @@ enum class CallingConv : int {
    */
   kDefault = 0,
   /*!
-   * \brief PackedFunc that exposes a CPackedFunc signature.
+   * \brief ffi::Function that exposes a Cffi::Function signature.
    *
-   * - Calling by PackedFunc calling convention.
-   * - Implementation: Expose a function with the CPackedFunc signature.
+   * - Calling by ffi::Function calling convention.
+   * - Implementation: Expose a function with the Cffi::Function signature.
    */
   kCPackedFunc = 1,
   /*!
    * \brief Device kernel launch
    *
-   * - Call by PackedFunc calling convention.
+   * - Call by ffi::Function calling convention.
    * - Implementation: defined by device runtime(e.g. runtime/cuda)
    */
   kDeviceKernelLaunch = 2,

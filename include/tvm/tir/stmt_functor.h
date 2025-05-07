@@ -336,8 +336,7 @@ class StmtExprMutator : public StmtMutator, public ExprMutator {
  *          If it is not null, preorder/postorder will only be called
  *          when the IRNode's type key is in the list.
  */
-TVM_DLL Stmt IRTransform(Stmt stmt, const runtime::PackedFunc& preorder,
-                         const runtime::PackedFunc& postorder,
+TVM_DLL Stmt IRTransform(Stmt stmt, const ffi::Function& preorder, const ffi::Function& postorder,
                          Optional<Array<String>> only_enable = NullOpt);
 
 /*!

@@ -33,9 +33,9 @@
 
 namespace tvm {
 
-using runtime::PackedFunc;
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
+using ffi::Any;
+using ffi::Function;
+using ffi::PackedArgs;
 using tir::FLowerIntrinsic;
 
 using OpRegistry = AttrRegistry<OpRegEntry, Op>;
@@ -70,7 +70,7 @@ void OpRegEntry::reset_attr(const std::string& attr_name) {
   OpRegistry::Global()->ResetAttr(attr_name, op_);
 }
 
-void OpRegEntry::UpdateAttr(const String& key, TVMRetValue value, int plevel) {
+void OpRegEntry::UpdateAttr(const String& key, ffi::Any value, int plevel) {
   OpRegistry::Global()->UpdateAttr(key, op_, value, plevel);
 }
 
@@ -81,9 +81,9 @@ TVM_REGISTER_GLOBAL("ir.ListOpNames").set_body_typed([]() {
 
 TVM_REGISTER_GLOBAL("ir.GetOp").set_body_typed([](String name) -> Op { return Op::Get(name); });
 
-TVM_REGISTER_GLOBAL("ir.OpGetAttr").set_body_typed([](Op op, String attr_name) -> TVMRetValue {
-  auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
-  TVMRetValue rv;
+TVM_REGISTER_GLOBAL("ir.OpGetAttr").set_body_typed([](Op op, String attr_name) -> ffi::Any {
+  auto op_map = Op::GetAttrMap<ffi::Any>(attr_name);
+  ffi::Any rv;
   if (op_map.count(op)) {
     rv = op_map[op];
   }
@@ -95,7 +95,7 @@ TVM_REGISTER_GLOBAL("ir.OpHasAttr").set_body_typed([](Op op, String attr_name) -
 });
 
 TVM_REGISTER_GLOBAL("ir.OpSetAttr")
-    .set_body_typed([](Op op, String attr_name, runtime::TVMArgValue value, int plevel) {
+    .set_body_typed([](Op op, String attr_name, ffi::AnyView value, int plevel) {
       auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
       reg.set_attr(attr_name, value, plevel);
     });
@@ -134,7 +134,7 @@ TVM_REGISTER_GLOBAL("ir.OpSetAttrsTypeKey").set_body_typed([](Op op, String key)
 });
 
 TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
-    .set_body_typed([](String op_name, String attr_key, runtime::TVMArgValue value, int plevel) {
+    .set_body_typed([](String op_name, String attr_key, ffi::AnyView value, int plevel) {
       auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
       // enable resgiteration and override of certain properties
       if (attr_key == "num_inputs" && plevel > 128) {
@@ -147,13 +147,13 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
     });
 
 TVM_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
-    .set_body_typed([](String name, PackedFunc f, String target, int plevel) {
+    .set_body_typed([](String name, ffi::Function f, String target, int plevel) {
       tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(target + ".FLowerIntrinsic", f,
                                                                      plevel);
     });
 
 ObjectPtr<Object> CreateOp(const std::string& name) {
-  // Hack use TVMRetValue as exchange
+  // Hack use ffi::Any as exchange
   auto op = Op::Get(name);
   ICHECK(op.defined()) << "Cannot find op \'" << name << '\'';
   return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(op);

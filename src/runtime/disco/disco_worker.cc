@@ -36,7 +36,7 @@ TVM_DLL DiscoWorker* DiscoWorker::ThreadLocal() {
 
 void DiscoWorker::SetRegister(int reg_id, AnyView value) {
   ICHECK(0 <= reg_id && reg_id < static_cast<int>(register_file.size()));
-  TVMRetValue& rv = register_file.at(reg_id);
+  ffi::Any& rv = register_file.at(reg_id);
   if (rv.type_index() == ffi::TypeIndex::kTVMFFINDArray &&
       value.type_index() == ffi::TypeIndex::kTVMFFINDArray) {
     NDArray dst = rv.cast<NDArray>();
@@ -52,7 +52,7 @@ struct DiscoWorker::Impl {
     ThreadLocalDiscoWorker::Get()->worker = self;
     using namespace tvm;
     while (true) {
-      TVMArgs args = self->channel->Recv();
+      ffi::PackedArgs args = self->channel->Recv();
       DiscoAction action = static_cast<DiscoAction>(args[0].cast<int>());
       int64_t reg_id = args[1].cast<int64_t>();
       switch (action) {
@@ -71,7 +71,7 @@ struct DiscoWorker::Impl {
         case DiscoAction::kCallPacked: {
           int func_reg_id = args[2].cast<int>();
           CHECK_LT(func_reg_id, self->register_file.size());
-          PackedFunc func = GetReg(self, func_reg_id).cast<PackedFunc>();
+          ffi::Function func = GetReg(self, func_reg_id).cast<ffi::Function>();
           CHECK(func.defined());
           CallPacked(self, reg_id, func, args.Slice(3));
           break;
@@ -147,7 +147,7 @@ struct DiscoWorker::Impl {
 
   static void DebugGetFromRemote(DiscoWorker* self, int reg_id, int worker_id) {
     if (worker_id == self->worker_id) {
-      TVMRetValue rv = GetReg(self, reg_id);
+      ffi::Any rv = GetReg(self, reg_id);
       if (rv.as<ObjectRef>()) {
         rv = DiscoDebugObject::Wrap(rv);
       }
@@ -167,8 +167,8 @@ struct DiscoWorker::Impl {
     }
   }
 
-  static void CallPacked(DiscoWorker* self, int64_t ret_reg_id, PackedFunc func,
-                         const TVMArgs& args) {
+  static void CallPacked(DiscoWorker* self, int64_t ret_reg_id, ffi::Function func,
+                         const ffi::PackedArgs& args) {
     // NOTE: this action is not safe unless we know args is not
     // used else where in this case it is oK
     AnyView* args_vec = const_cast<AnyView*>(args.data());
@@ -179,12 +179,12 @@ struct DiscoWorker::Impl {
         args_vec[i] = GetReg(self, dref->reg_id);
       }
     }
-    TVMRetValue rv;
+    ffi::Any rv;
     func.CallPacked(ffi::PackedArgs(args_vec, args.size()), &rv);
     GetReg(self, ret_reg_id) = std::move(rv);
   }
 
-  static TVMRetValue& GetReg(DiscoWorker* self, int64_t reg_id) {
+  static ffi::Any& GetReg(DiscoWorker* self, int64_t reg_id) {
     if (reg_id >= static_cast<int64_t>(self->register_file.size())) {
       self->register_file.resize(reg_id + 1);
     }

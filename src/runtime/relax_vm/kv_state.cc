@@ -38,7 +38,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.kv_state_remove_sequence")
 TVM_REGISTER_GLOBAL("vm.builtin.kv_state_fork_sequence").set_body_method(&KVStateObj::ForkSequence);
 TVM_REGISTER_GLOBAL("vm.builtin.kv_state_popn").set_body_method(&KVStateObj::PopN);
 TVM_REGISTER_GLOBAL("vm.builtin.kv_state_begin_forward")
-    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       CHECK(args.size() == 3 || args.size() == 4)
           << "KVState BeginForward only accepts 3 or 4 arguments";
       KVState kv_state = args[0].cast<KVState>();

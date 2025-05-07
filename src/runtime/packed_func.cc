@@ -18,7 +18,7 @@
  */
 /*
  * \file src/runtime/packed_func.cc
- * \brief Implementation of non-inlinable PackedFunc pieces.
+ * \brief Implementation of non-inlinable ffi::Function pieces.
  */
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -26,7 +26,7 @@
 namespace tvm {
 namespace runtime {
 
-TVM_REGISTER_OBJECT_TYPE(PackedFuncObj);
+TVM_REGISTER_OBJECT_TYPE(ffi::FunctionObj);
 
 }  // namespace runtime
 }  // namespace tvm

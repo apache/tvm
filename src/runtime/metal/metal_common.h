@@ -162,7 +162,7 @@ class MetalWorkspace final : public DeviceAPI {
   }
   // override device API
   void SetDevice(Device dev) final;
-  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
+  void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final;
   void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final;
   void FreeDataSpace(Device dev, void* ptr) final;
   TVMStreamHandle CreateStream(Device dev) final;

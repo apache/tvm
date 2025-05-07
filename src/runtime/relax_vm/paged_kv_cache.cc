@@ -241,11 +241,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::vector<NDArray> tree_attn_mask_view_;
   std::vector<NDArray> tree_attn_mn_indptr_view_;
 
-  Optional<PackedFunc> f_transpose_append_mha_;
-  Optional<PackedFunc> f_transpose_append_mla_;
-  Optional<PackedFunc> f_transfer_kv_;
-  Optional<PackedFunc> f_transfer_kv_page_to_page_ = NullOpt;
-  PackedFunc f_compact_copy_;
+  Optional<ffi::Function> f_transpose_append_mha_;
+  Optional<ffi::Function> f_transpose_append_mla_;
+  Optional<ffi::Function> f_transfer_kv_;
+  Optional<ffi::Function> f_transfer_kv_page_to_page_ = NullOpt;
+  ffi::Function f_compact_copy_;
   std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged_;
   std::unique_ptr<PagedPrefillFunc> f_attention_prefill_;
   std::unique_ptr<PagedDecodeFunc> f_attention_decode_;
@@ -254,10 +254,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::unique_ptr<PagedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_paged_kv_;
   std::unique_ptr<RaggedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_;
   std::unique_ptr<PagedPrefillFunc> f_mla_prefill_;
-  Array<PackedFunc> f_merge_inplace_;
-  PackedFunc f_split_rotary_;
-  PackedFunc f_copy_single_page_;
-  Optional<PackedFunc> f_debug_get_kv_;
+  Array<ffi::Function> f_merge_inplace_;
+  ffi::Function f_split_rotary_;
+  ffi::Function f_copy_single_page_;
+  Optional<ffi::Function> f_debug_get_kv_;
 
   /*! \brief The device this PagedKVCache runs on. */
   Device device_;
@@ -277,16 +277,17 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       int64_t num_total_pages, int64_t prefill_chunk_size, bool support_sliding_window,
       RoPEMode rope_mode, double rotary_scale, double rotary_theta,
       Optional<NDArray> rope_ext_factors, bool enable_kv_transfer, DLDataType dtype, Device device,
-      Optional<PackedFunc> f_transpose_append_mha, Optional<PackedFunc> f_transpose_append_mla,
-      PackedFunc f_compact_copy, std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged,
+      Optional<ffi::Function> f_transpose_append_mha,
+      Optional<ffi::Function> f_transpose_append_mla, ffi::Function f_compact_copy,
+      std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged,
       std::unique_ptr<PagedPrefillFunc> f_attention_prefill,
       std::unique_ptr<PagedDecodeFunc> f_attention_decode,
       std::unique_ptr<PagedPrefillFunc> f_attention_prefill_sliding_window,
       std::unique_ptr<PagedDecodeFunc> f_attention_decode_sliding_window,
       std::unique_ptr<PagedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_paged_kv,
       std::unique_ptr<RaggedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask,
-      std::unique_ptr<PagedPrefillFunc> f_mla_prefill, Array<PackedFunc> f_merge_inplace,
-      PackedFunc f_split_rotary, PackedFunc f_copy_single_page, PackedFunc f_debug_get_kv)
+      std::unique_ptr<PagedPrefillFunc> f_mla_prefill, Array<ffi::Function> f_merge_inplace,
+      ffi::Function f_split_rotary, ffi::Function f_copy_single_page, ffi::Function f_debug_get_kv)
       : page_size_(page_size),
         num_layers_(num_layers),
         layer_id_begin_offset_(layer_id_begin_offset),
@@ -2311,8 +2312,8 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
       double rotary_theta = args[10].cast<double>();
       Optional<NDArray> rope_ext_factors = NullOpt;  // args[11]
       NDArray init = args[12].cast<NDArray>();
-      Optional<PackedFunc> f_transpose_append_mha = NullOpt;  // args[13]
-      Optional<PackedFunc> f_transpose_append_mla = NullOpt;  // args[14]
+      Optional<ffi::Function> f_transpose_append_mha = NullOpt;  // args[13]
+      Optional<ffi::Function> f_transpose_append_mla = NullOpt;  // args[14]
       std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged =
           ConvertRaggedPrefillFunc(args[15].cast<Array<ObjectRef>>(), AttnKind::kMHA);
       std::unique_ptr<PagedPrefillFunc> f_attention_prefill =
@@ -2329,17 +2330,17 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
           ConvertRaggedPrefillTreeMaskFunc(args[21].cast<Array<ObjectRef>>(), AttnKind::kMHA);
       std::unique_ptr<PagedPrefillFunc> f_mla_prefill =
           ConvertPagedPrefillFunc(args[22].cast<Array<ObjectRef>>(), AttnKind::kMLA);
-      Array<PackedFunc> f_merge_inplace = args[23].cast<Array<PackedFunc>>();
-      PackedFunc f_split_rotary = args[24].cast<PackedFunc>();
-      PackedFunc f_copy_single_page = args[25].cast<PackedFunc>();
-      PackedFunc f_debug_get_kv = args[26].cast<PackedFunc>();
-      PackedFunc f_compact_copy = args[27].cast<PackedFunc>();
+      Array<ffi::Function> f_merge_inplace = args[23].cast<Array<ffi::Function>>();
+      ffi::Function f_split_rotary = args[24].cast<ffi::Function>();
+      ffi::Function f_copy_single_page = args[25].cast<ffi::Function>();
+      ffi::Function f_debug_get_kv = args[26].cast<ffi::Function>();
+      ffi::Function f_compact_copy = args[27].cast<ffi::Function>();
 
       if (auto opt_nd = args[11].as<NDArray>()) {
         rope_ext_factors = opt_nd.value();
       }
-      auto f_convert_optional_packed_func = [&args](int arg_idx) -> Optional<PackedFunc> {
-        if (auto opt_func = args[arg_idx].as<PackedFunc>()) {
+      auto f_convert_optional_packed_func = [&args](int arg_idx) -> Optional<ffi::Function> {
+        if (auto opt_func = args[arg_idx].as<ffi::Function>()) {
           return opt_func.value();
         }
         return NullOpt;
@@ -2366,7 +2367,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
         num_total_pages += reserved_num_seqs * 2;
       }
       // NOTE: We will remove this legacy construction after finishing the transition phase.
-      // Some `PackedFunc()` here are placeholders that will be filled.
+      // Some `ffi::Function()` here are placeholders that will be filled.
       ObjectPtr<PagedAttentionKVCacheObj> n = make_object<PagedAttentionKVCacheObj>(
           page_size, num_layers, layer_id_begin_offset, layer_id_end_offset, num_qo_heads,
           num_kv_heads, qk_head_dim, v_head_dim, attn_kinds_vec, reserved_num_seqs, num_total_pages,

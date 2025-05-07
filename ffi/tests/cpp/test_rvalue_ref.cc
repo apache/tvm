@@ -31,7 +31,7 @@ using namespace tvm::ffi::testing;
 
 TEST(RValueRef, Basic) {
   auto append =
-      Function::FromUnpacked([](RValueRef<Array<int>> ref, int val, bool is_unique) -> Array<int> {
+      Function::FromTyped([](RValueRef<Array<int>> ref, int val, bool is_unique) -> Array<int> {
         Array<int> arr = *std::move(ref);
         EXPECT_EQ(arr.unique(), is_unique);
         arr.push_back(val);
@@ -48,7 +48,7 @@ TEST(RValueRef, Basic) {
 
 TEST(RValueRef, ParamChecking) {
   // try decution
-  Function fadd1 = Function::FromUnpacked([](TInt a) -> int64_t { return a->value + 1; });
+  Function fadd1 = Function::FromTyped([](TInt a) -> int64_t { return a->value + 1; });
 
   // convert that triggers error
   EXPECT_THROW(
@@ -65,7 +65,7 @@ TEST(RValueRef, ParamChecking) {
       },
       ::tvm::ffi::Error);
 
-  Function fadd2 = Function::FromUnpacked([](RValueRef<Array<int>> a) -> int {
+  Function fadd2 = Function::FromTyped([](RValueRef<Array<int>> a) -> int {
     Array<int> arr = *std::move(a);
     return arr[0] + 1;
   });
@@ -86,7 +86,7 @@ TEST(RValueRef, ParamChecking) {
       },
       ::tvm::ffi::Error);
   // triggered a rvalue based conversion
-  Function func3 = Function::FromUnpacked([](RValueRef<TPrimExpr> a) -> String {
+  Function func3 = Function::FromTyped([](RValueRef<TPrimExpr> a) -> String {
     TPrimExpr expr = *std::move(a);
     return expr->dtype;
   });

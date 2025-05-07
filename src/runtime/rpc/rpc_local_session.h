@@ -64,7 +64,7 @@ class LocalSession : public RPCSession {
    * \param rv The return value.
    * \param encode_return The encoding function.
    */
-  void EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_return);
+  void EncodeReturn(ffi::Any rv, const FEncodeReturn& encode_return);
 };
 
 }  // namespace runtime

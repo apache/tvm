@@ -83,7 +83,7 @@ class WrappedPythonObject {
  * \brief Register a function globally.
  * \code
  *   TVM_REGISTER_GLOBAL("MyPrint")
- *   .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+ *   .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
  *   });
  * \endcode
  */

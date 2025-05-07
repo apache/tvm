@@ -227,7 +227,7 @@ class IRDocsifierNode : public Object {
    * \param root The root of the AST.
    * \param is_var A function that returns true if the given object is considered a variable.
    */
-  void SetCommonPrefix(const ObjectRef& root, runtime::TypedPackedFunc<bool(ObjectRef)> is_var);
+  void SetCommonPrefix(const ObjectRef& root, ffi::TypedFunction<bool(ObjectRef)> is_var);
   /*!
    * \brief Transform the input object into TDoc.
    * \param obj The object to be transformed.

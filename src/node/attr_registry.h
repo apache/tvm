@@ -93,7 +93,7 @@ class AttrRegistry {
    * \param plevel The support level.
    */
   void UpdateAttr(const String& attr_name, const KeyType& key, Any value, int plevel) {
-    using runtime::TVMRetValue;
+    using ffi::Any;
     auto& op_map = attrs_[attr_name];
     if (op_map == nullptr) {
       op_map.reset(new AttrRegistryMapContainerMap<KeyType>());
@@ -104,7 +104,7 @@ class AttrRegistry {
     if (op_map->data_.size() <= index) {
       op_map->data_.resize(index + 1, std::make_pair(Any(), 0));
     }
-    std::pair<TVMRetValue, int>& p = op_map->data_[index];
+    std::pair<ffi::Any, int>& p = op_map->data_[index];
     ICHECK(p.second != plevel) << "Attribute " << attr_name << " of " << key->AttrRegistryName()
                                << " is already registered with same plevel=" << plevel;
     ICHECK(value != nullptr) << "Registered packed_func is Null for " << attr_name
@@ -126,7 +126,7 @@ class AttrRegistry {
     }
     uint32_t index = key->AttrRegistryIndex();
     if (op_map->data_.size() > index) {
-      op_map->data_[index] = std::make_pair(TVMRetValue(), 0);
+      op_map->data_[index] = std::make_pair(ffi::Any(), 0);
     }
   }
 

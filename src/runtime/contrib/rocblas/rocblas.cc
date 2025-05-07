@@ -66,7 +66,7 @@ typedef dmlc::ThreadLocalStore<RocBlasThreadEntry> RocBlasThreadStore;
 
 // matrix multiplication for row major
 TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto B = args[1].cast<DLTensor*>();
       auto C = args[2].cast<DLTensor*>();
@@ -104,7 +104,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.batch_matmul")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto B = args[1].cast<DLTensor*>();
       auto C = args[2].cast<DLTensor*>();

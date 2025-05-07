@@ -156,7 +156,7 @@ class ReflectionVTable {
    * \param kwargs the arguments in format key1, value1, ..., key_n, value_n.
    * \return The created object.
    */
-  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const runtime::TVMArgs& kwargs);
+  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const ffi::PackedArgs& kwargs);
   /*!
    * \brief Create an object by giving kwargs about its fields.
    *
@@ -172,7 +172,7 @@ class ReflectionVTable {
    * \return The corresponding attribute value.
    * \note This function will throw an exception if the object does not contain the field.
    */
-  TVM_DLL runtime::TVMRetValue GetAttr(Object* self, const String& attr_name) const;
+  TVM_DLL ffi::Any GetAttr(Object* self, const String& attr_name) const;
 
   /*!
    * \brief List all the fields in the object.

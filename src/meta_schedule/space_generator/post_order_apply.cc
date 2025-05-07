@@ -30,7 +30,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   /*!
    * \brief Optional block names to target. If not specified all blocks will have spaces generated.
    */
-  runtime::PackedFunc f_block_filter_ = nullptr;
+  ffi::Function f_block_filter_ = nullptr;
   /*! \brief The random state. -1 means using random number. */
   TRandState rand_state_ = -1;
 
@@ -103,7 +103,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(PostOrderApplyNode, SpaceGeneratorNode);
 };
 
-SpaceGenerator SpaceGenerator::PostOrderApply(runtime::PackedFunc f_block_filter,
+SpaceGenerator SpaceGenerator::PostOrderApply(ffi::Function f_block_filter,
                                               Optional<Array<ScheduleRule>> sch_rules,
                                               Optional<Array<Postproc>> postprocs,
                                               Optional<Map<Mutator, FloatImm>> mutator_probs) {

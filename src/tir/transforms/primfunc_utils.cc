@@ -98,7 +98,7 @@ transform::Pass AnnotateEntryFunc() {
   return tvm::transform::CreateModulePass(fpass, 0, "tir.AnnotateEntryFunc", {});
 }
 
-transform::Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond) {
+transform::Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond) {
   auto fpass = [fcond](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
     if (fcond(f)) {
       return f;

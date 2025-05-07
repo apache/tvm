@@ -90,7 +90,7 @@ inline Array<Tensor> make_extern(const Array<Array<PrimExpr>>& out_shapes,
 
 /*!
  * \brief This function is used to create a DLTensor structure on the stack to
- * be able to pass a symbolic buffer as arguments to TVM PackedFunc
+ * be able to pass a symbolic buffer as arguments to TVM ffi::Function
  *
  * \param buf The buffer to pack
  *
@@ -117,10 +117,10 @@ inline PrimExpr pack_buffer(Buffer buf) {
 }
 
 /*!
- * \brief Construct an Expr representing the invocation of a PackedFunc
+ * \brief Construct an Expr representing the invocation of a ffi::Function
  *
- * \param args An array containing the registered name of the PackedFunc followed
- * by the arguments to pass to the PackedFunc when called. The first element of the
+ * \param args An array containing the registered name of the ffi::Function followed
+ * by the arguments to pass to the ffi::Function when called. The first element of the
  * array must be a constant string expression.
  *
  * \return An expression representing the invocation

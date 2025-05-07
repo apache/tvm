@@ -110,12 +110,12 @@ class RunnerFutureNode : public runtime::Object {
    * \brief The function type to check whether the runner has finished.
    * \return Whether the runner's output is ready.
    */
-  using FDone = runtime::TypedPackedFunc<bool()>;
+  using FDone = ffi::TypedFunction<bool()>;
   /*!
    * \brief The function type to fetch runner output if it is ready.
    * \return The runner's output.
    */
-  using FResult = runtime::TypedPackedFunc<RunnerResult()>;
+  using FResult = ffi::TypedFunction<RunnerResult()>;
 
   /*! \brief The packed function to check whether the runner has finished. */
   FDone f_done;
@@ -176,7 +176,7 @@ class RunnerNode : public runtime::Object {
    * \return The runner futures.
    * \sa RunnerFuture
    */
-  using FRun = runtime::TypedPackedFunc<Array<RunnerFuture>(Array<RunnerInput>)>;
+  using FRun = ffi::TypedFunction<Array<RunnerFuture>(Array<RunnerInput>)>;
 
   /*! \brief Default destructor */
   virtual ~RunnerNode() = default;

@@ -65,7 +65,7 @@ class ConstLoaderModuleNode : public ModuleNode {
     }
   }
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     VLOG(1) << "ConstLoaderModuleNode::GetFunction(" << name << ")";
     // Initialize and memoize the module.
     // Usually, we have some warmup runs. The module initialization should be
@@ -76,7 +76,7 @@ class ConstLoaderModuleNode : public ModuleNode {
     }
 
     if (name == "get_const_var_ndarray") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         Map<String, ffi::Any> ret_map;
         for (const auto& kv : const_var_ndarray_) {
           ret_map.Set(kv.first, kv.second);
@@ -90,10 +90,10 @@ class ConstLoaderModuleNode : public ModuleNode {
     // symobl lookup overhead should be minimal.
     ICHECK(!this->imports().empty());
     for (Module it : this->imports()) {
-      PackedFunc pf = it.GetFunction(name);
+      ffi::Function pf = it.GetFunction(name);
       if (pf != nullptr) return pf;
     }
-    return PackedFunc(nullptr);
+    return ffi::Function(nullptr);
   }
 
   const char* type_key() const final { return "const_loader"; }
@@ -133,7 +133,7 @@ class ConstLoaderModuleNode : public ModuleNode {
    *  found module accordingly by passing the needed constants into it.
    */
   void InitSubModule(const std::string& symbol) {
-    PackedFunc init(nullptr);
+    ffi::Function init(nullptr);
     for (Module it : this->imports()) {
       // Get the initialization function from the imported modules.
       std::string init_name = "__init_" + symbol;

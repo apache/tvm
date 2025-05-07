@@ -42,7 +42,7 @@ class Schedule;
  * \param decision Decisions made on the instruction
  * \return The functor returns an array of output random variables
  */
-using FInstructionApply = runtime::TypedPackedFunc<Array<Any>(
+using FInstructionApply = ffi::TypedFunction<Array<Any>(
     Schedule sch, const Array<Any>& inputs, const Array<Any>& attrs, const Any& decision)>;
 
 /*!
@@ -54,8 +54,8 @@ using FInstructionApply = runtime::TypedPackedFunc<Array<Any>(
  * \return A string representing the python api call
  */
 using FInstructionAsPython =
-    runtime::TypedPackedFunc<String(const Array<Any>& inputs, const Array<Any>& attrs,
-                                    const Any& decision, const Array<String>& outputs)>;
+    ffi::TypedFunction<String(const Array<Any>& inputs, const Array<Any>& attrs,
+                              const Any& decision, const Array<String>& outputs)>;
 
 /*!
  * \brief Type of the functor that serialize its attributes to JSON
@@ -63,7 +63,7 @@ using FInstructionAsPython =
  * \return An array, serialized attributes
  * \note This functor is nullable
  */
-using FInstructionAttrsAsJSON = runtime::TypedPackedFunc<ObjectRef(Array<Any> attrs)>;
+using FInstructionAttrsAsJSON = ffi::TypedFunction<ObjectRef(Array<Any> attrs)>;
 
 /*!
  * \brief Type of the functor that deserialize its attributes from JSON
@@ -71,7 +71,7 @@ using FInstructionAttrsAsJSON = runtime::TypedPackedFunc<ObjectRef(Array<Any> at
  * \return An array, deserialized attributes
  * \note This functor is nullable
  */
-using FInstructionAttrsFromJSON = runtime::TypedPackedFunc<Array<Any>(ObjectRef json_attrs)>;
+using FInstructionAttrsFromJSON = ffi::TypedFunction<Array<Any>(ObjectRef json_attrs)>;
 
 /*!
  * \brief Kind of an instruction, e.g. Split, Reorder, etc.

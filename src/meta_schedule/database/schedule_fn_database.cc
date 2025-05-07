@@ -25,7 +25,7 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
  public:
   explicit ScheduleFnDatabaseNode(String mod_eq_name = "structural") : DatabaseNode(mod_eq_name) {}
 
-  runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn;
+  ffi::TypedFunction<bool(tir::Schedule)> schedule_fn;
 
   void VisitAttrs(AttrVisitor* v) {
     // `schedule_fn` is not visited.
@@ -91,7 +91,7 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
   }
 };
 
-Database Database::ScheduleFnDatabase(runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn,
+Database Database::ScheduleFnDatabase(ffi::TypedFunction<bool(tir::Schedule)> schedule_fn,
                                       String mod_eq_name) {
   ObjectPtr<ScheduleFnDatabaseNode> n = make_object<ScheduleFnDatabaseNode>(mod_eq_name);
   n->schedule_fn = std::move(schedule_fn);

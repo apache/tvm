@@ -168,17 +168,19 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
       packed_args[i] = tuple_args[i];
     }
 
-    TVMRetValue capture_func_rv;
+    ffi::Any capture_func_rv;
     // Run the function without CUDA graph. This is a warm up step to do necessary initialization
     // of the CUDA module such as loading module data, setting kernel attributes.
-    vm->InvokeClosurePacked(capture_func, TVMArgs(packed_args.data(), nargs), &capture_func_rv);
+    vm->InvokeClosurePacked(capture_func, ffi::PackedArgs(packed_args.data(), nargs),
+                            &capture_func_rv);
 
     // Run the graph in capture mode
     cudaGraph_t graph;
 
     {
       CUDACaptureStream capture_stream(&graph);
-      vm->InvokeClosurePacked(capture_func, TVMArgs(packed_args.data(), nargs), &capture_func_rv);
+      vm->InvokeClosurePacked(capture_func, ffi::PackedArgs(packed_args.data(), nargs),
+                              &capture_func_rv);
     }
 
     CUDAGraphCapturedState entry;
@@ -205,8 +207,8 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
     if (auto it = alloc_cache_.find(entry_index); it != alloc_cache_.end()) {
       return it->second;
     }
-    TVMRetValue alloc_func_rv;
-    vm->InvokeClosurePacked(alloc_func, TVMArgs(nullptr, 0), &alloc_func_rv);
+    ffi::Any alloc_func_rv;
+    vm->InvokeClosurePacked(alloc_func, ffi::PackedArgs(nullptr, 0), &alloc_func_rv);
     ObjectRef alloc_result = alloc_func_rv.cast<ObjectRef>();
     alloc_cache_[entry_index] = alloc_result;
     return alloc_result;
@@ -240,7 +242,7 @@ class CUDAGraphExtension : public VMExtension {
 };
 
 TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
-    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       ICHECK(args.size() == 5 || args.size() == 4);
       VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
       auto extension = vm->GetOrCreateExtension<CUDAGraphExtension>();
@@ -255,7 +257,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.get_cached_alloc")
-    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       ICHECK_EQ(args.size(), 3);
       VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
       auto extension = vm->GetOrCreateExtension<CUDAGraphExtension>();

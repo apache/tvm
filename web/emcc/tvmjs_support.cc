@@ -20,7 +20,7 @@
 /*
  * \file tvmjs_support.cc
  * \brief Support functions to be linked with wasm_runtime to provide
- *        PackedFunc callbacks in tvmjs.
+ *        ffi::Function callbacks in tvmjs.
  *        We do not need to link this file in standalone wasm.
  */
 
@@ -53,9 +53,9 @@ TVM_DLL void* TVMWasmAllocSpace(int size);
 TVM_DLL void TVMWasmFreeSpace(void* data);
 
 /*!
- * \brief Create PackedFunc from a resource handle.
+ * \brief Create ffi::Function from a resource handle.
  * \param resource_handle The handle to the resource.
- * \param out The output PackedFunc.
+ * \param out The output ffi::Function.
  * \sa TVMWasmPackedCFunc, TVMWasmPackedCFuncFinalizer
 3A * \return 0 if success.
  */
@@ -133,12 +133,12 @@ class AsyncLocalSession : public LocalSession {
   void AsyncCallFunc(PackedFuncHandle func, ffi::PackedArgs args, FAsyncCallback callback) final {
     auto it = async_func_set_.find(func);
     if (it != async_func_set_.end()) {
-      PackedFunc packed_callback([callback, this](TVMArgs args, TVMRetValue*) {
+      ffi::Function packed_callback([callback, this](ffi::PackedArgs args, ffi::Any*) {
         int code = args[0].cast<int>();
-        TVMRetValue rv;
+        ffi::Any rv;
         rv = args[1];
         if (code == static_cast<int>(RPCCode::kReturn)) {
-          this->EncodeReturn(std::move(rv), [&](TVMArgs encoded_args) {
+          this->EncodeReturn(std::move(rv), [&](ffi::PackedArgs encoded_args) {
             callback(RPCCode::kReturn, encoded_args);
           });
         } else {
@@ -157,13 +157,13 @@ class AsyncLocalSession : public LocalSession {
     } else if (func == get_time_eval_placeholder_.get()) {
       // special handle time evaluator.
       try {
-        PackedFunc retfunc = this->GetTimeEvaluator(
+        ffi::Function retfunc = this->GetTimeEvaluator(
             args[0].cast<ffi::Optional<Module>>(), args[1].cast<std::string>(), args[2].cast<int>(),
             args[3].cast<int>(), args[4].cast<int>(), args[5].cast<int>(), args[6].cast<int>(),
             args[7].cast<int>(), args[8].cast<int>(), args[9].cast<int>());
-        TVMRetValue rv;
+        ffi::Any rv;
         rv = retfunc;
-        this->EncodeReturn(std::move(rv), [&](TVMArgs encoded_args) {
+        this->EncodeReturn(std::move(rv), [&](ffi::PackedArgs encoded_args) {
           const void* pf = encoded_args[0].as<ffi::FunctionObj>();
           ICHECK(pf != nullptr);
           // mark as async.
@@ -225,7 +225,7 @@ class AsyncLocalSession : public LocalSession {
         async_wait_ = tvm::ffi::Function::GetGlobal("__async.wasm.WebGPUWaitForTasks");
       }
       CHECK(async_wait_.has_value());
-      PackedFunc packed_callback([on_complete](TVMArgs args, TVMRetValue*) {
+      ffi::Function packed_callback([on_complete](ffi::PackedArgs args, ffi::Any*) {
         int code = args[0].cast<int>();
         on_complete(static_cast<RPCCode>(code), args.Slice(1));
       });
@@ -237,14 +237,14 @@ class AsyncLocalSession : public LocalSession {
 
  private:
   std::unordered_set<void*> async_func_set_;
-  std::unique_ptr<PackedFunc> get_time_eval_placeholder_ = std::make_unique<PackedFunc>();
-  std::optional<PackedFunc> async_wait_;
+  std::unique_ptr<ffi::Function> get_time_eval_placeholder_ = std::make_unique<ffi::Function>();
+  std::optional<ffi::Function> async_wait_;
 
   // time evaluator
-  PackedFunc GetTimeEvaluator(Optional<Module> opt_mod, std::string name, int device_type,
-                              int device_id, int number, int repeat, int min_repeat_ms,
-                              int limit_zero_time_iterations, int cooldown_interval_ms,
-                              int repeats_to_cooldown) {
+  ffi::Function GetTimeEvaluator(Optional<Module> opt_mod, std::string name, int device_type,
+                                 int device_id, int number, int repeat, int min_repeat_ms,
+                                 int limit_zero_time_iterations, int cooldown_interval_ms,
+                                 int repeats_to_cooldown) {
     Device dev;
     dev.device_type = static_cast<DLDeviceType>(device_type);
     dev.device_id = device_id;
@@ -265,29 +265,29 @@ class AsyncLocalSession : public LocalSession {
   }
 
   // time evaluator
-  PackedFunc WrapWasmTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat,
-                                   int min_repeat_ms, int limit_zero_time_iterations,
-                                   int cooldown_interval_ms, int repeats_to_cooldown) {
+  ffi::Function WrapWasmTimeEvaluator(ffi::Function pf, Device dev, int number, int repeat,
+                                      int min_repeat_ms, int limit_zero_time_iterations,
+                                      int cooldown_interval_ms, int repeats_to_cooldown) {
     auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
-                   cooldown_interval_ms, repeats_to_cooldown](TVMArgs args, TVMRetValue* rv) {
+                   cooldown_interval_ms, repeats_to_cooldown](ffi::PackedArgs args, ffi::Any* rv) {
       // the function is a async function.
-      PackedFunc on_complete = args[args.size() - 1].cast<PackedFunc>();
+      ffi::Function on_complete = args[args.size() - 1].cast<ffi::Function>();
 
       std::vector<AnyView> packed_args(args.data(), args.data() + args.size() - 1);
       auto finvoke = [pf, packed_args](int n) {
-        TVMRetValue temp;
-        TVMArgs invoke_args(packed_args.data(), packed_args.size());
+        ffi::Any temp;
+        ffi::PackedArgs invoke_args(packed_args.data(), packed_args.size());
         for (int i = 0; i < n; ++i) {
           pf.CallPacked(invoke_args, &temp);
         }
       };
       auto time_exec = tvm::ffi::Function::GetGlobal("__async.wasm.TimeExecution");
       CHECK(time_exec.has_value()) << "Cannot find wasm.GetTimer in the global function";
-      (*time_exec)(TypedPackedFunc<void(int)>(finvoke), dev, number, repeat, min_repeat_ms,
+      (*time_exec)(ffi::TypedFunction<void(int)>(finvoke), dev, number, repeat, min_repeat_ms,
                    limit_zero_time_iterations, cooldown_interval_ms, repeats_to_cooldown,
                    /*cache_flush_bytes=*/0, on_complete);
     };
-    return PackedFunc(ftimer);
+    return ffi::Function(ftimer);
   }
 };
 

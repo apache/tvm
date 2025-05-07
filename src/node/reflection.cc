@@ -28,17 +28,17 @@
 
 namespace tvm {
 
-using runtime::PackedFunc;
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
+using ffi::Any;
+using ffi::Function;
+using ffi::PackedArgs;
 
 // Attr getter.
 class AttrGetter : public AttrVisitor {
  public:
   const String& skey;
-  TVMRetValue* ret;
+  ffi::Any* ret;
 
-  AttrGetter(const String& skey, TVMRetValue* ret) : skey(skey), ret(ret) {}
+  AttrGetter(const String& skey, ffi::Any* ret) : skey(skey), ret(ret) {}
 
   bool found_ref_object{false};
 
@@ -95,8 +95,8 @@ class AttrGetter : public AttrVisitor {
   }
 };
 
-runtime::TVMRetValue ReflectionVTable::GetAttr(Object* self, const String& field_name) const {
-  runtime::TVMRetValue ret;
+ffi::Any ReflectionVTable::GetAttr(Object* self, const String& field_name) const {
+  ffi::Any ret;
   AttrGetter getter(field_name, &ret);
 
   bool success;
@@ -179,7 +179,7 @@ ObjectPtr<Object> ReflectionVTable::CreateInitObject(const std::string& type_key
 class NodeAttrSetter : public AttrVisitor {
  public:
   std::string type_key;
-  std::unordered_map<std::string, runtime::TVMArgValue> attrs;
+  std::unordered_map<std::string, ffi::AnyView> attrs;
 
   void Visit(const char* key, double* value) final { *value = GetAttr(key).cast<double>(); }
   void Visit(const char* key, int64_t* value) final { *value = GetAttr(key).cast<int64_t>(); }
@@ -204,18 +204,18 @@ class NodeAttrSetter : public AttrVisitor {
   }
 
  private:
-  runtime::TVMArgValue GetAttr(const char* key) {
+  ffi::AnyView GetAttr(const char* key) {
     auto it = attrs.find(key);
     if (it == attrs.end()) {
       LOG(FATAL) << type_key << ": require field " << key;
     }
-    runtime::TVMArgValue v = it->second;
+    ffi::AnyView v = it->second;
     attrs.erase(it);
     return v;
   }
 };
 
-void InitNodeByPackedArgs(ReflectionVTable* reflection, Object* n, const TVMArgs& args) {
+void InitNodeByPackedArgs(ReflectionVTable* reflection, Object* n, const ffi::PackedArgs& args) {
   NodeAttrSetter setter;
   setter.type_key = n->GetTypeKey();
   ICHECK_EQ(args.size() % 2, 0);
@@ -234,7 +234,8 @@ void InitNodeByPackedArgs(ReflectionVTable* reflection, Object* n, const TVMArgs
   }
 }
 
-ObjectRef ReflectionVTable::CreateObject(const std::string& type_key, const TVMArgs& kwargs) {
+ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
+                                         const ffi::PackedArgs& kwargs) {
   ObjectPtr<Object> n = this->CreateInitObject(type_key);
   if (n->IsInstance<BaseAttrsNode>()) {
     static_cast<BaseAttrsNode*>(n.get())->InitByPackedArgs(kwargs);
@@ -246,7 +247,7 @@ ObjectRef ReflectionVTable::CreateObject(const std::string& type_key, const TVMA
 
 ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
                                          const Map<String, Any>& kwargs) {
-  // Redirect to the TVMArgs version
+  // Redirect to the ffi::PackedArgs version
   // It is not the most efficient way, but CreateObject is not meant to be used
   // in a fast code-path and is mainly reserved as a flexible API for frontends.
   std::vector<AnyView> packed_args(kwargs.size() * 2);
@@ -262,18 +263,18 @@ ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
 }
 
 // Expose to FFI APIs.
-void NodeGetAttr(TVMArgs args, TVMRetValue* ret) {
+void NodeGetAttr(ffi::PackedArgs args, ffi::Any* ret) {
   Object* self = const_cast<Object*>(args[0].cast<const Object*>());
   *ret = ReflectionVTable::Global()->GetAttr(self, args[1].cast<std::string>());
 }
 
-void NodeListAttrNames(TVMArgs args, TVMRetValue* ret) {
+void NodeListAttrNames(ffi::PackedArgs args, ffi::Any* ret) {
   Object* self = const_cast<Object*>(args[0].cast<const Object*>());
 
   auto names =
       std::make_shared<std::vector<std::string>>(ReflectionVTable::Global()->ListAttrNames(self));
 
-  *ret = PackedFunc([names](TVMArgs args, TVMRetValue* rv) {
+  *ret = ffi::Function([names](ffi::PackedArgs args, ffi::Any* rv) {
     int64_t i = args[0].cast<int64_t>();
     if (i == -1) {
       *rv = static_cast<int64_t>(names->size());
@@ -286,7 +287,7 @@ void NodeListAttrNames(TVMArgs args, TVMRetValue* ret) {
 // API function to make node.
 // args format:
 //   key1, value1, ..., key_n, value_n
-void MakeNode(const TVMArgs& args, TVMRetValue* rv) {
+void MakeNode(const ffi::PackedArgs& args, ffi::Any* rv) {
   auto type_key = args[0].cast<std::string>();
   *rv = ReflectionVTable::Global()->CreateObject(type_key, args.Slice(1));
 }

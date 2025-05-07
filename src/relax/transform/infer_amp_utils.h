@@ -73,7 +73,7 @@ using VarDTypeMap = std::unordered_map<Var, NType>;
 
 // Call is a call node, out_dtype is the expected output_dtype
 using FInferMixedPrecision =
-    runtime::TypedPackedFunc<Call(const Call& call_node, const DataType& out_dtype)>;
+    ffi::TypedFunction<Call(const Call& call_node, const DataType& out_dtype)>;
 
 Array<ObjectRef> InferMixedPrecisionFollow(const Call& call, const DataType& out_dtype);
 

@@ -43,7 +43,7 @@ IndexMap::IndexMap(Array<Var> initial_indices, Array<PrimExpr> final_indices,
   data_ = std::move(n);
 }
 
-IndexMap IndexMap::FromFunc(int ndim, runtime::TypedPackedFunc<Array<PrimExpr>(Array<Var>)> func,
+IndexMap IndexMap::FromFunc(int ndim, ffi::TypedFunction<Array<PrimExpr>(Array<Var>)> func,
                             Optional<IndexMap> inverse_index_map) {
   Array<Var> initial_indices;
   initial_indices.reserve(ndim);

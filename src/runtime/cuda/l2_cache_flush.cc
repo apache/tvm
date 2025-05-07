@@ -32,7 +32,7 @@ typedef dmlc::ThreadLocalStore<L2Flush> L2FlushStore;
 
 L2Flush* L2Flush::ThreadLocal() { return L2FlushStore::Get(); }
 
-TVM_REGISTER_GLOBAL("l2_cache_flush_cuda").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("l2_cache_flush_cuda").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   ICHECK(L2Flush::ThreadLocal() != nullptr) << "L2Flush::ThreadLocal do not exist.";
   cudaStream_t stream = CUDAThreadEntry::ThreadLocal()->stream;
   L2Flush::ThreadLocal()->Flush(stream);

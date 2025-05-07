@@ -77,7 +77,7 @@ void BcastSessionObj::InitCCL(String ccl, IntTuple device_ids) {
 
 void BcastSessionObj::SyncWorker(int worker_id) {
   BcastSessionObj::Internal::BroadcastUnpacked(this, DiscoAction::kSyncWorker, worker_id);
-  TVMArgs args = this->RecvReplyPacked(worker_id);
+  ffi::PackedArgs args = this->RecvReplyPacked(worker_id);
   ICHECK_EQ(args.size(), 2);
   DiscoAction action = static_cast<DiscoAction>(args[0].cast<int>());
   int ret_worker_id = args[1].cast<int>();
@@ -85,7 +85,7 @@ void BcastSessionObj::SyncWorker(int worker_id) {
   ICHECK_EQ(ret_worker_id, worker_id);
 }
 
-DRef BcastSessionObj::CallWithPacked(const TVMArgs& args) {
+DRef BcastSessionObj::CallWithPacked(const ffi::PackedArgs& args) {
   // NOTE: this action is not safe unless we know args is not
   // used else where in this case it is oK
   AnyView* args_vec = const_cast<AnyView*>(args.data());

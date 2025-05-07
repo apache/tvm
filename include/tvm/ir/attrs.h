@@ -139,8 +139,6 @@ class AttrFieldInfo : public ObjectRef {
  */
 class BaseAttrsNode : public Object {
  public:
-  using TVMArgs = runtime::TVMArgs;
-  using TVMRetValue = runtime::TVMRetValue;
   /*! \brief virtual destructor */
   virtual ~BaseAttrsNode() {}
   // visit function
@@ -176,7 +174,8 @@ class BaseAttrsNode : public Object {
    * \param allow_unknown Whether allow additional unknown fields.
    * \note This function throws when the required field is not present.
    */
-  TVM_DLL virtual void InitByPackedArgs(const TVMArgs& kwargs, bool allow_unknown = false) = 0;
+  TVM_DLL virtual void InitByPackedArgs(const ffi::PackedArgs& kwargs,
+                                        bool allow_unknown = false) = 0;
 
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
@@ -213,7 +212,7 @@ class DictAttrsNode : public BaseAttrsNode {
   // implementations
   void VisitAttrs(AttrVisitor* v) final;
   void VisitNonDefaultAttrs(AttrVisitor* v) final;
-  void InitByPackedArgs(const runtime::TVMArgs& args, bool allow_unknown) final;
+  void InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) final;
   Array<AttrFieldInfo> ListFieldInfo() const final;
 
   // type info
@@ -450,7 +449,8 @@ inline TFunc WithoutAttr(TFunc input, const std::string& attr_key) {
 
 // Namespace containing detail implementations
 namespace detail {
-using runtime::TVMArgValue;
+
+using tvm::ffi::AnyView;
 
 // helper entry that does nothing in set_default/bound/describe calls.
 struct AttrNopEntry {
@@ -878,7 +878,7 @@ class AttrsNode : public BaseAttrsNode {
     self()->_tvm_VisitAttrs(vis);
   }
 
-  void InitByPackedArgs(const runtime::TVMArgs& args, bool allow_unknown) final {
+  void InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) final {
     ICHECK_EQ(args.size() % 2, 0);
     const int kLinearSearchBound = 16;
     int hit_count = 0;
@@ -899,7 +899,7 @@ class AttrsNode : public BaseAttrsNode {
       hit_count = vis.hit_count_;
     } else {
       // construct a map then do lookup.
-      std::unordered_map<std::string, runtime::TVMArgValue> kwargs;
+      std::unordered_map<std::string, ffi::AnyView> kwargs;
       for (int i = 0; i < args.size(); i += 2) {
         kwargs[args[i].cast<std::string>()] = args[i + 1];
       }
@@ -959,8 +959,8 @@ class AttrsNode : public BaseAttrsNode {
 
 template <typename... Args>
 inline void BaseAttrsNode::InitBySeq(Args&&... args) {
-  runtime::PackedFunc pf(
-      [this](const TVMArgs& args, TVMRetValue* rv) { this->InitByPackedArgs(args); });
+  ffi::Function pf(
+      [this](const ffi::PackedArgs& args, ffi::Any* rv) { this->InitByPackedArgs(args); });
   pf(std::forward<Args>(args)...);
 }
 

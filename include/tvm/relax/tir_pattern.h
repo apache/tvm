@@ -69,7 +69,7 @@ class MatchResult : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(MatchResult, ObjectRef, MatchResultNode);
 };
 
-using FCodegen = runtime::TypedPackedFunc<Array<ObjectRef>(Array<MatchResult> match_results)>;
+using FCodegen = ffi::TypedFunction<Array<ObjectRef>(Array<MatchResult> match_results)>;
 }  // namespace relax
 }  // namespace tvm
 #endif  // TVM_RELAX_TIR_PATTERN_H_

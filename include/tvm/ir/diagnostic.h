@@ -33,8 +33,6 @@
 
 namespace tvm {
 
-using tvm::runtime::TypedPackedFunc;
-
 /*! \brief The diagnostic level, controls the printing of the message. */
 enum class DiagnosticLevel : int {
   kBug = 10,
@@ -165,7 +163,7 @@ class DiagnosticContext;
  */
 class DiagnosticRendererNode : public Object {
  public:
-  TypedPackedFunc<void(DiagnosticContext ctx)> renderer;
+  ffi::TypedFunction<void(DiagnosticContext ctx)> renderer;
 
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) {}
@@ -176,9 +174,9 @@ class DiagnosticRendererNode : public Object {
 
 class DiagnosticRenderer : public ObjectRef {
  public:
-  TVM_DLL DiagnosticRenderer(TypedPackedFunc<void(DiagnosticContext ctx)> render);
+  TVM_DLL DiagnosticRenderer(ffi::TypedFunction<void(DiagnosticContext ctx)> render);
   TVM_DLL DiagnosticRenderer()
-      : DiagnosticRenderer(TypedPackedFunc<void(DiagnosticContext ctx)>()) {}
+      : DiagnosticRenderer(ffi::TypedFunction<void(DiagnosticContext ctx)>()) {}
 
   void Render(const DiagnosticContext& ctx);
 

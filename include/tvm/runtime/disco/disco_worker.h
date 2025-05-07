@@ -65,7 +65,7 @@ class DiscoWorker {
   /*! \brief Get the worker instance on the current thread */
   TVM_DLL static DiscoWorker* ThreadLocal();
   /*! \brief Set the specific register to a specific value */
-  void SetRegister(int reg_id, TVMArgValue value);
+  void SetRegister(int reg_id, ffi::AnyView value);
 
   /*! \brief The id of the worker.*/
   int worker_id;
@@ -92,7 +92,7 @@ class DiscoWorker {
    */
   DiscoChannel* channel;
   /*! \brief The registers in the worker */
-  std::vector<TVMRetValue> register_file;
+  std::vector<ffi::Any> register_file;
 
   struct Impl;
   friend struct DiscoWorker::Impl;

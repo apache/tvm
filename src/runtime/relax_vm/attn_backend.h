@@ -49,13 +49,14 @@ enum class AttnBackendKind : int {
 /*! \brief The base class of attention backends. */
 class AttnBackendFunc {
  public:
-  explicit AttnBackendFunc(PackedFunc attn_func, AttnKind attn_kind, AttnBackendKind backend_kind)
+  explicit AttnBackendFunc(ffi::Function attn_func, AttnKind attn_kind,
+                           AttnBackendKind backend_kind)
       : attn_func_(std::move(attn_func)), attn_kind(attn_kind), backend_kind(backend_kind) {}
 
   virtual ~AttnBackendFunc() = default;
 
  protected:
-  PackedFunc attn_func_;
+  ffi::Function attn_func_;
 
  public:
   AttnKind attn_kind;
@@ -65,7 +66,8 @@ class AttnBackendFunc {
 /*! \brief The paged prefill attention function base class. */
 class PagedPrefillFunc : public AttnBackendFunc {
  public:
-  explicit PagedPrefillFunc(PackedFunc attn_func, AttnKind attn_kind, AttnBackendKind backend_kind)
+  explicit PagedPrefillFunc(ffi::Function attn_func, AttnKind attn_kind,
+                            AttnBackendKind backend_kind)
       : AttnBackendFunc(std::move(attn_func), attn_kind, backend_kind) {}
 
   virtual void MHA(int depth, NDArray q, NDArray qo_indptr, NDArray pages, NDArray page_indptr,
@@ -95,7 +97,7 @@ class PagedPrefillFunc : public AttnBackendFunc {
 /*! \brief The TIR-based paged prefill attention function class. */
 class TIRPagedPrefillFunc : public PagedPrefillFunc {
  public:
-  explicit TIRPagedPrefillFunc(PackedFunc attn_func, AttnKind attn_kind)
+  explicit TIRPagedPrefillFunc(ffi::Function attn_func, AttnKind attn_kind)
       : PagedPrefillFunc(std::move(attn_func), attn_kind, AttnBackendKind::kTIR) {}
 
   void MHA(int depth, NDArray q, NDArray qo_indptr, NDArray pages, NDArray page_indptr,
@@ -120,7 +122,7 @@ class TIRPagedPrefillFunc : public PagedPrefillFunc {
 /*! \brief The FlashInfer-based paged prefill attention function class. */
 class FlashInferPagedPrefillFunc : public PagedPrefillFunc {
  public:
-  explicit FlashInferPagedPrefillFunc(PackedFunc attn_func, PackedFunc plan_func,
+  explicit FlashInferPagedPrefillFunc(ffi::Function attn_func, ffi::Function plan_func,
                                       AttnKind attn_kind)
       : PagedPrefillFunc(std::move(attn_func), attn_kind, AttnBackendKind::kFlashInfer),
         plan_func_(std::move(plan_func)) {}
@@ -193,14 +195,15 @@ class FlashInferPagedPrefillFunc : public PagedPrefillFunc {
   }
 
  private:
-  PackedFunc plan_func_;
+  ffi::Function plan_func_;
   std::vector<std::tuple<NDArray, NDArray, NDArray, IntTuple>> cached_buffers_;
 };
 
 /*! \brief The ragged prefill attention function base class. */
 class RaggedPrefillFunc : public AttnBackendFunc {
  public:
-  explicit RaggedPrefillFunc(PackedFunc attn_func, AttnKind attn_kind, AttnBackendKind backend_kind)
+  explicit RaggedPrefillFunc(ffi::Function attn_func, AttnKind attn_kind,
+                             AttnBackendKind backend_kind)
       : AttnBackendFunc(std::move(attn_func), attn_kind, backend_kind) {}
 
   virtual void MHA(NDArray q, NDArray k, NDArray v, NDArray qo_indptr, NDArray kv_indptr,
@@ -222,7 +225,7 @@ class RaggedPrefillFunc : public AttnBackendFunc {
 /*! \brief The TIR-based ragged prefill attention function class. */
 class TIRRaggedPrefillFunc : public RaggedPrefillFunc {
  public:
-  explicit TIRRaggedPrefillFunc(PackedFunc attn_func, AttnKind attn_kind)
+  explicit TIRRaggedPrefillFunc(ffi::Function attn_func, AttnKind attn_kind)
       : RaggedPrefillFunc(std::move(attn_func), attn_kind, AttnBackendKind::kTIR) {}
 
   void MHA(NDArray q, NDArray k, NDArray v, NDArray qo_indptr, NDArray kv_indptr,
@@ -239,7 +242,7 @@ class TIRRaggedPrefillFunc : public RaggedPrefillFunc {
 /*! \brief The FlashInfer-based ragged prefill attention function class. */
 class FlashInferRaggedPrefillFunc : public RaggedPrefillFunc {
  public:
-  explicit FlashInferRaggedPrefillFunc(PackedFunc attn_func, PackedFunc plan_func,
+  explicit FlashInferRaggedPrefillFunc(ffi::Function attn_func, ffi::Function plan_func,
                                        AttnKind attn_kind)
       : RaggedPrefillFunc(std::move(attn_func), attn_kind, AttnBackendKind::kFlashInfer),
         plan_func_(std::move(plan_func)) {}
@@ -282,7 +285,7 @@ class FlashInferRaggedPrefillFunc : public RaggedPrefillFunc {
   }
 
  private:
-  PackedFunc plan_func_;
+  ffi::Function plan_func_;
   NDArray float_workspace_buffer_;
   NDArray int_workspace_buffer_;
   NDArray page_locked_int_workspace_buffer_;
@@ -292,7 +295,8 @@ class FlashInferRaggedPrefillFunc : public RaggedPrefillFunc {
 /*! \brief The paged decode attention function base class. */
 class PagedDecodeFunc : public AttnBackendFunc {
  public:
-  explicit PagedDecodeFunc(PackedFunc attn_func, AttnKind attn_kind, AttnBackendKind backend_kind)
+  explicit PagedDecodeFunc(ffi::Function attn_func, AttnKind attn_kind,
+                           AttnBackendKind backend_kind)
       : AttnBackendFunc(std::move(attn_func), attn_kind, backend_kind) {}
 
   virtual void MHA(int depth, NDArray q, NDArray pages, NDArray page_indptr, NDArray page_indices,
@@ -321,7 +325,7 @@ class PagedDecodeFunc : public AttnBackendFunc {
 /*! \brief The TIR-based paged decode attention function class. */
 class TIRPagedDecodeFunc : public PagedDecodeFunc {
  public:
-  explicit TIRPagedDecodeFunc(PackedFunc attn_func, AttnKind attn_kind)
+  explicit TIRPagedDecodeFunc(ffi::Function attn_func, AttnKind attn_kind)
       : PagedDecodeFunc(std::move(attn_func), attn_kind, AttnBackendKind::kTIR) {}
 
   void MHA(int depth, NDArray q, NDArray pages, NDArray page_indptr, NDArray page_indices,
@@ -344,7 +348,8 @@ class TIRPagedDecodeFunc : public PagedDecodeFunc {
 /*! \brief The FlashInfer-based paged decode attention function class. */
 class FlashInferPagedDecodeFunc : public PagedDecodeFunc {
  public:
-  explicit FlashInferPagedDecodeFunc(PackedFunc attn_func, PackedFunc plan_func, AttnKind attn_kind)
+  explicit FlashInferPagedDecodeFunc(ffi::Function attn_func, ffi::Function plan_func,
+                                     AttnKind attn_kind)
       : PagedDecodeFunc(std::move(attn_func), attn_kind, AttnBackendKind::kFlashInfer),
         plan_func_(std::move(plan_func)) {}
 
@@ -387,14 +392,14 @@ class FlashInferPagedDecodeFunc : public PagedDecodeFunc {
   }
 
  private:
-  PackedFunc plan_func_;
+  ffi::Function plan_func_;
   std::vector<std::tuple<NDArray, NDArray, NDArray, IntTuple>> cached_buffers_;
 };
 
 /*! \brief The paged prefill with tree mask attention function base class. */
 class PagedPrefillTreeMaskFunc : public AttnBackendFunc {
  public:
-  explicit PagedPrefillTreeMaskFunc(PackedFunc attn_func, AttnKind attn_kind,
+  explicit PagedPrefillTreeMaskFunc(ffi::Function attn_func, AttnKind attn_kind,
                                     AttnBackendKind backend_kind)
       : AttnBackendFunc(std::move(attn_func), attn_kind, backend_kind) {}
 
@@ -425,7 +430,7 @@ class PagedPrefillTreeMaskFunc : public AttnBackendFunc {
 /*! \brief The TIR-based paged prefill with tree mask attention function class. */
 class TIRPagedPrefillTreeMaskFunc : public PagedPrefillTreeMaskFunc {
  public:
-  explicit TIRPagedPrefillTreeMaskFunc(PackedFunc attn_func, AttnKind attn_kind)
+  explicit TIRPagedPrefillTreeMaskFunc(ffi::Function attn_func, AttnKind attn_kind)
       : PagedPrefillTreeMaskFunc(std::move(attn_func), attn_kind, AttnBackendKind::kTIR) {}
 
   void MHA(NDArray q, NDArray qo_indptr, NDArray pages, NDArray page_indptr, NDArray page_indices,
@@ -443,7 +448,7 @@ class TIRPagedPrefillTreeMaskFunc : public PagedPrefillTreeMaskFunc {
 /*! \brief The ragged prefill with tree mask function base class. */
 class RaggedPrefillTreeMaskFunc : public AttnBackendFunc {
  public:
-  explicit RaggedPrefillTreeMaskFunc(PackedFunc attn_func, AttnKind attn_kind,
+  explicit RaggedPrefillTreeMaskFunc(ffi::Function attn_func, AttnKind attn_kind,
                                      AttnBackendKind backend_kind)
       : AttnBackendFunc(std::move(attn_func), attn_kind, backend_kind) {}
 
@@ -473,7 +478,7 @@ class RaggedPrefillTreeMaskFunc : public AttnBackendFunc {
 /*! \brief The TIR-based ragged prefill with tree mask attention function class. */
 class TIRRaggedPrefillTreeMaskFunc : public RaggedPrefillTreeMaskFunc {
  public:
-  explicit TIRRaggedPrefillTreeMaskFunc(PackedFunc attn_func, AttnKind attn_kind)
+  explicit TIRRaggedPrefillTreeMaskFunc(ffi::Function attn_func, AttnKind attn_kind)
       : RaggedPrefillTreeMaskFunc(std::move(attn_func), attn_kind, AttnBackendKind::kTIR) {}
 
   void MHA(NDArray q, NDArray k, NDArray v, NDArray qo_indptr, NDArray kv_indptr,
@@ -489,44 +494,44 @@ class TIRRaggedPrefillTreeMaskFunc : public RaggedPrefillTreeMaskFunc {
 
 /*!
  * \brief Create a PagedPrefillFunc from the given arguments and the attention kind.
- * \param args The arguments that contains the backend kind and the runtime attention PackedFuncs.
- * \param attn_kind The attention kind of the function.
- * \return The created PagedPrefillFunc pointer.
+ * \param args The arguments that contains the backend kind and the runtime attention
+ * ffi::Functions. \param attn_kind The attention kind of the function. \return The created
+ * PagedPrefillFunc pointer.
  */
 std::unique_ptr<PagedPrefillFunc> ConvertPagedPrefillFunc(Array<ObjectRef> args,
                                                           AttnKind attn_kind);
 
 /*!
  * \brief Create a PagedDecodeFunc from the given arguments and the attention kind.
- * \param args The arguments that contains the backend kind and the runtime attention PackedFuncs.
- * \param attn_kind The attention kind of the function.
- * \return The created PagedDecodeFunc pointer.
+ * \param args The arguments that contains the backend kind and the runtime attention
+ * ffi::Functions. \param attn_kind The attention kind of the function. \return The created
+ * PagedDecodeFunc pointer.
  */
 std::unique_ptr<PagedDecodeFunc> ConvertPagedDecodeFunc(Array<ObjectRef> args, AttnKind attn_kind);
 
 /*!
  * \brief Create a RaggedPrefillFunc from the given arguments and the attention kind.
- * \param args The arguments that contains the backend kind and the runtime attention PackedFuncs.
- * \param attn_kind The attention kind of the function.
- * \return The created RaggedPrefillFunc pointer.
+ * \param args The arguments that contains the backend kind and the runtime attention
+ * ffi::Functions. \param attn_kind The attention kind of the function. \return The created
+ * RaggedPrefillFunc pointer.
  */
 std::unique_ptr<RaggedPrefillFunc> ConvertRaggedPrefillFunc(Array<ObjectRef> args,
                                                             AttnKind attn_kind);
 
 /*!
  * \brief Create a PagedPrefillTreeMaskFunc from the given arguments and the attention kind.
- * \param args The arguments that contains the backend kind and the runtime attention PackedFuncs.
- * \param attn_kind The attention kind of the function.
- * \return The created PagedPrefillTreeMaskFunc pointer.
+ * \param args The arguments that contains the backend kind and the runtime attention
+ * ffi::Functions. \param attn_kind The attention kind of the function. \return The created
+ * PagedPrefillTreeMaskFunc pointer.
  */
 std::unique_ptr<PagedPrefillTreeMaskFunc> ConvertPagedPrefillTreeMaskFunc(Array<ObjectRef> args,
                                                                           AttnKind attn_kind);
 
 /*!
  * \brief Create a RaggedPrefillTreeMaskFunc from the given arguments and the attention kind.
- * \param args The arguments that contains the backend kind and the runtime attention PackedFuncs.
- * \param attn_kind The attention kind of the function.
- * \return The created RaggedPrefillTreeMaskFunc pointer.
+ * \param args The arguments that contains the backend kind and the runtime attention
+ * ffi::Functions. \param attn_kind The attention kind of the function. \return The created
+ * RaggedPrefillTreeMaskFunc pointer.
  */
 std::unique_ptr<RaggedPrefillTreeMaskFunc> ConvertRaggedPrefillTreeMaskFunc(Array<ObjectRef> args,
                                                                             AttnKind attn_kind);

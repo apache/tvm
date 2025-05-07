@@ -49,7 +49,7 @@ using TargetFeatures = Map<String, ffi::Any>;
  * \return The transformed Target JSON object.
  */
 using TargetJSON = Map<String, ffi::Any>;
-using FTVMTargetParser = runtime::TypedPackedFunc<TargetJSON(TargetJSON)>;
+using FTVMTargetParser = ffi::TypedFunction<TargetJSON(TargetJSON)>;
 
 namespace detail {
 template <typename, typename, typename>
@@ -71,7 +71,7 @@ class TargetKindNode : public Object {
   /*! \brief Default keys of the target */
   Array<String> default_keys;
   /*! \brief Function used to preprocess on target creation */
-  PackedFunc preprocessor;
+  ffi::Function preprocessor;
   /*! \brief Function used to parse a JSON target during creation */
   FTVMTargetParser target_parser;
 
@@ -253,7 +253,7 @@ class TargetKindRegEntry {
    * \param value The value to be set
    * \param plevel The priority level
    */
-  TVM_DLL void UpdateAttr(const String& key, TVMRetValue value, int plevel);
+  TVM_DLL void UpdateAttr(const String& key, ffi::Any value, int plevel);
   template <typename, typename>
   friend class AttrRegistry;
   friend class TargetKind;
@@ -332,7 +332,7 @@ template <typename ValueType>
 inline TargetKindRegEntry& TargetKindRegEntry::set_attr(const String& attr_name,
                                                         const ValueType& value, int plevel) {
   ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
-  runtime::TVMRetValue rv;
+  ffi::Any rv;
   rv = value;
   UpdateAttr(attr_name, rv, plevel);
   return *this;
@@ -351,7 +351,7 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_default_keys(std::vector<Stri
 template <typename FLambda>
 inline TargetKindRegEntry& TargetKindRegEntry::set_attrs_preprocessor(FLambda f) {
   LOG(WARNING) << "set_attrs_preprocessor is deprecated please use set_target_parser instead";
-  kind_->preprocessor = ffi::Function::FromUnpacked(std::move(f));
+  kind_->preprocessor = ffi::Function::FromTyped(std::move(f));
   return *this;
 }
 

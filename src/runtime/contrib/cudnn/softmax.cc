@@ -31,7 +31,7 @@ namespace contrib {
 
 using namespace runtime;
 
-void softmax_impl(cudnnSoftmaxAlgorithm_t alg, TVMArgs args, TVMRetValue* ret) {
+void softmax_impl(cudnnSoftmaxAlgorithm_t alg, ffi::PackedArgs args, ffi::Any* ret) {
   auto x = args[0].cast<DLTensor*>();
   auto y = args[1].cast<DLTensor*>();
   int axis = args[2].cast<int>();
@@ -78,12 +78,12 @@ void softmax_impl(cudnnSoftmaxAlgorithm_t alg, TVMArgs args, TVMRetValue* ret) {
 }
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       softmax_impl(CUDNN_SOFTMAX_ACCURATE, args, ret);
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.log_softmax.forward")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       softmax_impl(CUDNN_SOFTMAX_LOG, args, ret);
     });
 

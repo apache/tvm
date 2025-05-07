@@ -38,7 +38,7 @@ namespace runtime {
 class CUDADeviceAPI final : public DeviceAPI {
  public:
   void SetDevice(Device dev) final { CUDA_CALL(cudaSetDevice(dev.device_id)); }
-  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final {
+  void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final {
     int value = 0;
     switch (kind) {
       case kExist: {
@@ -286,12 +286,12 @@ CUDAThreadEntry::CUDAThreadEntry() : pool(kDLCUDA, CUDADeviceAPI::Global()) {}
 
 CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() { return CUDAThreadStore::Get(); }
 
-TVM_REGISTER_GLOBAL("device_api.cuda").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.cuda").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   DeviceAPI* ptr = CUDADeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
 
-TVM_REGISTER_GLOBAL("device_api.cuda_host").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.cuda_host").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   DeviceAPI* ptr = CUDADeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });

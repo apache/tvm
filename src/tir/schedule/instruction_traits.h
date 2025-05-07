@@ -176,7 +176,7 @@ struct UnpackedInstTraits {
   static TVM_ALWAYS_INLINE void _SetAttrs(AnyView* packed_args, const Array<Any>& attrs);
   template <size_t index_offset>
   static TVM_ALWAYS_INLINE void _SetDecision(AnyView* packed_args, const Any& decision);
-  static TVM_ALWAYS_INLINE Array<Any> _ConvertOutputs(const TVMRetValue& rv);
+  static TVM_ALWAYS_INLINE Array<Any> _ConvertOutputs(const ffi::Any& rv);
 };
 
 /*!
@@ -316,7 +316,7 @@ Array<Any> UnpackedInstTraits<TTraits>::ApplyToSchedule(const Schedule& sch,
   TTraits::template _SetInputs<1>(packed_args, inputs);
   TTraits::template _SetAttrs<1 + kNumInputs>(packed_args, attrs);
   TTraits::template _SetDecision<1 + kNumInputs + kNumAttrs>(packed_args, decision);
-  PackedFunc pf([](const TVMArgs& args, TVMRetValue* rv) -> void {
+  ffi::Function pf([](const ffi::PackedArgs& args, ffi::Any* rv) -> void {
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
     ICHECK_EQ(args.size(), kNumArgs);
     ffi::details::unpack_call<return_type>(std::make_index_sequence<kNumArgs>{}, nullptr,
@@ -347,7 +347,7 @@ String UnpackedInstTraits<TTraits>::AsPython(const Array<Any>& inputs, const Arr
   TTraits::template _SetInputs<1>(packed_args, inputs);
   TTraits::template _SetAttrs<1 + kNumInputs>(packed_args, attrs);
   TTraits::template _SetDecision<1 + kNumInputs + kNumAttrs>(packed_args, decision);
-  PackedFunc pf([](const TVMArgs& args, TVMRetValue* rv) -> void {
+  ffi::Function pf([](const ffi::PackedArgs& args, ffi::Any* rv) -> void {
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
     ICHECK_EQ(args.size(), kNumArgs);
     ffi::details::unpack_call<return_type>(std::make_index_sequence<kNumArgs>{}, nullptr,
@@ -396,7 +396,7 @@ TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetDecision(AnyView* packed
 }
 
 template <class TTraits>
-TVM_ALWAYS_INLINE Array<Any> UnpackedInstTraits<TTraits>::_ConvertOutputs(const TVMRetValue& rv) {
+TVM_ALWAYS_INLINE Array<Any> UnpackedInstTraits<TTraits>::_ConvertOutputs(const ffi::Any& rv) {
   using method_type = decltype(TTraits::UnpackedApplyToSchedule);
   using return_type = details::ReturnType<method_type>;
   constexpr int is_array = details::IsTVMArray<return_type>;

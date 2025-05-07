@@ -51,7 +51,7 @@ namespace runtime {
  *     2: need to write
  *     0: shutdown
  */
-using FEventHandler = PackedFunc;
+using FEventHandler = ffi::Function;
 
 /*!
  * \brief Create a server event handler.
@@ -68,7 +68,7 @@ FEventHandler CreateServerEventHandler(NSOutputStream* outputStream, std::string
       << "You are using tvm_runtime module built without RPC support. "
       << "Please rebuild it with USE_RPC flag.";
 
-  PackedFunc writer_func([outputStream](TVMArgs args, TVMRetValue* rv) {
+  ffi::Function writer_func([outputStream](ffi::PackedArgs args, ffi::Any* rv) {
     TVMByteArray* data = args[0].ptr<TVMByteArray>();
     int64_t nbytes = [outputStream write:reinterpret_cast<const uint8_t*>(data->data)
                                maxLength:data->size];

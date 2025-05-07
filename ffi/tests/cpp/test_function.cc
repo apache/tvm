@@ -72,9 +72,9 @@ TEST(Func, PackedArgs) {
   EXPECT_EQ(data[2].cast<TInt>()->value, 12);
 }
 
-TEST(Func, FromUnpacked) {
+TEST(Func, FromTyped) {
   // try decution
-  Function fadd1 = Function::FromUnpacked([](const int32_t& a) -> int { return a + 1; });
+  Function fadd1 = Function::FromTyped([](const int32_t& a) -> int { return a + 1; });
   int b = fadd1(1).cast<int>();
   EXPECT_EQ(b, 2);
 
@@ -109,14 +109,14 @@ TEST(Func, FromUnpacked) {
       ::tvm::ffi::Error);
 
   // try decution
-  Function fpass_and_return = Function::FromUnpacked(
+  Function fpass_and_return = Function::FromTyped(
       [](TInt x, int value, AnyView z) -> Function {
         EXPECT_EQ(x.use_count(), 2);
         EXPECT_EQ(x->value, value);
         if (auto opt = z.as<int>()) {
           EXPECT_EQ(value, *opt);
         }
-        return Function::FromUnpacked([value](int x) -> int { return x + value; });
+        return Function::FromTyped([value](int x) -> int { return x + value; });
       },
       "fpass_and_return");
   TInt a(11);
@@ -139,18 +139,18 @@ TEST(Func, FromUnpacked) {
       ::tvm::ffi::Error);
 
   Function fconcact =
-      Function::FromUnpacked([](const String& a, const String& b) -> String { return a + b; });
+      Function::FromTyped([](const String& a, const String& b) -> String { return a + b; });
   EXPECT_EQ(fconcact("abc", "def").cast<String>(), "abcdef");
 }
 
 TEST(Func, PassReturnAny) {
-  Function fadd_one = Function::FromUnpacked([](Any a) -> Any { return a.cast<int>() + 1; });
+  Function fadd_one = Function::FromTyped([](Any a) -> Any { return a.cast<int>() + 1; });
   EXPECT_EQ(fadd_one(1).cast<int>(), 2);
 }
 
 TEST(Func, Global) {
   Function::SetGlobal("testing.add1",
-                      Function::FromUnpacked([](const int32_t& a) -> int { return a + 1; }));
+                      Function::FromTyped([](const int32_t& a) -> int { return a + 1; }));
   auto fadd1 = Function::GetGlobalRequired("testing.add1");
   int b = fadd1(1).cast<int>();
   EXPECT_EQ(b, 2);
@@ -199,7 +199,7 @@ TEST(Func, TypedFunctionAsAnyView) {
 TEST(Func, ObjectRefWithFallbackTraits) {
   // test cases to test automatic type conversion via ObjectRefWithFallbackTraits
   // through TPrimExpr
-  Function freturn_primexpr = Function::FromUnpacked([](TPrimExpr a) -> TPrimExpr { return a; });
+  Function freturn_primexpr = Function::FromTyped([](TPrimExpr a) -> TPrimExpr { return a; });
 
   auto result_int = freturn_primexpr(1).cast<TPrimExpr>();
   EXPECT_EQ(result_int->dtype, "int64");

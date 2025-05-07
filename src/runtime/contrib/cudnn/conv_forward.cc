@@ -108,7 +108,7 @@ void ConvolutionBiasActivationForward(int mode, int format, int algo, int dims, 
 void FindAlgo(int format, int dims, int groups, const int pad[], const int stride[],
               const int dilation[], const int x_dim[], const int w_dim[], const int y_dim[],
               const std::string& data_dtype, const std::string& conv_dtype, bool verbose,
-              TVMRetValue* ret) {
+              ffi::Any* ret) {
   CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
   const int full_dims = dims + 2;
   std::vector<int64_t> x_dim_int64(full_dims);
@@ -154,7 +154,7 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
 }
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       int mode = args[0].cast<int>();
       int format = args[1].cast<int>();
       int algo = args[2].cast<int>();
@@ -175,7 +175,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d+bias+act.forward")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       int mode = args[0].cast<int>();
       int format = args[1].cast<int>();
       int algo = args[2].cast<int>();
@@ -199,7 +199,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d+bias+act.forward")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv3d.forward")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       int mode = args[0].cast<int>();
       int format = args[1].cast<int>();
       int algo = args[2].cast<int>();
@@ -220,7 +220,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv3d.forward")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.forward_find_algo")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       int format = args[0].cast<int>();
       int dims = args[1].cast<int>();
       int* pad = static_cast<int*>(args[2].cast<void*>());

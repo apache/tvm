@@ -1055,8 +1055,8 @@ class PatternBasedPartitioner : ExprVisitor {
   using GroupMap = OperatorFusor::GroupMap;
   using PatternCheckContext = transform::PatternCheckContext;
   using ExprVisitor::VisitExpr_;
-  using FCheckMatch = runtime::TypedPackedFunc<bool(const transform::PatternCheckContext&)>;
-  using FAttrsGetter = runtime::TypedPackedFunc<Map<String, ffi::Any>(const Map<String, Expr>&)>;
+  using FCheckMatch = ffi::TypedFunction<bool(const transform::PatternCheckContext&)>;
+  using FAttrsGetter = ffi::TypedFunction<Map<String, ffi::Any>(const Map<String, Expr>&)>;
 
   static GroupMap Run(String pattern_name, DFPattern pattern,
                       Map<String, DFPattern> annotation_patterns, FCheckMatch check, Expr expr,
@@ -1383,8 +1383,8 @@ IRModule FuseOpsByPattern(const tvm::Array<transform::FusionPattern>& patterns, 
 namespace transform {
 
 FusionPattern::FusionPattern(String name, DFPattern pattern,
-                             Map<String, DFPattern> annotation_patterns, Optional<PackedFunc> check,
-                             Optional<PackedFunc> attrs_getter) {
+                             Map<String, DFPattern> annotation_patterns,
+                             Optional<ffi::Function> check, Optional<ffi::Function> attrs_getter) {
   ObjectPtr<FusionPatternNode> n = make_object<FusionPatternNode>();
   n->name = std::move(name);
   n->pattern = std::move(pattern);
@@ -1397,7 +1397,7 @@ FusionPattern::FusionPattern(String name, DFPattern pattern,
 TVM_REGISTER_NODE_TYPE(FusionPatternNode);
 TVM_REGISTER_GLOBAL("relax.transform.FusionPattern")
     .set_body_typed([](String name, DFPattern pattern, Map<String, DFPattern> annotation_patterns,
-                       Optional<PackedFunc> check, Optional<PackedFunc> attrs_getter) {
+                       Optional<ffi::Function> check, Optional<ffi::Function> attrs_getter) {
       return FusionPattern(name, pattern, annotation_patterns, check, attrs_getter);
     });
 

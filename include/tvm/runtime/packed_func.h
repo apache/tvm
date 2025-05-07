@@ -42,7 +42,7 @@ using ffi::Any;
 using ffi::AnyView;
 
 /*!
- * \brief Utility function to convert legacy TVMArgValue to AnyView
+ * \brief Utility function to convert legacy ffi::AnyView to AnyView
  * \note This routine is not fastest, but serves purpose to do transition of ABI.
  */
 inline TVMFFIAny LegacyTVMArgValueToFFIAny(TVMValue value, int type_code) {
@@ -132,7 +132,7 @@ inline TVMFFIAny LegacyTVMArgValueToFFIAny(TVMValue value, int type_code) {
 }
 
 /*!
- * \brief Utility function to convert legacy TVMArgValue to AnyView
+ * \brief Utility function to convert legacy ffi::AnyView to AnyView
  * \note This routine is not fastest, but serves purpose to do transition of ABI.
  */
 inline AnyView LegacyTVMArgValueToAnyView(TVMValue value, int type_code) {
@@ -140,7 +140,7 @@ inline AnyView LegacyTVMArgValueToAnyView(TVMValue value, int type_code) {
 }
 
 /*!
- * \brief Utility function to convert legacy TVMArgValue to Any
+ * \brief Utility function to convert legacy ffi::AnyView to Any
  * \note This routine is not fastest, but serves purpose to do transition of ABI.
  */
 inline Any MoveLegacyTVMArgValueToAny(TVMValue value, int type_code) {
@@ -249,7 +249,7 @@ inline void MoveAnyToLegacyTVMValue(Any&& src, TVMValue* value, int* type_code) 
 }
 
 /*!
- * \brief Translate legacy TVMArgs to PackedArgs
+ * \brief Translate legacy ffi::PackedArgs to PackedArgs
  * \param value The TVMValue array
  * \param type_code The type code array
  * \param num_args The number of arguments
@@ -263,7 +263,7 @@ inline void LegacyTVMArgsToPackedArgs(const TVMValue* value, const int* type_cod
 }
 
 /*!
- * \brief Translate legacy TVMArgs to PackedArgs
+ * \brief Translate legacy ffi::PackedArgs to PackedArgs
  * \param args The AnyView array
  * \param num_args The number of arguments
  * \param value The TVMValue array
@@ -275,18 +275,6 @@ inline void PackedArgsToLegacyTVMArgs(const AnyView* args, int num_args, TVMValu
     AnyViewToLegacyTVMArgValue(args[i].CopyToTVMFFIAny(), value + i, type_code + i);
   }
 }
-
-// redirect to ffi::PackedArgs
-using TVMArgs = ffi::PackedArgs;
-// redirect to ffi::AnyView and ffi::Any for ArgValue and RetValue
-using TVMArgValue = ffi::AnyView;
-using TVMRetValue = ffi::Any;
-
-// redirect to ffi::Function
-using PackedFunc = ffi::Function;
-
-template <typename FType>
-using TypedPackedFunc = ffi::TypedFunction<FType>;
 
 /*!
  * \brief Convert argument type code to string.
@@ -341,7 +329,7 @@ struct ModuleVTableEntryHelper {};
 template <typename T, typename R, typename... Args>
 struct ModuleVTableEntryHelper<R (T::*)(Args...) const> {
   using MemFnType = R (T::*)(Args...) const;
-  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args) {
+  static TVM_ALWAYS_INLINE void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
     auto wrapped = [self, f](Args... args) -> R { return (self->*f)(std::forward<Args>(args)...); };
     ffi::details::unpack_call<R>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
                                  args.data(), args.size(), rv);
@@ -351,7 +339,7 @@ struct ModuleVTableEntryHelper<R (T::*)(Args...) const> {
 template <typename T, typename R, typename... Args>
 struct ModuleVTableEntryHelper<R (T::*)(Args...)> {
   using MemFnType = R (T::*)(Args...);
-  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args) {
+  static TVM_ALWAYS_INLINE void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
     auto wrapped = [self, f](Args... args) -> R { return (self->*f)(std::forward<Args>(args)...); };
     ffi::details::unpack_call<R>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
                                  args.data(), args.size(), rv);
@@ -361,7 +349,7 @@ struct ModuleVTableEntryHelper<R (T::*)(Args...)> {
 template <typename T, typename... Args>
 struct ModuleVTableEntryHelper<void (T::*)(Args...) const> {
   using MemFnType = void (T::*)(Args...) const;
-  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args) {
+  static TVM_ALWAYS_INLINE void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
     auto wrapped = [self, f](Args... args) -> void { (self->*f)(std::forward<Args>(args)...); };
     ffi::details::unpack_call<void>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
                                     args.data(), args.size(), rv);
@@ -371,7 +359,7 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...) const> {
 template <typename T, typename... Args>
 struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
   using MemFnType = void (T::*)(Args...);
-  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args) {
+  static TVM_ALWAYS_INLINE void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
     auto wrapped = [self, f](Args... args) -> void { (self->*f)(std::forward<Args>(args)...); };
     ffi::details::unpack_call<void>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
                                     args.data(), args.size(), rv);
@@ -379,12 +367,12 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
 };
 }  // namespace details
 
-#define TVM_MODULE_VTABLE_BEGIN(TypeKey)                                                 \
-  const char* type_key() const final { return TypeKey; }                                 \
-  PackedFunc GetFunction(const String& _name, const ObjectPtr<Object>& _self) override { \
+#define TVM_MODULE_VTABLE_BEGIN(TypeKey)                                                    \
+  const char* type_key() const final { return TypeKey; }                                    \
+  ffi::Function GetFunction(const String& _name, const ObjectPtr<Object>& _self) override { \
     using SelfPtr = std::remove_cv_t<decltype(this)>;
-#define TVM_MODULE_VTABLE_END() \
-  return PackedFunc(nullptr);   \
+#define TVM_MODULE_VTABLE_END()  \
+  return ffi::Function(nullptr); \
   }
 #define TVM_MODULE_VTABLE_END_WITH_DEFAULT(MemFunc) \
   {                                                 \
@@ -400,15 +388,15 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
       Helper::Call(rv, self, MemFunc, args);                                              \
     });                                                                                   \
   }
-#define TVM_MODULE_VTABLE_ENTRY_PACKED(Name, MemFunc)                  \
-  if (_name == Name) {                                                 \
-    return PackedFunc([_self](ffi::PackedArgs args, Any* rv) -> void { \
-      (static_cast<SelfPtr>(_self.get())->*(MemFunc))(args, rv);       \
-    });                                                                \
+#define TVM_MODULE_VTABLE_ENTRY_PACKED(Name, MemFunc)                     \
+  if (_name == Name) {                                                    \
+    return ffi::Function([_self](ffi::PackedArgs args, Any* rv) -> void { \
+      (static_cast<SelfPtr>(_self.get())->*(MemFunc))(args, rv);          \
+    });                                                                   \
   }
 
 /*!
- * \brief Export typed function as a PackedFunc
+ * \brief Export typed function as a ffi::Function
  *        that can be loaded by LibraryModule.
  *
  * \param ExportName The symbol name to be exported.
@@ -416,7 +404,7 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
  * \note ExportName and Function must be different,
  *       see code examples below.
  *
- * \sa TypedPackedFunc
+ * \sa ffi::TypedFunction
  *
  * \code
  *
@@ -455,7 +443,6 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
     TVM_FFI_SAFE_CALL_END();                                                                 \
   }                                                                                          \
   }
-
 }  // namespace runtime  // NOLINT(*)
 using ffi::Any;
 using ffi::AnyView;

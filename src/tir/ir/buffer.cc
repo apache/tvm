@@ -640,7 +640,7 @@ tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std
 
 TVM_REGISTER_NODE_TYPE(BufferNode);
 
-TVM_REGISTER_GLOBAL("tir.Buffer").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tir.Buffer").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
   ICHECK_EQ(args.size(), 11);
   auto buffer_type = args[8].cast<String>();
   BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
