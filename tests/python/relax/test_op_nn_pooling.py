@@ -618,9 +618,9 @@ def test_adaptive_avg_pool1d_infer_struct_info_wrong_layout_string():
     bb = relax.BlockBuilder()
     x = relax.Var("x", R.Tensor((2, 3, 64), "float32"))
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.adaptive_avg_pool1d(x, layout="NCW"))
+        bb.normalize(relax.op.nn.adaptive_avg_pool1d(x, layout="OIW"))
     with pytest.raises(TVMError):
-        bb.normalize(relax.op.nn.adaptive_avg_pool1d(x, out_layout="NWC"))
+        bb.normalize(relax.op.nn.adaptive_avg_pool1d(x, out_layout="OWI"))
 
 
 def test_adaptive_avg_pool1d_wrong_input_ndim():
@@ -990,7 +990,7 @@ def test_adaptive_avg_pool3d_infer_struct_info_wrong_layout_string():
 
 def test_adaptive_avg_pool3d_wrong_input_ndim():
     bb = relax.BlockBuilder()
-    x0 = relax.Var("x", R.Tensor((2, 3, 28, 28, 3), "float32"))
+    x0 = relax.Var("x", R.Tensor((2, 3, 28, 28, 28, 3), "float32"))
     x1 = relax.Var("x", R.Tensor("float32", ndim=3))
 
     with pytest.raises(TVMError):
