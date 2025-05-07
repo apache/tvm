@@ -345,7 +345,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "bitwise_or_.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
             "bitwise_or.Tensor": self._binary_op(relax.op.bitwise_or, operator.or_),
             "div.Tensor": self._binary_op(relax.op.divide, operator.truediv),
-            "div.Tensor_mode": self._div_Tensor_mode,
+            "div.Tensor_mode": self._div,
             "eq.Scalar": self._binary_op(relax.op.equal, operator.eq),
             "eq.Tensor": self._binary_op(relax.op.equal, operator.eq),
             "floor_divide.default": self._binary_op(relax.op.floor_divide, operator.floordiv),

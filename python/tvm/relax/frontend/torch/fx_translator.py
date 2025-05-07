@@ -731,7 +731,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "and_": self._binary_op(relax.op.bitwise_and, operator.and_),
             "bitwise_or_": self._binary_op_inplace(relax.op.bitwise_or, operator.or_),
             "bitwise_or": self._binary_op(relax.op.bitwise_or, operator.or_),
-            "div": self._div_Tensor_mode,
+            "div": self._div,
             "eq": self._binary_op(relax.op.equal, operator.eq),
             "floordiv": self._binary_op(relax.op.floor_divide, operator.floordiv),
             "fmod": self._fmod,

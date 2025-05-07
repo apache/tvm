@@ -409,7 +409,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return convert
 
-    def _div_Tensor_mode(self, node: fx.Node) -> relax.Var:
+    def _div(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         inp_1 = args[0]
         inp_2 = args[1]
