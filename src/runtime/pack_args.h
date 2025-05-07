@@ -19,7 +19,7 @@
 
 /*!
  * \file pack_args.h
- * \brief Utility to pack TVMArgs to other type-erased fution calling convention.
+ * \brief Utility to pack ffi::PackedArgs to other type-erased fution calling convention.
  *
  *  Two type erased function signatures are supported.
  *   - cuda_style(void** args, int num_args);
@@ -62,39 +62,39 @@ union ArgUnion64 {
 /*!
  * \brief Create a packed function from void addr types.
  *
- * \param f with signiture (TVMArgs args, TVMRetValue* rv, void* void_args)
+ * \param f with signiture (ffi::PackedArgs args, ffi::Any* rv, void* void_args)
  * \param arg_types The arguments type information.
  * \tparam F the function type
  *
  * \return The wrapped packed function.
  */
 template <typename F>
-inline PackedFunc PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types);
+inline ffi::Function PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types);
 /*!
  * \brief Create a packed function that from function only packs buffer arguments.
  *
- * \param f with signiture (TVMArgs args, TVMRetValue* rv, ArgUnion* pack_args)
+ * \param f with signiture (ffi::PackedArgs args, ffi::Any* rv, ArgUnion* pack_args)
  * \param arg_types The arguments type information.
  * \tparam F the function type
  *
  * \return The wrapped packed function.
  */
 template <typename F>
-inline PackedFunc PackFuncNonBufferArg(F f, const std::vector<DLDataType>& arg_types);
+inline ffi::Function PackFuncNonBufferArg(F f, const std::vector<DLDataType>& arg_types);
 /*!
  * \brief Create a packed function that from function that takes a packed arguments.
  *
  * This procedure ensures inserts padding to ensure proper alignment of struct fields
  * per C struct convention
  *
- * \param f with signature (TVMArgs args, TVMRetValue* rv, void* pack_args, size_t nbytes)
+ * \param f with signature (ffi::PackedArgs args, ffi::Any* rv, void* pack_args, size_t nbytes)
  * \param arg_types The arguments that wish to get from
  * \tparam F the function type
  *
  * \return The wrapped packed function.
  */
 template <typename F>
-inline PackedFunc PackFuncPackedArgAligned(F f, const std::vector<DLDataType>& arg_types);
+inline ffi::Function PackFuncPackedArgAligned(F f, const std::vector<DLDataType>& arg_types);
 /*!
  * \brief Extract number of buffer argument from the argument types.
  * \param arg_types The argument types.
@@ -150,9 +150,9 @@ inline ArgConvertCode GetArgConvertCode(DLDataType t) {
 }
 
 template <int N, typename F>
-inline PackedFunc PackFuncVoidAddr_(F f, const std::vector<ArgConvertCode>& codes) {
+inline ffi::Function PackFuncVoidAddr_(F f, const std::vector<ArgConvertCode>& codes) {
   int num_args = static_cast<int>(codes.size());
-  auto ret = [f, codes, num_args](TVMArgs args, TVMRetValue* ret) {
+  auto ret = [f, codes, num_args](ffi::PackedArgs args, ffi::Any* ret) {
     TempArray<void*, N> addr_(num_args);
     TempArray<ArgUnion32, N> holder_(num_args);
     void** addr = addr_.data();
@@ -187,13 +187,14 @@ inline PackedFunc PackFuncVoidAddr_(F f, const std::vector<ArgConvertCode>& code
     }
     f(args, ret, addr);
   };
-  return PackedFunc(ret);
+  return ffi::Function(ret);
 }
 
 template <int N, typename F>
-inline PackedFunc PackFuncNonBufferArg_(F f, int base, const std::vector<ArgConvertCode>& codes) {
+inline ffi::Function PackFuncNonBufferArg_(F f, int base,
+                                           const std::vector<ArgConvertCode>& codes) {
   int num_args = static_cast<int>(codes.size());
-  auto ret = [f, codes, base, num_args](TVMArgs args, TVMRetValue* ret) {
+  auto ret = [f, codes, base, num_args](ffi::PackedArgs args, ffi::Any* ret) {
     TempArray<ArgUnion64, N> holder_(num_args);
     ArgUnion64* holder = holder_.data();
     // NOTE: we need the real address of the args.data for some addr translation
@@ -229,13 +230,13 @@ inline PackedFunc PackFuncNonBufferArg_(F f, int base, const std::vector<ArgConv
     }
     f(args, ret, holder);
   };
-  return PackedFunc(ret);
+  return ffi::Function(ret);
 }
 
 template <int N, typename F>
-inline PackedFunc PackFuncPackedArgAligned_(F f, const std::vector<ArgConvertCode>& codes) {
+inline ffi::Function PackFuncPackedArgAligned_(F f, const std::vector<ArgConvertCode>& codes) {
   int num_args = static_cast<int>(codes.size());
-  auto ret = [f, codes, num_args](TVMArgs args, TVMRetValue* ret) {
+  auto ret = [f, codes, num_args](ffi::PackedArgs args, ffi::Any* ret) {
     TempArray<uint64_t, N> pack_(num_args);
     int32_t* pack = reinterpret_cast<int32_t*>(pack_.data());
     int32_t* ptr = pack;
@@ -292,12 +293,12 @@ inline PackedFunc PackFuncPackedArgAligned_(F f, const std::vector<ArgConvertCod
     }
     f(args, ret, pack, (ptr - pack) * sizeof(int32_t));
   };
-  return PackedFunc(ret);
+  return ffi::Function(ret);
 }
 }  // namespace detail
 
 template <typename F>
-inline PackedFunc PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types) {
+inline ffi::Function PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types) {
   std::vector<detail::ArgConvertCode> codes(arg_types.size());
   for (size_t i = 0; i < arg_types.size(); ++i) {
     codes[i] = detail::GetArgConvertCode(arg_types[i]);
@@ -328,7 +329,7 @@ inline size_t NumBufferArgs(const std::vector<DLDataType>& arg_types) {
 }
 
 template <typename F>
-inline PackedFunc PackFuncNonBufferArg(F f, const std::vector<DLDataType>& arg_types) {
+inline ffi::Function PackFuncNonBufferArg(F f, const std::vector<DLDataType>& arg_types) {
   size_t num_buffer = NumBufferArgs(arg_types);
   std::vector<detail::ArgConvertCode> codes;
   for (size_t i = num_buffer; i < arg_types.size(); ++i) {
@@ -345,7 +346,7 @@ inline PackedFunc PackFuncNonBufferArg(F f, const std::vector<DLDataType>& arg_t
 }
 
 template <typename F>
-inline PackedFunc PackFuncPackedArgAligned(F f, const std::vector<DLDataType>& arg_types) {
+inline ffi::Function PackFuncPackedArgAligned(F f, const std::vector<DLDataType>& arg_types) {
   std::vector<detail::ArgConvertCode> codes;
   for (size_t i = 0; i < arg_types.size(); ++i) {
     codes.push_back(detail::GetArgConvertCode(arg_types[i]));

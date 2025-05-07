@@ -64,7 +64,7 @@ namespace ir_builder {
 class IRBuilderFrameNode : public runtime::Object {
  public:
   /*! \brief A list of callbacks used when exiting the frame. */
-  std::vector<runtime::TypedPackedFunc<void()>> callbacks;
+  std::vector<ffi::TypedFunction<void()>> callbacks;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `callbacks` is not visited.
@@ -90,7 +90,7 @@ class IRBuilderFrameNode : public runtime::Object {
    * \brief Add a callback method invoked when exiting the RAII scope.
    * \param callback The callback to be added.
    */
-  void AddCallback(runtime::TypedPackedFunc<void()> callback);
+  void AddCallback(ffi::TypedFunction<void()> callback);
 };
 
 /*!

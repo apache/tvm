@@ -50,7 +50,7 @@ class OpenCLWrappedFunc {
     launch_param_config_.Init(arg_size.size(), launch_param_tags);
   }
   // invoke the function with void arguments
-  void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
+  void operator()(ffi::PackedArgs args, ffi::Any* rv, void** void_args) const {
     ICHECK(w_->devices.size() > 0) << "No OpenCL device";
     cl::OpenCLThreadEntry* t = w_->GetThreadEntry();
     // get the kernel from thread local kernel table.
@@ -134,12 +134,12 @@ cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
   return cl::OpenCLWorkspace::Global();
 }
 
-PackedFunc OpenCLModuleNodeBase::GetFunction(const String& name,
-                                             const ObjectPtr<Object>& sptr_to_self) {
+ffi::Function OpenCLModuleNodeBase::GetFunction(const String& name,
+                                                const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
-  if (it == fmap_.end()) return PackedFunc();
+  if (it == fmap_.end()) return ffi::Function();
   const FunctionInfo& info = it->second;
   OpenCLWrappedFunc f;
   std::vector<size_t> arg_size(info.arg_types.size());
@@ -345,15 +345,15 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
   return data;
 }
 
-PackedFunc OpenCLModuleNode::GetFunction(const String& name,
-                                         const ObjectPtr<Object>& sptr_to_self) {
+ffi::Function OpenCLModuleNode::GetFunction(const String& name,
+                                            const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   if (name == "opencl.GetPreCompiledPrograms") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+    return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
       *rv = this->GetPreCompiledPrograms();
     });
   } else if (name == "opencl.SetPreCompiledPrograms") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+    return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
       this->SetPreCompiledPrograms(args[0].cast<std::string>());
     });
   }

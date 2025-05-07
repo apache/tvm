@@ -713,7 +713,7 @@ TVM_DLL Pass AnnotateEntryFunc();
  * \brief Filter PrimFuncs with a given condition.
  * \return The pass.
  */
-TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
+TVM_DLL Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond);
 
 /*!
  * \brief Pass to rewrite global to shared memory copy on CUDA with asyncronous copy.

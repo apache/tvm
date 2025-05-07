@@ -269,7 +269,7 @@ class OpRegEntry {
   // return internal pointer to op.
   inline OpNode* get();
   // update the attribute OpAttrMap
-  TVM_DLL void UpdateAttr(const String& key, runtime::TVMRetValue value, int plevel);
+  TVM_DLL void UpdateAttr(const String& key, ffi::Any value, int plevel);
 };
 
 /*!

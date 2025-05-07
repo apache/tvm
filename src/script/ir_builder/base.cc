@@ -36,7 +36,7 @@ void IRBuilderFrameNode::ExitWithScope() {
   IRBuilder::Current()->frames.pop_back();
 }
 
-void IRBuilderFrameNode::AddCallback(runtime::TypedPackedFunc<void()> callback) {
+void IRBuilderFrameNode::AddCallback(ffi::TypedFunction<void()> callback) {
   if (IRBuilder::Current()->frames.empty()) {
     LOG(FATAL) << "ValueError: No frames in Builder to add callback";
   }

@@ -60,7 +60,7 @@ class TargetInternal {
   static ObjectPtr<Object> FromConfigString(const String& config_str);
   static ObjectPtr<Object> FromRawString(const String& target_str);
   static ObjectPtr<Object> FromConfig(Map<String, ffi::Any> config);
-  static void ConstructorDispatcher(TVMArgs args, TVMRetValue* rv);
+  static void ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv);
   static Target WithHost(const Target& target, const Target& target_host) {
     ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
     n->host = target_host;
@@ -756,7 +756,7 @@ Target Target::Current(bool allow_not_defined) {
 
 /**********  Creation  **********/
 
-void TargetInternal::ConstructorDispatcher(TVMArgs args, TVMRetValue* rv) {
+void TargetInternal::ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv) {
   if (args.size() == 1) {
     const auto& arg = args[0];
     if (auto opt_target = arg.as<Target>()) {
@@ -923,7 +923,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
   }
   // parse host
   if (config.count(kHost)) {
-    target->host = PackedFunc(ConstructorDispatcher)(config[kHost]).cast<Target>();
+    target->host = ffi::Function(ConstructorDispatcher)(config[kHost]).cast<Target>();
     config.erase(kHost);
   } else {
     target->host = NullOpt;
@@ -987,7 +987,7 @@ std::unordered_map<String, ffi::Any> TargetInternal::QueryDevice(int device_id,
     return output;
   }
 
-  TVMRetValue ret;
+  ffi::Any ret;
   api->GetAttr(device, runtime::kExist, &ret);
   bool device_exists = ret.cast<bool>();
   if (!device_exists) {
@@ -1000,7 +1000,7 @@ std::unordered_map<String, ffi::Any> TargetInternal::QueryDevice(int device_id,
   for (const auto& kv : target->kind->key2vtype_) {
     const String& key = kv.first;
 
-    TVMRetValue ret;
+    ffi::Any ret;
     api->GetTargetProperty(device, key, &ret);
     output[key] = ret;
   }
