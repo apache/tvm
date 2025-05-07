@@ -62,13 +62,14 @@ enum class AttnKind : int {
   kMHA = 0,
   kMLA = 1,
   kLinearAttn = 2,
+  kMHASliding = 3,
 };
 
 /*! \brief Given the attention kind and other metadata, return the one-layer KV cache shape. */
 inline ShapeTuple GetKVCacheShape(AttnKind attn_kind, int64_t num_total_pages, int num_sequence,
                                   int64_t num_kv_heads, int64_t page_size, int64_t qk_head_dim,
                                   int64_t v_head_dim) {
-  if (attn_kind == AttnKind::kMHA) {
+  if (attn_kind == AttnKind::kMHA || attn_kind == AttnKind::kMHASliding) {
     // Ignore v_head_dim since multi-head attention requires K/V to have the same head dim.
     return {num_total_pages, 2, num_kv_heads, page_size, qk_head_dim};
   } else if (attn_kind == AttnKind::kMLA) {
