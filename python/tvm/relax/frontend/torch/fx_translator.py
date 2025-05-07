@@ -725,11 +725,13 @@ class TorchFXImporter(BaseFXGraphImporter):
             "tril": self._tril_triu(relax.op.tril),
             "triu_": self._inplace_tril_triu(relax.op.triu),
             "triu": self._tril_triu(relax.op.triu),
+            "trunc": self._unary_op(relax.op.trunc),
             # binary
             "add": self._binary_op(relax.op.add, operator.add),
             "and_": self._binary_op(relax.op.bitwise_and, operator.and_),
             "bitwise_or_": self._binary_op_inplace(relax.op.bitwise_or, operator.or_),
             "bitwise_or": self._binary_op(relax.op.bitwise_or, operator.or_),
+            "div": self._div,
             "eq": self._binary_op(relax.op.equal, operator.eq),
             "floordiv": self._binary_op(relax.op.floor_divide, operator.floordiv),
             "fmod": self._fmod,
