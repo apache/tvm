@@ -206,7 +206,7 @@ TVM_REGISTER_GLOBAL("topi.nn.group_norm").set_body_packed([](TVMArgs args, TVMRe
 TVM_REGISTER_GLOBAL("topi.nn.instance_norm").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   *rv = nn::instance_norm(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(),
                           args[2].cast<te::Tensor>(), args[3].cast<int>(),
-                          args[4].cast<Array<Integer>>(),args[5].cast<double>());
+                          args[4].cast<Array<Integer>>(), args[5].cast<double>());
 });
 
 /* Ops from nn/rms_norm.h */
