@@ -146,8 +146,7 @@ TVM_REGISTER_NODE_TYPE(PrimFuncPassNode);
 
 TVM_REGISTER_GLOBAL("tir.transform.CreatePrimFuncPass")
     .set_body_typed(
-        [](runtime::TypedPackedFunc<PrimFunc(ffi::RValueRef<PrimFunc>, IRModule, PassContext)>
-               pass_func,
+        [](ffi::TypedFunction<PrimFunc(ffi::RValueRef<PrimFunc>, IRModule, PassContext)> pass_func,
            PassInfo pass_info) {
           auto wrapped_pass_func = [pass_func](PrimFunc func, IRModule mod, PassContext ctx) {
             return pass_func(ffi::RValueRef<PrimFunc>(std::move(func)), mod, ctx);

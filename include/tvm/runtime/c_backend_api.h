@@ -105,7 +105,7 @@ TVM_DLL int TVMBackendFreeWorkspace(int device_type, int device_id, void* ptr);
  *        specific C APIs.
  *
  * \note  We only register the C API function when absolutely necessary (e.g. when signal handler
- *  cannot trap back into python). In most cases we should use the PackedFunc FFI.
+ *  cannot trap back into python). In most cases we should use the ffi::Function FFI.
  *
  * \param name The name of the symbol
  * \param ptr The symbol address.

@@ -379,20 +379,21 @@ class ThreadPool {
  * \brief args[0] is the AffinityMode, args[1] is the number of threads.
  *  args2 is a list of CPUs which is used to set the CPU affinity.
  */
-TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  threading::ThreadGroup::AffinityMode mode =
-      static_cast<threading::ThreadGroup::AffinityMode>(args[0].cast<int>());
-  int nthreads = args[1].cast<int>();
-  std::vector<unsigned int> cpus;
-  if (args.size() >= 3) {
-    auto cpu_array = args[2].cast<Array<String>>();
-    for (auto cpu : cpu_array) {
-      ICHECK(IsNumber(cpu)) << "The CPU core information '" << cpu << "' is not a number.";
-      cpus.push_back(std::stoi(cpu));
-    }
-  }
-  threading::Configure(mode, nthreads, cpus);
-});
+TVM_REGISTER_GLOBAL("runtime.config_threadpool")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      threading::ThreadGroup::AffinityMode mode =
+          static_cast<threading::ThreadGroup::AffinityMode>(args[0].cast<int>());
+      int nthreads = args[1].cast<int>();
+      std::vector<unsigned int> cpus;
+      if (args.size() >= 3) {
+        auto cpu_array = args[2].cast<Array<String>>();
+        for (auto cpu : cpu_array) {
+          ICHECK(IsNumber(cpu)) << "The CPU core information '" << cpu << "' is not a number.";
+          cpus.push_back(std::stoi(cpu));
+        }
+      }
+      threading::Configure(mode, nthreads, cpus);
+    });
 
 TVM_REGISTER_GLOBAL("runtime.NumThreads").set_body_typed([]() -> int32_t {
   return threading::NumThreads();

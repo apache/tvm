@@ -78,7 +78,7 @@ TargetKindRegEntry& TargetKindRegEntry::RegisterOrGet(const String& target_kind_
   return TargetKindRegistry::Global()->RegisterOrGet(target_kind_name);
 }
 
-void TargetKindRegEntry::UpdateAttr(const String& key, TVMRetValue value, int plevel) {
+void TargetKindRegEntry::UpdateAttr(const String& key, ffi::Any value, int plevel) {
   TargetKindRegistry::Global()->UpdateAttr(key, kind_, value, plevel);
 }
 
@@ -122,7 +122,7 @@ std::string ExtractStringWithPrefix(const std::string& str, const std::string& p
  * \param val The detected value
  * \return A boolean indicating if detection succeeds
  */
-static bool DetectDeviceFlag(Device device, runtime::DeviceAttrKind flag, TVMRetValue* val) {
+static bool DetectDeviceFlag(Device device, runtime::DeviceAttrKind flag, ffi::Any* val) {
   using runtime::DeviceAPI;
   DeviceAPI* api = DeviceAPI::Get(device, true);
   // Check if compiled with the corresponding device api
@@ -168,7 +168,7 @@ TargetJSON UpdateCUDAAttrs(TargetJSON target) {
   } else {
     // Use the compute version of the first CUDA GPU instead
     int archInt;
-    TVMRetValue version;
+    ffi::Any version;
     if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
       LOG(WARNING) << "Unable to detect CUDA version, default to \"-arch=sm_50\" instead";
       archInt = 50;
@@ -196,7 +196,7 @@ TargetJSON UpdateNVPTXAttrs(TargetJSON target) {
   } else {
     // Use the compute version of the first CUDA GPU instead
     int arch;
-    TVMRetValue version;
+    ffi::Any version;
     if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
       LOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_50\" instead";
       arch = 50;
@@ -222,7 +222,7 @@ TargetJSON UpdateROCmAttrs(TargetJSON target) {
     arch = ExtractStringWithPrefix(mcpu, "gfx");
     ICHECK(!arch.empty()) << "ValueError: ROCm target gets an invalid GFX version: -mcpu=" << mcpu;
   } else {
-    TVMRetValue val;
+    ffi::Any val;
     if (const auto f_get_rocm_arch = tvm::ffi::Function::GetGlobal("tvm_callback_rocm_get_arch")) {
       arch = (*f_get_rocm_arch)().cast<std::string>();
     }
@@ -232,7 +232,7 @@ TargetJSON UpdateROCmAttrs(TargetJSON target) {
   //   Before ROCm 3.5 we needed code object v2, starting
   //   with 3.5 we need v3 (this argument disables v3)
 
-  TVMRetValue val;
+  ffi::Any val;
   int version;
   if (!DetectDeviceFlag({kDLROCM, 0}, runtime::kApiVersion, &val)) {
     LOG(WARNING) << "Unable to detect ROCm version, assuming >= 3.5";
@@ -447,9 +447,9 @@ TVM_REGISTER_TARGET_KIND("test", kDLCPU)  // line break
 /**********  Registry  **********/
 
 TVM_REGISTER_GLOBAL("target.TargetKindGetAttr")
-    .set_body_typed([](TargetKind kind, String attr_name) -> TVMRetValue {
-      auto target_attr_map = TargetKind::GetAttrMap<TVMRetValue>(attr_name);
-      TVMRetValue rv;
+    .set_body_typed([](TargetKind kind, String attr_name) -> ffi::Any {
+      auto target_attr_map = TargetKind::GetAttrMap<ffi::Any>(attr_name);
+      ffi::Any rv;
       if (target_attr_map.count(kind)) {
         rv = target_attr_map[kind];
       }

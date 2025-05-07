@@ -236,7 +236,7 @@ class ForFrameNode : public TIRFrameNode {
    * \param loop_body The loop body
    * \return A stmt, the loop nest
    */
-  using FMakeForLoop = runtime::TypedPackedFunc<tvm::tir::Stmt(
+  using FMakeForLoop = ffi::TypedFunction<tvm::tir::Stmt(
       Array<tvm::tir::Var> loop_vars, Array<Range> loop_extents, tvm::tir::Stmt loop_body)>;
   /*! \brief The loop variable. */
   Array<tvm::tir::Var> vars;

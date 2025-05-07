@@ -132,7 +132,7 @@ cl_device_id OpenCLWorkspace::GetCLDeviceID(int device_id) {
 
 void OpenCLWorkspace::SetDevice(Device dev) { GetThreadEntry()->device.device_id = dev.device_id; }
 
-void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
+void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) {
   this->Init();
   size_t index = static_cast<size_t>(dev.device_id);
   if (kind == kExist) {
@@ -761,7 +761,7 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
 }
 
 TVM_REGISTER_GLOBAL("device_api.opencl.alloc_nd")
-    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       int32_t device_type = args[0].cast<int32_t>();
       int32_t device_id = args[1].cast<int32_t>();
       int32_t dtype_code_hint = args[2].cast<int32_t>();
@@ -788,21 +788,22 @@ TVM_REGISTER_GLOBAL("device_api.opencl.alloc_nd")
                                                       String("global.texture"));
     });
 
-TVM_REGISTER_GLOBAL("device_api.opencl.free_nd").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  int32_t device_type = args[0].cast<int32_t>();
-  int32_t device_id = args[1].cast<int32_t>();
-  auto scope = args[2].cast<std::string>();
-  CHECK(scope.find("texture") != std::string::npos);
-  void* data = args[3].cast<void*>();
-  OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
-  Device dev;
-  dev.device_type = static_cast<DLDeviceType>(device_type);
-  dev.device_id = device_id;
-  ptr->FreeDataSpace(dev, data);
-  *rv = static_cast<int32_t>(0);
-});
+TVM_REGISTER_GLOBAL("device_api.opencl.free_nd")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      int32_t device_type = args[0].cast<int32_t>();
+      int32_t device_id = args[1].cast<int32_t>();
+      auto scope = args[2].cast<std::string>();
+      CHECK(scope.find("texture") != std::string::npos);
+      void* data = args[3].cast<void*>();
+      OpenCLWorkspace* ptr = OpenCLWorkspace::Global();
+      Device dev;
+      dev.device_type = static_cast<DLDeviceType>(device_type);
+      dev.device_id = device_id;
+      ptr->FreeDataSpace(dev, data);
+      *rv = static_cast<int32_t>(0);
+    });
 
-TVM_REGISTER_GLOBAL("device_api.opencl").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.opencl").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   DeviceAPI* ptr = OpenCLWorkspace::Global();
   *rv = static_cast<void*>(ptr);
 });
@@ -892,10 +893,11 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
   }
 };
 
-TVM_REGISTER_GLOBAL("DeviceAllocator.opencl").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  Allocator* alloc = new OpenCLPooledAllocator();
-  *rv = static_cast<void*>(alloc);
-});
+TVM_REGISTER_GLOBAL("DeviceAllocator.opencl")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      Allocator* alloc = new OpenCLPooledAllocator();
+      *rv = static_cast<void*>(alloc);
+    });
 
 }  // namespace cl
 size_t OpenCLTimerNode::count_timer_execs = 0;

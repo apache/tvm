@@ -68,7 +68,7 @@ static inline int DetectROCMmaxThreadsPerBlock() {
   tvm_dev.device_id = 0;
   tvm::runtime::DeviceAPI* api = tvm::runtime::DeviceAPI::Get(tvm_dev, true);
   if (api != nullptr) {
-    TVMRetValue val;
+    ffi::Any val;
     api->GetAttr(tvm_dev, tvm::runtime::kExist, &val);
     if (val.cast<int>() == 1) {
       tvm::runtime::DeviceAPI::Get(tvm_dev)->GetAttr(tvm_dev, tvm::runtime::kMaxThreadsPerBlock,
@@ -359,7 +359,7 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
 TVM_REGISTER_GLOBAL("target.build.rocm").set_body_typed(BuildAMDGPU);
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_rocm")
-    .set_body_packed([](const TVMArgs& targs, TVMRetValue* rv) {
+    .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
       *rv = static_cast<void*>(new CodeGenAMDGPU());
     });
 

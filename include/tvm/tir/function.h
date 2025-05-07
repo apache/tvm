@@ -288,7 +288,7 @@ namespace attr {
  * Here n = len(arg), m = len(work_size) = len(launch_params)-1.
  *
  * The list of kernel launch params indicates which additional
- * parameters will be provided to the PackedFunc by the calling
+ * parameters will be provided to the ffi::Function by the calling
  * scope.
  *
  * - "threadIdx.x", "threadIdx.y", "threadIdx.z"

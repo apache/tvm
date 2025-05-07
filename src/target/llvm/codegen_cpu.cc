@@ -506,7 +506,7 @@ void CodeGenCPU::CreateComputeScope(const AttrStmtNode* op) {
 
   // There are two reasons why we create another function for compute_scope
   // - Make sure the generated compute function is clearly separately(though it can get inlined)
-  // - Set noalias on all the pointer arguments, some of them are loaded from TVMArgs.
+  // - Set noalias on all the pointer arguments, some of them are loaded from ffi::PackedArgs.
   //   This is easier than set the alias scope manually.
   Array<Var> vargs = tir::UndefinedVars(op->body, {});
   std::vector<llvm::Value*> arg_values;
@@ -1159,7 +1159,7 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
 }
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_cpu")
-    .set_body_packed([](const TVMArgs& targs, TVMRetValue* rv) {
+    .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
       *rv = static_cast<void*>(new CodeGenCPU());
     });
 
