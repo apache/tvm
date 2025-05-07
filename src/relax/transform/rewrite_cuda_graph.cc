@@ -157,8 +157,8 @@ class FuncBuilder : public ExprMutator {
     auto output = builder_->Emit(Tuple(outputs));
     auto block = builder_->EndBlock();
     auto body = builder_->Normalize(SeqExpr({block}, output));
-    Map<String, ObjectRef> attrs;
-    attrs.Set(relax::attr::kForcePure, Bool(true));
+    Map<String, Any> attrs;
+    attrs.Set(relax::attr::kForcePure, true);
     auto func = Function(params, body, Downcast<StructInfo>(output->struct_info_.value()),
                          /*is_pure=*/true, /*attrs=*/DictAttrs(attrs));
     return func;
@@ -884,7 +884,7 @@ IRModule RewriteCUDAGraph(IRModule mod) {
 namespace transform {
 
 Pass RewriteCUDAGraph() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule mod, PassContext pc) {
         bool use_cuda_graph =
             pc->GetConfig<Bool>("relax.backend.use_cuda_graph").value_or(Bool(false))->value;

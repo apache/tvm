@@ -71,7 +71,7 @@ class ExprFunctor;
 #define PY_EXPR_MUTATOR_DEFAULT(N, PY_FUNC, DEFAULT_FUNC, RET_TYPE) \
   {                                                                 \
     if (PY_FUNC != nullptr) {                                       \
-      RET_TYPE ret = PY_FUNC(N);                                    \
+      RET_TYPE ret = PY_FUNC(N).cast<RET_TYPE>();                   \
       return ret;                                                   \
     } else {                                                        \
       return DEFAULT_FUNC;                                          \
@@ -89,7 +89,7 @@ class ExprFunctor;
 #define PY_EXPR_MUTATOR_DISPATCH(OP, PY_FUNC)                            \
   vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self) { \
     if (self->PY_FUNC != nullptr) {                                      \
-      Expr expr = self->PY_FUNC(n);                                      \
+      Expr expr = self->PY_FUNC(n).cast<Expr>();                         \
       return expr;                                                       \
     } else {                                                             \
       return self->VisitExpr_(static_cast<const OP*>(n.get()));          \

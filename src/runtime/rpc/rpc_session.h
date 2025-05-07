@@ -115,14 +115,11 @@ class RPCSession {
    *    the deleter functions when they are no longer needed.
    *
    * \param func The function handle.
-   * \param arg_values The argument values.
-   * \param arg_type_codes the type codes of the argument.
-   * \param num_args Number of arguments.
+   * \param args The input packed arguments.
    * \param fencode_return The function to set the return value,
    *                       if not called, return value is null.
    */
-  virtual void CallFunc(PackedFuncHandle func, const TVMValue* arg_values,
-                        const int* arg_type_codes, int num_args,
+  virtual void CallFunc(PackedFuncHandle func, ffi::PackedArgs args,
                         const FEncodeReturn& fencode_return) = 0;
 
   /*!
@@ -142,10 +139,10 @@ class RPCSession {
 
   /*!
    * \brief Free a remote function.
-   * \param handle The remote handle, can be NDArray/PackedFunc/Module/Object
+   * \param handle The remote object handle.
    * \param type_code The type code of the underlying type.
    */
-  virtual void FreeHandle(void* handle, int type_code) = 0;
+  virtual void FreeHandle(void* handle) = 0;
 
   /*!
    * \brief Get device API that represents the remote
@@ -199,14 +196,11 @@ class RPCSession {
   /*!
    * \brief Asynchrously call func.
    * \param func The function handle.
-   * \param arg_values The argument values.
-   * \param arg_type_codes the type codes of the argument.
-   * \param num_args Number of arguments.
+   * \param args The packed arguments.
    *
    * \param callback The callback to pass the return value or exception.
    */
-  virtual void AsyncCallFunc(PackedFuncHandle func, const TVMValue* arg_values,
-                             const int* arg_type_codes, int num_args, FAsyncCallback callback);
+  virtual void AsyncCallFunc(PackedFuncHandle func, ffi::PackedArgs args, FAsyncCallback callback);
 
   /*!
    * \brief Asynchrous version of CopyToRemote.
@@ -306,7 +300,7 @@ class RPCObjectRefObj : public Object {
   ~RPCObjectRefObj() {
     if (object_handle_ != nullptr && sess_ != nullptr) {
       try {
-        sess_->FreeHandle(object_handle_, kTVMObjectHandle);
+        sess_->FreeHandle(object_handle_);
       } catch (const Error& e) {
         // fault tolerance to remote close
       }
@@ -320,7 +314,8 @@ class RPCObjectRefObj : public Object {
 
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeRPCObjectRef;
   static constexpr const char* _type_key = "runtime.RPCObjectRef";
-  TVM_DECLARE_FINAL_OBJECT_INFO(RPCObjectRefObj, Object);
+  static const constexpr bool _type_final = true;
+  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(RPCObjectRefObj, Object);
 
  private:
   // The object handle

@@ -232,19 +232,19 @@ void thrust_sort_common(DLTensor* input, DLTensor* values_out, DLTensor* indices
   }
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   ICHECK_GE(args.num_args, 4);
-  DLTensor* input = args[0];
-  DLTensor* values_out = args[1];
-  DLTensor* indices_out = args[2];
-  bool is_ascend = args[3];
+  auto input = args[0].cast<DLTensor*>();
+  auto values_out = args[1].cast<DLTensor*>();
+  auto indices_out = args[2].cast<DLTensor*>();
+  bool is_ascend = args[3].cast<bool>();
   DLTensor* workspace = nullptr;
   if (args.num_args == 5) {
     workspace = args[4];
   }
 
-  auto data_dtype = DLDataType2String(input->dtype);
-  auto out_dtype = DLDataType2String(indices_out->dtype);
+  auto data_dtype = DLDataTypeToString(input->dtype);
+  auto out_dtype = DLDataTypeToString(indices_out->dtype);
 
   int n_values = input->shape[input->ndim - 1];
   thrust_sort_common(input, values_out, indices_out, is_ascend, n_values, data_dtype, out_dtype,
@@ -279,20 +279,20 @@ void thrust_stable_sort_by_key(DLTensor* keys_in, DLTensor* values_in, DLTensor*
 }
 
 TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
       ICHECK_GE(args.num_args, 5);
-      DLTensor* keys_in = args[0];
-      DLTensor* values_in = args[1];
-      DLTensor* keys_out = args[2];
-      DLTensor* values_out = args[3];
-      bool for_scatter = args[4];
+      auto keys_in = args[0].cast<DLTensor*>();
+      auto values_in = args[1].cast<DLTensor*>();
+      auto keys_out = args[2].cast<DLTensor*>();
+      auto values_out = args[3].cast<DLTensor*>();
+      bool for_scatter = args[4].cast<bool>();
       DLTensor* workspace = nullptr;
       if (args.num_args == 6) {
         workspace = args[5];
       }
 
-      auto key_dtype = DLDataType2String(keys_in->dtype);
-      auto value_dtype = DLDataType2String(values_in->dtype);
+      auto key_dtype = DLDataTypeToString(keys_in->dtype);
+      auto value_dtype = DLDataTypeToString(values_in->dtype);
 
       if (key_dtype == "int32") {
         if (value_dtype == "int32") {
@@ -393,10 +393,11 @@ void thrust_scan(DLTensor* data, DLTensor* output, bool exclusive, DLTensor* wor
   }
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
+.set_body_packed([](TVMArgs args, TVMRetValue* ret) {
   ICHECK(args.num_args == 2 || args.num_args == 3 || args.num_args == 4);
-  DLTensor* data = args[0];
-  DLTensor* output = args[1];
+  auto data = args[0].cast<DLTensor*>();
+  auto output = args[1].cast<DLTensor*>();
   bool exclusive = false;
   DLTensor* workspace = nullptr;
 
@@ -408,8 +409,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan").set_body([](TVMArgs args, TVM
     workspace = args[3];
   }
 
-  auto in_dtype = DLDataType2String(data->dtype);
-  auto out_dtype = DLDataType2String(output->dtype);
+  auto in_dtype = DLDataTypeToString(data->dtype);
+  auto out_dtype = DLDataTypeToString(output->dtype);
 
   if (in_dtype == "bool") {
     if (out_dtype == "int32") {

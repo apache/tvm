@@ -121,8 +121,7 @@ class TupleExpander : public ExprMutator {
 namespace transform {
 
 Pass ExpandTupleArguments() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) -> IRModule {
+  auto pass_func = [=](IRModule mod, PassContext pc) -> IRModule {
     PMap<GlobalVar, GlobalVar> gvar_replacements;
 
     {

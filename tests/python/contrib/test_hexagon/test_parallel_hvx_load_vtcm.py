@@ -335,7 +335,7 @@ def setup_and_run(hexagon_session, sch, a, b, c, operations, mem_scope="global")
     )
     time = timer(a_hexagon, b_hexagon, c_hexagon)
     gops = round(operations * 128 * 3 / time.mean / 1e9, 4)
-    return gops, c_hexagon.asnumpy()
+    return gops, c_hexagon.numpy()
 
 
 def setup_and_run_preallocated(hexagon_session, sch, a, b, c, operations):
@@ -369,7 +369,7 @@ def setup_and_run_preallocated(hexagon_session, sch, a, b, c, operations):
     )
     time = timer(a_hexagon, b_hexagon, c_hexagon, a_vtcm_hexagon, b_vtcm_hexagon, c_vtcm_hexagon)
     gops = round(operations * 128 * 3 / time.mean / 1e9, 4)
-    return gops, c_hexagon.asnumpy()
+    return gops, c_hexagon.numpy()
 
 
 class TestMatMulVec:

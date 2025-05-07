@@ -108,7 +108,7 @@ class DataflowReshapeRewriter : public ExprMutator {
 
   bool IsCallingTIRReshape(const CallNode* call, Expr inp) {
     const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
-    const auto* func = mod_->functions.Get(global_var).as<tir::PrimFuncNode>();
+    const auto* func = mod_->functions.Get(global_var).value().as<tir::PrimFuncNode>();
     ICHECK_NOTNULL(func);
     if (!HasReshapePattern(GetRef<tir::PrimFunc>(func))) {
       return false;
@@ -159,10 +159,9 @@ Expr RewriteDataflowReshape(const Function& f, const IRModule& mod) {
 namespace transform {
 
 Pass RewriteDataflowReshape() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(RewriteDataflowReshape(f, m));
-      };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return Downcast<Function>(RewriteDataflowReshape(f, m));
+  };
   return CreateFunctionPass(pass_func, 0, "RewriteDataflowReshape", {});
 }
 

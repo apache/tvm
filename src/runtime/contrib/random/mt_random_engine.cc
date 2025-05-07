@@ -124,7 +124,7 @@ class RandomEngine {
     } else {
       runtime::NDArray local = runtime::NDArray::Empty(
           std::vector<int64_t>{data->shape, data->shape + data->ndim}, data->dtype, {kDLCPU, 0});
-      DLTensor* tensor = const_cast<DLTensor*>(local.operator->());
+      DLTensor* tensor = const_cast<ffi::NDArrayObj*>(local.operator->());
       FillData(tensor);
       runtime::NDArray::CopyFromTo(tensor, data);
     }
@@ -136,7 +136,7 @@ class RandomEngine {
     } else {
       runtime::NDArray local = runtime::NDArray::Empty(
           std::vector<int64_t>{data->shape, data->shape + data->ndim}, data->dtype, {kDLCPU, 0});
-      DLTensor* tensor = const_cast<DLTensor*>(local.operator->());
+      DLTensor* tensor = const_cast<ffi::NDArrayObj*>(local.operator->());
       FillDataForMeasure(tensor);
       runtime::NDArray::CopyFromTo(tensor, data);
     }

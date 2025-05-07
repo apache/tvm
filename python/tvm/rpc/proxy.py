@@ -519,7 +519,6 @@ class PopenProxyServerState(object):
         index_page=None,
         resource_files=None,
     ):
-
         sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
         self.port = None
         for my_port in range(port, port_end):

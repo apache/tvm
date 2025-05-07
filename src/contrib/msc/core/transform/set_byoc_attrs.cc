@@ -95,8 +95,9 @@ IRModule SetBYOCAttrs(IRModule mod, const String& target, const String& entry_na
 namespace transform {
 
 Pass SetBYOCAttrs(const String& target, const String& entry_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::SetBYOCAttrs(m, target, entry_name); };
+  auto pass_func = [=](IRModule m, PassContext pc) {
+    return relax::SetBYOCAttrs(m, target, entry_name);
+  };
   return CreateModulePass(pass_func, 0, "SetBYOCAttrs", {});
 }
 

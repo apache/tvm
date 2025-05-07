@@ -28,21 +28,21 @@
 namespace tvm {
 namespace tir {
 
-ObjectRef NormalizeAttributeObject(ObjectRef obj) {
-  if (const auto* runtime_int = obj.as<runtime::Int::ContainerType>()) {
-    return Integer(runtime_int->value);
-  } else if (const auto* runtime_bool = obj.as<runtime::Bool::ContainerType>()) {
-    return Bool(runtime_bool->value);
-  } else if (const auto* runtime_float = obj.as<runtime::Float::ContainerType>()) {
-    return FloatImm(DataType::Float(32), runtime_float->value);
-  } else if (auto opt_array = obj.as<Array<ObjectRef>>()) {
+ffi::Any NormalizeAttributeObject(ffi::Any obj) {
+  if (obj.type_index() == ffi::TypeIndex::kTVMFFIBool) {
+    return Bool(obj.cast<bool>());
+  } else if (auto opt_int = obj.as<int>()) {
+    return Integer(opt_int.value());
+  } else if (auto opt_float = obj.as<double>()) {
+    return FloatImm(DataType::Float(32), opt_float.value());
+  } else if (auto opt_array = obj.as<Array<ffi::Any>>()) {
     return opt_array.value().Map(NormalizeAttributeObject);
-  } else if (auto opt_map = obj.as<Map<ObjectRef, ObjectRef>>()) {
-    Map<ObjectRef, ObjectRef> new_map;
+  } else if (auto opt_map = obj.as<Map<ffi::Any, ffi::Any>>()) {
+    Map<ffi::Any, ffi::Any> new_map;
     bool is_same = true;
 
     for (const auto& [key, obj] : opt_map.value()) {
-      ObjectRef new_obj = NormalizeAttributeObject(obj);
+      ObjectRef new_obj = NormalizeAttributeObject(obj.cast<ObjectRef>()).cast<ObjectRef>();
       is_same = is_same && obj.same_as(new_obj);
       new_map.Set(key, new_obj);
     }
@@ -53,7 +53,7 @@ ObjectRef NormalizeAttributeObject(ObjectRef obj) {
       return new_map;
     }
   } else if (auto dict_attrs = obj.as<DictAttrs::ContainerType>()) {
-    auto new_attrs = Downcast<Map<String, ObjectRef>>(NormalizeAttributeObject(dict_attrs->dict));
+    auto new_attrs = Downcast<Map<String, ffi::Any>>(NormalizeAttributeObject(dict_attrs->dict));
     if (new_attrs.same_as(dict_attrs->dict)) {
       return GetRef<DictAttrs>(dict_attrs);
     } else {

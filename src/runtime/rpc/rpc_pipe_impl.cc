@@ -108,14 +108,14 @@ Module CreatePipeClient(std::vector<std::string> cmd) {
 
   auto endpt = RPCEndpoint::Create(std::make_unique<PipeChannel>(parent_read, parent_write, pid),
                                    "pipe", "pipe");
-  endpt->InitRemoteSession(TVMArgs(nullptr, nullptr, 0));
+  endpt->InitRemoteSession(TVMArgs(nullptr, 0));
   return CreateRPCSessionModule(CreateClientSession(endpt));
 }
 
-TVM_REGISTER_GLOBAL("rpc.CreatePipeClient").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("rpc.CreatePipeClient").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   std::vector<std::string> cmd;
   for (int i = 0; i < args.size(); ++i) {
-    cmd.push_back(args[i].operator std::string());
+    cmd.push_back(args[i].cast<std::string>());
   }
   *rv = CreatePipeClient(cmd);
 });

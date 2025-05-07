@@ -28,6 +28,7 @@
  * codegen and runtimes.
  */
 #include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
@@ -76,7 +77,7 @@ class ConstLoaderModuleNode : public ModuleNode {
 
     if (name == "get_const_var_ndarray") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        Map<String, ObjectRef> ret_map;
+        Map<String, ffi::Any> ret_map;
         for (const auto& kv : const_var_ndarray_) {
           ret_map.Set(kv.first, kv.second);
         }
@@ -140,7 +141,7 @@ class ConstLoaderModuleNode : public ModuleNode {
       if (init != nullptr) {
         auto md = GetRequiredConstants(symbol);
         // Initialize the module with constants.
-        int ret = init(md);
+        int ret = init(md).cast<int>();
         // Report the error if initialization is failed.
         ICHECK_EQ(ret, 0) << TVMGetLastError();
         break;

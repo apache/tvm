@@ -129,8 +129,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.ProfilerEnterWithScope")
 TVM_REGISTER_GLOBAL("meta_schedule.ProfilerExitWithScope")
     .set_body_method(&Profiler::ExitWithScope);
 TVM_REGISTER_GLOBAL("meta_schedule.ProfilerCurrent").set_body_typed(Profiler::Current);
-TVM_REGISTER_GLOBAL("meta_schedule.ProfilerGet").set_body_method<Profiler>(&ProfilerNode::Get);
-TVM_REGISTER_GLOBAL("meta_schedule.ProfilerTable").set_body_method<Profiler>(&ProfilerNode::Table);
+TVM_REGISTER_GLOBAL("meta_schedule.ProfilerGet").set_body_method(&ProfilerNode::Get);
+TVM_REGISTER_GLOBAL("meta_schedule.ProfilerTable").set_body_method(&ProfilerNode::Table);
 TVM_REGISTER_GLOBAL("meta_schedule.ProfilerTimedScope").set_body_typed(ProfilerTimedScope);
 
 }  // namespace meta_schedule

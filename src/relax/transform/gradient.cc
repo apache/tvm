@@ -365,10 +365,11 @@ class BackwardBindingGenerator : private ExprVisitor {
     } else if (call_op == Op::Get("relax.call_tir_with_grad")) {
       // tir gradient registering
       auto te_grad_name = call->attrs.as<CallTIRWithGradAttrs>()->te_grad_name;
-      auto* grad_func = tvm::runtime::Registry::Get(te_grad_func_prefix + te_grad_name);
-      CHECK(grad_func) << "TIR gradient function " << te_grad_name << " is not registered";
+      const auto grad_func =
+          tvm::ffi::Function::GetGlobalRequired(te_grad_func_prefix + te_grad_name);
       Var partials =
-          (*grad_func)(checkpoint_var, Downcast<Call>(checkpoint_call), adjoint_var, builder_);
+          grad_func(checkpoint_var, Downcast<Call>(checkpoint_call), adjoint_var, builder_)
+              .cast<Var>();
       Tuple args = Downcast<Tuple>(call->args[1]);
       auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(partials);
       if (!tuple_sinfo) {
@@ -777,8 +778,7 @@ class GradientMutator : private ExprMutator {
 namespace transform {
 
 Pass Gradient(String func_name, Optional<Array<Var>> require_grads, int target_index) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule mod, PassContext pc) {
     return relax::GradientMutator::Transform(mod, func_name, require_grads, target_index);
   };
   return CreateModulePass(/*pass_function=*/pass_func,

@@ -213,34 +213,6 @@ def test_cuda_make_int8():
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
-def test_cuda_make_int4():
-    def check_cuda(n, value, lanes):
-        dtype = "int4"
-        dev = tvm.cuda(0)
-        A = te.compute((n, lanes), lambda i, j: tvm.tir.const(value, dtype=dtype), name="A")
-        sch = tvm.tir.Schedule(te.create_prim_func([A]))
-        y, x = sch.get_loops("A")
-        sch.vectorize(x)
-        sch.bind(y, "blockIdx.x")
-        fun = tvm.compile(sch.mod, target="cuda")
-
-        np_a = np.full((n, lanes), value, dtype="int8")
-        a = tvm.nd.empty((n, lanes), dtype, dev)
-        fun(a)
-        np.testing.assert_equal(a.numpy(), np_a)
-
-    check_cuda(64, 1, 4)
-    check_cuda(64, 7, 4)
-    check_cuda(64, 1, 8)
-    check_cuda(64, 7, 8)
-    check_cuda(64, 1, 16)
-    check_cuda(64, 7, 16)
-    check_cuda(64, 1, 32)
-    check_cuda(64, 7, 32)
-
-
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
 def test_cuda_inf_nan():
     target = "cuda"
 

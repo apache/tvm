@@ -127,8 +127,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     if (buffer_map_.count(store->buffer)) {
       auto* n = store.CopyOnWrite();
       if (store->buffer.scope() == "m16n8k8.matrixC") {
-        const auto* index_map_func = runtime::Registry::Get("tir.index_map_m16n8k8.matrixC");
-        ICHECK(index_map_func);
+        const auto index_map_func = tvm::ffi::Function::GetGlobal("tir.index_map_m16n8k8.matrixC");
+        ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
         auto new_indices = index_map->MapIndices(store->indices, &analyzer);
         n->buffer = buffer_map_[store->buffer];
@@ -146,8 +146,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
     if (buffer_map_.count(load->buffer)) {
       auto* n = load.CopyOnWrite();
       if (load->buffer.scope() == "m16n8k8.matrixC") {
-        const auto* index_map_func = runtime::Registry::Get("tir.index_map_m16n8k8.matrixC");
-        ICHECK(index_map_func);
+        const auto index_map_func = tvm::ffi::Function::GetGlobal("tir.index_map_m16n8k8.matrixC");
+        ICHECK(index_map_func.has_value());
         auto index_map = IndexMap::FromFunc(2, *index_map_func);
         auto new_indices = index_map->MapIndices(load->indices, &analyzer);
         n->buffer = buffer_map_[load->buffer];

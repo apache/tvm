@@ -43,7 +43,7 @@ class BcastSessionObj : public SessionObj {
   void Shutdown() override;
   void InitCCL(String ccl, IntTuple device_ids) override;
   TVMRetValue DebugGetFromRemote(int64_t reg_id, int worker_id) override = 0;
-  void DebugSetRegister(int64_t reg_id, TVMArgValue value, int worker_id) override = 0;
+  void DebugSetRegister(int64_t reg_id, AnyView value, int worker_id) override = 0;
 
  protected:
   /*! \brief Deallocate a register id, kill it on all workers, and append it to `free_regs_`. */

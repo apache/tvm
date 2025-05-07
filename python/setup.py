@@ -148,7 +148,6 @@ def config_cython():
         subdir = "_cy3"
 
         ret = []
-        cython_source = "tvm/_ffi/_cython"
         extra_compile_args = ["-std=c++17", "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>"]
         if os.name == "nt":
             library_dirs = ["tvm", "../build/Release", "../build"]
@@ -164,17 +163,17 @@ def config_cython():
             library_dirs = None
             libraries = None
 
-        for fn in os.listdir(cython_source):
+        # the latest ffi source
+        for fn in os.listdir("tvm/ffi/cython"):
             if not fn.endswith(".pyx"):
                 continue
             ret.append(
                 Extension(
-                    "tvm._ffi.%s.%s" % (subdir, fn[:-4]),
-                    ["tvm/_ffi/_cython/%s" % fn],
+                    f"tvm.ffi.{fn[:-4]}",
+                    ["tvm/ffi/cython/%s" % fn],
                     include_dirs=[
-                        "../include/",
-                        "../3rdparty/dmlc-core/include",
-                        "../3rdparty/dlpack/include",
+                        "../ffi/include/",
+                        "../ffi/3rdparty/dlpack/include",
                     ],
                     extra_compile_args=extra_compile_args,
                     library_dirs=library_dirs,

@@ -119,8 +119,8 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
   void Run() override {
     SetInputOutputBinds();
     if (tool_tag_.size() > 0) {
-      const auto* pf = runtime::Registry::Get("msc_tool.callback_step");
-      ICHECK(pf != nullptr) << "Cannot find msc_tool.callback_step func.";
+      const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
+      ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
       Map<String, runtime::NDArray> input_datas;
       for (const auto& pair : input_bindings_) {
         const auto& tensor_name = engine_->getBindingName(pair.first);
@@ -150,8 +150,8 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
       }
     }
     if (tool_tag_.size() > 0) {
-      const auto* pf = runtime::Registry::Get("msc_tool.callback_step");
-      ICHECK(pf != nullptr) << "Cannot find msc_tool.callback_step func.";
+      const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
+      ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
       Map<String, runtime::NDArray> output_datas;
       for (int bid = 0; bid < engine_->getNbBindings(); bid++) {
         if (input_bindings_.count(bid)) {

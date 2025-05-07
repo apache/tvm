@@ -93,7 +93,7 @@ class ObjectPathNode : public Object {
   ObjectPath MissingArrayElement(int32_t index) const;
 
   /*! \brief Extend this path with access to a map value. */
-  ObjectPath MapValue(ObjectRef key) const;
+  ObjectPath MapValue(ffi::Any key) const;
 
   /*! \brief Extend this path with access to a missing map entry. */
   ObjectPath MissingMapEntry() const;
@@ -245,9 +245,9 @@ class MissingArrayElementPath : public ObjectPath {
 class MapValuePathNode : public ObjectPathNode {
  public:
   /*! \brief Key of the map entry that is being accessed */
-  ObjectRef key;
+  ffi::Any key;
 
-  explicit MapValuePathNode(const ObjectPathNode* parent, ObjectRef key);
+  explicit MapValuePathNode(const ObjectPathNode* parent, ffi::Any key);
 
   static constexpr const char* _type_key = "MapValuePath";
   TVM_DECLARE_FINAL_OBJECT_INFO(MapValuePathNode, ObjectPathNode);

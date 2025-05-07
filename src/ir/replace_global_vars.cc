@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ir/replace_global_vars.h>
+#include <tvm/runtime/container/variant.h>
 
 #include <vector>
 

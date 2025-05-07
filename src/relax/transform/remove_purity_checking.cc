@@ -36,7 +36,7 @@ class PurityRemover : public ExprMutator {
     bool purity = func->is_pure;
     auto ret = func;
     if (purity) {
-      ret = std::move(WithAttr<Function>(func, relax::attr::kForcePure, Bool(true)));
+      ret = std::move(WithAttr<Function>(func, relax::attr::kForcePure, true));
     }
     auto new_body = VisitExpr(ret->body);
     if (!new_body.same_as(ret->body)) {
@@ -82,10 +82,9 @@ Function RemovePurityChecking(const Function& f) { return PurityRemover().Remove
 namespace transform {
 
 Pass RemovePurityChecking() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](const Function& f, IRModule mod, PassContext pc) {
-        return relax::RemovePurityChecking(f);
-      };
+  auto pass_func = [=](const Function& f, IRModule mod, PassContext pc) {
+    return relax::RemovePurityChecking(f);
+  };
   return CreateFunctionPass(pass_func, 0, "RemovePurityChecking", {});
 }
 

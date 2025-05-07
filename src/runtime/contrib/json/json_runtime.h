@@ -113,6 +113,8 @@ class JSONRuntimeBase : public ModuleNode {
         this->Run();
       });
     } else if (this->symbol_name_ + "_debug" == name) {
+      // NOTE: the current debug convention is not very compatible with
+      // the FFI convention, consider clean up
       if (!this->CanDebug()) {
         return PackedFunc(nullptr);
       }
@@ -122,14 +124,14 @@ class JSONRuntimeBase : public ModuleNode {
         // Bind argument tensors to data entries.
         this->SetInputOutputBuffers(args);
 
-        if (rv->IsObjectRef<String>()) {
-          String purpose = *rv;
+        if (auto opt_str = rv->as<String>()) {
+          String purpose = std::move(opt_str.value());
           if ("debug_dump" == purpose) {
             *rv = this->DebugDump();
           }
         } else {
           // Profile the subgraph.
-          profiling::Profiler* prof = static_cast<profiling::Profiler*>(rv->value().v_handle);
+          profiling::Profiler* prof = static_cast<profiling::Profiler*>(rv->cast<void*>());
           this->RunProfile(prof);
         }
         // String vendor_prof = this->RunProfile(prof);
@@ -140,7 +142,7 @@ class JSONRuntimeBase : public ModuleNode {
         ICHECK_EQ(args.size(), 1U);
         std::lock_guard<std::mutex> guard(this->initialize_mutex_);
         if (!this->initialized_) {
-          this->Init(args[0]);
+          this->Init(args[0].cast<Array<NDArray>>());
           this->initialized_ = true;
         }
         *rv = 0;
@@ -204,15 +206,13 @@ class JSONRuntimeBase : public ModuleNode {
     for (size_t i = 0; i < static_cast<size_t>(args.size()); i++) {
       auto eid = i < input_var_eid_.size() ? input_var_eid_[i]
                                            : EntryID(outputs_[i - input_var_eid_.size()]);
-      ICHECK(args[i].type_code() == kTVMNDArrayHandle || args[i].type_code() == kTVMDLTensorHandle)
-          << "Expect NDArray or DLTensor as inputs";
 
       const DLTensor* arg;
-      if (args[i].IsObjectRef<NDArray>()) {
-        NDArray arr = args[i];
+      if (auto opt_nd = args[i].as<NDArray>()) {
+        NDArray arr = opt_nd.value();
         arg = arr.operator->();
       } else {
-        arg = args[i].operator DLTensor*();
+        arg = args[i].cast<DLTensor*>();
       }
 
       // Assign input/output the NDArray pointers to data entry so that we can directly

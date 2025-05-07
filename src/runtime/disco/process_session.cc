@@ -70,7 +70,7 @@ class ProcessSessionObj final : public BcastSessionObj {
     read_fds.reserve(num_workers - 1);
     write_fds.reserve(num_workers - 1);
     for (int i = 1; i < num_workers; ++i) {
-      IntTuple fds = process_pool(i);
+      IntTuple fds = process_pool(i).cast<IntTuple>();
       CHECK_EQ(fds.size(), 2) << "ValueError: process_pool(" << i << ") should return a tuple of "
                               << "size 2, but got a tuple of size " << fds.size() << ".";
       read_fds.push_back(fds[0]);
@@ -100,45 +100,40 @@ class ProcessSessionObj final : public BcastSessionObj {
       return worker_0_->worker->register_file.at(reg_id);
     }
     {
-      TVMValue values[3];
-      int type_codes[3];
-      PackArgs(values, type_codes, static_cast<int>(DiscoAction::kDebugGetFromRemote), reg_id,
-               worker_id);
-      workers_[worker_id - 1]->Send(TVMArgs(values, type_codes, 3));
+      AnyView packed_args[3];
+      ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoAction::kDebugGetFromRemote), reg_id,
+                            worker_id);
+      workers_[worker_id - 1]->Send(ffi::PackedArgs(packed_args, 3));
     }
     TVMArgs args = this->RecvReplyPacked(worker_id);
     ICHECK_EQ(args.size(), 2);
-    ICHECK(static_cast<DiscoAction>(args[0].operator int()) == DiscoAction::kDebugGetFromRemote);
+    ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) == DiscoAction::kDebugGetFromRemote);
     TVMRetValue result;
     result = args[1];
     return result;
   }
 
-  void DebugSetRegister(int64_t reg_id, TVMArgValue value, int worker_id) {
+  void DebugSetRegister(int64_t reg_id, AnyView value, int worker_id) {
     if (worker_id == 0) {
       this->SyncWorker(worker_id);
       worker_0_->worker->SetRegister(reg_id, value);
       return;
     }
     ObjectRef wrapped{nullptr};
-    if (value.type_code() == kTVMNDArrayHandle || value.type_code() == kTVMObjectHandle) {
+    if (value.as<ObjectRef>()) {
       wrapped = DiscoDebugObject::Wrap(value);
-      TVMValue tvm_value;
-      int type_code = kTVMObjectHandle;
-      tvm_value.v_handle = const_cast<Object*>(wrapped.get());
-      value = TVMArgValue(tvm_value, type_code);
+      value = wrapped;
     }
     {
-      TVMValue values[4];
-      int type_codes[4];
-      PackArgs(values, type_codes, static_cast<int>(DiscoAction::kDebugSetRegister), reg_id,
-               worker_id, value);
-      SendPacked(worker_id, TVMArgs(values, type_codes, 4));
+      AnyView packed_args[4];
+      ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoAction::kDebugSetRegister), reg_id,
+                            worker_id, value);
+      SendPacked(worker_id, ffi::PackedArgs(packed_args, 4));
     }
     TVMRetValue result;
     TVMArgs args = this->RecvReplyPacked(worker_id);
     ICHECK_EQ(args.size(), 1);
-    ICHECK(static_cast<DiscoAction>(args[0].operator int()) == DiscoAction::kDebugSetRegister);
+    ICHECK(static_cast<DiscoAction>(args[0].cast<int>()) == DiscoAction::kDebugSetRegister);
   }
 
   void BroadcastPacked(const TVMArgs& args) final {
@@ -185,10 +180,10 @@ Session Session::ProcessSession(int num_workers, int num_group, String process_p
                                 String entrypoint) {
   CHECK_EQ(num_workers % num_group, 0)
       << "The number of workers should be divisible by the number of worker group.";
-  const PackedFunc* pf = Registry::Get(process_pool_creator);
+  const auto pf = tvm::ffi::Function::GetGlobal(process_pool_creator);
   CHECK(pf) << "ValueError: Cannot find function " << process_pool_creator
             << " in the registry. Please check if it is registered.";
-  PackedFunc process_pool = (*pf)(num_workers, num_group, entrypoint);
+  auto process_pool = (*pf)(num_workers, num_group, entrypoint).cast<PackedFunc>();
   auto n = make_object<ProcessSessionObj>(num_workers, num_group, process_pool);
   return Session(n);
 }

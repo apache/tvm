@@ -132,7 +132,7 @@ class MarvellSimulatorModuleNode : public ModuleNode {
   }
 
   void set_num_inputs_outputs() {
-    const auto* get_value_from_key = runtime::Registry::Get("tvm.mrvl.find_value_in_KV_pair");
+    const auto get_value_from_key = tvm::ffi::Function::GetGlobal("tvm.mrvl.find_value_in_KV_pair");
 
     std::string value_for_inputs = (*get_value_from_key)(nodes_json_, "num_subgraph_inputs");
     num_inputs_ = std::stoi(value_for_inputs);

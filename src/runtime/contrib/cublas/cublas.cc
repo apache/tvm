@@ -306,11 +306,11 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
 }
 
 inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl, cudaStream_t stream) {
-  DLTensor* A = args[0];
-  DLTensor* B = args[1];
-  DLTensor* C = args[2];
-  bool transa = args[3];
-  bool transb = args[4];
+  auto A = args[0].cast<DLTensor*>();
+  auto B = args[1].cast<DLTensor*>();
+  auto C = args[2].cast<DLTensor*>();
+  bool transa = args[3].cast<bool>();
+  bool transb = args[4].cast<bool>();
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
   transb = IsInPlaceTransposed(B) ? !transb : transb;
@@ -337,8 +337,8 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl, cu
   ICHECK(TypeMatch(C->dtype, kDLInt, 32));
 
   ICHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
-  int32_t alpha = args.size() > 5 ? args[5] : 1;
-  int32_t beta = args.size() > 6 ? args[6] : 0;
+  int32_t alpha = args.size() > 5 ? args[5].cast<int32_t>() : 1;
+  int32_t beta = args.size() > 6 ? args[6].cast<int32_t>() : 0;
   cublasLtMatrixLayout_t Adesc = nullptr, Bdesc = nullptr, Cdesc = nullptr;
   auto A_data = reinterpret_cast<void*>(static_cast<char*>(A->data) + A->byte_offset);
   auto B_data = reinterpret_cast<void*>(static_cast<char*>(B->data) + B->byte_offset);
@@ -378,11 +378,11 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl, cu
 #endif
 
 inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) {
-  DLTensor* A = args[0];
-  DLTensor* B = args[1];
-  DLTensor* C = args[2];
-  bool transa = args[3];
-  bool transb = args[4];
+  auto A = args[0].cast<DLTensor*>();
+  auto B = args[1].cast<DLTensor*>();
+  auto C = args[2].cast<DLTensor*>();
+  bool transa = args[3].cast<bool>();
+  bool transb = args[4].cast<bool>();
   ICHECK_EQ(A->ndim, 2);
   ICHECK_EQ(B->ndim, 2);
   ICHECK_EQ(C->ndim, 2);
@@ -405,8 +405,8 @@ inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) {
       << "leading dimension must divide 4 for int8 gemm";
   ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride(B) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
-  double alpha = args.size() > 5 ? args[5] : 1.0;
-  double beta = args.size() > 6 ? args[6] : 0.0;
+  double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
+  double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
 
   cudaDataType_t cuda_in_type = GetCudaDataType(A->dtype);
   cudaDataType_t cuda_out_type = GetCudaDataType(C->dtype);
@@ -436,11 +436,11 @@ inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) {
 }
 
 inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) {
-  DLTensor* A = args[0];
-  DLTensor* B = args[1];
-  DLTensor* C = args[2];
-  bool transa = args[3];
-  bool transb = args[4];
+  auto A = args[0].cast<DLTensor*>();
+  auto B = args[1].cast<DLTensor*>();
+  auto C = args[2].cast<DLTensor*>();
+  bool transa = args[3].cast<bool>();
+  bool transb = args[4].cast<bool>();
   ICHECK_EQ(A->ndim, 3);
   ICHECK_EQ(B->ndim, 3);
   ICHECK_EQ(C->ndim, 3);
@@ -464,8 +464,8 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) 
       << "leading dimension must divide 4 for int8 gemm";
   ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride3D(B) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
-  double alpha = args.size() > 5 ? args[5] : 1.0;
-  double beta = args.size() > 6 ? args[6] : 0.0;
+  double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
+  double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
 
   int A_stride = A->shape[1] * A->shape[2];
   int B_stride = B->shape[1] * B->shape[2];
@@ -513,69 +513,71 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) 
 }
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* A = args[0];
-  DLTensor* C = args[2];
+TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      auto A = args[0].cast<DLTensor*>();
+      auto C = args[2].cast<DLTensor*>();
 
-  CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+      CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
 
-  CUBLASTryEnableTensorCore(entry_ptr->handle);
+      CUBLASTryEnableTensorCore(entry_ptr->handle);
 
-  if (TypeEqual(A->dtype, C->dtype)) {
-    ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
-           TypeMatch(A->dtype, kDLFloat, 64));
+      if (TypeEqual(A->dtype, C->dtype)) {
+        ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
+               TypeMatch(A->dtype, kDLFloat, 64));
 
-    if (TypeMatch(A->dtype, kDLFloat, 16))
-      CallGemm(args, ret, CublasHgemmOp(entry_ptr->handle));
-    else if (TypeMatch(A->dtype, kDLFloat, 32))
-      CallGemm(args, ret, CublasSgemmOp(entry_ptr->handle));
-    else
-      CallGemm(args, ret, CublasDgemmOp(entry_ptr->handle));
-  } else {
-    CallGemmEx(args, ret, entry_ptr->handle);
-  }
-});
+        if (TypeMatch(A->dtype, kDLFloat, 16))
+          CallGemm(args, ret, CublasHgemmOp(entry_ptr->handle));
+        else if (TypeMatch(A->dtype, kDLFloat, 32))
+          CallGemm(args, ret, CublasSgemmOp(entry_ptr->handle));
+        else
+          CallGemm(args, ret, CublasDgemmOp(entry_ptr->handle));
+      } else {
+        CallGemmEx(args, ret, entry_ptr->handle);
+      }
+    });
 
 #if CUDART_VERSION >= 10010
-TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* A = args[0];
+TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      auto A = args[0].cast<DLTensor*>();
 
-  CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+      CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
 
-  CUBLASTryEnableTensorCore(entry_ptr->handle);
+      CUBLASTryEnableTensorCore(entry_ptr->handle);
 
-  ICHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
-  cublasLtHandle_t ltHandle;
-  CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
-  auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-  ICHECK(func != nullptr);
-  cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
-  CallLtIgemm(args, ret, ltHandle, stream);
-  CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
-});
+      ICHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
+      cublasLtHandle_t ltHandle;
+      CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
+      auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+      cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
+      CallLtIgemm(args, ret, ltHandle, stream);
+      CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
+    });
 #endif  // CUDART_VERSION >= 10010
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cublas.batch_matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* A = args[0];
-  DLTensor* C = args[2];
+TVM_REGISTER_GLOBAL("tvm.contrib.cublas.batch_matmul")
+    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+      auto A = args[0].cast<DLTensor*>();
+      auto C = args[2].cast<DLTensor*>();
 
-  CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+      CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
 
-  CUBLASTryEnableTensorCore(entry_ptr->handle);
-  if (TypeEqual(A->dtype, C->dtype)) {
-    ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
-           TypeMatch(A->dtype, kDLFloat, 64));
+      CUBLASTryEnableTensorCore(entry_ptr->handle);
+      if (TypeEqual(A->dtype, C->dtype)) {
+        ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
+               TypeMatch(A->dtype, kDLFloat, 64));
 
-    if (TypeMatch(A->dtype, kDLFloat, 16))
-      CallBatchGemm(args, ret, CublasHgemmBatchOp(entry_ptr->handle));
-    else if (TypeMatch(A->dtype, kDLFloat, 32))
-      CallBatchGemm(args, ret, CublasSgemmBatchOp(entry_ptr->handle));
-    else
-      CallBatchGemm(args, ret, CublasDgemmBatchOp(entry_ptr->handle));
-  } else {
-    CallBatchGemmEx(args, ret, entry_ptr->handle);
-  }
-});
+        if (TypeMatch(A->dtype, kDLFloat, 16))
+          CallBatchGemm(args, ret, CublasHgemmBatchOp(entry_ptr->handle));
+        else if (TypeMatch(A->dtype, kDLFloat, 32))
+          CallBatchGemm(args, ret, CublasSgemmBatchOp(entry_ptr->handle));
+        else
+          CallBatchGemm(args, ret, CublasDgemmBatchOp(entry_ptr->handle));
+      } else {
+        CallBatchGemmEx(args, ret, entry_ptr->handle);
+      }
+    });
 
 }  // namespace contrib
 }  // namespace tvm

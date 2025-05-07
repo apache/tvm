@@ -130,7 +130,7 @@ class NestedMsg : public ObjectRef {
    */
   explicit NestedMsg(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
   /*! \brief Nullopt handling */
-  NestedMsg(runtime::NullOptType) {}  // NOLINT(*)
+  NestedMsg(std::nullopt_t) {}  // NOLINT(*)
   // nullptr handling.
   // disallow implicit conversion as 0 can be implicitly converted to nullptr_t
   explicit NestedMsg(std::nullptr_t) {}
@@ -176,7 +176,7 @@ class NestedMsg : public ObjectRef {
   bool IsNull() const { return data_ == nullptr; }
 
   /*! \return Whether the nested message is nested */
-  bool IsNested() const { return data_ != nullptr && data_->IsInstance<ArrayNode>(); }
+  bool IsNested() const { return data_ != nullptr && data_->IsInstance<ArrayObj>(); }
 
   /*!
    * \return The underlying leaf value.

@@ -646,6 +646,29 @@ def index_put(
     return _ffi_api.index_put(data, indices, values, accumulate)  # type: ignore
 
 
+def meshgrid(tensors: Union[Expr, List[Expr]], indexing: Optional[str] = "ij") -> Expr:
+    """Generate coordinate grids from input tensors.
+
+    Parameters
+    ----------
+    tensors : Union[relax.Expr, List[relax.Expr]]
+        An Expr in Tuple type, containing 1D tensors (or scalars promoted to 1D)
+        to generate coordinate grids from, or a list of such tensors.
+
+    indexing : Optional[str]
+        The indexing mode, either "ij" (matrix indexing) or "xy" (Cartesian indexing).
+        Defaults to "ij".
+
+    Returns
+    -------
+    result : relax.Expr
+        A Tuple of tensors representing the coordinate grids.
+    """
+    if isinstance(tensors, (list, tuple)):
+        tensors = RxTuple(tensors)
+    return _ffi_api.meshgrid(tensors, indexing)
+
+
 def scatter_elements(
     data: Expr, indices: Expr, updates: Expr, axis: int = 0, reduction: str = "update"
 ):

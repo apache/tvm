@@ -76,14 +76,8 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
     attrs = DictAttrs();
   }
 
-  // Assume void-return type for now
-  // TODO(tvm-team) consider type deduction from body.
   if (!ret_type.defined()) {
     ret_type = VoidType();
-  }
-
-  if (attrs.defined()) {
-    attrs = Downcast<DictAttrs>(NormalizeAttributeObject(attrs));
   }
 
   auto n = make_object<PrimFuncNode>();

@@ -150,7 +150,7 @@ inline Optional<Array<MeasureCandidate>> ReplayTraceNode::State::GenerateMeasure
   ed = std::min(ed, max_trials);
   ICHECK_LT(st, ed);
   std::vector<TRandState> per_thread_rand_state = ForkSeed(&self->rand_state_, self->num_threads_);
-  Array<MeasureCandidate> per_task_result(ed - st, MeasureCandidate{nullptr});
+  Array<Optional<MeasureCandidate>> per_task_result(ed - st, std::nullopt);
   ThreadedTraceApply pp(self->postprocs_);
   auto f_worker = [this, &per_thread_rand_state, &per_task_result, &pp](int thread_id,
                                                                         int task_id) -> void {
@@ -172,9 +172,9 @@ inline Optional<Array<MeasureCandidate>> ReplayTraceNode::State::GenerateMeasure
   support::parallel_for_dynamic(0, ed - st, self->num_threads_, f_worker);
   Array<MeasureCandidate> filtered;
   filtered.reserve(ed - st);
-  for (MeasureCandidate result : per_task_result)
-    if (result.defined()) {
-      filtered.push_back(result);
+  for (Optional<MeasureCandidate> result : per_task_result)
+    if (result.has_value()) {
+      filtered.push_back(*std::move(result));
     }
   return filtered;
 }

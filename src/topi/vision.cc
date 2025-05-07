@@ -31,8 +31,8 @@ namespace topi {
 using namespace tvm;
 using namespace tvm::runtime;
 
-TVM_REGISTER_GLOBAL("topi.vision.reorg").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = vision::reorg(args[0], args[1]);
+TVM_REGISTER_GLOBAL("topi.vision.reorg").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+  *rv = vision::reorg(args[0].cast<te::Tensor>(), args[1].cast<int>());
 });
 
 }  // namespace topi

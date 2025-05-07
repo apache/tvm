@@ -21,6 +21,7 @@
  * \brief Placeholder op.
  * \file placeholder_op.cc
  */
+#include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 

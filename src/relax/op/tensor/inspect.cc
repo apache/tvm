@@ -101,7 +101,7 @@ tir::PrimFunc GetDLTensorField(tir::builtin::TVMStructFieldKind field, DataType 
                 {dlpack_handle, IntImm(DataType::Int(32), 0), IntImm(DataType::Int(32), field)}),
       tir::Evaluate(tvm::ret(value)));
 
-  DictAttrs attrs({{"tir.is_scheduled", Bool(true)}, {"tir.is_host", Bool(true)}});
+  DictAttrs attrs({{"tir.is_scheduled", true}, {"tir.is_host", true}});
 
   tir::PrimFunc func(Array<tir::Var>{dlpack_handle}, body, PrimType(field_dtype), {}, attrs);
 
@@ -331,7 +331,7 @@ Expr LegalizeTensorShape(const BlockBuilder& bb, const Call& call) {
 
     body = tir::AssertStmt(0 <= axis, tir::StringImm("Specified axis may not be negative"), body);
 
-    DictAttrs attrs({{"tir.is_scheduled", Bool(true)}, {"tir.is_host", Bool(true)}});
+    DictAttrs attrs({{"tir.is_scheduled", true}, {"tir.is_host", true}});
 
     tir::PrimFunc func({dlpack_handle, axis}, body, PrimType(field_dtype), {}, attrs);
 

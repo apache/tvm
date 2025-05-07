@@ -183,7 +183,7 @@ TVM_REGISTER_GLOBAL("relax.dfb_rewrite_add_binding")
 
 TVM_REGISTER_GLOBAL("relax.dfb_rewrite_add")
     .set_body_typed([](DataflowBlockRewrite rwt, Expr expr, Optional<String> name, bool is_dfvar) {
-      if (name.get()) {
+      if (name.has_value()) {
         rwt->Add(name.value(), expr, is_dfvar);
       } else {
         rwt->Add(expr, is_dfvar);

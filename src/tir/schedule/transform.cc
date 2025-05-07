@@ -26,7 +26,7 @@ namespace tir {
 /******** Annotation ********/
 
 Block WithAnnotation(const BlockNode* block, const String& attr_key, const ObjectRef& attr_value) {
-  Map<String, ObjectRef> annotations = block->annotations;
+  Map<String, Any> annotations = block->annotations;
   annotations.Set(attr_key, attr_value);
   ObjectPtr<BlockNode> new_block = make_object<BlockNode>(*block);
   new_block->annotations = std::move(annotations);

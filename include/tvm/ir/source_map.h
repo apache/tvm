@@ -214,7 +214,7 @@ class SourceMap;
 /*!
  * \brief Stores locations in frontend source that generated a node.
  */
-class SourceMapNode : public Object {
+class SourceMapObj : public Object {
  public:
   /*! \brief The source mapping. */
   Map<SourceName, Source> source_map;
@@ -222,12 +222,12 @@ class SourceMapNode : public Object {
   // override attr visitor
   void VisitAttrs(AttrVisitor* v) { v->Visit("source_map", &source_map); }
 
-  bool SEqualReduce(const SourceMapNode* other, SEqualReducer equal) const {
+  bool SEqualReduce(const SourceMapObj* other, SEqualReducer equal) const {
     return equal(source_map, other->source_map);
   }
 
   static constexpr const char* _type_key = "SourceMap";
-  TVM_DECLARE_FINAL_OBJECT_INFO(SourceMapNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(SourceMapObj, Object);
 };
 
 class SourceMap : public ObjectRef {
@@ -241,12 +241,12 @@ class SourceMap : public ObjectRef {
 
   void Add(const Source& source);
 
-  SourceMapNode* operator->() {
+  SourceMapObj* operator->() {
     ICHECK(get() != nullptr);
-    return static_cast<SourceMapNode*>(get_mutable());
+    return static_cast<SourceMapObj*>(get_mutable());
   }
 
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SourceMap, ObjectRef, SourceMapNode);
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(SourceMap, ObjectRef, SourceMapObj);
 };
 
 }  // namespace tvm

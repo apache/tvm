@@ -37,7 +37,7 @@ const std::string TensorConfig::dtype_key = "dtype";  // NOLINT(runtime/string)
 
 std::string tensor_meta::to_string() const {
   std::stringstream out;
-  out << "ndim=" << ndim << ", dtype=" << tvm::runtime::DLDataType2String(dtype) << ", shape=";
+  out << "ndim=" << ndim << ", dtype=" << tvm::runtime::DLDataTypeToString(dtype) << ", shape=";
   for (int i = 0; i != ndim; ++i) {
     out << shape[i];
     if (i + 1 < ndim) {
@@ -138,7 +138,7 @@ Model::Model(tvm::runtime::Module executor, tvm::runtime::Module module, std::st
 }
 
 const tvm::runtime::PackedFunc get_runtime_func(const std::string& name) {
-  if (const tvm::runtime::PackedFunc* pf = tvm::runtime::Registry::Get(name)) {
+  if (auto pf = tvm::ffi::Function::GetGlobal(name)) {
     return *pf;
   }
   return tvm::runtime::PackedFunc();
@@ -151,7 +151,7 @@ const tvm::runtime::PackedFunc get_module_func(tvm::runtime::Module module,
 
 void reset_device_api() {
   const tvm::runtime::PackedFunc api = get_runtime_func("device_api.hexagon");
-  tvm::runtime::Registry::Register("device_api.cpu", true).set_body(api);
+  tvm::ffi::Function::SetGlobal("device_api.cpu", api, true);
 }
 
 tvm::runtime::Module load_module(const std::string& file_name) {

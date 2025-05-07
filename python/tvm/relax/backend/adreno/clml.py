@@ -266,7 +266,6 @@ def clml_pattern_table():
         return True
 
     def maxpool_pattern():
-
         """Create Pool Pattern"""
         data = wildcard()
         annotations = {
@@ -328,7 +327,6 @@ def clml_pattern_table():
         return True
 
     def avgpool_pattern():
-
         data = wildcard()
         annotations = {
             "data": data,
@@ -349,7 +347,6 @@ def clml_pattern_table():
         return pool_patterns
 
     def _check_global_avgpool(context: PatternCheckContext) -> bool:
-
         root = context.annotated_expr.get("root")
         if not root or not isinstance(root, relax.Call):
             return False
@@ -379,7 +376,6 @@ def clml_pattern_table():
         return True
 
     def global_avgpool_pattern():
-
         """Create Pool Pattern"""
         data = wildcard()
         pattern = is_op("relax.mean")(data).has_attr({"axis": [2, 3]})
@@ -394,7 +390,6 @@ def clml_pattern_table():
         ]
 
     def _check_reshape(context: PatternCheckContext) -> bool:
-
         root = context.annotated_expr.get("root")
         if not root or not isinstance(root, relax.Call):
             return False
@@ -409,7 +404,6 @@ def clml_pattern_table():
         return True
 
     def reshape_pattern():
-
         """Create Reshape Pattern"""
 
         pattern = is_op("relax.reshape")(wildcard(), wildcard())
@@ -532,7 +526,6 @@ def clml_pattern_table():
             and "rhs" in context.annotated_expr
             and not compare_shapes(lhs_shape, rhs_shape)
         ):
-
             return False
 
         return True

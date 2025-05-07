@@ -36,9 +36,9 @@ namespace relax {
 /* relax.matmul */
 TVM_REGISTER_NODE_TYPE(MatmulAttrs);
 
-Expr matmul(Expr x1, Expr x2, DataType out_dtype) {
+Expr matmul(Expr x1, Expr x2, Optional<DataType> out_dtype) {
   ObjectPtr<MatmulAttrs> attrs = make_object<MatmulAttrs>();
-  attrs->out_dtype = out_dtype;
+  attrs->out_dtype = out_dtype.value_or(DataType::Void());
 
   static const Op& op = Op::Get("relax.matmul");
   return Call(op, {std::move(x1), std::move(x2)}, Attrs(attrs), {});

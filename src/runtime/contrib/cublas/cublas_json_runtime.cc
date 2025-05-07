@@ -67,24 +67,21 @@ class CublasJSONRuntime : public JSONRuntimeBase {
   void Run(TVMArgs args) {
     auto* entry_ptr = tvm::contrib::CuBlasLtThreadEntry::ThreadLocal();
 
-    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-    ICHECK(func != nullptr);
-    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+    auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+    cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
 
     std::vector<const DLTensor*> dl_tensors(NumEntries());
 
     for (size_t i = 0; i < static_cast<size_t>(args.size()); i++) {
       auto eid = i < input_var_eid_.size() ? input_var_eid_[i]
                                            : EntryID(outputs_[i - input_var_eid_.size()]);
-      ICHECK(args[i].type_code() == kTVMNDArrayHandle || args[i].type_code() == kTVMDLTensorHandle)
-          << "Expect NDArray or DLTensor as inputs";
 
       const DLTensor* arg;
-      if (args[i].IsObjectRef<NDArray>()) {
-        NDArray arr = args[i];
+      if (auto opt_nd = args[i].as<NDArray>()) {
+        NDArray arr = opt_nd.value();
         arg = arr.operator->();
       } else {
-        arg = args[i].operator DLTensor*();
+        arg = args[i].cast<DLTensor*>();
       }
 
       dl_tensors[eid] = arg;

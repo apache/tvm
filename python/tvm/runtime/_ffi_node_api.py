@@ -18,6 +18,7 @@
 # pylint: disable=invalid-name, unused-argument
 """FFI for tvm.node"""
 import tvm._ffi
+import tvm.ffi.core
 
 
 # The implementations below are default ones when the corresponding
@@ -25,11 +26,7 @@ import tvm._ffi
 # They will be overriden via _init_api to the ones registered
 # via TVM_REGISTER_GLOBAL in the compiler mode.
 def AsRepr(obj):
-    return obj.type_key() + "(" + obj.handle.value + ")"
-
-
-def AsLegacyRepr(obj):
-    return obj.type_key() + "(" + obj.handle.value + ")"
+    return type(obj).__name__ + "(" + obj.__ctypes_handle__().value + ")"
 
 
 def NodeListAttrNames(obj):

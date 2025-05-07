@@ -56,7 +56,7 @@ class TestConv3d(BaseBeforeAfter):
 
     @T.prim_func
     def expected(A: T.Buffer((14308, 3, 2, 14, 14), "float16"), W: T.Buffer((1280, 3, 2, 14, 14), "float16"), C: T.Buffer((14308, 1280, 1, 1, 1), "float16")):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         # with T.block("root"):
         C_reindex_pad_local = T.alloc_buffer((1, 14336, 1280), "float16", scope="local")
         pad_A_reindex_pad_shared = T.alloc_buffer((1, 14336, 1184), "float16", scope="shared")

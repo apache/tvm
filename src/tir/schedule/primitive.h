@@ -55,9 +55,8 @@ std::vector<int32_t> SampleWithoutReplacement(
  * \return The random variable sampled from candidates
  */
 TVM_DLL int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
-                                  const Array<runtime::Int>& candidates,
-                                  const Array<runtime::Float>& probs,
-                                  Optional<runtime::Int>* decision);
+                                  const Array<Integer>& candidates, const Array<FloatImm>& probs,
+                                  Optional<Integer>* decision);
 /*!
  * \brief Create a sampling function that does multinomial sampling.
  * \param rand_state The random state.
@@ -627,7 +626,7 @@ TVM_DLL void Tensorize(ScheduleState self, const StmtSRef& block_or_loop_sref,
  * \param ann_val The annotation value
  */
 TVM_DLL void Annotate(ScheduleState self, const StmtSRef& sref, const String& ann_key,
-                      const ObjectRef& ann_val);
+                      const Any& ann_val);
 /*!
  * \brief Unannotate a block/loop's annotation with key ann_key
  * \param self The state of the schedule

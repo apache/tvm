@@ -20,10 +20,12 @@
  * \file  module.cc
  * \brief The global module in TVM.
  */
+#include <tvm/ffi/rvalue_ref.h>
 #include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/node/structural_equal.h>
+#include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
@@ -248,8 +250,8 @@ TVM_REGISTER_GLOBAL("ir.IRModule")
           return DictAttrs();
         } else if (auto* as_dict_attrs = attrs.as<tvm::DictAttrsNode>()) {
           return GetRef<tvm::DictAttrs>(as_dict_attrs);
-        } else if (attrs.as<tvm::MapNode>()) {
-          return tvm::DictAttrs(Downcast<Map<String, ObjectRef>>(attrs));
+        } else if (attrs.as<tvm::MapObj>()) {
+          return tvm::DictAttrs(Downcast<Map<String, Any>>(attrs));
         } else {
           LOG(FATAL) << "Expected attrs argument to be either DictAttrs or Map<String,ObjectRef>";
         }
@@ -299,14 +301,11 @@ TVM_REGISTER_GLOBAL("ir.Module_Contains")
       }
     });
 
-TVM_REGISTER_GLOBAL("ir.Module_GetGlobalVar")
-    .set_body_method<IRModule>(&IRModuleNode::GetGlobalVar);
+TVM_REGISTER_GLOBAL("ir.Module_GetGlobalVar").set_body_method(&IRModuleNode::GetGlobalVar);
 
-TVM_REGISTER_GLOBAL("ir.Module_GetGlobalVars")
-    .set_body_method<IRModule>(&IRModuleNode::GetGlobalVars);
+TVM_REGISTER_GLOBAL("ir.Module_GetGlobalVars").set_body_method(&IRModuleNode::GetGlobalVars);
 
-TVM_REGISTER_GLOBAL("ir.Module_ContainGlobalVar")
-    .set_body_method<IRModule>(&IRModuleNode::ContainGlobalVar);
+TVM_REGISTER_GLOBAL("ir.Module_ContainGlobalVar").set_body_method(&IRModuleNode::ContainGlobalVar);
 
 TVM_REGISTER_GLOBAL("ir.Module_Lookup").set_body_typed([](IRModule mod, GlobalVar var) {
   return mod->Lookup(var);
@@ -335,16 +334,18 @@ TVM_REGISTER_GLOBAL("ir.Module_GetAttrs").set_body_typed([](IRModule mod) -> Obj
 });
 
 TVM_REGISTER_GLOBAL("ir.Module_WithAttr")
-    .set_body_typed([](IRModule mod, String key, ObjectRef value) -> IRModule {
-      return WithAttr(mod, key, value);
+    .set_body_typed([](ffi::RValueRef<IRModule> mod, String key, ffi::Any value) -> IRModule {
+      return WithAttr(*std::move(mod), key, value);
     });
 
 TVM_REGISTER_GLOBAL("ir.Module_WithoutAttr")
-    .set_body_typed([](IRModule mod, String key) -> IRModule { return WithoutAttr(mod, key); });
+    .set_body_typed([](ffi::RValueRef<IRModule> mod, String key) -> IRModule {
+      return WithoutAttr(*std::move(mod), key);
+    });
 
 TVM_REGISTER_GLOBAL("ir.Module_WithAttrs")
-    .set_body_typed([](IRModule mod, Map<String, ObjectRef> attr_map) -> IRModule {
-      return WithAttrs(mod, attr_map);
+    .set_body_typed([](ffi::RValueRef<IRModule> mod, Map<String, ffi::Any> attr_map) -> IRModule {
+      return WithAttrs(*std::move(mod), attr_map);
     });
 
 TVM_REGISTER_GLOBAL("ir.Module_GetAttr").set_body_typed([](IRModule mod, String key) -> ObjectRef {

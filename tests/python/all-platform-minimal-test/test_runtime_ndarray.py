@@ -52,7 +52,7 @@ def test_memory_usage(target, dev, dtype):
     available_memory_after = dev.available_global_memory
 
     num_elements = math.prod(arr.shape)
-    element_nbytes = tvm.runtime.DataType(dtype).itemsize()
+    element_nbytes = tvm.runtime.DataType(dtype).itemsize
     expected_memory_after = available_memory_before - num_elements * element_nbytes
 
     # Allocations may be padded out to provide alignment, to match a

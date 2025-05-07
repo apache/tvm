@@ -96,13 +96,10 @@ TVM_REGISTER_GLOBAL("ir.NameSupply").set_body_typed([](String prefix) {
   return NameSupply(prefix);
 });
 
-TVM_REGISTER_GLOBAL("ir.NameSupply_FreshName")
-    .set_body_method<NameSupply>(&NameSupplyNode::FreshName);
+TVM_REGISTER_GLOBAL("ir.NameSupply_FreshName").set_body_method(&NameSupplyNode::FreshName);
 
-TVM_REGISTER_GLOBAL("ir.NameSupply_ReserveName")
-    .set_body_method<NameSupply>(&NameSupplyNode::ReserveName);
+TVM_REGISTER_GLOBAL("ir.NameSupply_ReserveName").set_body_method(&NameSupplyNode::ReserveName);
 
-TVM_REGISTER_GLOBAL("ir.NameSupply_ContainsName")
-    .set_body_method<NameSupply>(&NameSupplyNode::ContainsName);
+TVM_REGISTER_GLOBAL("ir.NameSupply_ContainsName").set_body_method(&NameSupplyNode::ContainsName);
 
 }  // namespace tvm

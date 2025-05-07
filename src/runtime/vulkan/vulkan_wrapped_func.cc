@@ -54,7 +54,7 @@ void VulkanWrappedFunc::operator()(TVMArgs args, TVMRetValue* rv,
   std::vector<VkDescriptorBufferInfo> descriptor_buffers;
   descriptor_buffers.resize(num_buffer_args_);
   for (size_t i = 0; i < num_buffer_args_; ++i) {
-    void* buf = args[static_cast<int>(i)];
+    void* buf = args[static_cast<int>(i)].cast<void*>();
     VkDescriptorBufferInfo binfo;
     binfo.buffer = static_cast<VulkanBuffer*>(buf)->buffer;
     binfo.offset = 0;

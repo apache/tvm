@@ -114,20 +114,19 @@ class CppCodeGen : public BaseCodeGen<ConfigType, HelperType> {
     this->stack_.comment(this->Comment(node));
     // process inputs and weights by tools
     if (use_tools) {
-      const auto* pf = runtime::Registry::Get("msc_tool.codegen_tensor");
-      ICHECK(pf != nullptr) << "Cannot find codegen_tensor func.";
+      const auto pf = tvm::ffi::Function::GetGlobalRequired("msc_tool.codegen_tensor");
       for (size_t i = 0; i < node->inputs.size(); i++) {
         const auto& input = node->InputAt(i);
-        const Array<String>& lines = (*pf)(GetTensorCtx(input), input->name, node->name,
-                                           this->config()->tools_scope, this->config()->tools_tag);
-        for (const auto& l : lines) {
+        ffi::Any lines = pf(GetTensorCtx(input), input->name, node->name,
+                            this->config()->tools_scope, this->config()->tools_tag);
+        for (const auto& l : lines.cast<ffi::Array<ffi::String>>()) {
           this->stack_.line(l);
         }
       }
       for (const auto& pair : node->weights) {
-        const Array<String>& lines = (*pf)(GetTensorCtx(pair.second), pair.second->name, node->name,
-                                           this->config()->tools_scope, this->config()->tools_tag);
-        for (const auto& l : lines) {
+        ffi::Any lines = pf(GetTensorCtx(pair.second), pair.second->name, node->name,
+                            this->config()->tools_scope, this->config()->tools_tag);
+        for (const auto& l : lines.cast<ffi::Array<ffi::String>>()) {
           this->stack_.line(l);
         }
       }
@@ -137,16 +136,14 @@ class CppCodeGen : public BaseCodeGen<ConfigType, HelperType> {
     }
     // process graph outputs by tools
     if (use_tools) {
-      const auto* pf = runtime::Registry::Get("msc_tool.codegen_tensor");
-      ICHECK(pf != nullptr) << "Cannot find codegen_tensor func.";
+      const auto pf = tvm::ffi::Function::GetGlobalRequired("msc_tool.codegen_tensor");
       for (size_t i = 0; i < node->outputs.size(); i++) {
         int index = static_cast<int>(i);
         if (graph_outputs_.count(node->OutputAt(index))) {
           const auto& output = node->OutputAt(index);
-          const Array<String>& lines =
-              (*pf)(GetTensorCtx(output), output->name, node->name, this->config()->tools_scope,
-                    this->config()->tools_tag);
-          for (const auto& l : lines) {
+          ffi::Any lines = pf(GetTensorCtx(output), output->name, node->name,
+                              this->config()->tools_scope, this->config()->tools_tag);
+          for (const auto& l : lines.cast<ffi::Array<ffi::String>>()) {
             this->stack_.line(l);
           }
         }

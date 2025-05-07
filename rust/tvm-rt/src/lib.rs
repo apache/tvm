@@ -49,11 +49,9 @@ macro_rules! check_call {
 }
 
 // Define all sumodules.
-pub mod array;
 pub mod device;
 pub mod errors;
 pub mod function;
-pub mod map;
 pub mod module;
 pub mod ndarray;
 pub mod object;

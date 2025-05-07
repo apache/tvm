@@ -400,7 +400,7 @@ def test_legalize_with_vdevice():
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for iters in T.grid(T.int64(32), T.int64(32)):
                 with T.block("T_add"):
                     ax0, ax1 = T.axis.remap("SS", iters)
@@ -425,7 +425,7 @@ def test_legalize_with_vdevice():
             B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
             C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
         ):
-            T.func_attr({"target": T.target("llvm"), "tir.noalias": T.bool(True)})
+            T.func_attr({"target": T.target("llvm"), "tir.noalias": True})
             for iters in T.grid(T.int64(32), T.int64(32)):
                 with T.block("T_add"):
                     ax0, ax1 = T.axis.remap("SS", iters)

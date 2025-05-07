@@ -78,6 +78,8 @@ String TensorNode::GetNameHint() const {
   return op->num_outputs() == 1 ? op->name : (op->name + ".v" + std::to_string(value_index));
 }
 
+PrimExpr TensorNode::ToPrimExpr() const { return GetRef<Tensor>(this)(); }
+
 Tensor Operation::output(size_t i) const {
   auto node = make_object<TensorNode>();
   node->op = *this;
@@ -120,9 +122,9 @@ TVM_REGISTER_GLOBAL("te.OpGetOutput").set_body_typed([](Operation op, int64_t ou
   return op.output(static_cast<size_t>(output));
 });
 
-TVM_REGISTER_GLOBAL("te.OpNumOutputs").set_body_method<Operation>(&OperationNode::num_outputs);
+TVM_REGISTER_GLOBAL("te.OpNumOutputs").set_body_method(&OperationNode::num_outputs);
 
-TVM_REGISTER_GLOBAL("te.OpInputTensors").set_body_method<Operation>(&OperationNode::InputTensors);
+TVM_REGISTER_GLOBAL("te.OpInputTensors").set_body_method(&OperationNode::InputTensors);
 
 }  // namespace te
 }  // namespace tvm

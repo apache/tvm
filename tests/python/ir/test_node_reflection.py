@@ -75,7 +75,7 @@ def test_make_node():
     assert x.value == 10
     A = te.placeholder((10,), name="A")
     AA = tvm.ir.make_node(
-        "Tensor", shape=A.shape, dtype=A.dtype, op=A.op, value_index=A.value_index
+        "te.Tensor", shape=A.shape, dtype=A.dtype, op=A.op, value_index=A.value_index
     )
     assert AA.op == A.op
     assert AA.value_index == A.value_index

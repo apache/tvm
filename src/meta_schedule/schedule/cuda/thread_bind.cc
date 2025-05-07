@@ -34,11 +34,11 @@ using namespace tvm::tir;
 std::function<ExprRV(int64_t)> MakeFactorSampler(Schedule sch, Array<Integer> thread_extents) {
   return [sch = std::move(sch),
           thread_extents = std::move(thread_extents)](int64_t max_extent) -> ExprRV {
-    Array<runtime::Int> extents;
+    Array<Integer> extents;
     extents.reserve(thread_extents.size());
     for (const Integer extent : thread_extents) {
       if (extent->value <= max_extent) {
-        extents.push_back(runtime::Int(extent->value));
+        extents.push_back(Integer(extent->value));
       }
     }
     int n = extents.size();
@@ -48,7 +48,7 @@ std::function<ExprRV(int64_t)> MakeFactorSampler(Schedule sch, Array<Integer> th
     if (n == 1) {
       return Integer(extents[0]);
     }
-    Array<runtime::Float> probs(n, runtime::Float(1.0 / n));
+    Array<FloatImm> probs(n, FloatImm(DataType::Float(32), 1.0 / n));
     return sch->SampleCategorical(extents, probs);
   };
 }

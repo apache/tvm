@@ -82,7 +82,7 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
     if (d->cfg->show_meta) {
       os << "metadata = tvm.ir.load_json(\"\"\""
          << support::StrEscape(
-                SaveJSON(Map<String, ObjectRef>(d->metadata.begin(), d->metadata.end())), false,
+                SaveJSON(Map<String, ffi::Any>(d->metadata.begin(), d->metadata.end())), false,
                 false)
          << "\"\"\")\n";
     } else {
@@ -119,7 +119,7 @@ inline ExprDoc Relax(const IRDocsifier& d, const String& attr) {
 }
 
 inline std::string DType2Str(const runtime::DataType& dtype) {
-  return dtype.is_void() ? "void" : runtime::DLDataType2String(dtype);
+  return dtype.is_void() ? "void" : runtime::DLDataTypeToString(dtype);
 }
 
 /*! \brief Add headers as comments to doc if needed */

@@ -51,7 +51,7 @@ runtime::NDArray IntImmToNDArray(const IntImm& int_imm) {
     auto* array = reinterpret_cast<int64_t*>(data->data);
     array[0] = int_imm->value;
   } else {
-    LOG(FATAL) << "Unrecognized numeric literal dtype: " << DLDataType2String(int_imm.dtype());
+    LOG(FATAL) << "Unrecognized numeric literal dtype: " << DLDataTypeToString(int_imm.dtype());
   }
   return data;
 }
@@ -69,7 +69,7 @@ runtime::NDArray FloatImmToNDArray(const FloatImm& float_imm) {
     auto* array = reinterpret_cast<double*>(data->data);
     array[0] = float_imm->value;
   } else {
-    LOG(FATAL) << "Unrecognized numeric literal dtype: " << DLDataType2String(float_imm.dtype());
+    LOG(FATAL) << "Unrecognized numeric literal dtype: " << DLDataTypeToString(float_imm.dtype());
   }
   return data;
 }
@@ -108,7 +108,7 @@ std::string NDArrayScalarToString(const runtime::NDArray& data) {
     auto value = static_cast<const uint8_t*>(data->data)[0];
     os << (value ? "True" : "False");
   } else {
-    LOG(FATAL) << "Unrecognized NDArray scalar dtype: " << DLDataType2String(dtype);
+    LOG(FATAL) << "Unrecognized NDArray scalar dtype: " << DLDataTypeToString(dtype);
   }
   return os.str();
 }
@@ -124,7 +124,7 @@ std::string IntImmToString(const IntImm& int_imm) {
   } else if (int_imm->dtype == kBool) {
     os << (int_imm->value ? "True" : "False");
   } else {
-    LOG(FATAL) << "Unrecognised IntImm dtype: " << DLDataType2String(int_imm->dtype);
+    LOG(FATAL) << "Unrecognised IntImm dtype: " << DLDataTypeToString(int_imm->dtype);
   }
   return os.str();
 }
@@ -138,7 +138,7 @@ std::string FloatImmToString(const FloatImm& float_imm) {
   } else if (float_imm->dtype == kFloat64) {
     os << float_imm->value << "f64";
   } else {
-    LOG(FATAL) << "Unrecognised FloatImm dtype: " << DLDataType2String(float_imm->dtype);
+    LOG(FATAL) << "Unrecognised FloatImm dtype: " << DLDataTypeToString(float_imm->dtype);
   }
   return os.str();
 }

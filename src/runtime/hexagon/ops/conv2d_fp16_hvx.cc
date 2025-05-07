@@ -21,6 +21,7 @@
 #include <hexagon_types.h>
 #include <hvx_hexagon_protos.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 
 #include <algorithm>
@@ -442,7 +443,7 @@ int conv2d_packed_fp16(TVMValue* args, int* type_codes, int num_args, TVMValue* 
 
   auto* device_api = tvm::runtime::DeviceAPI::Get(conv_utils::hexagon_device, false);
   ICHECK(device_api != nullptr);
-  tvm::runtime::String vtcm_scope = "global.vtcm";
+  tvm::ffi::String vtcm_scope = "global.vtcm";
 
   auto act_vtcm =
       conv_utils::prepare_nhwc<uint16_t, 8, 4, 32>(device_api, act_flat, /*copy_data=*/true);

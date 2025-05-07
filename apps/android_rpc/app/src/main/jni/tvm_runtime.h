@@ -32,7 +32,16 @@
  * Android logcat.
  */
 #define TVM_LOG_CUSTOMIZE 1
+#define TVM_FFI_USE_LIBBACKTRACE 0
 
+#include "../ffi/src/ffi/container.cc"
+#include "../ffi/src/ffi/dtype.cc"
+#include "../ffi/src/ffi/error.cc"
+#include "../ffi/src/ffi/function.cc"
+#include "../ffi/src/ffi/ndarray.cc"
+#include "../ffi/src/ffi/object.cc"
+#include "../ffi/src/ffi/testing.cc"
+#include "../ffi/src/ffi/traceback.cc"
 #include "../src/runtime/c_runtime_api.cc"
 #include "../src/runtime/container.cc"
 #include "../src/runtime/cpu_device_api.cc"

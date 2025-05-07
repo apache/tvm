@@ -616,12 +616,12 @@ class IRTransformer final : public StmtExprMutator {
       return fmutate(node);
     }
     if (f_preorder_ != nullptr) {
-      T pre = f_preorder_(node);
+      T pre = f_preorder_(node).template cast<T>();
       if (pre.defined()) return pre;
     }
     T new_node = fmutate(node);
     if (f_postorder_ != nullptr) {
-      T post = f_postorder_(new_node);
+      T post = f_postorder_(new_node).template cast<T>();
       if (post.defined()) return post;
     }
     return new_node;
@@ -638,7 +638,7 @@ Stmt IRTransform(Stmt ir_node, const runtime::PackedFunc& f_preorder,
   std::unordered_set<uint32_t> only_type_index;
   if (only_enable.defined()) {
     for (auto s : only_enable.value()) {
-      only_type_index.insert(Object::TypeKey2Index(s.c_str()));
+      only_type_index.insert(ffi::TypeKeyToIndex(s.c_str()));
     }
   }
   IRTransformer transform(f_preorder, f_postorder, only_type_index);
@@ -899,7 +899,7 @@ TVM_REGISTER_GLOBAL("tir.PostOrderVisit").set_body_typed([](ObjectRef node, Pack
 });
 
 TVM_REGISTER_GLOBAL("tir.PreOrderVisit").set_body_typed([](ObjectRef node, PackedFunc f) {
-  tir::PreOrderVisit(node, [f](const ObjectRef& n) { return f(n); });
+  tir::PreOrderVisit(node, [f](const ObjectRef& n) { return f(n).cast<bool>(); });
 });
 
 TVM_REGISTER_GLOBAL("tir.Substitute")

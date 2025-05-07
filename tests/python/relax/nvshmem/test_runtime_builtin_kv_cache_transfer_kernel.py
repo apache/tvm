@@ -19,7 +19,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm._ffi.runtime_ctypes import Device
+from tvm.runtime import Device
 from tvm.runtime import ShapeTuple
 from tvm.runtime import disco as di
 

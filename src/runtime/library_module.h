@@ -67,11 +67,11 @@ class Library : public Object {
 };
 
 /*!
- * \brief Wrap a TVMBackendPackedCFunc to packed function.
+ * \brief Wrap a TVMFFISafeCallType to packed function.
  * \param faddr The function address
  * \param mptr The module pointer node.
  */
-PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& mptr);
+PackedFunc WrapPackedFunc(TVMFFISafeCallType faddr, const ObjectPtr<Object>& mptr);
 
 /*!
  * \brief Utility to initialize conext function symbols during startup
@@ -89,13 +89,13 @@ class ModuleInternal {
 };
 
 /*!
- * \brief Type alias for function to wrap a TVMBackendPackedCFunc.
+ * \brief Type alias for function to wrap a TVMFFISafeCallType.
  * \param The function address imported from a module.
  * \param mptr The module pointer node.
  * \return Packed function that wraps the invocation of the function at faddr.
  */
 using PackedFuncWrapper =
-    std::function<PackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& mptr)>;
+    std::function<PackedFunc(TVMFFISafeCallType faddr, const ObjectPtr<Object>& mptr)>;
 
 /*! \brief Return a library object interface over dynamic shared
  *  libraries in Windows and Linux providing support for

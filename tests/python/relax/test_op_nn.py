@@ -254,13 +254,13 @@ def test_softmax_log_softmax_infer_struct_info_axis_out_of_range():
 def test_softmax_log_softmax_wrong_with_multiple_axes():
     x = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.nn.softmax(x, axis=[1, 2])
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.nn.softmax(x, axis=[-1, -2, -3])
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.nn.log_softmax(x, axis=[1, 2])
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.nn.log_softmax(x, axis=[-1, -2, -3])
 
 

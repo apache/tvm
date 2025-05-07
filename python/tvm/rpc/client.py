@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=used-before-assignment
+# pylint: disable=used-before-assignment,broad-exception-caught
 """RPC client tools"""
 import os
 import socket
@@ -26,7 +26,7 @@ import tvm._ffi
 from tvm._ffi.base import TVMError
 from tvm.contrib import utils
 from tvm.runtime import ndarray as nd
-from tvm._ffi.runtime_ctypes import Device
+from tvm.runtime import Device
 
 from . import _ffi_api, base, server
 
@@ -88,7 +88,7 @@ class RPCSession(object):
         """
         dev = nd.device(dev_type, dev_id)
         encode = (self._tbl_index + 1) * base.RPC_SESS_MASK
-        dev.device_type += encode
+        dev = nd.device(dev.device_type + encode, dev.device_id)
         dev._rpc_sess = self
         return dev
 

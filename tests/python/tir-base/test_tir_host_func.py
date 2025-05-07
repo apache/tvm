@@ -65,7 +65,7 @@ def test_host_func():
         lambda f: f.with_attr(
             {
                 "global_symbol": "test",
-                "tir.is_host_func": 1,
+                "tir.is_host_func": True,
             }
         )
     )(mod)

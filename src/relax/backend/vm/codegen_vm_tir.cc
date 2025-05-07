@@ -136,9 +136,6 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     for (PrimExpr arg : args) {
       all_args.push_back(arg);
     }
-    // push an empty handle to be compatible with current cpacked convention
-    // TODO(tqchen): revisit C Packed convention
-    all_args.push_back(tir::make_zero(DataType::Handle()));
     if (dst_anylist_slot >= 0) {
       this->EmitStmt(tir::Evaluate(
           tir::Call(DataType::Int(32), tir::builtin::anylist_setitem_call_cpacked(), all_args)));
