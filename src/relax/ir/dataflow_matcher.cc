@@ -80,7 +80,7 @@ Expr DFPatternMatcher::UnwrapBindings(Expr expr, const Map<Var, Expr>& var2val) 
       }
     }
 
-    return NullOpt;
+    return std::nullopt;
   };
 
   while (auto unwrapped = unwrap(expr)) {
@@ -489,7 +489,7 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
         } else if (auto shape_expr = sinfo.as<ShapeStructInfoNode>()) {
           return shape_expr->values;
         } else {
-          return NullOpt;
+          return std::nullopt;
         }
       }();
 
@@ -524,8 +524,8 @@ std::tuple<PrimExpr, bool> SameShapeConstraintNode::AsPrimExpr(
 
     } else {
       // Missing an argument, so the constraint will either return
-      // NullOpt or false at this point.  However, delay the return of
-      // NullOpt until the end of the function, because we'd rather
+      // std::nullopt or false at this point.  However, delay the return of
+      // std::nullopt until the end of the function, because we'd rather
       // return "false" if it possible to do so.
       all_shapes_defined = false;
     }

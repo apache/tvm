@@ -25,14 +25,14 @@ namespace meta_schedule {
 /******** Workload ********/
 
 Workload::Workload(IRModule mod) {
-  ObjectPtr<WorkloadNode> n = runtime::make_object<WorkloadNode>();
+  ObjectPtr<WorkloadNode> n = ffi::make_object<WorkloadNode>();
   n->mod = mod;
   n->shash = ModuleEquality::Create("structural")->Hash(mod);
   data_ = std::move(n);
 }
 
 Workload::Workload(IRModule mod, Workload::THashCode shash) {
-  ObjectPtr<WorkloadNode> n = runtime::make_object<WorkloadNode>();
+  ObjectPtr<WorkloadNode> n = ffi::make_object<WorkloadNode>();
   n->mod = mod;
   n->shash = shash;
   data_ = std::move(n);
@@ -51,7 +51,7 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
   IRModule mod{nullptr};
   THashCode shash = 0;
   try {
-    const ArrayObj* json_array = json_obj.as<ArrayObj>();
+    const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
     CHECK(json_array && json_array->size() == 2);
     // Load json[0] => shash
     String str_shash = json_array->at(0).cast<String>();
@@ -134,7 +134,7 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
   Optional<Target> target;
   Optional<Array<ArgInfo>> args_info;
   try {
-    const ArrayObj* json_array = json_obj.as<ArrayObj>();
+    const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
     CHECK(json_array && json_array->size() == 4);
     // Load json[1] => run_secs
     if (json_array->at(1) != nullptr) {
@@ -146,7 +146,7 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
     }
     // Load json[3] => args_info
     if (json_array->at(3) != nullptr) {
-      const ArrayObj* json_args_info = json_array->at(3).cast<const ArrayObj*>();
+      const ffi::ArrayObj* json_args_info = json_array->at(3).cast<const ffi::ArrayObj*>();
       Array<ArgInfo> info;
       info.reserve(json_args_info->size());
       for (Any json_arg_info : *json_args_info) {
@@ -177,11 +177,11 @@ DatabaseNode::~DatabaseNode() = default;
 Optional<TuningRecord> DatabaseNode::QueryTuningRecord(const IRModule& mod, const Target& target,
                                                        const String& workload_name) {
   if (!this->HasWorkload(mod)) {
-    return NullOpt;
+    return std::nullopt;
   }
   Array<TuningRecord> records = this->GetTopK(this->CommitWorkload(mod), 1);
   if (records.empty()) {
-    return NullOpt;
+    return std::nullopt;
   }
   ICHECK_EQ(records.size(), 1);
   return records[0];
@@ -197,7 +197,7 @@ Optional<tir::Schedule> DatabaseNode::QuerySchedule(const IRModule& mod, const T
     record->trace->ApplyToSchedule(sch, false);
     return sch;
   } else {
-    return NullOpt;
+    return std::nullopt;
   }
 }
 
@@ -206,7 +206,7 @@ Optional<IRModule> DatabaseNode::QueryIRModule(const IRModule& mod, const Target
   if (Optional<tir::Schedule> opt_sch = this->QuerySchedule(mod, target, workload_name)) {
     return opt_sch.value()->mod();
   } else {
-    return NullOpt;
+    return std::nullopt;
   }
 }
 
@@ -245,7 +245,7 @@ void Database::ExitWithScope() { ThreadLocalDatabases()->pop_back(); }
 Optional<Database> Database::Current() {
   std::vector<Database>* tls = ThreadLocalDatabases();
   if (tls->empty()) {
-    return NullOpt;
+    return std::nullopt;
   } else {
     return tls->back();
   }

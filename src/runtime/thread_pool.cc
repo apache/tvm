@@ -22,9 +22,9 @@
  * \brief Threadpool for multi-threading runtime.
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/container/array.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>

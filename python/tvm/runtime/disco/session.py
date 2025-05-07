@@ -271,7 +271,7 @@ class Session(Object):
         output_array: DRef
 
             The DRef containing the copied data on worker0, and
-            NullOpt on all other workers.  If `remote_array` was
+            std::nullopt on all other workers.  If `remote_array` was
             provided, this return value is the same as `remote_array`.
             Otherwise, it is the newly allocated space.
 

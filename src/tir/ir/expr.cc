@@ -557,37 +557,36 @@ Call::Call(DataType dtype, RelaxExpr op, Array<PrimExpr> args, Span span) {
 }
 
 TVM_REGISTER_GLOBAL("tir.Call")
-    .set_body_typed(
-        [](Optional<DataType> dtype, RelaxExpr op,
-           Array<Variant<runtime::String, DLDataType, IterVar, BufferRegion, PrimExpr>> args,
-           Span span) {
-          Array<PrimExpr> prim_expr_args;
-          for (const auto& it : args) {
-            if (auto opt_str = it.as<String>()) {
-              prim_expr_args.push_back(StringImm(opt_str.value()));
-            } else if (auto opt_dtype = it.as<DLDataType>()) {
-              prim_expr_args.push_back(StringImm(ffi::DLDataTypeToString(opt_dtype.value())));
-            } else if (const auto* iter_var = it.as<IterVarNode>()) {
-              prim_expr_args.push_back(iter_var->var);
-            } else if (const auto* br = it.as<BufferRegionNode>()) {
-              Array<PrimExpr> indices;
-              for (Range r : br->region) {
-                if (is_one(r->extent)) {
-                  indices.push_back(r->min);
-                } else if (r->extent.as<IntImmNode>()) {
-                  indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), r->extent));
-                } else {
-                  LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: "
-                             << GetRef<BufferRegion>(br);
-                }
-              }
-              prim_expr_args.push_back(BufferLoad(br->buffer, indices));
+    .set_body_typed([](Optional<DataType> dtype, RelaxExpr op,
+                       Array<Variant<String, DLDataType, IterVar, BufferRegion, PrimExpr>> args,
+                       Span span) {
+      Array<PrimExpr> prim_expr_args;
+      for (const auto& it : args) {
+        if (auto opt_str = it.as<String>()) {
+          prim_expr_args.push_back(StringImm(opt_str.value()));
+        } else if (auto opt_dtype = it.as<DLDataType>()) {
+          prim_expr_args.push_back(StringImm(ffi::DLDataTypeToString(opt_dtype.value())));
+        } else if (const auto* iter_var = it.as<IterVarNode>()) {
+          prim_expr_args.push_back(iter_var->var);
+        } else if (const auto* br = it.as<BufferRegionNode>()) {
+          Array<PrimExpr> indices;
+          for (Range r : br->region) {
+            if (is_one(r->extent)) {
+              indices.push_back(r->min);
+            } else if (r->extent.as<IntImmNode>()) {
+              indices.push_back(tir::Ramp(r->min, make_const(r->min->dtype, 1), r->extent));
             } else {
-              prim_expr_args.push_back(Downcast<PrimExpr>(it));
+              LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: "
+                         << GetRef<BufferRegion>(br);
             }
           }
-          return Call(dtype.value_or(DataType::Void()), op, prim_expr_args, span);
-        });
+          prim_expr_args.push_back(BufferLoad(br->buffer, indices));
+        } else {
+          prim_expr_args.push_back(Downcast<PrimExpr>(it));
+        }
+      }
+      return Call(dtype.value_or(DataType::Void()), op, prim_expr_args, span);
+    });
 
 TVM_REGISTER_NODE_TYPE(CallNode);
 
@@ -651,8 +650,8 @@ CommReducer::CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
       << "ValueError: The number of identities must equal to the number of elements in `results`";
 
   // Change the dtype of input vars to adapt to the dtype of identities
-  ArrayObj* p_lhs = lhs.CopyOnWrite();
-  ArrayObj* p_rhs = rhs.CopyOnWrite();
+  ffi::ArrayObj* p_lhs = lhs.CopyOnWrite();
+  ffi::ArrayObj* p_rhs = rhs.CopyOnWrite();
   std::unordered_map<const VarNode*, PrimExpr> var_map;
   var_map.reserve(n_group * 2);
   for (int i = 0; i < static_cast<int>(n_group); ++i) {
@@ -666,7 +665,7 @@ CommReducer::CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
     p_rhs->SetItem(i, r);
   }
 
-  ArrayObj* p_result = result.CopyOnWrite();
+  ffi::ArrayObj* p_result = result.CopyOnWrite();
   for (int i = 0; i < static_cast<int>(n_group); ++i) {
     p_result->SetItem(i, Substitute(result[i], var_map));
   }

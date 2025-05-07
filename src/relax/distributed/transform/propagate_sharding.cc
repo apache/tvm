@@ -429,7 +429,7 @@ class DistributedIRBuilder : public ExprMutator {
       }
     }
     auto new_body = VisitWithNewScope(func->body, new_params);
-    Function new_func(new_params, new_body, NullOpt, func->is_pure, func->attrs);
+    Function new_func(new_params, new_body, std::nullopt, func->is_pure, func->attrs);
     return new_func;
   }
 

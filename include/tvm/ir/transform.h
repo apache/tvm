@@ -56,11 +56,11 @@
 #ifndef TVM_IR_TRANSFORM_H_
 #define TVM_IR_TRANSFORM_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/support/with.h>
 
 #include <string>
@@ -365,7 +365,7 @@ class PassInfo : public ObjectRef {
    * \param required  The passes that are required to perform the current pass.
    * \param traceable Boolean that tells whether the pass is traceable.
    */
-  TVM_DLL PassInfo(int opt_level, String name, Array<runtime::String> required, bool traceable);
+  TVM_DLL PassInfo(int opt_level, String name, Array<String> required, bool traceable);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PassInfo, ObjectRef, PassInfoNode);
 };
@@ -538,7 +538,7 @@ class Sequential : public Pass {
  * \return The created module pass.
  */
 TVM_DLL Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
-                              int opt_level, String name, Array<runtime::String> required,
+                              int opt_level, String name, Array<String> required,
                               bool traceable = false);
 
 /*

@@ -19,7 +19,7 @@
 #ifndef TVM_RUNTIME_RELAX_VM_NDARRAY_CACHE_SUPPORT_H_
 #define TVM_RUNTIME_RELAX_VM_NDARRAY_CACHE_SUPPORT_H_
 
-#include <tvm/runtime/container/array.h>
+#include <tvm/ffi/container/array.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 
@@ -52,7 +52,7 @@ struct NDArrayCacheMetadata {
       /*! \brief Name of the parameter */
       std::string name;
       /*! \brief Shape of the parameter */
-      ShapeTuple shape;
+      ffi::Shape shape;
       /*! \brief Data type of the parameter */
       DataType dtype;
       /*! \brief Format of the parameter */

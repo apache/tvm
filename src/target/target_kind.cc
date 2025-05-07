@@ -90,7 +90,7 @@ const AttrRegistryMapContainerMap<TargetKind>& TargetKind::GetAttrMapContainer(
 Optional<TargetKind> TargetKind::Get(const String& target_kind_name) {
   const TargetKindRegEntry* reg = TargetKindRegistry::Global()->Get(target_kind_name);
   if (reg == nullptr) {
-    return NullOpt;
+    return std::nullopt;
   }
   return reg->kind_;
 }

@@ -499,7 +499,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
     }
   }
 
-  cg->Init("TVMHexagonModule", llvm_target.get(), NullOpt, false, false);
+  cg->Init("TVMHexagonModule", llvm_target.get(), std::nullopt, false, false);
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
   if (entry_func.length() != 0) {
     cg->AddMainFunction(entry_func);

@@ -45,14 +45,14 @@ class ConstantFolder : public ExprMutator {
    * constant shape and get runtime shape tuple from it.
    * \param struct_info The given struct info whose shape inside is to be casted.
    * \return The runtime shape tuple, or nullopt if it is not a constant shape.
-   * \note Only TensorStructInfo is supported at this moment. Return NullOpt
+   * \note Only TensorStructInfo is supported at this moment. Return std::nullopt
    * if the input struct info is not TensorStructInfo.
    */
-  static Optional<runtime::ShapeTuple> MatchConstShape(const StructInfo& struct_info) {
+  static Optional<ffi::Shape> MatchConstShape(const StructInfo& struct_info) {
     // Only support single output for call_tir at this moment.
     const auto* tensor_sinfo = struct_info.as<TensorStructInfoNode>();
     if (tensor_sinfo == nullptr) {
-      return NullOpt;
+      return std::nullopt;
     }
 
     const auto* shape = tensor_sinfo->shape.as<ShapeExprNode>();
@@ -61,10 +61,10 @@ class ConstantFolder : public ExprMutator {
     std::vector<int64_t> shape_values;
     for (const auto v : shape->values) {
       auto* ptr = v.as<IntImmNode>();
-      if (!ptr) return NullOpt;
+      if (!ptr) return std::nullopt;
       shape_values.push_back(ptr->value);
     }
-    return runtime::ShapeTuple(shape_values.begin(), shape_values.end());
+    return ffi::Shape(shape_values.begin(), shape_values.end());
   }
 
   /*!
@@ -75,7 +75,7 @@ class ConstantFolder : public ExprMutator {
     Array<runtime::NDArray> res;
     for (auto arg : args) {
       auto* ptr = arg.as<relax::ConstantNode>();
-      if (!ptr) return NullOpt;
+      if (!ptr) return std::nullopt;
       res.push_back(ptr->data);
     }
     return res;
@@ -92,7 +92,7 @@ class ConstantFolder : public ExprMutator {
     if (auto* pfunc = base_func.as<tir::PrimFuncNode>()) {
       return GetRef<tir::PrimFunc>(pfunc);
     }
-    return NullOpt;
+    return std::nullopt;
   }
 
   /*!
@@ -108,7 +108,7 @@ class ConstantFolder : public ExprMutator {
     if (it != func_build_cache_.end()) {
       return it->second;
     }
-    Optional<ffi::Function> build_func = NullOpt;
+    Optional<ffi::Function> build_func = std::nullopt;
 
     try {
       // Not all the primfunc can be directly built via llvm, for example, if a function is
@@ -141,12 +141,12 @@ class ConstantFolder : public ExprMutator {
   }
 
   // Try constant evaluate the function call
-  // if failed return NullOpt
+  // if failed return std::nullopt
   Optional<Expr> ConstEvaluateCallTIR(tir::PrimFunc tir_func, Array<runtime::NDArray> arr_args,
-                                      runtime::ShapeTuple shape, DataType ret_type) {
+                                      ffi::Shape shape, DataType ret_type) {
     // obtain function from the cache.
     Optional<ffi::Function> func = GetCachedBuild(tir_func);
-    if (!func) return NullOpt;
+    if (!func) return std::nullopt;
 
     // here the vector size has an additional + 1 because we need to put ret_tensor at the end
     std::vector<AnyView> packed_args(arr_args.size() + 1);
@@ -180,7 +180,7 @@ class ConstantFolder : public ExprMutator {
     Optional<Array<runtime::NDArray>> arr_args =
         MatchConstArrayArgs(call->args[1].as<TupleNode>()->fields);
     ICHECK_EQ(call->sinfo_args.size(), 1) << "call_tir should have exactly one sinfo arg";
-    Optional<runtime::ShapeTuple> shape = MatchConstShape(call->sinfo_args[0]);
+    Optional<ffi::Shape> shape = MatchConstShape(call->sinfo_args[0]);
     bool output_not_tuple = call->sinfo_args.size() == 1;
     // Pattern 0: call constant function, const argument with const shape.
     if (func && arr_args && shape && output_not_tuple) {

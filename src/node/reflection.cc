@@ -253,7 +253,7 @@ ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
   std::vector<AnyView> packed_args(kwargs.size() * 2);
   int index = 0;
 
-  for (const auto& kv : *static_cast<const MapObj*>(kwargs.get())) {
+  for (const auto& kv : *static_cast<const ffi::MapObj*>(kwargs.get())) {
     packed_args[index] = kv.first.cast<String>().c_str();
     packed_args[index + 1] = kv.second;
     index += 2;
@@ -336,7 +336,7 @@ Optional<String> GetAttrKeyByAddress(const Object* object, const void* attr_addr
   ReflectionVTable::Global()->VisitAttrs(const_cast<Object*>(object), &visitor);
   const char* key = visitor.GetKey();
   if (key == nullptr) {
-    return NullOpt;
+    return std::nullopt;
   } else {
     return String(key);
   }

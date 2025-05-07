@@ -1503,7 +1503,7 @@ class PyExprMutator:
 
     def lookup_binding(self, var: Var) -> Optional[Expr]:
         """Look up the value bound to a variable.
-        Note: For function parameters, this function returns NullOpt.
+        Note: For function parameters, this function returns std::nullopt.
 
         Parameters
         ----------

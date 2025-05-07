@@ -175,7 +175,7 @@ TVM_REGISTER_GLOBAL("tvmjs.runtime.ArrayConcat")
       std::vector<Any> data;
       for (int i = 0; i < args.size(); ++i) {
         // Get i-th TVMArray
-        auto* arr_i = args[i].as<ArrayObj>();
+        auto* arr_i = args[i].as<ffi::ArrayObj>();
         ICHECK(arr_i != nullptr);
         for (size_t j = 0; j < arr_i->size(); ++j) {
           // Push back each j-th element of the i-th array

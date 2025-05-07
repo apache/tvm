@@ -64,7 +64,7 @@ void BaseStack::FuncDef(const String& func_name, const String& ret_type) {
     PushDoc(FunctionDoc(IdDoc(func_name), Array<AssignDoc>(), Array<ExprDoc>(), IdDoc(ret_type),
                         Array<StmtDoc>()));
   } else {
-    PushDoc(FunctionDoc(IdDoc(func_name), Array<AssignDoc>(), Array<ExprDoc>(), NullOpt,
+    PushDoc(FunctionDoc(IdDoc(func_name), Array<AssignDoc>(), Array<ExprDoc>(), std::nullopt,
                         Array<StmtDoc>()));
   }
 }
@@ -214,13 +214,13 @@ void BaseStack::FuncCall(const String& callee, Optional<ExprDoc> assign_to,
 void BaseStack::FuncCall(const String& callee, const String& assign_to, const String& caller) {
   Optional<ExprDoc> assign_doc;
   if (assign_to.size() == 0) {
-    assign_doc = NullOpt;
+    assign_doc = std::nullopt;
   } else {
     assign_doc = IdDoc(assign_to);
   }
   Optional<ExprDoc> caller_doc;
   if (caller.size() == 0) {
-    caller_doc = NullOpt;
+    caller_doc = std::nullopt;
   } else {
     caller_doc = IdDoc(caller);
   }
@@ -231,7 +231,7 @@ void BaseStack::MethodCall(const String& callee, bool new_line) {
   const auto& host = PopDoc();
   if (host->IsInstance<ExprDocNode>()) {
     const auto& v_callee = callee + (new_line ? DocSymbol::NextLine() : "");
-    FuncCall(v_callee, NullOpt, Downcast<ExprDoc>(host));
+    FuncCall(v_callee, std::nullopt, Downcast<ExprDoc>(host));
   } else if (const auto* a_node = host.as<AssignDocNode>()) {
     ICHECK(a_node->rhs.defined()) << "Can not find rhs for inplace host";
     FuncCall(callee, DeclareDoc(a_node->annotation, a_node->lhs, Array<ExprDoc>(), true),
@@ -411,7 +411,7 @@ void BaseStack::ScopeStart(const String& scope_def, const String& scope_ref) {
   if (scope_ref.size() > 0) {
     PushDoc(ScopeDoc(IdDoc(scope_ref), IdDoc(scope_def), Array<StmtDoc>()));
   } else {
-    PushDoc(ScopeDoc(NullOpt, IdDoc(scope_def), Array<StmtDoc>()));
+    PushDoc(ScopeDoc(std::nullopt, IdDoc(scope_def), Array<StmtDoc>()));
   }
   BlockStart();
 }

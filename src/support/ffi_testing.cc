@@ -21,9 +21,9 @@
  *  FFI registration code used for frontend testing purposes.
  * \file ffi_testing.cc
  */
+#include <tvm/ffi/container/variant.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
-#include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/te/tensor.h>

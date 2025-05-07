@@ -52,7 +52,7 @@ inline ncclRedOp_t AsNCCLRedOp(ReduceKind kind) {
   throw;
 }
 
-void InitCCL(Session sess, IntTuple device_ids) {
+void InitCCL(Session sess, ffi::Shape device_ids) {
   DRef func = sess->GetGlobalFunc("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker");
   DLOG(INFO) << "Initializing " TVM_DISCO_CCL_NAME " with devices: " << device_ids;
   ncclUniqueId id;
@@ -60,7 +60,7 @@ void InitCCL(Session sess, IntTuple device_ids) {
   sess->CallPacked(func, device_ids, ffi::Bytes(id.internal, NCCL_UNIQUE_ID_BYTES));
 }
 
-void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
+void InitCCLPerWorker(ffi::Shape device_ids, std::string unique_id_bytes) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   ICHECK(worker != nullptr);
@@ -116,7 +116,7 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
 
 void AllReduce(NDArray send, ReduceKind reduce_kind, bool in_group, NDArray recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
-  ShapeTuple shape = send.Shape();
+  ffi::Shape shape = send.Shape();
   int64_t numel = shape->Product();
   deviceStream_t stream = ctx->GetDefaultStream();
   DataType dtype = DataType(send->dtype);
@@ -131,7 +131,7 @@ void AllReduce(NDArray send, ReduceKind reduce_kind, bool in_group, NDArray recv
 
 void AllGather(NDArray send, bool in_group, NDArray recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
-  ShapeTuple shape = send.Shape();
+  ffi::Shape shape = send.Shape();
   int64_t numel = shape->Product();
   deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclAllGather(send->data, recv->data, numel,

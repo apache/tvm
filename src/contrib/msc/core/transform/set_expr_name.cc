@@ -158,7 +158,7 @@ class RelaxExprNameSetter : public ExprVisitor {
 
   void VisitBinding_(const VarBindingNode* binding, const FunctionNode* val) {
     ExprVisitor::VisitBinding_(binding, val);
-    const auto& name_opt = val->GetAttr<runtime::String>(attr::kComposite);
+    const auto& name_opt = val->GetAttr<String>(attr::kComposite);
     if (name_opt.defined()) {
       local_funcs_.Set(binding->var, GetRef<Function>(val));
     }
@@ -257,8 +257,8 @@ class RelaxExprNameSetter : public ExprVisitor {
 
   const String GetFuncType(const Function& func) {
     String optype;
-    const auto& comp_opt = func->GetAttr<runtime::String>(attr::kComposite);
-    const auto& code_opt = func->GetAttr<runtime::String>(attr::kCodegen);
+    const auto& comp_opt = func->GetAttr<String>(attr::kComposite);
+    const auto& code_opt = func->GetAttr<String>(attr::kCodegen);
     if (comp_opt.defined()) {
       optype = comp_opt.value();
     } else if (code_opt.defined()) {
@@ -275,7 +275,7 @@ class RelaxExprNameSetter : public ExprVisitor {
   const String GetFuncName(const Call& call, const Function& func) {
     String name;
     // get from unique
-    const auto& name_opt = func->GetAttr<runtime::String>(msc_attr::kUnique);
+    const auto& name_opt = func->GetAttr<String>(msc_attr::kUnique);
     if (name_opt.defined()) {
       return name_opt.value();
     }

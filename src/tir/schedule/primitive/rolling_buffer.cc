@@ -191,7 +191,7 @@ class RollingBufferInfoCollector {
         stride = 1;
       } else if (is_const_int(bound->min)) {
         // If the bound is an int, we can't roll over it
-        iter_var = NullOpt;
+        iter_var = std::nullopt;
       } else {
         // If all of the above matches fail, we're in unknown behaviour
         return false;
@@ -202,9 +202,9 @@ class RollingBufferInfoCollector {
         bound_overlap = extent - stride;
         // Since Pass CompactBufferAllocation will be responsible for compacting the buffer
         // allocation region, there is no need to roll over the axis where the overlap is not
-        // positive, so reset iter_var to NullOpt.
+        // positive, so reset iter_var to std::nullopt.
         if (bound_overlap <= 0) {
-          iter_var = NullOpt;
+          iter_var = std::nullopt;
         }
       }
       bound_iter_vars.push_back(iter_var);

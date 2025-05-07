@@ -143,7 +143,7 @@ class DeviceInfoCollector : public StmtVisitor {
   // The extent of each thread
   Map<String, PrimExpr> thread_extent;
   // The amount of dynamic shared memory used
-  Optional<PrimExpr> dyn_shmem_size{NullOpt};
+  Optional<PrimExpr> dyn_shmem_size{std::nullopt};
 };
 
 class ReturnRemover : public StmtExprMutator {
@@ -195,7 +195,7 @@ class DeviceKernelMutator : public StmtExprMutator {
       func.CopyOnWrite()->body = body;
     }
 
-    current_target_ = NullOpt;
+    current_target_ = std::nullopt;
     return func;
   }
 

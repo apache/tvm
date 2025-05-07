@@ -36,7 +36,7 @@ Schedule Schedule::Concrete(IRModule mod, support::LinearCongruentialEngine::TRa
   if (FindEntryFunc(mod, &gv) != nullptr) {
     n->func_working_on_ = gv;
   } else {
-    n->func_working_on_ = NullOpt;
+    n->func_working_on_ = std::nullopt;
   }
   return Schedule(std::move(n));
 }
@@ -930,7 +930,7 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
 
   if (const auto* expr = ann_val.as<PrimExprNode>()) {
     ICHECK(!expr->IsInstance<StringImmNode>())
-        << "TypeError: runtime::String is expected, but gets StringImm";
+        << "TypeError: String is expected, but gets StringImm";
     auto res_expr = this->Get(GetRef<PrimExpr>(expr));
     // prefer to return int/float literals for annotations
     if (auto opt_intimm = res_expr.as<IntImm>()) {
@@ -941,7 +941,7 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
     }
     return res_expr;
   }
-  if (const auto* arr = ann_val.as<ArrayObj>()) {
+  if (const auto* arr = ann_val.as<ffi::ArrayObj>()) {
     Array<Any> result;
     result.reserve(arr->size());
     for (size_t i = 0; i < arr->size(); i++) {
@@ -949,7 +949,7 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
     }
     return std::move(result);
   }
-  if (const auto* dict = ann_val.as<MapObj>()) {
+  if (const auto* dict = ann_val.as<ffi::MapObj>()) {
     Map<String, ffi::Any> result;
     for (auto it = dict->begin(); it != dict->end(); ++it) {
       const auto& key = it->first;

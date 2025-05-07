@@ -536,7 +536,7 @@ TVM_DLL bool HasReshapePattern(const tir::PrimFunc& func);
  *   the caller can pass the function's name so recursive calls
  *   can be ignored in the check (must be a Var or GlobalVar).
  * \return The impure expression, if one exists within the given
- *   expression.  Otherwise, NullOpt.
+ *   expression.  Otherwise, std::nullopt.
  * \note Relies on StructInfo annotations, so ensure that the module has been normalized first.
  *   Also, an impure call in a *nested* function does *not* mean that the outer expression contains
  *   an impure call--it only does if the nested function is *later called*.

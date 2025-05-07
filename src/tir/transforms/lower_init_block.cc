@@ -39,7 +39,7 @@ class InitBlockLower : public StmtMutator {
     Stmt init = DoLowering(block->init.value(), block->iter_vars);
     Stmt body = VisitStmt(block->body);
     auto n = CopyOnWrite(block);
-    n->init = NullOpt;
+    n->init = std::nullopt;
     n->body = SeqStmt::Flatten(init, body);
     return Block(n);
   }

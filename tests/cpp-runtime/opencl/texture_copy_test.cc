@@ -101,12 +101,12 @@ TEST_F(TextureCopyTest, ViewBufferAsBuffer) {
 
   DLDevice cl_dev = {kDLOpenCL, 0};
   auto allocator = MemoryManager::GetOrCreateAllocator(cl_dev, AllocatorType::kPooled);
-  auto buffer = allocator->Alloc(cl_dev, ShapeTuple(shape), {kDLFloat, 32, 1});
+  auto buffer = allocator->Alloc(cl_dev, ffi::Shape(shape), {kDLFloat, 32, 1});
   auto stor = Storage(buffer, allocator);
 
-  auto opencl_memobj = stor->AllocNDArrayScoped(0, ShapeTuple(shape), {kDLFloat, 32, 1}, mem_scope);
+  auto opencl_memobj = stor->AllocNDArrayScoped(0, ffi::Shape(shape), {kDLFloat, 32, 1}, mem_scope);
   auto opencl_memview =
-      stor->AllocNDArrayScoped(0, ShapeTuple(same_shape), {kDLFloat, 32, 1}, mem_scope);
+      stor->AllocNDArrayScoped(0, ffi::Shape(same_shape), {kDLFloat, 32, 1}, mem_scope);
 
   std::random_device dev;
   std::mt19937 mt(dev());
@@ -158,12 +158,12 @@ TEST_F(TextureCopyTest, ViewBufferAsImage) {
 
   DLDevice cl_dev = {kDLOpenCL, 0};
   auto allocator = MemoryManager::GetOrCreateAllocator(cl_dev, AllocatorType::kPooled);
-  auto buffer = allocator->Alloc(cl_dev, ShapeTuple(shape), {kDLFloat, 32, 1});
+  auto buffer = allocator->Alloc(cl_dev, ffi::Shape(shape), {kDLFloat, 32, 1});
   auto stor = Storage(buffer, allocator);
 
-  auto opencl_buf_obj = stor->AllocNDArrayScoped(0, ShapeTuple(shape), {kDLFloat, 32, 1}, "global");
+  auto opencl_buf_obj = stor->AllocNDArrayScoped(0, ffi::Shape(shape), {kDLFloat, 32, 1}, "global");
   auto opencl_img_obj =
-      stor->AllocNDArrayScoped(0, ShapeTuple(same_shape), {kDLFloat, 32, 1}, "global.texture");
+      stor->AllocNDArrayScoped(0, ffi::Shape(same_shape), {kDLFloat, 32, 1}, "global.texture");
 
   std::random_device dev;
   std::mt19937 mt(dev());
@@ -215,13 +215,13 @@ TEST_F(TextureCopyTest, ViewImageAsBuffer) {
 
   DLDevice cl_dev = {kDLOpenCL, 0};
   auto allocator = MemoryManager::GetOrCreateAllocator(cl_dev, AllocatorType::kPooled);
-  auto buffer = allocator->Alloc(cl_dev, ShapeTuple(shape), {kDLFloat, 32, 1});
+  auto buffer = allocator->Alloc(cl_dev, ffi::Shape(shape), {kDLFloat, 32, 1});
   auto stor = Storage(buffer, allocator);
 
   auto opencl_img_obj =
-      stor->AllocNDArrayScoped(0, ShapeTuple(shape), {kDLFloat, 32, 1}, "global.texture");
+      stor->AllocNDArrayScoped(0, ffi::Shape(shape), {kDLFloat, 32, 1}, "global.texture");
   auto opencl_buf_obj =
-      stor->AllocNDArrayScoped(0, ShapeTuple(same_shape), {kDLFloat, 32, 1}, "global");
+      stor->AllocNDArrayScoped(0, ffi::Shape(same_shape), {kDLFloat, 32, 1}, "global");
 
   std::random_device dev;
   std::mt19937 mt(dev());
@@ -273,13 +273,13 @@ TEST_F(TextureCopyTest, ViewImageAsImage) {
 
   DLDevice cl_dev = {kDLOpenCL, 0};
   auto allocator = MemoryManager::GetOrCreateAllocator(cl_dev, AllocatorType::kPooled);
-  auto buffer = allocator->Alloc(cl_dev, ShapeTuple(shape), {kDLFloat, 32, 1});
+  auto buffer = allocator->Alloc(cl_dev, ffi::Shape(shape), {kDLFloat, 32, 1});
   auto stor = Storage(buffer, allocator);
 
   auto opencl_img_obj_1 =
-      stor->AllocNDArrayScoped(0, ShapeTuple(shape), {kDLFloat, 32, 1}, "global.texture");
+      stor->AllocNDArrayScoped(0, ffi::Shape(shape), {kDLFloat, 32, 1}, "global.texture");
   auto opencl_img_obj_2 =
-      stor->AllocNDArrayScoped(0, ShapeTuple(same_shape), {kDLFloat, 32, 1}, "global.texture");
+      stor->AllocNDArrayScoped(0, ffi::Shape(same_shape), {kDLFloat, 32, 1}, "global.texture");
 
   std::random_device dev;
   std::mt19937 mt(dev());

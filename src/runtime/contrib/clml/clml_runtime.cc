@@ -291,7 +291,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       // Dump tensor to CPU
       std::vector<int64_t> shape = node.GetOpShape()[0];
       DLDataType tvm_dtype = node.GetOpDataType()[0];
-      NDArray narr = NDArray::Empty(ShapeTuple(shape), tvm_dtype, {kDLCPU, 0});
+      NDArray narr = NDArray::Empty(ffi::Shape(shape), tvm_dtype, {kDLCPU, 0});
       CopyDataFromCLMLTensor(clml_desc, narr.operator->()->data);
 
       // Naming convention

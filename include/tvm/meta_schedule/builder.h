@@ -19,12 +19,12 @@
 #ifndef TVM_META_SCHEDULE_BUILDER_H_
 #define TVM_META_SCHEDULE_BUILDER_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
@@ -66,7 +66,7 @@ class BuilderInput : public runtime::ObjectRef {
    * \param params Parameters for Relax build module.
    */
   TVM_DLL explicit BuilderInput(IRModule mod, Target target,
-                                Optional<Map<String, runtime::NDArray>> params = NullOpt);
+                                Optional<Map<String, runtime::NDArray>> params = std::nullopt);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BuilderInput, runtime::ObjectRef, BuilderInputNode);
 };
 

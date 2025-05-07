@@ -72,7 +72,7 @@
 #ifndef TVM_RUNTIME_DISCO_SESSION_H_
 #define TVM_RUNTIME_DISCO_SESSION_H_
 
-#include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 

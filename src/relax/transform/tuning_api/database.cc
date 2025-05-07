@@ -49,7 +49,7 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj) {
   Trace trace{nullptr};
   Optional<Array<FloatImm>> run_secs{nullptr};
   try {
-    const ArrayObj* json_array = json_obj.as<ArrayObj>();
+    const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
     CHECK(json_array && json_array->size() == 2);
     // Load json[0] => trace
     {
@@ -256,7 +256,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
         0, json_objs.size(), num_threads, [&](int thread_id, int task_id) {
           const ObjectRef& json_obj = json_objs[task_id].cast<ObjectRef>();
           try {
-            const ArrayObj* arr = json_obj.as<ArrayObj>();
+            const ffi::ArrayObj* arr = json_obj.as<ffi::ArrayObj>();
             ICHECK_EQ(arr->size(), 3);
             workload_idxs[task_id] = Downcast<Integer>(arr->at(0)).IntValue();
             targets[task_id] = Target(Downcast<Map<String, ffi::Any>>(arr->at(1)));
@@ -288,7 +288,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
         0, json_objs.size(), num_threads, [&](int thread_id, int task_id) {
           const ObjectRef& json_obj = json_objs[task_id].cast<ObjectRef>();
           try {
-            const ArrayObj* arr = json_obj.as<ArrayObj>();
+            const ffi::ArrayObj* arr = json_obj.as<ffi::ArrayObj>();
             ICHECK_EQ(arr->size(), 3);
             workload_idxs[task_id] = Downcast<Integer>(arr->at(0)).IntValue();
             targets[task_id] = Target(Downcast<Map<String, ffi::Any>>(arr->at(1)));

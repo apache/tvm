@@ -68,10 +68,10 @@ Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
           /*max_innermost_factor=*/Integer(64)),
       ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSRSRS",
-          /*tile_binds=*/NullOpt,
+          /*tile_binds=*/std::nullopt,
           /*max_innermost_factor=*/Integer(64),
-          /*vector_load_lens=*/NullOpt,
-          /*reuse_read=*/NullOpt,
+          /*vector_load_lens=*/std::nullopt,
+          /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           Map<String, ffi::Any>{{"req", String("may")},
                                 {"levels", Array<Integer>{1, 2}},
@@ -105,20 +105,20 @@ Array<ScheduleRule> ScheduleRule::DefaultX86(const String& type) {
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/intrins[type],
           /*structure=*/"SSRSRS",
-          /*tile_binds=*/NullOpt,
+          /*tile_binds=*/std::nullopt,
           /*max_innermost_factor=*/Integer(64),
-          /*vector_load_lens=*/NullOpt,
-          /*reuse_read=*/NullOpt,
+          /*vector_load_lens=*/std::nullopt,
+          /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           Map<String, ffi::Any>{{"req", String("may")},
                                 {"levels", Array<Integer>{1, 2}},
                                 {"scope", String("global")}}),
       ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSRSRS",
-          /*tile_binds=*/NullOpt,
+          /*tile_binds=*/std::nullopt,
           /*max_innermost_factor=*/Integer(64),
-          /*vector_load_lens=*/NullOpt,
-          /*reuse_read=*/NullOpt,
+          /*vector_load_lens=*/std::nullopt,
+          /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           Map<String, ffi::Any>{{"req", String("may")},
                                 {"levels", Array<Integer>{1, 2}},
@@ -289,7 +289,7 @@ Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
           /*structure=*/"SRSRS",
           /*vector_length_in_bits=*/1024,
           /*max_innermost_factor=*/Integer(128),
-          /*reuse_read=*/NullOpt,
+          /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           Map<String, ffi::Any>{{"req", String("may")},
                                 {"levels", Array<Integer>{1, 2}},
@@ -307,10 +307,10 @@ Array<ScheduleRule> GetARMNeonSpecificRules() {
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/String("dot_4x4_i8i8s32_neon"),
           /*structure=*/"SSRSRS",
-          /*tile_binds=*/NullOpt,
+          /*tile_binds=*/std::nullopt,
           /*max_innermost_factor=*/Integer(32),
-          /*vector_load_lens=*/NullOpt,
-          /*reuse_read=*/NullOpt,
+          /*vector_load_lens=*/std::nullopt,
+          /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           Map<String, ffi::Any>{{"req", String("may")},
                                 {"levels", Array<Integer>{1, 2}},
@@ -323,10 +323,10 @@ Array<ScheduleRule> GetARMDotprodSpecificRules() {
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/String("dot_4x4_i8i8s32_sdot"),
           /*structure=*/"SSRSRS",
-          /*tile_binds=*/NullOpt,
+          /*tile_binds=*/std::nullopt,
           /*max_innermost_factor=*/Integer(32),
-          /*vector_load_lens=*/NullOpt,
-          /*reuse_read=*/NullOpt,
+          /*vector_load_lens=*/std::nullopt,
+          /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           Map<String, ffi::Any>{{"req", String("may")},
                                 {"levels", Array<Integer>{1, 2}},
@@ -334,10 +334,10 @@ Array<ScheduleRule> GetARMDotprodSpecificRules() {
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/String("dot_4x4_u8u8u32_udot"),
           /*structure=*/"SSRSRS",
-          /*tile_binds=*/NullOpt,
+          /*tile_binds=*/std::nullopt,
           /*max_innermost_factor=*/Integer(32),
-          /*vector_load_lens=*/NullOpt,
-          /*reuse_read=*/NullOpt,
+          /*vector_load_lens=*/std::nullopt,
+          /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           Map<String, ffi::Any>{{"req", String("may")},
                                 {"levels", Array<Integer>{1, 2}},
@@ -345,10 +345,10 @@ Array<ScheduleRule> GetARMDotprodSpecificRules() {
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/String("dot_4x4_u8u8i32_hdot"),
           /*structure=*/"SSRSRS",
-          /*tile_binds=*/NullOpt,
+          /*tile_binds=*/std::nullopt,
           /*max_innermost_factor=*/Integer(32),
-          /*vector_load_lens=*/NullOpt,
-          /*reuse_read=*/NullOpt,
+          /*vector_load_lens=*/std::nullopt,
+          /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           Map<String, ffi::Any>{{"req", String("may")},
                                 {"levels", Array<Integer>{1, 2}},
@@ -374,10 +374,10 @@ Array<ScheduleRule> ScheduleRule::DefaultARM(const String& type) {
       "dotprod" == type ? GetARMDotprodSpecificRules() : Array<ScheduleRule>{},
       ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSRSRS",
-          /*tile_binds=*/NullOpt,
+          /*tile_binds=*/std::nullopt,
           /*max_innermost_factor=*/Integer(32),
-          /*vector_load_lens=*/NullOpt,
-          /*reuse_read=*/NullOpt,
+          /*vector_load_lens=*/std::nullopt,
+          /*reuse_read=*/std::nullopt,
           /*reuse_write=*/
           Map<String, ffi::Any>{{"req", String("may")},
                                 {"levels", Array<Integer>{1, 2}},

@@ -51,7 +51,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
     if (rewriter.made_change_) {
       return stmt;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }
 

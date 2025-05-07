@@ -77,7 +77,7 @@ TEST_F(TvmVMMemoryManagerTest, NaiveEmptyBasic) {
   EXPECT_EQ(allocator->UsedMemory(), 0);
   auto dt = DataType::Float(32);
   size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
-  ShapeTuple shape = {1, 3, 6, 6};
+  ffi::Shape shape = {1, 3, 6, 6};
   {
     auto ndarray = allocator->Empty(shape, dt, dev);
     EXPECT_EQ(allocator->UsedMemory(), nbytes);
@@ -92,7 +92,7 @@ TEST_F(TvmVMMemoryManagerTest, BothAllocatorsCoexists) {
   EXPECT_EQ(nallocator->UsedMemory(), 0);
   auto dt = DataType::Float(32);
   size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
-  ShapeTuple shape = {1, 3, 6, 6};
+  ffi::Shape shape = {1, 3, 6, 6};
   {
     auto ndarray = nallocator->Empty(shape, dt, dev);
     EXPECT_EQ(nallocator->UsedMemory(), nbytes);
@@ -125,7 +125,7 @@ TEST_F(TvmVMMemoryManagerTest, PooledEmptyBasic) {
   size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
   size_t page_size = PooledAllocator::kDefaultPageSize;
   size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
-  ShapeTuple shape = {1, 3, 6, 6};
+  ffi::Shape shape = {1, 3, 6, 6};
   {
     auto ndarray = allocator->Empty(shape, dt, dev);
     EXPECT_EQ(allocator->UsedMemory(), size);
@@ -139,7 +139,7 @@ TEST_F(TvmVMMemoryManagerTest, NaiveAllocWithShape) {
   EXPECT_EQ(allocator->UsedMemory(), 0);
   auto dt = DataType::Float(32);
   size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
-  ShapeTuple shape = {1, 3, 6, 6};
+  ffi::Shape shape = {1, 3, 6, 6};
   auto buff = allocator->Alloc(dev, shape, dt);
   EXPECT_EQ(allocator->UsedMemory(), nbytes);
   allocator->Free(buff);
@@ -165,7 +165,7 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocWithShape) {
   size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
   size_t page_size = PooledAllocator::kDefaultPageSize;
   size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
-  ShapeTuple shape = {1, 3, 6, 6};
+  ffi::Shape shape = {1, 3, 6, 6};
   auto buff = allocator->Alloc(dev, shape, dt);
   EXPECT_EQ(allocator->UsedMemory(), size);
   allocator->Free(buff);

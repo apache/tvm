@@ -24,7 +24,7 @@
 #ifndef TVM_RUNTIME_REGISTRY_H_
 #define TVM_RUNTIME_REGISTRY_H_
 
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <type_traits>

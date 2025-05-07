@@ -155,9 +155,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   /*! \brief The batch size of the current round of forwarding. */
   int64_t cur_batch_size_;
   /*! \brief The ids of the sequences in the current round of forwarding. */
-  IntTuple cur_seq_ids_;
+  ffi::Shape cur_seq_ids_;
   /*! \brief The append lengths of the sequences in the current round of forwarding. */
-  IntTuple cur_append_lengths_;
+  ffi::Shape cur_append_lengths_;
   /*! \brief Whether the current batch of sequences are token chains (not token trees). */
   std::vector<bool> is_chain_on_depths_;
   /*! \brief Number of fork depth in the current round of forward. */
@@ -244,7 +244,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   Optional<ffi::Function> f_transpose_append_mha_;
   Optional<ffi::Function> f_transpose_append_mla_;
   Optional<ffi::Function> f_transfer_kv_;
-  Optional<ffi::Function> f_transfer_kv_page_to_page_ = NullOpt;
+  Optional<ffi::Function> f_transfer_kv_page_to_page_ = std::nullopt;
   ffi::Function f_compact_copy_;
   std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged_;
   std::unique_ptr<PagedPrefillFunc> f_attention_prefill_;
@@ -343,7 +343,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       ICHECK(f_nvshmem_empty.has_value());
       nvshmem_pages_ =
           (*f_nvshmem_empty)(
-              ShapeTuple({num_layers, num_total_pages, 2, num_kv_heads, page_size, qk_head_dim}),
+              ffi::Shape({num_layers, num_total_pages, 2, num_kv_heads, page_size, qk_head_dim}),
               dtype, device)
               .cast<NDArray>();
       for (int i = 0; i < num_layers; ++i) {
@@ -362,7 +362,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       f_transfer_kv_page_to_page_ = *f_transfer_kv_page_to_page_ptr;
     } else {
       for (int i = 0; i < num_layers; ++i) {
-        ShapeTuple kv_cache_shape =
+        ffi::Shape kv_cache_shape =
             GetKVCacheShape(attn_kinds_[layer_id_begin_offset_ + i], num_total_pages,
                             reserved_num_seqs, num_kv_heads, page_size, qk_head_dim, v_head_dim);
         pages_.push_back(NDArray::Empty(kv_cache_shape, dtype, device));
@@ -821,8 +821,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
   /************** Attention **************/
 
-  void BeginForward(const IntTuple& seq_ids, const IntTuple& append_lengths,
-                    const Optional<IntTuple>& opt_token_tree_parent_ptr) final {
+  void BeginForward(const ffi::Shape& seq_ids, const ffi::Shape& append_lengths,
+                    const Optional<ffi::Shape>& opt_token_tree_parent_ptr) final {
     // Note: MLA does not supported tree attention for now.
     if (attn_kinds_[0] == AttnKind::kMLA) {
       CHECK(!opt_token_tree_parent_ptr.defined()) << "Tree attention is not supported yet for MLA";
@@ -1101,11 +1101,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  IntTuple DisaggPrepareRecv(int64_t seq_id, int append_length) final {
+  ffi::Shape DisaggPrepareRecv(int64_t seq_id, int append_length) final {
     // No CPU to GPU copy is needed.
     // Essentially we
     // (step 1.) redirect the preparation to BeginForward.
-    BeginForward({seq_id}, {append_length}, /*opt_token_tree_parent_ptr=*/NullOpt);
+    BeginForward({seq_id}, {append_length}, /*opt_token_tree_parent_ptr=*/std::nullopt);
     // (step 2.) fetch the append_position_map, compress and return.
     // Compression format: [n, begin_1, length_1, begin_2, length_2, ..., begin_n, length_n]
     // The compressed format will be decompressed to:
@@ -1128,11 +1128,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                                         compressed_append_pos_map.back() + 1);
     // The compressed array size should be "num_segments * 2 + 1".
     CHECK_EQ(compressed_append_pos_map.size(), compressed_append_pos_map[0] * 2 + 1);
-    return IntTuple{compressed_append_pos_map};
+    return ffi::Shape{compressed_append_pos_map};
   }
 
-  void DisaggMarkSend(int64_t seq_id, int64_t begin, const IntTuple& compressed_remote_position_map,
-                      int32_t recver_pe_offset) {
+  void DisaggMarkSend(int64_t seq_id, int64_t begin,
+                      const ffi::Shape& compressed_remote_position_map, int32_t recver_pe_offset) {
     ICHECK(f_transfer_kv_.defined());
     auto it = seq_map_.find(seq_id);
     CHECK(it != seq_map_.end()) << "The sequence \"" << seq_id << "\" cannot be found in KV cache.";
@@ -1404,7 +1404,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // Todo(ruihang): implement it
   }
 
-  void CommitAcceptedTokenTreeNodes(const IntTuple& seq_ids, const IntTuple& leaf_indices) final {
+  void CommitAcceptedTokenTreeNodes(const ffi::Shape& seq_ids,
+                                    const ffi::Shape& leaf_indices) final {
     CHECK_EQ(seq_ids.size(), leaf_indices.size())
         << "The given seq_ids and leaf_indices have different size.";
     int num_seq_to_commit = seq_ids.size();
@@ -1631,7 +1632,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   }
 
   void ConstructTokenTreeMask(const std::vector<Sequence*>& sequences,
-                              const IntTuple& token_tree_parent_ptr,
+                              const ffi::Shape& token_tree_parent_ptr,
                               const std::vector<std::vector<int32_t>>& block_ids_on_depths,
                               const std::vector<std::vector<int32_t>>& trailing_blocks) {
     // Check whether the token tree of a sequence should be handled at the current depth.
@@ -2288,8 +2289,8 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
       // Todo: cuda graph arg
       CHECK(args.size() == 28 || args.size() == 29)
           << "Invalid number of KV cache constructor args: " << args.size();
-      ShapeTuple cache_config = args[0].cast<ShapeTuple>();
-      ShapeTuple layer_indptr_tuple = args[1].cast<ShapeTuple>();
+      ffi::Shape cache_config = args[0].cast<ffi::Shape>();
+      ffi::Shape layer_indptr_tuple = args[1].cast<ffi::Shape>();
       int num_groups = 1;
       int group_id = 0;
       if (DiscoWorker* disco_worker = ThreadLocalDiscoWorker::Get()->worker) {
@@ -2305,15 +2306,15 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
       int64_t num_kv_heads = args[3].cast<int64_t>();
       int64_t qk_head_dim = args[4].cast<int64_t>();
       int64_t v_head_dim = args[5].cast<int64_t>();
-      IntTuple attn_kinds = args[6].cast<IntTuple>();
+      ffi::Shape attn_kinds = args[6].cast<ffi::Shape>();
       bool enable_kv_transfer = args[7].cast<bool>();
       int rope_mode = args[8].cast<int>();
       double rotary_scale = args[9].cast<double>();
       double rotary_theta = args[10].cast<double>();
-      Optional<NDArray> rope_ext_factors = NullOpt;  // args[11]
+      Optional<NDArray> rope_ext_factors = std::nullopt;  // args[11]
       NDArray init = args[12].cast<NDArray>();
-      Optional<ffi::Function> f_transpose_append_mha = NullOpt;  // args[13]
-      Optional<ffi::Function> f_transpose_append_mla = NullOpt;  // args[14]
+      Optional<ffi::Function> f_transpose_append_mha = std::nullopt;  // args[13]
+      Optional<ffi::Function> f_transpose_append_mla = std::nullopt;  // args[14]
       std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged =
           ConvertRaggedPrefillFunc(args[15].cast<Array<ObjectRef>>(), AttnKind::kMHA);
       std::unique_ptr<PagedPrefillFunc> f_attention_prefill =
@@ -2343,7 +2344,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
         if (auto opt_func = args[arg_idx].as<ffi::Function>()) {
           return opt_func.value();
         }
-        return NullOpt;
+        return std::nullopt;
       };
       f_transpose_append_mha = f_convert_optional_packed_func(13);
       f_transpose_append_mla = f_convert_optional_packed_func(14);

@@ -605,7 +605,7 @@ Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const String& func_na
   }
   auto it = exec_->func_map.find(func_name);
   if (it == exec_->func_map.end()) {
-    if (allow_missing) return NullOpt;
+    if (allow_missing) return std::nullopt;
     LOG(FATAL) << "ValueError: Unknown function: " << func_name;
   }
 

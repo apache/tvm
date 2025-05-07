@@ -43,7 +43,7 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
   } else if (auto opt_float_imm = json_obj.as<FloatImm>()) {
     FloatImm float_imm = *std::move(opt_float_imm);
     os << std::setprecision(20) << float_imm->value;
-  } else if (const auto* str = json_obj.as<runtime::StringObj>()) {
+  } else if (const auto* str = json_obj.as<ffi::StringObj>()) {
     os << '"' << support::StrEscape(str->data, str->size) << '"';
   } else if (const auto* array = json_obj.as<ffi::ArrayObj>()) {
     os << "[";

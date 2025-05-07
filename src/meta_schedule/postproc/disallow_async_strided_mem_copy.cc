@@ -150,8 +150,8 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
           pass_list.push_back(tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tir::transform::VectorizeLoop(true));
           pass_list.push_back(tir::transform::StorageRewrite());
-          tir::PrimFunc f = WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol",
-                                     runtime::String(g_var->name_hint));
+          tir::PrimFunc f =
+              WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol", String(g_var->name_hint));
           IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
           lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
         } catch (const dmlc::Error& e) {

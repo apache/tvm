@@ -57,7 +57,7 @@ class NVSHMEMAllocator final : public PooledAllocator {
     return allocator;
   }
 
-  NDArray Empty(ShapeTuple shape, DataType dtype, Device device) {
+  NDArray Empty(ffi::Shape shape, DataType dtype, Device device) {
     NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, device);
     container->SetDeleter([](Object* obj) {
       auto* ptr = static_cast<NDArray::Container*>(obj);
@@ -88,7 +88,7 @@ class NVSHMEMAllocator final : public PooledAllocator {
   void DeviceFreeDataSpace(Device dev, void* ptr) final { nvshmem_free(ptr); }
 };
 
-NDArray NVSHMEMEmpty(ShapeTuple shape, DataType dtype, Device device) {
+NDArray NVSHMEMEmpty(ffi::Shape shape, DataType dtype, Device device) {
   return NVSHMEMAllocator::Global()->Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 

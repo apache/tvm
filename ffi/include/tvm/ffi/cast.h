@@ -156,5 +156,10 @@ inline OptionalType Downcast(const std::optional<Any>& ref) {
 }
 
 }  // namespace ffi
+
+// Expose to the tvm namespace
+// Rationale: convinience and no ambiguity
+using ffi::Downcast;
+using ffi::GetRef;
 }  // namespace tvm
 #endif  // TVM_FFI_CAST_H_

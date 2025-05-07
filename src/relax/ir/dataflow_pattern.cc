@@ -424,7 +424,7 @@ DataTypePattern DFPattern::HasDtype(const DataType& dtype) const {
   return DataTypePattern(*this, dtype);
 }
 DataTypePattern DFPattern::HasDtype(const std::string& dtype) const {
-  return HasDtype(DataType(runtime::StringToDLDataType(dtype)));
+  return HasDtype(DataType(ffi::StringToDLDataType(dtype)));
 }
 ShapePattern DFPattern::HasShape(const Array<PrimExpr>& shape) const {
   return ShapePattern(*this, shape);
@@ -438,7 +438,7 @@ std::stack<PatternContext>& pattern_ctx_stack() {
 }
 
 Optional<PatternContext> PatternContext::Current() {
-  if (pattern_ctx_stack().empty()) return NullOpt;
+  if (pattern_ctx_stack().empty()) return std::nullopt;
   return pattern_ctx_stack().top();
 }
 

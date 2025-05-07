@@ -76,7 +76,7 @@ class VDeviceLookup {
   }
 
  private:
-  Optional<Array<VDevice>> opt_vdevices_ = NullOpt;
+  Optional<Array<VDevice>> opt_vdevices_ = std::nullopt;
 };
 
 class DeviceHintCollector : ExprVisitor {
@@ -183,7 +183,7 @@ class DeviceHintCollector : ExprVisitor {
         return bound.value();
       }
     }
-    return NullOpt;
+    return std::nullopt;
   }
 
   // A lookup to identify the VDevice from the IRModule attributes,
@@ -254,7 +254,7 @@ class VDeviceSetCollector : ExprVisitor {
     }
   }
 
-  Optional<Var> current_binding_ = NullOpt;
+  Optional<Var> current_binding_ = std::nullopt;
 
   // Lookup from relax variable to the set of relax variables which
   // must be located on the same device.  For example, a trivial

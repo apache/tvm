@@ -601,7 +601,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
     // example, if the previous return value was
     // `TensorStructInfo(shape=[16,16])`, but the new return value is
     // `TensorStructInfo(shape=[8,8])`.
-    return Function(params, body, NullOpt, op->is_pure, op->attrs);
+    return Function(params, body, std::nullopt, op->is_pure, op->attrs);
   }
 }
 

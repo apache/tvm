@@ -21,11 +21,11 @@
  * \file src/runtime/container.cc
  * \brief Implementations of common containers.
  */
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/shape_tuple.h>
-#include <tvm/runtime/container/string.h>
-#include <tvm/runtime/memory.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/memory.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
 
@@ -88,22 +88,11 @@ TVM_REGISTER_GLOBAL("runtime.MapItems").set_body_typed([](const ffi::MapObj* n) 
   return rkvs;
 });
 
-// ShapeTuple
-TVM_REGISTER_OBJECT_TYPE(ShapeTupleObj);
-
-TVM_REGISTER_GLOBAL("runtime.ShapeTuple").set_body_packed([](ffi::PackedArgs args, Any* ret) {
-  std::vector<ShapeTuple::index_type> shape;
-  for (int i = 0; i < args.size(); ++i) {
-    shape.push_back(args[i].cast<ShapeTuple::index_type>());
-  }
-  *ret = ShapeTuple(shape);
-});
-
-TVM_REGISTER_GLOBAL("runtime.GetShapeTupleSize").set_body_typed([](ShapeTuple shape) {
+TVM_REGISTER_GLOBAL("runtime.GetShapeSize").set_body_typed([](ffi::Shape shape) {
   return static_cast<int64_t>(shape.size());
 });
 
-TVM_REGISTER_GLOBAL("runtime.GetShapeTupleElem").set_body_typed([](ShapeTuple shape, int idx) {
+TVM_REGISTER_GLOBAL("runtime.GetShapeElem").set_body_typed([](ffi::Shape shape, int idx) {
   ICHECK_LT(idx, shape.size());
   return shape[idx];
 });

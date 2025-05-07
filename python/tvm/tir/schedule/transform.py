@@ -41,6 +41,6 @@ def tile_with_tensor_intrin(
     -------
     tiled_loop_rv : Optional[LoopRV]
         LoopRV corresponding to the outermost loop of a block tiled according to the given intrin
-        NullOpt if no valid loop mapping is found
+        std::nullopt if no valid loop mapping is found
     """
     return _ffi_api.TileWithTensorIntrin(sch, block, intrin_name, allow_padding)  # type: ignore

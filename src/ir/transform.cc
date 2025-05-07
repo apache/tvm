@@ -87,7 +87,7 @@ PassContext PassContext::Current() {
 }
 
 // linearly scan the pass array to match pass_name
-bool PassArrayContains(const Array<runtime::String>& pass_array, const std::string& pass_name) {
+bool PassArrayContains(const Array<String>& pass_array, const std::string& pass_name) {
   for (auto x : pass_array) {
     if (x == pass_name) return true;
   }
@@ -378,8 +378,7 @@ class ModulePass : public Pass {
   TVM_DEFINE_OBJECT_REF_METHODS(ModulePass, Pass, ModulePassNode);
 };
 
-PassInfo::PassInfo(int opt_level, String name, tvm::Array<runtime::String> required,
-                   bool traceable) {
+PassInfo::PassInfo(int opt_level, String name, tvm::Array<String> required, bool traceable) {
   auto pass_info = make_object<PassInfoNode>();
   pass_info->opt_level = opt_level;
   pass_info->name = std::move(name);
@@ -591,7 +590,7 @@ TVM_REGISTER_GLOBAL("transform.Sequential")
       auto passes = args[0].cast<tvm::Array<Pass>>();
       int opt_level = args[1].cast<int>();
       std::string name = args[2].cast<std::string>();
-      auto required = args[3].cast<tvm::Array<runtime::String>>();
+      auto required = args[3].cast<tvm::Array<String>>();
       bool traceable = args[4].cast<bool>();
       PassInfo pass_info = PassInfo(opt_level, name, required, /* traceable */ traceable);
       *ret = Sequential(passes, pass_info);

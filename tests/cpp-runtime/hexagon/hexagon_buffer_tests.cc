@@ -18,12 +18,13 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/runtime/container/optional.h>
+#include <tvm/ffi/optional.h>
 
 #include "../src/runtime/hexagon/hexagon_buffer.h"
 
 using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
+using namespace tvm::ffi;
 
 TEST(HexagonBuffer, default_scope) {
   Optional<String> scope;

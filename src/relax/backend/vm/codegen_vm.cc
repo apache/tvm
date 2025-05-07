@@ -225,7 +225,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         LOG(FATAL) << "Should only use constant shape after shape lowering: " << op->values;
       }
     }
-    return builder_->ConvertConstant(ShapeTuple(shape));
+    return builder_->ConvertConstant(ffi::Shape(shape));
   }
 
   Instruction::Arg VisitExpr_(const PrimValueNode* op) final {

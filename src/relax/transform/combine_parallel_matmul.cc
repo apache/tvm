@@ -38,8 +38,6 @@
 namespace tvm {
 namespace relax {
 
-using runtime::Map;
-
 using FCheck = ffi::TypedFunction<bool(Var, Array<Var>, Array<Var>, Map<Var, Expr>)>;
 
 /*! \brief Group shapes of the RHS matrices by rank. Matrices in a group whose batch sizes
@@ -160,7 +158,7 @@ ffi::TypedFunction<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> GetRewri
       std::vector<SplitInfo> splits;
       for (auto index : indices) {
         Var rhs = matchings[patterns.rhs[index]];
-        Optional<Var> bias = NullOpt;
+        Optional<Var> bias = std::nullopt;
         if (branch_info.bias_dim.has_value()) {
           bias = matchings[patterns.bias[index]];
         }

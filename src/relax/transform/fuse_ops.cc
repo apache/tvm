@@ -537,26 +537,26 @@ class FunctionCreator : public ExprMutator {
       // If the result is not used outside
       LOG(WARNING) << "There are dead codes in the current IRModule, please run the "
                       "DeadCodeElimination Pass before FuseOps";
-      function_ = NullOpt;
+      function_ = std::nullopt;
     } else {
       Expr body = outputs.size() == 1 ? outputs[0] : Tuple(outputs);
       body = builder_->Normalize(body);
       body = builder_->Normalize(SeqExpr({new_block}, body));
       group_attrs.Set(tvm::relax::attr::kPrimitive, true);
-      Function function = Function(/*params=*/params_,           //
-                                   /*body=*/body,                //
-                                   /*ret_struct_info=*/NullOpt,  //
-                                   /*is_pure=*/true,             //
+      Function function = Function(/*params=*/params_,                //
+                                   /*body=*/body,                     //
+                                   /*ret_struct_info=*/std::nullopt,  //
+                                   /*is_pure=*/true,                  //
                                    /*attrs=*/DictAttrs(group_attrs));
       Array<PrimExpr> free_vars =
           FreeSymbolicVars(function).Map([](const tir::Var& var) -> PrimExpr { return var; });
       if (!free_vars.empty()) {
         params_.push_back(Var("tir_vars", ShapeStructInfo(free_vars)));
         arguments_.push_back(ShapeExpr(free_vars));
-        function = Function(/*params=*/params_,           //
-                            /*body=*/body,                //
-                            /*ret_struct_info=*/NullOpt,  //
-                            /*is_pure=*/true,             //
+        function = Function(/*params=*/params_,                //
+                            /*body=*/body,                     //
+                            /*ret_struct_info=*/std::nullopt,  //
+                            /*is_pure=*/true,                  //
                             /*attrs=*/DictAttrs(group_attrs));
       }
       function_ = SymbolicVarRenewMutator::Renew(function);
@@ -572,7 +572,7 @@ class FunctionCreator : public ExprMutator {
   /*! \brief The name for the fused function */
   String name_hint_ = "fused";
   /*! \brief The constructed Relax function */
-  Optional<Function> function_ = NullOpt;
+  Optional<Function> function_ = std::nullopt;
 
  private:
   std::optional<size_t> GetOutputIndex(Var v) {

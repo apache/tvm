@@ -26,8 +26,8 @@
 #include "common_subexpr_elim_tools.h"
 
 #include <tvm/arith/analyzer.h>  // For the arith::Analyzer::Simplify() method simplifying terms
-#include <tvm/ir/transform.h>    // For the class Pass and the class PassContext
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/string.h>
+#include <tvm/ir/transform.h>  // For the class Pass and the class PassContext
 #include <tvm/tir/analysis.h>  // For the ExprDeepEqual analysis
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>

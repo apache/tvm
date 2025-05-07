@@ -48,13 +48,14 @@ class TracedScheduleNode : public ConcreteScheduleNode {
  public:
   /******** Schedule: Sampling ********/
   ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
-                           Optional<Integer> decision = NullOpt) final;
+                           Optional<Integer> decision = std::nullopt) final;
   Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
-                                  Optional<Array<Integer>> decision = NullOpt) final;
+                                  Optional<Array<Integer>> decision = std::nullopt) final;
   Array<ExprRV> SamplePartitionedTile(const LoopRV& loop_rv, int n, int partition_pos,
                                       int innerpart_factor,
-                                      Optional<Array<Integer>> decision = NullOpt) final;
-  LoopRV SampleComputeLocation(const BlockRV& block_rv, Optional<Integer> decision = NullOpt) final;
+                                      Optional<Array<Integer>> decision = std::nullopt) final;
+  LoopRV SampleComputeLocation(const BlockRV& block_rv,
+                               Optional<Integer> decision = std::nullopt) final;
   /******** Schedule: Get blocks & loops ********/
   BlockRV GetBlock(const String& name, const Optional<String>& func_name) final;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) final;

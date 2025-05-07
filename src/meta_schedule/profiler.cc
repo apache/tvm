@@ -114,7 +114,7 @@ void Profiler::ExitWithScope() {
 Optional<Profiler> Profiler::Current() {
   std::vector<Profiler>* profilers = ThreadLocalProfilers();
   if (profilers->empty()) {
-    return NullOpt;
+    return std::nullopt;
   } else {
     return profilers->back();
   }

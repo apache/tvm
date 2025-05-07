@@ -27,9 +27,9 @@
  * code and constants significantly reduces the efforts for handling external
  * codegen and runtimes.
  */
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>

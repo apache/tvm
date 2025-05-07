@@ -55,7 +55,7 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
 FunctionFrame Function(const Bool& is_pure, const Bool& is_private) {
   ObjectPtr<FunctionFrameNode> n = make_object<FunctionFrameNode>();
   const IRBuilder& ir_builder = IRBuilder::Current();
-  Optional<tvm::IRModule> mod = NullOpt;
+  Optional<tvm::IRModule> mod = std::nullopt;
   if (const Optional<ir::IRModuleFrame> mod_frame = ir_builder->GetLastFrame<ir::IRModuleFrame>()) {
     mod = tvm::IRModule(mod_frame.value()->functions);
   }
@@ -254,8 +254,8 @@ TVM_REGISTER_GLOBAL("script.ir_builder.relax.SeqExpr").set_body_typed(SeqExpr);
 IfFrame If(tvm::relax::Expr condition) {
   ObjectPtr<IfFrameNode> n = make_object<IfFrameNode>();
   n->condition = condition;
-  n->then_expr = NullOpt;
-  n->else_expr = NullOpt;
+  n->then_expr = std::nullopt;
+  n->else_expr = std::nullopt;
   return IfFrame(n);
 }
 

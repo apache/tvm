@@ -22,13 +22,13 @@
  * \brief File used for debug migration
  */
 // #include <tvm/ir/expr.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/container/variant.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/structural_hash.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/container/string.h>
-#include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/packed_func.h>
 
 // #include <tvm/node/structural_hash.h>

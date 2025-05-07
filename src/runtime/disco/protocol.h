@@ -124,15 +124,15 @@ template <class SubClassType>
 inline uint64_t DiscoProtocol<SubClassType>::GetObjectBytes(Object* obj) {
   if (obj->IsInstance<DRefObj>()) {
     return sizeof(uint32_t) + sizeof(int64_t);
-  } else if (obj->IsInstance<StringObj>()) {
-    uint64_t size = static_cast<StringObj*>(obj)->size;
+  } else if (obj->IsInstance<ffi::StringObj>()) {
+    uint64_t size = static_cast<ffi::StringObj*>(obj)->size;
     return sizeof(uint32_t) + sizeof(uint64_t) + size * sizeof(char);
   } else if (obj->IsInstance<ffi::BytesObj>()) {
     uint64_t size = static_cast<ffi::BytesObj*>(obj)->size;
     return sizeof(uint32_t) + sizeof(uint64_t) + size * sizeof(char);
-  } else if (obj->IsInstance<ShapeTupleObj>()) {
-    uint64_t ndim = static_cast<ShapeTupleObj*>(obj)->size;
-    return sizeof(uint32_t) + sizeof(uint64_t) + ndim * sizeof(ShapeTupleObj::index_type);
+  } else if (obj->IsInstance<ffi::ShapeObj>()) {
+    uint64_t ndim = static_cast<ffi::ShapeObj*>(obj)->size;
+    return sizeof(uint32_t) + sizeof(uint64_t) + ndim * sizeof(ffi::ShapeObj::index_type);
   } else if (obj->IsInstance<DiscoDebugObject>()) {
     return sizeof(uint32_t) + static_cast<DiscoDebugObject*>(obj)->GetObjectBytes();
   } else {
@@ -147,8 +147,8 @@ inline void DiscoProtocol<SubClassType>::WriteObject(Object* obj) {
     int64_t reg_id = static_cast<DRefObj*>(obj)->reg_id;
     self->template Write<uint32_t>(TypeIndex::kRuntimeDiscoDRef);
     self->template Write<int64_t>(reg_id);
-  } else if (obj->IsInstance<StringObj>()) {
-    StringObj* str = static_cast<StringObj*>(obj);
+  } else if (obj->IsInstance<ffi::StringObj>()) {
+    ffi::StringObj* str = static_cast<ffi::StringObj*>(obj);
     self->template Write<uint32_t>(TypeIndex::kRuntimeString);
     self->template Write<uint64_t>(str->size);
     self->template WriteArray<char>(str->data, str->size);
@@ -157,11 +157,11 @@ inline void DiscoProtocol<SubClassType>::WriteObject(Object* obj) {
     self->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIBytes);
     self->template Write<uint64_t>(bytes->size);
     self->template WriteArray<char>(bytes->data, bytes->size);
-  } else if (obj->IsInstance<ShapeTupleObj>()) {
-    ShapeTupleObj* shape = static_cast<ShapeTupleObj*>(obj);
-    self->template Write<uint32_t>(TypeIndex::kRuntimeShapeTuple);
+  } else if (obj->IsInstance<ffi::ShapeObj>()) {
+    ffi::ShapeObj* shape = static_cast<ffi::ShapeObj*>(obj);
+    self->template Write<uint32_t>(TypeIndex::kRuntimeShape);
     self->template Write<uint64_t>(shape->size);
-    self->template WriteArray<ShapeTupleObj::index_type>(shape->data, shape->size);
+    self->template WriteArray<ffi::ShapeObj::index_type>(shape->data, shape->size);
   } else if (obj->IsInstance<DiscoDebugObject>()) {
     self->template Write<uint32_t>(0);
     std::string str = static_cast<DiscoDebugObject*>(obj)->SaveToStr();
@@ -196,12 +196,12 @@ inline void DiscoProtocol<SubClassType>::ReadObject(int* tcode, TVMValue* value)
     std::string data(size, '\0');
     self->template ReadArray<char>(data.data(), size);
     result = ffi::Bytes(std::move(data));
-  } else if (type_index == TypeIndex::kRuntimeShapeTuple) {
+  } else if (type_index == TypeIndex::kRuntimeShape) {
     uint64_t ndim = 0;
     self->template Read<uint64_t>(&ndim);
-    std::vector<ShapeTupleObj::index_type> data(ndim);
-    self->template ReadArray<ShapeTupleObj::index_type>(data.data(), ndim);
-    result = ShapeTuple(std::move(data));
+    std::vector<ffi::ShapeObj::index_type> data(ndim);
+    self->template ReadArray<ffi::ShapeObj::index_type>(data.data(), ndim);
+    result = ffi::Shape(std::move(data));
   } else if (type_index == 0) {
     uint64_t size = 0;
     self->template Read<uint64_t>(&size);

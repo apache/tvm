@@ -65,7 +65,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
           inputs.push_back(String("None"));
         } else if (obj.as<BlockRVNode>() || obj.as<LoopRVNode>()) {
           inputs.push_back(String("_"));
-        } else if (const auto* str_obj = obj.as<StringObj>()) {
+        } else if (const auto* str_obj = obj.as<ffi::StringObj>()) {
           inputs.push_back(String('"' + std::string(str_obj->data) + '"'));
         } else if (obj.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
           inputs.push_back(obj);

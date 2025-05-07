@@ -28,9 +28,9 @@
 
 #include <dmlc/io.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/memory.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container/string.h>
-#include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
 
 #include <memory>
@@ -133,7 +133,7 @@ class Module : public ObjectRef {
  *  // instace of MyModuleNode.
  *  Module CreateMyModule() {
  *    ObjectPtr<MyModuleNode> n =
- *      tvm::runtime::make_object<MyModuleNode>();
+ *      tvm::ffi::make_object<MyModuleNode>();
  *    return Module(n);
  *  }
  *

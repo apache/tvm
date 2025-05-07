@@ -135,9 +135,9 @@ Region DomainTouched(const Stmt& stmt, const Buffer& buffer, bool consider_loads
   return BufferTouchedDomain(stmt).FindUnion(buffer, consider_loads, consider_stores);
 }
 
-Map<Buffer, runtime::Array<ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
+Map<Buffer, Array<ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
   auto buffer_access_map = BufferTouchedDomain(func->body).GetAccessedBufferRegions();
-  Map<Buffer, runtime::Array<ObjectRef>> ret;
+  Map<Buffer, Array<ObjectRef>> ret;
   auto& buffer_map = func->buffer_map;
   for (auto& var : func->params) {
     auto& buffer = buffer_map[var];
@@ -153,7 +153,7 @@ Map<Buffer, runtime::Array<ObjectRef>> DomainTouchedAccessMap(const PrimFunc& fu
       combined.push_back(Array<IntSet>(touch));
     }
 
-    runtime::Array<ObjectRef> fields;
+    Array<ObjectRef> fields;
     fields.push_back(loads);
     fields.push_back(stores);
     fields.push_back(combined);

@@ -20,14 +20,14 @@
 #ifndef TVM_META_SCHEDULE_MEASURE_CALLBACK_H_
 #define TVM_META_SCHEDULE_MEASURE_CALLBACK_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/string.h>
 #include <tvm/meta_schedule/builder.h>
 #include <tvm/meta_schedule/measure_candidate.h>
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/meta_schedule/search_strategy.h>
 #include <tvm/meta_schedule/tune_context.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 

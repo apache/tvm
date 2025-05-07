@@ -149,7 +149,7 @@ class LegalizeMutator : public ExprMutator {
         return GetTarget(tup_sinfo->fields);
       }
     }
-    return NullOpt;
+    return std::nullopt;
   }
 
   Expr BindTarget(Expr expr) {

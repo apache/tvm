@@ -23,7 +23,9 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/ffi/rvalue_ref.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
@@ -750,9 +752,9 @@ int TVMDeviceAllocDataSpace(DLDevice dev, size_t nbytes, size_t alignment, DLDat
 int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shape, DLDataType dtype,
                                      const char* mem_scope, void** out_data) {
   API_BEGIN();
-  Optional<String> scope;
+  tvm::Optional<tvm::String> scope;
   if (mem_scope != nullptr) {
-    scope = String(std::string(mem_scope));
+    scope = tvm::String(std::string(mem_scope));
   }
   out_data[0] = DeviceAPIManager::Get(dev)->AllocDataSpace(dev, ndim, shape, dtype, scope);
   API_END();

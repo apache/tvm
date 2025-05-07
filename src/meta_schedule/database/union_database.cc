@@ -41,7 +41,7 @@ class UnionDatabaseNode : public DatabaseNode {
       }
     }
     std::stable_sort(results.begin(), results.end(), SortTuningRecordByMeanRunSecs());
-    return results.empty() ? Optional<TuningRecord>(NullOpt) : results[0];
+    return results.empty() ? Optional<TuningRecord>(std::nullopt) : results[0];
   }
 
   bool HasWorkload(const IRModule& mod) final {

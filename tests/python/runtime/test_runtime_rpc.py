@@ -428,9 +428,9 @@ def test_rpc_return_ndarray():
 @tvm.testing.requires_rpc
 def test_rpc_return_remote_object():
     def check(client, is_local):
-        make_shape = client.get_function("runtime.ShapeTuple")
-        get_elem = client.get_function("runtime.GetShapeTupleElem")
-        get_size = client.get_function("runtime.GetShapeTupleSize")
+        make_shape = client.get_function("ffi.Shape")
+        get_elem = client.get_function("runtime.GetShapeElem")
+        get_size = client.get_function("runtime.GetShapeSize")
         shape = make_shape(2, 3)
         assert shape.type_key == "runtime.RPCObjectRef"
         assert get_elem(shape, 0) == 2

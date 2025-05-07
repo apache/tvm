@@ -201,7 +201,7 @@ static std::optional<MatchState> TryValidate(
     if (auto ptr = current_match.matched(p_node)) {
       return GetRef<Var>(ptr);
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   };
 
@@ -340,14 +340,14 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
   }
 
   if (roots.empty()) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   arith::Analyzer analyzer;
   auto match = MatchTree({}, 0, pattern2node, var2node, &matcher, roots,
                          ctx->validation_constraints, ud_analysis, &analyzer);
   if (!match) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   Map<DFPattern, Var> ret;
@@ -397,7 +397,7 @@ class PatternContextRewriterNode : public PatternMatchingRewriterNode {
       }
     }
 
-    return NullOpt;
+    return std::nullopt;
   }
 };
 

@@ -537,7 +537,7 @@ struct BufferAllocInfo {
   std::vector<DimAlignInfo> dim_aligns;
   /*!
    * \brief The reallocated buffer with minimal size.
-   * \note The value if NullOpt if the buffer do not need reallocate (e.g parameter buffer).
+   * \note The value if std::nullopt if the buffer do not need reallocate (e.g parameter buffer).
    */
   Buffer new_buffer;
 };

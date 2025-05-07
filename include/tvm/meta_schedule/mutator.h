@@ -20,8 +20,8 @@
 #ifndef TVM_META_SCHEDULE_MUTATOR_H_
 #define TVM_META_SCHEDULE_MUTATOR_H_
 
+#include <tvm/ffi/optional.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/optional.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/support/random_engine.h>

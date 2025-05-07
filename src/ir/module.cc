@@ -20,12 +20,12 @@
  * \file  module.cc
  * \brief The global module in TVM.
  */
+#include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/rvalue_ref.h>
 #include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/node/structural_equal.h>
-#include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>
@@ -250,7 +250,7 @@ TVM_REGISTER_GLOBAL("ir.IRModule")
           return DictAttrs();
         } else if (auto* as_dict_attrs = attrs.as<tvm::DictAttrsNode>()) {
           return GetRef<tvm::DictAttrs>(as_dict_attrs);
-        } else if (attrs.as<tvm::MapObj>()) {
+        } else if (attrs.as<ffi::MapObj>()) {
           return tvm::DictAttrs(Downcast<Map<String, Any>>(attrs));
         } else {
           LOG(FATAL) << "Expected attrs argument to be either DictAttrs or Map<String,ObjectRef>";

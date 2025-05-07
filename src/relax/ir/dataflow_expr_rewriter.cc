@@ -256,7 +256,7 @@ Optional<Expr> ExprPatternRewriterNode::RewriteExpr(const Expr& expr,
       return rewritten_expr.value();
     }
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 TVM_REGISTER_GLOBAL("relax.dpl.PatternRewriter")
@@ -780,7 +780,8 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
     return SeqExpr(new_blocks, func_replacement->body->body);
   };
 
-  return PatternMatchingRewriter::FromPattern(top_pattern, rewriter_func, NullOpt, new_subroutines);
+  return PatternMatchingRewriter::FromPattern(top_pattern, rewriter_func, std::nullopt,
+                                              new_subroutines);
 }
 
 Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(DFPattern pattern, Expr expr,
@@ -789,7 +790,7 @@ Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(DFPattern pattern, Expr expr,
   DFPatternMatcher matcher(bindings);
 
   if (!matcher.Match(pattern, expr)) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   return matcher.GetMemo();
@@ -857,7 +858,7 @@ class PatternMatchingMutator : public ExprMutator {
     // If the SeqExpr's output is not a variable, treat it as if it
     // were the last variable binding of the last block.  This
     // simplifies the special handling of the SeqExpr's body.
-    Optional<Var> dummy_output_var = NullOpt;
+    Optional<Var> dummy_output_var = std::nullopt;
     if (!seq->body->IsInstance<VarNode>()) {
       dummy_output_var = Var("dummy_output_var", GetStructInfo(seq->body));
       VarBinding dummy_binding(dummy_output_var.value(), seq->body);
@@ -991,7 +992,7 @@ class PatternMatchingMutator : public ExprMutator {
 
     auto new_blocks = old_blocks.Map(visit_block);
     if (old_blocks.same_as(new_blocks)) {
-      return NullOpt;
+      return std::nullopt;
     }
 
     // Restore the body of the SeqExpr, if needed.
