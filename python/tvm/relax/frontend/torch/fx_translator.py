@@ -186,25 +186,50 @@ class TorchFXImporter(BaseFXGraphImporter):
         module = self.named_modules[node.target]
         x = self.env[node.args[0]]
         output_size = module.output_size
-        return self.block_builder.emit(
+        # Expand to 3D by adding batch dim if input is 2D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 2:
+            x = relax.op.expand_dims(x, axis=0)
+        result = self.block_builder.emit(
             relax.op.nn.adaptive_avg_pool1d(x, output_size, layout="NCW")  # (N, C, L)
         )
+        # Remove added batch dim from result
+        if x_ndim == 2:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
 
     def _adaptive_avg_pool2d_module(self, node: fx.Node) -> relax.Var:
         module = self.named_modules[node.target]
         x = self.env[node.args[0]]
         output_size = module.output_size
-        return self.block_builder.emit(
+        # Expand to 4D by adding batch dim if input is 3D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 3:
+            x = relax.op.expand_dims(x, axis=0)
+        result = self.block_builder.emit(
             relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
         )
+        # Remove added batch dim from result
+        if x_ndim == 3:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
 
     def _adaptive_avg_pool3d_module(self, node: fx.Node) -> relax.Var:
         module = self.named_modules[node.target]
         x = self.env[node.args[0]]
         output_size = module.output_size
-        return self.block_builder.emit(
+        # Expand to 5D by adding batch dim if input is 4D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 4:
+            x = relax.op.expand_dims(x, axis=0)
+        result = self.block_builder.emit(
             relax.op.nn.adaptive_avg_pool3d(x, output_size, layout="NCDHW")  # (N, C, D, H, W)
         )
+        # Remove added batch dim from result
+        if x_ndim == 4:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
 
     def _avg_pool2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
