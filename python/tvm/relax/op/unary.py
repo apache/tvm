@@ -511,6 +511,20 @@ def tanh(x: Expr) -> Expr:
     return _ffi_api.tanh(x)  # type: ignore
 
 
+def trunc(x: Expr) -> Expr:
+    """Take trunc of input data.
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.trunc(x)  # type: ignore
+
+
 @args_converter.auto
 def clip(x: Expr, min: Expr, max: Expr) -> Expr:
     """Clips tensor values to a specified min and max.

@@ -409,6 +409,32 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return convert
 
+    def _div_Tensor_mode(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        inp_1 = args[0]
+        inp_2 = args[1]
+
+        # Handle scalar cases
+        if isinstance(inp_2, (int, float)):
+            inp_2 = relax.const(inp_2)
+
+        # Get rounding_mode from node kwargs
+        rounding_mode = args[2] if len(node.args) > 2 else node.kwargs.get("rounding_mode", None)
+
+        # Perform division based on rounding mode
+        if rounding_mode is None:
+            # True division (normal float division)
+            return self.block_builder.emit(relax.op.divide(inp_1, inp_2))
+        elif rounding_mode == "floor":
+            # Floor division
+            return self.block_builder.emit(relax.op.floor_divide(inp_1, inp_2))
+        elif rounding_mode == "trunc":
+            # Trunc division: perform true division then truncate
+            true_div = self.block_builder.emit(relax.op.divide(inp_1, inp_2))
+            return self.block_builder.emit(relax.op.trunc(true_div))
+        else:
+            raise ValueError(f"Unsupported rounding_mode: {rounding_mode}")
+
     def _fmod(self, node: fx.Node):
         args = self.retrieve_args(node)
         lhs = args[0]

@@ -150,6 +150,7 @@ from .unary import (
     square,
     tan,
     tanh,
+    trunc,
 )
 
 
