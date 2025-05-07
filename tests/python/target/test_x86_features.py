@@ -129,12 +129,7 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
         assert False
     except tvm.error.InternalError as e:
         msg = str(e)
-        assert (
-            msg.find(
-                "InternalError: Check failed: (allow_not_defined) is false: Target context required"
-            )
-            != -1
-        )
+        assert msg.find("Check failed: (allow_not_defined) is false: Target context required") != -1
 
     if isinstance(x86_feature, str):
         # check for feature via the ffi llvm api (no explicit target, no context target)
@@ -144,9 +139,7 @@ def test_x86_target_features(min_llvm_version, tvm_target, x86_feature, is_suppo
         except tvm.error.InternalError as e:
             msg = str(e)
             assert (
-                msg.find(
-                    "InternalError: Check failed: (allow_not_defined) is false: Target context required"
-                )
+                msg.find("Check failed: (allow_not_defined) is false: Target context required")
                 != -1
             )
 

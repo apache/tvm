@@ -362,7 +362,7 @@ class ForMatcher : public TensorizeComparator {
   arith::Analyzer analyzer_;
   std::vector<For> loop_stack_lhs_, loop_stack_rhs_;
   tir::PrimFunc pattern_;
-  std::unordered_set<Var, ObjectHash, ObjectEqual> pattern_vars_;
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> pattern_vars_;
 };
 
 /*! \brief Analyze the function and match it with a list of patterns */
@@ -667,7 +667,7 @@ tvm::BaseFunc CodegenWithLibrary(const tir::PrimFuncNode* pf, String global_symb
   std::string source = library_code.value();
   StringReplace(&source, "{global_symbol}", global_symbol);
   ExternFunc ret(global_symbol);
-  ret = WithAttrs(std::move(ret), Map<String, ObjectRef>{
+  ret = WithAttrs(std::move(ret), Map<String, ffi::Any>{
                                       {String(kCSource), String(source)},
                                       {String(kCSourceFmt), String(kCSourceFmtCuda)},
                                   });
@@ -767,7 +767,7 @@ class SplitMutator : public ExprMutator {
 
 namespace transform {
 Pass SplitCallTIRByPattern(Array<TIRPattern> patterns, FCodegen fcodegen) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule m, PassContext pc) { return SplitMutator::Transform(m, patterns, fcodegen); };
   return CreateModulePass(/*pass_function=*/pass_func,            //
                           /*opt_level=*/0,                        //

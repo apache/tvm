@@ -43,6 +43,7 @@
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
+#include <sstream>
 #include <string>
 #include <unordered_set>
 #include <utility>
@@ -82,7 +83,7 @@ class PyLogMessage {
     // FATAL not included
   };
 
-  explicit PyLogMessage(const char* filename, int lineno, PackedFunc logger, Level logging_level)
+  explicit PyLogMessage(const char* filename, int lineno, ffi::Function logger, Level logging_level)
       : filename_(filename), lineno_(lineno), logger_(logger), logging_level_(logging_level) {}
 
   TVM_NO_INLINE ~PyLogMessage() {
@@ -114,7 +115,7 @@ class PyLogMessage {
   const char* filename_;
   int lineno_;
   std::ostringstream stream_;
-  PackedFunc logger_;
+  ffi::Function logger_;
   Level logging_level_;
 };
 
@@ -124,9 +125,9 @@ class PyLogMessage {
  */
 inline bool using_ipython() {
   bool flag = false;
-  const auto* f_using_ipython = runtime::Registry::Get("meta_schedule.using_ipython");
+  const auto f_using_ipython = tvm::ffi::Function::GetGlobal("meta_schedule.using_ipython");
   if (f_using_ipython) {
-    flag = (*f_using_ipython)();
+    flag = (*f_using_ipython)().cast<bool>();
   }
   return flag;
 }
@@ -136,9 +137,9 @@ inline bool using_ipython() {
  * \param str The serialized performance table.
  */
 inline void print_interactive_table(const String& data) {
-  const auto* f_print_interactive_table =
-      runtime::Registry::Get("meta_schedule.print_interactive_table");
-  ICHECK(f_print_interactive_table->defined())
+  const auto f_print_interactive_table =
+      tvm::ffi::Function::GetGlobal("meta_schedule.print_interactive_table");
+  ICHECK(f_print_interactive_table.has_value())
       << "Cannot find print_interactive_table function in registry.";
   (*f_print_interactive_table)(data);
 }
@@ -149,7 +150,7 @@ inline void print_interactive_table(const String& data) {
  * \param lineno The line number.
  * \param logging_func The logging function.
  */
-inline void clear_logging(const char* file, int lineno, PackedFunc logging_func) {
+inline void clear_logging(const char* file, int lineno, ffi::Function logging_func) {
   if (const char* env_p = std::getenv("TVM_META_SCHEDULE_CLEAR_SCREEN")) {
     if (std::string(env_p) == "1") {
       if (logging_func.defined() && using_ipython()) {
@@ -199,14 +200,14 @@ inline std::string Base64Decode(std::string str) {
  * \param json_str The json string.
  * \return The json object
  */
-ObjectRef JSONLoads(std::string json_str);
+Any JSONLoads(std::string json_str);
 
 /*!
  * \brief Dumps a json object into a json string.
  * \param json_obj The json object.
  * \return The json string
  */
-std::string JSONDumps(ObjectRef json_obj);
+std::string JSONDumps(Any json_obj);
 
 /*!
  * \brief Converts a structural hash code to string
@@ -263,9 +264,7 @@ inline std::vector<support::LinearCongruentialEngine::TRandState> ForkSeed(
  * \param mod The IRModule to make a deep copy.
  * \return The deep copy of the IRModule.
  */
-inline IRModule DeepCopyIRModule(IRModule mod) {
-  return Downcast<IRModule>(LoadJSON(SaveJSON(mod)));
-}
+inline IRModule DeepCopyIRModule(IRModule mod) { return LoadJSON(SaveJSON(mod)).cast<IRModule>(); }
 
 /*!
  * \brief Concatenate strings
@@ -380,10 +379,10 @@ struct ThreadedTraceApply {
 inline int GetTargetNumCores(const Target& target) {
   int num_cores = target->GetAttr<Integer>("num-cores").value_or(-1).IntValue();
   if (num_cores == -1) {
-    static const auto* f_cpu_count = runtime::Registry::Get("meta_schedule.cpu_count");
-    ICHECK(f_cpu_count)
+    static const auto f_cpu_count = tvm::ffi::Function::GetGlobal("meta_schedule.cpu_count");
+    ICHECK(f_cpu_count.has_value())
         << "ValueError: Cannot find the packed function \"meta_schedule._cpu_count\"";
-    num_cores = (*f_cpu_count)(false);
+    num_cores = (*f_cpu_count)(false).cast<int>();
     LOG(FATAL)
         << "Target does not have attribute \"num-cores\", physical core number must be "
            "defined! For example, on the local machine, the target must be \"llvm -num-cores "
@@ -419,27 +418,23 @@ inline double GetRunMsMedian(const RunnerResult& runner_result) {
  * \return The array of floating point numbers
  */
 inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
-  const ArrayNode* arr = obj.as<ArrayNode>();
+  const ArrayObj* arr = obj.as<ArrayObj>();
   ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
   Array<FloatImm> results;
   results.reserve(arr->size());
-  for (const ObjectRef& elem : *arr) {
-    auto float_value = [&]() -> double {
-      if (const auto* int_imm = elem.as<IntImmNode>()) {
-        return int_imm->value;
-      } else if (const auto* runtime_int = elem.as<runtime::Int::ContainerType>()) {
-        return runtime_int->value;
-      } else if (const auto* float_imm = elem.as<FloatImmNode>()) {
-        return float_imm->value;
-      } else if (const auto* runtime_float = elem.as<runtime::Float::ContainerType>()) {
-        return runtime_float->value;
+  for (Any val : *arr) {
+    auto float_value = [&]() -> FloatImm {
+      if (auto opt_int_imm = val.as<IntImm>()) {
+        return FloatImm(DataType::Float(32), (*opt_int_imm)->value);
+      } else if (auto opt_float_imm = val.as<FloatImm>()) {
+        return *std::move(opt_float_imm);
       } else {
-        LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: "
-                   << elem->GetTypeKey();
+        LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: " << val.GetTypeKey();
+        TVM_FFI_UNREACHABLE();
       }
     }();
 
-    results.push_back(FloatImm(DataType::Float(32), float_value));
+    results.push_back(float_value);
   }
   return results;
 }
@@ -450,18 +445,17 @@ inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
  * \return The array of integers
  */
 inline Array<Integer> AsIntArray(const ObjectRef& obj) {
-  const ArrayNode* arr = obj.as<ArrayNode>();
+  const ArrayObj* arr = obj.as<ArrayObj>();
   ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
   Array<Integer> results;
   results.reserve(arr->size());
-  for (const ObjectRef& elem : *arr) {
+  for (Any val : *arr) {
     auto int_value = [&]() -> int64_t {
-      if (const auto* int_imm = elem.as<IntImmNode>()) {
-        return int_imm->value;
-      } else if (const auto* runtime_int = elem.as<runtime::Int::ContainerType>()) {
-        return runtime_int->value;
+      if (auto opt_int_imm = val.as<IntImm>()) {
+        return (*opt_int_imm)->value;
       } else {
-        LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << elem->GetTypeKey();
+        LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << val.GetTypeKey();
+        TVM_FFI_UNREACHABLE();
       }
     }();
     results.push_back(Integer(int_value));
@@ -575,7 +569,7 @@ inline double Sum(const Array<FloatImm>& arr) {
 class BlockCollector : public tir::StmtVisitor {
  public:
   static Array<tir::BlockRV> Collect(const tir::Schedule& sch,
-                                     const runtime::PackedFunc f_block_filter = nullptr) {  //
+                                     const ffi::Function f_block_filter = nullptr) {  //
     return BlockCollector(sch, f_block_filter).Run();
   }
 
@@ -609,8 +603,7 @@ class BlockCollector : public tir::StmtVisitor {
     return results;
   }
   /*! \brief Constructor */
-  explicit BlockCollector(const tir::Schedule& sch,
-                          const runtime::PackedFunc f_block_filter = nullptr)
+  explicit BlockCollector(const tir::Schedule& sch, const ffi::Function f_block_filter = nullptr)
       : sch_(sch), f_block_filter_(f_block_filter) {}
   /*! \brief Override the Stmt visiting behaviour */
   void VisitStmt_(const tir::BlockNode* block) override {
@@ -624,7 +617,7 @@ class BlockCollector : public tir::StmtVisitor {
     // Otherwise collect all blocks.
     Bool collect_block = Bool(true);
     if (f_block_filter_ != nullptr) {
-      collect_block = f_block_filter_(GetRef<tir::Block>(block));
+      collect_block = f_block_filter_(GetRef<tir::Block>(block)).cast<Bool>();
     }
     if (collect_block) {
       blocks_to_collect_.push_back(block->name_hint);
@@ -634,7 +627,7 @@ class BlockCollector : public tir::StmtVisitor {
   /*! \brief The schedule to be collected */
   const tir::Schedule& sch_;
   /*! \brief An optional packed func that allows only certain blocks to be collected. */
-  const runtime::PackedFunc f_block_filter_;
+  const ffi::Function f_block_filter_;
   /*! \brief The set of func name and block name pair */
   std::unordered_set<String> block_names_;
   /* \brief The list of blocks to collect in order */
@@ -643,6 +636,8 @@ class BlockCollector : public tir::StmtVisitor {
   String func_name_;
 };
 
+void JSONFileAppendLine(const String& path, const std::string& line);
+std::vector<Any> JSONFileReadLines(const String& path, int num_threads, bool allow_missing);
 }  // namespace meta_schedule
 }  // namespace tvm
 

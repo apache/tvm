@@ -26,6 +26,7 @@
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/container/map.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/ndarray.h>
@@ -62,7 +63,10 @@ class AttrVisitor {
   TVM_DLL virtual void Visit(const char* key, void** value) = 0;
   TVM_DLL virtual void Visit(const char* key, DataType* value) = 0;
   TVM_DLL virtual void Visit(const char* key, runtime::NDArray* value) = 0;
-  TVM_DLL virtual void Visit(const char* key, runtime::ObjectRef* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, ffi::ObjectRef* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, Optional<double>* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, Optional<int64_t>* value) = 0;
+
   template <typename ENum, typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
   void Visit(const char* key, ENum* ptr) {
     static_assert(std::is_same<int, typename std::underlying_type<ENum>::type>::value,
@@ -152,7 +156,7 @@ class ReflectionVTable {
    * \param kwargs the arguments in format key1, value1, ..., key_n, value_n.
    * \return The created object.
    */
-  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const runtime::TVMArgs& kwargs);
+  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const ffi::PackedArgs& kwargs);
   /*!
    * \brief Create an object by giving kwargs about its fields.
    *
@@ -160,7 +164,7 @@ class ReflectionVTable {
    * \param kwargs The field arguments.
    * \return The created object.
    */
-  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const Map<String, ObjectRef>& kwargs);
+  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const Map<String, Any>& kwargs);
   /*!
    * \brief Get an field object by the attr name.
    * \param self The pointer to the object.
@@ -168,7 +172,7 @@ class ReflectionVTable {
    * \return The corresponding attribute value.
    * \note This function will throw an exception if the object does not contain the field.
    */
-  TVM_DLL runtime::TVMRetValue GetAttr(Object* self, const String& attr_name) const;
+  TVM_DLL ffi::Any GetAttr(Object* self, const String& attr_name) const;
 
   /*!
    * \brief List all the fields in the object.

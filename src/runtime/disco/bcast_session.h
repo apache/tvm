@@ -30,7 +30,7 @@ namespace runtime {
 
 /*!
  * \brief A Disco interactive session. It allows users to interact with the Disco command queue with
- * various PackedFunc calling convention.
+ * various ffi::Function calling convention.
  */
 class BcastSessionObj : public SessionObj {
  public:
@@ -42,14 +42,14 @@ class BcastSessionObj : public SessionObj {
   void SyncWorker(int worker_id) override;
   void Shutdown() override;
   void InitCCL(String ccl, IntTuple device_ids) override;
-  TVMRetValue DebugGetFromRemote(int64_t reg_id, int worker_id) override = 0;
-  void DebugSetRegister(int64_t reg_id, TVMArgValue value, int worker_id) override = 0;
+  ffi::Any DebugGetFromRemote(int64_t reg_id, int worker_id) override = 0;
+  void DebugSetRegister(int64_t reg_id, AnyView value, int worker_id) override = 0;
 
  protected:
   /*! \brief Deallocate a register id, kill it on all workers, and append it to `free_regs_`. */
   void DeallocReg(int reg_id) override;
   /*! \brief Call packed function on each worker using a packed sequence */
-  DRef CallWithPacked(const TVMArgs& args) override;
+  DRef CallWithPacked(const ffi::PackedArgs& args) override;
   /*! \brief Allocate a register id, either from `free_regs_` or by incrementing `reg_count_` */
   virtual int AllocateReg();
   /*!
@@ -59,12 +59,12 @@ class BcastSessionObj : public SessionObj {
    */
   virtual void AppendHostNDArray(const NDArray& host_array);
   /*!
-   * \brief Broadcast a command to all workers via TVM's PackedFunc calling convention.
+   * \brief Broadcast a command to all workers via TVM's ffi::Function calling convention.
    * As part of the calling convention, The first argument in the packed sequence must be
    * the action, and the second argument must be the register id.
-   * \param TVMArgs The input arguments in TVM's PackedFunc calling convention
+   * \param ffi::PackedArgs The input arguments in TVM's ffi::Function calling convention
    */
-  virtual void BroadcastPacked(const TVMArgs& args) = 0;
+  virtual void BroadcastPacked(const ffi::PackedArgs& args) = 0;
 
   /*!
    * \brief Send a packed sequence to a worker. This function is usually called by the controler to
@@ -73,7 +73,7 @@ class BcastSessionObj : public SessionObj {
    * \param worker_id The worker id to send the packed sequence to.
    * \param args The packed sequence to send.
    */
-  virtual void SendPacked(int worker_id, const TVMArgs& args) = 0;
+  virtual void SendPacked(int worker_id, const ffi::PackedArgs& args) = 0;
 
   /*!
    * \brief Receive a packed sequence from a worker. This function is usually called by the
@@ -82,7 +82,7 @@ class BcastSessionObj : public SessionObj {
    * with the controler. Receiving from other workers may not be supported.
    * \return The packed sequence received.
    */
-  virtual TVMArgs RecvReplyPacked(int worker_id) = 0;
+  virtual ffi::PackedArgs RecvReplyPacked(int worker_id) = 0;
 
   /*! \brief A side channel to communicate with worker-0 */
   WorkerZeroData worker_zero_data_;

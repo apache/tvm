@@ -160,7 +160,7 @@ class Op : public RelaxExpr {
    */
   TVM_DLL static const Op& Get(const String& op_name);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Op, RelaxExpr, OpNode)
+  TVM_DEFINE_OBJECT_REF_METHODS(Op, RelaxExpr, OpNode);
 
  private:
   /*!
@@ -269,7 +269,7 @@ class OpRegEntry {
   // return internal pointer to op.
   inline OpNode* get();
   // update the attribute OpAttrMap
-  TVM_DLL void UpdateAttr(const String& key, runtime::TVMRetValue value, int plevel);
+  TVM_DLL void UpdateAttr(const String& key, ffi::Any value, int plevel);
 };
 
 /*!
@@ -359,7 +359,7 @@ inline OpRegEntry& OpRegEntry::set_attrs_type() {  // NOLINT(*)
 
 inline OpRegEntry& OpRegEntry::set_attrs_type_key(const String& key) {  // NOLINT(*)
   get()->attrs_type_key = key;
-  get()->attrs_type_index = Object::TypeKey2Index(key);
+  get()->attrs_type_index = tvm::ffi::TypeKeyToIndex(key.c_str());
   return *this;
 }
 
@@ -372,9 +372,7 @@ template <typename ValueType>
 inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
     const std::string& attr_name, const ValueType& value, int plevel) {
   ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
-  runtime::TVMRetValue rv;
-  rv = value;
-  UpdateAttr(attr_name, rv, plevel);
+  UpdateAttr(attr_name, Any(value), plevel);
   return *this;
 }
 

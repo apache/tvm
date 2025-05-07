@@ -103,12 +103,17 @@ void IRDocsifierNode::RemoveVar(const ObjectRef& obj) {
 }
 
 void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
-                                      runtime::TypedPackedFunc<bool(ObjectRef)> is_var) {
+                                      ffi::TypedFunction<bool(ObjectRef)> is_var) {
   class Visitor : public AttrVisitor {
    public:
     inline void operator()(ObjectRef obj) { Visit("", &obj); }
 
    private:
+    void RecursiveVisitAny(ffi::Any* value) {
+      if (std::optional<ObjectRef> opt = value->as<ObjectRef>()) {
+        this->Visit("", &opt.value());
+      }
+    }
     void Visit(const char* key, double* value) final {}
     void Visit(const char* key, int64_t* value) final {}
     void Visit(const char* key, uint64_t* value) final {}
@@ -118,6 +123,8 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
     void Visit(const char* key, void** value) final {}
     void Visit(const char* key, DataType* value) final {}
     void Visit(const char* key, runtime::NDArray* value) final {}
+    void Visit(const char* key, Optional<double>* value) final {}
+    void Visit(const char* key, Optional<int64_t>* value) final {}
     void Visit(const char* key, ObjectRef* value) final {
       const Object* obj = value->get();
       if (obj == nullptr) {
@@ -131,16 +138,16 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
       }
       visited_.insert(obj);
       stack_.push_back(obj);
-      if (obj->IsInstance<ArrayNode>()) {
-        const ArrayNode* array = static_cast<const ArrayNode*>(obj);
-        for (ObjectRef element : *array) {
-          this->Visit("", &element);
+      if (obj->IsInstance<ArrayObj>()) {
+        const ArrayObj* array = static_cast<const ArrayObj*>(obj);
+        for (Any element : *array) {
+          this->RecursiveVisitAny(&element);
         }
-      } else if (obj->IsInstance<MapNode>()) {
-        const MapNode* map = static_cast<const MapNode*>(obj);
-        for (std::pair<ObjectRef, ObjectRef> kv : *map) {
-          this->Visit("", &kv.first);
-          this->Visit("", &kv.second);
+      } else if (obj->IsInstance<MapObj>()) {
+        const MapObj* map = static_cast<const MapObj*>(obj);
+        for (std::pair<Any, Any> kv : *map) {
+          this->RecursiveVisitAny(&kv.first);
+          this->RecursiveVisitAny(&kv.second);
         }
       } else {
         vtable_->VisitAttrs(const_cast<Object*>(obj), this);
@@ -172,7 +179,7 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
     std::unordered_set<const Object*> visited_;
 
    public:
-    runtime::TypedPackedFunc<bool(ObjectRef)> is_var;
+    ffi::TypedFunction<bool(ObjectRef)> is_var;
     std::unordered_map<const Object*, std::vector<const Object*>> common_prefix;
   };
   Visitor visitor;

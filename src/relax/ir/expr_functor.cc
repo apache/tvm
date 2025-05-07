@@ -326,9 +326,10 @@ void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
   ExprApplyVisit(fvisit).VisitExpr(e);
 }
 
-TVM_REGISTER_GLOBAL("relax.analysis.post_order_visit").set_body_typed([](Expr expr, PackedFunc f) {
-  PostOrderVisit(expr, [f](const Expr& n) { f(n); });
-});
+TVM_REGISTER_GLOBAL("relax.analysis.post_order_visit")
+    .set_body_typed([](Expr expr, ffi::Function f) {
+      PostOrderVisit(expr, [f](const Expr& n) { f(n); });
+    });
 
 // ==================
 // ExprMutatorBase

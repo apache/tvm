@@ -62,18 +62,17 @@ TVM_REGISTER_GLOBAL("meta_schedule.RunnerInput")
       return RunnerInput(artifact_path, device_type, args_info);
     });
 TVM_REGISTER_GLOBAL("meta_schedule.RunnerResult")
-    .set_body_typed([](Array<FloatImm> run_secs, Optional<String> error_msg) -> RunnerResult {
+    .set_body_typed([](Optional<Array<FloatImm>> run_secs,
+                       Optional<String> error_msg) -> RunnerResult {
       return RunnerResult(run_secs, error_msg);
     });
 TVM_REGISTER_GLOBAL("meta_schedule.RunnerFuture")
     .set_body_typed([](RunnerFuture::FDone f_done, RunnerFuture::FResult f_result) -> RunnerFuture {
       return RunnerFuture(f_done, f_result);
     });
-TVM_REGISTER_GLOBAL("meta_schedule.RunnerFutureDone")
-    .set_body_method<RunnerFuture>(&RunnerFutureNode::Done);
-TVM_REGISTER_GLOBAL("meta_schedule.RunnerFutureResult")
-    .set_body_method<RunnerFuture>(&RunnerFutureNode::Result);
-TVM_REGISTER_GLOBAL("meta_schedule.RunnerRun").set_body_method<Runner>(&RunnerNode::Run);
+TVM_REGISTER_GLOBAL("meta_schedule.RunnerFutureDone").set_body_method(&RunnerFutureNode::Done);
+TVM_REGISTER_GLOBAL("meta_schedule.RunnerFutureResult").set_body_method(&RunnerFutureNode::Result);
+TVM_REGISTER_GLOBAL("meta_schedule.RunnerRun").set_body_method(&RunnerNode::Run);
 TVM_REGISTER_GLOBAL("meta_schedule.RunnerPyRunner").set_body_typed(Runner::PyRunner);
 
 }  // namespace meta_schedule

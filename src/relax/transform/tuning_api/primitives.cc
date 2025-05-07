@@ -28,8 +28,8 @@
 namespace tvm {
 namespace relax {
 
-Choice::Choice(String transform_func_key, Array<ObjectRef> transform_func_args,
-               String constr_func_key, Array<ObjectRef> constr_func_args) {
+Choice::Choice(String transform_func_key, Array<Any> transform_func_args, String constr_func_key,
+               Array<Any> constr_func_args) {
   ObjectPtr<ChoiceNode> n = make_object<ChoiceNode>();
   n->transform_func_key = std::move(transform_func_key);
   n->transform_func_args = std::move(transform_func_args);
@@ -41,12 +41,12 @@ Choice::Choice(String transform_func_key, Array<ObjectRef> transform_func_args,
 // TODO(sunggg): Currently, it only supports an array of primitive data types.
 ObjectRef ChoiceNode::AsJSON() const {
   Array<ObjectRef> json_transfrom_args, json_constr_args;
-  for (ObjectRef arg : this->transform_func_args) {
+  for (Any arg : this->transform_func_args) {
     std::string json_arg = tvm::SaveJSON(arg);
     std::string b64_arg = meta_schedule::Base64Encode(json_arg);
     json_transfrom_args.push_back(String(b64_arg));
   }
-  for (ObjectRef arg : this->constr_func_args) {
+  for (Any arg : this->constr_func_args) {
     std::string json_arg = tvm::SaveJSON(arg);
     std::string b64_arg = meta_schedule::Base64Encode(json_arg);
     json_constr_args.push_back(String(b64_arg));
@@ -62,32 +62,32 @@ ObjectRef ChoiceNode::AsJSON() const {
 Choice Choice::FromJSON(const ObjectRef& json) {
   // Parse `json` into `choice`
   String transform_func_key, constr_func_key;
-  Array<ObjectRef> transform_func_args, constr_func_args;
+  Array<Any> transform_func_args, constr_func_args;
   try {
-    const ArrayNode* arr = json.as<ArrayNode>();
+    const ArrayObj* arr = json.as<ArrayObj>();
     ICHECK(arr && arr->size() == 4);
-    const auto* arr0 = arr->at(0).as<StringObj>();
-    const auto* arr1 = arr->at(1).as<ArrayNode>();
-    const auto* arr2 = arr->at(2).as<StringObj>();
-    const auto* arr3 = arr->at(3).as<ArrayNode>();
+    const auto* arr0 = arr->at(0).as<ffi::StringObj>();
+    const auto* arr1 = arr->at(1).as<ArrayObj>();
+    const auto* arr2 = arr->at(2).as<ffi::StringObj>();
+    const auto* arr3 = arr->at(3).as<ArrayObj>();
     ICHECK(arr0 && arr1 && arr2 && arr3);
     transform_func_key = GetRef<String>(arr0);
     {
       transform_func_args.reserve(arr1->size());
-      for (const ObjectRef& elem : *arr1) {
+      for (const Any& elem : *arr1) {
         String b64_arg = Downcast<String>(elem);
         std::string json_arg = meta_schedule::Base64Decode(b64_arg);
-        ObjectRef arg = LoadJSON(json_arg);
+        Any arg = LoadJSON(json_arg);
         transform_func_args.push_back(arg);
       }
     }
     constr_func_key = GetRef<String>(arr2);
     {
       constr_func_args.reserve(arr3->size());
-      for (const ObjectRef& elem : *arr3) {
+      for (const Any& elem : *arr3) {
         String b64_arg = Downcast<String>(elem);
         std::string json_arg = meta_schedule::Base64Decode(b64_arg);
-        ObjectRef arg = LoadJSON(json_arg);
+        Any arg = LoadJSON(json_arg);
         constr_func_args.push_back(arg);
       }
     }
@@ -108,7 +108,7 @@ Knob::Knob(String name, Map<String, Choice> choices) {
 }
 
 ObjectRef KnobNode::AsJSON() const {
-  Map<String, ObjectRef> json_choices;
+  Map<String, ffi::Any> json_choices;
   for (auto const& x : choices) {
     json_choices.Set(x.first, x.second->AsJSON());
   }
@@ -123,15 +123,15 @@ Knob Knob::FromJSON(const ObjectRef& json) {
   String name;
   Map<String, Choice> choices;
   try {
-    const ArrayNode* arr = json.as<ArrayNode>();
+    const ArrayObj* arr = json.as<ArrayObj>();
     ICHECK(arr && arr->size() == 2);
-    const auto* arr0 = arr->at(0).as<StringObj>();
-    const auto* arr1 = arr->at(1).as<MapNode>();
+    const auto* arr0 = arr->at(0).as<ffi::StringObj>();
+    const auto* arr1 = arr->at(1).as<MapObj>();
     ICHECK(arr0 && arr1);
     name = GetRef<String>(arr0);
-    for (auto const& x : GetRef<Map<String, ObjectRef>>(arr1)) {
+    for (auto const& x : GetRef<Map<String, ffi::Any>>(arr1)) {
       String decision = x.first;
-      Choice choice = Choice::FromJSON(x.second);
+      Choice choice = Choice::FromJSON(x.second.cast<ObjectRef>());
       choices.Set(decision, choice);
     }
   } catch (const tvm::Error& e) {
@@ -148,9 +148,9 @@ Trace::Trace() { data_ = make_object<TraceNode>(); }
 Trace::Trace(IRModule in_mod, Array<Knob> knobs, Array<String> decisions) {
   ICHECK(knobs.size() == decisions.size()) << "Size of knobs and decisions should match";
   // Deep-copy IRModule
-  auto func_deepcopy = runtime::Registry::Get("relax.tuning_api.deepcopy_irmodule");
-  ICHECK(func_deepcopy);
-  IRModule out_mod = (*func_deepcopy)(in_mod);
+  const auto func_deepcopy =
+      tvm::ffi::Function::GetGlobalRequired("relax.tuning_api.deepcopy_irmodule");
+  IRModule out_mod = func_deepcopy(in_mod).cast<IRModule>();
   // Apply the decision history if provided
   int size = knobs.size();
   for (int i = 0; i < size; i++) {
@@ -198,25 +198,25 @@ Trace Trace::FromJSON(const ObjectRef& json) {
   Array<Knob> knobs;
   Array<String> decisions;
   try {
-    const ArrayNode* arr = json.as<ArrayNode>();
+    const ArrayObj* arr = json.as<ArrayObj>();
     // A trace will have 2 or 3 entries depending on `include_irmod` parameter.
     ICHECK(arr && (arr->size() == 2 || arr->size() == 3));
 
-    const auto* arr0 = arr->at(0).as<ArrayNode>();
-    const auto* arr1 = arr->at(1).as<ArrayNode>();
+    const auto* arr0 = arr->at(0).as<ArrayObj>();
+    const auto* arr1 = arr->at(1).as<ArrayObj>();
     ICHECK(arr0 && arr1);
 
-    for (const ObjectRef& elem : *arr0) {
-      knobs.push_back(Knob::FromJSON(elem));
+    for (const Any& elem : *arr0) {
+      knobs.push_back(Knob::FromJSON(elem.cast<ObjectRef>()));
     }
 
-    for (const ObjectRef& elem : *arr1) {
+    for (const Any& elem : *arr1) {
       decisions.push_back(Downcast<String>(elem));
     }
 
     // When `include_irmod = true`
     if (arr->size() == 3) {
-      const auto* arr2 = arr->at(2).as<StringObj>();
+      const auto* arr2 = arr->at(2).as<ffi::StringObj>();
       String b64_mod = GetRef<String>(arr2);
       ICHECK(arr2);
       std::string json_mod = meta_schedule::Base64Decode(b64_mod);
@@ -232,42 +232,40 @@ Trace Trace::FromJSON(const ObjectRef& json) {
 /**************** FFI ****************/
 TVM_REGISTER_NODE_TYPE(ChoiceNode);
 TVM_REGISTER_GLOBAL("relax.tuning_api.Choice")
-    .set_body_typed([](String transform_func_key, Array<ObjectRef> transform_func_args,
-                       String constr_func_key, Array<ObjectRef> constr_func_args) {
+    .set_body_typed([](String transform_func_key, Array<Any> transform_func_args,
+                       String constr_func_key, Array<Any> constr_func_args) {
       return Choice(transform_func_key, transform_func_args, constr_func_key, constr_func_args);
     });
-TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceAsJSON").set_body_method<Choice>(&ChoiceNode::AsJSON);
+TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceAsJSON").set_body_method(&ChoiceNode::AsJSON);
 TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceFromJSON").set_body_typed(Choice::FromJSON);
 TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceGetTransformFunc")
-    .set_body_method<Choice>(&ChoiceNode::GetTransformFunc);
+    .set_body_method(&ChoiceNode::GetTransformFunc);
 TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceGetConstrFunc")
-    .set_body_method<Choice>(&ChoiceNode::GetConstrFunc);
+    .set_body_method(&ChoiceNode::GetConstrFunc);
 TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceApplyTransformFunc")
-    .set_body_method<Choice>(&ChoiceNode::ApplyTransformFunc);
-TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceCheckConstr")
-    .set_body_method<Choice>(&ChoiceNode::CheckConstr);
+    .set_body_method(&ChoiceNode::ApplyTransformFunc);
+TVM_REGISTER_GLOBAL("relax.tuning_api.ChoiceCheckConstr").set_body_method(&ChoiceNode::CheckConstr);
 
 TVM_REGISTER_NODE_TYPE(KnobNode);
 TVM_REGISTER_GLOBAL("relax.tuning_api.Knob")
     .set_body_typed([](String name, Map<String, Choice> choices) { return Knob(name, choices); });
-TVM_REGISTER_GLOBAL("relax.tuning_api.KnobAsJSON").set_body_method<Knob>(&KnobNode::AsJSON);
+TVM_REGISTER_GLOBAL("relax.tuning_api.KnobAsJSON").set_body_method(&KnobNode::AsJSON);
 TVM_REGISTER_GLOBAL("relax.tuning_api.KnobFromJSON").set_body_typed(Knob::FromJSON);
 TVM_REGISTER_GLOBAL("relax.tuning_api.KnobIsValidDecision")
-    .set_body_method<Knob>(&KnobNode::IsValidDecision);
-TVM_REGISTER_GLOBAL("relax.tuning_api.KnobApply").set_body_method<Knob>(&KnobNode::Apply);
+    .set_body_method(&KnobNode::IsValidDecision);
+TVM_REGISTER_GLOBAL("relax.tuning_api.KnobApply").set_body_method(&KnobNode::Apply);
 
 TVM_REGISTER_NODE_TYPE(TraceNode);
 TVM_REGISTER_GLOBAL("relax.tuning_api.Trace")
     .set_body_typed([](IRModule in_mod, Array<Knob> knobs, Array<String> decisions) {
       return Trace(in_mod, knobs, decisions);
     });
-TVM_REGISTER_GLOBAL("relax.tuning_api.TraceVerify").set_body_method<Trace>(&TraceNode::Verify);
-TVM_REGISTER_GLOBAL("relax.tuning_api.TraceAdd").set_body_method<Trace>(&TraceNode::Add);
-TVM_REGISTER_GLOBAL("relax.tuning_api.TraceSetPerf").set_body_method<Trace>(&TraceNode::SetPerf);
-TVM_REGISTER_GLOBAL("relax.tuning_api.TraceSetOutMod")
-    .set_body_method<Trace>(&TraceNode::SetOutMod);
+TVM_REGISTER_GLOBAL("relax.tuning_api.TraceVerify").set_body_method(&TraceNode::Verify);
+TVM_REGISTER_GLOBAL("relax.tuning_api.TraceAdd").set_body_method(&TraceNode::Add);
+TVM_REGISTER_GLOBAL("relax.tuning_api.TraceSetPerf").set_body_method(&TraceNode::SetPerf);
+TVM_REGISTER_GLOBAL("relax.tuning_api.TraceSetOutMod").set_body_method(&TraceNode::SetOutMod);
 
-TVM_REGISTER_GLOBAL("relax.tuning_api.TraceAsJSON").set_body_method<Trace>(&TraceNode::AsJSON);
+TVM_REGISTER_GLOBAL("relax.tuning_api.TraceAsJSON").set_body_method(&TraceNode::AsJSON);
 TVM_REGISTER_GLOBAL("relax.tuning_api.TraceFromJSON").set_body_typed(Trace::FromJSON);
 }  // namespace relax
 }  // namespace tvm

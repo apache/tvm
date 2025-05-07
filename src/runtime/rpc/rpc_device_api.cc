@@ -38,7 +38,7 @@ class RPCDeviceAPI final : public DeviceAPI {
     GetSess(dev)->GetDeviceAPI(remote_dev)->SetDevice(remote_dev);
   }
 
-  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final {
+  void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final {
     auto remote_dev = RemoveRPCSessionMask(dev);
     GetSess(dev)->GetDeviceAPI(remote_dev)->GetAttr(remote_dev, kind, rv);
   }
@@ -150,7 +150,7 @@ class RPCDeviceAPI final : public DeviceAPI {
   }
 };
 
-TVM_REGISTER_GLOBAL("device_api.rpc").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.rpc").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   static RPCDeviceAPI inst;
   DeviceAPI* ptr = &inst;
   *rv = static_cast<void*>(ptr);

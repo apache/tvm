@@ -176,8 +176,7 @@ class CallTIRMutator : public ExprMutator {
 namespace transform {
 
 Pass CallTIRRewrite() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) { return CallTIRMutator(mod).Run(); };
+  auto pass_func = [=](IRModule mod, PassContext pc) { return CallTIRMutator(mod).Run(); };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
                           /*pass_name=*/"CallTIRRewrite",

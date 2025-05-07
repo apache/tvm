@@ -28,7 +28,6 @@
 #include <tvm/runtime/packed_func.h>
 
 #include <memory>
-#include <mutex>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -93,10 +92,8 @@ class AttrRegistry {
    * \param value The value to be set.
    * \param plevel The support level.
    */
-  void UpdateAttr(const String& attr_name, const KeyType& key, runtime::TVMRetValue value,
-                  int plevel) {
-    using runtime::TVMRetValue;
-    std::lock_guard<std::mutex> lock(mutex_);
+  void UpdateAttr(const String& attr_name, const KeyType& key, Any value, int plevel) {
+    using ffi::Any;
     auto& op_map = attrs_[attr_name];
     if (op_map == nullptr) {
       op_map.reset(new AttrRegistryMapContainerMap<KeyType>());
@@ -105,14 +102,14 @@ class AttrRegistry {
 
     uint32_t index = key->AttrRegistryIndex();
     if (op_map->data_.size() <= index) {
-      op_map->data_.resize(index + 1, std::make_pair(TVMRetValue(), 0));
+      op_map->data_.resize(index + 1, std::make_pair(Any(), 0));
     }
-    std::pair<TVMRetValue, int>& p = op_map->data_[index];
+    std::pair<ffi::Any, int>& p = op_map->data_[index];
     ICHECK(p.second != plevel) << "Attribute " << attr_name << " of " << key->AttrRegistryName()
                                << " is already registered with same plevel=" << plevel;
-    ICHECK(value.type_code() != kTVMNullptr) << "Registered packed_func is Null for " << attr_name
-                                             << " of operator " << key->AttrRegistryName();
-    if (p.second < plevel && value.type_code() != kTVMNullptr) {
+    ICHECK(value != nullptr) << "Registered packed_func is Null for " << attr_name
+                             << " of operator " << key->AttrRegistryName();
+    if (p.second < plevel && value != nullptr) {
       op_map->data_[index] = std::make_pair(value, plevel);
     }
   }
@@ -123,14 +120,13 @@ class AttrRegistry {
    * \param key The key to the attribute table.
    */
   void ResetAttr(const String& attr_name, const KeyType& key) {
-    std::lock_guard<std::mutex> lock(mutex_);
     auto& op_map = attrs_[attr_name];
     if (op_map == nullptr) {
       return;
     }
     uint32_t index = key->AttrRegistryIndex();
     if (op_map->data_.size() > index) {
-      op_map->data_[index] = std::make_pair(TVMRetValue(), 0);
+      op_map->data_[index] = std::make_pair(ffi::Any(), 0);
     }
   }
 
@@ -140,7 +136,6 @@ class AttrRegistry {
    * \return The result attribute map.
    */
   const AttrRegistryMapContainerMap<KeyType>& GetAttrMap(const String& attr_name) {
-    std::lock_guard<std::mutex> lock(mutex_);
     auto it = attrs_.find(attr_name);
     if (it == attrs_.end()) {
       LOG(FATAL) << "Attribute \'" << attr_name << "\' is not registered";
@@ -153,10 +148,7 @@ class AttrRegistry {
    * \param attr_name The name of the attribute.
    * \return The check result.
    */
-  bool HasAttrMap(const String& attr_name) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return attrs_.count(attr_name);
-  }
+  bool HasAttrMap(const String& attr_name) { return attrs_.count(attr_name); }
 
   /*!
    * \return a global singleton of the registry.
@@ -167,8 +159,6 @@ class AttrRegistry {
   }
 
  private:
-  // mutex to avoid registration from multiple threads.
-  std::mutex mutex_;
   // entries in the registry
   std::vector<std::unique_ptr<EntryType>> entries_;
   // map from name to entries.

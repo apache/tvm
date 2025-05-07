@@ -105,8 +105,8 @@ class LayoutFreeBufferCollector : public StmtVisitor {
  public:
   void VisitStmt_(const BlockNode* block) final {
     StmtVisitor::VisitStmt_(block);
-    if (Optional<ObjectRef> ann = block->annotations.Get("layout_free_placeholders")) {
-      for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
+    if (auto ann = block->annotations.Get("layout_free_placeholders")) {
+      for (Buffer buffer : Downcast<Array<Buffer>>(ann.value())) {
         buffers.insert(buffer);
       }
     }
@@ -183,7 +183,7 @@ bool RewriteLayout(const Schedule& sch) {
   std::vector<std::pair<StmtSRef, String>> results;
   auto add_layout_rewrite_block = [&sch](BlockRV consumer_block_rv, int buffer_index) {
     BlockRV rewrite_block_rv = sch->CacheRead(consumer_block_rv, buffer_index, "global");
-    sch->Annotate(rewrite_block_rv, attr::meta_schedule_layout_rewrite_preproc, const_true());
+    sch->Annotate(rewrite_block_rv, attr::meta_schedule_layout_rewrite_preproc, true);
   };
 
   for (const auto& [g_var, base_func] : sch->mod()->functions) {

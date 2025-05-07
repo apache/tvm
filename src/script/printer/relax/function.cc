@@ -81,7 +81,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         // doesn't match the function name, we should still print the global symbol attribute.
         if (AtTopLevelFunction(d) && n->attrs->dict.count(tvm::attr::kGlobalSymbol) &&
             Downcast<String>(n->attrs->dict.at(tvm::attr::kGlobalSymbol)) == func_name->name) {
-          Map<String, ObjectRef> new_attrs;
+          Map<String, Any> new_attrs;
           for (auto kv : n->attrs->dict) {
             if (kv.first != tvm::attr::kGlobalSymbol) {
               new_attrs.Set(kv.first, kv.second);

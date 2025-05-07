@@ -25,6 +25,8 @@
 #define TVM_TIR_FUNCTION_H_
 
 #include <tvm/ir/function.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
@@ -222,7 +224,7 @@ class TensorIntrin : public ObjectRef {
    */
   TVM_DLL static Optional<TensorIntrin> Get(String name, bool allow_missing = false);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode)
+  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode);
 };
 
 /*!
@@ -286,7 +288,7 @@ namespace attr {
  * Here n = len(arg), m = len(work_size) = len(launch_params)-1.
  *
  * The list of kernel launch params indicates which additional
- * parameters will be provided to the PackedFunc by the calling
+ * parameters will be provided to the ffi::Function by the calling
  * scope.
  *
  * - "threadIdx.x", "threadIdx.y", "threadIdx.z"

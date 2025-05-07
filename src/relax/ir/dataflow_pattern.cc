@@ -413,7 +413,7 @@ AndPattern DFPattern::operator&(const DFPattern& other) const { return AndPatter
 
 NotPattern DFPattern::operator~() const { return NotPattern(*this); }
 
-AttrPattern DFPattern::HasAttr(const Map<String, ObjectRef>& attrs) const {
+AttrPattern DFPattern::HasAttr(const Map<String, Any>& attrs) const {
   return AttrPattern(*this, DictAttrs(attrs));
 }
 StructInfoPattern DFPattern::HasStructInfo(const StructInfo& struct_info) const {
@@ -424,7 +424,7 @@ DataTypePattern DFPattern::HasDtype(const DataType& dtype) const {
   return DataTypePattern(*this, dtype);
 }
 DataTypePattern DFPattern::HasDtype(const std::string& dtype) const {
-  return HasDtype(DataType(runtime::String2DLDataType(dtype)));
+  return HasDtype(DataType(runtime::StringToDLDataType(dtype)));
 }
 ShapePattern DFPattern::HasShape(const Array<PrimExpr>& shape) const {
   return ShapePattern(*this, shape);

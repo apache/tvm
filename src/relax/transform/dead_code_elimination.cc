@@ -134,8 +134,9 @@ IRModule DeadCodeElimination(const IRModule& arg_mod, Array<runtime::String> ent
 namespace transform {
 
 Pass DeadCodeElimination(Array<runtime::String> entry_functions) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::DeadCodeElimination(m, entry_functions); };
+  auto pass_func = [=](IRModule m, PassContext pc) {
+    return relax::DeadCodeElimination(m, entry_functions);
+  };
   return CreateModulePass(pass_func, 1, "DeadCodeElimination", {});
 }
 

@@ -95,6 +95,9 @@ from .manipulate import (
     flip,
     gather_elements,
     gather_nd,
+    index_put,
+    index_tensor,
+    meshgrid,
     layout_transform,
     one_hot,
     permute_dims,
@@ -147,6 +150,7 @@ from .unary import (
     square,
     tan,
     tanh,
+    trunc,
 )
 
 

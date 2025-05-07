@@ -22,6 +22,7 @@
  * \brief The CUDA graph related builtin functions for Relax virtual machine.
  */
 
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/vm.h>
@@ -161,18 +162,16 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
     // Set up arguments for the graph execution
     Array<ObjectRef> tuple_args = Downcast<Array<ObjectRef>>(args);
     int nargs = static_cast<int>(tuple_args.size());
-    std::vector<TVMValue> values(nargs);
-    std::vector<int> tcodes(nargs);
-    TVMArgsSetter setter(values.data(), tcodes.data());
+
+    std::vector<AnyView> packed_args(nargs);
     for (int i = 0; i < nargs; ++i) {
-      ObjectRef arg = tuple_args[i];
-      setter(i, arg);
+      packed_args[i] = tuple_args[i];
     }
 
-    TVMRetValue capture_func_rv;
+    ffi::Any capture_func_rv;
     // Run the function without CUDA graph. This is a warm up step to do necessary initialization
     // of the CUDA module such as loading module data, setting kernel attributes.
-    vm->InvokeClosurePacked(capture_func, TVMArgs(values.data(), tcodes.data(), nargs),
+    vm->InvokeClosurePacked(capture_func, ffi::PackedArgs(packed_args.data(), nargs),
                             &capture_func_rv);
 
     // Run the graph in capture mode
@@ -180,12 +179,12 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
 
     {
       CUDACaptureStream capture_stream(&graph);
-      vm->InvokeClosurePacked(capture_func, TVMArgs(values.data(), tcodes.data(), nargs),
+      vm->InvokeClosurePacked(capture_func, ffi::PackedArgs(packed_args.data(), nargs),
                               &capture_func_rv);
     }
 
     CUDAGraphCapturedState entry;
-    entry.states = capture_func_rv;
+    entry.states = capture_func_rv.cast<ObjectRef>();
     CUDA_CALL(cudaGraphInstantiate(&entry.exec, graph, NULL, NULL, 0));
     CUDA_CALL(cudaGraphDestroy(graph));
 
@@ -208,9 +207,9 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
     if (auto it = alloc_cache_.find(entry_index); it != alloc_cache_.end()) {
       return it->second;
     }
-    TVMRetValue alloc_func_rv;
-    vm->InvokeClosurePacked(alloc_func, TVMArgs(nullptr, nullptr, 0), &alloc_func_rv);
-    ObjectRef alloc_result = alloc_func_rv;
+    ffi::Any alloc_func_rv;
+    vm->InvokeClosurePacked(alloc_func, ffi::PackedArgs(nullptr, 0), &alloc_func_rv);
+    ObjectRef alloc_result = alloc_func_rv.cast<ObjectRef>();
     alloc_cache_[entry_index] = alloc_result;
     return alloc_result;
   }
@@ -243,27 +242,27 @@ class CUDAGraphExtension : public VMExtension {
 };
 
 TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       ICHECK(args.size() == 5 || args.size() == 4);
       VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
       auto extension = vm->GetOrCreateExtension<CUDAGraphExtension>();
-      ObjectRef capture_func = args[1];
-      ObjectRef func_args = args[2];
-      int64_t entry_index = args[3];
+      auto capture_func = args[1].cast<ObjectRef>();
+      auto func_args = args[2].cast<ObjectRef>();
+      int64_t entry_index = args[3].cast<int64_t>();
       Optional<ShapeTuple> shape_expr = NullOpt;
       if (args.size() == 5) {
-        shape_expr = args[4].AsObjectRef<ShapeTuple>();
+        shape_expr = args[4].cast<ShapeTuple>();
       }
       *rv = extension->RunOrCapture(vm, capture_func, func_args, entry_index, shape_expr);
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.get_cached_alloc")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       ICHECK_EQ(args.size(), 3);
       VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
       auto extension = vm->GetOrCreateExtension<CUDAGraphExtension>();
-      ObjectRef alloc_func = args[1];
-      int64_t entry_index = args[2];
+      auto alloc_func = args[1].cast<ObjectRef>();
+      int64_t entry_index = args[2].cast<int64_t>();
       *rv = extension->GetCachedAllocation(vm, alloc_func, entry_index);
     });
 

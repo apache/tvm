@@ -41,6 +41,7 @@
 #include <limits>
 #include <string>
 #include <unordered_set>
+#include <utility>
 #include <vector>
 
 #include "tvm/ir/expr.h"
@@ -193,17 +194,17 @@ inline Tensor expand_dims(const Tensor& x, int axis, int num_newaxis = 1,
  * \brief Permute the dimensions of an array
  *
  * \param x The input tensor
- * \param axes The indices of the permutation. If this is empty,
+ * \param opt_axes The indices of the permutation. If this is empty,
  * the dimensions will be reversed.
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
  * \return A Tensor whose op member is the transpose operation
  */
-inline Tensor transpose(const Tensor& x, Array<Integer> axes, std::string name = "T_transpose",
-                        std::string tag = kInjective) {
-  if (!axes.defined() || axes.size() == 0) {
-    axes = Array<Integer>();
+inline Tensor transpose(const Tensor& x, Optional<Array<Integer>> opt_axes,
+                        std::string name = "T_transpose", std::string tag = kInjective) {
+  Array<Integer> axes = opt_axes.value_or({});
+  if (axes.size() == 0) {
     for (int i = static_cast<int>(x->shape.size()) - 1; i >= 0; --i) {
       axes.push_back(i);
     }
@@ -399,7 +400,7 @@ inline Tensor unravel_index(const Tensor& x, const Tensor& shape, std::string na
  * The removed dimensions must have a constant size of 1.
  *
  * \param x The input tensor
- * \param axis Indices of the dimensions to remove. If this is None,
+ * \param opt_axes Indices of the dimensions to remove. If this is None,
  * all entries with a constant size of 1 will be removed.
  * \param atleast1d Whether the output need to be atleast1d.
  * \param name The name of the operation
@@ -407,17 +408,18 @@ inline Tensor unravel_index(const Tensor& x, const Tensor& shape, std::string na
  *
  * \return A Tensor whose op member is the squeeze operation
  */
-inline Tensor squeeze(const Tensor& x, Array<Integer> axis, bool atleast1d = false,
+inline Tensor squeeze(const Tensor& x, Optional<Array<Integer>> opt_axes, bool atleast1d = false,
                       std::string name = "T_squeeze", std::string tag = kInjective) {
   auto ndim = x->shape.size();
   std::vector<int> axis_val;
-  if (!axis.defined()) {
+  if (!opt_axes.has_value()) {
     for (size_t i = 0; i < ndim; ++i) {
       if (IsConstInt(x->shape[i]) && GetConstInt(x->shape[i]) == 1) {
         axis_val.push_back(static_cast<int>(i));
       }
     }
   } else {
+    Array<Integer> axis = *std::move(opt_axes);
     for (size_t i = 0; i < axis.size(); ++i) {
       int64_t val = axis[i]->value;
       if (val < 0) {
@@ -1754,11 +1756,11 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
 
   Array<PrimExpr> dst_shape = layout_converter.ForwardShape(src->shape);
 
-  Map<String, ObjectRef> attrs = {{"schedule_rule", String(schedule_rule)},
-                                  // Information about layouts needed for the schedule rule
-                                  {"src_layout", String(src_layout)},
-                                  {"dst_layout", String(dst_layout)},
-                                  {"input_shape", src->shape}};
+  Map<String, ffi::Any> attrs = {{"schedule_rule", String(schedule_rule)},
+                                 // Information about layouts needed for the schedule rule
+                                 {"src_layout", String(src_layout)},
+                                 {"dst_layout", String(dst_layout)},
+                                 {"input_shape", src->shape}};
 
   return compute(
       dst_shape,

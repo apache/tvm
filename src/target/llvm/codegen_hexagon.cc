@@ -101,7 +101,6 @@ class CodeGenHexagon final : public CodeGenCPU {
  private:
   TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
                                llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype) final;
-  TypedPointer CreateStructRefPtr(DataType t, llvm::Value* buf, llvm::Value* index, int kind);
 
   bool IsQHLFunction(const std::string& func);
 
@@ -290,93 +289,6 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateBufferPtr(llvm::Value* buffer_pt
   // index.
   return CodeGenCPU::CreateBufferPtr(buffer_chunk_ptr, buffer_element_dtype, {indices[1]},
                                      value_dtype);
-}
-
-CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::Value* buf,
-                                                             llvm::Value* index, int kind) {
-  static const std::map<int, int> field_index = {
-      {builtin::kArrData, 0},      {builtin::kArrDeviceType, 1}, {builtin::kArrDeviceId, 1},
-      {builtin::kArrNDim, 2},      {builtin::kArrTypeCode, 3},   {builtin::kArrTypeBits, 3},
-      {builtin::kArrTypeLanes, 3}, {builtin::kArrShape, 4},      {builtin::kArrStrides, 5},
-      {builtin::kArrByteOffset, 6}};
-  static const std::map<int, int> subfield_index = {
-      {builtin::kArrDeviceType, 0}, {builtin::kArrDeviceId, 1},  {builtin::kArrTypeCode, 0},
-      {builtin::kArrTypeBits, 1},   {builtin::kArrTypeLanes, 2},
-  };
-
-  if (kind < builtin::kArrKindBound_) {
-    if (buf->getType() == t_void_p_) {
-      buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_array_, 0));
-    } else {
-      ICHECK_EQ(buf->getType(), llvmGetPointerTo(t_tvm_array_, 0));
-    }
-    /* The following "kinds" are accessing the members of DLTensor:
-       typedef struct {
-         void* data;            kArrData
-         DLDevice device;       kArrDeviceType (device.device_type)
-                                kArrDeviceId (device.device_id)
-         int ndim;              kArrNDim
-         DLDataType dtype;      kArrTypeCode (dtype.code)
-                                kArrTypeBits (dtype.bits)
-                                kArrTypeLanes (dtype.lanes)
-         int64_t* shape;        kArrShape
-         int64_t* strides;      kArrStrides
-         uint64_t byte_offset;  kArrByteOffset
-       } DLTensor;
-    */
-    llvm::Value* base_gep = builder_->CreateInBoundsGEP(t_tvm_array_, buf, index, "base_gep");
-    if (kind == builtin::kArrAddr) {
-      return TypedPointer(t_void_p_, base_gep);
-    }
-    llvm::Value* field_gep = builder_->CreateInBoundsGEP(
-        t_tvm_array_, base_gep, {ConstInt32(0), ConstInt32(field_index.at(kind))}, "field_gep");
-    llvm::Type* field_type = t_tvm_array_->getStructElementType(field_index.at(kind));
-    switch (kind) {
-      // These fields have no sub-fields.
-      case builtin::kArrData:
-      case builtin::kArrNDim:
-      case builtin::kArrShape:
-      case builtin::kArrStrides:
-      case builtin::kArrByteOffset:
-        return TypedPointer(field_type, field_gep);
-    }
-    llvm::Value* subfield_gep = builder_->CreateInBoundsGEP(
-        field_type, field_gep, {ConstInt32(0), ConstInt32(subfield_index.at(kind))},
-        "subfield_gep");
-    llvm::Type* subfield_type = field_type->getStructElementType(subfield_index.at(kind));
-    return TypedPointer(subfield_type, subfield_gep);
-  }
-
-  if (kind == builtin::kTVMValueContent) {
-    /* TVMValue is a union:
-       typedef union {
-         int64_t v_int64;
-         double v_float64;
-         void* v_handle;
-         const char* v_str;
-         TVMType v_type;
-         DLDevice v_device;
-       } TVMValue;
-    */
-    ICHECK_EQ(t.lanes(), 1);
-    ICHECK(t.is_handle() || t.bits() == 64);
-    if (t.is_int()) {
-      buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_int64_, 0));
-      return TypedPointer(t_int64_, builder_->CreateInBoundsGEP(t_int64_, buf, index));
-    } else if (t.is_float()) {
-      buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_float64_, 0));
-      return TypedPointer(t_float64_, builder_->CreateInBoundsGEP(t_float64_, buf, index));
-    } else {
-      ICHECK(t.is_handle());
-      buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_value_, 0));
-      buf = builder_->CreateInBoundsGEP(t_tvm_value_, buf, index);
-      return TypedPointer(t_void_p_,
-                          builder_->CreatePointerCast(buf, llvmGetPointerTo(t_void_p_, 0)));
-    }
-  }
-
-  assert(!"Unknown kind");
-  return TypedPointer();
 }
 
 llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,
@@ -655,9 +567,9 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   std::string so_name(o_name, 0, o_name.size() - 1);
   so_name += "so";
 
-  const auto* f = tvm::runtime::Registry::Get("tvm.contrib.hexagon.link_shared");
-  ICHECK(f != nullptr) << "tvm.contrib.hexagon.link_shared does not to exist, "
-                          "do import tvm.contrib.hexagon";
+  const auto f = tvm::ffi::Function::GetGlobal("tvm.contrib.hexagon.link_shared");
+  ICHECK(f.has_value()) << "tvm.contrib.hexagon.link_shared does not to exist, "
+                           "do import tvm.contrib.hexagon";
 
   Array<PrimExpr> o_names = {StringImm(o_name)};
   Map<String, String> extra_args;
@@ -671,7 +583,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
         << "unexpected -mcpu value in target:" << mcpu;
     extra_args.Set("hex_arch", llvm::StringRef(mcpu).drop_front(strlen("hexagon")).str());
   }
-  int rc = (*f)(so_name, o_names, extra_args);
+  int rc = (*f)(so_name, o_names, extra_args).cast<int>();
   ICHECK(rc == 0) << "Failed to link " << so_name;
 
   return HexagonModuleCreate(so_name, "so", ExtractFuncInfo(mod), asm_str, obj_str, ir_str, bc_str);
@@ -680,7 +592,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
 TVM_REGISTER_GLOBAL("target.build.hexagon").set_body_typed(BuildHexagon);
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_hexagon")
-    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+    .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
       *rv = static_cast<void*>(new CodeGenHexagon());
     });
 

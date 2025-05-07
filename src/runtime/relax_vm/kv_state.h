@@ -18,6 +18,7 @@
  */
 #ifndef TVM_RUNTIME_RELAX_VM_KV_STATE_H_
 #define TVM_RUNTIME_RELAX_VM_KV_STATE_H_
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/ndarray.h>
@@ -103,9 +104,8 @@ class KVStateObj : public Object {
    */
   virtual void EndForward() = 0;
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.vm.KVState";
-  TVM_DECLARE_BASE_OBJECT_INFO(KVStateObj, Object)
+  TVM_DECLARE_BASE_OBJECT_INFO(KVStateObj, Object);
 };
 
 class KVState : public ObjectRef {
@@ -293,7 +293,6 @@ class AttentionKVCacheObj : public KVStateObj {
    */
   virtual void DebugSetKV(int64_t seq_id, int64_t start_pos, NDArray k_data, NDArray v_data) = 0;
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.vm.AttentionKVCache";
   TVM_DECLARE_BASE_OBJECT_INFO(AttentionKVCacheObj, KVStateObj);
 };
@@ -337,7 +336,6 @@ class RNNStateObj : public KVStateObj {
    */
   virtual NDArray DebugGet(int64_t layer_id, int64_t state_id, int64_t seq_id) = 0;
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.vm.RNNState";
   TVM_DECLARE_BASE_OBJECT_INFO(RNNStateObj, KVStateObj);
 };

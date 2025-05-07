@@ -109,7 +109,7 @@ def evaluate(hexagon_session, operations, expected, sch):
     )
     runtime = timer(a_hexagon, b_hexagon, c_hexagon)
 
-    tvm.testing.assert_allclose(c_hexagon.asnumpy(), expected(a, b))
+    tvm.testing.assert_allclose(c_hexagon.numpy(), expected(a, b))
 
     return round(runtime.mean * 1000, 6)
 

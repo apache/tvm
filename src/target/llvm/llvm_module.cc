@@ -84,9 +84,9 @@
 namespace tvm {
 namespace codegen {
 
-using runtime::PackedFunc;
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
+using ffi::Any;
+using ffi::Function;
+using ffi::PackedArgs;
 
 class LLVMModuleNode final : public runtime::ModuleNode {
  public:
@@ -94,7 +94,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   const char* type_key() const final { return "llvm"; }
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   /*! \brief Get the property of the runtime module .*/
   // TODO(tvm-team): Make it serializable
@@ -154,12 +154,13 @@ LLVMModuleNode::~LLVMModuleNode() {
   module_owning_ptr_.reset();
 }
 
-PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
+ffi::Function LLVMModuleNode::GetFunction(const String& name,
+                                          const ObjectPtr<Object>& sptr_to_self) {
   if (name == "__tvm_is_system_module") {
     bool flag = (module_->getFunction("__tvm_module_startup") != nullptr);
-    return PackedFunc([flag](TVMArgs args, TVMRetValue* rv) { *rv = flag; });
+    return ffi::Function([flag](ffi::PackedArgs args, ffi::Any* rv) { *rv = flag; });
   } else if (name == "__tvm_get_system_lib_prefix") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+    return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) {
       auto* md = module_->getModuleFlag("tvm_system_lib_prefix");
       if (md != nullptr) {
         *rv = llvm::cast<llvm::MDString>(md)->getString().str();
@@ -168,15 +169,16 @@ PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Objec
       }
     });
   } else if (name == "get_func_names") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->function_names_; });
+    return ffi::Function(
+        [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->function_names_; });
   } else if (name == "get_symbol") {
-    return PackedFunc(nullptr);
+    return ffi::Function(nullptr);
   } else if (name == "get_const_vars") {
-    return PackedFunc(nullptr);
+    return ffi::Function(nullptr);
   } else if (name == "_get_target_string") {
     std::string target_string = LLVMTarget::GetTargetMetadata(*module_);
-    return PackedFunc([target_string](TVMArgs args, TVMRetValue* rv) { *rv = target_string; });
+    return ffi::Function(
+        [target_string](ffi::PackedArgs args, ffi::Any* rv) { *rv = target_string; });
   }
   ICHECK(jit_engine_.size()) << "JIT engine type is missing";
   if ((jit_engine_ == "mcjit") && (mcjit_ee_ == nullptr)) InitMCJIT();
@@ -184,19 +186,19 @@ PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Objec
 
   std::lock_guard<std::mutex> lock(mutex_);
 
-  TVMBackendPackedCFunc faddr;
+  TVMFFISafeCallType faddr;
   With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
   if (name == runtime::symbol::tvm_module_main) {
     const char* entry_name = reinterpret_cast<const char*>(
         GetGlobalAddr(runtime::symbol::tvm_module_main, *llvm_target));
     ICHECK(entry_name != nullptr) << "Symbol " << runtime::symbol::tvm_module_main
                                   << " is not presented";
-    faddr = reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(entry_name, *llvm_target));
+    faddr = reinterpret_cast<TVMFFISafeCallType>(GetFunctionAddr(entry_name, *llvm_target));
   } else {
-    faddr = reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(name, *llvm_target));
+    faddr = reinterpret_cast<TVMFFISafeCallType>(GetFunctionAddr(name, *llvm_target));
   }
-  if (faddr == nullptr) return PackedFunc();
-  return WrapPackedFunc(faddr, sptr_to_self);
+  if (faddr == nullptr) return ffi::Function();
+  return tvm::runtime::WrapFFIFunction(faddr, sptr_to_self);
 }
 
 namespace {
@@ -350,7 +352,6 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   // makes sense when we start to use multiple modules.
   cg->Init("TVMMod", llvm_target.get(), system_lib_prefix, system_lib_prefix.defined(), false);
   cg->SetFastMathFlags(llvm_target->GetFastMathFlags());
-
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
   if (entry_func.length() != 0) {
     cg->AddMainFunction(entry_func);

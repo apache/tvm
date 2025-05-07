@@ -586,7 +586,7 @@ struct AttentionAttrs : public tvm::AttrsNode<AttentionAttrs> {
 /*! \brief Attributes used for the padding operator */
 struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
   Array<Integer> pad_width;
-  runtime::Float pad_value = 0.0;
+  double pad_value = 0.0;
   tvm::String pad_mode;
 
   TVM_DECLARE_ATTRS(PadAttrs, "relax.attrs.PadAttrs") {
@@ -600,6 +600,15 @@ struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
             "Padding type to use. \"constant\" pads with constant_value, "
             "\"edge\" pads using the edge values of the input array, "
             "\"reflect\" pads by reflecting values with respect to the edges.");
+  }
+};
+
+/*! \brief Attributes used for the pixel shuffle operator */
+struct PixelShuffleAttrs : public tvm::AttrsNode<PixelShuffleAttrs> {
+  int upscale_factor;
+
+  TVM_DECLARE_ATTRS(PixelShuffleAttrs, "relax.attrs.PixelShuffleAttrs") {
+    TVM_ATTR_FIELD(upscale_factor).describe("Scale factor for spatial upsampling.");
   }
 };
 

@@ -75,7 +75,7 @@ def test_sampling():
         # the kernel expects (probs, output, maybe_indices, deterministic, philox_seed, philox_offset, cuda_stream)
         sampling_func(prob_tvm, output_tvm, None, deterministic, philox_seed, philox_offset, 0)
 
-        out = output_tvm.asnumpy()
+        out = output_tvm.numpy()
         for i in range(batch_size):
             sampled_token = out[i]
             counts[i, sampled_token] += 1

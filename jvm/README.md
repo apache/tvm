@@ -103,7 +103,7 @@ import java.util.Arrays;
 
 public class LoadAddFunc {
   public static void main(String[] args) {
-    String loadingDir = args[0];
+    String loadingDir = args[0].cast<String>();
     Module fadd = Module.load(loadingDir + File.separator + "add_cpu.so");
 
     Device dev = Device.cpu();

@@ -398,15 +398,15 @@ struct ReducerRegistry {
                 })} {}
 
   static void RegisterReducer(
-      int n_buffers, TypedPackedFunc<Array<PrimExpr>(Array<Var>, Array<Var>)> combiner_getter,
-      TypedPackedFunc<Array<PrimExpr>(Array<PrimExpr>)> identity_getter) {
+      int n_buffers, ffi::TypedFunction<Array<PrimExpr>(Array<Var>, Array<Var>)> combiner_getter,
+      ffi::TypedFunction<Array<PrimExpr>(Array<PrimExpr>)> identity_getter) {
     ReducerRegistry::Global()->reducer_getters.push_back(ReducerRegistry::CreateReducerGetter(
         n_buffers, std::move(combiner_getter), std::move(identity_getter)));
   }
 
-  static TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)> CreateReducerGetter(
-      int n_buffers, TypedPackedFunc<Array<PrimExpr>(Array<Var>, Array<Var>)> combiner_getter,
-      TypedPackedFunc<Array<PrimExpr>(Array<PrimExpr>)> identity_getter) {
+  static ffi::TypedFunction<Optional<CommReducer>(Array<PrimExpr>)> CreateReducerGetter(
+      int n_buffers, ffi::TypedFunction<Array<PrimExpr>(Array<Var>, Array<Var>)> combiner_getter,
+      ffi::TypedFunction<Array<PrimExpr>(Array<PrimExpr>)> identity_getter) {
     return [n_buffers,                                     //
             combiner_getter = std::move(combiner_getter),  //
             identity_getter = std::move(identity_getter)   //
@@ -429,10 +429,10 @@ struct ReducerRegistry {
     return &instance;
   }
 
-  std::vector<TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)>> reducer_getters;
+  std::vector<ffi::TypedFunction<Optional<CommReducer>(Array<PrimExpr>)>> reducer_getters;
 };
 
-std::vector<TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)>> GetReducerGetters() {
+std::vector<ffi::TypedFunction<Optional<CommReducer>(Array<PrimExpr>)>> GetReducerGetters() {
   return ReducerRegistry::Global()->reducer_getters;
 }
 
@@ -1345,7 +1345,8 @@ TVM_REGISTER_INST_KIND_TRAITS(DecomposeReductionTraits);
 /******** FFI ********/
 
 TVM_REGISTER_GLOBAL("tir.schedule.RegisterReducer")
-    .set_body_typed([](int n_buffers, PackedFunc combiner_getter, PackedFunc identity_getter) {
+    .set_body_typed([](int n_buffers, ffi::Function combiner_getter,
+                       ffi::Function identity_getter) {
       ReducerRegistry::RegisterReducer(n_buffers, std::move(combiner_getter),
                                        std::move(identity_getter));
     });

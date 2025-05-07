@@ -61,8 +61,8 @@ std::string VMExecutable::Stats() const {
   // If the constant is an DLDataType, get the data type of each of them.
   oss << "  Constant pool (# " << constants.size() << "): [";
   for (const auto& it : constants) {
-    if (it.IsObjectRef<runtime::NDArray>()) {
-      const auto ndarray = it.operator tvm::runtime::NDArray();
+    if (auto opt_nd = it.as<runtime::NDArray>()) {
+      const auto ndarray = opt_nd.value();
       const auto& shape = ndarray.Shape();
       // Scalar
       if (shape.empty()) {
@@ -75,31 +75,28 @@ std::string VMExecutable::Stats() const {
       }
       oss.seekp(-2, oss.cur);
       oss << "], ";
-    } else if (it.IsObjectRef<ShapeTuple>()) {
-      ShapeTuple shape = it.operator ShapeTuple();
+    } else if (auto opt_shape = it.as<ShapeTuple>()) {
+      ShapeTuple shape = opt_shape.value();
       oss << "shapetuple[";
       for (size_t i = 0; i < shape.size(); ++i) {
         oss << shape.at(i) << ", ";
       }
       oss.seekp(-2, oss.cur);
       oss << "], ";
-    } else if (it.IsObjectRef<String>()) {
-      std::string f = it.AsObjectRef<tvm::runtime::String>().operator std::string();
+    } else if (auto opt_str = it.as<String>()) {
+      std::string f = opt_str.value();
       oss << "\"";
       oss << f;
       oss << "\", ";
-    } else if (it.type_code() == kDLInt) {
-      oss << static_cast<int64_t>(it);
+    } else if (auto opt_int = it.as<int64_t>()) {
+      oss << opt_int.value();
+      oss << ", ";
+    } else if (auto opt_dtype = it.as<DLDataType>()) {
+      DataType dtype(opt_dtype.value());
+      oss << dtype;
       oss << ", ";
     } else {
-      try {
-        DataType dtype(it.operator DLDataType());
-        oss << dtype;
-        oss << ", ";
-      } catch (std::exception& exc) {
-        LOG(FATAL) << "Constant pool can only contain NDArray and DLDataType, but got "
-                   << ArgTypeCode2Str(it.type_code());
-      }
+      LOG(FATAL) << "Unsupported constant pool type " << it.GetTypeKey();
     }
   }
   if (!constants.empty()) oss.seekp(-2, oss.cur);
@@ -266,37 +263,34 @@ void VMExecutable::SaveGlobalSection(dmlc::Stream* strm) { strm->Write(func_tabl
 void VMExecutable::SaveConstantSection(dmlc::Stream* strm) {
   strm->Write(static_cast<uint64_t>(this->constants.size()));
   for (const auto& it : this->constants) {
-    if (it.IsObjectRef<runtime::NDArray>()) {
+    if (auto opt_nd = it.as<runtime::NDArray>()) {
       strm->Write(ConstantType::kNDArray);
-      runtime::SaveDLTensor(strm, it.operator DLTensor*());
-    } else if (it.IsObjectRef<ShapeTuple>()) {
-      ShapeTuple shape = it.operator ShapeTuple();
+      runtime::SaveDLTensor(strm, opt_nd.value().operator->());
+    } else if (auto opt_shape = it.as<ShapeTuple>()) {
+      ShapeTuple shape = opt_shape.value();
       strm->Write(ConstantType::kShapeTuple);
       strm->Write(shape.size());
       for (size_t i = 0; i < shape.size(); ++i) {
         strm->Write(shape.at(i));
       }
-    } else if (it.IsObjectRef<String>()) {
-      String str = it.operator String();
+    } else if (auto opt_str = it.as<String>()) {
+      String str = opt_str.value();
       strm->Write(ConstantType::kString);
       strm->Write(str.size());
       for (size_t i = 0; i < str.size(); ++i) {
         strm->Write(str.at(i));
       }
-    } else if (it.type_code() == kDLInt) {
+    } else if (auto opt_int = it.as<int64_t>()) {
       strm->Write(ConstantType::kInt);
-      strm->Write(it.value());
-    } else if (it.type_code() == kDLFloat) {
+      strm->Write(opt_int.value());
+    } else if (auto opt_float = it.as<double>()) {
       strm->Write(ConstantType::kFloat);
-      strm->Write(it.value());
+      strm->Write(opt_float.value());
+    } else if (auto opt_dtype = it.as<DLDataType>()) {
+      strm->Write(ConstantType::kDLDataType);
+      strm->Write(opt_dtype.value());
     } else {
-      try {
-        strm->Write(ConstantType::kDLDataType);
-        strm->Write(it.operator DLDataType());
-      } catch (std::exception& exc) {
-        LOG(FATAL) << "Constant pool can only contain NDArray, DLDataType, and Integers but got "
-                   << ArgTypeCode2Str(it.type_code());
-      }
+      LOG(FATAL) << "Unsupported constant pool type " << it.GetTypeKey();
     }
   }
 }
@@ -328,7 +322,7 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
     STREAM_CHECK(strm->Read(&constant_type, sizeof(constant_type)), "constant");
     if (constant_type == ConstantType::kNDArray) {
       ndarray.Load(strm);
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = ndarray;
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kShapeTuple) {
@@ -338,12 +332,12 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
       for (size_t i = 0; i < size; ++i) {
         strm->Read(&(data[i]));
       }
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = ShapeTuple(data);
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kDLDataType) {
       strm->Read(&dtype);
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = dtype;
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kString) {
@@ -353,19 +347,19 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
       for (size_t i = 0; i < size; ++i) {
         strm->Read(&(data[i]));
       }
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = String(std::string(data.begin(), data.end()));
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kInt) {
       int64_t value;
       strm->Read(&value);
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = value;
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kFloat) {
       double value;
       strm->Read(&value);
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = value;
       this->constants.push_back(cell);
     } else {

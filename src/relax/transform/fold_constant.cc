@@ -99,7 +99,7 @@ class ConstantFolder : public ExprMutator {
    * \brief Get a cached build version of func
    * \return The cached func, nullopt if func cannot be built.
    */
-  Optional<PackedFunc> GetCachedBuild(tir::PrimFunc func) {
+  Optional<ffi::Function> GetCachedBuild(tir::PrimFunc func) {
     // TODO(tvm-team): consider another way of bulk extract and build PrimFunc once
     // would be helpful for future cases where PrimFunc recursively call into each other
     Target eval_cpu_target{"llvm"};
@@ -108,17 +108,16 @@ class ConstantFolder : public ExprMutator {
     if (it != func_build_cache_.end()) {
       return it->second;
     }
-    Optional<PackedFunc> build_func = NullOpt;
+    Optional<ffi::Function> build_func = NullOpt;
 
     try {
       // Not all the primfunc can be directly built via llvm, for example, if a function is
       // already scheduled to only work on GPU, we will need to skip this in the const folder for
       // now
       // TODO(Hongyi): further check and narrow the scope of foldable function
-      auto* pf = runtime::Registry::Get("tir.build");
-      ICHECK(pf != nullptr) << "Cannot find tir.build in registry";
+      const auto pf = tvm::ffi::Function::GetGlobalRequired("tir.build");
       func = WithAttr(func, tvm::attr::kGlobalSymbol, String("tir_function"));
-      runtime::Module rt_module = (*pf)(func, eval_cpu_target);
+      runtime::Module rt_module = pf(func, eval_cpu_target).cast<runtime::Module>();
       build_func = rt_module.GetFunction("tir_function");
     } catch (const tvm::Error& err) {
       // build failure may happen in which case we skip
@@ -146,12 +145,11 @@ class ConstantFolder : public ExprMutator {
   Optional<Expr> ConstEvaluateCallTIR(tir::PrimFunc tir_func, Array<runtime::NDArray> arr_args,
                                       runtime::ShapeTuple shape, DataType ret_type) {
     // obtain function from the cache.
-    Optional<PackedFunc> func = GetCachedBuild(tir_func);
+    Optional<ffi::Function> func = GetCachedBuild(tir_func);
     if (!func) return NullOpt;
 
     // here the vector size has an additional + 1 because we need to put ret_tensor at the end
-    std::vector<TVMValue> values(arr_args.size() + 1);
-    std::vector<int> type_codes(arr_args.size() + 1);
+    std::vector<AnyView> packed_args(arr_args.size() + 1);
 
     DLDevice cpu_dev = {DLDeviceType::kDLCPU, 0};
     runtime::NDArray ret_tensor = runtime::NDArray::Empty(shape, ret_type, cpu_dev);
@@ -162,14 +160,14 @@ class ConstantFolder : public ExprMutator {
 
     size_t arg_offset = 0;
     for (; arg_offset < arr_args.size(); ++arg_offset) {
-      runtime::TVMArgsSetter(values.data(), type_codes.data())(arg_offset, temp_args[arg_offset]);
+      packed_args[arg_offset] = temp_args[arg_offset];
     }
     // set return value
-    runtime::TVMArgsSetter(values.data(), type_codes.data())(arg_offset++, ret_tensor);
+    packed_args[arg_offset++] = ret_tensor;
 
-    TVMRetValue ret;
+    ffi::Any ret;
     // invoke
-    func.value().CallPacked(TVMArgs(values.data(), type_codes.data(), values.size()), &ret);
+    func.value().CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &ret);
     return Constant(ret_tensor);
   }
 
@@ -198,7 +196,7 @@ class ConstantFolder : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   // TODO(@sunggg):
-  // Next PR will support fold with PackedFunc and MatchCast
+  // Next PR will support fold with ffi::Function and MatchCast
   // Until then, DecomposeOps() should be applied after
   // this pass to fold `tensor_to_shape` op.
   Expr VisitExpr_(const CallNode* call) final {
@@ -282,8 +280,8 @@ class ConstantFolder : public ExprMutator {
           return ShapeExpr(shape_values);
         }
       } else if (op->name == "relax.shape_to_tensor") {
-        // Special handling for "relax.shape_to_tensor" since it is implemented in PackedFunc.
-        // TODO(sunggg): revisit this when we extend ConstantFolding to fold PackedFunc.
+        // Special handling for "relax.shape_to_tensor" since it is implemented in ffi::Function.
+        // TODO(sunggg): revisit this when we extend ConstantFolding to fold ffi::Function.
         Expr arg = post_call->args[0];
         ShapeExpr shape = Downcast<ShapeExpr>(arg);
         Array<PrimExpr> values = shape->values;
@@ -295,9 +293,8 @@ class ConstantFolder : public ExprMutator {
           is_known &= (val.dtype() == DataType::Int(64));
         }
         if (is_known) {
-          const auto* func = tvm::runtime::Registry::Get("relax.run.shape_to_tensor");
-          ICHECK(func != nullptr);
-          runtime::NDArray vals = (*func)(arr);
+          const auto func = tvm::ffi::Function::GetGlobalRequired("relax.run.shape_to_tensor");
+          runtime::NDArray vals = func(arr).cast<runtime::NDArray>();
           return Constant(vals);
         }
       }
@@ -316,15 +313,16 @@ class ConstantFolder : public ExprMutator {
   }
 
   // cache for function build, via structural equality
-  std::unordered_map<tir::PrimFunc, Optional<runtime::PackedFunc>, StructuralHash, StructuralEqual>
+  std::unordered_map<tir::PrimFunc, Optional<ffi::Function>, StructuralHash, StructuralEqual>
       func_build_cache_;
 };
 
 namespace transform {
 
 Pass FoldConstant() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) { return ConstantFolder::Fold(f, m); };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return ConstantFolder::Fold(f, m);
+  };
   return CreateFunctionPass(pass_func, 0, "FoldConstant", {});
 }
 

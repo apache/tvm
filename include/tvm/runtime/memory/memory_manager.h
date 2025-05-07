@@ -170,19 +170,12 @@ class StorageObj : public Object {
   TVM_DLL NDArray AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataType dtype,
                                      String scope = "global");
 
-  /*! \brief The deleter for an NDArray when allocated from underlying storage. */
-  static void ScopedDeleter(Object* ptr);
-
-  /*! \brief The deleter for an NDArray when allocated from underlying storage. */
-  static void Deleter(Object* ptr);
-
   ~StorageObj() {
     if (allocator) {
       allocator->Free(buffer);
     }
   }
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "vm.Storage";
   TVM_DECLARE_FINAL_OBJECT_INFO(StorageObj, Object);
 };

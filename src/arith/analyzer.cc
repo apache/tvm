@@ -268,87 +268,96 @@ PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
   return res;
 }
 
-TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValue* ret) {
-  using runtime::PackedFunc;
-  using runtime::TypedPackedFunc;
-  auto self = std::make_shared<Analyzer>();
-  auto f = [self](std::string name) -> PackedFunc {
-    if (name == "const_int_bound") {
-      return PackedFunc(
-          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->const_int_bound(args[0]); });
-    } else if (name == "modular_set") {
-      return PackedFunc(
-          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->modular_set(args[0]); });
-    } else if (name == "const_int_bound_update") {
-      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
-        self->const_int_bound.Update(args[0], args[1], args[2]);
-      });
-    } else if (name == "Simplify") {
-      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
-        if (args.size() == 1) {
-          *ret = self->Simplify(args[0]);
-        } else if (args.size() == 2) {
-          *ret = self->Simplify(args[0], args[1]);
-        } else {
-          LOG(FATAL) << "Invalid size of argument (" << args.size() << ")";
+TVM_REGISTER_GLOBAL("arith.CreateAnalyzer")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      using ffi::Function;
+      using ffi::TypedFunction;
+      auto self = std::make_shared<Analyzer>();
+      auto f = [self](std::string name) -> ffi::Function {
+        if (name == "const_int_bound") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            *ret = self->const_int_bound(args[0].cast<PrimExpr>());
+          });
+        } else if (name == "modular_set") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            *ret = self->modular_set(args[0].cast<PrimExpr>());
+          });
+        } else if (name == "const_int_bound_update") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            self->const_int_bound.Update(args[0].cast<Var>(), args[1].cast<ConstIntBound>(),
+                                         args[2].cast<bool>());
+          });
+        } else if (name == "Simplify") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            if (args.size() == 1) {
+              *ret = self->Simplify(args[0].cast<PrimExpr>());
+            } else if (args.size() == 2) {
+              *ret = self->Simplify(args[0].cast<PrimExpr>(), args[1].cast<int>());
+            } else {
+              LOG(FATAL) << "Invalid size of argument (" << args.size() << ")";
+            }
+          });
+        } else if (name == "rewrite_simplify") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            *ret = self->rewrite_simplify(args[0].cast<PrimExpr>());
+          });
+        } else if (name == "get_rewrite_simplify_stats") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            *ret = self->rewrite_simplify.GetStatsCounters();
+          });
+        } else if (name == "reset_rewrite_simplify_stats") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            self->rewrite_simplify.ResetStatsCounters();
+          });
+        } else if (name == "canonical_simplify") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            *ret = self->canonical_simplify(args[0].cast<PrimExpr>());
+          });
+        } else if (name == "int_set") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            *ret = self->int_set(args[0].cast<PrimExpr>(), args[1].cast<Map<Var, IntSet>>());
+          });
+        } else if (name == "bind") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            if (auto opt_range = args[1].as<Range>()) {
+              self->Bind(args[0].cast<Var>(), opt_range.value());
+            } else {
+              self->Bind(args[0].cast<Var>(), args[1].cast<PrimExpr>());
+            }
+          });
+        } else if (name == "can_prove") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            int strength = args[1].cast<int>();
+            *ret = self->CanProve(args[0].cast<PrimExpr>(), static_cast<ProofStrength>(strength));
+          });
+        } else if (name == "enter_constraint_context") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            // can't use make_shared due to noexcept(false) decl in destructor,
+            // see https://stackoverflow.com/a/43907314
+            auto ctx = std::shared_ptr<With<ConstraintContext>>(
+                new With<ConstraintContext>(self.get(), args[0].cast<PrimExpr>()));
+            auto fexit = [ctx](ffi::PackedArgs, ffi::Any*) mutable { ctx.reset(); };
+            *ret = ffi::Function::FromPacked(fexit);
+          });
+        } else if (name == "can_prove_equal") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            *ret = self->CanProveEqual(args[0].cast<PrimExpr>(), args[1].cast<PrimExpr>());
+          });
+        } else if (name == "get_enabled_extensions") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            *ret = static_cast<std::int64_t>(self->rewrite_simplify.GetEnabledExtensions());
+          });
+        } else if (name == "set_enabled_extensions") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            int64_t flags = args[0].cast<int64_t>();
+            self->rewrite_simplify.SetEnabledExtensions(
+                static_cast<RewriteSimplifier::Extension>(flags));
+          });
         }
-      });
-    } else if (name == "rewrite_simplify") {
-      return PackedFunc(
-          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->rewrite_simplify(args[0]); });
-    } else if (name == "get_rewrite_simplify_stats") {
-      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
-        *ret = self->rewrite_simplify.GetStatsCounters();
-      });
-    } else if (name == "reset_rewrite_simplify_stats") {
-      return PackedFunc(
-          [self](TVMArgs args, TVMRetValue* ret) { self->rewrite_simplify.ResetStatsCounters(); });
-    } else if (name == "canonical_simplify") {
-      return PackedFunc(
-          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->canonical_simplify(args[0]); });
-    } else if (name == "int_set") {
-      return PackedFunc(
-          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->int_set(args[0], args[1]); });
-    } else if (name == "bind") {
-      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
-        if (args[1].IsObjectRef<Range>()) {
-          self->Bind(args[0], args[1].operator Range());
-        } else {
-          self->Bind(args[0], args[1].operator PrimExpr());
-        }
-      });
-    } else if (name == "can_prove") {
-      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
-        int strength = args[1];
-        *ret = self->CanProve(args[0], static_cast<ProofStrength>(strength));
-      });
-    } else if (name == "enter_constraint_context") {
-      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
-        // can't use make_shared due to noexcept(false) decl in destructor,
-        // see https://stackoverflow.com/a/43907314
-        auto ctx = std::shared_ptr<With<ConstraintContext>>(
-            new With<ConstraintContext>(self.get(), args[0]));
-        auto fexit = [ctx](TVMArgs, TVMRetValue*) mutable { ctx.reset(); };
-        *ret = PackedFunc(fexit);
-      });
-    } else if (name == "can_prove_equal") {
-      return PackedFunc(
-          [self](TVMArgs args, TVMRetValue* ret) { *ret = self->CanProveEqual(args[0], args[1]); });
-    } else if (name == "get_enabled_extensions") {
-      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
-        *ret = static_cast<std::int64_t>(self->rewrite_simplify.GetEnabledExtensions());
-      });
-    } else if (name == "set_enabled_extensions") {
-      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
-        std::int64_t flags = args[0];
-        self->rewrite_simplify.SetEnabledExtensions(
-            static_cast<RewriteSimplifier::Extension>(flags));
-      });
-    }
-    return PackedFunc();
-  };
-  *ret = TypedPackedFunc<PackedFunc(std::string)>(f);
-});
+        return ffi::Function();
+      };
+      *ret = ffi::TypedFunction<ffi::Function(std::string)>(f);
+    });
 
 }  // namespace arith
 }  // namespace tvm

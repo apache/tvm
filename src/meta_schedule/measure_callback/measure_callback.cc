@@ -60,7 +60,7 @@ TVM_REGISTER_OBJECT_TYPE(MeasureCallbackNode);
 TVM_REGISTER_NODE_TYPE(PyMeasureCallbackNode);
 
 TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackApply")
-    .set_body_method<MeasureCallback>(&MeasureCallbackNode::Apply);
+    .set_body_method(&MeasureCallbackNode::Apply);
 TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackPyMeasureCallback")
     .set_body_typed(MeasureCallback::PyMeasureCallback);
 TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackDefault")

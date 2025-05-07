@@ -23,24 +23,28 @@
 namespace tvm {
 namespace datatype {
 
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
+using ffi::Any;
+using ffi::PackedArgs;
 
-TVM_REGISTER_GLOBAL("runtime._datatype_register").set_body([](TVMArgs args, TVMRetValue* ret) {
-  datatype::Registry::Global()->Register(args[0], static_cast<uint8_t>(args[1].operator int()));
-});
+TVM_REGISTER_GLOBAL("dtype.register_custom_type")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      datatype::Registry::Global()->Register(args[0].cast<std::string>(),
+                                             static_cast<uint8_t>(args[1].cast<int>()));
+    });
 
-TVM_REGISTER_GLOBAL("runtime._datatype_get_type_code").set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = datatype::Registry::Global()->GetTypeCode(args[0]);
-});
+TVM_REGISTER_GLOBAL("dtype.get_custom_type_code")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      *ret = datatype::Registry::Global()->GetTypeCode(args[0].cast<std::string>());
+    });
 
-TVM_REGISTER_GLOBAL("runtime._datatype_get_type_name").set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = Registry::Global()->GetTypeName(args[0].operator int());
-});
+TVM_REGISTER_GLOBAL("dtype.get_custom_type_name")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      *ret = Registry::Global()->GetTypeName(args[0].cast<int>());
+    });
 
 TVM_REGISTER_GLOBAL("runtime._datatype_get_type_registered")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      *ret = Registry::Global()->GetTypeRegistered(args[0].operator int());
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      *ret = Registry::Global()->GetTypeRegistered(args[0].cast<int>());
     });
 
 Registry* Registry::Global() {
@@ -67,8 +71,8 @@ std::string Registry::GetTypeName(uint8_t type_code) {
   return code_to_name_[type_code];
 }
 
-const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t type_code,
-                                            uint8_t src_type_code) {
+std::optional<tvm::ffi::Function> GetCastLowerFunc(const std::string& target, uint8_t type_code,
+                                                   uint8_t src_type_code) {
   std::ostringstream ss;
   ss << "tvm.datatype.lower.";
   ss << target << ".";
@@ -78,7 +82,7 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t t
   if (datatype::Registry::Global()->GetTypeRegistered(type_code)) {
     ss << datatype::Registry::Global()->GetTypeName(type_code);
   } else {
-    ss << runtime::DLDataTypeCode2Str(static_cast<DLDataTypeCode>(type_code));
+    ss << ffi::details::DLDataTypeCodeAsCStr(static_cast<DLDataTypeCode>(type_code));
   }
 
   ss << ".";
@@ -86,29 +90,30 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t t
   if (datatype::Registry::Global()->GetTypeRegistered(src_type_code)) {
     ss << datatype::Registry::Global()->GetTypeName(src_type_code);
   } else {
-    ss << runtime::DLDataTypeCode2Str(static_cast<DLDataTypeCode>(src_type_code));
+    ss << ffi::details::DLDataTypeCodeAsCStr(static_cast<DLDataTypeCode>(src_type_code));
   }
-  return runtime::Registry::Get(ss.str());
+  return tvm::ffi::Function::GetGlobal(ss.str());
 }
 
-const runtime::PackedFunc* GetMinFunc(uint8_t type_code) {
+std::optional<tvm::ffi::Function> GetMinFunc(uint8_t type_code) {
   std::ostringstream ss;
   ss << "tvm.datatype.min.";
   ss << datatype::Registry::Global()->GetTypeName(type_code);
-  return runtime::Registry::Get(ss.str());
+  return tvm::ffi::Function::GetGlobal(ss.str());
 }
 
-const runtime::PackedFunc* GetFloatImmLowerFunc(const std::string& target, uint8_t type_code) {
+std::optional<tvm::ffi::Function> GetFloatImmLowerFunc(const std::string& target,
+                                                       uint8_t type_code) {
   std::ostringstream ss;
   ss << "tvm.datatype.lower.";
   ss << target;
   ss << ".FloatImm.";
   ss << datatype::Registry::Global()->GetTypeName(type_code);
-  return runtime::Registry::Get(ss.str());
+  return tvm::ffi::Function::GetGlobal(ss.str());
 }
 
-const runtime::PackedFunc* GetIntrinLowerFunc(const std::string& target, const std::string& name,
-                                              uint8_t type_code) {
+std::optional<tvm::ffi::Function> GetIntrinLowerFunc(const std::string& target,
+                                                     const std::string& name, uint8_t type_code) {
   std::ostringstream ss;
   ss << "tvm.datatype.lower.";
   ss << target;
@@ -116,15 +121,15 @@ const runtime::PackedFunc* GetIntrinLowerFunc(const std::string& target, const s
   ss << name;
   ss << ".";
   ss << datatype::Registry::Global()->GetTypeName(type_code);
-  return runtime::Registry::Get(ss.str());
+  return tvm::ffi::Function::GetGlobal(ss.str());
 }
 
 uint64_t ConvertConstScalar(uint8_t type_code, double value) {
   std::ostringstream ss;
   ss << "tvm.datatype.convertconstscalar.float.";
   ss << datatype::Registry::Global()->GetTypeName(type_code);
-  auto make_const_scalar_func = runtime::Registry::Get(ss.str());
-  return (*make_const_scalar_func)(value).operator uint64_t();
+  auto make_const_scalar_func = tvm::ffi::Function::GetGlobal(ss.str());
+  return (*make_const_scalar_func)(value).cast<uint64_t>();
 }
 
 }  // namespace datatype

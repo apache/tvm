@@ -46,9 +46,9 @@ class HexagonDeviceAPITest : public ::testing::Test {
   int64_t shape2d[2]{256, 256};
   int64_t shape3d[3]{256, 256, 256};
   Optional<String> default_scope;
-  Optional<String> invalid_scope{"invalid"};
-  Optional<String> global_scope{"global"};
-  Optional<String> global_vtcm_scope{"global.vtcm"};
+  Optional<String> invalid_scope = String("invalid");
+  Optional<String> global_scope = String("global");
+  Optional<String> global_vtcm_scope = String("global.vtcm");
 };
 
 TEST_F(HexagonDeviceAPITest, global) { CHECK(hexapi != nullptr); }

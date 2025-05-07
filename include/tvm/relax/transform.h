@@ -38,6 +38,7 @@ using PassInfo = tvm::transform::PassInfo;
 using PassContext = tvm::transform::PassContext;
 using Function = tvm::relax::Function;
 using DataflowBlock = tvm::relax::DataflowBlock;
+using tvm::transform::CreateModulePass;
 
 /*!
  * \brief Create a function pass.
@@ -50,9 +51,9 @@ using DataflowBlock = tvm::relax::DataflowBlock;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreateFunctionPass(
-    const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
+TVM_DLL Pass CreateFunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
+                                int opt_level, String name, tvm::Array<String> required,
+                                bool traceable = false);
 
 /*!
  * \brief Create a dataflowblock pass.
@@ -66,8 +67,8 @@ TVM_DLL Pass CreateFunctionPass(
  * \return The created dataflowblock pass.
  */
 TVM_DLL Pass CreateDataflowBlockPass(
-    const runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
+    std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func, int opt_level,
+    String name, tvm::Array<String> required, bool traceable = false);
 
 /*!
  * \brief Perform lambda lifting to lift functions from nested into global.
@@ -245,7 +246,7 @@ TVM_DLL Pass FoldConstant();
  * showing up in the database.
  * \return The Pass.
  */
-TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_warning = false);
+TVM_DLL Pass LegalizeOps(Optional<Map<String, ffi::Function>> cmap, bool enable_warning = false);
 
 /*!
  * \brief Propagate virtual device information.
@@ -382,15 +383,15 @@ class FusionPatternNode : public Object {
    * It should have signature
    * bool(const PatternCheckContext& context)
    */
-  Optional<PackedFunc> check;
+  Optional<ffi::Function> check;
 
   /*!
    * \brief The function to get attributes for fused function
    *
    * It should have signature
-   * Map<String, ObjectRef>(const Map<String, Expr>& context)
+   * Map<String, Any>(const Map<String, Expr>& context)
    */
-  Optional<PackedFunc> attrs_getter;
+  Optional<ffi::Function> attrs_getter;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
@@ -407,7 +408,7 @@ class FusionPatternNode : public Object {
 class FusionPattern : public ObjectRef {
  public:
   FusionPattern(String name, DFPattern pattern, Map<String, DFPattern> annotation_patterns,
-                Optional<PackedFunc> check, Optional<PackedFunc> attrs_getter);
+                Optional<ffi::Function> check, Optional<ffi::Function> attrs_getter);
 
   FusionPattern(String name, DFPattern pattern)
       : FusionPattern(name, pattern, {}, NullOpt, NullOpt) {}
@@ -546,7 +547,7 @@ TVM_DLL Pass FuseTIR();
  * \param entry_functions list of entry functions
  * \return The Pass.
  */
-TVM_DLL Pass RunCodegen(Optional<Map<String, Map<String, ObjectRef>>> target_options,
+TVM_DLL Pass RunCodegen(Optional<Map<String, Map<String, ffi::Any>>> target_options,
                         Array<runtime::String> entry_functions);
 
 /*!
@@ -585,8 +586,8 @@ TVM_DLL Pass DecomposeOpsForTraining(Optional<String> func_name);
  */
 TVM_DLL Pass AlterOpImpl(const Map<String, tir::PrimFunc>& op_impl_map,
                          const Map<String, Array<tir::IndexMap>>& op_buffer_transforms,
-                         const Map<String, Array<Array<IntImm>>>& axis_separators,
-                         const Map<String, Array<Array<IntImm>>>& input_axis_separators);
+                         const Map<String, Optional<Array<Array<IntImm>>>>& axis_separators,
+                         const Map<String, Optional<Array<Array<IntImm>>>>& input_axis_separators);
 
 /*!
  * \brief Layout conversion pass.

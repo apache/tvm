@@ -195,7 +195,7 @@ TVM_REGISTER_NODE_TYPE(PatternMatchingRewriterNode);
 
 TVM_REGISTER_GLOBAL("relax.dpl.PatternMatchingRewriterFromPattern")
     .set_body_typed([](DFPattern pattern,
-                       TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
+                       ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
       return PatternMatchingRewriter::FromPattern(pattern, func);
     });
 
@@ -261,12 +261,12 @@ Optional<Expr> ExprPatternRewriterNode::RewriteExpr(const Expr& expr,
 
 TVM_REGISTER_GLOBAL("relax.dpl.PatternRewriter")
     .set_body_typed([](DFPattern pattern,
-                       TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
+                       ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
       return ExprPatternRewriter(pattern, func);
     });
 
 ExprPatternRewriter::ExprPatternRewriter(
-    DFPattern pattern, TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
+    DFPattern pattern, ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
     Optional<Array<DFPattern>> additional_bindings, Map<GlobalVar, BaseFunc> new_subroutines) {
   auto node = make_object<ExprPatternRewriterNode>();
   node->pattern = std::move(pattern);
@@ -605,12 +605,12 @@ std::optional<std::vector<Expr>> TupleRewriterNode::TryMatchByBindingIndex(
 
 TVM_REGISTER_GLOBAL("relax.dpl.TupleRewriter")
     .set_body_typed([](Array<DFPattern> patterns,
-                       TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
+                       ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
       return TupleRewriter(patterns, func);
     });
 
 TupleRewriter::TupleRewriter(Array<DFPattern> patterns,
-                             TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
+                             ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
                              Optional<Array<DFPattern>> additional_bindings,
                              Map<GlobalVar, BaseFunc> new_subroutines) {
   auto node = make_object<TupleRewriterNode>();
@@ -622,7 +622,7 @@ TupleRewriter::TupleRewriter(Array<DFPattern> patterns,
 }
 
 PatternMatchingRewriter PatternMatchingRewriter::FromPattern(
-    DFPattern pattern, TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
+    DFPattern pattern, ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
     Optional<Array<DFPattern>> additional_bindings, Map<GlobalVar, BaseFunc> new_subroutines) {
   if (auto or_pattern = pattern.as<OrPatternNode>()) {
     auto new_additional_bindings = additional_bindings.value_or({});
@@ -749,7 +749,7 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
 
   DFPattern top_pattern = make_pattern(func_pattern->body->body);
 
-  TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> rewriter_func =
+  ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> rewriter_func =
       [param_wildcards = std::move(param_wildcards),
        orig_func_replacement = std::move(func_replacement)](
           Expr expr, Map<DFPattern, Expr> matches) -> Optional<Expr> {
@@ -1069,7 +1069,7 @@ tvm::transform::PassInfo PatternMatchingRewriterNode::Info() const {
 }
 
 Function RewriteCall(const DFPattern& pat,
-                     TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)> rewriter, Function func) {
+                     ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)> rewriter, Function func) {
   return Downcast<Function>(PatternMatchingRewriter::FromPattern(pat, rewriter)(func));
 }
 

@@ -56,11 +56,8 @@ void InitCCL(Session sess, IntTuple device_ids) {
   DRef func = sess->GetGlobalFunc("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker");
   DLOG(INFO) << "Initializing " TVM_DISCO_CCL_NAME " with devices: " << device_ids;
   ncclUniqueId id;
-  TVMByteArray array;
   NCCL_CALL(ncclGetUniqueId(&id));
-  array.data = id.internal;
-  array.size = NCCL_UNIQUE_ID_BYTES;
-  sess->CallPacked(func, device_ids, array);
+  sess->CallPacked(func, device_ids, ffi::Bytes(id.internal, NCCL_UNIQUE_ID_BYTES));
 }
 
 void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {

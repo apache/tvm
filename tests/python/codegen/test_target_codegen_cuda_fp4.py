@@ -44,7 +44,7 @@ def test_e2m1_vector_conversions(native_dtype, promoted_dtype):
         B: T.Buffer((vector_length,), native_dtype),
         C: T.Buffer((vector_length,), native_dtype),
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         # with T.block("root"):
         for i in range(vector_length):
             with T.block("C"):
@@ -110,7 +110,7 @@ def test_e2m1_schedule_vectorize():
             B: T.Buffer((n,), native_dtype),
             C: T.Buffer((n,), native_dtype),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i in range(n):
                 with T.block("C"):
                     v_i = T.axis.spatial(n, i)
@@ -169,7 +169,7 @@ def test_e2m1_reinterpret():
             A: T.Buffer((n,), src_dtype),
             B: T.Buffer((n,), dst_dtype),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i in range(n):
                 with T.block("C"):
                     v_i = T.axis.spatial(n, i)
@@ -225,7 +225,7 @@ def test_e2m1_dequantize():
             A: T.Buffer((n // num_elem_per_storage,), "uint32"),
             B: T.Buffer((n,), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i in range(n):
                 with T.block("C"):
                     v_i = T.axis.spatial(n, i)
@@ -254,7 +254,7 @@ def test_e2m1_dequantize():
             A: T.Buffer((n // num_elem_per_storage,), "uint32"),
             B: T.Buffer((n,), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i in range(n):
                 with T.block("C"):
                     v_i = T.axis.spatial(n, i)

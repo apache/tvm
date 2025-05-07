@@ -232,11 +232,13 @@ def find_include_path(name=None, search_path=None, optional=False):
         dmlc_include_path = []
     else:
         tvm_include_path = [os.path.join(p, "include") for p in header_path]
+        tvm_ffi_include_path = [os.path.join(p, "ffi/include") for p in header_path]
         dlpack_include_path = [os.path.join(p, "dlpack/include") for p in header_path]
         dmlc_include_path = [os.path.join(p, "dmlc-core/include") for p in header_path]
 
         # try to find include path
         include_found = [p for p in tvm_include_path if os.path.exists(p) and os.path.isdir(p)]
+        include_found += [p for p in tvm_ffi_include_path if os.path.exists(p) and os.path.isdir(p)]
         include_found += [p for p in dlpack_include_path if os.path.exists(p) and os.path.isdir(p)]
         include_found += [p for p in dmlc_include_path if os.path.exists(p) and os.path.isdir(p)]
 

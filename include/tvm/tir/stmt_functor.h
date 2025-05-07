@@ -102,6 +102,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
   virtual R VisitStmt_(const BlockRealizeNode* op, Args... args) STMT_FUNCTOR_DEFAULT;
   virtual R VisitStmtDefault_(const Object* op, Args...) {
     LOG(FATAL) << "Do not have a default for " << op->GetTypeKey();
+    TVM_FFI_UNREACHABLE();
   }
 
  private:
@@ -335,8 +336,7 @@ class StmtExprMutator : public StmtMutator, public ExprMutator {
  *          If it is not null, preorder/postorder will only be called
  *          when the IRNode's type key is in the list.
  */
-TVM_DLL Stmt IRTransform(Stmt stmt, const runtime::PackedFunc& preorder,
-                         const runtime::PackedFunc& postorder,
+TVM_DLL Stmt IRTransform(Stmt stmt, const ffi::Function& preorder, const ffi::Function& postorder,
                          Optional<Array<String>> only_enable = NullOpt);
 
 /*!

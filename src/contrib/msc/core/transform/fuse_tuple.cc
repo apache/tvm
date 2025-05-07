@@ -180,8 +180,8 @@ class TupleFuser : public ExprMutator {
     Expr body = builder_->Normalize(output);
     body = builder_->Normalize(SeqExpr({new_block}, body));
 
-    Map<String, ObjectRef> func_attrs;
-    func_attrs.Set(attr::kPrimitive, Integer(1));
+    Map<String, ffi::Any> func_attrs;
+    func_attrs.Set(attr::kPrimitive, true);
     func_attrs.Set(attr::kComposite, target_ + func_name);
     func_attrs.Set(msc_attr::kUnique, SpanUtils::GetAttr(expr_span, msc_attr::kName));
 
@@ -226,8 +226,9 @@ IRModule FuseTuple(IRModule mod, const String& target, const String& entry_name)
 namespace transform {
 
 Pass FuseTuple(const String& target, const String& entry_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::FuseTuple(m, target, entry_name); };
+  auto pass_func = [=](IRModule m, PassContext pc) {
+    return relax::FuseTuple(m, target, entry_name);
+  };
   return CreateModulePass(pass_func, 0, "FuseTuple", {});
 }
 

@@ -93,8 +93,7 @@ Function BundleModelParams(const Function& func, Optional<String> param_tuple_na
 
 namespace transform {
 Pass BundleModelParams(Optional<String> param_tuple_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule mod, PassContext pc) {
     IRModule updates;
 
     ModelParamBundler mutator(param_tuple_name);

@@ -198,7 +198,7 @@ tvm/runtime
 The runtime serves as the foundation of the TVM stack. It provides the mechanism to load and execute compiled artifacts.
 The runtime defines a stable standard set of C APIs to interface with frontend languages such as Python and Rust.
 
-`runtime::Object` is one of the primary data structures in TVM runtime besides the `runtime::PackedFunc`.
+`runtime::Object` is one of the primary data structures in TVM runtime besides the `ffi::Function`.
 It is a reference-counted base class with a type index to support runtime type checking and downcasting.
 The object system allows the developer to introduce new data structures to the runtime, such as Array, Map, and new IR data structures.
 

@@ -41,9 +41,9 @@
 namespace tvm {
 namespace codegen {
 
-using runtime::PackedFunc;
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
+using ffi::Any;
+using ffi::Function;
+using ffi::PackedArgs;
 
 using runtime::FunctionInfo;
 using runtime::GetFileFormat;
@@ -56,10 +56,10 @@ class SourceModuleNode : public runtime::ModuleNode {
   SourceModuleNode(std::string code, std::string fmt) : code_(code), fmt_(fmt) {}
   const char* type_key() const final { return "source"; }
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "Source module cannot execute, to get executable module"
                << " build TVM with \'" << fmt_ << "\' runtime support";
-    return PackedFunc();
+    return ffi::Function();
   }
 
   String GetSource(const String& format) final { return code_; }
@@ -84,22 +84,22 @@ class CSourceModuleNode : public runtime::ModuleNode {
       : code_(code), fmt_(fmt), const_vars_(const_vars), func_names_(func_names) {}
   const char* type_key() const final { return "c"; }
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     // Currently c-source module is used as demonstration purposes with binary metadata module
     // that expects get_symbol interface. When c-source module is used as external module, it
     // will only contain one function. However, when its used as an internal module (e.g., target
     // "c") it can have many functions.
     if (name == "get_symbol") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->func_names_[0]; });
+      return ffi::Function(
+          [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->func_names_[0]; });
     } else if (name == "get_const_vars") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->const_vars_; });
+      return ffi::Function(
+          [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->const_vars_; });
     } else if (name == "get_func_names") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->func_names_; });
+      return ffi::Function(
+          [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->func_names_; });
     } else {
-      return PackedFunc(nullptr);
+      return ffi::Function(nullptr);
     }
   }
 
@@ -202,10 +202,10 @@ class DeviceSourceModuleNode final : public runtime::ModuleNode {
                          std::function<std::string(const std::string&)> fget_source)
       : data_(data), fmt_(fmt), fmap_(fmap), type_key_(type_key), fget_source_(fget_source) {}
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "Source module cannot execute, to get executable module"
                << " build TVM with \'" << fmt_ << "\' runtime support";
-    return PackedFunc();
+    return ffi::Function();
   }
 
   String GetSource(const String& format) final {
@@ -252,9 +252,9 @@ runtime::Module DeviceSourceModuleCreate(
 TVM_REGISTER_GLOBAL("runtime.SourceModuleCreate").set_body_typed(SourceModuleCreate);
 
 TVM_REGISTER_GLOBAL("runtime.CSourceModuleCreate")
-    .set_body_typed([](String code, String fmt, Array<String> func_names,
-                       Array<String> const_vars) {
-      return CSourceModuleCreate(code, fmt, func_names, const_vars);
+    .set_body_typed([](String code, String fmt, Optional<Array<String>> func_names,
+                       Optional<Array<String>> const_vars) {
+      return CSourceModuleCreate(code, fmt, func_names.value_or({}), const_vars.value_or({}));
     });
 
 }  // namespace codegen

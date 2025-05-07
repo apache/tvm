@@ -43,7 +43,7 @@ def test_cuda_c1d():
     # fmt: off
     @T.prim_func
     def c1d_0(inputs: T.Buffer((1, 256, 64), "float32"), weight: T.Buffer((3, 64, 128), "float32"), conv1d_nlc: T.Buffer((1, 128, 128), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -121,7 +121,7 @@ def test_cuda_c2d():
     # fmt: off
     @T.prim_func
     def c2d_0(inputs: T.Buffer((1, 224, 224, 3), "float32"), weight: T.Buffer((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Buffer((1, 112, 112, 64), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -205,7 +205,7 @@ def test_cuda_c3d():
     # fmt: off
     @T.prim_func
     def c3d_0(inputs: T.Buffer((1, 16, 224, 224, 3), "float32"), weight: T.Buffer((7, 7, 7, 3, 64), "float32"), conv3d_ndhwc: T.Buffer((1, 8, 112, 112, 64), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -295,7 +295,7 @@ def test_cuda_cap():
     # fmt: off
     @T.prim_func
     def cap_0(inputs: T.Buffer((1, 16, 16, 4, 4, 32), "float32"), weight: T.Buffer((3, 3, 4, 4, 32, 32), "float32"), conv2d_capsule_nhwijc: T.Buffer((1, 8, 8, 4, 4, 32), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -389,7 +389,7 @@ def test_cuda_dep():
     # fmt: off
     @T.prim_func
     def dep_0(placeholder: T.Buffer((1, 112, 112, 32), "float32"), placeholder_1: T.Buffer((1, 3, 3, 32), "float32"), depth_conv2d_nhwc: T.Buffer((1, 112, 112, 32), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -470,7 +470,7 @@ def test_cuda_dil():
     # fmt: off
     @T.prim_func
     def dil_0(inputs: T.Buffer((1, 224, 224, 3), "float32"), weight: T.Buffer((7, 7, 3, 64), "float32"), conv2d_nhwc: T.Buffer((1, 109, 109, 64), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -551,7 +551,7 @@ def test_cuda_gmm():
     # fmt: off
     @T.prim_func
     def gmm_0(X: T.Buffer((1, 128, 128), "float32"), Y: T.Buffer((1, 128, 128), "float32"), Z: T.Buffer((1, 128, 128), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -625,7 +625,7 @@ def test_cuda_grp():
     # fmt: off
     @T.prim_func
     def grp_0(inputs: T.Buffer((1, 56, 56, 64), "float32"), weight: T.Buffer((3, 3, 16, 128), "float32"), conv2d_nhwc: T.Buffer((1, 28, 28, 128), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -707,7 +707,7 @@ def test_cuda_t2d():
     # fmt: off
     @T.prim_func
     def t2d_0(inputs: T.Buffer((1, 4, 4, 512), "float32"), weight: T.Buffer((4, 4, 512, 256), "float32"), conv2d_transpose_nhwc: T.Buffer((1, 8, 8, 256), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -791,7 +791,7 @@ def test_cuda_nrm():
     # fmt: off
     @T.prim_func
     def nrm_0(A: T.Buffer((1, 256, 256), "float32"), D: T.Buffer(1, "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -817,7 +817,7 @@ def test_cuda_nrm():
                         D[v_b] = T.sqrt(C[v_b])
     @T.prim_func
     def nrm_1(A: T.Buffer((1, 256, 256), "float32"), D: T.Buffer(1, "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -864,7 +864,7 @@ def test_cuda_sfm():
     # fmt: off
     @T.prim_func
     def sfm_0(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -904,7 +904,7 @@ def test_cuda_sfm():
                         T_softmax_norm[v_i0, v_i1] = T.exp(A[v_i0, v_i1] - T_softmax_maxelem[v_i0]) / T_softmax_expsum[v_i0]
     @T.prim_func
     def sfm_1(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -944,7 +944,7 @@ def test_cuda_sfm():
                         T_softmax_norm[v_i0, v_i1] = T.exp(A[v_i0, v_i1] - T_softmax_maxelem[v_i0]) / T_softmax_expsum[v_i0]
     @T.prim_func
     def sfm_2(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -986,7 +986,7 @@ def test_cuda_sfm():
                             T_softmax_norm[v_i0, v_i1] = T.exp(A[v_i0, v_i1] - T_softmax_maxelem[v_i0]) / T_softmax_expsum_shared[v_i0]
     @T.prim_func
     def sfm_3(A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -1063,7 +1063,7 @@ def test_cuda_cbr():
     # fmt: off
     @T.prim_func
     def cbr_0(data: T.Buffer((1, 224, 224, 3), "float32"), kernel: T.Buffer((7, 7, 3, 64), "float32"), bias: T.Buffer(64, "float32"), bn_offset: T.Buffer(64, "float32"), bn_scale: T.Buffer(64, "float32"), compute: T.Buffer((1, 112, 112, 64), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()
@@ -1146,7 +1146,7 @@ def test_cuda_tbg():
     # fmt: off
     @T.prim_func
     def tbg_0(query: T.Buffer((1, 128, 12, 64), "float32"), value: T.Buffer((1, 128, 12, 64), "float32"), C: T.Buffer((1, 12, 128, 128), "float32")) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.block("root"):
             T.reads()
             T.writes()

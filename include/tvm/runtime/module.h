@@ -27,6 +27,7 @@
 #define TVM_RUNTIME_MODULE_H_
 
 #include <dmlc/io.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/memory.h>
@@ -71,7 +72,6 @@ enum ModulePropertyMask : int {
 };
 
 class ModuleNode;
-class PackedFunc;
 
 /*!
  * \brief Module container of TVM.
@@ -87,10 +87,10 @@ class Module : public ObjectRef {
    * \param name The name of the function.
    * \param query_imports Whether also query dependency modules.
    * \return The result function.
-   *  This function will return PackedFunc(nullptr) if function do not exist.
+   *  This function will return ffi::Function(nullptr) if function do not exist.
    * \note Implemented in packed_func.cc
    */
-  inline PackedFunc GetFunction(const String& name, bool query_imports = false);
+  inline ffi::Function GetFunction(const String& name, bool query_imports = false);
   // The following functions requires link with runtime.
   /*!
    * \brief Import another module into this module.
@@ -149,9 +149,9 @@ class TVM_DLL ModuleNode : public Object {
    */
   virtual const char* type_key() const = 0;
   /*!
-   * \brief Get a PackedFunc from module.
+   * \brief Get a ffi::Function from module.
    *
-   *  The PackedFunc may not be fully initialized,
+   *  The ffi::Function may not be fully initialized,
    *  there might still be first time running overhead when
    *  executing the function on certain devices.
    *  For benchmarking, use prepare to eliminate
@@ -159,13 +159,13 @@ class TVM_DLL ModuleNode : public Object {
    * \param name the name of the function.
    * \param sptr_to_self The ObjectPtr that points to this module node.
    *
-   * \return PackedFunc(nullptr) when it is not available.
+   * \return ffi::Function(nullptr) when it is not available.
    *
    * \note The function will always remain valid.
    *   If the function need resource from the module(e.g. late linking),
    *   it should capture sptr_to_self.
    */
-  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) = 0;
+  virtual ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) = 0;
   /*!
    * \brief Save the module to file.
    * \param file_name The file to be saved to.
@@ -197,10 +197,10 @@ class TVM_DLL ModuleNode : public Object {
    * \param name The name of the function.
    * \param query_imports Whether also query dependency modules.
    * \return The result function.
-   *  This function will return PackedFunc(nullptr) if function do not exist.
+   *  This function will return ffi::Function(nullptr) if function do not exist.
    * \note Implemented in packed_func.cc
    */
-  PackedFunc GetFunction(const String& name, bool query_imports = false);
+  ffi::Function GetFunction(const String& name, bool query_imports = false);
   /*!
    * \brief Import another module into this module.
    * \param other The module to be imported.
@@ -216,7 +216,7 @@ class TVM_DLL ModuleNode : public Object {
    * \param name name of the function.
    * \return The corresponding function.
    */
-  const PackedFunc* GetFuncFromEnv(const String& name);
+  const ffi::Function* GetFuncFromEnv(const String& name);
 
   /*! \brief Clear all imports of the module. */
   void ClearImports() { imports_.clear(); }
@@ -253,11 +253,11 @@ class TVM_DLL ModuleNode : public Object {
   virtual bool ImplementsFunction(const String& name, bool query_imports = false);
 
   // integration with the existing components.
-  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeModule;
+  static constexpr const uint32_t _type_index = ffi::TypeIndex::kTVMFFIModule;
   static constexpr const char* _type_key = "runtime.Module";
   // NOTE: ModuleNode can still be sub-classed
   //
-  TVM_DECLARE_FINAL_OBJECT_INFO(ModuleNode, Object);
+  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ModuleNode, Object);
 
  protected:
   friend class Module;
@@ -267,7 +267,7 @@ class TVM_DLL ModuleNode : public Object {
 
  private:
   /*! \brief Cache used by GetImport */
-  std::unordered_map<std::string, std::shared_ptr<PackedFunc>> import_cache_;
+  std::unordered_map<std::string, std::shared_ptr<ffi::Function>> import_cache_;
   std::mutex mutex_;
 };
 
@@ -278,9 +278,14 @@ class TVM_DLL ModuleNode : public Object {
  */
 TVM_DLL bool RuntimeEnabled(const String& target);
 
+// implementation of Module::GetFunction
+inline ffi::Function Module::GetFunction(const String& name, bool query_imports) {
+  return (*this)->GetFunction(name, query_imports);
+}
+
 /*! \brief namespace for constant symbols */
 namespace symbol {
-/*! \brief A PackedFunc that retrieves exported metadata. */
+/*! \brief A ffi::Function that retrieves exported metadata. */
 constexpr const char* tvm_get_c_metadata = "get_c_metadata";
 /*! \brief Global variable to store module context. */
 constexpr const char* tvm_module_ctx = "__tvm_module_ctx";
@@ -296,7 +301,7 @@ constexpr const char* tvm_prepare_global_barrier = "__tvm_prepare_global_barrier
 constexpr const char* tvm_module_main = "__tvm_main__";
 /*! \brief Prefix for parameter symbols emitted into the main program. */
 constexpr const char* tvm_param_prefix = "__tvm_param__";
-/*! \brief A PackedFunc that looks up linked parameters by storage_id. */
+/*! \brief A ffi::Function that looks up linked parameters by storage_id. */
 constexpr const char* tvm_lookup_linked_param = "_lookup_linked_param";
 /*! \brief Model entrypoint generated as an interface to the AOT function outside of TIR */
 constexpr const char* tvm_entrypoint_suffix = "run";

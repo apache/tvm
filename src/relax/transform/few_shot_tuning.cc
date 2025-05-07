@@ -28,29 +28,24 @@ namespace transform {
 tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& target,
                                   int64_t valid_count, bool benchmark) {
   // fetch a local builder
-  static const auto* f_get_local_builder =
-      runtime::Registry::Get("meta_schedule.builder.get_local_builder");
-  ICHECK(f_get_local_builder)
-      << "ValueError: Cannot find the packed function \"meta_schedule.builder.get_local_builder\"";
-  meta_schedule::Builder builder = (*f_get_local_builder)();
+  static const auto f_get_local_builder =
+      tvm::ffi::Function::GetGlobalRequired("meta_schedule.builder.get_local_builder");
+  meta_schedule::Builder builder = f_get_local_builder().cast<meta_schedule::Builder>();
   ICHECK(builder.defined()) << "ValueError: The local builder is not defined!";
   // fetch a local runner
   meta_schedule::Runner runner{nullptr};
   if (benchmark) {
-    static const auto* f_get_local_runner =
-        runtime::Registry::Get("meta_schedule.runner.get_local_runner");
-    ICHECK(f_get_local_runner) << "ValueError: Cannot find the packed function "
-                                  "\"meta_schedule.builder.get_local_runner\"";
-    runner = (*f_get_local_runner)();
+    static const auto f_get_local_runner =
+        tvm::ffi::Function::GetGlobalRequired("meta_schedule.runner.get_local_runner");
+    runner = f_get_local_runner().cast<meta_schedule::Runner>();
     ICHECK(runner.defined()) << "ValueError: The local runner is not defined!";
   }
   // create an IRModule
   IRModule mod = IRModule(Map<GlobalVar, BaseFunc>(
       {{GlobalVar("main"), WithAttr(prim_func, tvm::attr::kGlobalSymbol, String("main"))}}));
   // fetch the number of physical cores
-  static const auto* f_cpu_count = runtime::Registry::Get("meta_schedule.cpu_count");
-  ICHECK(f_cpu_count) << "ValueError: Cannot find the packed function \"meta_schedule._cpu_count\"";
-  int num_threads = (*f_cpu_count)(false);
+  static const auto f_cpu_count = tvm::ffi::Function::GetGlobalRequired("meta_schedule.cpu_count");
+  int num_threads = f_cpu_count(false).cast<int>();
   // store the results
   Array<IRModule> results;
   std::vector<double> costs;
@@ -148,7 +143,7 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
 }
 
 Pass FewShotTuning(int valid_count, bool benchmark) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule m, PassContext pc) {
         // input check
         CHECK(valid_count > 0) << "Valid_count must be positive.";

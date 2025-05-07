@@ -334,7 +334,7 @@ class ProxyServerHandler(object):
         keyset = set(self._server_pool.keys())
         new_keys = []
         # re-generate the server match key, so old information is invalidated.
-        for key in keys:
+        for key in tuple(keys):
             rpc_key, _ = base.split_random_key(key)
             handle = self._server_pool[key]
             del self._server_pool[key]
@@ -519,7 +519,6 @@ class PopenProxyServerState(object):
         index_page=None,
         resource_files=None,
     ):
-
         sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
         self.port = None
         for my_port in range(port, port_end):

@@ -168,7 +168,7 @@ void _TVMValueNativeGet(void* to_ptr, void* from_ptr, int ind) {
 extern int goTVMCallback(void*, void*, int, void*, void*);
 
 /*!
- * \brief _TVMCallback is the TVM runtime callback function for PackedFunction system.
+ * \brief _TVMCallback is the TVM runtime callback function for ffi::Functiontion system.
  *
  * \param args is an array of TVMValue
  * \param type_codes is an array of int

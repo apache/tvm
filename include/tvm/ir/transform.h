@@ -86,7 +86,7 @@ class PassContextNode : public Object {
   /*! \brief The diagnostic context. */
   mutable Optional<DiagnosticContext> diag_ctx;
   /*! \brief Pass specific configurations. */
-  Map<String, ObjectRef> config;
+  Map<String, Any> config;
 
   /*! \brief A list of pass instrument implementations. */
   Array<instrument::PassInstrument> instruments;
@@ -114,10 +114,9 @@ class PassContextNode : public Object {
    * \throw Error if the key exists but the value does not match TObjectRef.
    */
   template <typename TObjectRef>
-  Optional<TObjectRef> GetConfig(const std::string& key, Optional<TObjectRef> default_value =
-                                                             Optional<TObjectRef>(nullptr)) const {
-    static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
-                  "Can only call GetAttr with ObjectRef types.");
+  Optional<TObjectRef> GetConfig(
+      const std::string& key,
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
     if (!config.defined()) return default_value;
     auto it = config.find(key);
     if (it != config.end()) {
@@ -267,36 +266,23 @@ class PassContext : public ObjectRef {
    * \tparam ValueType The value type to be registered
    */
   template <typename ValueType>
-  static uint32_t RegisterConfigOption(const char* key) {
-    using ValueNodeType = typename ValueType::ContainerType;
+  static int32_t RegisterConfigOption(const char* key) {
     // NOTE: we could further update the function later.
-    uint32_t tindex = ValueNodeType::_GetOrAllocRuntimeTypeIndex();
-    auto type_key = runtime::Object::TypeIndex2Key(tindex);
-
+    int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
     auto* reflection = ReflectionVTable::Global();
+    auto type_key = ffi::TypeIndexToTypeKey(tindex);
 
-    auto legalization = [=](ObjectRef obj) -> ObjectRef {
-      if (obj->IsInstance<Map<String, ObjectRef>::ContainerType>()) {
-        return reflection->CreateObject(type_key, Downcast<Map<String, ObjectRef>>(obj));
+    auto legalization = [=](ffi::Any value) -> ffi::Any {
+      if (auto opt_map = value.as<Map<String, ffi::Any>>()) {
+        return reflection->CreateObject(type_key, opt_map.value());
       } else {
-        // Backwards compatibility for config options defined prior to
-        // https://github.com/apache/tvm/pull/16183.  This commit
-        // changed the default FFI conversion of python integers from
-        // `tvm::IntImm` to `runtime::Int`.
-        //
-        // This backwards compatibility fix can be removed when all
-        // options registered with TVM_REGISTER_PASS_CONFIG_OPTION are
-        // updated to use `runtime::Int` and `runtime::Bool`.
-        TVMRetValue ret;
-        ret = obj;
-        try {
-          ValueType legalized = ret;
-          return legalized;
-        } catch (Error& err) {
-          LOG(FATAL) << "AttributeError: expect config " << key << " to have type " << type_key
-                     << ", but received error when converting to this type.\n"
-                     << err.what();
+        auto opt_val = value.as<ValueType>();
+        if (!opt_val.has_value()) {
+          TVM_FFI_THROW(AttributeError)
+              << "Expect config " << key << " to have type " << type_key << ", but instead get "
+              << ffi::details::AnyUnsafe::GetMismatchTypeInfo<ValueType>(value);
         }
+        return value;
       }
     };
 
@@ -315,7 +301,7 @@ class PassContext : public ObjectRef {
   TVM_DLL void ExitWithScope();
   // Register configuration key value type.
   TVM_DLL static void RegisterConfigOption(const char* key, uint32_t value_type_index,
-                                           std::function<ObjectRef(ObjectRef)> legalization);
+                                           std::function<ffi::Any(ffi::Any)> legalization);
 
   // Classes to get the Python `with` like syntax.
   friend class Internal;
@@ -551,9 +537,9 @@ class Sequential : public Pass {
  *
  * \return The created module pass.
  */
-TVM_DLL Pass CreateModulePass(
-    const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func, int opt_level,
-    String name, Array<runtime::String> required, bool traceable = false);
+TVM_DLL Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
+                              int opt_level, String name, Array<runtime::String> required,
+                              bool traceable = false);
 
 /*
  * \brief Utility to apply a pass to specific functions in an IRModule

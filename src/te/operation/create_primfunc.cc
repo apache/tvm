@@ -140,10 +140,10 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
     if (this->layout_free_buffer_indices_.empty()) {
       return func;
     }
-    Array<Integer> indices;
+    Array<int64_t> indices;
     indices.reserve(this->layout_free_buffer_indices_.size());
     for (int i : this->layout_free_buffer_indices_) {
-      indices.push_back(Integer(i));
+      indices.push_back(i);
     }
     return WithAttr(std::move(func), tir::attr::layout_free_buffers, indices);
   }
@@ -151,9 +151,9 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
   Stmt VisitStmt_(const BlockNode* _block) final {
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(_block));
     BlockNode* n = block.CopyOnWrite();
-    if (Optional<ObjectRef> ann = n->annotations.Get(topi_attr)) {
+    if (auto opt_ann = n->annotations.Get(topi_attr)) {
       Array<Buffer> new_buffers;
-      for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
+      for (Buffer buffer : Downcast<Array<Buffer>>(opt_ann.value())) {
         auto it = buffer2index_.find(buffer);
         if (it != buffer2index_.end()) {
           layout_free_buffer_indices_.insert(it->second);
@@ -295,10 +295,10 @@ Array<Buffer> GenerateOutputBuffers(const te::ComputeOp& compute_op, CreateFuncI
  * \param info Generation context info.
  * \returns The block annotation dict.
  **/
-Map<String, ObjectRef> GenerateBlockAnnotations(const te::ComputeOp& compute_op,
-                                                CreateFuncInfo* info) {
-  Map<String, ObjectRef> annotations;
-  auto mutate_attr = [&info](const ObjectRef& value) -> ObjectRef {
+Map<String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& compute_op,
+                                               CreateFuncInfo* info) {
+  Map<String, ffi::Any> annotations;
+  auto mutate_attr = [&info](const ffi::Any& value) -> ffi::Any {
     if (auto tensor_value = value.as<te::Tensor>()) {
       return info->tensor2buffers.at(tensor_value.value());
     } else {
@@ -307,10 +307,10 @@ Map<String, ObjectRef> GenerateBlockAnnotations(const te::ComputeOp& compute_op,
   };
   for (const auto& pair : compute_op->attrs) {
     const String& key = pair.first;
-    const ObjectRef& value = pair.second;
+    const Any& value = pair.second;
     // TensorIR will not allow Tensor data structure
-    if (value->IsInstance<ArrayNode>()) {
-      const auto array_value = Downcast<Array<ObjectRef>>(value);
+    if (value.as<ArrayObj>()) {
+      const auto array_value = Downcast<Array<ffi::Any>>(value);
       annotations.Set(key, array_value.Map(mutate_attr));
     } else {
       annotations.Set(key, mutate_attr(value));
@@ -532,7 +532,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   // Step 4. Generate leaf block stmts.
   Array<Stmt> seq_stmt;
   auto leaf = scopes.back();
-  Map<String, ObjectRef> annotations = GenerateBlockAnnotations(compute_op, info);
+  Map<String, ffi::Any> annotations = GenerateBlockAnnotations(compute_op, info);
   const ReduceNode* reduce = compute_op->body[0].as<ReduceNode>();
   if (reduce) {
     PrimExpr expr_body = compute_op->body[0];
@@ -741,10 +741,10 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
                                      /*body=*/SeqStmt::Flatten(root_stmts),
                                      /*ret_type=*/VoidType(),
                                      /*buffer_map=*/std::move(buffer_map)),
-                            {{"global_symbol", String("main")}, {"tir.noalias", Bool(true)}});
-  const auto* complete = runtime::Registry::Get("script.Complete");
-  ICHECK(complete);
-  func = (*complete)(std::move(func), info->root_alloc);
+                            {{"global_symbol", String("main")}, {"tir.noalias", true}});
+  const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
+  ICHECK(fcomplete.has_value());
+  func = (*fcomplete)(std::move(func), info->root_alloc).cast<PrimFunc>();
   return func;
 }
 
@@ -784,12 +784,12 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
   return CreatePrimFuncWithConstants(arg_list, {}, index_dtype_override);
 }
 
-TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body([](TVMArgs args, TVMRetValue* ret) {
-  Array<ObjectRef> arg_list = args[0];
+TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+  Array<ObjectRef> arg_list = args[0].cast<Array<ObjectRef>>();
   std::optional<DataType> index_dtype_override{std::nullopt};
   // Add conversion to make std::optional compatible with FFI.
-  if (args[1].type_code() != kTVMNullptr) {
-    index_dtype_override = args[1].operator DataType();
+  if (args[1] != nullptr) {
+    index_dtype_override = args[1].cast<DataType>();
   }
   *ret = CreatePrimFunc(arg_list, index_dtype_override);
 });
@@ -815,11 +815,10 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<ObjectRef>& arg_tir_var_list,
                                      /*body=*/SeqStmt::Flatten(root_stmts),
                                      /*ret_type=*/VoidType(),
                                      /*buffer_map=*/std::move(buffer_map)),
-                            {{"global_symbol", String("main")}, {"tir.noalias", Bool(true)}});
-
-  const auto* complete = runtime::Registry::Get("script.Complete");
-  ICHECK(complete);
-  func = (*complete)(std::move(func), info->root_alloc);
+                            {{"global_symbol", String("main")}, {"tir.noalias", true}});
+  const auto fcomplete = tvm::ffi::Function::GetGlobal("script.Complete");
+  ICHECK(fcomplete.has_value());
+  func = (*fcomplete)(std::move(func), info->root_alloc).cast<PrimFunc>();
   return func;
 }
 

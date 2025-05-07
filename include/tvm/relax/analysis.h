@@ -214,7 +214,7 @@ enum class BaseCheckResult {
    * - (b) We automatically insert match_cast at function boundary, so
    *       we can erase (int)->int argument as (object)->int.
    *       The input shape/type mismatch will be detected by runtime checks at function boundary.
-   *       This behavior is also consistent with the PackedFunc behavior.
+   *       This behavior is also consistent with the ffi::Function behavior.
    *
    * \note This level means there is no problem about static known information.
    *       It is OK for the checker to do best effort and return this value.
@@ -541,8 +541,8 @@ TVM_DLL bool HasReshapePattern(const tir::PrimFunc& func);
  *   Also, an impure call in a *nested* function does *not* mean that the outer expression contains
  *   an impure call--it only does if the nested function is *later called*.
  */
-TVM_DLL Optional<Expr> FindImpureCall(const Expr& expr,
-                                      const Optional<Expr>& own_name = Optional<Expr>(nullptr));
+TVM_DLL Optional<Expr> FindImpureCall(
+    const Expr& expr, const Optional<Expr>& own_name = Optional<Expr>(std::nullopt));
 
 /*!
  * \brief Check if the given expression (likely a function body) contains any impure calls.
@@ -556,7 +556,7 @@ TVM_DLL Optional<Expr> FindImpureCall(const Expr& expr,
  *   an impure call--it only does if the nested function is *later called*.
  */
 TVM_DLL bool ContainsImpureCall(const Expr& expr,
-                                const Optional<Expr>& own_name = Optional<Expr>(nullptr));
+                                const Optional<Expr>& own_name = Optional<Expr>(std::nullopt));
 
 /*!
  * \brief Check if the IRModule is well formed.

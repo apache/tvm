@@ -43,6 +43,8 @@ class ReprPrinter {
 
   /*! \brief The node to be printed. */
   TVM_DLL void Print(const ObjectRef& node);
+  /*! \brief The node to be printed. */
+  TVM_DLL void Print(const ffi::Any& node);
   /*! \brief Print indent to the stream */
   TVM_DLL void PrintIndent();
   // Allow registration to be printer.
@@ -91,11 +93,23 @@ TVM_DLL void Dump(const runtime::Object* node);
 }  // namespace tvm
 
 namespace tvm {
-namespace runtime {
+namespace ffi {
 // default print function for all objects
 // provide in the runtime namespace as this is where objectref originally comes from.
 inline std::ostream& operator<<(std::ostream& os, const ObjectRef& n) {  // NOLINT(*)
   ReprPrinter(os).Print(n);
+  return os;
+}
+
+// default print function for any
+inline std::ostream& operator<<(std::ostream& os, const Any& n) {  // NOLINT(*)
+  ReprPrinter(os).Print(n);
+  return os;
+}
+
+template <typename... V>
+inline std::ostream& operator<<(std::ostream& os, const Variant<V...>& n) {  // NOLINT(*)
+  ReprPrinter(os).Print(Any(n));
   return os;
 }
 
@@ -104,7 +118,7 @@ inline std::string AsLegacyRepr(const ObjectRef& n) {
   ReprLegacyPrinter(os).Print(n);
   return os.str();
 }
-}  // namespace runtime
-using runtime::AsLegacyRepr;
+}  // namespace ffi
+using ffi::AsLegacyRepr;
 }  // namespace tvm
 #endif  // TVM_NODE_REPR_PRINTER_H_

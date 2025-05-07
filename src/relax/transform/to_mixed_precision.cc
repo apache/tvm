@@ -318,7 +318,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       // We only rewrite the expr if the dtype is fp16 or fp32, dtypes such as int32, float64 is not
       // supported to be rewritten
       if (tensor->dtype != fp16_ && tensor->dtype != fp32_) return expr;
-      return astype(expr, DataType(String2DLDataType(to[0].LeafValue())));
+      return astype(expr, DataType(StringToDLDataType(to[0].LeafValue())));
     };
     return TransformTupleLeaf<String>(expr, std::array<NType, 1>({to}), fvisitleaf);
   }
@@ -614,10 +614,9 @@ Expr ToMixedPrecision(const Function& f, const DataType& out_dtype,
 namespace transform {
 
 Pass ToMixedPrecision(const DataType& out_dtype, Optional<Array<String>> fp16_input_names) {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(ToMixedPrecision(f, out_dtype, fp16_input_names));
-      };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return Downcast<Function>(ToMixedPrecision(f, out_dtype, fp16_input_names));
+  };
   return CreateFunctionPass(pass_func, 0, "ToMixedPrecision", {});
 }
 

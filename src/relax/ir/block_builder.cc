@@ -1059,16 +1059,14 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderCreate").set_body_typed([](Optional<IRMod
 });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginDataflowBlock")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::BeginDataflowBlock);
+    .set_body_method(&BlockBuilderNode::BeginDataflowBlock);
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginBindingBlock")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::BeginBindingBlock);
+    .set_body_method(&BlockBuilderNode::BeginBindingBlock);
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderEndBlock")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::EndBlock);
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEndBlock").set_body_method(&BlockBuilderNode::EndBlock);
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderNormalize")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::Normalize);
+TVM_REGISTER_GLOBAL("relax.BlockBuilderNormalize").set_body_method(&BlockBuilderNode::Normalize);
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderEmit")
     .set_body_typed([](BlockBuilder builder, Expr expr, String name_hint) {
@@ -1097,27 +1095,24 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderGetUniqueName")
     });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderAddFunction")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::AddFunction);
+    .set_body_method(&BlockBuilderNode::AddFunction);
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderUpdateFunction")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::UpdateFunction);
+    .set_body_method(&BlockBuilderNode::UpdateFunction);
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderGetContextIRModule")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::GetContextIRModule);
+    .set_body_method(&BlockBuilderNode::GetContextIRModule);
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderFinalize")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::Finalize);
+TVM_REGISTER_GLOBAL("relax.BlockBuilderFinalize").set_body_method(&BlockBuilderNode::Finalize);
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderCurrentBlockIsDataFlow")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::CurrentBlockIsDataFlow);
+    .set_body_method(&BlockBuilderNode::CurrentBlockIsDataFlow);
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderLookupBinding")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::LookupBinding);
+    .set_body_method(&BlockBuilderNode::LookupBinding);
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginScope")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::BeginScope);
+TVM_REGISTER_GLOBAL("relax.BlockBuilderBeginScope").set_body_method(&BlockBuilderNode::BeginScope);
 
-TVM_REGISTER_GLOBAL("relax.BlockBuilderEndScope")
-    .set_body_method<BlockBuilder>(&BlockBuilderNode::EndScope);
+TVM_REGISTER_GLOBAL("relax.BlockBuilderEndScope").set_body_method(&BlockBuilderNode::EndScope);
 }  // namespace relax
 }  // namespace tvm

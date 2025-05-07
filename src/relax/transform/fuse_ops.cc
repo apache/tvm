@@ -468,7 +468,7 @@ class FunctionCreator : public ExprMutator {
    * It will become the value of the kComposite attribute of the created function.
    * \note The created function won't be returned immediately. It's stored in the `function_` field.
    */
-  void CreateFunction(Map<String, ObjectRef> group_attrs) {
+  void CreateFunction(Map<String, Any> group_attrs) {
     // Step 1. Start constructing a new dataflow block.
     builder_->BeginDataflowBlock();
 
@@ -542,7 +542,7 @@ class FunctionCreator : public ExprMutator {
       Expr body = outputs.size() == 1 ? outputs[0] : Tuple(outputs);
       body = builder_->Normalize(body);
       body = builder_->Normalize(SeqExpr({new_block}, body));
-      group_attrs.Set(tvm::relax::attr::kPrimitive, Integer(1));
+      group_attrs.Set(tvm::relax::attr::kPrimitive, true);
       Function function = Function(/*params=*/params_,           //
                                    /*body=*/body,                //
                                    /*ret_struct_info=*/NullOpt,  //
@@ -599,13 +599,8 @@ class FunctionCreator : public ExprMutator {
     const auto* var = expr.as<VarNode>();
     if ((var == nullptr || defined_vars_.count(var) == 0) &&
         (lift_constant_ || !expr->IsInstance<ConstantNode>())) {
-      String name{nullptr};
-      if (var != nullptr) {
-        name = var->name_hint();
-      } else {
-        name = String("param_" + std::to_string(n_param_for_const_++));
-      }
-
+      String name = var != nullptr ? var->name_hint()
+                                   : String("param_" + std::to_string(n_param_for_const_++));
       StructInfo param_sinfo = GetStructInfo(expr);
       if (!IsInlinableConstants(expr)) {
         Var param(std::move(name), GetStructInfo(expr));
@@ -1060,8 +1055,8 @@ class PatternBasedPartitioner : ExprVisitor {
   using GroupMap = OperatorFusor::GroupMap;
   using PatternCheckContext = transform::PatternCheckContext;
   using ExprVisitor::VisitExpr_;
-  using FCheckMatch = runtime::TypedPackedFunc<bool(const transform::PatternCheckContext&)>;
-  using FAttrsGetter = runtime::TypedPackedFunc<Map<String, ObjectRef>(const Map<String, Expr>&)>;
+  using FCheckMatch = ffi::TypedFunction<bool(const transform::PatternCheckContext&)>;
+  using FAttrsGetter = ffi::TypedFunction<Map<String, ffi::Any>(const Map<String, Expr>&)>;
 
   static GroupMap Run(String pattern_name, DFPattern pattern,
                       Map<String, DFPattern> annotation_patterns, FCheckMatch check, Expr expr,
@@ -1354,7 +1349,7 @@ IRModule FuseOpsByPattern(const tvm::Array<transform::FusionPattern>& patterns, 
           continue;
         }
         const FunctionNode* function = base_func.as<FunctionNode>();
-        if (function->GetAttr<Integer>(attr::kPrimitive).defined() ||
+        if (function->GetAttr<bool>(attr::kPrimitive).value_or(false) ||
             function->GetAttr<String>(attr::kComposite).defined() ||
             function->GetAttr<String>(attr::kCodegen).defined()) {
           continue;
@@ -1388,8 +1383,8 @@ IRModule FuseOpsByPattern(const tvm::Array<transform::FusionPattern>& patterns, 
 namespace transform {
 
 FusionPattern::FusionPattern(String name, DFPattern pattern,
-                             Map<String, DFPattern> annotation_patterns, Optional<PackedFunc> check,
-                             Optional<PackedFunc> attrs_getter) {
+                             Map<String, DFPattern> annotation_patterns,
+                             Optional<ffi::Function> check, Optional<ffi::Function> attrs_getter) {
   ObjectPtr<FusionPatternNode> n = make_object<FusionPatternNode>();
   n->name = std::move(name);
   n->pattern = std::move(pattern);
@@ -1402,7 +1397,7 @@ FusionPattern::FusionPattern(String name, DFPattern pattern,
 TVM_REGISTER_NODE_TYPE(FusionPatternNode);
 TVM_REGISTER_GLOBAL("relax.transform.FusionPattern")
     .set_body_typed([](String name, DFPattern pattern, Map<String, DFPattern> annotation_patterns,
-                       Optional<PackedFunc> check, Optional<PackedFunc> attrs_getter) {
+                       Optional<ffi::Function> check, Optional<ffi::Function> attrs_getter) {
       return FusionPattern(name, pattern, annotation_patterns, check, attrs_getter);
     });
 
@@ -1422,7 +1417,7 @@ PatternCheckContext::PatternCheckContext(Expr matched_expr, Map<String, Expr> an
 TVM_REGISTER_NODE_TYPE(PatternCheckContextNode);
 
 Pass FuseOps(int fuse_opt_level) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule m, PassContext pc) {
         int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
         auto max_fuse_depth = pc->GetConfig("relax.FuseOps.max_depth", Integer(kMaxFusedOps));
@@ -1438,7 +1433,7 @@ TVM_REGISTER_GLOBAL("relax.transform.FuseOps").set_body_typed(FuseOps);
 
 Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_constants,
                       bool annotate_codegen, const Array<String>& entry_function_names) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule m, PassContext pc) {
         return relax::FuseOpsByPattern(patterns, m, bind_constants, annotate_codegen,
                                        entry_function_names);

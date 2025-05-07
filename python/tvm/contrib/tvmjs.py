@@ -279,8 +279,8 @@ def dump_ndarray_cache(
         # prefer to preserve original dtype, especially if the format was bfloat16
         dtype = origin_v.dtype if isinstance(origin_v, tvm.nd.NDArray) else v.dtype
 
-        if dtype in DataType.NUMPY2STR:
-            dtype = DataType.NUMPY2STR[dtype]
+        if dtype in DataType.NUMPY_DTYPE_TO_STR:
+            dtype = DataType.NUMPY_DTYPE_TO_STR[dtype]
         else:
             dtype = str(dtype)
 

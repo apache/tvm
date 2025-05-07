@@ -25,6 +25,7 @@
 #define TVM_RELAX_OP_TENSOR_MANIPULATE_H_
 
 #include <tvm/relax/attrs/manipulate.h>
+#include <tvm/runtime/container/variant.h>
 
 #include "../op_common.h"
 #include "tvm/relax/expr.h"
@@ -43,7 +44,7 @@ Expr broadcast_to(Expr x, Expr shape);
  * If it is `NullOpt`, the input tensor is required to be flattened before concatenation.
  * \return The concatenated tensor.
  */
-Expr concat(Expr tensors, Optional<Integer> axis);
+Expr concat(Expr tensors, Optional<int64_t> axis);
 
 /*!
  * \brief Insert new axes at the positions given by `axis`.
@@ -153,7 +154,7 @@ Expr collapse_sum_to(Expr data, Expr shape);
  * from the backward. By default, use the flattened input array, and return a flat output array.
  * \return The computed result.
  */
-Expr repeat(Expr data, int repeats, Optional<Integer> axis = NullOpt);
+Expr repeat(Expr data, int repeats, Optional<int64_t> axis = NullOpt);
 
 /*!
  * \brief Construct an array by repeating data the number of times given by reps.
@@ -205,6 +206,39 @@ Expr gather_elements(Expr data, Expr indices, int axis = 0);
  * indices.shape[-1]:]
  */
 Expr gather_nd(Expr data, Expr indices, int batch_dims = 0);
+
+/*!
+ * \brief NumPy/PyTorch‑style advanced indexing with tensors.
+ * \param data The input tensor.
+ * \param indices  A Tuple expression (or list) containing the index tensors.
+ * \return The indexed tensor.
+ *
+ * \note When all shapes are static, Relax checks that the index shapes are
+ *       broadcast-compatible. Bounds checking of the values in indices is
+ *       deferred to runtime.
+ */
+Expr index_tensor(Expr data, Expr indices);
+
+/*!
+ * \brief Put values into an array according to indices.
+ * \param data The input tensor to be modified.
+ * \param indices The index positions where values should be placed.
+ *                This should be a tuple of 1D tensors (one for each dimension).
+ * \param values The values to place at the specified indices.
+ * \param accumulate Whether to accumulate (add) values rather than replace.
+ *                  If true, equivalent to tensor[indices] += values.
+ *                  If false, equivalent to tensor[indices] = values.
+ * \return The computed result with values placed at specified indices.
+ */
+Expr index_put(Expr data, Expr indices, Expr values, bool accumulate = false);
+
+/*!
+ * \brief Generate coordinate grids from input 1D tensors.
+ * \param tensors A tuple of 1D tensors representing coordinate vectors.
+ * \param indexing Indexing mode, either "ij" (matrix indexing) or "xy" (Cartesian indexing).
+ * \return A tuple of tensors representing the coordinate grids.
+ */
+Expr meshgrid(Expr tensors, Optional<String> indexing = String("ij"));
 
 /*!
  * \brief Scatter updates into an array according to indices.

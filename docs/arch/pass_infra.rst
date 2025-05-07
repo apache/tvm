@@ -128,7 +128,7 @@ Python APIs to create a compilation pipeline using pass context.
       tvm::Array<tvm::Expr> required_pass;
       tvm::Array<tvm::Expr> disabled_pass;
       mutable Optional<DiagnosticContext> diag_ctx;
-      Map<String, ObjectRef> config;
+      Map<String, Any> config;
       Array<instrument::PassInstrument> instruments;
     };
 
@@ -209,7 +209,7 @@ passes
 
     class ModulePassNode : PassNode {
       PassInfo pass_info;
-      runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func;
+      std::function<Module(Module, PassContext)> pass_func;
       Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
       // Other members/methods are omitted
     };
@@ -240,7 +240,7 @@ the global information.
 
     class FunctionPassNode : PassNode {
       PassInfo pass_info;
-      runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func;
+      std::function<Function(Function, Module, PassContext)> pass_func;
       Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
       bool SkipFunction(const Function& func) const;
       // Other members/methods are omitted...
@@ -306,9 +306,9 @@ pass is registered with an API endpoint as we will show later.
     Pass GetPass(const std::string& pass_name) {
       using tvm::runtime::Registry;
       std::string fpass_name = "relax.transform." + pass_name;
-      const auto* f = Registry::Get(fpass_name);
-      ICHECK(f != nullptr) << "Cannot find " << fpass_name
-                          << "to create the pass " << pass_name;
+      const std::optional<tvm::ffi::Function> f = tvm::ffi::Function::GetGlobal(fpass_name);
+      ICHECK(f.has_value()) << "Cannot find " << fpass_name
+                            << "to create the pass " << pass_name;
       return (*f)();
     }
 
@@ -319,19 +319,19 @@ favorably use Python APIs to create a specific pass object.
 .. code:: c++
 
     Pass CreateFunctionPass(
-        const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
+        std::function<Function(Function, IRModule, PassContext)> pass_func,
         int opt_level,
         String name,
         Array<String> required);
 
     Pass CreatePrimFuncPass(
-        const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
+        std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
         int opt_level,
         String name,
         Array<String> required);
 
     Pass CreateModulePass(
-        const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
+        std::function<IRModule(IRModule, PassContext)> pass_func,
         int opt_level,
         String name,
         Array<String> required);
@@ -371,7 +371,7 @@ Python when needed.
     namespace transform {
 
     Pass FoldConstant() {
-      runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
+      auto pass_func =
           [=](Function f, IRModule m, PassContext pc) { return ConstantFolder::Fold(f, m); };
       return CreateFunctionPass(pass_func, 0, "FoldConstant", {});
     }

@@ -51,12 +51,12 @@ Module LoadVMModule(std::string path, Device device) {
   static DSOLibraryCache cache;
   Module dso_mod = cache.Open(path);
   device = UseDefaultDeviceIfNone(device);
-  PackedFunc vm_load_executable = dso_mod.GetFunction("vm_load_executable");
+  ffi::Function vm_load_executable = dso_mod.GetFunction("vm_load_executable");
   CHECK(vm_load_executable != nullptr)
       << "ValueError: File `" << path
       << "` is not built by RelaxVM, because `vm_load_executable` does not exist";
-  Module mod = vm_load_executable();
-  PackedFunc vm_initialization = mod.GetFunction("vm_initialization");
+  auto mod = vm_load_executable().cast<Module>();
+  ffi::Function vm_initialization = mod.GetFunction("vm_initialization");
   CHECK(vm_initialization != nullptr)
       << "ValueError: File `" << path
       << "` is not built by RelaxVM, because `vm_initialization` does not exist";
@@ -70,12 +70,12 @@ NDArray DiscoEmptyNDArray(ShapeTuple shape, DataType dtype, Device device) {
   return NDArray::Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 
-const PackedFunc& GetCCLFunc(const char* name) {
+ffi::Function GetCCLFunc(const char* name) {
   std::string ccl = DiscoWorker::ThreadLocal()->ccl;
   std::string pf_name = "runtime.disco." + ccl + "." + name;
-  const PackedFunc* pf = tvm::runtime::Registry::Get(pf_name);
-  CHECK(pf != nullptr) << "ValueError: Cannot find the `" << name << "` function for `" << ccl
-                       << "` via `" << pf_name << "`";
+  const auto pf = tvm::ffi::Function::GetGlobal(pf_name);
+  CHECK(pf.has_value()) << "ValueError: Cannot find the `" << name << "` function for `" << ccl
+                        << "` via `" << pf_name << "`";
   return *pf;
 }
 
@@ -164,10 +164,9 @@ TVM_REGISTER_GLOBAL("runtime.disco.device").set_body_typed([]() -> Device {
 TVM_REGISTER_GLOBAL("runtime.disco.bind_worker_to_cpu_core").set_body_typed([](IntTuple cpu_ids) {
   int worker_id = WorkerId();
   ICHECK_LT(worker_id, static_cast<int>(cpu_ids.size()));
-  const PackedFunc* f_set_thread_affinity =
-      Registry::Get("tvm.runtime.threading.set_current_thread_affinity");
-  ICHECK_NOTNULL(f_set_thread_affinity);
-  (*f_set_thread_affinity)(IntTuple{cpu_ids[worker_id]});
+  const auto f_set_thread_affinity =
+      tvm::ffi::Function::GetGlobalRequired("tvm.runtime.threading.set_current_thread_affinity");
+  f_set_thread_affinity(IntTuple{cpu_ids[worker_id]});
 });
 
 }  // namespace runtime

@@ -104,7 +104,7 @@ def test_vm_run():
     x = tvm.nd.array(x_np, dev)
     y = vm["main"](x)
     y_np = x_np + 1.0 + 1.0 + 1.0 + 1.0
-    tvm.testing.assert_allclose(y.asnumpy(), y_np, rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(y.numpy(), y_np, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.requires_cudagraph

@@ -72,6 +72,7 @@ class VDeviceLookup {
     LOG(FATAL) << "ValueError: "
                << "Expected to find device with type " << device_id << " and id " << device_id
                << ", but no such device was found in the IRModule's \"vdevice\" annotation";
+    TVM_FFI_UNREACHABLE();
   }
 
  private:
@@ -404,8 +405,7 @@ class VDeviceStructInfoUpdater : ExprMutator {
 namespace transform {
 
 Pass RealizeVDevice() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule mod, PassContext pc) {
     auto known_vdevices = InferVDevice(mod);
     return VDeviceStructInfoUpdater::Apply(mod, known_vdevices);
   };

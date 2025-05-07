@@ -88,7 +88,7 @@ TVM_REGISTER_NODE_TYPE(BlockDependenceInfoNode);
 TVM_REGISTER_GLOBAL("tir.BlockDependenceInfo")
     .set_body_typed([](IRModule mod) -> BlockDependenceInfo { return BlockDependenceInfo(mod); });
 TVM_REGISTER_GLOBAL("tir.BlockDependenceInfoGetBlockScope")
-    .set_body_method<BlockDependenceInfo>(&BlockDependenceInfoNode::GetBlockScope);
+    .set_body_method(&BlockDependenceInfoNode::GetBlockScope);
 TVM_REGISTER_GLOBAL("tir.BlockDependenceInfoGetSRef")
     .set_body_typed([](BlockDependenceInfo self, Stmt stmt) -> Optional<StmtSRef> {
       auto it = self->stmt2ref.find(stmt.get());

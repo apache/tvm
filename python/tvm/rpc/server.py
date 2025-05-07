@@ -331,7 +331,6 @@ class PopenRPCServerState(object):
         reuse_addr=True,
         timeout=None,
     ):
-
         # start update
         self.host = host
         self.port = port

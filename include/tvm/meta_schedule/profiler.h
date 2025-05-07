@@ -47,8 +47,8 @@ class ScopedTimer {
  private:
   friend class Profiler;
 
-  explicit ScopedTimer(runtime::TypedPackedFunc<void()> deferred) : deferred_(deferred) {}
-  runtime::TypedPackedFunc<void()> deferred_;
+  explicit ScopedTimer(ffi::TypedFunction<void()> deferred) : deferred_(deferred) {}
+  ffi::TypedFunction<void()> deferred_;
 };
 
 /*! \brief A generic profiler */
@@ -57,7 +57,7 @@ class ProfilerNode : public runtime::Object {
   /*! \brief The segments that are already profiled */
   std::unordered_map<std::string, double> stats_sec;
   /*! \brief Counter for the total time used */
-  runtime::PackedFunc total_timer;
+  ffi::Function total_timer;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `stats_sec` is not visited.

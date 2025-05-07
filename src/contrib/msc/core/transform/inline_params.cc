@@ -87,7 +87,7 @@ class ParamsInliner : public ExprMutator {
           continue;
         }
         const auto& new_func = Downcast<Function>(VisitExpr(func));
-        Map<String, ObjectRef> func_attrs = new_func->attrs->dict;
+        Map<String, ffi::Any> func_attrs = new_func->attrs->dict;
         if (attrs.size() > 0) {
           func_attrs.Set(msc_attr::kOpattrs, attrs);
         }
@@ -180,8 +180,7 @@ IRModule InlineParams(IRModule mod, const String& entry_name) {
 namespace transform {
 
 Pass InlineParams(const String& entry_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::InlineParams(m, entry_name); };
+  auto pass_func = [=](IRModule m, PassContext pc) { return relax::InlineParams(m, entry_name); };
   return CreateModulePass(pass_func, 0, "InlineParams", {});
 }
 

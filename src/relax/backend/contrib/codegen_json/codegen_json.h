@@ -86,16 +86,32 @@ class OpAttrExtractor : public AttrVisitor {
 
   void Visit(const char* key, std::string* value) final { SetNodeAttr(key, {*value}); }
 
+  void Visit(const char* key, Optional<double>* value) final {
+    if (value->has_value()) {
+      SetNodeAttr(key, {Fp2String(value->value())});
+    } else {
+      SetNodeAttr(key, {""});
+    }
+  }
+
+  void Visit(const char* key, Optional<int64_t>* value) final {
+    if (value->has_value()) {
+      SetNodeAttr(key, {std::to_string(value->value())});
+    } else {
+      SetNodeAttr(key, {""});
+    }
+  }
+
   void Visit(const char* key, DataType* value) final {
     if (!value->is_void()) {
-      SetNodeAttr(key, {runtime::DLDataType2String(*value)});
+      SetNodeAttr(key, {runtime::DLDataTypeToString(*value)});
     } else {
       SetNodeAttr(key, {""});
     }
   }
 
   void Visit(const char* key, runtime::ObjectRef* value) final {
-    if (const auto* an = (*value).as<ArrayNode>()) {
+    if (const auto* an = (*value).as<ArrayObj>()) {
       std::vector<std::string> attr;
       for (size_t i = 0; i < an->size(); ++i) {
         if (const auto* im = (*an)[i].as<IntImmNode>()) {
@@ -106,7 +122,7 @@ class OpAttrExtractor : public AttrVisitor {
           String s = GetRef<String>(str);
           attr.push_back(s);
         } else {
-          LOG(FATAL) << "Not supported type: " << (*an)[i]->GetTypeKey();
+          LOG(FATAL) << "Not supported type: " << (*an)[i].GetTypeKey();
         }
       }
       SetNodeAttr(key, attr);

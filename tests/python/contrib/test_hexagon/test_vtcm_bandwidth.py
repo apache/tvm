@@ -115,7 +115,7 @@ def evaluate(hexagon_session, sch, size):
     runtime = timer(a_hexagon, a_vtcm_hexagon)
 
     gbps = round((size / 2**30) / runtime.mean, 4)
-    tvm.testing.assert_allclose(a_vtcm_hexagon.asnumpy(), a)
+    tvm.testing.assert_allclose(a_vtcm_hexagon.numpy(), a)
 
     return gbps
 

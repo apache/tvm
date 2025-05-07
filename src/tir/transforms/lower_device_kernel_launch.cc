@@ -53,7 +53,7 @@ struct KernelInfo {
   Array<String> launch_params;
 
   // Additional arguments which must be provided to the host-side
-  // PackedFunc.  These may be in terms of the function's parameters
+  // ffi::Function.  These may be in terms of the function's parameters
   // (e.g. a function that computes the average of `N` elements, and
   // which must be launched with `N` CUDA threads).
   Array<PrimExpr> launch_args;
@@ -209,7 +209,7 @@ class DeviceKernelMutator : public StmtExprMutator {
         << "This case is not yet supported.";
 
     if (is_kernel_launch || is_call_extern) {
-      func = WithAttr(std::move(func), tvm::tir::attr::kIsGlobalFunc, Bool(true));
+      func = WithAttr(std::move(func), tvm::tir::attr::kIsGlobalFunc, true);
     }
 
     if (is_kernel_launch) {
@@ -223,10 +223,10 @@ class DeviceKernelMutator : public StmtExprMutator {
         write_ptr->body = ReturnRemover::Apply(write_ptr->body);
       }
 
-      func = WithAttrs(std::move(func),
-                       {{tvm::attr::kCallingConv, Integer(tvm::CallingConv::kDeviceKernelLaunch)},
-                        {tvm::tir::attr::kKernelLaunchParams, info.launch_params},
-                        {tvm::attr::kGlobalSymbol, info.global_symbol}});
+      func = WithAttrs(std::move(func), {{tvm::attr::kCallingConv,
+                                          static_cast<int>(tvm::CallingConv::kDeviceKernelLaunch)},
+                                         {tvm::tir::attr::kKernelLaunchParams, info.launch_params},
+                                         {tvm::attr::kGlobalSymbol, info.global_symbol}});
 
     } else if (is_call_extern && !func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
       func = WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);

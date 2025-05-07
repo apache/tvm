@@ -126,46 +126,44 @@ RPCEnv::RPCEnv(const std::string& wd) {
     mkdir(base_.c_str(), 0777);
   }
 
-  TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath").set_body([this](TVMArgs args, TVMRetValue* rv) {
-    *rv = this->GetPath(args[0]);
-  });
+  ffi::Function::SetGlobal(
+      "tvm.rpc.server.workpath",
+      ffi::Function::FromTyped([this](const std::string& path) { return this->GetPath(path); }));
 
-  TVM_REGISTER_GLOBAL("tvm.rpc.server.listdir").set_body([this](TVMArgs args, TVMRetValue* rv) {
-    std::string dir = this->GetPath(args[0]);
-    std::ostringstream os;
-    for (auto d : ListDir(dir)) {
-      os << d << ",";
-    }
-    *rv = os.str();
-  });
+  ffi::Function::SetGlobal("tvm.rpc.server.listdir",
+                           ffi::Function::FromTyped([this](const std::string& path) {
+                             std::string dir = this->GetPath(path);
+                             std::ostringstream os;
+                             for (auto d : ListDir(dir)) {
+                               os << d << ",";
+                             }
+                             return os.str();
+                           }));
 
-  TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module").set_body([this](TVMArgs args, TVMRetValue* rv) {
-    std::string file_name = this->GetPath(args[0]);
-    file_name = BuildSharedLibrary(file_name);
-    *rv = Module::LoadFromFile(file_name, "");
-    LOG(INFO) << "Load module from " << file_name << " ...";
-  });
+  ffi::Function::SetGlobal("tvm.rpc.server.load_module",
+                           ffi::Function::FromTyped([this](const std::string& path) {
+                             std::string file_name = this->GetPath(path);
+                             file_name = BuildSharedLibrary(file_name);
+                             LOG(INFO) << "Load module from " << file_name << " ...";
+                             return Module::LoadFromFile(file_name, "");
+                           }));
 
-  TVM_REGISTER_GLOBAL("tvm.rpc.server.download_linked_module")
-      .set_body([this](TVMArgs args, TVMRetValue* rv) {
-        std::string file_name = this->GetPath(args[0]);
-        file_name = BuildSharedLibrary(file_name);
-        std::string bin;
+  ffi::Function::SetGlobal("tvm.rpc.server.download_linked_module",
+                           ffi::Function::FromTyped([this](const std::string& path) {
+                             std::string file_name = this->GetPath(path);
+                             file_name = BuildSharedLibrary(file_name);
+                             std::string bin;
 
-        std::ifstream fs(file_name, std::ios::in | std::ios::binary);
-        ICHECK(!fs.fail()) << "Cannot open " << file_name;
-        fs.seekg(0, std::ios::end);
-        size_t size = static_cast<size_t>(fs.tellg());
-        fs.seekg(0, std::ios::beg);
-        bin.resize(size);
-        fs.read(dmlc::BeginPtr(bin), size);
-
-        TVMByteArray binarr;
-        binarr.data = bin.data();
-        binarr.size = bin.length();
-        *rv = binarr;
-        LOG(INFO) << "Send linked module " << file_name << " to client";
-      });
+                             std::ifstream fs(file_name, std::ios::in | std::ios::binary);
+                             ICHECK(!fs.fail()) << "Cannot open " << file_name;
+                             fs.seekg(0, std::ios::end);
+                             size_t size = static_cast<size_t>(fs.tellg());
+                             fs.seekg(0, std::ios::beg);
+                             bin.resize(size);
+                             fs.read(dmlc::BeginPtr(bin), size);
+                             LOG(INFO) << "Send linked module " << file_name << " to client";
+                             return ffi::Bytes(bin);
+                           }));
 }
 /*!
  * \brief GetPath To get the work path from packed function

@@ -27,25 +27,23 @@
 #include <tvm/ir/transform.h>
 #include <tvm/meta_schedule/database.h>
 
+#include <utility>
 #include <vector>
+
 namespace tvm {
 namespace relax {
 
 /*! \brief Helper function to unpack arguments in the array as parameters for the given packed
  * function. */
-TVM_ALWAYS_INLINE TVMRetValue CallPackedWithArgsInArray(const runtime::PackedFunc f,
-                                                        const Array<ObjectRef>& args) {
+TVM_ALWAYS_INLINE ffi::Any CallPackedWithArgsInArray(const ffi::Function f,
+                                                     const Array<Any>& args) {
   size_t num_args = args.size();
-  std::vector<TVMValue> values(num_args);
-  std::vector<int> codes(num_args);
-  runtime::TVMArgsSetter setter(values.data(), codes.data());
-  const ObjectRef* ptr = args.template as<ArrayNode>()->begin();
+  std::vector<AnyView> packed_args(num_args);
   for (size_t i = 0; i < num_args; ++i) {
-    setter(i, *(ptr + i));
+    packed_args[i] = args[i];
   }
-
-  TVMRetValue rv;
-  f.CallPacked(TVMArgs(values.data(), codes.data(), num_args), &rv);
+  Any rv;
+  f.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
   return rv;
 }
 
@@ -56,8 +54,8 @@ class ChoiceNode : public runtime::Object {
   String transform_func_key;
   /*! \brief ffi key for constraint function. */
   String constr_func_key;
-  Array<ObjectRef> transform_func_args;
-  Array<ObjectRef> constr_func_args;
+  Array<Any> transform_func_args;
+  Array<Any> constr_func_args;
 
   /*! \brief The default destructor. */
   virtual ~ChoiceNode() = default;
@@ -70,34 +68,34 @@ class ChoiceNode : public runtime::Object {
   }
 
   /*! \brief Getter for constr_func. */
-  const runtime::PackedFunc GetConstrFunc() {
-    const auto* constr_func = tvm::runtime::Registry::Get(constr_func_key);
-    ICHECK(constr_func != nullptr) << "constr_func_key is not registered: " << constr_func_key;
-    return *constr_func;
+  const ffi::Function GetConstrFunc() {
+    const auto constr_func = tvm::ffi::Function::GetGlobal(constr_func_key);
+    ICHECK(constr_func.has_value()) << "constr_func_key is not registered: " << constr_func_key;
+    return *std::move(constr_func);
   }
 
   /*! \brief Getter for transform_func. */
-  const runtime::PackedFunc GetTransformFunc() {
-    auto* transform_func = tvm::runtime::Registry::Get(transform_func_key);
-    ICHECK(transform_func != nullptr)
+  const ffi::Function GetTransformFunc() {
+    auto transform_func = tvm::ffi::Function::GetGlobal(transform_func_key);
+    ICHECK(transform_func.has_value())
         << "transform_func_key is not registered: " << transform_func_key;
-    return *transform_func;
+    return *std::move(transform_func);
   }
 
   /*! \brief Perform constr_func. */
-  bool CheckConstr(const IRModule& mod) {
-    Array<ObjectRef> args(constr_func_args);
-    args.insert(args.begin(), mod);
-    return CallPackedWithArgsInArray(GetConstrFunc(), args);
+  bool CheckConstr(IRModule mod) {
+    Array<Any> args(constr_func_args);
+    args.insert(args.begin(), GetRef<IRModule>(mod.CopyOnWrite()));
+    return CallPackedWithArgsInArray(GetConstrFunc(), args).cast<bool>();
   }
 
   /*! \brief Perform transform_func. */
   IRModule ApplyTransformFunc(IRModule mod) {
     // Apply transformation when constraint is satisfied.
     if (CheckConstr(mod)) {
-      Array<ObjectRef> args(transform_func_args);
+      Array<Any> args(transform_func_args);
       args.insert(args.begin(), GetRef<IRModule>(mod.CopyOnWrite()));
-      return CallPackedWithArgsInArray(GetTransformFunc(), args);
+      return CallPackedWithArgsInArray(GetTransformFunc(), args).cast<IRModule>();
     }
     return mod;
   }
@@ -115,8 +113,8 @@ class ChoiceNode : public runtime::Object {
 /*! \brief Managed reference to ChoiceNode */
 class Choice : public runtime::ObjectRef {
  public:
-  TVM_DLL explicit Choice(String transform_func_key, Array<ObjectRef> transform_func_args,
-                          String constr_func_key, Array<ObjectRef> constr_func_args);
+  TVM_DLL explicit Choice(String transform_func_key, Array<Any> transform_func_args,
+                          String constr_func_key, Array<Any> constr_func_args);
   /*! \brief Deserialize JSON-style object into Choice */
   TVM_DLL static Choice FromJSON(const ObjectRef& json_obj);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Choice, ObjectRef, ChoiceNode);

@@ -93,8 +93,8 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
       return false;
     }
     // Only consider cases with 2 factors and the first one is None
-    if (inst->inputs.size() != 3 || inst->inputs[1].defined()) return false;
-    ICHECK(inst->inputs[2].defined());
+    if (inst->inputs.size() != 3 || inst->inputs[1] != nullptr) return false;
+    ICHECK(inst->inputs[2] != nullptr);
 
     return sample_insts.find(Downcast<PrimExpr>(inst->inputs[2]).get()) != sample_insts.end();
   };
@@ -137,7 +137,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     ICHECK(sample_it != sample_insts.end());
     const InstructionNode* sample_inst = sample_it->second;
 
-    int decision = Downcast<runtime::Int>(trace->decisions[GetRef<Instruction>(sample_inst)]);
+    int decision = Downcast<IntImm>(trace->decisions[GetRef<Instruction>(sample_inst)])->value;
 
     std::vector<double> probs =
         support::AsVector<FloatImm, double>(Downcast<Array<FloatImm>>(sample_inst->attrs[1]));

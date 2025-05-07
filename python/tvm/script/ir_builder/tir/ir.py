@@ -1875,12 +1875,12 @@ tvm_throw_last_error = _op_wrapper(_tir_op.tvm_throw_last_error)
 tvm_stack_alloca = _op_wrapper(_tir_op.tvm_stack_alloca)
 tvm_stack_make_shape = _op_wrapper(_tir_op.tvm_stack_make_shape)
 tvm_stack_make_array = _op_wrapper(_tir_op.tvm_stack_make_array)
-tvm_check_return = _op_wrapper(_tir_op.tvm_check_return)
 call_packed = _op_wrapper(_tir_op.call_packed)
 call_cpacked = _op_wrapper(_tir_op.call_cpacked)
 call_packed_lowered = _op_wrapper(_tir_op.call_packed_lowered)
 call_cpacked_lowered = _op_wrapper(_tir_op.call_cpacked_lowered)
 tvm_tuple = _op_wrapper(_tir_op.tvm_tuple)
+handle_add_byte_offset = _op_wrapper(_tir_op.handle_add_byte_offset)
 tvm_struct_set = _op_wrapper(_tir_op.tvm_struct_set)
 tvm_struct_get = _tir_op.tvm_struct_get
 tvm_thread_invariant = _op_wrapper(_tir_op.tvm_thread_invariant)
@@ -2167,7 +2167,6 @@ __all__ = [
     "tvm_stack_alloca",
     "tvm_stack_make_shape",
     "tvm_stack_make_array",
-    "tvm_check_return",
     "call_packed",
     "call_cpacked",
     "call_packed_lowered",
@@ -2178,6 +2177,7 @@ __all__ = [
     "call_llvm_pure_intrin",
     "call_pure_extern",
     "tvm_tuple",
+    "handle_add_byte_offset",
     "tvm_struct_set",
     "tvm_struct_get",
     "tvm_thread_invariant",

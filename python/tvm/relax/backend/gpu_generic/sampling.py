@@ -260,7 +260,7 @@ def gpu_multinomial_from_uniform(
         var_row_indices: T.handle,
         var_sampled_token_ids: T.handle,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         n, vocab_size, batch_size = T.int64(), T.int64(), T.int64()
         # match buffers
         prob = T.match_buffer(var_prob, (n, vocab_size), prob_dtype)

@@ -138,7 +138,7 @@ inline std::vector<std::string> Split(const std::string& str, char delim) {
  * \param prefix The given prefix.
  * \return Whether the prefix matched.
  */
-inline bool StartsWith(const String& str, const char* prefix) {
+inline bool StartsWith(const ffi::String& str, const char* prefix) {
   size_t n = str.length();
   for (size_t i = 0; i < n; i++) {
     if (prefix[i] == '\0') return true;

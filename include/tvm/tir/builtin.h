@@ -266,6 +266,15 @@ TVM_DLL const Op& tvm_tuple();
 /*!
  * \brief See pesudo code
  *
+ *  void* handle_add_byte_offset(void* handle, int offset) {
+ *     return reinterpret_cast<v*>(reinterpret_cast<char*>(handle) + offset);
+ *  }
+ */
+TVM_DLL const Op& handle_add_byte_offset();
+
+/*!
+ * \brief See pesudo code
+ *
  *  Type tvm_struct_get(StructType* arr, int index, int field_id) {
  *     return arr[index]->field;
  *  }
@@ -347,14 +356,13 @@ TVM_DLL const Op& tvm_stack_make_array();
 /*!
  * \brief See pesudo code
  *
- *  return_type tvm_call_packed(name, TVMValue* args) {
- *     TVMValue ret_value;
- *     int ret_code;
+ *  return_type tvm_call_packed(name, TVMFFIAny* args) {
+ *     TVMFFIAny result;
  *     ModuleNode* env = GetCurrentEnv();
- *     const PackedFunc* f = env->GetFuncFromEnv(name);
- *     (*f)(args, type_code_of(args), len(args), &ret_value, &ret_code);
+ *     const ffi::Function* f = env->GetFuncFromEnv(name);
+ *     (*f)(args, args, len(args), &result);
  *     // return type can be int, float, handle.
- *     return cast(return_type, ret_value.v_return_type);
+ *     return cast(return_type, result);
  *  }
  */
 TVM_DLL const Op& tvm_call_packed();
@@ -362,11 +370,10 @@ TVM_DLL const Op& tvm_call_packed();
 /*!
  * \brief See pesudo code
  *
- * return_type tvm_call_packed(fname, TVMValue* args) {
- * 	   int ret_code;
- *     TVMValue ret_value;
- *     (*fname)(args, type_code_of(args), len(args), &ret_value, &ret_code);
- *     return cast(return_type, ret_value.v_return_type);
+ * return_type tvm_call_packed(fname, TVMFFIAny* args) {
+ *     TVMFFIAny result;
+ *     (*fname)(args, args, len(args), &result);
+ *     return cast(return_type, result);
  *  }
  */
 TVM_DLL const Op& tvm_call_cpacked();
@@ -374,29 +381,15 @@ TVM_DLL const Op& tvm_call_cpacked();
 /*!
  * \brief See pesudo code
  *
- *  return_type tvm_call_trace_packed(name, TVMValue* args) {
+ *  return_type tvm_call_trace_packed(name, TVMFFIAny* args) {
  *     ModuleNode* env = GetCurrentEnv();
- *     const PackedFunc* f = env->GetFuncFromEnv(name);
- *     (*f)(args, type_code_of(args), len(args));
+ *     const ffi::Function* f = env->GetFuncFromEnv(name);
+ *     (*f)(args, args, len(args));
  *     // return type can be int, float, handle.
- *     return cast(return_type, ret_value.v_return_type);
+ *     return cast(return_type, result);
  *  }
  */
 TVM_DLL const Op& tvm_call_trace_packed();
-
-/*!
- * \brief Checks the return value of another call is correct or returns a given value.
- *
- * \note  This is meant to serve a specific case for AOT code generator whilst this
- *        cannot be fully represented in TIR.
- *
- *  Type tvm_check_return(expected, return_unexpected, nested_call) {
- *     if (nested_call() != expected) {
- *         return return_unexpected;
- *     }
- *  }
- */
-TVM_DLL const Op& tvm_check_return();
 
 /*!
  * \brief See pesudo code
@@ -427,10 +420,10 @@ TVM_DLL const Op& tvm_thread_invariant();
  *                                      int begin,
  *                                      int end) {
  *     ModuleNode* env = GetCurrentEnv();
- *     const PackedFunc* f = env->GetFuncFromEnv(name);
- *     f->CallPacked(TVMArgs(value_stack[begin:end],
+ *     const ffi::Function* f = env->GetFuncFromEnv(name);
+ *     f->CallPacked(ffi::PackedArgs(value_stack[begin:end],
  *                           tcode_stack[begin:end]),
- *                   TVMRetValue(value_stack + end, tcode_stack + end));
+ *                   ffi::Any(value_stack + end, tcode_stack + end));
  *     // return type can be int, float, handle.
  *     return cast(return_type, load_return_from(tcode_stack + end))
  *  }
@@ -442,12 +435,12 @@ TVM_DLL const Op& tvm_call_packed_lowered();
  *  type codes are explicitly allocated.
  *
  *  int tvm_call_packed_lowered(fname,
- *                              TVMValue* value_stack,
- *                              int* tcode_stack,
+ *                              TVMFFIAny* args_stack,
  *                              int begin,
- *                              int end) {
- *     fname(TVMArgs(value_stack[begin:end], tcode_stack[begin:end]),
- *                   TVMRetValue(value_stack + end, tcode_stack + end));
+ *                              int end,
+ *                              void* self) {
+ *     fname(ffi::PackedArgs(value_stack[begin:end], tcode_stack[begin:end]),
+ *                   ffi::Any(value_stack + end, tcode_stack + end));
  *  }
  */
 TVM_DLL const Op& tvm_call_cpacked_lowered();
@@ -463,10 +456,10 @@ TVM_DLL const Op& tvm_call_cpacked_lowered();
  *                                            int begin,
  *                                            int end) {
  *     ModuleNode* env = GetCurrentEnv();
- *     const PackedFunc* f = env->GetFuncFromEnv(name);
- *     f->CallPacked(TVMArgs(value_stack[begin:end],
+ *     const ffi::Function* f = env->GetFuncFromEnv(name);
+ *     f->CallPacked(ffi::PackedArgs(value_stack[begin:end],
  *                           tcode_stack[begin:end]),
- *                   TVMRetValue(value_stack + end, tcode_stack + end));
+ *                   ffi::Any(value_stack + end, tcode_stack + end));
  *     // return type can be int, float, handle.
  *     return cast(return_type, load_return_from(tcode_stack + end))
  *  }
@@ -990,6 +983,8 @@ enum TVMStructFieldKind : int {
   kArrKindBound_,
   // TVMValue field
   kTVMValueContent,
+  kTVMFFIAnyTypeIndex,
+  kTVMFFIAnyUnionValue,
   kTVMValueKindBound_
 };
 }  // namespace builtin

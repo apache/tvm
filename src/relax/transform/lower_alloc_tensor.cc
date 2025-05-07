@@ -59,6 +59,7 @@ class Mutator : public ExprMutator {
         LOG(FATAL) << "Shape argument for " << alloc_tensor_op << " should be a ShapeExpr, "
                    << "or a variable that holds a ShapeExpr.  "
                    << "However, received argument " << shape_arg << " with struct info " << sinfo;
+        TVM_FFI_UNREACHABLE();
       }();
 
       PrimExpr nbytes = [&]() -> PrimExpr {
@@ -92,10 +93,9 @@ Expr LowerAllocTensor(Expr expr) {
 namespace transform {
 
 Pass LowerAllocTensor() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function func, IRModule m, PassContext pc) {
-        return Downcast<Function>(relax::LowerAllocTensor(std::move(func)));
-      };
+  auto pass_func = [=](Function func, IRModule m, PassContext pc) {
+    return Downcast<Function>(relax::LowerAllocTensor(std::move(func)));
+  };
   return CreateFunctionPass(pass_func, /*opt_level=*/0, "LowerAllocTensor", {});
 }
 

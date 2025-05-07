@@ -98,6 +98,7 @@ Stmt GetEnclosingLoop(const BlockNode* block, Stmt func_body) {
   }
 
   LOG(FATAL) << "Enclosing loop not found for a block " << GetRef<Block>(block);
+  TVM_FFI_UNREACHABLE();
 }
 
 const BlockNode* FindAnchorBlock(const IRModule& mod) {
