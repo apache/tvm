@@ -5416,9 +5416,19 @@ def test_norm():
         verify_model(Norm(p, dim=dim, keepdim=keepdim), input_info, {}, expected)
 
 
-def test_bfloat16():
-    # TODO(mshr-h): Add tests for all the dtypes supported in EP frontend
-    class BFloat16Model(Module):
+@pytest.mark.parametrize(
+    "torch_dtype, relax_dtype",
+    [
+        (torch.float32, "float32"),
+        (torch.float16, "float16"),
+        (torch.bfloat16, "bfloat16"),
+        (torch.int64, "int64"),
+        (torch.int32, "int32"),
+        (torch.bool, "bool"),
+    ],
+)
+def test_dtypes(torch_dtype, relax_dtype):
+    class Model(Module):
         def forward(self, lhs: torch.Tensor, rhs: torch.Tensor):
             return torch.ops.aten.add(lhs, rhs)
 
@@ -5426,16 +5436,16 @@ def test_bfloat16():
     class Expected:
         @R.function
         def main(
-            lhs: R.Tensor((10, 10), dtype="bfloat16"),
-            rhs: R.Tensor((10, 10), dtype="bfloat16"),
-        ) -> R.Tensor((10, 10), dtype="bfloat16"):
+            lhs: R.Tensor((10, 10), dtype=relax_dtype),
+            rhs: R.Tensor((10, 10), dtype=relax_dtype),
+        ) -> R.Tensor((10, 10), dtype=relax_dtype):
             with R.dataflow():
-                lv: R.Tensor((10, 10), dtype="bfloat16") = relax.op.add(lhs, rhs)
-                gv: R.Tensor((10, 10), dtype="bfloat16") = lv
+                lv: R.Tensor((10, 10), dtype=relax_dtype) = relax.op.add(lhs, rhs)
+                gv: R.Tensor((10, 10), dtype=relax_dtype) = lv
                 R.output(gv)
             return gv
 
-    verify_model(BFloat16Model(), [([10, 10], "bfloat16"), ([10, 10], "bfloat16")], {}, Expected)
+    verify_model(Model(), [([10, 10], torch_dtype), ([10, 10], torch_dtype)], {}, Expected)
 
 
 def test_eye():

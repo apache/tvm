@@ -5051,31 +5051,41 @@ def test_linspace():
     verify_model(Linspace(), example_args, {}, Expected)
 
 
-def test_bfloat16():
-    # TODO(mshr-h): Add tests for all the dtypes supported in fx frontend
+@pytest.mark.parametrize(
+    "torch_dtype, relax_dtype",
+    [
+        (torch.float32, "float32"),
+        (torch.float16, "float16"),
+        (torch.bfloat16, "bfloat16"),
+        (torch.int64, "int64"),
+        (torch.int32, "int32"),
+        (torch.bool, "bool"),
+    ],
+)
+def test_dtypes(torch_dtype, relax_dtype):
     example_args = (
-        torch.randn(10, 10, dtype=torch.bfloat16),
-        torch.randn(10, 10, dtype=torch.bfloat16),
+        torch.randint(0, 10, (10, 10)).to(torch_dtype),
+        torch.randint(0, 10, (10, 10)).to(torch_dtype),
     )
 
-    class BFloat16Model(Module):
+    class Model(Module):
         def forward(self, lhs: torch.Tensor, rhs: torch.Tensor):
             return torch.ops.aten.add(lhs, rhs)
 
     @tvm.script.ir_module
-    class expected:
+    class Expected:
         @R.function
         def main(
-            lhs: R.Tensor((10, 10), dtype="bfloat16"),
-            rhs: R.Tensor((10, 10), dtype="bfloat16"),
-        ) -> R.Tuple(R.Tensor((10, 10), dtype="bfloat16")):
+            lhs: R.Tensor((10, 10), dtype=relax_dtype),
+            rhs: R.Tensor((10, 10), dtype=relax_dtype),
+        ) -> R.Tuple(R.Tensor((10, 10), dtype=relax_dtype)):
             with R.dataflow():
-                lv: R.Tensor((10, 10), dtype="bfloat16") = relax.op.add(lhs, rhs)
-                gv: R.Tuple(R.Tensor((10, 10), dtype="bfloat16")) = (lv,)
+                lv: R.Tensor((10, 10), dtype=relax_dtype) = relax.op.add(lhs, rhs)
+                gv: R.Tuple(R.Tensor((10, 10), dtype=relax_dtype)) = (lv,)
                 R.output(gv)
             return gv
 
-    verify_model(BFloat16Model(), example_args, {}, expected)
+    verify_model(Model(), example_args, {}, Expected)
 
 
 if __name__ == "__main__":
