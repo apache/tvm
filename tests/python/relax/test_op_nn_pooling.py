@@ -27,7 +27,9 @@ def test_op_correctness():
     x = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
     assert relax.op.nn.max_pool2d(x).op == Op.get("relax.nn.max_pool2d")
     assert relax.op.nn.avg_pool2d(x).op == Op.get("relax.nn.avg_pool2d")
+    assert relax.op.nn.adaptive_avg_pool1d(x).op == Op.get("relax.nn.adaptive_avg_pool1d")
     assert relax.op.nn.adaptive_avg_pool2d(x).op == Op.get("relax.nn.adaptive_avg_pool2d")
+    assert relax.op.nn.adaptive_avg_pool3d(x).op == Op.get("relax.nn.adaptive_avg_pool3d")
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
@@ -835,7 +837,9 @@ def test_adaptive_avg_pool3d_infer_struct_info():
     x7 = relax.Var("x", R.Tensor((2, 3, 32, 32, 32), "float32", vdev0))
 
     _check_inference(
-        bb, relax.op.nn.adaptive_avg_pool3d(x0), relax.TensorStructInfo((2, 3, 32, 32, 32), "float32")
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x0),
+        relax.TensorStructInfo((2, 3, 32, 32, 32), "float32"),
     )
     _check_inference(
         bb,
@@ -897,7 +901,9 @@ def test_adaptive_avg_pool3d_infer_struct_info_shape_symbolic():
     x1 = relax.Var("x", R.Tensor((n, c, d, ih, iw, c16), "float32"))
 
     _check_inference(
-        bb, relax.op.nn.adaptive_avg_pool3d(x0), relax.TensorStructInfo((n, c, d, ih, iw), "float32")
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x0),
+        relax.TensorStructInfo((n, c, d, ih, iw), "float32"),
     )
     _check_inference(
         bb,
@@ -957,7 +963,9 @@ def test_adaptive_avg_pool3d_infer_struct_info_more_input_dtype():
     x2 = relax.Var("x", R.Tensor((2, 3, 32, 32, 32), "int64"))
 
     _check_inference(
-        bb, relax.op.nn.adaptive_avg_pool3d(x0), relax.TensorStructInfo((2, 3, 32, 32, 32), "float16")
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x0),
+        relax.TensorStructInfo((2, 3, 32, 32, 32), "float16"),
     )
     _check_inference(
         bb, relax.op.nn.adaptive_avg_pool3d(x1), relax.TensorStructInfo((2, 3, 32, 32, 32), "int8")
