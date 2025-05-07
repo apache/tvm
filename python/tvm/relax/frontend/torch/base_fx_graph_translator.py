@@ -871,6 +871,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dilation: Optional[int] = 1,
         ceil_mode: Optional[bool] = False,
     ) -> relax.Var:
+        # Expand to 3D by adding batch dim if input is 2D
         x_ndim = x.struct_info.ndim
         if x_ndim == 2:
             x = relax.op.expand_dims(x, axis=0)
@@ -889,6 +890,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             )
         )
 
+        # Remove added batch dim from result
         if x_ndim == 2:
             result = relax.op.squeeze(result, axis=[0])
         return result
@@ -913,6 +915,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dilation: Optional[int] = 1,
         ceil_mode: Optional[bool] = False,
     ) -> relax.Var:
+        # Expand to 4D by adding batch dim if input is 3D
         x_ndim = x.struct_info.ndim
         if x_ndim == 3:
             x = relax.op.expand_dims(x, axis=0)
@@ -931,6 +934,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             )
         )
 
+        # Remove added batch dim from result
         if x_ndim == 3:
             result = relax.op.squeeze(result, axis=[0])
         return result
@@ -955,6 +959,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dilation: Optional[int] = 1,
         ceil_mode: Optional[bool] = False,
     ) -> relax.Var:
+        # Expand to 5D by adding batch dim if input is 4D
         x_ndim = x.struct_info.ndim
         if x_ndim == 4:
             x = relax.op.expand_dims(x, axis=0)
@@ -973,6 +978,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             )
         )
 
+        # Remove added batch dim from result
         if x_ndim == 4:
             result = relax.op.squeeze(result, axis=[0])
         return result
