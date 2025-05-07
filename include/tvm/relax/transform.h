@@ -246,7 +246,7 @@ TVM_DLL Pass FoldConstant();
  * showing up in the database.
  * \return The Pass.
  */
-TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_warning = false);
+TVM_DLL Pass LegalizeOps(Optional<Map<String, ffi::Function>> cmap, bool enable_warning = false);
 
 /*!
  * \brief Propagate virtual device information.
@@ -383,7 +383,7 @@ class FusionPatternNode : public Object {
    * It should have signature
    * bool(const PatternCheckContext& context)
    */
-  Optional<PackedFunc> check;
+  Optional<ffi::Function> check;
 
   /*!
    * \brief The function to get attributes for fused function
@@ -391,7 +391,7 @@ class FusionPatternNode : public Object {
    * It should have signature
    * Map<String, Any>(const Map<String, Expr>& context)
    */
-  Optional<PackedFunc> attrs_getter;
+  Optional<ffi::Function> attrs_getter;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("name", &name);
@@ -408,7 +408,7 @@ class FusionPatternNode : public Object {
 class FusionPattern : public ObjectRef {
  public:
   FusionPattern(String name, DFPattern pattern, Map<String, DFPattern> annotation_patterns,
-                Optional<PackedFunc> check, Optional<PackedFunc> attrs_getter);
+                Optional<ffi::Function> check, Optional<ffi::Function> attrs_getter);
 
   FusionPattern(String name, DFPattern pattern)
       : FusionPattern(name, pattern, {}, NullOpt, NullOpt) {}

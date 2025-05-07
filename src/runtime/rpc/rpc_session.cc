@@ -43,7 +43,7 @@ void RPCSession::AsyncCallFunc(PackedFuncHandle func, ffi::PackedArgs packed_arg
                                FAsyncCallback callback) {
   try {
     this->CallFunc(func, packed_args,
-                   [&callback](TVMArgs args) { callback(RPCCode::kReturn, args); });
+                   [&callback](ffi::PackedArgs args) { callback(RPCCode::kReturn, args); });
   } catch (const std::exception& e) {
     this->SendException(callback, e.what());
   }

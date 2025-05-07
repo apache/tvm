@@ -216,9 +216,9 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   /*! \brief All available async pipeline stages. */
   std::vector<int> stages;
   /*! \brief The logging function */
-  PackedFunc logger;
+  ffi::Function logger;
   /*! \brief The function to overwrite the default condition for applying MultiLevelTiling. */
-  Optional<PackedFunc> filter_fn_;
+  Optional<ffi::Function> filter_fn_;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("structure", &structure);

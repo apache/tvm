@@ -536,7 +536,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
 }
 
 TVM_REGISTER_GLOBAL("arith.SolveInequalitiesAsCondition")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       IntConstraints problem;
       PartialSolvedInequalities ret_ineq;
       if (args.size() == 1) {
@@ -554,7 +554,7 @@ TVM_REGISTER_GLOBAL("arith.SolveInequalitiesAsCondition")
     });
 
 TVM_REGISTER_GLOBAL("arith.SolveInequalitiesToRange")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       if (args.size() == 1) {
         *ret = SolveInequalitiesToRange(args[0].cast<IntConstraints>());
       } else if (args.size() == 3) {
@@ -569,7 +569,7 @@ TVM_REGISTER_GLOBAL("arith.SolveInequalitiesToRange")
     });
 
 TVM_REGISTER_GLOBAL("arith.SolveInequalitiesDeskewRange")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       if (args.size() == 1) {
         *ret = SolveInequalitiesDeskewRange(args[0].cast<IntConstraints>());
       } else if (args.size() == 3) {

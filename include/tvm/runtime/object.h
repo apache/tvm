@@ -51,7 +51,6 @@ using tvm::ffi::GetRef;
 enum TypeIndex : int32_t {
   // Standard static index assignments,
   // Frontends can take benefit of these constants.
-
   /*! \brief runtime::Module. */
   kRuntimeModule = TVMFFITypeIndex::kTVMFFIModule,
   /*! \brief runtime::NDArray. */
@@ -60,7 +59,7 @@ enum TypeIndex : int32_t {
   kRuntimeShapeTuple = TVMFFITypeIndex::kTVMFFIShape,
   // Extra builtin static index here
   kCustomStaticIndex = TVMFFITypeIndex::kTVMFFIStaticObjectEnd,
-  /*! \brief runtime::PackedFunc. */
+  /*! \brief ffi::Function. */
   kRuntimePackedFunc = kCustomStaticIndex + 1,
   /*! \brief runtime::DRef for disco distributed runtime */
   kRuntimeDiscoDRef = kCustomStaticIndex + 2,

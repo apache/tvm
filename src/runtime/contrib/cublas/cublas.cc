@@ -305,7 +305,8 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
   cublasLtMatrixLayoutDestroy(C_desc);
 }
 
-inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl, cudaStream_t stream) {
+inline void CallLtIgemm(ffi::PackedArgs args, ffi::Any* ret, cublasLtHandle_t hdl,
+                        cudaStream_t stream) {
   auto A = args[0].cast<DLTensor*>();
   auto B = args[1].cast<DLTensor*>();
   auto C = args[2].cast<DLTensor*>();
@@ -377,7 +378,7 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl, cu
 }
 #endif
 
-inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) {
+inline void CallGemmEx(ffi::PackedArgs args, ffi::Any* ret, cublasHandle_t hdl) {
   auto A = args[0].cast<DLTensor*>();
   auto B = args[1].cast<DLTensor*>();
   auto C = args[2].cast<DLTensor*>();
@@ -435,7 +436,7 @@ inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) {
                    beta_ptr, C_data, cuda_out_type, ColumnStride(C), cuda_out_type, algo));
 }
 
-inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) {
+inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, cublasHandle_t hdl) {
   auto A = args[0].cast<DLTensor*>();
   auto B = args[1].cast<DLTensor*>();
   auto C = args[2].cast<DLTensor*>();
@@ -514,7 +515,7 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) 
 
 // matrix multiplication for row major
 TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto C = args[2].cast<DLTensor*>();
 
@@ -539,7 +540,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
 
 #if CUDART_VERSION >= 10010
 TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
 
       CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
@@ -557,7 +558,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul")
 #endif  // CUDART_VERSION >= 10010
 
 TVM_REGISTER_GLOBAL("tvm.contrib.cublas.batch_matmul")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto C = args[2].cast<DLTensor*>();
 

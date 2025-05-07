@@ -80,42 +80,43 @@ class GtestPrinter : public testing::EmptyTestEventListener {
   std::string GetOutput() { return gtest_out_.str(); }
 };
 
-TVM_REGISTER_GLOBAL("hexagon.run_unit_tests").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  // gtest args are passed into this packed func as a singular string
-  // split gtest args using <space> delimiter and build argument vector
-  std::vector<std::string> parsed_args = tvm::support::Split(args[0].cast<std::string>(), ' ');
-  std::vector<char*> argv;
+TVM_REGISTER_GLOBAL("hexagon.run_unit_tests")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      // gtest args are passed into this packed func as a singular string
+      // split gtest args using <space> delimiter and build argument vector
+      std::vector<std::string> parsed_args = tvm::support::Split(args[0].cast<std::string>(), ' ');
+      std::vector<char*> argv;
 
-  // add executable name
-  argv.push_back(const_cast<char*>("hexagon_run_unit_tests"));
+      // add executable name
+      argv.push_back(const_cast<char*>("hexagon_run_unit_tests"));
 
-  // add parsed arguments
-  for (int i = 0; i < parsed_args.size(); ++i) {
-    argv.push_back(const_cast<char*>(parsed_args[i].data()));
-  }
+      // add parsed arguments
+      for (int i = 0; i < parsed_args.size(); ++i) {
+        argv.push_back(const_cast<char*>(parsed_args[i].data()));
+      }
 
-  // end of parsed arguments
-  argv.push_back(nullptr);
+      // end of parsed arguments
+      argv.push_back(nullptr);
 
-  // set argument count
-  int argc = argv.size() - 1;
+      // set argument count
+      int argc = argv.size() - 1;
 
-  // initialize gtest with arguments and run
-  ::testing::InitGoogleTest(&argc, argv.data());
+      // initialize gtest with arguments and run
+      ::testing::InitGoogleTest(&argc, argv.data());
 
-  // add printer to capture gtest output in a string
-  GtestPrinter* gprinter = new GtestPrinter();
-  testing::TestEventListeners& listeners = testing::UnitTest::GetInstance()->listeners();
-  listeners.Append(gprinter);
+      // add printer to capture gtest output in a string
+      GtestPrinter* gprinter = new GtestPrinter();
+      testing::TestEventListeners& listeners = testing::UnitTest::GetInstance()->listeners();
+      listeners.Append(gprinter);
 
-  int gtest_error_code = RUN_ALL_TESTS();
-  std::string gtest_output = gprinter->GetOutput();
-  std::stringstream gtest_error_code_and_output;
-  gtest_error_code_and_output << gtest_error_code << std::endl;
-  gtest_error_code_and_output << gtest_output;
-  *rv = gtest_error_code_and_output.str();
-  delete gprinter;
-});
+      int gtest_error_code = RUN_ALL_TESTS();
+      std::string gtest_output = gprinter->GetOutput();
+      std::stringstream gtest_error_code_and_output;
+      gtest_error_code_and_output << gtest_error_code << std::endl;
+      gtest_error_code_and_output << gtest_output;
+      *rv = gtest_error_code_and_output.str();
+      delete gprinter;
+    });
 
 }  // namespace hexagon
 }  // namespace runtime

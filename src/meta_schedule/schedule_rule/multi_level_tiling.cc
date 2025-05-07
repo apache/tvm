@@ -397,7 +397,7 @@ ScheduleRule ScheduleRule::MultiLevelTiling(String structure, Optional<Array<Str
                                             Optional<Array<Integer>> vector_load_lens,
                                             Optional<Map<String, ffi::Any>> reuse_read,
                                             Optional<Map<String, ffi::Any>> reuse_write,
-                                            Optional<runtime::PackedFunc> filter_fn) {
+                                            Optional<ffi::Function> filter_fn) {
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingNode>(
       structure, tile_binds, max_innermost_factor, vector_load_lens, reuse_read, reuse_write);
   node->filter_fn_ = filter_fn;

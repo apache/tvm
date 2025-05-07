@@ -55,7 +55,7 @@ class AttrRegistryMapContainerMap {
    * \param key The key to the map
    * \return the const reference to the content value.
    */
-  const runtime::TVMRetValue& operator[](const KeyType& key) const {
+  const ffi::Any& operator[](const KeyType& key) const {
     ICHECK(key.defined());
     const uint32_t idx = key->AttrRegistryIndex();
     ICHECK(idx < data_.size() && data_[idx].second != 0)
@@ -88,7 +88,7 @@ class AttrRegistryMapContainerMap {
   /*! \brief The name of the attr field */
   String attr_name_;
   /*! \brief The internal data. */
-  std::vector<std::pair<runtime::TVMRetValue, int>> data_;
+  std::vector<std::pair<ffi::Any, int>> data_;
   /*! \brief The constructor */
   AttrRegistryMapContainerMap() = default;
   template <typename, typename>

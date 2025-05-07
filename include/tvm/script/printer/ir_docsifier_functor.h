@@ -63,7 +63,7 @@ class IRDocsifierFunctor {
   template <class TObjectRef>
   R operator()(const String& token, TObjectRef obj, Args... args) const {
     uint32_t type_index = obj.defined() ? obj->type_index() : 0;
-    const runtime::PackedFunc* pf = nullptr;
+    const ffi::Function* pf = nullptr;
     if ((pf = LookupDispatchTable(token, type_index)) != nullptr) {
       return (*pf)(obj, args...).template cast<R>();
     }
@@ -91,12 +91,12 @@ class IRDocsifierFunctor {
    * This takes a type-erased packed function as input. It should be used
    * through FFI boundary, for example, registering dispatch function from Python.
    */
-  TSelf& set_dispatch(String token, uint32_t type_index, runtime::PackedFunc f) {
-    std::vector<runtime::PackedFunc>* table = &dispatch_table_[token];
+  TSelf& set_dispatch(String token, uint32_t type_index, ffi::Function f) {
+    std::vector<ffi::Function>* table = &dispatch_table_[token];
     if (table->size() <= type_index) {
       table->resize(type_index + 1, nullptr);
     }
-    runtime::PackedFunc& slot = (*table)[type_index];
+    ffi::Function& slot = (*table)[type_index];
     if (slot != nullptr) {
       ICHECK(false) << "Dispatch for type is already registered: "
                     << runtime::Object::TypeIndex2Key(type_index);
@@ -105,7 +105,7 @@ class IRDocsifierFunctor {
     return *this;
   }
 
-  TSelf& set_fallback(runtime::PackedFunc f) {
+  TSelf& set_fallback(ffi::Function f) {
     ICHECK(!dispatch_fallback_.has_value()) << "Fallback is already defined";
     dispatch_fallback_ = f;
     return *this;
@@ -122,13 +122,13 @@ class IRDocsifierFunctor {
             typename = std::enable_if_t<IsDispatchFunction<TObjectRef, TCallable>::value>>
   TSelf& set_dispatch(String token, TCallable f) {
     return set_dispatch(token, TObjectRef::ContainerType::RuntimeTypeIndex(),
-                        runtime::TypedPackedFunc<R(TObjectRef, Args...)>(f));
+                        ffi::TypedFunction<R(TObjectRef, Args...)>(f));
   }
 
   template <typename TCallable,
             typename = std::enable_if_t<IsDispatchFunction<ObjectRef, TCallable>::value>>
   TSelf& set_fallback(TCallable f) {
-    runtime::PackedFunc func = runtime::TypedPackedFunc<R(ObjectRef, Args...)>(f);
+    ffi::Function func = ffi::TypedFunction<R(ObjectRef, Args...)>(f);
     return set_fallback(func);
   }
 
@@ -141,7 +141,7 @@ class IRDocsifierFunctor {
    * those function should be removed before that language runtime shuts down.
    */
   void remove_dispatch(String token, uint32_t type_index) {
-    std::vector<runtime::PackedFunc>* table = &dispatch_table_[token];
+    std::vector<ffi::Function>* table = &dispatch_table_[token];
     if (table->size() <= type_index) {
       return;
     }
@@ -155,16 +155,16 @@ class IRDocsifierFunctor {
    * \param type_index The TVM object type index.
    * \return Returns the functor if the lookup succeeds, nullptr otherwise.
    */
-  const runtime::PackedFunc* LookupDispatchTable(const String& token, uint32_t type_index) const {
+  const ffi::Function* LookupDispatchTable(const String& token, uint32_t type_index) const {
     auto it = dispatch_table_.find(token);
     if (it == dispatch_table_.end()) {
       return nullptr;
     }
-    const std::vector<runtime::PackedFunc>& tab = it->second;
+    const std::vector<ffi::Function>& tab = it->second;
     if (type_index >= tab.size()) {
       return nullptr;
     }
-    const PackedFunc* f = &tab[type_index];
+    const ffi::Function* f = &tab[type_index];
     if (f->defined()) {
       return f;
     } else {
@@ -175,7 +175,7 @@ class IRDocsifierFunctor {
   /*!
    * \brief Look up the fallback to be used if no handler is registered
    */
-  const runtime::PackedFunc* LookupFallback() const {
+  const ffi::Function* LookupFallback() const {
     if (dispatch_fallback_.has_value()) {
       return &*dispatch_fallback_;
     } else {
@@ -187,10 +187,10 @@ class IRDocsifierFunctor {
    * This type alias and the following free functions are created to reduce the binary bloat
    * from template and also hide implementation details from this header
    */
-  using DispatchTable = std::unordered_map<std::string, std::vector<runtime::PackedFunc>>;
+  using DispatchTable = std::unordered_map<std::string, std::vector<ffi::Function>>;
   /*! \brief The dispatch table. */
   DispatchTable dispatch_table_;
-  std::optional<runtime::PackedFunc> dispatch_fallback_;
+  std::optional<ffi::Function> dispatch_fallback_;
 };
 
 }  // namespace printer

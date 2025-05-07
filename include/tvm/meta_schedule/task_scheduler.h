@@ -128,7 +128,7 @@ class TaskRecord : public runtime::ObjectRef {
 class TaskSchedulerNode : public runtime::Object {
  public:
   /*! \brief The tuning task's logging function. */
-  PackedFunc logger;
+  ffi::Function logger;
   /*! \brief Records for each task */
   Array<TaskRecord> tasks_;
   /*! \brief The list of measure callbacks of the scheduler. */
@@ -212,23 +212,23 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
    * \brief The function type of `NextTaskId` method.
    * \return The next task id.
    */
-  using FNextTaskId = runtime::TypedPackedFunc<int()>;
+  using FNextTaskId = ffi::TypedFunction<int()>;
   /*!
    * \brief The function type of `JoinRunningTask` method.
    * \param task_id The task id to be joined.
    */
-  using FJoinRunningTask = runtime::TypedPackedFunc<Array<RunnerResult>(int)>;
+  using FJoinRunningTask = ffi::TypedFunction<Array<RunnerResult>(int)>;
   /*! \brief The function type of `Tune` method. */
-  using FTune = runtime::TypedPackedFunc<void(Array<TuneContext> tasks,                  //
-                                              Array<FloatImm> task_weights,              //
-                                              int max_trials_global,                     //
-                                              int max_trials_per_task,                   //
-                                              int num_trials_per_iter,                   //
-                                              Builder builder,                           //
-                                              Runner runner,                             //
-                                              Array<MeasureCallback> measure_callbacks,  //
-                                              Optional<Database> database,               //
-                                              Optional<CostModel> cost_model)>;
+  using FTune = ffi::TypedFunction<void(Array<TuneContext> tasks,                  //
+                                        Array<FloatImm> task_weights,              //
+                                        int max_trials_global,                     //
+                                        int max_trials_per_task,                   //
+                                        int num_trials_per_iter,                   //
+                                        Builder builder,                           //
+                                        Runner runner,                             //
+                                        Array<MeasureCallback> measure_callbacks,  //
+                                        Optional<Database> database,               //
+                                        Optional<CostModel> cost_model)>;
 
   /*! \brief The packed function to the `NextTaskId` function. */
   FNextTaskId f_next_task_id;
@@ -266,7 +266,7 @@ class TaskScheduler : public runtime::ObjectRef {
    * \param logger The tuning task's logging function.
    * \return The task scheduler created.
    */
-  TVM_DLL static TaskScheduler RoundRobin(PackedFunc logger);
+  TVM_DLL static TaskScheduler RoundRobin(ffi::Function logger);
   /*!
    * \brief Create a task scheduler that fetches tasks in a gradient based fashion.
    * \param logger The tuning task's logging function.
@@ -275,7 +275,7 @@ class TaskScheduler : public runtime::ObjectRef {
    * \param seed The random seed.
    * \return The task scheduler created.
    */
-  TVM_DLL static TaskScheduler GradientBased(PackedFunc logger, double alpha, int window_size,
+  TVM_DLL static TaskScheduler GradientBased(ffi::Function logger, double alpha, int window_size,
                                              support::LinearCongruentialEngine::TRandState seed);
   /*!
    * \brief Create a task scheduler with customized methods on the python-side.
@@ -286,7 +286,7 @@ class TaskScheduler : public runtime::ObjectRef {
    * \return The task scheduler created.
    */
   TVM_DLL static TaskScheduler PyTaskScheduler(
-      PackedFunc logger, PyTaskSchedulerNode::FNextTaskId f_next_task_id,
+      ffi::Function logger, PyTaskSchedulerNode::FNextTaskId f_next_task_id,
       PyTaskSchedulerNode::FJoinRunningTask f_join_running_task, PyTaskSchedulerNode::FTune f_tune);
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TaskScheduler, ObjectRef, TaskSchedulerNode);
 };

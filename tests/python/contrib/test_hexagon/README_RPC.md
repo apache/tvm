@@ -80,12 +80,12 @@ Which eventually jumps to the following line in C++, which creates a RPC client 
 [https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L123-L129](https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L123-L129)
 
 ```cpp
-TVM_REGISTER_GLOBAL("rpc.Connect").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("rpc.Connect").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   auto url = args[0].cast<std::string>();
   int port = args[1].cast<int>();
   auto key = args[2].cast<std::string>();
   *rv = RPCClientConnect(url, port, key,
-                         TVMArgs(args.values + 3, args.type_codes + 3, args.size() - 3));
+                         ffi::PackedArgs(args.values + 3, args.type_codes + 3, args.size() - 3));
 });
 ```
 
@@ -95,7 +95,7 @@ TVM_REGISTER_GLOBAL("rpc.Connect").set_body_packed([](TVMArgs args, TVMRetValue*
 
 ```cpp
 TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
-    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       auto session_name = args[0].cast<std::string>();
       int remote_stack_size_bytes = args[1].cast<int>();
       HexagonTransportChannel* hexagon_channel =
@@ -178,7 +178,7 @@ At first, it is not obvious where this `CopyDataFromTo` jumps to (initially I th
 [https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L107](https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L107)
 
 ```cpp
-Module RPCClientConnect(std::string url, int port, std::string key, TVMArgs init_seq) {
+Module RPCClientConnect(std::string url, int port, std::string key, ffi::PackedArgs init_seq) {
   auto endpt = RPCConnect(url, port, "client:" + key, init_seq);
   return CreateRPCSessionModule(CreateClientSession(endpt));
 }
@@ -228,7 +228,7 @@ The handler is passed to the following function
 [https://github.com/apache/tvm/blob/899bc064e1bf8df915bcadc979a6f37210cdce33/src/runtime/rpc/rpc_endpoint.cc#L909-L922](https://github.com/apache/tvm/blob/899bc064e1bf8df915bcadc979a6f37210cdce33/src/runtime/rpc/rpc_endpoint.cc#L909-L922)
 
 ```cpp
-void RPCCopyAmongRemote(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
+void RPCCopyAmongRemote(RPCSession* handler, ffi::PackedArgs args, ffi::Any* rv) {
   auto from = args[0].cast<DLTensor*>();
   auto to = args[1].cast<DLTensor*>();
   ...

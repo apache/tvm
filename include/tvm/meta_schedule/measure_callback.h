@@ -74,17 +74,16 @@ class PyMeasureCallbackNode : public MeasureCallbackNode {
    * \param results The runner results by running the built measure candidates.
    * \return Whether the measure callback was successfully applied.
    */
-  using FApply =
-      runtime::TypedPackedFunc<void(const TaskScheduler& task_scheduler,                //
-                                    int task_id,                                        //
-                                    const Array<MeasureCandidate>& measure_candidates,  //
-                                    const Array<BuilderResult>& builds,                 //
-                                    const Array<RunnerResult>& results)>;
+  using FApply = ffi::TypedFunction<void(const TaskScheduler& task_scheduler,                //
+                                         int task_id,                                        //
+                                         const Array<MeasureCandidate>& measure_candidates,  //
+                                         const Array<BuilderResult>& builds,                 //
+                                         const Array<RunnerResult>& results)>;
   /*!
    * \brief Get the measure callback function as string with name.
    * \return The string of the measure callback function.
    */
-  using FAsString = runtime::TypedPackedFunc<String()>;
+  using FAsString = ffi::TypedFunction<String()>;
 
   /*! \brief The packed function to the `Apply` function. */
   FApply f_apply;

@@ -40,7 +40,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt_;
-  using FLowerGeneral = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
+  using FLowerGeneral = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
   IntrinInjecter(arith::Analyzer* analyzer, std::string target, std::string mtriple = "")
       : IRMutatorWithAnalyzer(analyzer) {

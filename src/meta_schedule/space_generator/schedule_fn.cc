@@ -27,7 +27,7 @@ class ScheduleFnNode : public SpaceGeneratorNode {
   /*! \brief The random state. -1 means using random number. */
   TRandState rand_state_ = -1;
   /*! \brief The schedule function. */
-  runtime::PackedFunc schedule_fn_;
+  ffi::Function schedule_fn_;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     SpaceGeneratorNode::VisitAttrs(v);
@@ -45,7 +45,7 @@ class ScheduleFnNode : public SpaceGeneratorNode {
         /*rand_state=*/ForkSeed(&this->rand_state_),
         /*debug_mode=*/0,
         /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
-    runtime::TVMRetValue rv;
+    ffi::Any rv;
     rv = this->schedule_fn_(sch);
     if (rv == nullptr) {
       return {sch};
@@ -84,7 +84,7 @@ class ScheduleFnNode : public SpaceGeneratorNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleFnNode, SpaceGeneratorNode);
 };
 
-SpaceGenerator SpaceGenerator::ScheduleFn(PackedFunc schedule_fn,
+SpaceGenerator SpaceGenerator::ScheduleFn(ffi::Function schedule_fn,
                                           Optional<Array<ScheduleRule>> sch_rules,
                                           Optional<Array<Postproc>> postprocs,
                                           Optional<Map<Mutator, FloatImm>> mutator_probs) {

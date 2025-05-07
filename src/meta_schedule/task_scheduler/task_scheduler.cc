@@ -99,7 +99,7 @@ void TaskCleanUp(TaskRecordNode* self, int task_id, const Array<RunnerResult>& r
   ICHECK_EQ(self->runner_futures.value().size(), results.size());
   int n = results.size();
   std::string name = self->ctx->task_name.value();
-  const PackedFunc& logger = self->ctx->logger;
+  const ffi::Function& logger = self->ctx->logger;
   for (int i = 0; i < n; ++i) {
     const BuilderResult& builder_result = self->builder_results.value()[i];
     const MeasureCandidate& candidate = self->measure_candidates.value()[i];
@@ -322,7 +322,7 @@ void TaskSchedulerNode::PrintTuningStatistics() {
 }
 
 TaskScheduler TaskScheduler::PyTaskScheduler(
-    PackedFunc logger, PyTaskSchedulerNode::FNextTaskId f_next_task_id,
+    ffi::Function logger, PyTaskSchedulerNode::FNextTaskId f_next_task_id,
     PyTaskSchedulerNode::FJoinRunningTask f_join_running_task, PyTaskSchedulerNode::FTune f_tune) {
   CHECK(f_next_task_id != nullptr) << "ValueError: next_task_id is not defined";
   ObjectPtr<PyTaskSchedulerNode> n = make_object<PyTaskSchedulerNode>();

@@ -36,7 +36,7 @@ class DiscoStreamMessageQueue : private dmlc::Stream,
 
   ~DiscoStreamMessageQueue() = default;
 
-  void Send(const TVMArgs& args) {
+  void Send(const ffi::PackedArgs& args) {
     // Run legacy ABI translation.
     std::vector<TVMValue> values(args.size());
     std::vector<int> type_codes(args.size());
@@ -46,7 +46,7 @@ class DiscoStreamMessageQueue : private dmlc::Stream,
     CommitSendAndNotifyEnqueue();
   }
 
-  TVMArgs Recv() {
+  ffi::PackedArgs Recv() {
     bool is_implicit_shutdown = DequeueNextPacket();
     AnyView* packed_args = nullptr;
     int num_args = 0;

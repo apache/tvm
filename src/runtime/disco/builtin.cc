@@ -51,12 +51,12 @@ Module LoadVMModule(std::string path, Device device) {
   static DSOLibraryCache cache;
   Module dso_mod = cache.Open(path);
   device = UseDefaultDeviceIfNone(device);
-  PackedFunc vm_load_executable = dso_mod.GetFunction("vm_load_executable");
+  ffi::Function vm_load_executable = dso_mod.GetFunction("vm_load_executable");
   CHECK(vm_load_executable != nullptr)
       << "ValueError: File `" << path
       << "` is not built by RelaxVM, because `vm_load_executable` does not exist";
   auto mod = vm_load_executable().cast<Module>();
-  PackedFunc vm_initialization = mod.GetFunction("vm_initialization");
+  ffi::Function vm_initialization = mod.GetFunction("vm_initialization");
   CHECK(vm_initialization != nullptr)
       << "ValueError: File `" << path
       << "` is not built by RelaxVM, because `vm_initialization` does not exist";
@@ -70,7 +70,7 @@ NDArray DiscoEmptyNDArray(ShapeTuple shape, DataType dtype, Device device) {
   return NDArray::Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 
-PackedFunc GetCCLFunc(const char* name) {
+ffi::Function GetCCLFunc(const char* name) {
   std::string ccl = DiscoWorker::ThreadLocal()->ccl;
   std::string pf_name = "runtime.disco." + ccl + "." + name;
   const auto pf = tvm::ffi::Function::GetGlobal(pf_name);

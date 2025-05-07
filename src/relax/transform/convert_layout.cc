@@ -343,7 +343,7 @@ DataflowBlock ConvertLayoutPass(const DataflowBlock& df_block,
 namespace transform {
 
 Pass ConvertLayout(Map<String, Array<String>> desired_layouts) {
-  runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func =
+  ffi::TypedFunction<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func =
       [=](DataflowBlock df_block, IRModule m, PassContext pc) {
         return Downcast<DataflowBlock>(ConvertLayoutPass(df_block, desired_layouts));
       };

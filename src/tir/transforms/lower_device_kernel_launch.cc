@@ -53,7 +53,7 @@ struct KernelInfo {
   Array<String> launch_params;
 
   // Additional arguments which must be provided to the host-side
-  // PackedFunc.  These may be in terms of the function's parameters
+  // ffi::Function.  These may be in terms of the function's parameters
   // (e.g. a function that computes the average of `N` elements, and
   // which must be launched with `N` CUDA threads).
   Array<PrimExpr> launch_args;

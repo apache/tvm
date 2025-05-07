@@ -103,7 +103,7 @@ void IRDocsifierNode::RemoveVar(const ObjectRef& obj) {
 }
 
 void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
-                                      runtime::TypedPackedFunc<bool(ObjectRef)> is_var) {
+                                      ffi::TypedFunction<bool(ObjectRef)> is_var) {
   class Visitor : public AttrVisitor {
    public:
     inline void operator()(ObjectRef obj) { Visit("", &obj); }
@@ -179,7 +179,7 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
     std::unordered_set<const Object*> visited_;
 
    public:
-    runtime::TypedPackedFunc<bool(ObjectRef)> is_var;
+    ffi::TypedFunction<bool(ObjectRef)> is_var;
     std::unordered_map<const Object*, std::vector<const Object*>> common_prefix;
   };
   Visitor visitor;

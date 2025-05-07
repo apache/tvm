@@ -44,7 +44,7 @@ namespace runtime {
  *  we need for specific low-level handling(e.g. signal checking).
  *
  *  We only stores the C API function when absolutely necessary (e.g. when signal handler
- *  cannot trap back into python). Always consider use the PackedFunc FFI when possible
+ *  cannot trap back into python). Always consider use the ffi::Function FFI when possible
  *  in other cases.
  */
 class EnvCAPIRegistry {

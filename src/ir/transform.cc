@@ -43,8 +43,8 @@ namespace tvm {
 namespace transform {
 
 using tvm::ReprPrinter;
-using tvm::runtime::TVMArgs;
-using tvm::runtime::TVMRetValue;
+using tvm::ffi::Any;
+using tvm::ffi::PackedArgs;
 
 TVM_REGISTER_PASS_CONFIG_OPTION("testing.immutable_module", Bool);
 
@@ -538,7 +538,7 @@ TVM_REGISTER_GLOBAL("transform.PassInfo")
       return PassInfo(opt_level, name, required, traceable);
     });
 
-TVM_REGISTER_GLOBAL("transform.Info").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("transform.Info").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
   Pass pass = args[0].cast<Pass>();
   *ret = pass->Info();
 });
@@ -565,7 +565,7 @@ TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
 TVM_REGISTER_GLOBAL("transform.MakeModulePass")
     .set_body_typed(
-        [](runtime::TypedPackedFunc<IRModule(ffi::RValueRef<IRModule>, PassContext)> pass_func,
+        [](ffi::TypedFunction<IRModule(ffi::RValueRef<IRModule>, PassContext)> pass_func,
            PassInfo pass_info) {
           auto wrapped_pass_func = [pass_func](IRModule mod, PassContext ctx) {
             return pass_func(ffi::RValueRef<IRModule>(std::move(mod)), ctx);
@@ -586,15 +586,16 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(SequentialNode);
 
-TVM_REGISTER_GLOBAL("transform.Sequential").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  auto passes = args[0].cast<tvm::Array<Pass>>();
-  int opt_level = args[1].cast<int>();
-  std::string name = args[2].cast<std::string>();
-  auto required = args[3].cast<tvm::Array<runtime::String>>();
-  bool traceable = args[4].cast<bool>();
-  PassInfo pass_info = PassInfo(opt_level, name, required, /* traceable */ traceable);
-  *ret = Sequential(passes, pass_info);
-});
+TVM_REGISTER_GLOBAL("transform.Sequential")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      auto passes = args[0].cast<tvm::Array<Pass>>();
+      int opt_level = args[1].cast<int>();
+      std::string name = args[2].cast<std::string>();
+      auto required = args[3].cast<tvm::Array<runtime::String>>();
+      bool traceable = args[4].cast<bool>();
+      PassInfo pass_info = PassInfo(opt_level, name, required, /* traceable */ traceable);
+      *ret = Sequential(passes, pass_info);
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<SequentialNode>([](const ObjectRef& ref, ReprPrinter* p) {

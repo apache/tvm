@@ -54,15 +54,15 @@ struct TestAttrs : public AttrsNode<TestAttrs> {
 TVM_REGISTER_NODE_TYPE(TestAttrs);
 
 TVM_REGISTER_GLOBAL("testing.test_wrap_callback")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      PackedFunc pf = args[0].cast<PackedFunc>();
-      *ret = runtime::TypedPackedFunc<void()>([pf]() { pf(); });
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      ffi::Function pf = args[0].cast<ffi::Function>();
+      *ret = ffi::TypedFunction<void()>([pf]() { pf(); });
     });
 
 TVM_REGISTER_GLOBAL("testing.test_wrap_callback_suppress_err")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-      PackedFunc pf = args[0].cast<PackedFunc>();
-      auto result = runtime::TypedPackedFunc<void()>([pf]() {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      ffi::Function pf = args[0].cast<ffi::Function>();
+      auto result = ffi::TypedFunction<void()>([pf]() {
         try {
           pf();
         } catch (std::exception& err) {
@@ -72,13 +72,12 @@ TVM_REGISTER_GLOBAL("testing.test_wrap_callback_suppress_err")
     });
 
 TVM_REGISTER_GLOBAL("testing.test_check_eq_callback")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto msg = args[0].cast<std::string>();
-      *ret = runtime::TypedPackedFunc<void(int x, int y)>(
-          [msg](int x, int y) { CHECK_EQ(x, y) << msg; });
+      *ret = ffi::TypedFunction<void(int x, int y)>([msg](int x, int y) { CHECK_EQ(x, y) << msg; });
     });
 
-TVM_REGISTER_GLOBAL("testing.device_test").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("testing.device_test").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
   auto dev = args[0].cast<Device>();
   int dtype = args[1].cast<int>();
   int did = args[2].cast<int>();
@@ -87,13 +86,14 @@ TVM_REGISTER_GLOBAL("testing.device_test").set_body_packed([](TVMArgs args, TVMR
   *ret = dev;
 });
 
-TVM_REGISTER_GLOBAL("testing.identity_cpp").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  const auto identity_func = tvm::ffi::Function::GetGlobal("testing.identity_py");
-  ICHECK(identity_func.has_value())
-      << "AttributeError: \"testing.identity_py\" is not registered. Please check "
-         "if the python module is properly loaded";
-  *ret = (*identity_func)(args[0]);
-});
+TVM_REGISTER_GLOBAL("testing.identity_cpp")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      const auto identity_func = tvm::ffi::Function::GetGlobal("testing.identity_py");
+      ICHECK(identity_func.has_value())
+          << "AttributeError: \"testing.identity_py\" is not registered. Please check "
+             "if the python module is properly loaded";
+      *ret = (*identity_func)(args[0]);
+    });
 
 // in src/api_test.cc
 void ErrorTest(int x, int y) {
@@ -113,19 +113,19 @@ class FrontendTestModuleNode : public runtime::ModuleNode {
 
   static constexpr const char* kAddFunctionName = "__add_function";
 
-  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
+  virtual ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
 
  private:
-  std::unordered_map<std::string, PackedFunc> functions_;
+  std::unordered_map<std::string, ffi::Function> functions_;
 };
 
 constexpr const char* FrontendTestModuleNode::kAddFunctionName;
 
-PackedFunc FrontendTestModuleNode::GetFunction(const String& name,
-                                               const ObjectPtr<Object>& sptr_to_self) {
+ffi::Function FrontendTestModuleNode::GetFunction(const String& name,
+                                                  const ObjectPtr<Object>& sptr_to_self) {
   if (name == kAddFunctionName) {
-    return runtime::TypedPackedFunc<void(std::string, PackedFunc)>(
-        [this, sptr_to_self](std::string func_name, PackedFunc pf) {
+    return ffi::TypedFunction<void(std::string, ffi::Function)>(
+        [this, sptr_to_self](std::string func_name, ffi::Function pf) {
           CHECK_NE(func_name, kAddFunctionName)
               << "func_name: cannot be special function " << kAddFunctionName;
           functions_[func_name] = pf;
@@ -134,7 +134,7 @@ PackedFunc FrontendTestModuleNode::GetFunction(const String& name,
 
   auto it = functions_.find(name);
   if (it == functions_.end()) {
-    return PackedFunc();
+    return ffi::Function();
   }
 
   return it->second;
@@ -197,10 +197,10 @@ TVM_REGISTER_GLOBAL("testing.AcceptsArrayOfPrimExpr")
     });
 
 TVM_REGISTER_GLOBAL("testing.AcceptsArrayOfVariant")
-    .set_body_typed([](Array<Variant<PackedFunc, PrimExpr>> arr) -> ObjectRef {
+    .set_body_typed([](Array<Variant<ffi::Function, PrimExpr>> arr) -> ObjectRef {
       for (auto item : arr) {
         CHECK(item.as<PrimExpr>() || item.as<ffi::Function>())
-            << "Array should contain either PrimExpr or PackedFunc";
+            << "Array should contain either PrimExpr or ffi::Function";
       }
       return arr;
     });
@@ -254,7 +254,7 @@ class TestingEventLogger {
   std::vector<Entry> entries_;
 };
 
-TVM_REGISTER_GLOBAL("testing.record_event").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("testing.record_event").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   if (args.size() != 0 && args[0].as<String>()) {
     TestingEventLogger::ThreadLocal()->Record(args[0].cast<String>());
   } else {
@@ -262,7 +262,7 @@ TVM_REGISTER_GLOBAL("testing.record_event").set_body_packed([](TVMArgs args, TVM
   }
 });
 
-TVM_REGISTER_GLOBAL("testing.reset_events").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("testing.reset_events").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   TestingEventLogger::ThreadLocal()->Reset();
 });
 

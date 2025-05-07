@@ -183,7 +183,7 @@ Optional<String> RequiresPackedAPI(const PrimFunc& func) {
     }
   }
 
-  // Internal function calls do not need the PackedFunc API
+  // Internal function calls do not need the ffi::Function API
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   if (!global_symbol.defined()) {
     return NullOpt;

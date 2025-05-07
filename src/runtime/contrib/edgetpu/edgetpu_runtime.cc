@@ -69,7 +69,7 @@ Module EdgeTPURuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
 }
 
 TVM_REGISTER_GLOBAL("tvm.edgetpu_runtime.create")
-    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       *rv = EdgeTPURuntimeCreate(args[0], args[1]);
     });
 }  // namespace runtime

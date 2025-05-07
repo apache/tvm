@@ -185,8 +185,7 @@ TEST(Array, InsertEraseRange) {
 }
 
 TEST(Array, FuncArrayAnyArg) {
-  Function fadd_one =
-      Function::FromUnpacked([](Array<Any> a) -> Any { return a[0].cast<int>() + 1; });
+  Function fadd_one = Function::FromTyped([](Array<Any> a) -> Any { return a[0].cast<int>() + 1; });
   EXPECT_EQ(fadd_one(Array<Any>{1}).cast<int>(), 2);
 }
 

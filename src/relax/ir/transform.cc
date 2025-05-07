@@ -165,8 +165,7 @@ TVM_REGISTER_NODE_TYPE(FunctionPassNode);
 
 TVM_REGISTER_GLOBAL("relax.transform.MakeFunctionPass")
     .set_body_typed(
-        [](runtime::TypedPackedFunc<Function(ffi::RValueRef<Function>, IRModule, PassContext)>
-               pass_func,
+        [](ffi::TypedFunction<Function(ffi::RValueRef<Function>, IRModule, PassContext)> pass_func,
            PassInfo pass_info) {
           auto wrapped_pass_func = [pass_func](Function func, IRModule mod, PassContext ctx) {
             return pass_func(ffi::RValueRef<Function>(std::move(func)), mod, ctx);
@@ -385,15 +384,15 @@ Pass CreateDataflowBlockPass(
 TVM_REGISTER_NODE_TYPE(DataflowBlockPassNode);
 
 TVM_REGISTER_GLOBAL("relax.transform.MakeDataflowBlockPass")
-    .set_body_typed([](runtime::TypedPackedFunc<DataflowBlock(ffi::RValueRef<DataflowBlock>,
-                                                              IRModule, PassContext)>
-                           pass_func,
-                       PassInfo pass_info) {
-      auto wrapped_pass_func = [pass_func](DataflowBlock func, IRModule mod, PassContext ctx) {
-        return pass_func(ffi::RValueRef<DataflowBlock>(std::move(func)), mod, ctx);
-      };
-      return DataflowBlockPass(wrapped_pass_func, pass_info);
-    });
+    .set_body_typed(
+        [](ffi::TypedFunction<DataflowBlock(ffi::RValueRef<DataflowBlock>, IRModule, PassContext)>
+               pass_func,
+           PassInfo pass_info) {
+          auto wrapped_pass_func = [pass_func](DataflowBlock func, IRModule mod, PassContext ctx) {
+            return pass_func(ffi::RValueRef<DataflowBlock>(std::move(func)), mod, ctx);
+          };
+          return DataflowBlockPass(wrapped_pass_func, pass_info);
+        });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<DataflowBlockPassNode>([](const ObjectRef& ref, ReprPrinter* p) {

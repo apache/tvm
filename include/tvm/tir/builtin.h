@@ -359,7 +359,7 @@ TVM_DLL const Op& tvm_stack_make_array();
  *  return_type tvm_call_packed(name, TVMFFIAny* args) {
  *     TVMFFIAny result;
  *     ModuleNode* env = GetCurrentEnv();
- *     const PackedFunc* f = env->GetFuncFromEnv(name);
+ *     const ffi::Function* f = env->GetFuncFromEnv(name);
  *     (*f)(args, args, len(args), &result);
  *     // return type can be int, float, handle.
  *     return cast(return_type, result);
@@ -383,7 +383,7 @@ TVM_DLL const Op& tvm_call_cpacked();
  *
  *  return_type tvm_call_trace_packed(name, TVMFFIAny* args) {
  *     ModuleNode* env = GetCurrentEnv();
- *     const PackedFunc* f = env->GetFuncFromEnv(name);
+ *     const ffi::Function* f = env->GetFuncFromEnv(name);
  *     (*f)(args, args, len(args));
  *     // return type can be int, float, handle.
  *     return cast(return_type, result);
@@ -420,10 +420,10 @@ TVM_DLL const Op& tvm_thread_invariant();
  *                                      int begin,
  *                                      int end) {
  *     ModuleNode* env = GetCurrentEnv();
- *     const PackedFunc* f = env->GetFuncFromEnv(name);
- *     f->CallPacked(TVMArgs(value_stack[begin:end],
+ *     const ffi::Function* f = env->GetFuncFromEnv(name);
+ *     f->CallPacked(ffi::PackedArgs(value_stack[begin:end],
  *                           tcode_stack[begin:end]),
- *                   TVMRetValue(value_stack + end, tcode_stack + end));
+ *                   ffi::Any(value_stack + end, tcode_stack + end));
  *     // return type can be int, float, handle.
  *     return cast(return_type, load_return_from(tcode_stack + end))
  *  }
@@ -439,8 +439,8 @@ TVM_DLL const Op& tvm_call_packed_lowered();
  *                              int begin,
  *                              int end,
  *                              void* self) {
- *     fname(TVMArgs(value_stack[begin:end], tcode_stack[begin:end]),
- *                   TVMRetValue(value_stack + end, tcode_stack + end));
+ *     fname(ffi::PackedArgs(value_stack[begin:end], tcode_stack[begin:end]),
+ *                   ffi::Any(value_stack + end, tcode_stack + end));
  *  }
  */
 TVM_DLL const Op& tvm_call_cpacked_lowered();
@@ -456,10 +456,10 @@ TVM_DLL const Op& tvm_call_cpacked_lowered();
  *                                            int begin,
  *                                            int end) {
  *     ModuleNode* env = GetCurrentEnv();
- *     const PackedFunc* f = env->GetFuncFromEnv(name);
- *     f->CallPacked(TVMArgs(value_stack[begin:end],
+ *     const ffi::Function* f = env->GetFuncFromEnv(name);
+ *     f->CallPacked(ffi::PackedArgs(value_stack[begin:end],
  *                           tcode_stack[begin:end]),
- *                   TVMRetValue(value_stack + end, tcode_stack + end));
+ *                   ffi::Any(value_stack + end, tcode_stack + end));
  *     // return type can be int, float, handle.
  *     return cast(return_type, load_return_from(tcode_stack + end))
  *  }

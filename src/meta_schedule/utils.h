@@ -83,7 +83,7 @@ class PyLogMessage {
     // FATAL not included
   };
 
-  explicit PyLogMessage(const char* filename, int lineno, PackedFunc logger, Level logging_level)
+  explicit PyLogMessage(const char* filename, int lineno, ffi::Function logger, Level logging_level)
       : filename_(filename), lineno_(lineno), logger_(logger), logging_level_(logging_level) {}
 
   TVM_NO_INLINE ~PyLogMessage() {
@@ -115,7 +115,7 @@ class PyLogMessage {
   const char* filename_;
   int lineno_;
   std::ostringstream stream_;
-  PackedFunc logger_;
+  ffi::Function logger_;
   Level logging_level_;
 };
 
@@ -150,7 +150,7 @@ inline void print_interactive_table(const String& data) {
  * \param lineno The line number.
  * \param logging_func The logging function.
  */
-inline void clear_logging(const char* file, int lineno, PackedFunc logging_func) {
+inline void clear_logging(const char* file, int lineno, ffi::Function logging_func) {
   if (const char* env_p = std::getenv("TVM_META_SCHEDULE_CLEAR_SCREEN")) {
     if (std::string(env_p) == "1") {
       if (logging_func.defined() && using_ipython()) {
@@ -569,7 +569,7 @@ inline double Sum(const Array<FloatImm>& arr) {
 class BlockCollector : public tir::StmtVisitor {
  public:
   static Array<tir::BlockRV> Collect(const tir::Schedule& sch,
-                                     const runtime::PackedFunc f_block_filter = nullptr) {  //
+                                     const ffi::Function f_block_filter = nullptr) {  //
     return BlockCollector(sch, f_block_filter).Run();
   }
 
@@ -603,8 +603,7 @@ class BlockCollector : public tir::StmtVisitor {
     return results;
   }
   /*! \brief Constructor */
-  explicit BlockCollector(const tir::Schedule& sch,
-                          const runtime::PackedFunc f_block_filter = nullptr)
+  explicit BlockCollector(const tir::Schedule& sch, const ffi::Function f_block_filter = nullptr)
       : sch_(sch), f_block_filter_(f_block_filter) {}
   /*! \brief Override the Stmt visiting behaviour */
   void VisitStmt_(const tir::BlockNode* block) override {
@@ -628,7 +627,7 @@ class BlockCollector : public tir::StmtVisitor {
   /*! \brief The schedule to be collected */
   const tir::Schedule& sch_;
   /*! \brief An optional packed func that allows only certain blocks to be collected. */
-  const runtime::PackedFunc f_block_filter_;
+  const ffi::Function f_block_filter_;
   /*! \brief The set of func name and block name pair */
   std::unordered_set<String> block_names_;
   /* \brief The list of blocks to collect in order */

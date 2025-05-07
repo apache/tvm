@@ -355,7 +355,7 @@ Array<PrimExpr> InferEinsumShape(const std::string& subscripts,
   return einsum_builder.InferShape();
 }
 
-TVM_REGISTER_GLOBAL("topi.einsum").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("topi.einsum").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   *rv = einsum(args[0].cast<std::string>(), args[1].cast<Array<Tensor>>());
 });
 

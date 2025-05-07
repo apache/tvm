@@ -40,7 +40,7 @@ namespace runtime {
 class DiscoThreadedMessageQueue : private dmlc::Stream,
                                   private DiscoProtocol<DiscoThreadedMessageQueue> {
  public:
-  void Send(const TVMArgs& args) {
+  void Send(const ffi::PackedArgs& args) {
     // Run legacy ABI translation.
     std::vector<TVMValue> values(args.size());
     std::vector<int> type_codes(args.size());
@@ -50,7 +50,7 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
     CommitSendAndNotifyEnqueue();
   }
 
-  TVMArgs Recv() {
+  ffi::PackedArgs Recv() {
     DequeueNextPacket();
     TVMValue* values = nullptr;
     int* type_codes = nullptr;
@@ -132,10 +132,10 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
 
 class DiscoThreadChannel final : public DiscoChannel {
  public:
-  void Send(const TVMArgs& args) { controler_to_worker_.Send(args); }
-  TVMArgs Recv() { return controler_to_worker_.Recv(); }
-  void Reply(const TVMArgs& args) { worker_to_controler_.Send(args); }
-  TVMArgs RecvReply() { return worker_to_controler_.Recv(); }
+  void Send(const ffi::PackedArgs& args) { controler_to_worker_.Send(args); }
+  ffi::PackedArgs Recv() { return controler_to_worker_.Recv(); }
+  void Reply(const ffi::PackedArgs& args) { worker_to_controler_.Send(args); }
+  ffi::PackedArgs RecvReply() { return worker_to_controler_.Recv(); }
 
   DiscoThreadedMessageQueue controler_to_worker_;
   DiscoThreadedMessageQueue worker_to_controler_;
@@ -165,7 +165,7 @@ class ThreadedSessionObj final : public BcastSessionObj {
 
   int64_t GetNumWorkers() { return workers_.size(); }
 
-  TVMRetValue DebugGetFromRemote(int64_t reg_id, int worker_id) {
+  ffi::Any DebugGetFromRemote(int64_t reg_id, int worker_id) {
     this->SyncWorker(worker_id);
     return this->workers_.at(worker_id).worker->register_file.at(reg_id);
   }
@@ -175,17 +175,17 @@ class ThreadedSessionObj final : public BcastSessionObj {
     this->workers_.at(worker_id).worker->SetRegister(reg_id, value);
   }
 
-  void BroadcastPacked(const TVMArgs& args) final {
+  void BroadcastPacked(const ffi::PackedArgs& args) final {
     for (const DiscoWorkerThread& worker : this->workers_) {
       worker.channel->Send(args);
     }
   }
 
-  void SendPacked(int worker_id, const TVMArgs& args) final {
+  void SendPacked(int worker_id, const ffi::PackedArgs& args) final {
     this->workers_.at(worker_id).channel->Send(args);
   }
 
-  TVMArgs RecvReplyPacked(int worker_id) final {
+  ffi::PackedArgs RecvReplyPacked(int worker_id) final {
     return this->workers_.at(worker_id).channel->RecvReply();
   }
 

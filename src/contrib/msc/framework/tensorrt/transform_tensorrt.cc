@@ -68,8 +68,8 @@ const TensorRTTransConfig ParseConfig(const String& config_str) {
 }
 
 using FRewriteTensorRT =
-    runtime::TypedPackedFunc<Expr(BlockBuilder builder, const Var& var, const Call& src_call,
-                                  const Map<Expr, Call>& new_calls, const String& config)>;
+    ffi::TypedFunction<Expr(BlockBuilder builder, const Var& var, const Call& src_call,
+                            const Map<Expr, Call>& new_calls, const String& config)>;
 
 const Array<PrimExpr> BroadcastShape(const Array<PrimExpr>& src_shape,
                                      const Array<PrimExpr>& out_shape) {

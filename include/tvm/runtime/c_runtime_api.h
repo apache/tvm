@@ -180,7 +180,7 @@ typedef enum {
   kTVMNDArrayHandle = 13U,
   kTVMObjectRValueRefArg = 14U,
   kTVMArgBool = 15U,
-  // Extension codes for other frameworks to integrate TVM PackedFunc.
+  // Extension codes for other frameworks to integrate TVM ffi::Function.
   // To make sure each framework's id do not conflict, use first and
   // last sections to mark ranges.
   // Open an issue at the repo if you need a section of code.

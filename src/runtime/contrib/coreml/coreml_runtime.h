@@ -19,7 +19,7 @@
 
 /*!
  * \brief CoreML runtime that can run coreml model
- *        containing only tvm PackedFunc.
+ *        containing only tvm ffi::Function.
  * \file coreml_runtime.h
  */
 #ifndef TVM_RUNTIME_CONTRIB_COREML_COREML_RUNTIME_H_
@@ -93,7 +93,7 @@ class CoreMLModel {
  * \brief CoreML runtime.
  *
  *  This runtime can be accessed in various language via
- *  TVM runtime PackedFunc API.
+ *  TVM runtime ffi::Function API.
  */
 class CoreMLRuntime : public ModuleNode {
  public:
@@ -103,7 +103,7 @@ class CoreMLRuntime : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
+  virtual ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
 
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final {

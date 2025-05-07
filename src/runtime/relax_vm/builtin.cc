@@ -326,7 +326,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.check_tuple_info").set_body_typed(CheckTupleInfo
  */
 void CheckFuncInfo(ObjectRef arg, Optional<String> err_ctx) {
   // a function that lazily get context for error reporting
-  bool is_func = arg.as<PackedFunc::ContainerType>() || arg.as<VMClosure::ContainerType>();
+  bool is_func = arg.as<ffi::Function::ContainerType>() || arg.as<VMClosure::ContainerType>();
   CHECK(is_func) << "TypeError: " << err_ctx.value_or("") << " expect a Function but get "
                  << arg->GetTypeKey();
 }
@@ -571,7 +571,7 @@ extern "C" {
 /*!
  * \brief Backend function to get anylist item and set into Packed Func call arg stack.
  *
- * \param anylist The handle to the anylist, backed by TVMRetValue*
+ * \param anylist The handle to the anylist, backed by ffi::Any*
  * \param int The index.
  * \param args The args stack.
  * \param arg_offset The offset of argument.
@@ -582,7 +582,7 @@ TVM_DLL int TVMBackendAnyListSetPackedArg(void* anylist, int index, TVMFFIAny* a
 /*!
  * \brief Backend function to get anylist item and set into Packed Func call arg stack.
  *
- * \param anylist The handle to the anylist, backed by TVMRetValue*
+ * \param anylist The handle to the anylist, backed by ffi::Any*
  * \param int The index.
  */
 TVM_DLL int TVMBackendAnyListResetItem(void* anylist, int index);
@@ -590,7 +590,7 @@ TVM_DLL int TVMBackendAnyListResetItem(void* anylist, int index);
 /*!
  * \brief Backend function to set anylist item by moving from packed func return.
  *
- * \param anylist The handle to the anylist, backed by TVMRetValue*
+ * \param anylist The handle to the anylist, backed by ffi::Any*
  * \param int The index.
  * \param args The args stack.
  * \param type_codes The type codes stack.

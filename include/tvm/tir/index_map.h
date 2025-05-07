@@ -191,7 +191,7 @@ class IndexMap : public ObjectRef {
    * \param inverse_index_map The optional pre-defined inverse index map
    * \return The created index map
    */
-  static IndexMap FromFunc(int ndim, runtime::TypedPackedFunc<Array<PrimExpr>(Array<Var>)> func,
+  static IndexMap FromFunc(int ndim, ffi::TypedFunction<Array<PrimExpr>(Array<Var>)> func,
                            Optional<IndexMap> inverse_index_map = NullOpt);
 
   /*! \brief Generate the inverse mapping.

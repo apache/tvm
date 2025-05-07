@@ -45,7 +45,7 @@ namespace runtime {
  * \param handle A pointer valid on the remote end which should form the `data` field of the
  *     underlying DLTensor.
  * \param template_tensor An empty DLTensor whose shape and dtype fields are used to fill the newly
- *     created array. Needed because it's difficult to pass a shape vector as a PackedFunc arg.
+ *     created array. Needed because it's difficult to pass a shape vector as a ffi::Function arg.
  * \param dev Remote device used with this tensor. Must have non-zero RPCSessMask.
  * \param remote_ndarray_handle The handle returned by RPC server to identify the NDArray.
  */
@@ -74,13 +74,13 @@ NDArray NDArrayFromRemoteOpaqueHandle(std::shared_ptr<RPCSession> sess, void* ha
 }
 
 /*!
- * \brief A wrapped remote function as a PackedFunc.
+ * \brief A wrapped remote function as a ffi::Function.
  */
 class RPCWrappedFunc : public Object {
  public:
   RPCWrappedFunc(void* handle, std::shared_ptr<RPCSession> sess) : handle_(handle), sess_(sess) {}
 
-  void operator()(TVMArgs args, TVMRetValue* rv) const {
+  void operator()(ffi::PackedArgs args, ffi::Any* rv) const {
     std::vector<AnyView> packed_args(args.size());
     std::vector<std::unique_ptr<DLTensor>> temp_dltensors;
 
@@ -130,7 +130,7 @@ class RPCWrappedFunc : public Object {
         }
       }
     }
-    auto set_return = [this, rv](TVMArgs args) { this->WrapRemoteReturnToValue(args, rv); };
+    auto set_return = [this, rv](ffi::PackedArgs args) { this->WrapRemoteReturnToValue(args, rv); };
     sess_->CallFunc(handle_, ffi::PackedArgs(packed_args.data(), packed_args.size()), set_return);
   }
 
@@ -149,9 +149,9 @@ class RPCWrappedFunc : public Object {
   std::shared_ptr<RPCSession> sess_;
 
   // unwrap a remote value to the underlying handle.
-  void* UnwrapRemoteValueToHandle(const TVMArgValue& arg) const;
+  void* UnwrapRemoteValueToHandle(const ffi::AnyView& arg) const;
   // wrap a remote return via Set
-  void WrapRemoteReturnToValue(TVMArgs args, TVMRetValue* rv) const;
+  void WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv) const;
 
   // remove a remote session mask
   Device RemoveSessMask(Device dev) const {
@@ -185,9 +185,9 @@ class RPCModuleNode final : public ModuleNode {
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final { return ModulePropertyMask::kRunnable; }
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "CloseRPCConnection") {
-      return PackedFunc([this](TVMArgs, TVMRetValue*) { sess_->Shutdown(); });
+      return ffi::Function([this](ffi::PackedArgs, ffi::Any*) { sess_->Shutdown(); });
     }
 
     if (module_handle_ == nullptr) {
@@ -203,10 +203,10 @@ class RPCModuleNode final : public ModuleNode {
     throw;
   }
 
-  PackedFunc GetTimeEvaluator(const std::string& name, Device dev, int number, int repeat,
-                              int min_repeat_ms, int limit_zero_time_iterations,
-                              int cooldown_interval_ms, int repeats_to_cooldown,
-                              int cache_flush_bytes, const std::string& f_preproc_name) {
+  ffi::Function GetTimeEvaluator(const std::string& name, Device dev, int number, int repeat,
+                                 int min_repeat_ms, int limit_zero_time_iterations,
+                                 int cooldown_interval_ms, int repeats_to_cooldown,
+                                 int cache_flush_bytes, const std::string& f_preproc_name) {
     InitRemoteFunc(&remote_get_time_evaluator_, "runtime.RPCTimeEvaluator");
     // Remove session mask because we pass dev by parts.
     ICHECK_EQ(GetRPCSessionIndex(dev), sess_->table_index())
@@ -249,10 +249,11 @@ class RPCModuleNode final : public ModuleNode {
     *func = WrapRemoteFunc(handle);
   }
 
-  PackedFunc WrapRemoteFunc(RPCSession::PackedFuncHandle handle) {
-    if (handle == nullptr) return PackedFunc();
+  ffi::Function WrapRemoteFunc(RPCSession::PackedFuncHandle handle) {
+    if (handle == nullptr) return ffi::Function();
     auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
-    return PackedFunc([wf](TVMArgs args, TVMRetValue* rv) { return wf->operator()(args, rv); });
+    return ffi::Function(
+        [wf](ffi::PackedArgs args, ffi::Any* rv) { return wf->operator()(args, rv); });
   }
 
   // The module handle
@@ -260,15 +261,15 @@ class RPCModuleNode final : public ModuleNode {
   // The local channel
   std::shared_ptr<RPCSession> sess_;
   // remote function to get time evaluator
-  TypedPackedFunc<PackedFunc(Optional<Module>, std::string, int, int, int, int, int, int, int, int,
-                             int, std::string)>
+  ffi::TypedFunction<ffi::Function(Optional<Module>, std::string, int, int, int, int, int, int, int,
+                                   int, int, std::string)>
       remote_get_time_evaluator_;
   // remote function getter for modules.
-  TypedPackedFunc<PackedFunc(Module, std::string, bool)> remote_mod_get_function_;
+  ffi::TypedFunction<ffi::Function(Module, std::string, bool)> remote_mod_get_function_;
   // remote function getter for load module
-  TypedPackedFunc<Module(std::string)> remote_load_module_;
+  ffi::TypedFunction<Module(std::string)> remote_load_module_;
   // remote function getter for load module
-  TypedPackedFunc<void(Module, Module)> remote_import_module_;
+  ffi::TypedFunction<void(Module, Module)> remote_import_module_;
 };
 
 void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
@@ -288,7 +289,7 @@ void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
   }
 }
 
-void RPCWrappedFunc::WrapRemoteReturnToValue(TVMArgs args, TVMRetValue* rv) const {
+void RPCWrappedFunc::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv) const {
   int tcode = args[0].cast<int>();
   // TODO(tqchen): move to RPC to new ABI
   if (tcode == kTVMNullptr) {
@@ -298,7 +299,8 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(TVMArgs args, TVMRetValue* rv) cons
     ICHECK_EQ(args.size(), 2);
     void* handle = args[1].cast<void*>();
     auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
-    *rv = PackedFunc([wf](TVMArgs args, TVMRetValue* rv) { return wf->operator()(args, rv); });
+    *rv = ffi::Function(
+        [wf](ffi::PackedArgs args, ffi::Any* rv) { return wf->operator()(args, rv); });
   } else if (tcode == kTVMModuleHandle) {
     ICHECK_EQ(args.size(), 2);
     void* handle = args[1].cast<void*>();
@@ -378,7 +380,7 @@ inline void CPUCacheFlushImpl(const char* addr, unsigned int len) {
 #endif
 }
 
-inline void CPUCacheFlush(int begin_index, const TVMArgs& args) {
+inline void CPUCacheFlush(int begin_index, const ffi::PackedArgs& args) {
   for (int i = begin_index; i < args.size(); i++) {
     CPUCacheFlushImpl(static_cast<char*>((args[i].cast<DLTensor*>()->data)),
                       GetDataSize(*(args[i].cast<DLTensor*>())));
@@ -402,14 +404,14 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
                                  limit_zero_time_iterations, cooldown_interval_ms,
                                  repeats_to_cooldown, cache_flush_bytes, f_preproc_name);
         } else {
-          PackedFunc f_preproc;
+          ffi::Function f_preproc;
           if (!f_preproc_name.empty()) {
             auto pf_preproc = tvm::ffi::Function::GetGlobal(f_preproc_name);
             ICHECK(pf_preproc.has_value())
                 << "Cannot find " << f_preproc_name << " in the global function";
             f_preproc = *pf_preproc;
           }
-          PackedFunc pf = m.GetFunction(name, true);
+          ffi::Function pf = m.GetFunction(name, true);
           CHECK(pf != nullptr) << "Cannot find " << name << "` in the global registry";
           return profiling::WrapTimeEvaluator(pf, dev, number, repeat, min_repeat_ms,
                                               limit_zero_time_iterations, cooldown_interval_ms,
@@ -418,7 +420,7 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
       } else {
         auto pf = tvm::ffi::Function::GetGlobal(name);
         ICHECK(pf.has_value()) << "Cannot find " << name << " in the global function";
-        PackedFunc f_preproc;
+        ffi::Function f_preproc;
         if (!f_preproc_name.empty()) {
           auto pf_preproc = tvm::ffi::Function::GetGlobal(f_preproc_name);
           ICHECK(pf_preproc.has_value())
@@ -432,7 +434,7 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
     });
 
 TVM_REGISTER_GLOBAL("cache_flush_cpu_non_first_arg")
-    .set_body_packed([](TVMArgs args, TVMRetValue* rv) { CPUCacheFlush(1, args); });
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) { CPUCacheFlush(1, args); });
 
 // server function registration.
 TVM_REGISTER_GLOBAL("tvm.rpc.server.ImportModule").set_body_typed([](Module parent, Module child) {
@@ -457,7 +459,7 @@ TVM_REGISTER_GLOBAL("rpc.ImportRemoteModule").set_body_typed([](Module parent, M
   static_cast<RPCModuleNode*>(parent.operator->())->ImportModule(child);
 });
 
-TVM_REGISTER_GLOBAL("rpc.SessTableIndex").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("rpc.SessTableIndex").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   Module m = args[0].cast<Module>();
   std::string tkey = m->type_key();
   ICHECK_EQ(tkey, "rpc");

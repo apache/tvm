@@ -74,7 +74,7 @@ class VMClosureObj : public Object {
    *       as the first argument. The rest of arguments follows
    *       the same arguments as the normal function call.
    */
-  PackedFunc impl;
+  ffi::Function impl;
 
   static constexpr const char* _type_key = "relax.vm.Closure";
   TVM_DECLARE_FINAL_OBJECT_INFO(VMClosureObj, Object);
@@ -83,18 +83,18 @@ class VMClosureObj : public Object {
 /*! \brief reference to closure. */
 class VMClosure : public ObjectRef {
  public:
-  VMClosure(String func_name, PackedFunc impl);
+  VMClosure(String func_name, ffi::Function impl);
   TVM_DEFINE_OBJECT_REF_METHODS(VMClosure, ObjectRef, VMClosureObj);
 
   /*!
-   * \brief Create another PackedFunc with last arguments already bound to last_args.
+   * \brief Create another ffi::Function with last arguments already bound to last_args.
    *
    * This is a helper function to create captured closures.
-   * \param func The input func, can be a VMClosure or PackedFunc.
+   * \param func The input func, can be a VMClosure or ffi::Function.
    * \param last_args The arguments to bound to in the end of the function.
    * \note The new function takes in arguments and append the last_args in the end.
    */
-  static PackedFunc BindLastArgs(PackedFunc func, std::vector<TVMRetValue> last_args);
+  static ffi::Function BindLastArgs(ffi::Function func, std::vector<ffi::Any> last_args);
 };
 
 /*!
@@ -149,7 +149,7 @@ class VirtualMachine : public runtime::ModuleNode {
    */
   virtual VMClosure GetClosure(const String& func_name) = 0;
   /*!
-   * \brief Invoke closure or packed function using PackedFunc convention.
+   * \brief Invoke closure or packed function using ffi::Function convention.
    * \param closure_or_packedfunc A VM closure or a packed_func.
    * \param args The input arguments.
    * \param rv The return value.
@@ -164,7 +164,7 @@ class VirtualMachine : public runtime::ModuleNode {
    *
    * bool instrument(func, func_symbol, before_run, args...)
    *
-   * - func: Union[VMClosure, PackedFunc], the function object.
+   * - func: Union[VMClosure, ffi::Function], the function object.
    * - func_symbol: string, the symbol of the function.
    * - before_run: bool, whether it is before or after call.
    * - ret_value: Only valid in after run, otherwise it is null.
@@ -175,7 +175,7 @@ class VirtualMachine : public runtime::ModuleNode {
    *
    * \param instrument The instrument function.
    */
-  virtual void SetInstrument(PackedFunc instrument) = 0;
+  virtual void SetInstrument(ffi::Function instrument) = 0;
 
   /*!
    * \brief Get or create a VM extension. Once created, the extension will be stored in the VM
@@ -209,7 +209,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \brief Helper function for vm closure functions to get the context ptr
    * \param arg The argument value.
    */
-  static VirtualMachine* GetContextPtr(TVMArgValue arg) {
+  static VirtualMachine* GetContextPtr(ffi::AnyView arg) {
     return static_cast<VirtualMachine*>(arg.cast<void*>());
   }
 

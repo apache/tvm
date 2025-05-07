@@ -127,8 +127,7 @@ Var Var::copy_with_dtype(DataType dtype) const {
   return Var(new_ptr);
 }
 
-TVM_REGISTER_GLOBAL("tir.Var").set_body_typed([](String name_hint, runtime::TVMArgValue type,
-                                                 Span span) {
+TVM_REGISTER_GLOBAL("tir.Var").set_body_typed([](String name_hint, ffi::AnyView type, Span span) {
   if (type.as<Type>()) {
     return Var(name_hint, type.cast<Type>(), span);
   } else {

@@ -147,8 +147,8 @@ class ShardLoaderObj : public Object {
     const ParamRecord* param;
     ShardInfo shard_info;
   };
-  /*! \brief The PackedFuncs being used during sharding */
-  std::unordered_map<std::string, PackedFunc> shard_funcs_;
+  /*! \brief The ffi::Functions being used during sharding */
+  std::unordered_map<std::string, ffi::Function> shard_funcs_;
   /*! \brief The metadata loaded from `ndarray-cache.json` */
   NDArrayCacheMetadata metadata_;
   /*! \brief Sharding information for each weight */
@@ -179,7 +179,8 @@ TVM_REGISTER_OBJECT_TYPE(ShardLoaderObj);
 ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std::string& metadata,
                                  std::string shard_info, Module mod) {
   if (shard_info.empty() && mod.defined()) {
-    if (PackedFunc get_shard_info = mod->GetFunction("get_shard_info"); get_shard_info != nullptr) {
+    if (ffi::Function get_shard_info = mod->GetFunction("get_shard_info");
+        get_shard_info != nullptr) {
       shard_info = get_shard_info().cast<String>();
     }
   }
@@ -196,7 +197,8 @@ ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std:
       ShardInfo& shard_info = shards[name];
       for (const ShardInfo::ShardFunc& shard_func : shard_info.funcs) {
         const std::string& name = shard_func.name;
-        if (PackedFunc f = mod.defined() ? mod->GetFunction(name, true) : nullptr; f != nullptr) {
+        if (ffi::Function f = mod.defined() ? mod->GetFunction(name, true) : nullptr;
+            f != nullptr) {
           n->shard_funcs_[name] = f;
         } else if (const auto f = tvm::ffi::Function::GetGlobal(name)) {
           n->shard_funcs_[name] = *f;
@@ -214,7 +216,7 @@ NDArray ShardLoaderObj::ApplyShardFunc(const ShardInfo::ShardFunc& shard_func,
                                        const NDArray& param) const {
   Device device = param->device;
   NDArray o = NDArray::Empty(shard_func.output_info.shape, shard_func.output_info.dtype, device);
-  PackedFunc f = this->shard_funcs_.at(shard_func.name);
+  ffi::Function f = this->shard_funcs_.at(shard_func.name);
   int n = static_cast<int>(shard_func.params.size());
   std::vector<AnyView> packed_args(n + 2);
   const DLTensor* w_in = param.operator->();

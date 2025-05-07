@@ -330,9 +330,9 @@ void ExecBuilderNode::Formalize() {
 TVM_REGISTER_GLOBAL("relax.ExecBuilderCreate").set_body_typed(ExecBuilderNode::Create);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderConvertConstant")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       ExecBuilder builder = args[0].cast<ExecBuilder>();
-      TVMRetValue rt;
+      ffi::Any rt;
       rt = args[1];
       *ret = builder->ConvertConstant(rt).data();
     });

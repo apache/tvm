@@ -40,7 +40,7 @@ namespace tvm {
 namespace relax {
 
 namespace {
-std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns() {
+std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns() {
   // TODO(Lunderberg): Allow pattern-matching to handle a flexible
   // number of arguments, each of which matches the same type of
   // pattern.

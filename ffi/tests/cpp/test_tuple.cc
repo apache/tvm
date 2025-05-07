@@ -84,9 +84,9 @@ TEST(Tuple, AnyConvert) {
   EXPECT_EQ(tuple2.get<1>()->value, 2);
 }
 
-TEST(Tuple, FromUnpacked) {
+TEST(Tuple, FromTyped) {
   // try decution
-  Function fadd1 = Function::FromUnpacked([](const Tuple<int, TPrimExpr>& a) -> int {
+  Function fadd1 = Function::FromTyped([](const Tuple<int, TPrimExpr>& a) -> int {
     return a.get<0>() + static_cast<int>(a.get<1>()->value);
   });
   int b = fadd1(Tuple<int, float>(1, 2)).cast<int>();

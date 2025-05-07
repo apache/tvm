@@ -39,7 +39,7 @@ namespace relax_vm {
 //---------------------------------------------
 TVM_REGISTER_OBJECT_TYPE(VMClosureObj);
 
-VMClosure::VMClosure(String func_name, PackedFunc impl) {
+VMClosure::VMClosure(String func_name, ffi::Function impl) {
   auto ptr = make_object<VMClosureObj>();
   ptr->func_name = func_name;
   ptr->impl = std::move(impl);
@@ -47,13 +47,13 @@ VMClosure::VMClosure(String func_name, PackedFunc impl) {
 }
 
 /*!
- * \brief Create another PackedFunc with last arguments already bound to last_args.
- * \param func The input func, can be a VMClosure or PackedFunc.
+ * \brief Create another ffi::Function with last arguments already bound to last_args.
+ * \param func The input func, can be a VMClosure or ffi::Function.
  * \param last_args The arguments to bound to in the end of the function.
  * \note The new function takes in arguments and append the last_args in the end.
  */
-PackedFunc VMClosure::BindLastArgs(PackedFunc func, std::vector<Any> last_args) {
-  return PackedFunc([func, last_args](TVMArgs args, TVMRetValue* rv) {
+ffi::Function VMClosure::BindLastArgs(ffi::Function func, std::vector<Any> last_args) {
+  return ffi::Function([func, last_args](ffi::PackedArgs args, ffi::Any* rv) {
     std::vector<AnyView> packed_args(args.size() + last_args.size());
     std::copy(args.data(), args.data() + args.size(), packed_args.data());
     for (size_t i = 0; i < last_args.size(); ++i) {
@@ -68,7 +68,7 @@ PackedFunc VMClosure::BindLastArgs(PackedFunc func, std::vector<Any> last_args) 
 //-----------------------------------------------------------
 // Use the args after `starting_arg_idx` as a series of indices into `obj`,
 // indexing into nested Array and returning the final indexed object.
-Any IndexIntoNestedObject(Any obj, TVMArgs args, int starting_arg_idx) {
+Any IndexIntoNestedObject(Any obj, ffi::PackedArgs args, int starting_arg_idx) {
   for (int i = starting_arg_idx; i < args.size(); i++) {
     // the object must be an Array to be able to index into it
     if (!obj.as<ffi::ArrayObj>()) {
@@ -110,7 +110,7 @@ Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc) {
   }
 }
 
-TVMRetValue ConvertArgToDevice(AnyView input, Device dev, Allocator* alloc) {
+ffi::Any ConvertArgToDevice(AnyView input, Device dev, Allocator* alloc) {
   // in terms of memory-behavior.
   // To be extra careful, we copy DLTensor.
   // The developer can still explicitly allocate NDArray
@@ -130,7 +130,7 @@ TVMRetValue ConvertArgToDevice(AnyView input, Device dev, Allocator* alloc) {
   return ret;
 }
 
-TVMRetValue ConvertRegToDevice(TVMRetValue input, Device dev, Allocator* alloc) {
+ffi::Any ConvertRegToDevice(ffi::Any input, Device dev, Allocator* alloc) {
   Any ret;
   if (auto opt_obj = input.as<ObjectRef>()) {
     ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc);
@@ -146,7 +146,7 @@ TVMRetValue ConvertRegToDevice(TVMRetValue input, Device dev, Allocator* alloc) 
 /*!
  * \brief The register type.
  */
-using RegType = TVMRetValue;
+using RegType = ffi::Any;
 
 /*!
  * \brief A representation of a stack frame.
@@ -162,7 +162,7 @@ struct VMFrame {
   std::vector<RegType> register_file;
   /*! \brief Register in caller's frame to put return value */
   RegName caller_return_register;
-  // The following fields are used for PackedFunc call within
+  // The following fields are used for ffi::Function call within
   // a single function scope. The space is reused across multiple
   // packed func calls to increase cache locality and avoid re-allocation
   /*! \brief Temporary argument value stack for packed func call. */
@@ -200,25 +200,25 @@ class VirtualMachineImpl : public VirtualMachine {
   VMClosure GetClosure(const String& func_name) final {
     return this->GetClosureInternal(func_name, false).value();
   }
-  void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, TVMArgs args,
-                           TVMRetValue* rv) final;
-  void SetInstrument(PackedFunc instrument) final { this->instrument_ = instrument; }
+  void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, ffi::PackedArgs args,
+                           ffi::Any* rv) final;
+  void SetInstrument(ffi::Function instrument) final { this->instrument_ = instrument; }
 
   //---------------------------------------------------
   // Functions in the vtable of Module
   //---------------------------------------------------
-  void _Init(TVMArgs args, TVMRetValue* rv);
-  void _SaveClosure(TVMArgs args, TVMRetValue* rv);
-  void _InvokeClosure(TVMArgs args, TVMRetValue* rv);
+  void _Init(ffi::PackedArgs args, ffi::Any* rv);
+  void _SaveClosure(ffi::PackedArgs args, ffi::Any* rv);
+  void _InvokeClosure(ffi::PackedArgs args, ffi::Any* rv);
   void _InvokeClosureStateful(std::string func_name);
-  void _SetInstrument(TVMArgs args, TVMRetValue* rv);
-  void _GetOutputArity(TVMArgs args, TVMRetValue* rv);
-  void _GetOutput(TVMArgs args, TVMRetValue* rv);
-  void _SetInputWithoutParamModule(TVMArgs args, TVMRetValue* rv);
-  void _SetInputWithParamModule(TVMArgs args, TVMRetValue* rv);
+  void _SetInstrument(ffi::PackedArgs args, ffi::Any* rv);
+  void _GetOutputArity(ffi::PackedArgs args, ffi::Any* rv);
+  void _GetOutput(ffi::PackedArgs args, ffi::Any* rv);
+  void _SetInputWithoutParamModule(ffi::PackedArgs args, ffi::Any* rv);
+  void _SetInputWithParamModule(ffi::PackedArgs args, ffi::Any* rv);
   int _GetFunctionArity(std::string func_name);
   std::string _GetFunctionParamName(std::string func_name, int index);
-  PackedFunc _LookupFunction(const String& name);
+  ffi::Function _LookupFunction(const String& name);
 
   TVM_MODULE_VTABLE_BEGIN("relax.VirtualMachine");
   TVM_MODULE_VTABLE_ENTRY_PACKED("vm_initialization", &VirtualMachineImpl::_Init);
@@ -257,7 +257,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * the arguments to DLTensor, which is supported in RPC where remote could only have a minimal C
    * runtime.
    */
-  void SetInput(std::string func_name, bool with_param_module, TVMArgs args);
+  void SetInput(std::string func_name, bool with_param_module, ffi::PackedArgs args);
 
   /*!
    * \brief Look up whether the VM has a function by the given name.
@@ -285,7 +285,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \note This function is used by RPC server to help benchmarking.
    */
   void SaveClosure(const String& func_name, const String& save_name, bool include_return,
-                   TVMArgs args);
+                   ffi::PackedArgs args);
   /*!
    * \brief Internal function to invoke a closure.
    * \param closure_or_packed The closure to be invoked.
@@ -306,14 +306,14 @@ class VirtualMachineImpl : public VirtualMachine {
   /*!
    * \brief Get function by querying all of the current module's imports.
    * \param name The name of the function.
-   * \return The result function, can return PackedFunc(nullptr) if nothing is found.
+   * \return The result function, can return ffi::Function(nullptr) if nothing is found.
    */
-  PackedFunc GetFuncFromImports(const String& name) {
+  ffi::Function GetFuncFromImports(const String& name) {
     for (auto& lib : this->imports_) {
-      PackedFunc func = lib->GetFunction(name, true);
+      ffi::Function func = lib->GetFunction(name, true);
       if (func.defined()) return func;
     }
-    return PackedFunc(nullptr);
+    return ffi::Function(nullptr);
   }
   /*!
    * \brief Initialize function pool.
@@ -423,11 +423,11 @@ class VirtualMachineImpl : public VirtualMachine {
   /*! \brief The loaded executable. */
   ObjectPtr<VMExecutable> exec_;
   /*! \brief The global constant pool */
-  std::vector<TVMRetValue> const_pool_;
+  std::vector<ffi::Any> const_pool_;
   /*!
    * \brief Function pool to cache functions in func_table
    */
-  std::vector<TVMRetValue> func_pool_;
+  std::vector<ffi::Any> func_pool_;
   //--------------------------------------------------------
   // Executor interface support
   //--------------------------------------------------------
@@ -455,7 +455,7 @@ class VirtualMachineImpl : public VirtualMachine {
   /*! \brief The special return register. */
   RegType return_value_;
   /*!\ brief instrument function. */
-  PackedFunc instrument_ = nullptr;
+  ffi::Function instrument_ = nullptr;
 };
 
 void VirtualMachineImpl::LoadExecutable(ObjectPtr<VMExecutable> exec) {
@@ -503,7 +503,8 @@ RegType VirtualMachineImpl::LookupVMOutput(const std::string& func_name) {
   return outputs_[func_name];
 }
 
-void VirtualMachineImpl::SetInput(std::string func_name, bool with_param_module, TVMArgs args) {
+void VirtualMachineImpl::SetInput(std::string func_name, bool with_param_module,
+                                  ffi::PackedArgs args) {
   const auto& m = exec_->func_map;
   if (m.find(func_name) != m.end()) {
     Index gf_idx = m.at(func_name);
@@ -529,16 +530,16 @@ void VirtualMachineImpl::SetInput(std::string func_name, bool with_param_module,
 //------------------------------------------
 // Closure handling
 //------------------------------------------
-void VirtualMachineImpl::InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, TVMArgs args,
-                                             TVMRetValue* rv) {
+void VirtualMachineImpl::InvokeClosurePacked(const ObjectRef& closure_or_packedfunc,
+                                             ffi::PackedArgs args, ffi::Any* rv) {
   // run packed call if it is a packed func.
-  if (auto* packed = closure_or_packedfunc.as<PackedFunc::ContainerType>()) {
+  if (auto* packed = closure_or_packedfunc.as<ffi::Function::ContainerType>()) {
     packed->CallPacked(args.data(), args.size(), rv);
     return;
   }
   // run closure call.
   auto* clo = closure_or_packedfunc.as<VMClosureObj>();
-  ICHECK(clo != nullptr) << "Function expects a closure or PackedFunc ";
+  ICHECK(clo != nullptr) << "Function expects a closure or ffi::Function ";
 
   std::vector<AnyView> packed_args(args.size() + 1);
   // per convention, ctx ptr must be VirtualMachine* casted to void.
@@ -556,7 +557,7 @@ void VirtualMachineImpl::InvokeClosurePacked(const ObjectRef& closure_or_packedf
 RegType VirtualMachineImpl::InvokeClosureInternal(const ObjectRef& closure_or_packed,
                                                   const std::vector<RegType>& args) {
   RegType ret;
-  auto* packed = closure_or_packed.as<PackedFunc::ContainerType>();
+  auto* packed = closure_or_packed.as<ffi::Function::ContainerType>();
   auto* clo = closure_or_packed.as<VMClosureObj>();
   int clo_offset = clo != nullptr ? 1 : 0;
 
@@ -579,16 +580,16 @@ RegType VirtualMachineImpl::InvokeClosureInternal(const ObjectRef& closure_or_pa
 }
 
 void VirtualMachineImpl::SaveClosure(const String& func_name, const String& save_name,
-                                     bool include_return, TVMArgs args) {
+                                     bool include_return, ffi::PackedArgs args) {
   VMClosure clo = this->GetClosure(func_name);
   std::vector<RegType> inputs(args.size());
   for (int i = 0; i < args.size(); ++i) {
     inputs[i] = ConvertArgToDevice(args[i], this->devices[0], this->allocators[0]);
   }
-  PackedFunc impl = VMClosure::BindLastArgs(clo->impl, inputs);
+  ffi::Function impl = VMClosure::BindLastArgs(clo->impl, inputs);
   if (!include_return) {
-    impl = PackedFunc([impl](TVMArgs args, TVMRetValue* rv) {
-      TVMRetValue temp;
+    impl = ffi::Function([impl](ffi::PackedArgs args, ffi::Any* rv) {
+      ffi::Any temp;
       impl.CallPacked(args, &temp);
     });
   }
@@ -613,7 +614,7 @@ Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const String& func_na
 
   if (finfo.kind == VMFuncInfo::FuncKind::kVMFunc) {
     // NOTE: should not capture strong ref to self and avoid cyclic ref.
-    auto impl = PackedFunc([gf_idx](TVMArgs args, TVMRetValue* rv) {
+    auto impl = ffi::Function([gf_idx](ffi::PackedArgs args, ffi::Any* rv) {
       // Per convention, ctx ptr is a VirtualMachine*
       VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].cast<void*>());
 
@@ -627,17 +628,17 @@ Optional<VMClosure> VirtualMachineImpl::GetClosureInternal(const String& func_na
   } else {
     ICHECK(finfo.kind == VMFuncInfo::FuncKind::kVMTIRFunc)
         << "Cannot support closure with function kind " << static_cast<int>(finfo.kind);
-    PackedFunc tir_func = GetFuncFromImports("__vmtir__" + finfo.name);
+    ffi::Function tir_func = GetFuncFromImports("__vmtir__" + finfo.name);
     ICHECK(tir_func != nullptr) << "Cannot find underlying compiled tir function of VMTIRFunc "
                                 << finfo.name;
-    auto impl = PackedFunc([this, finfo, tir_func](TVMArgs args, TVMRetValue* rv) {
+    auto impl = ffi::Function([this, finfo, tir_func](ffi::PackedArgs args, ffi::Any* rv) {
       // Per convention, ctx ptr is a VirtualMachine*
       VirtualMachine* ctx_ptr = static_cast<VirtualMachine*>(args[0].cast<void*>());
       ICHECK(ctx_ptr == this);
       ICHECK_EQ(args.size() - 1, finfo.num_args)
           << "Function " << finfo.name << " expects " << finfo.num_args << " arguments";
       ICHECK_GE(finfo.register_file_size, finfo.num_args + 1);
-      std::vector<TVMRetValue> reg_file(finfo.register_file_size);
+      std::vector<ffi::Any> reg_file(finfo.register_file_size);
       for (int64_t i = 0; i < finfo.num_args; ++i) {
         reg_file[i] = args[i + 1];
       }
@@ -703,14 +704,14 @@ void VirtualMachineImpl::InitFuncPool() {
     const VMFuncInfo& info = exec_->func_table[func_index];
     if (info.kind == VMFuncInfo::FuncKind::kPackedFunc) {
       // only look through imports first
-      PackedFunc func = GetFuncFromImports(info.name);
+      ffi::Function func = GetFuncFromImports(info.name);
       if (!func.defined()) {
         const auto p_func = tvm::ffi::Function::GetGlobal(info.name);
         if (p_func.has_value()) func = *(p_func);
       }
       ICHECK(func.defined())
-          << "Error: Cannot find PackedFunc " << info.name
-          << " in either Relax VM kernel library, or in TVM runtime PackedFunc registry, or in "
+          << "Error: Cannot find ffi::Function " << info.name
+          << " in either Relax VM kernel library, or in TVM runtime ffi::Function registry, or in "
              "global Relax functions of the VM executable";
       func_pool_[func_index] = func;
 
@@ -761,7 +762,7 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
     }
   }
   ffi::PackedArgs args(call_args.data() + args_begin_offset, instr.num_args);
-  TVMRetValue ret;
+  ffi::Any ret;
 
   ICHECK_LT(static_cast<size_t>(instr.func_idx), this->func_pool_.size());
 
@@ -858,7 +859,7 @@ ObjectPtr<VirtualMachine> VirtualMachine::Create() { return make_object<VirtualM
 // FFI related code
 //--------------------------------------------------------------------
 
-void VirtualMachineImpl::_Init(TVMArgs args, TVMRetValue* rv) {
+void VirtualMachineImpl::_Init(ffi::PackedArgs args, ffi::Any* rv) {
   ICHECK_EQ(args.size() % 3, 0);
   std::vector<Device> devices;
   std::vector<AllocatorType> alloc_types;
@@ -872,13 +873,13 @@ void VirtualMachineImpl::_Init(TVMArgs args, TVMRetValue* rv) {
   this->Init(devices, alloc_types);
 }
 
-void VirtualMachineImpl::_SaveClosure(TVMArgs args, TVMRetValue* rv) {
+void VirtualMachineImpl::_SaveClosure(ffi::PackedArgs args, ffi::Any* rv) {
   ICHECK_GE(args.size(), 3);
   std::string func_name = args[0].cast<std::string>();
   this->SaveClosure(func_name, args[1].cast<String>(), args[2].cast<bool>(), args.Slice(3));
 }
 
-void VirtualMachineImpl::_InvokeClosure(TVMArgs args, TVMRetValue* rv) {
+void VirtualMachineImpl::_InvokeClosure(ffi::PackedArgs args, ffi::Any* rv) {
   this->InvokeClosurePacked(args[0].cast<ObjectRef>(), args.Slice(1), rv);
 }
 
@@ -896,20 +897,20 @@ void VirtualMachineImpl::_InvokeClosureStateful(std::string func_name) {
                                                     inputs_[func_name]);
 }
 
-void VirtualMachineImpl::_SetInstrument(TVMArgs args, TVMRetValue* rv) {
+void VirtualMachineImpl::_SetInstrument(ffi::PackedArgs args, ffi::Any* rv) {
   if (args[0].as<ffi::Function>()) {
-    this->SetInstrument(args[0].cast<PackedFunc>());
+    this->SetInstrument(args[0].cast<ffi::Function>());
   } else {
     String func_name = args[0].cast<String>();
     const auto factory = tvm::ffi::Function::GetGlobal(func_name);
     CHECK(factory.has_value()) << "Cannot find factory " << func_name;
-    TVMRetValue rv;
+    ffi::Any rv;
     factory->CallPacked(args.Slice(1), &rv);
-    this->SetInstrument(rv.cast<PackedFunc>());
+    this->SetInstrument(rv.cast<ffi::Function>());
   }
 }
 
-void VirtualMachineImpl::_GetOutputArity(TVMArgs args, TVMRetValue* rv) {
+void VirtualMachineImpl::_GetOutputArity(ffi::PackedArgs args, ffi::Any* rv) {
   std::string func_name = args[0].cast<std::string>();
   RegType out = LookupVMOutput(func_name);
   Any obj = IndexIntoNestedObject(out, args, 1);
@@ -920,7 +921,7 @@ void VirtualMachineImpl::_GetOutputArity(TVMArgs args, TVMRetValue* rv) {
   }
 }
 
-void VirtualMachineImpl::_GetOutput(TVMArgs args, TVMRetValue* rv) {
+void VirtualMachineImpl::_GetOutput(ffi::PackedArgs args, ffi::Any* rv) {
   std::string func_name = args[0].cast<std::string>();
   RegType out = LookupVMOutput(func_name);
   Any obj = IndexIntoNestedObject(out, args, 1);
@@ -932,12 +933,12 @@ void VirtualMachineImpl::_GetOutput(TVMArgs args, TVMRetValue* rv) {
   *rv = obj;
 }
 
-void VirtualMachineImpl::_SetInputWithoutParamModule(TVMArgs args, TVMRetValue* rv) {
+void VirtualMachineImpl::_SetInputWithoutParamModule(ffi::PackedArgs args, ffi::Any* rv) {
   std::string func_name = args[0].cast<std::string>();
   this->SetInput(func_name, false, args.Slice(1));
 }
 
-void VirtualMachineImpl::_SetInputWithParamModule(TVMArgs args, TVMRetValue* rv) {
+void VirtualMachineImpl::_SetInputWithParamModule(ffi::PackedArgs args, ffi::Any* rv) {
   std::string func_name = args[0].cast<std::string>();
   this->SetInput(func_name, true, args.Slice(1));
 }
@@ -956,16 +957,16 @@ std::string VirtualMachineImpl::_GetFunctionParamName(std::string func_name, int
   return vm_func.param_names[index];
 }
 
-PackedFunc VirtualMachineImpl::_LookupFunction(const String& name) {
+ffi::Function VirtualMachineImpl::_LookupFunction(const String& name) {
   if (Optional<VMClosure> opt = this->GetClosureInternal(name, true)) {
-    return PackedFunc(
-        [clo = opt.value(), _self = GetRef<Module>(this)](TVMArgs args, TVMRetValue* rv) -> void {
-          auto* self = const_cast<VirtualMachineImpl*>(_self.as<VirtualMachineImpl>());
-          ICHECK(self);
-          self->InvokeClosurePacked(clo, args, rv);
-        });
+    return ffi::Function([clo = opt.value(), _self = GetRef<Module>(this)](ffi::PackedArgs args,
+                                                                           ffi::Any* rv) -> void {
+      auto* self = const_cast<VirtualMachineImpl*>(_self.as<VirtualMachineImpl>());
+      ICHECK(self);
+      self->InvokeClosurePacked(clo, args, rv);
+    });
   }
-  return PackedFunc(nullptr);
+  return ffi::Function(nullptr);
 }
 
 //----------------------------------------------------------------
@@ -979,9 +980,9 @@ PackedFunc VirtualMachineImpl::_LookupFunction(const String& name) {
  */
 class VirtualMachineProfiler : public VirtualMachineImpl {
  public:
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
     if (name == "profile") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         std::string f_name = args[0].cast<std::string>();
         VMClosure clo = this->GetClosure(f_name);
 

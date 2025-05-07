@@ -57,7 +57,7 @@ class MetalModuleNode final : public runtime::ModuleNode {
     return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
   }
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   void SaveToFile(const String& file_name, const String& format) final {
     LOG(FATAL) << "Do not support save to file, use save to binary and export instead";
@@ -187,7 +187,7 @@ class MetalWrappedFunc {
     scache_[dev_id] = m->GetPipelineState(dev_id, func_name);
   }
   // invoke the function with void arguments
-  void operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion64* pack_args) const {
+  void operator()(ffi::PackedArgs args, ffi::Any* rv, const ArgUnion64* pack_args) const {
     AUTORELEASEPOOL {
       metal::MetalThreadEntry* t = metal::MetalThreadEntry::ThreadLocal();
       int device_id = t->device.device_id;
@@ -258,14 +258,15 @@ class MetalWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-PackedFunc MetalModuleNode::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
-  PackedFunc pf;
+ffi::Function MetalModuleNode::GetFunction(const String& name,
+                                           const ObjectPtr<Object>& sptr_to_self) {
+  ffi::Function f;
   AUTORELEASEPOOL {
     ICHECK_EQ(sptr_to_self.get(), this);
     ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
     auto it = fmap_.find(name);
     if (it == fmap_.end()) {
-      pf = PackedFunc();
+      f = ffi::Function();
       return;
     }
     const FunctionInfo& info = it->second;

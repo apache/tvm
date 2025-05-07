@@ -73,7 +73,7 @@ struct FuncFunctorImpl {
   static constexpr size_t num_args = sizeof...(Args);
   // MSVC is not that friendly to in-template nested bool evaluation
 #ifndef _MSC_VER
-  /*! \brief Whether this function can be converted to ffi::Function via FromUnpacked */
+  /*! \brief Whether this function can be converted to ffi::Function via FromTyped */
   static constexpr bool unpacked_supported = (ArgSupported<Args> && ...) && (RetSupported<R>);
 #endif
 
@@ -108,7 +108,7 @@ struct FunctionInfo<R(Args...)> : FuncFunctorImpl<R, Args...> {};
 template <typename R, typename... Args>
 struct FunctionInfo<R (*)(Args...)> : FuncFunctorImpl<R, Args...> {};
 
-/*! \brief Using static function to output TypedPackedFunc signature */
+/*! \brief Using static function to output typed function signature */
 typedef std::string (*FGetFuncSignature)();
 
 /*!

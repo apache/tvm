@@ -243,9 +243,9 @@ TEST(Map, AnyConvertCheck) {
       ::tvm::ffi::Error);
 }
 
-TEST(Map, PackedFuncGetItem) {
-  Function f = Function::FromUnpacked([](const MapObj* n, const Any& k) -> Any { return n->at(k); },
-                                      "map_get_item");
+TEST(Map, ffi::FunctionGetItem) {
+  Function f = Function::FromTyped([](const MapObj* n, const Any& k) -> Any { return n->at(k); },
+                                   "map_get_item");
   Map<String, int64_t> map{{"x", 1}, {"y", 2}};
   Any k("x");
   Any v = f(map, k);

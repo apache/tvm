@@ -522,7 +522,7 @@ std::tuple<CommReducer, Array<PrimExpr>, Array<PrimExpr>> GetReducerAndCombinerL
  * \return The list of the registered reducer-getter functions
  * \sa ReducerRegistry
  */
-std::vector<runtime::TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)>> GetReducerGetters();
+std::vector<ffi::TypedFunction<Optional<CommReducer>(Array<PrimExpr>)>> GetReducerGetters();
 
 /*!
  * \brief Given the input identities and the combiner BufferStores of a reduction, extract the

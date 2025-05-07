@@ -88,7 +88,7 @@ class MapForwardIterFunctor {
 
 TVM_FFI_REGISTER_GLOBAL("ffi.MapForwardIterFunctor")
     .set_body_typed([](const ffi::MapObj* n) -> ffi::Function {
-      return ffi::Function::FromUnpacked(MapForwardIterFunctor(n->begin(), n->end()));
+      return ffi::Function::FromTyped(MapForwardIterFunctor(n->begin(), n->end()));
     });
 
 }  // namespace ffi

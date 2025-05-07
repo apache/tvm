@@ -798,11 +798,11 @@ TVM_REGISTER_GLOBAL("runtime.profiling.DeviceWrapper").set_body_typed([](Device 
   return DeviceWrapper(dev);
 });
 
-PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
-                           int warmup_iters, Array<MetricCollector> collectors) {
+ffi::Function ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
+                              int warmup_iters, Array<MetricCollector> collectors) {
   // Module::GetFunction is not const, so this lambda has to be mutable
-  return PackedFunc::FromPacked([=](const AnyView* args, int32_t num_args, Any* ret) mutable {
-    PackedFunc f = mod.GetFunction(func_name);
+  return ffi::Function::FromPacked([=](const AnyView* args, int32_t num_args, Any* ret) mutable {
+    ffi::Function f = mod.GetFunction(func_name);
     CHECK(f.defined()) << "There is no function called \"" << func_name << "\" in the module";
     Device dev{static_cast<DLDeviceType>(device_type), device_id};
 
@@ -844,11 +844,11 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
 }
 
 TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
-    .set_body_typed<PackedFunc(Module, String, int, int, int,
-                               Array<MetricCollector>)>([](Module mod, String func_name,
-                                                           int device_type, int device_id,
-                                                           int warmup_iters,
-                                                           Array<MetricCollector> collectors) {
+    .set_body_typed<ffi::Function(Module, String, int, int, int,
+                                  Array<MetricCollector>)>([](Module mod, String func_name,
+                                                              int device_type, int device_id,
+                                                              int warmup_iters,
+                                                              Array<MetricCollector> collectors) {
       if (mod->type_key() == std::string("rpc")) {
         LOG(FATAL)
             << "Profiling a module over RPC is not yet supported";  // because we can't send
@@ -859,9 +859,10 @@ TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
       }
     });
 
-PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, int min_repeat_ms,
-                             int limit_zero_time_iterations, int cooldown_interval_ms,
-                             int repeats_to_cooldown, int cache_flush_bytes, PackedFunc f_preproc) {
+ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int repeat,
+                                int min_repeat_ms, int limit_zero_time_iterations,
+                                int cooldown_interval_ms, int repeats_to_cooldown,
+                                int cache_flush_bytes, ffi::Function f_preproc) {
   ICHECK(pf != nullptr);
 
   auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,

@@ -154,7 +154,7 @@ Timer DefaultTimer(Device dev);
 
 namespace profiling {
 /*! \brief Wrapper for `Device` because `Device` is not passable across the
- * PackedFunc interface.
+ * ffi::Function interface.
  */
 struct DeviceWrapperNode : public Object {
   /*! The device */
@@ -515,7 +515,7 @@ String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype);
  * Example usage:
  * \code{.cpp}
  * // Use PAPI to measure the number of floating point operations.
- * PackedFunc profiler = ProfileModule(
+ * ffi::Function profiler = ProfileModule(
  *     mod, "main", kDLCPU, 0, {CreatePAPIMetricCollector({{kDLCPU, 0}, {"PAPI_FP_OPS"}})});
  * Report r = profiler(arg1, arg2, arg);
  * std::cout << r << std::endl;
@@ -531,12 +531,12 @@ String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype);
  *                     than 0 so that cache effects are consistent.
  * \param collectors List of different
  *                   ways to collect metrics. See MetricCollector.
- * \returns A PackedFunc which takes the same arguments as the `mod[func_name]`
+ * \returns A ffi::Function which takes the same arguments as the `mod[func_name]`
  *          and returns performance metrics as a `Map<String, ffi::Any>` where
  *          values can be `CountNode`, `DurationNode`, `PercentNode`.
  */
-PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
-                           int warmup_iters, Array<MetricCollector> collectors);
+ffi::Function ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
+                              int warmup_iters, Array<MetricCollector> collectors);
 
 /*!
  * \brief Wrap a timer function to measure the time cost of a given packed function.
@@ -585,10 +585,10 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
  *        evaluator.
  * \return f_timer A timer function.
  */
-PackedFunc WrapTimeEvaluator(PackedFunc f, Device dev, int number, int repeat, int min_repeat_ms,
-                             int limit_zero_time_iterations, int cooldown_interval_ms,
-                             int repeats_to_cooldown, int cache_flush_bytes = 0,
-                             PackedFunc f_preproc = nullptr);
+ffi::Function WrapTimeEvaluator(ffi::Function f, Device dev, int number, int repeat,
+                                int min_repeat_ms, int limit_zero_time_iterations,
+                                int cooldown_interval_ms, int repeats_to_cooldown,
+                                int cache_flush_bytes = 0, ffi::Function f_preproc = nullptr);
 
 }  // namespace profiling
 }  // namespace runtime

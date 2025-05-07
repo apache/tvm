@@ -48,12 +48,12 @@ class CublasJSONRuntime : public JSONRuntimeBase {
 
   void Init(const Array<NDArray>& consts) override {}
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
     // JSONRuntimeBase::SetInputOutputBuffers(...) is not thread safe. Since CublasJSONRuntime
     // can be used by multiple GPUs running on different threads, we avoid using that function
-    // and directly call cuBLAS on the inputs from TVMArgs.
+    // and directly call cuBLAS on the inputs from ffi::PackedArgs.
     if (this->symbol_name_ == name) {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         ICHECK(this->initialized_) << "The module has not been initialized";
         this->Run(args);
       });
@@ -64,7 +64,7 @@ class CublasJSONRuntime : public JSONRuntimeBase {
 
   const char* type_key() const override { return "cublas_json"; }  // May be overridden
 
-  void Run(TVMArgs args) {
+  void Run(ffi::PackedArgs args) {
     auto* entry_ptr = tvm::contrib::CuBlasLtThreadEntry::ThreadLocal();
 
     auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");

@@ -784,7 +784,7 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
   return CreatePrimFuncWithConstants(arg_list, {}, index_dtype_override);
 }
 
-TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
   Array<ObjectRef> arg_list = args[0].cast<Array<ObjectRef>>();
   std::optional<DataType> index_dtype_override{std::nullopt};
   // Add conversion to make std::optional compatible with FFI.

@@ -49,18 +49,18 @@
 
 namespace tvm {
 
+using ffi::Any;
+using ffi::AnyView;
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
+using ffi::PackedArgs;
+using ffi::TypeIndex;
 using runtime::Downcast;
 using runtime::GetRef;
 using runtime::make_object;
-using runtime::Object;
-using runtime::ObjectPtr;
-using runtime::ObjectPtrEqual;
-using runtime::ObjectPtrHash;
-using runtime::ObjectRef;
-using runtime::PackedFunc;
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
-using runtime::TypeIndex;
 
 }  // namespace tvm
 #endif  // TVM_NODE_NODE_H_

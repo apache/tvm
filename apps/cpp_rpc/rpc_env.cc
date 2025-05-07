@@ -128,10 +128,10 @@ RPCEnv::RPCEnv(const std::string& wd) {
 
   ffi::Function::SetGlobal(
       "tvm.rpc.server.workpath",
-      ffi::Function::FromUnpacked([this](const std::string& path) { return this->GetPath(path); }));
+      ffi::Function::FromTyped([this](const std::string& path) { return this->GetPath(path); }));
 
   ffi::Function::SetGlobal("tvm.rpc.server.listdir",
-                           ffi::Function::FromUnpacked([this](const std::string& path) {
+                           ffi::Function::FromTyped([this](const std::string& path) {
                              std::string dir = this->GetPath(path);
                              std::ostringstream os;
                              for (auto d : ListDir(dir)) {
@@ -141,7 +141,7 @@ RPCEnv::RPCEnv(const std::string& wd) {
                            }));
 
   ffi::Function::SetGlobal("tvm.rpc.server.load_module",
-                           ffi::Function::FromUnpacked([this](const std::string& path) {
+                           ffi::Function::FromTyped([this](const std::string& path) {
                              std::string file_name = this->GetPath(path);
                              file_name = BuildSharedLibrary(file_name);
                              LOG(INFO) << "Load module from " << file_name << " ...";
@@ -149,7 +149,7 @@ RPCEnv::RPCEnv(const std::string& wd) {
                            }));
 
   ffi::Function::SetGlobal("tvm.rpc.server.download_linked_module",
-                           ffi::Function::FromUnpacked([this](const std::string& path) {
+                           ffi::Function::FromTyped([this](const std::string& path) {
                              std::string file_name = this->GetPath(path);
                              file_name = BuildSharedLibrary(file_name);
                              std::string bin;

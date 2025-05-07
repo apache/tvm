@@ -243,15 +243,15 @@ tvm::runtime::hexagon::HexagonRPCServer* get_hexagon_rpc_server(
 }
 }  // namespace
 
-const tvm::runtime::PackedFunc get_runtime_func(const std::string& name) {
+const tvm::ffi::Function get_runtime_func(const std::string& name) {
   if (const auto pf = tvm::ffi::Function::GetGlobal(name)) {
     return *pf;
   }
-  return tvm::runtime::PackedFunc();
+  return tvm::ffi::Function();
 }
 
 void reset_device_api() {
-  const tvm::runtime::PackedFunc api = get_runtime_func("device_api.hexagon");
+  const tvm::ffi::Function api = get_runtime_func("device_api.hexagon");
   // Registering device_api.cpu as device_api.hexagon since we use hexagon as sub-target of LLVM.
   tvm::ffi::Function::SetGlobal("device_api.cpu", api, true);
 }
@@ -330,14 +330,14 @@ __attribute__((weak)) void _Parse_fde_instr() {}
 }
 
 TVM_REGISTER_GLOBAL("tvm.hexagon.load_module")
-    .set_body_packed([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
+    .set_body_packed([](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
       auto soname = args[0].cast<std::string>();
       tvm::ObjectPtr<tvm::runtime::Library> n = tvm::runtime::CreateDSOLibraryObject(soname);
       *rv = CreateModuleFromLibrary(n);
     });
 
 TVM_REGISTER_GLOBAL("tvm.hexagon.get_profile_output")
-    .set_body_packed([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
+    .set_body_packed([](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
       auto profiling_mode = args[0].cast<std::string>();
       auto out_file = args[1].cast<std::string>();
       if (profiling_mode.compare("lwp") == 0) {
@@ -355,7 +355,7 @@ void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
 }
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.upload")
-    .set_body_packed([](tvm::runtime::TVMArgs args, tvm::runtime::TVMRetValue* rv) {
+    .set_body_packed([](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
       auto file_name = args[0].cast<std::string>();
       auto data = args[1].cast<std::string>();
       SaveBinaryToFile(file_name, data);

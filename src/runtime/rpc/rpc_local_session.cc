@@ -43,7 +43,7 @@ RPCSession::PackedFuncHandle LocalSession::GetFunction(const std::string& name) 
   }
 }
 
-void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_return) {
+void LocalSession::EncodeReturn(ffi::Any rv, const FEncodeReturn& encode_return) {
   AnyView packed_args[3];
   // NOTE: this is the place that we need to handle special RPC-related
   // ABI convention for return value passing that is built on top of Any FFI.
