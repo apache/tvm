@@ -373,7 +373,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "mul_.Tensor": self._binary_op(relax.op.multiply, operator.mul),
             "ne.Tensor": self._binary_op(relax.op.not_equal, operator.ne),
             "ne.Scalar": self._binary_op(relax.op.not_equal, operator.ne),
-            "outer.default" : lambda node: self.block_builder.emit(
+            "outer.default": lambda node: self.block_builder.emit(
                 relax.op.outer(self.env[node.args[0]], self.env[node.args[1]])
             ),
             "pow.Scalar": self._binary_op(relax.op.power, operator.pow),

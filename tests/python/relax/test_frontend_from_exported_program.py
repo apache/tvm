@@ -2183,7 +2183,10 @@ def test_outer():
                 R.output(gv)
             return gv
 
-    example_args = (torch.randn(3, dtype=torch.float32), torch.randn(4, dtype=torch.float32),)
+    example_args = (
+        torch.randn(3, dtype=torch.float32),
+        torch.randn(4, dtype=torch.float32),
+    )
     verify_model(Outer(), example_args, {}, expected)
 
 

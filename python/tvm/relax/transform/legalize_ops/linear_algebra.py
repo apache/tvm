@@ -116,6 +116,7 @@ def _einsum(bb: BlockBuilder, call: Call) -> Expr:
     )
     return bb.call_te(topi.einsum, call.attrs.subscripts, *fields)
 
+
 @register_legalize("relax.outer")
 def _outer(bb: BlockBuilder, call: Call) -> Expr:
     def te_outer(a: te.Tensor, b: te.Tensor) -> te.Tensor:
@@ -129,11 +130,7 @@ def _outer(bb: BlockBuilder, call: Call) -> Expr:
         def compute_fn(i, j):
             return a[i] * b[j]
 
-        return te.compute(
-            (n, m),
-            lambda i, j: compute_fn(i, j),
-            name="outer"
-        )
+        return te.compute((n, m), compute_fn, name="outer")
 
     lhs, rhs = call.args
     return bb.call_te(te_outer, lhs, rhs, primfunc_name_hint="outer")
