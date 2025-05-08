@@ -17,6 +17,11 @@
 import ctypes
 from numbers import Real, Integral
 
+try:
+    import torch
+except ImportError:
+    torch = None
+
 
 cdef inline object make_ret(TVMFFIAny result):
     """convert result to return value."""
@@ -71,6 +76,17 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
         elif isinstance(arg, Object):
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
             out[i].v_ptr = (<Object>arg).chandle
+        elif torch is not None and isinstance(arg, torch.Tensor):
+            arg = from_dlpack(torch.utils.dlpack.to_dlpack(arg),
+                              required_alignment=__dlpack_auto_import_required_alignment__)
+            out[i].type_index = kTVMFFINDArray
+            out[i].v_ptr = (<NDArray>arg).chandle
+            temp_args.append(arg)
+        elif hasattr(arg, "__dlpack__"):
+            arg = from_dlpack(arg, required_alignment=__dlpack_auto_import_required_alignment__)
+            out[i].type_index = kTVMFFINDArray
+            out[i].v_ptr = (<NDArray>arg).chandle
+            temp_args.append(arg)
         elif isinstance(arg, PyNativeObject):
             arg = arg.__tvm_ffi_object__
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
