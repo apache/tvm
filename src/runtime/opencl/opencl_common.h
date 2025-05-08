@@ -347,7 +347,7 @@ class OpenCLWorkspace : public DeviceAPI {
   cl_device_id GetCLDeviceID(int device_id);
   // override device API
   void SetDevice(Device dev) final;
-  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
+  void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final;
   void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final;
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                        Optional<String> mem_scope = NullOpt) final;
@@ -479,7 +479,7 @@ class OpenCLModuleNodeBase : public ModuleNode {
     return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
   }
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override;
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override;
 
   // Initialize the programs
   virtual void Init() = 0;
@@ -509,7 +509,7 @@ class OpenCLModuleNode : public OpenCLModuleNodeBase {
                             std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
       : OpenCLModuleNodeBase(fmap), data_(data), fmt_(fmt), source_(source) {}
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
   // Return true if OpenCL program for the requested function and device was created
   bool IsProgramCreated(const std::string& func_name, int device_id);
   void SaveToFile(const String& file_name, const String& format) final;

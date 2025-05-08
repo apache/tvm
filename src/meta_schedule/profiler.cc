@@ -75,11 +75,11 @@ Profiler::Profiler() {
   data_ = n;
 }
 
-PackedFunc ProfilerTimedScope(String name) {
+ffi::Function ProfilerTimedScope(String name) {
   if (Optional<Profiler> opt_profiler = Profiler::Current()) {
-    return TypedPackedFunc<void()>([profiler = opt_profiler.value(),                  //
-                                    tik = std::chrono::high_resolution_clock::now(),  //
-                                    name = std::move(name)]() {
+    return ffi::TypedFunction<void()>([profiler = opt_profiler.value(),                  //
+                                       tik = std::chrono::high_resolution_clock::now(),  //
+                                       name = std::move(name)]() {
       auto tok = std::chrono::high_resolution_clock::now();
       double duration =
           std::chrono::duration_cast<std::chrono::nanoseconds>(tok - tik).count() / 1e9;

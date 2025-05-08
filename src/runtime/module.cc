@@ -57,9 +57,9 @@ void ModuleNode::Import(Module other) {
   this->imports_.emplace_back(std::move(other));
 }
 
-PackedFunc ModuleNode::GetFunction(const String& name, bool query_imports) {
+ffi::Function ModuleNode::GetFunction(const String& name, bool query_imports) {
   ModuleNode* self = this;
-  PackedFunc pf = self->GetFunction(name, GetObjectPtr<Object>(this));
+  ffi::Function pf = self->GetFunction(name, GetObjectPtr<Object>(this));
   if (pf != nullptr) return pf;
   if (query_imports) {
     for (Module& m : self->imports_) {
@@ -101,11 +101,11 @@ String ModuleNode::GetSource(const String& format) {
   LOG(FATAL) << "Module[" << type_key() << "] does not support GetSource";
 }
 
-const PackedFunc* ModuleNode::GetFuncFromEnv(const String& name) {
+const ffi::Function* ModuleNode::GetFuncFromEnv(const String& name) {
   std::lock_guard<std::mutex> lock(mutex_);
   auto it = import_cache_.find(name);
   if (it != import_cache_.end()) return it->second.get();
-  PackedFunc pf;
+  ffi::Function pf;
   for (Module& m : this->imports_) {
     pf = m.GetFunction(name, true);
     if (pf != nullptr) break;
@@ -117,10 +117,10 @@ const PackedFunc* ModuleNode::GetFuncFromEnv(const String& name) {
                           << " If this involves ops from a contrib library like"
                           << " cuDNN, ensure TVM was built with the relevant"
                           << " library.";
-    import_cache_.insert(std::make_pair(name, std::make_shared<PackedFunc>(*f)));
+    import_cache_.insert(std::make_pair(name, std::make_shared<ffi::Function>(*f)));
     return import_cache_.at(name).get();
   } else {
-    import_cache_.insert(std::make_pair(name, std::make_shared<PackedFunc>(pf)));
+    import_cache_.insert(std::make_pair(name, std::make_shared<ffi::Function>(pf)));
     return import_cache_.at(name).get();
   }
 }

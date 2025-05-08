@@ -66,7 +66,7 @@ class PatternMatchingRewriterNode : public tvm::transform::PassNode {
 class PatternMatchingRewriter : public tvm::transform::Pass {
  public:
   static PatternMatchingRewriter FromPattern(
-      DFPattern pattern, TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
+      DFPattern pattern, ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
       Optional<Array<DFPattern>> additional_bindings = NullOpt,
       Map<GlobalVar, BaseFunc> new_subroutines = {});
 
@@ -81,7 +81,7 @@ class PatternMatchingRewriter : public tvm::transform::Pass {
 class ExprPatternRewriterNode : public PatternMatchingRewriterNode {
  public:
   DFPattern pattern;
-  TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func;
+  ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func;
   Optional<Array<DFPattern>> additional_bindings;
   Map<GlobalVar, BaseFunc> new_subroutines;
 
@@ -91,7 +91,7 @@ class ExprPatternRewriterNode : public PatternMatchingRewriterNode {
 
   void VisitAttrs(AttrVisitor* visitor) {
     visitor->Visit("pattern", &pattern);
-    PackedFunc untyped_func = func;
+    ffi::Function untyped_func = func;
     visitor->Visit("func", &untyped_func);
   }
 
@@ -102,7 +102,7 @@ class ExprPatternRewriterNode : public PatternMatchingRewriterNode {
 class ExprPatternRewriter : public PatternMatchingRewriter {
  public:
   ExprPatternRewriter(DFPattern pattern,
-                      TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
+                      ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
                       Optional<Array<DFPattern>> additional_bindings = NullOpt,
                       Map<GlobalVar, BaseFunc> new_subroutines = {});
 
@@ -136,7 +136,7 @@ class OrRewriter : public PatternMatchingRewriter {
 class TupleRewriterNode : public PatternMatchingRewriterNode {
  public:
   Array<DFPattern> patterns;
-  TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func;
+  ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func;
   Optional<Array<DFPattern>> additional_bindings;
   Map<GlobalVar, BaseFunc> new_subroutines;
 
@@ -144,7 +144,7 @@ class TupleRewriterNode : public PatternMatchingRewriterNode {
 
   void VisitAttrs(AttrVisitor* visitor) {
     visitor->Visit("patterns", &patterns);
-    PackedFunc untyped_func = func;
+    ffi::Function untyped_func = func;
     visitor->Visit("func", &untyped_func);
   }
 
@@ -169,7 +169,7 @@ class TupleRewriterNode : public PatternMatchingRewriterNode {
 class TupleRewriter : public PatternMatchingRewriter {
  public:
   TupleRewriter(Array<DFPattern> patterns,
-                TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
+                ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
                 Optional<Array<DFPattern>> additional_bindings = NullOpt,
                 Map<GlobalVar, BaseFunc> new_subroutines = {});
 

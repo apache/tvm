@@ -61,7 +61,7 @@ static void WriteBinToDisk(const std::string& bin_file, const std::string& bin_c
   for (auto byte : byte_array) file_out << byte;
 }
 
-static void ReadInputsAndGenerateInputBin(TVMArgs args, const std::string& input_json,
+static void ReadInputsAndGenerateInputBin(ffi::PackedArgs args, const std::string& input_json,
                                           const std::string& input_bin,
                                           const std::string& bin_directory, size_t num_inputs) {
   std::ofstream file_out;
@@ -104,7 +104,7 @@ static void RunInferenceOnMlModel(const std::string& symbol_name, const std::str
   (*run_sim)(command, sim_directory);
 }
 
-static void ReadOutputsAndUpdateRuntime(TVMArgs args, size_t num_inputs,
+static void ReadOutputsAndUpdateRuntime(ffi::PackedArgs args, size_t num_inputs,
                                         const std::string& out_bin_prefix) {
   for (int out = num_inputs; out < args.size(); out++) {
     const DLTensor* outTensor;
@@ -141,14 +141,15 @@ static void ReadOutputsAndUpdateRuntime(TVMArgs args, size_t num_inputs,
   }
 }
 
-static void CleanUp(TVMArgs args, const std::string& bin_file, const std::string& input_json,
-                    const std::string& input_bin, const std::string& out_bin_prefix,
-                    size_t num_outputs) {
+static void CleanUp(ffi::PackedArgs args, const std::string& bin_file,
+                    const std::string& input_json, const std::string& input_bin,
+                    const std::string& out_bin_prefix, size_t num_outputs) {
   const auto clean_up = tvm::ffi::Function::GetGlobal("tvm.mrvl.CleanUpSim");
   (*clean_up)(bin_file, input_json, input_bin, out_bin_prefix, num_outputs);
 }
 
-void tvm::runtime::contrib::mrvl::RunMarvellSimulator(TVMArgs args, const std::string& symbol_name,
+void tvm::runtime::contrib::mrvl::RunMarvellSimulator(ffi::PackedArgs args,
+                                                      const std::string& symbol_name,
                                                       const std::string& bin_code,
                                                       size_t num_inputs, size_t num_outputs) {
   // check $PATH for the presence of MRVL dependent tools/scripts

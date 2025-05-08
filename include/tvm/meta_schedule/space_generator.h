@@ -125,18 +125,18 @@ class SpaceGenerator : public runtime::ObjectRef {
    * \brief The function type of `InitializeWithTuneContext` method.
    * \param context The tuning context for initialization.
    */
-  using FInitializeWithTuneContext = runtime::TypedPackedFunc<void(const TuneContext&)>;
+  using FInitializeWithTuneContext = ffi::TypedFunction<void(const TuneContext&)>;
   /*!
    * \brief The function type of `GenerateDesignSpace` method.
    * \param mod The module used for design space generation.
    * \return The generated design spaces, i.e., schedules.
    */
-  using FGenerateDesignSpace = runtime::TypedPackedFunc<Array<tir::Schedule>(const IRModule&)>;
+  using FGenerateDesignSpace = ffi::TypedFunction<Array<tir::Schedule>(const IRModule&)>;
   /*!
    * \brief The function type of `Clone` method.
    * \return The cloned space generator.
    */
-  using FClone = runtime::TypedPackedFunc<SpaceGenerator()>;
+  using FClone = ffi::TypedFunction<SpaceGenerator()>;
 
  protected:
   SpaceGenerator() = default;
@@ -167,7 +167,7 @@ class SpaceGenerator : public runtime::ObjectRef {
    * \param postprocs The postprocessors.
    * \param mutator_probs The probability of using certain mutator.
    */
-  TVM_DLL static SpaceGenerator ScheduleFn(PackedFunc schedule_fn,
+  TVM_DLL static SpaceGenerator ScheduleFn(ffi::Function schedule_fn,
                                            Optional<Array<ScheduleRule>> sch_rules,
                                            Optional<Array<Postproc>> postprocs,
                                            Optional<Map<Mutator, FloatImm>> mutator_probs);
@@ -192,7 +192,7 @@ class SpaceGenerator : public runtime::ObjectRef {
    * \param mutator_probs The probability of using certain mutator.
    * \return The design space generator created.
    */
-  TVM_DLL static SpaceGenerator PostOrderApply(runtime::PackedFunc f_block_filter,
+  TVM_DLL static SpaceGenerator PostOrderApply(ffi::Function f_block_filter,
                                                Optional<Array<ScheduleRule>> sch_rules,
                                                Optional<Array<Postproc>> postprocs,
                                                Optional<Map<Mutator, FloatImm>> mutator_probs);

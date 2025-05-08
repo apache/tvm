@@ -25,7 +25,7 @@ namespace tvm {
 namespace runtime {
 
 struct SessionObj::FFI {
-  static DRef CallWithPacked(Session sess, const TVMArgs& args) {
+  static DRef CallWithPacked(Session sess, const ffi::PackedArgs& args) {
     return sess->CallWithPacked(args);
   }
 };
@@ -48,7 +48,7 @@ TVM_REGISTER_GLOBAL("runtime.disco.SessionSyncWorker").set_body_method(&SessionO
 TVM_REGISTER_GLOBAL("runtime.disco.SessionInitCCL")  //
     .set_body_method(&SessionObj::InitCCL);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionCallPacked")
-    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       Session self = args[0].cast<Session>();
       *rv = SessionObj::FFI::CallWithPacked(self, args.Slice(1));
     });

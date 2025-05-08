@@ -138,7 +138,7 @@ class RNNStateImpObj : public RNNStateObj {
    * \note Each state data per layer may have different dtype and shape, so we use a
    * different function for each state data.
    */
-  Array<PackedFunc> f_gets_;
+  Array<ffi::Function> f_gets_;
   /*!
    * \brief The function to set the state data to the storage.
    * The function signature is `f_set_(state, seq_slot_ids, history_slot_ids, data, max_history)`.
@@ -149,16 +149,16 @@ class RNNStateImpObj : public RNNStateObj {
    * \note Each state data per layer may have different dtype and shape, so we use a
    * different function for each state data.
    */
-  Array<PackedFunc> f_sets_;
+  Array<ffi::Function> f_sets_;
 
  public:
   /*! \brief Constructor. Take the cache configuration and initialize the NDArrays. */
-  explicit RNNStateImpObj(int64_t num_layers,         //
-                          int64_t reserved_num_seqs,  //
-                          int64_t max_history,        //
-                          DLDevice device,            //
-                          Array<PackedFunc> f_gets,   //
-                          Array<PackedFunc> f_sets,   //
+  explicit RNNStateImpObj(int64_t num_layers,           //
+                          int64_t reserved_num_seqs,    //
+                          int64_t max_history,          //
+                          DLDevice device,              //
+                          Array<ffi::Function> f_gets,  //
+                          Array<ffi::Function> f_sets,  //
                           Array<NDArray> init_layer_value)
       : num_layers_(num_layers),
         reserved_num_seqs_(reserved_num_seqs),
@@ -465,11 +465,11 @@ TVM_REGISTER_OBJECT_TYPE(RNNStateImpObj);
 //-------------------------------------------------
 
 TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_create")
-    .set_body_typed([](int64_t num_layers,         //
-                       int64_t reserved_num_seqs,  //
-                       int64_t max_history,        //
-                       Array<PackedFunc> f_gets,   //
-                       Array<PackedFunc> f_sets,   //
+    .set_body_typed([](int64_t num_layers,           //
+                       int64_t reserved_num_seqs,    //
+                       int64_t max_history,          //
+                       Array<ffi::Function> f_gets,  //
+                       Array<ffi::Function> f_sets,  //
                        Array<NDArray> init_layer_value) {
       CHECK_GT(num_layers, 0) << "The number of layers should be greater than 0.";
       CHECK_GT(reserved_num_seqs, 0)

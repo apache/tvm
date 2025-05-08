@@ -189,7 +189,7 @@ Pass MetaScheduleTuneIRMod(Map<String, runtime::NDArray> params, String work_dir
 
 Pass MetaScheduleTuneTIR(String work_dir, Integer max_trials_global) {
   Target target = Target::Current(false);
-  runtime::TypedPackedFunc<tir::PrimFunc(tir::PrimFunc, IRModule, PassContext)> pass_func =
+  ffi::TypedFunction<tir::PrimFunc(tir::PrimFunc, IRModule, PassContext)> pass_func =
       [=](tir::PrimFunc f, IRModule mod, PassContext ctx) {
         return MetaScheduleTuner(target, work_dir, max_trials_global, max_trials_global, NullOpt)
             .TuneTIR(f, ctx);

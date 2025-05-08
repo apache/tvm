@@ -95,15 +95,15 @@ class JSONRuntimeBase : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The packed function.
    */
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
     if (name == "get_symbol") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->symbol_name_; });
+      return ffi::Function(
+          [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->symbol_name_; });
     } else if (name == "get_const_vars") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->const_names_; });
+      return ffi::Function(
+          [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->const_names_; });
     } else if (this->symbol_name_ == name) {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         ICHECK(this->initialized_) << "The module has not been initialized";
 
         // Bind argument tensors to data entries.
@@ -116,9 +116,9 @@ class JSONRuntimeBase : public ModuleNode {
       // NOTE: the current debug convention is not very compatible with
       // the FFI convention, consider clean up
       if (!this->CanDebug()) {
-        return PackedFunc(nullptr);
+        return ffi::Function(nullptr);
       }
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         ICHECK(this->initialized_) << "The module has not been initialized";
 
         // Bind argument tensors to data entries.
@@ -138,7 +138,7 @@ class JSONRuntimeBase : public ModuleNode {
       });
     } else if ("__init_" + this->symbol_name_ == name) {
       // The function to initialize constant tensors.
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         ICHECK_EQ(args.size(), 1U);
         std::lock_guard<std::mutex> guard(this->initialize_mutex_);
         if (!this->initialized_) {
@@ -148,7 +148,7 @@ class JSONRuntimeBase : public ModuleNode {
         *rv = 0;
       });
     } else {
-      return PackedFunc(nullptr);
+      return ffi::Function(nullptr);
     }
   }
 
@@ -199,7 +199,7 @@ class JSONRuntimeBase : public ModuleNode {
    *
    * \param args The packed args.
    */
-  void SetInputOutputBuffers(const TVMArgs& args) {
+  void SetInputOutputBuffers(const ffi::PackedArgs& args) {
     ICHECK_EQ(args.size(), input_var_eid_.size() + outputs_.size())
         << "Found mismatch in the number of provided data entryies and required.";
 

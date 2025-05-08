@@ -127,7 +127,7 @@ class FunctionObjImpl : public FunctionObj {
   /*! \brief The type of derived object class */
   using TSelf = FunctionObjImpl<TCallable>;
   /*!
-   * \brief Derived object class for constructing PackedFuncObj.
+   * \brief Derived object class for constructing ffi::FunctionObj.
    * \param callable The type-erased callable object.
    */
   explicit FunctionObjImpl(TCallable callable) : callable_(callable) {
@@ -292,7 +292,7 @@ class PackedArgs {
 
 /*!
  * \brief ffi::Function  is a type-erased function.
- *  The arguments are passed by packed format.
+ *  The arguments are passed by "packed format" via AnyView
  */
 class Function : public ObjectRef {
  public:
@@ -300,7 +300,7 @@ class Function : public ObjectRef {
   Function(std::nullptr_t) : ObjectRef(nullptr) {}  // NOLINT(*)
   /*!
    * \brief Constructing a packed function from a callable type
-   *        whose signature is consistent with `PackedFunc`
+   *        whose signature is consistent with `ffi::Function`
    * \param packed_call The packed function signature
    * \note legacy purpose, should change to Function::FromPacked for mostfuture use.
    */
@@ -310,7 +310,7 @@ class Function : public ObjectRef {
   }
   /*!
    * \brief Constructing a packed function from a callable type
-   *        whose signature is consistent with `PackedFunc`
+   *        whose signature is consistent with `ffi::Function`
    * \param packed_call The packed function signature
    */
   template <typename TCallable>
@@ -462,7 +462,7 @@ class Function : public ObjectRef {
    * \param callable the internal container of packed function.
    */
   template <typename TCallable>
-  static Function FromUnpacked(TCallable callable) {
+  static Function FromTyped(TCallable callable) {
     using FuncInfo = details::FunctionInfo<TCallable>;
     auto call_packed = [callable](const AnyView* args, int32_t num_args, Any* rv) mutable -> void {
       details::unpack_call<typename FuncInfo::RetType>(
@@ -477,7 +477,7 @@ class Function : public ObjectRef {
    * \param name optional name attacked to the function.
    */
   template <typename TCallable>
-  static Function FromUnpacked(TCallable callable, std::string name) {
+  static Function FromTyped(TCallable callable, std::string name) {
     using FuncInfo = details::FunctionInfo<TCallable>;
     auto call_packed = [callable, name](const AnyView* args, int32_t num_args,
                                         Any* rv) mutable -> void {
@@ -540,7 +540,7 @@ class Function : public ObjectRef {
  private:
   /*!
    * \brief Constructing a packed function from a callable type
-   *        whose signature is consistent with `PackedFunc`
+   *        whose signature is consistent with `ffi::Function`
    * \param packed_call The packed function signature
    */
   template <typename TCallable>
@@ -560,16 +560,16 @@ class TypedFunction;
 
 /*!
  * \anchor TypedFunctionAnchor
- * \brief A PackedFunc wrapper to provide typed function signature.
- * It is backed by a PackedFunc internally.
+ * \brief A ffi::Function wrapper to provide typed function signature.
+ * It is backed by a ffi::Function internally.
  *
  * TypedFunction enables compile time type checking.
  * TypedFunction works with the runtime system:
- * - It can be passed as an argument of PackedFunc.
- * - It can be assigned to TVMRetValue.
- * - It can be directly converted to a type-erased PackedFunc.
+ * - It can be passed as an argument of ffi::Function.
+ * - It can be assigned to ffi::Any.
+ * - It can be directly converted to a type-erased ffi::Function.
  *
- * Developers should prefer TypedFunction over PackedFunc in C++ code
+ * Developers should prefer TypedFunction over ffi::Function in C++ code
  * as it enables compile time checking.
  * We can construct a TypedFunction from a lambda function
  * with the same signature.
@@ -584,8 +584,8 @@ class TypedFunction;
  *  TypedFunction<int(int)> ftyped(addone);
  *  // invoke the function.
  *  int y = ftyped(1);
- *  // Can be directly converted to PackedFunc
- *  PackedFunc packed = ftype;
+ *  // Can be directly converted to ffi::Function
+ *  ffi::Function packed = ftype;
  * \endcode
  * \tparam R The return value of the function.
  * \tparam Args The argument signature of the function.
@@ -623,7 +623,7 @@ class TypedFunction<R(Args...)> {
   template <typename FLambda, typename = typename std::enable_if<std::is_convertible<
                                   FLambda, std::function<R(Args...)>>::value>::type>
   TypedFunction(FLambda typed_lambda, std::string name) {  // NOLINT(*)
-    packed_ = Function::FromUnpacked(typed_lambda, name);
+    packed_ = Function::FromTyped(typed_lambda, name);
   }
   /*!
    * \brief construct from a lambda function with the same signature.
@@ -646,7 +646,7 @@ class TypedFunction<R(Args...)> {
   template <typename FLambda, typename = typename std::enable_if<std::is_convertible<
                                   FLambda, std::function<R(Args...)>>::value>::type>
   TypedFunction(const FLambda& typed_lambda) {  // NOLINT(*)
-    packed_ = Function::FromUnpacked(typed_lambda);
+    packed_ = Function::FromTyped(typed_lambda);
   }
   /*!
    * \brief copy assignment operator from typed lambda
@@ -668,11 +668,11 @@ class TypedFunction<R(Args...)> {
                                   std::is_convertible<FLambda,
                                                       std::function<R(Args...)>>::value>::type>
   TSelf& operator=(FLambda typed_lambda) {  // NOLINT(*)
-    packed_ = Function::FromUnpacked(typed_lambda);
+    packed_ = Function::FromTyped(typed_lambda);
     return *this;
   }
   /*!
-   * \brief copy assignment operator from PackedFunc.
+   * \brief copy assignment operator from ffi::Function.
    * \param packed The packed function.
    * \returns reference to self.
    */
@@ -698,16 +698,16 @@ class TypedFunction<R(Args...)> {
     }
   }
   /*!
-   * \brief convert to PackedFunc
-   * \return the internal PackedFunc
+   * \brief convert to ffi::Function
+   * \return the internal ffi::Function
    */
   operator Function() const { return packed(); }
   /*!
-   * \return reference the internal PackedFunc
+   * \return reference the internal ffi::Function
    */
   const Function& packed() const& { return packed_; }
   /*!
-   * \return r-value reference the internal PackedFunc
+   * \return r-value reference the internal ffi::Function
    */
   constexpr Function&& packed() && { return std::move(packed_); }
   /*! \return Whether the packed function is nullptr */
@@ -797,7 +797,7 @@ class Function::Registry {
    */
   template <typename FLambda>
   Registry& set_body_typed(FLambda f) {
-    return Register(Function::FromUnpacked(f, name_));
+    return Register(Function::FromTyped(f, name_));
   }
 
   /*!
@@ -838,14 +838,14 @@ class Function::Registry {
         // call method pointer
         return (target.*f)(params...);
       };
-      return Register(ffi::Function::FromUnpacked(fwrap, name_));
+      return Register(ffi::Function::FromTyped(fwrap, name_));
     }
     if constexpr (std::is_base_of_v<Object, T>) {
       auto fwrap = [f](const T* target, Args... params) -> R {
         // call method pointer
         return (const_cast<T*>(target)->*f)(params...);
       };
-      return Register(ffi::Function::FromUnpacked(fwrap, name_));
+      return Register(ffi::Function::FromTyped(fwrap, name_));
     }
     return *this;
   }
@@ -859,14 +859,14 @@ class Function::Registry {
         // call method pointer
         return (target.*f)(params...);
       };
-      return Register(ffi::Function::FromUnpacked(fwrap, name_));
+      return Register(ffi::Function::FromTyped(fwrap, name_));
     }
     if constexpr (std::is_base_of_v<Object, T>) {
       auto fwrap = [f](const T* target, Args... params) -> R {
         // call method pointer
         return (target->*f)(params...);
       };
-      return Register(ffi::Function::FromUnpacked(fwrap, name_));
+      return Register(ffi::Function::FromTyped(fwrap, name_));
     }
     return *this;
   }

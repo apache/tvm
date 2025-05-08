@@ -150,7 +150,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
     int mode = CUDNN_CROSS_CORRELATION;
 
     // find best algo
-    TVMRetValue best_algo;
+    ffi::Any best_algo;
 
     tvm::contrib::FindAlgo(format, dims, groups, padding.data(), strides.data(), dilation.data(),
                            input_dims.data(), kernel_dims.data(), output_dims.data(), conv_dtype,

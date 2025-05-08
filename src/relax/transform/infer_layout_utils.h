@@ -149,7 +149,7 @@ using VarLayoutMap = Map<Var, NLayout>;
  * \param desired_layouts The desired layouts of the operator.
  * \param var_layout_map The layout of the variables.
  */
-using FRelaxInferLayout = runtime::TypedPackedFunc<InferLayoutOutput(
+using FRelaxInferLayout = ffi::TypedFunction<InferLayoutOutput(
     const Call& call, const Map<String, Array<String>>& desired_layouts,
     const VarLayoutMap& var_layout_map)>;
 

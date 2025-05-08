@@ -272,7 +272,7 @@ void CallHipblasLt(hipblasLtHandle_t hdl, hipStream_t stream,
   hipblasLtMatrixLayoutDestroy(C_desc);
 }
 
-inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, hipblasHandle_t hdl) {
+inline void CallGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t hdl) {
   auto A = args[0].cast<DLTensor*>();
   auto B = args[1].cast<DLTensor*>();
   auto C = args[2].cast<DLTensor*>();
@@ -330,7 +330,7 @@ inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, hipblasHandle_t hdl) {
                     beta_ptr, C_data, hip_out_type, ColumnStride(C), hip_out_type, algo));
 }
 
-inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, hipblasHandle_t hdl) {
+inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t hdl) {
   auto A = args[0].cast<DLTensor*>();
   auto B = args[1].cast<DLTensor*>();
   auto C = args[2].cast<DLTensor*>();
@@ -408,7 +408,7 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, hipblasHandle_t hdl)
 
 // matrix multiplication for row major
 TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto C = args[2].cast<DLTensor*>();
 
@@ -431,7 +431,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.batch_matmul")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto C = args[2].cast<DLTensor*>();
 

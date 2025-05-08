@@ -294,9 +294,9 @@ Optional<Instruction> TraceNode::Pop() {
 
 void TraceNode::ApplyToSchedule(
     Schedule sch, bool remove_postproc,
-    runtime::TypedPackedFunc<Any(const Instruction& inst, const Array<Any>& inputs,  //
-                                 const Array<Any>& attrs,                            //
-                                 const Any& decision)>
+    ffi::TypedFunction<Any(const Instruction& inst, const Array<Any>& inputs,  //
+                           const Array<Any>& attrs,                            //
+                           const Any& decision)>
         decision_provider) const {
   std::unordered_map<const Object*, const Object*> rv_map;
   for (const Instruction& inst : this->insts) {

@@ -33,13 +33,13 @@ std::unique_ptr<PagedPrefillFunc> ConvertPagedPrefillFunc(Array<ObjectRef> args,
   String backend_name = Downcast<String>(args[0]);
   if (backend_name == "tir") {
     CHECK_EQ(args.size(), 2);
-    PackedFunc attn_func = Downcast<PackedFunc>(args[1]);
+    ffi::Function attn_func = Downcast<ffi::Function>(args[1]);
     return std::make_unique<TIRPagedPrefillFunc>(std::move(attn_func), attn_kind);
   }
   if (backend_name == "flashinfer") {
     CHECK_EQ(args.size(), 3);
-    PackedFunc attn_func = Downcast<PackedFunc>(args[1]);
-    PackedFunc plan_func = Downcast<PackedFunc>(args[2]);
+    ffi::Function attn_func = Downcast<ffi::Function>(args[1]);
+    ffi::Function plan_func = Downcast<ffi::Function>(args[2]);
     return std::make_unique<FlashInferPagedPrefillFunc>(std::move(attn_func), std::move(plan_func),
                                                         attn_kind);
   }
@@ -55,13 +55,13 @@ std::unique_ptr<RaggedPrefillFunc> ConvertRaggedPrefillFunc(Array<ObjectRef> arg
   String backend_name = Downcast<String>(args[0]);
   if (backend_name == "tir") {
     CHECK_EQ(args.size(), 2);
-    PackedFunc attn_func = Downcast<PackedFunc>(args[1]);
+    ffi::Function attn_func = Downcast<ffi::Function>(args[1]);
     return std::make_unique<TIRRaggedPrefillFunc>(std::move(attn_func), attn_kind);
   }
   if (backend_name == "flashinfer") {
     CHECK_EQ(args.size(), 3);
-    PackedFunc attn_func = Downcast<PackedFunc>(args[1]);
-    PackedFunc plan_func = Downcast<PackedFunc>(args[2]);
+    ffi::Function attn_func = Downcast<ffi::Function>(args[1]);
+    ffi::Function plan_func = Downcast<ffi::Function>(args[2]);
     return std::make_unique<FlashInferRaggedPrefillFunc>(std::move(attn_func), std::move(plan_func),
                                                          attn_kind);
   }
@@ -76,13 +76,13 @@ std::unique_ptr<PagedDecodeFunc> ConvertPagedDecodeFunc(Array<ObjectRef> args, A
   String backend_name = Downcast<String>(args[0]);
   if (backend_name == "tir") {
     CHECK_EQ(args.size(), 2);
-    PackedFunc attn_func = Downcast<PackedFunc>(args[1]);
+    ffi::Function attn_func = Downcast<ffi::Function>(args[1]);
     return std::make_unique<TIRPagedDecodeFunc>(std::move(attn_func), attn_kind);
   }
   if (backend_name == "flashinfer") {
     CHECK_EQ(args.size(), 3);
-    PackedFunc attn_func = Downcast<PackedFunc>(args[1]);
-    PackedFunc plan_func = Downcast<PackedFunc>(args[2]);
+    ffi::Function attn_func = Downcast<ffi::Function>(args[1]);
+    ffi::Function plan_func = Downcast<ffi::Function>(args[2]);
     return std::make_unique<FlashInferPagedDecodeFunc>(std::move(attn_func), std::move(plan_func),
                                                        attn_kind);
   }
@@ -98,7 +98,7 @@ std::unique_ptr<PagedPrefillTreeMaskFunc> ConvertPagedPrefillTreeMaskFunc(Array<
   String backend_name = Downcast<String>(args[0]);
   if (backend_name == "tir") {
     CHECK_EQ(args.size(), 2);
-    PackedFunc attn_func = Downcast<PackedFunc>(args[1]);
+    ffi::Function attn_func = Downcast<ffi::Function>(args[1]);
     return std::make_unique<TIRPagedPrefillTreeMaskFunc>(std::move(attn_func), attn_kind);
   }
   LOG(FATAL) << "Cannot reach here";
@@ -113,7 +113,7 @@ std::unique_ptr<RaggedPrefillTreeMaskFunc> ConvertRaggedPrefillTreeMaskFunc(Arra
   String backend_name = Downcast<String>(args[0]);
   if (backend_name == "tir") {
     CHECK_EQ(args.size(), 2);
-    PackedFunc attn_func = Downcast<PackedFunc>(args[1]);
+    ffi::Function attn_func = Downcast<ffi::Function>(args[1]);
     return std::make_unique<TIRRaggedPrefillTreeMaskFunc>(std::move(attn_func), attn_kind);
   }
   LOG(FATAL) << "Cannot reach here";

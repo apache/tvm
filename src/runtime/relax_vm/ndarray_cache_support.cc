@@ -300,12 +300,12 @@ class ParamModuleNode : public runtime::ModuleNode {
  public:
   const char* type_key() const final { return "param_module"; }
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_params") {
       auto params = params_;
-      return PackedFunc([params](TVMArgs args, TVMRetValue* rv) { *rv = params; });
+      return ffi::Function([params](ffi::PackedArgs args, ffi::Any* rv) { *rv = params; });
     } else {
-      return PackedFunc();
+      return ffi::Function();
     }
   }
 

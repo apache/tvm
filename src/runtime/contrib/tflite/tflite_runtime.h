@@ -19,7 +19,7 @@
 
 /*!
  * \brief Tflite runtime that can run tflite model
- *        containing only tvm PackedFunc.
+ *        containing only tvm ffi::Function.
  * \file tflite_runtime.h
  */
 #ifndef TVM_RUNTIME_CONTRIB_TFLITE_TFLITE_RUNTIME_H_
@@ -43,7 +43,7 @@ namespace runtime {
  * \brief Tflite runtime.
  *
  *  This runtime can be accessed in various language via
- *  TVM runtime PackedFunc API.
+ *  TVM runtime ffi::Function API.
  */
 class TFLiteRuntime : public ModuleNode {
  public:
@@ -53,7 +53,7 @@ class TFLiteRuntime : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
+  virtual ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
 
   /*!
    * \return The type key of the executor.

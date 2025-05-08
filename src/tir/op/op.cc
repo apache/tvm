@@ -1071,7 +1071,7 @@ TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 // expose basic functions to node namespace
-TVM_REGISTER_GLOBAL("node._const").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("node._const").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
   if (auto opt = args[0].as<int64_t>()) {
     *ret = tir::make_const(args[1].cast<DataType>(), *opt, args[2].cast<Span>());
   } else if (auto opt = args[0].as<double>()) {
@@ -1121,7 +1121,7 @@ TVM_REGISTER_GLOBAL("tir.reinterpret").set_body_typed(tvm::reinterpret);
   })
 
 #define REGISTER_MAKE_BIT_OP(Node, Func)                                                       \
-  TVM_REGISTER_GLOBAL("tir." #Node).set_body_packed([](TVMArgs args, TVMRetValue* ret) {       \
+  TVM_REGISTER_GLOBAL("tir." #Node).set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {  \
     bool lhs_is_int = args[0].type_index() == ffi::TypeIndex::kTVMFFIInt;                      \
     bool rhs_is_int = args[1].type_index() == ffi::TypeIndex::kTVMFFIInt;                      \
     if (lhs_is_int) {                                                                          \

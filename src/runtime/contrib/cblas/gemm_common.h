@@ -34,8 +34,8 @@
 namespace tvm {
 namespace contrib {
 
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
+using ffi::Any;
+using ffi::PackedArgs;
 using runtime::TypeMatch;
 
 inline int ColumnStride(const DLTensor* tensor) {
@@ -73,7 +73,7 @@ inline int ColumnCount(const DLTensor* tensor, bool trans, int batch_offset = 0)
 // Call a column major blas.  Note that data is stored in tvm as row
 // major, so this we switch the arguments.
 template <typename TGemmOp>
-inline void CallGemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
+inline void CallGemm(ffi::PackedArgs args, ffi::Any* ret, TGemmOp op) {
   auto A = args[0].cast<DLTensor*>();
   auto B = args[1].cast<DLTensor*>();
   auto C = args[2].cast<DLTensor*>();
@@ -112,7 +112,7 @@ inline void CallGemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
 // Call a column major blas.  Note that data is stored in tvm as row
 // major, so this we switch the arguments.
 template <typename TGemmOp>
-inline void CallU8S8S32Gemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
+inline void CallU8S8S32Gemm(ffi::PackedArgs args, ffi::Any* ret, TGemmOp op) {
   auto A = args[0].cast<DLTensor*>();
   auto B = args[1].cast<DLTensor*>();
   auto C = args[2].cast<DLTensor*>();
@@ -181,7 +181,7 @@ inline int BatchCount3D(DLTensor* tensor) { return tensor->shape[0]; }
 inline int RowCount3D(DLTensor* tensor, bool trans) { return tensor->shape[trans ? 2 : 1]; }
 inline int ColumnCount3D(DLTensor* tensor, bool trans) { return tensor->shape[trans ? 1 : 2]; }
 template <typename TBatchGemmOp>
-inline void CallBatchGemm(TVMArgs args, TVMRetValue* ret, TBatchGemmOp op) {
+inline void CallBatchGemm(ffi::PackedArgs args, ffi::Any* ret, TBatchGemmOp op) {
   using DType = typename TBatchGemmOp::TDatatype;
   auto A = args[0].cast<DLTensor*>();
   auto B = args[1].cast<DLTensor*>();

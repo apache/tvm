@@ -1981,6 +1981,66 @@ def test_isin():
     verify_model(IsInModel(), input_info, {}, expected)
 
 
+def test_div_mode():
+    input_info = [([64, 64], "float32"), ([64, 64], "float32")]
+
+    # Case 1: Basic division (no rounding mode)
+    class DivModel(torch.nn.Module):
+        def forward(self, x, y):
+            return torch.div(x, y)
+
+    @tvm.script.ir_module
+    class expected_div:
+        @R.function
+        def main(
+            inp_0: R.Tensor((64, 64), dtype="float32"), inp_1: R.Tensor((64, 64), dtype="float32")
+        ) -> R.Tensor((64, 64), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((64, 64), dtype="float32") = R.divide(inp_0, inp_1)
+                gv: R.Tensor((64, 64), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    # Case 2: Division with trunc rounding
+    class DivTruncModel(torch.nn.Module):
+        def forward(self, x, y):
+            return torch.div(x, y, rounding_mode="trunc")
+
+    @tvm.script.ir_module
+    class expected_div_trunc:
+        @R.function
+        def main(
+            inp_0: R.Tensor((64, 64), dtype="float32"), inp_1: R.Tensor((64, 64), dtype="float32")
+        ) -> R.Tensor((64, 64), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((64, 64), dtype="float32") = R.divide(inp_0, inp_1)
+                lv1: R.Tensor((64, 64), dtype="float32") = R.trunc(lv)
+                gv: R.Tensor((64, 64), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    # Case 3: Division with floor rounding
+    class DivFloorModel(torch.nn.Module):
+        def forward(self, x, y):
+            return torch.div(x, y, rounding_mode="floor")
+
+    @tvm.script.ir_module
+    class expected_div_floor:
+        @R.function
+        def main(
+            inp_0: R.Tensor((64, 64), dtype="float32"), inp_1: R.Tensor((64, 64), dtype="float32")
+        ) -> R.Tensor((64, 64), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((64, 64), dtype="float32") = R.floor_divide(inp_0, inp_1)
+                gv: R.Tensor((64, 64), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(DivModel(), input_info, {}, expected_div)
+    verify_model(DivTruncModel(), input_info, {}, expected_div_trunc)
+    verify_model(DivFloorModel(), input_info, {}, expected_div_floor)
+
+
 def test_size():
     input_info = [([1, 3, 10, 10], "float32")]
 
@@ -2927,6 +2987,25 @@ def test_extended_unary_ops():
 
     verify_model(Triu(), input_info, {}, expected_triu)
     verify_model(InplaceTriu(), input_info, {}, expected_triu)
+
+    # trunc
+    class Trunc(torch.nn.Module):
+        def forward(self, input):
+            return torch.trunc(input)
+
+    @tvm.script.ir_module
+    class expected_trunc:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.trunc(inp_0)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Trunc(), input_info, {}, expected_trunc)
 
 
 def test_interpolate():

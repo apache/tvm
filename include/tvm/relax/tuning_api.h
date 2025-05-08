@@ -35,8 +35,8 @@ namespace relax {
 
 /*! \brief Helper function to unpack arguments in the array as parameters for the given packed
  * function. */
-TVM_ALWAYS_INLINE TVMRetValue CallPackedWithArgsInArray(const runtime::PackedFunc f,
-                                                        const Array<Any>& args) {
+TVM_ALWAYS_INLINE ffi::Any CallPackedWithArgsInArray(const ffi::Function f,
+                                                     const Array<Any>& args) {
   size_t num_args = args.size();
   std::vector<AnyView> packed_args(num_args);
   for (size_t i = 0; i < num_args; ++i) {
@@ -68,14 +68,14 @@ class ChoiceNode : public runtime::Object {
   }
 
   /*! \brief Getter for constr_func. */
-  const runtime::PackedFunc GetConstrFunc() {
+  const ffi::Function GetConstrFunc() {
     const auto constr_func = tvm::ffi::Function::GetGlobal(constr_func_key);
     ICHECK(constr_func.has_value()) << "constr_func_key is not registered: " << constr_func_key;
     return *std::move(constr_func);
   }
 
   /*! \brief Getter for transform_func. */
-  const runtime::PackedFunc GetTransformFunc() {
+  const ffi::Function GetTransformFunc() {
     auto transform_func = tvm::ffi::Function::GetGlobal(transform_func_key);
     ICHECK(transform_func.has_value())
         << "transform_func_key is not registered: " << transform_func_key;

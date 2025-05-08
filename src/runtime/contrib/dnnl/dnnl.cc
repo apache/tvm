@@ -348,38 +348,39 @@ extern "C" void dnnl_binary_op(float* data, float* weight, float* out, int algo_
 }
 
 // DNNL Conv2d single OP
-TVM_REGISTER_GLOBAL("tvm.contrib.dnnl.conv2d").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  auto input = args[0].cast<DLTensor*>();
-  auto weights = args[1].cast<DLTensor*>();
-  auto output = args[2].cast<DLTensor*>();
-  int p_Ph0_ = args[3].cast<int>(), p_Pw0_ = args[4].cast<int>(), p_Ph1_ = args[5].cast<int>(),
-      p_Pw1_ = args[6].cast<int>(), p_Sh_ = args[7].cast<int>(), p_Sw_ = args[8].cast<int>(),
-      p_G_ = args[9].cast<int>();
-  bool channel_last = args[10].cast<bool>();
-  bool pre_cast = args[11].cast<bool>();
-  bool post_cast = args[12].cast<bool>();
+TVM_REGISTER_GLOBAL("tvm.contrib.dnnl.conv2d")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      auto input = args[0].cast<DLTensor*>();
+      auto weights = args[1].cast<DLTensor*>();
+      auto output = args[2].cast<DLTensor*>();
+      int p_Ph0_ = args[3].cast<int>(), p_Pw0_ = args[4].cast<int>(), p_Ph1_ = args[5].cast<int>(),
+          p_Pw1_ = args[6].cast<int>(), p_Sh_ = args[7].cast<int>(), p_Sw_ = args[8].cast<int>(),
+          p_G_ = args[9].cast<int>();
+      bool channel_last = args[10].cast<bool>();
+      bool pre_cast = args[11].cast<bool>();
+      bool post_cast = args[12].cast<bool>();
 
-  int p_N_ = input->shape[0], p_C_ = input->shape[1], p_H_ = input->shape[2],
-      p_W_ = input->shape[3], p_O_ = output->shape[1], p_Kh_ = weights->shape[2],
-      p_Kw_ = weights->shape[3];
+      int p_N_ = input->shape[0], p_C_ = input->shape[1], p_H_ = input->shape[2],
+          p_W_ = input->shape[3], p_O_ = output->shape[1], p_Kh_ = weights->shape[2],
+          p_Kw_ = weights->shape[3];
 
-  if (channel_last) {
-    p_N_ = input->shape[0];
-    p_H_ = input->shape[1];
-    p_W_ = input->shape[2];
-    p_C_ = input->shape[3];
-    p_O_ = output->shape[3];
-    p_Kh_ = weights->shape[0];
-    p_Kw_ = weights->shape[1];
-  }
+      if (channel_last) {
+        p_N_ = input->shape[0];
+        p_H_ = input->shape[1];
+        p_W_ = input->shape[2];
+        p_C_ = input->shape[3];
+        p_O_ = output->shape[3];
+        p_Kh_ = weights->shape[0];
+        p_Kw_ = weights->shape[1];
+      }
 
-  std::vector<float> bias(p_O_, 0);
-  primitive_attr attr;
-  return dnnl_conv2d_common(static_cast<float*>(input->data), static_cast<float*>(weights->data),
-                            bias.data(), static_cast<float*>(output->data), p_N_, p_C_, p_H_, p_W_,
-                            p_O_, p_G_, p_Ph0_, p_Pw0_, p_Ph1_, p_Pw1_, p_Kh_, p_Kw_, p_Sh_, p_Sw_,
-                            attr, channel_last, pre_cast, post_cast);
-});
+      std::vector<float> bias(p_O_, 0);
+      primitive_attr attr;
+      return dnnl_conv2d_common(
+          static_cast<float*>(input->data), static_cast<float*>(weights->data), bias.data(),
+          static_cast<float*>(output->data), p_N_, p_C_, p_H_, p_W_, p_O_, p_G_, p_Ph0_, p_Pw0_,
+          p_Ph1_, p_Pw1_, p_Kh_, p_Kw_, p_Sh_, p_Sw_, attr, channel_last, pre_cast, post_cast);
+    });
 
 }  // namespace contrib
 }  // namespace runtime

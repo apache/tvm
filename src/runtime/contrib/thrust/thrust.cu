@@ -232,7 +232,8 @@ void thrust_sort_common(DLTensor* input, DLTensor* values_out, DLTensor* indices
   }
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort")
+.set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
   ICHECK_GE(args.num_args, 4);
   auto input = args[0].cast<DLTensor*>();
   auto values_out = args[1].cast<DLTensor*>();
@@ -279,7 +280,7 @@ void thrust_stable_sort_by_key(DLTensor* keys_in, DLTensor* values_in, DLTensor*
 }
 
 TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       ICHECK_GE(args.num_args, 5);
       auto keys_in = args[0].cast<DLTensor*>();
       auto values_in = args[1].cast<DLTensor*>();
@@ -394,7 +395,7 @@ void thrust_scan(DLTensor* data, DLTensor* output, bool exclusive, DLTensor* wor
 }
 
 TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
-.set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+.set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
   ICHECK(args.num_args == 2 || args.num_args == 3 || args.num_args == 4);
   auto data = args[0].cast<DLTensor*>();
   auto output = args[1].cast<DLTensor*>();

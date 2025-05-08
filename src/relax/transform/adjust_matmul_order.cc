@@ -39,19 +39,19 @@ namespace tvm {
 namespace relax {
 
 namespace {
-std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
+std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
     const Function& func) {
   auto compile_time_arr = ComputableAtCompileTime(func);
   std::unordered_set<Var> compile_time_lookup(compile_time_arr.begin(), compile_time_arr.end());
 
-  TypedPackedFunc<bool(Expr)> is_compile_time = [compile_time_lookup](Expr arg) -> bool {
+  ffi::TypedFunction<bool(Expr)> is_compile_time = [compile_time_lookup](Expr arg) -> bool {
     if (auto as_var = arg.as<Var>()) {
       return compile_time_lookup.count(as_var.value());
     } else {
       return false;
     }
   };
-  TypedPackedFunc<bool(Expr)> is_runtime = [is_compile_time](Expr arg) -> bool {
+  ffi::TypedFunction<bool(Expr)> is_runtime = [is_compile_time](Expr arg) -> bool {
     return !is_compile_time(arg);
   };
 

@@ -98,7 +98,7 @@ class EnvFunc(Object):
 
     @property
     def func(self):
-        return _ffi_api.EnvFuncGetPackedFunc(self)  # type: ignore # pylint: disable=no-member
+        return _ffi_api.EnvFuncGetFunction(self)  # type: ignore # pylint: disable=no-member
 
     @staticmethod
     def get(name):

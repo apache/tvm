@@ -35,24 +35,27 @@ std::string RPCGetPath(const std::string& name) {
   return (*f)(name).cast<std::string>();
 }
 
-TVM_REGISTER_GLOBAL("tvm.rpc.server.upload").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  std::string file_name = RPCGetPath(args[0].cast<std::string>());
-  auto data = args[1].cast<std::string>();
-  SaveBinaryToFile(file_name, data);
-});
+TVM_REGISTER_GLOBAL("tvm.rpc.server.upload")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      std::string file_name = RPCGetPath(args[0].cast<std::string>());
+      auto data = args[1].cast<std::string>();
+      SaveBinaryToFile(file_name, data);
+    });
 
-TVM_REGISTER_GLOBAL("tvm.rpc.server.download").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  std::string file_name = RPCGetPath(args[0].cast<std::string>());
-  std::string data;
-  LoadBinaryFromFile(file_name, &data);
-  LOG(INFO) << "Download " << file_name << "... nbytes=" << data.size();
-  *rv = ffi::Bytes(data);
-});
+TVM_REGISTER_GLOBAL("tvm.rpc.server.download")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      std::string file_name = RPCGetPath(args[0].cast<std::string>());
+      std::string data;
+      LoadBinaryFromFile(file_name, &data);
+      LOG(INFO) << "Download " << file_name << "... nbytes=" << data.size();
+      *rv = ffi::Bytes(data);
+    });
 
-TVM_REGISTER_GLOBAL("tvm.rpc.server.remove").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
-  std::string file_name = RPCGetPath(args[0].cast<std::string>());
-  RemoveFile(file_name);
-});
+TVM_REGISTER_GLOBAL("tvm.rpc.server.remove")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      std::string file_name = RPCGetPath(args[0].cast<std::string>());
+      RemoveFile(file_name);
+    });
 
 }  // namespace runtime
 }  // namespace tvm

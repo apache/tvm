@@ -93,18 +93,18 @@ struct DiscoProtocol {
 struct DiscoDebugObject : public Object {
  public:
   /*! \brief The data to be serialized */
-  TVMRetValue data;
+  ffi::Any data;
 
   /*! \brief Wrap an NDArray or reflection-capable TVM object into the debug extension. */
-  static ObjectRef Wrap(const TVMRetValue& data) {
+  static ObjectRef Wrap(const ffi::Any& data) {
     ObjectPtr<DiscoDebugObject> n = make_object<DiscoDebugObject>();
     n->data = data;
     return ObjectRef(n);
   }
 
   /*! \brief Wrap an NDArray or reflection-capable TVM object into the debug extension. */
-  static ObjectRef Wrap(const TVMArgValue& data) {
-    TVMRetValue rv;
+  static ObjectRef Wrap(const ffi::AnyView& data) {
+    ffi::Any rv;
     rv = data;
     return Wrap(std::move(rv));
   }

@@ -19,7 +19,7 @@
 
 /*!
  * \file thread_storage_scope.h
- * \brief Extract launch parameters configuration from TVMArgs.
+ * \brief Extract launch parameters configuration from ffi::PackedArgs.
  */
 #ifndef TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
 #define TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
@@ -261,7 +261,7 @@ class LaunchParamConfig {
     }
   }
   // extract workload from arguments.
-  ThreadWorkLoad Extract(TVMArgs args) const {
+  ThreadWorkLoad Extract(ffi::PackedArgs args) const {
     ThreadWorkLoad w;
     std::fill(w.work_size, w.work_size + 6, 1);
     const TVMFFIAny* raw_args = reinterpret_cast<const TVMFFIAny*>(args.data());

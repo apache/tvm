@@ -26,9 +26,9 @@
 
 namespace tvm {
 
-using runtime::PackedFunc;
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
+using ffi::Any;
+using ffi::Function;
+using ffi::PackedArgs;
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<EnvFuncNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -49,13 +49,13 @@ EnvFunc EnvFunc::Get(const String& name) { return EnvFunc(CreateEnvNode(name)); 
 
 TVM_REGISTER_GLOBAL("ir.EnvFuncGet").set_body_typed(EnvFunc::Get);
 
-TVM_REGISTER_GLOBAL("ir.EnvFuncCall").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("ir.EnvFuncCall").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   EnvFunc env = args[0].cast<EnvFunc>();
   ICHECK_GE(args.size(), 1);
   env->func.CallPacked(args.Slice(1), rv);
 });
 
-TVM_REGISTER_GLOBAL("ir.EnvFuncGetPackedFunc").set_body_typed([](const EnvFunc& n) {
+TVM_REGISTER_GLOBAL("ir.EnvFuncGetFunction").set_body_typed([](const EnvFunc& n) {
   return n->func;
 });
 

@@ -69,20 +69,20 @@ class MarvellSimulatorModuleNode : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The packed function.
    */
-  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
+  virtual ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
     if (name == "get_symbol") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->symbol_name_; });
+      return ffi::Function(
+          [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->symbol_name_; });
     } else if (name == "get_const_vars") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = Array<String>{}; });
+      return ffi::Function(
+          [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = Array<String>{}; });
     } else if (this->symbol_name_ == name) {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         Run(args);
         *rv = 0;
       });
     }
-    return PackedFunc(nullptr);
+    return ffi::Function(nullptr);
   }
 
   virtual void SaveToBinary(dmlc::Stream* stream) {
@@ -123,7 +123,7 @@ class MarvellSimulatorModuleNode : public ModuleNode {
   size_t num_inputs_;
   size_t num_outputs_;
 
-  void Run(TVMArgs args) {
+  void Run(ffi::PackedArgs args) {
     ICHECK_EQ(args.size(), num_inputs_ + num_outputs_)
         << "Marvell-Compiler-ERROR-Internal::Mismatch in number of input & number of output args "
            "to subgraph";

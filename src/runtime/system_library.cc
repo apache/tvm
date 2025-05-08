@@ -108,11 +108,11 @@ class SystemLibModuleRegistry {
   std::mutex mutex_;
   // we need to make sure each lib map have an unique
   // copy through out the entire lifetime of the process
-  // so the cached PackedFunc in the system do not get out dated.
+  // so the cached ffi::Function in the system do not get out dated.
   std::unordered_map<std::string, runtime::Module> lib_map_;
 };
 
-TVM_REGISTER_GLOBAL("runtime.SystemLib").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("runtime.SystemLib").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   std::string symbol_prefix = "";
   if (args.size() != 0) {
     symbol_prefix = args[0].cast<std::string>();

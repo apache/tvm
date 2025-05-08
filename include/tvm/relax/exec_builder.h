@@ -118,7 +118,7 @@ class ExecBuilderNode : public Object {
    */
   template <typename T>
   vm::Instruction::Arg ConvertConstant(T value) {
-    TVMRetValue rv;
+    ffi::Any rv;
     rv = value;
     return ConvertConstant_(rv);
   }
@@ -151,7 +151,7 @@ class ExecBuilderNode : public Object {
    * \param obj The constant value to be emitted
    * \return An Arg that represents the result of constant argument.
    */
-  vm::Instruction::Arg ConvertConstant_(TVMRetValue obj);
+  vm::Instruction::Arg ConvertConstant_(ffi::Any obj);
 
   /*!
    * \brief A helper function to check if an executable is legal by checking if registers are used

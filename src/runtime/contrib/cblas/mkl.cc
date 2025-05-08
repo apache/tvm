@@ -154,19 +154,20 @@ struct MKLDgemmBatchIterativeOp {
 };
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.mkl.matmul").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
-  auto A = args[0].cast<DLTensor*>();
-  ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
+TVM_REGISTER_GLOBAL("tvm.contrib.mkl.matmul")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      auto A = args[0].cast<DLTensor*>();
+      ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
 
-  if (TypeMatch(A->dtype, kDLFloat, 32))
-    CallGemm(args, ret, MKLSgemmOp());
-  else
-    CallGemm(args, ret, MKLDgemmOp());
-});
+      if (TypeMatch(A->dtype, kDLFloat, 32))
+        CallGemm(args, ret, MKLSgemmOp());
+      else
+        CallGemm(args, ret, MKLDgemmOp());
+    });
 
 // integer matrix multiplication for row major
 TVM_REGISTER_GLOBAL("tvm.contrib.mkl.matmul_u8s8s32")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto B = args[1].cast<DLTensor*>();
       auto C = args[2].cast<DLTensor*>();
@@ -177,7 +178,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mkl.matmul_u8s8s32")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.mkl.batch_matmul")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
       if (TypeMatch(A->dtype, kDLFloat, 32)) {
@@ -188,7 +189,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mkl.batch_matmul")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.mkl.batch_matmul_iterative")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
       if (TypeMatch(A->dtype, kDLFloat, 32)) {

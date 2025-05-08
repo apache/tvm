@@ -118,7 +118,7 @@ class BuilderNode : public runtime::Object {
    * \param build_inputs The inputs to be built.
    * \return The build results.
    */
-  using FBuild = runtime::TypedPackedFunc<Array<BuilderResult>(const Array<BuilderInput>&)>;
+  using FBuild = ffi::TypedFunction<Array<BuilderResult>(const Array<BuilderInput>&)>;
 
   static constexpr const char* _type_key = "meta_schedule.Builder";
   TVM_DECLARE_BASE_OBJECT_INFO(BuilderNode, runtime::Object);

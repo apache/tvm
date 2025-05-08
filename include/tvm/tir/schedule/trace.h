@@ -37,8 +37,8 @@ class Trace;
  * \return A new decision
  */
 using FTraceDecisionProvider =
-    runtime::TypedPackedFunc<Any(const Instruction& inst, const Array<Any>& inputs,
-                                 const Array<Any>& attrs, const Any& decision)>;
+    ffi::TypedFunction<Any(const Instruction& inst, const Array<Any>& inputs,
+                           const Array<Any>& attrs, const Any& decision)>;
 
 /*!
  * \brief An execution trace of a scheduling program

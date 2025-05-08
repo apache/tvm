@@ -455,7 +455,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
 }
 
 TVM_REGISTER_GLOBAL("arith.SolveLinearEquations")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       if (args.size() == 1) {
         *ret = SolveLinearEquations(args[0].cast<IntConstraints>());
       } else if (args.size() == 3) {

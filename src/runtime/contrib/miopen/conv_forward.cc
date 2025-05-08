@@ -35,7 +35,7 @@ namespace miopen {
 using namespace runtime;
 
 TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       const int mode = args[0].cast<int>();
       const int dtype = args[1].cast<int>();
       const int pad_h = args[2].cast<int>();
@@ -149,7 +149,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.forward")
-    .set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       const int mode = args[0].cast<int>();
       const int dtype = args[1].cast<int>();
       const int pad_h = args[2].cast<int>();

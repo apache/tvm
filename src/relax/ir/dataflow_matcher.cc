@@ -145,7 +145,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
       auto attr_name = kv.first;
       auto attr_value = kv.second;
       if (Op::HasAttrMap(attr_name)) {
-        auto op_map = Op::GetAttrMap<TVMRetValue>(attr_name);
+        auto op_map = Op::GetAttrMap<ffi::Any>(attr_name);
         if (op_map.count(op)) {
           matches &= StructuralEqual()(attr_value, op_map[op]);
         } else {
@@ -157,7 +157,7 @@ bool DFPatternMatcher::VisitDFPattern_(const AttrPatternNode* attr_pattern, cons
     }
   } else if (auto* op = expr.as<CallNode>()) {
     matches = true;
-    // TODO(mbrookhart): When OpNode Attrs move from TVMRetValue to the Object system, remove this
+    // TODO(mbrookhart): When OpNode Attrs move from ffi::Any to the Object system, remove this
     // and replace the whole thing with a Visitor-based approach
     ReflectionVTable* reflection = ReflectionVTable::Global();
     auto attrs_node = const_cast<BaseAttrsNode*>(op->attrs.get());

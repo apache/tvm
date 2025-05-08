@@ -148,7 +148,7 @@ inline Stmt TVMStructSet(Var handle, int index, builtin::TVMStructFieldKind kind
 }
 
 /*!
- * \brief Get the type that is passed around TVM PackedFunc API.
+ * \brief Get the type that is passed around TVM ffi::Function API.
  * \param t The original type.
  * \return The corresponding API type.
  */

@@ -91,7 +91,7 @@ int VulkanDeviceAPI::GetActiveDeviceID() { return active_device_id_per_thread.Ge
 
 VulkanDevice& VulkanDeviceAPI::GetActiveDevice() { return device(GetActiveDeviceID()); }
 
-void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
+void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) {
   size_t index = static_cast<size_t>(dev.device_id);
   if (kind == kExist) {
     *rv = static_cast<int>(index < devices_.size());
@@ -177,7 +177,7 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
   }
 }
 
-void VulkanDeviceAPI::GetTargetProperty(Device dev, const std::string& property, TVMRetValue* rv) {
+void VulkanDeviceAPI::GetTargetProperty(Device dev, const std::string& property, ffi::Any* rv) {
   size_t index = static_cast<size_t>(dev.device_id);
   const auto& prop = device(index).device_properties;
 
@@ -455,14 +455,14 @@ VulkanDevice& VulkanDeviceAPI::device(size_t device_id) {
   return const_cast<VulkanDevice&>(const_cast<const VulkanDeviceAPI*>(this)->device(device_id));
 }
 
-TVM_REGISTER_GLOBAL("device_api.vulkan").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.vulkan").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   DeviceAPI* ptr = VulkanDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
 
 TVM_REGISTER_GLOBAL("device_api.vulkan.get_target_property")
     .set_body_typed([](Device dev, const std::string& property) {
-      TVMRetValue rv;
+      ffi::Any rv;
       VulkanDeviceAPI::Global()->GetTargetProperty(dev, property, &rv);
       return rv;
     });

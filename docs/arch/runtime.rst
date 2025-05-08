@@ -54,7 +54,7 @@ The following code block provides an example in C++
 
     #include <tvm/runtime/packed_func.h>
 
-    void MyAdd(TVMArgs args, TVMRetValue* rv) {
+    void MyAdd(ffi::PackedArgs args, ffi::Any* rv) {
       // automatically convert arguments to desired type.
       int a = args[0].cast<int>();
       int b = args[1].cast<int>();
@@ -71,8 +71,8 @@ The following code block provides an example in C++
 In the above codeblock, we defined a PackedFunc MyAdd. It takes two arguments
 : ``args`` represents input arguments and ``rv`` represents return value.
 The function is type-erased, which means that the function signature does not restrict which input type to pass in or type to return.
-Under the hood, when we call a PackedFunc, it packs the input arguments to TVMArgs on stack,
-and gets the result back via TVMRetValue.
+Under the hood, when we call a PackedFunc, it packs the input arguments to ffi::PackedArgs on stack,
+and gets the result back via ffi::Any.
 
 Thanks to template tricks in C++, we can call a PackedFunc just like a normal function. Because of its type-erased nature, we can call a PackedFunc from dynamic languages like python, without additional glue code for each new type function created.
 The following example registers PackedFunc in C++ and calls from python.
@@ -91,7 +91,7 @@ The following example registers PackedFunc in C++ and calls from python.
     # prints 3
     print(myadd(1, 2))
 
-Most of the magic of PackedFunc lies in ``TVMArgs`` and ``TVMRetValue`` structure.
+Most of the magic of PackedFunc lies in ``ffi::PackedArgs`` and ``ffi::Any`` structure.
 We restrict a list of possible types which can be passed.
 Here are the common ones:
 
@@ -111,7 +111,7 @@ we can pass functions from python (as PackedFunc) to C++.
 .. code:: c
 
     TVM_REGISTER_GLOBAL("callhello")
-    .set_body_packed([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       PackedFunc f = args[0];
       f("hello world");
     });

@@ -53,7 +53,7 @@ namespace ffi {
  * \code
  *
  * void Example() {
- *   auto append = Function::FromUnpacked([](RValueRef<Array<int>> ref, int val) -> Array<int> {
+ *   auto append = Function::FromTyped([](RValueRef<Array<int>> ref, int val) -> Array<int> {
  *     Array<int> arr = *std::move(ref);
  *     assert(arr.unique());
  *     arr.push_back(val);

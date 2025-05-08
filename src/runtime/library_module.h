@@ -71,7 +71,7 @@ class Library : public Object {
  * \param faddr The function address
  * \param mptr The module pointer node.
  */
-PackedFunc WrapPackedFunc(TVMFFISafeCallType faddr, const ObjectPtr<Object>& mptr);
+ffi::Function WrapFFIFunction(TVMFFISafeCallType faddr, const ObjectPtr<Object>& mptr);
 
 /*!
  * \brief Utility to initialize conext function symbols during startup
@@ -94,8 +94,8 @@ class ModuleInternal {
  * \param mptr The module pointer node.
  * \return Packed function that wraps the invocation of the function at faddr.
  */
-using PackedFuncWrapper =
-    std::function<PackedFunc(TVMFFISafeCallType faddr, const ObjectPtr<Object>& mptr)>;
+using FFIFunctionWrapper =
+    std::function<ffi::Function(TVMFFISafeCallType faddr, const ObjectPtr<Object>& mptr)>;
 
 /*! \brief Return a library object interface over dynamic shared
  *  libraries in Windows and Linux providing support for
@@ -110,7 +110,7 @@ ObjectPtr<Library> CreateDSOLibraryObject(std::string library_path);
  *
  * \param lib The library.
  * \param wrapper Optional function used to wrap a TVMBackendPackedCFunc,
- * by default WrapPackedFunc is used.
+ * by default WrapFFIFunction is used.
  * \param symbol_prefix Optional symbol prefix that can be used to search alternative symbols.
  *
  * \return The corresponding loaded module.
@@ -118,7 +118,8 @@ ObjectPtr<Library> CreateDSOLibraryObject(std::string library_path);
  * \note This function can create multiple linked modules
  *       by parsing the binary blob section of the library.
  */
-Module CreateModuleFromLibrary(ObjectPtr<Library> lib, PackedFuncWrapper wrapper = WrapPackedFunc);
+Module CreateModuleFromLibrary(ObjectPtr<Library> lib,
+                               FFIFunctionWrapper wrapper = WrapFFIFunction);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_LIBRARY_MODULE_H_

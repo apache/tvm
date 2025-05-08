@@ -322,7 +322,7 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
     STREAM_CHECK(strm->Read(&constant_type, sizeof(constant_type)), "constant");
     if (constant_type == ConstantType::kNDArray) {
       ndarray.Load(strm);
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = ndarray;
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kShapeTuple) {
@@ -332,12 +332,12 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
       for (size_t i = 0; i < size; ++i) {
         strm->Read(&(data[i]));
       }
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = ShapeTuple(data);
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kDLDataType) {
       strm->Read(&dtype);
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = dtype;
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kString) {
@@ -347,19 +347,19 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
       for (size_t i = 0; i < size; ++i) {
         strm->Read(&(data[i]));
       }
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = String(std::string(data.begin(), data.end()));
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kInt) {
       int64_t value;
       strm->Read(&value);
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = value;
       this->constants.push_back(cell);
     } else if (constant_type == ConstantType::kFloat) {
       double value;
       strm->Read(&value);
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = value;
       this->constants.push_back(cell);
     } else {
