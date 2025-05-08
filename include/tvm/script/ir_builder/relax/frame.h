@@ -54,7 +54,7 @@ class SeqExprFrameNode : public RelaxFrameNode {
  public:
   /*! \brief The binding blocks inside the frame. */
   Array<tvm::relax::BindingBlock> binding_blocks;
-  /*! \brief The frame output expr. `NullOpt` when undefined. */
+  /*! \brief The frame output expr. `std::nullopt` when undefined. */
   Optional<tvm::relax::Expr> output;
 
   void VisitAttrs(tvm::AttrVisitor* v) {

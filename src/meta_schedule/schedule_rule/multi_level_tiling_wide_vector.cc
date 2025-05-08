@@ -92,7 +92,7 @@ std::pair<Array<tir::ExprRV>, Array<tir::LoopRV>> MultiLevelTilingWideVectorNode
     const int64_t* extent_int = tir::GetLoopIntExtent(loop);
     if (extent_int && *extent_int > vec_len) {
       Array<tir::LoopRV> inner_splits = sch->Split(/*loop=*/loop_rv,
-                                                   /*factors=*/{NullOpt, PrimExpr(vec_len)});
+                                                   /*factors=*/{std::nullopt, PrimExpr(vec_len)});
       Array<tir::ExprRV> outer_factors = sch->SamplePerfectTile(
           /*loop=*/inner_splits[0],
           /*n=*/n_tiles - 1,
@@ -118,7 +118,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingWideVector(String structure,
                                                       Optional<Map<String, ffi::Any>> reuse_read,
                                                       Optional<Map<String, ffi::Any>> reuse_write) {
   auto node = MultiLevelTilingInitCommon<MultiLevelTilingWideVectorNode>(
-      structure, NullOpt, max_innermost_factor, NullOpt, reuse_read, reuse_write);
+      structure, std::nullopt, max_innermost_factor, std::nullopt, reuse_read, reuse_write);
   node->vector_length_in_bits = vector_length_in_bits->value;
   return ScheduleRule(node);
 }

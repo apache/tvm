@@ -108,13 +108,12 @@ class UDChain : relax::ExprVisitor {
   }
 };
 
-std::pair<runtime::Map<Var, runtime::Array<Var>>, runtime::Array<Var>> FunctionUseDef(
-    const Expr& fn) {
+std::pair<Map<Var, Array<Var>>, Array<Var>> FunctionUseDef(const Expr& fn) {
   auto usage = UDChain::Collect(fn);
   return {usage.downstream_usage, usage.outputs};
 }
 
-runtime::Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb) {
+Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb) {
   auto usage = UDChain::Collect(SeqExpr({dfb}, Tuple(Array<Expr>())));
   return usage.downstream_usage;
 }

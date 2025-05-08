@@ -37,7 +37,7 @@ namespace relax {
  * \param indices The indices of the values to extract.
  * It is required to be a one-dimensional tensor which has integer dtype.
  * \param axis The axis over which to select values.
- * If it is `NullOpt`, the input tensor is required to be one-dimensional.
+ * If it is `std::nullopt`, the input tensor is required to be one-dimensional.
  * \return The taken result.
  */
 Expr take(Expr x, Expr indices, Optional<int64_t> axis);
@@ -50,11 +50,11 @@ Expr take(Expr x, Expr indices, Optional<int64_t> axis);
  * \param end The indices indicating end of the slice, exclusive.
  * \param strides Specifies the stride values, it can be negative in that case,
  * the input tensor will be reversed in that particular axis.
- * If it is `NullOpt`, it by default is an list of ones of the same length as `axes`.
+ * If it is `std::nullopt`, it by default is an list of ones of the same length as `axes`.
  * \param assume_inbound Whether to assume the indices are in bound.
  * \return The sliced result
  */
-Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, Optional<Expr> strides = NullOpt,
+Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, Optional<Expr> strides = std::nullopt,
                    bool assume_inbound = false);
 
 }  // namespace relax

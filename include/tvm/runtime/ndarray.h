@@ -25,10 +25,10 @@
 #define TVM_RUNTIME_NDARRAY_H_
 
 #include <tvm/ffi/container/ndarray.h>
+#include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/container/shape_tuple.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
@@ -62,7 +62,7 @@ class NDArray : public tvm::ffi::NDArray {
   NDArray(ffi::NDArray&& other) : tvm::ffi::NDArray(std::move(other)) {}  // NOLINT(*)
   NDArray(const ffi::NDArray& other) : tvm::ffi::NDArray(other) {}        // NOLINT(*)
 
-  ShapeTuple Shape() const { return this->shape(); }
+  ffi::Shape Shape() const { return this->shape(); }
   runtime::DataType DataType() const { return runtime::DataType(this->dtype()); }
 
   // DLPack handling
@@ -112,7 +112,7 @@ class NDArray : public tvm::ffi::NDArray {
    * \return The array under another device.
    * \note The copy always triggers a TVMSynchronize.
    */
-  TVM_DLL NDArray CopyTo(const Device& dev, Optional<String> mem_scope = NullOpt) const;
+  TVM_DLL NDArray CopyTo(const Device& dev, Optional<String> mem_scope = std::nullopt) const;
   /*!
    * \brief Load NDArray from stream
    * \param stream The input data stream
@@ -145,7 +145,7 @@ class NDArray : public tvm::ffi::NDArray {
    *       outside the bounds of the current array, this function will
    *       raise an exception.
    */
-  TVM_DLL NDArray CreateView(ShapeTuple shape, DLDataType dtype,
+  TVM_DLL NDArray CreateView(ffi::Shape shape, DLDataType dtype,
                              uint64_t relative_byte_offset = 0) const;
   /*!
    * \brief Create an empty NDArray.
@@ -155,8 +155,8 @@ class NDArray : public tvm::ffi::NDArray {
    * \param mem_scope The memory scope of the array.
    * \return The created Array
    */
-  TVM_DLL static NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev,
-                               Optional<String> mem_scope = NullOpt);
+  TVM_DLL static NDArray Empty(ffi::Shape shape, DLDataType dtype, Device dev,
+                               Optional<String> mem_scope = std::nullopt);
   /*!
    * \brief Function to copy data from one array to another.
    * \param from The source array.
@@ -301,7 +301,7 @@ inline bool NDArray::Load(dmlc::Stream* strm) {
   if (ndim != 0) {
     ICHECK(strm->ReadArray(&shape[0], ndim)) << "Invalid DLTensor file format";
   }
-  NDArray ret = NDArray::Empty(ShapeTuple(shape), dtype, dev);
+  NDArray ret = NDArray::Empty(ffi::Shape(shape), dtype, dev);
   int64_t num_elems = 1;
   int elem_bytes = (ret->dtype.bits + 7) / 8;
   for (int i = 0; i < ret->ndim; ++i) {

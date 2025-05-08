@@ -909,6 +909,7 @@ inline int32_t TypeKeyToIndex(std::string_view type_key) {
  */
 #define TVM_FFI_REGISTER_GLOBAL(OpName) \
   TVM_FFI_STR_CONCAT(TVM_FFI_FUNC_REG_VAR_DEF, __COUNTER__) = ::tvm::ffi::Function::Registry(OpName)
+
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_FUNCTION_H_

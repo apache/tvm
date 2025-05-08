@@ -18,22 +18,21 @@
  */
 
 /*!
- * \file tvm/runtime/container/string.h
- * \brief Runtime String container types.
+ * \file int_tuple.h
+ * \brief Defines tuple of integers.
  */
-#ifndef TVM_RUNTIME_CONTAINER_OPTIONAL_H_
-#define TVM_RUNTIME_CONTAINER_OPTIONAL_H_
+#ifndef TVM_RUNTIME_INT_TUPLE_H_
+#define TVM_RUNTIME_INT_TUPLE_H_
 
-#include <tvm/ffi/optional.h>
+#include <tvm/ffi/container/shape.h>
 
 namespace tvm {
 namespace runtime {
 
-using tvm::ffi::Optional;
-}  // namespace runtime
+// We simply redirects to ffi::Shape, and ffi::ShapeObj
+using IntTuple = ffi::Shape;
+using IntTupleObj = ffi::ShapeObj;
 
-// expose class to root namespace
-using tvm::ffi::Optional;
-constexpr inline auto NullOpt = std::nullopt;
+}  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_CONTAINER_OPTIONAL_H_
+#endif  // TVM_RUNTIME_INT_TUPLE_H_

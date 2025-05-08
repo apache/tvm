@@ -73,7 +73,7 @@ class PooledAllocator : public Allocator {
     return buf;
   }
 
-  Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
+  Buffer Alloc(Device dev, ffi::Shape shape, DLDataType type_hint,
                const std::string& mem_scope) override {
     if (AllowMemoryScope(mem_scope)) {
       return Allocator::Alloc(dev, shape, type_hint, mem_scope);

@@ -83,7 +83,7 @@ class DocUtils {
                                             bool use_constructor = true) {
     Optional<ExprDoc> type_doc;
     if (type.size() == 0) {
-      type_doc = NullOpt;
+      type_doc = std::nullopt;
     } else {
       type_doc = IdDoc(type);
     }
@@ -103,7 +103,7 @@ class DocUtils {
   TVM_DLL static const AssignDoc ToAssign(const LT& lhs, const RT& rhs,
                                           const String& annotation = "") {
     if (annotation.size() == 0) {
-      return AssignDoc(ToDoc(lhs), ToDoc(rhs), NullOpt);
+      return AssignDoc(ToDoc(lhs), ToDoc(rhs), std::nullopt);
     }
     return AssignDoc(ToDoc(lhs), ToDoc(rhs), IdDoc(annotation));
   }
@@ -114,13 +114,13 @@ class DocUtils {
     if (rhs.size() > 0) {
       rhs_doc = IdDoc(rhs);
     } else {
-      rhs_doc = NullOpt;
+      rhs_doc = std::nullopt;
     }
     Optional<ExprDoc> annotation_doc;
     if (annotation.size() > 0) {
       annotation_doc = IdDoc(annotation);
     } else {
-      annotation_doc = NullOpt;
+      annotation_doc = std::nullopt;
     }
     return AssignDoc(ToDoc(lhs), rhs_doc, annotation_doc);
   }

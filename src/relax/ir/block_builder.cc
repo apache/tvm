@@ -162,7 +162,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   //-------------------------------
   Optional<Expr> LookupBinding(const Var& var) final {
     auto it = binding_table_.find(var->vid);
-    if (it == binding_table_.end()) return NullOpt;
+    if (it == binding_table_.end()) return std::nullopt;
     return it->second;
   }
 
@@ -418,8 +418,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
       name_hint = is_dataflow ? "lv" : "gv";
     }
     Id vid = Id(GetUniqueName(name_hint));
-    return is_dataflow ? DataflowVar(vid, /*struct_info_annotation=*/NullOpt)
-                       : Var(vid, /*struct_info_annotation=*/NullOpt);
+    return is_dataflow ? DataflowVar(vid, /*struct_info_annotation=*/std::nullopt)
+                       : Var(vid, /*struct_info_annotation=*/std::nullopt);
   }
 
  private:
@@ -866,12 +866,12 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     auto f_shape_var_map = [curr_scope](tir::Var var) -> Optional<PrimExpr> {
       auto it = curr_scope->shape_var_map.find(var);
       if (it != curr_scope->shape_var_map.end()) return (*it).second;
-      return NullOpt;
+      return std::nullopt;
     };
     return EraseToWellDefined(info, f_shape_var_map);
   }
 
-  Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = NullOpt) {
+  Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = std::nullopt) {
     if (params.defined()) {
       this->BeginScope(params.value());
     } else {

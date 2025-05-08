@@ -641,6 +641,11 @@ inline int Bytes::memncmp(const char* lhs, const char* rhs, size_t lhs_count, si
   }
 }
 }  // namespace ffi
+
+// Expose to the tvm namespace for usability
+// Rationale: no ambiguity even in root
+using ffi::Bytes;
+using ffi::String;
 }  // namespace tvm
 
 namespace std {

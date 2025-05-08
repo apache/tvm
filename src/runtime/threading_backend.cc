@@ -437,7 +437,7 @@ int MaxConcurrency() {
 // This global function can be used by disco runtime to bind processes
 // to CPUs.
 TVM_REGISTER_GLOBAL("tvm.runtime.threading.set_current_thread_affinity")
-    .set_body_typed([](IntTuple cpu_ids) {
+    .set_body_typed([](ffi::Shape cpu_ids) {
       SetThreadAffinity(CURRENT_THREAD_HANDLE,
                         std::vector<unsigned int>{cpu_ids.begin(), cpu_ids.end()});
     });

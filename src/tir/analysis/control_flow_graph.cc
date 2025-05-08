@@ -163,7 +163,7 @@ class BufferConstraintApply : public IRMutatorWithAnalyzer {
         continue;
       }
 
-      Optional<Var> lane_var = NullOpt;
+      Optional<Var> lane_var = std::nullopt;
       IntImm num_lanes;
 
       Array<PrimExpr> indices = op->indices.Map([&](const auto& index) {
@@ -522,9 +522,9 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
     ICHECK_LE(to_block, out_->control_flow_.size());
 
     auto& forward = out_->control_flow_[from_block].successors.emplace_back(
-        ControlFlowGraph::ControlFlowEdge{to_block, {}, NullOpt});
+        ControlFlowGraph::ControlFlowEdge{to_block, {}, std::nullopt});
     auto& backward = out_->control_flow_[to_block].predecessors.emplace_back(
-        ControlFlowGraph::ControlFlowEdge{from_block, {}, NullOpt});
+        ControlFlowGraph::ControlFlowEdge{from_block, {}, std::nullopt});
     return {forward, backward};
   }
 
@@ -554,7 +554,7 @@ class ControlFlowGraphBuilder final : public IRVisitorWithAnalyzer {
     With<ConstraintContext> analyzer_context;
     size_t old_num_constraints{0};
     size_t new_num_constraints{0};
-    Optional<PrimExpr> assume{NullOpt};
+    Optional<PrimExpr> assume{std::nullopt};
 
     // Disable default-generated copy/move assignment and constructors
     InternalConstraintContext(const InternalConstraintContext&) = delete;
@@ -642,7 +642,7 @@ std::pair<BufferTouch, Map<Var, Range>> ControlFlowGraph::ControlFlowBlock::Make
 
   Analyzer local_analyzer;
 
-  Optional<Var> lane_var = NullOpt;
+  Optional<Var> lane_var = std::nullopt;
   IntImm num_lanes;
 
   Array<PrimExpr> index_expressions = indices.Map([&](const auto& index) {
@@ -1090,7 +1090,7 @@ class BufferRegionCollector : public ExprVisitor {
       Analyzer local_analyzer;
 
       if (!is_zero(unknown_region)) {
-        new_regions.insert(new_regions.begin(), Known{unknown_region, NullOpt});
+        new_regions.insert(new_regions.begin(), Known{unknown_region, std::nullopt});
       }
 
       std::vector<Region> updated_regions;
@@ -1329,7 +1329,7 @@ Optional<Array<Var>> ControlFlowGraph::GetIndexVariables(const Buffer& buf) cons
   if (auto it = axis_var_lookup_.find(buf); it != axis_var_lookup_.end()) {
     return (*it).second;
   } else {
-    return NullOpt;
+    return std::nullopt;
   }
 }
 

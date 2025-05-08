@@ -242,7 +242,6 @@ setup(
     license="Apache",
     # See https://pypi.org/classifiers/
     classifiers=[
-        "License :: OSI Approved :: Apache Software License",
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Intended Audience :: Education",
@@ -250,7 +249,6 @@ setup(
     ],
     keywords="machine learning",
     zip_safe=False,
-    entry_points={"console_scripts": ["tvmc = tvm.driver.tvmc.main:main"]},
     install_requires=requirements["core"][1],
     extras_require=extras_require,
     packages=find_packages(),

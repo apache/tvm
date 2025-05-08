@@ -65,7 +65,7 @@ inline ValueType GetValue(const picojson::object& json, const std::string& key) 
 }
 
 NDArrayCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const picojson::object& json) {
-  std::vector<ShapeTuple::index_type> shape;
+  std::vector<ffi::Shape::index_type> shape;
   {
     picojson::array shape_json = GetValue<picojson::array>(json, "shape");
     shape.reserve(shape_json.size());
@@ -80,7 +80,7 @@ NDArrayCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const picojson::
   result.format = GetValue<std::string>(json, "format");
   result.nbytes = GetValue<int64_t>(json, "nbytes");
   result.byte_offset = GetValue<int64_t>(json, "byteOffset");
-  result.shape = ShapeTuple(std::move(shape));
+  result.shape = ffi::Shape(std::move(shape));
   return result;
 }
 
@@ -153,7 +153,7 @@ void CopyNDArrayFromBytes(NDArray param, const void* data, size_t nbytes,
   if (staging_buffer->defined()) {
     size_t curr_size = runtime::GetDataSize(*(staging_buffer->value().operator->()));
     if (curr_size < nbytes) {
-      *staging_buffer = NullOpt;
+      *staging_buffer = std::nullopt;
     }
   }
   if (!staging_buffer->defined()) {
@@ -225,7 +225,7 @@ class NDArrayCache {
     if (it != pool->pool_.end()) {
       return (*it).second;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }
 

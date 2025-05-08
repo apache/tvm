@@ -171,7 +171,7 @@ Optional<Array<PrimExpr>> CheckConcatOutputShape(const Call& call, const BlockBu
   }
 
   if (shape_unknown) {
-    return NullOpt;
+    return std::nullopt;
   }
   Array<PrimExpr> output_shape = shape_values[0];
   output_shape.Set(axis, concat_sum);
@@ -192,7 +192,7 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<ConcatAttrs>();
   int output_ndim = attrs->axis.has_value() ? kUnknownNDim : 1;
   DataType output_dtype = DataType::Void();
-  Optional<VDevice> vdev = NullOpt;
+  Optional<VDevice> vdev = std::nullopt;
   bool shape_unknown = false;
   bool is_void_dtype = false;
   bool vdevice_unknown = false;
@@ -260,7 +260,7 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
     output_dtype = DataType::Void();
   }
   if (vdevice_unknown) {
-    vdev = NullOpt;
+    vdev = std::nullopt;
   }
 
   if (output_ndim == kUnknownNDim) {
@@ -812,16 +812,16 @@ TVM_REGISTER_OP("relax.permute_dims")
 
 /* relax.reshape */
 Expr ConvertNewShapeToExpr(const Expr& data, const Variant<Expr, Array<PrimExpr>>& shape) {
-  const ArrayObj* array;
+  const ffi::ArrayObj* array;
   // Treat shape expressions as constant arrays to handle special values.
   if (const auto* e = shape.as<ShapeExprNode>()) {
-    array = e->values.as<ArrayObj>();
+    array = e->values.as<ffi::ArrayObj>();
     // Other non-shape expressions are used directly.
   } else if (const auto* e = shape.as<ExprNode>()) {
     return GetRef<Expr>(e);
     // Process special values in constants and produce an expression.
   } else {
-    array = shape.as<ArrayObj>();
+    array = shape.as<ffi::ArrayObj>();
   }
   CHECK(array != nullptr) << "Reshape only expects the input new shape to be either an Expr or an "
                              "Array of PrimExprs. However, the given new shape is "
@@ -973,7 +973,7 @@ Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis)
   ObjectPtr<SplitAttrs> attrs = make_object<SplitAttrs>();
   ObjectRef indices_or_sections_obj;
 
-  if (const auto* indices = indices_or_sections.as<ArrayObj>()) {
+  if (const auto* indices = indices_or_sections.as<ffi::ArrayObj>()) {
     for (int i = 0; i < static_cast<int>(indices->size()); ++i) {
       const auto* idx = indices->at(i).as<IntImmNode>();
       CHECK(idx != nullptr) << "Split op only accepts an array of integers as the indices. "
@@ -1373,7 +1373,7 @@ Optional<Array<PrimExpr>> CheckStackOutputShape(const Call& call, const BlockBui
   }
 
   if (shape_unknown) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   // Insert new dimension at axis position
@@ -1406,7 +1406,7 @@ StructInfo InferStructInfoStack(const Call& call, const BlockBuilder& ctx) {
   // Default axis is 0 if not specified
   int output_ndim = tensor_sinfo[0]->ndim + 1;  // Stack adds one dimension
   DataType output_dtype = DataType::Void();
-  Optional<VDevice> vdev = NullOpt;
+  Optional<VDevice> vdev = std::nullopt;
   bool shape_unknown = false;
   bool is_void_dtype = false;
   bool vdevice_unknown = false;
@@ -1459,7 +1459,7 @@ StructInfo InferStructInfoStack(const Call& call, const BlockBuilder& ctx) {
   }
 
   if (is_void_dtype) output_dtype = DataType::Void();
-  if (vdevice_unknown) vdev = NullOpt;
+  if (vdevice_unknown) vdev = std::nullopt;
 
   // Normalize axis (default to 0 if not specified)
   int axis =
@@ -2124,7 +2124,7 @@ StructInfo InferStructInfoMeshgrid(const Call& call, const BlockBuilder& ctx) {
   std::vector<PrimExpr> lengths;
   DataType common_dtype = DataType::Void();
   bool shape_unknown = false;
-  Optional<VDevice> vdev = NullOpt;
+  Optional<VDevice> vdev = std::nullopt;
   bool vdevice_unknown = false;
 
   for (int i = 0; i < n_inputs; ++i) {

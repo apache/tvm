@@ -115,7 +115,7 @@ class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const
  * \param entry_functions list of entry functions
  * \return The updated module.
  */
-TVM_DLL IRModule DeadCodeElimination(const IRModule& mod, Array<runtime::String> entry_funcs);
+TVM_DLL IRModule DeadCodeElimination(const IRModule& mod, Array<String> entry_funcs);
 
 /*!
  * \brief Get the external symbol of the Relax function name.
@@ -434,7 +434,7 @@ Expr CanonicalizeBindings(Expr expr);
  *
  * \ret The updated function.
  */
-Function BundleModelParams(const Function& func, Optional<String> param_tuple_name = NullOpt);
+Function BundleModelParams(const Function& func, Optional<String> param_tuple_name = std::nullopt);
 
 /*! \brief Compose two functions
  *

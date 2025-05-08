@@ -283,7 +283,7 @@ String ReportNode::AsCSV() const {
           s << (*it).second.as<PercentNode>()->percent;
         } else if ((*it).second.as<RatioNode>()) {
           s << (*it).second.as<RatioNode>()->ratio;
-        } else if ((*it).second.as<StringObj>()) {
+        } else if ((*it).second.as<ffi::StringObj>()) {
           s << "\"" << Downcast<String>((*it).second) << "\"";
         }
       }
@@ -298,7 +298,7 @@ String ReportNode::AsCSV() const {
 
 namespace {
 void metric_as_json(std::ostream& os, ObjectRef o) {
-  if (o.as<StringObj>()) {
+  if (o.as<ffi::StringObj>()) {
     os << "{\"string\":"
        << "\"" << Downcast<String>(o) << "\""
        << "}";
@@ -412,7 +412,7 @@ ObjectRef AggregateMetric(const std::vector<ObjectRef>& metrics) {
       sum += metric.as<RatioNode>()->ratio;
     }
     return ObjectRef(make_object<RatioNode>(sum / metrics.size()));
-  } else if (metrics[0].as<StringObj>()) {
+  } else if (metrics[0].as<ffi::StringObj>()) {
     for (auto& m : metrics) {
       if (Downcast<String>(metrics[0]) != Downcast<String>(m)) {
         return ObjectRef(String(""));
@@ -461,7 +461,7 @@ static String print_metric(ObjectRef metric) {
     set_locale_for_separators(s);
     s << std::setprecision(2) << metric.as<RatioNode>()->ratio;
     val = s.str();
-  } else if (metric.as<StringObj>()) {
+  } else if (metric.as<ffi::StringObj>()) {
     val = Downcast<String>(metric);
   } else {
     LOG(FATAL) << "Cannot print metric of type " << metric->GetTypeKey();

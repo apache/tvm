@@ -20,12 +20,12 @@
  * \file src/runtime/relax_vm/builtin.cc
  */
 #include <tvm/ffi/any.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/memory.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/memory.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
@@ -117,11 +117,11 @@ TVM_REGISTER_GLOBAL("vm.builtin.match_prim_value").set_body_typed(MatchPrimValue
  */
 void MatchShape(ffi::PackedArgs args, Any* rv) {
   // input shape the first argument can take in tensor or shape.
-  ShapeTuple input_shape;
+  ffi::Shape input_shape;
   if (auto opt_nd = args[0].as<NDArray>()) {
     input_shape = opt_nd.value().Shape();
   } else {
-    input_shape = args[0].cast<ShapeTuple>();
+    input_shape = args[0].cast<ffi::Shape>();
   }
   auto heap = args[1].as<DLTensor*>();
   int64_t* heap_data = heap.has_value() ? static_cast<int64_t*>((*heap)->data) : nullptr;
@@ -209,7 +209,7 @@ void MakeShape(ffi::PackedArgs args, Any* rv) {
       shape[i] = heap_data[reg];
     }
   }
-  *rv = ShapeTuple(std::move(shape));
+  *rv = ffi::Shape(std::move(shape));
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.make_shape").set_body_packed(MakeShape);
@@ -262,7 +262,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.check_tensor_info").set_body_packed(CheckTensorI
  */
 void CheckShapeInfo(ObjectRef arg, int ndim, Optional<String> err_ctx) {
   // a function that lazily get context for error reporting
-  auto* ptr = arg.as<ShapeTuple::ContainerType>();
+  auto* ptr = arg.as<ffi::Shape::ContainerType>();
   CHECK(ptr != nullptr) << "TypeError: " << err_ctx.value_or("") << " expect a Shape but get "
                         << arg->GetTypeKey();
   if (ndim != -1) {
@@ -336,7 +336,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.check_func_info").set_body_typed(CheckFuncInfo);
 //-------------------------------------------------
 //  Storage management.
 //-------------------------------------------------
-Storage VMAllocStorage(void* ctx_ptr, ShapeTuple buffer_shape, Index device_index,
+Storage VMAllocStorage(void* ctx_ptr, ffi::Shape buffer_shape, Index device_index,
                        DLDataType dtype_hint, String mem_scope) {
   VirtualMachine* vm = static_cast<VirtualMachine*>(ctx_ptr);
 
@@ -383,7 +383,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.invoke_closure").set_body_packed([](ffi::PackedA
 
 TVM_REGISTER_GLOBAL("vm.builtin.call_tir_dyn").set_body_packed([](ffi::PackedArgs args, Any* rv) {
   ffi::Function func = args[0].cast<ffi::Function>();
-  ShapeTuple to_unpack = args[args.size() - 1].cast<ShapeTuple>();
+  ffi::Shape to_unpack = args[args.size() - 1].cast<ffi::Shape>();
   size_t num_tensor_args = args.size() - 2;
 
   std::vector<AnyView> packed_args(num_tensor_args + to_unpack.size());
@@ -402,7 +402,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.shape_of").set_body_method(&NDArray::Shape);
 
 TVM_REGISTER_GLOBAL("vm.builtin.copy").set_body_typed([](Any a) -> Any { return a; });
 
-TVM_REGISTER_GLOBAL("vm.builtin.reshape").set_body_typed([](NDArray data, ShapeTuple new_shape) {
+TVM_REGISTER_GLOBAL("vm.builtin.reshape").set_body_typed([](NDArray data, ffi::Shape new_shape) {
   return data.CreateView(new_shape, data->dtype);
 });
 
@@ -491,8 +491,9 @@ TVM_REGISTER_GLOBAL("vm.builtin.invoke_debug_func")
 //-------------------------------------
 //  Data structure API
 //-------------------------------------
-TVM_REGISTER_GLOBAL("vm.builtin.tuple_getitem")
-    .set_body_typed([](runtime::Array<Any> arr, int64_t index) { return arr[index]; });
+TVM_REGISTER_GLOBAL("vm.builtin.tuple_getitem").set_body_typed([](Array<Any> arr, int64_t index) {
+  return arr[index];
+});
 
 TVM_REGISTER_GLOBAL("vm.builtin.tuple_reset_item")
     .set_body_typed([](const ffi::ArrayObj* arr, int64_t index) {
@@ -500,7 +501,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.tuple_reset_item")
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.make_tuple").set_body_packed([](ffi::PackedArgs args, Any* rv) {
-  runtime::Array<Any> arr;
+  Array<Any> arr;
   for (int i = 0; i < args.size(); ++i) {
     arr.push_back(args[i]);
   }
@@ -538,7 +539,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.tensor_to_shape").set_body_typed([](NDArray data
     }
     out_shape.push_back(result);
   }
-  return ShapeTuple(out_shape);
+  return ffi::Shape(out_shape);
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.ensure_zero_offset").set_body_typed([](NDArray data) {

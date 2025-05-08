@@ -17,9 +17,9 @@
  * under the License.
  */
 
+#include <tvm/ffi/memory.h>
 #include <tvm/node/object_path.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/runtime/memory.h>
 #include <tvm/runtime/registry.h>
 
 #include <algorithm>

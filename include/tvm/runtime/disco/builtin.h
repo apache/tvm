@@ -70,7 +70,7 @@ TVM_DLL Module LoadVMModule(std::string path, Device device);
  * \param device The device the NDArray is created on. If None, use the thread local default device
  * \return The NDArray created
  */
-TVM_DLL NDArray DiscoEmptyNDArray(ShapeTuple shape, DataType dtype, Device device);
+TVM_DLL NDArray DiscoEmptyNDArray(ffi::Shape shape, DataType dtype, Device device);
 /*!
  * \brief Perform an allreduce operation using the underlying communication library
  * \param send The array send to perform allreduce on

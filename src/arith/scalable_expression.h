@@ -83,7 +83,7 @@ bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const Pr
  * \param target The target to check.
  * \return Whether SVE is supported
  */
-bool TargetHasSVE(Optional<Target> target = NullOpt);
+bool TargetHasSVE(Optional<Target> target = std::nullopt);
 
 }  // namespace arith
 }  // namespace tvm

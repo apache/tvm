@@ -106,7 +106,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> Crea
       if (sinfo) {
         return sinfo->GetShape();
       } else {
-        return NullOpt;
+        return std::nullopt;
       }
     };
 
@@ -122,15 +122,15 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> Crea
     auto shape_c = opt_shape_c.value();
 
     if (matches.count(pat_permuted_matmul_on_lhs)) {
-      expr_a = permute_dims(expr_a, NullOpt);
-      expr_b = permute_dims(expr_b, NullOpt);
+      expr_a = permute_dims(expr_a, std::nullopt);
+      expr_b = permute_dims(expr_b, std::nullopt);
       CHECK_EQ(shape_a.size(), 2);
       CHECK_EQ(shape_b.size(), 2);
       shape_a = {shape_a[1], shape_a[0]};
       shape_b = {shape_b[1], shape_b[0]};
     } else if (matches.count(pat_permuted_matmul_on_rhs)) {
-      expr_b = permute_dims(expr_b, NullOpt);
-      expr_c = permute_dims(expr_c, NullOpt);
+      expr_b = permute_dims(expr_b, std::nullopt);
+      expr_c = permute_dims(expr_c, std::nullopt);
       CHECK_EQ(shape_b.size(), 2);
       CHECK_EQ(shape_c.size(), 2);
       shape_b = {shape_b[1], shape_b[0]};

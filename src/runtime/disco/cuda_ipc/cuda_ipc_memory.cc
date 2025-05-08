@@ -200,7 +200,7 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
  * \param dtype_hint The dtype of the storage to allocate.
  * \return The allocated storage object with internal CUDA IPC memory buffer.
  */
-memory::Storage IPCAllocStorage(ShapeTuple buffer_shape, DLDataType dtype_hint) {
+memory::Storage IPCAllocStorage(ffi::Shape buffer_shape, DLDataType dtype_hint) {
   auto storage_obj = ffi::SimpleObjAllocator().make_object<memory::StorageObj>();
   nccl::CCLThreadLocalContext* nccl_ctx = nccl::CCLThreadLocalContext::Get();
   Device device{DLDeviceType::kDLCUDA, nccl_ctx->device_id};

@@ -47,7 +47,7 @@ TargetTagRegEntry& TargetTagRegEntry::RegisterOrGet(const String& target_tag_nam
 Optional<Target> TargetTag::Get(const String& target_tag_name) {
   const TargetTagRegEntry* reg = TargetTagRegistry::Global()->Get(target_tag_name);
   if (reg == nullptr) {
-    return NullOpt;
+    return std::nullopt;
   }
   return Target(reg->tag_->config);
 }

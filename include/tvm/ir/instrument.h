@@ -26,8 +26,8 @@
 #ifndef TVM_IR_INSTRUMENT_H_
 #define TVM_IR_INSTRUMENT_H_
 
+#include <tvm/ffi/string.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/string.h>
 
 #include <utility>
 #include <vector>

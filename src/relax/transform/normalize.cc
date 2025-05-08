@@ -35,7 +35,7 @@ namespace relax {
 // TODO(@altanh): LCA binding lifting
 class NormalizeMutator : public ExprMutatorBase {
  public:
-  NormalizeMutator() { builder_ = BlockBuilder::Create(NullOpt); }
+  NormalizeMutator() { builder_ = BlockBuilder::Create(std::nullopt); }
 
   Expr VisitExpr(const Expr& expr) override {
     return builder_->Normalize(ExprMutatorBase::VisitExpr(expr));
@@ -63,7 +63,7 @@ class NormalizeMutator : public ExprMutatorBase {
     }
   }
 
-  Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = NullOpt) {
+  Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = std::nullopt) {
     builder_->BeginBindingBlock();
     if (params.defined()) {
       builder_->BeginScope(params);

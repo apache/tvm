@@ -76,7 +76,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
                  /*min=*/IntImm(dtype, 0),         //
                  /*extent=*/IntImm(dtype, 1),      //
                  /*kind=*/ForKind::kSerial, stmt,  //
-                 /*thread_binding=*/NullOpt,       //
+                 /*thread_binding=*/std::nullopt,  //
                  /*annotation=*/std::move(annotations));
     }
   }

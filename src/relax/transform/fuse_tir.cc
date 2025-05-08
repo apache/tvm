@@ -900,7 +900,7 @@ class FusedTIRConstructor : public ExprVisitor {
    */
   static void CollectPrimFuncParams(const Var& relax_param,
                                     std::vector<Variant<tir::Var, tir::Buffer>>* out,
-                                    const tvm::runtime::Optional<tir::Buffer>& tir_buffer_param) {
+                                    const Optional<tir::Buffer>& tir_buffer_param) {
     auto struct_info = GetStructInfo(relax_param);
 
     CHECK(!struct_info.as<TupleStructInfoNode>())
@@ -963,7 +963,7 @@ class FusedTIRConstructor : public ExprVisitor {
     tir::Stmt body = tir::BlockNameDeduplicator()(tir::SeqStmt::Flatten(func_info_.bodies));
 
     body = subst.Substitute(body);
-    body = tir::Block({}, {}, {}, "root", std::move(body), NullOpt, alloc_buffers);
+    body = tir::Block({}, {}, {}, "root", std::move(body), std::nullopt, alloc_buffers);
     body = tir::BlockRealize({}, Bool(true), Downcast<tir::Block>(body));
     tir::PrimFunc func(func_info_.params, body, VoidType(), func_info_.buffer_map,
                        DictAttrs(attr_map));

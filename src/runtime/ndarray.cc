@@ -92,7 +92,7 @@ void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
   DeviceAPI::Get(handle->device)->StreamSync(handle->device, nullptr);
 }
 
-NDArray NDArray::Empty(ShapeTuple shape, DLDataType dtype, Device dev, Optional<String> mem_scope) {
+NDArray NDArray::Empty(ffi::Shape shape, DLDataType dtype, Device dev, Optional<String> mem_scope) {
   struct DeviceAPIAlloc {
     void AllocData(DLTensor* tensor, ffi::Optional<ffi::String> mem_scope) {
       tensor->data = DeviceAPI::Get(tensor->device)
@@ -117,7 +117,7 @@ struct NDArray::Internal {
   static void FFIDecRef(TVMArrayHandle tensor) { NDArray::FFIDecRef(tensor); }
 };
 
-NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype,
+NDArray NDArray::CreateView(ffi::Shape shape, DLDataType dtype,
                             uint64_t relative_byte_offset) const {
   ICHECK(data_ != nullptr);
 
@@ -152,7 +152,7 @@ NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype,
       << "This would occupy bytes " << relative_byte_offset << " <= i_byte < "
       << (relative_byte_offset + view_size) << " within the backing array.  "
       << "However, the NDArray being viewed only contains " << curr_size << " bytes (shape = "
-      << ShapeTuple(curr_dl_tensor.shape, curr_dl_tensor.shape + curr_dl_tensor.ndim)
+      << ffi::Shape(curr_dl_tensor.shape, curr_dl_tensor.shape + curr_dl_tensor.ndim)
       << ", dtype= " << curr_dl_tensor.dtype << ").";
 
   // helper allocator class that retains ref count of original NDArray
@@ -191,7 +191,7 @@ NDArray NDArray::CopyTo(const Device& dev, Optional<String> mem_scope) const {
   ICHECK(data_ != nullptr);
   const DLTensor* dptr = operator->();
   NDArray ret =
-      Empty(ShapeTuple(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, dev, mem_scope);
+      Empty(ffi::Shape(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, dev, mem_scope);
   this->CopyTo(ret);
   Device copy_gpu_dev = dptr->device.device_type != kDLCPU ? dptr->device : dev;
   DeviceAPI::Get(copy_gpu_dev)->StreamSync(copy_gpu_dev, nullptr);
@@ -239,7 +239,7 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
   tvm::Device dev;
   dev.device_type = static_cast<DLDeviceType>(device_type);
   dev.device_id = device_id;
-  auto ndarray = NDArray::Empty(ShapeTuple(shape, shape + ndim), dtype, dev);
+  auto ndarray = NDArray::Empty(tvm::ffi::Shape(shape, shape + ndim), dtype, dev);
 
   *out = NDArray::Internal::MoveToFFIHandle(ndarray);
   API_END();

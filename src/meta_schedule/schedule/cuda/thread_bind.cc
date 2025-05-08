@@ -67,13 +67,13 @@ Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_threadblock
       get_factor = MakeFactorSampler(sch, {32, 64, 128, 256, 512, 1024});
     }
     ExprRV factor = get_factor(std::min(extent, max_threads_per_block));
-    Array<LoopRV> splits = sch->Split(loop, {NullOpt, factor});
+    Array<LoopRV> splits = sch->Split(loop, {std::nullopt, factor});
     ICHECK_EQ(splits.size(), 2);
     sch->Bind(splits[0], "blockIdx.x");
     sch->Bind(splits[1], "threadIdx.x");
     return {splits[0], splits[1]};
   } else {
-    Array<LoopRV> splits = sch->Split(loop, {NullOpt,
+    Array<LoopRV> splits = sch->Split(loop, {std::nullopt,
                                              Integer(max_threadblocks),  //
                                              Integer(max_threads_per_block)});
     ICHECK_EQ(splits.size(), 3);

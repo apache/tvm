@@ -60,7 +60,7 @@ Doc PrintTIRVar(tir::Var n, ObjectPath n_p, IRDocsifier d) {
     }
     IdDoc var = d->Define(n, GetRef<Frame>(f), n->name_hint.empty() ? "v" : n->name_hint);
     var->source_paths.push_back(n_p);
-    f->stmts.push_back(AssignDoc(var, PrintVarCreation(n, n_p, d), NullOpt));
+    f->stmts.push_back(AssignDoc(var, PrintVarCreation(n, n_p, d), std::nullopt));
   }
   if (Optional<ExprDoc> doc = d->GetVarDoc(n)) {
     return doc.value();
@@ -110,7 +110,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                  "under relax's dispatch token";
           if (!f->module_alias_printed) {
             // If the module_alias is not defined before, define it.
-            f->stmts.push_back(AssignDoc(IdDoc(d->cfg->module_alias), doc.value(), NullOpt));
+            f->stmts.push_back(AssignDoc(IdDoc(d->cfg->module_alias), doc.value(), std::nullopt));
             f->module_alias_printed = true;
           }
           return IdDoc(d->cfg->module_alias);

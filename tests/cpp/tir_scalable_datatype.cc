@@ -88,7 +88,7 @@ TEST(ScalableDataType, TestScalableDataTypeToString) {
 
 TEST(ScalableDataType, TestStringToScalableDataType) {
   std::string scalable_type_str = "int32xvscalex4";
-  EXPECT_EQ(tvm::DataType(tvm::runtime::StringToDLDataType(scalable_type_str)),
+  EXPECT_EQ(tvm::DataType(tvm::ffi::StringToDLDataType(scalable_type_str)),
             tvm::DataType(kDLInt, 32, 4, true));
 }
 
@@ -97,7 +97,7 @@ TEST(ScalableDataType, TestInvalidStringToScalableDataType) {
   EXPECT_THROW(
       {
         try {
-          tvm::runtime::StringToDLDataType(scalable_type_str);
+          tvm::ffi::StringToDLDataType(scalable_type_str);
         } catch (const tvm::ffi::Error& e) {
           EXPECT_THAT(e.what(), HasSubstr("unknown dtype `int32x4xvscale`"));
           throw;

@@ -139,7 +139,7 @@ class Trace(Object):
         Returns
         -------
         popped_inst : Instruction
-            Returns the instruction removed; NullOpt if the trace is empty
+            Returns the instruction removed; std::nullopt if the trace is empty
         """
         return _ffi_api.TracePop(self)  # type: ignore # pylint: disable=no-member
 

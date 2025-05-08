@@ -349,7 +349,7 @@ Stmt StmtMutator::VisitStmt_(const DeclBufferNode* op) {
 Stmt StmtMutator::VisitStmt_(const IfThenElseNode* op) {
   PrimExpr condition = this->VisitExpr(op->condition);
   Stmt then_case = this->VisitStmt(op->then_case);
-  Optional<Stmt> else_case = NullOpt;
+  Optional<Stmt> else_case = std::nullopt;
   if (op->else_case) {
     else_case = this->VisitStmt(op->else_case.value());
   }
@@ -520,7 +520,7 @@ Stmt StmtMutator::VisitStmt_(const BlockNode* op) {
   Array<BufferRegion> reads = Internal::Mutate(this, op->reads);
   Array<BufferRegion> writes = Internal::Mutate(this, op->writes);
   Array<MatchBufferRegion> match_buffers = Internal::Mutate(this, op->match_buffers);
-  Optional<Stmt> init = NullOpt;
+  Optional<Stmt> init = std::nullopt;
   if (op->init.defined()) {
     init = VisitStmt(op->init.value());
   }

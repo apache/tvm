@@ -44,7 +44,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         "", [](relax::MatchCast n, ObjectPath n_p, IRDocsifier d) -> Doc {
           using relax::StructInfo;
           using relax::MatchStructInfo;
-          Optional<ExprDoc> ann = NullOpt;
+          Optional<ExprDoc> ann = std::nullopt;
           if (d->cfg->show_all_struct_info) {
             ann = StructInfoAsAnn(n->var, n_p->Attr("var"), d, n->value);
           }
@@ -83,7 +83,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::If>("", [](relax::If n, ObjectPath n_p, IRDocsifier d) -> Doc {
-      return PrintIfExpr(n, n_p, d, NullOpt, NullOpt);
+      return PrintIfExpr(n, n_p, d, std::nullopt, std::nullopt);
     });
 
 TVM_SCRIPT_REPR(relax::MatchCastNode, ReprPrintRelax);

@@ -64,7 +64,7 @@ Optional<FusionPattern> GetPattern(const String& pattern_name) {
       return *it;
     }
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 TVM_REGISTER_GLOBAL("relax.backend.RegisterPatterns").set_body_typed(RegisterPatterns);

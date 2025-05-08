@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/container/base.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/script/printer/ir_docsifier.h>
@@ -62,14 +61,14 @@ IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, const St
 
 void IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, DocCreator doc_factory) {
   ICHECK(obj2info.find(obj) == obj2info.end()) << "Duplicated object: " << obj;
-  obj2info.insert({obj, VariableInfo{std::move(doc_factory), NullOpt}});
+  obj2info.insert({obj, VariableInfo{std::move(doc_factory), std::nullopt}});
   frame->AddExitCallback([this, obj]() { this->RemoveVar(obj); });
 }
 
 Optional<ExprDoc> IRDocsifierNode::GetVarDoc(const ObjectRef& obj) const {
   auto it = obj2info.find(obj);
   if (it == obj2info.end()) {
-    return NullOpt;
+    return std::nullopt;
   }
   return it->second.creator();
 }
@@ -82,7 +81,8 @@ ExprDoc IRDocsifierNode::AddMetadata(const ObjectRef& obj) {
   if (index == static_cast<int>(array.size())) {
     array.push_back(obj);
   }
-  return IdDoc("metadata")[{LiteralDoc::Str(key, NullOpt)}][{LiteralDoc::Int(index, NullOpt)}];
+  return IdDoc(
+      "metadata")[{LiteralDoc::Str(key, std::nullopt)}][{LiteralDoc::Int(index, std::nullopt)}];
 }
 
 void IRDocsifierNode::AddGlobalInfo(const String& name, const GlobalInfo& ginfo) {
@@ -138,13 +138,13 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
       }
       visited_.insert(obj);
       stack_.push_back(obj);
-      if (obj->IsInstance<ArrayObj>()) {
-        const ArrayObj* array = static_cast<const ArrayObj*>(obj);
+      if (obj->IsInstance<ffi::ArrayObj>()) {
+        const ffi::ArrayObj* array = static_cast<const ffi::ArrayObj*>(obj);
         for (Any element : *array) {
           this->RecursiveVisitAny(&element);
         }
-      } else if (obj->IsInstance<MapObj>()) {
-        const MapObj* map = static_cast<const MapObj*>(obj);
+      } else if (obj->IsInstance<ffi::MapObj>()) {
+        const ffi::MapObj* map = static_cast<const ffi::MapObj*>(obj);
         for (std::pair<Any, Any> kv : *map) {
           this->RecursiveVisitAny(&kv.first);
           this->RecursiveVisitAny(&kv.second);

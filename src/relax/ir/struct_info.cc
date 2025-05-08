@@ -53,7 +53,7 @@ PrimStructInfo::PrimStructInfo(PrimExpr value, Span span) {
 PrimStructInfo::PrimStructInfo(DataType dtype, Span span) {
   ObjectPtr<PrimStructInfoNode> n = make_object<PrimStructInfoNode>();
   n->dtype = dtype;
-  n->value = NullOpt;
+  n->value = std::nullopt;
   n->span = span;
   data_ = std::move(n);
 }

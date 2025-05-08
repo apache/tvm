@@ -42,11 +42,11 @@ TVM_REGISTER_GLOBAL("vm.builtin.kv_state_begin_forward")
       CHECK(args.size() == 3 || args.size() == 4)
           << "KVState BeginForward only accepts 3 or 4 arguments";
       KVState kv_state = args[0].cast<KVState>();
-      IntTuple seq_ids = args[1].cast<IntTuple>();
-      IntTuple append_lengths = args[2].cast<IntTuple>();
-      Optional<IntTuple> token_tree_parent_ptr;
+      ffi::Shape seq_ids = args[1].cast<ffi::Shape>();
+      ffi::Shape append_lengths = args[2].cast<ffi::Shape>();
+      Optional<ffi::Shape> token_tree_parent_ptr;
       if (args.size() == 4) {
-        token_tree_parent_ptr = args[3].cast<Optional<IntTuple>>();
+        token_tree_parent_ptr = args[3].cast<Optional<ffi::Shape>>();
       }
       kv_state->BeginForward(seq_ids, append_lengths, token_tree_parent_ptr);
     });
@@ -76,8 +76,8 @@ TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_debug_get_kv_mla")
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_attention_with_fused_qkv")
     .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id, double sm_scale,
                        NDArray qkv_data, NDArray o_data) {
-      kv_cache->AttentionWithFusedQKV(layer_id, std::move(qkv_data), NullOpt, std::move(o_data),
-                                      sm_scale);
+      kv_cache->AttentionWithFusedQKV(layer_id, std::move(qkv_data), std::nullopt,
+                                      std::move(o_data), sm_scale);
     });
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_self_attention")
     .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id, double sm_scale, NDArray q_data,

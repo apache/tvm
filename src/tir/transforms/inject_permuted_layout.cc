@@ -103,7 +103,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   }
 
   static bool CheckAnnotation(const Any& annotation) {
-    if (auto* node = annotation.as<StringObj>()) {
+    if (auto* node = annotation.as<ffi::StringObj>()) {
       // Support string annotation for backward compatibility
       return GetRef<String>(node) != "";
     } else if (auto* node = annotation.as<IntImmNode>()) {

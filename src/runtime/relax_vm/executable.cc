@@ -38,16 +38,6 @@ namespace relax_vm {
 /*! \brief The magic number for the serialized VM bytecode file  */
 constexpr uint64_t kTVMVMBytecodeMagic = 0xD225DE2F4214151D;
 
-/*! \brief Possible types in the constant pool */
-enum ConstantType : int {
-  kNDArray = 0,
-  kDLDataType = 1,
-  kShapeTuple = 2,
-  kString = 3,
-  kInt = 4,
-  kFloat = 5,
-};
-
 #define STREAM_CHECK(val, section)                                          \
   ICHECK(val) << "Invalid VM file format in the " << section << " section." \
               << "\n";
@@ -75,8 +65,8 @@ std::string VMExecutable::Stats() const {
       }
       oss.seekp(-2, oss.cur);
       oss << "], ";
-    } else if (auto opt_shape = it.as<ShapeTuple>()) {
-      ShapeTuple shape = opt_shape.value();
+    } else if (auto opt_shape = it.as<ffi::Shape>()) {
+      ffi::Shape shape = opt_shape.value();
       oss << "shapetuple[";
       for (size_t i = 0; i < shape.size(); ++i) {
         oss << shape.at(i) << ", ";
@@ -264,30 +254,30 @@ void VMExecutable::SaveConstantSection(dmlc::Stream* strm) {
   strm->Write(static_cast<uint64_t>(this->constants.size()));
   for (const auto& it : this->constants) {
     if (auto opt_nd = it.as<runtime::NDArray>()) {
-      strm->Write(ConstantType::kNDArray);
+      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFINDArray);
       runtime::SaveDLTensor(strm, opt_nd.value().operator->());
-    } else if (auto opt_shape = it.as<ShapeTuple>()) {
-      ShapeTuple shape = opt_shape.value();
-      strm->Write(ConstantType::kShapeTuple);
+    } else if (auto opt_shape = it.as<ffi::Shape>()) {
+      ffi::Shape shape = opt_shape.value();
+      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIShape);
       strm->Write(shape.size());
       for (size_t i = 0; i < shape.size(); ++i) {
         strm->Write(shape.at(i));
       }
     } else if (auto opt_str = it.as<String>()) {
       String str = opt_str.value();
-      strm->Write(ConstantType::kString);
+      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIStr);
       strm->Write(str.size());
       for (size_t i = 0; i < str.size(); ++i) {
         strm->Write(str.at(i));
       }
     } else if (auto opt_int = it.as<int64_t>()) {
-      strm->Write(ConstantType::kInt);
+      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIInt);
       strm->Write(opt_int.value());
     } else if (auto opt_float = it.as<double>()) {
-      strm->Write(ConstantType::kFloat);
+      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIFloat);
       strm->Write(opt_float.value());
     } else if (auto opt_dtype = it.as<DLDataType>()) {
-      strm->Write(ConstantType::kDLDataType);
+      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIDataType);
       strm->Write(opt_dtype.value());
     } else {
       LOG(FATAL) << "Unsupported constant pool type " << it.GetTypeKey();
@@ -320,27 +310,27 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
   for (size_t i = 0; i < size; i++) {
     int constant_type;
     STREAM_CHECK(strm->Read(&constant_type, sizeof(constant_type)), "constant");
-    if (constant_type == ConstantType::kNDArray) {
+    if (constant_type == ffi::TypeIndex::kTVMFFINDArray) {
       ndarray.Load(strm);
       ffi::Any cell;
       cell = ndarray;
       this->constants.push_back(cell);
-    } else if (constant_type == ConstantType::kShapeTuple) {
+    } else if (constant_type == ffi::TypeIndex::kTVMFFIShape) {
       uint64_t size;
       strm->Read(&size);
-      std::vector<ShapeTuple::index_type> data(size);
+      std::vector<ffi::Shape::index_type> data(size);
       for (size_t i = 0; i < size; ++i) {
         strm->Read(&(data[i]));
       }
       ffi::Any cell;
-      cell = ShapeTuple(data);
+      cell = ffi::Shape(data);
       this->constants.push_back(cell);
-    } else if (constant_type == ConstantType::kDLDataType) {
+    } else if (constant_type == ffi::TypeIndex::kTVMFFIDataType) {
       strm->Read(&dtype);
       ffi::Any cell;
       cell = dtype;
       this->constants.push_back(cell);
-    } else if (constant_type == ConstantType::kString) {
+    } else if (constant_type == ffi::TypeIndex::kTVMFFIStr) {
       uint64_t size;
       strm->Read(&size);
       std::vector<char> data(size);
@@ -350,13 +340,13 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
       ffi::Any cell;
       cell = String(std::string(data.begin(), data.end()));
       this->constants.push_back(cell);
-    } else if (constant_type == ConstantType::kInt) {
+    } else if (constant_type == ffi::TypeIndex::kTVMFFIInt) {
       int64_t value;
       strm->Read(&value);
       ffi::Any cell;
       cell = value;
       this->constants.push_back(cell);
-    } else if (constant_type == ConstantType::kFloat) {
+    } else if (constant_type == ffi::TypeIndex::kTVMFFIFloat) {
       double value;
       strm->Read(&value);
       ffi::Any cell;

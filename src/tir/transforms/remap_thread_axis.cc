@@ -69,7 +69,7 @@ class ThreadAxisRewriter : private StmtExprMutator {
   std::unordered_map<const VarNode*, Var> vmap_;
 };
 
-PrimFunc RemapThreadAxis(PrimFunc func, Map<runtime::String, IterVar> thread_map) {
+PrimFunc RemapThreadAxis(PrimFunc func, Map<String, IterVar> thread_map) {
   std::unordered_map<std::string, IterVar> tmap;
   for (const auto& kv : thread_map) {
     tmap[kv.first] = kv.second;
@@ -96,7 +96,7 @@ PrimFunc RemapThreadAxis(PrimFunc func, Map<runtime::String, IterVar> thread_map
 
 namespace transform {
 
-Pass RemapThreadAxis(Map<runtime::String, IterVar> thread_map) {
+Pass RemapThreadAxis(Map<String, IterVar> thread_map) {
   auto pass_func = [thread_map](PrimFunc f, IRModule m, PassContext ctx) {
     return RemapThreadAxis(std::move(f), thread_map);
   };

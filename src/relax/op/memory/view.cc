@@ -136,7 +136,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
         return prim_sinfo->value.value();
       } else {
         // An offset of unknown value is applied.
-        return NullOpt;
+        return std::nullopt;
       }
     } else {
       LOG(FATAL) << "TypeError: "
@@ -149,7 +149,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
 
   Optional<Array<PrimExpr>> input_shape = data_sinfo->GetShape();
 
-  Optional<Array<PrimExpr>> output_shape = NullOpt;
+  Optional<Array<PrimExpr>> output_shape = std::nullopt;
   int output_ndim = kUnknownNDim;
   if (view_shape_sinfo && view_shape_sinfo->values.defined()) {
     output_shape = view_shape_sinfo->values.value();
@@ -168,7 +168,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   // number of bytes per scalar element.
   auto get_size_bytes = [](const DataType& dtype) -> Optional<IntImm> {
     if (dtype.is_void()) {
-      return NullOpt;
+      return std::nullopt;
     } else {
       auto size_bits = dtype.bits() * dtype.lanes();
       return IntImm(DataType::Int(64), (size_bits + 7) / 8);
@@ -179,7 +179,7 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   // given the shape of that array.
   auto get_num_elements = [&ctx](const Optional<Array<PrimExpr>>& shape) -> Optional<PrimExpr> {
     if (!shape.defined()) {
-      return NullOpt;
+      return std::nullopt;
     }
 
     PrimExpr num_elements = Integer(1);

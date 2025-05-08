@@ -88,7 +88,7 @@ class ForMatcher : public TensorizeComparator {
         return it->second;
       }
     }
-    return NullOpt;
+    return std::nullopt;
   }
 
   bool VisitExpr(const PrimExpr& lhs, const PrimExpr& rhs) final {
@@ -568,7 +568,7 @@ std::pair<PrimFunc, Optional<PrimFunc>> SplitFunctions(PrimFunc func,
   Array<MatchResult> match_results =
       TIRPatternMatcher::Match(patterns, func->body.as<BlockRealizeNode>()->block->body);
   if (match_results.empty()) {
-    return {func, NullOpt};
+    return {func, std::nullopt};
   }
   Array<ObjectRef> codegen_result = f_codegen(match_results);
   ICHECK(codegen_result.size() == 3);
@@ -576,12 +576,12 @@ std::pair<PrimFunc, Optional<PrimFunc>> SplitFunctions(PrimFunc func,
   int num_matched_ops = Downcast<Integer>(codegen_result[1])->value;
   Array<Buffer> func1_args = Downcast<Array<Buffer>>(codegen_result[2]);
   if (num_matched_ops == 0) {
-    return {func, NullOpt};
+    return {func, std::nullopt};
   }
   FunctionPartitioner partitioner(num_matched_ops);
   partitioner(body);
   if (partitioner.fail) {
-    return {func, NullOpt};
+    return {func, std::nullopt};
   }
   bool has_second_func = false;
   for (const auto& pr : partitioner.block_partition) {
@@ -592,7 +592,7 @@ std::pair<PrimFunc, Optional<PrimFunc>> SplitFunctions(PrimFunc func,
   }
   if (!has_second_func) {
     // No need to split the function.
-    return {WithAttr(func, kLibraryKernel, library_code), NullOpt};
+    return {WithAttr(func, kLibraryKernel, library_code), std::nullopt};
   }
   // Step 2. Split the function into two functions.
   Stmt body1 = BlockRemover::RemoveBlockByPartition(func->body, partitioner.block_partition,
@@ -660,7 +660,7 @@ void StringReplace(std::string* subject, const std::string& search, const std::s
 
 tvm::BaseFunc CodegenWithLibrary(const tir::PrimFuncNode* pf, String global_symbol) {
   using namespace tvm::tir;
-  Optional<runtime::String> library_code = pf->attrs.GetAttr<runtime::String>(kLibraryKernel);
+  Optional<String> library_code = pf->attrs.GetAttr<String>(kLibraryKernel);
   if (!library_code.defined()) {
     return GetRef<tir::PrimFunc>(pf);
   }

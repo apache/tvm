@@ -80,7 +80,7 @@ class LazyInputMutator : public ExprMutator {
           if (externally_visible_vars.count(var)) {
             return var;
           } else {
-            return NullOpt;
+            return std::nullopt;
           }
         });
 

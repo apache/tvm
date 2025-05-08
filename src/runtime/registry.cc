@@ -212,7 +212,7 @@ WrappedPythonObject& WrappedPythonObject::operator=(std::nullptr_t) {
 /*! \brief entry to easily hold returning information */
 struct TVMFuncThreadLocalEntry {
   /*! \brief result holder for returning strings */
-  std::vector<tvm::runtime::String> ret_vec_str;
+  std::vector<tvm::String> ret_vec_str;
   /*! \brief result holder for returning string pointers */
   std::vector<const char*> ret_vec_charp;
 };

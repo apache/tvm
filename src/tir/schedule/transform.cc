@@ -323,7 +323,7 @@ Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::Block
   Optional<tir::TensorizeInfo> opt_tensorize_info =
       GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block_rv),
                               tir::TensorIntrin::Get(intrin_name).value()->desc, allow_padding);
-  if (!opt_tensorize_info) return NullOpt;
+  if (!opt_tensorize_info) return std::nullopt;
   const tir::TensorizeInfoNode* info = opt_tensorize_info.value().get();
   if (info->block_iter_paddings.defined()) {
     // We have to track whether each producer or consumer is padded.
@@ -413,9 +413,9 @@ Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::Block
     int64_t total = int_block_extent->value;
     int64_t inner = int_desc_extent->value;
     ICHECK_EQ(total % inner, 0);
-    // Do the split. Leave the outer extent as NullOpt (unspecified) so that the split factors
+    // Do the split. Leave the outer extent as std::nullopt (unspecified) so that the split factors
     // can be used for different extents (needed during tuning).
-    Array<LoopRV> split = sch->Split(loop2rv.at(block_loop_sref), {NullOpt, Integer(inner)});
+    Array<LoopRV> split = sch->Split(loop2rv.at(block_loop_sref), {std::nullopt, Integer(inner)});
     ICHECK_EQ(split.size(), 2);
     inner_loops.insert(sch->GetSRef(split[1]).operator->());
     // The inner split will be reordered to the loop domain that is tensorized
@@ -508,15 +508,15 @@ Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
     Array<PrimExpr> binds = GetBlockRealize(sch->state(), block_sref)->iter_values;
     if (loops.size() == 0) continue;
     if (loops.size() != binds.size()) {
-      return NullOpt;
+      return std::nullopt;
     }
     for (int i = 0, n = loops.size(); i < n; ++i) {
       const ForNode* loop = TVM_SREF_TO_FOR(loops[i]);
       if (binds[i].get() != loop->loop_var.get()) {
-        return NullOpt;
+        return std::nullopt;
       }
       if (!is_zero(loop->min)) {
-        return NullOpt;
+        return std::nullopt;
       }
     }
   }

@@ -23,12 +23,12 @@
 #ifndef TVM_NODE_SCRIPT_PRINTER_H_
 #define TVM_NODE_SCRIPT_PRINTER_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/string.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/object_path.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
 
 #include <iostream>
@@ -168,7 +168,7 @@ class TVMScriptPrinter {
 };
 
 #define TVM_OBJECT_ENABLE_SCRIPT_PRINTER()                                                      \
-  std::string Script(const Optional<PrinterConfig>& config = NullOpt) const {                   \
+  std::string Script(const Optional<PrinterConfig>& config = std::nullopt) const {              \
     return TVMScriptPrinter::Script(GetRef<ObjectRef>(this), config.value_or(PrinterConfig())); \
   }
 

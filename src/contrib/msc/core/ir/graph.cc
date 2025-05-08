@@ -78,7 +78,7 @@ const JsonMSCTensor MSCTensorNode::ToJson() const {
 void MSCTensorNode::FromJson(const JsonMSCTensor& j_tensor) {
   name = j_tensor.name;
   alias = j_tensor.alias;
-  dtype = DataType(runtime::StringToDLDataType(j_tensor.dtype));
+  dtype = DataType(ffi::StringToDLDataType(j_tensor.dtype));
   if (j_tensor.layout.size() > 0) {
     layout = tvm::tir::Layout(j_tensor.layout);
   }

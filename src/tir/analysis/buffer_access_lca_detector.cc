@@ -62,7 +62,8 @@ class LCADetector : public StmtExprVisitor {
     Map<Buffer, Optional<Stmt>> buffer_lca;
     for (const auto& kv : detector.buffer_lca_) {
       const Buffer& buffer = GetRef<Buffer>(kv.first);
-      const Optional<Stmt> stmt = kv.second ? GetRef<Optional<Stmt>>(kv.second->stmt) : NullOpt;
+      const Optional<Stmt> stmt =
+          kv.second ? GetRef<Optional<Stmt>>(kv.second->stmt) : std::nullopt;
       buffer_lca.Set(buffer, stmt);
     }
     return buffer_lca;

@@ -21,8 +21,8 @@
  * \file system_library.cc
  * \brief Create library module that directly get symbol from the system lib.
  */
+#include <tvm/ffi/memory.h>
 #include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/memory.h>
 #include <tvm/runtime/registry.h>
 
 #include <mutex>

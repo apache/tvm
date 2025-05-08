@@ -358,7 +358,7 @@ bool FindAnnotatedRootBlock(const Schedule& sch, ParsedAnnotation* parsed, Block
 void RewriteFuseSplitParallelVectorize(const Schedule& sch, Array<LoopRV>* loop_rvs, int vec_len) {
   size_t n_loops = loop_rvs->size();
   LoopRV fused = sch->Fuse({loop_rvs->begin(), loop_rvs->end()});
-  Array<LoopRV> split = sch->Split(fused, {NullOpt, Integer(vec_len)});
+  Array<LoopRV> split = sch->Split(fused, {std::nullopt, Integer(vec_len)});
   ICHECK_EQ(split.size(), 2);
   const LoopRV& outer = split[0];
   const LoopRV& inner = split[1];

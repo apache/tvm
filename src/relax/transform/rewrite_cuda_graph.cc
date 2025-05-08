@@ -88,7 +88,7 @@ struct LiftedFunctionRewritePlan {
   // The corresponding binding vars in the original function of the inputs of the lifted function
   std::vector<const VarNode*> inputs;
   // The tir vars in the original function that are propagated to the lifted function
-  Optional<ShapeExpr> propogated_tir_vars = NullOpt;
+  Optional<ShapeExpr> propogated_tir_vars = std::nullopt;
 };
 
 /*! \brief Builder of the lifted function for cuda graph capturing or allocations */
@@ -123,7 +123,7 @@ class FuncBuilder : public ExprMutator {
   /*! \brief Build the new function */
   Function Build() {
     Array<Var> params;
-    Optional<Var> shape_expr = NullOpt;
+    Optional<Var> shape_expr = std::nullopt;
     if (shape_expr_inputs_.size()) {
       Array<PrimExpr> tir_vars;
       for (const auto* var : shape_expr_inputs_) {
@@ -871,8 +871,8 @@ class CUDAGraphRewriter : public ExprMutator {
   int index_alloc_ = 0;
   int index_capture_ = 0;
   support::Arena arena_;
-  Optional<GlobalVar> gv_global_alloc_ = NullOpt;
-  Optional<GlobalVar> current_func_ = NullOpt;
+  Optional<GlobalVar> gv_global_alloc_ = std::nullopt;
+  Optional<GlobalVar> current_func_ = std::nullopt;
 };
 
 IRModule RewriteCUDAGraph(IRModule mod) {

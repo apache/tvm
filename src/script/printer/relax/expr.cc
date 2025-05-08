@@ -83,7 +83,7 @@ Optional<ExprDoc> SpecialScalar(const runtime::NDArray& n, const ObjectPath& p) 
   DataType dtype = n.DataType();
   const void* data = n->data;
   if (n->ndim != 0 || n->device.device_type != kDLCPU) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   if (dtype == DataType::Int(8)) {
@@ -128,7 +128,7 @@ Optional<ExprDoc> SpecialScalar(const runtime::NDArray& n, const ObjectPath& p) 
   } else if (dtype == DataType::Bool()) {
     return LiteralDoc::Boolean(*reinterpret_cast<const uint8_t*>(data), p);
   } else {
-    return NullOpt;
+    return std::nullopt;
   }
 }
 
@@ -154,7 +154,7 @@ Doc PrintRelaxVar(relax::Var n, ObjectPath p, IRDocsifier d) {
     ExprDoc ann = d->AsDoc<ExprDoc>(n->struct_info_, p->Attr("struct_info_"));
     Frame f = d->frames.back();
     ExprDoc var = DefineVar(n, f, d);
-    f->stmts.push_back(AssignDoc(var, NullOpt, ann));
+    f->stmts.push_back(AssignDoc(var, std::nullopt, ann));
   }
   return d->GetVarDoc(n).value();
 }

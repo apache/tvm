@@ -67,7 +67,7 @@ class ReplayTraceNode : public SearchStrategyNode {
   /*! \brief The random state. -1 means using random number. */
   TRandState rand_state_ = -1;
   /*! \brief The IRModule to be scheduled from TuneContext. */
-  Optional<IRModule> mod_ = NullOpt;
+  Optional<IRModule> mod_ = std::nullopt;
   /*! \brief The number of threads to be used. */
   int num_threads_ = -1;
   /*! \brief The postprocessors. */
@@ -145,7 +145,7 @@ class ReplayTraceNode : public SearchStrategyNode {
 
 inline Optional<Array<MeasureCandidate>> ReplayTraceNode::State::GenerateMeasureCandidates() {
   if (st >= max_trials) {
-    return NullOpt;
+    return std::nullopt;
   }
   ed = std::min(ed, max_trials);
   ICHECK_LT(st, ed);

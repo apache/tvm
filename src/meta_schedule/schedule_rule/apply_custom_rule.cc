@@ -69,7 +69,7 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
   }
 
  public:
-  Optional<Target> target_ = NullOpt;
+  Optional<Target> target_ = std::nullopt;
 
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("target_", &target_); }
 

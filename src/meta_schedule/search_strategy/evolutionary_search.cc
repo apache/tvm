@@ -139,7 +139,7 @@ struct PerThreadData {
       TRandState* rand_state) {
     std::vector<Optional<Mutator>> mutators;
     std::vector<double> masses;
-    mutators.push_back(NullOpt);
+    mutators.push_back(std::nullopt);
     masses.push_back(1.0 - genetic_mutate_prob);
     double total_mass_mutator = 0.0;
     if (genetic_mutate_prob > 0) {
@@ -698,7 +698,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::PickWithEpsGreedy(
 
 Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasureCandidates() {
   if (st >= max_trials) {
-    return NullOpt;
+    return std::nullopt;
   }
   int sample_num = num_trials_per_iter;
   if (ed > max_trials) {
@@ -718,7 +718,7 @@ Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasure
   if (static_cast<int>(unmeasured.size()) < self->init_min_unmeasured) {
     TVM_PY_LOG(WARNING, self->ctx_->logger)
         << "Cannot sample enough initial population, evolutionary search failed.";
-    return NullOpt;
+    return std::nullopt;
   }
   TVM_PY_LOG(INFO, self->ctx_->logger) << "Sampled " << unmeasured.size() << " candidate(s)";
   inits.insert(inits.end(), measured.begin(), measured.end());
@@ -732,7 +732,7 @@ Optional<Array<MeasureCandidate>> EvolutionarySearchNode::State::GenerateMeasure
   if (picks.empty()) {
     ++this->num_empty_iters;
     if (this->num_empty_iters >= self->num_empty_iters_before_early_stop) {
-      return NullOpt;
+      return std::nullopt;
     }
   }
   return AssembleCandidates(picks);

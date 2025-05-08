@@ -235,7 +235,7 @@ std::set<Var> GetUnusedVars(Map<Var, Array<Var>> users_map, Array<Var> fn_output
 class RemoveUnusedVars : public ExprMutator {
  public:
   std::set<Var> unused_vars;
-  Optional<DataflowBlock> caught_rewrite = NullOpt;
+  Optional<DataflowBlock> caught_rewrite = std::nullopt;
 
   RemoveUnusedVars(std::set<Var> unused_vars) : unused_vars(std::move(unused_vars)) {}
 

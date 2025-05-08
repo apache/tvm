@@ -91,7 +91,7 @@ class DataflowBlockExtractor : public ExprMutator {
       }
 
       dataflow_bindings = {};
-      input_dataflow_block = NullOpt;
+      input_dataflow_block = std::nullopt;
     };
 
     for (auto block : seq->blocks) {

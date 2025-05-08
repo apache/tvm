@@ -40,11 +40,11 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
     if (Optional<tir::Schedule> sch = this->QuerySchedule(mod, target, workload_name)) {
       return TuningRecord(sch.value()->trace().value(),
                           /*workload=*/Workload(mod, 0),  //
-                          /*run_secs=*/NullOpt,           //
+                          /*run_secs=*/std::nullopt,      //
                           /*target=*/target,              //
-                          /*arg_info=*/NullOpt);
+                          /*arg_info=*/std::nullopt);
     }
-    return NullOpt;
+    return std::nullopt;
   }
 
   Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
@@ -55,7 +55,7 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
                               /*debug_mode=*/0,
                               /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
     if (!schedule_fn(sch)) {
-      return NullOpt;
+      return std::nullopt;
     }
     return sch;
   }

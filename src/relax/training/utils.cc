@@ -77,7 +77,7 @@ class AppendLossMutator : private ExprMutator {
                       loss_function_->params.end());
     Expr new_body = this->VisitExpr(func->body);
 
-    return Function(new_params, new_body, NullOpt, func->is_pure, func->attrs);
+    return Function(new_params, new_body, std::nullopt, func->is_pure, func->attrs);
   }
 
   Expr VisitExpr_(const SeqExprNode* seq_expr) final {

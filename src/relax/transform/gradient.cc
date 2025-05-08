@@ -668,7 +668,7 @@ class GradientMutator : private ExprMutator {
     orig_params_ = func->params;
     Expr new_body = this->VisitExpr(func->body);
 
-    return Function(func->params, new_body, NullOpt, func->is_pure, func->attrs);
+    return Function(func->params, new_body, std::nullopt, func->is_pure, func->attrs);
   }
 
   Expr VisitExpr_(const SeqExprNode* seq_expr) final {

@@ -35,11 +35,11 @@
  *
  * We can evolve this implementation as we build more LM verticals.
  */
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/memory.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/memory.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/relax_vm/vm.h>
@@ -81,7 +81,7 @@ class AttentionKVCacheLegacyObj : public Object {
    * \brief View all current cached values as one array.
    * \param shape The cached values.
    */
-  NDArray View(const ShapeTuple& shape) {
+  NDArray View(const ffi::Shape& shape) {
     CHECK_EQ(shape[0], fill_count) << "Requested shape do not match the filled count";
     for (int i = 1; i < this->data->ndim; ++i) {
       CHECK_EQ(shape[i], data->shape[i]) << "Dimension " << i << " mismatch";
@@ -237,7 +237,7 @@ class AttentionKVCacheLegacy : public ObjectRef {
    * \brief Create the attention kv cache.
    * \param init_data The initial reserved.
    */
-  static AttentionKVCacheLegacy Create(NDArray init_data, ShapeTuple reserve_shape,
+  static AttentionKVCacheLegacy Create(NDArray init_data, ffi::Shape reserve_shape,
                                        int init_fill_count) {
     auto n = make_object<AttentionKVCacheLegacyObj>();
     n->data = NDArray::Empty(reserve_shape, init_data->dtype, init_data->device);
@@ -296,7 +296,7 @@ AttentionKVCacheLegacy AttentionKVCacheWindowOverrideWithSinks(AttentionKVCacheL
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_window_override_with_sinks")
     .set_body_typed(AttentionKVCacheWindowOverrideWithSinks);
 
-NDArray AttentionKVCacheView(AttentionKVCacheLegacy cache, ShapeTuple shape) {
+NDArray AttentionKVCacheView(AttentionKVCacheLegacy cache, ffi::Shape shape) {
   return cache->View(shape);
 }
 
@@ -307,15 +307,15 @@ TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_view")
           << args.size() << ".";
       AttentionKVCacheLegacy cache = args[0].cast<AttentionKVCacheLegacy>();
       if (args.size() == 2) {
-        ShapeTuple shape = args[1].cast<ShapeTuple>();
+        ffi::Shape shape = args[1].cast<ffi::Shape>();
         *rv = cache->View(shape);
       } else {
-        std::vector<ShapeTuple::index_type> shape;
+        std::vector<ffi::Shape::index_type> shape;
         shape.push_back(cache->fill_count);
         for (int i = 1; i < cache->data->ndim; ++i) {
           shape.push_back(cache->data->shape[i]);
         }
-        *rv = cache->View(ShapeTuple(shape));
+        *rv = cache->View(ffi::Shape(shape));
       }
     });
 

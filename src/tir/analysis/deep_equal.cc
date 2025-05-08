@@ -65,7 +65,7 @@ bool ExprDeepEqual::operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
     auto* prhs = rhs.as<IntImmNode>();
     return plhs->dtype == prhs->dtype && plhs->value == prhs->value;
   }
-  return DeepCmpSEqualHandler().SEqualReduce(lhs, rhs, false, NullOpt);
+  return DeepCmpSEqualHandler().SEqualReduce(lhs, rhs, false, std::nullopt);
 }
 
 TVM_REGISTER_GLOBAL("tir.analysis.expr_deep_equal")

@@ -45,7 +45,7 @@ using ParamRecord = NDArrayCacheMetadata::FileRecord::ParamRecord;
 
 struct ShardInfo {
   struct TensorInfo {
-    ShapeTuple shape;
+    ffi::Shape shape;
     DataType dtype;
   };
   struct ShardFunc {
@@ -78,7 +78,7 @@ ShardInfo::TensorInfo LoadTensorInfoFromJSON(const picojson::array& json_tensor_
     shape.push_back(AsType<int64_t>(shape_json[i]));
   }
   std::string dtype = AsType<std::string>(json_tensor_info[1]);
-  return ShardInfo::TensorInfo{ShapeTuple(std::move(shape)), DataType(StringToDLDataType(dtype))};
+  return ShardInfo::TensorInfo{ffi::Shape(std::move(shape)), DataType(StringToDLDataType(dtype))};
 }
 
 ShardInfo::ShardFunc LoadShardFuncFromJSON(const picojson::array& json_shard_func) {
@@ -314,13 +314,13 @@ NDArray ShardLoaderObj::Load(int weight_index) const {
 
   bool needs_sharding = !param_info.shard_info.funcs.empty();
   if (needs_sharding) {
-    ShapeTuple shape = param_info.shard_info.funcs.back().output_info.shape;
+    ffi::Shape shape = param_info.shard_info.funcs.back().output_info.shape;
     DataType dtype = param_info.shard_info.funcs.back().output_info.dtype;
     ICHECK(shape.size() >= 1 && shape[0] == num_shards)
         << "ValueError: The first dimension of the "
         << "output shape must be equal to the "
         << "number of shards, but got: " << shape << " and num_shards = " << num_shards;
-    NDArray recv = NDArray::Empty(ShapeTuple(shape.begin() + 1, shape.end()), dtype, device);
+    NDArray recv = NDArray::Empty(ffi::Shape(shape.begin() + 1, shape.end()), dtype, device);
     if (worker_id == 0) {
       NDArray w = LoadDirect(weight_index);
       for (const ShardInfo::ShardFunc& shard_func : param_info.shard_info.funcs) {
@@ -328,7 +328,7 @@ NDArray ShardLoaderObj::Load(int weight_index) const {
       }
       ScatterFromWorker0(w, /*in_group=*/false, recv);
     } else {
-      ScatterFromWorker0(NullOpt, /*in_group=*/false, recv);
+      ScatterFromWorker0(std::nullopt, /*in_group=*/false, recv);
     }
     return recv;
   } else {
@@ -408,18 +408,18 @@ Array<NDArray> ShardLoaderObj::LoadAllPresharded() const {
 
 TVM_REGISTER_GLOBAL("runtime.disco.ShardLoader").set_body_typed(ShardLoaderObj::Create);
 TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoad")
-    .set_body_typed([](ObjectRef loader_obj, ShapeTuple weight_index) {
+    .set_body_typed([](ObjectRef loader_obj, ffi::Shape weight_index) {
       const auto* loader = loader_obj.as<ShardLoaderObj>();
       CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
                                << loader_obj->GetTypeKey();
-      return loader->Load(IntegerFromShapeTuple(weight_index));
+      return loader->Load(IntegerFromShape(weight_index));
     });
 TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadPresharded")
-    .set_body_typed([](ObjectRef loader_obj, ShapeTuple weight_index) {
+    .set_body_typed([](ObjectRef loader_obj, ffi::Shape weight_index) {
       const auto* loader = loader_obj.as<ShardLoaderObj>();
       CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
                                << loader_obj->GetTypeKey();
-      return loader->LoadPresharded(IntegerFromShapeTuple(weight_index));
+      return loader->LoadPresharded(IntegerFromShape(weight_index));
     });
 
 TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadAll").set_body_typed([](ObjectRef loader_obj) {

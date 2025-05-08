@@ -352,7 +352,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
 
   Map<String, ffi::Any> attrs;
   if (pool_type == kMaxPool) {
-    attrs.Set("schedule_rule", tvm::runtime::String("meta_schedule.adaptive_pool_max"));
+    attrs.Set("schedule_rule", tvm::String("meta_schedule.adaptive_pool_max"));
     return tvm::te::compute(
         out_shape,
         [&](const Array<Var>& output) {
@@ -363,7 +363,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
         },
         "adaptive_pool_max", "adaptive_pool_max", attrs);
   } else if (pool_type == kAvgPool) {
-    attrs.Set("schedule_rule", tvm::runtime::String("meta_schedule.adaptive_pool_avg"));
+    attrs.Set("schedule_rule", tvm::String("meta_schedule.adaptive_pool_avg"));
     auto pool_sum = tvm::te::compute(
         out_shape,
         [&](const Array<Var>& output) {
@@ -566,7 +566,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
   Map<String, ffi::Any> attrs;
   if (pool_type == kMaxPool) {
     auto temp = do_pad ? pad(x, pad_before, pad_after, tvm::min_value(x->dtype), "pad_temp") : x;
-    attrs.Set("schedule_rule", tvm::runtime::String("meta_schedule.pool_max"));
+    attrs.Set("schedule_rule", tvm::String("meta_schedule.pool_max"));
     return tvm::te::compute(
         out_shape,
         [&](const Array<Var>& output) {
@@ -581,7 +581,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
         },
         "pool_max", "pool_max", attrs);
   } else if (pool_type == kAvgPool) {
-    attrs.Set("schedule_rule", tvm::runtime::String("meta_schedule.pool_avg"));
+    attrs.Set("schedule_rule", tvm::String("meta_schedule.pool_avg"));
     // Pad the inputs
     auto temp = do_pad ? pad(x, pad_before, pad_after, 0, "pad_temp") : x;
 

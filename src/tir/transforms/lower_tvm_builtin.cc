@@ -39,7 +39,7 @@ namespace tir {
 class BuiltinLower : public StmtExprMutator {
  public:
   static PrimFunc Build(PrimFunc func) {
-    Optional<PrimExpr> device_type = NullOpt;
+    Optional<PrimExpr> device_type = std::nullopt;
     if (auto target = func->GetAttr<Target>(tvm::attr::kTarget)) {
       device_type = Integer(target.value()->kind->default_device_type);
     }
@@ -49,7 +49,8 @@ class BuiltinLower : public StmtExprMutator {
     return func;
   }
 
-  explicit BuiltinLower(Optional<PrimExpr> device_type = NullOpt) : device_type_(device_type) {}
+  explicit BuiltinLower(Optional<PrimExpr> device_type = std::nullopt)
+      : device_type_(device_type) {}
 
   // NOTE: Right now, we make the following scoping requirement
   // for memory allocated by the following primitives
@@ -650,8 +651,8 @@ class BuiltinLower : public StmtExprMutator {
 
   // The prepration sequence to be emitted before the current statement.
   std::vector<std::vector<Stmt>> prep_seq_stack_;
-  Optional<PrimExpr> device_type_{NullOpt};
-  Optional<PrimExpr> device_id_{NullOpt};
+  Optional<PrimExpr> device_type_{std::nullopt};
+  Optional<PrimExpr> device_id_{std::nullopt};
 
   bool is_precheck_{false};
 

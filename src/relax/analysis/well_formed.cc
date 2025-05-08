@@ -332,7 +332,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     if (auto func_normalize = op_map_normalize_.get(call->op, nullptr); func_normalize != nullptr) {
       auto dummy_builder = tvm::relax::BlockBuilder::Create(mod_);
       Call before_normalize = GetRef<Call>(call);
-      Optional<Expr> after_normalize = NullOpt;
+      Optional<Expr> after_normalize = std::nullopt;
       try {
         after_normalize = func_normalize(dummy_builder, before_normalize);
       } catch (std::exception& err) {
@@ -369,7 +369,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       // an expression that does not yet have `StructInfo`.
       auto dummy_builder = tvm::relax::BlockBuilder::Create(mod_);
       Call copied(call->op, call->args, call->attrs, call->sinfo_args);
-      Optional<Expr> normalized = NullOpt;
+      Optional<Expr> normalized = std::nullopt;
       try {
         normalized = dummy_builder->Normalize(copied);
       } catch (std::exception& err) {

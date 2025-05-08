@@ -46,7 +46,7 @@ void IRBuilderFrameNode::AddCallback(ffi::TypedFunction<void()> callback) {
 IRBuilder::IRBuilder() {
   ObjectPtr<IRBuilderNode> n = make_object<IRBuilderNode>();
   n->frames.clear();
-  n->result = NullOpt;
+  n->result = std::nullopt;
   data_ = n;
 }
 
@@ -60,7 +60,7 @@ void IRBuilder::EnterWithScope() {
   CHECK(n->frames.empty()) << "ValueError: There are frame(s) left in the builder: "
                            << n->frames.size()
                            << ". Please use a fresh new builder every time building IRs";
-  n->result = NullOpt;
+  n->result = std::nullopt;
   std::vector<IRBuilder>* stack = ThreadLocalBuilderStack();
   stack->push_back(*this);
 }

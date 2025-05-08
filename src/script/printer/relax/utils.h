@@ -82,7 +82,7 @@ inline IdDoc DefineVar(const relax::Var& var, const Frame& frame, const IRDocsif
 inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const ObjectPath& v_p,
                                          const IRDocsifier& d, const Optional<relax::Expr>& rhs) {
   if (!v->struct_info_.defined()) {
-    return NullOpt;
+    return std::nullopt;
   }
   bool attempt_to_hide_struct_info = !d->cfg->show_all_struct_info;
 
@@ -94,7 +94,7 @@ inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const ObjectPath& 
     }
   }
   if (attempt_to_hide_struct_info) {
-    Optional<relax::StructInfo> inferred_sinfo = NullOpt;
+    Optional<relax::StructInfo> inferred_sinfo = std::nullopt;
     if (auto opt = rhs.as<relax::Call>()) {
       auto call = opt.value();
       if (auto opt = call->op.as<Op>()) {
@@ -103,10 +103,10 @@ inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const ObjectPath& 
         static auto op_map_infer_struct_info =
             Op::GetAttrMap<relax::FInferStructInfo>("FInferStructInfo");
 
-        auto temp_builder = relax::BlockBuilder::Create(NullOpt);
+        auto temp_builder = relax::BlockBuilder::Create(std::nullopt);
         inferred_sinfo = op_map_infer_struct_info[op](call, temp_builder);
       } else if (auto opt = call->op.as<relax::FuncStructInfo>()) {
-        auto temp_builder = relax::BlockBuilder::Create(NullOpt);
+        auto temp_builder = relax::BlockBuilder::Create(std::nullopt);
         inferred_sinfo =
             DeriveCallRetStructInfo(opt.value(), call, temp_builder, temp_builder->GetAnalyzer());
       }
@@ -125,7 +125,7 @@ inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const ObjectPath& 
     }
 
     if (inferred_sinfo && StructuralEqual()(inferred_sinfo, v->struct_info_)) {
-      return NullOpt;
+      return std::nullopt;
     }
   }
   return d->AsDoc<ExprDoc>(v->struct_info_, v_p->Attr("struct_info_"));

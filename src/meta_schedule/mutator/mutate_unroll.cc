@@ -122,10 +122,10 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
 Optional<Trace> MutateUnrollNode::Apply(const Trace& trace, TRandState* rand_state) {
   Candidate candidate;
   if (!FindUnrollDecision(trace, rand_state, &candidate)) {
-    return NullOpt;
+    return std::nullopt;
   }
   if (candidate.probs.size() == 0) {
-    return NullOpt;
+    return std::nullopt;
   }
   candidate.probs.erase(candidate.probs.begin() + candidate.decision);
   int result = tir::MakeMultinomialSampler(rand_state, candidate.probs)();

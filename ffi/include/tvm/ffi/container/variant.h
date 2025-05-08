@@ -194,5 +194,9 @@ template <typename... V, typename T>
 inline constexpr bool type_contains_v<Variant<V...>, T> = (type_contains_v<V, T> || ...);
 }  // namespace details
 }  // namespace ffi
+
+// Expose to the tvm namespace
+// Rationale: convinience and no ambiguity
+using ffi::Variant;
 }  // namespace tvm
 #endif  // TVM_FFI_CONTAINER_VARIANT_H_

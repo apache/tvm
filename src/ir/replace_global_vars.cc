@@ -22,8 +22,8 @@
  * \brief IRModule transform to replace GlobalVar instances across any IR type.
  */
 
+#include <tvm/ffi/container/variant.h>
 #include <tvm/ir/replace_global_vars.h>
-#include <tvm/runtime/container/variant.h>
 
 #include <vector>
 

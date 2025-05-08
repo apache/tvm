@@ -76,7 +76,7 @@ class PatternKindAnalyzer : public StmtExprVisitor {
 
     // Step 1. Clear loads and store
     loads_.clear();
-    store_ = NullOpt;
+    store_ = std::nullopt;
     // Step 2. Visit block body.
     StmtVisitor::VisitStmt(op->body);
 

@@ -1031,5 +1031,9 @@ inline constexpr bool type_contains_v<Array<T>, Array<U>> = type_contains_v<T, U
 }  // namespace details
 
 }  // namespace ffi
+
+// Expose to the tvm namespace
+// Rationale: convinience and no ambiguity
+using ffi::Array;
 }  // namespace tvm
 #endif  // TVM_FFI_CONTAINER_ARRAY_H_

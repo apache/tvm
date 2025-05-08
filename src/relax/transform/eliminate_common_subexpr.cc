@@ -47,7 +47,7 @@ namespace {
  */
 struct ReplacementKey {
   tvm::relax::Expr bound_value;
-  tvm::Optional<tvm::relax::StructInfo> match_cast = tvm::NullOpt;
+  tvm::Optional<tvm::relax::StructInfo> match_cast = std::nullopt;
 
   explicit ReplacementKey(const tvm::relax::Binding& binding)
       : bound_value(GetBoundValue(binding)) {

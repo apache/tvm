@@ -57,10 +57,10 @@ Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Opt
 
 PrimFuncFrame PrimFunc(bool is_private) {
   ObjectPtr<PrimFuncFrameNode> n = make_object<PrimFuncFrameNode>();
-  n->name = NullOpt;
+  n->name = std::nullopt;
   n->is_private = is_private;
   n->args.clear();
-  n->ret_type = NullOpt;
+  n->ret_type = std::nullopt;
   n->buffer_map.clear();
   n->attrs = {};
   n->env_threads.clear();
@@ -157,14 +157,14 @@ BlockFrame Block(String name, bool no_realize) {
   ObjectPtr<BlockFrameNode> n = make_object<BlockFrameNode>();
   n->name = name;
   n->iter_vars.clear();
-  n->reads = NullOpt;
-  n->writes = NullOpt;
-  n->init = NullOpt;
+  n->reads = std::nullopt;
+  n->writes = std::nullopt;
+  n->init = std::nullopt;
   n->alloc_buffers.clear();
   n->match_buffers.clear();
-  n->annotations = NullOpt;
+  n->annotations = std::nullopt;
   n->iter_values.clear();
-  n->predicate = NullOpt;
+  n->predicate = std::nullopt;
   n->no_realize = no_realize;
   return BlockFrame(n);
 }
@@ -335,7 +335,7 @@ Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
     n->f_make_for_loop = [annotations](Array<Var> vars, Array<Range> doms, tvm::tir::Stmt body) { \
       ICHECK_EQ(vars.size(), 1);                                                                  \
       ICHECK_EQ(doms.size(), 1);                                                                  \
-      return tvm::tir::For(vars[0], doms[0]->min, doms[0]->extent, Kind, body, NullOpt,           \
+      return tvm::tir::For(vars[0], doms[0]->min, doms[0]->extent, Kind, body, std::nullopt,      \
                            annotations.value_or(Map<String, Any>()));                             \
     };                                                                                            \
     return ForFrame(n);                                                                           \
@@ -386,7 +386,7 @@ ForFrame Grid(Array<PrimExpr> extents) {
       Range dom = doms[i];
       Var var = vars[i];
       body = For(var, dom->min, dom->extent, ForKind::kSerial, std::move(body),
-                 /*thread_binding=*/NullOpt, /*annotations=*/{});
+                 /*thread_binding=*/std::nullopt, /*annotations=*/{});
     }
     return body;
   };
@@ -504,8 +504,8 @@ WhileFrame While(PrimExpr condition) {
 IfFrame If(PrimExpr condition) {
   ObjectPtr<IfFrameNode> n = make_object<IfFrameNode>();
   n->condition = condition;
-  n->then_stmts = NullOpt;
-  n->else_stmts = NullOpt;
+  n->then_stmts = std::nullopt;
+  n->else_stmts = std::nullopt;
   return IfFrame(n);
 }
 
@@ -531,7 +531,7 @@ Var EnvThread(String thread_tag, DataType dtype) {
 }
 
 void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
-                 Optional<PrimExpr> predicate = NullOpt) {
+                 Optional<PrimExpr> predicate = std::nullopt) {
   runtime::DataType buffer_dtype = buffer->dtype;
   bool is_index_scalable = indices.empty() ? false : indices.back().dtype().is_scalable_vector();
   bool is_buffer_dtype_scalable = buffer_dtype.is_scalable_vector();

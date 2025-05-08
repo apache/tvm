@@ -143,7 +143,7 @@ class PartialTupleUsageCollector : ExprVisitor {
           return known_binding.value();
         }
       }
-      return NullOpt;
+      return std::nullopt;
     };
 
     while (auto unwrapped = get_bound_value(expr)) {

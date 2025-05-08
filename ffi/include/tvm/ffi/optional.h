@@ -295,5 +295,8 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
   }
 };
 }  // namespace ffi
+
+// Expose to the tvm namespace
+using ffi::Optional;
 }  // namespace tvm
 #endif  // TVM_FFI_OPTIONAL_H_

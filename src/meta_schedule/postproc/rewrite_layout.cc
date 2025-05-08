@@ -206,7 +206,7 @@ bool RewriteLayout(const Schedule& sch) {
         auto anchor_block_rv = sch->GetBlock(anchor_block->name_hint, func_name);
         add_layout_rewrite_block(anchor_block_rv, buffer_index);
         sch->TransformLayout(anchor_block_rv, buffer_index, BufferIndexType::kRead, index_map,
-                             NullOpt);
+                             std::nullopt);
       } else {
         // When the layout-free buffer is consumed by cache_read, we need to find the index map
         // for a cache-read buffer that is directly consumed by an anchor op. The last buffer
@@ -219,7 +219,7 @@ bool RewriteLayout(const Schedule& sch) {
         auto [anchor_block, buffer_index, index_map] = *tup_opt;
         // Transform the layout of the last cache-read buffer.
         sch->TransformLayout(sch->GetBlock(anchor_block->name_hint, func_name), buffer_index,
-                             BufferIndexType::kRead, index_map, NullOpt);
+                             BufferIndexType::kRead, index_map, std::nullopt);
 
         // Propagate the layout transformation over cache_read_chain, starting from
         // the next-to-last cache-read buffer.
@@ -231,7 +231,8 @@ bool RewriteLayout(const Schedule& sch) {
             // transformed by TransformLayout below.
             add_layout_rewrite_block(cache_read_block_rv, 0);
           }
-          sch->TransformLayout(cache_read_block_rv, 0, BufferIndexType::kRead, index_map, NullOpt);
+          sch->TransformLayout(cache_read_block_rv, 0, BufferIndexType::kRead, index_map,
+                               std::nullopt);
         }
       }
     }

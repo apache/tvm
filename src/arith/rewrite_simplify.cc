@@ -1662,7 +1662,7 @@ Optional<PrimExpr> RewriteSimplifier::Impl::TryMatchLiteralConstraint(const Prim
       return make_const(expr->dtype, false);
     }
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const EQNode* op) {
@@ -1948,7 +1948,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
       auto [lhs, lhs_offset] = ExtractConstantOffset(ret->a);
       auto [rhs, rhs_offset] = ExtractConstantOffset(ret->b);
       if (lhs_offset == 0 && rhs_offset == 0) {
-        return NullOpt;
+        return std::nullopt;
       }
 
       int64_t diff = rhs_offset - lhs_offset;
@@ -1962,7 +1962,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
         return lhs < rhs + make_const(rhs.dtype(), diff);
       }
 
-      return NullOpt;
+      return std::nullopt;
     }();
     if (merge_constants) {
       return RecursiveRewrite(merge_constants.value());

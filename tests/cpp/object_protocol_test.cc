@@ -18,8 +18,8 @@
  */
 
 #include <gtest/gtest.h>
+#include <tvm/ffi/memory.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
 
 namespace tvm {
@@ -66,6 +66,7 @@ TVM_REGISTER_OBJECT_TYPE(ObjAA);
 TEST(ObjectHierachy, Basic) {
   using namespace tvm::runtime;
   using namespace tvm::test;
+  using namespace tvm::ffi;
 
   ObjectRef refA(make_object<ObjA>());
   ICHECK_EQ(refA->type_index(), ObjA::RuntimeTypeIndex());

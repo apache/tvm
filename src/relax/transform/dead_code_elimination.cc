@@ -90,7 +90,7 @@ IRModule RemoveUnusedFunctions(IRModule mod, const std::unordered_set<GlobalVar>
   return mod;
 }
 
-IRModule DeadCodeElimination(const IRModule& arg_mod, Array<runtime::String> entry_function_names) {
+IRModule DeadCodeElimination(const IRModule& arg_mod, Array<String> entry_function_names) {
   IRModule mod = arg_mod;
 
   // S0: Make a list of all user-specified entry functions and
@@ -133,7 +133,7 @@ IRModule DeadCodeElimination(const IRModule& arg_mod, Array<runtime::String> ent
 
 namespace transform {
 
-Pass DeadCodeElimination(Array<runtime::String> entry_functions) {
+Pass DeadCodeElimination(Array<String> entry_functions) {
   auto pass_func = [=](IRModule m, PassContext pc) {
     return relax::DeadCodeElimination(m, entry_functions);
   };

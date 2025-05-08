@@ -21,7 +21,7 @@
  * \file dso_libary.cc
  * \brief Create library module to load from dynamic shared library.
  */
-#include <tvm/runtime/memory.h>
+#include <tvm/ffi/memory.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>

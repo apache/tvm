@@ -1396,7 +1396,7 @@ class Map : public ObjectRef {
   iterator end() const { return iterator(GetMapObj()->end()); }
   /*! \return find the key and returns the associated iterator */
   iterator find(const K& key) const { return iterator(GetMapObj()->find(key)); }
-  /*! \return The value associated with the key, NullOpt if not found */
+  /*! \return The value associated with the key, std::nullopt if not found */
   std::optional<V> Get(const K& key) const {
     MapObj::iterator iter = GetMapObj()->find(key);
     if (iter == GetMapObj()->end()) {
@@ -1602,5 +1602,9 @@ inline constexpr bool type_contains_v<Map<K, V>, Map<KU, VU>> =
 }  // namespace details
 
 }  // namespace ffi
+
+// Expose to the tvm namespace
+// Rationale: convinience and no ambiguity
+using ffi::Map;
 }  // namespace tvm
 #endif  // TVM_FFI_CONTAINER_MAP_H_
