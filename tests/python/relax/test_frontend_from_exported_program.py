@@ -2166,6 +2166,27 @@ def test_einsum():
     verify_model(Einsum2(), example_args, {}, Expected2)
 
 
+def test_outer():
+    class Outer(torch.nn.Module):
+        def forward(self, x, y):
+            return torch.outer(x, y)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            a: R.Tensor((3,), dtype="float32"), b: R.Tensor((4,), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 4), dtype="float32") = R.outer(a, b)
+                gv: R.Tuple(R.Tensor((3, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(3, dtype=torch.float32), torch.randn(4, dtype=torch.float32),)
+    verify_model(Outer(), example_args, {}, expected)
+
+
 def test_embedding():
     class Embedding(Module):
         def __init__(self):

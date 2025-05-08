@@ -51,6 +51,14 @@ Expr matmul(Expr x1, Expr x2, Optional<DataType> out_dtype);
  */
 Expr einsum(Expr operands, String subscripts);
 
+/*!
+ * \brief Compute the outer product of two input expressions.
+ * \param x1 The first input expression.
+ * \param x2 The second input expression.
+ * \return The resulting expression representing the outer product.
+ */
+Expr outer(Expr x1, Expr x2);
+
 }  // namespace relax
 }  // namespace tvm
 

@@ -115,3 +115,25 @@ def _einsum(bb: BlockBuilder, call: Call) -> Expr:
         t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )
     return bb.call_te(topi.einsum, call.attrs.subscripts, *fields)
+
+@register_legalize("relax.outer")
+def _outer(bb: BlockBuilder, call: Call) -> Expr:
+    def te_outer(a: te.Tensor, b: te.Tensor) -> te.Tensor:
+        a_shape = list(a.shape)
+        b_shape = list(b.shape)
+        assert len(a_shape) == 1 and len(b_shape) == 1, "outer requires 1D tensors"
+
+        n = a_shape[0]
+        m = b_shape[0]
+
+        def compute_fn(i, j):
+            return a[i] * b[j]
+
+        return te.compute(
+            (n, m),
+            lambda i, j: compute_fn(i, j),
+            name="outer"
+        )
+
+    lhs, rhs = call.args
+    return bb.call_te(te_outer, lhs, rhs, primfunc_name_hint="outer")
