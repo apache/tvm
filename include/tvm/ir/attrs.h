@@ -45,10 +45,10 @@
 #define TVM_IR_ATTRS_H_
 
 #include <dmlc/common.h>
+#include <tvm/ffi/container/map.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
-#include <tvm/runtime/container/map.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <functional>

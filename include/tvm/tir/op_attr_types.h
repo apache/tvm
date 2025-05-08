@@ -28,8 +28,8 @@
 #ifndef TVM_TIR_OP_ATTR_TYPES_H_
 #define TVM_TIR_OP_ATTR_TYPES_H_
 
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <ostream>

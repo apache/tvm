@@ -24,10 +24,10 @@
 #ifndef TVM_TIR_BUFFER_H_
 #define TVM_TIR_BUFFER_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/script_printer.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/tir/var.h>
 
 #include <string>
@@ -204,7 +204,7 @@ class Buffer : public ObjectRef {
    */
   TVM_DLL PrimExpr access_ptr(int access_mask, DataType ptr_type = DataType::Handle(),
                               int content_lanes = 1, PrimExpr offset = IntImm(DataType::Int(32), 0),
-                              Optional<PrimExpr> input_extent = NullOpt) const;
+                              Optional<PrimExpr> input_extent = std::nullopt) const;
   /*!
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
@@ -213,7 +213,7 @@ class Buffer : public ObjectRef {
    * loaded. The number lanes of the mask must be equal to the number of lanes in being loaded.
    */
   TVM_DLL PrimExpr vload(Array<PrimExpr> begin, DataType dtype,
-                         Optional<PrimExpr> predicate = NullOpt) const;
+                         Optional<PrimExpr> predicate = std::nullopt) const;
   /*!
    * \brief Create a Stmt that does a vector store at begin index.
    * \param begin The beginning index
@@ -222,7 +222,7 @@ class Buffer : public ObjectRef {
    * stored. The number lanes of the mask must be equal to the number of lanes in value.
    */
   TVM_DLL Stmt vstore(Array<PrimExpr> begin, PrimExpr value,
-                      Optional<PrimExpr> predicate = NullOpt) const;
+                      Optional<PrimExpr> predicate = std::nullopt) const;
 
   /*!
    * \brief Get a flattened version of the buffer

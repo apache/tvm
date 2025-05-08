@@ -27,10 +27,10 @@
 #ifndef TVM_IR_ANALYSIS_H_
 #define TVM_IR_ANALYSIS_H_
 
+#include <tvm/ffi/container/array.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/functor.h>
-#include <tvm/runtime/container/array.h>
 
 namespace tvm {
 namespace ir {

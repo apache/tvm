@@ -65,10 +65,10 @@
 #else
 #include <llvm/Support/TargetParser.h>
 #endif
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/target/target.h>

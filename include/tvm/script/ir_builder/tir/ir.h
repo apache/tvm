@@ -109,7 +109,7 @@ Type FuncRet(Type ret_type);
  * \return The matched buffer.
  */
 Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                   Optional<Var> data = NullOpt, Array<PrimExpr> strides = {},
+                   Optional<Var> data = std::nullopt, Array<PrimExpr> strides = {},
                    PrimExpr elem_offset = PrimExpr(), String storage_scope = "global",
                    int align = -1, int offset_factor = 0, String buffer_type = "default",
                    Optional<Array<IntImm>> axis_separators = std::nullopt);
@@ -167,7 +167,7 @@ void BlockAttrs(Map<String, ffi::Any> attrs);
  * \return The allocated buffer.
  */
 Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
-                   Optional<Var> data = NullOpt, Array<PrimExpr> strides = {},
+                   Optional<Var> data = std::nullopt, Array<PrimExpr> strides = {},
                    PrimExpr elem_offset = PrimExpr(), String storage_scope = "", int align = -1,
                    int offset_factor = 0, String buffer_type = "default",
                    Optional<Array<IntImm>> axis_separators = std::nullopt);
@@ -227,7 +227,8 @@ Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype = DataTy
  * \param annotations The optional annotations of the For statement.
  * \return The ForFrame.
  */
-ForFrame Serial(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annotations = NullOpt);
+ForFrame Serial(PrimExpr start, PrimExpr stop,
+                Optional<Map<String, Any>> annotations = std::nullopt);
 /*!
  * \brief The parallel For statement.
  * \param start The minimum value of iteration.
@@ -235,7 +236,8 @@ ForFrame Serial(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annota
  * \param annotations The optional annotations of the For statement.
  * \return The ForFrame.
  */
-ForFrame Parallel(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annotations = NullOpt);
+ForFrame Parallel(PrimExpr start, PrimExpr stop,
+                  Optional<Map<String, Any>> annotations = std::nullopt);
 /*!
  * \brief The vectorized For statement.
  * \param start The minimum value of iteration.
@@ -244,7 +246,7 @@ ForFrame Parallel(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> anno
  * \return The ForFrame.
  */
 ForFrame Vectorized(PrimExpr start, PrimExpr stop,
-                    Optional<Map<String, Any>> annotations = NullOpt);
+                    Optional<Map<String, Any>> annotations = std::nullopt);
 /*!
  * \brief The unrolled For statement.
  * \param start The minimum value of iteration.
@@ -252,7 +254,8 @@ ForFrame Vectorized(PrimExpr start, PrimExpr stop,
  * \param annotations The optional annotations of the For statement.
  * \return The ForFrame.
  */
-ForFrame Unroll(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annotations = NullOpt);
+ForFrame Unroll(PrimExpr start, PrimExpr stop,
+                Optional<Map<String, Any>> annotations = std::nullopt);
 /*!
  * \brief The thread-binding For statement.
  * \param start The minimum value of iteration.
@@ -262,7 +265,7 @@ ForFrame Unroll(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annota
  * \return The ForFrame.
  */
 ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
-                       Optional<Map<String, Any>> annotations = NullOpt);
+                       Optional<Map<String, Any>> annotations = std::nullopt);
 /*!
  * \brief The grid For statement.
  * \param extents The extents of the iteration.
@@ -287,8 +290,8 @@ AssertFrame Assert(PrimExpr condition, String message);
  * \param var The variable to be bound. If not specified, a new variable will be created.
  * \return The created LetFrame.
  */
-LetFrame LetStmt(PrimExpr value, Optional<Type> type_annotation = NullOpt,
-                 Optional<Var> var = NullOpt);
+LetFrame LetStmt(PrimExpr value, Optional<Type> type_annotation = std::nullopt,
+                 Optional<Var> var = std::nullopt);
 
 /*!
  * \brief The realization.
@@ -309,8 +312,8 @@ RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope, 
  * \return The created AllocateFrame.
  */
 AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_scope = "",
-                       Optional<PrimExpr> condition = NullOpt,
-                       Optional<Map<String, Any>> annotations = NullOpt);
+                       Optional<PrimExpr> condition = std::nullopt,
+                       Optional<Map<String, Any>> annotations = std::nullopt);
 
 /*!
  * \brief The allocate constant node.
@@ -321,7 +324,7 @@ AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_s
  * \return The created AllocateConstFrame.
  */
 AllocateConstFrame AllocateConst(NDArray data, DataType dtype, Array<PrimExpr> extents,
-                                 Optional<Map<String, Any>> annotations = NullOpt);
+                                 Optional<Map<String, Any>> annotations = std::nullopt);
 
 /*!
  * \brief Create an attribute.
@@ -456,12 +459,12 @@ inline Var Handle(runtime::DataType dtype = runtime::DataType::Void(),
   return is_size_var ? tvm::tir::SizeVar("", type_annotation) : tvm::tir::Var("", type_annotation);
 }
 
-#define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                                \
-  inline PrimExpr FuncName(Optional<PrimExpr> expr = NullOpt, bool is_size_var = false) { \
-    DataType dtype = DType;                                                               \
-    return expr.defined()                                                                 \
-               ? tvm::cast(dtype, expr.value())                                           \
-               : (is_size_var ? tvm::tir::SizeVar("", dtype) : tvm::tir::Var("", dtype)); \
+#define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                                     \
+  inline PrimExpr FuncName(Optional<PrimExpr> expr = std::nullopt, bool is_size_var = false) { \
+    DataType dtype = DType;                                                                    \
+    return expr.defined()                                                                      \
+               ? tvm::cast(dtype, expr.value())                                                \
+               : (is_size_var ? tvm::tir::SizeVar("", dtype) : tvm::tir::Var("", dtype));      \
   }
 
 #define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES(DType, FDType) \

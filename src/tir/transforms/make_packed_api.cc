@@ -123,7 +123,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
     if (rewriter.made_change_) {
       return stmt;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }
 
@@ -172,21 +172,21 @@ inline Stmt MakeAssertNotNull(PrimExpr ptr, std::string msg) {
  * \param func The function to be inspected
  *
  * \returns The global_symbol to be used for the function at call
- * sites, or NullOpt if the function is to remain unchanged.
+ * sites, or std::nullopt if the function is to remain unchanged.
  */
 Optional<String> RequiresPackedAPI(const PrimFunc& func) {
   // A function with an explicit calling convention has already been
   // lowered, and should not be modified.
   if (auto opt = func->GetAttr<Integer>(tvm::attr::kCallingConv)) {
     if (CallingConv(opt.value()->value) != CallingConv::kDefault) {
-      return NullOpt;
+      return std::nullopt;
     }
   }
 
   // Internal function calls do not need the ffi::Function API
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   if (!global_symbol.defined()) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   return global_symbol;

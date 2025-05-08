@@ -40,7 +40,7 @@ namespace printer {
 
 inline void RedirectedReprPrinterMethod(const ObjectRef& obj, ReprPrinter* p) {
   try {
-    p->stream << TVMScriptPrinter::Script(obj, NullOpt);
+    p->stream << TVMScriptPrinter::Script(obj, std::nullopt);
   } catch (const tvm::Error& e) {
     if (ReprLegacyPrinter::CanDispatch(obj)) {
       LOG(WARNING) << "TVMScript printer falls back to the legacy ReprPrinter with the error:\n"
@@ -148,7 +148,8 @@ inline bool HasMultipleLines(const std::string& str) {
 }
 
 inline Optional<String> GetBindingName(const IRDocsifier& d) {
-  return d->cfg->binding_names.empty() ? Optional<String>(NullOpt) : d->cfg->binding_names.back();
+  return d->cfg->binding_names.empty() ? Optional<String>(std::nullopt)
+                                       : d->cfg->binding_names.back();
 }
 
 inline Optional<String> FindFunctionName(const IRDocsifier& d, const BaseFunc& f) {
@@ -158,7 +159,7 @@ inline Optional<String> FindFunctionName(const IRDocsifier& d, const BaseFunc& f
   if (Optional<String> sym = f->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
     return sym.value();
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 inline String GenerateUniqueName(std::string name_hint,

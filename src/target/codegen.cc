@@ -371,7 +371,7 @@ TVM_REGISTER_GLOBAL("runtime.ModuleImportsBlobName").set_body_typed([]() -> std:
 TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")
     .set_body_typed([](const runtime::Module& mod) {
       std::string buffer = PackImportsToBytes(mod);
-      ShapeTuple::index_type size = buffer.size();
+      ffi::Shape::index_type size = buffer.size();
       DLDataType uchar;
       uchar.code = kDLUInt;
       uchar.bits = 8;

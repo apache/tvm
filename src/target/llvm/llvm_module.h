@@ -27,7 +27,7 @@
 
 #ifdef TVM_LLVM_VERSION
 
-#include <tvm/runtime/container/array.h>
+#include <tvm/ffi/container/array.h>
 #include <tvm/runtime/metadata.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/target.h>

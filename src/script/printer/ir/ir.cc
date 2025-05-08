@@ -100,7 +100,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           (*f)->stmts.push_back(func.value());
         } else if (auto expr = doc.as<ExprDoc>()) {
           ExprDoc lhs = IdDoc(gv->name_hint);
-          AssignDoc assignment(lhs, expr.value(), NullOpt);
+          AssignDoc assignment(lhs, expr.value(), std::nullopt);
           (*f)->stmts.push_back(assignment);
         } else {
           LOG(FATAL) << "TypeError: "
