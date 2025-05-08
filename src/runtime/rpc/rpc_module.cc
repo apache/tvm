@@ -120,9 +120,7 @@ class RPCWrappedFunc : public Object {
         case ffi::TypeIndex::kTVMFFIFunction:
         case ffi::TypeIndex::kTVMFFIModule: {
           packed_args[i] = UnwrapRemoteValueToHandle(args[i]);
-          // hack, need to force set the type index to the correct one
-          // so legacy RPC ABI translation can work
-          // TODO(tqchen): remove this once we migrate to use new ABI as transport
+          // need to force set the type index to the correct one
           TVMFFIAny temp = packed_args[i].CopyToTVMFFIAny();
           temp.type_index = args[i].type_index();
           packed_args[i] = AnyView::CopyFromTVMFFIAny(temp);
@@ -290,30 +288,34 @@ void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
 }
 
 void RPCWrappedFunc::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv) const {
-  int tcode = args[0].cast<int>();
-  // TODO(tqchen): move to RPC to new ABI
-  if (tcode == kTVMNullptr) {
+  int type_index = args[0].cast<int>();
+  if (type_index == ffi::TypeIndex::kTVMFFINone) {
     *rv = nullptr;
     return;
-  } else if (tcode == kTVMPackedFuncHandle) {
+  } else if (type_index == ffi::TypeIndex::kTVMFFIFunction) {
     ICHECK_EQ(args.size(), 2);
     void* handle = args[1].cast<void*>();
     auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
     *rv = ffi::Function(
         [wf](ffi::PackedArgs args, ffi::Any* rv) { return wf->operator()(args, rv); });
-  } else if (tcode == kTVMModuleHandle) {
+  } else if (type_index == ffi::TypeIndex::kTVMFFIModule) {
     ICHECK_EQ(args.size(), 2);
     void* handle = args[1].cast<void*>();
     auto n = make_object<RPCModuleNode>(handle, sess_);
     *rv = Module(n);
-  } else if (tcode == kTVMNDArrayHandle || tcode == kTVMDLTensorHandle) {
+  } else if (type_index == ffi::TypeIndex::kTVMFFINDArray ||
+             type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr) {
     ICHECK_EQ(args.size(), 3);
     auto tensor = args[1].cast<DLTensor*>();
     void* nd_handle = args[2].cast<void*>();
     *rv = NDArrayFromRemoteOpaqueHandle(sess_, tensor->data, tensor,
                                         AddRPCSessionMask(tensor->device, sess_->table_index()),
                                         nd_handle);
-  } else if (tcode == kTVMObjectHandle) {
+  } else if (type_index == ffi::TypeIndex::kTVMFFIBytes ||
+             type_index == ffi::TypeIndex::kTVMFFIStr) {
+    ICHECK_EQ(args.size(), 2);
+    *rv = args[1];
+  } else if (type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
     ICHECK_EQ(args.size(), 2);
     void* handle = args[1].cast<void*>();
     auto n = make_object<RPCObjectRefObj>(handle, sess_);
