@@ -17,6 +17,7 @@
 import operator
 import pytest
 import torch
+from torch import nn
 from torch.nn import Module
 from torch.export import export
 
@@ -5294,6 +5295,36 @@ def test_eye():
     verify_model(Eye2(), example_args2, {}, Expected2)
 
 
+def test_cross_entropy():
+    class CrossEntropyModule(Module):
+        def __init__(self):
+            super().__init__()
+            self.criterion = nn.CrossEntropyLoss()
+            self.target = torch.tensor([0, 1, 2, 1])
+
+        def forward(self, x):
+            return self.criterion(x, self.target)
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(x: R.Tensor((4, 3), dtype="float32")) -> R.Tuple(R.Tensor((), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4, 3), dtype="float32") = R.nn.log_softmax(x, axis=-1)
+                lv1: R.Tensor((), dtype="float32") = R.nn.nll_loss(
+                    lv,
+                    targets=R.const([0, 1, 2, 1], dtype="int64"),
+                    reduction="mean",
+                    ignore_index=-100,
+                )
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    example_args1 = (torch.randn(4, 3, dtype=torch.float32),)
+    verify_model(CrossEntropyModule(), example_args1, {}, Expected1)
+
+
 def test_linspace():
     class Linspace(Module):
         def forward(self, input):
@@ -5354,3 +5385,4 @@ def test_dtypes(torch_dtype, relax_dtype):
 
 if __name__ == "__main__":
     tvm.testing.main()
+1
