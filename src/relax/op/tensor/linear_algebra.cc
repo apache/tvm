@@ -267,15 +267,15 @@ StructInfo InferStructInfoOuter(const Call& call, const BlockBuilder& ctx) {
 
   // Ensure both inputs are 1D tensors
   if (x1_sinfo->ndim != 1 || x2_sinfo->ndim != 1) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "torch.outer requires both inputs to be 1D tensors.");
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "torch.outer requires both inputs to be 1D tensors.");
   }
 
   // Determine output shape
   auto x1_shape = x1_sinfo->shape.as<ShapeExprNode>();
   auto x2_shape = x2_sinfo->shape.as<ShapeExprNode>();
   if (!x1_shape || !x2_shape) {
-      return TensorStructInfo(x1_sinfo->dtype, 2);
+    return TensorStructInfo(x1_sinfo->dtype, 2);
   }
   Array<PrimExpr> output_shape = {x1_shape->values[0], x2_shape->values[0]};
   return TensorStructInfo(ShapeExpr(output_shape), x1_sinfo->dtype);
