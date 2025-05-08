@@ -144,7 +144,7 @@ TVM_REGISTER_GLOBAL("tir.analysis.find_anchor_block").set_body_typed([](const IR
   if (ret) {
     return Optional<Block>(GetRef<Block>(ret));
   }
-  return Optional<Block>(NullOpt);
+  return Optional<Block>(std::nullopt);
 });
 
 }  // namespace tir

@@ -25,13 +25,13 @@
 #ifndef TVM_TIR_EXPR_H_
 #define TVM_TIR_EXPR_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/var.h>
@@ -681,7 +681,7 @@ class BufferLoadNode : public PrimExprNode {
 class BufferLoad : public PrimExpr {
  public:
   TVM_DLL explicit BufferLoad(Buffer buffer, Array<PrimExpr> indices,
-                              Optional<PrimExpr> predicate = NullOpt, Span span = Span());
+                              Optional<PrimExpr> predicate = std::nullopt, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(BufferLoad, PrimExpr, BufferLoadNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferLoadNode);
 };

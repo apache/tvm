@@ -24,7 +24,7 @@
  */
 #include "./static_library.h"
 
-#include <tvm/runtime/memory.h>
+#include <tvm/ffi/memory.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>

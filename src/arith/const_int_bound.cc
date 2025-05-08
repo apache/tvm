@@ -751,7 +751,7 @@ class ConstIntBoundAnalyzer::Impl
         }
       }
     }
-    return NullOpt;
+    return std::nullopt;
   }
 
   /*! \brief Propagate constraints through ceil(log2(arg))

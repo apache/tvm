@@ -24,9 +24,9 @@
 #ifndef TVM_TIR_FUNCTION_H_
 #define TVM_TIR_FUNCTION_H_
 
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/container/variant.h>
 #include <tvm/ir/function.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>

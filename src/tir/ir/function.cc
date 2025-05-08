@@ -147,7 +147,7 @@ Optional<TensorIntrin> TensorIntrin::Get(String name, bool allow_missing) {
   auto it = manager->reg.find(name);
   if (it == manager->reg.end()) {
     if (allow_missing) {
-      return NullOpt;
+      return std::nullopt;
     } else {
       LOG(FATAL) << "ValueError: TensorIntrin '" << name << "' is not registered";
     }

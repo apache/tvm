@@ -106,7 +106,7 @@ Optional<ObjectRef> ModuleGetAttr(const String& key) {
       return frame->attrs[key].cast<ObjectRef>();
     }
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 void ModuleSetAttr(const String& key, const Optional<ObjectRef>& value, bool allow_override) {

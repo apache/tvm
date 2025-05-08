@@ -103,7 +103,7 @@ class TargetNode : public Object {
    * \tparam TObjectRef Type of the attribute
    * \param attr_key The name of the attribute key
    * \param default_value The value returned if the key is not present
-   * \return An optional, NullOpt if not found, otherwise the value found
+   * \return An optional, std::nullopt if not found, otherwise the value found
    */
   template <typename TObjectRef>
   Optional<TObjectRef> GetAttr(
@@ -121,7 +121,7 @@ class TargetNode : public Object {
    * \tparam TObjectRef Type of the attribute
    * \param attr_key The name of the attribute key
    * \param default_value The value returned if the key is not present
-   * \return An optional, NullOpt if not found, otherwise the value found
+   * \return An optional, std::nullopt if not found, otherwise the value found
    */
   template <typename TObjectRef>
   Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {

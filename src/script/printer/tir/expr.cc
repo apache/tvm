@@ -33,7 +33,7 @@ ExprDoc PrintVarCreation(const tir::Var& var, const ObjectPath& var_p, const IRD
 
   if (var->IsInstance<tir::SizeVarNode>()) {
     kwargs_keys.push_back("is_size_var");
-    kwargs_values.push_back(LiteralDoc::Boolean(true, NullOpt));
+    kwargs_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
   }
 
   if (const auto* ptr_type = type.as<PointerTypeNode>()) {
@@ -65,7 +65,7 @@ Doc PrintVar(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d)
     if (Optional<Frame> opt_f = FindLowestVarDef(var, d)) {
       ExprDoc lhs = DefineVar(var, opt_f.value(), d);
       ExprDoc rhs = PrintVarCreation(var, var_p, d);
-      opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+      opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
     } else {
       LOG(WARNING) << "Didn't find variable definition for: " << var->name_hint;
     }

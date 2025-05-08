@@ -26,8 +26,8 @@
 #ifndef TVM_TIR_INDEX_MAP_H_
 #define TVM_TIR_INDEX_MAP_H_
 
+#include <tvm/ffi/container/array.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/var.h>
 
@@ -182,7 +182,7 @@ class IndexMap : public ObjectRef {
    * \param inverse_index_map The optional pre-defined inverse index map
    */
   IndexMap(Array<Var> initial_indices, Array<PrimExpr> final_indices,
-           Optional<IndexMap> inverse_index_map = NullOpt);
+           Optional<IndexMap> inverse_index_map = std::nullopt);
 
   /*!
    * \brief Create an index map from a packed function
@@ -192,7 +192,7 @@ class IndexMap : public ObjectRef {
    * \return The created index map
    */
   static IndexMap FromFunc(int ndim, ffi::TypedFunction<Array<PrimExpr>(Array<Var>)> func,
-                           Optional<IndexMap> inverse_index_map = NullOpt);
+                           Optional<IndexMap> inverse_index_map = std::nullopt);
 
   /*! \brief Generate the inverse mapping.
    *
