@@ -449,6 +449,17 @@ class TorchFXImporter(BaseFXGraphImporter):
         bias = self.params.get(module.bias, None)
         return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
 
+    def _max_pool1d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        kernel_size = module.kernel_size
+        stride = module.stride
+        padding = module.padding
+        dilation = module.dilation
+        ceil_mode = module.ceil_mode
+
+        return self._max_pool1d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
     def _max_pool2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -459,6 +470,17 @@ class TorchFXImporter(BaseFXGraphImporter):
         ceil_mode = module.ceil_mode
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
+    def _max_pool3d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        kernel_size = module.kernel_size
+        stride = module.stride
+        padding = module.padding
+        dilation = module.dilation
+        ceil_mode = module.ceil_mode
+
+        return self._max_pool3d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
 
     def _pixel_shuffle_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -661,7 +683,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.GroupNorm: self._group_norm_module,
             nn.LayerNorm: self._layer_norm_module,
             nn.Linear: self._linear_module,
+            nn.MaxPool1d: self._max_pool1d_module,
             nn.MaxPool2d: self._max_pool2d_module,
+            nn.MaxPool3d: self._max_pool3d_module,
             nn.modules.sparse.Embedding: self._embedding_module,
             nn.PixelShuffle: self._pixel_shuffle_module,
             # tensor manipulation
@@ -774,7 +798,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             "interpolate": self._interpolate,
             "layer_norm": self._layer_norm,
             "linear": self._linear,
+            "max_pool1d": self._max_pool1d,
             "max_pool2d": self._max_pool2d,
+            "max_pool3d": self._max_pool3d,
             "scaled_dot_product_attention": self._scaled_dot_product_attention,
             "stochastic_depth": lambda node: self.env[node.args[0]],
             "unbind": self._unbind,
