@@ -284,6 +284,14 @@ inline constexpr bool storage_enabled_v = std::is_same_v<T, Any> || TypeTraits<T
 template <typename... T>
 inline constexpr bool all_storage_enabled_v = (storage_enabled_v<T> && ...);
 
+/*!
+ * \brief Check if all T are compatible with Any.
+ *
+ * \tparam T The type to check.
+ * \return True if T is compatible with Any, false otherwise.
+ */
+template <typename... T>
+inline constexpr bool all_object_ref_v = (std::is_base_of_v<ObjectRef, T> && ...);
 /**
  * \brief Check if Any storage of Derived can always be directly used as Base.
  *
