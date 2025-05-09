@@ -30,7 +30,9 @@ def test_op_correctness():
     assert relax.op.nn.max_pool1d(x1).op == Op.get("relax.nn.max_pool1d")
     assert relax.op.nn.max_pool2d(x).op == Op.get("relax.nn.max_pool2d")
     assert relax.op.nn.max_pool3d(x2).op == Op.get("relax.nn.max_pool3d")
+    assert relax.op.nn.avg_pool1d(x).op == Op.get("relax.nn.avg_pool1d")
     assert relax.op.nn.avg_pool2d(x).op == Op.get("relax.nn.avg_pool2d")
+    assert relax.op.nn.avg_pool3d(x).op == Op.get("relax.nn.avg_pool3d")
     assert relax.op.nn.adaptive_avg_pool1d(x).op == Op.get("relax.nn.adaptive_avg_pool1d")
     assert relax.op.nn.adaptive_avg_pool2d(x).op == Op.get("relax.nn.adaptive_avg_pool2d")
     assert relax.op.nn.adaptive_avg_pool3d(x).op == Op.get("relax.nn.adaptive_avg_pool3d")
@@ -1161,7 +1163,7 @@ def test_avg_pool3d_infer_struct_info():
     x3 = relax.Var("x", R.Tensor("float32"))
     x4 = relax.Var("x", R.Tensor(ndim=5))
     x5 = relax.Var("x", R.Tensor())
-    x6 = relax.Var("x", R.Tensor((2, 4, 32, 32, 16), "float32"))
+    x6 = relax.Var("x", R.Tensor((2, 4, 32, 32, 32, 16), "float32"))
     x7 = relax.Var("x", R.Tensor((2, 3, 32, 32, 32), "float32", vdev0))
 
     _check_inference(
@@ -1212,8 +1214,8 @@ def test_avg_pool3d_infer_struct_info():
     )
     _check_inference(
         bb,
-        relax.op.nn.avg_pool3d(x6, layout="NCDHW16c", out_layout="NHWC16c"),
-        relax.TensorStructInfo((2, 32, 32, 32, 16), "float32"),
+        relax.op.nn.avg_pool3d(x6, layout="NCDHW16c", out_layout="NDHWC16c"),
+        relax.TensorStructInfo((2, 32, 32, 32, 4, 16), "float32"),
     )
     _check_inference(
         bb, relax.op.nn.avg_pool3d(x2), relax.TensorStructInfo(dtype="float32", ndim=5)

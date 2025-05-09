@@ -920,7 +920,7 @@ def avg_pool2d(
     padding: Union[int, Tuple[int, ...]] = (0, 0),
     dilation: Union[int, Tuple[int, int]] = (1, 1),
     ceil_mode: bool = False,
-    count_include_pad: bool = True,
+    count_include_pad: bool = False,
     layout: str = "NCHW",
     out_layout: Optional[str] = None,
 ) -> Expr:

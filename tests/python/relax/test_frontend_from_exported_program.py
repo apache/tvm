@@ -1528,7 +1528,7 @@ def test_avg_pool2d():
 
     class AvgPool2d4(Module):
         def forward(self, input):
-            return torch.nn.functional.avg_pool2d(input, kernel_size=[2, 1])
+            return torch.nn.functional.avg_pool2d(input, kernel_size=[2, 1], divisor_override=2)
 
     @tvm.script.ir_module
     class expected3:
@@ -1623,9 +1623,7 @@ def test_avg_pool3d():
 
     class AvgPool3d4(Module):
         def forward(self, input):
-            return torch.nn.functional.avg_pool3d(
-                input, kernel_size=[2, 1, 2], stride=[2, 1, 2]
-            )
+            return torch.nn.functional.avg_pool3d(input, kernel_size=[2, 1, 2], stride=[2, 1, 2])
 
     @tvm.script.ir_module
     class expected3:

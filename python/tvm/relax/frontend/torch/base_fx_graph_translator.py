@@ -589,7 +589,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         ceil_mode: Optional[bool] = False,
         count_include_pad: Optional[bool] = True,
     ) -> relax.Var:
-
+        # Expand to 3D by adding batch dim if input is 2D
         x_ndim = x.struct_info.ndim
         if x_ndim == 2:
             x = relax.op.expand_dims(x, axis=0)
@@ -606,7 +606,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 layout="NCW",
             )
         )
-
+        # Remove added batch dim from result
         if x_ndim == 2:
             result = relax.op.squeeze(result, axis=[0])
         return result
@@ -630,6 +630,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding: Optional[int] = 0,
         ceil_mode: Optional[bool] = False,
     ) -> relax.Var:
+        # Expand to 4D by adding batch dim if input is 3D
         x_ndim = x.struct_info.ndim
         if x_ndim == 3:
             x = relax.op.expand_dims(x, axis=0)
@@ -645,7 +646,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 layout="NCHW",
             )
         )
-
+        # Remove added batch dim from result
         if x_ndim == 3:
             result = relax.op.squeeze(result, axis=[0])
         return result
@@ -668,6 +669,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         ceil_mode: Optional[bool] = False,
         count_include_pad: Optional[bool] = True,
     ) -> relax.Var:
+        # Expand to 5D by adding batch dim if input is 4D
         x_ndim = x.struct_info.ndim
         if x_ndim == 4:
             x = relax.op.expand_dims(x, axis=0)
@@ -684,7 +686,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 layout="NCDHW",
             )
         )
-
+        # Remove added batch dim from result
         if x_ndim == 4:
             result = relax.op.squeeze(result, axis=[0])
         return result

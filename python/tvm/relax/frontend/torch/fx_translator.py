@@ -728,11 +728,8 @@ class TorchFXImporter(BaseFXGraphImporter):
             # neural network
             nn.AdaptiveAvgPool1d: self._adaptive_avg_pool1d_module,
             nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d_module,
-<<<<<<< HEAD
             nn.AdaptiveAvgPool3d: self._adaptive_avg_pool3d_module,
-=======
             nn.AvgPool1d: self._avg_pool1d_module,
->>>>>>> 88cf23de1 (add avg pool 1d and 3d op mappings and added test script)
             nn.AvgPool2d: self._avg_pool2d_module,
             nn.AvgPool3d: self._avg_pool3d_module,
             nn.BatchNorm2d: self._batch_norm_2d_module,
