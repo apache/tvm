@@ -1381,6 +1381,39 @@ def test_avgpool2d():
     verify_model(AvgPool2d4(), input_info, {}, expected3)
 
 
+def test_adaptive_avgpool1d():
+    input_info = [([1, 3, 16], "float32")]
+
+    class AdaptiveAvgPool1d0(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AdaptiveAvgPool1d(8)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    class AdaptiveAvgPool1d1(torch.nn.Module):
+        def forward(self, input):
+            return torch.nn.functional.adaptive_avg_pool1d(input, 8)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 16), dtype="float32")
+        ) -> R.Tensor((1, 3, 8), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 8), dtype="float32") = R.nn.adaptive_avg_pool1d(
+                    input_1, output_size=[8], layout="NCW", out_layout="NCW"
+                )
+                gv: R.Tensor((1, 3, 8), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(AdaptiveAvgPool1d0(), input_info, {}, expected1)
+    verify_model(AdaptiveAvgPool1d1(), input_info, {}, expected1)
+
+
 def test_adaptive_avgpool2d():
     input_info = [([1, 3, 10, 10], "float32")]
 
@@ -1413,6 +1446,39 @@ def test_adaptive_avgpool2d():
 
     verify_model(AdaptiveAvgPool2d0(), input_info, {}, expected1)
     verify_model(AdaptiveAvgPool2d1(), input_info, {}, expected1)
+
+
+def test_adaptive_avgpool3d():
+    input_info = [([1, 3, 16, 16, 16], "float32")]
+
+    class AdaptiveAvgPool3d0(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AdaptiveAvgPool3d((8, 8, 8))
+
+        def forward(self, input):
+            return self.pool(input)
+
+    class AdaptiveAvgPool3d1(torch.nn.Module):
+        def forward(self, input):
+            return torch.nn.functional.adaptive_avg_pool3d(input, (8, 8, 8))
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 16, 16, 16), dtype="float32")
+        ) -> R.Tensor((1, 3, 8, 8, 8), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 8, 8, 8), dtype="float32") = R.nn.adaptive_avg_pool3d(
+                    input_1, output_size=[8, 8, 8], layout="NCDHW", out_layout="NCDHW"
+                )
+                gv: R.Tensor((1, 3, 8, 8, 8), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(AdaptiveAvgPool3d0(), input_info, {}, expected1)
+    verify_model(AdaptiveAvgPool3d1(), input_info, {}, expected1)
 
 
 def test_flatten():

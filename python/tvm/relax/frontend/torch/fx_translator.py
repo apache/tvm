@@ -182,13 +182,53 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Neural Network ##########
 
+    def _adaptive_avg_pool1d_module(self, node: fx.Node) -> relax.Var:
+        module = self.named_modules[node.target]
+        x = self.env[node.args[0]]
+        output_size = module.output_size
+        # Expand to 3D by adding batch dim if input is 2D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 2:
+            x = relax.op.expand_dims(x, axis=0)
+        result = self.block_builder.emit(
+            relax.op.nn.adaptive_avg_pool1d(x, output_size, layout="NCW")  # (N, C, L)
+        )
+        # Remove added batch dim from result
+        if x_ndim == 2:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
     def _adaptive_avg_pool2d_module(self, node: fx.Node) -> relax.Var:
         module = self.named_modules[node.target]
         x = self.env[node.args[0]]
         output_size = module.output_size
-        return self.block_builder.emit(
+        # Expand to 4D by adding batch dim if input is 3D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 3:
+            x = relax.op.expand_dims(x, axis=0)
+        result = self.block_builder.emit(
             relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
         )
+        # Remove added batch dim from result
+        if x_ndim == 3:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _adaptive_avg_pool3d_module(self, node: fx.Node) -> relax.Var:
+        module = self.named_modules[node.target]
+        x = self.env[node.args[0]]
+        output_size = module.output_size
+        # Expand to 5D by adding batch dim if input is 4D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 4:
+            x = relax.op.expand_dims(x, axis=0)
+        result = self.block_builder.emit(
+            relax.op.nn.adaptive_avg_pool3d(x, output_size, layout="NCDHW")  # (N, C, D, H, W)
+        )
+        # Remove added batch dim from result
+        if x_ndim == 4:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
 
     def _avg_pool2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -668,7 +708,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.Softplus: self._softplus_module,
             nn.Tanh: self._unary_op(relax.op.tanh),
             # neural network
+            nn.AdaptiveAvgPool1d: self._adaptive_avg_pool1d_module,
             nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d_module,
+            nn.AdaptiveAvgPool3d: self._adaptive_avg_pool3d_module,
             nn.AvgPool2d: self._avg_pool2d_module,
             nn.BatchNorm2d: self._batch_norm_2d_module,
             nn.Conv1d: self._conv1d_module,
@@ -778,7 +820,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             "truediv": self._binary_op(relax.op.divide, operator.truediv),
             "xor": self._binary_op(relax.op.bitwise_xor, operator.xor),
             # neural network
+            "adaptive_avg_pool1d": self._adaptive_avg_pool1d,
             "adaptive_avg_pool2d": self._adaptive_avg_pool2d,
+            "adaptive_avg_pool3d": self._adaptive_avg_pool3d,
             "addmm": self._addmm,
             "avg_pool2d": self._avg_pool2d,
             "baddbmm": self._baddbmm,

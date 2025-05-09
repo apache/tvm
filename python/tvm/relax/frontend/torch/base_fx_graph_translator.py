@@ -510,12 +510,53 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     ########## Neural Network ##########
 
+    def _adaptive_avg_pool1d(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        output_size = node.args[1] if len(node.args) > 1 else node.kwargs["output_size"]
+        # Expand to 3D by adding batch dim if input is 2D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 2:
+            x = relax.op.expand_dims(x, axis=0)
+
+        result = self.block_builder.emit(
+            relax.op.nn.adaptive_avg_pool1d(x, output_size, layout="NCW")
+        )
+        # Remove added batch dim from result
+        if x_ndim == 2:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
     def _adaptive_avg_pool2d(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         output_size = node.args[1]
-        return self.block_builder.emit(
+        # Expand to 4D by adding batch dim if input is 3D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 3:
+            x = relax.op.expand_dims(x, axis=0)
+
+        result = self.block_builder.emit(
             relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
         )
+        # Remove added batch dim from result
+        if x_ndim == 3:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _adaptive_avg_pool3d(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        output_size = node.args[1]
+        # Expand to 5D by adding batch dim if input is 4D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 4:
+            x = relax.op.expand_dims(x, axis=0)
+
+        result = self.block_builder.emit(
+            relax.op.nn.adaptive_avg_pool3d(x, output_size, layout="NCDHW")
+        )
+        # Remove added batch dim from result
+        if x_ndim == 4:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
 
     def _addmm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]

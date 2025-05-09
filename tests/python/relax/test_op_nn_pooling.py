@@ -31,7 +31,9 @@ def test_op_correctness():
     assert relax.op.nn.max_pool2d(x).op == Op.get("relax.nn.max_pool2d")
     assert relax.op.nn.max_pool3d(x2).op == Op.get("relax.nn.max_pool3d")
     assert relax.op.nn.avg_pool2d(x).op == Op.get("relax.nn.avg_pool2d")
+    assert relax.op.nn.adaptive_avg_pool1d(x).op == Op.get("relax.nn.adaptive_avg_pool1d")
     assert relax.op.nn.adaptive_avg_pool2d(x).op == Op.get("relax.nn.adaptive_avg_pool2d")
+    assert relax.op.nn.adaptive_avg_pool3d(x).op == Op.get("relax.nn.adaptive_avg_pool3d")
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
@@ -941,6 +943,154 @@ def test_avg_pool2d_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.nn.avg_pool2d(x1))
 
 
+def test_adaptive_avg_pool1d_infer_struct_info():
+    bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
+
+    x0 = relax.Var("x", R.Tensor((2, 3, 32), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=3))
+    x2 = relax.Var("x", R.Tensor("float32"))
+    x3 = relax.Var("x", R.Tensor(ndim=3))
+    x4 = relax.Var("x", R.Tensor())
+
+    x5 = relax.Var("x", R.Tensor((2, 3, 32), "float32", vdev0))
+
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool1d(x0),
+        relax.TensorStructInfo((2, 3, 32), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool1d(x5),
+        relax.TensorStructInfo((2, 3, 32), "float32", vdev0),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool1d(x0, output_size=16),
+        relax.TensorStructInfo((2, 3, 16), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool1d(x1),
+        relax.TensorStructInfo(dtype="float32", ndim=3),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool1d(x2),
+        relax.TensorStructInfo(dtype="float32", ndim=3),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool1d(x3),
+        relax.TensorStructInfo(dtype="", ndim=3),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool1d(x4),
+        relax.TensorStructInfo(dtype="", ndim=3),
+    )
+
+
+def test_adaptive_avg_pool1d_infer_struct_info_shape_symbolic():
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+    c = tir.Var("c", "int64")
+    l = tir.Var("l", "int64")
+
+    x0 = relax.Var("x", R.Tensor((n, c, l), "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool1d(x0),
+        relax.TensorStructInfo((n, c, l), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool1d(x0, output_size=64),
+        relax.TensorStructInfo((n, c, 64), "float32"),
+    )
+
+
+def test_adaptive_avg_pool1d_infer_struct_info_shape_var():
+    bb = relax.BlockBuilder()
+    s0 = relax.Var("s", relax.ShapeStructInfo(ndim=3))
+    s1 = relax.Var("s", relax.ShapeStructInfo())
+
+    x0 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
+    x1 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool1d(x0),
+        relax.TensorStructInfo(s0, "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool1d(x0, output_size=20),
+        relax.TensorStructInfo(dtype="float32", ndim=3),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool1d(x1),
+        relax.TensorStructInfo(s1, dtype="float32"),
+    )
+
+
+def test_adaptive_avg_pool1d_infer_struct_info_more_input_dtype():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 64), "float16"))
+    x1 = relax.Var("x", R.Tensor((2, 3, 64), "int8"))
+    x2 = relax.Var("x", R.Tensor((2, 3, 64), "int64"))
+
+    _check_inference(
+        bb, relax.op.nn.adaptive_avg_pool1d(x0), relax.TensorStructInfo((2, 3, 64), "float16")
+    )
+    _check_inference(
+        bb, relax.op.nn.adaptive_avg_pool1d(x1), relax.TensorStructInfo((2, 3, 64), "int8")
+    )
+    _check_inference(
+        bb, relax.op.nn.adaptive_avg_pool1d(x2), relax.TensorStructInfo((2, 3, 64), "int64")
+    )
+
+
+def test_adaptive_avg_pool1d_wrong_output_size_ndim():
+    x = relax.Var("x", R.Tensor((2, 3, 64), "float32"))
+    with pytest.raises(TVMError):
+        relax.op.nn.adaptive_avg_pool1d(x, output_size=(32, 32))
+
+
+def test_adaptive_avg_pool1d_infer_struct_info_wrong_layout_string():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3, 64), "float32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.adaptive_avg_pool1d(x, layout="OIW"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.adaptive_avg_pool1d(x, out_layout="OWI"))
+
+
+def test_adaptive_avg_pool1d_wrong_input_ndim():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 28, 28), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=2))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.adaptive_avg_pool1d(x0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.adaptive_avg_pool1d(x1))
+
+
+def test_adaptive_avg_pool1d_infer_struct_info_wrong_input_type():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 64)))
+    x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 64), "float32")))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.adaptive_avg_pool1d(x0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.adaptive_avg_pool1d(x1))
+
+
 def test_adaptive_avg_pool2d_infer_struct_info():
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
@@ -1112,6 +1262,198 @@ def test_adaptive_avg_pool2d_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.nn.adaptive_avg_pool2d(x0))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.nn.adaptive_avg_pool2d(x1))
+
+
+def test_adaptive_avg_pool3d_infer_struct_info():
+    bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
+
+    x0 = relax.Var("x", R.Tensor((2, 3, 32, 32, 32), "float32"))
+    x1 = relax.Var("x", R.Tensor((2, 32, 32, 32, 3), "float32"))
+    x2 = relax.Var("x", R.Tensor("float32", ndim=5))
+    x3 = relax.Var("x", R.Tensor("float32"))
+    x4 = relax.Var("x", R.Tensor(ndim=5))
+    x5 = relax.Var("x", R.Tensor())
+    x6 = relax.Var("x", R.Tensor((2, 4, 32, 32, 32, 16), "float32"))
+    x7 = relax.Var("x", R.Tensor((2, 3, 32, 32, 32), "float32", vdev0))
+
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x0),
+        relax.TensorStructInfo((2, 3, 32, 32, 32), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x7),
+        relax.TensorStructInfo((2, 3, 32, 32, 32), "float32", vdev0),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x0, output_size=30),
+        relax.TensorStructInfo((2, 3, 30, 30, 30), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x0, output_size=(28, 30, 32)),
+        relax.TensorStructInfo((2, 3, 28, 30, 32), "float32"),
+    )
+
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x1, layout="NCDHW"),
+        relax.TensorStructInfo((2, 32, 32, 32, 3), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x0, out_layout="NCDHW"),
+        relax.TensorStructInfo((2, 3, 32, 32, 32), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x6, layout="NCDHW16c", out_layout="NDHWC16c"),
+        relax.TensorStructInfo((2, 32, 32, 32, 4, 16), "float32"),
+    )
+
+    _check_inference(
+        bb, relax.op.nn.adaptive_avg_pool3d(x2), relax.TensorStructInfo(dtype="float32", ndim=5)
+    )
+    _check_inference(
+        bb, relax.op.nn.adaptive_avg_pool3d(x3), relax.TensorStructInfo(dtype="float32", ndim=5)
+    )
+    _check_inference(
+        bb, relax.op.nn.adaptive_avg_pool3d(x4), relax.TensorStructInfo(dtype="", ndim=5)
+    )
+    _check_inference(
+        bb, relax.op.nn.adaptive_avg_pool3d(x5), relax.TensorStructInfo(dtype="", ndim=5)
+    )
+
+
+def test_adaptive_avg_pool3d_infer_struct_info_shape_symbolic():
+    bb = relax.BlockBuilder()
+
+    n = tir.Var("n", "int64")
+    c = tir.Var("c", "int64")
+    c16 = tir.Var("c16", "int64")
+    d = tir.Var("d", "int64")
+    ih = tir.Var("ih", "int64")
+    iw = tir.Var("iw", "int64")
+
+    x0 = relax.Var("x", R.Tensor((n, c, d, ih, iw), "float32"))
+    x1 = relax.Var("x", R.Tensor((n, c, d, ih, iw, c16), "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x0),
+        relax.TensorStructInfo((n, c, d, ih, iw), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x0, output_size=256),
+        relax.TensorStructInfo((n, c, 256, 256, 256), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x0, output_size=(256, 128, 64)),
+        relax.TensorStructInfo((n, c, 256, 128, 64), "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x1, layout="NCDHW16c", out_layout="NDHWC"),
+        relax.TensorStructInfo((n, d, ih, iw, c * 16), "float32"),
+    )
+
+
+def test_adaptive_avg_pool3d_infer_struct_info_shape_var():
+    bb = relax.BlockBuilder()
+
+    s0 = relax.Var("s", relax.ShapeStructInfo(ndim=5))
+    s1 = relax.Var("s", relax.ShapeStructInfo(ndim=6))
+    s2 = relax.Var("s", relax.ShapeStructInfo())
+
+    x0 = relax.Var("x", relax.TensorStructInfo(s0, "float32"))
+    x1 = relax.Var("x", relax.TensorStructInfo(s1, "float32"))
+    x2 = relax.Var("x", relax.TensorStructInfo(s2, "float32"))
+
+    _check_inference(bb, relax.op.nn.adaptive_avg_pool3d(x0), relax.TensorStructInfo(s0, "float32"))
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x0, output_size=32),
+        relax.TensorStructInfo(dtype="float32", ndim=5),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x1, layout="NCDHW16c"),
+        relax.TensorStructInfo(s1, "float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x0, out_layout="NCDHW16c"),
+        relax.TensorStructInfo(dtype="float32", ndim=6),
+    )
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x2, out_layout="NCDHW16c"),
+        relax.TensorStructInfo(dtype="float32", ndim=6),
+    )
+
+
+def test_adaptive_avg_pool3d_infer_struct_info_more_input_dtype():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 32, 32, 32), "float16"))
+    x1 = relax.Var("x", R.Tensor((2, 3, 32, 32, 32), "int8"))
+    x2 = relax.Var("x", R.Tensor((2, 3, 32, 32, 32), "int64"))
+
+    _check_inference(
+        bb,
+        relax.op.nn.adaptive_avg_pool3d(x0),
+        relax.TensorStructInfo((2, 3, 32, 32, 32), "float16"),
+    )
+    _check_inference(
+        bb, relax.op.nn.adaptive_avg_pool3d(x1), relax.TensorStructInfo((2, 3, 32, 32, 32), "int8")
+    )
+    _check_inference(
+        bb, relax.op.nn.adaptive_avg_pool3d(x2), relax.TensorStructInfo((2, 3, 32, 32, 32), "int64")
+    )
+
+
+def test_adaptive_avg_pool3d_wrong_output_size_ndim():
+    x = relax.Var("x", R.Tensor((2, 3, 32, 32, 32), "float32"))
+
+    with pytest.raises(TVMError):
+        relax.op.nn.adaptive_avg_pool3d(x, (32, 32, 32, 32))
+
+
+def test_adaptive_avg_pool3d_infer_struct_info_wrong_layout_string():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((2, 3, 28, 28, 28), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.adaptive_avg_pool3d(x, layout="OIDHW"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.adaptive_avg_pool3d(x, out_layout="OHIDW"))
+
+
+def test_adaptive_avg_pool3d_wrong_input_ndim():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 28, 28, 28, 3), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=3))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.adaptive_avg_pool3d(x0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.adaptive_avg_pool3d(x1))
+
+
+def test_adaptive_avg_pool3d_infer_struct_info_wrong_input_type():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 28, 28, 28)))
+    x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 28, 28, 28), "float32")))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.adaptive_avg_pool3d(x0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nn.adaptive_avg_pool3d(x1))
 
 
 if __name__ == "__main__":
