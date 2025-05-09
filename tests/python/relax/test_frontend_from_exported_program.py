@@ -2973,9 +2973,39 @@ def test_interpolate():
                 R.output(gv)
             return gv
 
+    class InterpolateBicubic(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(input, (224, 224), mode="bicubic")
+
+    @tvm.script.ir_module
+    class expected_bicubic:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 112, 112), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 224, 224), dtype="float32") = R.image.resize2d(
+                    input,
+                    R.shape([224, 224]),
+                    roi=[T.float32(0.0), T.float32(0.0), T.float32(0.0), T.float32(0.0)],
+                    layout="NCHW",
+                    method="cubic",
+                    coordinate_transformation_mode="half_pixel",
+                    rounding_method="round",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0.0,
+                    out_dtype="void",
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
     example_args = (torch.randn(1, 3, 112, 112, dtype=torch.float32),)
     verify_model(InterpolateBilinear(), example_args, {}, expected_bilinear)
     verify_model(InterpolateNearest(), example_args, {}, expected_nearest)
+    verify_model(InterpolateBicubic(), example_args, {}, expected_bicubic)
 
 
 def test_mean():
