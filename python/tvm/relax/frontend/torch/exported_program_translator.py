@@ -212,7 +212,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
         align_corners = (
-                node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", None)
+            node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", None)
         )
         if size is not None:
             scale_factor = None
