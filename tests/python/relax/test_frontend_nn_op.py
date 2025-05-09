@@ -305,7 +305,7 @@ def test_image():
                 method="nearest_neighbor",
                 coordinate_transformation_mode="asymmetric",
                 rounding_method="round",
-                cubic_alpha=-0.5,
+                cubic_alpha=-0.75,
                 cubic_exclude=0,
                 extrapolation_value=0,
                 out_dtype="void",
