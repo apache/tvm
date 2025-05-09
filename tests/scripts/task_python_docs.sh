@@ -46,7 +46,9 @@ clean_files() {
 sphinx_precheck() {
     clean_files
     echo "PreCheck sphinx doc generation WARNINGS.."
-    make cython3
+
+    # setup cython
+    cd python; python3 setup.py build_ext --inplace; cd ..
 
     pushd docs
     make clean
@@ -58,8 +60,6 @@ sphinx_precheck() {
 
 function join_by { local IFS="$1"; shift; echo "$*"; }
 
-# Convert bash tutorials to Python format
-tests/scripts/task_convert_scripts_to_python.sh
 
 # These warnings are produced during the docs build for various reasons and are
 # known to not signficantly affect the output. Don't add anything new to this
@@ -121,20 +121,17 @@ fi
 
 
 clean_files
-# prepare auto scheduler tutorials
-rm -rf gallery/how_to/tune_with_auto_scheduler/*.json
-rm -rf gallery/tutorial/*.json
-cp -f gallery/how_to/tune_with_autoscheduler/ci_logs/*.json gallery/how_to/tune_with_autoscheduler
-cp -f gallery/how_to/tune_with_autoscheduler/ci_logs/*.json gallery/tutorial
-
 
 # cleanup stale log files
 find . -type f -path "*.log" | xargs rm -f
 find . -type f -path "*.pyc" | xargs rm -f
-make cython3
+
+# setup cython
+cd python; python3 setup.py build_ext --inplace; cd ..
+
 
 cd docs
-PYTHONPATH=$(pwd)/../python make html SPHINXOPTS='-j auto' |& tee /tmp/$$.log.txt
+PYTHONPATH=$(pwd)/../python make htmldepoly SPHINXOPTS='-j auto' |& tee /tmp/$$.log.txt
 if grep -E "failed to execute|Segmentation fault" < /tmp/$$.log.txt; then
     echo "Some of sphinx-gallery item example failed to execute."
     exit 1

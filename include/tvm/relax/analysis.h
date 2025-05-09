@@ -28,9 +28,10 @@
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/relay/op_attr_types.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/index_map.h>
 
 #include <functional>
 #include <utility>
@@ -213,7 +214,7 @@ enum class BaseCheckResult {
    * - (b) We automatically insert match_cast at function boundary, so
    *       we can erase (int)->int argument as (object)->int.
    *       The input shape/type mismatch will be detected by runtime checks at function boundary.
-   *       This behavior is also consistent with the PackedFunc behavior.
+   *       This behavior is also consistent with the ffi::Function behavior.
    *
    * \note This level means there is no problem about static known information.
    *       It is OK for the checker to do best effort and return this value.
@@ -511,7 +512,7 @@ TVM_DLL Expr RemoveAllUnused(Expr expr);
  * \note This analysis applies on TIR function but is primarily used by relax passes.
  *       As a result we place it under the relax namespace.
  */
-TVM_DLL relay::OpPatternKind AnalyzeOpPatternKind(const tir::PrimFunc& func);
+TVM_DLL OpPatternKind AnalyzeOpPatternKind(const tir::PrimFunc& func);
 
 /*!
  * \brief Check if the given PrimFunc is essentially doing a reshape operation.
@@ -535,13 +536,13 @@ TVM_DLL bool HasReshapePattern(const tir::PrimFunc& func);
  *   the caller can pass the function's name so recursive calls
  *   can be ignored in the check (must be a Var or GlobalVar).
  * \return The impure expression, if one exists within the given
- *   expression.  Otherwise, NullOpt.
+ *   expression.  Otherwise, std::nullopt.
  * \note Relies on StructInfo annotations, so ensure that the module has been normalized first.
  *   Also, an impure call in a *nested* function does *not* mean that the outer expression contains
  *   an impure call--it only does if the nested function is *later called*.
  */
-TVM_DLL Optional<Expr> FindImpureCall(const Expr& expr,
-                                      const Optional<Expr>& own_name = Optional<Expr>(nullptr));
+TVM_DLL Optional<Expr> FindImpureCall(
+    const Expr& expr, const Optional<Expr>& own_name = Optional<Expr>(std::nullopt));
 
 /*!
  * \brief Check if the given expression (likely a function body) contains any impure calls.
@@ -555,7 +556,7 @@ TVM_DLL Optional<Expr> FindImpureCall(const Expr& expr,
  *   an impure call--it only does if the nested function is *later called*.
  */
 TVM_DLL bool ContainsImpureCall(const Expr& expr,
-                                const Optional<Expr>& own_name = Optional<Expr>(nullptr));
+                                const Optional<Expr>& own_name = Optional<Expr>(std::nullopt));
 
 /*!
  * \brief Check if the IRModule is well formed.

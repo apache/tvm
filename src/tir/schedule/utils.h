@@ -218,12 +218,12 @@ inline const int64_t* GetLoopIntExtent(const StmtSRef& loop_sref) {
  * \brief Check if an expression consists of a single variable,
  * or a variable plus/minus an constant integer shift
  * \param expr The expression to be checked
- * \return The single variable in the expression, or NullOpt if the expression is neither a variable
- * or a constant shift from a variable
+ * \return The single variable in the expression, or std::nullopt if the expression is neither a
+ * variable or a constant shift from a variable
  */
 inline Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr, Optional<IntImm>* constant) {
   if (const auto* var = expr.as<VarNode>()) {
-    *constant = NullOpt;
+    *constant = std::nullopt;
     return GetRef<Var>(var);
   }
   arith::PVar<Var> var;
@@ -239,7 +239,7 @@ inline Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr, Optional<IntImm>*
     *constant = IntImm(result->dtype, -result->value);
     return var.Eval();
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 /******** Annotation ********/
@@ -249,17 +249,17 @@ inline Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr, Optional<IntImm>*
  * \tparam TObjectRef The type of the annotation value
  * \param sref The sref to the block or the for loop
  * \param ann_key The annotation key to be looked up
- * \return NullOpt if not found; otherwise the annotation value
+ * \return std::nullopt if not found; otherwise the annotation value
  */
 template <class TObjectRef, class TStmtNode>
 inline Optional<TObjectRef> GetAnn(const TStmtNode* stmt, const String& ann_key) {
-  const Map<String, ObjectRef>* annotations = &stmt->annotations;
+  const Map<String, ffi::Any>* annotations = &stmt->annotations;
   for (const auto& ann : *annotations) {
     if (ann.first == ann_key) {
       return Downcast<TObjectRef>(ann.second);
     }
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 /*!
@@ -267,7 +267,7 @@ inline Optional<TObjectRef> GetAnn(const TStmtNode* stmt, const String& ann_key)
  * \tparam TObjectRef The type of the annotation value
  * \param sref The sref to the block or the for loop
  * \param ann_key The annotation key to be looked up
- * \return NullOpt if not found; otherwise the annotation value
+ * \return std::nullopt if not found; otherwise the annotation value
  */
 template <class TObjectRef>
 inline Optional<TObjectRef> GetAnn(const StmtSRef& sref, const String& ann_key) {
@@ -409,8 +409,8 @@ inline bool HasBlock(const Schedule& sch, const std::string& block_name) {
  * \param rv_map The substitution map for variables.
  * \return The transformed objects.
  */
-Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
-                                   const std::unordered_map<const Object*, const Object*>& rv_map);
+Array<Any> TranslateInputRVs(const Array<Any>& inputs,
+                             const std::unordered_map<const Object*, const Object*>& rv_map);
 
 /*!
  * \brief Update the variable substitution map according to the new outputs.
@@ -418,7 +418,7 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
  * \param new_outputs The new outputs of the same schedule instruction.
  * \param rv_map The substitution map for variables.
  */
-void TranslateAddOutputRVs(const Array<ObjectRef>& old_outputs, const Array<ObjectRef>& new_outputs,
+void TranslateAddOutputRVs(const Array<Any>& old_outputs, const Array<Any>& new_outputs,
                            std::unordered_map<const Object*, const Object*>* rv_map);
 
 /*!

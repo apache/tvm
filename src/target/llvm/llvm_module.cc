@@ -23,8 +23,6 @@
  */
 #ifdef TVM_LLVM_VERSION
 
-#include "llvm_module.h"
-
 #include <dmlc/io.h>
 #include <llvm/ADT/SmallString.h>
 #include <llvm/ADT/StringRef.h>
@@ -55,12 +53,10 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
-#include <tvm/relay/runtime.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/metadata.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
@@ -80,7 +76,6 @@
 
 #include "../../runtime/file_utils.h"
 #include "../../runtime/library_module.h"
-#include "../func_registry_generator.h"
 #include "codegen_blob.h"
 #include "codegen_cpu.h"
 #include "codegen_llvm.h"
@@ -89,9 +84,9 @@
 namespace tvm {
 namespace codegen {
 
-using runtime::PackedFunc;
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
+using ffi::Any;
+using ffi::Function;
+using ffi::PackedArgs;
 
 class LLVMModuleNode final : public runtime::ModuleNode {
  public:
@@ -99,7 +94,7 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   const char* type_key() const final { return "llvm"; }
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   /*! \brief Get the property of the runtime module .*/
   // TODO(tvm-team): Make it serializable
@@ -159,12 +154,13 @@ LLVMModuleNode::~LLVMModuleNode() {
   module_owning_ptr_.reset();
 }
 
-PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
+ffi::Function LLVMModuleNode::GetFunction(const String& name,
+                                          const ObjectPtr<Object>& sptr_to_self) {
   if (name == "__tvm_is_system_module") {
     bool flag = (module_->getFunction("__tvm_module_startup") != nullptr);
-    return PackedFunc([flag](TVMArgs args, TVMRetValue* rv) { *rv = flag; });
+    return ffi::Function([flag](ffi::PackedArgs args, ffi::Any* rv) { *rv = flag; });
   } else if (name == "__tvm_get_system_lib_prefix") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+    return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) {
       auto* md = module_->getModuleFlag("tvm_system_lib_prefix");
       if (md != nullptr) {
         *rv = llvm::cast<llvm::MDString>(md)->getString().str();
@@ -173,15 +169,16 @@ PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Objec
       }
     });
   } else if (name == "get_func_names") {
-    return PackedFunc(
-        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->function_names_; });
+    return ffi::Function(
+        [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->function_names_; });
   } else if (name == "get_symbol") {
-    return PackedFunc(nullptr);
+    return ffi::Function(nullptr);
   } else if (name == "get_const_vars") {
-    return PackedFunc(nullptr);
+    return ffi::Function(nullptr);
   } else if (name == "_get_target_string") {
     std::string target_string = LLVMTarget::GetTargetMetadata(*module_);
-    return PackedFunc([target_string](TVMArgs args, TVMRetValue* rv) { *rv = target_string; });
+    return ffi::Function(
+        [target_string](ffi::PackedArgs args, ffi::Any* rv) { *rv = target_string; });
   }
   ICHECK(jit_engine_.size()) << "JIT engine type is missing";
   if ((jit_engine_ == "mcjit") && (mcjit_ee_ == nullptr)) InitMCJIT();
@@ -189,19 +186,19 @@ PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Objec
 
   std::lock_guard<std::mutex> lock(mutex_);
 
-  TVMBackendPackedCFunc faddr;
+  TVMFFISafeCallType faddr;
   With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
   if (name == runtime::symbol::tvm_module_main) {
     const char* entry_name = reinterpret_cast<const char*>(
         GetGlobalAddr(runtime::symbol::tvm_module_main, *llvm_target));
     ICHECK(entry_name != nullptr) << "Symbol " << runtime::symbol::tvm_module_main
                                   << " is not presented";
-    faddr = reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(entry_name, *llvm_target));
+    faddr = reinterpret_cast<TVMFFISafeCallType>(GetFunctionAddr(entry_name, *llvm_target));
   } else {
-    faddr = reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(name, *llvm_target));
+    faddr = reinterpret_cast<TVMFFISafeCallType>(GetFunctionAddr(name, *llvm_target));
   }
-  if (faddr == nullptr) return PackedFunc();
-  return WrapPackedFunc(faddr, sptr_to_self);
+  if (faddr == nullptr) return ffi::Function();
+  return tvm::runtime::WrapFFIFunction(faddr, sptr_to_self);
 }
 
 namespace {
@@ -328,19 +325,11 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   std::unique_ptr<CodeGenLLVM> cg = CodeGenLLVM::Create(llvm_target.get());
 
   std::string entry_func;
-  relay::Runtime runtime =
-      mod->GetAttr<relay::Runtime>(tvm::attr::kRuntime).value_or(relay::Runtime::Create("cpp"));
 
   Optional<String> system_lib_prefix = mod->GetAttr<String>(tvm::attr::kSystemLibPrefix);
-  if (!system_lib_prefix && runtime->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
-    system_lib_prefix = "";
-  }
-
-  bool target_c_runtime = runtime->name == "crt";
 
   for (auto kv : mod->functions) {
     if (!kv.second->IsInstance<PrimFuncNode>()) {
-      // (@jroesch): we relax constraints here, Relay functions will just be ignored.
       DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
       continue;
     }
@@ -361,10 +350,8 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
   // ICHECK(funcs.size() > 0);
   // TODO(tqchen): remove the entry function behavior as it does not
   // makes sense when we start to use multiple modules.
-  cg->Init("TVMMod", llvm_target.get(), system_lib_prefix, system_lib_prefix.defined(),
-           target_c_runtime);
+  cg->Init("TVMMod", llvm_target.get(), system_lib_prefix, system_lib_prefix.defined(), false);
   cg->SetFastMathFlags(llvm_target->GetFastMathFlags());
-
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
   if (entry_func.length() != 0) {
     cg->AddMainFunction(entry_func);
@@ -690,6 +677,19 @@ TVM_REGISTER_GLOBAL("target.llvm_get_system_x86_vendor").set_body_typed([]() -> 
   return "unimplemented";
 });
 
+TVM_REGISTER_GLOBAL("target.llvm_get_vector_width").set_body_typed([](const Target& target) -> int {
+  auto use_target = target.defined() ? target : Target::Current(false);
+  // ignore non "llvm" target
+  if (target.defined()) {
+    if (target->kind->name != "llvm") {
+      return -1;
+    }
+  }
+  auto llvm_instance = std::make_unique<LLVMInstance>();
+  LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
+  return llvm_backend.GetVectorWidth();
+});
+
 TVM_REGISTER_GLOBAL("target.llvm_get_system_triple").set_body_typed([]() -> String {
   return llvm::sys::getDefaultTargetTriple();
 });
@@ -794,89 +794,6 @@ TVM_REGISTER_GLOBAL("codegen.codegen_blob")
       n->SetJITEngine(llvm_target->GetJITEngine());
       return runtime::Module(n);
     });
-
-runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata, Target target,
-                                            tvm::relay::Runtime runtime) {
-  auto llvm_instance = std::make_unique<LLVMInstance>();
-  With<LLVMTarget> llvm_target(*llvm_instance, target);
-
-  Optional<String> system_lib_prefix = NullOpt;
-  if (runtime->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
-    system_lib_prefix = "";
-  }
-
-  auto cg = std::make_unique<CodeGenCPU>();
-
-  cg->Init("TVMMetadataMod", llvm_target.get(), system_lib_prefix, system_lib_prefix.defined(),
-           /*target_c_runtime=*/false);
-
-  cg->DefineMetadata(metadata);
-  auto mod = cg->Finish();
-  llvm_target->SetTargetMetadata(mod.get());
-  mod->addModuleFlag(llvm::Module::Override, "Debug Info Version", llvm::DEBUG_METADATA_VERSION);
-
-  mod->addModuleFlag(
-      llvm::Module::Override, "Dwarf Version",
-      llvm_target->GetOrCreateTargetMachine()->getTargetTriple().isOSDarwin() ? 2 : 4);
-
-  auto n = make_object<LLVMModuleNode>();
-  n->Init(std::move(mod), std::move(llvm_instance));
-  n->SetJITEngine(llvm_target->GetJITEngine());
-
-  auto meta_mod = MetadataModuleCreate(metadata);
-  meta_mod->Import(runtime::Module(n));
-  return meta_mod;
-}
-
-runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& modules, Target target,
-                                            tvm::relay::Runtime runtime) {
-  Array<String> func_names;
-  for (runtime::Module mod : modules) {
-    auto pf_funcs = mod.GetFunction("get_func_names");
-    if (pf_funcs != nullptr) {
-      Array<String> func_names_ = pf_funcs();
-      for (const auto& fname : func_names_) {
-        func_names.push_back(fname);
-      }
-    }
-  }
-
-  auto llvm_instance = std::make_unique<LLVMInstance>();
-  With<LLVMTarget> llvm_target(*llvm_instance, target);
-
-  Optional<String> system_lib_prefix = NullOpt;
-  if (runtime->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
-    system_lib_prefix = "";
-  }
-
-  bool target_c_runtime = runtime->name == "crt";
-  ICHECK(system_lib_prefix.defined() && target_c_runtime)
-      << "For LLVM C-runtime metadata module, must include --system-lib and --runtime=c; "
-      << "got target: " << target->str();
-  auto cg = std::make_unique<CodeGenCPU>();
-  cg->Init("TVMMetadataMod", llvm_target.operator->(), system_lib_prefix,
-           system_lib_prefix.defined(), target_c_runtime);
-
-  cg->DefineFunctionRegistry(func_names);
-  auto mod = cg->Finish();
-  llvm_target->SetTargetMetadata(mod.get());
-  mod->addModuleFlag(llvm::Module::Override, "Debug Info Version", llvm::DEBUG_METADATA_VERSION);
-
-  mod->addModuleFlag(
-      llvm::Module::Override, "Dwarf Version",
-      llvm_target->GetOrCreateTargetMachine()->getTargetTriple().isOSDarwin() ? 2 : 4);
-
-  auto n = make_object<LLVMModuleNode>();
-  n->Init(std::move(mod), std::move(llvm_instance));
-  n->SetJITEngine(llvm_target->GetJITEngine());
-  for (auto m : modules) {
-    n->Import(m);
-  }
-  return runtime::Module(n);
-}
-
-TVM_REGISTER_GLOBAL("runtime.CreateLLVMCrtMetadataModule")
-    .set_body_typed(CreateLLVMCrtMetadataModule);
 
 }  // namespace codegen
 }  // namespace tvm

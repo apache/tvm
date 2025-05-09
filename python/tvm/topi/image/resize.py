@@ -236,7 +236,6 @@ def _resize_1d(
     exclude_outside=0,
     out_dtype=None,
 ):
-
     """Perform resize operation on the data with selected method and options.
 
     Parameters
@@ -510,7 +509,6 @@ def _resize_2d(
     exclude_outside=0,
     out_dtype=None,
 ):
-
     """Perform resize operation on the data with selected method and options.
 
     Parameters
@@ -976,7 +974,6 @@ def _resize_3d(
     exclude_outside=0,
     out_dtype=None,
 ):
-
     """Perform resize operation on the data with selected method and options.
 
     Parameters

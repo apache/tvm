@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_OP_TENSOR_MANIPULATE_H_
 #define TVM_RELAX_OP_TENSOR_MANIPULATE_H_
 
+#include <tvm/ffi/container/variant.h>
 #include <tvm/relax/attrs/manipulate.h>
 
 #include "../op_common.h"
@@ -40,10 +41,10 @@ Expr broadcast_to(Expr x, Expr shape);
  * \param tensors An Expr in Tuple type, containing the tensors to be concatenated,
  * or a list of tensors
  * \param axis The axis along which the tensors are concatenated.
- * If it is `NullOpt`, the input tensor is required to be flattened before concatenation.
+ * If it is `std::nullopt`, the input tensor is required to be flattened before concatenation.
  * \return The concatenated tensor.
  */
-Expr concat(Expr tensors, Optional<Integer> axis);
+Expr concat(Expr tensors, Optional<int64_t> axis);
 
 /*!
  * \brief Insert new axes at the positions given by `axis`.
@@ -73,7 +74,7 @@ Expr flatten(Expr x);
  */
 Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value,
                       Optional<Array<IntImm>> axis_separators,
-                      Optional<Array<IntImm>> input_axis_separators = NullOpt);
+                      Optional<Array<IntImm>> input_axis_separators = std::nullopt);
 
 /*!
  * \brief Permutes the dimensions of an array.
@@ -112,12 +113,18 @@ Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis)
  * \brief Squeeze axes in the array.
  * \param x The input data to the operator.
  * \param axis The set of axes to remove.
- * If it is `NullOpt`, remove all axis of dimensions 1.
+ * If it is `std::nullopt`, remove all axis of dimensions 1.
  * If any specified axis has dimension that does not equal 1, it is an error.
  * \return The squeezed result.
  */
 Expr squeeze(Expr x, Optional<Array<Integer>> axis);
-
+/*!
+ * \brief Stack tensors along the specified axis.
+ * \param tensors The input tensors to be stacked.
+ * \param axis The axis along which the tensors will be stacked.
+ * \return The stacked result.
+ */
+Expr stack(Expr tensors, Optional<Integer> axis);
 /*!
  * \brief Return a summation of data to the shape of collapse_target.
  * For details, please see the operator `relax.collapse_sum_to`.
@@ -147,7 +154,7 @@ Expr collapse_sum_to(Expr data, Expr shape);
  * from the backward. By default, use the flattened input array, and return a flat output array.
  * \return The computed result.
  */
-Expr repeat(Expr data, int repeats, Optional<Integer> axis = NullOpt);
+Expr repeat(Expr data, int repeats, Optional<int64_t> axis = std::nullopt);
 
 /*!
  * \brief Construct an array by repeating data the number of times given by reps.
@@ -199,6 +206,39 @@ Expr gather_elements(Expr data, Expr indices, int axis = 0);
  * indices.shape[-1]:]
  */
 Expr gather_nd(Expr data, Expr indices, int batch_dims = 0);
+
+/*!
+ * \brief NumPy/PyTorch‑style advanced indexing with tensors.
+ * \param data The input tensor.
+ * \param indices  A Tuple expression (or list) containing the index tensors.
+ * \return The indexed tensor.
+ *
+ * \note When all shapes are static, Relax checks that the index shapes are
+ *       broadcast-compatible. Bounds checking of the values in indices is
+ *       deferred to runtime.
+ */
+Expr index_tensor(Expr data, Expr indices);
+
+/*!
+ * \brief Put values into an array according to indices.
+ * \param data The input tensor to be modified.
+ * \param indices The index positions where values should be placed.
+ *                This should be a tuple of 1D tensors (one for each dimension).
+ * \param values The values to place at the specified indices.
+ * \param accumulate Whether to accumulate (add) values rather than replace.
+ *                  If true, equivalent to tensor[indices] += values.
+ *                  If false, equivalent to tensor[indices] = values.
+ * \return The computed result with values placed at specified indices.
+ */
+Expr index_put(Expr data, Expr indices, Expr values, bool accumulate = false);
+
+/*!
+ * \brief Generate coordinate grids from input 1D tensors.
+ * \param tensors A tuple of 1D tensors representing coordinate vectors.
+ * \param indexing Indexing mode, either "ij" (matrix indexing) or "xy" (Cartesian indexing).
+ * \return A tuple of tensors representing the coordinate grids.
+ */
+Expr meshgrid(Expr tensors, Optional<String> indexing = String("ij"));
 
 /*!
  * \brief Scatter updates into an array according to indices.

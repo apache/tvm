@@ -85,7 +85,7 @@ class FunctionInliner : public ExprMutator {
     } else if (auto opt = replacements_.Get(gvar->name_hint)) {
       return opt;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }
 

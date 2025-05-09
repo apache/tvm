@@ -23,11 +23,12 @@
 #ifndef TVM_NODE_REFLECTION_H_
 #define TVM_NODE_REFLECTION_H_
 
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/memory.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/memory.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
@@ -62,7 +63,10 @@ class AttrVisitor {
   TVM_DLL virtual void Visit(const char* key, void** value) = 0;
   TVM_DLL virtual void Visit(const char* key, DataType* value) = 0;
   TVM_DLL virtual void Visit(const char* key, runtime::NDArray* value) = 0;
-  TVM_DLL virtual void Visit(const char* key, runtime::ObjectRef* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, ffi::ObjectRef* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, Optional<double>* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, Optional<int64_t>* value) = 0;
+
   template <typename ENum, typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
   void Visit(const char* key, ENum* ptr) {
     static_assert(std::is_same<int, typename std::underlying_type<ENum>::type>::value,
@@ -152,7 +156,7 @@ class ReflectionVTable {
    * \param kwargs the arguments in format key1, value1, ..., key_n, value_n.
    * \return The created object.
    */
-  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const runtime::TVMArgs& kwargs);
+  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const ffi::PackedArgs& kwargs);
   /*!
    * \brief Create an object by giving kwargs about its fields.
    *
@@ -160,7 +164,7 @@ class ReflectionVTable {
    * \param kwargs The field arguments.
    * \return The created object.
    */
-  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const Map<String, ObjectRef>& kwargs);
+  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const Map<String, Any>& kwargs);
   /*!
    * \brief Get an field object by the attr name.
    * \param self The pointer to the object.
@@ -168,7 +172,7 @@ class ReflectionVTable {
    * \return The corresponding attribute value.
    * \note This function will throw an exception if the object does not contain the field.
    */
-  TVM_DLL runtime::TVMRetValue GetAttr(Object* self, const String& attr_name) const;
+  TVM_DLL ffi::Any GetAttr(Object* self, const String& attr_name) const;
 
   /*!
    * \brief List all the fields in the object.
@@ -242,12 +246,12 @@ class ReflectionVTable::Registry {
  *  struct StringObjTrait {
  *    static constexpr const std::nullptr_t VisitAttrs = nullptr;
  *
- *    static void SHashReduce(const runtime::StringObj* key, SHashReducer hash_reduce) {
- *      hash_reduce->SHashReduceHashedValue(runtime::String::StableHashBytes(key->data, key->size));
+ *    static void SHashReduce(const StringObj* key, SHashReducer hash_reduce) {
+ *      hash_reduce->SHashReduceHashedValue(String::StableHashBytes(key->data, key->size));
  *    }
  *
- *    static bool SEqualReduce(const runtime::StringObj* lhs,
- *                             const runtime::StringObj* rhs,
+ *    static bool SEqualReduce(const StringObj* lhs,
+ *                             const StringObj* rhs,
  *                             SEqualReducer equal) {
  *      if (lhs == rhs) return true;
  *      if (lhs->size != rhs->size) return false;
@@ -256,7 +260,7 @@ class ReflectionVTable::Registry {
  *    }
  *  };
  *
- *  TVM_REGISTER_REFLECTION_VTABLE(runtime::StringObj, StringObjTrait);
+ *  TVM_REGISTER_REFLECTION_VTABLE(StringObj, StringObjTrait);
  *
  * \endcode
  *
@@ -276,7 +280,7 @@ class ReflectionVTable::Registry {
   TVM_REGISTER_OBJECT_TYPE(TypeName);                                                \
   TVM_REGISTER_REFLECTION_VTABLE(TypeName, ::tvm::detail::ReflectionTrait<TypeName>) \
       .set_creator([](const std::string&) -> ObjectPtr<Object> {                     \
-        return ::tvm::runtime::make_object<TypeName>();                              \
+        return ::tvm::ffi::make_object<TypeName>();                                  \
       })
 
 // Implementation details

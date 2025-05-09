@@ -26,7 +26,7 @@ from .expr import Var, SizeVar, Reduce, FloatImm, IntImm, StringImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
 from .expr import Select, BufferLoad, ProducerLoad, Ramp, Broadcast, Shuffle
-from .expr import Call, CallEffectKind, Let, IterVar, CommReducer, Any
+from .expr import Call, CallEffectKind, Let, IterVar, CommReducer
 
 from .stmt import Stmt, LetStmt, AssertStmt, ForKind, For, While
 from .stmt import (
@@ -48,9 +48,8 @@ from .function import PrimFunc, TensorIntrin, IndexMap
 from .op import call_packed_lowered, call_cpacked_lowered, call_tir
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
 from .op import call_llvm_intrin, call_llvm_pure_intrin, ret, all, any, min_value, max_value, trace
-from .op import tvm_check_return
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
-from .op import tvm_tuple, tvm_struct_get, tvm_struct_set
+from .op import tvm_tuple, handle_add_byte_offset, tvm_struct_get, tvm_struct_set
 from .op import address_of, lookup_param, assume, undef
 from .op import tvm_thread_allreduce, type_annotation, tvm_access_ptr, tvm_throw_last_error
 from .op import (
@@ -90,13 +89,14 @@ from .op import bitwise_and, bitwise_not, bitwise_or, bitwise_xor
 from .op import erf, sigmoid, sqrt, rsqrt, floor, ceil, hypot
 from .op import trunc, abs, round, nextafter, nearbyint, power, pow, popcount, fmod, if_then_else
 from .op import likely, isnan, isnullptr, isfinite, isinf, copysign
-from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, ceildiv
+from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, ceildiv, logaddexp
 from .op import comm_reducer, min, max, sum
 from .op import q_multiply_shift, q_multiply_shift_per_axis, shift_left, shift_right
 from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
 from .op import start_profile_intrinsic, end_profile_intrinsic
 from .op import vscale, get_active_lane_mask, get_vscale_expr
 from .op import dp4a
+from .op import ignore_loop_partition
 from .generic import add, subtract, multiply
 
 from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError
@@ -107,4 +107,5 @@ from . import ir_builder
 from . import transform
 from . import analysis
 from . import stmt_functor
-from . import usmp
+from .build import build
+from .pipeline import get_tir_pipeline, get_default_tir_pipeline

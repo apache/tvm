@@ -95,7 +95,7 @@ def evaluate(hexagon_session, sch, size):
     """Evaluate schedule."""
     a_shape = size
 
-    func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v69"))
+    func_tir = tvm.compile(sch.mod["main"], target=get_hexagon_target("v69"))
     module = hexagon_session.load_module(func_tir)
 
     a = np.random.randint(-128, 127, a_shape, dtype="int8")
@@ -115,7 +115,7 @@ def evaluate(hexagon_session, sch, size):
     runtime = timer(a_hexagon, a_vtcm_hexagon)
 
     gbps = round((size / 2**30) / runtime.mean, 4)
-    tvm.testing.assert_allclose(a_vtcm_hexagon.asnumpy(), a)
+    tvm.testing.assert_allclose(a_vtcm_hexagon.numpy(), a)
 
     return gbps
 

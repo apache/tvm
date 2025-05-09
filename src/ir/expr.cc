@@ -36,43 +36,6 @@ PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm(DataType::Int(32), value)) {
 
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(DataType::Float(32), value)) {}
 
-PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
-  using runtime::ObjectTypeChecker;
-  if (const auto* ptr = ref.as<tir::IterVarNode>()) {
-    return ptr->var;
-  }
-  if (auto opt = ref.as<te::Tensor>()) {
-    return opt.value()();
-  }
-  if (auto opt = ref.as<runtime::String>()) {
-    return tir::StringImm(opt.value());
-  }
-  if (auto opt = ref.as<runtime::Bool>()) {
-    return Bool(opt.value());
-  }
-  if (auto opt = ref.as<runtime::Int>()) {
-    return Integer(opt.value());
-  }
-  if (const auto* buffer_region = ref.as<tir::BufferRegionNode>()) {
-    Array<PrimExpr> indices;
-    indices.reserve(buffer_region->region.size());
-    for (const Range& r : buffer_region->region) {
-      if (tvm::tir::is_one(r->extent)) {
-        indices.push_back(r->min);
-      } else if (r->extent.as<IntImmNode>()) {
-        indices.push_back(tir::Ramp(r->min, tvm::tir::make_const(r->min->dtype, 1), r->extent));
-      } else {
-        LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: " << ref;
-      }
-    }
-    return tir::BufferLoad(buffer_region->buffer, indices);
-  }
-  Optional<String> actual_type = ObjectTypeChecker<PrimExpr>::CheckAndGetMismatch(ref.get());
-  ICHECK(!actual_type.defined()) << "Expected type " << ObjectTypeChecker<PrimExpr>::TypeName()
-                                 << " but got " << actual_type.value();
-  return Downcast<PrimExpr>(ref);
-}
-
 IntImm::IntImm(DataType dtype, int64_t value, Span span) {
   ICHECK(dtype.is_scalar()) << "ValueError: IntImm can only take scalar, but " << dtype
                             << " was supplied.";
@@ -110,7 +73,7 @@ TVM_REGISTER_NODE_TYPE(IntImmNode);
 FloatImm::FloatImm(DataType dtype, double value, Span span) {
   ICHECK_EQ(dtype.lanes(), 1) << "ValueError: FloatImm can only take scalar.";
 
-  ICHECK(dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8() ||
+  ICHECK(dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8() || dtype.is_float4() ||
          dtype.code() >= DataType::kCustomBegin)
       << "ValueError: FloatImm supports only float, but " << dtype << " was supplied.";
 
@@ -132,11 +95,17 @@ FloatImm::FloatImm(DataType dtype, double value, Span span) {
       ICHECK_LE(value, support::kMaxBFloat16)
           << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
     } else if (dtype.is_float8()) {
-      double bound = (dtype.code() == DataType::kE4M3Float) ? support::kMaxE4M3 : support::kMaxE5M2;
+      double bound =
+          (dtype.code() == DataType::kFloat8_e4m3fn) ? support::kMaxE4M3FN : support::kMaxE5M2;
       ICHECK_GE(value, -bound) << "ValueError: Literal value " << value << " exceeds minimum of "
                                << dtype;
       ICHECK_LE(value, bound) << "ValueError: Literal vaule " << value << " exceeds maximum of "
                               << dtype;
+    } else if (dtype.is_float4()) {
+      ICHECK_GE(value, -support::kMaxE2M1FN)
+          << "ValueError: Literal value " << value << " exceeds minimum of " << dtype;
+      ICHECK_LE(value, support::kMaxE2M1FN)
+          << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
     }
   }
   ObjectPtr<FloatImmNode> node = make_object<FloatImmNode>();

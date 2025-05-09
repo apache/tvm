@@ -46,7 +46,7 @@ class DeepCmpSEqualHandler : public SEqualReducer::Handler {
   void DeferFail(const ObjectPathPair&) final { fail_ = true; }
   bool IsFailDeferralEnabled() final { return false; }
 
-  ObjectRef MapLhsToRhs(const ObjectRef& lhs) final { return ObjectRef(nullptr); }
+  ObjectRef MapLhsToRhs(const ObjectRef& lhs) final { return lhs; }
   void MarkGraphNode() final {}
 
  private:
@@ -65,10 +65,7 @@ bool ExprDeepEqual::operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
     auto* prhs = rhs.as<IntImmNode>();
     return plhs->dtype == prhs->dtype && plhs->value == prhs->value;
   }
-  if (lhs.as<AnyNode>()) {
-    return false;
-  }
-  return DeepCmpSEqualHandler().SEqualReduce(lhs, rhs, false, NullOpt);
+  return DeepCmpSEqualHandler().SEqualReduce(lhs, rhs, false, std::nullopt);
 }
 
 TVM_REGISTER_GLOBAL("tir.analysis.expr_deep_equal")

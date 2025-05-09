@@ -16,13 +16,12 @@
 # under the License.
 # Prepare test library for standalone wasm runtime test.
 
+import os
 import tvm
 from tvm import te
 from tvm.contrib import tvmjs
-from tvm.relay.backend import Runtime
 from tvm import relax
 from tvm.script import relax as R
-import os
 
 
 def prepare_relax_lib(base_path):
@@ -44,16 +43,17 @@ def prepare_relax_lib(base_path):
 
 
 def prepare_tir_lib(base_path):
-    runtime = Runtime("cpp", {"system-lib": True})
     target = "llvm -mtriple=wasm32-unknown-unknown-wasm"
     if not tvm.runtime.enabled(target):
         raise RuntimeError("Target %s is not enbaled" % target)
     n = te.var("n")
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    s = te.create_schedule(B.op)
-    fadd = tvm.build(s, [A, B], target, runtime=runtime, name="add_one")
+    mod = tvm.IRModule.from_expr(
+        te.create_prim_func([A, B]).with_attr("global_symbol", "add_one")
+    ).with_attr("system_lib_prefix", "")
 
+    fadd = tvm.build(mod, target)
     wasm_path = os.path.join(base_path, "test_addone.wasm")
     fadd.export_library(wasm_path, fcompile=tvmjs.create_tvmjs_wasm)
 

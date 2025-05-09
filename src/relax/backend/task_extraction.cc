@@ -87,8 +87,8 @@ class TaskExtractor : public ExprVisitor {
         target_(std::move(target)),
         mod_eq_(ModuleEquality::Create(mod_eq_name)),
         func2task_(/*bucket_count*/ 0, ModuleHash(*mod_eq_), ModuleEqual(*mod_eq_)) {
-    normalize_mod_func_ = runtime::Registry::Get("tvm.meta_schedule.normalize_mod");
-    ICHECK(normalize_mod_func_) << "Normalization function is not found.";
+    normalize_mod_func_ = tvm::ffi::Function::GetGlobal("tvm.meta_schedule.normalize_mod");
+    ICHECK(normalize_mod_func_.has_value()) << "Normalization function is not found.";
   }
 
   void VisitExpr_(const CallNode* call) final {
@@ -104,7 +104,7 @@ class TaskExtractor : public ExprVisitor {
 
     const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
     const tir::PrimFunc& func = Downcast<tir::PrimFunc>(mod_->Lookup(global_var));
-    IRModule mod = (*normalize_mod_func_)(func);
+    IRModule mod = (*normalize_mod_func_)(func).cast<IRModule>();
     size_t weight = 1;
     auto it = func2task_.find(mod);
     if (it != func2task_.end()) {
@@ -136,7 +136,7 @@ class TaskExtractor : public ExprVisitor {
   Target target_;
   std::unique_ptr<ModuleEquality> mod_eq_;
   std::unordered_map<IRModule, ExtractedTask, ModuleHash, ModuleEqual> func2task_;
-  const runtime::PackedFunc* normalize_mod_func_;
+  std::optional<tvm::ffi::Function> normalize_mod_func_;
 };
 
 TVM_REGISTER_GLOBAL("relax.backend.MetaScheduleExtractTask")

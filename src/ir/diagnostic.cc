@@ -100,14 +100,14 @@ TVM_REGISTER_NODE_TYPE(DiagnosticRendererNode);
 void DiagnosticRenderer::Render(const DiagnosticContext& ctx) { (*this)->renderer(ctx); }
 
 TVM_DLL DiagnosticRenderer::DiagnosticRenderer(
-    TypedPackedFunc<void(DiagnosticContext ctx)> renderer) {
+    ffi::TypedFunction<void(DiagnosticContext ctx)> renderer) {
   auto n = make_object<DiagnosticRendererNode>();
   n->renderer = renderer;
   data_ = std::move(n);
 }
 
 TVM_REGISTER_GLOBAL("diagnostics.DiagnosticRenderer")
-    .set_body_typed([](TypedPackedFunc<void(DiagnosticContext ctx)> renderer) {
+    .set_body_typed([](ffi::TypedFunction<void(DiagnosticContext ctx)> renderer) {
       return DiagnosticRenderer(renderer);
     });
 
@@ -176,16 +176,16 @@ static const char* DEFAULT_RENDERER = "diagnostics.DefaultRenderer";
 static const char* OVERRIDE_RENDERER = "diagnostics.OverrideRenderer";
 
 DiagnosticRenderer GetRenderer() {
-  auto override_pf = tvm::runtime::Registry::Get(OVERRIDE_RENDERER);
-  tvm::runtime::TypedPackedFunc<ObjectRef()> pf;
+  auto override_pf = tvm::ffi::Function::GetGlobal(OVERRIDE_RENDERER);
+  tvm::ffi::TypedFunction<ObjectRef()> pf;
   if (override_pf) {
-    pf = tvm::runtime::TypedPackedFunc<ObjectRef()>(*override_pf);
+    pf = tvm::ffi::TypedFunction<ObjectRef()>(*override_pf);
   } else {
-    auto default_pf = tvm::runtime::Registry::Get(DEFAULT_RENDERER);
-    ICHECK(default_pf != nullptr)
+    auto default_pf = tvm::ffi::Function::GetGlobal(DEFAULT_RENDERER);
+    ICHECK(default_pf.has_value())
         << "Can not find registered function for " << DEFAULT_RENDERER << "." << std::endl
         << "Either this is an internal error or the default function was overloaded incorrectly.";
-    pf = tvm::runtime::TypedPackedFunc<ObjectRef()>(*default_pf);
+    pf = tvm::ffi::TypedFunction<ObjectRef()>(*default_pf);
   }
   return Downcast<DiagnosticRenderer>(pf());
 }
@@ -263,8 +263,6 @@ void ReportAt(const DiagnosticContext& context, std::ostream& out, const Span& s
   // If the source name is not in the current source map, sources were not annotated.
   if (it == context->module->source_map->source_map.end()) {
     LOG(FATAL) << "The source maps are not populated for this module. "
-               << "Please use `tvm.relay.transform.AnnotateSpans` to attach source maps for error "
-                  "reporting.\n"
                << "Error: " << diagnostic->message;
   }
 
@@ -318,7 +316,7 @@ TVM_REGISTER_GLOBAL(DEFAULT_RENDERER).set_body_typed([]() { return TerminalRende
 TVM_REGISTER_GLOBAL("diagnostics.GetRenderer").set_body_typed([]() { return GetRenderer(); });
 
 TVM_REGISTER_GLOBAL("diagnostics.ClearRenderer").set_body_typed([]() {
-  tvm::runtime::Registry::Remove(OVERRIDE_RENDERER);
+  tvm::ffi::Function::RemoveGlobal(OVERRIDE_RENDERER);
 });
 
 }  // namespace tvm

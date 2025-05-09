@@ -34,7 +34,7 @@ import tvm.ir._ffi_api
 from tvm import ir
 from tvm.ir import Op, PrimExpr
 from tvm.ir.base import Span
-from tvm.runtime import DataType, DataTypeCode, Object, ObjectGeneric, Scriptable, const
+from tvm.runtime import Object, ObjectGeneric, Scriptable, DataType, DataTypeCode, const
 
 from . import _ffi_api
 from . import generic as _generic
@@ -69,7 +69,7 @@ def _dtype_is_float(value):
     )  # type: ignore
 
 
-class ExprOp(object):
+class ExprOp:
     """Operator overloading for Expr like expressions."""
 
     # TODO(tkonolige): use inspect to add source information to these objects
@@ -395,7 +395,7 @@ class SizeVar(Var):
 
 
 @tvm._ffi.register_object("tir.IterVar")
-class IterVar(Object, ExprOp, Scriptable):
+class IterVar(ExprOp, Object, Scriptable):
     """Represent iteration variable.
 
     IterVar represents axis iterations in the computation.
@@ -1308,15 +1308,3 @@ class Let(PrimExprWithOp):
         self, var: Var, value: PrimExpr, body: PrimExpr, span: Optional[Span] = None
     ) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Let, var, value, body, span)  # type: ignore
-
-
-@tvm._ffi.register_object("tir.Any")
-class Any(PrimExprWithOp):
-    """Any node.
-
-    span : Optional[Span]
-        The location of this expression in the source code.
-    """
-
-    def __init__(self, span: Optional[Span] = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Any, span)  # type: ignore

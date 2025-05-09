@@ -18,8 +18,8 @@
  */
 
 /*!
- * \file src/tvm/relay/dataflow_matcher.cc
- * \brief The dataflow pattern matcher for Relay.
+ * \file src/tvm/relax/dataflow_matcher.cc
+ * \brief The dataflow pattern matcher for Relax.
  */
 
 #include <tvm/relax/dataflow_pattern_functor.h>

@@ -279,6 +279,30 @@ def squeeze(x: Expr, axis: Optional[Union[int, List[int]]] = None) -> Expr:
     return _ffi_api.squeeze(x, axis)  # type: ignore
 
 
+def stack(tensors: Union[Expr, List[Expr]], axis: int = 0) -> Expr:
+    """Stack the input tensors along a new axis.
+
+    Parameters
+    ----------
+    tensors : Union[relax.Expr, List[relax.Expr]]
+        An Expr in Tuple type, containing the tensors to be stacked,
+        or a list of Tensors. All input tensors must have the same shape.
+
+    axis : int
+        The axis in the resulting tensor along which the input tensors will be stacked.
+        Negative values wrap around. Default is 0.
+
+    Returns
+    -------
+    result: relax.Expr
+        The stacked tensor with an additional dimension compared to the input tensors.
+
+    """
+    if isinstance(tensors, (list, tuple)):
+        tensors = RxTuple(tensors)
+    return _ffi_api.stack(tensors, axis)  # type: ignore
+
+
 def collapse_sum_like(data: Expr, collapse_target: Expr) -> Expr:
     """Return a summation of data to the shape of collapse_target.
 
@@ -506,6 +530,143 @@ def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0) -> Expr:
 
     """
     return _ffi_api.gather_nd(data, indices, batch_dims)  # type: ignore
+
+
+def index_tensor(data: Expr, indices: Union[Expr, List[Expr]]) -> Expr:
+    """Advanced‑tensor indexing (NumPy/PyTorch‐style).
+
+    Given k index tensors ``indices = (I0, I1, …, Ik‑1)`` this
+    operator selects elements from ``data`` as if one had written
+    ``data[I0, I1, …, Ik‑1]`` in NumPy/PyTorch:
+
+    All index tensors must have an integer dtype.
+
+    Their shapes are broadcast together to a common shape ``B`` in
+    the usual NumPy way.
+
+    The result shape is ``B + data.shape[k:]`` (i.e. the broadcast
+    shape followed by the remaining axes of ``data`` that are *not*
+    indexed).
+
+    At compile‑time Relax checks that the number of index tensors
+    ``k`` does not exceed ``data.ndim``, that the dtypes are integer,
+    and that the shapes are consitent (broadcast‑compatible).
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor to be indexed.
+
+    indices : Union[relax.Expr, List[relax.Expr]]
+        A Tuple expression containing the index tensors,
+        or a Python ``list`` / ``tuple`` that will be promoted to a
+        tuple expression automatically. Each tensor must have an
+        integer dtype.
+
+    Returns
+    -------
+    result : relax.Expr
+        The tensor obtained after advanced indexing.  Its dtype equals
+        ``data.dtype``
+
+    Examples
+    --------
+    .. code-block:: python
+
+        import numpy as np
+        import tvm.relax as R
+
+        x   = R.const(np.arange(9).reshape(3, 3).astype("float32"))
+        row = R.const(np.array([0, 2]))        # shape (2,)
+        col = R.const(np.array([1, 0]))        # shape (2,)
+
+        y = R.index_tensor(x, [row, col])
+        # y.shape == (2,) ;  y == [1., 6.]
+
+        # Broadcasting: row : (2,1), col : (1,3)  →  B = (2,3)
+        row = R.const(np.array([[0],[1]]))
+        col = R.const(np.array([[0,1,2]]))
+        z = R.index_tensor(x, [row, col])
+        # z.shape == (2,3)
+
+    """
+    if isinstance(indices, (list, tuple)):
+        indices = RxTuple(indices)
+    return _ffi_api.index_tensor(data, indices)  # type: ignore
+
+
+def index_put(
+    data: Expr,
+    indices: Union[Expr, Tuple[Expr]],
+    values: Expr,
+    accumulate: bool = False,
+) -> Expr:
+    """This operation updates values in `data` at positions
+    specified by `indices` with corresponding values from `values`. The `indices` is a tuple
+    of tensors where each tensor corresponds to a dimension in `data`.
+    When `accumulate` is True, the operation performs accumulation (addition) rather than
+    replacement. The `reduction` parameter allows specifying different reduction operations.
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor to be modified
+    indices : Union[Expr, Tuple[Expr]]
+        Tuple of index tensors (one for each dimension) specifying positions to update
+    values : relax.Expr
+        Values to place at the specified indices
+    accumulate : bool
+        Whether to accumulate (add) values rather than replace (default: False)
+
+    Returns
+    -------
+    result : relax.Expr
+        A new tensor with the same shape as data but with specified positions updated
+    Examples
+    --------
+    .. code-block:: python
+        # inputs
+        data = torch.zeros(3, 3)
+        indices = (torch.tensor([0, 2]), torch.tensor([1, 1]))
+        values = torch.tensor([1.0, 2.0])
+        # output
+        output = [
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 2.0, 0.0],
+        ]
+        # with accumulate=True
+        output = [
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 3.0, 0.0],
+        ]
+    """
+    if not isinstance(indices, (list, tuple)):
+        indices = RxTuple(indices)
+    return _ffi_api.index_put(data, indices, values, accumulate)  # type: ignore
+
+
+def meshgrid(tensors: Union[Expr, List[Expr]], indexing: Optional[str] = "ij") -> Expr:
+    """Generate coordinate grids from input tensors.
+
+    Parameters
+    ----------
+    tensors : Union[relax.Expr, List[relax.Expr]]
+        An Expr in Tuple type, containing 1D tensors (or scalars promoted to 1D)
+        to generate coordinate grids from, or a list of such tensors.
+
+    indexing : Optional[str]
+        The indexing mode, either "ij" (matrix indexing) or "xy" (Cartesian indexing).
+        Defaults to "ij".
+
+    Returns
+    -------
+    result : relax.Expr
+        A Tuple of tensors representing the coordinate grids.
+    """
+    if isinstance(tensors, (list, tuple)):
+        tensors = RxTuple(tensors)
+    return _ffi_api.meshgrid(tensors, indexing)
 
 
 def scatter_elements(

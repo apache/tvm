@@ -164,7 +164,7 @@ class TensorStructInfoNode : public StructInfoNode {
  public:
   /*!
    * \brief optionally store the shape expression of the tensor.
-   * \note shape must be normalized: it can only be NullOpt or ShapeExpr or Var.
+   * \note shape must be normalized: it can only be std::nullopt or ShapeExpr or Var.
    */
   Optional<Expr> shape;
   /*! \brief The virtual device, indicates where the tensor
@@ -231,7 +231,7 @@ class TensorStructInfo : public StructInfo {
    *
    * \note shape must already be normalized.
    */
-  TVM_DLL TensorStructInfo(Expr shape, DataType dtype, Optional<VDevice> vdevice = NullOpt,
+  TVM_DLL TensorStructInfo(Expr shape, DataType dtype, Optional<VDevice> vdevice = std::nullopt,
                            Span span = Span());
 
   /*!
@@ -241,7 +241,7 @@ class TensorStructInfo : public StructInfo {
    * \param vdevice The virtual device.
    * \param span The span of the AST.
    */
-  TVM_DLL TensorStructInfo(DataType dtype, int ndim, Optional<VDevice> vdevice = NullOpt,
+  TVM_DLL TensorStructInfo(DataType dtype, int ndim, Optional<VDevice> vdevice = std::nullopt,
                            Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(TensorStructInfo, StructInfo, TensorStructInfoNode);
@@ -304,7 +304,7 @@ class FuncStructInfoNode : public StructInfoNode {
  public:
   /*!
    * \brief The parameter struct info of the function.
-   * \note When params is NullOpt means the function can take arbitrary number of arguments.
+   * \note When params is std::nullopt means the function can take arbitrary number of arguments.
    *       We define such functions as Opaque function.
    */
   Optional<Array<StructInfo>> params;
@@ -314,7 +314,7 @@ class FuncStructInfoNode : public StructInfoNode {
   StructInfo ret;
   /*!
    * \brief Derivation function of opaque functions that may take any number of parameters.
-   * \note When derive_func is not empty, then params should be NullOpt,
+   * \note When derive_func is not empty, then params should be std::nullopt,
    *       ret should be ObjectStructInfo()
    */
   Optional<StructInfoDeriveFunc> derive_func;
@@ -418,7 +418,7 @@ inline Optional<T> MatchStructInfo(const Expr& expr) {
   if (const TNode* ptr = expr->struct_info_.as<TNode>()) {
     return GetRef<T>(ptr);
   } else {
-    return NullOpt;
+    return std::nullopt;
   }
 }
 

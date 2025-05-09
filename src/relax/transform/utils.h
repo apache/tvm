@@ -35,8 +35,8 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../relay/analysis/graph_partitioner.h"
 #include "../../support/array.h"
+#include "../analysis/graph_partitioner.h"
 #include "../op/nn/convolution.h"
 #include "../op/nn/nn.h"
 #include "../op/nn/pooling.h"
@@ -115,7 +115,7 @@ class MemoizedExprTranslator : public ::tvm::relax::ExprFunctor<OutputType(const
  * \param entry_functions list of entry functions
  * \return The updated module.
  */
-TVM_DLL IRModule DeadCodeElimination(const IRModule& mod, Array<runtime::String> entry_funcs);
+TVM_DLL IRModule DeadCodeElimination(const IRModule& mod, Array<String> entry_funcs);
 
 /*!
  * \brief Get the external symbol of the Relax function name.
@@ -141,8 +141,7 @@ inline std::string GetExtSymbol(const Function& func) {
  * \return A new module containing grouped functions.
  */
 IRModule MakeGroupedFunctions(
-    IRModule mod,
-    const std::unordered_map<const Object*, relay::GraphPartitioner::Group*>& partition,
+    IRModule mod, const std::unordered_map<const Object*, GraphPartitioner::Group*>& partition,
     bool lift_constants = true, const Array<String>& entry_function_names = {});
 
 /*!
@@ -435,7 +434,7 @@ Expr CanonicalizeBindings(Expr expr);
  *
  * \ret The updated function.
  */
-Function BundleModelParams(const Function& func, Optional<String> param_tuple_name = NullOpt);
+Function BundleModelParams(const Function& func, Optional<String> param_tuple_name = std::nullopt);
 
 /*! \brief Compose two functions
  *

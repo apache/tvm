@@ -201,7 +201,7 @@ static std::optional<MatchState> TryValidate(
     if (auto ptr = current_match.matched(p_node)) {
       return GetRef<Var>(ptr);
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   };
 
@@ -340,14 +340,14 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
   }
 
   if (roots.empty()) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   arith::Analyzer analyzer;
   auto match = MatchTree({}, 0, pattern2node, var2node, &matcher, roots,
                          ctx->validation_constraints, ud_analysis, &analyzer);
   if (!match) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   Map<DFPattern, Var> ret;
@@ -370,13 +370,13 @@ TVM_REGISTER_GLOBAL("relax.dpl.match_dfb")
 class PatternContextRewriterNode : public PatternMatchingRewriterNode {
  public:
   PatternContext pattern;
-  TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter_func;
+  ffi::TypedFunction<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter_func;
 
   RewriteSpec RewriteBindings(const Array<Binding>& bindings) const override;
 
   void VisitAttrs(AttrVisitor* visitor) {
     visitor->Visit("pattern", &pattern);
-    PackedFunc untyped_func = rewriter_func;
+    ffi::Function untyped_func = rewriter_func;
     visitor->Visit("rewriter_func", &untyped_func);
   }
 
@@ -397,7 +397,7 @@ class PatternContextRewriterNode : public PatternMatchingRewriterNode {
       }
     }
 
-    return NullOpt;
+    return std::nullopt;
   }
 };
 
@@ -405,7 +405,7 @@ class PatternContextRewriter : public PatternMatchingRewriter {
  public:
   PatternContextRewriter(
       PatternContext pattern,
-      TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter_func);
+      ffi::TypedFunction<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter_func);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PatternContextRewriter, PatternMatchingRewriter,
                                 PatternContextRewriterNode);
@@ -432,7 +432,7 @@ RewriteSpec PatternContextRewriterNode::RewriteBindings(const Array<Binding>& bi
 
 PatternContextRewriter::PatternContextRewriter(
     PatternContext pattern,
-    TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter_func) {
+    ffi::TypedFunction<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter_func) {
   auto node = make_object<PatternContextRewriterNode>();
   node->pattern = std::move(pattern);
   node->rewriter_func = std::move(rewriter_func);
@@ -441,7 +441,8 @@ PatternContextRewriter::PatternContextRewriter(
 
 Function RewriteBindings(
     const PatternContext& ctx,
-    TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter, Function func) {
+    ffi::TypedFunction<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter,
+    Function func) {
   // return BlockPatternRewriter::Run(ctx, rewriter, func);
   return Downcast<Function>(PatternContextRewriter(ctx, rewriter)(func));
 }

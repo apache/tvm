@@ -26,7 +26,7 @@
 #ifndef TVM_TIR_TRANSFORMS_COMMON_SUBEXPR_ELIM_TOOLS_H_
 #define TVM_TIR_TRANSFORMS_COMMON_SUBEXPR_ELIM_TOOLS_H_
 
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/string.h>
 #include <tvm/tir/analysis.h>  // For the ExprDeepEqual analysis
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>

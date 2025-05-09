@@ -26,6 +26,7 @@
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/transform.h>
 
 #include "../op/op_common.h"
 
@@ -195,8 +196,7 @@ class WorkspaceProvider : ExprMutator {
 namespace transform {
 
 Pass AllocateWorkspace() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::WorkspaceProvider(m).Run(); };
+  auto pass_func = [=](IRModule m, PassContext pc) { return relax::WorkspaceProvider(m).Run(); };
 
   return CreateModulePass(pass_func, 0, "AllocateWorkspace", {});
 }

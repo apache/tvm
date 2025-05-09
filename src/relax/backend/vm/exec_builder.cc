@@ -33,34 +33,30 @@ TVM_REGISTER_NODE_TYPE(ExecBuilderNode);
 
 ExecBuilder ExecBuilderNode::Create() {
   ExecBuilder ret(make_object<ExecBuilderNode>());
-  ret->exec_ = make_object<Executable>();
+  ret->exec_ = make_object<VMExecutable>();
   return ret;
 }
 
-Executable* ExecBuilderNode::exec() const { return exec_.get(); }
+VMExecutable* ExecBuilderNode::exec() const { return exec_.get(); }
 
-ObjectPtr<Executable> ExecBuilderNode::Get() {
+ObjectPtr<VMExecutable> ExecBuilderNode::Get() {
   this->Formalize();
   this->CheckExecutable();
   return exec_;
 }
 
-vm::Instruction::Arg ExecBuilderNode::ConvertConstant_(TVMRetValue cvalue) {
+vm::Instruction::Arg ExecBuilderNode::ConvertConstant_(Any cvalue) {
   // emit constant immediate as immediate.
-  if (cvalue.type_code() == kDLInt) {
-    int64_t val = cvalue.operator int64_t();
+  if (auto opt_int = cvalue.as<int64_t>()) {
+    int64_t val = opt_int.value();
     if (val <= vm::Instruction::kValueMaxLimit && val >= vm::Instruction::kValueMinLimit) {
       return vm::Instruction::Arg::Immediate(val);
     }
   }
-  // convert string to object string
-  if (cvalue.type_code() == kTVMStr) {
-    cvalue = cvalue.operator String();
-  }
 
   // run dedup for object with structural equality
-  if (cvalue.IsObjectRef<ObjectRef>()) {
-    ObjectRef obj = cvalue.operator ObjectRef();
+  if (auto opt_obj = cvalue.as<ObjectRef>()) {
+    ObjectRef obj = opt_obj.value();
     auto it = const_dedup_map_.find(obj);
     if (it != const_dedup_map_.end()) {
       return vm::Instruction::Arg::ConstIdx(it->second);
@@ -270,7 +266,7 @@ void ExecBuilderNode::CheckExecutable() {
 
 void ExecBuilderNode::Formalize() {
   // a pass to formalize user-specified register indexes in the order of use
-  // and decide the number of registers to allocate for each VMFunction in the Executable
+  // and decide the number of registers to allocate for each VMFunction in the VMExecutable
   for (auto it = this->exec_->func_table.begin(); it != this->exec_->func_table.end(); ++it) {
     if (it->kind == VMFuncInfo::FuncKind::kPackedFunc) continue;
     if (it->kind == VMFuncInfo::FuncKind::kVMTIRFunc) continue;
@@ -334,9 +330,9 @@ void ExecBuilderNode::Formalize() {
 TVM_REGISTER_GLOBAL("relax.ExecBuilderCreate").set_body_typed(ExecBuilderNode::Create);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderConvertConstant")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      ExecBuilder builder = args[0];
-      TVMRetValue rt;
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      ExecBuilder builder = args[0].cast<ExecBuilder>();
+      ffi::Any rt;
       rt = args[1];
       *ret = builder->ConvertConstant(rt).data();
     });
@@ -347,8 +343,7 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitFunction")
       builder->EmitFunction(func, num_inputs, param_names);
     });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderEndFunction")
-    .set_body_method<ExecBuilder>(&ExecBuilderNode::EndFunction);
+TVM_REGISTER_GLOBAL("relax.ExecBuilderEndFunction").set_body_method(&ExecBuilderNode::EndFunction);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderDeclareFunction")
     .set_body_typed([](ExecBuilder builder, String name, int32_t kind) {
@@ -370,8 +365,7 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitRet")
       builder->EmitRet(Instruction::Arg::FromData(data));
     });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitGoto")
-    .set_body_method<ExecBuilder>(&ExecBuilderNode::EmitGoto);
+TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitGoto").set_body_method(&ExecBuilderNode::EmitGoto);
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitIf")
     .set_body_typed([](ExecBuilder builder, int64_t data, vm::Index false_offset) {
@@ -395,7 +389,7 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderF").set_body_typed([](ExecBuilder builder,
 });
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderGet").set_body_typed([](ExecBuilder builder) {
-  ObjectPtr<Executable> p_exec = builder->Get();
+  ObjectPtr<VMExecutable> p_exec = builder->Get();
   return runtime::Module(p_exec);
 });
 

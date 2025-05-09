@@ -74,15 +74,6 @@ class CodeGenCHost : public CodeGenC {
   Array<String> GetFunctionNames() { return function_names_; }
 
  private:
-  /* \brief Internal structure to store information about function calls */
-  struct FunctionInfo {
-    /* \brief function name */
-    std::string func_name;
-    /* number of arguments required by the function */
-    int64_t num_args;
-    /* \brief name of resource_handle to pass */
-    std::string resource_handle_name;
-  };
   std::string module_name_;
   /* \brief mapping global packed func to the unique name */
   std::unordered_map<std::string, std::string> declared_globals_;
@@ -93,13 +84,9 @@ class CodeGenCHost : public CodeGenC {
   /*! \brief whether to emit forwared function declarations in the resulting C code */
   bool emit_fwd_func_decl_;
 
-  FunctionInfo GetFunctionInfo(const CallNode* op, bool has_resource_handle);
   std::string GetPackedName(const CallNode* op);
   void PrintGetFuncFromBackend(const std::string& func_name, const std::string& packed_func_name);
-  void PrintFuncCall(const std::string& packed_func_name, int num_args);
-  void PrintFuncCallC(const std::string& packed_func_name, int num_args,
-                      const std::string& resource_handle_name);
-
+  void PrintCallPacked(const CallNode* op);
   /*!
    * \brief Print ternary conditional operator implementing binary `op`
    * Forces the operands to be in SSA form.

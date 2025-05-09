@@ -64,7 +64,7 @@ namespace ir_builder {
 class IRBuilderFrameNode : public runtime::Object {
  public:
   /*! \brief A list of callbacks used when exiting the frame. */
-  std::vector<runtime::TypedPackedFunc<void()>> callbacks;
+  std::vector<ffi::TypedFunction<void()>> callbacks;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `callbacks` is not visited.
@@ -90,7 +90,7 @@ class IRBuilderFrameNode : public runtime::Object {
    * \brief Add a callback method invoked when exiting the RAII scope.
    * \param callback The callback to be added.
    */
-  void AddCallback(runtime::TypedPackedFunc<void()> callback);
+  void AddCallback(ffi::TypedFunction<void()> callback);
 };
 
 /*!
@@ -99,8 +99,6 @@ class IRBuilderFrameNode : public runtime::Object {
  */
 class IRBuilderFrame : public runtime::ObjectRef {
  public:
-  /*! \brief Default destructor. */
-  virtual ~IRBuilderFrame() = default;
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(IRBuilderFrame, ObjectRef, IRBuilderFrameNode);
 
  protected:
@@ -156,7 +154,7 @@ class IRBuilderFrame : public runtime::ObjectRef {
 class IRBuilderNode : public runtime::Object {
  public:
   /*! \brief A stack of context frames in the IRBuilder */
-  runtime::Array<IRBuilderFrame> frames;
+  Array<IRBuilderFrame> frames;
   /*! \brief The outcome of IR construction */
   Optional<ObjectRef> result;
 
@@ -172,7 +170,7 @@ class IRBuilderNode : public runtime::Object {
   /*!
    * \brief Find a frame of the given type in the stack `this->frames` from top to bottom.
    * \tparam T The type of the frame to find.
-   * \return The frame if found, otherwise NullOpt.
+   * \return The frame if found, otherwise std::nullopt.
    */
   template <typename TFrame>
   inline Optional<TFrame> FindFrame() const;
@@ -180,7 +178,7 @@ class IRBuilderNode : public runtime::Object {
    * \brief Get the frame on top of the stack `this->frames` if its type is `TFrame`.
    * \tparam TFrame The assumed type of the last frame on stack.
    * \return The frame if the stack is non-empty and the top of the stack is of type `TFrame`.
-   * Otherwise NullOpt.
+   * Otherwise std::nullopt.
    */
   template <typename TFrame>
   inline Optional<TFrame> GetLastFrame() const;
@@ -276,7 +274,7 @@ inline Optional<TFrame> IRBuilderNode::FindFrame() const {
       return GetRef<TFrame>(p);
     }
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 template <typename TFrame>
@@ -285,7 +283,7 @@ inline Optional<TFrame> IRBuilderNode::GetLastFrame() const {
   if (!frames.empty() && frames.back()->IsInstance<TFrameNode>()) {
     return Downcast<TFrame>(frames.back());
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 template <typename TObjectRef>

@@ -33,7 +33,7 @@ ExprDoc PrintVarCreation(const tir::Var& var, const ObjectPath& var_p, const IRD
 
   if (var->IsInstance<tir::SizeVarNode>()) {
     kwargs_keys.push_back("is_size_var");
-    kwargs_values.push_back(LiteralDoc::Boolean(true, NullOpt));
+    kwargs_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
   }
 
   if (const auto* ptr_type = type.as<PointerTypeNode>()) {
@@ -65,7 +65,7 @@ Doc PrintVar(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d)
     if (Optional<Frame> opt_f = FindLowestVarDef(var, d)) {
       ExprDoc lhs = DefineVar(var, opt_f.value(), d);
       ExprDoc rhs = PrintVarCreation(var, var_p, d);
-      opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+      opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
     } else {
       LOG(WARNING) << "Didn't find variable definition for: " << var->name_hint;
     }
@@ -74,6 +74,7 @@ Doc PrintVar(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d)
     return doc.value();
   }
   LOG(FATAL) << "IndexError: Variable is not defined in the environment: " << var->name_hint;
+  TVM_FFI_UNREACHABLE();
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
@@ -254,7 +255,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           int n_args = call->args.size();
           int64_t id = call->args[0].as<IntImmNode>()->value;
           auto f_llvm_lookup_intrinsic_name =
-              tvm::runtime::Registry::Get("target.llvm_get_intrinsic_name");
+              tvm::ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
 
           Array<ExprDoc> args;
           args.reserve(n_args + 1);
@@ -264,7 +265,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
           for (int i = 0; i < n_args; ++i) {
             if ((i == 0) && (f_llvm_lookup_intrinsic_name)) {
-              String name = (*f_llvm_lookup_intrinsic_name)(id);
+              String name = (*f_llvm_lookup_intrinsic_name)(id).cast<String>();
               args.push_back(LiteralDoc::Str(name.c_str(), call_p->Attr("args")->ArrayIndex(i)));
             } else {
               args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayIndex(i)));
@@ -294,11 +295,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         args.push_back(LiteralDoc::DataType(call->dtype, call_p->Attr("dtype")));
       }
       return prefix->Call(args);
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::Any>("", [](tir::Any any, ObjectPath p, IRDocsifier d) -> Doc {
-      return TIR(d, "Any")->Call({});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -415,7 +411,6 @@ TVM_SCRIPT_REPR(tir::CallNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::ShuffleNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::CommReducerNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::IndexMapNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::AnyNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::ReduceNode, ReprPrintTIR);
 
 }  // namespace printer

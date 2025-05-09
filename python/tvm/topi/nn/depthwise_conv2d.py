@@ -457,23 +457,3 @@ def depthwise_conv2d_NCHWc(
         5-D with shape [batch, out_channel_chunk, out_height, out_width, out_channel_block]
     """
     raise ValueError("missing register for topi.nn.depthwise_conv2d_NCHWc")
-
-
-@tvm.target.generic_func
-def depthwise_conv2d_infer_layout(workload, cfg):
-    """Infer input/output shapes and layouts from a workload and cfg.
-
-    Parameters
-    ----------
-    workload : tuple
-        conv2d workload
-
-    cfg : tuple
-        tvm.autotvm config
-
-    Returns
-    -------
-    Output : [tuple of tuple and str, tuple of tuple and str]
-        Input shapes and layouts, and output shapes and layouts
-    """
-    raise ValueError("missing register for topi.nn.depthwise_conv2d_infer_layout")

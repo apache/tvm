@@ -25,6 +25,7 @@
 #define TVM_IR_ENV_FUNC_H_
 
 #include <tvm/node/reflection.h>
+#include <tvm/runtime/packed_func.h>
 
 #include <string>
 #include <utility>
@@ -33,7 +34,7 @@ namespace tvm {
 /*!
  * \brief A serializable function backed by TVM's global environment.
  *
- * This is a wrapper to enable serializable global PackedFunc.
+ * This is a wrapper to enable serializable global ffi::Function.
  * An EnvFunc is saved by its name in the global registry
  * under the assumption that the same function is registered during load.
  * \sa EnvFunc
@@ -43,7 +44,7 @@ class EnvFuncNode : public Object {
   /*! \brief Unique name of the global function */
   String name;
   /*! \brief The internal packed function */
-  runtime::PackedFunc func;
+  ffi::Function func;
   /*! \brief constructor */
   EnvFuncNode() {}
 
@@ -81,7 +82,7 @@ class EnvFunc : public ObjectRef {
    * \returns The return value.
    */
   template <typename... Args>
-  runtime::TVMRetValue operator()(Args&&... args) const {
+  ffi::Any operator()(Args&&... args) const {
     const EnvFuncNode* n = operator->();
     ICHECK(n != nullptr);
     return n->func(std::forward<Args>(args)...);
@@ -138,8 +139,16 @@ class TypedEnvFunc<R(Args...)> : public ObjectRef {
   R operator()(Args... args) const {
     const EnvFuncNode* n = operator->();
     ICHECK(n != nullptr);
-    return runtime::detail::typed_packed_call_dispatcher<R>::run(n->func,
-                                                                 std::forward<Args>(args)...);
+    if constexpr (std::is_same_v<R, void>) {
+      n->func(std::forward<Args>(args)...);
+    } else {
+      Any res = n->func(std::forward<Args>(args)...);
+      if constexpr (std::is_same_v<R, Any>) {
+        return res;
+      } else {
+        return std::move(res).cast<R>();
+      }
+    }
   }
   /*! \brief specify container node */
   using ContainerType = EnvFuncNode;

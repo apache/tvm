@@ -24,6 +24,8 @@
 #ifndef TVM_TIR_FUNCTION_H_
 #define TVM_TIR_FUNCTION_H_
 
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/container/variant.h>
 #include <tvm/ir/function.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/tir/buffer.h>
@@ -89,8 +91,7 @@ class PrimFuncNode : public BaseFuncNode {
    *  normal statements, making buffer_map as first class citizen of PrimFunc
    *  will make program analysis much easier.
    *
-   *  Prior to buffer flattening, which is performed either in
-   *  StorageFlatten for TE-based schedules or in FlattenBuffer for
+   *  Prior to buffer flattening, which is performed FlattenBuffer for
    *  TIR-based schedules, these buffer objects are used directly in
    *  the body of the function.  After buffer flattening, these buffer
    *  objects remain unflattened for use in argument validation, but
@@ -223,7 +224,7 @@ class TensorIntrin : public ObjectRef {
    */
   TVM_DLL static Optional<TensorIntrin> Get(String name, bool allow_missing = false);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode)
+  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode);
 };
 
 /*!
@@ -287,7 +288,7 @@ namespace attr {
  * Here n = len(arg), m = len(work_size) = len(launch_params)-1.
  *
  * The list of kernel launch params indicates which additional
- * parameters will be provided to the PackedFunc by the calling
+ * parameters will be provided to the ffi::Function by the calling
  * scope.
  *
  * - "threadIdx.x", "threadIdx.y", "threadIdx.z"

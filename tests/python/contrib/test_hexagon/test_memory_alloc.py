@@ -57,7 +57,7 @@ class TestMemoryAlloc:
 
     def test_global_axis_separator(self, hexagon_session, shape, dtype, scope, axis_separators):
         """Test with global axis separator."""
-        mod1 = tvm.build(
+        mod1 = tvm.compile(
             generated_func(shape, dtype, axis_separators),
             target=get_hexagon_target("v69"),
         )

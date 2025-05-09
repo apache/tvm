@@ -102,17 +102,11 @@ fn find_using_tvm_build() -> Result<TVMInstall> {
     if cfg!(feature = "use-openmp") {
         build_config.settings.use_openmp = Some(true);
     }
-    if cfg!(feature = "use-relay-debug") {
-        build_config.settings.use_relay_debug = Some(true);
-    }
     if cfg!(feature = "use-rtti") {
         build_config.settings.use_rtti = Some(true);
     }
     if cfg!(feature = "use-mscv-mt") {
         build_config.settings.use_mscv_mt = Some(true);
-    }
-    if cfg!(feature = "use-micro") {
-        build_config.settings.use_micro = Some(true);
     }
     if cfg!(feature = "use-install-dev") {
         build_config.settings.use_install_dev = Some(true);
@@ -122,9 +116,6 @@ fn find_using_tvm_build() -> Result<TVMInstall> {
     }
     if cfg!(feature = "use-fallback-stl-map") {
         build_config.settings.use_fallback_stl_map = Some(true);
-    }
-    if cfg!(feature = "use-ethosn") {
-        build_config.settings.use_ethosn = Some(true);
     }
     if cfg!(feature = "use-index_default-i64") {
         build_config.settings.use_index_default_i64 = Some(true);
@@ -168,9 +159,6 @@ fn find_using_tvm_build() -> Result<TVMInstall> {
     if cfg!(feature = "use-random") {
         build_config.settings.use_random = Some(true);
     }
-    if cfg!(feature = "use-micro-standalone-runtime") {
-        build_config.settings.use_micro_standalone_runtime = Some(true);
-    }
     if cfg!(feature = "use-cpp-rpc") {
         build_config.settings.use_cpp_rpc = Some(true);
     }
@@ -194,9 +182,6 @@ fn find_using_tvm_build() -> Result<TVMInstall> {
     }
     if cfg!(feature = "use-tensorrt-runtime") {
         build_config.settings.use_tensorrt_runtime = CMakeSetting::from_str("on").ok();
-    }
-    if cfg!(feature = "use-vitis-ai") {
-        build_config.settings.use_vitis_ai = Some(true);
     }
     if cfg!(any(
         feature = "static-linking",

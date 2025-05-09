@@ -127,12 +127,11 @@ Var Var::copy_with_dtype(DataType dtype) const {
   return Var(new_ptr);
 }
 
-TVM_REGISTER_GLOBAL("tir.Var").set_body_typed([](String name_hint, runtime::TVMArgValue type,
-                                                 Span span) {
-  if (type.IsObjectRef<Type>()) {
-    return Var(name_hint, type.operator Type(), span);
+TVM_REGISTER_GLOBAL("tir.Var").set_body_typed([](String name_hint, ffi::AnyView type, Span span) {
+  if (type.as<Type>()) {
+    return Var(name_hint, type.cast<Type>(), span);
   } else {
-    return Var(name_hint, type.operator DataType(), span);
+    return Var(name_hint, type.cast<DataType>(), span);
   }
 });
 
@@ -544,7 +543,7 @@ TVM_REGISTER_GLOBAL("tir.Let").set_body_typed([](Var var, PrimExpr value, PrimEx
 TVM_REGISTER_NODE_TYPE(LetNode);
 
 // Call
-Call::Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, Span span) {
+Call::Call(DataType dtype, RelaxExpr op, Array<PrimExpr> args, Span span) {
   for (size_t i = 0; i < args.size(); ++i) {
     ICHECK(args[i].defined()) << "arg " << i << " is not defined()";
   }
@@ -558,16 +557,15 @@ Call::Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, Span span) {
 }
 
 TVM_REGISTER_GLOBAL("tir.Call")
-    .set_body_typed([](DataType type, RelayExpr op,
-                       Array<Variant<runtime::String, IterVar, BufferRegion, PrimExpr>> args,
+    .set_body_typed([](Optional<DataType> dtype, RelaxExpr op,
+                       Array<Variant<String, DLDataType, IterVar, BufferRegion, PrimExpr>> args,
                        Span span) {
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
-        ICHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>() ||
-               it->IsInstance<IterVarNode>() || it->IsInstance<BufferRegionNode>())
-            << "Argument " << it << " is not a string or primexpr";
-        if (const auto* str = it.as<runtime::StringObj>()) {
-          prim_expr_args.push_back(StringImm(str->data));
+        if (auto opt_str = it.as<String>()) {
+          prim_expr_args.push_back(StringImm(opt_str.value()));
+        } else if (auto opt_dtype = it.as<DLDataType>()) {
+          prim_expr_args.push_back(StringImm(ffi::DLDataTypeToString(opt_dtype.value())));
         } else if (const auto* iter_var = it.as<IterVarNode>()) {
           prim_expr_args.push_back(iter_var->var);
         } else if (const auto* br = it.as<BufferRegionNode>()) {
@@ -587,7 +585,7 @@ TVM_REGISTER_GLOBAL("tir.Call")
           prim_expr_args.push_back(Downcast<PrimExpr>(it));
         }
       }
-      return Call(type, op, prim_expr_args, span);
+      return Call(dtype.value_or(DataType::Void()), op, prim_expr_args, span);
     });
 
 TVM_REGISTER_NODE_TYPE(CallNode);
@@ -652,8 +650,8 @@ CommReducer::CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
       << "ValueError: The number of identities must equal to the number of elements in `results`";
 
   // Change the dtype of input vars to adapt to the dtype of identities
-  ArrayNode* p_lhs = lhs.CopyOnWrite();
-  ArrayNode* p_rhs = rhs.CopyOnWrite();
+  ffi::ArrayObj* p_lhs = lhs.CopyOnWrite();
+  ffi::ArrayObj* p_rhs = rhs.CopyOnWrite();
   std::unordered_map<const VarNode*, PrimExpr> var_map;
   var_map.reserve(n_group * 2);
   for (int i = 0; i < static_cast<int>(n_group); ++i) {
@@ -667,7 +665,7 @@ CommReducer::CommReducer(Array<Var> lhs, Array<Var> rhs, Array<PrimExpr> result,
     p_rhs->SetItem(i, r);
   }
 
-  ArrayNode* p_result = result.CopyOnWrite();
+  ffi::ArrayObj* p_result = result.CopyOnWrite();
   for (int i = 0; i < static_cast<int>(n_group); ++i) {
     p_result->SetItem(i, Substitute(result[i], var_map));
   }
@@ -699,8 +697,7 @@ TVM_REGISTER_GLOBAL("tir.CommReducer")
       return CommReducer(lhs, rhs, result, identity_element, span);
     });
 
-TVM_REGISTER_GLOBAL("tir.CommReducerCombine")
-    .set_body_method<tir::CommReducer>(&tir::CommReducerNode::operator());
+TVM_REGISTER_GLOBAL("tir.CommReducerCombine").set_body_method(&tir::CommReducerNode::operator());
 
 TVM_REGISTER_NODE_TYPE(CommReducerNode);
 
@@ -746,18 +743,6 @@ TVM_REGISTER_GLOBAL("tir.Reduce")
     });
 
 TVM_REGISTER_NODE_TYPE(ReduceNode);
-
-// Any
-Any::Any(Span span) {
-  auto n = make_object<AnyNode>();
-  n->dtype = DataType::Int(32);
-  n->span = std::move(span);
-  data_ = std::move(n);
-}
-
-TVM_REGISTER_GLOBAL("tir.Any").set_body_typed([](Span span) { return Any(span); });
-
-TVM_REGISTER_NODE_TYPE(AnyNode);
 
 // BufferLoad
 void BufferLoadNode::LegalizeDType() {

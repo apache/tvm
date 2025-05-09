@@ -25,13 +25,13 @@
 #ifndef TVM_TIR_EXPR_H_
 #define TVM_TIR_EXPR_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/var.h>
@@ -183,6 +183,7 @@ class SubNode : public BinaryOpNode<SubNode> {
 class Sub : public PrimExpr {
  public:
   TVM_DLL Sub(PrimExpr a, PrimExpr b, Span span = Span());
+
   TVM_DEFINE_OBJECT_REF_METHODS(Sub, PrimExpr, SubNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SubNode);
 };
@@ -680,7 +681,7 @@ class BufferLoadNode : public PrimExprNode {
 class BufferLoad : public PrimExpr {
  public:
   TVM_DLL explicit BufferLoad(Buffer buffer, Array<PrimExpr> indices,
-                              Optional<PrimExpr> predicate = NullOpt, Span span = Span());
+                              Optional<PrimExpr> predicate = std::nullopt, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(BufferLoad, PrimExpr, BufferLoadNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferLoadNode);
 };
@@ -886,7 +887,7 @@ class CallNode : public PrimExprNode {
    *  - It can be tvm::Op which corresponds to the primitive operators(intrinsics).
    *  - It can also be another function in the IRModule (GlobalVar).
    */
-  RelayExpr op;
+  RelaxExpr op;
 
   /*! \brief The arguments. */
   Array<PrimExpr> args;
@@ -917,7 +918,7 @@ class CallNode : public PrimExprNode {
  */
 class Call : public PrimExpr {
  public:
-  TVM_DLL Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, Span span = Span());
+  TVM_DLL Call(DataType dtype, RelaxExpr op, Array<PrimExpr> args, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Call, PrimExpr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };
@@ -1100,42 +1101,6 @@ class Reduce : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ReduceNode);
 };
 
-/*! \brief Any shape. */
-class AnyNode : public PrimExprNode {
- public:
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const AnyNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {}
-
-  /*! \brief Convert to var. */
-  Var ToVar() const { return Var("any_dim", DataType::Int(32)); }
-
-  /*! \brief Convert to SizeVar. */
-  SizeVar ToSizeVar() const { return SizeVar("any_dim", DataType::Int(32)); }
-
-  static constexpr const char* _type_key = "tir.Any";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AnyNode, PrimExprNode);
-};
-
-/*!
- * \brief Managed reference to AnyNode
- * \sa AnyNode
- */
-class Any : public PrimExpr {
- public:
-  TVM_DLL Any(Span span = Span());
-
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Any, PrimExpr, AnyNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(AnyNode);
-};
-
 /*
  * \brief Template function to convert Map to unordered_map
  *  Sometimes useful for API gluing when internal uses unordered_map
@@ -1153,63 +1118,25 @@ inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
   return ret;
 }
 }  // namespace tir
-}  // namespace tvm
 
-namespace tvm {
-namespace runtime {
-
-// Automatic conversion into PrimExpr, when called through the FFI.
-// Automatic conversions into IntImm, Integer, and Bool are registered
-// in "tvm/ir/expr.h", as they are currently in use outside of TIR.
+namespace ffi {
 
 template <>
-struct PackedFuncValueConverter<tvm::tir::StringImm> {
-  template <typename PODSubclass>
-  static Optional<tvm::tir::StringImm> TryFrom(const PODSubclass& val) {
-    auto type_code = val.type_code();
-    bool can_convert = type_code == kTVMDataType || type_code == kTVMBytes ||
-                       type_code == kTVMStr || val.template IsObjectRef<tvm::runtime::String>();
-    if (can_convert) {
-      return tvm::tir::StringImm(PackedFuncValueConverter<String>::From(val));
-    } else {
-      return NullOpt;
-    }
-  }
+inline constexpr bool use_default_type_traits_v<tvm::tir::StringImm> = false;
 
-  template <typename PODSubclass>
-  static tvm::tir::StringImm From(const PODSubclass& val) {
-    if (auto opt = TryFrom(val)) {
-      return opt.value();
-    } else {
-      return val.template AsObjectRef<tvm::tir::StringImm>();
-    }
+template <>
+struct TypeTraits<tvm::tir::StringImm>
+    : public ObjectRefWithFallbackTraitsBase<tvm::tir::StringImm, String> {
+  static TVM_FFI_INLINE tvm::tir::StringImm ConvertFallbackValue(String value) {
+    return tvm::tir::StringImm(value);
   }
 };
 
-template <>
-struct PackedFuncValueConverter<PrimExpr> {
-  // Common rule for RetValue and ArgValue.  Templated to ensure
-  // correct delegation to `operator std::string()` for either
-  // TVMArgValue or TVMRetValue.
-  template <typename PODSubclass>
-  static PrimExpr From(const PODSubclass& val) {
-    if (auto opt = val.TryAsBool()) {
-      // Check against val.TryAsBool directly, to avoid the
-      // bounds-checking in PackedFuncValueConverter<Bool>::TryFrom.
-      return tvm::Bool(opt.value());
-    } else if (auto opt = PackedFuncValueConverter<IntImm>::TryFrom(val)) {
-      return opt.value();
-    } else if (auto opt = PackedFuncValueConverter<FloatImm>::TryFrom(val)) {
-      return opt.value();
-    } else if (auto opt = PackedFuncValueConverter<tvm::tir::StringImm>::TryFrom(val)) {
-      return opt.value();
-    } else {
-      return PrimExpr::FromObject_(val.template AsObjectRef<ObjectRef>());
-    }
-  }
-};
-
-}  // namespace runtime
+// auto convert String to PrimExpr
+TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(String value) {
+  return TypeTraits<tvm::tir::StringImm>::ConvertFallbackValue(value);
+}
+}  // namespace ffi
 }  // namespace tvm
 
 namespace std {

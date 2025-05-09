@@ -39,7 +39,7 @@ class InitBlockLower : public StmtMutator {
     Stmt init = DoLowering(block->init.value(), block->iter_vars);
     Stmt body = VisitStmt(block->body);
     auto n = CopyOnWrite(block);
-    n->init = NullOpt;
+    n->init = std::nullopt;
     n->body = SeqStmt::Flatten(init, body);
     return Block(n);
   }
@@ -65,14 +65,9 @@ class InitBlockLower : public StmtMutator {
 };
 
 PrimFunc LowerInitBlock(PrimFunc func) {
-  // Only apply this pass to TIR that is not from TE schedules
-  if (!IsFromLegacyTESchedule(func)) {
-    auto fptr = func.CopyOnWrite();
-    fptr->body = InitBlockLower()(std::move(fptr->body));
-    return func;
-  } else {
-    return func;
-  }
+  auto fptr = func.CopyOnWrite();
+  fptr->body = InitBlockLower()(std::move(fptr->body));
+  return func;
 }
 
 namespace transform {

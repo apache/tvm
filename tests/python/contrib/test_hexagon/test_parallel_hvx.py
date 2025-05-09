@@ -144,7 +144,7 @@ def evaluate(hexagon_session, shape_dtypes, expected_output_producer, sch):
     """Evaluate schedule."""
     a_shape, a_dtype, b_shape, b_dtype, c_shape, c_dtype = shape_dtypes
 
-    func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v68"))
+    func_tir = tvm.compile(sch.mod["main"], target=get_hexagon_target("v68"))
     module = hexagon_session.load_module(func_tir)
 
     a = np.random.randint(0, 16, a_shape, dtype=a_dtype)
@@ -163,7 +163,7 @@ def evaluate(hexagon_session, shape_dtypes, expected_output_producer, sch):
         "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
     )
     runtime = timer(a_hexagon, b_hexagon, c_hexagon)
-    tvm.testing.assert_allclose(c_hexagon.asnumpy(), expected_output_producer(c_shape, a, b))
+    tvm.testing.assert_allclose(c_hexagon.numpy(), expected_output_producer(c_shape, a, b))
 
     return round(runtime.mean * 1000, 6)
 

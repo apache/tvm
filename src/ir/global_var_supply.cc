@@ -104,12 +104,12 @@ TVM_REGISTER_GLOBAL("ir.GlobalVarSupply_IRModules").set_body_typed([](const Arra
 });
 
 TVM_REGISTER_GLOBAL("ir.GlobalVarSupply_FreshGlobal")
-    .set_body_method<GlobalVarSupply>(&GlobalVarSupplyNode::FreshGlobal);
+    .set_body_method(&GlobalVarSupplyNode::FreshGlobal);
 
 TVM_REGISTER_GLOBAL("ir.GlobalVarSupply_UniqueGlobalFor")
-    .set_body_method<GlobalVarSupply>(&GlobalVarSupplyNode::UniqueGlobalFor);
+    .set_body_method(&GlobalVarSupplyNode::UniqueGlobalFor);
 
 TVM_REGISTER_GLOBAL("ir.GlobalVarSupply_ReserveGlobalVar")
-    .set_body_method<GlobalVarSupply>(&GlobalVarSupplyNode::ReserveGlobalVar);
+    .set_body_method(&GlobalVarSupplyNode::ReserveGlobalVar);
 
 }  // namespace tvm

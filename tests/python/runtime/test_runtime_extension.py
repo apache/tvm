@@ -19,18 +19,6 @@ from tvm import te
 import numpy as np
 
 
-@tvm.register_extension
-class MyTensorView(object):
-    _tvm_tcode = tvm._ffi.runtime_ctypes.ArgTypeCode.DLTENSOR_HANDLE
-
-    def __init__(self, arr):
-        self.arr = arr
-
-    @property
-    def _tvm_handle(self):
-        return self.arr._tvm_handle
-
-
 def test_dltensor_compatible():
     dtype = "int64"
     n = te.var("n")
@@ -43,10 +31,9 @@ def test_dltensor_compatible():
     stmt = ib.get()
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "arange"))
-    f = tvm.build(mod, target="stackvm")
+    f = tvm.compile(mod, target="llvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
-    aview = MyTensorView(a)
-    f(aview)
+    f(a)
     np.testing.assert_equal(a.numpy(), np.arange(a.shape[0]))
 
 

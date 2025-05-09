@@ -19,6 +19,7 @@
 set -e
 
 echo "Running 2 cpplints..."
+python3 3rdparty/dmlc-core/scripts/lint.py --quiet tvm cpp ffi/include ffi/src
 python3 3rdparty/dmlc-core/scripts/lint.py --quiet tvm cpp \
 	include src \
 	examples/extension/src examples/graph_executor/src \
@@ -26,7 +27,6 @@ python3 3rdparty/dmlc-core/scripts/lint.py --quiet tvm cpp \
 	--exclude_path  "src/runtime/hexagon/rpc/hexagon_rpc.h" \
 			"src/runtime/hexagon/rpc/hexagon_rpc_skel.c" \
 			"src/runtime/hexagon/rpc/hexagon_rpc_stub.c" \
-			"src/relay/backend/contrib/libtorch/libtorch_codegen.cc"
 
 
 if find src -name "*.cc" -exec grep -Hn '^#include <regex>$' {} +; then

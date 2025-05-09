@@ -118,19 +118,19 @@ class ExecBuilderNode : public Object {
    */
   template <typename T>
   vm::Instruction::Arg ConvertConstant(T value) {
-    TVMRetValue rv;
+    ffi::Any rv;
     rv = value;
     return ConvertConstant_(rv);
   }
   /*!
    * \brief Raw access to underlying executable build in progress.
    */
-  vm::Executable* exec() const;
+  vm::VMExecutable* exec() const;
   /*!
    * \brief Finalize the build, run formalize and get the final result.
    * \note This function should not be called during construction.
    */
-  ObjectPtr<vm::Executable> Get();
+  ObjectPtr<vm::VMExecutable> Get();
   /*!
    * \brief Create an ExecBuilder.
    * \return The ExecBuilder.
@@ -139,7 +139,6 @@ class ExecBuilderNode : public Object {
 
   void VisitAttrs(AttrVisitor* v) {}
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.ExecBuilder";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecBuilderNode, Object);
 
@@ -152,7 +151,7 @@ class ExecBuilderNode : public Object {
    * \param obj The constant value to be emitted
    * \return An Arg that represents the result of constant argument.
    */
-  vm::Instruction::Arg ConvertConstant_(TVMRetValue obj);
+  vm::Instruction::Arg ConvertConstant_(ffi::Any obj);
 
   /*!
    * \brief A helper function to check if an executable is legal by checking if registers are used
@@ -165,7 +164,7 @@ class ExecBuilderNode : public Object {
   void Formalize();
 
   /*! \brief The mutable internal executable. */
-  ObjectPtr<vm::Executable> exec_;  // mutable
+  ObjectPtr<vm::VMExecutable> exec_;  // mutable
   /*! \brief internal dedup map when creating index for a new constant */
   std::unordered_map<ObjectRef, vm::Index, StructuralHash, StructuralEqual> const_dedup_map_;
 };

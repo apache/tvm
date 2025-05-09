@@ -91,7 +91,7 @@ class DataflowBlockExtractor : public ExprMutator {
       }
 
       dataflow_bindings = {};
-      input_dataflow_block = NullOpt;
+      input_dataflow_block = std::nullopt;
     };
 
     for (auto block : seq->blocks) {
@@ -149,10 +149,9 @@ Expr ConvertToDataflow(const Expr& input, size_t min_size) {
 namespace transform {
 
 Pass ConvertToDataflow(int min_size) {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(ConvertToDataflow(f, min_size));
-      };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return Downcast<Function>(ConvertToDataflow(f, min_size));
+  };
   auto pass = CreateFunctionPass(pass_func, 0, "ConvertToDataflow", {});
   // Canonicalize bindings is included afterwards in order to transform any
   // normal vars in DF blocks that are not used outside the DF block into

@@ -24,7 +24,7 @@
  */
 #include "./static_library.h"
 
-#include <tvm/runtime/memory.h>
+#include <tvm/ffi/memory.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -48,9 +48,10 @@ class StaticLibraryNode final : public runtime::ModuleNode {
 
   const char* type_key() const final { return "static_library"; }
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     if (name == "get_func_names") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = func_names_; });
+      return ffi::Function(
+          [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = func_names_; });
     } else {
       return {};
     }

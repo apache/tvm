@@ -36,16 +36,16 @@ const Array<Doc> TensorRTOpCode::GetDocs() {
   CodeGenBuild();
   if (node()->optype == "tuple") {
     for (size_t i = 0; i < node()->outputs.size(); i++) {
-      stack_.func_call("setName", NullOpt, DocUtils::ToPtr(IdxOutput(i)))
+      stack_.func_call("setName", std::nullopt, DocUtils::ToPtr(IdxOutput(i)))
           .call_arg(DocUtils::ToStr(node()->OutputAt(i)->name));
     }
   } else if (node()->optype == "get_item") {
-    stack_.func_call("setName", NullOpt, DocUtils::ToPtr(IdxNode()))
+    stack_.func_call("setName", std::nullopt, DocUtils::ToPtr(IdxNode()))
         .call_arg(DocUtils::ToStr(node()->OutputAt(0)->name));
   } else if (node()->optype != "input") {
     SetLayerByValue("Name", DocUtils::ToStr(node()->name));
     for (size_t i = 0; i < node()->outputs.size(); i++) {
-      stack_.func_call("setName", NullOpt, DocUtils::ToPtr(IdxOutput(i)))
+      stack_.func_call("setName", std::nullopt, DocUtils::ToPtr(IdxOutput(i)))
           .call_arg(DocUtils::ToStr(node()->OutputAt(i)->name));
     }
   }
@@ -157,29 +157,29 @@ const size_t TensorRTOpCode::AttrToAxis(const String& key, size_t ndim) {
 
 template <typename T>
 void TensorRTOpCode::SetLayerByAttr(const String& method, const String& key) {
-  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtr(IdxNode())).op_arg<T>(key, "");
+  stack_.func_call("set" + method, std::nullopt, DocUtils::ToPtr(IdxNode())).op_arg<T>(key, "");
 }
 
 template <typename T>
 void TensorRTOpCode::SetLayerByValue(const String& method, const T& value) {
-  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtr(IdxNode())).call_arg(value);
+  stack_.func_call("set" + method, std::nullopt, DocUtils::ToPtr(IdxNode())).call_arg(value);
 }
 
 void TensorRTOpCode::SetLayerByDimsAttr(const String& method, const String& key, bool use_ndim) {
-  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtr(IdxNode()))
+  stack_.func_call("set" + method, std::nullopt, DocUtils::ToPtr(IdxNode()))
       .call_arg(AttrToDims(key, use_ndim));
 }
 
 template <typename T>
 void TensorRTOpCode::SetLayerByDimsValue(const String& method, const std::vector<T>& value,
                                          bool use_ndim) {
-  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtr(IdxNode()))
+  stack_.func_call("set" + method, std::nullopt, DocUtils::ToPtr(IdxNode()))
       .call_arg(ToDims(value, use_ndim));
 }
 
 void TensorRTOpCode::SetLayerByDimsValue(const String& method, const Array<Integer>& value,
                                          bool use_ndim) {
-  stack_.func_call("set" + method, NullOpt, DocUtils::ToPtr(IdxNode()))
+  stack_.func_call("set" + method, std::nullopt, DocUtils::ToPtr(IdxNode()))
       .call_arg(ToDims(value, use_ndim));
 }
 
@@ -269,7 +269,7 @@ class TensorRTAstypeCodeGen : public TensorRTOpCode {
   void CodeGenBuild() final {
     stack_.op_call()
         .op_input_arg()
-        .func_call("setOutputType", NullOpt, DocUtils::ToPtr(IdxNode()))
+        .func_call("setOutputType", std::nullopt, DocUtils::ToPtr(IdxNode()))
         .call_arg(0)
         .op_dtype_arg(node()->OutputAt(0)->dtype);
   }

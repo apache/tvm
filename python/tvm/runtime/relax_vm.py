@@ -44,7 +44,7 @@ class VirtualMachine(object):
 
     def __init__(
         self,
-        rt_mod: Union[tvm.runtime.Module, "tvm.relax.Executable"],
+        rt_mod: Union[tvm.runtime.Module, tvm.runtime.Executable],
         device: Union[Device, List[Device]],
         memory_cfg: Optional[Union[str, Dict[Device, str]]] = None,
         profile: bool = False,
@@ -54,7 +54,7 @@ class VirtualMachine(object):
 
         Parameters
         ----------
-        rt_mod: Union[tvm.runtime.Module, tvm.relax.Executable]
+        rt_mod: Union[tvm.runtime.Module, tvm.runtime.Executable]
             Runtime module exported by the result of build.
 
         device : Union[Device, List[Device]]
@@ -72,13 +72,7 @@ class VirtualMachine(object):
             Whether or not to enable profiling.
         """
         if not isinstance(rt_mod, tvm.runtime.Module):
-            # important to keep this import local
-            # as the relax_vm needs to be isolated from compiler
-            # if we do not use the jit feature
-            # pylint:disable=import-outside-toplevel
-            from tvm import relax
-
-            if isinstance(rt_mod, relax.Executable):
+            if isinstance(rt_mod, tvm.runtime.Executable):
                 rt_mod = rt_mod.jit()
             else:
                 raise ValueError("Expect the rt_mod to be an runtime.Module")
@@ -101,10 +95,7 @@ class VirtualMachine(object):
         devs = dev
         if not isinstance(dev, (list, tuple)):
             if not isinstance(dev, tvm.runtime.Device):
-                raise TypeError(
-                    "dev is expected to be Device or \
-                                List[Device]"
-                )
+                raise TypeError("dev is expected to be Device or List[Device]")
             devs = [dev]
 
         # CPU is required for executing shape functions
@@ -440,7 +431,7 @@ class VirtualMachine(object):
         .. code-block:: python
 
             target = tvm.target.Target("llvm", host="llvm")
-            ex = relax.build(TestTimeEvaluator, target)
+            ex = tvm.compile(TestTimeEvaluator, target)
             vm = relax.VirtualMachine(mod, tvm.cpu())
             timing_res = vm.time_evaluator("func_name", tvm.cpu())(arg0, arg1, ..., argn)
 
@@ -449,7 +440,7 @@ class VirtualMachine(object):
         .. code-block:: python
 
             target = tvm.target.Target("llvm", host="llvm")
-            ex = relax.build(TestTimeEvaluator, target)
+            ex = tvm.compile(TestTimeEvaluator, target)
             vm = relax.VirtualMachine(mod, tvm.cpu())
             vm.set_input("func_name", arg0, arg1, ..., argn)
             timing_res = vm.time_evaluator("invoke_stateful", tvm.cpu())("func_name")
@@ -460,7 +451,7 @@ class VirtualMachine(object):
         .. code-block:: python
 
             target = tvm.target.Target("llvm", host="llvm")
-            ex = relax.build(TestTimeEvaluator, target)
+            ex = tvm.compile(TestTimeEvaluator, target)
             vm = relax.VirtualMachine(mod, tvm.cpu())
             vm.save_function("func_name", "func_name_saved", arg0, arg1, ..., argn)
             timing_res = vm.time_evaluator("func_name_saved", tvm.cpu())()

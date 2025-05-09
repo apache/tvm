@@ -113,20 +113,19 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
   const InstructionNode* sample_inst = sample_insts.at(var_rv);
   ICHECK_EQ(sample_inst->attrs.size(), 2);
   candidate->inst = GetRef<Instruction>(sample_inst);
-  candidate->decision =
-      Downcast<runtime::Int>(trace->decisions[GetRef<Instruction>(sample_inst)])->value;
-  candidate->probs = support::AsVector<runtime::Float, double>(
-      Downcast<Array<runtime::Float>>(sample_inst->attrs[1]));
+  candidate->decision = Downcast<IntImm>(trace->decisions[GetRef<Instruction>(sample_inst)])->value;
+  candidate->probs =
+      support::AsVector<FloatImm, double>(Downcast<Array<FloatImm>>(sample_inst->attrs[1]));
   return true;
 }
 
 Optional<Trace> MutateUnrollNode::Apply(const Trace& trace, TRandState* rand_state) {
   Candidate candidate;
   if (!FindUnrollDecision(trace, rand_state, &candidate)) {
-    return NullOpt;
+    return std::nullopt;
   }
   if (candidate.probs.size() == 0) {
-    return NullOpt;
+    return std::nullopt;
   }
   candidate.probs.erase(candidate.probs.begin() + candidate.decision);
   int result = tir::MakeMultinomialSampler(rand_state, candidate.probs)();

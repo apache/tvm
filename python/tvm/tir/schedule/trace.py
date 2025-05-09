@@ -48,7 +48,7 @@ def _json_from_tvm(obj):
     elif isinstance(obj, String):
         return str(obj)
     elif isinstance(obj, (IntImm, FloatImm)):
-        return obj.value
+        return obj
     elif isinstance(obj, IndexMap):
         return save_json(obj)
     else:
@@ -139,7 +139,7 @@ class Trace(Object):
         Returns
         -------
         popped_inst : Instruction
-            Returns the instruction removed; NullOpt if the trace is empty
+            Returns the instruction removed; std::nullopt if the trace is empty
         """
         return _ffi_api.TracePop(self)  # type: ignore # pylint: disable=no-member
 

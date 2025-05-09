@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 
-""" Test graph builder && graph. """
+"""Test graph builder && graph."""
 
 import pytest
 import torch
@@ -37,7 +37,7 @@ def verify_model(torch_model, input_info, expected):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_conv1d(dynamic):
+def test_conv1d(dynamic: bool):
     """test graph builder for conv1d"""
 
     class Conv1D1(Module):
@@ -77,7 +77,7 @@ def test_conv1d(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_conv2d(dynamic):
+def test_conv2d(dynamic: bool):
     """test graph builder for conv2d"""
 
     class Conv2D1(Module):
@@ -130,7 +130,7 @@ def test_conv2d(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_linear(dynamic):
+def test_linear(dynamic: bool):
     """test graph builder for linear"""
 
     class Dense1(Module):
@@ -201,7 +201,7 @@ def test_linear(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_bmm(dynamic):
+def test_bmm(dynamic: bool):
     """test graph builder for bmm"""
 
     class BMM(Module):
@@ -227,7 +227,7 @@ def test_bmm(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_baddbmm(dynamic):
+def test_baddbmm(dynamic: bool):
     """test graph builder for baddbmm"""
 
     class BAddBMM1(Module):
@@ -273,7 +273,7 @@ def test_baddbmm(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_relu(dynamic):
+def test_relu(dynamic: bool):
     """test graph builder for relu"""
 
     class ReLU(Module):
@@ -303,7 +303,7 @@ def test_relu(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_relu6(dynamic):
+def test_relu6(dynamic: bool):
     """test graph builder for relu6"""
 
     class ReLU6(Module):
@@ -328,7 +328,7 @@ def test_relu6(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_maxpool2d(dynamic):
+def test_maxpool2d(dynamic: bool):
     """test graph builder for maxpool2d"""
 
     class MaxPool2d(Module):
@@ -395,7 +395,7 @@ def test_maxpool2d(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_avgpool2d(dynamic):
+def test_avgpool2d(dynamic: bool):
     """test graph builder for avgpool2d"""
 
     class AvgPool2d(Module):
@@ -443,7 +443,7 @@ def test_avgpool2d(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_adaptive_avgpool2d(dynamic):
+def test_adaptive_avgpool2d(dynamic: bool):
     """test graph builder for adaptive_avgpool2d"""
 
     class AdaptiveAvgPool2d0(Module):
@@ -477,7 +477,7 @@ def test_adaptive_avgpool2d(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_flatten(dynamic):
+def test_flatten(dynamic: bool):
     """test graph builder for flatten"""
 
     class Flatten(Module):
@@ -507,7 +507,7 @@ def test_flatten(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_batchnorm2d(dynamic):
+def test_batchnorm2d(dynamic: bool):
     """test graph builder for batchnorm2d"""
 
     class BatchNorm2d(Module):
@@ -541,7 +541,7 @@ def test_batchnorm2d(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_embedding(dynamic):
+def test_embedding(dynamic: bool):
     """test graph builder for embedding"""
 
     class Embedding(Module):
@@ -579,7 +579,7 @@ def test_embedding(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_dropout(dynamic):
+def test_dropout(dynamic: bool):
     """test graph builder for dropout"""
 
     class Dropout1(Module):
@@ -609,7 +609,7 @@ def test_dropout(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_layernorm(dynamic):
+def test_layernorm(dynamic: bool):
     """test graph builder for layernorm"""
 
     class LayerNorm(Module):
@@ -638,7 +638,7 @@ def test_layernorm(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_functional_layernorm(dynamic):
+def test_functional_layernorm(dynamic: bool):
     """test graph builder for functional_layernorm"""
 
     class LayerNorm(Module):
@@ -670,7 +670,7 @@ def test_functional_layernorm(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_cross_entropy(dynamic):
+def test_cross_entropy(dynamic: bool):
     """test graph builder for cross_entropy"""
 
     class CrossEntropy1(Module):
@@ -735,7 +735,7 @@ def test_cross_entropy(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_functional_cross_entropy(dynamic):
+def test_functional_cross_entropy(dynamic: bool):
     """test graph builder for functional_cross_entropy"""
 
     class CrossEntropy(Module):
@@ -759,7 +759,7 @@ def test_functional_cross_entropy(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_silu(dynamic):
+def test_silu(dynamic: bool):
     """test graph builder for silu"""
 
     class SiLU(Module):
@@ -793,7 +793,7 @@ def test_silu(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_groupnorm(dynamic):
+def test_groupnorm(dynamic: bool):
     """test graph builder for groupnorm"""
 
     class GroupNorm(Module):
@@ -822,7 +822,7 @@ def test_groupnorm(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_softmax(dynamic):
+def test_softmax(dynamic: bool):
     """test graph builder for softmax"""
 
     class Softmax(Module):
@@ -851,7 +851,7 @@ def test_softmax(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_binary(dynamic):
+def test_binary(dynamic: bool):
     """test graph builder for binary"""
 
     bz = "bz" if dynamic else 1
@@ -1111,7 +1111,7 @@ def test_binary(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_size(dynamic):
+def test_size(dynamic: bool):
     """test graph builder for size"""
 
     class Size(Module):
@@ -1132,7 +1132,7 @@ def test_size(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_squeeze(dynamic):
+def test_squeeze(dynamic: bool):
     """test graph builder for squeeze"""
 
     class Squeeze1(Module):
@@ -1173,7 +1173,7 @@ def test_squeeze(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_unsqueeze(dynamic):
+def test_unsqueeze(dynamic: bool):
     """test graph builder for unsqueeze"""
 
     class Unsqueeze1(Module):
@@ -1223,7 +1223,7 @@ def test_unsqueeze(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_getattr(dynamic):
+def test_getattr(dynamic: bool):
     """test graph builder for getattr"""
 
     class GetAttr1(Module):
@@ -1244,7 +1244,7 @@ def test_getattr(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_getitem(dynamic):
+def test_getitem(dynamic: bool):
     """test graph builder for getitem"""
 
     class Slice1(Module):
@@ -1286,7 +1286,7 @@ def test_getitem(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_unary(dynamic):
+def test_unary(dynamic: bool):
     """test graph builder for unary"""
 
     bz = "bz" if dynamic else 1
@@ -1408,7 +1408,7 @@ def test_unary(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_gelu(dynamic):
+def test_gelu(dynamic: bool):
     """test graph builder for gelu"""
 
     class Gelu(Module):
@@ -1433,7 +1433,7 @@ def test_gelu(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_tanh(dynamic):
+def test_tanh(dynamic: bool):
     """test graph builder for tanh"""
 
     class Tanh(Module):
@@ -1458,7 +1458,7 @@ def test_tanh(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_clamp(dynamic):
+def test_clamp(dynamic: bool):
     """test graph builder for clamp"""
 
     class Clamp(Module):
@@ -1479,7 +1479,7 @@ def test_clamp(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_interpolate(dynamic):
+def test_interpolate(dynamic: bool):
     """test graph builder for interpolate"""
 
     class Interpolate(Module):
@@ -1504,7 +1504,7 @@ def test_interpolate(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_addmm(dynamic):
+def test_addmm(dynamic: bool):
     """test graph builder for addmm"""
 
     class Addmm(Module):
@@ -1531,7 +1531,7 @@ def test_addmm(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_split(dynamic):
+def test_split(dynamic: bool):
     """test graph builder for split"""
 
     class Split1(Module):
@@ -1574,7 +1574,7 @@ def test_split(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_unbind(dynamic):
+def test_unbind(dynamic: bool):
     """test graph builder for unbind"""
 
     class Unbind(Module):
@@ -1601,7 +1601,7 @@ def test_unbind(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_cumsum(dynamic):
+def test_cumsum(dynamic: bool):
     """test graph builder for cumsum"""
 
     class Cumsum(Module):
@@ -1622,7 +1622,7 @@ def test_cumsum(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_chunk(dynamic):
+def test_chunk(dynamic: bool):
     """test graph builder for chunk"""
 
     class Chunk(Module):
@@ -1649,7 +1649,7 @@ def test_chunk(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_inplace_fill(dynamic):
+def test_inplace_fill(dynamic: bool):
     """test graph builder for inplace_fill"""
 
     class InplaceFill(Module):
@@ -1734,7 +1734,7 @@ def test_tensor():
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_tril(dynamic):
+def test_tril(dynamic: bool):
     """test graph builder for tril"""
 
     class Tril(Module):
@@ -1762,7 +1762,7 @@ def test_tril(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_triu(dynamic):
+def test_triu(dynamic: bool):
     """test graph builder for triu"""
 
     class Triu(Module):
@@ -1807,7 +1807,7 @@ def test_new_ones():
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_expand(dynamic):
+def test_expand(dynamic: bool):
     """test graph builder for expand"""
 
     class Expand1(Module):
@@ -1835,7 +1835,7 @@ def test_expand(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_reduce(dynamic):
+def test_reduce(dynamic: bool):
     """test graph builder for reduce"""
 
     # sum
@@ -1857,7 +1857,7 @@ def test_reduce(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_datatype(dynamic):
+def test_datatype(dynamic: bool):
     """test graph builder for datatype"""
 
     bz = "bz" if dynamic else 1
@@ -1948,7 +1948,7 @@ def test_datatype(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_permute(dynamic):
+def test_permute(dynamic: bool):
     """test graph builder for permute"""
 
     class Permute(Module):
@@ -1979,7 +1979,7 @@ def test_permute(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_reshape(dynamic):
+def test_reshape(dynamic: bool):
     """test graph builder for reshape"""
 
     class Reshape(Module):
@@ -2007,7 +2007,7 @@ def test_reshape(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_transpose(dynamic):
+def test_transpose(dynamic: bool):
     """test graph builder for transpose"""
 
     class Transpose(Module):
@@ -2038,7 +2038,7 @@ def test_transpose(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_view(dynamic):
+def test_view(dynamic: bool):
     """test graph builder for view"""
 
     class View(Module):
@@ -2066,7 +2066,7 @@ def test_view(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_keep_params(dynamic):
+def test_keep_params(dynamic: bool):
     """test graph builder for keep_params"""
 
     class Conv2D1(Module):
@@ -2099,7 +2099,7 @@ def test_keep_params(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_unwrap_unit_return_tuple(dynamic):
+def test_unwrap_unit_return_tuple(dynamic: bool):
     """test graph builder for unwrap_unit_return_tuple"""
 
     class Identity(Module):
@@ -2119,7 +2119,7 @@ def test_unwrap_unit_return_tuple(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_no_bind_return_tuple(dynamic):
+def test_no_bind_return_tuple(dynamic: bool):
     """test graph builder for no_bind_return_tuple"""
 
     class Identity(Module):
@@ -2147,7 +2147,7 @@ def test_no_bind_return_tuple(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_argmax(dynamic):
+def test_argmax(dynamic: bool):
     """test graph builder for argmax"""
 
     class Argmax1(Module):
@@ -2178,7 +2178,7 @@ def test_argmax(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_argmin(dynamic):
+def test_argmin(dynamic: bool):
     """test graph builder for argmin"""
 
     class Argmin1(Module):
@@ -2209,7 +2209,7 @@ def test_argmin(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_to(dynamic):
+def test_to(dynamic: bool):
     """test graph builder for to"""
 
     class To1(Module):
@@ -2240,7 +2240,7 @@ def test_to(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_mean(dynamic):
+def test_mean(dynamic: bool):
     """test graph builder for mean"""
 
     class Mean(Module):
@@ -2271,7 +2271,7 @@ def test_mean(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_rsqrt(dynamic):
+def test_rsqrt(dynamic: bool):
     """test graph builder for rsqrt"""
 
     class Rsqrt(Module):
@@ -2291,7 +2291,7 @@ def test_rsqrt(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_neg(dynamic):
+def test_neg(dynamic: bool):
     """test graph builder for neg"""
 
     class Neg(Module):
@@ -2311,7 +2311,7 @@ def test_neg(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_max(dynamic):
+def test_max(dynamic: bool):
     """test graph builder for max"""
 
     class Max(Module):
@@ -2334,7 +2334,7 @@ def test_max(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_cat(dynamic):
+def test_cat(dynamic: bool):
     """test graph builder for cat"""
 
     class Cat1(Module):
@@ -2385,8 +2385,8 @@ def test_cat(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_stack(dynamic):
-    """test graph builder for stack"""
+def test_stack(dynamic: bool):
+    """Test graph builder for stack."""
 
     bz = "bz" if dynamic else 1
 
@@ -2408,23 +2408,23 @@ def test_stack(dynamic):
         ],
         "outputs": [
             {
-                "name": "reshape",
+                "name": "stack",
                 "shape": [3, bz, 3, 10, 10],
                 "dtype": "float32",
-                "layout": "" if dynamic else "EABCD",
+                "layout": "SABCD",
             }
         ],
-        "nodes": {"total": 5, "input": 3, "concat": 1, "reshape": 1},
+        "nodes": {"total": 4, "input": 3, "stack": 1},
     }
 
     if dynamic:
-        expected["prims"] = {"total": 3, "shape": 1, "Int": 1, "Mul": 1}
+        expected["prims"] = {"total": 1, "shape": 1}
 
     verify_model(Stack(), input_info, expected)
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_scatter(dynamic):
+def test_scatter(dynamic: bool):
     """test graph builder for scatter"""
 
     bz = "bz" if dynamic else 20
@@ -2473,7 +2473,7 @@ def test_scatter(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_masked_scatter(dynamic):
+def test_masked_scatter(dynamic: bool):
     """test graph builder for masked_scatter"""
 
     dim = "dim" if dynamic else 5
@@ -2557,33 +2557,8 @@ def test_masked_scatter(dynamic):
     )
 
 
-def test_put():
-    """test graph builder for index_put"""
-
-    class IndexPut(Module):
-        def __init__(self):
-            super().__init__()
-            self.index = msc_utils.random_data([(5), "int64"], MSCFramework.TORCH, max_val=5)
-
-        def forward(self, data, src):
-            data[self.index] = src
-            return data
-
-    expected = {
-        "inputs": [
-            {"name": "input0", "shape": [10, 20], "dtype": "float32", "layout": ""},
-            {"name": "input1", "shape": [5, 20], "dtype": "float32", "layout": ""},
-        ],
-        "outputs": [{"name": "scatter_nd", "shape": [10, 20], "dtype": "float32", "layout": ""}],
-        "nodes": {"total": 4, "input": 2, "constant": 1, "scatter_nd": 1},
-    }
-
-    input_info = [([10, 20], "float32"), ([5, 20], "float32")]
-    verify_model(IndexPut(), input_info, expected)
-
-
 @pytest.mark.parametrize("dynamic", [True, False])
-def test_attention(dynamic):
+def test_attention(dynamic: bool):
     """test graph builder for attention"""
 
     # pylint: disable=import-outside-toplevel

@@ -28,10 +28,10 @@
 #ifndef TVM_RELAX_NESTED_MSG_H_
 #define TVM_RELAX_NESTED_MSG_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/optional.h>
 
 #include <utility>
 #include <vector>
@@ -46,7 +46,7 @@ namespace relax {
  * message state in pass analysis so we can robustly handle message
  * passing with the presence of nested tuple types.
  *
- * Under the hood, NestedMsg[T] = Union[T, NullOpt, Array[NestedMsg[T]]].
+ * Under the hood, NestedMsg[T] = Union[T, std::nullopt, Array[NestedMsg[T]]].
  * Each nested message corresponds to the same nesting structure as
  * the nested tuple types when we encounter them in analysis.
  *
@@ -130,7 +130,7 @@ class NestedMsg : public ObjectRef {
    */
   explicit NestedMsg(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
   /*! \brief Nullopt handling */
-  NestedMsg(runtime::NullOptType) {}  // NOLINT(*)
+  NestedMsg(std::nullopt_t) {}  // NOLINT(*)
   // nullptr handling.
   // disallow implicit conversion as 0 can be implicitly converted to nullptr_t
   explicit NestedMsg(std::nullptr_t) {}
@@ -176,7 +176,7 @@ class NestedMsg : public ObjectRef {
   bool IsNull() const { return data_ == nullptr; }
 
   /*! \return Whether the nested message is nested */
-  bool IsNested() const { return data_ != nullptr && data_->IsInstance<ArrayNode>(); }
+  bool IsNested() const { return data_ != nullptr && data_->IsInstance<ffi::ArrayObj>(); }
 
   /*!
    * \return The underlying leaf value.
@@ -359,7 +359,7 @@ NestedMsg<T> MapToNestedMsgBySInfo(Expr expr, FType fmapleaf) {
 template <typename TargetType, typename T, typename FMapLeaf, typename FCombine>
 TargetType NestedMsgTo(NestedMsg<T> msg, FMapLeaf fmapleaf, FCombine fcombine) {
   if (msg.IsNull()) {
-    return fmapleaf(NullOpt);
+    return fmapleaf(std::nullopt);
   } else if (msg.IsLeaf()) {
     return fmapleaf(msg.LeafValue());
   } else {

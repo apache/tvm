@@ -128,8 +128,7 @@ IRModule BindShape(IRModule mod, const String& entry_name) {
 namespace transform {
 
 Pass BindShape(const String& entry_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::BindShape(m, entry_name); };
+  auto pass_func = [=](IRModule m, PassContext pc) { return relax::BindShape(m, entry_name); };
   return CreateModulePass(pass_func, 0, "BindShape", {});
 }
 

@@ -142,8 +142,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.cuda.conv2d_nchw_winograd_inverse")
         BlockRV output = sch->GetConsumers(inverse)[0];
         Array<LoopRV> nchw = sch->GetLoops(output);
         ICHECK_EQ(nchw.size(), 4);
-        Array<LoopRV> hs = sch->Split(nchw[2], {NullOpt, Integer(tile_size)});
-        Array<LoopRV> ws = sch->Split(nchw[3], {NullOpt, Integer(tile_size)});
+        Array<LoopRV> hs = sch->Split(nchw[2], {std::nullopt, Integer(tile_size)});
+        Array<LoopRV> ws = sch->Split(nchw[3], {std::nullopt, Integer(tile_size)});
         sch->Reorder({hs[0], ws[0], hs[1], ws[1]});
         outer = ws[0];
       }

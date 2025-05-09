@@ -20,7 +20,6 @@ from __future__ import absolute_import as _abs
 
 import tvm
 from tvm import te, topi
-from tvm.te import hybrid
 
 from . import cpp, tag
 from .utils import const_vector, make_idx, within_index
@@ -404,23 +403,25 @@ def concatenate(a_tuple, axis=0):
     return cpp.concatenate(a_tuple, axis)
 
 
-def stack(a, axis):
-    """Repeats the whole array multiple times.
+def stack(tensors, axis=0):
+    """Join a sequence of tensors along a new axis.
 
     Parameters
     ----------
-    a : tvm.te.Tensor
-        The tensor to be stacked.
+    tensors : tuple or list of tvm.te.Tensor
+        The tensors to be stacked. All tensors must have the same shape.
 
     axis : int, optional
-        The axis in the result array along which the input arrays are stacked.
-
+        The axis in the resulting tensor along which the input tensors will be stacked.
+        Negative values wrap around. Default is 0.
 
     Returns
     -------
     ret : tvm.te.Tensor
+        The stacked tensor with an additional dimension compared to the input tensors.
+
     """
-    return cpp.stack(a, axis)
+    return cpp.stack(tensors, axis)
 
 
 def split(ary, indices_or_sections, axis=0):
@@ -472,28 +473,6 @@ def take(a, indices, axis=None, batch_dims=0, mode="clip"):
     if axis is None:
         return cpp.take(a, indices, int(batch_dims), mode)
     return cpp.take(a, indices, int(batch_dims), int(axis), mode)
-
-
-@tvm.target.generic_func
-def take_legalize(attrs, inputs, types):
-    """Legalizes dyn.topk op.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current op
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The legalized expr
-    """
-    if tvm.relay.ty.is_dynamic(types[0]):
-        return tvm.relay.take(tvm.relay.annotation.stop_fusion(inputs[0]), inputs[1], **attrs)
-    return None
 
 
 def gather(data, axis, indices):
@@ -816,12 +795,12 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
     axis : int
         Axis to fill.
 
-    dtype : relay.DataType
+    dtype : str
         Data type of the output tensor.
 
     Returns
     -------
-    ret : relay.Expr
+    ret : tvm.te.Tensor
         The one-hot tensor.
 
     Examples
@@ -830,7 +809,7 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
 
         indices = [0, 1, 2]
 
-        relay.one_hot(indices, 3) =
+        topi.one_hot(indices, 3) =
             [[1, 0, 0],
              [0, 1, 0],
              [0, 0, 1]]
@@ -846,15 +825,15 @@ def unravel_index(indices, shape):
 
     Parameters
     ----------
-    indices : relay.Expr
+    indices : tvm.te.Tensor
         An integer array containing indices.
 
-    shape : relay.Expr
+    shape : tvm.te.Tensor
         The shape of the array.
 
     Returns
     -------
-    result : relay.Expr
+    result : tvm.te.Tensor
         The tuple of coordinate arrays.
     """
 
@@ -897,10 +876,10 @@ def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
 
     Parameters
     ----------
-    data : relay.Expr
+    data : tvm.te.Tensor
         Input Tensor.
 
-    diagonal : relay.Expr
+    diagonal : tvm.te.Tensor
         Values to be filled in the diagonal.
 
     k : int or tuple of int, optional
@@ -920,7 +899,7 @@ def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
 
     Returns
     -------
-    result : relay.Expr
+    result : tvm.te.Tensor
         New tensor with given diagonal values.
 
     Examples
@@ -982,41 +961,12 @@ def adv_index(data, indices):
     return cpp.adv_index(data, indices)
 
 
-@hybrid.script
-def invert_permutation(data):
-    """Computes the inverse permutation of data.
-
-    Parameters
-    ----------
-    data : tvm.te.Tensor
-        Input data
-
-    Returns
-    -------
-    result : tvm.te.Tensor
-        Output tensor
-
-    Examples
-    --------
-    .. code-block:: python
-
-        data = [3, 4, 0, 2, 1]
-        topi.invert_permutation(data) = [2, 4, 3, 0, 1]
-    """
-    result = output_tensor(data.shape, data.dtype)
-    nums = data.shape[0]
-    for ind in range(nums):
-        r_ind = data[ind]
-        result[r_ind] = ind
-    return result
-
-
 def sliding_window(data, axis, window_shape, strides):
     """Slide a window over the data tensor.
 
     Parameters
     ----------
-    data : relay.Expr
+    data : tvm.te.Tensor
         The input data to the operator.
 
     axis : int
@@ -1035,7 +985,7 @@ def sliding_window(data, axis, window_shape, strides):
 
     Returns
     -------
-    result : relay.Expr
+    result : tvm.te.Tensor
         The resulting tensor.
     """
     return cpp.sliding_window(data, axis, window_shape, strides)
@@ -1063,7 +1013,7 @@ def trilu(data, k, upper):
 
     Returns
     -------
-    ret : relay.Expr
+    ret : tvm.te.Tensor
         The new tensor with appropriate diagonals set to zero.
 
     Examples
@@ -1074,7 +1024,7 @@ def trilu(data, k, upper):
              [3, 4, 5],
              [6, 7, 8]]
 
-        relay.trilu(x, True, 0) =
+        topi.trilu(x, True, 0) =
             [[0, 1, 2],
              [0, 4, 5],
              [0, 0, 8]]
@@ -1104,3 +1054,54 @@ def trilu(data, k, upper):
         return tvm.tir.Select(check_position, value, tvm.tir.const(0, data.dtype))
 
     return te.compute(data.shape, _apply_trilu, name="trilu", tag=topi.tag.ELEMWISE)
+
+
+def index_tensor(data, indices):
+    """Advanced‑tensor indexing (NumPy/PyTorch‐style).
+
+    Given k index tensors ``indices = (I0, I1, …, Ik‑1)`` this
+    operator selects elements from ``data`` as if one had written
+    ``data[I0, I1, …, Ik‑1]`` in NumPy/PyTorch:
+
+    * All index tensors must have an integer dtype.
+    * Their shapes are broadcast together to a common shape ``B`` in
+      the usual NumPy way.
+    * The result shape is ``B + data.shape[k:]`` (i.e. the broadcast
+      shape followed by the remaining axes of ``data`` that are *not*
+      indexed).
+    *  ``k`` must not exceed ``data.ndim``; otherwise a compile‑time
+       error is raised.
+
+    Parameters
+    ----------
+    data : tvm.te.Tensor
+        The tensor to be indexed.
+
+    indices : Sequence[tvm.te.Tensor]
+        A Python ``list`` / ``tuple`` of **k** index tensors,
+        or a `tvm.te.Tensor` tuple expression. Each tensor must have an
+        integer dtype.
+
+    Returns
+    -------
+    result : tvm.te.Tensor
+        The tensor obtained after advanced indexing.  Its dtype equals
+        ``data.dtype``
+
+    Examples
+    --------
+    .. code-block:: python
+
+        x     = te.placeholder((3, 3),  name="x")        # shape (3,3)
+        row   = te.placeholder((2,),    name="row", dtype="int32")
+        col   = te.placeholder((2,),    name="col", dtype="int32")
+
+        # Equivalent to x[row, col] in NumPy / PyTorch
+        y = topi.index_tensor(x, [row, col])             # shape (2,)
+
+        # Broadcasting example:
+        row = te.placeholder((2, 1), name="row", dtype="int32")
+        col = te.placeholder((1, 3), name="col", dtype="int32")
+        z = topi.index_tensor(x, [row, col])             # shape (2, 3)
+    """
+    return topi.adv_index(data, indices)

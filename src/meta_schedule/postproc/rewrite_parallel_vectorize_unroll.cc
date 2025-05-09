@@ -106,23 +106,23 @@ bool ParseAnnotation(const Block& block, ParsedAnnotation* parsed) {
   for (const auto& ann : block->annotations) {
     if (ann.first == attr::meta_schedule_parallel) {
       found = true;
-      if (const auto* imm = ann.second.as<tir::IntImmNode>()) {
-        parsed->max_parallel_extent = imm->value;
+      if (auto opt_int_imm = ann.second.as<IntImm>()) {
+        parsed->max_parallel_extent = (*opt_int_imm)->value;
       }
     } else if (ann.first == attr::meta_schedule_vectorize) {
       found = true;
-      if (const auto* imm = ann.second.as<tir::IntImmNode>()) {
-        parsed->max_vectorize_extent = imm->value;
+      if (auto opt_int_imm = ann.second.as<IntImm>()) {
+        parsed->max_vectorize_extent = (*opt_int_imm)->value;
       }
     } else if (ann.first == attr::meta_schedule_unroll_explicit) {
       found = true;
-      if (const auto* imm = ann.second.as<tir::IntImmNode>()) {
-        parsed->unroll_explicit = imm->value;
+      if (auto opt_int_imm = ann.second.as<IntImm>()) {
+        parsed->unroll_explicit = (*opt_int_imm)->value;
       }
     } else if (ann.first == attr::meta_schedule_unroll_implicit) {
       found = true;
-      if (const auto* imm = ann.second.as<tir::IntImmNode>()) {
-        parsed->unroll_implicit = imm->value;
+      if (auto opt_int_imm = ann.second.as<IntImm>()) {
+        parsed->unroll_implicit = (*opt_int_imm)->value;
       }
     }
   }
@@ -358,7 +358,7 @@ bool FindAnnotatedRootBlock(const Schedule& sch, ParsedAnnotation* parsed, Block
 void RewriteFuseSplitParallelVectorize(const Schedule& sch, Array<LoopRV>* loop_rvs, int vec_len) {
   size_t n_loops = loop_rvs->size();
   LoopRV fused = sch->Fuse({loop_rvs->begin(), loop_rvs->end()});
-  Array<LoopRV> split = sch->Split(fused, {NullOpt, Integer(vec_len)});
+  Array<LoopRV> split = sch->Split(fused, {std::nullopt, Integer(vec_len)});
   ICHECK_EQ(split.size(), 2);
   const LoopRV& outer = split[0];
   const LoopRV& inner = split[1];

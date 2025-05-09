@@ -32,7 +32,7 @@ def relax_check_gradients(
     op_func: Callable,
     inputs_numpy: List[np.array],
     target: Union[str, tvm.target.Target],
-    dev: tvm._ffi.runtime_ctypes.Device,
+    dev: tvm.runtime.Device,
     tuple_input: bool = False,
     ignore_grads: List[int] = [],
     **kwargs,  # attr for operators
@@ -54,7 +54,7 @@ def relax_check_gradients(
     target : Union[str, tvm.target.Target]
         The building target.
 
-    dev : tvm._ffi.runtime_ctypes.Device
+    dev : tvm.runtime.Device
         The device to deploy the module.
 
     tuple_input : bool
@@ -122,7 +122,7 @@ def relax_check_gradients(
             out = forward_bb.emit_output(call)
         forward_bb.emit_func_output(out)
     forward_mod = forward_bb.get()
-    forward_ex = relax.build(forward_mod, target)
+    forward_ex = tvm.compile(forward_mod, target)
     forward_vm = relax.VirtualMachine(forward_ex, dev)
 
     # Generate weights
@@ -186,7 +186,7 @@ def relax_check_gradients(
         grad_bb.emit_func_output(out)
 
     grad_mod = grad_bb.get()
-    grad_ex = relax.build(grad_mod, target)
+    grad_ex = tvm.compile(grad_mod, target)
     grad_vm = relax.VirtualMachine(grad_ex, dev)
 
     # tvm.runtime.NDArray inputs

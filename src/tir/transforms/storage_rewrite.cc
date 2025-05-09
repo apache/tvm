@@ -92,7 +92,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     AllocEntry entry;
     entry.alloc = op;
     entry.level = level;
-    // Since StorageRewrite occurs after StorageFlatten/FlattenBuffer,
+    // Since StorageRewrite occurs after FlattenBuffer,
     // all allocations specify the extent of physical dimensions, and
     // is 1 for flat memory spaces.
     entry.num_physical_dimensions = op->extents.size();
@@ -542,7 +542,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // The storage scope.
     StorageScope scope;
     // The physical dimensionality of the allocations.  Since
-    // StorageRewrite is applied after StorageFlatten/FlattenBuffer,
+    // StorageRewrite is applied after FlattenBuffer,
     // this is size of `AllocateNode::extents`.  If moved
     size_t ndim;
     // Allocs that shares this entry.

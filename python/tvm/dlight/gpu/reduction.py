@@ -14,21 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""A rule for reduction. """
+"""A rule for reduction."""
 # TODO: combine reduction rule and general reduction rule into one file.
 from typing import List, Mapping, Optional, Tuple, Union
 
 from tvm import arith, ir, tir
 from tvm.target import Target
 
-from ..base import (
+from ..analysis import (
     BlockInfo,
     detect_dominant_read,
     is_broadcast_epilogue,
     normalize_prim_func,
-    try_inline_contiguous_spatial,
 )
-from . import utils
+from ..base import suggest_threads_per_block, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
 
@@ -46,6 +45,10 @@ def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
     ):
         return None
     return buffer_store.value.b
+
+
+def _has_reduction_loop(block_info):
+    return any([info.kind == "R" for info in block_info.iters])
 
 
 class Reduction(GPUScheduleRule):
@@ -80,6 +83,7 @@ class Reduction(GPUScheduleRule):
         # Step 1. Check reduction block
         if (
             (not block_info.is_reduction())
+            or (not _has_reduction_loop(block_info))
             or len(block_stmt.writes) != 1
             or _get_reduction_expr(block_stmt) is None
         ):
@@ -181,7 +185,7 @@ class Reduction(GPUScheduleRule):
     ):
         # pylint: disable=invalid-name
         _, r, _ = sch.get_loops(block)
-        (len_tx,) = utils.suggest_threads_per_block(  # pylint: disable=unbalanced-tuple-unpacking
+        (len_tx,) = suggest_threads_per_block(  # pylint: disable=unbalanced-tuple-unpacking
             target, [sch.get(r)]
         )
 

@@ -337,7 +337,7 @@ Pass VerifyGPUCode(Map<String, PrimExpr> constraints) {
           }
           LOG(FATAL) << "RuntimeError: GPU constraint(s) violated:\n"
                      << s.str() << "  In function\n"
-                     << func;
+                     << func.value();
         }
       }
     }

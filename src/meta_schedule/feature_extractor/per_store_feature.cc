@@ -1392,7 +1392,8 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
 
   Array<runtime::NDArray> ExtractFrom(const TuneContext& tune_context,
                                       const Array<MeasureCandidate>& candidates) {
-    bool is_gpu = tune_context->target.value()->kind->name == "cuda";
+    auto& target_keys = tune_context->target.value()->keys;
+    bool is_gpu = std::find(target_keys.begin(), target_keys.end(), "gpu") != target_keys.end();
     std::vector<runtime::NDArray> results;
     results.resize(candidates.size());
     std::unique_ptr<tir::group6::Feature> feature_group6 = nullptr;

@@ -19,12 +19,13 @@
 #ifndef TVM_RELAX_EXPR_H_
 #define TVM_RELAX_EXPR_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/node/node.h>
 #include <tvm/relax/type.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -34,8 +35,8 @@
 namespace tvm {
 namespace relax {
 
-using Expr = RelayExpr;
-using ExprNode = RelayExprNode;
+using Expr = RelaxExpr;
+using ExprNode = RelaxExprNode;
 /*!
  * \brief The unique identifier of variables.
  *
@@ -118,7 +119,7 @@ class StructInfoNode : public Object {
   static constexpr const char* _type_key = "StructInfo";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  static constexpr const uint32_t _type_child_slots = 5;
+  static constexpr const uint32_t _type_child_slots = 7;
   TVM_DECLARE_BASE_OBJECT_INFO(StructInfoNode, Object);
 };
 
@@ -415,7 +416,7 @@ class VarNode : public LeafExprNode {
   static constexpr const char* _type_key = "relax.expr.Var";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  static constexpr const uint32_t _type_child_slots = 2;
+  static constexpr const uint32_t _type_child_slots = 1;
   TVM_DECLARE_BASE_OBJECT_INFO(VarNode, LeafExprNode);
 };
 
@@ -519,7 +520,7 @@ class Constant : public LeafExpr {
    * \param span The source span of the expression.
    */
   TVM_DLL explicit Constant(runtime::NDArray data,
-                            Optional<StructInfo> struct_info_annotation = NullOpt,
+                            Optional<StructInfo> struct_info_annotation = std::nullopt,
                             Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Constant, LeafExpr, ConstantNode);
@@ -1005,7 +1006,7 @@ class Function : public BaseFunc {
    *     SeqExpr.
    *
    * \param ret_struct_info The StructInfo returned by the function.
-   *     If NullOpt, will be inferred from the StructInfo of the
+   *     If std::nullopt, will be inferred from the StructInfo of the
    *     function's body.
    *
    * \param is_pure The purity of the function.

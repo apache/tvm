@@ -21,6 +21,7 @@
  * \file tir/ir/transform.cc
  * \brief TIR specific transformation passes.
  */
+#include <tvm/ffi/rvalue_ref.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/transform.h>
@@ -28,6 +29,26 @@
 namespace tvm {
 namespace tir {
 namespace transform {
+
+// Register build pipeline related options
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.noalias", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.detect_global_barrier", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_bound_checkers", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_assert", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_vectorize", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_buffer_level_predication", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_cse_tir", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_debug", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_equiv_terms_in_cse_tir", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_storage_rewrite", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.is_entry_func", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.add_lower_pass", Array<Array<ObjectRef>>);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.debug_keep_trivial_loop", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.use_async_copy", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.merge_static_smem", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_lwp", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.vtcm_capacity", Integer);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.ptx_ldg32", Bool);
 
 /*!
  * \brief Function level pass that applies transformations to all
@@ -39,7 +60,7 @@ class PrimFuncPassNode : public PassNode {
   PassInfo pass_info;
 
   /*! \brief The pass function called on each. */
-  runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func;
+  std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func;
 
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("pass_info", &pass_info); }
 
@@ -69,16 +90,14 @@ class PrimFuncPass : public Pass {
    * \param pass_func The packed function which implements a pass.
    * \param pass_info The pass info.
    */
-  TVM_DLL PrimFuncPass(
-      runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-      PassInfo pass_info);
+  TVM_DLL PrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
+                       PassInfo pass_info);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimFuncPass, Pass, PrimFuncPassNode);
 };
 
-PrimFuncPass::PrimFuncPass(
-    runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-    PassInfo pass_info) {
+PrimFuncPass::PrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
+                           PassInfo pass_info) {
   auto n = make_object<PrimFuncPassNode>();
   n->pass_func = std::move(pass_func);
   n->pass_info = std::move(pass_info);
@@ -95,13 +114,14 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   // directly loop over the underlying dict
   for (auto& kv : *func_dict) {
     // only picks up tir::PrimFunc
-    if (kv.second->IsInstance<PrimFuncNode>()) {
-      // move out the function so that it is the only copy.
-      PrimFunc func = Downcast<PrimFunc>(std::move(kv.second));
+    if (auto opt_func = kv.second.as<PrimFunc>()) {
+      // reset the original Any state so the value contains only copy
+      // use move semantics as follows to avoid only copy.
+      kv.second.reset();
+      PrimFunc func = *std::move(opt_func);
       func = pass_func(std::move(func), mod, pass_ctx);
-      kv.second = std::move(func);
-
-      if (!kv.second.defined()) {
+      kv.second = Any(std::move(func));
+      if (kv.second == nullptr) {
         deleted_list.push_back(Downcast<GlobalVar>(kv.first));
       }
     }
@@ -116,19 +136,23 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   return mod;
 }
 
-Pass CreatePrimFuncPass(
-    const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable) {
+Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
+                        int opt_level, String name, tvm::Array<String> required, bool traceable) {
   PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
-  return PrimFuncPass(pass_func, pass_info);
+  return PrimFuncPass(std::move(pass_func), pass_info);
 }
 
 TVM_REGISTER_NODE_TYPE(PrimFuncPassNode);
 
 TVM_REGISTER_GLOBAL("tir.transform.CreatePrimFuncPass")
     .set_body_typed(
-        [](runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
-           PassInfo pass_info) { return PrimFuncPass(pass_func, pass_info); });
+        [](ffi::TypedFunction<PrimFunc(ffi::RValueRef<PrimFunc>, IRModule, PassContext)> pass_func,
+           PassInfo pass_info) {
+          auto wrapped_pass_func = [pass_func](PrimFunc func, IRModule mod, PassContext ctx) {
+            return pass_func(ffi::RValueRef<PrimFunc>(std::move(func)), mod, ctx);
+          };
+          return PrimFuncPass(wrapped_pass_func, pass_info);
+        });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PrimFuncPassNode>([](const ObjectRef& ref, ReprPrinter* p) {

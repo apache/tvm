@@ -79,6 +79,24 @@ class AttrPrinter : public tvm::AttrVisitor {
     LOG(FATAL) << "TypeError: NDArray is not allowed in Attrs";
   }
 
+  void Visit(const char* key, Optional<double>* value) final {
+    keys->push_back(key);
+    if (value->has_value()) {
+      values->push_back(LiteralDoc::Float(value->value(), p->Attr(key)));
+    } else {
+      values->push_back(LiteralDoc::None(p->Attr(key)));
+    }
+  }
+
+  void Visit(const char* key, Optional<int64_t>* value) final {
+    keys->push_back(key);
+    if (value->has_value()) {
+      values->push_back(LiteralDoc::Int(value->value(), p->Attr(key)));
+    } else {
+      values->push_back(LiteralDoc::None(p->Attr(key)));
+    }
+  }
+
   ObjectPath p;
   const IRDocsifier& d;
   Array<String>* keys;
@@ -104,7 +122,7 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
   if (!n->op.same_as(call_tir_op) && !n->op.same_as(call_dps_packed_op) &&
       !n->op.same_as(call_tir_with_grad_op) && !n->op.same_as(call_tir_local_view) &&
       !n->op.same_as(call_tir_inplace_op)) {
-    return NullOpt;
+    return std::nullopt;
   }
   ICHECK(n->args.size() == 2 || n->args.size() == 3);
   ICHECK(n->sinfo_args.size() == 1);
@@ -188,7 +206,7 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
 Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const ObjectPath& n_p, const IRDocsifier& d) {
   static const Op& assert_op = Op::Get("relax.assert_op");
   if (!n->op.same_as(assert_op)) {
-    return NullOpt;
+    return std::nullopt;
   }
   ICHECK(n->args.size() >= 2);
   // special handling: it is important to indicate that the format string (second argument)
@@ -208,7 +226,7 @@ Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const ObjectPath& n_p,
                                     const IRDocsifier& d) {
   static const Op& hint_on_device_op = Op::Get("relax.hint_on_device");
   if (!n->op.same_as(hint_on_device_op)) {
-    return NullOpt;
+    return std::nullopt;
   }
   Array<ExprDoc> args;
 
@@ -228,7 +246,7 @@ Optional<ExprDoc> PrintToVDevice(const relax::Call& n, const ObjectPath& n_p,
                                  const IRDocsifier& d) {
   static const Op& to_vdevice_op = Op::Get("relax.to_vdevice");
   if (!n->op.same_as(to_vdevice_op)) {
-    return NullOpt;
+    return std::nullopt;
   }
   Array<ExprDoc> args;
 
@@ -251,7 +269,7 @@ Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const ObjectPath& n_p,
                                   const IRDocsifier& d) {
   static const Op& print_op = Op::Get("relax.print");
   if (!n->op.same_as(print_op)) {
-    return NullOpt;
+    return std::nullopt;
   }
   ICHECK(n->args.size() >= 1);
   // special handling: it is important to indicate that the format string (first argument)
@@ -325,11 +343,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
               kwargs_values.push_back(LiteralDoc::Str(n->attrs->GetTypeKey(), n_p->Attr("attrs")));
             }
             if (const auto* attrs = n->attrs.as<tvm::DictAttrsNode>()) {
-              std::vector<std::pair<String, ObjectRef>> sorted;
+              std::vector<std::pair<String, ffi::Any>> sorted;
               for (const auto& kv : attrs->dict) {
                 sorted.push_back(kv);
               }
-              std::sort(sorted.begin(), sorted.end());
+              std::sort(sorted.begin(), sorted.end(),
+                        [](const auto& a, const auto& b) { return a.first < b.first; });
               for (const auto& kv : sorted) {
                 kwargs_keys.push_back(kv.first);
                 kwargs_values.push_back(

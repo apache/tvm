@@ -1526,6 +1526,8 @@ class Neg(OnnxOpConverter):
         if isinstance(inputs[0], relax.Constant):
             data_np = inputs[0].data.numpy()
             return relax.const(_np.negative(data_np), inputs[0].struct_info.dtype)
+        if isinstance(inputs[0], relax.PrimValue):
+            return relax.PrimValue(-inputs[0].value)
         return relax.op.negative(inputs[0])
 
 
@@ -1715,7 +1717,7 @@ class Split(OnnxOpConverter):
         # When splits isnt specified divide evenly over axis.
         else:
             indices = attr["tvm_custom"]["num_outputs"]
-        return bb.emit_te(topi.split, inputs[0], indices, attr.get("axis", 0))
+        return relax.op.split(inputs[0], indices, attr.get("axis", 0))
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
@@ -1736,7 +1738,7 @@ class Split(OnnxOpConverter):
         # When splits isnt specified divide evenly over axis.
         else:
             indices = attr["tvm_custom"]["num_outputs"]
-        return bb.emit_te(topi.split, inputs[0], indices, axis=attr.get("axis", 0))
+        return relax.op.split(inputs[0], indices, attr.get("axis", 0))
 
 
 def get_prim_value_list(values):
@@ -1915,18 +1917,20 @@ class Expand(OnnxOpConverter):
         # If possible, directly expand to constant shape.
         if isinstance(shape, relax.Constant):
             new_shape = shape.data.numpy().tolist()
-            # For some reason, onnx allows target shapes to be smaller than input shapes.
-            # We need to go correct it.
+            # ONNX Expand operator requires preserving target rank and broadcasting
+            # according to standard rules. Dimensions are right-aligned.
             data_shape = [dim.value for dim in data.struct_info.shape]
-            # Dimensions are right alignment.
-            data_shape = [1] * (len(new_shape) - len(data_shape)) + data_shape
-            # Fix small target shapes.
-            for i, s in enumerate(new_shape):
-                if i < len(data_shape) and s < data_shape[i]:
+
+            # Right-align the shapes
+            if len(new_shape) > len(data_shape):
+                data_shape = [1] * (len(new_shape) - len(data_shape)) + data_shape
+            else:
+                new_shape = [1] * (len(data_shape) - len(new_shape)) + new_shape
+            # Fix small target shapes - if target dim is smaller than input dim
+            # use the input dim (ONNX-specific behavior).
+            for i in range(len(new_shape)):
+                if new_shape[i] < data_shape[i]:
                     new_shape[i] = data_shape[i]
-            # If the new shape matches the input shape, no transformation is needed.
-            if new_shape == data_shape:
-                return data
             return relax.op.broadcast_to(data, relax.ShapeExpr(new_shape))
 
         # Otherwise handle dynamic shapes.
@@ -2189,7 +2193,7 @@ class Range(OnnxOpConverter):
             return relax.const(out_range, out_dtype)
 
         # Otherwise compute in graph.
-        return bb.emit_te(topi.arange, start, limit, step, out_dtype)
+        return relax.op.arange(start, limit, step, out_dtype)
 
 
 class InstanceNormalization(OnnxOpConverter):
@@ -2424,7 +2428,7 @@ class MaxUnpool(OnnxOpConverter):
             total_output_shape = output_shape
 
         elif pads is not None:
-            # Get pads in the proper format for relay.
+            # Get pads in the proper format
             pads = _np.concatenate([[0, 0, 0, 0], list(pads)], axis=0)
             pads = _np.reshape(pads, [-1, 2])
             # Compute the total padding per axis.

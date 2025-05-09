@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test translate for TensorrRT. """
+"""Test translate for TensorrRT."""
 
 import pytest
 
@@ -44,12 +44,12 @@ def build_and_run(mod, inputs):
     with target:
         mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
     with tvm.transform.PassContext(opt_level=3):
-        rt_mod = tvm.relax.build(mod, target)
+        rt_mod = tvm.compile(mod, target)
         runnable = tvm.relax.VirtualMachine(rt_mod, tvm.cuda())
     res = runnable["main"](*inputs)
     if isinstance(res, tvm.runtime.NDArray):
-        return [res.asnumpy()]
-    return [e.asnumpy() for e in res]
+        return [res.numpy()]
+    return [e.numpy() for e in res]
 
 
 def check_names(mod):

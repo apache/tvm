@@ -126,7 +126,7 @@ def _get_irmod_elemwise_add(shape: list, dtype: str, mem_scope: str) -> tvm.ir.m
         # ---- ------ -----
         # estimated_vtcm_budget_bytes = HVX_VECTOR_BYTES * 1024
 
-        # dtype_bits = tvm._ffi.runtime_ctypes.DataType(dtype).bits
+        # dtype_bits = tvm.runtime.DataType(dtype).bits
         # assert dtype_bits % 8 == 0
         # dtype_bytes = dtype_bits // 8
 
@@ -199,18 +199,12 @@ def _benchmark_hexagon_elementwise_add_kernel(
         try:
             ns_tir_module = _get_irmod_elemwise_add(shape, dtype, mem_scope)
 
-            # Dump the primfunc NS-TIR (as text) to the log file...
-            lowered_mod = tvm.lower(ns_tir_module, _PRIMFUNC_NAME)
-            log_file.write("LOWERED IR MODULE:\n")
-            log_file.write(str(lowered_mod))
-            log_file.write("\n")
-
             # Lower the primfunc's IRModule to Hexagon object code...
             input1 = tvm.te.placeholder(shape, dtype=dtype)
             input2 = tvm.te.placeholder(shape, dtype=dtype)
             output = tvm.te.placeholder(shape, dtype=dtype)
 
-            built_module: tvm.driver.build_module.OperatorModule = tvm.build(
+            built_module: tvm.driver.build_module.OperatorModule = tvm.compile(
                 ns_tir_module,
                 [
                     input1,
@@ -382,12 +376,10 @@ def test_elemwise_add(hexagon_session: Session):
         "int8",
         "float16",
     ]:
-
         for mem_scope in [
             "global",
             "global.vtcm",
         ]:
-
             # These numbers are fairly arbitrary, but they're meant to stress memory/caches to
             # various extents.
             for num_vectors_per_tensor in [
@@ -397,8 +389,7 @@ def test_elemwise_add(hexagon_session: Session):
                 512,
                 2048,
             ]:
-
-                dtype_bits = tvm._ffi.runtime_ctypes.DataType(dtype).bits
+                dtype_bits = tvm.runtime.DataType(dtype).bits
                 assert dtype_bits % 8 == 0
                 dtype_bytes = dtype_bits // 8
 

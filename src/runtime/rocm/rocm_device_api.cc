@@ -37,7 +37,7 @@ namespace runtime {
 class ROCMDeviceAPI final : public DeviceAPI {
  public:
   void SetDevice(Device dev) final { ROCM_CALL(hipSetDevice(dev.device_id)); }
-  void GetAttr(Device device, DeviceAttrKind kind, TVMRetValue* rv) final {
+  void GetAttr(Device device, DeviceAttrKind kind, ffi::Any* rv) final {
     int value = 0;
     switch (kind) {
       case kExist: {
@@ -136,7 +136,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
         *rv = total_global_memory;
         return;
       }
-
+      case kImagePitchAlignment:
+        return;
       case kAvailableGlobalMemory:
         // Not currently implemented.
         *rv = nullptr;
@@ -250,12 +251,12 @@ ROCMThreadEntry::ROCMThreadEntry() : pool(kDLROCM, ROCMDeviceAPI::Global()) {}
 
 ROCMThreadEntry* ROCMThreadEntry::ThreadLocal() { return ROCMThreadStore::Get(); }
 
-TVM_REGISTER_GLOBAL("device_api.rocm").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.rocm").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   DeviceAPI* ptr = ROCMDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
 
-TVM_REGISTER_GLOBAL("device_api.rocm_host").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.rocm_host").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   DeviceAPI* ptr = ROCMDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });

@@ -57,9 +57,9 @@ def test_shape_type():
 
 
 def test_dyn_tensor_type():
-    t0 = rx.DynTensorType()
+    t0 = rx.TensorType()
     assert t0.ndim == -1
-    t1 = rx.DynTensorType(3, "int32")
+    t1 = rx.TensorType(3, "int32")
     assert t1.ndim == 3
     assert t1.dtype == "int32"
 
@@ -85,7 +85,7 @@ def test_prim_struct_info():
     assert s2.dtype == "int32"
 
     # wrong API constructors
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError)):
         rx.PrimStructInfo([1])
 
 
@@ -134,7 +134,7 @@ def test_shape_struct_info():
     str(s0)
 
     # wrong argument type
-    with pytest.raises(TVMError):
+    with pytest.raises((TVMError, TypeError)):
         rx.ShapeStructInfo(1)
 
     # cannot pass both ndim and values
@@ -214,7 +214,7 @@ def test_tuple_struct_info():
     str(t0)
 
     # wrong argument type
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         rx.TupleStructInfo(1)
 
 

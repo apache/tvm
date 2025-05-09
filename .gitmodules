@@ -28,3 +28,9 @@
 [submodule "3rdparty/flashinfer"]
 	path = 3rdparty/flashinfer
 	url = https://github.com/flashinfer-ai/flashinfer.git
+[submodule "3rdparty/zlib"]
+	path = 3rdparty/zlib
+	url = https://github.com/madler/zlib.git
+[submodule "ffi/3rdparty/dlpack"]
+	path = ffi/3rdparty/dlpack
+	url = https://github.com/dmlc/dlpack.git

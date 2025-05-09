@@ -17,6 +17,7 @@
 """Relax hexagon 2d VTCM allocation test."""
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.contrib.hexagon
@@ -25,7 +26,6 @@ from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-import pytest
 
 
 # pylint: disable=missing-docstring,no-self-argument,invalid-name
@@ -79,7 +79,7 @@ def test_alloc_storage_with_scope_global(hexagon_launcher):
     target_hexagon = tvm.target.hexagon("v69", vtcm_capacity=4 * 2**20)
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
     with tvm.transform.PassContext(opt_level=3):
-        lib = relax.build(mod, target, exec_mode="compiled")
+        lib = tvm.compile(mod, target, exec_mode="compiled")
 
     with hexagon_launcher.create_session() as session:
         dev = session.device

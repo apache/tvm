@@ -136,7 +136,7 @@ Optional<Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call, const Bloc
                        << " is " << dim1 << ", which are not broadcastable.");
     } else {
       // Use simple fallback when shape mismatch.
-      return NullOpt;
+      return std::nullopt;
     }
   }
   auto& longer_shape = (x1_ndim > x2_ndim) ? x1_shape : x2_shape;
@@ -183,6 +183,28 @@ InferLayoutOutput InferLayoutUnaryEwise(const Call& call,
   ICHECK(NoDesiredLayout(call, desired_layouts));
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   return InferLayoutOutput({layout}, {layout}, Attrs(call->attrs));
+}
+
+bool CanProveLayoutTransform(const Layout& input_layout, const Layout& desired_layout,
+                             Array<PrimExpr> shape) {
+  bool can_prove = true;
+  try {
+    tir::BijectiveLayout todesired(input_layout, desired_layout);
+    Array<PrimExpr> desired_shape = todesired.ForwardShape(shape);
+    Array<PrimExpr> back_shape = todesired.BackwardShape(desired_shape);
+    arith::Analyzer analyzer;
+    for (size_t i = 0; i < shape.size(); ++i) {
+      if (tir::is_const_int(shape[i])) {
+        if (!analyzer.CanProveEqual(shape[i], back_shape[i])) {
+          can_prove = false;
+          break;
+        }
+      }
+    }
+  } catch (std::exception& err) {
+    return false;
+  }
+  return can_prove;
 }
 
 }  // namespace relax

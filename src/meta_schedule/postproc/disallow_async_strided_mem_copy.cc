@@ -119,7 +119,11 @@ namespace meta_schedule {
 class DisallowAsyncStridedMemCopyNode : public PostprocNode {
  public:
   // Inherited from PostprocNode
-  void InitializeWithTuneContext(const TuneContext& context) final {}
+  void InitializeWithTuneContext(const TuneContext& context) final {
+    /* Null check */
+    ICHECK(context->target) << "Context must contain a target";
+    this->target = context->target.value();
+  }
   // Inherited from PostprocNode
   bool Apply(const tir::Schedule& sch) final {
     IRModule mod = sch->mod();
@@ -130,6 +134,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
         IRModule lowered{nullptr};
         try {
           auto pass_list = Array<tvm::transform::Pass>();
+          pass_list.push_back(tir::transform::BindTarget(this->target));
           pass_list.push_back(tir::transform::LowerInitBlock());
           pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());
           pass_list.push_back(tir::transform::ConvertBlocksToOpaque());
@@ -145,8 +150,8 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
           pass_list.push_back(tir::transform::InjectDoubleBuffer());
           pass_list.push_back(tir::transform::VectorizeLoop(true));
           pass_list.push_back(tir::transform::StorageRewrite());
-          tir::PrimFunc f = WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol",
-                                     runtime::String(g_var->name_hint));
+          tir::PrimFunc f =
+              WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol", String(g_var->name_hint));
           IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
           lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
         } catch (const dmlc::Error& e) {
@@ -168,6 +173,9 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
 
   static constexpr const char* _type_key = "meta_schedule.DisallowAsyncStridedMemCopy";
   TVM_DECLARE_FINAL_OBJECT_INFO(DisallowAsyncStridedMemCopyNode, PostprocNode);
+
+ private:
+  tvm::Target target;
 };
 
 Postproc Postproc::DisallowAsyncStridedMemCopy() {

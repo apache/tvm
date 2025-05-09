@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
 import tvm
 import tvm.testing
-from tvm import relax, tir
-from tvm import TVMError
+from tvm import TVMError, relax, tir
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -27,12 +27,17 @@ def test_op_correctness():
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     assert relax.op.nn.relu(x).op == Op.get("relax.nn.relu")
     assert relax.op.nn.leakyrelu(x).op == Op.get("relax.nn.leakyrelu")
+    assert relax.op.nn.softplus(x).op == Op.get("relax.nn.softplus")
     assert relax.op.nn.gelu(x).op == Op.get("relax.nn.gelu")
     assert relax.op.nn.silu(x).op == Op.get("relax.nn.silu")
     assert relax.op.nn.softmax(x).op == Op.get("relax.nn.softmax")
     assert relax.op.nn.log_softmax(x).op == Op.get("relax.nn.log_softmax")
     assert relax.op.nn.dropout(x).op == Op.get("relax.nn.dropout")
     assert relax.op.nn.pad(x, (1, 1, 1, 1)).op == Op.get("relax.nn.pad")
+
+    x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
+    alpha = relax.Var("alpha", R.Tensor((3,), "float32"))
+    assert relax.op.nn.prelu(x, alpha, axis=1).op == Op.get("relax.nn.prelu")
 
     x = relax.Var("x", R.Tensor((2, 3, 32, 32), "float32"))
     gamma = relax.Var("gamma", R.Tensor((3,), "float32"))
@@ -75,6 +80,8 @@ def test_linear_unit_infer_struct_info():
     _check_inference(bb, relax.op.nn.gelu(x4), relax.TensorStructInfo(dtype=""))
     _check_inference(bb, relax.op.nn.leakyrelu(x0), relax.TensorStructInfo((2, 3), "float32"))
     _check_inference(bb, relax.op.nn.leakyrelu(x5), relax.TensorStructInfo((3, 4), dtype=""))
+    _check_inference(bb, relax.op.nn.softplus(x0), relax.TensorStructInfo((2, 3), "float32"))
+    _check_inference(bb, relax.op.nn.softplus(x5), relax.TensorStructInfo((3, 4), dtype=""))
 
 
 def test_linear_unit_infer_struct_info_shape_symbolic():
@@ -87,6 +94,7 @@ def test_linear_unit_infer_struct_info_shape_symbolic():
     _check_inference(bb, relax.op.nn.silu(x0), relax.TensorStructInfo((m, n), "float32"))
     _check_inference(bb, relax.op.nn.relu(x1), relax.TensorStructInfo((4, n), "float32"))
     _check_inference(bb, relax.op.nn.leakyrelu(x1), relax.TensorStructInfo((4, n), "float32"))
+    _check_inference(bb, relax.op.nn.softplus(x1), relax.TensorStructInfo((4, n), "float32"))
 
 
 def test_linear_unit_infer_struct_info_shape_var():
@@ -99,6 +107,7 @@ def test_linear_unit_infer_struct_info_shape_var():
     _check_inference(bb, relax.op.nn.gelu(x0), relax.TensorStructInfo(s0, "float32"))
     _check_inference(bb, relax.op.nn.relu(x1), relax.TensorStructInfo(s1, "float32"))
     _check_inference(bb, relax.op.nn.leakyrelu(x1), relax.TensorStructInfo(s1, "float32"))
+    _check_inference(bb, relax.op.nn.softplus(x1), relax.TensorStructInfo(s1, "float32"))
 
 
 def test_linear_unit_infer_struct_info_more_input_dtype():
@@ -143,6 +152,7 @@ def test_softmax_log_softmax_infer_struct_info():
     x3 = relax.Var("x", R.Tensor((2, 3)))
     x4 = relax.Var("x", R.Tensor())
     x5 = relax.Var("x", R.Tensor((2, 3), "float32", vdev0))
+    x6 = relax.Var("x", R.Tensor((2, 3), "bfloat16"))
 
     _check_inference(bb, relax.op.nn.softmax(x0), relax.TensorStructInfo((2, 3), "float32"))
     _check_inference(bb, relax.op.nn.softmax(x5), relax.TensorStructInfo((2, 3), "float32", vdev0))
@@ -164,6 +174,10 @@ def test_softmax_log_softmax_infer_struct_info():
         bb, relax.op.nn.log_softmax(x3, axis=-1), relax.TensorStructInfo((2, 3), dtype="")
     )
     _check_inference(bb, relax.op.nn.log_softmax(x4, axis=-2), relax.TensorStructInfo(dtype=""))
+    _check_inference(bb, relax.op.nn.softmax(x6), relax.TensorStructInfo((2, 3), dtype="bfloat16"))
+    _check_inference(
+        bb, relax.op.nn.log_softmax(x6), relax.TensorStructInfo((2, 3), dtype="bfloat16")
+    )
 
 
 def test_softmax_log_softmax_infer_struct_info_shape_symbolic():
@@ -240,13 +254,13 @@ def test_softmax_log_softmax_infer_struct_info_axis_out_of_range():
 def test_softmax_log_softmax_wrong_with_multiple_axes():
     x = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.nn.softmax(x, axis=[1, 2])
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.nn.softmax(x, axis=[-1, -2, -3])
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.nn.log_softmax(x, axis=[1, 2])
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.nn.log_softmax(x, axis=[-1, -2, -3])
 
 
@@ -1805,6 +1819,26 @@ def test_pad_infer_struct_info():
     )
     _check_inference(
         bb, relax.op.nn.pad(x1, pad_width1), relax.TensorStructInfo(dtype="float32", ndim=2)
+    )
+
+
+def test_pixel_shuffle_infer_struct_info():
+    bb = relax.BlockBuilder()
+    x1 = relax.Var("x1", R.Tensor((1, 8, 10, 15), "float32"))
+    x2 = relax.Var("x2", R.Tensor((2, 6, 18, 5, 4), "float32"))
+
+    upscale_factor1 = 2
+    _check_inference(
+        bb,
+        relax.op.nn.pixel_shuffle(x1, upscale_factor1),
+        relax.TensorStructInfo((1, 2, 20, 30), dtype="float32"),
+    )
+
+    upscale_factor2 = 3
+    _check_inference(
+        bb,
+        relax.op.nn.pixel_shuffle(x2, upscale_factor2),
+        relax.TensorStructInfo((2, 6, 2, 15, 12), dtype="float32"),
     )
 
 

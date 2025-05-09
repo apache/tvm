@@ -32,14 +32,21 @@
  * Android logcat.
  */
 #define TVM_LOG_CUSTOMIZE 1
+#define TVM_FFI_USE_LIBBACKTRACE 0
 
+#include "../ffi/src/ffi/container.cc"
+#include "../ffi/src/ffi/dtype.cc"
+#include "../ffi/src/ffi/error.cc"
+#include "../ffi/src/ffi/function.cc"
+#include "../ffi/src/ffi/ndarray.cc"
+#include "../ffi/src/ffi/object.cc"
+#include "../ffi/src/ffi/testing.cc"
+#include "../ffi/src/ffi/traceback.cc"
 #include "../src/runtime/c_runtime_api.cc"
 #include "../src/runtime/container.cc"
 #include "../src/runtime/cpu_device_api.cc"
 #include "../src/runtime/dso_library.cc"
 #include "../src/runtime/file_utils.cc"
-#include "../src/runtime/graph_executor/graph_executor.cc"
-#include "../src/runtime/graph_executor/graph_executor_factory.cc"
 #include "../src/runtime/library_module.cc"
 #include "../src/runtime/logging.cc"
 #include "../src/runtime/memory/memory_manager.cc"
@@ -66,7 +73,6 @@
 #include "../src/runtime/opencl/opencl_device_api.cc"
 #include "../src/runtime/opencl/opencl_module.cc"
 #include "../src/runtime/opencl/opencl_wrapper/opencl_wrapper.cc"
-#include "../src/runtime/opencl/texture_pool.cc"
 #include "../src/runtime/source_utils.cc"
 #endif
 

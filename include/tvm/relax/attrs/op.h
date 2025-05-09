@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_ATTRS_OP_H_
 #define TVM_RELAX_ATTRS_OP_H_
 
+#include <tvm/ir/global_info.h>
 #include <tvm/relax/expr.h>
 
 namespace tvm {
@@ -32,7 +33,7 @@ namespace relax {
 /*! \brief Attributes used in call_tir_with_grad */
 struct CallTIRWithGradAttrs : public tvm::AttrsNode<CallTIRWithGradAttrs> {
   String te_grad_name;
-  Map<String, ObjectRef> te_grad_kwargs;
+  Map<String, Any> te_grad_kwargs;
 
   TVM_DECLARE_ATTRS(CallTIRWithGradAttrs, "relax.attrs.CallTIRWithGradAttrs") {
     TVM_ATTR_FIELD(te_grad_name)

@@ -36,12 +36,8 @@ namespace runtime {
 void ModuleNode::Import(Module other) {
   // specially handle rpc
   if (!std::strcmp(this->type_key(), "rpc")) {
-    static const PackedFunc* fimport_ = nullptr;
-    if (fimport_ == nullptr) {
-      fimport_ = runtime::Registry::Get("rpc.ImportRemoteModule");
-      ICHECK(fimport_ != nullptr);
-    }
-    (*fimport_)(GetRef<Module>(this), other);
+    static auto fimport_ = tvm::ffi::Function::GetGlobalRequired("rpc.ImportRemoteModule");
+    fimport_(GetRef<Module>(this), other);
     return;
   }
   // cyclic detection.
@@ -61,9 +57,9 @@ void ModuleNode::Import(Module other) {
   this->imports_.emplace_back(std::move(other));
 }
 
-PackedFunc ModuleNode::GetFunction(const String& name, bool query_imports) {
+ffi::Function ModuleNode::GetFunction(const String& name, bool query_imports) {
   ModuleNode* self = this;
-  PackedFunc pf = self->GetFunction(name, GetObjectPtr<Object>(this));
+  ffi::Function pf = self->GetFunction(name, GetObjectPtr<Object>(this));
   if (pf != nullptr) return pf;
   if (query_imports) {
     for (Module& m : self->imports_) {
@@ -84,12 +80,12 @@ Module Module::LoadFromFile(const String& file_name, const String& format) {
   }
   std::string load_f_name = "runtime.module.loadfile_" + fmt;
   VLOG(1) << "Loading module from '" << file_name << "' of format '" << fmt << "'";
-  const PackedFunc* f = Registry::Get(load_f_name);
-  ICHECK(f != nullptr) << "Loader for `." << format << "` files is not registered,"
-                       << " resolved to (" << load_f_name << ") in the global registry."
-                       << "Ensure that you have loaded the correct runtime code, and"
-                       << "that you are on the correct hardware architecture.";
-  Module m = (*f)(file_name, format);
+  const auto f = tvm::ffi::Function::GetGlobal(load_f_name);
+  ICHECK(f.has_value()) << "Loader for `." << format << "` files is not registered,"
+                        << " resolved to (" << load_f_name << ") in the global registry."
+                        << "Ensure that you have loaded the correct runtime code, and"
+                        << "that you are on the correct hardware architecture.";
+  Module m = (*f)(file_name, format).cast<Module>();
   return m;
 }
 
@@ -105,25 +101,26 @@ String ModuleNode::GetSource(const String& format) {
   LOG(FATAL) << "Module[" << type_key() << "] does not support GetSource";
 }
 
-const PackedFunc* ModuleNode::GetFuncFromEnv(const String& name) {
+const ffi::Function* ModuleNode::GetFuncFromEnv(const String& name) {
   std::lock_guard<std::mutex> lock(mutex_);
   auto it = import_cache_.find(name);
   if (it != import_cache_.end()) return it->second.get();
-  PackedFunc pf;
+  ffi::Function pf;
   for (Module& m : this->imports_) {
     pf = m.GetFunction(name, true);
     if (pf != nullptr) break;
   }
   if (pf == nullptr) {
-    const PackedFunc* f = Registry::Get(name);
-    ICHECK(f != nullptr) << "Cannot find function " << name
-                         << " in the imported modules or global registry."
-                         << " If this involves ops from a contrib library like"
-                         << " cuDNN, ensure TVM was built with the relevant"
-                         << " library.";
-    return f;
+    const auto f = tvm::ffi::Function::GetGlobal(name);
+    ICHECK(f.has_value()) << "Cannot find function " << name
+                          << " in the imported modules or global registry."
+                          << " If this involves ops from a contrib library like"
+                          << " cuDNN, ensure TVM was built with the relevant"
+                          << " library.";
+    import_cache_.insert(std::make_pair(name, std::make_shared<ffi::Function>(*f)));
+    return import_cache_.at(name).get();
   } else {
-    import_cache_.insert(std::make_pair(name, std::make_shared<PackedFunc>(pf)));
+    import_cache_.insert(std::make_pair(name, std::make_shared<ffi::Function>(pf)));
     return import_cache_.at(name).get();
   }
 }
@@ -143,7 +140,7 @@ bool RuntimeEnabled(const String& target_str) {
     return true;
   } else if (target == "cuda" || target == "gpu") {
     f_name = "device_api.cuda";
-  } else if (target == "cl" || target == "opencl" || target == "sdaccel") {
+  } else if (target == "cl" || target == "opencl") {
     f_name = "device_api.opencl";
   } else if (target == "mtl" || target == "metal") {
     f_name = "device_api.metal";
@@ -151,8 +148,6 @@ bool RuntimeEnabled(const String& target_str) {
     f_name = "target.runtime.tflite";
   } else if (target == "vulkan") {
     f_name = "device_api.vulkan";
-  } else if (target == "stackvm") {
-    f_name = "target.build.stackvm";
   } else if (target == "rpc") {
     f_name = "device_api.rpc";
   } else if (target == "hexagon") {
@@ -162,13 +157,13 @@ bool RuntimeEnabled(const String& target_str) {
   } else if (target.length() >= 4 && target.substr(0, 4) == "rocm") {
     f_name = "device_api.rocm";
   } else if (target.length() >= 4 && target.substr(0, 4) == "llvm") {
-    const PackedFunc* pf = runtime::Registry::Get("codegen.llvm_target_enabled");
-    if (pf == nullptr) return false;
-    return (*pf)(target);
+    const auto pf = tvm::ffi::Function::GetGlobal("codegen.llvm_target_enabled");
+    if (!pf.has_value()) return false;
+    return (*pf)(target).cast<bool>();
   } else {
     LOG(FATAL) << "Unknown optional runtime " << target;
   }
-  return runtime::Registry::Get(f_name) != nullptr;
+  return tvm::ffi::Function::GetGlobal(f_name).has_value();
 }
 
 TVM_REGISTER_GLOBAL("runtime.RuntimeEnabled").set_body_typed(RuntimeEnabled);
@@ -198,13 +193,9 @@ TVM_REGISTER_GLOBAL("runtime.ModuleGetFormat").set_body_typed([](Module mod) {
 });
 
 TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile").set_body_typed(Module::LoadFromFile);
-TVM_REGISTER_GLOBAL("runtime.ModuleGetFunction")
-    .set_body_typed([](Module mod, String name, bool query_imports) {
-      return mod->GetFunction(name, query_imports);
-    });
 
 TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
-    .set_body_typed([](Module mod, String name, tvm::String fmt) { mod->SaveToFile(name, fmt); });
+    .set_body_typed([](Module mod, String name, String fmt) { mod->SaveToFile(name, fmt); });
 
 TVM_REGISTER_GLOBAL("runtime.ModuleGetPropertyMask").set_body_typed([](Module mod) {
   return mod->GetPropertyMask();
@@ -215,6 +206,14 @@ TVM_REGISTER_GLOBAL("runtime.ModuleImplementsFunction")
       return mod->ImplementsFunction(std::move(name), query_imports);
     });
 
-TVM_REGISTER_OBJECT_TYPE(ModuleNode);
+TVM_REGISTER_GLOBAL("runtime.ModuleGetFunction")
+    .set_body_typed([](Module mod, String name, bool query_imports) {
+      return mod->GetFunction(name, query_imports);
+    });
+
+TVM_REGISTER_GLOBAL("runtime.ModuleImport").set_body_typed([](Module mod, Module other) {
+  mod->Import(other);
+});
+
 }  // namespace runtime
 }  // namespace tvm

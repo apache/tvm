@@ -65,8 +65,6 @@
 namespace tvm {
 namespace relax {
 
-using relay::GraphPartitioner;
-
 namespace {
 
 using Group = GraphPartitioner::Group;
@@ -170,20 +168,23 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   Optional<String> GetCodegenName(const Expr& callee) {
     auto const* gvar = callee.as<GlobalVarNode>();
     if (!gvar) {
-      return NullOpt;
+      return std::nullopt;
     }
 
     auto composite_name_opt =
         mod_->Lookup(GetRef<GlobalVar>(gvar))->GetAttr<String>(attr::kComposite);
     if (!composite_name_opt) {
-      return NullOpt;
+      return std::nullopt;
     }
 
     return relax::GetCodegenName(composite_name_opt.value());
   }
 
   Optional<String> GetCodegenName(Group* group) {
-    return Downcast<Optional<String>>(group->attrs.Get(attr::kCodegen));
+    if (auto opt_str = group->attrs.Get(attr::kCodegen)) {
+      return Downcast<String>(opt_str.value());
+    }
+    return std::nullopt;
   }
 
   Group* CreateNewGroup(const CallNode* call) {
@@ -412,7 +413,7 @@ IRModule MergeCompositeFunctions(IRModule mod) {
 namespace transform {
 
 Pass MergeCompositeFunctions() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule mod, PassContext pc) { return relax::MergeCompositeFunctions(mod); };
   return CreateModulePass(/*pass_function=*/pass_func,              //
                           /*opt_level=*/0,                          //

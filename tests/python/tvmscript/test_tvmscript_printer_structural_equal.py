@@ -19,18 +19,16 @@ import pytest
 
 import tvm
 from tvm.ir import assert_structural_equal
-from tvm.relay.op.transform import split
 from tvm.runtime import ObjectPath
 from tvm.script import ir as I, tir as T
 
 
 def _error_message(exception):
-    splitter = "ValueError: StructuralEqual"
-    return splitter + str(exception).split(splitter)[1]
+    return str(exception)
 
 
 def _expected_result(func1, func2, objpath1, objpath2):
-    return f"""ValueError: StructuralEqual check failed, caused by lhs at {objpath1}:
+    return f"""StructuralEqual check failed, caused by lhs at {objpath1}:
 {func1.script(path_to_underline=[objpath1], syntax_sugar=False)}
 and rhs at {objpath2}:
 {func2.script(path_to_underline=[objpath2], syntax_sugar=False)}"""

@@ -108,25 +108,35 @@ InferLayoutOutput InferLayoutStatistical(const Call& call,
 
   std::string axis_str(ndim, '0');
   for (const auto& iter : axis) {
-    axis_str[(iter->value + ndim) % ndim] = '1';
+    axis_str[(iter->value + ndim) % ndim] = '#';
   }
   for (int i = 0, j = 0; i < ndim; ++i) {
-    if (axis_str[i] != '1') {
+    if (axis_str[i] != '#') {
       axis_str[i] = 'A' + j++;
     }
   }
 
   LayoutDecision exisiting_layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  String new_axis_str = TransposeStrLike(axis_str, InitialLayout(ndim), exisiting_layout->layout);
+  auto new_axis_str = TransposeSubLayoutStrLike(axis_str, InitialLayout(ndim).name(),
+                                                exisiting_layout->layout.name());
+  std::string output_layout_ref = new_axis_str;
+  new_axis_str.erase(std::remove_if(new_axis_str.begin(), new_axis_str.end(),
+                                    [](unsigned char c) { return std::isdigit(c); }),
+                     new_axis_str.end());
+
   Array<Integer> new_axis;
   for (size_t i = 0; i < new_axis_str.size(); ++i) {
-    if (new_axis_str.at(i) == '1') {
+    if (new_axis_str.at(i) == '#') {
       new_axis.push_back(Integer(i));
     }
   }
-  std::string output_layout = new_axis_str;
-  output_layout.erase(std::remove(output_layout.begin(), output_layout.end(), '1'),
-                      output_layout.end());
+  std::string output_layout;
+  for (size_t i = 0; i < output_layout_ref.length(); ++i) {
+    if ((isdigit(output_layout_ref[i]) && (output_layout_ref[i + 1] == '#')) ||
+        (output_layout_ref[i] == '#'))
+      continue;
+    output_layout.push_back(output_layout_ref[i]);
+  }
 
   ObjectPtr<StatisticalAttrs> new_attrs = make_object<StatisticalAttrs>(*attrs);
   new_attrs->axis = new_axis;
@@ -143,7 +153,7 @@ StructInfo InferStructInfoScan(const Call& call, const BlockBuilder& ctx) {
 
   DataType out_type = attrs->dtype.is_void() ? data_sinfo->dtype : attrs->dtype;
 
-  if (!attrs->axis.defined()) {
+  if (!attrs->axis.has_value()) {
     // flattened
     const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
     if (data_shape == nullptr) {
@@ -166,10 +176,10 @@ StructInfo InferStructInfoScan(const Call& call, const BlockBuilder& ctx) {
 }
 
 /* relax.cumprod */
-Expr cumprod(Expr data, Optional<Integer> axis, DataType dtype, Bool exclusive) {
+Expr cumprod(Expr data, Optional<int64_t> axis, Optional<DataType> dtype, Bool exclusive) {
   auto attrs = make_object<ScanopAttrs>();
   attrs->axis = std::move(axis);
-  attrs->dtype = std::move(dtype);
+  attrs->dtype = std::move(dtype.value_or(DataType::Void()));
   attrs->exclusive = std::move(exclusive);
 
   static const Op& op = Op::Get("relax.cumprod");
@@ -186,10 +196,10 @@ TVM_REGISTER_OP("relax.cumprod")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.cumsum */
-Expr cumsum(Expr data, Optional<Integer> axis, DataType dtype, Bool exclusive) {
+Expr cumsum(Expr data, Optional<int64_t> axis, Optional<DataType> dtype, Bool exclusive) {
   auto attrs = make_object<ScanopAttrs>();
   attrs->axis = std::move(axis);
-  attrs->dtype = std::move(dtype);
+  attrs->dtype = std::move(dtype.value_or(DataType::Void()));
   attrs->exclusive = std::move(exclusive);
 
   static const Op& op = Op::Get("relax.cumsum");

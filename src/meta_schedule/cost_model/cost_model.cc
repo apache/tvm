@@ -71,10 +71,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_OBJECT_TYPE(CostModelNode);
 TVM_REGISTER_NODE_TYPE(PyCostModelNode);
 
-TVM_REGISTER_GLOBAL("meta_schedule.CostModelLoad").set_body_method<CostModel>(&CostModelNode::Load);
-TVM_REGISTER_GLOBAL("meta_schedule.CostModelSave").set_body_method<CostModel>(&CostModelNode::Save);
-TVM_REGISTER_GLOBAL("meta_schedule.CostModelUpdate")
-    .set_body_method<CostModel>(&CostModelNode::Update);
+TVM_REGISTER_GLOBAL("meta_schedule.CostModelLoad").set_body_method(&CostModelNode::Load);
+TVM_REGISTER_GLOBAL("meta_schedule.CostModelSave").set_body_method(&CostModelNode::Save);
+TVM_REGISTER_GLOBAL("meta_schedule.CostModelUpdate").set_body_method(&CostModelNode::Update);
 TVM_REGISTER_GLOBAL("meta_schedule.CostModelPredict")
     .set_body_typed([](CostModel model,                     //
                        const TuneContext& context,          //

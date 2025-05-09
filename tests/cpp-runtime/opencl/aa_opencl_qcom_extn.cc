@@ -21,7 +21,7 @@
 // hence, crafted the filename accordingly
 
 #include <gtest/gtest.h>
-#include <tvm/runtime/container/optional.h>
+#include <tvm/ffi/optional.h>
 
 #include "../src/runtime/opencl/opencl_common.h"
 

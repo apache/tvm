@@ -279,8 +279,8 @@ def dump_ndarray_cache(
         # prefer to preserve original dtype, especially if the format was bfloat16
         dtype = origin_v.dtype if isinstance(origin_v, tvm.nd.NDArray) else v.dtype
 
-        if dtype in DataType.NUMPY2STR:
-            dtype = DataType.NUMPY2STR[dtype]
+        if dtype in DataType.NUMPY_DTYPE_TO_STR:
+            dtype = DataType.NUMPY_DTYPE_TO_STR[dtype]
         else:
             dtype = str(dtype)
 
@@ -369,19 +369,19 @@ def load_ndarray_cache(cachepath: str, device: tvm.runtime.Device):
             arr = tvm.nd.empty(shape, dtype, device=device)
             assert offset + nbytes <= len(raw_data)
             buffer_source = raw_data[offset : offset + nbytes]
-            if dtype == "e4m3_float8":
+            if dtype == "float8_e4m3fn":
                 if ml_dtypes is not None:
                     dtype = ml_dtypes.float8_e4m3fn
                 else:
                     raise RuntimeError(
-                        "ml_dtypes is not installed, cannot convert e4m3_float8 array to numpy."
+                        "ml_dtypes is not installed, cannot convert float8_e4m3fn array to numpy."
                     )
-            if dtype == "e5m2_float8":
+            if dtype == "float8_e5m2":
                 if ml_dtypes is not None:
                     dtype = ml_dtypes.float8_e5m2
                 else:
                     raise RuntimeError(
-                        "ml_dtypes is not installed, cannot convert e5m2_float8 array to numpy."
+                        "ml_dtypes is not installed, cannot convert float8_e5m2 array to numpy."
                     )
             if encode_format == "f32-to-bf16" and dtype == "float32":
                 data = np.frombuffer(buffer_source, dtype="uint16").reshape(shape)

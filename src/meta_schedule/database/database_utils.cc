@@ -26,10 +26,11 @@
 namespace tvm {
 namespace meta_schedule {
 
-void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
-  if (!json_obj.defined()) {
+void JSONDumps(Any json_obj, std::ostringstream& os) {
+  if (json_obj == nullptr) {
     os << "null";
-  } else if (const auto* int_imm = json_obj.as<IntImmNode>()) {
+  } else if (auto opt_int_imm = json_obj.as<IntImm>()) {
+    IntImm int_imm = *std::move(opt_int_imm);
     if (int_imm->dtype == DataType::Bool()) {
       if (int_imm->value) {
         os << "true";
@@ -39,17 +40,12 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
     } else {
       os << int_imm->value;
     }
-  } else if (const auto* runtime_bool = json_obj.as<runtime::Bool::ContainerType>()) {
-    os << (runtime_bool->value ? "true" : "false");
-  } else if (const auto* runtime_int = json_obj.as<runtime::Int::ContainerType>()) {
-    os << runtime_int->value;
-  } else if (const auto* float_imm = json_obj.as<FloatImmNode>()) {
+  } else if (auto opt_float_imm = json_obj.as<FloatImm>()) {
+    FloatImm float_imm = *std::move(opt_float_imm);
     os << std::setprecision(20) << float_imm->value;
-  } else if (const auto* runtime_float = json_obj.as<runtime::Float::ContainerType>()) {
-    os << std::setprecision(20) << runtime_float->value;
-  } else if (const auto* str = json_obj.as<runtime::StringObj>()) {
+  } else if (const auto* str = json_obj.as<ffi::StringObj>()) {
     os << '"' << support::StrEscape(str->data, str->size) << '"';
-  } else if (const auto* array = json_obj.as<runtime::ArrayNode>()) {
+  } else if (const auto* array = json_obj.as<ffi::ArrayObj>()) {
     os << "[";
     int n = array->size();
     for (int i = 0; i < n; ++i) {
@@ -59,19 +55,20 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
       JSONDumps(array->at(i), os);
     }
     os << "]";
-  } else if (const auto* dict = json_obj.as<runtime::MapNode>()) {
+  } else if (const auto* dict = json_obj.as<ffi::MapObj>()) {
     int n = dict->size();
-    std::vector<std::pair<String, ObjectRef>> key_values;
+    std::vector<std::pair<String, ffi::Any>> key_values;
     key_values.reserve(n);
     for (const auto& kv : *dict) {
       if (auto key = kv.first.as<String>()) {
         key_values.emplace_back(key.value(), kv.second);
       } else {
         LOG(FATAL) << "TypeError: Only string keys are supported in JSON dumps, but got: "
-                   << kv.first->GetTypeKey();
+                   << kv.first.GetTypeKey();
       }
     }
-    std::sort(key_values.begin(), key_values.end());
+    std::sort(key_values.begin(), key_values.end(),
+              [](const auto& a, const auto& b) { return a.first < b.first; });
     os << "{";
     for (int i = 0; i < n; ++i) {
       const auto& kv = key_values[i];
@@ -83,14 +80,14 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
       JSONDumps(kv.second, os);
     }
     os << "}";
-  } else if (json_obj->IsInstance<tir::IndexMapNode>()) {
+  } else if (json_obj.as<tir::IndexMapNode>()) {
     JSONDumps(String(SaveJSON(json_obj)), os);
   } else {
-    LOG(FATAL) << "TypeError: Unsupported type in JSON object: " << json_obj->GetTypeKey();
+    LOG(FATAL) << "TypeError: Unsupported type in JSON object: " << json_obj.GetTypeKey();
   }
 }
 
-std::string JSONDumps(ObjectRef json_obj) {
+std::string JSONDumps(Any json_obj) {
   std::ostringstream os;
   JSONDumps(json_obj, os);
   return os.str();
@@ -116,7 +113,7 @@ class JSONTokenizer {
 
   struct Token {
     TokenType type;
-    ObjectRef value{nullptr};
+    Any value{nullptr};
   };
 
   explicit JSONTokenizer(const char* st, const char* ed) : cur_(st), end_(ed) {}
@@ -171,7 +168,7 @@ class JSONTokenizer {
     std::string to_parse(st, cur_);
     if (!is_float) {
       try {
-        *token = Token{TokenType::kInteger, runtime::Int(std::stoll(to_parse))};
+        *token = Token{TokenType::kInteger, std::stoll(to_parse)};
       } catch (const std::invalid_argument& e) {
         LOG(WARNING) << "ValueError: Invalid argument to std::stoll: " << to_parse
                      << ". Details: " << e.what() << ". Switching to std::stod now.";
@@ -184,7 +181,7 @@ class JSONTokenizer {
     }
     if (is_float) {
       try {
-        *token = Token{TokenType::kFloat, runtime::Float(std::stod(to_parse))};
+        *token = Token{TokenType::kFloat, std::stod(to_parse)};
       } catch (const std::invalid_argument& e) {
         LOG(INFO) << "ValueError: Invalid argument to std::stod: " << to_parse
                   << ". Details: " << e.what();
@@ -278,7 +275,7 @@ class JSONParser {
 
   explicit JSONParser(const char* st, const char* ed) : tokenizer_(st, ed) {}
 
-  ObjectRef Get() {
+  Any Get() {
     Token token = tokenizer_.Next();
     if (token.type == TokenType::kEOF) {
       return ObjectRef(nullptr);
@@ -287,14 +284,14 @@ class JSONParser {
   }
 
  private:
-  ObjectRef ParseObject(Token token) {
+  Any ParseObject(Token token) {
     switch (token.type) {
       case TokenType::kNull:
-        return ObjectRef(nullptr);
+        return Any(nullptr);
       case TokenType::kTrue:
-        return Bool(true);
+        return Any(true);
       case TokenType::kFalse:
-        return Bool(false);
+        return Any(false);
       case TokenType::kLeftSquare:
         return ParseArray();
       case TokenType::kLeftCurly:
@@ -318,9 +315,9 @@ class JSONParser {
     }
   }
 
-  Array<ObjectRef> ParseArray() {
+  Array<Any> ParseArray() {
     bool is_first = true;
-    Array<ObjectRef> results;
+    Array<Any> results;
     for (;;) {
       Token token;
       if (is_first) {
@@ -350,9 +347,9 @@ class JSONParser {
     return results;
   }
 
-  Map<String, ObjectRef> ParseDict() {
+  Map<String, ffi::Any> ParseDict() {
     bool is_first = true;
-    Map<String, ObjectRef> results;
+    Map<String, ffi::Any> results;
     for (;;) {
       Token token;
       if (is_first) {
@@ -373,13 +370,12 @@ class JSONParser {
           break;
         }
         // Case 3
-        ObjectRef key = ParseObject(std::move(token));
-        ICHECK(key->IsInstance<StringObj>())
-            << "ValueError: key must be a string, but gets: " << key;
+        Any key = ParseObject(std::move(token));
+        ICHECK(key.as<ffi::StringObj>()) << "ValueError: key must be a string, but gets: " << key;
         token = tokenizer_.Next();
         CHECK(token.type == TokenType::kColon)
             << "ValueError: Unexpected token before: " << tokenizer_.cur_;
-        ObjectRef value = ParseObject(tokenizer_.Next());
+        Any value = ParseObject(tokenizer_.Next());
         results.Set(Downcast<String>(key), value);
         continue;
       } else {
@@ -392,7 +388,7 @@ class JSONParser {
   JSONTokenizer tokenizer_;
 };
 
-ObjectRef JSONLoads(std::string str) {
+Any JSONLoads(std::string str) {
   const char* st = str.c_str();
   const char* ed = st + str.length();
   return JSONParser(st, ed).Get();

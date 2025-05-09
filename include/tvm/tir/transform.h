@@ -36,6 +36,7 @@ namespace tvm {
 namespace tir {
 namespace transform {
 
+using tvm::transform::CreateModulePass;
 using tvm::transform::Pass;
 using tvm::transform::PassContext;
 using tvm::transform::PassContextNode;
@@ -54,58 +55,9 @@ using tvm::transform::Sequential;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreatePrimFuncPass(
-    const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
-
-/*!
- * \brief Inject prefetch instructions into stmt.
- *
- * \return The pass.
- */
-TVM_DLL Pass InjectPrefetch();
-
-// TODO(tvm-team): consolidate configs to the PassContext
-/*!
- * \brief Flatten the multi-dimensional read/write
- *  to single dimensional Load/Store
- *
- * \param cache_line_size The size of CPU cache line.
- * \param create_bound_attribute Whether to create bound attributes.
- *
- * \return The Pass
- */
-TVM_DLL Pass StorageFlatten(int cache_line_size, bool create_bound_attribute = false);
-
-/*!
- * \brief Inject copy intrinsics with optional pad.
- *
- * \param pragma_key The pragma key for hint of copy.
- * \param fintrin The function with signature
- *
- *   Stmt fintrin(Buffer src,
- *                Buffer dst,
- *                Array<Expr> pad_before,
- *                Array<Expr> pad_after,
- *                Expr pad_value)
- * \return The pass.
- */
-TVM_DLL Pass InjectCopyIntrin(String pragma_key, runtime::PackedFunc fintrin);
-
-/*!
- * \brief Detect and insert sync points to co-processor.
- *
- * \return The pass.
- */
-TVM_DLL Pass CoProcSync();
-
-/*!
- * \brief Lift common attrs with attr_key to outer scope.
- *
- * \param attr_key The attribute key to be checked.
- * \return The pass.
- */
-TVM_DLL Pass LiftAttrScope(String attr_key);
+TVM_DLL Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
+                                int opt_level, String name, tvm::Array<String> required,
+                                bool traceable = false);
 
 /*!
  * \brief partition loops in the stmt.
@@ -538,11 +490,6 @@ TVM_DLL Pass LiftThreadBinding();
 TVM_DLL Pass CompactBufferAllocation(bool is_strict = true);
 
 /*!
- * This pass legalizes packed calls by wrapping their arguments into TVMValues
- */
-TVM_DLL Pass LegalizePackedCalls();
-
-/*!
  * \brief Remove match buffers inside the block. Also, it will validate the binding.
  * \return The pass.
  */
@@ -574,15 +521,6 @@ TVM_DLL Pass LowerOpaqueBlock();
 TVM_DLL Pass FlattenBuffer();
 
 /*
- * \brief Flatten the multi-dimensional read/write
- *  to two dimensional texture Load/Store and realize
- *  texture buffer allocations.
- *
- * \return The Pass
- */
-TVM_DLL Pass TextureFlatten();
-
-/*
  * \brief Lower VTCM allocations
  *
  * \return The Pass
@@ -602,13 +540,6 @@ TVM_DLL Pass LowerAsyncDMA();
  * \return The pass.
  */
 TVM_DLL Pass CommonSubexprElimTIR(bool enable_cse_tir = true, bool identify_equiv_terms = false);
-
-/*!
- * \brief Add TIR-printer output as debug information to all ops in the module
- * \return The pass.
- */
-
-TVM_DLL Pass InstallDebugSpans();
 
 /*!
  * \brief Unify all the thread bindings for "blockIdx.x/y/z", "threadIdx.x/y/z", and
@@ -782,7 +713,7 @@ TVM_DLL Pass AnnotateEntryFunc();
  * \brief Filter PrimFuncs with a given condition.
  * \return The pass.
  */
-TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
+TVM_DLL Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond);
 
 /*!
  * \brief Pass to rewrite global to shared memory copy on CUDA with asyncronous copy.

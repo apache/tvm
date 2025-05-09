@@ -56,7 +56,7 @@ GlobalVar DeclFunction(const String& func_name, const BaseFunc& func_signature) 
   auto gvar_type = [&]() -> Type {
     if (auto prim_func = func_signature.as<tir::PrimFuncNode>()) {
       Array<Type> arg_types = prim_func->params.Map([](const auto& var) { return GetType(var); });
-      return FuncType(arg_types, prim_func->ret_type, {}, {});
+      return FuncType(arg_types, prim_func->ret_type);
     }
 
     return {};
@@ -88,7 +88,7 @@ void DefFunction(const String& func_name, const BaseFunc& func) {
   gv->checked_type_ = func->checked_type_;
 }
 
-void ModuleAttrs(Map<String, ObjectRef> attrs, bool allow_overwrite) {
+void ModuleAttrs(Map<String, Any> attrs, bool allow_overwrite) {
   if (IRBuilder::IsInScope()) {
     // TODO(hongyi): add comments to explain why we need to check if the module frame is in scope
     IRModuleFrame frame = FindModuleFrame("I.ModuleAttr");
@@ -103,10 +103,10 @@ Optional<ObjectRef> ModuleGetAttr(const String& key) {
   if (IRBuilder::IsInScope()) {
     IRModuleFrame frame = FindModuleFrame();
     if (frame->attrs.find(key) != frame->attrs.end()) {
-      return frame->attrs[key];
+      return frame->attrs[key].cast<ObjectRef>();
     }
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 void ModuleSetAttr(const String& key, const Optional<ObjectRef>& value, bool allow_override) {

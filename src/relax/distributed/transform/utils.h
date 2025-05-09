@@ -40,7 +40,7 @@ inline Optional<tir::PrimFunc> MatchPrimFunc(const IRModule& mod_, const Expr& o
   if (auto* pfunc = base_func.as<tir::PrimFuncNode>()) {
     return GetRef<tir::PrimFunc>(pfunc);
   }
-  return NullOpt;
+  return std::nullopt;
 }
 /*!
  * \brief Check whether the given struct infos can appear in DistIR

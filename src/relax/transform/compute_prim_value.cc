@@ -46,7 +46,7 @@ class PrimValueComputeInjector : public ExprMutator {
     tir::Stmt body = tir::Evaluate(tir::Call(ret_dtype, tir::builtin::ret(), {node->value}));
 
     tir::PrimFunc func(param_vars, body, PrimType(ret_dtype), {},
-                       DictAttrs({{tir::attr::kIsHostFunc, Bool(true)}}));
+                       DictAttrs({{tir::attr::kIsHostFunc, true}}));
     func = tir::RenewDefs(func);
 
     auto callee = builder_->AddFunction(func, "compute_symbolic_expr");
@@ -62,8 +62,7 @@ class PrimValueComputeInjector : public ExprMutator {
 namespace transform {
 
 Pass ComputePrimValue() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) -> IRModule {
+  auto pass_func = [=](IRModule mod, PassContext pc) -> IRModule {
     PrimValueComputeInjector mutator;
 
     IRModule updates;

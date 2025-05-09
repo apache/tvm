@@ -1080,7 +1080,7 @@ static Optional<IntSet> EvalIterSum(const IterSumExpr& iter_min, const PrimExpr&
     return IntSet::Nothing();
   }
   if (!analyzer->CanProve(extent >= split->scale)) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   const PrimExpr& base = iter_min->base;
@@ -1110,7 +1110,7 @@ Optional<Array<IntSet>> EstimateRegionStrictBound(const Array<Range>& region,
     for (const Range& range : region) {
       if (!is_const_number(range->extent)) {
         // dynamic extent is not supported yet.
-        return NullOpt;
+        return std::nullopt;
       }
       affine_indices.push_back(range->min);
     }
@@ -1120,7 +1120,7 @@ Optional<Array<IntSet>> EstimateRegionStrictBound(const Array<Range>& region,
     iter_sum_exprs = res->indices;
   }
   if (iter_sum_exprs.empty()) {
-    return NullOpt;
+    return std::nullopt;
   }
   ICHECK_EQ(iter_sum_exprs.size(), ndim);
   Array<IntSet> result;
@@ -1132,7 +1132,7 @@ Optional<Array<IntSet>> EstimateRegionStrictBound(const Array<Range>& region,
     if (int_set.defined()) {
       result.push_back(int_set.value());
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }
   return result;

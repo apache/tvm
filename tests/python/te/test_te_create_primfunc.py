@@ -18,7 +18,7 @@
 import numpy as np
 import tvm
 import tvm.testing
-from tvm import te, tir, topi, relay
+from tvm import te, tir, topi
 from tvm.script import tir as T
 import pytest
 
@@ -350,7 +350,7 @@ def test_constant():
     )
 
     func = te.create_prim_func([C, A])
-    func = tvm.build(func)
+    func = tvm.compile(func)
     a_np = np.random.uniform(size=(M,)).astype(A.dtype)
     c = tvm.nd.array(np.zeros(M, dtype=C.dtype))
     x = func(c, tvm.nd.array(a_np))
@@ -363,7 +363,7 @@ def test_data_dependent_access():
     C = te.compute((10,), lambda i: A[B[i]])
 
     func = te.create_prim_func([C, A, B])
-    func = tvm.build(func)
+    func = tvm.compile(func)
 
     a_np = np.random.uniform(size=(10,)).astype(A.dtype)
     b_np = np.arange(10, dtype=B.dtype)
@@ -640,59 +640,6 @@ def test_reshape():
     _check_workload(te_reshape, tir_reshape, index_dtype_override="int64")
 
 
-@T.prim_func
-def argmax_expected(
-    p0: T.Buffer((T.int64(1), T.int64(64), T.int64(56), T.int64(56)), "uint8"),
-    p0_red: T.Buffer((T.int64(1), T.int64(56), T.int64(56)), "int32"),
-):
-    T.func_attr({"global_symbol": "main", "tir.noalias": True})
-    p0_red_temp_v0 = T.alloc_buffer([T.int64(1), T.int64(56), T.int64(56)], dtype="int32")
-    p0_red_temp_v1 = T.alloc_buffer([T.int64(1), T.int64(56), T.int64(56)], dtype="uint8")
-    for ax0, ax1, ax2, k1 in T.grid(T.int64(1), T.int64(56), T.int64(56), T.int64(64)):
-        with T.block("p0_red_temp"):
-            v_ax0, v_ax1, v_ax2, v_k1 = T.axis.remap("SSSR", [ax0, ax1, ax2, k1])
-            T.reads(p0[v_ax0, v_k1, v_ax1, v_ax2])
-            T.writes(p0_red_temp_v0[v_ax0, v_ax1, v_ax2], p0_red_temp_v1[v_ax0, v_ax1, v_ax2])
-            with T.init():
-                p0_red_temp_v0[v_ax0, v_ax1, v_ax2] = -1
-                p0_red_temp_v1[v_ax0, v_ax1, v_ax2] = T.uint8(0)
-            v_p0_red_temp_v0: T.int64 = T.Select(
-                p0_red_temp_v1[v_ax0, v_ax1, v_ax2] > p0[v_ax0, v_k1, v_ax1, v_ax2]
-                or (
-                    p0_red_temp_v1[v_ax0, v_ax1, v_ax2] == p0[v_ax0, v_k1, v_ax1, v_ax2]
-                    and T.Cast("int64", p0_red_temp_v0[v_ax0, v_ax1, v_ax2]) < v_k1
-                ),
-                T.Cast("int64", p0_red_temp_v0[v_ax0, v_ax1, v_ax2]),
-                v_k1,
-            )
-            v_p0_red_temp_v1: T.uint8 = T.Select(
-                p0_red_temp_v1[v_ax0, v_ax1, v_ax2] > p0[v_ax0, v_k1, v_ax1, v_ax2],
-                p0_red_temp_v1[v_ax0, v_ax1, v_ax2],
-                p0[v_ax0, v_k1, v_ax1, v_ax2],
-            )
-            p0_red_temp_v0[v_ax0, v_ax1, v_ax2] = T.Cast("int32", v_p0_red_temp_v0)
-            p0_red_temp_v1[v_ax0, v_ax1, v_ax2] = v_p0_red_temp_v1
-    for ax0, ax1, ax2 in T.grid(T.int64(1), T.int64(56), T.int64(56)):
-        with T.block("p0_red"):
-            v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
-            T.reads(p0_red_temp_v0[v_ax0, v_ax1, v_ax2])
-            T.writes(p0_red[v_ax0, v_ax1, v_ax2])
-            p0_red[v_ax0, v_ax1, v_ax2] = p0_red_temp_v0[v_ax0, v_ax1, v_ax2]
-
-
-def test_argmax():
-    data = relay.var("data", shape=(1, 64, 56, 56), dtype="uint8")
-    mod = tvm.IRModule.from_expr(relay.argmax(data, axis=1))
-
-    target = tvm.target.Target("llvm")
-
-    opt_mod, _ = relay.optimize(mod, params={}, target=target)
-
-    prim_func = relay.backend.te_compiler.lower_to_primfunc(opt_mod["main"].body.op, target)
-
-    tvm.ir.assert_structural_equal(prim_func, argmax_expected)
-
-
 def te_resize2d_symbolic():
     oh = tir.Var("oh", "int64")
     ow = tir.Var("ow", "int64")
@@ -800,7 +747,7 @@ def te_slice_with_var_input():
 
 @T.prim_func
 def tir_slice_with_var_input(var_tensor: T.handle, idx: T.int64, var_slice: T.handle):
-    T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+    T.func_attr({"tir.noalias": True, "global_symbol": "main"})
     m, n = T.int64(), T.int64()
     tensor = T.match_buffer(var_tensor, (m, n))
     slice = T.match_buffer(var_slice, (idx, n))
@@ -823,7 +770,7 @@ def test_loop_aware_initial_value():
 
     @T.prim_func
     def tir_workload(var_a: T.handle, var_b: T.handle, var_sum_red: T.handle):
-        T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         a = T.match_buffer(var_a, (5, 5))
         b = T.match_buffer(var_b, (5,))
         sum_red = T.match_buffer(var_sum_red, (5,))
@@ -858,7 +805,7 @@ def test_loop_aware_reducer_combiner():
 
     @T.prim_func
     def tir_workload(var_a: T.handle, var_b: T.handle, var_sum_red: T.handle):
-        T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         a = T.match_buffer(var_a, (5, 5))
         b = T.match_buffer(var_b, (5,))
         sum_red = T.match_buffer(var_sum_red, (5,))
@@ -897,7 +844,7 @@ def test_adaptive_pooling_window():
         x: T.Buffer((1, 1024, 16, 40), "float32"),
         adaptive_pool_avg: T.Buffer((1, 1024, 12, 30), "float32"),
     ):
-        T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # fmt: off
         adaptive_pool_sum = T.alloc_buffer((1, 1024, 12, 30))
         for ax0, ax1, ax2, ax3 in T.grid(1, 1024, 12, 30):
@@ -940,7 +887,7 @@ def test_nested_reduce_domain_dependency():
     def tir_workload(
         x: T.Buffer((8, 8, 8, 8, 8), "float32"), compute: T.Buffer((8, 8, 8), "float32")
     ):
-        T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         for i0, i1, i2 in T.grid(8, 8, 8):
             with T.block("compute_2"):
                 v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])

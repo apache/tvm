@@ -61,7 +61,7 @@ def get_expected_1():
     class Expected:
         @T.prim_func(private=True)
         def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_1: T.Buffer((T.int64(5), T.int64(5)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
                 with T.block("f_mul"):
@@ -72,7 +72,7 @@ def get_expected_1():
 
         @T.prim_func(private=True)
         def f_mul_grad(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), C: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_grad_1: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_grad_2: T.Buffer((T.int64(5), T.int64(5)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
                 with T.block("f_mul_grad_1"):
@@ -148,7 +148,7 @@ def test_call_tir(register_te_grads):
     class Before:
         @T.prim_func(private=True)
         def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul_1: T.Buffer((T.int64(5), T.int64(5)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
                 with T.block("f_mul"):
@@ -177,7 +177,7 @@ def get_expected_2():
     class Expected:
         @T.prim_func(private=True)
         def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul2: T.Buffer((T.int64(5), T.int64(5)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
                 with T.block("f_mul2"):
@@ -188,7 +188,7 @@ def get_expected_2():
 
         @T.prim_func(private=True)
         def f_mulk_grad(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), B: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mulk_grad_1: T.Buffer((T.int64(5), T.int64(5)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
                 with T.block("f_mulk_grad"):
@@ -257,7 +257,7 @@ def test_call_tir_kwargs(register_te_grads):
     class Before:
         @T.prim_func(private=True)
         def f_mul(A: T.Buffer((T.int64(5), T.int64(5)), "float32"), f_mul2: T.Buffer((T.int64(5), T.int64(5)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i0, i1 in T.grid(T.int64(5), T.int64(5)):
                 with T.block("f_mul2"):
@@ -286,7 +286,7 @@ def get_expected_3():
     class Expected:
         @T.prim_func(private=True)
         def f_mul(var_A: T.handle, var_B: T.handle, var_f_mul: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             n = T.int64()
             A = T.match_buffer(var_A, (n, n))
             B = T.match_buffer(var_B, (n, n))
@@ -301,7 +301,7 @@ def get_expected_3():
 
         @T.prim_func(private=True)
         def f_mul_grad(var_A: T.handle, var_B: T.handle, var_C: T.handle, var_f_mul_grad_1: T.handle, var_f_mul_grad_2: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             n = T.int64()
             A = T.match_buffer(var_A, (n, n))
             B = T.match_buffer(var_B, (n, n))

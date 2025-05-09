@@ -116,7 +116,7 @@ TVM_REGISTER_OP("relax.broadcast_to")
 /* relax.concat */
 TVM_REGISTER_NODE_TYPE(ConcatAttrs);
 
-Expr concat(Expr tensors, Optional<Integer> axis) {
+Expr concat(Expr tensors, Optional<int64_t> axis) {
   ObjectPtr<ConcatAttrs> attrs = make_object<ConcatAttrs>();
   attrs->axis = std::move(axis);
 
@@ -171,7 +171,7 @@ Optional<Array<PrimExpr>> CheckConcatOutputShape(const Call& call, const BlockBu
   }
 
   if (shape_unknown) {
-    return NullOpt;
+    return std::nullopt;
   }
   Array<PrimExpr> output_shape = shape_values[0];
   output_shape.Set(axis, concat_sum);
@@ -190,9 +190,9 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<ConcatAttrs>();
-  int output_ndim = attrs->axis.defined() ? kUnknownNDim : 1;
+  int output_ndim = attrs->axis.has_value() ? kUnknownNDim : 1;
   DataType output_dtype = DataType::Void();
-  Optional<VDevice> vdev = NullOpt;
+  Optional<VDevice> vdev = std::nullopt;
   bool shape_unknown = false;
   bool is_void_dtype = false;
   bool vdevice_unknown = false;
@@ -260,7 +260,7 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
     output_dtype = DataType::Void();
   }
   if (vdevice_unknown) {
-    vdev = NullOpt;
+    vdev = std::nullopt;
   }
 
   if (output_ndim == kUnknownNDim) {
@@ -269,7 +269,7 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
   }
 
   int axis =
-      attrs->axis.defined() ? NormalizeAxis(call, ctx, output_ndim, attrs->axis.value()->value) : 0;
+      attrs->axis.has_value() ? NormalizeAxis(call, ctx, output_ndim, attrs->axis.value()) : 0;
   // If there is only one input tensor, no action is needed.
   if (tensor_sinfo.size() == 1) {
     return tensor_sinfo[0];
@@ -316,7 +316,7 @@ InferLayoutOutput InferLayoutConcat(const Call& call,
   }
   output_layouts.push_back(layout);
   ObjectPtr<ConcatAttrs> new_attrs = make_object<ConcatAttrs>(*attrs);
-  new_attrs->axis = Integer(FindAxis(layout->layout, attrs->axis.value_or(0)->value));
+  new_attrs->axis = FindAxis(layout->layout, attrs->axis.value_or(0));
   return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
 }
 
@@ -393,6 +393,10 @@ InferLayoutOutput InferLayoutExpandDims(const Call& call,
 
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   int ndim = tensor_sinfo->ndim;
+  // Can't handle sub indexed layouts.
+  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+    existing_layout = LayoutDecision(InitialLayout(ndim));
+  }
   int n_new_dim = attrs->axis.size();
   int output_ndim = ndim + n_new_dim;
   std::vector<bool> is_new_dim(output_ndim, false);
@@ -468,6 +472,151 @@ TVM_REGISTER_OP("relax.flatten")
     .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlatten)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.index_tensor */
+
+Expr index_tensor(Expr first, Expr tensors) {
+  static const Op& op = Op::Get("relax.index_tensor");
+  return Call(op, {std::move(first), std::move(tensors)}, Attrs(), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.index_tensor").set_body_typed(index_tensor);
+
+StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 2) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "Index.Tensor op should have 2 arguments");
+  }
+
+  TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
+  Array<TensorStructInfo> indices_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[1]);
+
+  if (indices_sinfo.empty()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "index_tensor expects a non‑empty tuple of index tensors");
+  }
+
+  DataType output_dtype = data_sinfo->dtype;
+  int n_indices = static_cast<int>(indices_sinfo.size());
+  Optional<VDevice> vdev = data_sinfo->vdevice;
+
+  // Indices must be integers
+  for (int i = 0; i < n_indices; ++i) {
+    const auto& s = indices_sinfo[i];
+    if (!s->IsUnknownDtype() && !s->dtype.is_int()) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "index_tensor requires every index tensor to have an integer dtype; "
+                       << "index " << i << " has dtype " << s->dtype);
+    }
+  }
+
+  // Count of indices must be less than or equal to data.ndim
+  if (!data_sinfo->IsUnknownNdim() && n_indices > data_sinfo->ndim) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "index_tensor received " << n_indices
+                     << " index tensors, but data has only " << data_sinfo->ndim << " dimensions");
+  }
+
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  bool all_index_have_shape_value = true;
+  std::vector<Array<PrimExpr>> index_shapes;
+  int max_index_ndim = 0;
+
+  for (const auto& s : indices_sinfo) {
+    const auto* shp = s->shape.as<ShapeExprNode>();
+    if (!shp) {
+      all_index_have_shape_value = false;
+    } else {
+      index_shapes.push_back(shp->values);
+      max_index_ndim = std::max(max_index_ndim, static_cast<int>(shp->values.size()));
+    }
+    if (!s->IsUnknownNdim()) {
+      max_index_ndim = std::max(max_index_ndim, s->ndim);
+    }
+  }
+
+  Optional<Array<PrimExpr>> broadcast_shape;
+  bool shape_unknown = !all_index_have_shape_value;
+
+  if (all_index_have_shape_value) {
+    // initialise broadcast result with 1’s
+    Array<PrimExpr> out_shape;
+    for (int i = 0; i < max_index_ndim; ++i) {
+      out_shape.push_back(IntImm(DataType::Int(64), 1));
+    }
+
+    for (const auto& ishape : index_shapes) {
+      int cur_ndim = ishape.size();
+      for (int axis = 0; axis < max_index_ndim; ++axis) {
+        int lhs_axis = max_index_ndim - 1 - axis;  // aligned from right
+        int rhs_axis = cur_ndim - 1 - axis;
+        if (rhs_axis < 0) break;  // shorter rank – done
+
+        PrimExpr lhs_dim = out_shape[lhs_axis];
+        PrimExpr rhs_dim = ishape[rhs_axis];
+
+        const auto* lhs_int = lhs_dim.as<IntImmNode>();
+        const auto* rhs_int = rhs_dim.as<IntImmNode>();
+
+        // Case 1: current broadcast slot is 1 -> always replace
+        if (lhs_int && lhs_int->value == 1) {
+          out_shape.Set(lhs_axis, rhs_dim);
+          continue;
+        }
+        // Case 2: rhs is 1 -> keep lhs_dim unchanged
+        if (rhs_int && rhs_int->value == 1) {
+          continue;
+        }
+        // Both are non‑one constants: must equal
+        if (lhs_int && rhs_int && lhs_int->value != rhs_int->value) {
+          ctx->ReportFatal(Diagnostic::Error(call)
+                           << "index_tensor: cannot broadcast index shapes. Mismatch at axis "
+                           << lhs_axis << ": " << lhs_dim << " vs " << rhs_dim);
+        }
+        // Give up if not provablt equal
+        if (!analyzer->CanProveEqual(lhs_dim, rhs_dim)) {
+          shape_unknown = true;
+          break;
+        }
+      }
+      if (shape_unknown) break;
+    }
+
+    if (!shape_unknown) broadcast_shape = out_shape;
+  }
+
+  // Count of dimensions in output
+  int out_ndim = kUnknownNDim;
+  if (!data_sinfo->IsUnknownNdim()) {
+    int tail_ndim = data_sinfo->ndim - n_indices;
+    if (broadcast_shape.defined()) {
+      out_ndim = static_cast<int>(broadcast_shape.value().size()) + tail_ndim;
+    } else if (!shape_unknown) {
+      out_ndim = max_index_ndim + tail_ndim;
+    }
+  }
+
+  // Derive output shape
+  if (broadcast_shape.defined()) {
+    const auto* data_shape_expr = data_sinfo->shape.as<ShapeExprNode>();
+    if (data_shape_expr) {
+      Array<PrimExpr> result_shape = broadcast_shape.value();
+      for (int i = n_indices; i < data_sinfo->ndim; ++i) {
+        result_shape.push_back(data_shape_expr->values[i]);
+      }
+      return TensorStructInfo(ShapeExpr(result_shape), output_dtype, vdev);
+    }
+  }
+
+  // Unknown output shape
+  return TensorStructInfo(output_dtype, out_ndim, vdev);
+}
+
+TVM_REGISTER_OP("relax.index_tensor")
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input data.")
+    .add_argument("indices", "List of Tensors", "The indices used to index.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoIndexTensor)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.layout_transform */
@@ -622,6 +771,12 @@ InferLayoutOutput InferLayoutPermuteDims(const Call& call,
   int ndim = tensor_sinfo->ndim;
 
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+
+  // permute_dims can't handle sub indexed layouts.
+  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+    existing_layout = LayoutDecision(InitialLayout(ndim));
+  }
+
   Array<Integer> order;
   if (attrs->axes.defined()) {
     order = attrs->axes.value();
@@ -657,16 +812,16 @@ TVM_REGISTER_OP("relax.permute_dims")
 
 /* relax.reshape */
 Expr ConvertNewShapeToExpr(const Expr& data, const Variant<Expr, Array<PrimExpr>>& shape) {
-  const ArrayNode* array;
+  const ffi::ArrayObj* array;
   // Treat shape expressions as constant arrays to handle special values.
   if (const auto* e = shape.as<ShapeExprNode>()) {
-    array = e->values.as<ArrayNode>();
+    array = e->values.as<ffi::ArrayObj>();
     // Other non-shape expressions are used directly.
   } else if (const auto* e = shape.as<ExprNode>()) {
     return GetRef<Expr>(e);
     // Process special values in constants and produce an expression.
   } else {
-    array = shape.as<ArrayNode>();
+    array = shape.as<ffi::ArrayObj>();
   }
   CHECK(array != nullptr) << "Reshape only expects the input new shape to be either an Expr or an "
                              "Array of PrimExprs. However, the given new shape is "
@@ -816,25 +971,26 @@ TVM_REGISTER_NODE_TYPE(SplitAttrs);
 
 Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis) {
   ObjectPtr<SplitAttrs> attrs = make_object<SplitAttrs>();
-  if (const auto* indices = indices_or_sections.as<ArrayNode>()) {
+  ObjectRef indices_or_sections_obj;
+
+  if (const auto* indices = indices_or_sections.as<ffi::ArrayObj>()) {
     for (int i = 0; i < static_cast<int>(indices->size()); ++i) {
       const auto* idx = indices->at(i).as<IntImmNode>();
       CHECK(idx != nullptr) << "Split op only accepts an array of integers as the indices. "
                                "However, the given indices "
                             << indices_or_sections << " contains some non-integer.";
     }
-    indices_or_sections = ConvertIntImmToInt64(GetRef<Array<IntImm>>(indices));
+    indices_or_sections_obj = ConvertIntImmToInt64(GetRef<Array<IntImm>>(indices));
   } else if (const auto* n_section = indices_or_sections.as<IntImmNode>()) {
     CHECK_GT(n_section->value, 0) << "Split op expects the input number of sections to be a "
                                      "positive integer. However, the given number of sections is "
                                   << n_section->value;
-    indices_or_sections = IntImm(DataType::Int(64), n_section->value);
+    indices_or_sections_obj = IntImm(DataType::Int(64), n_section->value);
   } else {
     LOG(FATAL) << "Split op expects the input indices_or_sections to be either an Array of "
-                  "PrimExpr or an integer. However, the given one is "
-               << indices_or_sections->GetTypeKey();
+                  "PrimExpr or an integer.";
   }
-  attrs->indices_or_sections = indices_or_sections;
+  attrs->indices_or_sections = indices_or_sections_obj;
   attrs->axis = axis;
 
   static const Op& op = Op::Get("relax.split");
@@ -854,7 +1010,7 @@ StructInfo InferStructInfoSplit(const Call& call, const BlockBuilder& ctx) {
     auto p_indices = opt_indices.value();
     // When there is not index, return the input tensor's struct info.
     if (p_indices.size() == 0) {
-      return TupleStructInfo({data_sinfo});
+      return data_sinfo;
     }
     // Fall back to unknown shape when the input tensor doesn't have ShapeExpr as shape.
     if (data_shape == nullptr) {
@@ -901,7 +1057,7 @@ StructInfo InferStructInfoSplit(const Call& call, const BlockBuilder& ctx) {
     int n_section = p_n_section->value;
     // When the number of section is one, return the input tensor's struct info.
     if (n_section == 1) {
-      return TupleStructInfo({data_sinfo});
+      return data_sinfo;
     }
     // Fall back to unknown shape when the input tensor doesn't have ShapeExpr as shape.
     if (data_shape == nullptr) {
@@ -942,10 +1098,33 @@ InferLayoutOutput InferLayoutSplit(const Call& call,
   ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
 
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<SplitAttrs> new_attrs = make_object<SplitAttrs>(*attrs);
-  new_attrs->axis = FindAxis(existing_layout->layout, attrs->axis);
   StructInfo out_sinfo = InferStructInfoSplit(call, BlockBuilder::Create(IRModule()));
   const auto* out_tuple = out_sinfo.as<TupleStructInfoNode>();
+
+  /*
+   * Fallback if the outputs can't be represented in input sub indexed layout
+   * This can happen after sub indexing, if we can't split the corresponding primal axis
+   */
+  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+    for (const auto& si : out_tuple->fields) {
+      ICHECK(si->IsInstance<TensorStructInfoNode>())
+          << "Fields of TupleStructInfo must be TensorStructInfo"
+             "output structinfo, but got "
+          << si;
+      auto sinfo = Downcast<TensorStructInfo>(si);
+      Optional<ShapeExpr> shape_expr = GetRef<ShapeExpr>(sinfo->shape.as<ShapeExprNode>());
+      CHECK(shape_expr.defined());
+      auto shape_arr = shape_expr.value();
+      if (!CanProveLayoutTransform(InitialLayout(tensor_sinfo->ndim), existing_layout->layout,
+                                   shape_arr->values)) {
+        existing_layout = InitialLayout(tensor_sinfo->ndim);
+        break;
+      }
+    }
+  }
+
+  ObjectPtr<SplitAttrs> new_attrs = make_object<SplitAttrs>(*attrs);
+  new_attrs->axis = FindAxis(existing_layout->layout, attrs->axis);
   ICHECK(out_tuple != nullptr) << "Invalid Call";
   NLayout tuple_layouts(Array<NLayout>(out_tuple->fields.size(), existing_layout));
   return InferLayoutOutput({existing_layout}, {tuple_layouts}, Attrs(new_attrs));
@@ -1092,6 +1271,10 @@ InferLayoutOutput InferLayoutSqueeze(const Call& call,
   }
 
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  // Can't handle sub indexed layouts.
+  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+    existing_layout = LayoutDecision(InitialLayout(ndim));
+  }
   String new_axis_str = TransposeStrLike(axis_str, InitialLayout(ndim), existing_layout->layout);
   Array<Integer> new_axis;
   for (size_t i = 0; i < new_axis_str.size(); ++i) {
@@ -1155,6 +1338,215 @@ void CheckCollapseShape(const Call& call, const BlockBuilder& ctx,
     }
   }
 }
+
+/* relax.stack */
+TVM_REGISTER_NODE_TYPE(StackAttrs);
+
+Expr stack(Expr tensors, Optional<Integer> axis) {
+  ObjectPtr<StackAttrs> attrs = make_object<StackAttrs>();
+  attrs->axis = std::move(axis);
+
+  static const Op& op = Op::Get("relax.stack");
+  return Call(op, {std::move(tensors)}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.stack").set_body_typed(stack);
+
+Optional<Array<PrimExpr>> CheckStackOutputShape(const Call& call, const BlockBuilder& ctx,
+                                                const std::vector<Array<PrimExpr>>& shape_values,
+                                                int axis) {
+  bool shape_unknown = false;
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+
+  // Stack requires all input tensors to have identical shapes
+  for (int d = 0; d < static_cast<int>(shape_values[0].size()); ++d) {
+    for (int i = 1; i < static_cast<int>(shape_values.size()); ++i) {
+      if (analyzer->CanProve(shape_values[i][d] != shape_values[0][d])) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "Stack expects all input tensors to have identical shapes. "
+                         << "Dimension " << d << " differs between tensors: " << shape_values[0][d]
+                         << " vs " << shape_values[i][d]);
+      } else if (!analyzer->CanProveEqual(shape_values[i][d], shape_values[0][d])) {
+        shape_unknown = true;
+      }
+    }
+  }
+
+  if (shape_unknown) {
+    return std::nullopt;
+  }
+
+  // Insert new dimension at axis position
+  Array<PrimExpr> output_shape;
+  for (int i = 0; i < axis; ++i) {
+    output_shape.push_back(shape_values[0][i]);
+  }
+  output_shape.push_back(IntImm(DataType::Int(64), shape_values.size()));  // Stack dimension
+  for (int i = axis; i < static_cast<int>(shape_values[0].size()); ++i) {
+    output_shape.push_back(shape_values[0][i]);
+  }
+  return output_shape;
+}
+
+StructInfo InferStructInfoStack(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "Stack op should have 1 argument");
+  }
+
+  Array<TensorStructInfo> tensor_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[0]);
+  if (tensor_sinfo.empty()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Stack op expects at least one tensor in the input Tuple. "
+                     << "However, the given input Tuple is empty.");
+  }
+
+  const auto* attrs = call->attrs.as<StackAttrs>();
+  ICHECK(attrs != nullptr) << "Stack must have StackAttrs";
+
+  // Default axis is 0 if not specified
+  int output_ndim = tensor_sinfo[0]->ndim + 1;  // Stack adds one dimension
+  DataType output_dtype = DataType::Void();
+  Optional<VDevice> vdev = std::nullopt;
+  bool shape_unknown = false;
+  bool is_void_dtype = false;
+  bool vdevice_unknown = false;
+  std::vector<Array<PrimExpr>> shape_values;
+  shape_values.reserve(tensor_sinfo.size());
+
+  for (TensorStructInfo sinfo : tensor_sinfo) {
+    // Check dtype consistency
+    if (sinfo->dtype.is_void()) {
+      is_void_dtype = true;
+    } else if (output_dtype.is_void()) {
+      output_dtype = sinfo->dtype;
+    } else if (sinfo->dtype != output_dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "Stack expects all input tensors to have the same dtype. "
+                       << "Found " << output_dtype << " and " << sinfo->dtype);
+    }
+
+    // Check ndim consistency
+    if (sinfo->ndim != kUnknownNDim && sinfo->ndim != tensor_sinfo[0]->ndim) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "Stack expects all input tensors to have same ndim. "
+                       << "Found " << tensor_sinfo[0]->ndim << " and " << sinfo->ndim);
+    }
+
+    // Check virtual device consistency
+    if (!vdevice_unknown) {
+      if (sinfo->vdevice.defined()) {
+        if (!vdev.defined()) {
+          vdev = sinfo->vdevice.value();
+        } else if (sinfo->vdevice.value() != vdev) {
+          vdevice_unknown = true;
+        }
+      }
+    }
+
+    // Collect shape information
+    const auto* shape_expr = sinfo->shape.as<ShapeExprNode>();
+    if (shape_expr != nullptr) {
+      shape_values.push_back(shape_expr->values);
+      continue;
+    }
+    shape_unknown = true;
+
+    if (!sinfo->shape.defined()) continue;
+    ShapeStructInfo shape_sinfo = Downcast<ShapeStructInfo>(sinfo->shape.value()->struct_info_);
+    if (shape_sinfo->values.defined()) {
+      shape_values.push_back(shape_sinfo->values.value());
+    }
+  }
+
+  if (is_void_dtype) output_dtype = DataType::Void();
+  if (vdevice_unknown) vdev = std::nullopt;
+
+  // Normalize axis (default to 0 if not specified)
+  int axis =
+      attrs->axis.defined() ? NormalizeAxis(call, ctx, output_ndim, attrs->axis.value()->value) : 0;
+
+  // Single tensor case
+  if (tensor_sinfo.size() == 1) {
+    if (shape_values.empty()) {
+      if (!vdevice_unknown) {
+        return TensorStructInfo(output_dtype, output_ndim, vdev);
+      }
+      return TensorStructInfo(output_dtype, output_ndim);
+    }
+    Array<PrimExpr> output_shape;
+    for (int i = 0; i < axis; ++i) {
+      output_shape.push_back(shape_values[0][i]);
+    }
+    output_shape.push_back(1);  // Stack size 1
+    for (int i = axis; i < static_cast<int>(shape_values[0].size()); ++i) {
+      output_shape.push_back(shape_values[0][i]);
+    }
+    if (!vdevice_unknown) {
+      return TensorStructInfo(ShapeExpr(output_shape), output_dtype, vdev);
+    }
+    return TensorStructInfo(ShapeExpr(output_shape), output_dtype);
+  }
+
+  // Multiple tensors case
+  if (shape_values.empty()) {
+    if (!vdevice_unknown) {
+      return TensorStructInfo(output_dtype, output_ndim, vdev);
+    }
+    return TensorStructInfo(output_dtype, output_ndim);
+  }
+
+  Optional<Array<PrimExpr>> output_shape = CheckStackOutputShape(call, ctx, shape_values, axis);
+  if (shape_unknown || !output_shape.defined()) {
+    if (!vdevice_unknown) {
+      return TensorStructInfo(output_dtype, output_ndim, vdev);
+    }
+    return TensorStructInfo(output_dtype, output_ndim);
+  } else {
+    if (!vdevice_unknown) {
+      return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype, vdev);
+    }
+    return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype);
+  }
+}
+
+InferLayoutOutput InferLayoutStack(const Call& call,
+                                   const Map<String, Array<String>>& desired_layouts,
+                                   const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+
+  const auto* attrs = call->attrs.as<StackAttrs>();
+  ICHECK(attrs != nullptr) << "Invalid Call";
+  NLayout nlayout = GetNLayout(var_layout_map, call->args[0]);
+  ICHECK(nlayout.IsNested());
+  ICHECK(nlayout.NestedArray()[0].IsLeaf());
+
+  int n_tensor = nlayout.NestedArray().size();
+  LayoutDecision layout = nlayout.NestedArray()[0].LeafValue();
+  Array<NLayout> input_layouts, output_layouts;
+  for (int i = 0; i < n_tensor; ++i) {
+    input_layouts.push_back(layout);
+  }
+
+  // For stack, we need to adjust the output layout by inserting a new axis
+  std::string layout_str = layout->layout.name();
+  int axis = attrs->axis.defined() ? attrs->axis.value()->value : 0;
+  layout_str.insert(static_cast<size_t>(axis), "S");  // Add stack dimension
+  Layout output_layout = Layout(layout_str);
+  output_layouts.push_back(LayoutDecision(output_layout));
+
+  ObjectPtr<StackAttrs> new_attrs = make_object<StackAttrs>(*attrs);
+  new_attrs->axis = Integer(FindAxis(layout->layout, axis));
+  return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
+}
+
+TVM_REGISTER_OP("relax.stack")
+    .set_attrs_type<StackAttrs>()
+    .set_num_inputs(1)
+    .add_argument("tensors", "Tuple of Tensors", "The input list of tensors to stack")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStack)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutStack)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.collapse_sum_like */
 Expr collapse_sum_like(Expr data, Expr collapse_target) {
@@ -1254,7 +1646,7 @@ TVM_REGISTER_OP("relax.collapse_sum_to")
 /* relax.repeat */
 TVM_REGISTER_NODE_TYPE(RepeatAttrs);
 
-Expr repeat(Expr data, int repeats, Optional<Integer> axis) {
+Expr repeat(Expr data, int repeats, Optional<int64_t> axis) {
   auto attrs = make_object<RepeatAttrs>();
   attrs->repeats = std::move(repeats);
   attrs->axis = std::move(axis);
@@ -1271,8 +1663,8 @@ StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<RepeatAttrs>();
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
 
-  if (attrs->axis.defined() && !data_sinfo->IsUnknownNdim()) {
-    int axis = attrs->axis.value()->value;
+  if (attrs->axis.has_value() && !data_sinfo->IsUnknownNdim()) {
+    int axis = attrs->axis.value();
     int ndim = data_sinfo->ndim;
     if (axis < -ndim || axis >= ndim) {
       ctx->ReportFatal(
@@ -1284,7 +1676,7 @@ StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
   }
 
   if (data_shape == nullptr) {
-    if (attrs->axis.defined()) {
+    if (attrs->axis.has_value()) {
       if (analyzer->CanProveEqual(attrs->repeats, 1)) {
         // the shape does not changes
         return data_sinfo;
@@ -1296,14 +1688,14 @@ StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  if (!attrs->axis.defined()) {
+  if (!attrs->axis.has_value()) {
     PrimExpr new_shape =
         analyzer->Simplify(ComputeShapeProduct(data_shape->values) * attrs->repeats);
     return TensorStructInfo(ShapeExpr(Array<PrimExpr>({new_shape})), data_sinfo->dtype,
                             data_sinfo->vdevice);
   }
 
-  int axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value()->value);
+  int axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value());
   auto shape_array = data_shape->values;
   shape_array.Set(axis, analyzer->Simplify(shape_array[axis] * attrs->repeats));
   return TensorStructInfo(ShapeExpr(shape_array), data_sinfo->dtype, data_sinfo->vdevice);
@@ -1579,6 +1971,232 @@ TVM_REGISTER_OP("relax.gather_nd")
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("indices", "Tensor", "The indices tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGatherND)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.index_put */
+TVM_REGISTER_NODE_TYPE(IndexPutAttrs);
+
+Expr index_put(Expr data, Expr indices, Expr values, bool accumulate) {
+  auto attrs = make_object<IndexPutAttrs>();
+  attrs->accumulate = std::move(accumulate);
+  static const Op& op = Op::Get("relax.index_put");
+  return Call(op, {data, indices, values}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.index_put").set_body_typed(index_put);
+
+StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* values_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
+
+  auto diag_def = [&](const TensorStructInfoNode* sinfo, String name, String type_key) {
+    if (sinfo == nullptr) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "IndexPut requires the input " << name
+                       << " to be a Tensor. However, the given one is " << type_key);
+    }
+  };
+
+  diag_def(data_sinfo, "data", call->args[0]->struct_info_->GetTypeKey());
+  diag_def(values_sinfo, "values", call->args[2]->struct_info_->GetTypeKey());
+
+  // Handle indices: either a single tensor or a tuple of tensors
+  Array<TensorStructInfo> indices_tensors;
+
+  if (const auto* tuple_sinfo = GetStructInfoAs<TupleStructInfoNode>(call->args[1])) {
+    // Indices is a tuple of tensors
+    for (size_t i = 0; i < tuple_sinfo->fields.size(); ++i) {
+      const auto* tensor_sinfo = tuple_sinfo->fields[i].as<TensorStructInfoNode>();
+      if (tensor_sinfo == nullptr) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << "IndexPut requires each index in the indices tuple to be a Tensor. "
+                         << "However, element " << i << " is "
+                         << tuple_sinfo->fields[i]->GetTypeKey());
+      }
+      indices_tensors.push_back(GetRef<TensorStructInfo>(tensor_sinfo));
+    }
+  } else if (const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1])) {
+    // Indices is a single tensor
+    indices_tensors.push_back(GetRef<TensorStructInfo>(tensor_sinfo));
+  } else {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "IndexPut requires indices to be a Tensor or a tuple of Tensors. "
+                     << "However, the given one is " << call->args[1]->struct_info_->GetTypeKey());
+  }
+
+  if (data_sinfo->IsUnknownNdim()) {
+    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
+  }
+
+  // Validate each index tensor
+  for (size_t i = 0; i < indices_tensors.size(); ++i) {
+    const auto& tensor_sinfo = indices_tensors[i];
+    if (!tensor_sinfo->IsUnknownNdim() && tensor_sinfo->ndim != 1) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "IndexPut requires each index tensor to be 1D. "
+                       << "However, index tensor " << i << " has ndim=" << tensor_sinfo->ndim);
+    }
+    if (tensor_sinfo->IsUnknownDtype()) {
+      LOG(WARNING) << "Data type of index tensor " << i
+                   << " has not been specified. Assume it has an integer type.";
+    } else if (!(tensor_sinfo->dtype.is_int() || tensor_sinfo->dtype.is_uint())) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "IndexPut requires each index tensor to have integer dtype. "
+                       << "However, index tensor " << i << " has dtype=" << tensor_sinfo->dtype);
+    }
+  }
+
+  // Check that the number of index tensors matches data dimensions
+  if (!data_sinfo->IsUnknownNdim() &&
+      indices_tensors.size() != static_cast<size_t>(data_sinfo->ndim)) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "IndexPut requires the number of index tensors (" << indices_tensors.size()
+                     << ") to match the data tensor dimensions (" << data_sinfo->ndim << ")");
+  }
+
+  // Check data and values dtype compatibility
+  if (data_sinfo->IsUnknownDtype() || values_sinfo->IsUnknownDtype()) {
+    auto diag_dtype = [&](const TensorStructInfoNode* sinfo, String name) {
+      if (sinfo->IsUnknownDtype()) {
+        LOG(WARNING) << "Data type of " << name
+                     << " has not been specified. Assume it has an integer type.";
+      }
+    };
+    diag_dtype(data_sinfo, "data");
+    diag_dtype(values_sinfo, "values");
+  } else if (data_sinfo->dtype != values_sinfo->dtype) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "IndexPut requires the input data to have the same type as values. "
+                     << "However, the given types are data: " << data_sinfo->dtype
+                     << ", values: " << values_sinfo->dtype);
+  }
+
+  // Check values shape compatibility
+  const auto* values_shape = values_sinfo->shape.as<ShapeExprNode>();
+  if (values_shape) {
+    if (values_sinfo->ndim != 1) {
+      LOG(WARNING) << "IndexPut typically expects values to be 1D, but got ndim="
+                   << values_sinfo->ndim;
+    }
+  }
+
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  if (data_shape) {
+    return TensorStructInfo(ShapeExpr(data_shape->values), data_sinfo->dtype, data_sinfo->vdevice);
+  }
+  return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.index_put")
+    .set_attrs_type<IndexPutAttrs>()
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor(s).")
+    .add_argument("values", "Tensor", "The values to put.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoIndexPut)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.meshgrid */
+TVM_REGISTER_NODE_TYPE(MeshgridAttrs);
+
+Expr meshgrid(Expr tensors, Optional<String> indexing) {
+  ObjectPtr<MeshgridAttrs> attrs = make_object<MeshgridAttrs>();
+  attrs->indexing = indexing;
+  static const Op& op = Op::Get("relax.meshgrid");
+  return Call(op, {std::move(tensors)}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.meshgrid").set_body_typed(meshgrid);
+
+StructInfo InferStructInfoMeshgrid(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "meshgrid op expects 1 Tuple input argument.");
+  }
+  Array<TensorStructInfo> input_sinfo = GetTensorStructInfoFromTuple(call, ctx, call->args[0]);
+
+  int n_inputs = input_sinfo.size();
+
+  if (n_inputs == 0) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "meshgrid expects at least one 1D tensor in the input Tuple.");
+  }
+
+  std::vector<PrimExpr> lengths;
+  DataType common_dtype = DataType::Void();
+  bool shape_unknown = false;
+  Optional<VDevice> vdev = std::nullopt;
+  bool vdevice_unknown = false;
+
+  for (int i = 0; i < n_inputs; ++i) {
+    const TensorStructInfo& sinfo = input_sinfo[i];
+
+    if (sinfo->ndim != 1) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "meshgrid expects each input tensor to be 1D. Got ndim = " << sinfo->ndim
+                       << " at index " << i);
+    }
+
+    if (sinfo->dtype.is_void()) {
+      continue;
+    } else if (common_dtype.is_void()) {
+      common_dtype = sinfo->dtype;
+    } else if (sinfo->dtype != common_dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "meshgrid expects all input tensors to have the same dtype. Found "
+                       << sinfo->dtype << " and " << common_dtype);
+    }
+
+    const auto* shape_expr = sinfo->shape.as<ShapeExprNode>();
+    if (shape_expr && shape_expr->values.size() == 1) {
+      lengths.push_back(shape_expr->values[0]);
+    } else {
+      shape_unknown = true;
+    }
+
+    if (!vdevice_unknown) {
+      if (sinfo->vdevice.defined()) {
+        if (!vdev.defined()) {
+          vdev = sinfo->vdevice.value();
+        } else if (sinfo->vdevice.value() != vdev) {
+          vdevice_unknown = true;
+        }
+      }
+    }
+  }
+
+  Array<PrimExpr> out_shape;
+  if (!shape_unknown && lengths.size() == static_cast<size_t>(n_inputs)) {
+    for (const PrimExpr& dim : lengths) {
+      out_shape.push_back(dim);
+    }
+  }
+
+  Array<StructInfo> out_fields;
+  for (int i = 0; i < n_inputs; ++i) {
+    if (!out_shape.empty()) {
+      if (!vdevice_unknown) {
+        out_fields.push_back(TensorStructInfo(ShapeExpr(out_shape), common_dtype, vdev));
+      } else {
+        out_fields.push_back(TensorStructInfo(ShapeExpr(out_shape), common_dtype));
+      }
+    } else {
+      if (!vdevice_unknown) {
+        out_fields.push_back(TensorStructInfo(common_dtype, n_inputs, vdev));
+      } else {
+        out_fields.push_back(TensorStructInfo(common_dtype, n_inputs));
+      }
+    }
+  }
+
+  return TupleStructInfo(out_fields);
+}
+
+TVM_REGISTER_OP("relax.meshgrid")
+    .set_attrs_type<MeshgridAttrs>()
+    .set_num_inputs(1)
+    .add_argument("tensors", "Tuple of Tensors", "The input list of tensors.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoMeshgrid)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.scatter_elements */

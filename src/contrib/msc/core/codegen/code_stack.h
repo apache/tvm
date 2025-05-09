@@ -157,7 +157,7 @@ class BaseStack {
 
   /*! \brief Push call and maybe assign Doc*/
   void FuncCall(const String& callee, Optional<ExprDoc> assign_to,
-                Optional<ExprDoc> caller = NullOpt);
+                Optional<ExprDoc> caller = std::nullopt);
   void FuncCall(const String& callee, const String& assign_to = "", const String& caller = "");
 
   /*! \brief Push method call Doc*/
@@ -165,7 +165,7 @@ class BaseStack {
 
   /*! \brief Push inplace call and maybe assign Doc*/
   void InplaceStart(const String& callee, Optional<ExprDoc> assign_to,
-                    Optional<ExprDoc> caller = NullOpt);
+                    Optional<ExprDoc> caller = std::nullopt);
   void InplaceStart(const String& callee, const String& assign_to = "", const String& caller = "");
 
   /*! \brief End inplace call*/
@@ -355,7 +355,7 @@ class BaseStack {
     return *this;                                                                                 \
   }                                                                                               \
   Stack& func_call(const String& callee, Optional<ExprDoc> assign_to,                             \
-                   Optional<ExprDoc> caller = NullOpt) {                                          \
+                   Optional<ExprDoc> caller = std::nullopt) {                                     \
     FuncCall(callee, assign_to, caller);                                                          \
     return *this;                                                                                 \
   }                                                                                               \
@@ -369,7 +369,7 @@ class BaseStack {
     return *this;                                                                                 \
   }                                                                                               \
   Stack& inplace_start(const String& callee, Optional<ExprDoc> assign_to,                         \
-                       Optional<ExprDoc> caller = NullOpt) {                                      \
+                       Optional<ExprDoc> caller = std::nullopt) {                                 \
     InplaceStart(callee, assign_to, caller);                                                      \
     return *this;                                                                                 \
   }                                                                                               \

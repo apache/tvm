@@ -76,14 +76,8 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
     attrs = DictAttrs();
   }
 
-  // Assume void-return type for now
-  // TODO(tvm-team) consider type deduction from body.
   if (!ret_type.defined()) {
     ret_type = VoidType();
-  }
-
-  if (attrs.defined()) {
-    attrs = Downcast<DictAttrs>(NormalizeAttributeObject(attrs));
   }
 
   auto n = make_object<PrimFuncNode>();
@@ -105,7 +99,7 @@ FuncType PrimFuncNode::func_type_annotation() const {
   for (auto param : this->params) {
     param_types.push_back(GetType(param));
   }
-  return FuncType(param_types, ret_type, {}, {});
+  return FuncType(param_types, ret_type);
 }
 
 TVM_REGISTER_NODE_TYPE(PrimFuncNode);
@@ -153,7 +147,7 @@ Optional<TensorIntrin> TensorIntrin::Get(String name, bool allow_missing) {
   auto it = manager->reg.find(name);
   if (it == manager->reg.end()) {
     if (allow_missing) {
-      return NullOpt;
+      return std::nullopt;
     } else {
       LOG(FATAL) << "ValueError: TensorIntrin '" << name << "' is not registered";
     }

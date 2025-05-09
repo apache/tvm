@@ -149,7 +149,7 @@ using VarLayoutMap = Map<Var, NLayout>;
  * \param desired_layouts The desired layouts of the operator.
  * \param var_layout_map The layout of the variables.
  */
-using FRelaxInferLayout = runtime::TypedPackedFunc<InferLayoutOutput(
+using FRelaxInferLayout = ffi::TypedFunction<InferLayoutOutput(
     const Call& call, const Map<String, Array<String>>& desired_layouts,
     const VarLayoutMap& var_layout_map)>;
 
@@ -180,6 +180,25 @@ NLayout InitialNLayout(const StructInfo& sinfo);
  * \return The initialized nested layout decision.
  */
 NLayout InitialNLayout(const Expr& expr);
+
+/*!
+ * \brief Transposing given layout with subindexing
+ * \param ref The layout to be transformed.
+ * \param src The source layout.
+ * \param dst The destination layout.
+ * \return The transposed dst layout.
+ */
+Layout TransposeSubLayoutLike(const Layout& ref, const Layout& src, const Layout& desired);
+
+/*!
+ * \brief Transposing given layout in string format with subindexing
+ * \param ref The layout to be transformed.
+ * \param src The source layout.
+ * \param dst The destination layout.
+ * \return The transposed dst layout.
+ */
+std::string TransposeSubLayoutStrLike(const std::string ref_str, const std::string& src_str,
+                                      const std::string& desired_str);
 
 /*!
  * \brief Transpose the input layout  like the src layout to the dst layout.

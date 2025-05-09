@@ -92,7 +92,7 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
     } else if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
       return tensor->GetShape();
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   };
 
@@ -113,7 +113,7 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
     if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
       return tensor->shape;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   };
 
@@ -155,6 +155,21 @@ InferLayoutOutput InferLayoutBinaryEwise(const Call& call,
   ICHECK(!x1_sinfo->IsUnknownNdim() && !x2_sinfo->IsUnknownNdim())
       << "Unknown dim tensors should not be handled by this function";
 
+  Optional<ShapeExpr> shape1 = GetRef<ShapeExpr>(x1_sinfo->shape.as<ShapeExprNode>());
+  Optional<ShapeExpr> shape2 = GetRef<ShapeExpr>(x2_sinfo->shape.as<ShapeExprNode>());
+  // Lets handle sub indexing as long as primal dims are matching
+  if (layout1->layout.ndim_primal() == layout2->layout.ndim_primal()) {
+    if ((layout1->layout.ndim() >= layout2->layout.ndim()) && shape2.defined()) {
+      if (CanProveLayoutTransform(layout2->layout, layout1->layout, shape2.value()->values)) {
+        return InferLayoutOutput({layout1, layout1}, {layout1}, Attrs(call->attrs));
+      }
+    } else if (shape1.defined()) {
+      if (CanProveLayoutTransform(layout1->layout, layout2->layout, shape1.value()->values)) {
+        return InferLayoutOutput({layout2, layout2}, {layout2}, Attrs(call->attrs));
+      }
+    }
+  }
+
   if (x1_sinfo->ndim <= x2_sinfo->ndim) {
     if (x1_sinfo->ndim == 0) {
       LayoutDecision out_layout = layout2;
@@ -178,6 +193,7 @@ InferLayoutOutput InferLayoutBinaryEwise(const Call& call,
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(add);
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(divide);
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(floor_divide);
+RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(log_add_exp);
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(multiply);
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(power);
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(subtract);

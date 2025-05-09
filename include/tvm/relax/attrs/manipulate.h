@@ -32,7 +32,7 @@ namespace relax {
 
 /*! \brief Attributes used in concat operators */
 struct ConcatAttrs : public tvm::AttrsNode<ConcatAttrs> {
-  Optional<Integer> axis;
+  Optional<int64_t> axis;
 
   TVM_DECLARE_ATTRS(ConcatAttrs, "relax.attrs.ConcatAttrs") {
     TVM_ATTR_FIELD(axis).describe(
@@ -119,10 +119,23 @@ struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
   }
 };  // struct SqueezeAttrs
 
+/*! \brief Attributes used in stack operators */
+struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
+  Optional<Integer> axis;
+
+  TVM_DECLARE_ATTRS(StackAttrs, "relax.attrs.StackAttrs") {
+    TVM_ATTR_FIELD(axis).describe(
+        "The axis along which to stack the input tensors. "
+        "The axis will be inserted at this position in the output, "
+        "so it must be in range [-ndim-1, ndim] where ndim is the "
+        "number of dimensions of the input tensors.");
+  }
+};  // struct StackAttrs
+
 /*! \brief Attributes used in repeat operators */
 struct RepeatAttrs : public tvm::AttrsNode<RepeatAttrs> {
   int repeats;
-  Optional<Integer> axis;
+  Optional<int64_t> axis;
 
   TVM_DECLARE_ATTRS(RepeatAttrs, "relax.attrs.RepeatAttrs") {
     TVM_ATTR_FIELD(repeats).describe("The number of repetitions.");
@@ -168,6 +181,29 @@ struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
     TVM_ATTR_FIELD(batch_dims).set_default(Integer(0)).describe("The number of batch dims.");
   }
 };  // struct GatherNDAttrs
+
+/*! \brief Attributes used in index_put operator */
+struct IndexPutAttrs : public tvm::AttrsNode<IndexPutAttrs> {
+  bool accumulate;
+
+  TVM_DECLARE_ATTRS(IndexPutAttrs, "relax.attrs.IndexPutAttrs") {
+    TVM_ATTR_FIELD(accumulate)
+        .set_default(false)
+        .describe(
+            "Whether to accumulate (add) values rather than replace. "
+            "If true, performs tensor[indices] += values, "
+            "otherwise performs tensor[indices] = values.");
+  }
+};  // struct IndexPutAttrs
+
+/*! \brief Attribute used in meshgrid operator */
+struct MeshgridAttrs : public tvm::AttrsNode<MeshgridAttrs> {
+  Optional<String> indexing;
+
+  TVM_DECLARE_ATTRS(MeshgridAttrs, "relax.attrs.MeshgridAttrs") {
+    TVM_ATTR_FIELD(indexing).describe("Specifies how the grid dimensions are ordered.");
+  }
+};
 
 /*! \brief Attributes used in scatter_elements operators */
 struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {

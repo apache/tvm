@@ -19,7 +19,6 @@
 set -euxo pipefail
 
 source tests/scripts/setup-pytest-env.sh
-export PYTHONPATH=${PYTHONPATH}:${TVM_PATH}/apps/extension/python
 export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 
 # to avoid CI CPU thread throttling.
@@ -34,46 +33,5 @@ fi
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
-# Test TVM
-make cython3
-
-# Test extern package
-cd apps/extension
-rm -rf lib
-make
-cd ../..
-
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-extensions-0 apps/extension/tests
-run_pytest cython ${TVM_INTEGRATION_TESTSUITE_NAME}-extensions-1 apps/extension/tests
-
-# Test dso plugin
-cd apps/dso_plugin_module
-rm -rf lib
-make
-cd ../..
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module-0 apps/dso_plugin_module
-run_pytest cython ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module-1 apps/dso_plugin_module
-
-# Do not enable TensorFlow op
-# TVM_FFI=cython sh prepare_and_test_tfop_module.sh
-# TVM_FFI=ctypes sh prepare_and_test_tfop_module.sh
-
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-integration tests/python/integration
-
-# Ignoring Arm(R) Ethos(TM)-U NPU tests in the collective to run to run them in parallel in the next step.
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-contrib tests/python/contrib --ignore=tests/python/contrib/test_ethosu --ignore=tests/python/contrib/test_cmsisnn --ignore=tests/python/contrib/test_msc
-# forked is needed because the global registry gets contaminated
-TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" \
-    run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-relay tests/python/relay --ignore=tests/python/relay/aot
-
-# OpenCL texture test. Deselected specific tests that fails  in CI
-TVM_TEST_TARGETS="${TVM_RELAY_OPENCL_TEXTURE_TARGETS:-opencl}" \
-    run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-opencl-texture tests/python/relay/opencl_texture
-# Command line driver test
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
-
-# Target test
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-target tests/python/target
-
-# Do not enable OpenGL
-# run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-webgl tests/webgl
+# setup cython
+cd python; python3 setup.py build_ext --inplace; cd ..

@@ -20,11 +20,8 @@
 
 import os
 import subprocess
-import typing
 from tvm.ir.transform import PassContext
 from tvm.contrib.hexagon.profiling.process_lwp_data import process_lwp_output
-from tvm.relay.backend.executor_factory import ExecutorFactoryModule
-from tvm.driver.build_module import OperatorModule
 from tvm.contrib import utils
 
 
@@ -34,7 +31,7 @@ class HexagonProfiler:
     def __init__(
         self,
         dso_binary: str,
-        module: typing.Union[ExecutorFactoryModule, OperatorModule],
+        module,
         hexagon_server_process,
         enable_debug,
     ):
@@ -42,10 +39,7 @@ class HexagonProfiler:
         # Save test .so to process profiling data
         self._temp_dir = utils.tempdir(keep_for_debug=enable_debug)
         self._dso_binary_path = self._temp_dir.relpath(dso_binary)
-        if isinstance(module, OperatorModule):
-            module.save(self._dso_binary_path)
-        else:
-            module.get_lib().save(self._dso_binary_path)
+        module.save(self._dso_binary_path)
 
         self._android_serial_number = os.environ.get("ANDROID_SERIAL_NUMBER")
         self._remote_path = ""

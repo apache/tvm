@@ -20,7 +20,7 @@
 Pass Infrastructure
 ===================
 
-Both Relay and TVM IR contain a series of optimization passes which improve performance metrics
+Both Relax and TVM IR contain a series of optimization passes which improve performance metrics
 of models such as mean inference, memory footprint, or power consumption for
 specific devices. There is a suite of standard optimizations as well as machine
 learning-specific optimizations including constant folding, dead code
@@ -31,7 +31,7 @@ transformation using the analysis result collected during and/or before traversa
 However, as TVM evolves quickly, the need for a more systematic and efficient
 way to manage these passes is becoming apparent. In addition, a generic
 framework that manages the passes across different layers of the TVM stack (e.g.
-Relay and tir) paves the way for developers to quickly prototype and plug the
+Relax and tir) paves the way for developers to quickly prototype and plug the
 implemented passes into the system.
 
 This doc describes the design of such an infra that takes the advantage of the
@@ -51,7 +51,7 @@ scheme through `Sequential`_ and `Block`_, respectively. With such constructs,
 these modern frameworks are able to conveniently add modules/layers to their
 containers and build up neural networks easily.
 
-The design of the Relay pass infra is largely inspired by the hierarchical
+The design of the TVM pass infra is largely inspired by the hierarchical
 pass manager used in LLVM and the block-style containers used in the popular
 deep learning frameworks. The major goals of the pass infra include:
 
@@ -128,7 +128,7 @@ Python APIs to create a compilation pipeline using pass context.
       tvm::Array<tvm::Expr> required_pass;
       tvm::Array<tvm::Expr> disabled_pass;
       mutable Optional<DiagnosticContext> diag_ctx;
-      Map<String, ObjectRef> config;
+      Map<String, Any> config;
       Array<instrument::PassInstrument> instruments;
     };
 
@@ -170,7 +170,7 @@ Pass Constructs
 ^^^^^^^^^^^^^^^
 
 The pass infra is designed in a hierarchical manner, and it could work at
-different granularities of Relay/tir programs. A pure virtual class ``PassNode`` is
+different granularities of Relax/tir programs. A pure virtual class ``PassNode`` is
 introduced to serve as the base of the different optimization passes. This class
 contains several virtual methods that must be implemented by the
 subclasses at the level of modules, functions, or sequences of passes.
@@ -193,14 +193,14 @@ optimization passes, e.g., function-level passes, module-level passes, and
 sequential passes.  Each subclass itself could act as a pass manager. For
 instance, they could collect the required passes and execute them or build
 a dependency graph based on the given metadata. The full definition of them
-can be found in `src/relay/ir/transform.cc`_ and `src/ir/transform.cc`_.
+can be found in `src/ir/transform.cc`_.
 
 Module-Level Passes
 ^^^^^^^^^^^^^^^^^^^
 
 Module level passes are geared mainly for global and inter-procedural
 optimizations (IPO), which are similar to the module pass used in LLVM. Some
-typical passes in Relay that need the global picture of a module, such as
+typical passes in Relax that need the global picture of a module, such as
 A-normal form conversion and lambda lifting, etc., fall into this set. At this
 level, users can even add and/or delete functions in a module. Note that all
 passes
@@ -209,7 +209,7 @@ passes
 
     class ModulePassNode : PassNode {
       PassInfo pass_info;
-      runtime::TypedPackedFunc<Module(Module, PassContext)> pass_func;
+      std::function<Module(Module, PassContext)> pass_func;
       Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
       // Other members/methods are omitted
     };
@@ -226,13 +226,13 @@ Function-Level Passes
 ^^^^^^^^^^^^^^^^^^^^^
 
 Function-level passes are used to implement various intra-function level
-optimizations for a given Relay/tir module. It fetches one function at a time from
-the function list of a module for optimization and yields a rewritten Relay
+optimizations for a given Relax/tir module. It fetches one function at a time from
+the function list of a module for optimization and yields a rewritten Relax
 ``Function`` or tir ``PrimFunc``. Most of passes can be classified into this category, such as
-common subexpression elimination and inference simplification in Relay as well as vectorization
+common subexpression elimination and inference simplification in Relax as well as vectorization
 and flattening storage in tir, etc.
 
-Note that the scope of passes at this level is either a Relay function or a tir primitive function.
+Note that the scope of passes at this level is either a Relax function or a tir primitive function.
 Therefore, we cannot add or delete a function through these passes as they are not aware of
 the global information.
 
@@ -240,7 +240,7 @@ the global information.
 
     class FunctionPassNode : PassNode {
       PassInfo pass_info;
-      runtime::TypedPackedFunc<Function(Function, Module, PassContext)> pass_func;
+      std::function<Function(Function, Module, PassContext)> pass_func;
       Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
       bool SkipFunction(const Function& func) const;
       // Other members/methods are omitted...
@@ -266,12 +266,6 @@ of passes for execution.
       bool PassEnabled(const PassInfo& info) const;
       Module operator()(const Module& mod, const PassContext& pass_ctx) const final;
     };
-
-Only a few passes currently in Relay are put in this group. For example,
-``FoldScaleAxis`` requires to dispatch ``ForwardFoldScaleAxis`` and
-``BackwardFoldScaleAxis`` internally. In addition, ``BackwardFoldScaleAxis`` is
-recommended to be fulfilled first. This pass, hence, is an ideal candidate for
-``SequentialPass``.
 
 The following code shows how individual passes in a sequential pass are invoked.
 Essentially, we sequentially execute each pass in a sequential pass using the
@@ -311,10 +305,10 @@ pass is registered with an API endpoint as we will show later.
 
     Pass GetPass(const std::string& pass_name) {
       using tvm::runtime::Registry;
-      std::string fpass_name = "relay._transform." + pass_name;
-      const auto* f = Registry::Get(fpass_name);
-      ICHECK(f != nullptr) << "Cannot find " << fpass_name
-                          << "to create the pass " << pass_name;
+      std::string fpass_name = "relax.transform." + pass_name;
+      const std::optional<tvm::ffi::Function> f = tvm::ffi::Function::GetGlobal(fpass_name);
+      ICHECK(f.has_value()) << "Cannot find " << fpass_name
+                            << "to create the pass " << pass_name;
       return (*f)();
     }
 
@@ -325,19 +319,19 @@ favorably use Python APIs to create a specific pass object.
 .. code:: c++
 
     Pass CreateFunctionPass(
-        const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
+        std::function<Function(Function, IRModule, PassContext)> pass_func,
         int opt_level,
         String name,
         Array<String> required);
 
     Pass CreatePrimFuncPass(
-        const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
+        std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
         int opt_level,
         String name,
         Array<String> required);
 
     Pass CreateModulePass(
-        const runtime::TypedPackedFunc<IRModule(IRModule, PassContext)>& pass_func,
+        std::function<IRModule(IRModule, PassContext)> pass_func,
         int opt_level,
         String name,
         Array<String> required);
@@ -350,8 +344,8 @@ Pass Registration
 We've covered the concept of different level of passes and the context used for
 compilation. It would be interesting to see how easily users can register
 a pass.  Let's take const folding as an example. This pass has already been
-implemented to fold constants in a Relay function (found in
-`src/relay/transforms/fold_constant.cc`_).
+implemented to fold constants in a Relax function (found in
+`src/relax/transforms/fold_constant.cc`_).
 
 An API was provided to perform the ``Expr`` to ``Expr`` transformation.
 
@@ -368,7 +362,7 @@ indicates that no prerequisite is required for this pass. Otherwise, the pass
 developer has to identify and list them.
 
 Meanwhile, a pass API endpoint is registered with the name
-``relay._transform.FoldConstant``. This pass, therefore, becomes an entry in the
+``"relax.transform.FoldConstant``. This pass, therefore, becomes an entry in the
 registry that can be accessed by both C++ (e.g. the ``GetPass`` above) and
 Python when needed.
 
@@ -377,20 +371,18 @@ Python when needed.
     namespace transform {
 
     Pass FoldConstant() {
-      runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-        [=](Function f, IRModule m, PassContext pc) {
-          return Downcast<Function>(FoldConstant(f));
-      };
-      return CreateFunctionPass(pass_func, 2, "FoldConstant", {});
+      auto pass_func =
+          [=](Function f, IRModule m, PassContext pc) { return ConstantFolder::Fold(f, m); };
+      return CreateFunctionPass(pass_func, 0, "FoldConstant", {});
     }
 
-    TVM_REGISTER_GLOBAL("relay._transform.FoldConstant")
+    TVM_REGISTER_GLOBAL("relax.transform.FoldConstant")
     .set_body_typed(FoldConstant);
 
     }  // namespace transform
 
 To allow other C++ modules to apply this pass, we declare a free function in
-`include/tvm/relay/transform.h`_ as the following:
+`include/tvm/relax/transform.h`_ as the following:
 
 .. code:: c++
 
@@ -419,7 +411,7 @@ of the ``PassContext`` instance.
 
 ``InstrumentExitPassContext`` is called when leaving the scope of ``PassContext``,
 or exceptions occur during the execution of passes.
-This method is also called when instruments is being overriden by ``override_instruments`` in :py:class:`tvm.transform.PassContext`.
+This method is also called when instruments is being overridden by ``override_instruments`` in :py:class:`tvm.transform.PassContext`.
 See :ref:`pass_instrument_overriden`.
 
 ``InstrumentBeforePass`` is called before execution.
@@ -543,7 +535,7 @@ Python Frontend
 
 Only some simple APIs are needed for the frontend side. For example, we can
 provide users the following APIs to create and execute a pass (full
-implementation is provided in `python/tvm/relay/transform/transform.py`_ and
+implementation is provided in `python/tvm/relax/transform/transform.py`_ and
 `python/tvm/ir/transform.py`_). The backend
 receives the information and decides which function it should use to create
 a Pass object.
@@ -585,96 +577,6 @@ loop unrolling pass
     TVM_REGISTER_PASS_CONFIG_OPTION("tir.UnrollLoop", UnrollLoopConfig);
 
 Please refer to `src/tir/transforms/unroll_loop.cc`_ for more details.
-
-Pass Objects
-^^^^^^^^^^^^
-
-``Pass`` is the base class of all pass objects. All methods here are just simple
-wrappers that were implemented in the backend. They are defined for users to
-conveniently interact with the base class in Python. Only a ``__call__`` is
-defined in the pass base class to make the subclasses as callable objects so
-that they can be invoked easily (e.g., ``pass_xx(arg)``) for execution.
-
-.. code:: python
-
-    @register_relay_node
-    class Pass(RelayNode):
-       def __call__(self, mod):
-           return _transform.RunPass(self, mod)
-
-Some auxiliary APIs are provided to enable easy creation of passes from
-the Python frontend and to let the pass infra control the execution. For
-example, ``module_pass``, ``function_pass``, and ``sequential`` are provided to
-users so that they can customize their own pass or pass pipeline.
-
-For all the passes that are implemented in the C++ backend, we provide
-corresponding Python APIs in `python/tvm/ir/transform.py`_ and
-`python/tvm/relay/transform/transform.py`_, respectively. For instance,
-const folding has a Python API like the following:
-
-.. code:: python
-
-    def FoldConstant():
-        return _transform.FoldConstant()
-
-Users can build a pass through decoration like the following:
-
-.. code:: python
-
-    @relay.transform.module_pass(opt_level=2)
-    def transform(mod, ctx):
-       tp = relay.TensorType((10,), "float32")
-       x = relay.var("x", tp)
-       gv = relay.GlobalVar("abs")
-       func = relay.Function([x], relay.abs(x))
-       new_mod = tvm.IRModule({gv: func})
-       new_mod.update(mod)
-       return new_mod
-
-   module_pass = transform
-   assert isinstance(module_pass, transform.ModulePass)
-   assert module_pass.info.opt_level == 2
-
-The ``transform`` function here adds an ``abs`` function to the input module,
-but it could be any customized optimizations at the module level. After
-creating this ``module_pass``, users can apply it on any Relay module. For
-example, we can build an empty module and apply this pass to add an ``abs``
-function.
-
-.. code:: python
-
-    mod = tvm.IRModule()
-    mod = module_pass(mod)
-
-Correspondingly, we also offer such functionality for ``function_pass``. For
-instance, an example function-level pass could be written as the following:
-
-.. code:: python
-
-    @relay.transform.function_pass(opt_level=1)
-    class TestReplaceFunc:
-       def __init__(self, new_func):
-          self.new_func = new_func
-          def transform_function(self, func, mod, ctx):
-             # Just for demo purposes
-             # Transform func to new_func
-             return self.new_func
-
-    x = relay.var("x", shape=(10, 20))
-    f1 = relay.Function([x], x)
-    f2 = relay.Function([x], relay.log(x))
-    # fpass is now a special pass that replaces every
-    # function to f1
-    fpass = TestReplaceFunc(f1)
-    # Now every function in input_mod is replaced by f1
-    res_mod = fpass(input_mod)
-
-
-Alternatively, users can also directly register a pass without using the
-decorators and then invoke it. For more examples about how to customize your own
-optimization pipeline and debug Relay and tir passes, please refer to the
-`use pass infra`_ tutorial.
-
 
 .. _pass_instrument_py_frontend:
 
@@ -741,17 +643,17 @@ new ``PassInstrument`` are called.
 
 .. _include/tvm/support/with.h: https://github.com/apache/tvm/blob/main/include/tvm/support/with.h
 
-.. _src/relay/ir/transform.cc: https://github.com/apache/tvm/blob/main/src/relay/ir/transform.cc
+.. _src/relax/ir/transform.cc: https://github.com/apache/tvm/blob/main/src/relax/ir/transform.cc
 
 .. _src/ir/transform.cc: https://github.com/apache/tvm/blob/main/src/ir/transform.cc
 
 .. _src/ir/instrument.cc: https://github.com/apache/tvm/blob/main/src/ir/instrument.cc
 
-.. _src/relay/transforms/fold_constant.cc: https://github.com/apache/tvm/blob/main/src/relay/transforms/fold_constant.cc
+.. _src/relax/transforms/fold_constant.cc: https://github.com/apache/tvm/blob/main/src/relax/transforms/fold_constant.cc
 
-.. _python/tvm/relay/transform/transform.py: https://github.com/apache/tvm/blob/main/python/tvm/relay/transform/transform.py
+.. _python/tvm/relax/transform/transform.py: https://github.com/apache/tvm/blob/main/python/tvm/relax/transform/transform.py
 
-.. _include/tvm/relay/transform.h: https://github.com/apache/tvm/blob/main/include/tvm/relay/transform.h
+.. _include/tvm/relax/transform.h: https://github.com/apache/tvm/blob/main/include/tvm/relax/transform.h
 
 .. _python/tvm/ir/transform.py: https://github.com/apache/tvm/blob/main/python/tvm/ir/transform.py
 

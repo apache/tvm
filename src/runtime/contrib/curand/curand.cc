@@ -51,9 +51,8 @@ class CURandGenerator {
 };
 
 DeviceAPI* GetCUDADeviceAPI() {
-  const PackedFunc* get_cuda_api = runtime::Registry::Get("device_api.cuda");
-  ICHECK(get_cuda_api) << "ValueError: TVM is not built with USE_CUDA=ON";
-  void* ret = (*get_cuda_api)();
+  const auto get_cuda_api = tvm::ffi::Function::GetGlobalRequired("device_api.cuda");
+  void* ret = get_cuda_api();
   runtime::DeviceAPI* cuda_api = static_cast<runtime::DeviceAPI*>(ret);
   return cuda_api;
 }

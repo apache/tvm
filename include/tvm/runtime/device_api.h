@@ -24,13 +24,18 @@
 #ifndef TVM_RUNTIME_DEVICE_API_H_
 #define TVM_RUNTIME_DEVICE_API_H_
 
+#include <tvm/ffi/any.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/logging.h>
 
 #include <string>
 
 namespace tvm {
+
+// alias DLDevice
+using Device = DLDevice;
+
 namespace runtime {
 /*!
  * \brief the query type into GetAttr
@@ -52,6 +57,7 @@ enum DeviceAttrKind : int {
   kL2CacheSizeBytes = 13,
   kTotalGlobalMemory = 14,
   kAvailableGlobalMemory = 15,
+  kImagePitchAlignment = 16,
 };
 
 #ifdef TVM_KALLOC_ALIGNMENT
@@ -95,7 +101,7 @@ class TVM_DLL DeviceAPI {
    * \param rv The return value.
    * \sa DeviceAttrKind
    */
-  virtual void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) = 0;
+  virtual void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) = 0;
 
   /*!
    * \brief Get the physical memory size required.
@@ -103,7 +109,8 @@ class TVM_DLL DeviceAPI {
    * \param mem_scope the memory scope if any
    * \return the memory size.
    */
-  virtual size_t GetDataSize(const DLTensor& arr, Optional<String> mem_scope = NullOpt);
+  virtual size_t GetDataSize(const DLTensor& arr,
+                             ffi::Optional<ffi::String> mem_scope = std::nullopt);
 
   /*!
    * \brief Query the device for specified properties.
@@ -111,7 +118,7 @@ class TVM_DLL DeviceAPI {
    * This is used to expand "-from_device=N" in the target string to
    * all properties that can be determined from that device.
    */
-  virtual void GetTargetProperty(Device dev, const std::string& property, TVMRetValue* rv) {}
+  virtual void GetTargetProperty(Device dev, const std::string& property, ffi::Any* rv) {}
 
   /*!
    * \brief Allocate a data space on device.
@@ -134,7 +141,7 @@ class TVM_DLL DeviceAPI {
    * \return The allocated device pointer.
    */
   virtual void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                               Optional<String> mem_scope = NullOpt);
+                               ffi::Optional<ffi::String> mem_scope = std::nullopt);
   /*!
    * \brief Free a data space on device.
    * \param dev The device device to perform operation.
@@ -236,9 +243,7 @@ class TVM_DLL DeviceAPI {
    *        before launching the kernel function.
    * \param device_type The device type.
    */
-  static bool NeedSetDevice(int device_type) {
-    return device_type != kDLCPU && device_type != kDLMicroDev;
-  }
+  static bool NeedSetDevice(int device_type) { return device_type != kDLCPU; }
 
   /*!
    * \brief Whether pointer arithmetics on a device owned pointer may be performed on the host.
@@ -263,6 +268,47 @@ class TVM_DLL DeviceAPI {
                               size_t num_bytes, Device dev_from, Device dev_to,
                               DLDataType type_hint, TVMStreamHandle stream);
 };
+
+/*!
+ * \brief The name of DLDeviceType.
+ * \param type The device type.
+ * \return the device name.
+ */
+inline const char* DLDeviceType2Str(int type) {
+  switch (type) {
+    case kDLCPU:
+      return "cpu";
+    case kDLCUDA:
+      return "cuda";
+    case kDLCUDAHost:
+      return "cuda_host";
+    case kDLCUDAManaged:
+      return "cuda_managed";
+    case kDLOpenCL:
+      return "opencl";
+    case kDLVulkan:
+      return "vulkan";
+    case kDLMetal:
+      return "metal";
+    case kDLVPI:
+      return "vpi";
+    case kDLROCM:
+      return "rocm";
+    case kDLROCMHost:
+      return "rocm_host";
+    case kDLExtDev:
+      return "ext_dev";
+    case kDLOneAPI:
+      return "oneapi";
+    case kDLWebGPU:
+      return "webgpu";
+    case kDLHexagon:
+      return "hexagon";
+    default:
+      LOG(FATAL) << "unknown type = " << type;
+  }
+  throw;
+}
 
 /*! \brief The device type bigger than this is RPC device */
 constexpr int kRPCSessMask = 128;

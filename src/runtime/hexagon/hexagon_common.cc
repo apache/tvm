@@ -89,10 +89,11 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 }
 }  // namespace detail
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ObjectPtr<Library> n = CreateDSOLibraryObject(args[0]);
-  *rv = CreateModuleFromLibrary(n);
-});
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      ObjectPtr<Library> n = CreateDSOLibraryObject(args[0].cast<String>());
+      *rv = CreateModuleFromLibrary(n);
+    });
 
 }  // namespace runtime
 }  // namespace tvm

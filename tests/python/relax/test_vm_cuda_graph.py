@@ -104,7 +104,7 @@ def test_vm_run():
     x = tvm.nd.array(x_np, dev)
     y = vm["main"](x)
     y_np = x_np + 1.0 + 1.0 + 1.0 + 1.0
-    tvm.testing.assert_allclose(y.asnumpy(), y_np, rtol=1e-5, atol=1e-5)
+    tvm.testing.assert_allclose(y.numpy(), y_np, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.requires_cudagraph
@@ -168,7 +168,7 @@ def test_capture_error_is_recoverable():
         "to have been captured by RewriteCUDAGraph."
     )
 
-    built = tvm.relax.build(Module, target=target)
+    built = tvm.compile(Module, target=target)
     vm = tvm.relax.VirtualMachine(built, dev)
 
     arg = tvm.nd.array(np.arange(16).astype("float16"), dev)

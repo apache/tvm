@@ -24,7 +24,6 @@ import tvm
 from tvm import te
 from tvm import rpc
 from tvm.contrib import utils, tvmjs
-from tvm.relay.backend import Runtime
 import numpy as np
 
 proxy_host = "127.0.0.1"
@@ -48,7 +47,7 @@ def test_rpc():
     sch.bind(i0, "blockIdx.x")
     sch.bind(i1, "threadIdx.x")
 
-    fadd = tvm.build(sch.mod, target=target, runtime=runtime)
+    fadd = tvm.build(sch.mod.with_attr("system_lib_prefix", ""), target=target)
     temp = utils.tempdir()
 
     wasm_path = temp.relpath("addone_gpu.wasm")

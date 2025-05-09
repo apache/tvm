@@ -36,7 +36,7 @@ Schedule Schedule::Concrete(IRModule mod, support::LinearCongruentialEngine::TRa
   if (FindEntryFunc(mod, &gv) != nullptr) {
     n->func_working_on_ = gv;
   } else {
-    n->func_working_on_ = NullOpt;
+    n->func_working_on_ = std::nullopt;
   }
   return Schedule(std::move(n));
 }
@@ -211,16 +211,16 @@ Schedule ConcreteScheduleNode::Copy() {
  * \param level An ScheduleErrorRenderLevel enum, level of error rendering
  * \sa ScheduleErrorRenderLevel
  */
-#define TVM_TIR_SCHEDULE_END(primitive, level)                                                \
-  }                                                                                           \
-  catch (const ScheduleError& error) {                                                        \
-    if ((level) == ScheduleErrorRenderLevel::kDetail) {                                       \
-      throw tvm::runtime::Error(error.RenderReport(primitive) + "\n" + runtime::Backtrace()); \
-    } else if ((level) == ScheduleErrorRenderLevel::kFast) {                                  \
-      throw tvm::runtime::Error(error.FastErrorString());                                     \
-    } else if ((level) == ScheduleErrorRenderLevel::kNone) {                                  \
-      throw tvm::runtime::Error("ScheduleError: (not rendered)");                             \
-    }                                                                                         \
+#define TVM_TIR_SCHEDULE_END(primitive, level)                       \
+  }                                                                  \
+  catch (const ScheduleError& error) {                               \
+    if ((level) == ScheduleErrorRenderLevel::kDetail) {              \
+      TVM_FFI_THROW(ScheduleError) << error.RenderReport(primitive); \
+    } else if ((level) == ScheduleErrorRenderLevel::kFast) {         \
+      TVM_FFI_THROW(ScheduleError) << error.FastErrorString();       \
+    } else if ((level) == ScheduleErrorRenderLevel::kNone) {         \
+      TVM_FFI_THROW(ScheduleError) << "(not rendered)";              \
+    }                                                                \
   }
 
 /******** Schedule: Schedule: Sampling ********/
@@ -233,9 +233,9 @@ support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
   return support::LinearCongruentialEngine(&rand_state_).ForkSeed();
 }
 
-ExprRV ConcreteScheduleNode::SampleCategorical(const Array<runtime::Int>& candidates,
-                                               const Array<runtime::Float>& probs,
-                                               Optional<runtime::Int> decision) {
+ExprRV ConcreteScheduleNode::SampleCategorical(const Array<Integer>& candidates,
+                                               const Array<FloatImm>& probs,
+                                               Optional<Integer> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
   return CreateRV(tir::SampleCategorical(&this->rand_state_, candidates, probs, &decision));
   TVM_TIR_SCHEDULE_END("sample-categorical", this->error_render_level_);
@@ -912,40 +912,52 @@ void ConcreteScheduleNode::Tensorize(const BlockRV& block_rv, const String& intr
 
 /******** Schedule: Annotation ********/
 
-ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_val) {
-  if (ann_val.as<StringObj>()) {
+Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
+  if (auto opt_str = ann_val.as<ffi::String>()) {
+    return *std::move(opt_str);
+  }
+
+  if (ann_val.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
     return ann_val;
   }
-  if (auto* runtime_int = ann_val.as<runtime::Int::ContainerType>()) {
-    return IntImm(DataType::Int(32), runtime_int->value);
-  } else if (auto* runtime_float = ann_val.as<runtime::Float::ContainerType>()) {
-    return FloatImm(DataType::Float(32), runtime_float->value);
-  } else if (auto* runtime_bool = ann_val.as<runtime::Bool::ContainerType>()) {
-    return Bool(runtime_bool->value);
+  // prefer to return int/float literals for annotations
+  if (auto opt_intimm = ann_val.as<IntImm>()) {
+    return (*std::move(opt_intimm))->value;
+  }
+  if (auto opt_floatimm = ann_val.as<FloatImm>()) {
+    return (*std::move(opt_floatimm))->value;
   }
 
   if (const auto* expr = ann_val.as<PrimExprNode>()) {
-    ICHECK(!ann_val->IsInstance<StringImmNode>())
-        << "TypeError: runtime::String is expected, but gets StringImm";
-    return this->Get(GetRef<PrimExpr>(expr));
+    ICHECK(!expr->IsInstance<StringImmNode>())
+        << "TypeError: String is expected, but gets StringImm";
+    auto res_expr = this->Get(GetRef<PrimExpr>(expr));
+    // prefer to return int/float literals for annotations
+    if (auto opt_intimm = res_expr.as<IntImm>()) {
+      return (*std::move(opt_intimm))->value;
+    }
+    if (auto opt_floatimm = res_expr.as<FloatImm>()) {
+      return (*std::move(opt_floatimm))->value;
+    }
+    return res_expr;
   }
-  if (const auto* arr = ann_val.as<ArrayNode>()) {
-    Array<ObjectRef> result;
+  if (const auto* arr = ann_val.as<ffi::ArrayObj>()) {
+    Array<Any> result;
     result.reserve(arr->size());
     for (size_t i = 0; i < arr->size(); i++) {
       result.push_back(CheckAndGetAnnotationValue(arr->at(i)));
     }
     return std::move(result);
   }
-  if (const auto* dict = ann_val.as<MapNode>()) {
-    Map<String, ObjectRef> result;
+  if (const auto* dict = ann_val.as<ffi::MapObj>()) {
+    Map<String, ffi::Any> result;
     for (auto it = dict->begin(); it != dict->end(); ++it) {
       const auto& key = it->first;
       auto value = CheckAndGetAnnotationValue(it->second);
       if (const StringImmNode* imm = key.as<StringImmNode>()) {
         result.Set(imm->value, value);
-      } else if (key->IsInstance<StringObj>()) {
-        result.Set(Downcast<String>(key), value);
+      } else if (auto opt_str = key.as<ffi::String>()) {
+        result.Set(opt_str.value(), value);
       } else {
         LOG(FATAL) << "TypeError: annotation dict key expect to be String or StringImm";
       }
@@ -954,12 +966,12 @@ ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_
   }
   LOG(FATAL)
       << "TypeError: Only strings, integers, floats, ExprRVs and Arrays are supported for now, but "
-      << "gets: " << ann_val->GetTypeKey();
-  throw;
+      << "gets: " << ann_val.GetTypeKey();
+  TVM_FFI_UNREACHABLE();
 }
 
 void ConcreteScheduleNode::Annotate(const LoopRV& loop_rv, const String& ann_key,
-                                    const ObjectRef& ann_val) {
+                                    const Any& ann_val) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::Annotate(state_, this->GetSRef(loop_rv), ann_key, this->CheckAndGetAnnotationValue(ann_val));
   this->state_->DebugVerify();
@@ -974,7 +986,7 @@ void ConcreteScheduleNode::Unannotate(const LoopRV& loop_rv, const String& ann_k
 }
 
 void ConcreteScheduleNode::Annotate(const BlockRV& block_rv, const String& ann_key,
-                                    const ObjectRef& ann_val) {
+                                    const Any& ann_val) {
   TVM_TIR_SCHEDULE_BEGIN();
   tir::Annotate(state_, this->GetSRef(block_rv), ann_key,
                 this->CheckAndGetAnnotationValue(ann_val));
@@ -997,7 +1009,11 @@ void ConcreteScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_i
                                            bool assume_injective_transform) {
   TVM_TIR_SCHEDULE_BEGIN();
   auto f_subst = [&](const Var& var) -> Optional<PrimExpr> {
-    return Downcast<Optional<PrimExpr>>(symbol_table_.Get(var));
+    if (auto opt_expr = symbol_table_.Get(var)) {
+      return Downcast<PrimExpr>(opt_expr.value());
+    } else {
+      return std::nullopt;
+    }
   };
   auto new_index_map = Substitute(index_map, f_subst);
   tir::TransformLayout(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type,

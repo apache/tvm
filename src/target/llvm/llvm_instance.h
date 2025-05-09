@@ -32,10 +32,10 @@
 #endif
 #include <llvm/Support/CodeGen.h>
 #include <llvm/Target/TargetOptions.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/target/target.h>
 
 #include <algorithm>
@@ -243,6 +243,11 @@ class LLVMTargetInfo {
    */
   const std::string GetJITEngine() const { return jit_engine_; }
   /*!
+   * \brief Get the TVM & LLVM vector_width
+   * \return number of bits for vector width
+   */
+  const int GetVectorWidth();
+  /*!
    * \brief Get the LLVM optimization level
    * \return optimization level for this target
    */
@@ -356,6 +361,7 @@ class LLVMTargetInfo {
   llvm::CodeModel::Model code_model_ = llvm::CodeModel::Small;
   std::shared_ptr<llvm::TargetMachine> target_machine_;
   std::string jit_engine_ = "orcjit";
+  int vector_width_{0};
 };
 
 /*!

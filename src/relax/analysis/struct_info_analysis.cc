@@ -48,7 +48,7 @@ class StaticTypeDeriver : public StructInfoFunctor<Type(const StructInfo&)> {
   }
 
   Type VisitStructInfo_(const TensorStructInfoNode* op) final {
-    return DynTensorType(op->ndim, op->dtype);
+    return TensorType(op->ndim, op->dtype);
   }
 
   // module: distributed
@@ -66,7 +66,7 @@ class StaticTypeDeriver : public StructInfoFunctor<Type(const StructInfo&)> {
     Array<Type> params = op->params.value().Map(
         [this](const StructInfo& sinfo) { return this->VisitStructInfo(sinfo); });
     Type ret = this->VisitStructInfo(op->ret);
-    return FuncType(params, ret, {}, {}, op->span);
+    return FuncType(params, ret, op->span);
   }
 };
 
@@ -87,7 +87,7 @@ StructInfo StructInfoFromType(const Type& type) {
     return PrimStructInfo(prim_type->dtype, prim_type->span);
   } else if (const ShapeTypeNode* shape_type = type.as<ShapeTypeNode>()) {
     return ShapeStructInfo(shape_type->ndim, type->span);
-  } else if (const DynTensorTypeNode* tensor_type = type.as<DynTensorTypeNode>()) {
+  } else if (const TensorTypeNode* tensor_type = type.as<TensorTypeNode>()) {
     return TensorStructInfo(tensor_type->dtype, tensor_type->ndim);
   } else if (const TupleTypeNode* tuple_type = type.as<TupleTypeNode>()) {
     Array<StructInfo> fields;
@@ -270,7 +270,7 @@ StructInfo EraseToWellDefined(const StructInfo& info, Map<tir::Var, PrimExpr> sh
     f_shape_var_map = [&](const tir::Var& var) -> Optional<PrimExpr> {
       auto it = shape_var_map.find(var);
       if (it != shape_var_map.end()) return (*it).second;
-      return NullOpt;
+      return std::nullopt;
     };
   }
 
@@ -278,7 +278,7 @@ StructInfo EraseToWellDefined(const StructInfo& info, Map<tir::Var, PrimExpr> sh
     f_var_map = [&](const Var& var) -> Optional<Expr> {
       auto it = var_map.find(var);
       if (it != var_map.end()) return (*it).second;
-      return NullOpt;
+      return std::nullopt;
     };
   }
 
@@ -1143,7 +1143,7 @@ class StructInfoLCAFinder
   Optional<Array<StructInfo>> UnifyArray(const Array<StructInfo>& lhs,
                                          const Array<StructInfo>& rhs) {
     if (lhs.same_as(rhs)) return lhs;
-    if (lhs.size() != rhs.size()) return NullOpt;
+    if (lhs.size() != rhs.size()) return std::nullopt;
     size_t index = 0;
     return lhs.Map([&](const StructInfo& a) { return this->VisitStructInfo(a, rhs[index++]); });
   }

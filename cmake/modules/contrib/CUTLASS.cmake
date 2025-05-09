@@ -20,7 +20,6 @@ if(USE_CUDA AND USE_CUTLASS)
   set(CUTLASS_RUNTIME_OBJS "")
 
   tvm_file_glob(GLOB CUTLASS_CONTRIB_SRC
-    src/relay/backend/contrib/cutlass/*.cc
     src/relax/backend/contrib/cutlass/*.cc
   )
   list(APPEND COMPILER_SRCS ${CUTLASS_CONTRIB_SRC})
@@ -34,9 +33,12 @@ if(USE_CUDA AND USE_CUTLASS)
     ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm
     ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm/cutlass/include
   )
+  target_link_libraries(fpA_intB_gemm_tvm PRIVATE tvm_ffi_header)
+
   set(CUTLASS_FPA_INTB_RUNTIME_SRCS "")
   list(APPEND CUTLASS_FPA_INTB_RUNTIME_SRCS src/runtime/contrib/cutlass/weight_preprocess.cc)
   add_library(fpA_intB_cutlass_objs OBJECT ${CUTLASS_FPA_INTB_RUNTIME_SRCS})
+  target_link_libraries(fpA_intB_cutlass_objs PRIVATE tvm_ffi_header)
   target_compile_definitions(fpA_intB_cutlass_objs PRIVATE DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
   target_include_directories(fpA_intB_cutlass_objs PRIVATE
     ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm
@@ -59,11 +61,15 @@ if(USE_CUDA AND USE_CUTLASS)
     list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp16_group_gemm.cu)
     list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp8_group_gemm.cu)
     list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp8_gemm.cu)
+    list(APPEND TVM_CUTLASS_RUNTIME_SRCS src/runtime/contrib/cutlass/fp8_blockwise_scaled_gemm.cu)
   endif()
   if(TVM_CUTLASS_RUNTIME_SRCS)
     add_library(tvm_cutlass_objs OBJECT ${TVM_CUTLASS_RUNTIME_SRCS})
     target_compile_options(tvm_cutlass_objs PRIVATE $<$<COMPILE_LANGUAGE:CUDA>:--expt-relaxed-constexpr>)
-    target_include_directories(tvm_cutlass_objs PRIVATE ${CUTLASS_DIR}/include)
+    target_include_directories(tvm_cutlass_objs PRIVATE
+      ${CUTLASS_DIR}/include
+      ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm/cutlass_extensions/include
+    )
     target_compile_definitions(tvm_cutlass_objs PRIVATE DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>)
     list(APPEND CUTLASS_RUNTIME_OBJS "$<${CUTLASS_GEN_COND}:$<TARGET_OBJECTS:tvm_cutlass_objs>>")
   endif()

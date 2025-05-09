@@ -72,7 +72,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   void Run() override { LOG(FATAL) << "Unreachable code"; }
 
   /* Thread safe implementation of Run. Keep runtime instance immutable */
-  void Run(const TVMArgs& args) const {
+  void Run(const ffi::PackedArgs& args) const {
     auto arg_data_provider = makeIODataProvider(args);
     auto mem_solver = tensor_registry_.MakeSolver(arg_data_provider);
     // Execute primitives one by one
@@ -99,9 +99,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   /* Override GetFunction to reimplement Run method */
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
     if (this->symbol_name_ == name) {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         ICHECK(this->initialized_) << "The module has not been initialized";
 
         ICHECK_EQ(args.size(), input_var_eid_.size() + outputs_.size())
@@ -115,17 +115,10 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   /* Same as makeInitDataProvider but in case of InputOutput return real DLTensor */
-  TensorRegistry::DLTensorProvider makeIODataProvider(const TVMArgs& args) const {
-    auto extract_dl_tensor = [](const TVMArgValue& val) -> const DLTensor* {
-      ICHECK(val.type_code() == kTVMNDArrayHandle || val.type_code() == kTVMDLTensorHandle)
-          << "Expect NDArray or DLTensor";
-      return val.IsObjectRef<NDArray>() ? val.operator NDArray().operator->()
-                                        : val.operator DLTensor*();
-    };
-
+  TensorRegistry::DLTensorProvider makeIODataProvider(const ffi::PackedArgs& args) const {
     std::map<uint32_t, const DLTensor*> io_map;  // eid to dl tensor map
     for (size_t i = 0; i < run_arg_eid_.size(); i++) {
-      io_map[run_arg_eid_[i]] = extract_dl_tensor(args[i]);
+      io_map[run_arg_eid_[i]] = args[i].cast<DLTensor*>();
     }
 
     // lambda with captured IO data handlers
@@ -325,7 +318,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // dst_layout == "" means to use data_layout
     if (dst_layout.empty()) dst_layout = src_layout;
 
-    // Minus one for DNNL representation. No dilation for DNNL is 0, for relay is 1.
+    // Minus one for DNNL representation. No dilation for DNNL is 0
     for (auto& d : dilates) d--;
 
     // Take into account provided layout strings
@@ -422,7 +415,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // dst_layout == "" means to use data_layout
     if (dst_layout.empty()) dst_layout = src_layout;
 
-    // Minus one for DNNL representation. No dilation for DNNL is 0, for relay is 1.
+    // Minus one for DNNL representation. No dilation for DNNL is 0, for relax is 1.
     for (auto& d : dilates) d--;
 
     // Take into account provided layout strings
@@ -684,7 +677,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     std::vector<int64_t> padding_l(padding.begin(), padding.begin() + padding.size() / 2);
     std::vector<int64_t> padding_r(padding.begin() + padding.size() / 2, padding.end());
 
-    // Minus one for DNNL representation. No dilation for DNNL is 0, for relay is 1.
+    // Minus one for DNNL representation. No dilation for DNNL is 0
     for (auto& d : dilates) d--;
 
     // Attributes related to AvgPool

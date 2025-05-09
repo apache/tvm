@@ -211,6 +211,23 @@ def llvm_cpu_has_features(cpu_features, target=None):
     return has_feats
 
 
+def llvm_get_vector_width(target=None):
+    """Get vector width from LLVM target's `-mtriple` and `-mcpu` and considering `-mattr`.
+
+    Parameters
+    ----------
+    target : Target
+        The TVM target.
+
+    Returns
+    -------
+    vector_width : int
+        Vector with of target in number of bits, -1 on error.
+    """
+    assert isinstance(target, Target) or target is None
+    return _ffi_api.llvm_get_vector_width(target)
+
+
 def llvm_version_major(allow_none=False):
     """Get the major LLVM version.
 

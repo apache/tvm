@@ -20,8 +20,7 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm.script import tir as T
-from tvm import relay, tir
-from tvm.relay.backend.te_compiler import lower_to_primfunc
+from tvm import tir
 from tvm.tir.tensor_intrin.hexagon import VRMPY_u8u8i32_INTRIN
 
 
@@ -237,17 +236,6 @@ def test_opaque_access():
     _check(opaque_access, transformed_opaque_access)
 
 
-def test_lower_te():
-    x = te.placeholder((1,))
-    y = te.compute((1,), lambda i: x[i] + 2)
-    s = te.create_schedule(y.op)
-    orig_mod = tvm.driver.build_module.schedule_to_module(s, [x, y])
-    mod = tvm.tir.transform.PlanAndUpdateBufferAllocationLocation()(orig_mod)
-    tvm.ir.assert_structural_equal(
-        mod, orig_mod
-    )  # PlanAndUpdateBufferAllocationLocation should do nothing on TE
-
-
 def test_loop_carried_dependency():
     """The buffer allocation should be above opaque iter var's loop scopes
     such that buffer accesses with loop carried dependencies are covered,
@@ -365,57 +353,6 @@ def test_1D_cascade_op_rolling_buffer():
     _check(before, after)
 
 
-def test_allocate_const_after_tensorize():
-    i_size, o_size, h_size, w_size = 64, 64, 56, 56
-    k_height_size = k_width_size = 3
-    w_shape = (o_size, i_size, k_height_size, k_width_size)
-
-    data = relay.var("data", shape=(1, i_size, h_size, w_size), dtype="uint8")
-    weight = relay.var("weight", shape=w_shape, dtype="uint8")
-    conv2d = relay.nn.conv2d(
-        data=data,
-        weight=weight,
-        kernel_size=(k_height_size, k_width_size),
-        channels=o_size,
-        padding=(0, 0),
-        strides=(1, 1),
-        out_dtype="int32",
-    )
-    mod = tvm.IRModule.from_expr(conv2d)
-
-    executor = relay.backend.Executor("graph", {"link-params": True})
-    mod = mod.with_attr("executor", executor)
-
-    weight_np = np.random.uniform(1, 10, size=w_shape).astype("uint8")
-
-    target = tvm.target.Target("hexagon")
-
-    with tvm.transform.PassContext(opt_level=3):
-        opt_mod, _ = relay.optimize(mod, params={"weight": weight_np}, target=target)
-
-    conv2d_func = opt_mod["main"].body.args[0].op
-    prim_func = lower_to_primfunc(conv2d_func, target)
-
-    sch = tir.Schedule(prim_func)
-    block = sch.get_block("conv2d_NCHWc_int8")
-    loops = sch.get_loops(block)
-
-    sch.reorder(loops[8], loops[4], loops[-1])
-    sch.decompose_reduction(block, loops[1])
-    sch.tensorize(loops[4], VRMPY_u8u8i32_INTRIN)
-
-    seq = tvm.transform.Sequential(
-        [
-            tvm.tir.transform.LowerInitBlock(),
-            tvm.tir.transform.PlanAndUpdateBufferAllocationLocation(),
-        ]
-    )
-
-    # The following error is emitted if AllocateConst nodes are not correctly handled:
-    #  Check failed: (buffer_data_to_buffer_.count(source_var)) is false:
-    _ = seq(sch.mod)
-
-
 def test_buffer_conditional_lowering():
     """Buffers passed as pointer arguments are unmodified
 
@@ -462,6 +399,56 @@ def test_dltensor_buffer_is_unlowered():
             return stride
 
     after = before
+    _check(before, after)
+
+
+def test_reduce_buffer_dominate_reduce_loops():
+    """Reduction write buffer allocation should dominate all reduce loops"""
+
+    @T.prim_func
+    def before(x: T.Buffer((256, 256, 256), "float32"), x_red: T.Buffer((256, 256), "float32")):
+        x_red_ = T.alloc_buffer((256, 256))
+        for ax0_0, k1_0, ax1_0 in T.grid(4, 4, 4):
+            for ax0_1, k1_1, ax1_1 in T.grid(64, 64, 64):
+                with T.block("x_red"):
+                    v_ax0 = T.axis.spatial(256, ax0_0 * 64 + ax0_1)
+                    v_ax1 = T.axis.spatial(256, ax1_0 * 64 + ax1_1)
+                    v_k1 = T.axis.reduce(256, k1_0 * 64 + k1_1)
+                    if v_k1 == 0:
+                        x_red_[v_ax0, v_ax1] = T.float32(0.0)
+                    x_red_[v_ax0, v_ax1] = x_red_[v_ax0, v_ax1] + x[v_ax0, v_k1, v_ax1]
+            for ax0, ax1 in T.grid(64, 64):
+                with T.block("x_red_"):
+                    v0 = T.axis.spatial(256, ax0_0 * 64 + ax0)
+                    v1 = T.axis.spatial(256, ax1_0 * 64 + ax1)
+                    x_red[v0, v1] = x_red_[v0, v1]
+
+    @T.prim_func
+    def after(x: T.Buffer((256, 256, 256), "float32"), x_red: T.Buffer((256, 256), "float32")):
+        for ax0_0 in range(4):
+            with T.block(""):
+                T.reads(x[ax0_0 * 64 : ax0_0 * 64 + 64, 0:256, 0:256])
+                T.writes(x_red[ax0_0 * 64 : ax0_0 * 64 + 64, 0:256])
+                x_red_ = T.alloc_buffer((256, 256))
+                for k1_0, ax1_0 in T.grid(4, 4):
+                    for ax0_1, k1_1, ax1_1 in T.grid(64, 64, 64):
+                        with T.block("x_red"):
+                            v_ax0 = T.axis.spatial(256, ax0_0 * 64 + ax0_1)
+                            v_ax1 = T.axis.spatial(256, ax1_0 * 64 + ax1_1)
+                            v_k1 = T.axis.reduce(256, k1_0 * 64 + k1_1)
+                            T.reads(x_red_[v_ax0, v_ax1], x[v_ax0, v_k1, v_ax1])
+                            T.writes(x_red_[v_ax0, v_ax1])
+                            if v_k1 == 0:
+                                x_red_[v_ax0, v_ax1] = T.float32(0.0)
+                            x_red_[v_ax0, v_ax1] = x_red_[v_ax0, v_ax1] + x[v_ax0, v_k1, v_ax1]
+                    for ax0, ax1 in T.grid(64, 64):
+                        with T.block("x_red_"):
+                            v0 = T.axis.spatial(256, ax0_0 * 64 + ax0)
+                            v1 = T.axis.spatial(256, ax1_0 * 64 + ax1)
+                            T.reads(x_red_[v0, v1])
+                            T.writes(x_red[v0, v1])
+                            x_red[v0, v1] = x_red_[v0, v1]
+
     _check(before, after)
 
 

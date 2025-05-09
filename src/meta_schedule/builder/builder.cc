@@ -64,7 +64,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.BuilderResult")
       return BuilderResult(artifact_path, error_msg);
     });
 
-TVM_REGISTER_GLOBAL("meta_schedule.BuilderBuild").set_body_method<Builder>(&BuilderNode::Build);
+TVM_REGISTER_GLOBAL("meta_schedule.BuilderBuild").set_body_method(&BuilderNode::Build);
 
 TVM_REGISTER_GLOBAL("meta_schedule.BuilderPyBuilder").set_body_typed(Builder::PyBuilder);
 

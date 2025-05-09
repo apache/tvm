@@ -50,6 +50,7 @@ from .binary import (
     divide,
     equal,
     floor_divide,
+    log_add_exp,
     floor_mod,
     greater,
     greater_equal,
@@ -94,6 +95,9 @@ from .manipulate import (
     flip,
     gather_elements,
     gather_nd,
+    index_put,
+    index_tensor,
+    meshgrid,
     layout_transform,
     one_hot,
     permute_dims,
@@ -103,6 +107,7 @@ from .manipulate import (
     scatter_nd,
     split,
     squeeze,
+    stack,
     tile,
 )
 from .mask import masked_fill
@@ -145,6 +150,7 @@ from .unary import (
     square,
     tan,
     tanh,
+    trunc,
 )
 
 

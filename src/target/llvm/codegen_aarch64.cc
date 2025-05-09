@@ -107,7 +107,7 @@ void CodeGenAArch64::VisitStmt_(const AttrStmtNode* op) {
 }
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_aarch64")
-    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+    .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
       *rv = static_cast<void*>(new CodeGenAArch64());
     });
 

@@ -19,11 +19,11 @@
 #ifndef TVM_META_SCHEDULE_PROFILER_H_
 #define TVM_META_SCHEDULE_PROFILER_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
@@ -47,8 +47,8 @@ class ScopedTimer {
  private:
   friend class Profiler;
 
-  explicit ScopedTimer(runtime::TypedPackedFunc<void()> deferred) : deferred_(deferred) {}
-  runtime::TypedPackedFunc<void()> deferred_;
+  explicit ScopedTimer(ffi::TypedFunction<void()> deferred) : deferred_(deferred) {}
+  ffi::TypedFunction<void()> deferred_;
 };
 
 /*! \brief A generic profiler */
@@ -57,7 +57,7 @@ class ProfilerNode : public runtime::Object {
   /*! \brief The segments that are already profiled */
   std::unordered_map<std::string, double> stats_sec;
   /*! \brief Counter for the total time used */
-  runtime::PackedFunc total_timer;
+  ffi::Function total_timer;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `stats_sec` is not visited.

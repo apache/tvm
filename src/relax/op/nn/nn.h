@@ -57,18 +57,30 @@ Expr gelu(Expr data);
 /*! \brief Gaussian Error Linear Units function approximated by tanh. */
 Expr gelu_tanh(Expr data);
 
+/*! \brief Parametric Rectified Linear Unit function.*/
+Expr prelu(Expr data, Expr alpha, int axis);
+
+/*! \brief Scaled Exponential Linear Unit function. */
+Expr selu(Expr data);
+
 /*! \brief Sigmoid Linear Unit function. */
 Expr silu(Expr data);
 
 /*! \brief Softmax function. */
 Expr softmax(Expr data, int axis);
 
+/*! \brief Softplus function. */
+Expr softplus(Expr data, double beta, double threshold);
+
 /*! \brief LogSoftmax function. */
 Expr log_softmax(Expr data, int axis);
 
+/*! \brief Pixel Shuffle function. */
+Expr pixel_shuffle(Expr data, int upscale_factor);
+
 /*! \brief Compute batch normalization. */
 Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,  //
-                int axis, double epsilon, bool center, bool scale, double momentum);
+                int axis, double epsilon, bool center, bool scale, double momentum, bool training);
 
 /*! \brief Compute layer normalization. */
 Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double epsilon, bool center,

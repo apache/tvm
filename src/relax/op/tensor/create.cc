@@ -36,20 +36,19 @@ namespace relax {
 TVM_REGISTER_NODE_TYPE(InitAttrs);
 
 /* relax.full */
-Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, DataType dtype) {
+Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, Optional<DataType> dtype) {
   Expr shape_in_expr{nullptr};
   if (const auto* expr = shape.as<ExprNode>()) {
     shape_in_expr = GetRef<Expr>(expr);
-  } else if (const auto* _array = shape.as<ArrayNode>()) {
+  } else if (const auto* _array = shape.as<ffi::ArrayObj>()) {
     shape_in_expr = ShapeExpr(GetRef<Array<PrimExpr>>(_array));
   } else {
-    LOG(FATAL) << "Full only expects the input shape to be either an Expr or an Array of PrimExpr. "
-                  "However, the given one is "
-               << shape->GetTypeKey();
+    LOG(FATAL)
+        << "Full only expects the input shape to be either an Expr or an Array of PrimExpr. ";
   }
 
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+  attrs->dtype = dtype.value_or(DataType::Void());
 
   static const Op& op = Op::Get("relax.full");
   return Call(op, {std::move(shape_in_expr), std::move(fill_value)}, Attrs(attrs), {});
@@ -90,9 +89,9 @@ TVM_REGISTER_OP("relax.full")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.full_like */
-Expr full_like(Expr x, Expr fill_value, DataType dtype) {
+Expr full_like(Expr x, Expr fill_value, Optional<DataType> dtype) {
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+  attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.full_like");
   return Call(op, {std::move(x), std::move(fill_value)}, Attrs(attrs), {});
 }
@@ -168,9 +167,9 @@ Expr ones(Expr shape, DataType dtype) {
   return Call(op, {std::move(shape)}, Attrs(attrs), {});
 }
 
-Expr ones_like(Expr x, DataType dtype) {
+Expr ones_like(Expr x, Optional<DataType> dtype) {
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+  attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.ones_like");
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
@@ -203,9 +202,9 @@ Expr zeros(Expr shape, DataType dtype) {
   return Call(op, {std::move(shape)}, Attrs(attrs), {});
 }
 
-Expr zeros_like(Expr x, DataType dtype) {
+Expr zeros_like(Expr x, Optional<DataType> dtype) {
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+  attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.zeros_like");
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
@@ -236,9 +235,9 @@ Expr eye(PrimValue n, PrimValue m, PrimValue k, DataType dtype) {
   return Call(op, {std::move(n), std::move(m), std::move(k)}, Attrs(attrs), {});
 }
 
-Expr eye_like(Expr x, PrimValue k, DataType dtype) {
+Expr eye_like(Expr x, PrimValue k, Optional<DataType> dtype) {
   ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
-  attrs->dtype = dtype;
+  attrs->dtype = dtype.value_or(DataType::Void());
   static const Op& op = Op::Get("relax.eye_like");
   return Call(op, {std::move(x), std::move(k)}, Attrs(attrs), {});
 }

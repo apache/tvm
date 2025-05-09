@@ -240,6 +240,17 @@ std::vector<cl_uint> GetVectorValues(const std::vector<std::string>& val) {
   return array;
 }
 
+/*!
+ * \brief Utility function to find the string pattern in string str
+ * \param str the main string to check the pattern
+ * \param pattern the pattern to check in the main string
+ * \return return true if the main string ends with pattern, false otherwise
+ */
+bool PatternMatch(const std::string& str, const std::string& pattern) {
+  if (str.length() < pattern.length()) return false;
+  return str.compare(str.length() - pattern.length(), pattern.length(), pattern) == 0;
+}
+
 }  //  namespace contrib
 }  //  namespace runtime
 }  //  namespace tvm

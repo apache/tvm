@@ -25,15 +25,14 @@ import traceback
 # tvm._ffi
 from ._ffi.base import TVMError, __version__, _RUNTIME_ONLY
 
-from ._ffi.runtime_ctypes import DataTypeCode, DataType
-from ._ffi import register_object, register_func, register_extension, get_global_func
+from ._ffi import register_object, register_func, get_global_func
 
 # top-level alias
 # tvm.runtime
 from .runtime.object import Object
-from .runtime.ndarray import device, cpu, cuda, gpu, opencl, cl, vulkan, metal, mtl
+from .runtime.ndarray import device, cpu, cuda, opencl, vulkan, metal
 from .runtime.ndarray import vpi, rocm, ext_dev, hexagon
-from .runtime import ndarray as nd
+from .runtime import ndarray as nd, DataType, DataTypeCode
 
 # tvm.error
 from . import error
@@ -43,12 +42,6 @@ from .ir import IRModule
 from .ir import transform
 from .ir import instrument
 from .ir import container
-from .ir import PoolInfo
-from .ir import WorkspacePoolInfo
-from .ir import ConstantPoolInfo
-from .ir import PoolInfoProperties
-from .ir import WorkspaceMemoryPools
-from .ir import ConstantMemoryPools
 from . import ir
 
 # tvm.tir
@@ -61,10 +54,7 @@ from . import target
 from . import te
 
 # tvm.driver
-from .driver import build, lower
-
-# tvm.parser
-from . import parser
+from .driver import build, compile
 
 # others
 from . import arith
@@ -73,16 +63,12 @@ from . import arith
 from . import support
 
 # Contrib initializers
-from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel
+from .contrib import rocm as _rocm, nvcc as _nvcc
 
-# Relay and Relax contain modules that are only available in compiler package
+# Relax contain modules that are only available in compiler package
 # Do not import them if TVM is built with runtime only
 if not _RUNTIME_ONLY:
-    from . import relay
     from . import relax
-
-if not _RUNTIME_ONLY and support.libinfo().get("USE_MICRO", "OFF") == "ON":
-    from . import micro
 
 # NOTE: This file should be python2 compatible so we can
 # raise proper error message when user run the package using

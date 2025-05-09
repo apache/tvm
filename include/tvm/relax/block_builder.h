@@ -25,6 +25,7 @@
 #define TVM_RELAX_BLOCK_BUILDER_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ir/diagnostic.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
@@ -125,7 +126,7 @@ class BlockBuilderNode : public Object {
    * \brief Lookup the binding value that var binds to in the current emitted sequences.
    * \param var The input var.
    * \return The Expr bound to the input \p var.
-   * \note For function parameters, this function returns NullOpt.
+   * \note For function parameters, this function returns std::nullopt.
    */
   virtual Optional<Expr> LookupBinding(const Var& var) = 0;
 
@@ -256,7 +257,6 @@ class BlockBuilderNode : public Object {
    */
   virtual arith::Analyzer* GetAnalyzer() = 0;
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.BlockBuilder";
   TVM_DECLARE_BASE_OBJECT_INFO(BlockBuilderNode, Object);
 };

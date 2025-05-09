@@ -21,7 +21,6 @@
  * \file src/relax/backend/vm/codegen_vm.cc
  * \brief A codegen to generate VM executable from a Relax IRModule.
  */
-#include <tvm/driver/driver_api.h>
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
@@ -33,7 +32,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../../target/metadata_module.h"
+#include "../../../runtime/const_loader_module.h"
 #include "../../../target/source/codegen_source_base.h"
 
 namespace tvm {
@@ -171,7 +170,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     builder_->EmitCall("vm.builtin.read_if_cond", {cond_value}, cond_reg);
 
     // obtain the temp exec in progress.
-    vm::Executable* exec = builder_->exec();
+    vm::VMExecutable* exec = builder_->exec();
 
     // Record the offset of If instruction
     size_t if_offset = exec->instr_offset.size();
@@ -226,7 +225,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
         LOG(FATAL) << "Should only use constant shape after shape lowering: " << op->values;
       }
     }
-    return builder_->ConvertConstant(ShapeTuple(shape));
+    return builder_->ConvertConstant(ffi::Shape(shape));
   }
 
   Instruction::Arg VisitExpr_(const PrimValueNode* op) final {
@@ -429,29 +428,65 @@ IRModule VMCodeGen(ExecBuilder exec_builder, IRModule mod) {
 TVM_REGISTER_GLOBAL("relax.VMCodeGen").set_body_typed(VMCodeGen);
 
 /*!
+ * \brief Link the modules together, possibly create a constant module.
+ *
+ * \param params The metadata for initialization of all modules.
+ * \param lib the internal module that is compiled by tvm.
+ * \param ext_libs The external modules that needs to be imported inside the metadata
+ * module(s).
+ * \return The created module.
+ */
+void LinkModules(ObjectPtr<VMExecutable> exec, const Map<String, runtime::NDArray>& params,
+                 const tvm::runtime::Module& lib, const Array<runtime::Module>& ext_libs) {
+  // query if we need const loader for ext_modules
+  // Wrap all submodules in the initialization wrapper.
+  std::unordered_map<std::string, std::vector<std::string>> const_vars_by_symbol;
+  for (tvm::runtime::Module mod : ext_libs) {
+    auto pf_sym = mod.GetFunction("get_symbol");
+    auto pf_var = mod.GetFunction("get_const_vars");
+    std::vector<std::string> symbol_const_vars;
+    if (pf_sym != nullptr && pf_var != nullptr) {
+      String symbol = pf_sym().cast<String>();
+      Array<String> variables = pf_var().cast<Array<String>>();
+      for (size_t i = 0; i < variables.size(); i++) {
+        symbol_const_vars.push_back(variables[i].operator std::string());
+      }
+      ICHECK_EQ(const_vars_by_symbol.count(symbol), 0U) << "Found duplicated symbol: " << symbol;
+      const_vars_by_symbol[symbol] = symbol_const_vars;
+    }
+  }
+  if (!const_vars_by_symbol.empty() || !params.empty()) {
+    // need runtime const information, run link const loader
+    std::unordered_map<std::string, runtime::NDArray> const_var_ndarray;
+    for (const auto& [name, param] : params) {
+      const_var_ndarray[name] = param;
+    }
+    runtime::Module const_loader_mod =
+        runtime::ConstLoaderModuleCreate(const_var_ndarray, const_vars_by_symbol);
+    const_loader_mod.Import(lib);
+    for (const auto& it : ext_libs) {
+      const_loader_mod.Import(it);
+    }
+    exec->Import(const_loader_mod);
+  } else {
+    // directly import the ext_modules as we don't need const loader
+    exec->Import(lib);
+    for (const auto& it : ext_libs) {
+      exec->Import(it);
+    }
+  }
+}
+
+/*!
  * \brief Link the libraries together.
  */
 Module VMLink(ExecBuilder builder, Target target, Optional<Module> lib, Array<Module> ext_libs,
               Map<String, runtime::NDArray> params) {
-  // TODO(relax-team) Revisit the param and ext_lib options.
-  ObjectPtr<Executable> executable = builder->Get();
+  ObjectPtr<VMExecutable> executable = builder->Get();
   if (!lib.defined()) {
     lib = codegen::CSourceModuleCreate(";", "", Array<String>{});
   }
-  std::unordered_map<std::string, runtime::NDArray> conv_params;
-  for (const auto& [name, param] : params) {
-    conv_params[name] = param;
-  }
-  Module combined_lib = codegen::CreateMetadataModule(
-      conv_params, lib.value(), ext_libs, target,
-
-      // TODO(@sunggg): Currently, CRT uses relay-specific executor for uTVM support.
-      // Before jumping into details, only support cpp runtime for now.
-      relay::Runtime::Create("cpp"),
-      relay::Executor::Create("graph"),  // TODO(@sunggg): pass arbitrarily executor. CPP runtime
-                                         // won't use this anyways.
-      relay::backend::ExecutorCodegenMetadata());
-  executable->Import(combined_lib);
+  LinkModules(executable, params, lib.value(), ext_libs);
   return Module(executable);
 }
 

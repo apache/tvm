@@ -49,7 +49,6 @@ cmake -DCMAKE_INSTALL_PREFIX="${PREFIX}" \
       -DCMAKE_BUILD_TYPE=Release \
       -DUSE_RPC=ON \
       -DUSE_CPP_RPC=OFF \
-      -DUSE_MICRO=ON \
       -DUSE_SORT=ON \
       -DUSE_RANDOM=ON \
       -DUSE_PROFILER=ON \

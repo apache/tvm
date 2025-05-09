@@ -143,8 +143,18 @@ def find_lib_path(name=None, search_path=None, optional=False):
             ]
 
         name = lib_dll_names + runtime_dll_names + ext_lib_dll_names
-        lib_dll_path = [os.path.join(p, name) for name in lib_dll_names for p in dll_path]
-        runtime_dll_path = [os.path.join(p, name) for name in runtime_dll_names for p in dll_path]
+        lib_dll_path = [
+            os.path.join(p, name)
+            for name in lib_dll_names
+            for p in dll_path
+            if not p.endswith("python/tvm")
+        ]
+        runtime_dll_path = [
+            os.path.join(p, name)
+            for name in runtime_dll_names
+            for p in dll_path
+            if not p.endswith("python/tvm")
+        ]
         ext_lib_dll_path = [os.path.join(p, name) for name in ext_lib_dll_names for p in dll_path]
     if not use_runtime:
         # try to find lib_dll_path
@@ -222,11 +232,13 @@ def find_include_path(name=None, search_path=None, optional=False):
         dmlc_include_path = []
     else:
         tvm_include_path = [os.path.join(p, "include") for p in header_path]
+        tvm_ffi_include_path = [os.path.join(p, "ffi/include") for p in header_path]
         dlpack_include_path = [os.path.join(p, "dlpack/include") for p in header_path]
         dmlc_include_path = [os.path.join(p, "dmlc-core/include") for p in header_path]
 
         # try to find include path
         include_found = [p for p in tvm_include_path if os.path.exists(p) and os.path.isdir(p)]
+        include_found += [p for p in tvm_ffi_include_path if os.path.exists(p) and os.path.isdir(p)]
         include_found += [p for p in dlpack_include_path if os.path.exists(p) and os.path.isdir(p)]
         include_found += [p for p in dmlc_include_path if os.path.exists(p) and os.path.isdir(p)]
 
@@ -247,4 +259,4 @@ def find_include_path(name=None, search_path=None, optional=False):
 # We use the version of the incoming release for code
 # that is under development.
 # The following line is set by tvm/python/update_version.py
-__version__ = "0.19.dev0"
+__version__ = "0.21.dev0"

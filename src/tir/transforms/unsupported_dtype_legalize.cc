@@ -339,7 +339,6 @@ class ComputeLegalizer : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
-
     if (auto buffer = op->node.as<Buffer>()) {
       auto it = buffer_remap_.find(buffer.value());
       if (it != buffer_remap_.end()) {
@@ -350,6 +349,43 @@ class ComputeLegalizer : public StmtExprMutator {
       if (it != var_remap_.end()) {
         return AttrStmt(it->second, op->attr_key, op->value, op->body);
       }
+    } else if (auto reducer = op->node.as<CommReducerNode>()) {
+      auto legalized_identity_elements =
+          reducer->identity_element.Map([this](PrimExpr expr) { return this->VisitExpr(expr); });
+
+      // Remap input variables
+      for (size_t i = 0; i < legalized_identity_elements.size(); i++) {
+        Var lhs_var = reducer->lhs[i];
+        if (lhs_var.dtype() != legalized_identity_elements[i].dtype()) {
+          var_remap_[lhs_var] = lhs_var.copy_with_dtype(legalized_identity_elements[i].dtype());
+        }
+        Var rhs_var = reducer->rhs[i];
+        if (rhs_var.dtype() != legalized_identity_elements[i].dtype()) {
+          var_remap_[rhs_var] = rhs_var.copy_with_dtype(legalized_identity_elements[i].dtype());
+        }
+      }
+
+      auto legalized_results =
+          reducer->result.Map([this](PrimExpr expr) { return this->VisitExpr(expr); });
+
+      auto legalized_lhs = reducer->lhs.Map([this](Var var) {
+        auto it = var_remap_.find(var);
+        if (it != var_remap_.end()) {
+          return it->second;
+        }
+        return var;
+      });
+
+      auto legalized_rhs = reducer->rhs.Map([this](Var var) {
+        auto it = var_remap_.find(var);
+        if (it != var_remap_.end()) {
+          return it->second;
+        }
+        return var;
+      });
+      return AttrStmt(CommReducer(legalized_lhs, legalized_rhs, legalized_results,
+                                  legalized_identity_elements, reducer->span),
+                      op->attr_key, op->value, op->body);
     }
     return ret;
   }
@@ -701,11 +737,10 @@ namespace transform {
 bool CheckDataTypeSupport(const Target& target, const std::string& support_func_name) {
   bool has_native_support = false;
   if (target->kind->name == "cuda") {
-    if (const PackedFunc* get_cv =
-            tvm::runtime::Registry::Get("tvm.contrib.nvcc.get_compute_version")) {
-      std::string compute_version = (*get_cv)(target);
-      if (const PackedFunc* check_support = tvm::runtime::Registry::Get(support_func_name)) {
-        has_native_support = (*check_support)(compute_version);
+    if (auto get_cv = tvm::ffi::Function::GetGlobal("tvm.contrib.nvcc.get_compute_version")) {
+      std::string compute_version = (*get_cv)(target).cast<std::string>();
+      if (auto check_support = tvm::ffi::Function::GetGlobal(support_func_name)) {
+        has_native_support = (*check_support)(compute_version).cast<bool>();
       }
     }
   }
@@ -714,7 +749,10 @@ bool CheckDataTypeSupport(const Target& target, const std::string& support_func_
 
 Pass BF16ComputeLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    // TODO(tvm-team): skip if the target supports bf16
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget).value();
+    if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_bf16")) {
+      return f;
+    }
     return BF16ComputeLegalizer().Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BF16ComputeLegalize", {});
@@ -724,7 +762,10 @@ TVM_REGISTER_GLOBAL("tir.transform.BF16ComputeLegalize").set_body_typed(BF16Comp
 
 Pass BF16StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
-    // TODO(tvm-team): skip if the target supports bf16
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget).value();
+    if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_bf16")) {
+      return f;
+    }
     return BF16StorageLegalizer().Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BF16StorageLegalize", {});
@@ -738,7 +779,7 @@ Pass FP8ComputeLegalize(String promote_dtype_str) {
     if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_fp8")) {
       return f;
     }
-    return FP8ComputeLegalizer(DataType(String2DLDataType(promote_dtype_str))).Legalize(f);
+    return FP8ComputeLegalizer(DataType(StringToDLDataType(promote_dtype_str))).Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.FP8ComputeLegalize", {});
 }

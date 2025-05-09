@@ -96,8 +96,8 @@ class HostDeviceSplitter : public StmtMutator {
     }
     PrimFunc device_func(params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
-                                                     {tir::attr::kNoAlias, Bool(true)},
-                                                     {tir::attr::kIsGlobalFunc, Bool(true)}});
+                                                     {tir::attr::kNoAlias, true},
+                                                     {tir::attr::kIsGlobalFunc, true}});
 
     GlobalVar kernel_symbol_global = var_supply_();
     (*device_mod_)->Add(kernel_symbol_global, device_func);

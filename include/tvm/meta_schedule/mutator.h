@@ -20,8 +20,8 @@
 #ifndef TVM_META_SCHEDULE_MUTATOR_H_
 #define TVM_META_SCHEDULE_MUTATOR_H_
 
+#include <tvm/ffi/optional.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/optional.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/support/random_engine.h>
@@ -78,24 +78,24 @@ class Mutator : public runtime::ObjectRef {
    * \brief The function type of `InitializeWithTuneContext` method.
    * \param context The tuning context for initialization.
    */
-  using FInitializeWithTuneContext = runtime::TypedPackedFunc<void(const TuneContext&)>;
+  using FInitializeWithTuneContext = ffi::TypedFunction<void(const TuneContext&)>;
   /*!
    * \brief Apply the mutator function to the given trace.
    * \param trace The given trace for mutation.
    * \return None if mutator failed, otherwise return the mutated trace.
    */
-  using FApply = runtime::TypedPackedFunc<Optional<tir::Trace>(
+  using FApply = ffi::TypedFunction<Optional<tir::Trace>(
       const tir::Trace&, support::LinearCongruentialEngine::TRandState rand_state)>;
   /*!
    * \brief Clone the mutator.
    * \return The cloned mutator.
    */
-  using FClone = runtime::TypedPackedFunc<Mutator()>;
+  using FClone = ffi::TypedFunction<Mutator()>;
   /*!
    * \brief Get the mutator as string with name.
    * \return The string of the mutator.
    */
-  using FAsString = runtime::TypedPackedFunc<String()>;
+  using FAsString = ffi::TypedFunction<String()>;
   /*! \brief Create a Mutator that mutates the decision of instruction Sample-Perfect-Tile */
   TVM_DLL static Mutator MutateTileSize();
   /*!
@@ -137,8 +137,6 @@ class Mutator : public runtime::ObjectRef {
   TVM_DLL static Map<Mutator, FloatImm, void> DefaultCUDATensorCore();
   /*! \brief Create default mutators for Hexagon */
   TVM_DLL static Map<Mutator, FloatImm, void> DefaultHexagon();
-  /*! \brief Create default mutators for Micro */
-  TVM_DLL static Map<Mutator, FloatImm, void> DefaultMicro();
 
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(Mutator, ObjectRef, MutatorNode);
 };

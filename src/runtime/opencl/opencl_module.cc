@@ -50,7 +50,7 @@ class OpenCLWrappedFunc {
     launch_param_config_.Init(arg_size.size(), launch_param_tags);
   }
   // invoke the function with void arguments
-  void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
+  void operator()(ffi::PackedArgs args, ffi::Any* rv, void** void_args) const {
     ICHECK(w_->devices.size() > 0) << "No OpenCL device";
     cl::OpenCLThreadEntry* t = w_->GetThreadEntry();
     // get the kernel from thread local kernel table.
@@ -65,7 +65,7 @@ class OpenCLWrappedFunc {
     // setup arguments.
     for (cl_uint i = 0; i < arg_size_.size(); ++i) {
       void* arg = nullptr;
-      if (args.type_codes[i] == DLDataTypeCode::kDLOpaqueHandle) {
+      if (args[i].as<void*>()) {
         arg = static_cast<cl::BufferDescriptor*>(void_args[i])->buffer;
       } else {
         arg = void_args[i];
@@ -134,12 +134,12 @@ cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
   return cl::OpenCLWorkspace::Global();
 }
 
-PackedFunc OpenCLModuleNodeBase::GetFunction(const String& name,
-                                             const ObjectPtr<Object>& sptr_to_self) {
+ffi::Function OpenCLModuleNodeBase::GetFunction(const String& name,
+                                                const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
-  if (it == fmap_.end()) return PackedFunc();
+  if (it == fmap_.end()) return ffi::Function();
   const FunctionInfo& info = it->second;
   OpenCLWrappedFunc f;
   std::vector<size_t> arg_size(info.arg_types.size());
@@ -225,7 +225,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
   std::lock_guard<std::mutex> lock(build_lock_);
   int device_id = t->device.device_id;
   auto did = w->GetCLDeviceID(device_id);
-  auto platform = w->device_to_platform[did];
+  auto platform = w->device_info[did].platform_id;
   if (!IsProgramCreated(func_name, device_id)) {
     // create program
     if (fmt_ == "cl") {
@@ -294,7 +294,7 @@ void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
       const unsigned char* programBinary = bin_vector.data();
 
       cl_device_id dev = workspace_->GetCLDeviceID(device_id);
-      auto platform = workspace_->device_to_platform[dev];
+      auto platform = workspace_->device_info[dev].platform_id;
       programs_[name][device_id] =
           clCreateProgramWithBinary(workspace_->contexts[platform], 1, &dev, &binarySize,
                                     &programBinary, &binaryStatus, &err);
@@ -345,16 +345,16 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
   return data;
 }
 
-PackedFunc OpenCLModuleNode::GetFunction(const String& name,
-                                         const ObjectPtr<Object>& sptr_to_self) {
+ffi::Function OpenCLModuleNode::GetFunction(const String& name,
+                                            const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   if (name == "opencl.GetPreCompiledPrograms") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+    return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
       *rv = this->GetPreCompiledPrograms();
     });
   } else if (name == "opencl.SetPreCompiledPrograms") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      this->SetPreCompiledPrograms(args[0]);
+    return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
+      this->SetPreCompiledPrograms(args[0].cast<std::string>());
     });
   }
   return OpenCLModuleNodeBase::GetFunction(name, sptr_to_self);

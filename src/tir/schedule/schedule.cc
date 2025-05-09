@@ -17,7 +17,6 @@
  * under the License.
  */
 #include "./utils.h"
-
 namespace tvm {
 namespace tir {
 
@@ -45,21 +44,21 @@ TVM_REGISTER_NODE_TYPE(LoopRVNode);
 TVM_REGISTER_OBJECT_TYPE(ScheduleNode);
 
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetMod")  //
-    .set_body_method<Schedule>(&ScheduleNode::mod);
+    .set_body_method(&ScheduleNode::mod);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetState")  //
-    .set_body_method<Schedule>(&ScheduleNode::state);
+    .set_body_method(&ScheduleNode::state);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetTrace")  //
-    .set_body_method<Schedule>(&ScheduleNode::trace);
+    .set_body_method(&ScheduleNode::trace);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetFuncWorkingOn")  //
-    .set_body_method<Schedule>(&ScheduleNode::func_working_on);
+    .set_body_method(&ScheduleNode::func_working_on);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCopy")  //
-    .set_body_method<Schedule>(&ScheduleNode::Copy);
+    .set_body_method(&ScheduleNode::Copy);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSeed")  //
-    .set_body_method<Schedule>(&ScheduleNode::Seed);
+    .set_body_method(&ScheduleNode::Seed);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleForkSeed")  //
-    .set_body_method<Schedule>(&ScheduleNode::ForkSeed);
+    .set_body_method(&ScheduleNode::ForkSeed);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleWorkOn")  //
-    .set_body_method<Schedule>(&ScheduleNode::WorkOn);
+    .set_body_method(&ScheduleNode::WorkOn);
 
 /**************** (FFI) Constructor ****************/
 
@@ -128,18 +127,16 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRemoveRV")
 
 /******** (FFI) Sampling ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSampleCategorical")
-    .set_body_method<Schedule>(&ScheduleNode::SampleCategorical);
+    .set_body_method(&ScheduleNode::SampleCategorical);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSamplePerfectTile")
-    .set_body_method<Schedule>(&ScheduleNode::SamplePerfectTile);
+    .set_body_method(&ScheduleNode::SamplePerfectTile);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSamplePartitionedTile")
-    .set_body_method<Schedule>(&ScheduleNode::SamplePartitionedTile);
+    .set_body_method(&ScheduleNode::SamplePartitionedTile);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSampleComputeLocation")
-    .set_body_method<Schedule>(&ScheduleNode::SampleComputeLocation);
+    .set_body_method(&ScheduleNode::SampleComputeLocation);
 /******** (FFI) Get blocks & loops ********/
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetBlock")
-    .set_body_method<Schedule>(&ScheduleNode::GetBlock);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetLoops")
-    .set_body_method<Schedule>(&ScheduleNode::GetLoops);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetBlock").set_body_method(&ScheduleNode::GetBlock);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetLoops").set_body_method(&ScheduleNode::GetLoops);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetChildBlocks")
     .set_body_typed([](Schedule self, ObjectRef rv) {
       if (auto block_rv = rv.as<BlockRV>()) {
@@ -153,21 +150,20 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetChildBlocks")
       throw;
     });
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetProducers")
-    .set_body_method<Schedule>(&ScheduleNode::GetProducers);
+    .set_body_method(&ScheduleNode::GetProducers);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetConsumers")
-    .set_body_method<Schedule>(&ScheduleNode::GetConsumers);
+    .set_body_method(&ScheduleNode::GetConsumers);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetOutputBlocks")
-    .set_body_method<Schedule>(&ScheduleNode::GetOutputBlocks);
+    .set_body_method(&ScheduleNode::GetOutputBlocks);
 /******** (FFI) Transform loops ********/
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleMerge").set_body_method<Schedule>(&ScheduleNode::Merge);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method<Schedule>(&ScheduleNode::Fuse);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplit").set_body_method<Schedule>(&ScheduleNode::Split);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleMerge").set_body_method(&ScheduleNode::Merge);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method(&ScheduleNode::Fuse);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplit").set_body_method(&ScheduleNode::Split);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleLoopPartition")
-    .set_body_method<Schedule>(&ScheduleNode::LoopPartition);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorder")
-    .set_body_method<Schedule>(&ScheduleNode::Reorder);
+    .set_body_method(&ScheduleNode::LoopPartition);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorder").set_body_method(&ScheduleNode::Reorder);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorderBlockIterVar")
-    .set_body_method<Schedule>(&ScheduleNode::ReorderBlockIterVar);
+    .set_body_method(&ScheduleNode::ReorderBlockIterVar);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAddUnitLoop")
     .set_body_typed([](Schedule self, ObjectRef rv) -> LoopRV {
       if (auto loop_rv = rv.as<LoopRV>()) {
@@ -181,55 +177,46 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAddUnitLoop")
       }
     });
 /******** (FFI) Manipulate ForKind ********/
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleParallel")
-    .set_body_method<Schedule>(&ScheduleNode::Parallel);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleVectorize")
-    .set_body_method<Schedule>(&ScheduleNode::Vectorize);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBind").set_body_method<Schedule>(&ScheduleNode::Bind);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnroll").set_body_method<Schedule>(&ScheduleNode::Unroll);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleParallel").set_body_method(&ScheduleNode::Parallel);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleVectorize").set_body_method(&ScheduleNode::Vectorize);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBind").set_body_method(&ScheduleNode::Bind);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnroll").set_body_method(&ScheduleNode::Unroll);
 /******** (FFI) Insert cache stages ********/
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheRead")
-    .set_body_method<Schedule>(&ScheduleNode::CacheRead);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheWrite")
-    .set_body_method<Schedule>(&ScheduleNode::CacheWrite);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheRead").set_body_method(&ScheduleNode::CacheRead);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheWrite").set_body_method(&ScheduleNode::CacheWrite);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReindexCacheRead")
-    .set_body_method<Schedule>(&ScheduleNode::ReindexCacheRead);
+    .set_body_method(&ScheduleNode::ReindexCacheRead);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReindexCacheWrite")
-    .set_body_method<Schedule>(&ScheduleNode::ReindexCacheWrite);
+    .set_body_method(&ScheduleNode::ReindexCacheWrite);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheInplace")
-    .set_body_method<Schedule>(&ScheduleNode::CacheInplace);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheIndex")
-    .set_body_method<Schedule>(&ScheduleNode::CacheIndex);
+    .set_body_method(&ScheduleNode::CacheInplace);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleCacheIndex").set_body_method(&ScheduleNode::CacheIndex);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReIndex")
     .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,
                        int buffer_index_type) {
       return self->ReIndex(block_rv, buffer_index, static_cast<BufferIndexType>(buffer_index_type));
     });
 /******** (FFI) Data movement ********/
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReadAt").set_body_method<Schedule>(&ScheduleNode::ReadAt);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleWriteAt")
-    .set_body_method<Schedule>(&ScheduleNode::WriteAt);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReadAt").set_body_method(&ScheduleNode::ReadAt);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleWriteAt").set_body_method(&ScheduleNode::WriteAt);
 /******** (FFI) Compute location ********/
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleComputeAt")
-    .set_body_method<Schedule>(&ScheduleNode::ComputeAt);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleComputeAt").set_body_method(&ScheduleNode::ComputeAt);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReverseComputeAt")
-    .set_body_method<Schedule>(&ScheduleNode::ReverseComputeAt);
+    .set_body_method(&ScheduleNode::ReverseComputeAt);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleComputeInline")
-    .set_body_method<Schedule>(&ScheduleNode::ComputeInline);
+    .set_body_method(&ScheduleNode::ComputeInline);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReverseComputeInline")
-    .set_body_method<Schedule>(&ScheduleNode::ReverseComputeInline);
+    .set_body_method(&ScheduleNode::ReverseComputeInline);
 /******** (FFI) Reduction ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleDecomposeReduction")
-    .set_body_method<Schedule>(&ScheduleNode::DecomposeReduction);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRFactor")
-    .set_body_method<Schedule>(&ScheduleNode::RFactor);
+    .set_body_method(&ScheduleNode::DecomposeReduction);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRFactor").set_body_method(&ScheduleNode::RFactor);
 /******** (FFI) Block annotation ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleStorageAlign")
-    .set_body_method<Schedule>(&ScheduleNode::StorageAlign);
-TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetScope")
-    .set_body_method<Schedule>(&ScheduleNode::SetScope);
+    .set_body_method(&ScheduleNode::StorageAlign);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetScope").set_body_method(&ScheduleNode::SetScope);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnsafeSetDType")
-    .set_body_method<Schedule>(&ScheduleNode::UnsafeSetDType);
+    .set_body_method(&ScheduleNode::UnsafeSetDType);
 /******** (FFI) Blockize & Tensorize ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleBlockize")
     .set_body_typed([](Schedule self, ObjectRef target, bool preserve_unit_iters) {
@@ -254,8 +241,7 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTensorize")
 
 /******** (FFI) Annotation ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAnnotate")
-    .set_body_typed([](Schedule self, ObjectRef rv, const String& ann_key,
-                       const ObjectRef& ann_val) {
+    .set_body_typed([](Schedule self, ObjectRef rv, const String& ann_key, const Any& ann_val) {
       if (auto block_rv = rv.as<BlockRV>()) {
         return self->Annotate(block_rv.value(), ann_key, ann_val);
       }
@@ -289,7 +275,7 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTransformLayout")
                                    pad_value, assume_injective_transform);
     });
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTransformBlockLayout")
-    .set_body_method<Schedule>(&ScheduleNode::TransformBlockLayout);
+    .set_body_method(&ScheduleNode::TransformBlockLayout);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetAxisSeparator")
     .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,
                        int buffer_index_type, const Array<IntImm>& axis_separators) {
@@ -299,17 +285,16 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSetAxisSeparator")
 
 /******** (FFI) Padding decomposition ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleDecomposePadding")
-    .set_body_method<Schedule>(&ScheduleNode::DecomposePadding);
-TVM_REGISTER_GLOBAL("tir.schedule.SchedulePadEinsum")
-    .set_body_method<Schedule>(&ScheduleNode::PadEinsum);
+    .set_body_method(&ScheduleNode::DecomposePadding);
+TVM_REGISTER_GLOBAL("tir.schedule.SchedulePadEinsum").set_body_method(&ScheduleNode::PadEinsum);
 /******** (FFI) Buffer transformation ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleRollingBuffer")
-    .set_body_method<Schedule>(&ScheduleNode::RollingBuffer);
+    .set_body_method(&ScheduleNode::RollingBuffer);
 /******** (FFI) Misc ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
-    .set_body_method<Schedule>(&ScheduleNode::EnterPostproc);
+    .set_body_method(&ScheduleNode::EnterPostproc);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnsafeHideBufferAccess")
-    .set_body_method<Schedule>(&ScheduleNode::UnsafeHideBufferAccess);
+    .set_body_method(&ScheduleNode::UnsafeHideBufferAccess);
 /******** (FFI) Annotate buffer access ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAnnotateBufferAccess")
     .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,

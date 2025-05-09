@@ -139,7 +139,7 @@ int _TVMFuncListGlobalNames(_gostring_* names) {
 
 /*!
  * \brief Native helper to copy TVMValue from golang slice to native array.
- * this helper is need as underlying momory for golang slice is not continueous.
+ * this helper is need as underlying memory for golang slice is not continuous.
  *
  * \param to_ptr is the native pointer of TVMValue array.
  * \param from_ptr pointer to TVMValue in golang slice.
@@ -153,7 +153,7 @@ void _TVMValueNativeSet(void* to_ptr, void* from_ptr, int ind) {
 
 /*!
  * \brief Native helper to copy TVMValue from golang slice to native array.
- * this helper is need as underlying momory for golang slice is not continueous.
+ * this helper is need as underlying memory for golang slice is not continuous.
  *
  * \param to_ptr pointer to TVMValue in golang slice.
  * \param from_ptr is the native pointer of TVMValue array.
@@ -168,7 +168,7 @@ void _TVMValueNativeGet(void* to_ptr, void* from_ptr, int ind) {
 extern int goTVMCallback(void*, void*, int, void*, void*);
 
 /*!
- * \brief _TVMCallback is the TVM runtime callback function for PackedFunction system.
+ * \brief _TVMCallback is the TVM runtime callback function for ffi::Functiontion system.
  *
  * \param args is an array of TVMValue
  * \param type_codes is an array of int

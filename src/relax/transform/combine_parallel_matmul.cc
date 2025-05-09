@@ -38,9 +38,7 @@
 namespace tvm {
 namespace relax {
 
-using runtime::Map;
-
-using FCheck = runtime::TypedPackedFunc<bool(Var, Array<Var>, Array<Var>, Map<Var, Expr>)>;
+using FCheck = ffi::TypedFunction<bool(Var, Array<Var>, Array<Var>, Map<Var, Expr>)>;
 
 /*! \brief Group shapes of the RHS matrices by rank. Matrices in a group whose batch sizes
   are compatible are combined.
@@ -117,7 +115,7 @@ Patterns CreatePatterns(const BranchInfo& branch_info) {
 }
 
 /*! \brief Create a rewriter for the given parallel matmul branches. */
-runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> GetRewriter(
+ffi::TypedFunction<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> GetRewriter(
     const Patterns& patterns, const BranchInfo& branch_info, FCheck check) {
   auto batch_dims_compatible = [](size_t rhs_dim, const std::vector<size_t>& indices,
                                   const std::vector<Array<PrimExpr>>& rhs_shapes) {
@@ -160,7 +158,7 @@ runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> Ge
       std::vector<SplitInfo> splits;
       for (auto index : indices) {
         Var rhs = matchings[patterns.rhs[index]];
-        Optional<Var> bias = NullOpt;
+        Optional<Var> bias = std::nullopt;
         if (branch_info.bias_dim.has_value()) {
           bias = matchings[patterns.bias[index]];
         }
@@ -204,13 +202,13 @@ runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> Ge
         continue;
       }
 
-      auto concat_rhs = concat(Tuple(rhs), Integer(rhs_dim - 1));
+      auto concat_rhs = concat(Tuple(rhs), rhs_dim - 1);
       auto out_dtype = GetTensorSInfo(matchings[patterns.matmul[indices[0]]])->dtype;
       auto matmul_combined = matmul(lhs, concat_rhs, out_dtype);
 
       if (branch_info.bias_dim) {
         auto bias_dim = GetTensorSInfo(bias[0])->ndim;
-        auto concat_bias = concat(Tuple(bias), Integer(bias_dim - 1));
+        auto concat_bias = concat(Tuple(bias), bias_dim - 1);
         matmul_combined = add(matmul_combined, concat_bias);
       }
 
@@ -380,10 +378,9 @@ Function CombineParallelMatmul(Function f, FCheck check) {
 namespace transform {
 
 Pass CombineParallelMatmul(FCheck check) {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return relax::CombineParallelMatmul(f, check);
-      };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return relax::CombineParallelMatmul(f, check);
+  };
   return CreateFunctionPass(/*pass_function=*/pass_func,            //
                             /*opt_level=*/0,                        //
                             /*pass_name=*/"CombineParallelMatmul",  //

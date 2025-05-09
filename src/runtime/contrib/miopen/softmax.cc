@@ -32,10 +32,10 @@ namespace miopen {
 
 using namespace runtime;
 
-void softmax_impl(TVMArgs args, TVMRetValue* ret, miopenSoftmaxAlgorithm_t alg) {
-  DLTensor* x = args[0];
-  DLTensor* y = args[1];
-  int axis = args[2];
+void softmax_impl(ffi::PackedArgs args, ffi::Any* ret, miopenSoftmaxAlgorithm_t alg) {
+  auto x = args[0].cast<DLTensor*>();
+  auto y = args[1].cast<DLTensor*>();
+  int axis = args[2].cast<int>();
   int ndim = x->ndim;
   int64_t* shape = x->shape;
   if (axis < 0) axis += ndim;
@@ -80,12 +80,14 @@ void softmax_impl(TVMArgs args, TVMRetValue* ret, miopenSoftmaxAlgorithm_t alg) 
 }
 
 TVM_REGISTER_GLOBAL("tvm.contrib.miopen.softmax.forward")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       softmax_impl(args, ret, MIOPEN_SOFTMAX_ACCURATE);
     });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.miopen.log_softmax.forward")
-    .set_body([](TVMArgs args, TVMRetValue* ret) { softmax_impl(args, ret, MIOPEN_SOFTMAX_LOG); });
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      softmax_impl(args, ret, MIOPEN_SOFTMAX_LOG);
+    });
 
 }  // namespace miopen
 }  // namespace contrib

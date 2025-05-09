@@ -44,7 +44,8 @@ class ObjectInternal {
    */
   static void ObjectRetain(TVMObjectHandle obj) {
     if (obj != nullptr) {
-      static_cast<Object*>(obj)->IncRef();
+      // static_cast<Object*>(obj)->IncRef();
+      tvm::ffi::details::ObjectUnsafe::IncRefObjectHandle(obj);
     }
   }
 
@@ -53,7 +54,8 @@ class ObjectInternal {
    */
   static void ObjectFree(TVMObjectHandle obj) {
     if (obj != nullptr) {
-      static_cast<Object*>(obj)->DecRef();
+      // static_cast<Object*>(obj)->DecRef();
+      tvm::ffi::details::ObjectUnsafe::DecRefObjectHandle(obj);
     }
   }
   /*!
@@ -62,16 +64,19 @@ class ObjectInternal {
    * \param type_index The type index of interest.
    * \return The derivation checking result.
    */
-  static bool DerivedFrom(const Object* obj, uint32_t type_index) {
-    return obj->DerivedFrom(type_index);
-  }
+  // static bool DerivedFrom(const Object* obj, uint32_t type_index) {
+  //  return obj->DerivedFrom(type_index);
+  // }
   /*!
    * \brief Expose TypeKey2Index
    * \param type_key The original type key.
    * \return the corresponding index.
    */
   static uint32_t ObjectTypeKey2Index(const std::string& type_key) {
-    return Object::TypeKey2Index(type_key);
+    int32_t type_index;
+    TVMFFIByteArray type_key_arr{type_key.data(), type_key.length()};
+    TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(&type_key_arr, &type_index));
+    return static_cast<uint32_t>(type_index);
   }
   /*!
    * \brief Convert ModuleHandle to module node pointer.
@@ -83,15 +88,6 @@ class ObjectInternal {
     // then to ModuleNode in order to get the correct
     // address translation
     return static_cast<ModuleNode*>(static_cast<Object*>(handle));
-  }
-  /*!
-   * \brief Move the ObjectPtr inside ObjectRef out
-   * \param obj The ObjectRef
-   * \return The result ObjectPtr
-   */
-  static ObjectPtr<Object> MoveObjectPtr(ObjectRef* obj) {
-    ObjectPtr<Object> data = std::move(obj->data_);
-    return data;
   }
 };
 

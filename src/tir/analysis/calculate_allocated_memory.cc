@@ -22,13 +22,12 @@
  * \brief Calculate allocated memory per memory scope required by PrimFuncs.
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/container/map.h>
+#include <tvm/ffi/container/map.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/tir/usmp/utils.h>
 
 #include <algorithm>
 #include <map>

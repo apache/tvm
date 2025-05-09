@@ -80,7 +80,7 @@ struct CacheStageInfo {
   /*! \brief The map used for ScheduleStateNode::Replace. */
   Map<Block, Block> block_reuse;
   /*! \brief A set of blocks that will consume the new cache. */
-  std::unordered_set<StmtSRef, ObjectHash, ObjectEqual> consumer_blocks;
+  std::unordered_set<StmtSRef, ObjectPtrHash, ObjectPtrEqual> consumer_blocks;
   /*! \brief cache region for the buffer to be cached */
   BufferRegion cache_region;
 };
@@ -88,7 +88,7 @@ struct CacheStageInfo {
 /*! \brief Return the buffer region related with the buffer */
 Optional<BufferRegion> GetBufferRegionFromBuffer(const Array<BufferRegion>& buffer_regions,
                                                  const Buffer& buffer) {
-  Optional<BufferRegion> res = NullOpt;
+  Optional<BufferRegion> res = std::nullopt;
   for (const auto& region : buffer_regions) {
     if (region->buffer.same_as(buffer)) {
       ICHECK(!res.defined());
@@ -204,7 +204,7 @@ Block MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStageI
       /*body=*/
       BufferStore(info->write_buffer, BufferLoad(info->read_buffer, read_access_indices),
                   write_access_indices),
-      /*init=*/NullOpt,
+      /*init=*/std::nullopt,
       /*alloc_buffers=*/{},
       /*match_buffers=*/{},
       /*buf_doms=*/{});
@@ -304,7 +304,7 @@ Block MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
       /*body=*/
       BufferStore(info->write_buffer, BufferLoad(info->read_buffer, read_access_indices),
                   write_access_indices),
-      /*init=*/NullOpt,
+      /*init=*/std::nullopt,
       /*alloc_buffers=*/{},
       /*match_buffers=*/{},
       /*annotations=*/{});
@@ -349,7 +349,7 @@ Block MakeReIndexStage(const Block& block, CacheStageInfo* info,
   // iters of the reindex block
   Array<IterVar> new_block_iters;
   // the substitution map from the original block iter to the iters of the reindex block
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectEqual> block_var_replace_map;
+  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> block_var_replace_map;
   // indices to access the reindex buffer and the target buffer
   Array<PrimExpr> reindex_indices, target_indices;
 
@@ -503,7 +503,7 @@ Stmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
  * \param scope_sref The scope block where the write is considered
  * \param buffer The queried buffer
  * \return The sref of the only writer of the input buffer in the given scope,
- *         or `NullOpt` if no block writes it in the scope.
+ *         or `std::nullopt` if no block writes it in the scope.
  * \throw NotSingleWriteBlock if there are more than one interested block.
  */
 Optional<StmtSRef> GetOnlyWriteBlock(ScheduleState self, const StmtSRef& scope_sref,
@@ -511,7 +511,7 @@ Optional<StmtSRef> GetOnlyWriteBlock(ScheduleState self, const StmtSRef& scope_s
   BlockScope scope = self->GetBlockScope(scope_sref);
   auto it = scope->buffer_writers.find(buffer);
   if (it == scope->buffer_writers.end()) {
-    return NullOpt;
+    return std::nullopt;
   } else {
     const Array<StmtSRef>& block_srefs = it->second;
     ICHECK(!block_srefs.empty());
@@ -2208,7 +2208,7 @@ Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref, int
   // Create the corresponding buffer to be written, i.e. result of cache_write
   info.write_buffer = buffer;
   // Create the corresponding buffer allocation
-  info.alloc = nullptr;
+  info.alloc = std::nullopt;
   info.consumer_blocks.clear();
 
   // Cache write step 1. Detect insert position
@@ -2425,7 +2425,7 @@ struct ReIndexTraits : public UnpackedInstTraits<ReIndexTraits> {
     std::ostringstream os;
     os << "(\"" << BufferIndexType2Str(static_cast<BufferIndexType>(buffer_index_type->value))
        << "\", " << buffer_index << ")";
-    py.Input("buffer", os.str());
+    py.Input("buffer", String(os.str()));
     py.SingleOutput(outputs);
     return py.Str();
   }

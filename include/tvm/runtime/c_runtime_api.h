@@ -73,7 +73,7 @@
 #endif
 
 // TVM version
-#define TVM_VERSION "0.19.dev0"
+#define TVM_VERSION "0.21.dev0"
 
 // TVM Runtime is DLPack compatible.
 #include <dlpack/dlpack.h>
@@ -119,11 +119,7 @@ typedef enum {
   // To help avoid accidental conflicts between `DLDeviceType`
   // and this enumeration, start numbering the new enumerators
   // a little higher than (currently) seems necessary.
-  kDLAOCL = 32,
-  kDLSDAccel,
-  kOpenGL,
-  kDLMicroDev,
-  TVMDeviceExtType_End,  // sentinel value
+  TVMDeviceExtType_End = 36,  // sentinel value
 } TVMDeviceExtType;
 
 #ifdef __cplusplus
@@ -149,10 +145,6 @@ static_assert(kDLOneAPI == 14, TVM_HARCODED_INTEGER_CHANGED_MSG);
 static_assert(kDLWebGPU == 15, TVM_HARCODED_INTEGER_CHANGED_MSG);
 static_assert(kDLHexagon == 16, TVM_HARCODED_INTEGER_CHANGED_MSG);
 
-static_assert(kDLAOCL == 32, TVM_HARCODED_INTEGER_CHANGED_MSG);
-static_assert(kDLSDAccel == 33, TVM_HARCODED_INTEGER_CHANGED_MSG);
-static_assert(kOpenGL == 34, TVM_HARCODED_INTEGER_CHANGED_MSG);
-static_assert(kDLMicroDev == 35, TVM_HARCODED_INTEGER_CHANGED_MSG);
 #undef TVM_HARCODED_INTEGER_CHANGED_MSG
 #endif
 
@@ -188,7 +180,7 @@ typedef enum {
   kTVMNDArrayHandle = 13U,
   kTVMObjectRValueRefArg = 14U,
   kTVMArgBool = 15U,
-  // Extension codes for other frameworks to integrate TVM PackedFunc.
+  // Extension codes for other frameworks to integrate TVM ffi::Function.
   // To make sure each framework's id do not conflict, use first and
   // last sections to mark ranges.
   // Open an issue at the repo if you need a section of code.

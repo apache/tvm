@@ -98,6 +98,7 @@ Stmt GetEnclosingLoop(const BlockNode* block, Stmt func_body) {
   }
 
   LOG(FATAL) << "Enclosing loop not found for a block " << GetRef<Block>(block);
+  TVM_FFI_UNREACHABLE();
 }
 
 const BlockNode* FindAnchorBlock(const IRModule& mod) {
@@ -143,7 +144,7 @@ TVM_REGISTER_GLOBAL("tir.analysis.find_anchor_block").set_body_typed([](const IR
   if (ret) {
     return Optional<Block>(GetRef<Block>(ret));
   }
-  return Optional<Block>(NullOpt);
+  return Optional<Block>(std::nullopt);
 });
 
 }  // namespace tir

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/module.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
@@ -74,40 +75,40 @@ ReprLegacyPrinter& operator<<(ReprLegacyPrinter& out, tir::ForKind type) {  // N
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<ArrayNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const ArrayNode*>(node.get());
+    .set_dispatch<ffi::ArrayObj>([](const ObjectRef& node, ReprLegacyPrinter* p) {
+      auto* op = static_cast<const ffi::ArrayObj*>(node.get());
       (*p) << '[';
       for (size_t i = 0; i < op->size(); ++i) {
         if (i != 0) {
           (*p) << ", ";
         }
-        p->Print(op->at(i));
+        p->Print(op->at(i).cast<ObjectRef>());
       }
       (*p) << ']';
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<MapNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const MapNode*>(node.get());
+    .set_dispatch<ffi::MapObj>([](const ObjectRef& node, ReprLegacyPrinter* p) {
+      auto* op = static_cast<const ffi::MapObj*>(node.get());
       (*p) << '{';
       for (auto it = op->begin(); it != op->end(); ++it) {
         if (it != op->begin()) {
           (*p) << ", ";
         }
-        if (it->first->IsInstance<StringObj>()) {
-          (*p) << '\"' << Downcast<String>(it->first) << "\": ";
+        if (it->first.as<ffi::StringObj>()) {
+          (*p) << '\"' << Downcast<ffi::String>(it->first) << "\": ";
         } else {
-          p->Print(it->first);
+          p->Print(it->first.cast<ObjectRef>());
           (*p) << ": ";
         }
-        p->Print(it->second);
+        p->Print(it->second.cast<ObjectRef>());
       }
       (*p) << '}';
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<ShapeTupleObj>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const ShapeTupleObj*>(node.get());
+    .set_dispatch<ffi::ShapeObj>([](const ObjectRef& node, ReprLegacyPrinter* p) {
+      auto* op = static_cast<const ffi::ShapeObj*>(node.get());
       (*p) << '[';
       for (size_t i = 0; i < op->size; ++i) {
         if (i != 0) {
@@ -175,12 +176,6 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<IncompleteTypeNode>([](const ObjectRef& ref, ReprLegacyPrinter* p) {
-      auto* node = static_cast<const IncompleteTypeNode*>(ref.get());
-      (*p) << "IncompleteTypeNode(" << node->kind << ", " << node << ")";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     .set_dispatch<DictAttrsNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
       auto* op = static_cast<const DictAttrsNode*>(node.get());
       (*p) << op->dict;
@@ -199,28 +194,9 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<TypeVarNode>([](const ObjectRef& ref, ReprLegacyPrinter* p) {
-      auto* node = static_cast<const TypeVarNode*>(ref.get());
-      (*p) << "TypeVar(" << node->name_hint << ", " << node->kind << ")";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<GlobalTypeVarNode>([](const ObjectRef& ref, ReprLegacyPrinter* p) {
-      auto* node = static_cast<const GlobalTypeVarNode*>(ref.get());
-      (*p) << "GlobalTypeVar(" << node->name_hint << ", " << node->kind << ")";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     .set_dispatch<FuncTypeNode>([](const ObjectRef& ref, ReprLegacyPrinter* p) {
       auto* node = static_cast<const FuncTypeNode*>(ref.get());
-      (*p) << "FuncType(" << node->type_params << ", " << node->arg_types << ", " << node->ret_type
-           << ", " << node->type_constraints << ")";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<RelayRefTypeNode>([](const ObjectRef& ref, ReprLegacyPrinter* p) {
-      auto* node = static_cast<const RelayRefTypeNode*>(ref.get());
-      (*p) << "RelayRefTypeNode(" << node->value << ")";
+      (*p) << "FuncType(" << node->arg_types << ", " << node->ret_type << ")";
     });
 
 }  // namespace tvm
@@ -544,9 +520,6 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
       (*p) << ", value_index=" << op->value_index;
       (*p) << ")";
     });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<AnyNode>([](const ObjectRef& node, ReprLegacyPrinter* p) { (*p) << "?"; });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     .set_dispatch<BufferLoadNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {

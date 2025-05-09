@@ -43,14 +43,9 @@ test("object", () => {
     let t1 = b.get(1);
     assert(t1.getHandle() == t.getHandle());
 
-    let s0 = tvm.makeString("hello world");
-    assert(s0.toString() == "hello world");
-    s0.dispose();
-
     let ret_string = tvm.getGlobalFunc("testing.ret_string");
     let s1 = ret_string("hello");
-    assert(s1.toString() == "hello");
+    assert(s1 == "hello");
     ret_string.dispose();
-    s1.dispose();
   });
 });

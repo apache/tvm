@@ -27,6 +27,8 @@ target, dev = "llvm", tvm.cpu()
 
 def _has_xcode():
     try:
+        import tvm.contrib.xcode
+
         tvm.contrib.xcode.xcrun([])
         return True
     except FileNotFoundError:
@@ -41,7 +43,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def verify(mod, inputs):
-    from tvm.relax.backend.contrib.coreml import partition_for_coreml
+    from tvm.relax.backend.metal.coreml import partition_for_coreml
 
     mod1 = partition_for_coreml(mod)
     mod1 = relax.transform.RunCodegen()(mod1)
@@ -51,12 +53,12 @@ def verify(mod, inputs):
     mod1 = relax.transform.LegalizeOps()(mod1)
     assert relax.analysis.well_formed(mod1)
 
-    ex1 = relax.build(mod1, target=target)
+    ex1 = tvm.compile(mod1, target=target)
     vm1 = relax.VirtualMachine(ex1, dev, profile=True)
     out1 = vm1["main"](*inputs)
 
     mod2 = relax.transform.LegalizeOps()(mod)
-    ex2 = relax.build(mod2, target=target)
+    ex2 = tvm.compile(mod2, target=target)
     vm2 = relax.VirtualMachine(ex2, dev, profile=True)
     out2 = vm2["main"](*inputs)
 

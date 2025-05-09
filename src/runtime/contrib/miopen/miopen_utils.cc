@@ -43,8 +43,8 @@ std::string miopenGetErrorString(int error_code) {
 // MiopenThreadEntry
 MIOpenThreadEntry::MIOpenThreadEntry() {
   auto stream = runtime::ROCMThreadEntry::ThreadLocal()->stream;
-  auto func = runtime::Registry::Get("device_api.rocm");
-  void* ret = (*func)();
+  const auto get_rocm_api = tvm::ffi::Function::GetGlobalRequired("device_api.rocm");
+  void* ret = get_rocm_api();
   rocm_api = static_cast<runtime::DeviceAPI*>(ret);
   MIOPEN_CALL(miopenCreate(&handle));
   MIOPEN_CALL(miopenSetStream(handle, stream));

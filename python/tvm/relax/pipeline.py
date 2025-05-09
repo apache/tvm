@@ -22,10 +22,11 @@ as it is or serves as a basis to do further composition.
 """
 # pylint: disable=unused-argument
 from typing import Union
+
 import tvm
 from tvm import meta_schedule as ms
 
-from . import transform, backend
+from . import backend, transform
 
 
 def zero_pipeline(*, enable_warning: bool = False):
@@ -76,7 +77,7 @@ def zero_pipeline(*, enable_warning: bool = False):
 
 
 def default_build_pipeline():
-    """The default compilation pipeline used in relax.build"""
+    """The default compilation pipeline used in tvm.compile"""
 
     @tvm.transform.module_pass(opt_level=0)
     def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
@@ -143,7 +144,7 @@ def static_shape_tuning_pipeline(
             cpu_weight_prepack=True,
         )(mod)
 
-        ex = relax.build(mod, target=target)
+        ex = tvm.compile(mod, target=target)
         vm = relax.VirtualMachine(ex, device=tvm.cpu())
 
         # Transform the params using the vm function
@@ -193,6 +194,7 @@ def static_shape_tuning_pipeline(
 # global map of pre-built pipelines
 PIPELINE_MAP = {
     "zero": zero_pipeline,
+    "default": default_build_pipeline,
     "default_build": default_build_pipeline,
     "static_shape_tuning": static_shape_tuning_pipeline,
 }
@@ -237,3 +239,86 @@ def register_pipeline(name: str):
         return func
 
     return _register
+
+
+def library_dispatch_passes(target: tvm.target.Target):
+    """Get the default library dispatch passes for the given target."""
+    if target.kind.name == "cuda":
+        return backend.cuda.library_dispatch_passes(target)
+    if target.kind.name == "rocm":
+        return backend.rocm.library_dispatch_passes(target)
+    if target.kind.name == "metal":
+        return backend.gpu_generic.library_dispatch_passes(target)
+    if target.kind.name == "llvm":
+        return backend.cpu_generic.library_dispatch_passes(target)
+    if target.kind.name == "opencl" and "adreno" in target.keys:
+        return backend.adreno.library_dispatch_passes(target)
+    # Todo(tvm-team): support gpu-generic
+    raise ValueError(f"Target {target} is not yet supported by library dispatch passes.")
+
+
+def legalize_passes(target: tvm.target.Target):
+    """Get the default legalization passes for the given target."""
+    if target.kind.name == "cuda":
+        return backend.cuda.legalize_passes(target)
+    if target.kind.name == "rocm":
+        return backend.rocm.legalize_passes(target)
+    if target.kind.name == "metal":
+        return backend.gpu_generic.legalize_passes(target)
+    if target.kind.name == "llvm":
+        return backend.cpu_generic.legalize_passes(target)
+    if target.kind.name == "opencl" and "adreno" in target.keys:
+        return backend.adreno.legalize_passes(target)
+    # Todo(tvm-team): support gpu-generic
+    raise ValueError(f"Target {target} is not yet supported by library dispatch passes.")
+
+
+def dataflow_lower_passes(target: tvm.target.Target):
+    """Get the default legalization passes for the given target."""
+    if target.kind.name == "cuda":
+        return backend.cuda.dataflow_lower_passes(target)
+    if target.kind.name == "rocm":
+        return backend.rocm.dataflow_lower_passes(target)
+    if target.kind.name == "metal":
+        return backend.gpu_generic.dataflow_lower_passes(target)
+    if target.kind.name == "llvm":
+        return backend.cpu_generic.dataflow_lower_passes(target)
+    if target.kind.name == "opencl" and "adreno" in target.keys:
+        return backend.adreno.dataflow_lower_passes(target)
+    # Todo(tvm-team): support gpu-generic
+    raise ValueError(f"Target {target} is not yet supported by dataflow lowering passes.")
+
+
+def finalize_passes(target: tvm.target.Target):
+    """Get the default legalization passes for the given target."""
+    if target.kind.name == "cuda":
+        return backend.cuda.finalize_passes(target)
+    if target.kind.name == "rocm":
+        return backend.rocm.finalize_passes(target)
+    if target.kind.name == "metal":
+        return backend.gpu_generic.finalize_passes(target)
+    if target.kind.name == "llvm":
+        return backend.cpu_generic.finalize_passes(target)
+    if target.kind.name == "opencl" and "adreno" in target.keys:
+        return backend.adreno.finalize_passes(target)
+    # Todo(tvm-team): support gpu-generic
+    raise ValueError(f"Target {target} is not yet supported by finalization passes.")
+
+
+def get_default_pipeline(target: tvm.target.Target):
+    """Get the default Relax compilation pipeline for the given target."""
+    if target.kind.name == "cuda":
+        return backend.cuda.get_default_pipeline(target)
+    if target.kind.name == "rocm":
+        return backend.rocm.get_default_pipeline(target)
+    if target.kind.name == "metal":
+        return backend.gpu_generic.get_default_pipeline(target)
+    if target.kind.name == "llvm":
+        return backend.cpu_generic.get_default_pipeline(target)
+    if target.kind.name == "opencl" and "adreno" in target.keys:
+        return backend.adreno.get_default_pipeline(target)
+    # Todo(tvm-team): support gpu-generic
+    raise ValueError(
+        f"Target {target} is not yet supported by default pipeline. "
+        "Please lower and build the IRModule manually."
+    )

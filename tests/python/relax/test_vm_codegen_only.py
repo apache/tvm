@@ -65,7 +65,6 @@ def test_vm_to_device(exec_mode):
         def foo(x: R.Tensor((3, 4), "float32")):
             R.func_attr({"global_symbol": "foo"})
             # Copy x to the first cpu: device_type=1 and device_id=0.
-            # More device info. please take a look at python/tvm/_ffi/runtime_ctypes.py
             z = R.call_packed(
                 "vm.builtin.to_device", x, 1, 0, sinfo_args=(R.Tensor((3, 4), dtype="float32"))
             )
@@ -79,7 +78,7 @@ def test_vm_to_device(exec_mode):
     res = check_saved_func(vm, "foo", inp)
     tvm.testing.assert_allclose(res.numpy(), inp.numpy(), rtol=1e-7, atol=1e-7)
     # check the resulting tensor is on cpu:0
-    assert str(res.device) == "cpu(0)"
+    assert res.device == tvm.cpu(0)
     assert res.device.device_type == 1
     assert res.device.device_id == 0
 
@@ -365,7 +364,7 @@ def test_vm_kill_object(exec_mode):
     class TestKillObject:
         @T.prim_func
         def full(T_full: T.Buffer((T.int64(4),), "float32")):
-            T.func_attr({"global_symbol": "full", "tir.noalias": T.bool(True)})
+            T.func_attr({"global_symbol": "full", "tir.noalias": True})
             for ax0 in range(T.int64(4)):
                 with T.block("T_full"):
                     v_ax0 = T.axis.spatial(T.int64(4), ax0)
@@ -375,7 +374,7 @@ def test_vm_kill_object(exec_mode):
 
         @T.prim_func
         def full1(T_full: T.Buffer((T.int64(4),), "float32")):
-            T.func_attr({"global_symbol": "full1", "tir.noalias": T.bool(True)})
+            T.func_attr({"global_symbol": "full1", "tir.noalias": True})
             for ax0 in range(T.int64(4)):
                 with T.block("T_full"):
                     v_ax0 = T.axis.spatial(T.int64(4), ax0)

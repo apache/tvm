@@ -23,9 +23,9 @@
 #ifndef TVM_NODE_STRUCTURAL_EQUAL_H_
 #define TVM_NODE_STRUCTURAL_EQUAL_H_
 
+#include <tvm/ffi/container/array.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/object_path.h>
-#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/data_type.h>
 
 #include <cmath>
@@ -58,6 +58,12 @@ class BaseValueEqual {
 
   bool operator()(const int64_t& lhs, const int64_t& rhs) const { return lhs == rhs; }
   bool operator()(const uint64_t& lhs, const uint64_t& rhs) const { return lhs == rhs; }
+  bool operator()(const Optional<int64_t>& lhs, const Optional<int64_t>& rhs) const {
+    return lhs == rhs;
+  }
+  bool operator()(const Optional<double>& lhs, const Optional<double>& rhs) const {
+    return lhs == rhs;
+  }
   bool operator()(const int& lhs, const int& rhs) const { return lhs == rhs; }
   bool operator()(const bool& lhs, const bool& rhs) const { return lhs == rhs; }
   bool operator()(const std::string& lhs, const std::string& rhs) const { return lhs == rhs; }
@@ -100,11 +106,9 @@ class ObjectPathPair : public ObjectRef {
  *  - Normal node: equality is recursively defined without the restriction
  *    of graph nodes.
  *
- *  Vars(tir::Var, TypeVar) and non-constant relay expression nodes are graph nodes.
- *  For example, it means that `%1 = %x + %y; %1 + %1` is not structurally equal
- *  to `%1 = %x + %y; %2 = %x + %y; %1 + %2` in relay.
+ *  Vars(tir::Var, relax::Var) nodes are graph nodes.
  *
- *  A var-type node(e.g. tir::Var, TypeVar) can be mapped as equal to another var
+ *  A var-type node(e.g. tir::Var) can be mapped as equal to another var
  *  with the same type if one of the following condition holds:
  *
  *  - They appear in a same definition point(e.g. function argument).
@@ -124,6 +128,24 @@ class StructuralEqual : public BaseValueEqual {
    */
   TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs,
                           const bool map_free_params = false) const;
+
+  /*!
+   * \brief Compare any value via strutural equal.
+   * \param lhs The left operand.
+   * \param rhs The right operand.
+   * \param map_free_params Whether or not to map free variables.
+   * \return The comparison result.
+   */
+  TVM_FFI_INLINE bool operator()(const ffi::Any& lhs, const ffi::Any& rhs,
+                                 bool map_free_params = false) const {
+    if (lhs.type_index() != rhs.type_index()) return false;
+    if (lhs.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+      return operator()(lhs.cast<ObjectRef>(), rhs.cast<ObjectRef>(), map_free_params);
+    }
+    // POD value can always use v_int64 to get the hash value
+    return (ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(lhs)->v_uint64 ==
+            ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(rhs)->v_uint64);
+  }
 };
 
 /*!
@@ -187,6 +209,19 @@ class SEqualReducer {
      */
     virtual void MarkGraphNode() = 0;
 
+    /*!
+     * \brief Map lhs to rhs.
+     * \param lhs The left operand.
+     * \return The corresponding rhs value if any, nullptr if not available.
+     */
+    TVM_FFI_INLINE ffi::Any MapLhsToRhs(const ffi::Any& lhs) {
+      if (lhs.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+        return MapLhsToRhs(lhs.cast<ObjectRef>());
+      } else {
+        return lhs;
+      }
+    }
+
    protected:
     using PathTracingData = SEqualReducer::PathTracingData;
   };
@@ -218,21 +253,26 @@ class SEqualReducer {
    * \return the immediate check result.
    */
   bool operator()(const double& lhs, const double& rhs,
-                  Optional<ObjectPathPair> paths = NullOpt) const;
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
   bool operator()(const int64_t& lhs, const int64_t& rhs,
-                  Optional<ObjectPathPair> paths = NullOpt) const;
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
   bool operator()(const uint64_t& lhs, const uint64_t& rhs,
-                  Optional<ObjectPathPair> paths = NullOpt) const;
-  bool operator()(const int& lhs, const int& rhs, Optional<ObjectPathPair> paths = NullOpt) const;
-  bool operator()(const bool& lhs, const bool& rhs, Optional<ObjectPathPair> paths = NullOpt) const;
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
+  bool operator()(const int& lhs, const int& rhs,
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
+  bool operator()(const bool& lhs, const bool& rhs,
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
   bool operator()(const std::string& lhs, const std::string& rhs,
-                  Optional<ObjectPathPair> paths = NullOpt) const;
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
   bool operator()(const DataType& lhs, const DataType& rhs,
-                  Optional<ObjectPathPair> paths = NullOpt) const;
-
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
+  bool operator()(const Optional<double>& lhs, const Optional<double>& rhs,
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
+  bool operator()(const Optional<int64_t>& lhs, const Optional<int64_t>& rhs,
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
   template <typename ENum, typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
   bool operator()(const ENum& lhs, const ENum& rhs,
-                  Optional<ObjectPathPair> paths = NullOpt) const {
+                  Optional<ObjectPathPair> paths = std::nullopt) const {
     using Underlying = typename std::underlying_type<ENum>::type;
     static_assert(std::is_same<Underlying, int>::value,
                   "Enum must have `int` as the underlying type");
@@ -259,7 +299,7 @@ class SEqualReducer {
    * \param rhs The right operand.
    * \return the immediate check result.
    */
-  bool operator()(const ObjectRef& lhs, const ObjectRef& rhs) const;
+  bool operator()(const ffi::ObjectRef& lhs, const ffi::ObjectRef& rhs) const;
 
   /*!
    * \brief Reduce condition to comparison of two objects.
@@ -280,6 +320,16 @@ class SEqualReducer {
     ICHECK(IsPathTracingEnabled()) << "Path tracing must be enabled when calling this function";
     return ObjectAttrsEqual(lhs, rhs, map_free_vars_, &paths);
   }
+
+  /*
+   * \brief Compare two Any values.
+   * \param lhs The left operand.
+   * \param rhs The right operand.
+   * \param paths Object paths for `lhs` and `rhs`.
+   * \return the immediate check result.
+   */
+  bool AnyEqual(const ffi::Any& lhs, const ffi::Any& rhs,
+                Optional<ObjectPathPair> paths = std::nullopt) const;
 
   /*!
    * \brief Reduce condition to comparison of two definitions,
@@ -353,7 +403,7 @@ class SEqualReducer {
 
  private:
   bool EnumAttrsEqual(int lhs, int rhs, const void* lhs_address, const void* rhs_address,
-                      Optional<ObjectPathPair> paths = NullOpt) const;
+                      Optional<ObjectPathPair> paths = std::nullopt) const;
 
   bool ObjectAttrsEqual(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
                         const ObjectPathPair* paths) const;
@@ -365,7 +415,7 @@ class SEqualReducer {
   template <typename T>
   static bool CompareAttributeValues(const T& lhs, const T& rhs,
                                      const PathTracingData* tracing_data,
-                                     Optional<ObjectPathPair> paths = NullOpt);
+                                     Optional<ObjectPathPair> paths = std::nullopt);
 
   /*! \brief Internal class pointer. */
   Handler* handler_ = nullptr;
@@ -400,7 +450,7 @@ class SEqualHandlerDefault : public SEqualReducer::Handler {
    * \param map_free_vars Whether or not to remap variables if possible.
    * \return The equality result.
    */
-  virtual bool Equal(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars);
+  virtual bool Equal(const ffi::Any& lhs, const ffi::Any& rhs, bool map_free_vars);
 
  protected:
   /*!

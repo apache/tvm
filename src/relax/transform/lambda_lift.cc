@@ -166,7 +166,7 @@ class LambdaNameCollector : ExprVisitor {
       if (auto it = lifted_with_global_symbol_.find(func); it != lifted_with_global_symbol_.end()) {
         return it->second;
       } else {
-        return NullOpt;
+        return std::nullopt;
       }
     });
 
@@ -181,7 +181,7 @@ class LambdaNameCollector : ExprVisitor {
     // 3. Try concatenating the entire path together.  Don't include
     // paths of length 2, as they would already be attempted earlier.
     attempt_name_generation([&](const FunctionNode*, const auto& location) -> Optional<String> {
-      if (location.size() == 2) return NullOpt;
+      if (location.size() == 2) return std::nullopt;
 
       std::stringstream stream;
       bool is_first = true;
@@ -400,7 +400,7 @@ class LambdaLifter : public ExprMutator {
       if (auto it = nested_closure_map_.find(var); it != nested_closure_map_.end()) {
         Call nested_call = it->second;
 
-        Array<relay::Expr> new_args = call->args;
+        Array<Expr> new_args = call->args;
         for (const auto arg : nested_call->args) {
           new_args.push_back(arg);
         }
@@ -485,7 +485,7 @@ class LambdaLifter : public ExprMutator {
   std::unordered_map<Var, Call> nested_closure_map_;
   std::unordered_map<Var, Expr> rebind_map_;
   std::unordered_set<Variant<GlobalVar, Var>, ObjectPtrHash, ObjectPtrEqual> closures_;
-  Optional<Var> current_lambda_var_ = NullOpt;
+  Optional<Var> current_lambda_var_ = std::nullopt;
   IRModule mod_;
 
   std::unordered_map<const FunctionNode*, String> lifted_names_;

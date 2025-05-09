@@ -319,7 +319,7 @@ def evaluate_result(operations, tag, time, result, expected_output):
 
 def setup_and_run(hexagon_session, sch, a, b, c, operations, mem_scope="global"):
     """Setup and run operator."""
-    func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v69"))
+    func_tir = tvm.compile(sch.mod["main"], target=get_hexagon_target("v69"))
     module = hexagon_session.load_module(func_tir)
 
     a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device, mem_scope=mem_scope)
@@ -335,12 +335,12 @@ def setup_and_run(hexagon_session, sch, a, b, c, operations, mem_scope="global")
     )
     time = timer(a_hexagon, b_hexagon, c_hexagon)
     gops = round(operations * 128 * 3 / time.mean / 1e9, 4)
-    return gops, c_hexagon.asnumpy()
+    return gops, c_hexagon.numpy()
 
 
 def setup_and_run_preallocated(hexagon_session, sch, a, b, c, operations):
     """Setup and run for preallocated."""
-    func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v69"))
+    func_tir = tvm.compile(sch.mod["main"], target=get_hexagon_target("v69"))
     module = hexagon_session.load_module(func_tir)
 
     a_vtcm = np.zeros((a.size), dtype="uint8")
@@ -369,7 +369,7 @@ def setup_and_run_preallocated(hexagon_session, sch, a, b, c, operations):
     )
     time = timer(a_hexagon, b_hexagon, c_hexagon, a_vtcm_hexagon, b_vtcm_hexagon, c_vtcm_hexagon)
     gops = round(operations * 128 * 3 / time.mean / 1e9, 4)
-    return gops, c_hexagon.asnumpy()
+    return gops, c_hexagon.numpy()
 
 
 class TestMatMulVec:

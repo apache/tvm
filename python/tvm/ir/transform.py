@@ -52,7 +52,7 @@ class PassInfo(tvm.runtime.Object):
 
 @tvm._ffi.register_object("transform.PassContext")
 class PassContext(tvm.runtime.Object):
-    """The basis where a Relay optimization/analysis runs on.
+    """The basis where a TVM optimization/analysis runs on.
     Each pass context contains a number of auxiliary information that is used
     to help an optimization pass. Such information includes the error reporter
     to record the errors of during the optimization, etc.
@@ -297,8 +297,6 @@ def _wrap_class_module_pass(pass_cls, pass_info):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
-            # initialize handle in cass pass_cls creation failed.fg
-            self.handle = None
             inst = pass_cls(*args, **kwargs)
 
             # it is important not to capture self to
@@ -365,15 +363,13 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None, tracea
 
     .. code-block:: python
 
-        @relay.transform.module_pass
+        @tvm.ir.transform.module_pass
         class CustomPipeline:
             def __init__(self, enable_fold):
                 self.enable_fold = enable_fold
-                self.cse = relay.transform.EliminateCommonSubexpr()
-                self.const_fold = relay.transform.FoldConstant()
+                self.const_fold = relax.transform.FoldConstant()
 
             def transform_module(self, mod, ctx):
-                mod = self.cse(mod, ctx)
                 if self.enable_fold:
                     mod = self.const_fold(mod, ctx)
                 return mod
@@ -389,15 +385,9 @@ def module_pass(pass_func=None, opt_level=None, name=None, required=None, tracea
 
     .. code-block:: python
 
-        @relay.transform.module_pass(opt_level=2)
+        @tvm.ir.transform.module_pass(opt_level=2)
         def transform(mod, ctx):
-            tp = relay.TensorType((10,), "float32")
-            x = relay.var("x", tp)
-            gv = relay.GlobalVar("var")
-            func = relay.Function([x], relay.abs(x))
-            new_mod = tvm.IRModule({gv: func})
-            new_mod.update(mod)
-            return new_mod
+            return relax.transform.FoldConstant(mod)
 
         module_pass = transform
         assert isinstance(module_pass, transform.ModulePass)

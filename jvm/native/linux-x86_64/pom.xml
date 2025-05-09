@@ -114,10 +114,11 @@ under the License.
             </source>
           </sources>
           <compilerStartOptions>
-            <compilerStartOption>-std=c++0x</compilerStartOption>
+            <compilerStartOption>-std=c++17</compilerStartOption>
           </compilerStartOptions>
           <compilerEndOptions>
             <compilerEndOption>-I../../../include</compilerEndOption>
+            <compilerEndOption>-I../../../ffi/include</compilerEndOption>
             <compilerEndOption>-I${JAVA_HOME}/include</compilerEndOption>
             <compilerEndOption>-I${JAVA_HOME}/include/linux</compilerEndOption>
             <compilerEndOption>${cflags}</compilerEndOption>

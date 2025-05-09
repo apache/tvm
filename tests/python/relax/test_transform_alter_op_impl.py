@@ -375,7 +375,7 @@ def test_supported_implicit_padding():
 
         @T.prim_func(private=True)
         def remove_pad(var_input: T.handle, var_output: T.handle):
-            T.func_attr({"operator_name": "remove_pad", "tir.noalias": T.bool(True)})
+            T.func_attr({"operator_name": "remove_pad", "tir.noalias": True})
             p0 = T.int64()
             input = T.match_buffer(var_input, (p0,))
             i0 = T.int64()

@@ -93,18 +93,18 @@ struct DiscoProtocol {
 struct DiscoDebugObject : public Object {
  public:
   /*! \brief The data to be serialized */
-  TVMRetValue data;
+  ffi::Any data;
 
   /*! \brief Wrap an NDArray or reflection-capable TVM object into the debug extension. */
-  static ObjectRef Wrap(const TVMRetValue& data) {
+  static ObjectRef Wrap(const ffi::Any& data) {
     ObjectPtr<DiscoDebugObject> n = make_object<DiscoDebugObject>();
     n->data = data;
     return ObjectRef(n);
   }
 
   /*! \brief Wrap an NDArray or reflection-capable TVM object into the debug extension. */
-  static ObjectRef Wrap(const TVMArgValue& data) {
-    TVMRetValue rv;
+  static ObjectRef Wrap(const ffi::AnyView& data) {
+    ffi::Any rv;
     rv = data;
     return Wrap(std::move(rv));
   }
@@ -124,12 +124,15 @@ template <class SubClassType>
 inline uint64_t DiscoProtocol<SubClassType>::GetObjectBytes(Object* obj) {
   if (obj->IsInstance<DRefObj>()) {
     return sizeof(uint32_t) + sizeof(int64_t);
-  } else if (obj->IsInstance<StringObj>()) {
-    uint64_t size = static_cast<StringObj*>(obj)->size;
+  } else if (obj->IsInstance<ffi::StringObj>()) {
+    uint64_t size = static_cast<ffi::StringObj*>(obj)->size;
     return sizeof(uint32_t) + sizeof(uint64_t) + size * sizeof(char);
-  } else if (obj->IsInstance<ShapeTupleObj>()) {
-    uint64_t ndim = static_cast<ShapeTupleObj*>(obj)->size;
-    return sizeof(uint32_t) + sizeof(uint64_t) + ndim * sizeof(ShapeTupleObj::index_type);
+  } else if (obj->IsInstance<ffi::BytesObj>()) {
+    uint64_t size = static_cast<ffi::BytesObj*>(obj)->size;
+    return sizeof(uint32_t) + sizeof(uint64_t) + size * sizeof(char);
+  } else if (obj->IsInstance<ffi::ShapeObj>()) {
+    uint64_t ndim = static_cast<ffi::ShapeObj*>(obj)->size;
+    return sizeof(uint32_t) + sizeof(uint64_t) + ndim * sizeof(ffi::ShapeObj::index_type);
   } else if (obj->IsInstance<DiscoDebugObject>()) {
     return sizeof(uint32_t) + static_cast<DiscoDebugObject*>(obj)->GetObjectBytes();
   } else {
@@ -144,18 +147,23 @@ inline void DiscoProtocol<SubClassType>::WriteObject(Object* obj) {
     int64_t reg_id = static_cast<DRefObj*>(obj)->reg_id;
     self->template Write<uint32_t>(TypeIndex::kRuntimeDiscoDRef);
     self->template Write<int64_t>(reg_id);
-  } else if (obj->IsInstance<StringObj>()) {
-    StringObj* str = static_cast<StringObj*>(obj);
+  } else if (obj->IsInstance<ffi::StringObj>()) {
+    ffi::StringObj* str = static_cast<ffi::StringObj*>(obj);
     self->template Write<uint32_t>(TypeIndex::kRuntimeString);
     self->template Write<uint64_t>(str->size);
     self->template WriteArray<char>(str->data, str->size);
-  } else if (obj->IsInstance<ShapeTupleObj>()) {
-    ShapeTupleObj* shape = static_cast<ShapeTupleObj*>(obj);
-    self->template Write<uint32_t>(TypeIndex::kRuntimeShapeTuple);
+  } else if (obj->IsInstance<ffi::BytesObj>()) {
+    ffi::BytesObj* bytes = static_cast<ffi::BytesObj*>(obj);
+    self->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIBytes);
+    self->template Write<uint64_t>(bytes->size);
+    self->template WriteArray<char>(bytes->data, bytes->size);
+  } else if (obj->IsInstance<ffi::ShapeObj>()) {
+    ffi::ShapeObj* shape = static_cast<ffi::ShapeObj*>(obj);
+    self->template Write<uint32_t>(TypeIndex::kRuntimeShape);
     self->template Write<uint64_t>(shape->size);
-    self->template WriteArray<ShapeTupleObj::index_type>(shape->data, shape->size);
+    self->template WriteArray<ffi::ShapeObj::index_type>(shape->data, shape->size);
   } else if (obj->IsInstance<DiscoDebugObject>()) {
-    self->template Write<uint32_t>(TypeIndex::kRoot);
+    self->template Write<uint32_t>(0);
     std::string str = static_cast<DiscoDebugObject*>(obj)->SaveToStr();
     self->template Write<uint64_t>(str.size());
     self->template WriteArray<char>(str.data(), str.size());
@@ -182,36 +190,37 @@ inline void DiscoProtocol<SubClassType>::ReadObject(int* tcode, TVMValue* value)
     std::string data(size, '\0');
     self->template ReadArray<char>(data.data(), size);
     result = String(std::move(data));
-  } else if (type_index == TypeIndex::kRuntimeShapeTuple) {
-    uint64_t ndim = 0;
-    self->template Read<uint64_t>(&ndim);
-    std::vector<ShapeTupleObj::index_type> data(ndim);
-    self->template ReadArray<ShapeTupleObj::index_type>(data.data(), ndim);
-    result = ShapeTuple(std::move(data));
-  } else if (type_index == TypeIndex::kRoot) {
+  } else if (type_index == ffi::TypeIndex::kTVMFFIBytes) {
     uint64_t size = 0;
     self->template Read<uint64_t>(&size);
     std::string data(size, '\0');
     self->template ReadArray<char>(data.data(), size);
-    result = DiscoDebugObject::LoadFromStr(std::move(data))->data;
+    result = ffi::Bytes(std::move(data));
+  } else if (type_index == TypeIndex::kRuntimeShape) {
+    uint64_t ndim = 0;
+    self->template Read<uint64_t>(&ndim);
+    std::vector<ffi::ShapeObj::index_type> data(ndim);
+    self->template ReadArray<ffi::ShapeObj::index_type>(data.data(), ndim);
+    result = ffi::Shape(std::move(data));
+  } else if (type_index == 0) {
+    uint64_t size = 0;
+    self->template Read<uint64_t>(&size);
+    std::string data(size, '\0');
+    self->template ReadArray<char>(data.data(), size);
+    result = DiscoDebugObject::LoadFromStr(std::move(data))->data.cast<ObjectRef>();
   } else {
     LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
                << Object::TypeIndex2Key(type_index) << " (type_index = " << type_index << ")";
   }
-  TVMArgsSetter(value, tcode)(0, result);
+  // translate AnyView to legacy TVMValue and type_code
+  AnyView res_view = result;
+  AnyViewToLegacyTVMArgValue(res_view.CopyToTVMFFIAny(), value, tcode);
   object_arena_.push_back(result);
 }
 
 inline std::string DiscoDebugObject::SaveToStr() const {
-  if (this->data.type_code() == kTVMObjectHandle) {
-    ObjectRef obj = this->data;
-    const PackedFunc* f = runtime::Registry::Get("node.SaveJSON");
-    CHECK(f) << "ValueError: Cannot serialize object in non-debugging mode: " << obj->GetTypeKey();
-    std::string result = (*f)(obj);
-    result.push_back('0');
-    return result;
-  } else if (this->data.type_code() == kTVMNDArrayHandle) {
-    NDArray array = this->data;
+  if (auto opt_nd = this->data.as<NDArray>()) {
+    NDArray array = opt_nd.value();
     std::string result;
     {
       dmlc::MemoryStringStream mstrm(&result);
@@ -221,9 +230,17 @@ inline std::string DiscoDebugObject::SaveToStr() const {
     }
     result.push_back('1');
     return result;
+  } else if (auto opt_obj = this->data.as<ObjectRef>()) {
+    ObjectRef obj = opt_obj.value();
+    const auto f = tvm::ffi::Function::GetGlobal("node.SaveJSON");
+    CHECK(f.has_value()) << "ValueError: Cannot serialize object in non-debugging mode: "
+                         << obj->GetTypeKey();
+    std::string result = (*f)(obj).cast<std::string>();
+    result.push_back('0');
+    return result;
   }
   LOG(FATAL) << "ValueError: Cannot serialize the following type code in non-debugging mode: "
-             << this->data.type_code() << "(" << ArgTypeCode2Str(this->data.type_code());
+             << this->data.GetTypeKey();
 }
 
 inline ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::string json_str) {
@@ -232,8 +249,8 @@ inline ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::string jso
   json_str.pop_back();
   ObjectPtr<DiscoDebugObject> result = make_object<DiscoDebugObject>();
   if (control_bit == '0') {
-    const PackedFunc* f = runtime::Registry::Get("node.LoadJSON");
-    CHECK(f) << "ValueError: Cannot deserialize object in non-debugging mode";
+    const auto f = tvm::ffi::Function::GetGlobal("node.LoadJSON");
+    CHECK(f.has_value()) << "ValueError: Cannot deserialize object in non-debugging mode";
     result->data = (*f)(json_str);
   } else if (control_bit == '1') {
     dmlc::MemoryStringStream mstrm(&json_str);

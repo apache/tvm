@@ -20,7 +20,6 @@ import os
 import pathlib
 import shutil
 import sys
-import sysconfig
 
 from setuptools import find_packages
 from setuptools.dist import Distribution
@@ -60,20 +59,6 @@ def get_lib_path():
         for name in lib_path:
             if "3rdparty" in name:
                 libs.append(name)
-
-        # Add standalone_crt, if present
-        for name in lib_path:
-            candidate_path = os.path.join(os.path.dirname(name), "standalone_crt")
-            if os.path.isdir(candidate_path):
-                libs.append(candidate_path)
-                break
-
-        # Add microTVM template projects
-        for name in lib_path:
-            candidate_path = os.path.join(os.path.dirname(name), "microtvm_template_projects")
-            if os.path.isdir(candidate_path):
-                libs.append(candidate_path)
-                break
 
         # Add tvmc configuration json files
         for name in lib_path:
@@ -144,27 +129,25 @@ def _remove_path(path):
 LIB_LIST, __version__ = get_lib_path()
 __version__ = git_describe_version(__version__)
 
+if not CONDA_BUILD and not INPLACE_BUILD:
+    # Wheel cleanup
+    for path in LIB_LIST:
+        libname = os.path.basename(path)
+        _remove_path(f"tvm/{libname}")
+
 
 def config_cython():
     """Try to configure cython and return cython configuration"""
-    if FFI_MODE not in ("cython"):
-        if os.name == "nt" and not CONDA_BUILD:
-            print("WARNING: Cython is not supported on Windows, will compile without cython module")
-            return []
-        sys_cflags = sysconfig.get_config_var("CFLAGS")
-        if sys_cflags and "i386" in sys_cflags and "x86_64" in sys_cflags:
-            print("WARNING: Cython library may not be compiled correctly with both i386 and x64")
-            return []
+    # Enforce cython unless FFI_MODE is explicitly set to ctypes
+    # we might consider fully converge to cython later
+    if FFI_MODE == "ctypes":
+        return []
     try:
         from Cython.Build import cythonize
 
-        # from setuptools.extension import Extension
-        if sys.version_info >= (3, 0):
-            subdir = "_cy3"
-        else:
-            subdir = "_cy2"
+        subdir = "_cy3"
+
         ret = []
-        path = "tvm/_ffi/_cython"
         extra_compile_args = ["-std=c++17", "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>"]
         if os.name == "nt":
             library_dirs = ["tvm", "../build/Release", "../build"]
@@ -180,17 +163,17 @@ def config_cython():
             library_dirs = None
             libraries = None
 
-        for fn in os.listdir(path):
+        # the latest ffi source
+        for fn in os.listdir("tvm/ffi/cython"):
             if not fn.endswith(".pyx"):
                 continue
             ret.append(
                 Extension(
-                    "tvm._ffi.%s.%s" % (subdir, fn[:-4]),
-                    ["tvm/_ffi/_cython/%s" % fn],
+                    f"tvm.ffi.{fn[:-4]}",
+                    ["tvm/ffi/cython/%s" % fn],
                     include_dirs=[
-                        "../include/",
-                        "../3rdparty/dmlc-core/include",
-                        "../3rdparty/dlpack/include",
+                        "../ffi/include/",
+                        "../ffi/3rdparty/dlpack/include",
                     ],
                     extra_compile_args=extra_compile_args,
                     library_dirs=library_dirs,
@@ -200,10 +183,7 @@ def config_cython():
             )
         return cythonize(ret, compiler_directives={"language_level": 3})
     except ImportError as error:
-        if FFI_MODE == "cython":
-            raise error
-        print("WARNING: Cython is not installed, will compile without cython module")
-        return []
+        raise RuntimeError("Cython is not installed, please pip install cython")
 
 
 class BinaryDistribution(Distribution):
@@ -229,11 +209,6 @@ if not CONDA_BUILD and not INPLACE_BUILD:
                 fo.write(f"recursive-include tvm/{libname} *\n")
 
     setup_kwargs = {"include_package_data": True}
-
-
-def get_package_data_files():
-    # Relay standard libraries
-    return ["relay/std/prelude.rly", "relay/std/core.rly"]
 
 
 def long_description_contents():
@@ -267,7 +242,6 @@ setup(
     license="Apache",
     # See https://pypi.org/classifiers/
     classifiers=[
-        "License :: OSI Approved :: Apache Software License",
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Intended Audience :: Education",
@@ -275,12 +249,10 @@ setup(
     ],
     keywords="machine learning",
     zip_safe=False,
-    entry_points={"console_scripts": ["tvmc = tvm.driver.tvmc.main:main"]},
     install_requires=requirements["core"][1],
     extras_require=extras_require,
     packages=find_packages(),
     package_dir={"tvm": "tvm"},
-    package_data={"tvm": get_package_data_files()},
     distclass=BinaryDistribution,
     ext_modules=config_cython(),
     **setup_kwargs,
@@ -291,5 +263,5 @@ if not CONDA_BUILD and not INPLACE_BUILD:
     # Wheel cleanup
     os.remove("MANIFEST.in")
     for path in LIB_LIST:
-        _, libname = os.path.split(path)
+        libname = os.path.basename(path)
         _remove_path(f"tvm/{libname}")

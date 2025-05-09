@@ -40,12 +40,12 @@ TVM_REGISTER_NODE_TYPE(MemoryInfoNode);
 
 MemoryInfo GetMemoryInfo(const std::string& scope) {
   std::string fname = "tvm.info.mem." + scope;
-  const runtime::PackedFunc* f = runtime::Registry::Get(fname);
-  if (f == nullptr) {
+  const auto f = tvm::ffi::Function::GetGlobal(fname);
+  if (!f.has_value()) {
     LOG(WARNING) << "MemoryInfo for scope = " << scope << " is undefined";
     return MemoryInfo();
   } else {
-    return (*f)();
+    return (*f)().cast<MemoryInfo>();
   }
 }
 

@@ -75,8 +75,6 @@ class TensorNode : public DataProducerNode {
   Operation op;
   /*! \brief the output index from source operation */
   int value_index{0};
-  /*! \brief constructor */
-  TensorNode() {}
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("shape", &shape);
@@ -89,9 +87,11 @@ class TensorNode : public DataProducerNode {
 
   DataType GetDataType() const final { return dtype; }
 
+  TVM_DLL PrimExpr ToPrimExpr() const final;
+
   TVM_DLL String GetNameHint() const final;
 
-  static constexpr const char* _type_key = "Tensor";
+  static constexpr const char* _type_key = "te.Tensor";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, DataProducerNode);
 };
 

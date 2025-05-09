@@ -658,9 +658,10 @@ def BindParams(
     for k, v in params.items():
         if isinstance(v, np.ndarray):
             v = tvm.nd.array(v)
-        assert isinstance(
-            v, tvm.runtime.NDArray
-        ), f"param values are expected to be TVM.NDArray or numpy.ndarray, but got {type(v)}"
+        assert isinstance(v, (tvm.runtime.NDArray, tvm.relax.Constant)), (
+            f"param values are expected to be TVM.NDArray,"
+            f"numpy.ndarray or tvm.relax.Constant, but got {type(v)}"
+        )
         tvm_params[k] = v
 
     return _ffi_api.BindParams(func_name, tvm_params)  # type: ignore
@@ -1611,8 +1612,6 @@ def _wrap_class_function_pass(pass_cls, pass_info):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
-            # initialize handle in case pass_cls creation failed.
-            self.handle = None
             inst = pass_cls(*args, **kwargs)
 
             # it is important not to capture self to
@@ -1759,8 +1758,6 @@ def _wrap_class_dataflowblock_pass(pass_cls, pass_info):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
-            # initialize handle in case pass_cls creation failed.
-            self.handle = None
             inst = pass_cls(*args, **kwargs)
 
             # it is important not to capture self to

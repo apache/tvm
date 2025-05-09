@@ -23,7 +23,6 @@
 #ifndef TVM_RUNTIME_RELAX_VM_EXECUTABLE_H_
 #define TVM_RUNTIME_RELAX_VM_EXECUTABLE_H_
 
-#include <tvm/runtime/container/closure.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
@@ -81,12 +80,12 @@ struct VMFuncInfo {
 };
 
 /*!
- * \brief The executable emitted by the VM compiler.
+ * \brief The virtual machine executable emitted by the VM compiler.
  *
  * The executable contains information (e.g. data in different memory regions)
  * to run in a virtual machine.
  */
-class Executable : public runtime::ModuleNode {
+class VMExecutable : public runtime::ModuleNode {
  public:
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
@@ -121,18 +120,18 @@ class Executable : public runtime::ModuleNode {
    */
   String AsPython() const;
   /*!
-   * \brief Write the Executable to the binary stream in serialized form.
+   * \brief Write the VMExecutable to the binary stream in serialized form.
    * \param stream The binary stream to save the executable to.
    */
   void SaveToBinary(dmlc::Stream* stream) final;
   /*!
-   * \brief Load Executable from the binary stream in serialized form.
+   * \brief Load VMExecutable from the binary stream in serialized form.
    * \param stream The binary stream that load the executable from.
    * \return The loaded executable, in the form of a `runtime::Module`.
    */
   static Module LoadFromBinary(void* stream);
   /*!
-   * \brief Write the Executable to the provided path as a file containing its serialized content.
+   * \brief Write the VMExecutable to the provided path as a file containing its serialized content.
    * \param file_name The name of the file to write the serialized data to.
    * \param format The target format of the saved file.
    */
@@ -141,10 +140,10 @@ class Executable : public runtime::ModuleNode {
   Module VMLoadExecutable() const;
   /*! \brief Create a Relax virtual machine with profiler and load `this` as the executable. */
   Module VMProfilerLoadExecutable() const;
-  /*! \brief Check if the Executable contains a specific function. */
+  /*! \brief Check if the VMExecutable contains a specific function. */
   bool HasFunction(const String& name) const;
   /*!
-   * \brief Load Executable from the file.
+   * \brief Load VMExecutable from the file.
    * \param file_name The path of the file that load the executable from.
    * \return The loaded executable, in the form of a `runtime::Module`.
    */
@@ -155,21 +154,21 @@ class Executable : public runtime::ModuleNode {
   /*! \brief A map from globals (as strings) to their index in the function map. */
   std::unordered_map<std::string, Index> func_map;
   /*! \brief The global constant pool. */
-  std::vector<TVMRetValue> constants;
+  std::vector<ffi::Any> constants;
   /*! \brief The offset of instruction. */
   std::vector<Index> instr_offset;
   /*! \brief The byte data of instruction. */
   std::vector<ExecWord> instr_data;
 
-  virtual ~Executable() {}
+  virtual ~VMExecutable() {}
 
-  TVM_MODULE_VTABLE_BEGIN("relax.Executable");
-  TVM_MODULE_VTABLE_ENTRY("stats", &Executable::Stats);
-  TVM_MODULE_VTABLE_ENTRY("as_text", &Executable::AsText);
-  TVM_MODULE_VTABLE_ENTRY("as_python", &Executable::AsPython);
-  TVM_MODULE_VTABLE_ENTRY("vm_load_executable", &Executable::VMLoadExecutable);
-  TVM_MODULE_VTABLE_ENTRY("vm_profiler_load_executable", &Executable::VMProfilerLoadExecutable);
-  TVM_MODULE_VTABLE_ENTRY("has_function", &Executable::HasFunction);
+  TVM_MODULE_VTABLE_BEGIN("relax.VMExecutable");
+  TVM_MODULE_VTABLE_ENTRY("stats", &VMExecutable::Stats);
+  TVM_MODULE_VTABLE_ENTRY("as_text", &VMExecutable::AsText);
+  TVM_MODULE_VTABLE_ENTRY("as_python", &VMExecutable::AsPython);
+  TVM_MODULE_VTABLE_ENTRY("vm_load_executable", &VMExecutable::VMLoadExecutable);
+  TVM_MODULE_VTABLE_ENTRY("vm_profiler_load_executable", &VMExecutable::VMProfilerLoadExecutable);
+  TVM_MODULE_VTABLE_ENTRY("has_function", &VMExecutable::HasFunction);
   TVM_MODULE_VTABLE_END();
 
  private:

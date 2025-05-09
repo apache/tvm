@@ -194,7 +194,7 @@ TVM_REGISTER_OP("relax.grad.avg_pool2d_backward")
 /* relax.grad.take_backward */
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
-Expr take_backward(Expr output_grad, Expr x, Expr indices, Optional<Integer> axis) {
+Expr take_backward(Expr output_grad, Expr x, Expr indices, Optional<int64_t> axis) {
   ObjectPtr<TakeAttrs> attrs = make_object<TakeAttrs>();
   attrs->axis = std::move(axis);
 

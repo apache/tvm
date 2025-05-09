@@ -200,10 +200,8 @@ TVM_REGISTER_GLOBAL("tir.StmtSRefRootMark")  //
     .set_body_typed(StmtSRef::RootMark);
 TVM_REGISTER_GLOBAL("tir.StmtSRefInlineMark")  //
     .set_body_typed(StmtSRef::InlineMark);
-TVM_REGISTER_GLOBAL("tir.BlockScopeGetDepsBySrc")
-    .set_body_method<BlockScope>(&BlockScopeNode::GetDepsBySrc);
-TVM_REGISTER_GLOBAL("tir.BlockScopeGetDepsByDst")
-    .set_body_method<BlockScope>(&BlockScopeNode::GetDepsByDst);
+TVM_REGISTER_GLOBAL("tir.BlockScopeGetDepsBySrc").set_body_method(&BlockScopeNode::GetDepsBySrc);
+TVM_REGISTER_GLOBAL("tir.BlockScopeGetDepsByDst").set_body_method(&BlockScopeNode::GetDepsByDst);
 
 }  // namespace tir
 }  // namespace tvm

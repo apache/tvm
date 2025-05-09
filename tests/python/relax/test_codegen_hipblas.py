@@ -21,7 +21,7 @@ import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import relax
-from tvm.relax.backend.contrib.hipblas import partition_for_hipblas
+from tvm.relax.backend.rocm.hipblas import partition_for_hipblas
 from tvm.relax.testing import get_relax_matmul_module
 from tvm.script import relax as R
 
@@ -42,7 +42,7 @@ pytestmark = tvm.testing.requires_hipblas.marks()
 def build_and_run(mod, inputs_np, target, legalize=False):
     dev = tvm.device(target, 0)
     with tvm.transform.PassContext(config={"relax.transform.apply_legalize_ops": legalize}):
-        ex = relax.build(mod, target)
+        ex = tvm.compile(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
     inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]

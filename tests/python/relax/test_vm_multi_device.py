@@ -22,7 +22,7 @@ from tvm import relax
 import tvm.testing
 from tvm.ir.module import IRModule
 from tvm.script.parser import ir as I, relax as R
-from tvm._ffi.runtime_ctypes import Device
+from tvm.runtime import Device
 import numpy as np
 
 
@@ -37,7 +37,7 @@ def compile(
     mod = relax.transform.LegalizeOps()(mod)
     mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
     # no need to feed target argument for mult-target compilation
-    ex = relax.build(mod)
+    ex = tvm.compile(mod)
 
     return relax.VirtualMachine(ex, device)
 

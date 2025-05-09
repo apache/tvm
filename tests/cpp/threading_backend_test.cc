@@ -17,9 +17,9 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/c_backend_api.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/threading_backend.h>
 
 #include <atomic>
@@ -63,7 +63,6 @@ class AffinityCheck {
         str << i << ",";
       }
     }
-    LOG(INFO) << "id:" << id_ << " taskid:" << task_id << " affinity:" << str.str() << std::endl;
 #endif
   }
 
@@ -169,7 +168,6 @@ TEST(ThreadingBackend, TVMBackendAffinityConfigure) {
             std::atomic<size_t> acc(0);
             AffinityCheck ac(thread_pool_index, sys_max_concurrency, &acc);
             std::vector<unsigned int> cpus;
-            LOG(INFO) << affinity_mode << std::endl;
             for (int k = 0; k < cpus_num_per_thread; k++) {
               cpus.push_back(thread_pool_index * cpus_num_per_thread + k);
             }

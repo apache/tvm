@@ -685,7 +685,7 @@ bool FromIdentityCombiner(const Array<PrimExpr>& identities, const Array<BufferS
   }
 
   // Check reduction patterns.
-  for (const TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)>& reducer_getter :
+  for (const ffi::TypedFunction<Optional<CommReducer>(Array<PrimExpr>)>& reducer_getter :
        GetReducerGetters()) {
     Optional<CommReducer> reducer = reducer_getter(identities);
     if (!reducer.defined()) {

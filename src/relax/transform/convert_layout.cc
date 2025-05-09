@@ -21,10 +21,12 @@
  * \brief Automatic layout conversion pass, especially for axis swapping.
  */
 
+#include <tvm/node/serialization.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tir/index_map.h>
 
 #include "../op/tensor/manipulate.h"
 #include "infer_layout_utils.h"
@@ -33,6 +35,7 @@
 namespace tvm {
 namespace relax {
 
+using tir::IndexMap;
 using tir::Layout;
 
 /*!
@@ -87,6 +90,22 @@ class LayoutConvertMutator : public ExprMutator {
     return ret;
   }
 
+  IndexMap LayoutIndexMap(int ndim, const Layout& src_layout, const Layout& desired_layout) {
+    tir::BijectiveLayout todesired(src_layout, desired_layout);
+    Optional<IndexMap> inverse_index_map;
+
+    Array<tvm::tir::Var> initial_indices;
+    Array<PrimExpr> initial_indices_expr;
+    initial_indices.reserve(ndim);
+    for (int i = 0; i < ndim; ++i) {
+      auto var = tvm::tir::Var("i" + std::to_string(i), DataType::Int(32));
+      initial_indices.push_back(var);
+      initial_indices_expr.push_back(var);
+    }
+    Array<PrimExpr> desired_shape = todesired.ForwardIndex(initial_indices_expr);
+    return IndexMap(initial_indices, desired_shape, std::move(inverse_index_map));
+  }
+
   Expr RewriteExpr(const Expr& expr, const NLayout& to) {
     auto fvisitleaf = [&](const Expr& expr, std::array<NLayout, 2> layouts) -> Expr {
       NLayout from = layouts[0], to = layouts[1];
@@ -97,9 +116,24 @@ class LayoutConvertMutator : public ExprMutator {
           << "Cannot convert when exactly one of the layouts is unknown";
       const auto* tensor = GetStructInfoAs<TensorStructInfoNode>(expr);
       ICHECK(tensor != nullptr) << "Expect a tensor, but got: " << expr;
-      Layout axes = TransposeLike(InitialLayoutDecision(tensor->ndim)->layout,
-                                  from.LeafValue()->layout, to.LeafValue()->layout);
-      return permute_dims(expr, LayoutToIntegers(axes));
+
+      if (from.LeafValue()->layout.ndim() == to.LeafValue()->layout.ndim()) {
+        Layout axes = TransposeLike(InitialLayoutDecision(tensor->ndim)->layout,
+                                    from.LeafValue()->layout, to.LeafValue()->layout);
+        return permute_dims(expr, LayoutToIntegers(axes));
+      } else {
+        auto index_map = LayoutIndexMap(from.LeafValue()->layout.ndim(), from.LeafValue()->layout,
+                                        to.LeafValue()->layout);
+        ObjectPtr<LayoutTransformAttrs> attrs = make_object<LayoutTransformAttrs>();
+        Array<IntImm> axis_separator;
+        Array<IntImm> input_axis_separator;
+        attrs->index_map = std::move(Downcast<IndexMap>(LoadJSON(SaveJSON(index_map))));
+        attrs->axis_separators = std::move(axis_separator);
+        attrs->input_axis_separators = std::move(input_axis_separator);
+        const Op& layout_transform_op_ = Op::Get("relax.layout_transform");
+        auto ret_expr = Call(layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
+        return ret_expr;
+      }
     };
     return TransformTupleLeaf<LayoutDecision>(
         VarReplacer::Replace(expr, var_remap_),
@@ -166,7 +200,7 @@ class LayoutConvertMutator : public ExprMutator {
                                                  const Map<String, Array<String>>& desired_layouts,
                                                  const VarLayoutMap& var_layout_map) {
     const OpNode* op_node = call_node->op.as<OpNode>();
-    if (op_node == nullptr) return NullOpt;
+    if (op_node == nullptr) return std::nullopt;
     Op op = Downcast<Op>(GetRef<Op>(op_node));
     const auto attr_map = Op::GetAttrMap<FRelaxInferLayout>("FRelaxInferLayout");
     if (attr_map.count(op) && !HasUnknownDimTensor(call_node->args)) {
@@ -175,7 +209,7 @@ class LayoutConvertMutator : public ExprMutator {
       return f(GetRef<Call>(call_node), desired_layouts, var_layout_map);
     } else {
       // Otherwise, we use the default policy.
-      return NullOpt;
+      return std::nullopt;
     }
   }
 
@@ -183,7 +217,7 @@ class LayoutConvertMutator : public ExprMutator {
     Optional<InferLayoutOutput> res =
         GetInferLayoutInfo(call_node, desired_layouts_, var_layout_map_);
     ObjectPtr<CallNode> new_call = make_object<CallNode>(*call_node);
-    new_call->struct_info_ = NullOpt;
+    new_call->struct_info_ = std::nullopt;
     if (!res.defined() ||
         (!IsNestedTensor(binding->var) && !binding->var->IsInstance<DataflowVarNode>())) {
       // Default policy: use the initial layout.
@@ -309,7 +343,7 @@ DataflowBlock ConvertLayoutPass(const DataflowBlock& df_block,
 namespace transform {
 
 Pass ConvertLayout(Map<String, Array<String>> desired_layouts) {
-  runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func =
+  ffi::TypedFunction<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func =
       [=](DataflowBlock df_block, IRModule m, PassContext pc) {
         return Downcast<DataflowBlock>(ConvertLayoutPass(df_block, desired_layouts));
       };

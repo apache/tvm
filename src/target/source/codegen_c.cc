@@ -240,7 +240,7 @@ std::string CodeGenC::GetBufferRef(DataType t, const BufferNode* buffer, PrimExp
   }
 
   std::string index_str = PrintExpr(index);
-  if (t.bits() == 4 || (t.bits() == 1 && t.is_int())) {
+  if ((t.bits() == 4 && !t.is_float4()) || (t.bits() == 1 && t.is_int())) {
     // This is a special case, because CodegenCUDA::PrintType()
     // returns "int" for bool and for 4-bit integers. In most cases,
     // we divide by the number of lanes to determine the index.
@@ -314,6 +314,28 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
         LOG(FATAL) << "unknown field code";
     }
     os << ')';
+    return os.str();
+  } else if (kind == builtin::kTVMFFIAnyTypeIndex) {
+    std::ostringstream os;
+    os << "(((TVMFFIAny*)";
+    this->PrintExpr(buffer, os);
+    os << ")[" << index << "].type_index)";
+    return os.str();
+  } else if (kind == builtin::kTVMFFIAnyUnionValue) {
+    std::ostringstream os;
+    os << "(((TVMFFIAny*)";
+    this->PrintExpr(buffer, os);
+    os << ")[" << index << "].";
+    if (t.is_handle()) {
+      os << "v_ptr";
+    } else if (t.is_float()) {
+      os << "v_float64";
+    } else if (t.is_int()) {
+      os << "v_int64";
+    } else {
+      LOG(FATAL) << "Do not know how to handle type" << t;
+    }
+    os << ")";
     return os.str();
   } else {
     ICHECK_LT(kind, builtin::kTVMValueKindBound_);
@@ -579,15 +601,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (auto opt_call_op = op->op.as<Op>()) {
     auto call_op = opt_call_op.value();
 
-    if (op->op.same_as(builtin::tvm_check_return())) {
-      const CallNode* call = op->args[2].as<CallNode>();
-      os << "if (";
-      VisitExpr_(call, os);
-      os << " != ";
-      PrintExpr(op->args[0], os);
-      os << " ) return ";
-      PrintExpr(op->args[1], os);
-    } else if (op->op.same_as(builtin::ret())) {
+    if (op->op.same_as(builtin::ret())) {
       os << "return ";
       PrintExpr(op->args[0], os);
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
@@ -671,6 +685,13 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << " == NULL)";
+    } else if (op->op.same_as(builtin::handle_add_byte_offset())) {
+      ICHECK_EQ(op->args.size(), 2U);
+      os << "((void*)((char*)";
+      this->PrintExpr(op->args[0], os);
+      os << " + ";
+      this->PrintExpr(op->args[1], os);
+      os << "))";
     } else if (op->op.same_as(builtin::reinterpret())) {
       auto target_dtype = op->dtype;
       auto source_dtype = op->args[0]->dtype;
@@ -789,6 +810,11 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
       }
     }
 
+    if (value_dtype.is_float4_e2m1fn() && lanes != 1) {
+      // A float4_e2m1fn element has 4 bits, which is an incomplete byte.
+      // So we cannot vector load it.
+      can_vector_load = false;
+    }
     if (can_vector_load) {
       std::string ref = GetVecLoad(op->dtype, op->buffer.get(), base.Eval());
       HandleVolatileLoads(ref, op, os);
@@ -839,7 +865,8 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
   } else {
     arith::PVar<PrimExpr> base;
 
-    if (arith::ramp(base, 1, value_dtype.lanes()).Match(index_expr)) {
+    if (arith::ramp(base, 1, value_dtype.lanes()).Match(index_expr) &&
+        !value_dtype.is_float4_e2m1fn()) {
       std::string value = this->PrintExpr(op->value);
       this->PrintVecStore(op->buffer.get(), value_dtype, base.Eval(), value);
     } else {
@@ -937,22 +964,43 @@ void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(
   // NOTE: important to print expr first
   // in case each expr have their own nested expressions
   // print each elements
-  for (const PrimExpr& vec : op->vectors) {
-    std::string vec_value = this->PrintExpr(vec);
-    if (vec.dtype().lanes() == 1) {
+  if (op->vectors.size() > 1) {
+    for (const PrimExpr& vec : op->vectors) {
+      std::string vec_value = this->PrintExpr(vec);
+      if (vec.dtype().lanes() == 1) {
+        concat_vec.push_back(vec_value);
+      } else {
+        // print out each element
+        for (int i = 0; i < vec.dtype().lanes(); ++i) {
+          // access i-th element of each vector
+          std::ostringstream vec_elem_strm;
+          vec_elem_strm << vec_value << "[" << i << "]";
+          concat_vec.push_back(vec_elem_strm.str());
+        }
+      }
+    }
+  } else {
+    // Extract elements from a single vector-type value.
+    std::string vec_value = "(" + this->PrintExpr(op->vectors[0]) + ")";
+    if (op->vectors[0].dtype().lanes() == 1) {
       concat_vec.push_back(vec_value);
     } else {
       // print out each element
-      for (int i = 0; i < vec.dtype().lanes(); ++i) {
+      for (int i = 0; i < op->vectors[0].dtype().lanes(); ++i) {
         // access i-th element of each vector
         std::ostringstream vec_elem_strm;
-        vec_elem_strm << vec_value << "[" << i << "]";
+        PrintVecElemLoad(vec_value, op->vectors[0].dtype(), i, vec_elem_strm);
         concat_vec.push_back(vec_elem_strm.str());
       }
     }
   }
   if (op->indices.size() == 1) {
     // This is an extract element
+    CHECK(op->indices[0]->IsInstance<IntImmNode>())
+        << "The ShuffleNode indices are expected to be constants at codegen time. However, "
+        << "a non-constant index is " << op->indices[0]
+        << ". Please avoid using ShuffleNode or eliminate the ShuffleNode with loop unroll or "
+        << "vectorize.";
     int64_t idx = Downcast<IntImm>(op->indices[0])->value;
     ICHECK_LT(idx, concat_vec.size());
     os << concat_vec[idx];
@@ -963,6 +1011,11 @@ void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(
     os << '(';
     for (size_t i = 0; i < op->indices.size(); ++i) {
       if (i != 0) os << ", ";
+      CHECK(op->indices[i]->IsInstance<IntImmNode>())
+          << "The ShuffleNode indices are expected to be constants at codegen time. However, "
+          << "a non-constant index is " << op->indices[i]
+          << ". Please avoid using ShuffleNode or eliminate the ShuffleNode with loop unroll or "
+          << "vectorize.";
       os << concat_vec[Downcast<IntImm>(op->indices[i])->value];
     }
     os << ')';
@@ -1121,9 +1174,20 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
     } else if (call->op.same_as(builtin::tvm_struct_set())) {
       ICHECK_EQ(call->args.size(), 4);
       int kind = call->args[2].as<IntImmNode>()->value;
-      std::string ref = GetStructRef(call->args[3].dtype(), call->args[0], call->args[1], kind);
+      DataType store_dtype = call->args[3].dtype();
+      std::string ref = GetStructRef(store_dtype, call->args[0], call->args[1], kind);
       std::string value = PrintExpr(call->args[3]);
       std::string cast;
+
+      if (kind == builtin::kTVMFFIAnyUnionValue &&
+          (store_dtype.bits() < 64 || store_dtype.is_handle())) {
+        this->PrintIndent();
+        // when we set any union value, we need to be careful to
+        // clear off the union value to zero if the set size is less than 64 bits
+        this->stream << GetStructRef(DataType::Int(64), call->args[0], call->args[1], kind)
+                     << " = 0;\n";
+      }
+
       if (kind == builtin::kArrStrides) {
         // cast void* to int64_t*
         cast = call->args[3]->dtype.is_handle() ? "(int64_t*)" : "";

@@ -27,10 +27,8 @@ cmake ^
       -DUSE_LLVM=ON ^
       -DUSE_RPC=ON ^
       -DUSE_CPP_RPC=ON ^
-      -DUSE_MICRO=ON ^
       -DUSE_SORT=ON ^
       -DUSE_RANDOM=ON ^
-      -DUSE_PROFILER=ON ^
       -DINSTALL_DEV=ON ^
       %SRC_DIR% || exit /b
 

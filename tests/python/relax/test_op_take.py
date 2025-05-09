@@ -40,7 +40,7 @@ def test_take_scalar_tensor_as_index(target, dev, axis):
             output = R.take(A, R.const(1), axis=axis)
             return output
 
-    built = tvm.relax.build(Module, target=target)
+    built = tvm.compile(Module, target=target)
     vm = tvm.relax.VirtualMachine(built, dev)
 
     np_input = np.random.random(size=[16, 16]).astype("float16")
@@ -66,7 +66,7 @@ def test_take_1d_tensor_as_index(target, dev, axis):
             output = R.take(A, R.const([1]), axis=axis)
             return output
 
-    built = tvm.relax.build(Module, target=target)
+    built = tvm.compile(Module, target=target)
     vm = tvm.relax.VirtualMachine(built, dev)
 
     np_input = np.random.random(size=[16, 16]).astype("float16")
@@ -88,7 +88,7 @@ def test_take_2d_tensor_as_index(target, dev, axis):
             output = R.take(A, R.const([[1, 3], [5, 7]]), axis=axis)
             return output
 
-    built = tvm.relax.build(Module, target=target)
+    built = tvm.compile(Module, target=target)
     vm = tvm.relax.VirtualMachine(built, dev)
 
     np_input = np.random.random(size=[16, 16]).astype("float16")
@@ -115,7 +115,7 @@ def test_take_constant_prim_value_as_index(target, dev, axis):
             output = R.take(A, R.prim_value(1), axis=axis)
             return output
 
-    built = tvm.relax.build(Module, target=target)
+    built = tvm.compile(Module, target=target)
     vm = tvm.relax.VirtualMachine(built, dev)
 
     np_input = np.random.random(size=[16, 16]).astype("float16")
@@ -143,7 +143,7 @@ def test_take_dynamic_prim_value_as_index(target, dev, axis):
             output = R.take(A, R.prim_value(n - 1), axis=axis)
             return output
 
-    built = tvm.relax.build(Module, target=target)
+    built = tvm.compile(Module, target=target)
     vm = tvm.relax.VirtualMachine(built, dev)
 
     np_input = np.random.random(size=[16, 16]).astype("float16")

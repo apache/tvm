@@ -76,13 +76,6 @@ Map<Mutator, FloatImm> Mutator::DefaultHexagon() {
       {Mutator::MutateParallel(/*max_jobs_per_core=*/16), FloatImm(DataType::Float(64), 0.02)}};
 }
 
-Map<Mutator, FloatImm> Mutator::DefaultMicro() {
-  return Map<Mutator, FloatImm>{
-      {Mutator::MutateTileSize(), FloatImm(DataType::Float(64), 0.9)},
-      {Mutator::MutateComputeLocation(), FloatImm(DataType::Float(64), 0.05)},
-      {Mutator::MutateUnroll(), FloatImm(DataType::Float(64), 0.03)}};
-}
-
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PyMutatorNode>([](const ObjectRef& n, ReprPrinter* p) {
       const auto* self = n.as<PyMutatorNode>();
@@ -96,20 +89,19 @@ TVM_REGISTER_OBJECT_TYPE(MutatorNode);
 TVM_REGISTER_NODE_TYPE(PyMutatorNode);
 
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorInitializeWithTuneContext")
-    .set_body_method<Mutator>(&MutatorNode::InitializeWithTuneContext);
+    .set_body_method(&MutatorNode::InitializeWithTuneContext);
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorApply")
     .set_body_typed([](Mutator self, tir::Trace trace, TRandState seed) -> Optional<tir::Trace> {
       TRandState seed_ = (seed != -1) ? seed : support::LinearCongruentialEngine::DeviceRandom();
       return self->Apply(trace, &seed_);
     });
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorClone").set_body_method<Mutator>(&MutatorNode::Clone);
+TVM_REGISTER_GLOBAL("meta_schedule.MutatorClone").set_body_method(&MutatorNode::Clone);
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorPyMutator").set_body_typed(Mutator::PyMutator);
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultLLVM").set_body_typed(Mutator::DefaultLLVM);
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultCUDA").set_body_typed(Mutator::DefaultCUDA);
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultCUDATensorCore")
     .set_body_typed(Mutator::DefaultCUDATensorCore);
 TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultHexagon").set_body_typed(Mutator::DefaultHexagon);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultMicro").set_body_typed(Mutator::DefaultMicro);
 
 }  // namespace meta_schedule
 }  // namespace tvm

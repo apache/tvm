@@ -26,30 +26,22 @@
 #define TVM_SUPPORT_SCALARS_H_
 
 #include <string>
-#include <utility>
 
 #include "tvm/ir/expr.h"
-#include "tvm/relay/expr.h"
 #include "tvm/runtime/ndarray.h"
 
 namespace tvm {
 namespace support {
-
-/*! \brief Returns true if a tensor of empty shape and given dtype is considered a Relay scalar. */
-bool IsSimpleScalarDtype(DataType dtype);
-
-/*! \brief Returns true if \p constant_node is a float/int/bool scalar. */
-bool IsSimpleScalar(const relay::ConstantNode* constant_node);
 
 /*! \brief Returns NDArray 'scalar' for given TIR immediate. */
 runtime::NDArray IntImmToNDArray(const IntImm& int_imm);
 runtime::NDArray FloatImmToNDArray(const FloatImm& float_imm);
 runtime::NDArray BoolToNDArray(bool value);
 
-/*! \brief Returns Relay literal text for NDArray 'scalar'. */
+/*! \brief Returns literal text for NDArray 'scalar'. */
 std::string NDArrayScalarToString(const runtime::NDArray& data);
 
-/*! \brief Returns Relay literal text for given TIR immediate. */
+/*! \brief Returns literal text for given TIR immediate. */
 std::string IntImmToString(const IntImm& int_imm);
 std::string FloatImmToString(const FloatImm& float_imm);
 
@@ -71,11 +63,14 @@ constexpr double kMaxBFloat16 = 3.895313892515354759047080037148786688e38;
 
 // 2^8 * (1 + 6/8)
 // See https://arxiv.org/pdf/2209.05433.pdf
-constexpr double kMaxE4M3 = 448;
+constexpr double kMaxE4M3FN = 448;
 
 // 2^15 * (1 + 3/4)
 // See https://arxiv.org/pdf/2209.05433.pdf
 constexpr double kMaxE5M2 = 57344;
+
+// 2^2 * (1 + 1/2)
+constexpr double kMaxE2M1FN = 6.0;
 
 }  // namespace support
 }  // namespace tvm

@@ -27,6 +27,35 @@ namespace relax {
 using tir::IterVar;
 using tir::Layout;
 
+std::string TransposeSubLayoutStrLike(const std::string ref_str, const std::string& src_str,
+                                      const std::string& desired_str) {
+  std::string out;
+  for (const char& c : desired_str) {
+    if (std::isupper(c)) {
+      auto res = src_str.find(c, 0);
+      ICHECK(res != std::string::npos) << "Invalid Layout:"
+                                       << "can't find " << c << " in source layout" << src_str;
+      out.push_back(ref_str[res]);
+    } else if (isdigit(c)) {
+      out.push_back(c);
+    } else if (std::islower(c)) {
+      auto res = src_str.find(std::toupper(c), 0);
+      ICHECK(res != std::string::npos) << "Invalid Layout:"
+                                       << "can't find " << c << " in source layout" << src_str;
+      out.push_back(std::tolower(ref_str[res]));
+    }
+  }
+  return out;
+}
+
+Layout TransposeSubLayoutLike(const Layout& ref, const Layout& src, const Layout& desired) {
+  std::string ref_str = ref.name();
+  std::string src_str = src.name();
+  std::string desired_str = desired.name();
+  std::string out = TransposeSubLayoutStrLike(ref_str, src_str, desired_str);
+  return Layout(out);
+}
+
 Layout TransposeLike(const Layout& input, const Layout& src, const Layout& dst) {
   ICHECK(src.ndim() == dst.ndim() && input.ndim() == src.ndim())
       << "Layouts must have the same size";
@@ -49,7 +78,11 @@ String TransposeStrLike(const String& input, const Layout& src, const Layout& ds
 
 int FindAxis(const Layout& dst, int axis) {
   axis = (axis + dst.ndim()) % dst.ndim();
-  return dst.name().find('A' + axis);
+  std::string layout_name = dst.name();
+  layout_name.erase(std::remove_if(layout_name.begin(), layout_name.end(),
+                                   [](unsigned char c) { return std::isdigit(c); }),
+                    layout_name.end());
+  return layout_name.find('A' + axis);
 }
 
 Layout InitialLayout(int ndim) {

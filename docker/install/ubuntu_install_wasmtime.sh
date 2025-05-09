@@ -23,7 +23,7 @@ apt-install-and-clear -y --no-install-recommends libc6-dev-i386
 export WASMTIME_HOME=/opt/wasmtime
 curl https://wasmtime.dev/install.sh -sSf | bash
 export PATH="${WASMTIME_HOME}/bin:${PATH}"
-rustup target add wasm32-wasi
+rustup target add wasm32-wasip1
 
 # make rust usable by all users after install during container build
 chmod -R a+rw /opt/rust

@@ -23,10 +23,10 @@ import tvm.topi.testing
 from tvm import relax
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.contrib.pickle_memoize import memoize
-from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
+from tvm.relax.backend.cuda.cutlass import partition_for_cutlass
 from tvm.relax.testing import (
-    get_relax_matmul_module,
     get_relax_attention_module,
+    get_relax_matmul_module,
     get_relax_stacked_attention_module,
 )
 from tvm.script import ir as I
@@ -89,7 +89,7 @@ def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
             "relax.transform.apply_legalize_ops": legalize,
         }
     ):
-        ex = relax.build(mod, target)
+        ex = tvm.compile(mod, target)
 
     dev = tvm.device(target, 0)
     vm = relax.VirtualMachine(ex, dev)
@@ -538,7 +538,7 @@ def test_cutlass_partition_matmul_tuple_return_blocked():
                 # tuple output, which isn't possible in cutlass, e.g.
                 # @R.function
                 # def fused_relax_permute_dims_relax_matmul(...):
-                #     R.func_attr({"Composite": "cutlass.matmul_transposed", "Primitive": 1})
+                #     R.func_attr({"Composite": "cutlass.matmul_transposed", "Primitive": True})
                 #     with R.dataflow():
                 #         gv: R.Tensor((4, 4), dtype="float32") = R.permute_dims(y, axes=None)
                 #         gv1: R.Tensor((4, 4), dtype="float32") = R.matmul(x, gv, out_dtype="void")
@@ -1262,7 +1262,7 @@ def test_fp16A_int4B_gemm():
             B: T.Buffer((T.int64(128),), "float16"),
             decode_1: T.Buffer((T.int64(64), T.int64(128)), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i, j in T.grid(T.int64(64), T.int64(128)):
                 with T.block("decode"):
@@ -1295,7 +1295,7 @@ def test_fp16A_int4B_gemm():
             w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             compute: T.Buffer((T.int64(128),), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             max_abs_value = T.alloc_buffer((T.int64(128),), "float16")
             scale = T.alloc_buffer((T.int64(128),))
@@ -1477,7 +1477,7 @@ def test_fp16A_int4B_gemm():
 
     mod_transform, mod_deploy, transform_func_name = split_transform_deploy_mod(mod)
 
-    ex = relax.build(mod_transform, target="llvm")
+    ex = tvm.compile(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
     packed_weight, scales, bias_trans = vm[transform_func_name](
@@ -1485,7 +1485,7 @@ def test_fp16A_int4B_gemm():
     )
 
     dev = tvm.device("cuda", 0)
-    ex = relax.build(mod_deploy, target="cuda")
+    ex = tvm.compile(mod_deploy, target="cuda")
     vm = relax.vm.VirtualMachine(ex, dev)
 
     x_nd = tvm.nd.array(x, dev)
@@ -1519,7 +1519,7 @@ def test_fp16A_int8B_gemm():
             B: T.Buffer((T.int64(64),), "float16"),
             decode_1: T.Buffer((T.int64(64), T.int64(64)), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i, j in T.grid(T.int64(64), T.int64(64)):
                 with T.block("decode"):
@@ -1534,7 +1534,7 @@ def test_fp16A_int8B_gemm():
             w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             compute: T.Buffer((T.int64(64),), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             max_abs_value = T.alloc_buffer((T.int64(64),), "float16")
             scale = T.alloc_buffer((T.int64(64),))
@@ -1630,7 +1630,7 @@ def test_fp16A_int8B_gemm():
 
     mod_transform, mod_deploy, transform_func_name = split_transform_deploy_mod(mod)
 
-    ex = relax.build(mod_transform, target="llvm")
+    ex = tvm.compile(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
     packed_weight, scales, bias_trans = vm[transform_func_name](
@@ -1638,7 +1638,7 @@ def test_fp16A_int8B_gemm():
     )
 
     dev = tvm.device("cuda", 0)
-    ex = relax.build(mod_deploy, target="cuda")
+    ex = tvm.compile(mod_deploy, target="cuda")
     vm = relax.vm.VirtualMachine(ex, dev)
 
     x_nd = tvm.nd.array(x, dev)
@@ -1665,7 +1665,7 @@ def test_rms_norm():
             B: T.Buffer((T.int64(4096),), "float16"),
             rms_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             Ared_temp = T.alloc_buffer((T.int64(1), T.int64(1)))
             for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
@@ -1798,7 +1798,7 @@ def test_fp16A_int8B_gemm_batched():
             B: T.Buffer((T.int64(64),), "float16"),
             decode_1: T.Buffer((T.int64(64), T.int64(64)), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i, j in T.grid(T.int64(64), T.int64(64)):
                 with T.block("decode"):
@@ -1813,7 +1813,7 @@ def test_fp16A_int8B_gemm_batched():
             w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             compute: T.Buffer((T.int64(64),), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             max_abs_value = T.alloc_buffer((T.int64(64),), "float16")
             scale = T.alloc_buffer((T.int64(64),))
@@ -1906,15 +1906,13 @@ def test_fp16A_int8B_gemm_batched():
 
     mod_transform, mod_deploy, transform_func_name = split_transform_deploy_mod(mod)
 
-    ex = relax.build(mod_transform, target="llvm")
+    ex = tvm.compile(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
-    (packed_weight, scales,) = vm[
-        transform_func_name
-    ]((tvm.nd.array(y),))
+    packed_weight, scales = vm[transform_func_name]((tvm.nd.array(y),))
 
     dev = tvm.device("cuda", 0)
-    ex = relax.build(mod_deploy, target="cuda")
+    ex = tvm.compile(mod_deploy, target="cuda")
     vm = relax.vm.VirtualMachine(ex, dev)
 
     x_nd = tvm.nd.array(x, dev)
@@ -1933,7 +1931,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
             B: T.Buffer((T.int64(2), T.int64(128)), "float16"),
             decode_1: T.Buffer((T.int64(128), T.int64(128)), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
                 with T.block("decode"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
@@ -1953,7 +1951,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                 "float16",
             ),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             max_abs_value = T.alloc_buffer(
                 (
                     T.int64(2),
@@ -2063,15 +2061,13 @@ def test_fp16A_int8B_gemm_batched_finegrained():
 
     mod_transform, mod_deploy, transform_func_name = split_transform_deploy_mod(mod)
 
-    ex = relax.build(mod_transform, target="llvm")
+    ex = tvm.compile(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
-    (packed_weight, scales,) = vm[
-        transform_func_name
-    ]((tvm.nd.array(y),))
+    packed_weight, scales = vm[transform_func_name]((tvm.nd.array(y),))
 
     dev = tvm.device("cuda", 0)
-    ex = relax.build(mod_deploy, target="cuda")
+    ex = tvm.compile(mod_deploy, target="cuda")
     vm = relax.vm.VirtualMachine(ex, dev)
 
     x_nd = tvm.nd.array(x, dev)

@@ -60,7 +60,6 @@ def generate_random_inputs(
 
 
 def generate_random_value(shape, elem_type) -> np.ndarray:
-
     # Extract datatype for the input.
     if elem_type:
         dtype = str(onnx.mapping.TENSOR_TYPE_TO_NP_TYPE[elem_type])
@@ -133,7 +132,7 @@ def check_correctness(
     tvm_model, params = relax.frontend.detach_params(tvm_model)
     # Compile the relax graph into a VM then run.
     with tvm.transform.PassContext(opt_level=3):
-        ex = relax.build(tvm_model, target="llvm")
+        ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
     # Prepare inputs.
     input_list = [
@@ -1202,7 +1201,6 @@ def test_squeeze_constant(axis):
 @pytest.mark.parametrize("A", [8, 16, 32])
 @pytest.mark.parametrize("B", [8, 16, 32])
 def test_dynamic_squeeze(axis, A, B):
-
     squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
     shape = [1, "A", "B"]
 
@@ -1228,7 +1226,6 @@ def test_dynamic_squeeze(axis, A, B):
 @pytest.mark.parametrize("axis", [[0]])
 @pytest.mark.parametrize("A", [8, 16, 32])
 def test_dynamic_shape_squeeze(axis, A):
-
     shape_node = helper.make_node("Shape", ["x"], ["y"])
     squeeze_node = helper.make_node("Squeeze", ["y", "axes"], ["z"])
     shape = ["A"]
@@ -1692,6 +1689,12 @@ def test_expand(dynamic):
         data = np.random.uniform(size=in_shape).astype(np.float32)
         ref_data = np.tile(data, (1, 1, 4))
         _test_expand("expand_with_diff_dim", data, shape, ref_data)
+
+        in_shape = (3, 1)
+        shape = (1, 1, 3, 1)
+        data = np.random.uniform(size=in_shape).astype(np.float32)
+        ref_data = np.tile(data, (1, 1, 1, 1))
+        _test_expand("expand_with_the_same_suffix_dims", data, shape, ref_data)
     else:
         in_shape = (1, 32, 32)
         shape = ("batch", 32, 32)
@@ -1981,7 +1984,6 @@ def test_attention(dynamic):
 
 @pytest.mark.parametrize("dynamic", [True, False])
 def test_pad(dynamic):
-
     if dynamic:
         pytest.skip("Dynamic pad not supported")
 
@@ -2039,7 +2041,6 @@ def test_pad(dynamic):
 
 @pytest.mark.parametrize("dynamic", [True, False])
 def test_pad_v2(dynamic):
-
     if dynamic:
         pytest.skip("Dynamic pad not supported")
 
@@ -2742,7 +2743,6 @@ def test_params_names_start_with_onnx():
 
 def test_shape_dim_string_expression():
     def _verify(x_shape, example_shape):
-
         identity_node = helper.make_node("Identity", ["x"], ["y"])
 
         graph = helper.make_graph(
@@ -2767,7 +2767,6 @@ def test_shape_dim_string_expression():
 
 
 def test_shape_dim_string_expression_graph_add():
-
     identity_node = helper.make_node("Identity", ["x"], ["y"])
 
     x_shape = ["A", "B", "A + B"]
@@ -2802,7 +2801,6 @@ def test_shape_dim_string_expression_graph_add():
 
 
 def test_shape_dim_string_expression_graph_subtract():
-
     identity_node = helper.make_node("Identity", ["x"], ["y"])
 
     x_shape = ["A", "B", "A - B"]
@@ -2837,7 +2835,6 @@ def test_shape_dim_string_expression_graph_subtract():
 
 
 def test_shape_dim_string_expression_graph_mul():
-
     identity_node = helper.make_node("Identity", ["x"], ["y"])
 
     x_shape = ["A", "B", "A * B"]
@@ -2872,7 +2869,6 @@ def test_shape_dim_string_expression_graph_mul():
 
 
 def test_shape_dim_string_expression_graph_div_1():
-
     identity_node = helper.make_node("Identity", ["x"], ["y"])
 
     # this will result in a floordiv despite not using // since the operands are always int
@@ -2908,7 +2904,6 @@ def test_shape_dim_string_expression_graph_div_1():
 
 
 def test_shape_dim_string_expression_graph_div_2():
-
     identity_node = helper.make_node("Identity", ["x"], ["y"])
 
     x_shape = ["A", "B", "A // B"]

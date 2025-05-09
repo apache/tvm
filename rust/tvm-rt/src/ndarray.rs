@@ -199,9 +199,9 @@ impl NDArray {
     }
 
     /// Returns the total bytes taken up by the data.
-    /// This is equal to `nd.len() * nd.dtype().itemsize()`
+    /// This is equal to `nd.len() * nd.dtype().itemsize`
     pub fn size(&self) -> usize {
-        self.len() * self.dtype().itemsize()
+        self.len() * self.dtype().itemsize
     }
 
     /// Returns the device which the NDArray was defined.

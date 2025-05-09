@@ -270,8 +270,8 @@ def test_types():
     assert strip_whitespace(printer.visit_type_(object_type)) == "ObjectType()"
     packed_type = rx.PackedFuncType()
     assert strip_whitespace(printer.visit_type_(packed_type)) == "PackedFuncType()"
-    tensor_type = rx.DynTensorType(ndim=2, dtype="int32")
-    assert strip_whitespace(printer.visit_type_(tensor_type)) == "DynTensorType(ndim=2,dtype=int32)"
+    tensor_type = rx.TensorType(ndim=2, dtype="int32")
+    assert strip_whitespace(printer.visit_type_(tensor_type)) == "TensorType(ndim=2,dtype=int32)"
     unit_type = rx.TupleType([])
     assert strip_whitespace(printer.visit_type_(unit_type)) == "TupleType(fields=[])"
     tuple_type = rx.TupleType([rx.ShapeType(), object_type])
@@ -284,7 +284,7 @@ def test_types():
     func_type = rx.FuncType([tensor_type], unit_type)
     assert_fields(
         "FuncType",
-        {"arg_types": "[DynTensorType(ndim=2, dtype=int32)]", "ret_type": "TupleType(fields=[])"},
+        {"arg_types": "[TensorType(ndim=2, dtype=int32)]", "ret_type": "TupleType(fields=[])"},
         printer.visit_type_(func_type),
     )
 
@@ -622,7 +622,7 @@ def test_print_type_annotation_non_var():
     arg = call.args[0]
     arg_str = strip_whitespace(dump_ast(arg))
     # the constant should have a tensor type
-    assert "checked_type_=DynTensorType(ndim=0" in arg_str
+    assert "checked_type_=TensorType(ndim=0" in arg_str
 
     call_str = strip_whitespace(dump_ast(call))
     # we expect the shape_of call to have a checked_type_ of ShapeType

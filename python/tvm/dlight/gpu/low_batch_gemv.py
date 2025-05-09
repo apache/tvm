@@ -21,16 +21,15 @@ from typing import List, Literal, Optional, Set, Union
 from tvm import arith, ir, tir
 from tvm.target import Target
 
-from ..base import (
+from ..analysis import (
     BlockInfo,
     collect_block_iter_vars_used_in_access_region,
     collect_vars_used_in_prim_expr,
     is_broadcast_epilogue,
     normalize_prim_func,
-    try_inline_contiguous_spatial,
 )
+from ..base import auto_vectorize, get_bytes, get_extent, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
-from .utils import auto_vectorize, get_bytes, get_extent
 
 
 def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
