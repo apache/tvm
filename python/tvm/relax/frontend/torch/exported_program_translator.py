@@ -211,16 +211,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     def _upsample_bicubic2d(self, node: fx.node) -> relax.Var:
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
-
+        align_corners = (
+                node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", None)
+        )
         if size is not None:
             scale_factor = None
-            align_corners = (
-                node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", None)
-            )
         else:
-            align_corners = (
-                node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", None)
-            )
             scale_arg = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", 1)
             if isinstance(scale_arg, (list, tuple)):
                 scale_factor = scale_arg[0]
