@@ -743,6 +743,9 @@ def conv(
             dimensions, kernel_dimensions, dilations, pad_begin, pad_end, strides
         )
     ]
+    for out_dim in out_dimensions:
+        if isinstance(out_dim, int) and out_dim <= 0:
+            raise ValueError(f"Invalid conv parameters: lead to negative output shape {out_dimensions}. ")
     # compute graph
     pad_before = list(np.array([0, 0] + pad_begin)[data_permutation_from])
     pad_after = list(np.array([0, 0] + pad_end)[data_permutation_from])
