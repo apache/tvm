@@ -943,9 +943,7 @@ const int LLVMTargetInfo::GetVectorWidth() {
     } else if (arch == llvm::Triple::arm || arch == llvm::Triple::aarch64) {
       vector_width_ = 128;
     } else if (arch == llvm::Triple::riscv32 || arch == llvm::Triple::riscv64) {
-      vector_width_ = 256;
-      LOG(WARNING) << "LLVM RVV VLEN inference failed, "
-                   << "using 256 bits, set -vector-width=XXX to override";
+      vector_width_ = 128;
     } else {
       // fallback default
       vector_width_ = 128;
