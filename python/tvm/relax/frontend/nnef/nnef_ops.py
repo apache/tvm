@@ -1383,8 +1383,11 @@ def pad_converter(bbuilder, data, padding, border, value, **kwargs):
             "Replicate - Edge mode is currently not supported in TVM relax"
         )
 
-    # constant works with normal relax.nn.pad
-    return relax.op.nn.pad(data, pad, value, border)
+    # if value is a constant, unpack to float, as Constant support in no longer
+    if isinstance(value, tvm_expr.Constant):
+        value = value.data.numpy().item()
+
+    return relax.op.nn.pad(data, pad, border, value)
 
 
 def tile_converter(bbuilder, data, repeats, **kwargs):

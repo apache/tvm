@@ -1603,7 +1603,7 @@ def test_pad(dim):
         def method(in1):
             return R.nn.pad(
                 in1,
-                pad_value=R.const(0, "float32"),
+                pad_value=0.0,
                 pad_width=[0, 0, 0, 0]
                 + [item for p in zip(before * dim, after * dim) for item in p],
             )
@@ -2053,7 +2053,7 @@ def test_max_pool(dim):
             inp1 = nn.Placeholder([4, 16] + [32] * dim, name="inp1")
             lv = R.nn.pad(
                 inp1,
-                pad_value=R.const(0, "float32"),
+                pad_value=0.0,
                 pad_width=[0, 0, 0, 0] + [4, 4] * dim,
                 pad_mode="constant",
             )
