@@ -98,9 +98,6 @@ std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string k
   }
 
   std::unique_ptr<RPCChannel> channel = std::make_unique<SockChannel>(sock);
-  if (enable_logging) {
-    channel.reset(new RPCChannelLogging(std::move(channel)));
-  }
   auto endpt = RPCEndpoint::Create(std::move(channel), key, remote_key);
 
   endpt->InitRemoteSession(init_seq);

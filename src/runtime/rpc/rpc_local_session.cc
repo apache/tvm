@@ -47,10 +47,9 @@ void LocalSession::EncodeReturn(ffi::Any rv, const FEncodeReturn& encode_return)
   AnyView packed_args[3];
   // NOTE: this is the place that we need to handle special RPC-related
   // ABI convention for return value passing that is built on top of Any FFI.
-  // We need to encode object pointers as opaque raw pointers for passing
-  // TODO(tqchen): move to RPC to new ABI
+  // first argument is always the type index.
+  packed_args[0] = rv.type_index();
   if (rv == nullptr) {
-    packed_args[0] = static_cast<int32_t>(kTVMNullptr);
     packed_args[1] = rv;
     encode_return(ffi::PackedArgs(packed_args, 2));
   } else if (rv.as<NDArray>()) {
@@ -59,43 +58,25 @@ void LocalSession::EncodeReturn(ffi::Any rv, const FEncodeReturn& encode_return)
     // The second pack value is a customized deleter that deletes the NDArray.
     TVMFFIAny ret_any = ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(rv));
     void* opaque_handle = ret_any.v_obj;
-    packed_args[0] = static_cast<int32_t>(kTVMNDArrayHandle);
-    packed_args[1] =
-        static_cast<DLTensor*>(ObjectHandleToTVMArrayHandle(static_cast<Object*>(opaque_handle)));
+    packed_args[1] = TVMFFINDArrayGetDLTensorPtr(opaque_handle);
     packed_args[2] = opaque_handle;
     encode_return(ffi::PackedArgs(packed_args, 3));
   } else if (const auto* bytes = rv.as<ffi::BytesObj>()) {
     // always pass bytes as byte array
-    packed_args[0] = static_cast<int32_t>(kTVMBytes);
     TVMFFIByteArray byte_arr;
     byte_arr.data = bytes->data;
     byte_arr.size = bytes->size;
     packed_args[1] = &byte_arr;
     encode_return(ffi::PackedArgs(packed_args, 2));
   } else if (const auto* str = rv.as<ffi::StringObj>()) {
-    // always pass bytes as raw string
-    packed_args[0] = static_cast<int32_t>(kTVMStr);
     packed_args[1] = str->data;
     encode_return(ffi::PackedArgs(packed_args, 2));
   } else if (rv.as<ffi::ObjectRef>()) {
     TVMFFIAny ret_any = ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(rv));
     void* opaque_handle = ret_any.v_obj;
     packed_args[1] = opaque_handle;
-    if (ret_any.type_index == ffi::TypeIndex::kTVMFFIModule) {
-      packed_args[0] = static_cast<int32_t>(kTVMModuleHandle);
-    } else if (ret_any.type_index == ffi::TypeIndex::kTVMFFIFunction) {
-      packed_args[0] = static_cast<int32_t>(kTVMPackedFuncHandle);
-    } else {
-      packed_args[0] = static_cast<int32_t>(kTVMObjectHandle);
-    }
     encode_return(ffi::PackedArgs(packed_args, 2));
   } else {
-    AnyView temp = rv;
-    TVMValue val;
-    int type_code;
-    AnyViewToLegacyTVMArgValue(temp.CopyToTVMFFIAny(), &val, &type_code);
-    // normal POD encoding through rv
-    packed_args[0] = type_code;
     packed_args[1] = rv;
     encode_return(ffi::PackedArgs(packed_args, 2));
   }

@@ -41,24 +41,16 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
                                   private DiscoProtocol<DiscoThreadedMessageQueue> {
  public:
   void Send(const ffi::PackedArgs& args) {
-    // Run legacy ABI translation.
-    std::vector<TVMValue> values(args.size());
-    std::vector<int> type_codes(args.size());
-    PackedArgsToLegacyTVMArgs(args.data(), args.size(), values.data(), type_codes.data());
-    // TODO(tqchen): use native convention that do not need ABI translation.
-    RPCReference::ReturnPackedSeq(values.data(), type_codes.data(), args.size(), this);
+    RPCReference::ReturnPackedSeq(reinterpret_cast<const TVMFFIAny*>(args.data()), args.size(),
+                                  this);
     CommitSendAndNotifyEnqueue();
   }
 
   ffi::PackedArgs Recv() {
     DequeueNextPacket();
-    TVMValue* values = nullptr;
-    int* type_codes = nullptr;
+    AnyView* packed_args = nullptr;
     int num_args = 0;
-    RPCReference::RecvPackedSeq(&values, &type_codes, &num_args, this);
-    // Run legacy ABI translation.
-    AnyView* packed_args = reinterpret_cast<AnyView*>(ArenaAlloc<TVMFFIAny>(num_args));
-    LegacyTVMArgsToPackedArgs(values, type_codes, num_args, packed_args);
+    RPCReference::RecvPackedSeq(reinterpret_cast<TVMFFIAny**>(&packed_args), &num_args, this);
     return ffi::PackedArgs(packed_args, num_args);
   }
 
