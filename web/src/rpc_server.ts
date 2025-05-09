@@ -17,7 +17,7 @@
  * under the License.
  */
 
-import { SizeOf, ArgTypeCode } from "./ctypes";
+import { SizeOf, TypeIndex } from "./ctypes";
 import { assert, StringToUint8Array, Uint8ArrayToString } from "./support";
 import { detectGPUDevice, GPUDeviceDetectOutput } from "./webgpu";
 import * as compact from "./compact";
@@ -228,21 +228,16 @@ export class RPCServer {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const ver = Uint8ArrayToString(reader.readByteArray());
       const nargs = reader.readU32();
-      const tcodes = [];
       const args = [];
       for (let i = 0; i < nargs; ++i) {
-        tcodes.push(reader.readU32());
-      }
-
-      for (let i = 0; i < nargs; ++i) {
-        const tcode = tcodes[i];
-        if (tcode === ArgTypeCode.TVMStr) {
+        const typeIndex = reader.readU32();
+        if (typeIndex === TypeIndex.kTVMFFIRawStr) {
           const str = Uint8ArrayToString(reader.readByteArray());
           args.push(str);
-        } else if (tcode === ArgTypeCode.TVMBytes) {
+        } else if (typeIndex === TypeIndex.kTVMFFIByteArrayPtr) {
           args.push(reader.readByteArray());
         } else {
-          throw new Error("cannot support type code " + tcode);
+          throw new Error("cannot support type index " + typeIndex);
         }
       }
       this.onInitServer(args, header, body);

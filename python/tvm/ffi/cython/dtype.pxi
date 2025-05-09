@@ -94,7 +94,7 @@ cdef class DataType:
     def __str__(self):
         cdef TVMFFIObjectHandle dtype_str
         cdef TVMFFIByteArray* bytes
-        CHECK_CALL(TVMFFIDataTypeToString(self.cdtype, &dtype_str))
+        CHECK_CALL(TVMFFIDataTypeToString(&(self.cdtype), &dtype_str))
         bytes = TVMFFIBytesGetByteArrayPtr(dtype_str)
         res = py_str(PyBytes_FromStringAndSize(bytes.data, bytes.size))
         CHECK_CALL(TVMFFIObjectFree(dtype_str))
