@@ -265,10 +265,6 @@ def test_subgraph_capture():
     tvm.ir.assert_structural_equal(mod, Expected3)
 
 
-@pytest.mark.skipif(
-    version.parse(torch_version) >= version.parse("2.6.0"),
-    reason="Tests not compatible with PyTorch >= 2.6",
-)
 def verify_dynamo_model(torch_model, input_info, binding, expected):
     import torch
     import torch._dynamo as dynamo
