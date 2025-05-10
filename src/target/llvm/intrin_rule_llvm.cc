@@ -162,27 +162,27 @@ TVM_REGISTER_OP("tir.sinh")
 
 TVM_REGISTER_OP("tir.asin")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-    using tir::make_const;
-    const tir::CallNode* call = e.as<tir::CallNode>();
-    ICHECK(call != nullptr);
-    const PrimExpr& x = call->args[0];
-    PrimExpr x2 = x * x;
-    PrimExpr term1 = x;
-    PrimExpr term3 = term1 * x2 / make_const(x.dtype(), 6);
-    PrimExpr term5 = term3 * x2 * make_const(x.dtype(), 9) / make_const(x.dtype(), 40);
-    return term1 + term3 + term5;
-});
+      using tir::make_const;
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr);
+      const PrimExpr& x = call->args[0];
+      PrimExpr x2 = x * x;
+      PrimExpr term1 = x;
+      PrimExpr term3 = term1 * x2 / make_const(x.dtype(), 6);
+      PrimExpr term5 = term3 * x2 * make_const(x.dtype(), 9) / make_const(x.dtype(), 40);
+      return term1 + term3 + term5;
+    });
 
 TVM_REGISTER_OP("tir.acos")
     .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-    using tir::make_const;
-    const tir::CallNode* call = e.as<tir::CallNode>();
-    ICHECK(call != nullptr) << "Invalid call node in acos legalization";
-    const PrimExpr& x = call->args[0];
-    PrimExpr half_pi = make_const(x.dtype(), M_PI / 2);
-    PrimExpr asin_x = asin(x);
-    return half_pi - asin_x;
-});
+      using tir::make_const;
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr) << "Invalid call node in acos legalization";
+      const PrimExpr& x = call->args[0];
+      PrimExpr half_pi = make_const(x.dtype(), M_PI / 2);
+      PrimExpr asin_x = asin(x);
+      return half_pi - asin_x;
+    });
 
 TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
   const tir::CallNode* call = e.as<tir::CallNode>();
