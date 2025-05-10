@@ -51,6 +51,10 @@
 #define TVM_FFI_BACKTRACE_ON_SEGFAULT 1
 #endif
 
+#ifndef TVM_FFI_ALWAYS_LOG_BEFORE_THROW
+#define TVM_FFI_ALWAYS_LOG_BEFORE_THROW 0
+#endif
+
 namespace tvm {
 namespace ffi {
 
@@ -212,8 +216,10 @@ class ErrorBuilder {
  *
  * \endcode
  */
-#define TVM_FFI_THROW(ErrorKind) \
-  ::tvm::ffi::details::ErrorBuilder(#ErrorKind, TVM_FFI_TRACEBACK_HERE, false).stream()
+#define TVM_FFI_THROW(ErrorKind)                                        \
+  ::tvm::ffi::details::ErrorBuilder(#ErrorKind, TVM_FFI_TRACEBACK_HERE, \
+                                    TVM_FFI_ALWAYS_LOG_BEFORE_THROW)    \
+      .stream()
 
 /*!
  * \brief Explicitly log error in stderr and then throw the error.

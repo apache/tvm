@@ -75,6 +75,15 @@ export class AsyncifyHandler {
    *
    * @returns The current asynctify state
    */
+  isNormalStackState(): boolean {
+    return this.state == AsyncifyStateKind.None;
+  }
+
+  /**
+   * Get the current asynctify state
+   *
+   * @returns The current asynctify state
+   */
   getState(): AsyncifyStateKind {
     return this.state;
   }

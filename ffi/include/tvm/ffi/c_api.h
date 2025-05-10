@@ -579,8 +579,10 @@ TVM_FFI_DLL int TVMFFIDataTypeFromString(const TVMFFIByteArray* str, DLDataType*
  * \return 0 when success, nonzero when failure happens
  * \note out is a String object that needs to be freed by the caller via TVMFFIObjectFree.
          The content of string can be accessed via TVMFFIObjectGetByteArrayPtr.
+
+ * \note The input dtype is a pointer to the DLDataType to avoid ABI compatibility issues.
  */
-TVM_FFI_DLL int TVMFFIDataTypeToString(DLDataType dtype, TVMFFIObjectHandle* out);
+TVM_FFI_DLL int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIObjectHandle* out);
 
 //------------------------------------------------------------
 // Section: Backend noexcept functions for internal use
