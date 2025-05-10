@@ -184,6 +184,17 @@ TVM_REGISTER_OP("tir.acos")
       return half_pi - asin_x;
     });
 
+TVM_REGISTER_OP("tir.atan")
+    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      using tir::make_const;
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr) << "Invalid call node in atan legalization";
+      const PrimExpr& x = call->args[0];
+      PrimExpr one = make_const(x.dtype(), 1.0);
+      PrimExpr denom = sqrt(x * x + one);
+      return asin(x / denom);
+    });
+
 TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
   const tir::CallNode* call = e.as<tir::CallNode>();
   ICHECK(call != nullptr);
