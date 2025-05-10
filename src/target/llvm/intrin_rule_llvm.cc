@@ -170,7 +170,9 @@ TVM_REGISTER_OP("tir.asin")
       PrimExpr term1 = x;
       PrimExpr term3 = term1 * x2 / make_const(x.dtype(), 6);
       PrimExpr term5 = term3 * x2 * make_const(x.dtype(), 9) / make_const(x.dtype(), 40);
-      return term1 + term3 + term5;
+      PrimExpr term7 = term5 * x2 * make_const(x.dtype(), 25) / make_const(x.dtype(), 112);
+      PrimExpr term9 = term7 * x2 * make_const(x.dtype(), 1225) / make_const(x.dtype(), 3456);
+      return term1 + term3 + term5 + term7 + term9;
     });
 
 TVM_REGISTER_OP("tir.acos")
