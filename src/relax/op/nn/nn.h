@@ -48,9 +48,6 @@ namespace relax {
 /*! \brief Rectified linear unit. */
 Expr relu(Expr data);
 
-/*! \brief ReLU6 activation function. */
-Expr relu6(Expr data);
-
 /*! \brief Leaky rectified linear unit. */
 Expr leakyrelu(Expr data, double alpha);
 

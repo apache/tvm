@@ -40,28 +40,6 @@ def relu(x):
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
-def relu6(x):
-    """Take relu6 of input x, output is clipped between 0 and 6.
-
-    Parameters
-    ----------
-    x : tvm.te.Tensor
-        Input argument.
-
-    Returns
-    -------
-    y : tvm.te.Tensor
-        The result, clipped between 0 and 6.
-    """
-    return te.compute(
-        x.shape,
-        lambda *i: tvm.te.min(
-            tvm.te.max(x(*i), tvm.tir.const(0, x.dtype)), tvm.tir.const(6, x.dtype)
-        ),
-    )
-
-
-@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def leaky_relu(x, alpha):
     """Take leaky relu of input x.
 

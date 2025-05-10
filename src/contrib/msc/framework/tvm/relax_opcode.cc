@@ -845,7 +845,6 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<RelaxOpCode>>> 
   map->emplace("nn.nll_loss", std::make_shared<RelaxNllLossCodeGen>("relax.op.nn.nll_loss"));
   map->emplace("nn.pad", std::make_shared<RelaxPadCodeGen>("relax.op.nn.pad"));
   map->emplace("nn.relu", std::make_shared<RelaxSimpleCodeGen>("relax.op.nn.relu"));
-  map->emplace("nn.relu6", std::make_shared<RelaxSimpleCodeGen>("relax.op.nn.relu6"));
   map->emplace("nn.silu", std::make_shared<RelaxSimpleCodeGen>("relax.op.nn.silu"));
 
   // image ops

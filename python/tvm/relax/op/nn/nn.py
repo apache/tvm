@@ -17,7 +17,7 @@
 """Relax Neural Network (NN) operators"""
 from typing import List, Optional, Tuple, Union
 
-from tvm import DataType
+from tvm import DataType, relax
 from tvm.tir import FloatImm
 
 from ...expr import Expr
@@ -1283,7 +1283,7 @@ def relu6(data: Expr) -> Expr:
     result : relax.Expr
         The computed result.
     """
-    return _ffi_api.relu6(data)
+    return relax.op.clip(data, 0, 6)
 
 
 def leakyrelu(data: Expr, alpha: float = 0.01) -> Expr:
