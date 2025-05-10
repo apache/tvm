@@ -446,6 +446,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     // mul co-efficient folding
     TVM_TRY_REWRITE(x + x, x * 2);
 
+    TVM_TRY_REWRITE(x * c1 + c1, (x + 1) * c1);
+
     TVM_TRY_REWRITE(matches_one_of(x * y + x, y * x + x, x + y * x, x + x * y), x * (y + 1));
 
     TVM_TRY_REWRITE(matches_one_of(x * y + x * z, y * x + x * z, x * y + z * x, y * x + z * x),
