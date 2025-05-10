@@ -17,7 +17,7 @@
 """Relax Neural Network (NN) operators"""
 from typing import List, Optional, Tuple, Union
 
-from tvm import DataType
+from tvm import DataType, relax
 from tvm.tir import FloatImm
 
 from ...expr import Expr
@@ -1265,6 +1265,25 @@ def relu(data: Expr) -> Expr:
         The computed result.
     """
     return _ffi_api.relu(data)  # type: ignore
+
+
+def relu6(data: Expr) -> Expr:
+    r"""ReLU6 activation function.
+
+    .. math::
+        \text{ReLU6}(x) = \min(\max(x, 0), 6)
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return relax.op.clip(data, 0, 6)
 
 
 def leakyrelu(data: Expr, alpha: float = 0.01) -> Expr:

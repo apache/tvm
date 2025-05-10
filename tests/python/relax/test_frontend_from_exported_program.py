@@ -514,6 +514,53 @@ def test_extended_unary_ops():
 
     verify_model(MinModel(), example_args, {}, expected_min)
 
+    # relu6
+    class ReLU6_1(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.relu6 = torch.nn.ReLU6()
+
+        def forward(self, x):
+            return self.relu6(x)
+
+    class ReLU6_2(torch.nn.Module):
+        def forward(self, x):
+            return torch.nn.functional.relu6(x)
+
+    class ReLU6_3(torch.nn.Module):
+        def forward(self, x):
+            return torch.ops.aten.relu6_(x)
+
+    @tvm.script.ir_module
+    class expected_relu6_1:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(
+                    x, R.prim_value(T.float64(0.0)), R.prim_value(T.float64(6.0))
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected_relu6_2:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu6(x)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(ReLU6_1(), example_args, {}, expected_relu6_1)
+    verify_model(ReLU6_2(), example_args, {}, expected_relu6_2)
+    verify_model(ReLU6_3(), example_args, {}, expected_relu6_2)
+
 
 def test_hardtanh():
     class Hardtanh(torch.nn.Module):

@@ -716,9 +716,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.LogSoftmax: self._log_softmax_module,
             nn.PReLU: self._prelu_module,
             nn.ReLU: self._unary_op(relax.op.nn.relu),
-            nn.ReLU6: lambda node: self.block_builder.emit(
-                relax.op.clip(self.env[node.args[0]], 0, 6)
-            ),
+            nn.ReLU6: self._unary_op(relax.op.nn.relu6),
             nn.Sigmoid: self._unary_op(relax.op.sigmoid),
             nn.SELU: self._unary_op(relax.op.nn.selu),
             nn.SiLU: self._unary_op(relax.op.nn.silu),
@@ -790,6 +788,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "prelu": self._prelu,
             "reciprocal": self._reciprocal,
             "relu": self._unary_op(relax.op.nn.relu),
+            "relu6": self._unary_op(relax.op.nn.relu6),
             "round": self._round,
             "rsqrt": self._unary_op(relax.op.rsqrt),
             "selu": self._unary_op(relax.op.nn.selu),

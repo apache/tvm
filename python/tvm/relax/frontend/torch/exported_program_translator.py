@@ -347,6 +347,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "reciprocal.default": self._reciprocal,
             "relu.default": self._unary_op(relax.op.nn.relu),
             "relu_.default": self._unary_op(relax.op.nn.relu),
+            "relu6.default": self._unary_op(relax.op.nn.relu6),
+            "relu6_.default": self._unary_op(relax.op.nn.relu6),
             "round.default": self._round,
             "rsqrt.default": self._unary_op(relax.op.rsqrt),
             "rsub.Tensor": self._rsub,
