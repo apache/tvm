@@ -166,7 +166,6 @@ TVM_REGISTER_OP("tir.asin")
     const tir::CallNode* call = e.as<tir::CallNode>();
     ICHECK(call != nullptr);
     const PrimExpr& x = call->args[0];
-    //asin(x) ≈ x + x³/6 + 3x⁵/40 + ... (|x| ≤ 1)
     PrimExpr x2 = x * x;
     PrimExpr term1 = x;
     PrimExpr term3 = term1 * x2 / make_const(x.dtype(), 6);
@@ -182,7 +181,7 @@ TVM_REGISTER_OP("tir.acos")
     const PrimExpr& x = call->args[0];
     PrimExpr half_pi = make_const(x.dtype(), M_PI / 2);
     PrimExpr asin_x = asin(x);
-    return half_pi - asin_x;    // acos(x) = π/2 - asin(x)
+    return half_pi - asin_x;
 });
 
 TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
