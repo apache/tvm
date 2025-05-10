@@ -79,7 +79,7 @@ def test_unary_intrin():
         (tvm.tir.atanh, lambda x: np.arctanh(x)),
     ]
 
-    def run_test(tvm_intrin, np_func， atol, rtol):
+    def run_test(tvm_intrin, np_func, atol=1e-5, rtol=1e-5):
         m = te.var(
             "m",
         )
