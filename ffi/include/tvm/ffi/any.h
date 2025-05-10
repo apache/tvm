@@ -425,6 +425,15 @@ struct AnyUnsafe : public ObjectUnsafe {
     }
   }
 
+  template <typename T>
+  static TVM_FFI_INLINE T MoveFromAnyStorageAfterCheck(Any&& ref) {
+    if constexpr (!std::is_same_v<T, Any>) {
+      return TypeTraits<T>::MoveFromAnyStorageAfterCheck(&(ref.data_));
+    } else {
+      return std::move(ref);
+    }
+  }
+
   static TVM_FFI_INLINE Object* ObjectPtrFromAnyAfterCheck(const Any& ref) {
     return reinterpret_cast<Object*>(ref.data_.v_obj);
   }
