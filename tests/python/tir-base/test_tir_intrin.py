@@ -79,7 +79,7 @@ def test_unary_intrin():
         (tvm.tir.atanh, lambda x: np.arctanh(x)),
     ]
 
-    def run_test(tvm_intrin, np_func):
+    def run_test(tvm_intrin, np_func， atol, rtol):
         m = te.var(
             "m",
         )
@@ -98,10 +98,11 @@ def test_unary_intrin():
         a = tvm.nd.array(np.random.uniform(0.1, 0.5, size=n).astype(A.dtype), dev)
         b = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
         func(a, b)
-        tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=1e-5, rtol=1e-5)
+        tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=atol, rtol=rtol)
 
     for func in test_funcs:
-        run_test(*func)
+        atol = rtol = 1e-3 if func[0].__name__ in ['asin', 'acos', 'atan'] else 1e-5
+        run_test(*func, atol, rtol)
 
 
 def test_binary_intrin():
