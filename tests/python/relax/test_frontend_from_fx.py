@@ -3446,7 +3446,7 @@ def test_interpolate():
                     method="nearest_neighbor",
                     coordinate_transformation_mode="asymmetric",
                     rounding_method="round",
-                    cubic_alpha=-0.5,
+                    cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
                     out_dtype="",
@@ -3483,7 +3483,7 @@ def test_interpolate():
                     method="linear",
                     coordinate_transformation_mode="half_pixel",
                     rounding_method="round",
-                    cubic_alpha=-0.5,
+                    cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
                     out_dtype="",
@@ -3520,7 +3520,7 @@ def test_interpolate():
                     method="linear",
                     coordinate_transformation_mode="half_pixel",
                     rounding_method="round",
-                    cubic_alpha=-0.5,
+                    cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
                     out_dtype="",
@@ -3530,6 +3530,43 @@ def test_interpolate():
             return gv
 
     verify_model(Interpolate3(), input_info, {}, expected3)
+
+    class Interpolate4(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(
+                input,
+                size=None,
+                scale_factor=(2.0, 1.0),
+                mode="bicubic",
+                align_corners=False,
+            )
+
+    @tvm.script.ir_module
+    class expected4:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 20, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 20, 10), dtype="float32") = R.image.resize2d(
+                    input_1,
+                    (20, 10),
+                    roi=[0.000000, 0.000000, 0.000000, 0.000000],
+                    layout="NCHW",
+                    method="cubic",
+                    coordinate_transformation_mode="half_pixel",
+                    rounding_method="round",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0,
+                    out_dtype="",
+                )
+                gv: R.Tensor((1, 3, 20, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Interpolate4(), input_info, {}, expected4)
 
 
 def test_addmm():

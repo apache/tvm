@@ -208,6 +208,29 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             align_corners=align_corners,
         )
 
+    def _upsample_bicubic2d(self, node: fx.node) -> relax.Var:
+        x = self.env[node.args[0]]
+        size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
+        align_corners = (
+            node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", None)
+        )
+        if size is not None:
+            scale_factor = None
+        else:
+            scale_arg = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", 1)
+            if isinstance(scale_arg, (list, tuple)):
+                scale_factor = scale_arg[0]
+            else:
+                scale_factor = scale_arg
+
+        return self._upsample_impl(
+            x,
+            size=size,
+            scale_factor=scale_factor,
+            method="cubic",
+            align_corners=align_corners,
+        )
+
     ########## Manipulation ##########
 
     def _narrow(self, node: fx.Node) -> relax.Var:
@@ -428,6 +451,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "unbind.int": self._unbind,
             "upsample_bilinear2d.vec": self._upsample_bilinear2d,
             "upsample_nearest2d.vec": self._upsample_nearest2d,
+            "upsample_bicubic2d.vec": self._upsample_bicubic2d,
             # statistical
             "mean.dim": self._mean,
             "prod.default": self._prod,
