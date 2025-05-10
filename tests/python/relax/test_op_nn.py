@@ -26,7 +26,6 @@ from tvm.script import relax as R
 def test_op_correctness():
     x = relax.Var("x", R.Tensor((2, 3), "float32"))
     assert relax.op.nn.relu(x).op == Op.get("relax.nn.relu")
-    assert relax.op.nn.relu6(x).op == Op.get("relax.nn.relu6")
     assert relax.op.nn.leakyrelu(x).op == Op.get("relax.nn.leakyrelu")
     assert relax.op.nn.softplus(x).op == Op.get("relax.nn.softplus")
     assert relax.op.nn.gelu(x).op == Op.get("relax.nn.gelu")

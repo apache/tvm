@@ -316,9 +316,9 @@ def test_relu6(dynamic: bool):
 
     bz = "bz" if dynamic else 1
     expected = {
-        "inputs": [{"name": "inp_0", "shape": [bz, 10], "dtype": "float32", "layout": "AB"}],
-        "outputs": [{"name": "relu6", "shape": [bz, 10], "dtype": "float32", "layout": "AB"}],
-        "nodes": {"total": 2, "input": 1, "nn.relu6": 1},
+        "inputs": [{"name": "inp_0", "shape": [bz, 10], "dtype": "float32", "layout": ""}],
+        "outputs": [{"name": "clip", "shape": [bz, 10], "dtype": "float32", "layout": ""}],
+        "nodes": {"total": 2, "input": 1, "clip": 1},
     }
     if dynamic:
         expected["prims"] = {"total": 1, "shape": 1}
