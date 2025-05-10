@@ -1287,6 +1287,103 @@ def test_maxpool3d():
     verify_model(MaxPool3d3(), input_info, {}, expected3)
 
 
+def test_avgpool1d():
+    input_info = [([1, 3, 10], "float32")]
+
+    class AvgPool1d(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool1d(kernel_size=1)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10), dtype="float32"):
+            with R.dataflow():
+                lv = R.nn.avg_pool1d(
+                    input_1,
+                    pool_size=[1],
+                    strides=[1],
+                    dilation=[1],
+                    padding=[0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                gv = lv
+                R.output(gv)
+            return gv
+
+    class AvgPool1d2(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool1d(kernel_size=4, stride=2, padding=2, ceil_mode=True)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    class AvgPool1d3(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool1d(
+                input, kernel_size=4, stride=2, padding=2, ceil_mode=True
+            )
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool1d(
+                    input_1,
+                    pool_size=[4],
+                    strides=[2],
+                    dilation=[1],
+                    padding=[2, 2],
+                    ceil_mode=True,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                gv = lv
+                R.output(gv)
+            return gv
+
+    class AvgPool1d4(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool1d(input, kernel_size=2)
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool1d(
+                    input_1,
+                    pool_size=[2],
+                    strides=[2],
+                    dilation=[1],
+                    padding=[0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                gv = lv
+                R.output(gv)
+            return gv
+
+    verify_model(AvgPool1d(), input_info, {}, expected1)
+    verify_model(AvgPool1d2(), input_info, {}, expected2)
+    verify_model(AvgPool1d3(), input_info, {}, expected2)
+    verify_model(AvgPool1d4(), input_info, {}, expected3)
+
+
 def test_avgpool2d():
     input_info = [([1, 3, 10, 10], "float32")]
 
@@ -1379,6 +1476,105 @@ def test_avgpool2d():
     verify_model(AvgPool2d2(), input_info, {}, expected2)
     verify_model(AvgPool2d3(), input_info, {}, expected2)
     verify_model(AvgPool2d4(), input_info, {}, expected3)
+
+
+def test_avgpool3d():
+    input_info = [([1, 3, 8, 8, 8], "float32")]
+
+    class AvgPool3d(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool3d(kernel_size=[1, 1, 1])
+
+        def forward(self, input):
+            return self.pool(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")
+        ) -> R.Tensor((1, 3, 8, 8, 8), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 8, 8, 8), dtype="float32") = R.nn.avg_pool3d(
+                    input_1,
+                    pool_size=[1, 1, 1],
+                    strides=[1, 1, 1],
+                    dilation=[1, 1, 1],
+                    padding=[0, 0, 0, 0, 0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                gv: R.Tensor((1, 3, 8, 8, 8), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    class AvgPool3d2(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool3d(
+                kernel_size=[3, 3, 3], stride=2, padding=1, ceil_mode=True
+            )
+
+        def forward(self, input):
+            return self.pool(input)
+
+    class AvgPool3d3(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool3d(
+                input, kernel_size=[3, 3, 3], stride=2, padding=1, ceil_mode=True
+            )
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool3d(
+                    input_1,
+                    pool_size=[3, 3, 3],
+                    strides=[2, 2, 2],
+                    dilation=[1, 1, 1],
+                    padding=[1, 1, 1, 1, 1, 1],
+                    ceil_mode=True,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                gv = lv
+                R.output(gv)
+            return gv
+
+    class AvgPool3d4(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool3d(input, kernel_size=[2, 1, 2], stride=[2, 1, 2])
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool3d(
+                    input_1,
+                    pool_size=[2, 1, 2],
+                    strides=[2, 1, 2],
+                    dilation=[1, 1, 1],
+                    padding=[0, 0, 0, 0, 0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                gv = lv
+                R.output(gv)
+            return gv
+
+    verify_model(AvgPool3d(), input_info, {}, expected1)
+    verify_model(AvgPool3d2(), input_info, {}, expected2)
+    verify_model(AvgPool3d3(), input_info, {}, expected2)
+    verify_model(AvgPool3d4(), input_info, {}, expected3)
 
 
 def test_adaptive_avgpool1d():

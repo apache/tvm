@@ -840,7 +840,7 @@ def avg_pool1d(
     padding: Union[int, Tuple[int, ...]] = (0, 0),
     dilation: Union[int, Tuple[int, int]] = (1,),
     ceil_mode: bool = False,
-    count_include_pad: bool = False,
+    count_include_pad: bool = True,
     layout: str = "NCW",
     out_layout: Optional[str] = None,
 ) -> Expr:
@@ -1008,7 +1008,7 @@ def avg_pool3d(
     padding: Union[int, Tuple[int, ...]] = (0, 0, 0),
     dilation: Union[int, Tuple[int, int]] = (1, 1, 1),
     ceil_mode: bool = False,
-    count_include_pad: bool = False,
+    count_include_pad: bool = True,
     layout: str = "NCDHW",
     out_layout: Optional[str] = None,
 ) -> Expr:

@@ -401,7 +401,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
             "adaptive_avg_pool3d.default": self._adaptive_avg_pool3d,
             "addmm.default": self._addmm,
+            "avg_pool1d.default": self._avg_pool1d,
             "avg_pool2d.default": self._avg_pool2d,
+            "avg_pool3d.default": self._avg_pool3d,
             "baddbmm.default": self._baddbmm,
             "bmm.default": self._binary_op(
                 partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
