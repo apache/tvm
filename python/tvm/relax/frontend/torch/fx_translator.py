@@ -832,6 +832,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             "mod": self._binary_op(relax.op.floor_mod, operator.mod),
             "mul": self._binary_op(relax.op.multiply, operator.mul),
             "ne": self._binary_op(relax.op.not_equal, operator.ne),
+            "outer": lambda node: self.block_builder.emit(
+                relax.op.outer(self.env[node.args[0]], self.env[node.args[1]])
+            ),
             "pow": self._binary_op(relax.op.power, operator.pow),
             "or_": self._binary_op(relax.op.bitwise_or, operator.or_),
             "rshift": self._binary_op(relax.op.right_shift, operator.rshift),
