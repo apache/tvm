@@ -891,20 +891,7 @@ def test_outer():
                 R.output(gv)
             return gv
 
-    input_infos = [
-        (
-            [
-                3,
-            ],
-            "float32",
-        ),
-        (
-            [
-                4,
-            ],
-            "float32",
-        ),
-    ]
+    input_infos = [([3], "float32"), ([4], "float32")]
     verify_model(Outer(), input_infos, {}, expected)
 
 
