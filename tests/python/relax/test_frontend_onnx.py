@@ -447,7 +447,7 @@ def test_bitwise_shift(direction: str):
         "Sinh",
         "Cosh",
         "Tanh",
-        # "Asin",  // TODO @jikechao, fix the precision loss due to the Taylor approximation 
+        # "Asin",  // TODO @jikechao, fix the precision loss due to the Taylor approximation
         # "Acos",
         # "Atan",
         "Asinh",
