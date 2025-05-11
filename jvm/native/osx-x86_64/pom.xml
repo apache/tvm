@@ -134,6 +134,8 @@ under the License.
             <linkerMiddleOption>-Wl,-x</linkerMiddleOption>
           </linkerMiddleOptions>
           <linkerEndOptions>
+            <linkerEndOption>-L${project.parent.basedir}/../../build/</linkerEndOption>
+            <linkerEndOption>-ltvm_runtime</linkerEndOption>
             <linkerEndOption>${ldflags}</linkerEndOption>
           </linkerEndOptions>
         </configuration>

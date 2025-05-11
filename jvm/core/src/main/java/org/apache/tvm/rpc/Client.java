@@ -20,6 +20,9 @@ package org.apache.tvm.rpc;
 import org.apache.tvm.Function;
 import org.apache.tvm.TVMValue;
 
+/**
+ * RPC Client.
+ */
 public class Client {
   /**
    * Connect to RPC Server.
