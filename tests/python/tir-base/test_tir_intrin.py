@@ -101,7 +101,7 @@ def test_unary_intrin():
         tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=atol, rtol=rtol)
 
     for func in test_funcs:
-        atol = rtol = 1e-3 if func[0].__name__ in ['asin', 'acos', 'atan'] else 1e-5
+        atol = rtol = 1e-3 if func[0].__name__ in ["asin", "acos", "atan"] else 1e-5
         run_test(*func, atol, rtol)
 
 
