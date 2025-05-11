@@ -24,55 +24,50 @@ class LibInfo {
 
   native int shutdown();
 
-  native String tvmGetLastError();
+  native String tvmFFIGetLastError();
+
+  // Object
+  native int tvmFFIObjectFree(long handle);
 
   // Function
-  native void tvmFuncPushArgLong(long arg);
+  native void tvmFFIFunctionPushArgLong(long arg);
 
-  native void tvmFuncPushArgDouble(double arg);
+  native void tvmFFIFunctionPushArgDouble(double arg);
 
-  native void tvmFuncPushArgString(String arg);
+  native void tvmFFIFunctionPushArgString(String arg);
 
-  native void tvmFuncPushArgBytes(byte[] arg);
+  native void tvmFFIFunctionPushArgBytes(byte[] arg);
 
-  native void tvmFuncPushArgHandle(long arg, int argType);
+  native void tvmFFIFunctionPushArgHandle(long arg, int argTypeIndex);
 
-  native void tvmFuncPushArgDevice(Device device);
+  native void tvmFFIFunctionPushArgDevice(Device device);
 
-  native int tvmFuncListGlobalNames(List<String> funcNames);
+  native int tvmFFIFunctionListGlobalNames(List<String> funcNames);
 
-  native int tvmFuncFree(long handle);
+  native int tvmFFIFunctionGetGlobal(String name, Base.RefLong handle);
 
-  native int tvmFuncGetGlobal(String name, Base.RefLong handle);
+  native int tvmFFIFunctionSetGlobal(String name, long handle, int override);
 
-  native int tvmFuncCall(long handle, Base.RefTVMValue retVal);
+  native int tvmFFIFunctionCall(long handle, Base.RefTVMValue retVal);
 
-  native int tvmFuncCreateFromCFunc(Function.Callback function, Base.RefLong handle);
-
-  native int tvmFuncRegisterGlobal(String name, long handle, int override);
-
-  // Module
-  native int tvmModFree(long handle);
-
-  native int tvmModGetFunction(long handle, String name,
-                                      int queryImports, Base.RefLong retHandle);
-
-  native int tvmModImport(long mod, long dep);
+  native int tvmFFIFunctionCreateFromCallback(Function.Callback function, Base.RefLong handle);
 
   // NDArray
-  native int tvmArrayFree(long handle);
+  native int tvmFFIDLTensorGetShape(long handle, List<Long> shape);
 
-  native int tvmArrayAlloc(long[] shape, int dtypeCode, int dtypeBits, int dtypeLanes,
-      int deviceType, int deviceId, Base.RefLong refHandle);
+  native int tvmFFIDLTensorCopyFromTo(long from, long to);
 
-  native int tvmArrayGetShape(long handle, List<Long> shape);
+  native int tvmFFIDLTensorCopyFromJArray(byte[] fromRaw, long to);
 
-  native int tvmArrayCopyFromTo(long from, long to);
+  native int tvmFFIDLTensorCopyToJArray(long from, byte[] to);
 
-  native int tvmArrayCopyFromJArray(byte[] fromRaw, long from, long to);
-
-  native int tvmArrayCopyToJArray(long from, byte[] to);
-
+  // the following functions are binded to keep things simpler
+  // One possibility is to enhance FFI to support shape directly
+  // so we do not need to run this binding through JNI
   // Device
   native int tvmSynchronize(int deviceType, int deviceId);
+
+  native int tvmNDArrayEmpty(long[] shape, int dtypeCode, int dtypeBits,
+                             int dtypeLanes, int deviceType, int deviceId,
+                             Base.RefLong handle);
 }

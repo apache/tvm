@@ -18,10 +18,8 @@
 package org.apache.tvm;
 
 public class TVMValue {
-  public final ArgTypeCode typeCode;
+  protected TVMValue() {
 
-  public TVMValue(ArgTypeCode tc) {
-    typeCode = tc;
   }
 
   public void release() {
