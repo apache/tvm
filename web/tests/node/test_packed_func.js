@@ -37,7 +37,7 @@ let tvm = new tvmjs.Instance(
 test("GetGlobal", () => {
   tvm.beginScope();
   let flist = tvm.listGlobalFuncNames();
-  let faddOne = tvm.getGlobalFunc("testing.add_one");
+  let faddOne = tvm.getGlobalFunc("tvmjs.testing.add_one");
   let fecho = tvm.getGlobalFunc("testing.echo");
 
   assert(faddOne(tvm.scalar(1, "int")) == 2);
@@ -146,31 +146,6 @@ test("ExceptionPassing", () => {
   tvm.endScope();
 });
 
-
-test("AsyncifyFunc", async () => {
-  if (!tvm.asyncifyEnabled()) {
-    console.log("Skip asyncify tests as it is not enabled..");
-    return;
-  }
-  tvm.beginScope();
-  tvm.registerAsyncifyFunc("async_sleep_echo", async function (x) {
-    await new Promise(resolve => setTimeout(resolve, 10));
-    return x;
-  });
-  let fecho = tvm.wrapAsyncifyPackedFunc(
-    tvm.getGlobalFunc("async_sleep_echo")
-  );
-  let fcall = tvm.wrapAsyncifyPackedFunc(
-    tvm.getGlobalFunc("testing.call")
-  );
-  assert((await fecho(1)) == 1);
-  assert((await fecho(2)) == 2);
-  assert((await fcall(fecho, 2) == 2));
-  tvm.endScope();
-  assert(fecho._tvmPackedCell.getHandle(false) == 0);
-  assert(fcall._tvmPackedCell.getHandle(false) == 0);
-});
-
 test("NDArrayCbArg", () => {
   tvm.beginScope();
   let use_count = tvm.getGlobalFunc("testing.object_use_count");
@@ -204,8 +179,32 @@ test("NDArrayCbArg", () => {
 
 test("Logging", () => {
   tvm.beginScope();
-  const log_info = tvm.getGlobalFunc("testing.log_info_str");
+  const log_info = tvm.getGlobalFunc("tvmjs.testing.log_info_str");
   log_info("helow world")
   log_info.dispose();
   tvm.endScope();
+});
+
+test("AsyncifyFunc", async () => {
+  if (!tvm.asyncifyEnabled()) {
+    console.log("Skip asyncify tests as it is not enabled..");
+    return;
+  }
+  tvm.beginScope();
+  tvm.registerAsyncifyFunc("async_sleep_echo", async function (x) {
+    await new Promise(resolve => setTimeout(resolve, 10));
+    return x;
+  });
+  let fecho = tvm.wrapAsyncifyPackedFunc(
+    tvm.getGlobalFunc("async_sleep_echo")
+  );
+  let fcall = tvm.wrapAsyncifyPackedFunc(
+    tvm.getGlobalFunc("tvmjs.testing.call")
+  );
+  assert((await fecho(1)) == 1);
+  assert((await fecho(2)) == 2);
+  assert((await fcall(fecho, 2) == 2));
+  tvm.endScope();
+  assert(fecho._tvmPackedCell.getHandle(false) == 0);
+  assert(fcall._tvmPackedCell.getHandle(false) == 0);
 });
