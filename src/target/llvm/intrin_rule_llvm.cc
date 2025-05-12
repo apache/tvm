@@ -28,6 +28,8 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/op_attr_types.h>
 
+#include "../intrin_rule.h"
+
 namespace tvm {
 namespace codegen {
 namespace llvm {
@@ -99,6 +101,10 @@ TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>(
 
 TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>(
     "llvm.FLowerIntrinsic", DispatchLLVMPureIntrin<::llvm::Intrinsic::sin, 1>);
+
+TVM_REGISTER_OP("tir.tanh")
+    .set_attr<FLowerIntrinsic>("llvm.FLowerIntrinsic",
+                               ::tvm::codegen::intrin::DispatchNumericalStableTanh);
 }  // namespace intrin
 
 namespace legalize {
@@ -114,25 +120,6 @@ TVM_REGISTER_OP("tir.exp10")
       PrimExpr ln10 = make_const(x.dtype(), 2.302585093);
       PrimExpr ret = exp(x * ln10);
       return ret;
-    });
-
-TVM_REGISTER_OP("tir.tanh")
-    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
-      using tir::make_const;
-      using tir::make_zero;
-      const tir::CallNode* call = e.as<tir::CallNode>();
-      ICHECK(call != nullptr);
-      const PrimExpr& x = call->args[0];
-      PrimExpr one = make_const(x.dtype(), 1);
-      PrimExpr two = make_const(x.dtype(), 2);
-      PrimExpr neg_two = make_const(x.dtype(), -2);
-
-      PrimExpr exp_neg2x = exp(neg_two * x);
-      PrimExpr exp_pos2x = exp(two * x);
-
-      PrimExpr tanh_pos = (one - exp_neg2x) / (one + exp_neg2x);
-      PrimExpr tanh_neg = (exp_pos2x - one) / (exp_pos2x + one);
-      return tir::Select(x >= make_zero(x.dtype()), tanh_pos, tanh_neg);
     });
 
 TVM_REGISTER_OP("tir.tan").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
@@ -171,6 +158,44 @@ TVM_REGISTER_OP("tir.sinh")
       PrimExpr exp_posx = exp(x);
       PrimExpr ret = (exp_posx - exp_negx) / two;
       return ret;
+    });
+
+TVM_REGISTER_OP("tir.asin")
+    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      using tir::make_const;
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr);
+      const PrimExpr& x = call->args[0];
+      PrimExpr x2 = x * x;
+      PrimExpr term1 = x;
+      PrimExpr term3 = term1 * x2 / make_const(x.dtype(), 6);
+      PrimExpr term5 = term3 * x2 * make_const(x.dtype(), 9) / make_const(x.dtype(), 40);
+      PrimExpr term7 = term5 * x2 * make_const(x.dtype(), 25) / make_const(x.dtype(), 112);
+      PrimExpr term9 = term7 * x2 * make_const(x.dtype(), 1225) / make_const(x.dtype(), 3456);
+      PrimExpr term11 = term9 * x2 * make_const(x.dtype(), 3969) / make_const(x.dtype(), 28160);
+      return term1 + term3 + term5 + term7 + term9 + term11;
+    });
+
+TVM_REGISTER_OP("tir.acos")
+    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      using tir::make_const;
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr) << "Invalid call node in acos legalization";
+      const PrimExpr& x = call->args[0];
+      PrimExpr half_pi = make_const(x.dtype(), M_PI / 2);
+      PrimExpr asin_x = asin(x);
+      return half_pi - asin_x;
+    });
+
+TVM_REGISTER_OP("tir.atan")
+    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      using tir::make_const;
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr) << "Invalid call node in atan legalization";
+      const PrimExpr& x = call->args[0];
+      PrimExpr one = make_const(x.dtype(), 1.0);
+      PrimExpr denom = sqrt(x * x + one);
+      return asin(x / denom);
     });
 
 TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
