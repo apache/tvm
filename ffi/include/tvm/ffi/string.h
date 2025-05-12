@@ -210,7 +210,7 @@ class Bytes : public ObjectRef {
  */
 class String : public ObjectRef {
  public:
-  String(nullptr_t) = delete;  // NOLINT(*)
+  String(std::nullptr_t) = delete;  // NOLINT(*)
 
   /*!
    * \brief constructor from char [N]
