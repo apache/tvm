@@ -603,7 +603,13 @@ def create_prim_func(
     """
     if not isinstance(ops, (list, tuple, Array)):
         ops = [ops]
-    return _ffi_api.CreatePrimFunc(ops, index_dtype_override)
+    flatten_ops = []
+    for op in ops:
+        if isinstance(op, (list, tuple)):
+            flatten_ops.extend(op)
+        else:
+            flatten_ops.append(op)
+    return _ffi_api.CreatePrimFunc(flatten_ops, index_dtype_override)
 
 
 AXIS_SEPARATOR = tvm.tir.IndexMap.AXIS_SEPARATOR
