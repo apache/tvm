@@ -624,6 +624,17 @@ TVM_DLL PrimExpr prod(PrimExpr source, Array<tir::IterVar> axis, Array<PrimExpr>
 TVM_DLL PrimExpr floor(PrimExpr x, Span span = Span());
 
 /*!
+ * \brief Calculate the fractional part of x (x - trunc(x))
+ * \param x The input floating-point expression.
+ * \param span The location of this operation in the source.
+ * \return The fractional part of the input expression.
+ * \note For positive numbers: frac(3.7) = 0.7
+ *       For negative numbers: frac(-3.7) = -0.7
+ *       For integers: frac(5) = 0
+ */
+TVM_DLL PrimExpr frac(PrimExpr x, Span span = Span());
+
+/*!
  * \brief Calculate ceil(x)
  * \param x The input expression.
  * \param span The location of this operation in the source.

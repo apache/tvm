@@ -2532,6 +2532,29 @@ def trunc(x, span=None):
     return _ffi_api.trunc(x, span)  # type: ignore
 
 
+def frac(x, span=None):
+    """Get fractional part of the input.
+
+    The fractional part of the scalar x is computed as x - trunc(x).
+    For positive numbers: 3.7 -> 0.7
+    For negative numbers: -3.7 -> -0.7
+
+    Parameters
+    ----------
+    x : PrimExpr
+        Input argument (must be floating-point).
+
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    y : PrimExpr
+        The fractional part of the input.
+    """
+    return _ffi_api.frac(x, span)  # type: ignore
+
+
 def abs(x, span=None):
     """Get absolute value of the input element-wise.
 

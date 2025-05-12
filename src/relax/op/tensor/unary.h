@@ -94,6 +94,15 @@ Expr exp(Expr x);
 /*! \brief Take floor of input data. */
 Expr floor(Expr x);
 
+/*! 
+ * \brief Take fractional part of input data (x - trunc(x)).
+ * \param x The input expression (must be floating-point)
+ * \return The fractional part of each element
+ * \note For positive numbers: 3.7 -> 0.7
+ *       For negative numbers: -3.7 -> -0.7
+ */
+Expr frac(Expr x);
+
 /*! \brief Compute element-wise natural logarithm of data. */
 Expr log(Expr x);
 

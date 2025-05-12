@@ -767,6 +767,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "erf": self._unary_op(relax.op.erf),
             "exp": self._unary_op(relax.op.exp),
             "floor": self._unary_op(relax.op.floor),
+            "frac": self._unary_op(relax.op.frac),
             "gelu": self._gelu,
             "hardsigmoid": self._hardsigmoid,
             "hardswish": self._hardswish,
