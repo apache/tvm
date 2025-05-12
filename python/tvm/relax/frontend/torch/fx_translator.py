@@ -230,6 +230,15 @@ class TorchFXImporter(BaseFXGraphImporter):
             result = relax.op.squeeze(result, axis=[0])
         return result
 
+    def _avg_pool1d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        kernel_size = module.kernel_size
+        stride = module.stride
+        padding = module.padding
+        ceil_mode = module.ceil_mode
+        return self._avg_pool1d_impl(x, kernel_size, stride, padding, ceil_mode)
+
     def _avg_pool2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -238,6 +247,15 @@ class TorchFXImporter(BaseFXGraphImporter):
         padding = module.padding
         ceil_mode = module.ceil_mode
         return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode)
+
+    def _avg_pool3d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        kernel_size = module.kernel_size
+        stride = module.stride
+        padding = module.padding
+        ceil_mode = module.ceil_mode
+        return self._avg_pool3d_impl(x, kernel_size, stride, padding, ceil_mode)
 
     def _batch_norm_2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -698,9 +716,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.LogSoftmax: self._log_softmax_module,
             nn.PReLU: self._prelu_module,
             nn.ReLU: self._unary_op(relax.op.nn.relu),
-            nn.ReLU6: lambda node: self.block_builder.emit(
-                relax.op.clip(self.env[node.args[0]], 0, 6)
-            ),
+            nn.ReLU6: self._unary_op(relax.op.nn.relu6),
             nn.Sigmoid: self._unary_op(relax.op.sigmoid),
             nn.SELU: self._unary_op(relax.op.nn.selu),
             nn.SiLU: self._unary_op(relax.op.nn.silu),
@@ -711,7 +727,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.AdaptiveAvgPool1d: self._adaptive_avg_pool1d_module,
             nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d_module,
             nn.AdaptiveAvgPool3d: self._adaptive_avg_pool3d_module,
+            nn.AvgPool1d: self._avg_pool1d_module,
             nn.AvgPool2d: self._avg_pool2d_module,
+            nn.AvgPool3d: self._avg_pool3d_module,
             nn.BatchNorm2d: self._batch_norm_2d_module,
             nn.Conv1d: self._conv1d_module,
             nn.Conv2d: self._conv2d_module,
@@ -770,6 +788,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "prelu": self._prelu,
             "reciprocal": self._reciprocal,
             "relu": self._unary_op(relax.op.nn.relu),
+            "relu6": self._unary_op(relax.op.nn.relu6),
             "round": self._round,
             "rsqrt": self._unary_op(relax.op.rsqrt),
             "selu": self._unary_op(relax.op.nn.selu),
@@ -812,6 +831,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             "mod": self._binary_op(relax.op.floor_mod, operator.mod),
             "mul": self._binary_op(relax.op.multiply, operator.mul),
             "ne": self._binary_op(relax.op.not_equal, operator.ne),
+            "outer": lambda node: self.block_builder.emit(
+                relax.op.outer(self.env[node.args[0]], self.env[node.args[1]])
+            ),
             "pow": self._binary_op(relax.op.power, operator.pow),
             "or_": self._binary_op(relax.op.bitwise_or, operator.or_),
             "rshift": self._binary_op(relax.op.right_shift, operator.rshift),
@@ -824,7 +846,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             "adaptive_avg_pool2d": self._adaptive_avg_pool2d,
             "adaptive_avg_pool3d": self._adaptive_avg_pool3d,
             "addmm": self._addmm,
+            "avg_pool1d": self._avg_pool1d,
             "avg_pool2d": self._avg_pool2d,
+            "avg_pool3d": self._avg_pool3d,
             "baddbmm": self._baddbmm,
             "bmm": self._binary_op(
                 partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul

@@ -121,7 +121,7 @@ inline DLDataType StringToDLDataType(const String& str) {
 
 inline String DLDataTypeToString(DLDataType dtype) {
   TVMFFIObjectHandle out;
-  TVM_FFI_CHECK_SAFE_CALL(TVMFFIDataTypeToString(dtype, &out));
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFIDataTypeToString(&dtype, &out));
   return String(details::ObjectUnsafe::ObjectPtrFromOwned<Object>(static_cast<TVMFFIObject*>(out)));
 }
 

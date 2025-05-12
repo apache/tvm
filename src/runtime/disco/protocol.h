@@ -61,7 +61,7 @@ struct DiscoProtocol {
   inline void WriteObject(Object* obj);
 
   /*! \brief Read the object from stream. Used by RPCReference. */
-  inline void ReadObject(int* tcode, TVMValue* value);
+  inline void ReadObject(TVMFFIAny* out);
 
   /*! \brief Callback method used when starting a new message. Used by RPCReference. */
   void MessageStart(uint64_t packet_nbytes) {}
@@ -149,7 +149,7 @@ inline void DiscoProtocol<SubClassType>::WriteObject(Object* obj) {
     self->template Write<int64_t>(reg_id);
   } else if (obj->IsInstance<ffi::StringObj>()) {
     ffi::StringObj* str = static_cast<ffi::StringObj*>(obj);
-    self->template Write<uint32_t>(TypeIndex::kRuntimeString);
+    self->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIStr);
     self->template Write<uint64_t>(str->size);
     self->template WriteArray<char>(str->data, str->size);
   } else if (obj->IsInstance<ffi::BytesObj>()) {
@@ -159,7 +159,7 @@ inline void DiscoProtocol<SubClassType>::WriteObject(Object* obj) {
     self->template WriteArray<char>(bytes->data, bytes->size);
   } else if (obj->IsInstance<ffi::ShapeObj>()) {
     ffi::ShapeObj* shape = static_cast<ffi::ShapeObj*>(obj);
-    self->template Write<uint32_t>(TypeIndex::kRuntimeShape);
+    self->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIShape);
     self->template Write<uint64_t>(shape->size);
     self->template WriteArray<ffi::ShapeObj::index_type>(shape->data, shape->size);
   } else if (obj->IsInstance<DiscoDebugObject>()) {
@@ -174,7 +174,7 @@ inline void DiscoProtocol<SubClassType>::WriteObject(Object* obj) {
 }
 
 template <class SubClassType>
-inline void DiscoProtocol<SubClassType>::ReadObject(int* tcode, TVMValue* value) {
+inline void DiscoProtocol<SubClassType>::ReadObject(TVMFFIAny* out) {
   SubClassType* self = static_cast<SubClassType*>(this);
   ObjectRef result{nullptr};
   uint32_t type_index;
@@ -184,7 +184,7 @@ inline void DiscoProtocol<SubClassType>::ReadObject(int* tcode, TVMValue* value)
     self->template Read<int64_t>(&dref->reg_id);
     dref->session = Session{nullptr};
     result = ObjectRef(std::move(dref));
-  } else if (type_index == TypeIndex::kRuntimeString) {
+  } else if (type_index == ffi::TypeIndex::kTVMFFIStr) {
     uint64_t size = 0;
     self->template Read<uint64_t>(&size);
     std::string data(size, '\0');
@@ -196,7 +196,7 @@ inline void DiscoProtocol<SubClassType>::ReadObject(int* tcode, TVMValue* value)
     std::string data(size, '\0');
     self->template ReadArray<char>(data.data(), size);
     result = ffi::Bytes(std::move(data));
-  } else if (type_index == TypeIndex::kRuntimeShape) {
+  } else if (type_index == ffi::TypeIndex::kTVMFFIShape) {
     uint64_t ndim = 0;
     self->template Read<uint64_t>(&ndim);
     std::vector<ffi::ShapeObj::index_type> data(ndim);
@@ -212,9 +212,7 @@ inline void DiscoProtocol<SubClassType>::ReadObject(int* tcode, TVMValue* value)
     LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
                << Object::TypeIndex2Key(type_index) << " (type_index = " << type_index << ")";
   }
-  // translate AnyView to legacy TVMValue and type_code
-  AnyView res_view = result;
-  AnyViewToLegacyTVMArgValue(res_view.CopyToTVMFFIAny(), value, tcode);
+  *reinterpret_cast<AnyView*>(out) = result;
   object_arena_.push_back(result);
 }
 

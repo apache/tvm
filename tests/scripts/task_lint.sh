@@ -72,9 +72,6 @@ function shard2 {
   echo "clang-format check..."
   tests/lint/git-clang-format.sh
 
-  echo "Rust check..."
-  tests/lint/rust_format.sh
-
   echo "Docker check..."
   tests/lint/docker-format.sh
 }

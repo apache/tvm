@@ -337,6 +337,7 @@ TEST(Any, ObjectMove) {
   auto v0 = std::move(any1).cast<TPrimExpr>();
   EXPECT_EQ(v0->value, 3.14);
   EXPECT_EQ(v0.use_count(), 1);
+  EXPECT_TRUE(any1 == nullptr);
 }
 
 }  // namespace

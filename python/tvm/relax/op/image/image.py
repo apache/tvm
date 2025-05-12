@@ -35,7 +35,7 @@ def resize2d(
     method: str = "linear",
     coordinate_transformation_mode: str = "half_pixel",
     rounding_method: str = "round",
-    cubic_alpha: float = -0.5,
+    cubic_alpha: float = -0.75,
     cubic_exclude: int = 0,
     extrapolation_value: float = 0.0,
     out_dtype: Optional[Union[str, DataType]] = None,

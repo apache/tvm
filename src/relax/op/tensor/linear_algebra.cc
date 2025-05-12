@@ -251,5 +251,43 @@ TVM_REGISTER_OP("relax.einsum")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEinsum)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.outer */
+
+Expr outer(Expr x1, Expr x2) {
+  static const Op& op = Op::Get("relax.outer");
+  return Call(op, {std::move(x1), std::move(x2)}, {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.outer").set_body_typed(outer);
+
+StructInfo InferStructInfoOuter(const Call& call, const BlockBuilder& ctx) {
+  auto input_sinfo = GetInputTensorStructInfo(call, ctx);
+  auto x1_sinfo = input_sinfo[0];
+  auto x2_sinfo = input_sinfo[1];
+
+  // Ensure both inputs are 1D tensors
+  if (x1_sinfo->ndim != 1 || x2_sinfo->ndim != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "torch.outer requires both inputs to be 1D tensors.");
+  }
+
+  // Determine output shape
+  auto x1_shape = x1_sinfo->shape.as<ShapeExprNode>();
+  auto x2_shape = x2_sinfo->shape.as<ShapeExprNode>();
+  if (!x1_shape || !x2_shape) {
+    return TensorStructInfo(x1_sinfo->dtype, 2);
+  }
+  Array<PrimExpr> output_shape = {x1_shape->values[0], x2_shape->values[0]};
+  return TensorStructInfo(ShapeExpr(output_shape), x1_sinfo->dtype);
+}
+
+TVM_REGISTER_OP("relax.outer")
+    .set_num_inputs(2)
+    .add_argument("x1", "Tensor", "The first input tensor.")
+    .add_argument("x2", "Tensor", "The second input tensor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOuter)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 }  // namespace relax
 }  // namespace tvm

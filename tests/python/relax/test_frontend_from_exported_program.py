@@ -514,6 +514,53 @@ def test_extended_unary_ops():
 
     verify_model(MinModel(), example_args, {}, expected_min)
 
+    # relu6
+    class ReLU6_1(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.relu6 = torch.nn.ReLU6()
+
+        def forward(self, x):
+            return self.relu6(x)
+
+    class ReLU6_2(torch.nn.Module):
+        def forward(self, x):
+            return torch.nn.functional.relu6(x)
+
+    class ReLU6_3(torch.nn.Module):
+        def forward(self, x):
+            return torch.ops.aten.relu6_(x)
+
+    @tvm.script.ir_module
+    class expected_relu6_1:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(
+                    x, R.prim_value(T.float64(0.0)), R.prim_value(T.float64(6.0))
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected_relu6_2:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu6(x)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(ReLU6_1(), example_args, {}, expected_relu6_1)
+    verify_model(ReLU6_2(), example_args, {}, expected_relu6_2)
+    verify_model(ReLU6_3(), example_args, {}, expected_relu6_2)
+
 
 def test_hardtanh():
     class Hardtanh(torch.nn.Module):
@@ -1367,6 +1414,102 @@ def test_addmm():
     verify_model(Addmm2(), example_args, {}, expected2)
 
 
+def test_avg_pool1d():
+    class AvgPool1d1(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool1d(kernel_size=1)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10), dtype="float32") = R.nn.avg_pool1d(
+                    input_1,
+                    pool_size=[1],
+                    strides=[1],
+                    dilation=[1],
+                    padding=[0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class AvgPool1d2(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool1d(kernel_size=3, stride=2, padding=1, ceil_mode=True)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    class AvgPool1d3(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool1d(
+                input, kernel_size=3, stride=2, padding=1, ceil_mode=True
+            )
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool1d(
+                    input_1,
+                    pool_size=[3],
+                    strides=[2],
+                    dilation=[1],
+                    padding=[1, 1],
+                    ceil_mode=True,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                gv = (lv,)
+                R.output(gv)
+            return gv
+
+    class AvgPool1d4(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool1d(input, kernel_size=2, stride=2, padding=0)
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool1d(
+                    input_1,
+                    pool_size=[2],
+                    strides=[2],
+                    dilation=[1],
+                    padding=[0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                gv = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, dtype=torch.float32),)
+    verify_model(AvgPool1d1(), example_args, {}, expected1)
+    verify_model(AvgPool1d2(), example_args, {}, expected2)
+    verify_model(AvgPool1d3(), example_args, {}, expected2)
+    verify_model(AvgPool1d4(), example_args, {}, expected3)
+
+
 def test_avg_pool2d():
     class AvgPool2d1(Module):
         def __init__(self):
@@ -1458,6 +1601,102 @@ def test_avg_pool2d():
     verify_model(AvgPool2d2(), example_args, {}, expected2)
     verify_model(AvgPool2d3(), example_args, {}, expected2)
     verify_model(AvgPool2d4(), example_args, {}, expected3)
+
+
+def test_avg_pool3d():
+    class AvgPool3d1(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool3d(kernel_size=1)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 8, 8, 8), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 8, 8, 8), dtype="float32") = R.nn.avg_pool3d(
+                    input_1,
+                    pool_size=[1, 1, 1],
+                    strides=[1, 1, 1],
+                    dilation=[1, 1, 1],
+                    padding=[0, 0, 0, 0, 0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 8, 8, 8), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class AvgPool3d2(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool3d(kernel_size=3, stride=2, padding=1, ceil_mode=True)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    class AvgPool3d3(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool3d(
+                input, kernel_size=3, stride=2, padding=1, ceil_mode=True
+            )
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool3d(
+                    input_1,
+                    pool_size=[3, 3, 3],
+                    strides=[2, 2, 2],
+                    dilation=[1, 1, 1],
+                    padding=[1, 1, 1, 1, 1, 1],
+                    ceil_mode=True,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                gv = (lv,)
+                R.output(gv)
+            return gv
+
+    class AvgPool3d4(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool3d(input, kernel_size=[2, 1, 2], stride=[2, 1, 2])
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool3d(
+                    input_1,
+                    pool_size=[2, 1, 2],
+                    strides=[2, 1, 2],
+                    dilation=[1, 1, 1],
+                    padding=[0, 0, 0, 0, 0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                gv = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 8, 8, 8, dtype=torch.float32),)
+    verify_model(AvgPool3d1(), example_args, {}, expected1)
+    verify_model(AvgPool3d2(), example_args, {}, expected2)
+    verify_model(AvgPool3d3(), example_args, {}, expected2)
+    verify_model(AvgPool3d4(), example_args, {}, expected3)
 
 
 def test_baddbmm():
@@ -2231,6 +2470,30 @@ def test_einsum():
     verify_model(Einsum2(), example_args, {}, Expected2)
 
 
+def test_outer():
+    class Outer(torch.nn.Module):
+        def forward(self, x, y):
+            return torch.outer(x, y)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            a: R.Tensor((3,), dtype="float32"), b: R.Tensor((4,), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 4), dtype="float32") = R.outer(a, b)
+                gv: R.Tuple(R.Tensor((3, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(3, dtype=torch.float32),
+        torch.randn(4, dtype=torch.float32),
+    )
+    verify_model(Outer(), example_args, {}, expected)
+
+
 def test_embedding():
     class Embedding(Module):
         def __init__(self):
@@ -2935,7 +3198,7 @@ def test_interpolate():
                     method="linear",
                     coordinate_transformation_mode="half_pixel",
                     rounding_method="round",
-                    cubic_alpha=-0.5,
+                    cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0.0,
                     out_dtype="void",
@@ -2964,7 +3227,36 @@ def test_interpolate():
                     method="nearest_neighbor",
                     coordinate_transformation_mode="half_pixel",
                     rounding_method="round",
-                    cubic_alpha=-0.5,
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0.0,
+                    out_dtype="void",
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class InterpolateBicubic(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(input, (224, 224), mode="bicubic")
+
+    @tvm.script.ir_module
+    class expected_bicubic:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 112, 112), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 224, 224), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 224, 224), dtype="float32") = R.image.resize2d(
+                    input,
+                    R.shape([224, 224]),
+                    roi=[T.float32(0.0), T.float32(0.0), T.float32(0.0), T.float32(0.0)],
+                    layout="NCHW",
+                    method="cubic",
+                    coordinate_transformation_mode="half_pixel",
+                    rounding_method="round",
+                    cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0.0,
                     out_dtype="void",
@@ -2976,6 +3268,7 @@ def test_interpolate():
     example_args = (torch.randn(1, 3, 112, 112, dtype=torch.float32),)
     verify_model(InterpolateBilinear(), example_args, {}, expected_bilinear)
     verify_model(InterpolateNearest(), example_args, {}, expected_nearest)
+    verify_model(InterpolateBicubic(), example_args, {}, expected_bicubic)
 
 
 def test_mean():

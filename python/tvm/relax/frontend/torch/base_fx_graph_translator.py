@@ -580,6 +580,48 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             res = bias if res is None else self.block_builder.emit(relax.op.add(bias, res))
         return res
 
+    def _avg_pool1d_impl(
+        self,
+        x: relax.Expr,
+        kernel_size: Union[int, Tuple[int]] = 1,
+        stride: Optional[Union[int, Tuple[int]]] = None,
+        padding: Optional[int] = 0,
+        ceil_mode: Optional[bool] = False,
+        count_include_pad: Optional[bool] = True,
+    ) -> relax.Var:
+        # Expand to 3D by adding batch dim if input is 2D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 2:
+            x = relax.op.expand_dims(x, axis=0)
+        stride = kernel_size if stride is None or stride == [] else stride
+
+        result = self.block_builder.emit(
+            relax.op.nn.avg_pool1d(
+                x,
+                pool_size=kernel_size,
+                strides=stride,
+                padding=padding,
+                ceil_mode=ceil_mode,
+                count_include_pad=count_include_pad,
+                layout="NCW",
+            )
+        )
+        # Remove added batch dim from result
+        if x_ndim == 2:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _avg_pool1d(self, node: fx.Node) -> relax.Var:
+        args, kwargs = node.normalized_arguments(node)
+        x = self.env[args[0]]
+        kernel_size = args[1] if len(args) > 1 else kwargs["kernel_size"]
+        stride = args[2] if len(args) > 2 else kwargs.get("stride", None)
+        padding = args[3] if len(args) > 3 else kwargs.get("padding", 0)
+        ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
+        count_include_pad = args[5] if len(args) > 5 else kwargs.get("count_include_pad", True)
+
+        return self._avg_pool1d_impl(x, kernel_size, stride, padding, ceil_mode, count_include_pad)
+
     def _avg_pool2d_impl(
         self,
         x: relax.Expr,
@@ -588,8 +630,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding: Optional[int] = 0,
         ceil_mode: Optional[bool] = False,
     ) -> relax.Var:
+        # Expand to 4D by adding batch dim if input is 3D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 3:
+            x = relax.op.expand_dims(x, axis=0)
         stride = kernel_size if stride is None or stride == [] else stride
-        return self.block_builder.emit(
+
+        result = self.block_builder.emit(
             relax.op.nn.avg_pool2d(
                 x,
                 pool_size=kernel_size,
@@ -599,6 +646,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 layout="NCHW",
             )
         )
+        # Remove added batch dim from result
+        if x_ndim == 3:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
 
     def _avg_pool2d(self, node: fx.Node) -> relax.Var:
         args, kwargs = node.normalized_arguments(node)
@@ -608,6 +659,48 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding = args[3] if len(args) > 3 else kwargs.get("padding", 0)
         ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
         return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode)
+
+    def _avg_pool3d_impl(
+        self,
+        x: relax.Expr,
+        kernel_size: Union[int, Tuple[int, int, int]] = (1, 1, 1),
+        stride: Optional[Union[int, Tuple[int, int, int]]] = None,
+        padding: Optional[int] = 0,
+        ceil_mode: Optional[bool] = False,
+        count_include_pad: Optional[bool] = True,
+    ) -> relax.Var:
+        # Expand to 5D by adding batch dim if input is 4D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 4:
+            x = relax.op.expand_dims(x, axis=0)
+        stride = kernel_size if stride is None or stride == [] else stride
+
+        result = self.block_builder.emit(
+            relax.op.nn.avg_pool3d(
+                x,
+                pool_size=kernel_size,
+                strides=stride,
+                padding=padding,
+                ceil_mode=ceil_mode,
+                count_include_pad=count_include_pad,
+                layout="NCDHW",
+            )
+        )
+        # Remove added batch dim from result
+        if x_ndim == 4:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _avg_pool3d(self, node: fx.Node) -> relax.Var:
+        args, kwargs = node.normalized_arguments(node)
+        x = self.env[args[0]]
+        kernel_size = args[1] if len(args) > 1 else kwargs["kernel_size"]
+        stride = args[2] if len(args) > 2 else kwargs.get("stride", None)
+        padding = args[3] if len(args) > 3 else kwargs.get("padding", 0)
+        ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
+        count_include_pad = args[5] if len(args) > 5 else kwargs.get("count_include_pad", True)
+
+        return self._avg_pool3d_impl(x, kernel_size, stride, padding, ceil_mode, count_include_pad)
 
     def _baddbmm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]

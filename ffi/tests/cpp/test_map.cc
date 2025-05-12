@@ -243,7 +243,7 @@ TEST(Map, AnyConvertCheck) {
       ::tvm::ffi::Error);
 }
 
-TEST(Map, ffi::FunctionGetItem) {
+TEST(Map, FunctionGetItem) {
   Function f = Function::FromTyped([](const MapObj* n, const Any& k) -> Any { return n->at(k); },
                                    "map_get_item");
   Map<String, int64_t> map{{"x", 1}, {"y", 2}};
