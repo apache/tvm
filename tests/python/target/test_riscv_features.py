@@ -24,20 +24,16 @@ LLVM_VERSION = codegen.llvm_version_major()
 
 # fmt: off
 min_llvm_version, tvm_target, vec_width = tvm.testing.parameters(
-    # generic, no-vec -> (default 256)
-    (-1, "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+i,+m", 256),
-    (-1, "llvm -device=riscv_cpu -mtriple=riscv32-linux-gnu -mcpu=generic-rv32 -mattr=+64bit,+a,+c,+d,+f,+m", 256),
-    # generic, with-vec -> (default 256)
-    (-1, "llvm -device=riscv_cpu -mtriple=riscv32-linux-gnu -mcpu=generic-rv32 -mattr=+i,+m,+v", 256),
-    (-1, "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v", 256),
-    # explicit -vector-width
-    (-1, "llvm -device=riscv_cpu -vector-width=128 -mtriple=riscv32-linux-gnu -mcpu=generic-rv32 -mattr=+i,+m,+v", 128),
-    (-1, "llvm -device=riscv_cpu -vector-width=128 -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v", 128),
-    (-1, "llvm -device=riscv_cpu -vector-width=512 -mtriple=riscv32-linux-gnu -mcpu=generic-rv32 -mattr=+i,+m,+v", 512),
-    (-1, "llvm -device=riscv_cpu -vector-width=512 -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v", 512),
+    # generic, no vector -> (default 128)
+    (-1, "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+i,+m", 128),
+    (-1, "llvm -device=riscv_cpu -mtriple=riscv32-linux-gnu -mcpu=generic-rv32 -mattr=+64bit,+a,+c,+d,+f,+m", 128),
+    # generic, with vector -> (default zvl128b)
+    (-1, "llvm -device=riscv_cpu -mtriple=riscv32-linux-gnu -mcpu=generic-rv32 -mattr=+i,+m,+v", 128),
+    (-1, "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v", 128),
     # explicit +zvlXXXb
-    (14, "llvm -device=riscv_cpu -mtriple=riscv32-linux-gnu -mcpu=generic-rv32 -mattr=+i,+m,+v,+zvl64b", 64),
-    (14, "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v,+zvl64b", 64),
+    (14, "llvm -device=riscv_cpu -mtriple=riscv32-linux-gnu -mcpu=generic-rv32 -mattr=+i,+m,+v,+zvl64b", 128),
+    (14, "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v,+zvl256b", 256),
+    (14, "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=generic-rv64 -mattr=+64bit,+a,+c,+d,+f,+m,+v,+zvl512b", 512),
     # vendor CPU
     (17, "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=sifive-x280", 512),
     (18, "llvm -device=riscv_cpu -mtriple=riscv64-linux-gnu -mcpu=sifive-p670", 128),
