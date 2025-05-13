@@ -743,7 +743,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 padding=padding,
                 dilation=dilation,
                 groups=groups,
-                output_padding = output_padding,
+                output_padding=output_padding,
                 data_layout="NCW",
                 kernel_layout="IOW",
                 out_dtype="float32",
@@ -775,7 +775,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             padding=padding,
             dilation=dilation,
             groups=groups,
-            output_padding = output_padding
+            output_padding=output_padding,
         )
 
     def _conv_transpose2d_impl(
@@ -797,7 +797,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 padding=padding,
                 dilation=dilation,
                 groups=groups,
-                output_padding = output_padding,
+                output_padding=output_padding,
                 data_layout="NCHW",
                 kernel_layout="IOHW",
                 out_dtype="float32",
