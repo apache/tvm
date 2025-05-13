@@ -368,12 +368,12 @@ def trunc(x):
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
 def frac(x):
     """Take fractional part of the input x, element-wise.
-    
+
     Parameters
     ----------
     x : tvm.te.Tensor
         Input argument (must be floating-point).
-        
+
     Returns
     -------
     y : tvm.te.Tensor

@@ -3459,7 +3459,7 @@ def test_extended_unary_ops():
         def main(
             inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-   
+
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.frac(inp_0)
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv

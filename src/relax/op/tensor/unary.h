@@ -94,7 +94,7 @@ Expr exp(Expr x);
 /*! \brief Take floor of input data. */
 Expr floor(Expr x);
 
-/*! 
+/*!
  * \brief Take fractional part of input data (x - trunc(x)).
  * \param x The input expression (must be floating-point)
  * \return The fractional part of each element
