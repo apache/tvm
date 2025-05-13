@@ -670,7 +670,7 @@ def test_vectorize_and_predicate_invalid_conditions():
 
 
 def test_vectorize_with_explicitly_disabled_buffer_level_predication():
-    # Since the target has the SVE feature, buffer level predication is enabled
+    # Since the target has the VLA feature, buffer level predication is enabled
     # by default. However, it has been explicitly disabled by the pass context
     # option, so no buffer-level predicates should be added.
     @T.prim_func
