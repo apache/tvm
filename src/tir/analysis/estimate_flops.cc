@@ -174,10 +174,10 @@ class FlopEstimator : private ExprFunctor<TResult(const PrimExpr& n)>,
   }
 
   TResult VisitStmt_(const WhileNode* op) override {
-  // TODO(jikechao): Improve while loop FLOP estimation with loop bound analysis
-  TResult result = VisitExpr(op->condition);
-  result += VisitStmt(op->body);
-  return result;
+    // TODO(jikechao): Improve while loop FLOP estimation with loop bound analysis
+    TResult result = VisitExpr(op->condition);
+    result += VisitStmt(op->body);
+    return result;
   }
 
   TResult VisitStmt_(const LetStmtNode* let) override {
