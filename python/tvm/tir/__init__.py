@@ -98,7 +98,7 @@ from .op import (
     pow,
     popcount,
     fmod,
-    if_then_else
+    if_then_else,
 )
 from .op import likely, isnan, isnullptr, isfinite, isinf, copysign
 from .op import div, indexdiv, indexmod, truncdiv, truncmod, floordiv, floormod, ceildiv, logaddexp
