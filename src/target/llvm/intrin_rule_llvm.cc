@@ -216,7 +216,7 @@ TVM_REGISTER_OP("tir.erf").set_attr<FLegalize>("llvm.FLegalize", [](const PrimEx
   PrimExpr two = make_const(x.dtype(), 2.0);
   PrimExpr sqrt_pi = sqrt(make_const(x.dtype(), M_PI));
   return sum * (two / sqrt_pi);
-    });
+});
 
 TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
   const tir::CallNode* call = e.as<tir::CallNode>();
