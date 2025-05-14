@@ -294,6 +294,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             padding=module.padding,
             dilation=module.dilation,
             groups=module.groups,
+            output_padding=module.output_padding,
         )
 
     def _conv_transpose2d_module(self, node: fx.Node) -> relax.Var:
@@ -310,6 +311,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             padding=module.padding,
             dilation=module.dilation,
             groups=module.groups,
+            output_padding=module.output_padding,
         )
 
     def _conv1d_module(self, node: fx.Node) -> relax.Var:

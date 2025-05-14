@@ -733,6 +733,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding: Optional[Tuple],
         dilation: Optional[Tuple],
         groups: Optional[Tuple],
+        output_padding: Optional[Tuple],
     ) -> relax.Var:
         conv1d_transpose = self.block_builder.emit(
             relax.op.nn.conv1d_transpose(
@@ -742,8 +743,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 padding=padding,
                 dilation=dilation,
                 groups=groups,
+                output_padding=output_padding,
                 data_layout="NCW",
-                kernel_layout="OIW",
+                kernel_layout="IOW",
                 out_dtype="float32",
             )
         )
@@ -762,8 +764,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         bias = args[2] if len(args) > 2 else None
         stride = args[3] if len(args) > 3 else 1
         padding = args[4] if len(args) > 4 else 0
-        dilation = args[5] if len(args) > 5 else 1
+        output_padding = args[5] if len(args) > 5 else 0
         groups = args[6] if len(args) > 6 else 1
+        dilation = args[7] if len(args) > 7 else 1
         return self._conv_transpose1d_impl(
             x,
             weight,
@@ -772,6 +775,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             padding=padding,
             dilation=dilation,
             groups=groups,
+            output_padding=output_padding,
         )
 
     def _conv_transpose2d_impl(
@@ -783,6 +787,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding: Optional[Tuple],
         dilation: Optional[Tuple],
         groups: Optional[Tuple],
+        output_padding: Optional[Tuple],
     ) -> relax.Var:
         conv2d_transpose = self.block_builder.emit(
             relax.op.nn.conv2d_transpose(
@@ -792,8 +797,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 padding=padding,
                 dilation=dilation,
                 groups=groups,
+                output_padding=output_padding,
                 data_layout="NCHW",
-                kernel_layout="OIHW",
+                kernel_layout="IOHW",
                 out_dtype="float32",
             )
         )
@@ -812,8 +818,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         bias = args[2] if len(args) > 2 else None
         stride = args[3] if len(args) > 3 else 1
         padding = args[4] if len(args) > 4 else 0
-        dilation = args[5] if len(args) > 5 else 1
+        output_padding = args[5] if len(args) > 5 else 0
         groups = args[6] if len(args) > 6 else 1
+        dilation = args[7] if len(args) > 7 else 1
         return self._conv_transpose2d_impl(
             x,
             weight,
@@ -822,6 +829,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             padding=padding,
             dilation=dilation,
             groups=groups,
+            output_padding=output_padding,
         )
 
     def _conv1d_impl(
