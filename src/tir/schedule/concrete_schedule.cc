@@ -913,7 +913,7 @@ void ConcreteScheduleNode::Tensorize(const BlockRV& block_rv, const String& intr
 /******** Schedule: Annotation ********/
 
 Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
-  if (auto opt_str = ann_val.as<ffi::String>()) {
+  if (auto opt_str = ann_val.try_cast<ffi::String>()) {
     return *std::move(opt_str);
   }
 
@@ -921,10 +921,10 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
     return ann_val;
   }
   // prefer to return int/float literals for annotations
-  if (auto opt_intimm = ann_val.as<IntImm>()) {
+  if (auto opt_intimm = ann_val.try_cast<IntImm>()) {
     return (*std::move(opt_intimm))->value;
   }
-  if (auto opt_floatimm = ann_val.as<FloatImm>()) {
+  if (auto opt_floatimm = ann_val.try_cast<FloatImm>()) {
     return (*std::move(opt_floatimm))->value;
   }
 
@@ -956,7 +956,7 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
       auto value = CheckAndGetAnnotationValue(it->second);
       if (const StringImmNode* imm = key.as<StringImmNode>()) {
         result.Set(imm->value, value);
-      } else if (auto opt_str = key.as<ffi::String>()) {
+      } else if (auto opt_str = key.try_cast<ffi::String>()) {
         result.Set(opt_str.value(), value);
       } else {
         LOG(FATAL) << "TypeError: annotation dict key expect to be String or StringImm";

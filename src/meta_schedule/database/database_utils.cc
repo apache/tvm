@@ -29,7 +29,7 @@ namespace meta_schedule {
 void JSONDumps(Any json_obj, std::ostringstream& os) {
   if (json_obj == nullptr) {
     os << "null";
-  } else if (auto opt_int_imm = json_obj.as<IntImm>()) {
+  } else if (auto opt_int_imm = json_obj.try_cast<IntImm>()) {
     IntImm int_imm = *std::move(opt_int_imm);
     if (int_imm->dtype == DataType::Bool()) {
       if (int_imm->value) {
@@ -40,7 +40,7 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
     } else {
       os << int_imm->value;
     }
-  } else if (auto opt_float_imm = json_obj.as<FloatImm>()) {
+  } else if (auto opt_float_imm = json_obj.try_cast<FloatImm>()) {
     FloatImm float_imm = *std::move(opt_float_imm);
     os << std::setprecision(20) << float_imm->value;
   } else if (const auto* str = json_obj.as<ffi::StringObj>()) {
@@ -60,7 +60,7 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
     std::vector<std::pair<String, ffi::Any>> key_values;
     key_values.reserve(n);
     for (const auto& kv : *dict) {
-      if (auto key = kv.first.as<String>()) {
+      if (auto key = kv.first.try_cast<String>()) {
         key_values.emplace_back(key.value(), kv.second);
       } else {
         LOG(FATAL) << "TypeError: Only string keys are supported in JSON dumps, but got: "

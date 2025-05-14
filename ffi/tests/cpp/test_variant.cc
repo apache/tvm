@@ -32,7 +32,6 @@ using namespace tvm::ffi::testing;
 TEST(Variant, Basic) {
   Variant<int, float> v1 = 1;
   EXPECT_EQ(v1.get<int>(), 1);
-  EXPECT_EQ(v1.as<float>().value(), 1.0f);
 
   Variant<int, float> v2 = 2.0f;
   EXPECT_EQ(v2.get<float>(), 2.0f);

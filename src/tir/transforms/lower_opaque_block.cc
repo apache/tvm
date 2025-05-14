@@ -150,9 +150,9 @@ class OpaqueBlockLower : public StmtExprMutator {
   PrimExpr ConvertAttrValue(const String& key, const Any& obj) {
     if (obj == nullptr) {
       return PrimExpr();
-    } else if (auto expr = obj.as<PrimExpr>()) {
+    } else if (auto expr = obj.try_cast<PrimExpr>()) {
       return expr.value();
-    } else if (auto str = obj.as<String>()) {
+    } else if (auto str = obj.try_cast<String>()) {
       return std::move(StringImm(str.value()));
     } else {
       LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj.GetTypeKey()

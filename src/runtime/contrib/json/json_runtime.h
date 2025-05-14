@@ -124,7 +124,7 @@ class JSONRuntimeBase : public ModuleNode {
         // Bind argument tensors to data entries.
         this->SetInputOutputBuffers(args);
 
-        if (auto opt_str = rv->as<String>()) {
+        if (auto opt_str = rv->try_cast<String>()) {
           String purpose = std::move(opt_str.value());
           if ("debug_dump" == purpose) {
             *rv = this->DebugDump();
