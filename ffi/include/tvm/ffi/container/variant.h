@@ -70,7 +70,7 @@ class VariantBase<true> : public ObjectRef {
   explicit VariantBase(T&& other) : ObjectRef(std::move(other)) {}
   explicit VariantBase(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
   explicit VariantBase(Any other)
-      : ObjectRef(details::AnyUnsafe::MoveFromAnyStorageAfterCheck<ObjectRef>(std::move(other))) {}
+      : ObjectRef(details::AnyUnsafe::MoveFromAnyAfterCheck<ObjectRef>(std::move(other))) {}
 
   TVM_FFI_INLINE void SetData(ObjectPtr<Object> other) { data_ = std::move(other); }
 
@@ -201,22 +201,22 @@ struct TypeTraits<Variant<V...>> : public TypeTraitsBase {
     return TypeTraitsBase::GetMismatchTypeInfo(src);
   }
 
-  static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
-    return (TypeTraits<V>::CheckAnyStorage(src) || ...);
+  static TVM_FFI_INLINE bool CheckAnyStrict(const TVMFFIAny* src) {
+    return (TypeTraits<V>::CheckAnyStrict(src) || ...);
   }
 
-  static TVM_FFI_INLINE Variant<V...> CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE Variant<V...> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
     return Variant<V...>(Any(AnyView::CopyFromTVMFFIAny(*src)));
   }
 
-  static TVM_FFI_INLINE Variant<V...> MoveFromAnyStorageAfterCheck(TVMFFIAny* src) {
+  static TVM_FFI_INLINE Variant<V...> MoveFromAnyAfterCheck(TVMFFIAny* src) {
     return Variant<V...>(details::AnyUnsafe::MoveTVMFFIAnyToAny(std::move(*src)));
   }
 
-  static TVM_FFI_INLINE std::optional<Variant<V...>> TryConvertFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<Variant<V...>> TryCastFromAnyView(const TVMFFIAny* src) {
     // fast path, storage is already in the right type
-    if (CheckAnyStorage(src)) {
-      return CopyFromAnyStorageAfterCheck(src);
+    if (CheckAnyStrict(src)) {
+      return CopyFromAnyViewAfterCheck(src);
     }
     // More expensive path, try to convert to each type, in order of declaration
     return TryVariantTypes<V...>(src);
@@ -224,7 +224,7 @@ struct TypeTraits<Variant<V...>> : public TypeTraitsBase {
 
   template <typename VariantType, typename... Rest>
   static TVM_FFI_INLINE std::optional<Variant<V...>> TryVariantTypes(const TVMFFIAny* src) {
-    if (auto opt_convert = TypeTraits<VariantType>::TryConvertFromAnyView(src)) {
+    if (auto opt_convert = TypeTraits<VariantType>::TryCastFromAnyView(src)) {
       return Variant<V...>(*std::move(opt_convert));
     }
     if constexpr (sizeof...(Rest) > 0) {

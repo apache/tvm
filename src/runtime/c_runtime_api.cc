@@ -733,7 +733,7 @@ int TVMCbArgToReturn(TVMValue* value, int* code) {
   API_BEGIN();
   AnyView arg = LegacyTVMArgValueToAnyView(*value, *code);
   Any rv;
-  if (auto opt_rv = arg.as<tvm::ffi::RValueRef<tvm::ffi::ObjectRef>>()) {
+  if (auto opt_rv = arg.try_cast<tvm::ffi::RValueRef<tvm::ffi::ObjectRef>>()) {
     rv = *std::move(*std::move(opt_rv));
   } else {
     rv = arg;

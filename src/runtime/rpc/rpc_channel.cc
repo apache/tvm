@@ -41,7 +41,7 @@ size_t CallbackChannel::Send(const void* data, size_t size) {
 size_t CallbackChannel::Recv(void* data, size_t size) {
   Any ret = frecv_(size);
 
-  auto opt_bytes = ret.as<ffi::Bytes>();
+  auto opt_bytes = ret.try_cast<ffi::Bytes>();
   CHECK(opt_bytes.has_value()) << "CallbackChannel::Recv";
 
   ffi::Bytes bytes = std::move(opt_bytes.value());

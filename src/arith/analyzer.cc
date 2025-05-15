@@ -320,7 +320,7 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer")
           });
         } else if (name == "bind") {
           return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
-            if (auto opt_range = args[1].as<Range>()) {
+            if (auto opt_range = args[1].try_cast<Range>()) {
               self->Bind(args[0].cast<Var>(), opt_range.value());
             } else {
               self->Bind(args[0].cast<Var>(), args[1].cast<PrimExpr>());

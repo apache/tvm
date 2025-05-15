@@ -78,7 +78,7 @@ Array<Any> TranslateInputRVs(const Array<Any>& inputs,
       auto it = rv_map.find(input.as<Object>());
       ICHECK(it != rv_map.end()) << "IndexError: Random variable doesn't exist: " << input;
       result.push_back(GetRef<ObjectRef>(it->second));
-    } else if (auto expr = input.as<PrimExpr>()) {  // RV: Expr
+    } else if (auto expr = input.try_cast<PrimExpr>()) {  // RV: Expr
       result.push_back(Substitute(expr.value(), f_subst_with_rv_map));
     } else if (auto index_map = input.as<IndexMap>()) {
       result.push_back(Substitute(index_map.value(), f_subst_with_rv_map));
@@ -400,7 +400,7 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
     try {
       const ffi::ArrayObj* arr = decision_entry.as<ffi::ArrayObj>();
       ICHECK(arr && arr->size() == 2);
-      auto arr0 = arr->at(0).as<IntImm>();
+      auto arr0 = arr->at(0).try_cast<IntImm>();
       ICHECK(arr0);
       index = arr0.value()->value;
       decision = arr->at(1);

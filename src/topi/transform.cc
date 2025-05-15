@@ -86,7 +86,7 @@ TVM_REGISTER_GLOBAL("topi.ndarray_size").set_body_packed([](ffi::PackedArgs args
 });
 
 TVM_REGISTER_GLOBAL("topi.split").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  if (args[1].as<int>()) {
+  if (args[1].try_cast<int>()) {
     *rv = split_n_sections(args[0].cast<te::Tensor>(), args[1].cast<int>(), args[2].cast<int>());
   } else {
     *rv = split_indices_array(args[0].cast<te::Tensor>(), args[1].cast<Array<Integer>>(),

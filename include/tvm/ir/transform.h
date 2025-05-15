@@ -273,10 +273,10 @@ class PassContext : public ObjectRef {
     auto type_key = ffi::TypeIndexToTypeKey(tindex);
 
     auto legalization = [=](ffi::Any value) -> ffi::Any {
-      if (auto opt_map = value.as<Map<String, ffi::Any>>()) {
+      if (auto opt_map = value.try_cast<Map<String, ffi::Any>>()) {
         return reflection->CreateObject(type_key, opt_map.value());
       } else {
-        auto opt_val = value.as<ValueType>();
+        auto opt_val = value.try_cast<ValueType>();
         if (!opt_val.has_value()) {
           TVM_FFI_THROW(AttributeError)
               << "Expect config " << key << " to have type " << type_key << ", but instead get "

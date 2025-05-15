@@ -98,7 +98,7 @@ class Tuple : public ObjectRef {
     static_assert(I < sizeof...(Types), "Tuple index out of bounds");
     using ReturnType = std::tuple_element_t<I, std::tuple<Types...>>;
     const Any* ptr = GetArrayObj()->begin() + I;
-    return details::AnyUnsafe::CopyFromAnyStorageAfterCheck<ReturnType>(*ptr);
+    return details::AnyUnsafe::CopyFromAnyViewAfterCheck<ReturnType>(*ptr);
   }
 
   /*!
@@ -179,7 +179,7 @@ inline constexpr bool use_default_type_traits_v<Tuple<Types...>> = false;
 
 template <typename... Types>
 struct TypeTraits<Tuple<Types...>> : public ObjectRefTypeTraitsBase<Tuple<Types...>> {
-  using ObjectRefTypeTraitsBase<Tuple<Types...>>::CopyFromAnyStorageAfterCheck;
+  using ObjectRefTypeTraitsBase<Tuple<Types...>>::CopyFromAnyViewAfterCheck;
 
   static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIArray) {
@@ -196,7 +196,7 @@ struct TypeTraits<Tuple<Types...>> : public ObjectRefTypeTraitsBase<Tuple<Types.
   static TVM_FFI_INLINE std::string GetMismatchTypeInfoHelper(const Any* arr) {
     if constexpr (!std::is_same_v<T, Any>) {
       const Any& any_v = arr[I];
-      if (!details::AnyUnsafe::CheckAnyStorage<T>(any_v) && !(any_v.as<T>().has_value())) {
+      if (!details::AnyUnsafe::CheckAnyStrict<T>(any_v) && !(any_v.try_cast<T>().has_value())) {
         // now report the accurate mismatch information
         return "Array[index " + std::to_string(I) + ": " +
                details::AnyUnsafe::GetMismatchTypeInfo<T>(any_v) + "]";
@@ -209,39 +209,38 @@ struct TypeTraits<Tuple<Types...>> : public ObjectRefTypeTraitsBase<Tuple<Types.
     TVM_FFI_UNREACHABLE();
   }
 
-  static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE bool CheckAnyStrict(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIArray) return false;
     const ArrayObj* n = reinterpret_cast<const ArrayObj*>(src->v_obj);
     if (n->size() != sizeof...(Types)) return false;
     const TVMFFIAny* ffi_any_arr = reinterpret_cast<const TVMFFIAny*>(n->begin());
-    return CheckAnyStorageHelper<0, Types...>(ffi_any_arr);
+    return CheckAnyStrictHelper<0, Types...>(ffi_any_arr);
   }
 
   template <size_t I, typename T, typename... Rest>
-  static TVM_FFI_INLINE bool CheckAnyStorageHelper(const TVMFFIAny* src_arr) {
+  static TVM_FFI_INLINE bool CheckAnyStrictHelper(const TVMFFIAny* src_arr) {
     if constexpr (!std::is_same_v<T, Any>) {
-      if (!TypeTraits<T>::CheckAnyStorage(src_arr + I)) {
+      if (!TypeTraits<T>::CheckAnyStrict(src_arr + I)) {
         return false;
       }
     }
     if constexpr (sizeof...(Rest) > 0) {
-      return CheckAnyStorageHelper<I + 1, Rest...>(src_arr);
+      return CheckAnyStrictHelper<I + 1, Rest...>(src_arr);
     }
     return true;
   }
 
-  static TVM_FFI_INLINE std::optional<Tuple<Types...>> TryConvertFromAnyView(
-      const TVMFFIAny* src  //
+  static TVM_FFI_INLINE std::optional<Tuple<Types...>> TryCastFromAnyView(const TVMFFIAny* src  //
   ) {
     if (src->type_index != TypeIndex::kTVMFFIArray) return std::nullopt;
     const ArrayObj* n = reinterpret_cast<const ArrayObj*>(src->v_obj);
     if (n->size() != sizeof...(Types)) return std::nullopt;
     // fast path, storage is already in the right type
-    if (CheckAnyStorage(src)) {
-      return CopyFromAnyStorageAfterCheck(src);
+    if (CheckAnyStrict(src)) {
+      return CopyFromAnyViewAfterCheck(src);
     }
     // slow path, try to convert to each type to match the tuple storage need.
-    Array<Any> arr = TypeTraits<Array<Any>>::CopyFromAnyStorageAfterCheck(src);
+    Array<Any> arr = TypeTraits<Array<Any>>::CopyFromAnyViewAfterCheck(src);
     Any* ptr = arr.CopyOnWrite()->MutableBegin();
     if (TryConvertElements<0, Types...>(ptr)) {
       return Tuple<Types...>(details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(arr));
@@ -252,7 +251,7 @@ struct TypeTraits<Tuple<Types...>> : public ObjectRefTypeTraitsBase<Tuple<Types.
   template <size_t I, typename T, typename... Rest>
   static TVM_FFI_INLINE bool TryConvertElements(Any* arr) {
     if constexpr (!std::is_same_v<T, Any>) {
-      if (auto opt_convert = arr[I].as<T>()) {
+      if (auto opt_convert = arr[I].try_cast<T>()) {
         arr[I] = *std::move(opt_convert);
       } else {
         return false;
