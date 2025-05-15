@@ -111,7 +111,7 @@ static std::vector<String> DeduplicateKeys(const std::vector<String>& keys) {
 
 template <class T>
 static T ObjTypeCheck(const Any& obj, const std::string& expected_type) {
-  auto opt = obj.as<T>();
+  auto opt = obj.try_cast<T>();
   if (!opt.has_value()) {
     TVM_FFI_THROW(TypeError) << "Expects type \"" << expected_type << "\", but gets \""
                              << obj.GetTypeKey() << "\" for object: " << obj;
@@ -426,7 +426,7 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
     // Parsing target
     if (auto opt = obj.as<Target>()) {
       return opt.value();
-    } else if (auto str = obj.as<String>()) {
+    } else if (auto str = obj.try_cast<String>()) {
       return Target(TargetInternal::FromString(str.value()));
     } else if (const auto* ptr = obj.as<ffi::MapObj>()) {
       for (const auto& kv : *ptr) {
@@ -487,9 +487,9 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
 
 std::string TargetInternal::StringifyAtomicType(const Any& obj) {
   if (obj.type_index() == ffi::TypeIndex::kTVMFFIBool) {
-    return std::to_string(obj.as<bool>().value());
+    return std::to_string(obj.cast<bool>());
   } else if (obj.type_index() == ffi::TypeIndex::kTVMFFIInt) {
-    return std::to_string(obj.as<int64_t>().value());
+    return std::to_string(obj.cast<int64_t>());
   } else if (auto opt_str = obj.as<String>()) {
     std::string s = opt_str.value();
     auto u = Uninterpret(s);
@@ -761,9 +761,9 @@ void TargetInternal::ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv) {
     const auto& arg = args[0];
     if (auto opt_target = arg.as<Target>()) {
       *rv = Target(opt_target.value());
-    } else if (auto opt_str = arg.as<String>()) {
+    } else if (auto opt_str = arg.try_cast<String>()) {
       *rv = Target(opt_str.value());
-    } else if (auto opt_map = arg.as<Map<String, ffi::Any>>()) {
+    } else if (auto opt_map = arg.try_cast<Map<String, ffi::Any>>()) {
       *rv = Target(opt_map.value());
     } else {
       LOG(FATAL) << "TypeError: Cannot create target with type: " << args[0].GetTypeKey();
@@ -850,7 +850,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
 
   // parse 'kind'
   if (config.count(kKind)) {
-    if (auto kind = config[kKind].as<String>()) {
+    if (auto kind = config[kKind].try_cast<String>()) {
       target->kind = GetTargetKind(kind.value());
       ICHECK(!(target->kind->preprocessor != nullptr && target->kind->target_parser != nullptr))
           << "Cannot use both set_attrs_preprocessor and set_target_parser";
@@ -875,7 +875,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
   }
   // parse "tag"
   if (config.count(kTag)) {
-    if (auto tag = config[kTag].as<String>()) {
+    if (auto tag = config[kTag].try_cast<String>()) {
       target->tag = tag.value();
       config.erase(kTag);
     } else {
@@ -893,7 +893,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
       // user provided keys
       if (const auto* cfg_keys = config[kKeys].as<ffi::ArrayObj>()) {
         for (const Any& e : *cfg_keys) {
-          if (auto key = e.as<String>()) {
+          if (auto key = e.try_cast<String>()) {
             keys.push_back(key.value());
           } else {
             TVM_FFI_THROW(TypeError) << "Expect 'keys' to be an array of strings, but it "
@@ -907,7 +907,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
     }
     // add device name
     if (config.count(kDeviceName)) {
-      if (auto device = config.at(kDeviceName).as<String>()) {
+      if (auto device = config.at(kDeviceName).try_cast<String>()) {
         keys.push_back(device.value());
       }
     }
@@ -945,7 +945,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
   // If requested, query attributes from the device.  User-specified
   // parameters take precedence over queried parameters.
   if (attrs.count("from_device")) {
-    int device_id = attrs.at("from_device").as<int64_t>().value();
+    int device_id = attrs.at("from_device").cast<int64_t>();
     attrs.erase("from_device");
     auto device_params = QueryDevice(device_id, target.get());
 

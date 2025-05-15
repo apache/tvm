@@ -145,7 +145,7 @@ void CheckOrSetAttr(Map<String, ffi::Any>* attrs, const String& name, const Stri
   if (iter == attrs->end()) {
     attrs->Set(name, value);
   } else {
-    auto str = (*iter).second.as<String>();
+    auto str = (*iter).second.try_cast<String>();
     ICHECK(str && str.value() == value) << "ValueError: Expects \"" << name << "\" to be \""
                                         << value << "\", but gets: " << (*iter).second;
   }
