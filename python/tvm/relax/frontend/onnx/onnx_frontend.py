@@ -2489,6 +2489,10 @@ class LayerNormalization(OnnxOpConverter):
         axis = attr.get("axis", -1)
         epsilon = attr.get("epsilon", 1e-05)
 
+        if bias is None:
+            seq_len = data.struct_info.shape[1].value
+            bias = relax.const([0.0] * seq_len, dtype="float32")
+
         output = relax.op.nn.layer_norm(data, scale, bias, axis, epsilon)
         # Onnx layernorm has 3 outputs but only the first is used.
         # We construct two empty constants for this.
