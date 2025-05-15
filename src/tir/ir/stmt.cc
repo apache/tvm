@@ -27,7 +27,6 @@
 #include <tvm/tir/stmt.h>
 
 #include "buffer_common.h"
-#include "utils.h"
 
 namespace tvm {
 namespace tir {
@@ -75,9 +74,9 @@ TVM_REGISTER_GLOBAL("tir.AttrStmt")
     .set_body_typed([](Any node, String attr_key, PrimExpr value, Stmt body, Span span) {
       // when node is a POD data type like int or bool, first convert to primexpr.
       if (node.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-        return AttrStmt(node.as<PrimExpr>().value(), attr_key, value, body, span);
+        return AttrStmt(node.cast<PrimExpr>(), attr_key, value, body, span);
       }
-      return AttrStmt(node.as<ObjectRef>().value(), attr_key, value, body, span);
+      return AttrStmt(node.cast<ObjectRef>(), attr_key, value, body, span);
     });
 
 TVM_REGISTER_NODE_TYPE(AttrStmtNode);
