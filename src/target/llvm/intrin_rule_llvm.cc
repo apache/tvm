@@ -200,6 +200,38 @@ TVM_REGISTER_OP("tir.atan")
       return asin(x / denom);
     });
 
+TVM_REGISTER_OP("tir.asinh")
+    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      using tir::make_const;
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr) << "Invalid call node in asinh legalization";
+      const PrimExpr& x = call->args[0];
+      PrimExpr one = make_const(x.dtype(), 1.0);
+      PrimExpr sqrt_val = sqrt(x * x + one);
+      return log(x + sqrt_val);
+    });
+
+TVM_REGISTER_OP("tir.acosh")
+    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      using tir::make_const;
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr) << "Invalid call node in acosh legalization";
+      const PrimExpr& x = call->args[0];
+      PrimExpr one = make_const(x.dtype(), 1.0);
+      PrimExpr sqrt_val = sqrt(x * x - one);
+      return log(x + sqrt_val);
+    });
+
+TVM_REGISTER_OP("tir.atanh")
+    .set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+      using tir::make_const;
+      const tir::CallNode* call = e.as<tir::CallNode>();
+      ICHECK(call != nullptr) << "Invalid call node in atanh legalization";
+      const PrimExpr& x = call->args[0];
+      PrimExpr one = make_const(x.dtype(), 1.0);
+      return (log(one + x) - log(one - x)) * make_const(x.dtype(), 0.5);
+    });
+
 TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
   const tir::CallNode* call = e.as<tir::CallNode>();
   ICHECK(call != nullptr);
