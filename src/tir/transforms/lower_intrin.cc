@@ -40,7 +40,7 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
  public:
   using IRMutatorWithAnalyzer::VisitExpr_;
   using IRMutatorWithAnalyzer::VisitStmt_;
-  using FLowerGeneral = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
+  using FLowerGeneral = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
   IntrinInjecter(arith::Analyzer* analyzer, std::string target, std::string mtriple = "")
       : IRMutatorWithAnalyzer(analyzer) {
@@ -386,7 +386,7 @@ Pass LowerIntrin() {
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target.defined()) << "LowerIntrin: Require the target attribute";
     arith::Analyzer analyzer;
-    auto mtriple = target.value()->GetAttr<runtime::String>("mtriple", "");
+    auto mtriple = target.value()->GetAttr<String>("mtriple", "");
     n->body =
         IntrinInjecter(&analyzer, target.value()->kind->name, mtriple.value())(std::move(n->body));
     return f;

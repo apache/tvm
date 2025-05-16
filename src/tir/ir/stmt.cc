@@ -27,7 +27,6 @@
 #include <tvm/tir/stmt.h>
 
 #include "buffer_common.h"
-#include "utils.h"
 
 namespace tvm {
 namespace tir {
@@ -62,15 +61,6 @@ TVM_REGISTER_NODE_TYPE(LetStmtNode);
 
 // AttrStmt
 AttrStmt::AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, Span span) {
-  // The nodes are not required to be a TIR type, and may legally
-  // contain any ObjectRef.  However, normalizing to an IR type if
-  // possible prevents spurious discrepancies in StructuralEqual().
-  if (auto opt = node.as<runtime::Bool>()) {
-    node = Bool(opt.value());
-  } else if (auto opt = node.as<runtime::Int>()) {
-    node = Integer(opt.value());
-  }
-
   auto n = make_object<AttrStmtNode>();
   n->node = node;
   n->attr_key = std::move(attr_key);
@@ -81,8 +71,12 @@ AttrStmt::AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, S
 }
 
 TVM_REGISTER_GLOBAL("tir.AttrStmt")
-    .set_body_typed([](ObjectRef node, String attr_key, PrimExpr value, Stmt body, Span span) {
-      return AttrStmt(node, attr_key, value, body, span);
+    .set_body_typed([](Any node, String attr_key, PrimExpr value, Stmt body, Span span) {
+      // when node is a POD data type like int or bool, first convert to primexpr.
+      if (node.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+        return AttrStmt(node.cast<PrimExpr>(), attr_key, value, body, span);
+      }
+      return AttrStmt(node.cast<ObjectRef>(), attr_key, value, body, span);
     });
 
 TVM_REGISTER_NODE_TYPE(AttrStmtNode);
@@ -107,18 +101,13 @@ AssertStmt::AssertStmt(PrimExpr condition, PrimExpr message, Stmt body, Span spa
 TVM_REGISTER_NODE_TYPE(AssertStmtNode);
 
 TVM_REGISTER_GLOBAL("tir.AssertStmt")
-    .set_body_typed([](PrimExpr condition, ObjectRef message, Stmt body, Span span) {
-      if (const auto* str = message.as<StringObj>()) {
-        auto msg = StringImm(str->data);
-        return AssertStmt(condition, msg, body, span);
-      } else {
-        return AssertStmt(condition, Downcast<PrimExpr>(message), body, span);
-      }
+    .set_body_typed([](PrimExpr condition, StringImm message, Stmt body, Span span) {
+      return AssertStmt(condition, message, body, span);
     });
 
 // For
 For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
-         Optional<IterVar> thread_binding, Map<String, ObjectRef> annotations, Span span) {
+         Optional<IterVar> thread_binding, Map<String, Any> annotations, Span span) {
   ICHECK(loop_var.defined());
   ICHECK(min.defined());
   ICHECK(extent.defined());
@@ -154,8 +143,6 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   ICHECK(loop_var.dtype() == min.dtype()) << loop_var.dtype() << " vs " << min.dtype();
   ICHECK(loop_var.dtype() == extent.dtype()) << loop_var.dtype() << " vs " << extent.dtype();
 
-  annotations = Downcast<Map<String, ObjectRef>>(NormalizeAttributeObject(annotations));
-
   ObjectPtr<ForNode> node = make_object<ForNode>();
   node->loop_var = std::move(loop_var);
   node->min = std::move(min);
@@ -170,9 +157,9 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
 
 TVM_REGISTER_GLOBAL("tir.For").set_body_typed(
     [](Var loop_var, PrimExpr min, PrimExpr extent, int kind, Stmt body,
-       Optional<IterVar> thread_binding, Optional<Map<String, ObjectRef>> annotations, Span span) {
+       Optional<IterVar> thread_binding, Optional<Map<String, Any>> annotations, Span span) {
       return For(loop_var, min, extent, static_cast<ForKind>(kind), body, thread_binding,
-                 annotations.value_or(Map<String, ObjectRef>()), span);
+                 annotations.value_or(Map<String, Any>()), span);
     });
 
 TVM_REGISTER_NODE_TYPE(ForNode);
@@ -238,7 +225,7 @@ TVM_REGISTER_NODE_TYPE(ProducerStoreNode);
 
 // Allocate
 Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, Map<String, ObjectRef> annotations, Span span) {
+                   Stmt body, Map<String, Any> annotations, Span span) {
   CHECK(IsPointerType(buffer_var->type_annotation, dtype) ||
         (dtype.is_bool() && IsPointerType(buffer_var->type_annotation, DataType::Int(8))))
       << "The allocated data type (" << dtype
@@ -253,8 +240,6 @@ Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, Prim
   ICHECK(body.defined());
   ICHECK(condition.defined());
   ICHECK(condition.dtype().is_bool());
-
-  annotations = Downcast<Map<String, ObjectRef>>(NormalizeAttributeObject(annotations));
 
   ObjectPtr<AllocateNode> node = make_object<AllocateNode>();
   node->buffer_var = std::move(buffer_var);
@@ -284,7 +269,7 @@ int64_t AllocateNode::ConstantAllocationSize(const Array<PrimExpr>& extents) {
 
 TVM_REGISTER_GLOBAL("tir.Allocate")
     .set_body_typed([](Var buffer_var, DataType type, Array<PrimExpr> extents, PrimExpr condition,
-                       Stmt body, Map<String, ObjectRef> annotations, Span span) {
+                       Stmt body, Map<String, Any> annotations, Span span) {
       return Allocate(buffer_var, type, extents, condition, body, annotations, span);
     });
 
@@ -295,7 +280,7 @@ TVM_REGISTER_NODE_TYPE(AllocateNode);
 // depending on the type of ObjectRef, it will either
 // create AllocateConstNode with irmod_storage_idx or data
 AllocateConst::AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> extents,
-                             ObjectRef data_or_idx, Stmt body, Map<String, ObjectRef> annotations,
+                             ObjectRef data_or_idx, Stmt body, Map<String, Any> annotations,
                              Span span) {
   ICHECK(IsPointerType(buffer_var->type_annotation, dtype))
       << "The allocated data type (" << dtype
@@ -309,8 +294,6 @@ AllocateConst::AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> ext
   }
   ICHECK(body.defined());
   ICHECK(data_or_idx.defined());
-
-  annotations = Downcast<Map<String, ObjectRef>>(NormalizeAttributeObject(annotations));
 
   ObjectPtr<AllocateConstNode> node = make_object<AllocateConstNode>();
   node->buffer_var = std::move(buffer_var);
@@ -347,9 +330,10 @@ int64_t AllocateConstNode::ConstantAllocationSize(const Array<PrimExpr>& extents
 }
 TVM_REGISTER_GLOBAL("tir.AllocateConst")
     .set_body_typed([](Var buffer_var, DataType dtype, Array<PrimExpr> extents,
-                       ObjectRef data_or_idx, Stmt body, Map<String, ObjectRef> annotations,
+                       ObjectRef data_or_idx, Stmt body, Optional<Map<String, Any>> annotations,
                        Span span) {
-      return AllocateConst(buffer_var, dtype, extents, data_or_idx, body, annotations, span);
+      return AllocateConst(buffer_var, dtype, extents, data_or_idx, body, annotations.value_or({}),
+                           span);
     });
 
 TVM_REGISTER_NODE_TYPE(AllocateConstNode);
@@ -577,6 +561,22 @@ TVM_REGISTER_GLOBAL("tir.BufferRealize")
 TVM_REGISTER_NODE_TYPE(BufferRealizeNode);
 
 // BufferRegion
+PrimExpr BufferRegionNode::ToPrimExpr() const {
+  // Auto convert to PrimExpr if it is a single point load
+  Array<PrimExpr> indices;
+  indices.reserve(this->region.size());
+  for (const Range& r : this->region) {
+    if (tvm::tir::is_one(r->extent)) {
+      indices.push_back(r->min);
+    } else if (r->extent.as<IntImmNode>()) {
+      indices.push_back(tir::Ramp(r->min, tvm::tir::make_const(r->min->dtype, 1), r->extent));
+    } else {
+      LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: " << GetRef<BufferRegion>(this);
+    }
+  }
+  return tir::BufferLoad(this->buffer, indices);
+}
+
 BufferRegion::BufferRegion(Buffer buffer, Array<Range> region) {
   CHECK_EQ(buffer->shape.size(), region.size())
       << "The dimension between " << buffer << " and region " << region
@@ -674,10 +674,7 @@ TVM_REGISTER_NODE_TYPE(MatchBufferRegionNode);
 // Block
 Block::Block(Array<IterVar> iter_vars, Array<BufferRegion> reads, Array<BufferRegion> writes,
              String name_hint, Stmt body, Optional<Stmt> init, Array<Buffer> alloc_buffers,
-             Array<MatchBufferRegion> match_buffers, Map<String, ObjectRef> annotations,
-             Span span) {
-  annotations = Downcast<Map<String, ObjectRef>>(NormalizeAttributeObject(annotations));
-
+             Array<MatchBufferRegion> match_buffers, Map<String, Any> annotations, Span span) {
   ObjectPtr<BlockNode> node = make_object<BlockNode>();
   node->iter_vars = std::move(iter_vars);
   node->reads = std::move(reads);
@@ -696,7 +693,7 @@ TVM_REGISTER_GLOBAL("tir.Block")
     .set_body_typed([](Array<IterVar> iter_vars, Array<BufferRegion> reads,
                        Array<BufferRegion> writes, String name_hint, Stmt body, Optional<Stmt> init,
                        Array<Buffer> alloc_buffers, Array<MatchBufferRegion> match_buffers,
-                       Map<String, ObjectRef> annotations, Span span) {
+                       Map<String, Any> annotations, Span span) {
       return Block(iter_vars, reads, writes, name_hint, body, init, alloc_buffers, match_buffers,
                    annotations, span);
     });

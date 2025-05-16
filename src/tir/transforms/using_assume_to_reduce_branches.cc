@@ -161,7 +161,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     With<arith::ConstraintContext> analyzer_context;
     size_t old_num_constraints{0};
     size_t new_num_constraints{0};
-    Optional<PrimExpr> assume{NullOpt};
+    Optional<PrimExpr> assume{std::nullopt};
 
     // Disable default-generated copy/move assignment and constructors
     InternalConstraintContext(const InternalConstraintContext&) = delete;

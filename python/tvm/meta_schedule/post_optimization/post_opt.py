@@ -51,7 +51,6 @@ class PostOpt:
 
         print("id | time MS (s) | time DPMS (s) | speedup")
         for idx, layer in enumerate(cfg):
-
             time, data, workload = cfg[layer]
             ms_time = np.mean(time)
 

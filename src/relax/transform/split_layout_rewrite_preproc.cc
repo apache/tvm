@@ -41,7 +41,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     if (layout_rewrite_preproc_stmts_.size() > 0) {
       return std::make_tuple(create_layout_rewrite_preproc_func(), create_compute_func());
     } else {
-      return std::make_tuple(NullOpt, func);
+      return std::make_tuple(std::nullopt, func);
     }
   }
 
@@ -81,7 +81,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
         Block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
               /*name_hint=*/"root", body));
 
-    Map<String, ObjectRef> dict;
+    Map<String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
       if (key == "global_symbol") {
         dict.Set(key, Downcast<String>(original_value) + "_weight_prepack");
@@ -124,10 +124,10 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
         /*block=*/
         Block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
               /*name_hint=*/"root", body,
-              /*init=*/NullOpt,
+              /*init=*/std::nullopt,
               /*alloc_buffers=*/alloc_buffers));
 
-    Map<String, ObjectRef> dict;
+    Map<String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
       if (key == "global_symbol") {
         dict.Set(key, Downcast<String>(original_value) + "_prepacked");

@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-02-15T19:40:24.687837
+// Generated at 2025-05-09T10:31:17.078676
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -516,11 +516,6 @@ def run_build(node_type) {
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/cpptest build/build.ninja build/CMakeFiles/rules.ninja",
             label: 'Upload artifacts to S3',
           )
-
-        ci_setup(ci_cpu)
-        // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
-        // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-        sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
           })
         }
       }

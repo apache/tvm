@@ -50,17 +50,17 @@ class TargetInternal {
  public:
   static void EnterScope(Target target) { target.EnterWithScope(); }
   static void ExitScope(Target target) { target.ExitWithScope(); }
-  static Map<String, ObjectRef> Export(Target target) { return target->Export(); }
+  static Map<String, ffi::Any> Export(Target target) { return target->Export(); }
   static const TargetKindNode::ValueTypeInfo& FindTypeInfo(const TargetKind& kind,
                                                            const std::string& key);
-  static Optional<String> StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs);
-  static ObjectRef ParseType(const std::string& str, const TargetKindNode::ValueTypeInfo& info);
-  static ObjectRef ParseType(const ObjectRef& obj, const TargetKindNode::ValueTypeInfo& info);
+  static Optional<String> StringifyAttrsToRaw(const Map<String, ffi::Any>& attrs);
+  static Any ParseType(const std::string& str, const TargetKindNode::ValueTypeInfo& info);
+  static Any ParseType(const Any& obj, const TargetKindNode::ValueTypeInfo& info);
   static ObjectPtr<Object> FromString(const String& tag_or_config_or_target_str);
   static ObjectPtr<Object> FromConfigString(const String& config_str);
   static ObjectPtr<Object> FromRawString(const String& target_str);
-  static ObjectPtr<Object> FromConfig(Map<String, ObjectRef> config);
-  static void ConstructorDispatcher(TVMArgs args, TVMRetValue* rv);
+  static ObjectPtr<Object> FromConfig(Map<String, ffi::Any> config);
+  static void ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv);
   static Target WithHost(const Target& target, const Target& target_host) {
     ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
     n->host = target_host;
@@ -68,15 +68,15 @@ class TargetInternal {
   }
 
  private:
-  static std::unordered_map<String, ObjectRef> QueryDevice(int device_id, const TargetNode* target);
+  static std::unordered_map<String, ffi::Any> QueryDevice(int device_id, const TargetNode* target);
   static bool IsQuoted(const std::string& str);
   static std::string Quote(const std::string& str);
   static std::string JoinString(const std::vector<std::string>& array, char separator);
   static std::vector<std::string> SplitString(const std::string& str, char separator);
   static std::string Interpret(const std::string& str);
   static std::string Uninterpret(const std::string& str);
-  static std::string StringifyAtomicType(const ObjectRef& obj);
-  static std::string StringifyArray(const ArrayNode& array);
+  static std::string StringifyAtomicType(const Any& obj);
+  static std::string StringifyArray(const ffi::ArrayObj& array);
 
   static constexpr char quote = '\'';
   static constexpr char escape = '\\';
@@ -109,22 +109,20 @@ static std::vector<String> DeduplicateKeys(const std::vector<String>& keys) {
   return new_keys;
 }
 
-template <class TObj>
-static const TObj* ObjTypeCheck(const ObjectRef& obj, const std::string& expected_type) {
-  const TObj* ptr = obj.as<TObj>();
-  if (ptr == nullptr) {
-    std::ostringstream os;
-    os << ": Expects type \"" << expected_type << "\", but gets \"" << obj->GetTypeKey()
-       << "\" for object: " << obj;
-    throw Error(os.str());
+template <class T>
+static T ObjTypeCheck(const Any& obj, const std::string& expected_type) {
+  auto opt = obj.try_cast<T>();
+  if (!opt.has_value()) {
+    TVM_FFI_THROW(TypeError) << "Expects type \"" << expected_type << "\", but gets \""
+                             << obj.GetTypeKey() << "\" for object: " << obj;
   }
-  return ptr;
+  return opt.value();
 }
 
 static TargetKind GetTargetKind(const String& name) {
   Optional<TargetKind> kind = TargetKind::Get(name);
   if (!kind.defined()) {
-    throw Error(": Target kind \"" + name + "\" is not defined");
+    TVM_FFI_THROW(TypeError) << "Target kind \"" + name + "\" is not defined";
   }
   return kind.value();
 }
@@ -135,10 +133,10 @@ static std::string RemovePrefixDashes(const std::string& s) {
   for (; n_dashes < len && s[n_dashes] == '-'; ++n_dashes) {
   }
   if (n_dashes == 0) {
-    throw Error(": Attribute keys should start with '-', not an attribute key: " + s);
+    TVM_FFI_THROW(ValueError) << "Attribute keys should start with '-', not an attribute key: " + s;
   }
   if (n_dashes >= len) {
-    throw Error(": Not an attribute key: " + s);
+    TVM_FFI_THROW(ValueError) << "Not an attribute key: " + s;
   }
   return s.substr(n_dashes);
 }
@@ -319,7 +317,7 @@ static int ParseKVPair(const std::string& s, const std::string& s_next, std::str
     result_k = s.substr(0, pos);
     result_v = s.substr(pos + 1);
     if (result_k.empty() || result_v.empty()) {
-      throw Error(": Empty attribute key or value in \"" + s + "\"");
+      TVM_FFI_THROW(ValueError) << "Empty attribute key or value in \"" + s + "\"";
     }
     return 1;
   } else if (!s_next.empty() && s_next[0] != '-') {
@@ -349,21 +347,20 @@ const TargetKindNode::ValueTypeInfo& TargetInternal::FindTypeInfo(const TargetKi
       }
       os << kv.first;
     }
-    throw Error(os.str());
+    TVM_FFI_THROW(TypeError) << os.str();
   }
   return it->second;
 }
 
 /**********  Parsing  **********/
 
-ObjectRef TargetInternal::ParseType(const std::string& str,
-                                    const TargetKindNode::ValueTypeInfo& info) {
+Any TargetInternal::ParseType(const std::string& str, const TargetKindNode::ValueTypeInfo& info) {
   std::string interp_str = Interpret(str);
-  if (info.type_index == runtime::Int::ContainerType::_GetOrAllocRuntimeTypeIndex() ||
-      info.type_index == runtime::Bool::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+  if (info.type_index == ffi::TypeIndex::kTVMFFIInt ||
+      info.type_index == ffi::TypeIndex::kTVMFFIBool) {
     // Parsing integer or boolean
     std::istringstream is(interp_str);
-    int v;
+    int64_t v;
     if (!(is >> v)) {
       std::string lower(interp_str.size(), '\x0');
       std::transform(interp_str.begin(), interp_str.end(), lower.begin(),
@@ -375,16 +372,16 @@ ObjectRef TargetInternal::ParseType(const std::string& str,
       } else if (lower == "false") {
         v = 0;
       } else {
-        throw Error(": Cannot parse integer from string: " + interp_str);
+        TVM_FFI_THROW(ValueError) << "Cannot parse integer from string: " + interp_str;
       }
     }
 
-    if (info.type_index == runtime::Int::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
-      return runtime::Int(v);
+    if (info.type_index == ffi::TypeIndex::kTVMFFIInt) {
+      return static_cast<int64_t>(v);
     } else {
-      return runtime::Bool(v);
+      return static_cast<bool>(v);
     }
-  } else if (info.type_index == String::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+  } else if (info.type_index == ffi::TypeIndex::kTVMFFIStr) {
     // Parsing string, strip leading/trailing spaces, and enclosing quotes if any
     auto start = interp_str.find_first_not_of(' ');
     auto end = interp_str.find_last_not_of(' ');
@@ -394,124 +391,121 @@ ObjectRef TargetInternal::ParseType(const std::string& str,
     }
     return String(interp_str.substr(start, (end - start + 1)));
 
-  } else if (info.type_index == Target::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+  } else if (info.type_index == Target::ContainerType::RuntimeTypeIndex()) {
     // Parsing target
     return Target(TargetInternal::FromString(interp_str));
-  } else if (info.type_index == ArrayNode::_GetOrAllocRuntimeTypeIndex()) {
+  } else if (info.type_index == ffi::ArrayObj::RuntimeTypeIndex()) {
     // Parsing array
     std::vector<ObjectRef> result;
     for (const std::string& substr : SplitString(interp_str, ',')) {
       try {
-        ObjectRef parsed = TargetInternal::ParseType(substr, *info.key);
+        ObjectRef parsed = TargetInternal::ParseType(substr, *info.key).cast<ObjectRef>();
         result.push_back(parsed);
       } catch (const Error& e) {
         std::string index = "[" + std::to_string(result.size()) + "]";
-        throw Error(index + e.what());
+        throw Error(e.kind(), e.message() + index, e.traceback());
       }
     }
     return Array<ObjectRef>(result);
   }
-  throw Error(": Unsupported type \"" + info.type_key +
-              "\" for parsing from string: " + interp_str);
+  TVM_FFI_THROW(TypeError) << "Unsupported type \"" + info.type_key
+                           << "\" for parsing from string: " + interp_str;
 }
 
-ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
-                                    const TargetKindNode::ValueTypeInfo& info) {
-  if (info.type_index == runtime::Int::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInfo& info) {
+  if (info.type_index == ffi::TypeIndex::kTVMFFIInt) {
     // Parsing integer
-    return GetRef<runtime::Int>(ObjTypeCheck<runtime::Int::ContainerType>(obj, "runtime.BoxInt"));
-  } else if (info.type_index == String::ContainerType::RuntimeTypeIndex()) {
+    return ObjTypeCheck<int64_t>(obj, "int64_t");
+  } else if (info.type_index == ffi::TypeIndex::kTVMFFIBool) {
+    // Parsing boolean
+    return ObjTypeCheck<bool>(obj, "bool");
+  } else if (info.type_index == ffi::TypeIndex::kTVMFFIStr) {
     // Parsing string
-    return GetRef<String>(ObjTypeCheck<StringObj>(obj, "String"));
+    return ObjTypeCheck<String>(obj, "String");
   } else if (info.type_index == Target::ContainerType::RuntimeTypeIndex()) {
     // Parsing target
     if (auto opt = obj.as<Target>()) {
       return opt.value();
-    } else if (auto str = obj.as<String>()) {
+    } else if (auto str = obj.try_cast<String>()) {
       return Target(TargetInternal::FromString(str.value()));
-    } else if (const auto* ptr = obj.as<MapNode>()) {
+    } else if (const auto* ptr = obj.as<ffi::MapObj>()) {
       for (const auto& kv : *ptr) {
-        if (!kv.first->IsInstance<StringObj>()) {
-          throw Error(": Target object requires key of dict to be str, but get: " +
-                      kv.first->GetTypeKey());
+        if (!kv.first.as<ffi::StringObj>()) {
+          TVM_FFI_THROW(TypeError)
+              << "Target object requires key of dict to be str, but get: " << kv.first.GetTypeKey();
         }
       }
-      Map<String, ObjectRef> config = GetRef<Map<String, ObjectRef>>(ptr);
+      Map<String, ffi::Any> config = GetRef<Map<String, ffi::Any>>(ptr);
       return Target(TargetInternal::FromConfig({config.begin(), config.end()}));
     }
-    throw Error(": Expect type 'dict' or 'str' to construct Target, but get: " + obj->GetTypeKey());
-  } else if (info.type_index == ArrayNode::_GetOrAllocRuntimeTypeIndex()) {
+    TVM_FFI_THROW(TypeError) << "Expect type 'dict' or 'str' to construct Target, but get: " +
+                                    obj.GetTypeKey();
+  } else if (info.type_index == ffi::ArrayObj::RuntimeTypeIndex()) {
     // Parsing array
-    const auto* array = ObjTypeCheck<ArrayNode>(obj, "Array");
+    const auto* array = ObjTypeCheck<const ffi::ArrayObj*>(obj, "Array");
     std::vector<ObjectRef> result;
-    for (const ObjectRef& e : *array) {
+    for (const Any& e : *array) {
       try {
-        result.push_back(TargetInternal::ParseType(e, *info.key));
+        result.push_back(TargetInternal::ParseType(e, *info.key).cast<ObjectRef>());
       } catch (const Error& e) {
         std::string index = '[' + std::to_string(result.size()) + ']';
-        throw Error(index + e.what());
+        throw Error(e.kind(), index + e.message(), e.traceback());
       }
     }
     return Array<ObjectRef>(result);
-  } else if (info.type_index == MapNode::_GetOrAllocRuntimeTypeIndex()) {
+  } else if (info.type_index == ffi::MapObj::RuntimeTypeIndex()) {
     // Parsing map
-    const auto* map = ObjTypeCheck<MapNode>(obj, "Map");
-    std::unordered_map<ObjectRef, ObjectRef, ObjectHash, ObjectEqual> result;
+    const auto* map = ObjTypeCheck<const ffi::MapObj*>(obj, "Map");
+    std::unordered_map<Any, Any, ffi::AnyHash, ffi::AnyEqual> result;
     for (const auto& kv : *map) {
-      ObjectRef key, val;
+      Any key, val;
       try {
         key = TargetInternal::ParseType(kv.first, *info.key);
       } catch (const Error& e) {
-        std::ostringstream os;
-        os << "'s key \"" << key << "\"" << e.what();
-        throw Error(os.str());
+        throw Error(e.kind(), e.message() + ", during parse key of map", e.traceback());
       }
       try {
         val = TargetInternal::ParseType(kv.second, *info.val);
       } catch (const Error& e) {
         std::ostringstream os;
-        os << "[\"" << key << "\"]" << e.what();
-        throw Error(os.str());
+        os << ", during parseing value of map[\"" << key << "\"]";
+        throw Error(e.kind(), e.message() + os.str(), e.traceback());
       }
       result[key] = val;
     }
-    return Map<ObjectRef, ObjectRef>(result);
+    return Map<Any, Any>(result);
   }
-  if (info.type_index != obj->type_index()) {
-    std::ostringstream os;
-    os << ": Parsing type \"" << info.type_key
-       << "\" is not supported for the given object of type \"" << obj->GetTypeKey()
-       << "\". The object is: " << obj;
-    throw Error(os.str());
+  if (info.type_index != obj.type_index()) {
+    TVM_FFI_THROW(TypeError) << "Parsing type \"" << info.type_key
+                             << "\" is not supported for the given object of type \""
+                             << obj.GetTypeKey() << "\". The object is: " << obj;
   }
   return obj;
 }
 
 /**********  Stringifying  **********/
 
-std::string TargetInternal::StringifyAtomicType(const ObjectRef& obj) {
-  if (const auto* p = obj.as<runtime::Int::ContainerType>()) {
-    return std::to_string(p->value);
-  } else if (const auto* p = obj.as<runtime::Bool::ContainerType>()) {
-    return std::to_string(p->value);
-  } else if (const auto* p = obj.as<IntImmNode>()) {
-    return std::to_string(p->value);
-  }
-  if (auto tvm_str = obj.as<String>()) {
-    std::string s = tvm_str.value();
+std::string TargetInternal::StringifyAtomicType(const Any& obj) {
+  if (obj.type_index() == ffi::TypeIndex::kTVMFFIBool) {
+    return std::to_string(obj.cast<bool>());
+  } else if (obj.type_index() == ffi::TypeIndex::kTVMFFIInt) {
+    return std::to_string(obj.cast<int64_t>());
+  } else if (auto opt_str = obj.as<String>()) {
+    std::string s = opt_str.value();
     auto u = Uninterpret(s);
     if (u.find_first_of(' ') != std::string::npos && !IsQuoted(u)) {
       u = Quote(u);
     }
     return u;
   }
-  LOG(FATAL) << "Cannot stringify object of type " << obj->GetTypeKey();
+  LOG(FATAL) << "Cannot stringify object of type " << obj.GetTypeKey();
+  TVM_FFI_UNREACHABLE();
 }
 
-std::string TargetInternal::StringifyArray(const ArrayNode& array) {
+std::string TargetInternal::StringifyArray(const ffi::ArrayObj& array) {
   std::vector<std::string> elements;
 
-  for (const ObjectRef& item : array) {
+  for (const Any& item : array) {
     std::string s = StringifyAtomicType(item);
     std::string u = Uninterpret(s);
     if (u.find_first_of(',') != std::string::npos && !IsQuoted(u)) {
@@ -523,7 +517,7 @@ std::string TargetInternal::StringifyArray(const ArrayNode& array) {
   return JoinString(elements, ',');
 }
 
-Optional<String> TargetInternal::StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs) {
+Optional<String> TargetInternal::StringifyAttrsToRaw(const Map<String, ffi::Any>& attrs) {
   std::ostringstream os;
   std::vector<String> keys;
   for (const auto& kv : attrs) {
@@ -533,9 +527,11 @@ Optional<String> TargetInternal::StringifyAttrsToRaw(const Map<String, ObjectRef
   std::vector<std::string> result;
 
   for (const auto& key : keys) {
-    const ObjectRef& obj = attrs[key];
+    const Any& obj = attrs[key];
     std::string value;
-    if (const auto* array = obj.as<ArrayNode>()) {
+    // skip undefined attrs
+    if (obj == nullptr) continue;
+    if (const auto* array = obj.as<ffi::ArrayObj>()) {
       value = String(StringifyArray(*array));
     } else {
       value = StringifyAtomicType(obj);
@@ -579,19 +575,21 @@ Target::Target(const String& tag_or_config_or_target_str) {
   try {
     target = TargetInternal::FromString(tag_or_config_or_target_str);
   } catch (const Error& e) {
-    LOG(FATAL) << "ValueError" << e.what()
-               << ". Target creation from string failed: " << tag_or_config_or_target_str;
+    std::ostringstream os;
+    os << ". Target creation from string failed: " << tag_or_config_or_target_str;
+    throw Error("ValueError", e.message() + os.str(), e.traceback());
   }
   data_ = std::move(target);
 }
 
-Target::Target(const Map<String, ObjectRef>& config) {
+Target::Target(const Map<String, ffi::Any>& config) {
   ObjectPtr<Object> target;
   try {
     target = TargetInternal::FromConfig({config.begin(), config.end()});
   } catch (const Error& e) {
-    LOG(FATAL) << "ValueError" << e.what()
-               << ". Target creation from config dict failed: " << config;
+    std::ostringstream os;
+    os << ". Target creation from config dict failed: " << config;
+    throw Error("ValueError", std::string(e.message()) + os.str(), e.traceback());
   }
   data_ = std::move(target);
 }
@@ -603,8 +601,8 @@ Target::Target(Target target, Target host) {
 }
 
 Target::Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<String> keys,
-               Map<String, ObjectRef> attrs) {
-  auto data = runtime::make_object<TargetNode>();
+               Map<String, ffi::Any> attrs) {
+  auto data = ffi::make_object<TargetNode>();
   data->kind = std::move(kind);
   data->host = std::move(host);
   data->tag = std::move(tag);
@@ -633,8 +631,8 @@ std::unordered_set<std::string> TargetNode::GetLibs() const {
   return result;
 }
 
-Map<String, ObjectRef> TargetNode::Export() const {
-  Map<String, ObjectRef> result = {
+Map<String, ffi::Any> TargetNode::Export() const {
+  Map<String, ffi::Any> result = {
       {"kind", this->kind->name},
       {"tag", this->tag},
       {"keys", this->keys},
@@ -653,7 +651,7 @@ Optional<Target> TargetNode::GetHost() const { return this->host.as<Target>(); }
 Target Target::WithoutHost() const {
   if ((*this)->GetHost()) {
     auto output = make_object<TargetNode>(*get());
-    output->host = NullOpt;
+    output->host = std::nullopt;
     return Target(output);
   } else {
     return *this;
@@ -758,41 +756,36 @@ Target Target::Current(bool allow_not_defined) {
 
 /**********  Creation  **********/
 
-void TargetInternal::ConstructorDispatcher(TVMArgs args, TVMRetValue* rv) {
-  if (args.num_args == 1) {
+void TargetInternal::ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv) {
+  if (args.size() == 1) {
     const auto& arg = args[0];
-    if (arg.IsObjectRef<Target>()) {
-      *rv = Target(arg.AsObjectRef<Target>());
-    } else if (String::CanConvertFrom(arg)) {
-      *rv = Target(arg.operator String());
-    } else if (arg.IsObjectRef<Map<String, ObjectRef>>()) {
-      *rv = Target(arg.operator Map<String, ObjectRef>());
-    } else if (arg.type_code() == kTVMObjectHandle) {
-      ObjectRef obj = arg;
-      LOG(FATAL) << "TypeError: Cannot create target with type: " << obj->GetTypeKey();
+    if (auto opt_target = arg.as<Target>()) {
+      *rv = Target(opt_target.value());
+    } else if (auto opt_str = arg.try_cast<String>()) {
+      *rv = Target(opt_str.value());
+    } else if (auto opt_map = arg.try_cast<Map<String, ffi::Any>>()) {
+      *rv = Target(opt_map.value());
     } else {
-      LOG(FATAL) << "TypeError: Cannot create target with type: "
-                 << runtime::ArgTypeCode2Str(arg.type_code());
+      LOG(FATAL) << "TypeError: Cannot create target with type: " << args[0].GetTypeKey();
     }
     return;
-  } else if (args.num_args == 2) {
-    if (args[0].IsObjectRef<Target>() && args[1].IsObjectRef<Target>()) {
-      Target target = args[0];
-      Target host = args[1];
+  } else if (args.size() == 2) {
+    if (args[0].as<Target>().has_value() && args[1].as<Target>().has_value()) {
+      Target target = args[0].cast<Target>();
+      Target host = args[1].cast<Target>();
       *rv = Target(target, host);
     } else {
       LOG(FATAL) << "ValueError: Invalid type of arguments. Expect 2 Target arguments.";
     }
     return;
   }
-  LOG(FATAL) << "ValueError: Invalid number of arguments. Expect 1 or 2, but gets: "
-             << args.num_args;
+  LOG(FATAL) << "ValueError: Invalid number of arguments. Expect 1 or 2, but gets: " << args.size();
 }
 
 ObjectPtr<Object> TargetInternal::FromString(const String& tag_or_config_or_target_str) {
   if (Optional<Target> target = TargetTag::Get(tag_or_config_or_target_str)) {
     Target value = target.value();
-    return runtime::ObjectInternal::MoveObjectPtr(&value);
+    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(value);
   }
   if (!tag_or_config_or_target_str.empty() && tag_or_config_or_target_str.data()[0] == '{') {
     return TargetInternal::FromConfigString(tag_or_config_or_target_str);
@@ -801,12 +794,13 @@ ObjectPtr<Object> TargetInternal::FromString(const String& tag_or_config_or_targ
 }
 
 ObjectPtr<Object> TargetInternal::FromConfigString(const String& config_str) {
-  const auto* loader = tvm::runtime::Registry::Get("target._load_config_dict");
-  ICHECK(loader) << "AttributeError: \"target._load_config_dict\" is not registered. Please check "
-                    "if the python module is properly loaded";
-  Optional<Map<String, ObjectRef>> config = (*loader)(config_str);
+  const auto loader = tvm::ffi::Function::GetGlobal("target._load_config_dict");
+  ICHECK(loader.has_value())
+      << "AttributeError: \"target._load_config_dict\" is not registered. Please check "
+         "if the python module is properly loaded";
+  auto config = (*loader)(config_str).cast<Optional<Map<String, ffi::Any>>>();
   if (!config.defined()) {
-    throw Error(": Cannot load config dict with python JSON loader");
+    TVM_FFI_THROW(ValueError) << "Cannot load config dict with python JSON loader";
   }
   return TargetInternal::FromConfig({config.value().begin(), config.value().end()});
 }
@@ -817,7 +811,7 @@ ObjectPtr<Object> TargetInternal::FromRawString(const String& target_str) {
   std::vector<std::string> options = SplitString(std::string(target_str), ' ');
   std::string name = options[0];
   // Create the target config
-  std::unordered_map<String, ObjectRef> config = {{"kind", String(name)}};
+  std::unordered_map<String, ffi::Any> config = {{"kind", String(name)}};
   TargetKind kind = GetTargetKind(name);
   for (size_t iter = 1, end = options.size(); iter < end;) {
     std::string key, value;
@@ -826,22 +820,24 @@ ObjectPtr<Object> TargetInternal::FromRawString(const String& target_str) {
       std::string s_next = (iter + 1 < options.size()) ? options[iter + 1] : "";
       iter += ParseKVPair(RemovePrefixDashes(options[iter]), s_next, &key, &value);
     } catch (const Error& e) {
-      throw Error(": Error when parsing target" + std::string(e.what()));
+      throw Error(e.kind(), e.message() + ", during parsing target `" + target_str + "`",
+                  e.traceback());
     }
     try {
       // check if `key` has been used
       if (config.count(key)) {
-        throw Error(": The key \"" + key + "\" appears more than once");
+        TVM_FFI_THROW(ValueError) << "The key \"" + key + "\" appears more than once";
       }
       config[key] = TargetInternal::ParseType(value, TargetInternal::FindTypeInfo(kind, key));
     } catch (const Error& e) {
-      throw Error(": Error when parsing target[\"" + key + "\"]" + e.what());
+      throw Error(e.kind(), std::string(e.message()) + ", during parsing target[\"" + key + "\"]",
+                  e.traceback());
     }
   }
   return TargetInternal::FromConfig(config);
 }
 
-ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
+ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
   const String kKind = "kind";
   const String kTag = "tag";
   const String kKeys = "keys";
@@ -854,7 +850,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
 
   // parse 'kind'
   if (config.count(kKind)) {
-    if (auto kind = config[kKind].as<String>()) {
+    if (auto kind = config[kKind].try_cast<String>()) {
       target->kind = GetTargetKind(kind.value());
       ICHECK(!(target->kind->preprocessor != nullptr && target->kind->target_parser != nullptr))
           << "Cannot use both set_attrs_preprocessor and set_target_parser";
@@ -864,27 +860,27 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
         VLOG(9) << "TargetInternal::FromConfig - Running target_parser";
         config = target->kind->target_parser(config);
         if (config.count(kFeatures)) {
-          target->features = Downcast<Map<String, ObjectRef>>(config[kFeatures]);
+          target->features = Downcast<Map<String, ffi::Any>>(config[kFeatures]);
           config.erase(kFeatures);
         }
       }
 
       config.erase(kKind);
     } else {
-      throw Error(": Expect type of field \"kind\" is String, but get type: " +
-                  config[kKind]->GetTypeKey());
+      TVM_FFI_THROW(TypeError) << "Expect type of field \"kind\" is String, but get type: "
+                               << config[kKind].GetTypeKey();
     }
   } else {
-    throw Error(": Field \"kind\" is not found");
+    TVM_FFI_THROW(ValueError) << "Field \"kind\" is not found";
   }
   // parse "tag"
   if (config.count(kTag)) {
-    if (auto tag = config[kTag].as<String>()) {
+    if (auto tag = config[kTag].try_cast<String>()) {
       target->tag = tag.value();
       config.erase(kTag);
     } else {
-      throw Error(": Expect type of field \"tag\" is String, but get type: " +
-                  config[kTag]->GetTypeKey());
+      TVM_FFI_THROW(TypeError) << "Expect type of field \"tag\" is String, but get type: "
+                               << config[kTag].GetTypeKey();
     }
   } else {
     target->tag = "";
@@ -895,25 +891,23 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
     bool has_user_keys = config.count(kKeys);
     if (has_user_keys) {
       // user provided keys
-      if (const auto* cfg_keys = config[kKeys].as<ArrayNode>()) {
-        for (const ObjectRef& e : *cfg_keys) {
-          if (auto key = e.as<String>()) {
+      if (const auto* cfg_keys = config[kKeys].as<ffi::ArrayObj>()) {
+        for (const Any& e : *cfg_keys) {
+          if (auto key = e.try_cast<String>()) {
             keys.push_back(key.value());
           } else {
-            throw Error(
-                ": Expect 'keys' to be an array of strings, but it "
-                "contains an element of type: " +
-                e->GetTypeKey());
+            TVM_FFI_THROW(TypeError) << "Expect 'keys' to be an array of strings, but it "
+                                     << "contains an element of type: " << e.GetTypeKey();
           }
         }
       } else {
-        throw Error(": Expect type of field \"keys\" is Array, but get type: " +
-                    config[kKeys]->GetTypeKey());
+        TVM_FFI_THROW(TypeError) << "Expect type of field \"keys\" is Array, but get type: "
+                                 << config[kKeys].GetTypeKey();
       }
     }
     // add device name
     if (config.count(kDeviceName)) {
-      if (auto device = config.at(kDeviceName).as<String>()) {
+      if (auto device = config.at(kDeviceName).try_cast<String>()) {
         keys.push_back(device.value());
       }
     }
@@ -929,28 +923,29 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
   }
   // parse host
   if (config.count(kHost)) {
-    target->host = PackedFunc(ConstructorDispatcher)(config[kHost]).AsObjectRef<Target>();
+    target->host = ffi::Function(ConstructorDispatcher)(config[kHost]).cast<Target>();
     config.erase(kHost);
   } else {
-    target->host = NullOpt;
+    target->host = std::nullopt;
   }
   // parse attrs
-  std::unordered_map<String, ObjectRef> attrs;
+  std::unordered_map<String, ffi::Any> attrs;
   for (const auto& cfg_kv : config) {
     const String& key = cfg_kv.first;
-    const ObjectRef& value = cfg_kv.second;
+    const ffi::Any& value = cfg_kv.second;
     try {
       const TargetKindNode::ValueTypeInfo& info = TargetInternal::FindTypeInfo(target->kind, key);
       attrs[key] = TargetInternal::ParseType(value, info);
     } catch (const Error& e) {
-      throw Error(": Error when parsing target[\"" + key + "\"]" + e.what());
+      throw Error(e.kind(), std::string(e.message()) + ", during parsing target[\"" + key + "\"]",
+                  e.traceback());
     }
   }
 
   // If requested, query attributes from the device.  User-specified
   // parameters take precedence over queried parameters.
   if (attrs.count("from_device")) {
-    int device_id = Downcast<runtime::Int>(attrs.at("from_device"))->value;
+    int device_id = attrs.at("from_device").cast<int64_t>();
     attrs.erase("from_device");
     auto device_params = QueryDevice(device_id, target.get());
 
@@ -969,7 +964,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
   }
   // do extra pre-processing
   if (target->kind->preprocessor != nullptr) {
-    target->attrs = target->kind->preprocessor(Map<String, ObjectRef>(attrs));
+    target->attrs =
+        target->kind->preprocessor(Map<String, ffi::Any>(attrs)).cast<Map<String, ffi::Any>>();
   } else {
     target->attrs = attrs;
   }
@@ -977,9 +973,9 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
   return target;
 }  // namespace tvm
 
-std::unordered_map<String, ObjectRef> TargetInternal::QueryDevice(int device_id,
-                                                                  const TargetNode* target) {
-  std::unordered_map<String, ObjectRef> output;
+std::unordered_map<String, ffi::Any> TargetInternal::QueryDevice(int device_id,
+                                                                 const TargetNode* target) {
+  std::unordered_map<String, ffi::Any> output;
 
   Device device{static_cast<DLDeviceType>(target->GetTargetDeviceType()), device_id};
 
@@ -991,9 +987,9 @@ std::unordered_map<String, ObjectRef> TargetInternal::QueryDevice(int device_id,
     return output;
   }
 
-  TVMRetValue ret;
+  ffi::Any ret;
   api->GetAttr(device, runtime::kExist, &ret);
-  bool device_exists = ret;
+  bool device_exists = ret.cast<bool>();
   if (!device_exists) {
     ICHECK(device_exists) << "Requested reading the parameters for " << target->kind->name
                           << " from device_id " << device_id << ", but device_id " << device_id
@@ -1004,13 +1000,9 @@ std::unordered_map<String, ObjectRef> TargetInternal::QueryDevice(int device_id,
   for (const auto& kv : target->kind->key2vtype_) {
     const String& key = kv.first;
 
-    TVMRetValue ret;
+    ffi::Any ret;
     api->GetTargetProperty(device, key, &ret);
-
-    // Delegate conversion from TVMRetValue to the FFI's default conversions.
-    if (Optional<ObjectRef> opt = ret) {
-      output[key] = opt.value();
-    }
+    output[key] = ret;
   }
 
   return output;
@@ -1018,7 +1010,7 @@ std::unordered_map<String, ObjectRef> TargetInternal::QueryDevice(int device_id,
 
 /**********  Registry  **********/
 
-TVM_REGISTER_GLOBAL("target.Target").set_body(TargetInternal::ConstructorDispatcher);
+TVM_REGISTER_GLOBAL("target.Target").set_body_packed(TargetInternal::ConstructorDispatcher);
 TVM_REGISTER_GLOBAL("target.TargetEnterScope").set_body_typed(TargetInternal::EnterScope);
 TVM_REGISTER_GLOBAL("target.TargetExitScope").set_body_typed(TargetInternal::ExitScope);
 TVM_REGISTER_GLOBAL("target.TargetCurrent").set_body_typed(Target::Current);
@@ -1028,8 +1020,12 @@ TVM_REGISTER_GLOBAL("target.TargetGetDeviceType").set_body_typed([](const Target
   return target->GetTargetDeviceType();
 });
 TVM_REGISTER_GLOBAL("target.TargetGetFeature")
-    .set_body_typed([](const Target& target, const String& feature_key) {
-      return target->GetFeature<ObjectRef>(feature_key);
+    .set_body_typed([](const Target& target, const String& feature_key) -> Any {
+      if (auto opt_any = target->GetFeature<Any>(feature_key)) {
+        return opt_any.value();
+      } else {
+        return Any();
+      }
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

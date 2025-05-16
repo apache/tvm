@@ -126,7 +126,6 @@ std::string NVRTCCompile(const std::string& code, bool include_path = false) {
 }
 
 runtime::Module BuildCUDA(IRModule mod, Target target) {
-  using tvm::runtime::Registry;
   bool output_ssa = false;
   CodeGenCUDA cg;
   cg.Init(output_ssa);
@@ -150,22 +149,22 @@ runtime::Module BuildCUDA(IRModule mod, Target target) {
 
   std::string code = cg.Finish();
 
-  if (const auto* f = Registry::Get("tvm_callback_cuda_postproc")) {
-    code = (*f)(code, target).operator std::string();
+  if (auto f = ffi::Function::GetGlobal("tvm_callback_cuda_postproc")) {
+    code = (*f)(code, target).cast<std::string>();
   }
   std::string fmt = "ptx";
   std::string ptx;
-  const auto* f_enter = Registry::Get("target.TargetEnterScope");
+  auto f_enter = ffi::Function::GetGlobal("target.TargetEnterScope");
   (*f_enter)(target);
-  if (const auto* f = Registry::Get("tvm_callback_cuda_compile")) {
-    ptx = (*f)(code, target).operator std::string();
+  if (auto f = ffi::Function::GetGlobal("tvm_callback_cuda_compile")) {
+    ptx = (*f)(code, target).cast<std::string>();
     // Dirty matching to check PTX vs cubin.
     // TODO(tqchen) more reliable checks
     if (ptx[0] != '/') fmt = "cubin";
   } else {
     ptx = NVRTCCompile(code, cg.need_include_path());
   }
-  const auto* f_exit = Registry::Get("target.TargetExitScope");
+  auto f_exit = ffi::Function::GetGlobal("target.TargetExitScope");
   (*f_exit)(target);
   return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code);
 }

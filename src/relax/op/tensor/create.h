@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_OP_TENSOR_CREATE_H_
 #define TVM_RELAX_OP_TENSOR_CREATE_H_
 
+#include <tvm/ffi/container/variant.h>
 #include <tvm/relax/attrs/create.h>
 
 #include "../op_common.h"
@@ -39,7 +40,7 @@ namespace relax {
  * If dtype is not given, it will by default use the dtype of fill_value.
  * \return The result tensor.
  */
-Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, DataType dtype);
+Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, Optional<DataType> dtype);
 
 /*!
  * \brief Construct a tensor such that
@@ -52,7 +53,7 @@ Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, DataType dtype)
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr full_like(Expr x, Expr fill_value, DataType dtype);
+Expr full_like(Expr x, Expr fill_value, Optional<DataType> dtype);
 
 /*!
  * \brief Construct a tensor of all ones, with the input shape and dtype.
@@ -70,7 +71,7 @@ Expr ones(Expr shape, DataType dtype);
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr ones_like(Expr x, DataType dtype);
+Expr ones_like(Expr x, Optional<DataType> dtype);
 
 /*!
  * \brief Construct a tensor of all zeros, with the input shape and dtype.
@@ -88,7 +89,7 @@ Expr zeros(Expr shape, DataType dtype);
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr zeros_like(Expr x, DataType dtype);
+Expr zeros_like(Expr x, Optional<DataType> dtype);
 
 /*!
  * \brief Construct a 2-D tensor with ones on the diagonal and zeros elsewhere.
@@ -112,7 +113,7 @@ Expr eye(PrimValue n, PrimValue m, PrimValue k, DataType dtype);
  * void, the input tensor's dtype will be used.
  * \return The result tensor.
  */
-Expr eye_like(Expr x, PrimValue k, DataType dtype);
+Expr eye_like(Expr x, PrimValue k, Optional<DataType> dtype);
 
 /*! \brief Construct a tensor with evenly spaced elements. */
 Expr arange(PrimValue start, PrimValue stop, PrimValue step, DataType dtype);

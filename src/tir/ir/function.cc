@@ -27,8 +27,6 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
-#include "utils.h"
-
 namespace tvm {
 namespace tir {
 namespace {
@@ -76,14 +74,8 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
     attrs = DictAttrs();
   }
 
-  // Assume void-return type for now
-  // TODO(tvm-team) consider type deduction from body.
   if (!ret_type.defined()) {
     ret_type = VoidType();
-  }
-
-  if (attrs.defined()) {
-    attrs = Downcast<DictAttrs>(NormalizeAttributeObject(attrs));
   }
 
   auto n = make_object<PrimFuncNode>();
@@ -153,7 +145,7 @@ Optional<TensorIntrin> TensorIntrin::Get(String name, bool allow_missing) {
   auto it = manager->reg.find(name);
   if (it == manager->reg.end()) {
     if (allow_missing) {
-      return NullOpt;
+      return std::nullopt;
     } else {
       LOG(FATAL) << "ValueError: TensorIntrin '" << name << "' is not registered";
     }

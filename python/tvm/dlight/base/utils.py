@@ -25,7 +25,7 @@ from tvm.target import Target
 def get_bytes(dtype: Union[DataType, str]) -> int:
     if isinstance(dtype, str):
         dtype = DataType(dtype)
-    return dtype.itemsize()
+    return dtype.itemsize
 
 
 def get_extent(sch: tir.Schedule, loop_rv: tir.schedule.LoopRV):

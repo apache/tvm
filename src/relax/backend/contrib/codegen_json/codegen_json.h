@@ -86,27 +86,43 @@ class OpAttrExtractor : public AttrVisitor {
 
   void Visit(const char* key, std::string* value) final { SetNodeAttr(key, {*value}); }
 
+  void Visit(const char* key, Optional<double>* value) final {
+    if (value->has_value()) {
+      SetNodeAttr(key, {Fp2String(value->value())});
+    } else {
+      SetNodeAttr(key, {""});
+    }
+  }
+
+  void Visit(const char* key, Optional<int64_t>* value) final {
+    if (value->has_value()) {
+      SetNodeAttr(key, {std::to_string(value->value())});
+    } else {
+      SetNodeAttr(key, {""});
+    }
+  }
+
   void Visit(const char* key, DataType* value) final {
     if (!value->is_void()) {
-      SetNodeAttr(key, {runtime::DLDataType2String(*value)});
+      SetNodeAttr(key, {runtime::DLDataTypeToString(*value)});
     } else {
       SetNodeAttr(key, {""});
     }
   }
 
   void Visit(const char* key, runtime::ObjectRef* value) final {
-    if (const auto* an = (*value).as<ArrayNode>()) {
+    if (const auto* an = (*value).as<ffi::ArrayObj>()) {
       std::vector<std::string> attr;
       for (size_t i = 0; i < an->size(); ++i) {
         if (const auto* im = (*an)[i].as<IntImmNode>()) {
           attr.push_back(std::to_string(im->value));
         } else if (const auto* fm = (*an)[i].as<FloatImmNode>()) {
           attr.push_back(Fp2String(fm->value));
-        } else if (const auto* str = (*an)[i].as<StringObj>()) {
+        } else if (const auto* str = (*an)[i].as<ffi::StringObj>()) {
           String s = GetRef<String>(str);
           attr.push_back(s);
         } else {
-          LOG(FATAL) << "Not supported type: " << (*an)[i]->GetTypeKey();
+          LOG(FATAL) << "Not supported type: " << (*an)[i].GetTypeKey();
         }
       }
       SetNodeAttr(key, attr);
@@ -116,7 +132,7 @@ class OpAttrExtractor : public AttrVisitor {
       SetNodeAttr(key, std::vector<std::string>{std::to_string(im->value)});
     } else if (const auto* fm = (*value).as<FloatImmNode>()) {
       SetNodeAttr(key, std::vector<std::string>{Fp2String(fm->value)});
-    } else if (const auto* str = (*value).as<StringObj>()) {
+    } else if (const auto* str = (*value).as<ffi::StringObj>()) {
       String s = GetRef<String>(str);
       SetNodeAttr(key, std::vector<std::string>{s});
     } else {

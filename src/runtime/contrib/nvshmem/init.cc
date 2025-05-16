@@ -28,7 +28,7 @@
 namespace tvm {
 namespace runtime {
 
-ShapeTuple InitNVSHMEMUID() {
+ffi::Shape InitNVSHMEMUID() {
   nvshmemx_uniqueid_t uid;
   nvshmemx_get_uniqueid(&uid);
   std::vector<int64_t> uid_64;
@@ -36,10 +36,10 @@ ShapeTuple InitNVSHMEMUID() {
   for (int i = 0; i < UNIQUEID_PADDING; ++i) {
     uid_64.push_back(static_cast<int64_t>(uid.internal[i]));
   }
-  return ShapeTuple(uid_64);
+  return ffi::Shape(uid_64);
 }
 
-void InitNVSHMEM(ShapeTuple uid_64, int num_workers, int worker_id_start) {
+void InitNVSHMEM(ffi::Shape uid_64, int num_workers, int worker_id_start) {
   DiscoWorker* worker = ThreadLocalDiscoWorker::Get()->worker;
   int worker_id;
   if (worker == nullptr) {
@@ -99,7 +99,7 @@ void InitNVSHMEMWrapper(String args) {
     uid_vector.push_back(elem.get<int64_t>());
   }
 
-  ShapeTuple uid_64(uid_vector);
+  ffi::Shape uid_64(uid_vector);
 
   int num_workers = static_cast<int>(obj["npes"].get<int64_t>());
   int worker_id_start = static_cast<int>(obj["pe_start"].get<int64_t>());

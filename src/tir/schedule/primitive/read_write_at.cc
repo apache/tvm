@@ -124,7 +124,7 @@ struct ReadWriteAtImpl {
   template <bool is_read>
   static StmtSRef Main(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                        int buffer_index, const String& storage_scope,
-                       Map<String, ObjectRef> annotations) {
+                       Map<String, Any> annotations) {
     const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
     Buffer src = GetNthAccessBuffer(self, GetRef<Block>(block), buffer_index,
                                     is_read ? BufferIndexType::kRead : BufferIndexType::kWrite);
@@ -311,14 +311,14 @@ struct ReadWriteAtImpl {
               /*writes=*/{BufferRegion(copy_to, domain)},
               /*name_hint=*/name_hint,  //
               /*body=*/std::move(stmt),
-              /*init=*/NullOpt,
+              /*init=*/std::nullopt,
               /*alloc_buffers=*/{},
               /*match_buffers=*/{},
               /*annotations=*/annotations_));
   }
 
   explicit ReadWriteAtImpl(ScheduleState self, const StmtSRef& loop_sref, const Buffer& src,
-                           const Buffer& dst, Map<String, ObjectRef> annotations)
+                           const Buffer& dst, Map<String, Any> annotations)
       : self_(self),
         loop_sref_(loop_sref),
         loop_(nullptr),
@@ -335,7 +335,7 @@ struct ReadWriteAtImpl {
   const ForNode* loop_;
   const Buffer& src_;
   const Buffer& dst_;
-  Map<String, ObjectRef> annotations_;
+  Map<String, Any> annotations_;
   Map<Block, Block> block_sref_reuse_;
   std::unique_ptr<arith::Analyzer> analyzer_;
 };
@@ -343,13 +343,13 @@ struct ReadWriteAtImpl {
 StmtSRef ReadAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                 int read_buffer_index, const String& storage_scope) {
   return ReadWriteAtImpl::Main<true>(self, loop_sref, block_sref, read_buffer_index, storage_scope,
-                                     {{tir::attr::auto_copy, Integer(1)}});
+                                     {{tir::attr::auto_copy, true}});
 }
 
 StmtSRef WriteAt(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                  int write_buffer_index, const String& storage_scope) {
   return ReadWriteAtImpl::Main<false>(self, loop_sref, block_sref, write_buffer_index,
-                                      storage_scope, {{tir::attr::auto_copy, Integer(1)}});
+                                      storage_scope, {{tir::attr::auto_copy, true}});
 }
 
 /******** Instruction Registration ********/

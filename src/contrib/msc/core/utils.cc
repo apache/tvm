@@ -263,19 +263,15 @@ const String StringUtils::ToString(const runtime::ObjectRef& obj) {
   String obj_string;
   if (!obj.defined()) {
     obj_string = "";
-  } else if (obj.as<StringObj>()) {
+  } else if (obj.as<ffi::StringObj>()) {
     obj_string = Downcast<String>(obj);
-  } else if (const auto* n = obj.as<runtime::Int::ContainerType>()) {
-    obj_string = std::to_string(n->value);
-  } else if (const auto* n = obj.as<runtime::Float::ContainerType>()) {
-    obj_string = std::to_string(n->value);
   } else if (const auto* n = obj.as<IntImmNode>()) {
     obj_string = std::to_string(n->value);
   } else if (const auto* n = obj.as<FloatImmNode>()) {
     obj_string = std::to_string(n->value);
-  } else if (const auto* n = obj.as<ArrayNode>()) {
+  } else if (const auto* n = obj.as<ffi::ArrayObj>()) {
     for (size_t i = 0; i < n->size(); i++) {
-      obj_string = obj_string + ToString((*n)[i]);
+      obj_string = obj_string + ToString((*n)[i].cast<ObjectRef>());
       if (n->size() == 1 || i < n->size() - 1) {
         obj_string = obj_string + ",";
       }

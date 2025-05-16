@@ -22,8 +22,8 @@
 #ifndef TVM_RUNTIME_CONTRIB_PAPI_H_
 #define TVM_RUNTIME_CONTRIB_PAPI_H_
 
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
 #include <tvm/runtime/profiling.h>
 
 namespace tvm {

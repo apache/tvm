@@ -113,9 +113,9 @@ TVM_REGISTER_OBJECT_TYPE(PostprocNode);
 TVM_REGISTER_NODE_TYPE(PyPostprocNode);
 
 TVM_REGISTER_GLOBAL("meta_schedule.PostprocInitializeWithTuneContext")
-    .set_body_method<Postproc>(&PostprocNode::InitializeWithTuneContext);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocApply").set_body_method<Postproc>(&PostprocNode::Apply);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocClone").set_body_method<Postproc>(&PostprocNode::Clone);
+    .set_body_method(&PostprocNode::InitializeWithTuneContext);
+TVM_REGISTER_GLOBAL("meta_schedule.PostprocApply").set_body_method(&PostprocNode::Apply);
+TVM_REGISTER_GLOBAL("meta_schedule.PostprocClone").set_body_method(&PostprocNode::Clone);
 TVM_REGISTER_GLOBAL("meta_schedule.PostprocPyPostproc").set_body_typed(Postproc::PyPostproc);
 TVM_REGISTER_GLOBAL("meta_schedule.PostprocDefaultLLVM").set_body_typed(Postproc::DefaultLLVM);
 TVM_REGISTER_GLOBAL("meta_schedule.PostprocDefaultCUDA").set_body_typed(Postproc::DefaultCUDA);

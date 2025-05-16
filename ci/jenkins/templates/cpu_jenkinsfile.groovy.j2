@@ -32,10 +32,6 @@
   cmake_build(ci_cpu, 'build')
   make_cpp_tests(ci_cpu, 'build')
   {{ m.upload_artifacts(tag='cpu', filenames=tvm_lib + tvm_allvisible + cpptest) }}
-  ci_setup(ci_cpu)
-  // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
-  // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-  sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
 {% endcall %}
 
 {% set test_method_names = [] %}

@@ -56,7 +56,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       (*f)->is_func = true;
       (*f)->func_vars = &func_vars;
       // Step 1. Print the return type
-      Optional<ExprDoc> ret_type = NullOpt;
+      Optional<ExprDoc> ret_type = std::nullopt;
       if (const auto& func_sinfo = relax::MatchStructInfo<relax::FuncStructInfo>(n)) {
         ret_type = d->AsDoc<ExprDoc>(func_sinfo.value()->ret,  //
                                      n_p->Attr("struct_info_")->Attr("ret"));
@@ -68,7 +68,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         for (int i = 0, l = n->params.size(); i < l; ++i) {
           params.push_back(AssignDoc(
               /*lhs=*/DefineVar(n->params[i], *f, d),
-              /*rhs=*/NullOpt, StructInfoAsAnn(n->params[i], params_p->ArrayIndex(i), d, NullOpt)));
+              /*rhs=*/std::nullopt,
+              StructInfoAsAnn(n->params[i], params_p->ArrayIndex(i), d, std::nullopt)));
         }
       }
       // Step 3. Clean up func variables
@@ -81,7 +82,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         // doesn't match the function name, we should still print the global symbol attribute.
         if (AtTopLevelFunction(d) && n->attrs->dict.count(tvm::attr::kGlobalSymbol) &&
             Downcast<String>(n->attrs->dict.at(tvm::attr::kGlobalSymbol)) == func_name->name) {
-          Map<String, ObjectRef> new_attrs;
+          Map<String, Any> new_attrs;
           for (auto kv : n->attrs->dict) {
             if (kv.first != tvm::attr::kGlobalSymbol) {
               new_attrs.Set(kv.first, kv.second);

@@ -38,7 +38,7 @@ class OrderedUnionDatabaseNode : public DatabaseNode {
         return record;
       }
     }
-    return NullOpt;
+    return std::nullopt;
   }
 
   bool HasWorkload(const IRModule& mod) final {

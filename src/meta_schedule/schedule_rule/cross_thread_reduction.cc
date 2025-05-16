@@ -73,7 +73,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
 
     // Step 3. Try block fusion.
     int n_candidate = static_cast<int>(thread_extents.size());
-    Array<runtime::Float> probs(n_candidate, 1.0 / n_candidate);
+    Array<FloatImm> probs(n_candidate, FloatImm(DataType::Float(32), 1.0 / n_candidate));
     tir::ExprRV thread_extent = tmp_sch->SampleCategorical(thread_extents, probs);
     if (fusible) {
       ICHECK(target_block.defined());
@@ -86,7 +86,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
       // - Otherwise, we search for the extent of "threadIdx.x" and use it as the split factor.
       if (!InThreadScope(tmp_sch, target_block)) {
         const Array<tir::LoopRV>& split_res =
-            tmp_sch->Split(tgt_block_innermost_loop, {NullOpt, thread_extent});
+            tmp_sch->Split(tgt_block_innermost_loop, {std::nullopt, thread_extent});
         tmp_sch->Bind(split_res[1], "threadIdx.x");
         if (tgt_block_innermost_loop.same_as(target_loop)) {
           target_loop = split_res[0];
@@ -107,7 +107,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     ReorderAndFuseReductionLoops(tmp_sch, block_rv, &fused_reduce_loop, &num_spatial_loops);
     // Step 5. Split the fused reduction loop and bind the inner one to threadIdx.
     const Array<tir::LoopRV>& split_res =
-        tmp_sch->Split(fused_reduce_loop, {NullOpt, thread_extent});
+        tmp_sch->Split(fused_reduce_loop, {std::nullopt, thread_extent});
     tmp_sch->Bind(split_res[1], "threadIdx.x");
 
     return {tmp_sch, sch};
@@ -150,8 +150,10 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
                              tir::ExprRV* extent) {
     for (const tir::Instruction& inst : trace->insts) {
       if (inst->kind->name == "Split") {
-        int i = std::find(inst->outputs.begin(), inst->outputs.end(), loop) - inst->outputs.begin();
-        CHECK(inst->inputs[1 + i].defined())
+        auto fcheck = [&](const Any& a) -> bool { return a.as<Object>() == loop.get(); };
+        int i = std::find_if(inst->outputs.begin(), inst->outputs.end(), fcheck) -
+                inst->outputs.begin();
+        CHECK(inst->inputs[1 + i] != nullptr)
             << "ValueError: Extracting an extent which needs inference is not supported so far";
         *extent = Downcast<tir::ExprRV>(inst->inputs[1 + i]);
         return true;
@@ -267,7 +269,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   /*! \brief The number of threads per warp */
   int warp_size;
   /*! \brief Candidates of thread axis extent (values are required to be positive). */
-  Array<runtime::Int> thread_extents;
+  Array<Integer> thread_extents;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("max_threads_per_block", &max_threads_per_block);
@@ -279,7 +281,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(CrossThreadReductionNode, ScheduleRuleNode);
 };
 
-ScheduleRule ScheduleRule::CrossThreadReduction(Array<runtime::Int> thread_extents) {
+ScheduleRule ScheduleRule::CrossThreadReduction(Array<Integer> thread_extents) {
   for (const auto& extent : thread_extents) {
     CHECK(extent->value > 0) << "ValueError: The candidates of thread extent must be positive";
   }

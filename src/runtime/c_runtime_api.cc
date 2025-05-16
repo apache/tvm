@@ -22,6 +22,10 @@
  * \brief Device specific implementations
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/rvalue_ref.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
@@ -45,21 +49,18 @@ namespace tvm {
 namespace runtime {
 
 std::string GetCustomTypeName(uint8_t type_code) {
-  auto f = tvm::runtime::Registry::Get("runtime._datatype_get_type_name");
-  ICHECK(f) << "Function runtime._datatype_get_type_name not found";
-  return (*f)(type_code).operator std::string();
+  const auto f = tvm::ffi::Function::GetGlobalRequired("runtime._datatype_get_type_name");
+  return f(type_code).cast<std::string>();
 }
 
 uint8_t GetCustomTypeCode(const std::string& type_name) {
-  auto f = tvm::runtime::Registry::Get("runtime._datatype_get_type_code");
-  ICHECK(f) << "Function runtime._datatype_get_type_code not found";
-  return (*f)(type_name).operator int();
+  const auto f = tvm::ffi::Function::GetGlobalRequired("runtime._datatype_get_type_code");
+  return f(type_name).cast<uint8_t>();
 }
 
 bool GetCustomTypeRegistered(uint8_t type_code) {
-  auto f = tvm::runtime::Registry::Get("runtime._datatype_get_type_registered");
-  ICHECK(f) << "Function runtime._datatype_get_type_registered not found";
-  return (*f)(type_code).operator bool();
+  const auto f = tvm::ffi::Function::GetGlobalRequired("runtime._datatype_get_type_registered");
+  return f(type_code).cast<bool>();
 }
 
 uint8_t ParseCustomDatatype(const std::string& s, const char** scan) {
@@ -128,12 +129,12 @@ class DeviceAPIManager {
   }
   DeviceAPI* GetAPI(const std::string name, bool allow_missing) {
     std::string factory = "device_api." + name;
-    auto* f = Registry::Get(factory);
-    if (f == nullptr) {
+    const auto f = tvm::ffi::Function::GetGlobal(factory);
+    if (!f.has_value()) {
       ICHECK(allow_missing) << "Device API " << name << " is not enabled.";
       return nullptr;
     }
-    void* ptr = (*f)();
+    void* ptr = (*f)().cast<void*>();
     return static_cast<DeviceAPI*>(ptr);
   }
 };
@@ -259,6 +260,12 @@ std::string NormalizeError(std::string err_msg) {
   //   {stack trace 0}
   //   {stack trace 1}
   //-------------------------------------------------------------------------
+  // LEGACY-COMPACT:
+  // skip python-style error style
+  // TODO(tqchen) move to new FFI handling
+  if (err_msg.find("Traceback (most recent call last)") != std::string::npos) {
+    return err_msg;
+  }
   int line_number = 0;
   std::istringstream is(err_msg);
   std::string line, file_name, error_type, check_msg;
@@ -387,12 +394,11 @@ std::string NormalizeError(std::string err_msg) {
 using namespace tvm::runtime;
 
 struct WrappedPythonError : Error {
-  WrappedPythonError() : Error("") {}
+  WrappedPythonError() : Error("WrappedPythonError", "", TVM_FFI_TRACEBACK_HERE) {}
   explicit WrappedPythonError(WrappedPythonObject obj)
-      : Error(""), obj(std::move(obj)), cpp_backtrace(tvm::runtime::Backtrace()) {}
+      : Error("WrappedPythonError", "", TVM_FFI_TRACEBACK_HERE), obj(std::move(obj)) {}
 
   WrappedPythonObject obj;
-  std::string cpp_backtrace;
 };
 
 struct TVMRuntimeEntry {
@@ -413,7 +419,7 @@ const char* TVMGetLastError() {
   } else if (const auto* internal = std::get_if<InternalError>(&last_error)) {
     // Use last_error_formatted to store the formatted error message, to avoid
     // dangling pointer.
-    store->last_error_formatted = NormalizeError(internal->full_message());
+    store->last_error_formatted = internal->what();
     return store->last_error_formatted.c_str();
   } else {
     return nullptr;
@@ -431,10 +437,13 @@ void* TVMGetLastPythonError() {
 
 const char* TVMGetLastBacktrace() {
   const auto& last_error = TVMAPIRuntimeStore::Get()->last_error;
+  static thread_local std::string traceback;
   if (const auto* wrapped = std::get_if<WrappedPythonError>(&last_error)) {
-    return wrapped->cpp_backtrace.data();
+    traceback = wrapped->traceback();
+    return traceback.c_str();
   } else if (const auto* wrapped = std::get_if<InternalError>(&last_error)) {
-    return wrapped->backtrace().data();
+    traceback = wrapped->traceback();
+    return traceback.c_str();
   } else {
     return nullptr;
   }
@@ -473,8 +482,9 @@ void TVMThrowLastError() {
     throw wrapped_err;
   } else if (auto* internal = std::get_if<InternalError>(&last_error)) {
     throw *internal;
-  } else if (auto* message = std::get_if<std::string>(&last_error)) {
-    throw tvm::Error(NormalizeError(*message) + tvm::runtime::Backtrace());
+  } else {
+    // redirect to tvm-ffi error handling.
+    throw ::tvm::ffi::details::MoveFromSafeCallRaised();
   }
 }
 
@@ -485,12 +495,10 @@ void TVMAPISetLastError(const char* msg) {
 
 int TVMModLoadFromFile(const char* file_name, const char* format, TVMModuleHandle* out) {
   API_BEGIN();
-  TVMRetValue ret;
+  tvm::ffi::Any ret;
   ret = Module::LoadFromFile(file_name, format);
-  TVMValue val;
-  int type_code;
-  ret.MoveToCHost(&val, &type_code);
-  *out = val.v_handle;
+  TVMFFIAny val = tvm::ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(ret));
+  *out = val.v_obj;
   API_END();
 }
 
@@ -503,14 +511,12 @@ int TVMModImport(TVMModuleHandle mod, TVMModuleHandle dep) {
 int TVMModGetFunction(TVMModuleHandle mod, const char* func_name, int query_imports,
                       TVMFunctionHandle* func) {
   API_BEGIN();
-  PackedFunc pf = ObjectInternal::GetModuleNode(mod)->GetFunction(func_name, query_imports != 0);
+  tvm::ffi::Function pf =
+      ObjectInternal::GetModuleNode(mod)->GetFunction(func_name, query_imports != 0);
   if (pf != nullptr) {
-    tvm::runtime::TVMRetValue ret;
-    ret = pf;
-    TVMValue val;
-    int type_code;
-    ret.MoveToCHost(&val, &type_code);
-    *func = val.v_handle;
+    tvm::ffi::Any ret = pf;
+    TVMFFIAny val = tvm::ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(ret));
+    *func = val.v_obj;
   } else {
     *func = nullptr;
   }
@@ -569,28 +575,34 @@ int TVMByteArrayFree(TVMByteArray* arr) {
 int TVMFuncCall(TVMFunctionHandle func, TVMValue* args, int* arg_type_codes, int num_args,
                 TVMValue* ret_val, int* ret_type_code) {
   API_BEGIN();
-  TVMRetValue rv;
-  (static_cast<const PackedFuncObj*>(func))
-      ->CallPacked(TVMArgs(args, arg_type_codes, num_args), &rv);
-  // handle return string.
-  if (rv.type_code() == kTVMStr || rv.type_code() == kTVMDataType || rv.type_code() == kTVMBytes) {
+  tvm::ffi::Any rv;
+  tvm::ffi::FunctionObj* ffi_func = static_cast<tvm::ffi::FunctionObj*>(func);
+  std::vector<tvm::ffi::AnyView> args_vec(num_args);
+  tvm::runtime::LegacyTVMArgsToPackedArgs(args, arg_type_codes, num_args, args_vec.data());
+  ffi_func->CallPacked(args_vec.data(), args_vec.size(), &rv);
+  // special handle of certain return types.
+  if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIDataType ||
+      rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIBytes ||
+      rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIStr) {
+    // TODO(tvm-team): handle bytes return type here
     TVMRuntimeEntry* e = TVMAPIRuntimeStore::Get();
-    if (rv.type_code() != kTVMDataType) {
-      e->ret_str = *rv.ptr<std::string>();
-    } else {
-      e->ret_str = rv.operator std::string();
-    }
-    if (rv.type_code() == kTVMBytes) {
+    if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIDataType) {
+      e->ret_str = DLDataTypeToString(rv.cast<DLDataType>());
+      *ret_type_code = kTVMStr;
+      ret_val->v_str = e->ret_str.c_str();
+    } else if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIBytes) {
+      e->ret_str = rv.cast<std::string>();
       e->ret_bytes.data = e->ret_str.c_str();
       e->ret_bytes.size = e->ret_str.length();
       *ret_type_code = kTVMBytes;
       ret_val->v_handle = &(e->ret_bytes);
-    } else {
+    } else if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIStr) {
+      e->ret_str = rv.cast<std::string>();
       *ret_type_code = kTVMStr;
       ret_val->v_str = e->ret_str.c_str();
     }
   } else {
-    rv.MoveToCHost(ret_val, ret_type_code);
+    MoveAnyToLegacyTVMValue(std::move(rv), ret_val, ret_type_code);
   }
   API_END();
 }
@@ -598,8 +610,8 @@ int TVMFuncCall(TVMFunctionHandle func, TVMValue* args, int* arg_type_codes, int
 int TVMCFuncSetReturn(TVMRetValueHandle ret, TVMValue* value, int* type_code, int num_ret) {
   API_BEGIN();
   ICHECK_EQ(num_ret, 1);
-  TVMRetValue* rv = static_cast<TVMRetValue*>(ret);
-  *rv = TVMArgValue(value[0], type_code[0]);
+  tvm::ffi::Any* rv = static_cast<tvm::ffi::Any*>(ret);
+  *rv = LegacyTVMArgValueToAnyView(value[0], type_code[0]);
   API_END();
 }
 
@@ -607,33 +619,43 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
                            TVMFunctionHandle* out) {
   API_BEGIN();
   if (fin == nullptr) {
-    tvm::runtime::TVMRetValue ret;
-    ret = PackedFunc([func, resource_handle](TVMArgs args, TVMRetValue* rv) {
-      int ret = func(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
-                     args.num_args, rv, resource_handle);
-      if (ret != 0) {
-        TVMThrowLastError();
-      }
-    });
+    tvm::ffi::Any ret;
+    ret = tvm::ffi::Function::FromPacked(
+        [func, resource_handle](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
+          // run ABI translation
+          std::vector<TVMValue> values(args.size());
+          std::vector<int> type_codes(args.size());
+          PackedArgsToLegacyTVMArgs(args.data(), args.size(), values.data(), type_codes.data());
+          int ret = func(values.data(), type_codes.data(), args.size(), rv, resource_handle);
+          if (ret != 0) {
+            TVMThrowLastError();
+          }
+        });
     TVMValue val;
     int type_code;
-    ret.MoveToCHost(&val, &type_code);
+    MoveAnyToLegacyTVMValue(std::move(ret), &val, &type_code);
     *out = val.v_handle;
   } else {
     // wrap it in a shared_ptr, with fin as deleter.
     // so fin will be called when the lambda went out of scope.
     std::shared_ptr<void> rpack(resource_handle, fin);
-    tvm::runtime::TVMRetValue ret;
-    ret = PackedFunc([func, rpack](TVMArgs args, TVMRetValue* rv) {
-      int ret = func(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
-                     args.num_args, rv, rpack.get());
-      if (ret != 0) {
-        TVMThrowLastError();
-      }
-    });
+    tvm::ffi::Any ret;
+    ret =
+        tvm::ffi::Function::FromPacked([func, rpack](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
+          // run ABI translation
+          std::vector<TVMValue> values(args.size());
+          std::vector<int> type_codes(args.size());
+          PackedArgsToLegacyTVMArgs(args.data(), args.size(), values.data(), type_codes.data());
+          int ret = func(values.data(), type_codes.data(), args.size(), rv, rpack.get());
+
+          if (ret != 0) {
+            TVMThrowLastError();
+          }
+        });
     TVMValue val;
+    val.v_handle = nullptr;
     int type_code;
-    ret.MoveToCHost(&val, &type_code);
+    MoveAnyToLegacyTVMValue(std::move(ret), &val, &type_code);
     *out = val.v_handle;
   }
   API_END();
@@ -648,6 +670,10 @@ int TVMStreamCreate(int device_type, int device_id, TVMStreamHandle* out) {
   API_END();
 }
 
+TVM_REGISTER_GLOBAL("runtime.Device_StreamCreate").set_body_typed([](DLDevice dev) {
+  return reinterpret_cast<int64_t>(DeviceAPIManager::Get(dev)->CreateStream(dev));
+});
+
 int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream) {
   API_BEGIN();
   DLDevice dev;
@@ -656,6 +682,10 @@ int TVMStreamFree(int device_type, int device_id, TVMStreamHandle stream) {
   DeviceAPIManager::Get(dev)->FreeStream(dev, stream);
   API_END();
 }
+
+TVM_REGISTER_GLOBAL("runtime.Device_StreamFree").set_body_typed([](DLDevice dev, int64_t stream) {
+  DeviceAPIManager::Get(dev)->FreeStream(dev, reinterpret_cast<TVMStreamHandle>(stream));
+});
 
 int TVMSetStream(int device_type, int device_id, TVMStreamHandle stream) {
   API_BEGIN();
@@ -666,6 +696,10 @@ int TVMSetStream(int device_type, int device_id, TVMStreamHandle stream) {
   API_END();
 }
 
+TVM_REGISTER_GLOBAL("runtime.Device_SetStream").set_body_typed([](DLDevice dev, int64_t stream) {
+  DeviceAPIManager::Get(dev)->SetStream(dev, reinterpret_cast<TVMStreamHandle>(stream));
+});
+
 int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream) {
   API_BEGIN();
   DLDevice dev;
@@ -674,6 +708,10 @@ int TVMSynchronize(int device_type, int device_id, TVMStreamHandle stream) {
   DeviceAPIManager::Get(dev)->StreamSync(dev, stream);
   API_END();
 }
+
+TVM_REGISTER_GLOBAL("runtime.Device_StreamSync").set_body_typed([](DLDevice dev, int64_t stream) {
+  DeviceAPIManager::Get(dev)->StreamSync(dev, reinterpret_cast<TVMStreamHandle>(stream));
+});
 
 int TVMStreamStreamSynchronize(int device_type, int device_id, TVMStreamHandle src,
                                TVMStreamHandle dst) {
@@ -685,11 +723,22 @@ int TVMStreamStreamSynchronize(int device_type, int device_id, TVMStreamHandle s
   API_END();
 }
 
+TVM_REGISTER_GLOBAL("runtime.Device_StreamSyncFromTo")
+    .set_body_typed([](DLDevice dev, int64_t src, int64_t dst) {
+      DeviceAPIManager::Get(dev)->SyncStreamFromTo(dev, reinterpret_cast<TVMStreamHandle>(src),
+                                                   reinterpret_cast<TVMStreamHandle>(dst));
+    });
+
 int TVMCbArgToReturn(TVMValue* value, int* code) {
   API_BEGIN();
-  tvm::runtime::TVMRetValue rv;
-  rv = tvm::runtime::TVMMovableArgValue_(*value, *code);
-  rv.MoveToCHost(value, code);
+  AnyView arg = LegacyTVMArgValueToAnyView(*value, *code);
+  Any rv;
+  if (auto opt_rv = arg.try_cast<tvm::ffi::RValueRef<tvm::ffi::ObjectRef>>()) {
+    rv = *std::move(*std::move(opt_rv));
+  } else {
+    rv = arg;
+  }
+  MoveAnyToLegacyTVMValue(std::move(rv), value, code);
   API_END();
 }
 
@@ -703,9 +752,9 @@ int TVMDeviceAllocDataSpace(DLDevice dev, size_t nbytes, size_t alignment, DLDat
 int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shape, DLDataType dtype,
                                      const char* mem_scope, void** out_data) {
   API_BEGIN();
-  Optional<String> scope;
+  tvm::Optional<tvm::String> scope;
   if (mem_scope != nullptr) {
-    scope = String(std::string(mem_scope));
+    scope = tvm::String(std::string(mem_scope));
   }
   out_data[0] = DeviceAPIManager::Get(dev)->AllocDataSpace(dev, ndim, shape, dtype, scope);
   API_END();
@@ -728,30 +777,31 @@ int TVMDeviceCopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream
 
 // set device api
 TVM_REGISTER_GLOBAL(tvm::runtime::symbol::tvm_set_device)
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
+    .set_body_packed([](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
       DLDevice dev;
-      dev.device_type = static_cast<DLDeviceType>(args[0].operator int());
-      dev.device_id = args[1];
+      dev.device_type = static_cast<DLDeviceType>(args[0].cast<int>());
+      dev.device_id = args[1].cast<int>();
       DeviceAPIManager::Get(dev)->SetDevice(dev);
     });
 
 // set device api
-TVM_REGISTER_GLOBAL("runtime.GetDeviceAttr").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLDevice dev;
-  dev.device_type = static_cast<DLDeviceType>(args[0].operator int());
-  dev.device_id = args[1];
+TVM_REGISTER_GLOBAL("runtime.GetDeviceAttr")
+    .set_body_packed([](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
+      DLDevice dev;
+      dev.device_type = static_cast<DLDeviceType>(args[0].cast<int>());
+      dev.device_id = args[1].cast<int>();
 
-  DeviceAttrKind kind = static_cast<DeviceAttrKind>(args[2].operator int());
-  if (kind == kExist) {
-    DeviceAPI* api = DeviceAPIManager::Get(dev.device_type, true);
-    if (api != nullptr) {
-      api->GetAttr(dev, kind, ret);
-    } else {
-      *ret = 0;
-    }
-  } else {
-    DeviceAPIManager::Get(dev)->GetAttr(dev, kind, ret);
-  }
-});
+      DeviceAttrKind kind = static_cast<DeviceAttrKind>(args[2].cast<int>());
+      if (kind == kExist) {
+        DeviceAPI* api = DeviceAPIManager::Get(dev.device_type, true);
+        if (api != nullptr) {
+          api->GetAttr(dev, kind, ret);
+        } else {
+          *ret = 0;
+        }
+      } else {
+        DeviceAPIManager::Get(dev)->GetAttr(dev, kind, ret);
+      }
+    });
 
 TVM_REGISTER_GLOBAL("runtime.TVMSetStream").set_body_typed(TVMSetStream);

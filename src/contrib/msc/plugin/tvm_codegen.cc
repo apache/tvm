@@ -39,7 +39,7 @@ void TVMPluginCodeGen::CodeGenAttrDeclare(const Plugin& plugin) {
   // args to meta_attr
   stack_.comment("convert args to meta attrs method")
       .func_def(attr_name + "_from_args", "const " + attr_name)
-      .func_arg("args", "TVMArgs")
+      .func_arg("args", "ffi::PackedArgs")
       .func_arg("pos", "size_t&");
 }
 
@@ -62,7 +62,7 @@ void TVMPluginCodeGen::CodeGenAttrDefine(const Plugin& plugin) {
   // args to meta_attr
   stack_.comment("convert args to meta attrs method")
       .func_def(attr_name + "_from_args", "const " + attr_name)
-      .func_arg("args", "TVMArgs")
+      .func_arg("args", "ffi::PackedArgs")
       .func_arg("pos", "size_t&")
       .func_start()
       .declare(attr_name, "meta_attr");
@@ -240,7 +240,7 @@ void TVMPluginCodeGen::CodeGenOpRuntime(const Plugin& plugin) {
     device_cond = device_cond + "TVMUtils::OnDevice(" + plugin->inputs[i]->name + ", " +
                   device_type + ")" + (i == plugin->inputs.size() - 1 ? "" : " && ");
   }
-  stack_.func_def(func_name).func_arg("args", "TVMArgs").func_arg("ret", "TVMRetValue*");
+  stack_.func_def(func_name).func_arg("args", "ffi::PackedArgs").func_arg("ret", "ffi::Any*");
   stack_.func_start().comment("define tensors");
   for (size_t i = 0; i < plugin->inputs.size(); i++) {
     stack_.assign(plugin->inputs[i]->name, DocUtils::ToIndex("args", i), "DLTensor*");

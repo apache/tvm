@@ -409,6 +409,32 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return convert
 
+    def _div(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        inp_1 = args[0]
+        inp_2 = args[1]
+
+        # Handle scalar cases
+        if isinstance(inp_2, (int, float)):
+            inp_2 = relax.const(inp_2)
+
+        # Get rounding_mode from node kwargs
+        rounding_mode = args[2] if len(node.args) > 2 else node.kwargs.get("rounding_mode", None)
+
+        # Perform division based on rounding mode
+        if rounding_mode is None:
+            # True division (normal float division)
+            return self.block_builder.emit(relax.op.divide(inp_1, inp_2))
+        elif rounding_mode == "floor":
+            # Floor division
+            return self.block_builder.emit(relax.op.floor_divide(inp_1, inp_2))
+        elif rounding_mode == "trunc":
+            # Trunc division: perform true division then truncate
+            true_div = self.block_builder.emit(relax.op.divide(inp_1, inp_2))
+            return self.block_builder.emit(relax.op.trunc(true_div))
+        else:
+            raise ValueError(f"Unsupported rounding_mode: {rounding_mode}")
+
     def _fmod(self, node: fx.Node):
         args = self.retrieve_args(node)
         lhs = args[0]
@@ -447,14 +473,90 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return self.block_builder.emit(result)
 
+    ########## Linear Algebra ##########
+
+    def _linalg_vector_norm(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+
+        data = args[0]
+        # Default ord=2 if not supplied
+        ord_val = args[1] if len(args) > 1 else 2.0
+        dim = args[2] if len(args) > 2 else None
+        keepdim = args[3] if len(args) > 3 else False
+
+        # If ord_val is a Python float/int, wrap it in a Relax const
+        # so that it matches data's dtype.
+        dtype = data.struct_info.dtype
+        ord_expr = (
+            ord_val if isinstance(ord_val, relax.Expr) else relax.const(float(ord_val), dtype)
+        )
+        # Reciprocal
+        reci_expr = (
+            relax.op.divide(relax.const(1.0, dtype), ord_expr)
+            if isinstance(ord_val, relax.Expr)
+            else relax.const(1.0 / float(ord_val), dtype)
+        )
+
+        # abs(data)
+        abs_data = self.block_builder.emit(relax.op.abs(data))
+        # abs_data^ord
+        abs_data_pow = self.block_builder.emit(relax.op.power(abs_data, ord_expr))
+        # sum over dim
+        reduced = self.block_builder.emit(relax.op.sum(abs_data_pow, dim, keepdims=keepdim))
+        # (sum(...))^(1/ord)
+        norm_val = self.block_builder.emit(relax.op.power(reduced, reci_expr))
+
+        return norm_val
+
     ########## Neural Network ##########
+
+    def _adaptive_avg_pool1d(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        output_size = node.args[1] if len(node.args) > 1 else node.kwargs["output_size"]
+        # Expand to 3D by adding batch dim if input is 2D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 2:
+            x = relax.op.expand_dims(x, axis=0)
+
+        result = self.block_builder.emit(
+            relax.op.nn.adaptive_avg_pool1d(x, output_size, layout="NCW")
+        )
+        # Remove added batch dim from result
+        if x_ndim == 2:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
 
     def _adaptive_avg_pool2d(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         output_size = node.args[1]
-        return self.block_builder.emit(
+        # Expand to 4D by adding batch dim if input is 3D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 3:
+            x = relax.op.expand_dims(x, axis=0)
+
+        result = self.block_builder.emit(
             relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
         )
+        # Remove added batch dim from result
+        if x_ndim == 3:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _adaptive_avg_pool3d(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        output_size = node.args[1]
+        # Expand to 5D by adding batch dim if input is 4D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 4:
+            x = relax.op.expand_dims(x, axis=0)
+
+        result = self.block_builder.emit(
+            relax.op.nn.adaptive_avg_pool3d(x, output_size, layout="NCDHW")
+        )
+        # Remove added batch dim from result
+        if x_ndim == 4:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
 
     def _addmm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -478,6 +580,48 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             res = bias if res is None else self.block_builder.emit(relax.op.add(bias, res))
         return res
 
+    def _avg_pool1d_impl(
+        self,
+        x: relax.Expr,
+        kernel_size: Union[int, Tuple[int]] = 1,
+        stride: Optional[Union[int, Tuple[int]]] = None,
+        padding: Optional[int] = 0,
+        ceil_mode: Optional[bool] = False,
+        count_include_pad: Optional[bool] = True,
+    ) -> relax.Var:
+        # Expand to 3D by adding batch dim if input is 2D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 2:
+            x = relax.op.expand_dims(x, axis=0)
+        stride = kernel_size if stride is None or stride == [] else stride
+
+        result = self.block_builder.emit(
+            relax.op.nn.avg_pool1d(
+                x,
+                pool_size=kernel_size,
+                strides=stride,
+                padding=padding,
+                ceil_mode=ceil_mode,
+                count_include_pad=count_include_pad,
+                layout="NCW",
+            )
+        )
+        # Remove added batch dim from result
+        if x_ndim == 2:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _avg_pool1d(self, node: fx.Node) -> relax.Var:
+        args, kwargs = node.normalized_arguments(node)
+        x = self.env[args[0]]
+        kernel_size = args[1] if len(args) > 1 else kwargs["kernel_size"]
+        stride = args[2] if len(args) > 2 else kwargs.get("stride", None)
+        padding = args[3] if len(args) > 3 else kwargs.get("padding", 0)
+        ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
+        count_include_pad = args[5] if len(args) > 5 else kwargs.get("count_include_pad", True)
+
+        return self._avg_pool1d_impl(x, kernel_size, stride, padding, ceil_mode, count_include_pad)
+
     def _avg_pool2d_impl(
         self,
         x: relax.Expr,
@@ -486,8 +630,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding: Optional[int] = 0,
         ceil_mode: Optional[bool] = False,
     ) -> relax.Var:
+        # Expand to 4D by adding batch dim if input is 3D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 3:
+            x = relax.op.expand_dims(x, axis=0)
         stride = kernel_size if stride is None or stride == [] else stride
-        return self.block_builder.emit(
+
+        result = self.block_builder.emit(
             relax.op.nn.avg_pool2d(
                 x,
                 pool_size=kernel_size,
@@ -497,6 +646,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 layout="NCHW",
             )
         )
+        # Remove added batch dim from result
+        if x_ndim == 3:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
 
     def _avg_pool2d(self, node: fx.Node) -> relax.Var:
         args, kwargs = node.normalized_arguments(node)
@@ -506,6 +659,48 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding = args[3] if len(args) > 3 else kwargs.get("padding", 0)
         ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
         return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode)
+
+    def _avg_pool3d_impl(
+        self,
+        x: relax.Expr,
+        kernel_size: Union[int, Tuple[int, int, int]] = (1, 1, 1),
+        stride: Optional[Union[int, Tuple[int, int, int]]] = None,
+        padding: Optional[int] = 0,
+        ceil_mode: Optional[bool] = False,
+        count_include_pad: Optional[bool] = True,
+    ) -> relax.Var:
+        # Expand to 5D by adding batch dim if input is 4D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 4:
+            x = relax.op.expand_dims(x, axis=0)
+        stride = kernel_size if stride is None or stride == [] else stride
+
+        result = self.block_builder.emit(
+            relax.op.nn.avg_pool3d(
+                x,
+                pool_size=kernel_size,
+                strides=stride,
+                padding=padding,
+                ceil_mode=ceil_mode,
+                count_include_pad=count_include_pad,
+                layout="NCDHW",
+            )
+        )
+        # Remove added batch dim from result
+        if x_ndim == 4:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _avg_pool3d(self, node: fx.Node) -> relax.Var:
+        args, kwargs = node.normalized_arguments(node)
+        x = self.env[args[0]]
+        kernel_size = args[1] if len(args) > 1 else kwargs["kernel_size"]
+        stride = args[2] if len(args) > 2 else kwargs.get("stride", None)
+        padding = args[3] if len(args) > 3 else kwargs.get("padding", 0)
+        ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
+        count_include_pad = args[5] if len(args) > 5 else kwargs.get("count_include_pad", True)
+
+        return self._avg_pool3d_impl(x, kernel_size, stride, padding, ceil_mode, count_include_pad)
 
     def _baddbmm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -538,6 +733,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding: Optional[Tuple],
         dilation: Optional[Tuple],
         groups: Optional[Tuple],
+        output_padding: Optional[Tuple],
     ) -> relax.Var:
         conv1d_transpose = self.block_builder.emit(
             relax.op.nn.conv1d_transpose(
@@ -547,8 +743,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 padding=padding,
                 dilation=dilation,
                 groups=groups,
+                output_padding=output_padding,
                 data_layout="NCW",
-                kernel_layout="OIW",
+                kernel_layout="IOW",
                 out_dtype="float32",
             )
         )
@@ -567,8 +764,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         bias = args[2] if len(args) > 2 else None
         stride = args[3] if len(args) > 3 else 1
         padding = args[4] if len(args) > 4 else 0
-        dilation = args[5] if len(args) > 5 else 1
+        output_padding = args[5] if len(args) > 5 else 0
         groups = args[6] if len(args) > 6 else 1
+        dilation = args[7] if len(args) > 7 else 1
         return self._conv_transpose1d_impl(
             x,
             weight,
@@ -577,6 +775,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             padding=padding,
             dilation=dilation,
             groups=groups,
+            output_padding=output_padding,
         )
 
     def _conv_transpose2d_impl(
@@ -588,6 +787,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding: Optional[Tuple],
         dilation: Optional[Tuple],
         groups: Optional[Tuple],
+        output_padding: Optional[Tuple],
     ) -> relax.Var:
         conv2d_transpose = self.block_builder.emit(
             relax.op.nn.conv2d_transpose(
@@ -597,8 +797,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 padding=padding,
                 dilation=dilation,
                 groups=groups,
+                output_padding=output_padding,
                 data_layout="NCHW",
-                kernel_layout="OIHW",
+                kernel_layout="IOHW",
                 out_dtype="float32",
             )
         )
@@ -617,8 +818,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         bias = args[2] if len(args) > 2 else None
         stride = args[3] if len(args) > 3 else 1
         padding = args[4] if len(args) > 4 else 0
-        dilation = args[5] if len(args) > 5 else 1
+        output_padding = args[5] if len(args) > 5 else 0
         groups = args[6] if len(args) > 6 else 1
+        dilation = args[7] if len(args) > 7 else 1
         return self._conv_transpose2d_impl(
             x,
             weight,
@@ -627,6 +829,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             padding=padding,
             dilation=dilation,
             groups=groups,
+            output_padding=output_padding,
         )
 
     def _conv1d_impl(
@@ -776,6 +979,25 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             groups=groups,
         )
 
+    def _cross_entropy_loss(
+        self,
+        preds: relax.Expr,
+        targets: relax.Expr,
+        weights: Optional[relax.Expr],
+        reduction: str,
+        ignore_index: int,
+    ) -> relax.Expr:
+        log_probs = relax.op.nn.log_softmax(preds)
+        return self.block_builder.emit(
+            relax.op.nn.nll_loss(
+                log_probs,
+                targets,
+                weights,
+                reduction,
+                ignore_index,
+            )
+        )
+
     def _einsum(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
@@ -862,6 +1084,50 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         bias = args[2] if len(args) > 2 else None
         return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
 
+    def _max_pool1d_impl(
+        self,
+        x: relax.Expr,
+        kernel_size: Union[int, Tuple[int]] = 1,
+        stride: Optional[Union[int, Tuple[int]]] = None,
+        padding: Optional[int] = 0,
+        dilation: Optional[int] = 1,
+        ceil_mode: Optional[bool] = False,
+    ) -> relax.Var:
+        # Expand to 3D by adding batch dim if input is 2D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 2:
+            x = relax.op.expand_dims(x, axis=0)
+
+        stride = kernel_size if stride is None else stride
+
+        result = self.block_builder.emit(
+            relax.op.nn.max_pool1d(
+                x,
+                pool_size=kernel_size,
+                strides=stride,
+                padding=padding,
+                dilation=dilation,
+                ceil_mode=ceil_mode,
+                layout="NCW",
+            )
+        )
+
+        # Remove added batch dim from result
+        if x_ndim == 2:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _max_pool1d(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        kernel_size = args[1]
+        stride = args[2] if len(args) > 2 else None
+        padding = args[3] if len(args) > 3 else 0
+        dilation = args[4] if len(args) > 4 else 1
+        ceil_mode = args[5] if len(args) > 5 else False
+
+        return self._max_pool1d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
     def _max_pool2d_impl(
         self,
         x: relax.Expr,
@@ -871,8 +1137,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dilation: Optional[int] = 1,
         ceil_mode: Optional[bool] = False,
     ) -> relax.Var:
+        # Expand to 4D by adding batch dim if input is 3D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 3:
+            x = relax.op.expand_dims(x, axis=0)
+
         stride = kernel_size if stride is None else stride
-        return self.block_builder.emit(
+
+        result = self.block_builder.emit(
             relax.op.nn.max_pool2d(
                 x,
                 pool_size=kernel_size,
@@ -884,6 +1156,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             )
         )
 
+        # Remove added batch dim from result
+        if x_ndim == 3:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
     def _max_pool2d(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
@@ -894,6 +1171,49 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         ceil_mode = args[5] if len(args) > 5 else False
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
+    def _max_pool3d_impl(
+        self,
+        x: relax.Expr,
+        kernel_size: Union[int, Tuple[int, int, int]] = (1, 1, 1),
+        stride: Optional[Union[int, Tuple[int, int, int]]] = None,
+        padding: Optional[int] = 0,
+        dilation: Optional[int] = 1,
+        ceil_mode: Optional[bool] = False,
+    ) -> relax.Var:
+        # Expand to 5D by adding batch dim if input is 4D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 4:
+            x = relax.op.expand_dims(x, axis=0)
+
+        stride = kernel_size if stride is None else stride
+
+        result = self.block_builder.emit(
+            relax.op.nn.max_pool3d(
+                x,
+                pool_size=kernel_size,
+                strides=stride,
+                padding=padding,
+                dilation=dilation,
+                ceil_mode=ceil_mode,
+                layout="NCDHW",
+            )
+        )
+
+        # Remove added batch dim from result
+        if x_ndim == 4:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _max_pool3d(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        kernel_size = args[1]
+        stride = args[2] if len(args) > 2 else None
+        padding = args[3] if len(args) > 3 else 0
+        dilation = args[4] if len(args) > 4 else 1
+        ceil_mode = args[5] if len(args) > 5 else False
+        return self._max_pool3d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
 
     def _pad(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -1178,6 +1498,26 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         args = self.retrieve_args(node)
         indices = args[1]
         return self.block_builder.emit(relax.op.index_tensor(args[0], indices))
+
+    def _meshgrid(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        indexing = args[1] if len(node.args) > 1 else node.kwargs.get("indexing", "ij")
+        input_list = args[0]
+
+        # Single input: return as-is, meshgrid not applicable.
+        if len(input_list) == 1:
+            return input_list
+        new_inputs = []
+        for i, item in enumerate(input_list):
+            if item.struct_info.ndim == 1:
+                new_inputs.append(item)
+            elif item.struct_info.ndim == 0:  # Change scalar value into 1D
+                const_tensor = relax.op.reshape(item, (1,))
+                new_inputs.append(const_tensor)
+            else:
+                raise TypeError(f"Unsupported meshgrid input type at index {i}: {type(item)}")
+
+        return self.block_builder.emit(relax.op.meshgrid(new_inputs, indexing=indexing))
 
     def _permute(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore

@@ -63,7 +63,7 @@ class DecomposeReductionBlockReplacer : public StmtMutator {
     if (block == old_reduction_block_.get()) {
       ObjectPtr<BlockNode> p_new_block = CopyOnWrite(block);
       p_new_block->name_hint = p_new_block->name_hint + "_update";
-      p_new_block->init = NullOpt;
+      p_new_block->init = std::nullopt;
       // Add write regions back to read regions in update block.
       Array<BufferRegion> new_reads;
       std::unordered_set<const BufferNode*> read_bufs;
@@ -398,21 +398,21 @@ struct ReducerRegistry {
                 })} {}
 
   static void RegisterReducer(
-      int n_buffers, TypedPackedFunc<Array<PrimExpr>(Array<Var>, Array<Var>)> combiner_getter,
-      TypedPackedFunc<Array<PrimExpr>(Array<PrimExpr>)> identity_getter) {
+      int n_buffers, ffi::TypedFunction<Array<PrimExpr>(Array<Var>, Array<Var>)> combiner_getter,
+      ffi::TypedFunction<Array<PrimExpr>(Array<PrimExpr>)> identity_getter) {
     ReducerRegistry::Global()->reducer_getters.push_back(ReducerRegistry::CreateReducerGetter(
         n_buffers, std::move(combiner_getter), std::move(identity_getter)));
   }
 
-  static TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)> CreateReducerGetter(
-      int n_buffers, TypedPackedFunc<Array<PrimExpr>(Array<Var>, Array<Var>)> combiner_getter,
-      TypedPackedFunc<Array<PrimExpr>(Array<PrimExpr>)> identity_getter) {
+  static ffi::TypedFunction<Optional<CommReducer>(Array<PrimExpr>)> CreateReducerGetter(
+      int n_buffers, ffi::TypedFunction<Array<PrimExpr>(Array<Var>, Array<Var>)> combiner_getter,
+      ffi::TypedFunction<Array<PrimExpr>(Array<PrimExpr>)> identity_getter) {
     return [n_buffers,                                     //
             combiner_getter = std::move(combiner_getter),  //
             identity_getter = std::move(identity_getter)   //
     ](Array<PrimExpr> values) -> Optional<CommReducer> {
       if (static_cast<int>(values.size()) != n_buffers) {
-        return NullOpt;
+        return std::nullopt;
       }
       Array<Var> lhs;
       Array<Var> rhs;
@@ -429,10 +429,10 @@ struct ReducerRegistry {
     return &instance;
   }
 
-  std::vector<TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)>> reducer_getters;
+  std::vector<ffi::TypedFunction<Optional<CommReducer>(Array<PrimExpr>)>> reducer_getters;
 };
 
-std::vector<TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)>> GetReducerGetters() {
+std::vector<ffi::TypedFunction<Optional<CommReducer>(Array<PrimExpr>)>> GetReducerGetters() {
   return ReducerRegistry::Global()->reducer_getters;
 }
 
@@ -747,7 +747,7 @@ class BaseBlockCreator {
 
   Optional<Stmt> CreateBlockInit(bool has_reduce_iter) {
     if (!has_reduce_iter) {
-      return NullOpt;
+      return std::nullopt;
     }
 
     Array<Stmt> inits;
@@ -1345,7 +1345,8 @@ TVM_REGISTER_INST_KIND_TRAITS(DecomposeReductionTraits);
 /******** FFI ********/
 
 TVM_REGISTER_GLOBAL("tir.schedule.RegisterReducer")
-    .set_body_typed([](int n_buffers, PackedFunc combiner_getter, PackedFunc identity_getter) {
+    .set_body_typed([](int n_buffers, ffi::Function combiner_getter,
+                       ffi::Function identity_getter) {
       ReducerRegistry::RegisterReducer(n_buffers, std::move(combiner_getter),
                                        std::move(identity_getter));
     });

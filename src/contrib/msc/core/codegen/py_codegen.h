@@ -147,7 +147,7 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
           .func_call("load_data", DocUtils::ToIndex("inputs", DocUtils::ToStr(input->alias)))
           .call_arg(DocUtils::ToStr(input->alias))
           .call_arg(DocUtils::ToList(input->shape, true))
-          .call_arg(DocUtils::ToStr(runtime::DLDataType2String(input->dtype)));
+          .call_arg(DocUtils::ToStr(runtime::DLDataTypeToString(input->dtype)));
     }
     for (const auto& o : this->graph()->output_names) {
       const auto& output = this->graph()->FindTensor(o);
@@ -155,7 +155,7 @@ class PyCodeGen : public BaseCodeGen<ConfigType, HelperType> {
           .func_call("load_data", DocUtils::ToIndex("golden", DocUtils::ToStr(output->alias)))
           .call_arg(DocUtils::ToStr(output->alias))
           .call_arg(DocUtils::ToList(output->shape, true))
-          .call_arg(DocUtils::ToStr(runtime::DLDataType2String(output->dtype)));
+          .call_arg(DocUtils::ToStr(runtime::DLDataTypeToString(output->dtype)));
     }
     this->stack_.comment("Build and inference the graph");
     CodeGenInference();

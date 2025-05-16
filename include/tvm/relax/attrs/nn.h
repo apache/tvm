@@ -586,7 +586,7 @@ struct AttentionAttrs : public tvm::AttrsNode<AttentionAttrs> {
 /*! \brief Attributes used for the padding operator */
 struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
   Array<Integer> pad_width;
-  runtime::Float pad_value = 0.0;
+  double pad_value = 0.0;
   tvm::String pad_mode;
 
   TVM_DECLARE_ATTRS(PadAttrs, "relax.attrs.PadAttrs") {

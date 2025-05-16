@@ -88,7 +88,7 @@ struct LiftedFunctionRewritePlan {
   // The corresponding binding vars in the original function of the inputs of the lifted function
   std::vector<const VarNode*> inputs;
   // The tir vars in the original function that are propagated to the lifted function
-  Optional<ShapeExpr> propogated_tir_vars = NullOpt;
+  Optional<ShapeExpr> propogated_tir_vars = std::nullopt;
 };
 
 /*! \brief Builder of the lifted function for cuda graph capturing or allocations */
@@ -123,7 +123,7 @@ class FuncBuilder : public ExprMutator {
   /*! \brief Build the new function */
   Function Build() {
     Array<Var> params;
-    Optional<Var> shape_expr = NullOpt;
+    Optional<Var> shape_expr = std::nullopt;
     if (shape_expr_inputs_.size()) {
       Array<PrimExpr> tir_vars;
       for (const auto* var : shape_expr_inputs_) {
@@ -157,8 +157,8 @@ class FuncBuilder : public ExprMutator {
     auto output = builder_->Emit(Tuple(outputs));
     auto block = builder_->EndBlock();
     auto body = builder_->Normalize(SeqExpr({block}, output));
-    Map<String, ObjectRef> attrs;
-    attrs.Set(relax::attr::kForcePure, Bool(true));
+    Map<String, Any> attrs;
+    attrs.Set(relax::attr::kForcePure, true);
     auto func = Function(params, body, Downcast<StructInfo>(output->struct_info_.value()),
                          /*is_pure=*/true, /*attrs=*/DictAttrs(attrs));
     return func;
@@ -871,8 +871,8 @@ class CUDAGraphRewriter : public ExprMutator {
   int index_alloc_ = 0;
   int index_capture_ = 0;
   support::Arena arena_;
-  Optional<GlobalVar> gv_global_alloc_ = NullOpt;
-  Optional<GlobalVar> current_func_ = NullOpt;
+  Optional<GlobalVar> gv_global_alloc_ = std::nullopt;
+  Optional<GlobalVar> current_func_ = std::nullopt;
 };
 
 IRModule RewriteCUDAGraph(IRModule mod) {
@@ -884,7 +884,7 @@ IRModule RewriteCUDAGraph(IRModule mod) {
 namespace transform {
 
 Pass RewriteCUDAGraph() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule mod, PassContext pc) {
         bool use_cuda_graph =
             pc->GetConfig<Bool>("relax.backend.use_cuda_graph").value_or(Bool(false))->value;

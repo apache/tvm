@@ -17,37 +17,6 @@
 
 # pylint: disable=invalid-name, unused-import
 """Packed Function namespace."""
-import ctypes
-from tvm._ffi.base import _LIB, check_call, c_str, string_types
-from tvm._ffi._cy3.core import _set_class_packed_func, _set_class_module
-from tvm._ffi._cy3.core import PackedFuncBase
-from tvm._ffi._cy3.core import convert_to_tvm_func
+from tvm.ffi import Function as PackedFunc
 
-
-PackedFuncHandle = ctypes.c_void_p
-
-
-class PackedFunc(PackedFuncBase):
-    """The PackedFunc object used in TVM.
-
-    Function plays an key role to bridge front and backend in TVM.
-    Function provide a type-erased interface, you can call function with positional arguments.
-
-    The compiled module returns Function.
-    TVM backend also registers and exposes its API as Functions.
-
-    The following are list of common usage scenario of tvm.runtime.PackedFunc.
-
-    - Automatic exposure of C++ API into python
-    - To call PackedFunc from python side
-    - To call python callbacks to inspect results in generated code
-    - Bring python hook into C++ backend
-
-    See Also
-    --------
-    tvm.register_func: How to register global function.
-    tvm.get_global_func: How to get global function.
-    """
-
-
-_set_class_packed_func(PackedFunc)
+__all__ = ["PackedFunc"]

@@ -17,7 +17,7 @@
 """Relax Neural Network (NN) operators"""
 from typing import List, Optional, Tuple, Union
 
-from tvm import DataType
+from tvm import DataType, relax
 from tvm.tir import FloatImm
 
 from ...expr import Expr
@@ -840,7 +840,7 @@ def avg_pool1d(
     padding: Union[int, Tuple[int, ...]] = (0, 0),
     dilation: Union[int, Tuple[int, int]] = (1,),
     ceil_mode: bool = False,
-    count_include_pad: bool = False,
+    count_include_pad: bool = True,
     layout: str = "NCW",
     out_layout: Optional[str] = None,
 ) -> Expr:
@@ -1008,7 +1008,7 @@ def avg_pool3d(
     padding: Union[int, Tuple[int, ...]] = (0, 0, 0),
     dilation: Union[int, Tuple[int, int]] = (1, 1, 1),
     ceil_mode: bool = False,
-    count_include_pad: bool = False,
+    count_include_pad: bool = True,
     layout: str = "NCDHW",
     out_layout: Optional[str] = None,
 ) -> Expr:
@@ -1265,6 +1265,25 @@ def relu(data: Expr) -> Expr:
         The computed result.
     """
     return _ffi_api.relu(data)  # type: ignore
+
+
+def relu6(data: Expr) -> Expr:
+    r"""ReLU6 activation function.
+
+    .. math::
+        \text{ReLU6}(x) = \min(\max(x, 0), 6)
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return relax.op.clip(data, 0, 6)
 
 
 def leakyrelu(data: Expr, alpha: float = 0.01) -> Expr:

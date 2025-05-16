@@ -272,12 +272,12 @@ void CallHipblasLt(hipblasLtHandle_t hdl, hipStream_t stream,
   hipblasLtMatrixLayoutDestroy(C_desc);
 }
 
-inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, hipblasHandle_t hdl) {
-  DLTensor* A = args[0];
-  DLTensor* B = args[1];
-  DLTensor* C = args[2];
-  bool transa = args[3];
-  bool transb = args[4];
+inline void CallGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t hdl) {
+  auto A = args[0].cast<DLTensor*>();
+  auto B = args[1].cast<DLTensor*>();
+  auto C = args[2].cast<DLTensor*>();
+  bool transa = args[3].cast<bool>();
+  bool transb = args[4].cast<bool>();
   ICHECK_EQ(A->ndim, 2);
   ICHECK_EQ(B->ndim, 2);
   ICHECK_EQ(C->ndim, 2);
@@ -330,12 +330,12 @@ inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, hipblasHandle_t hdl) {
                     beta_ptr, C_data, hip_out_type, ColumnStride(C), hip_out_type, algo));
 }
 
-inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, hipblasHandle_t hdl) {
-  DLTensor* A = args[0];
-  DLTensor* B = args[1];
-  DLTensor* C = args[2];
-  bool transa = args[3];
-  bool transb = args[4];
+inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t hdl) {
+  auto A = args[0].cast<DLTensor*>();
+  auto B = args[1].cast<DLTensor*>();
+  auto C = args[2].cast<DLTensor*>();
+  bool transa = args[3].cast<bool>();
+  bool transb = args[4].cast<bool>();
   ICHECK_EQ(A->ndim, 3);
   ICHECK_EQ(B->ndim, 3);
   ICHECK_EQ(C->ndim, 3);
@@ -407,32 +407,33 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, hipblasHandle_t hdl)
 }
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* A = args[0];
-  DLTensor* C = args[2];
+TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      auto A = args[0].cast<DLTensor*>();
+      auto C = args[2].cast<DLTensor*>();
 
-  HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal();
+      HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal();
 
-  if (TypeEqual(A->dtype, C->dtype)) {
-    ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
-           TypeMatch(A->dtype, kDLFloat, 64));
+      if (TypeEqual(A->dtype, C->dtype)) {
+        ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
+               TypeMatch(A->dtype, kDLFloat, 64));
 
-    if (TypeMatch(A->dtype, kDLFloat, 16)) {
-      CallGemm(args, ret, HipblasHgemmOp(entry_ptr->handle));
-    } else if (TypeMatch(A->dtype, kDLFloat, 32)) {
-      CallGemm(args, ret, HipblasSgemmOp(entry_ptr->handle));
-    } else {
-      CallGemm(args, ret, HipblasDgemmOp(entry_ptr->handle));
-    }
-  } else {
-    CallGemmEx(args, ret, entry_ptr->handle);
-  }
-});
+        if (TypeMatch(A->dtype, kDLFloat, 16)) {
+          CallGemm(args, ret, HipblasHgemmOp(entry_ptr->handle));
+        } else if (TypeMatch(A->dtype, kDLFloat, 32)) {
+          CallGemm(args, ret, HipblasSgemmOp(entry_ptr->handle));
+        } else {
+          CallGemm(args, ret, HipblasDgemmOp(entry_ptr->handle));
+        }
+      } else {
+        CallGemmEx(args, ret, entry_ptr->handle);
+      }
+    });
 
 TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.batch_matmul")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      DLTensor* A = args[0];
-      DLTensor* C = args[2];
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      auto A = args[0].cast<DLTensor*>();
+      auto C = args[2].cast<DLTensor*>();
 
       HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal();
 

@@ -132,7 +132,7 @@ class cuDNNJSONSerializer : public JSONSerializer {
   Map<Var, Expr> bindings_;
 };
 
-Array<runtime::Module> cuDNNCompiler(Array<Function> functions, Map<String, ObjectRef> /*unused*/,
+Array<runtime::Module> cuDNNCompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
                                      Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
 
@@ -141,10 +141,9 @@ Array<runtime::Module> cuDNNCompiler(Array<Function> functions, Map<String, Obje
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto* pf = runtime::Registry::Get("runtime.cuDNNJSONRuntimeCreate");
-    ICHECK(pf != nullptr) << "Cannot find cuDNN runtime module create function.";
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.cuDNNJSONRuntimeCreate");
     auto func_name = GetExtSymbol(func);
-    compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<runtime::Module>());
   }
 
   return compiled_functions;

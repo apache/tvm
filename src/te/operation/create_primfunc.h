@@ -20,7 +20,7 @@
 #ifndef TVM_TE_OPERATION_CREATE_PRIMFUNC_H_
 #define TVM_TE_OPERATION_CREATE_PRIMFUNC_H_
 
-#include <tvm/runtime/container/array.h>
+#include <tvm/ffi/container/array.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tir/function.h>
 

@@ -270,7 +270,7 @@ StructInfo EraseToWellDefined(const StructInfo& info, Map<tir::Var, PrimExpr> sh
     f_shape_var_map = [&](const tir::Var& var) -> Optional<PrimExpr> {
       auto it = shape_var_map.find(var);
       if (it != shape_var_map.end()) return (*it).second;
-      return NullOpt;
+      return std::nullopt;
     };
   }
 
@@ -278,7 +278,7 @@ StructInfo EraseToWellDefined(const StructInfo& info, Map<tir::Var, PrimExpr> sh
     f_var_map = [&](const Var& var) -> Optional<Expr> {
       auto it = var_map.find(var);
       if (it != var_map.end()) return (*it).second;
-      return NullOpt;
+      return std::nullopt;
     };
   }
 
@@ -1143,7 +1143,7 @@ class StructInfoLCAFinder
   Optional<Array<StructInfo>> UnifyArray(const Array<StructInfo>& lhs,
                                          const Array<StructInfo>& rhs) {
     if (lhs.same_as(rhs)) return lhs;
-    if (lhs.size() != rhs.size()) return NullOpt;
+    if (lhs.size() != rhs.size()) return std::nullopt;
     size_t index = 0;
     return lhs.Map([&](const StructInfo& a) { return this->VisitStructInfo(a, rhs[index++]); });
   }

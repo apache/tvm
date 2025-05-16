@@ -77,7 +77,7 @@ class AppendLossMutator : private ExprMutator {
                       loss_function_->params.end());
     Expr new_body = this->VisitExpr(func->body);
 
-    return Function(new_params, new_body, NullOpt, func->is_pure, func->attrs);
+    return Function(new_params, new_body, std::nullopt, func->is_pure, func->attrs);
   }
 
   Expr VisitExpr_(const SeqExprNode* seq_expr) final {
@@ -205,8 +205,7 @@ namespace transform {
 
 Pass AppendLoss(String func_name, Function loss_function, int num_backbone_outputs,
                 Optional<String> new_func_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule mod, PassContext pc) {
     return relax::AppendLossMutator::Transform(mod, func_name, loss_function, num_backbone_outputs,
                                                new_func_name);
   };

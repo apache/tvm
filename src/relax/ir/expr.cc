@@ -27,7 +27,6 @@ namespace tvm {
 namespace relax {
 
 using tvm::ReprPrinter;
-using tvm::runtime::Optional;
 
 TVM_REGISTER_NODE_TYPE(IdNode);
 
@@ -145,7 +144,7 @@ Tuple::Tuple(tvm::Array<Expr> fields, Span span) {
       if (field->struct_info_.defined()) {
         field_sinfo.push_back(GetStructInfo(field));
       } else {
-        return NullOpt;
+        return std::nullopt;
       }
     }
     return TupleStructInfo(field_sinfo);
@@ -346,7 +345,8 @@ Constant::Constant(runtime::NDArray data, Optional<StructInfo> struct_info_annot
 TVM_REGISTER_NODE_TYPE(ConstantNode);
 
 TVM_REGISTER_GLOBAL("relax.Constant")
-    .set_body_typed([](runtime::NDArray data, Optional<StructInfo> struct_info_annotation = NullOpt,
+    .set_body_typed([](runtime::NDArray data,
+                       Optional<StructInfo> struct_info_annotation = std::nullopt,
                        Span span = Span()) {
       return Constant(data, struct_info_annotation, span);
     });
@@ -602,7 +602,7 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
         if (lookup.count(var)) {
           return var;
         } else {
-          return NullOpt;
+          return std::nullopt;
         }
       };
     }();
@@ -741,15 +741,15 @@ TVM_REGISTER_GLOBAL("relax.FuncWithAttr")
       if (func->IsInstance<relax::FunctionNode>()) {
         return WithAttr(Downcast<relax::Function>(std::move(func)), key, value);
       }
-      return NullOpt;
+      return std::nullopt;
     });
 
 TVM_REGISTER_GLOBAL("relax.FuncWithAttrs")
-    .set_body_typed([](BaseFunc func, Map<String, ObjectRef> attr_map) -> Optional<Function> {
+    .set_body_typed([](BaseFunc func, Map<String, ffi::Any> attr_map) -> Optional<Function> {
       if (func->IsInstance<relax::FunctionNode>()) {
         return WithAttrs(Downcast<relax::Function>(std::move(func)), attr_map);
       }
-      return NullOpt;
+      return std::nullopt;
     });
 
 TVM_REGISTER_GLOBAL("relax.FuncWithoutAttr")
@@ -757,7 +757,7 @@ TVM_REGISTER_GLOBAL("relax.FuncWithoutAttr")
       if (func->IsInstance<relax::FunctionNode>()) {
         return WithoutAttr(Downcast<relax::Function>(std::move(func)), key);
       }
-      return NullOpt;
+      return std::nullopt;
     });
 
 }  // namespace relax

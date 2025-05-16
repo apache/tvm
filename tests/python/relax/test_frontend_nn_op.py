@@ -305,7 +305,7 @@ def test_image():
                 method="nearest_neighbor",
                 coordinate_transformation_mode="asymmetric",
                 rounding_method="round",
-                cubic_alpha=-0.5,
+                cubic_alpha=-0.75,
                 cubic_exclude=0,
                 extrapolation_value=0,
                 out_dtype="void",
@@ -385,6 +385,7 @@ def test_nn():
     class Model(Module):
         def test(self, x: Tensor, weight: Tensor, bias: Tensor):
             relu_out = op.relu(x)
+            relu6_out = op.relu6(x)
             silu_out = op.silu(x)
             gelu_out = op.gelu(x)
             sigmoid_out = op.sigmoid(x)
@@ -409,6 +410,7 @@ def test_nn():
         R.func_attr({"num_input": 4})
         with R.dataflow():
             relu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu(x)
+            relu6: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu6(x)
             silu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.silu(x)
             gelu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.gelu(x)
             sigmoid: R.Tensor((2, 3, 4, 5), dtype="float32") = R.sigmoid(x)
@@ -581,7 +583,7 @@ def test_tensor_expr_op():
     class Expected:
         @T.prim_func(private=True)
         def add_one(A: T.Buffer((T.int64(10), T.int64(10)), "float32"), T_add: T.Buffer((T.int64(10), T.int64(10)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for ax0, ax1 in T.grid(T.int64(10), T.int64(10)):
                 with T.block("T_add"):
@@ -713,7 +715,7 @@ def test_tensor_ir_inplace_op():
     def inplace_take(
         var_weight: T.handle, var_pos: T.handle, var_embeddings: T.handle, offset: T.int64
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         vocab_size = T.int64()
         weight = T.match_buffer(var_weight, (vocab_size, hidden_size), dtype)
         seq_len = T.int64()
@@ -746,7 +748,7 @@ def test_tensor_ir_inplace_op():
         def inplace_take(
             var_weight: T.handle, var_pos: T.handle, var_embeddings: T.handle, offset: T.int64
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             vocab_size = T.int64()
             weight = T.match_buffer(var_weight, (vocab_size, hidden_size), dtype)
             seq_len = T.int64()
@@ -917,7 +919,6 @@ def test_empty():
 
 @tvm.testing.requires_cuda
 def test_multinomial_from_uniform():
-
     prob_shape = (3, 5)
     sample_shape = (6, 1)
 
@@ -1137,7 +1138,7 @@ def test_renormalize_top_p_top_k_prob():
     class Expected:
         @T.prim_func(private=True)
         def filter_with_top_p_top_k(A: T.Buffer((T.int64(2), T.int64(3)), "float32"), B: T.Buffer((T.int64(2), T.int64(1)), "float32"), filter_with_top_p_top_k: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i, j in T.grid(T.int64(2), T.int64(3)):
                 with T.block("filter_with_top_p_top_k"):

@@ -35,7 +35,7 @@ namespace relax {
 // TODO(@altanh): LCA binding lifting
 class NormalizeMutator : public ExprMutatorBase {
  public:
-  NormalizeMutator() { builder_ = BlockBuilder::Create(NullOpt); }
+  NormalizeMutator() { builder_ = BlockBuilder::Create(std::nullopt); }
 
   Expr VisitExpr(const Expr& expr) override {
     return builder_->Normalize(ExprMutatorBase::VisitExpr(expr));
@@ -63,7 +63,7 @@ class NormalizeMutator : public ExprMutatorBase {
     }
   }
 
-  Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = NullOpt) {
+  Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = std::nullopt) {
     builder_->BeginBindingBlock();
     if (params.defined()) {
       builder_->BeginScope(params);
@@ -273,16 +273,18 @@ class GlobalVarNormalizer : private ExprMutator {
 namespace transform {
 
 Pass Normalize() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(Normalize(f)); };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return Downcast<Function>(Normalize(f));
+  };
   return CreateFunctionPass(pass_func, 1, "Normalize", {});
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.Normalize").set_body_typed(Normalize);
 
 Pass NormalizeGlobalVar() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) { return GlobalVarNormalizer::Normalize(mod); };
+  auto pass_func = [=](IRModule mod, PassContext pc) {
+    return GlobalVarNormalizer::Normalize(mod);
+  };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
                           /*pass_name=*/"NormalizeGlobalVar",

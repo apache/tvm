@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/container/variant.h>
 #include <tvm/script/ir_builder/tir/ir.h>
 
 #include "./utils.h"
@@ -56,10 +57,10 @@ Buffer BufferDecl(Array<PrimExpr> shape, DataType dtype, String buffer_name, Opt
 
 PrimFuncFrame PrimFunc(bool is_private) {
   ObjectPtr<PrimFuncFrameNode> n = make_object<PrimFuncFrameNode>();
-  n->name = NullOpt;
+  n->name = std::nullopt;
   n->is_private = is_private;
   n->args.clear();
-  n->ret_type = NullOpt;
+  n->ret_type = std::nullopt;
   n->buffer_map.clear();
   n->attrs = {};
   n->env_threads.clear();
@@ -91,7 +92,7 @@ void FuncName(String name) {
   frame->name = name;
 }
 
-void FuncAttrs(Map<String, ObjectRef> new_attrs) {
+void FuncAttrs(Map<String, ffi::Any> new_attrs) {
   using namespace tvm::tir;
   PrimFuncFrame frame = FindPrimFuncFrame("T.func_attr");
   for (const auto& [key, value] : new_attrs) {
@@ -124,7 +125,8 @@ tvm::Type FuncRet(tvm::Type ret_type) {
 
 Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape, DataType dtype, Optional<Var> data,
                    Array<PrimExpr> strides, PrimExpr elem_offset, String storage_scope, int align,
-                   int offset_factor, String buffer_type_str, Array<IntImm> axis_separators) {
+                   int offset_factor, String buffer_type_str,
+                   Optional<Array<IntImm>> axis_separators) {
   Buffer buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
                              offset_factor, buffer_type_str, axis_separators);
   if (const auto* var = param.as<tvm::tir::VarNode>()) {
@@ -155,14 +157,14 @@ BlockFrame Block(String name, bool no_realize) {
   ObjectPtr<BlockFrameNode> n = make_object<BlockFrameNode>();
   n->name = name;
   n->iter_vars.clear();
-  n->reads = NullOpt;
-  n->writes = NullOpt;
-  n->init = NullOpt;
+  n->reads = std::nullopt;
+  n->writes = std::nullopt;
+  n->init = std::nullopt;
   n->alloc_buffers.clear();
   n->match_buffers.clear();
-  n->annotations = NullOpt;
+  n->annotations = std::nullopt;
   n->iter_values.clear();
-  n->predicate = NullOpt;
+  n->predicate = std::nullopt;
   n->no_realize = no_realize;
   return BlockFrame(n);
 }
@@ -217,7 +219,7 @@ void Writes(Array<ObjectRef> buffer_slices) {
   frame->writes = writes;
 }
 
-void BlockAttrs(Map<String, ObjectRef> attrs) {
+void BlockAttrs(Map<String, Any> attrs) {
   BlockFrame frame = FindBlockFrame("T.block_attr");
   if (frame->annotations.defined()) {
     LOG(FATAL) << "ValueError: Duplicate block annotations, previous one is " << frame->annotations;
@@ -227,7 +229,8 @@ void BlockAttrs(Map<String, ObjectRef> attrs) {
 
 Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype, Optional<Var> data,
                    Array<PrimExpr> strides, PrimExpr elem_offset, String storage_scope, int align,
-                   int offset_factor, String buffer_type_str, Array<IntImm> axis_separators) {
+                   int offset_factor, String buffer_type_str,
+                   Optional<Array<IntImm>> axis_separators) {
   Buffer buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
                              offset_factor, buffer_type_str, axis_separators);
   IRBuilder builder = IRBuilder::Current();
@@ -322,7 +325,7 @@ Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
 }  // namespace axis
 
 #define TVM_TIR_IR_BUILDER_FOR_FRAME(Method, Kind)                                                \
-  ForFrame Method(PrimExpr start, PrimExpr stop, Optional<Map<String, ObjectRef>> annotations) {  \
+  ForFrame Method(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annotations) {        \
     PrimExpr min = start;                                                                         \
     PrimExpr extent = arith::Analyzer().Simplify(stop - start);                                   \
     ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();                                      \
@@ -332,8 +335,8 @@ Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
     n->f_make_for_loop = [annotations](Array<Var> vars, Array<Range> doms, tvm::tir::Stmt body) { \
       ICHECK_EQ(vars.size(), 1);                                                                  \
       ICHECK_EQ(doms.size(), 1);                                                                  \
-      return tvm::tir::For(vars[0], doms[0]->min, doms[0]->extent, Kind, body, NullOpt,           \
-                           annotations.value_or(Map<String, ObjectRef>()));                       \
+      return tvm::tir::For(vars[0], doms[0]->min, doms[0]->extent, Kind, body, std::nullopt,      \
+                           annotations.value_or(Map<String, Any>()));                             \
     };                                                                                            \
     return ForFrame(n);                                                                           \
   }
@@ -346,7 +349,7 @@ TVM_TIR_IR_BUILDER_FOR_FRAME(Unroll, tvm::tir::ForKind::kUnrolled);
 #undef TVM_TIR_IR_BUILDER_FOR_FRAME
 
 ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
-                       Optional<Map<String, ObjectRef>> annotations) {
+                       Optional<Map<String, Any>> annotations) {
   using namespace tvm::tir;
   PrimExpr min = start;
   PrimExpr extent = arith::Analyzer().Simplify(stop - start);
@@ -361,7 +364,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
     ICHECK_EQ(doms.size(), 1);
     IterVar iter_var(Range(nullptr), Var("iter", dtype), IterVarType::kThreadIndex, thread);
     return For(vars[0], doms[0]->min, doms[0]->extent, ForKind::kThreadBinding, body, iter_var,
-               annotations.value_or(Map<String, ObjectRef>()));
+               annotations.value_or(Map<String, ffi::Any>()));
   };
   return ForFrame(n);
 }
@@ -383,7 +386,7 @@ ForFrame Grid(Array<PrimExpr> extents) {
       Range dom = doms[i];
       Var var = vars[i];
       body = For(var, dom->min, dom->extent, ForKind::kSerial, std::move(body),
-                 /*thread_binding=*/NullOpt, /*annotations=*/{});
+                 /*thread_binding=*/std::nullopt, /*annotations=*/{});
     }
     return body;
   };
@@ -458,32 +461,35 @@ RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope,
 }
 
 AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_scope,
-                       Optional<PrimExpr> condition, Optional<Map<String, ObjectRef>> annotations) {
+                       Optional<PrimExpr> condition, Optional<Map<String, Any>> annotations) {
   ObjectPtr<AllocateFrameNode> n = make_object<AllocateFrameNode>();
   n->extents = extents;
   n->dtype = dtype;
   n->storage_scope = storage_scope;
   n->condition = condition.value_or(tvm::Bool(true));
-  n->annotations = annotations.value_or(Map<String, ObjectRef>());
+  n->annotations = annotations.value_or(Map<String, Any>());
   n->buffer_var = Var("", tvm::PointerType(tvm::PrimType(dtype), storage_scope));
   return AllocateFrame(n);
 }
 
 AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
-                                 Array<PrimExpr> extents,
-                                 Optional<Map<String, ObjectRef>> annotations) {
+                                 Array<PrimExpr> extents, Optional<Map<String, Any>> annotations) {
   ObjectPtr<AllocateConstFrameNode> n = make_object<AllocateConstFrameNode>();
   n->dtype = dtype;
   n->extents = extents;
   n->data = data;
-  n->annotations = annotations.value_or(Map<String, ObjectRef>());
+  n->annotations = annotations.value_or(Map<String, Any>());
   n->buffer_var = Var("", tvm::PointerType(tvm::PrimType(dtype)));
   return AllocateConstFrame(n);
 }
 
-AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value) {
+AttrFrame Attr(ffi::Any node, String attr_key, PrimExpr value) {
+  // convert POD value to PrimExpr
+  if (node.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+    node = node.cast<PrimExpr>();
+  }
   ObjectPtr<AttrFrameNode> n = make_object<AttrFrameNode>();
-  n->node = node;
+  n->node = node.cast<ObjectRef>();
   n->attr_key = attr_key;
   n->value = value;
   return AttrFrame(n);
@@ -498,8 +504,8 @@ WhileFrame While(PrimExpr condition) {
 IfFrame If(PrimExpr condition) {
   ObjectPtr<IfFrameNode> n = make_object<IfFrameNode>();
   n->condition = condition;
-  n->then_stmts = NullOpt;
-  n->else_stmts = NullOpt;
+  n->then_stmts = std::nullopt;
+  n->else_stmts = std::nullopt;
   return IfFrame(n);
 }
 
@@ -525,7 +531,7 @@ Var EnvThread(String thread_tag, DataType dtype) {
 }
 
 void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
-                 Optional<PrimExpr> predicate = NullOpt) {
+                 Optional<PrimExpr> predicate = std::nullopt) {
   runtime::DataType buffer_dtype = buffer->dtype;
   bool is_index_scalable = indices.empty() ? false : indices.back().dtype().is_scalable_vector();
   bool is_buffer_dtype_scalable = buffer_dtype.is_scalable_vector();
@@ -704,14 +710,14 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.Then").set_body_typed(Then);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Else").set_body_typed(Else);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.DeclBuffer").set_body_typed(DeclBuffer);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.LaunchThread")
-    .set_body_typed([](ObjectRef thread_tag_or_var, PrimExpr extent) {
+    .set_body_typed([](ffi::Variant<tvm::tir::Var, String> thread_tag_or_var, PrimExpr extent) {
       if (auto var = thread_tag_or_var.as<tvm::tir::Var>()) {
         return LaunchThread(var.value(), extent);
       } else if (auto str = thread_tag_or_var.as<String>()) {
         return LaunchThread(str.value(), extent);
       } else {
         LOG(FATAL) << "ValueError: Unexpected type for TIR LaunchThread: "
-                   << thread_tag_or_var->GetTypeKey();
+                   << thread_tag_or_var.GetTypeKey();
         throw;
       }
     });

@@ -57,8 +57,8 @@ void CodeGenAArch64::SetTargetAttributes(llvm::Function* func) {
 #if TVM_LLVM_VERSION >= 130
   // Add vscale_range() function attribute when appropriate.
   if (llvm_target_->TargetHasCPUFeature("sve") || llvm_target_->TargetHasCPUFeature("sme")) {
-    unsigned int max_val =
-        *std::max_element(arith::kAArch64VScaleValues.begin(), arith::kAArch64VScaleValues.end());
+    auto kVScaleValues = arith::GetVScaleValues(Target::Current());
+    unsigned int max_val = *std::max_element(kVScaleValues.begin(), kVScaleValues.end());
     func->addFnAttr(
         llvm::Attribute::getWithVScaleRangeArgs(*llvm_target_->GetContext(), 1, max_val));
   }
@@ -107,7 +107,7 @@ void CodeGenAArch64::VisitStmt_(const AttrStmtNode* op) {
 }
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_aarch64")
-    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+    .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
       *rv = static_cast<void*>(new CodeGenAArch64());
     });
 

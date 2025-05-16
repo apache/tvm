@@ -155,9 +155,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   /*! \brief The batch size of the current round of forwarding. */
   int64_t cur_batch_size_;
   /*! \brief The ids of the sequences in the current round of forwarding. */
-  IntTuple cur_seq_ids_;
+  ffi::Shape cur_seq_ids_;
   /*! \brief The append lengths of the sequences in the current round of forwarding. */
-  IntTuple cur_append_lengths_;
+  ffi::Shape cur_append_lengths_;
   /*! \brief Whether the current batch of sequences are token chains (not token trees). */
   std::vector<bool> is_chain_on_depths_;
   /*! \brief Number of fork depth in the current round of forward. */
@@ -241,11 +241,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::vector<NDArray> tree_attn_mask_view_;
   std::vector<NDArray> tree_attn_mn_indptr_view_;
 
-  Optional<PackedFunc> f_transpose_append_mha_;
-  Optional<PackedFunc> f_transpose_append_mla_;
-  Optional<PackedFunc> f_transfer_kv_;
-  Optional<PackedFunc> f_transfer_kv_page_to_page_ = NullOpt;
-  PackedFunc f_compact_copy_;
+  Optional<ffi::Function> f_transpose_append_mha_;
+  Optional<ffi::Function> f_transpose_append_mla_;
+  Optional<ffi::Function> f_transfer_kv_;
+  Optional<ffi::Function> f_transfer_kv_page_to_page_ = std::nullopt;
+  ffi::Function f_compact_copy_;
   std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged_;
   std::unique_ptr<PagedPrefillFunc> f_attention_prefill_;
   std::unique_ptr<PagedDecodeFunc> f_attention_decode_;
@@ -254,10 +254,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::unique_ptr<PagedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_paged_kv_;
   std::unique_ptr<RaggedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_;
   std::unique_ptr<PagedPrefillFunc> f_mla_prefill_;
-  Array<PackedFunc> f_merge_inplace_;
-  PackedFunc f_split_rotary_;
-  PackedFunc f_copy_single_page_;
-  Optional<PackedFunc> f_debug_get_kv_;
+  Array<ffi::Function> f_merge_inplace_;
+  ffi::Function f_split_rotary_;
+  ffi::Function f_copy_single_page_;
+  Optional<ffi::Function> f_debug_get_kv_;
 
   /*! \brief The device this PagedKVCache runs on. */
   Device device_;
@@ -277,16 +277,17 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       int64_t num_total_pages, int64_t prefill_chunk_size, bool support_sliding_window,
       RoPEMode rope_mode, double rotary_scale, double rotary_theta,
       Optional<NDArray> rope_ext_factors, bool enable_kv_transfer, DLDataType dtype, Device device,
-      Optional<PackedFunc> f_transpose_append_mha, Optional<PackedFunc> f_transpose_append_mla,
-      PackedFunc f_compact_copy, std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged,
+      Optional<ffi::Function> f_transpose_append_mha,
+      Optional<ffi::Function> f_transpose_append_mla, ffi::Function f_compact_copy,
+      std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged,
       std::unique_ptr<PagedPrefillFunc> f_attention_prefill,
       std::unique_ptr<PagedDecodeFunc> f_attention_decode,
       std::unique_ptr<PagedPrefillFunc> f_attention_prefill_sliding_window,
       std::unique_ptr<PagedDecodeFunc> f_attention_decode_sliding_window,
       std::unique_ptr<PagedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_paged_kv,
       std::unique_ptr<RaggedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask,
-      std::unique_ptr<PagedPrefillFunc> f_mla_prefill, Array<PackedFunc> f_merge_inplace,
-      PackedFunc f_split_rotary, PackedFunc f_copy_single_page, PackedFunc f_debug_get_kv)
+      std::unique_ptr<PagedPrefillFunc> f_mla_prefill, Array<ffi::Function> f_merge_inplace,
+      ffi::Function f_split_rotary, ffi::Function f_copy_single_page, ffi::Function f_debug_get_kv)
       : page_size_(page_size),
         num_layers_(num_layers),
         layer_id_begin_offset_(layer_id_begin_offset),
@@ -334,13 +335,17 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       for (AttnKind attn_kind : attn_kinds_) {
         CHECK(attn_kind == AttnKind::kMHA);
       }
-      CHECK(Registry::Get("runtime.disco.nvshmem.init_nvshmem") != nullptr)
+      const auto f_nvshmem_init =
+          tvm::ffi::Function::GetGlobal("runtime.disco.nvshmem.init_nvshmem");
+      CHECK(f_nvshmem_init.has_value())
           << "NVSHMEM is not enabled. Please make sure NVSHMEM is enabled when compiling TVM.";
-      const PackedFunc* f_nvshmem_empty = runtime::Registry::Get("runtime.disco.nvshmem.empty");
-      ICHECK_NOTNULL(f_nvshmem_empty);
-      nvshmem_pages_ = (*f_nvshmem_empty)(
-          ShapeTuple({num_layers, num_total_pages, 2, num_kv_heads, page_size, qk_head_dim}), dtype,
-          device);
+      const auto f_nvshmem_empty = tvm::ffi::Function::GetGlobal("runtime.disco.nvshmem.empty");
+      ICHECK(f_nvshmem_empty.has_value());
+      nvshmem_pages_ =
+          (*f_nvshmem_empty)(
+              ffi::Shape({num_layers, num_total_pages, 2, num_kv_heads, page_size, qk_head_dim}),
+              dtype, device)
+              .cast<NDArray>();
       for (int i = 0; i < num_layers; ++i) {
         pages_.push_back(nvshmem_pages_.CreateView(
             {num_total_pages_, 2, num_kv_heads_, page_size_, qk_head_dim_}, nvshmem_pages_->dtype,
@@ -348,16 +353,16 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                 nvshmem_pages_.DataType().bytes()));
       }
 
-      const PackedFunc* f_transfer_kv_ptr = Registry::Get("nvshmem.KVTransfer");
-      const PackedFunc* f_transfer_kv_page_to_page_ptr =
-          Registry::Get("nvshmem.KVTransferPageToPage");
-      ICHECK_NOTNULL(f_transfer_kv_ptr);
-      ICHECK_NOTNULL(f_transfer_kv_page_to_page_ptr);
+      const auto f_transfer_kv_ptr = tvm::ffi::Function::GetGlobal("nvshmem.KVTransfer");
+      const auto f_transfer_kv_page_to_page_ptr =
+          tvm::ffi::Function::GetGlobal("nvshmem.KVTransferPageToPage");
+      ICHECK(f_transfer_kv_ptr.has_value());
+      ICHECK(f_transfer_kv_page_to_page_ptr.has_value());
       f_transfer_kv_ = *f_transfer_kv_ptr;
       f_transfer_kv_page_to_page_ = *f_transfer_kv_page_to_page_ptr;
     } else {
       for (int i = 0; i < num_layers; ++i) {
-        ShapeTuple kv_cache_shape =
+        ffi::Shape kv_cache_shape =
             GetKVCacheShape(attn_kinds_[layer_id_begin_offset_ + i], num_total_pages,
                             reserved_num_seqs, num_kv_heads, page_size, qk_head_dim, v_head_dim);
         pages_.push_back(NDArray::Empty(kv_cache_shape, dtype, device));
@@ -816,8 +821,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
   /************** Attention **************/
 
-  void BeginForward(const IntTuple& seq_ids, const IntTuple& append_lengths,
-                    const Optional<IntTuple>& opt_token_tree_parent_ptr) final {
+  void BeginForward(const ffi::Shape& seq_ids, const ffi::Shape& append_lengths,
+                    const Optional<ffi::Shape>& opt_token_tree_parent_ptr) final {
     // Note: MLA does not supported tree attention for now.
     if (attn_kinds_[0] == AttnKind::kMLA) {
       CHECK(!opt_token_tree_parent_ptr.defined()) << "Tree attention is not supported yet for MLA";
@@ -1096,11 +1101,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  IntTuple DisaggPrepareRecv(int64_t seq_id, int append_length) final {
+  ffi::Shape DisaggPrepareRecv(int64_t seq_id, int append_length) final {
     // No CPU to GPU copy is needed.
     // Essentially we
     // (step 1.) redirect the preparation to BeginForward.
-    BeginForward({seq_id}, {append_length}, /*opt_token_tree_parent_ptr=*/NullOpt);
+    BeginForward({seq_id}, {append_length}, /*opt_token_tree_parent_ptr=*/std::nullopt);
     // (step 2.) fetch the append_position_map, compress and return.
     // Compression format: [n, begin_1, length_1, begin_2, length_2, ..., begin_n, length_n]
     // The compressed format will be decompressed to:
@@ -1123,11 +1128,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                                         compressed_append_pos_map.back() + 1);
     // The compressed array size should be "num_segments * 2 + 1".
     CHECK_EQ(compressed_append_pos_map.size(), compressed_append_pos_map[0] * 2 + 1);
-    return IntTuple{compressed_append_pos_map};
+    return ffi::Shape{compressed_append_pos_map};
   }
 
-  void DisaggMarkSend(int64_t seq_id, int64_t begin, const IntTuple& compressed_remote_position_map,
-                      int32_t recver_pe_offset) {
+  void DisaggMarkSend(int64_t seq_id, int64_t begin,
+                      const ffi::Shape& compressed_remote_position_map, int32_t recver_pe_offset) {
     ICHECK(f_transfer_kv_.defined());
     auto it = seq_map_.find(seq_id);
     CHECK(it != seq_map_.end()) << "The sequence \"" << seq_id << "\" cannot be found in KV cache.";
@@ -1399,7 +1404,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // Todo(ruihang): implement it
   }
 
-  void CommitAcceptedTokenTreeNodes(const IntTuple& seq_ids, const IntTuple& leaf_indices) final {
+  void CommitAcceptedTokenTreeNodes(const ffi::Shape& seq_ids,
+                                    const ffi::Shape& leaf_indices) final {
     CHECK_EQ(seq_ids.size(), leaf_indices.size())
         << "The given seq_ids and leaf_indices have different size.";
     int num_seq_to_commit = seq_ids.size();
@@ -1597,7 +1603,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     ICHECK(false) << "DebugSetKV for PageAttentionKVCache not implemented yet.";
   }
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.vm.PagedAttentionKVCache";
   TVM_DECLARE_FINAL_OBJECT_INFO(PagedAttentionKVCacheObj, AttentionKVCacheObj);
 
@@ -1627,7 +1632,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   }
 
   void ConstructTokenTreeMask(const std::vector<Sequence*>& sequences,
-                              const IntTuple& token_tree_parent_ptr,
+                              const ffi::Shape& token_tree_parent_ptr,
                               const std::vector<std::vector<int32_t>>& block_ids_on_depths,
                               const std::vector<std::vector<int32_t>>& trailing_blocks) {
     // Check whether the token tree of a sequence should be handled at the current depth.
@@ -2280,12 +2285,12 @@ TVM_REGISTER_OBJECT_TYPE(PagedAttentionKVCacheObj);
 //-------------------------------------------------
 
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
       // Todo: cuda graph arg
       CHECK(args.size() == 28 || args.size() == 29)
           << "Invalid number of KV cache constructor args: " << args.size();
-      ShapeTuple cache_config = args[0];
-      ShapeTuple layer_indptr_tuple = args[1];
+      ffi::Shape cache_config = args[0].cast<ffi::Shape>();
+      ffi::Shape layer_indptr_tuple = args[1].cast<ffi::Shape>();
       int num_groups = 1;
       int group_id = 0;
       if (DiscoWorker* disco_worker = ThreadLocalDiscoWorker::Get()->worker) {
@@ -2297,49 +2302,49 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
       int64_t num_layers = layer_indptr_tuple[group_id + 1] - layer_indptr_tuple[group_id];
       int64_t layer_id_begin_offset = layer_indptr_tuple[group_id];
       int64_t layer_id_end_offset = layer_indptr_tuple[group_id + 1];
-      int64_t num_qo_heads = args[2];
-      int64_t num_kv_heads = args[3];
-      int64_t qk_head_dim = args[4];
-      int64_t v_head_dim = args[5];
-      IntTuple attn_kinds = args[6];
-      bool enable_kv_transfer = args[7];
-      int rope_mode = args[8];
-      double rotary_scale = args[9];
-      double rotary_theta = args[10];
-      Optional<NDArray> rope_ext_factors = NullOpt;  // args[11]
-      NDArray init = args[12];
-      Optional<PackedFunc> f_transpose_append_mha = NullOpt;  // args[13]
-      Optional<PackedFunc> f_transpose_append_mla = NullOpt;  // args[14]
+      int64_t num_qo_heads = args[2].cast<int64_t>();
+      int64_t num_kv_heads = args[3].cast<int64_t>();
+      int64_t qk_head_dim = args[4].cast<int64_t>();
+      int64_t v_head_dim = args[5].cast<int64_t>();
+      ffi::Shape attn_kinds = args[6].cast<ffi::Shape>();
+      bool enable_kv_transfer = args[7].cast<bool>();
+      int rope_mode = args[8].cast<int>();
+      double rotary_scale = args[9].cast<double>();
+      double rotary_theta = args[10].cast<double>();
+      Optional<NDArray> rope_ext_factors = std::nullopt;  // args[11]
+      NDArray init = args[12].cast<NDArray>();
+      Optional<ffi::Function> f_transpose_append_mha = std::nullopt;  // args[13]
+      Optional<ffi::Function> f_transpose_append_mla = std::nullopt;  // args[14]
       std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged =
-          ConvertRaggedPrefillFunc(args[15], AttnKind::kMHA);
+          ConvertRaggedPrefillFunc(args[15].cast<Array<ObjectRef>>(), AttnKind::kMHA);
       std::unique_ptr<PagedPrefillFunc> f_attention_prefill =
-          ConvertPagedPrefillFunc(args[16], AttnKind::kMHA);
+          ConvertPagedPrefillFunc(args[16].cast<Array<ObjectRef>>(), AttnKind::kMHA);
       std::unique_ptr<PagedDecodeFunc> f_attention_decode =
-          ConvertPagedDecodeFunc(args[17], AttnKind::kMHA);
+          ConvertPagedDecodeFunc(args[17].cast<Array<ObjectRef>>(), AttnKind::kMHA);
       std::unique_ptr<PagedPrefillFunc> f_attention_prefill_sliding_window =
-          ConvertPagedPrefillFunc(args[18], AttnKind::kMHA);
+          ConvertPagedPrefillFunc(args[18].cast<Array<ObjectRef>>(), AttnKind::kMHA);
       std::unique_ptr<PagedDecodeFunc> f_attention_decode_sliding_window =
-          ConvertPagedDecodeFunc(args[19], AttnKind::kMHA);
+          ConvertPagedDecodeFunc(args[19].cast<Array<ObjectRef>>(), AttnKind::kMHA);
       std::unique_ptr<PagedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_paged_kv =
-          ConvertPagedPrefillTreeMaskFunc(args[20], AttnKind::kMHA);
+          ConvertPagedPrefillTreeMaskFunc(args[20].cast<Array<ObjectRef>>(), AttnKind::kMHA);
       std::unique_ptr<RaggedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask =
-          ConvertRaggedPrefillTreeMaskFunc(args[21], AttnKind::kMHA);
+          ConvertRaggedPrefillTreeMaskFunc(args[21].cast<Array<ObjectRef>>(), AttnKind::kMHA);
       std::unique_ptr<PagedPrefillFunc> f_mla_prefill =
-          ConvertPagedPrefillFunc(args[22], AttnKind::kMLA);
-      Array<PackedFunc> f_merge_inplace = args[23];
-      PackedFunc f_split_rotary = args[24];
-      PackedFunc f_copy_single_page = args[25];
-      PackedFunc f_debug_get_kv = args[26];
-      PackedFunc f_compact_copy = args[27];
+          ConvertPagedPrefillFunc(args[22].cast<Array<ObjectRef>>(), AttnKind::kMLA);
+      Array<ffi::Function> f_merge_inplace = args[23].cast<Array<ffi::Function>>();
+      ffi::Function f_split_rotary = args[24].cast<ffi::Function>();
+      ffi::Function f_copy_single_page = args[25].cast<ffi::Function>();
+      ffi::Function f_debug_get_kv = args[26].cast<ffi::Function>();
+      ffi::Function f_compact_copy = args[27].cast<ffi::Function>();
 
-      if (args[11].IsObjectRef<NDArray>()) {
-        rope_ext_factors = args[11].AsObjectRef<NDArray>();
+      if (auto opt_nd = args[11].as<NDArray>()) {
+        rope_ext_factors = opt_nd.value();
       }
-      auto f_convert_optional_packed_func = [&args](int arg_idx) -> Optional<PackedFunc> {
-        if (args[arg_idx].IsObjectRef<PackedFunc>()) {
-          return args[arg_idx].AsObjectRef<PackedFunc>();
+      auto f_convert_optional_packed_func = [&args](int arg_idx) -> Optional<ffi::Function> {
+        if (auto opt_func = args[arg_idx].as<ffi::Function>()) {
+          return opt_func.value();
         }
-        return NullOpt;
+        return std::nullopt;
       };
       f_transpose_append_mha = f_convert_optional_packed_func(13);
       f_transpose_append_mla = f_convert_optional_packed_func(14);
@@ -2363,7 +2368,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
         num_total_pages += reserved_num_seqs * 2;
       }
       // NOTE: We will remove this legacy construction after finishing the transition phase.
-      // Some `PackedFunc()` here are placeholders that will be filled.
+      // Some `ffi::Function()` here are placeholders that will be filled.
       ObjectPtr<PagedAttentionKVCacheObj> n = make_object<PagedAttentionKVCacheObj>(
           page_size, num_layers, layer_id_begin_offset, layer_id_end_offset, num_qo_heads,
           num_kv_heads, qk_head_dim, v_head_dim, attn_kinds_vec, reserved_num_seqs, num_total_pages,

@@ -39,9 +39,9 @@ void tvm_cutlass_fp8_blockwise_scaled_gemm(NDArray a, NDArray b, NDArray scales_
 
   // Workspace is used for storing device-side gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
-  auto get_stream_func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-  ICHECK(get_stream_func != nullptr);
-  cudaStream_t stream = static_cast<cudaStream_t>((*get_stream_func)().operator void*());
+  const auto get_stream_func = tvm::ffi::Function::GetGlobal("runtime.get_cuda_stream");
+  ICHECK(get_stream_func.has_value());
+  cudaStream_t stream = static_cast<cudaStream_t>((*get_stream_func)().cast<void*>());
 
   CHECK_GE(a->ndim, 2);
   CHECK_EQ(scales_a->ndim, a->ndim);
@@ -100,9 +100,9 @@ void tvm_cutlass_fp8_blockwise_scaled_bmm(NDArray a, NDArray b, NDArray scales_a
 
   // Workspace is used for storing device-side gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
-  auto get_stream_func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-  ICHECK(get_stream_func != nullptr);
-  cudaStream_t stream = static_cast<cudaStream_t>((*get_stream_func)().operator void*());
+  const auto get_stream_func = tvm::ffi::Function::GetGlobal("runtime.get_cuda_stream");
+  ICHECK(get_stream_func.has_value());
+  cudaStream_t stream = static_cast<cudaStream_t>((*get_stream_func)().cast<void*>());
 
   CHECK_EQ(a->ndim, 3);
   CHECK_EQ(scales_a->ndim, 3);

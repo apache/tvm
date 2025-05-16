@@ -50,6 +50,7 @@ register_legalize("relax.square", _call_topi_without_attr(lambda x: x * x, "tir_
 register_legalize("relax.sqrt", _call_topi_without_attr(topi.sqrt, "tir_sqrt"))
 register_legalize("relax.tan", _call_topi_without_attr(topi.tan, "tir_tan"))
 register_legalize("relax.tanh", _call_topi_without_attr(topi.tanh, "tir_tanh"))
+register_legalize("relax.trunc", _call_topi_without_attr(topi.trunc, "tir_trunc"))
 register_legalize("relax.clip", _call_topi_without_attr(topi.clip, "tir_clip"))
 
 

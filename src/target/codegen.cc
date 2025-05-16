@@ -51,9 +51,9 @@ runtime::Module Build(IRModule mod, Target target) {
 
   // the build function.
   std::string build_f_name = "target.build." + target->kind->name;
-  const PackedFunc* bf = runtime::Registry::Get(build_f_name);
-  ICHECK(bf != nullptr) << build_f_name << " is not enabled";
-  return (*bf)(mod, target);
+  const auto bf = tvm::ffi::Function::GetGlobal(build_f_name);
+  ICHECK(bf.has_value()) << build_f_name << " is not enabled";
+  return (*bf)(mod, target).cast<runtime::Module>();
 }
 
 /*! \brief Helper class to serialize module */
@@ -351,16 +351,14 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   }
 
   std::string blob = PackImportsToBytes(mod);
-  TVMByteArray blob_byte_array;
-  blob_byte_array.size = blob.length();
-  blob_byte_array.data = blob.data();
 
   // Call codegen_blob to generate LLVM module
   std::string codegen_f_name = "codegen.codegen_blob";
   // the codegen function.
-  const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
-  ICHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
-  return (*codegen_f)(blob_byte_array, system_lib, llvm_target_string, c_symbol_prefix);
+  const auto codegen_f = tvm::ffi::Function::GetGlobal(codegen_f_name);
+  ICHECK(codegen_f.has_value()) << "codegen.codegen_blob is not presented.";
+  return (*codegen_f)(ffi::Bytes(blob), system_lib, llvm_target_string, c_symbol_prefix)
+      .cast<runtime::Module>();
 }
 
 TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
@@ -373,7 +371,7 @@ TVM_REGISTER_GLOBAL("runtime.ModuleImportsBlobName").set_body_typed([]() -> std:
 TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")
     .set_body_typed([](const runtime::Module& mod) {
       std::string buffer = PackImportsToBytes(mod);
-      ShapeTuple::index_type size = buffer.size();
+      ffi::Shape::index_type size = buffer.size();
       DLDataType uchar;
       uchar.code = kDLUInt;
       uchar.bits = 8;

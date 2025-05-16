@@ -53,7 +53,7 @@ PrimStructInfo::PrimStructInfo(PrimExpr value, Span span) {
 PrimStructInfo::PrimStructInfo(DataType dtype, Span span) {
   ObjectPtr<PrimStructInfoNode> n = make_object<PrimStructInfoNode>();
   n->dtype = dtype;
-  n->value = NullOpt;
+  n->value = std::nullopt;
   n->span = span;
   data_ = std::move(n);
 }
@@ -114,7 +114,7 @@ TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, Optional<VDevice>
   ICHECK(shape.defined()) << "Must provide a shape in this constructor";
   ICHECK(shape->IsInstance<ShapeExprNode>() || shape->IsInstance<VarNode>())
       << "We require shape to be normalized when constructing TensorStructInfo";
-  n->ndim = sinfo.get()->ndim;
+  n->ndim = sinfo.value()->ndim;
   // assign rest of the fields.
   n->shape = std::move(shape);
   n->dtype = dtype;
@@ -136,12 +136,13 @@ TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, Optional<VDevice> v
 TVM_REGISTER_NODE_TYPE(TensorStructInfoNode);
 
 TVM_REGISTER_GLOBAL("relax.TensorStructInfo")
-    .set_body_typed([](Optional<Expr> shape, DataType dtype, int ndim, VDevice vdevice, Span span) {
+    .set_body_typed([](Optional<Expr> shape, Optional<DataType> dtype, int ndim, VDevice vdevice,
+                       Span span) {
       if (shape.defined()) {
         CHECK_EQ(ndim, kUnknownNDim) << "ValueError: Cannot both specify shape and ndim";
-        return TensorStructInfo(shape.value(), dtype, vdevice, span);
+        return TensorStructInfo(shape.value(), dtype.value_or(DataType::Void()), vdevice, span);
       } else {
-        return TensorStructInfo(dtype, ndim, vdevice, span);
+        return TensorStructInfo(dtype.value_or(DataType::Void()), ndim, vdevice, span);
       }
     });
 

@@ -48,12 +48,12 @@ class CublasJSONRuntime : public JSONRuntimeBase {
 
   void Init(const Array<NDArray>& consts) override {}
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
     // JSONRuntimeBase::SetInputOutputBuffers(...) is not thread safe. Since CublasJSONRuntime
     // can be used by multiple GPUs running on different threads, we avoid using that function
-    // and directly call cuBLAS on the inputs from TVMArgs.
+    // and directly call cuBLAS on the inputs from ffi::PackedArgs.
     if (this->symbol_name_ == name) {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         ICHECK(this->initialized_) << "The module has not been initialized";
         this->Run(args);
       });
@@ -64,27 +64,24 @@ class CublasJSONRuntime : public JSONRuntimeBase {
 
   const char* type_key() const override { return "cublas_json"; }  // May be overridden
 
-  void Run(TVMArgs args) {
+  void Run(ffi::PackedArgs args) {
     auto* entry_ptr = tvm::contrib::CuBlasLtThreadEntry::ThreadLocal();
 
-    auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-    ICHECK(func != nullptr);
-    cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
+    auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+    cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
 
     std::vector<const DLTensor*> dl_tensors(NumEntries());
 
     for (size_t i = 0; i < static_cast<size_t>(args.size()); i++) {
       auto eid = i < input_var_eid_.size() ? input_var_eid_[i]
                                            : EntryID(outputs_[i - input_var_eid_.size()]);
-      ICHECK(args[i].type_code() == kTVMNDArrayHandle || args[i].type_code() == kTVMDLTensorHandle)
-          << "Expect NDArray or DLTensor as inputs";
 
       const DLTensor* arg;
-      if (args[i].IsObjectRef<NDArray>()) {
-        NDArray arr = args[i];
+      if (auto opt_nd = args[i].as<NDArray>()) {
+        NDArray arr = opt_nd.value();
         arg = arr.operator->();
       } else {
-        arg = args[i].operator DLTensor*();
+        arg = args[i].cast<DLTensor*>();
       }
 
       dl_tensors[eid] = arg;

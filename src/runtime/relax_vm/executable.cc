@@ -38,16 +38,6 @@ namespace relax_vm {
 /*! \brief The magic number for the serialized VM bytecode file  */
 constexpr uint64_t kTVMVMBytecodeMagic = 0xD225DE2F4214151D;
 
-/*! \brief Possible types in the constant pool */
-enum ConstantType : int {
-  kNDArray = 0,
-  kDLDataType = 1,
-  kShapeTuple = 2,
-  kString = 3,
-  kInt = 4,
-  kFloat = 5,
-};
-
 #define STREAM_CHECK(val, section)                                          \
   ICHECK(val) << "Invalid VM file format in the " << section << " section." \
               << "\n";
@@ -61,8 +51,8 @@ std::string VMExecutable::Stats() const {
   // If the constant is an DLDataType, get the data type of each of them.
   oss << "  Constant pool (# " << constants.size() << "): [";
   for (const auto& it : constants) {
-    if (it.IsObjectRef<runtime::NDArray>()) {
-      const auto ndarray = it.operator tvm::runtime::NDArray();
+    if (auto opt_nd = it.as<runtime::NDArray>()) {
+      const auto ndarray = opt_nd.value();
       const auto& shape = ndarray.Shape();
       // Scalar
       if (shape.empty()) {
@@ -75,31 +65,28 @@ std::string VMExecutable::Stats() const {
       }
       oss.seekp(-2, oss.cur);
       oss << "], ";
-    } else if (it.IsObjectRef<ShapeTuple>()) {
-      ShapeTuple shape = it.operator ShapeTuple();
+    } else if (auto opt_shape = it.as<ffi::Shape>()) {
+      ffi::Shape shape = opt_shape.value();
       oss << "shapetuple[";
       for (size_t i = 0; i < shape.size(); ++i) {
         oss << shape.at(i) << ", ";
       }
       oss.seekp(-2, oss.cur);
       oss << "], ";
-    } else if (it.IsObjectRef<String>()) {
-      std::string f = it.AsObjectRef<tvm::runtime::String>().operator std::string();
+    } else if (auto opt_str = it.as<String>()) {
+      std::string f = opt_str.value();
       oss << "\"";
       oss << f;
       oss << "\", ";
-    } else if (it.type_code() == kDLInt) {
-      oss << static_cast<int64_t>(it);
+    } else if (auto opt_int = it.as<int64_t>()) {
+      oss << opt_int.value();
+      oss << ", ";
+    } else if (auto opt_dtype = it.as<DLDataType>()) {
+      DataType dtype(opt_dtype.value());
+      oss << dtype;
       oss << ", ";
     } else {
-      try {
-        DataType dtype(it.operator DLDataType());
-        oss << dtype;
-        oss << ", ";
-      } catch (std::exception& exc) {
-        LOG(FATAL) << "Constant pool can only contain NDArray and DLDataType, but got "
-                   << ArgTypeCode2Str(it.type_code());
-      }
+      LOG(FATAL) << "Unsupported constant pool type " << it.GetTypeKey();
     }
   }
   if (!constants.empty()) oss.seekp(-2, oss.cur);
@@ -266,37 +253,34 @@ void VMExecutable::SaveGlobalSection(dmlc::Stream* strm) { strm->Write(func_tabl
 void VMExecutable::SaveConstantSection(dmlc::Stream* strm) {
   strm->Write(static_cast<uint64_t>(this->constants.size()));
   for (const auto& it : this->constants) {
-    if (it.IsObjectRef<runtime::NDArray>()) {
-      strm->Write(ConstantType::kNDArray);
-      runtime::SaveDLTensor(strm, it.operator DLTensor*());
-    } else if (it.IsObjectRef<ShapeTuple>()) {
-      ShapeTuple shape = it.operator ShapeTuple();
-      strm->Write(ConstantType::kShapeTuple);
+    if (auto opt_nd = it.as<runtime::NDArray>()) {
+      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFINDArray);
+      runtime::SaveDLTensor(strm, opt_nd.value().operator->());
+    } else if (auto opt_shape = it.as<ffi::Shape>()) {
+      ffi::Shape shape = opt_shape.value();
+      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIShape);
       strm->Write(shape.size());
       for (size_t i = 0; i < shape.size(); ++i) {
         strm->Write(shape.at(i));
       }
-    } else if (it.IsObjectRef<String>()) {
-      String str = it.operator String();
-      strm->Write(ConstantType::kString);
+    } else if (auto opt_str = it.as<String>()) {
+      String str = opt_str.value();
+      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIStr);
       strm->Write(str.size());
       for (size_t i = 0; i < str.size(); ++i) {
         strm->Write(str.at(i));
       }
-    } else if (it.type_code() == kDLInt) {
-      strm->Write(ConstantType::kInt);
-      strm->Write(it.value());
-    } else if (it.type_code() == kDLFloat) {
-      strm->Write(ConstantType::kFloat);
-      strm->Write(it.value());
+    } else if (auto opt_int = it.as<int64_t>()) {
+      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIInt);
+      strm->Write(opt_int.value());
+    } else if (auto opt_float = it.as<double>()) {
+      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIFloat);
+      strm->Write(opt_float.value());
+    } else if (auto opt_dtype = it.as<DLDataType>()) {
+      strm->Write<int32_t>(ffi::TypeIndex::kTVMFFIDataType);
+      strm->Write(opt_dtype.value());
     } else {
-      try {
-        strm->Write(ConstantType::kDLDataType);
-        strm->Write(it.operator DLDataType());
-      } catch (std::exception& exc) {
-        LOG(FATAL) << "Constant pool can only contain NDArray, DLDataType, and Integers but got "
-                   << ArgTypeCode2Str(it.type_code());
-      }
+      LOG(FATAL) << "Unsupported constant pool type " << it.GetTypeKey();
     }
   }
 }
@@ -326,46 +310,46 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
   for (size_t i = 0; i < size; i++) {
     int constant_type;
     STREAM_CHECK(strm->Read(&constant_type, sizeof(constant_type)), "constant");
-    if (constant_type == ConstantType::kNDArray) {
+    if (constant_type == ffi::TypeIndex::kTVMFFINDArray) {
       ndarray.Load(strm);
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = ndarray;
       this->constants.push_back(cell);
-    } else if (constant_type == ConstantType::kShapeTuple) {
+    } else if (constant_type == ffi::TypeIndex::kTVMFFIShape) {
       uint64_t size;
       strm->Read(&size);
-      std::vector<ShapeTuple::index_type> data(size);
+      std::vector<ffi::Shape::index_type> data(size);
       for (size_t i = 0; i < size; ++i) {
         strm->Read(&(data[i]));
       }
-      TVMRetValue cell;
-      cell = ShapeTuple(data);
+      ffi::Any cell;
+      cell = ffi::Shape(data);
       this->constants.push_back(cell);
-    } else if (constant_type == ConstantType::kDLDataType) {
+    } else if (constant_type == ffi::TypeIndex::kTVMFFIDataType) {
       strm->Read(&dtype);
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = dtype;
       this->constants.push_back(cell);
-    } else if (constant_type == ConstantType::kString) {
+    } else if (constant_type == ffi::TypeIndex::kTVMFFIStr) {
       uint64_t size;
       strm->Read(&size);
       std::vector<char> data(size);
       for (size_t i = 0; i < size; ++i) {
         strm->Read(&(data[i]));
       }
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = String(std::string(data.begin(), data.end()));
       this->constants.push_back(cell);
-    } else if (constant_type == ConstantType::kInt) {
+    } else if (constant_type == ffi::TypeIndex::kTVMFFIInt) {
       int64_t value;
       strm->Read(&value);
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = value;
       this->constants.push_back(cell);
-    } else if (constant_type == ConstantType::kFloat) {
+    } else if (constant_type == ffi::TypeIndex::kTVMFFIFloat) {
       double value;
       strm->Read(&value);
-      TVMRetValue cell;
+      ffi::Any cell;
       cell = value;
       this->constants.push_back(cell);
     } else {

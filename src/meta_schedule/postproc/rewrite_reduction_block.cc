@@ -149,7 +149,7 @@ bool RewriteReductionBlockNode::Apply(const tir::Schedule& sch) {
             tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_auto_tensorize_init);
         // The annotation of tensorization of the init statement should be moved to the init block
         // after 'DecomposeReduction'.
-        // Annotate to hint `RewriteTensorize` postprocessor even if tensorize_init is NullOpt.
+        // Annotate to hint `RewriteTensorize` postprocessor even if tensorize_init is std::nullopt.
         sch->Annotate(init_block_rv, tir::attr::meta_schedule_auto_tensorize,
                       tensorize_init.value_or(""));
         if (tensorize_init.defined()) {

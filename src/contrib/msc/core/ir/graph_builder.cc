@@ -124,7 +124,7 @@ void LayoutsFinder::VisitExpr_(const CallNode* call_node) {
     func = local_funcs_[call_node->op];
   }
   if (func.defined()) {
-    const auto& layouts_opt = func->GetAttr<runtime::Map<String, String>>(msc_attr::kInputLayouts);
+    const auto& layouts_opt = func->GetAttr<Map<String, String>>(msc_attr::kInputLayouts);
     if (layouts_opt.defined()) {
       for (const auto& pair : layouts_opt.value()) {
         layouts_.Set(pair.first, pair.second);
@@ -172,7 +172,7 @@ const MSCGraph GraphBuilder::Build(const Function& func) {
         if (expr_tensor_map_.count(f)) {
           LOG_INFO << "Replica tuple input " << f;
         } else if (const auto* f_node = f.as<VarNode>()) {
-          AddNode(f, NullOpt, f_node->name_hint());
+          AddNode(f, std::nullopt, f_node->name_hint());
         } else {
           LOG_FATAL << "Unexpected tuple input " << f << "(" << f->GetTypeKey() << ")";
         }
@@ -183,7 +183,7 @@ const MSCGraph GraphBuilder::Build(const Function& func) {
       }
       expr_tensor_map_.Set(p, tuple_names);
     } else {
-      AddNode(p, NullOpt, p->name_hint());
+      AddNode(p, std::nullopt, p->name_hint());
     }
     ICHECK(expr_tensor_map_.count(p)) << "Can not find func param " << p;
     for (const auto& name : expr_tensor_map_[p]) {
@@ -339,7 +339,7 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
   } else if (const auto* call_node = expr.as<CallNode>()) {
     if (const auto* v_node = call_node->op.as<GlobalVarNode>()) {
       const auto& func = Downcast<Function>(ref_module_->Lookup(v_node->name_hint));
-      const auto& name_opt = func->GetAttr<runtime::String>(relax::attr::kComposite);
+      const auto& name_opt = func->GetAttr<String>(relax::attr::kComposite);
       if (name_opt.defined()) {
         attrs = FuncAttrGetter().GetAttrs(func);
       }
@@ -553,7 +553,7 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
   } else if (const auto* s_sinfo = sinfo.as<ShapeStructInfoNode>()) {
     Array<Integer> shape{s_sinfo->ndim};
     const auto& t_name = node_name + ":" + std::to_string(0);
-    const auto& dtype = DataType(runtime::String2DLDataType("int32"));
+    const auto& dtype = DataType(ffi::StringToDLDataType("int32"));
     outputs.push_back(MSCTensor(t_name, dtype, layouts[0], shape));
   } else if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
     size_t field_size = optype == "nn.batch_norm" ? 1 : num_output;
@@ -725,7 +725,7 @@ void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const CallNode* 
     AddNode(GetRef<Call>(call_node), binding->var, name);
   } catch (runtime::InternalError& err) {
     LOG(WARNING) << "Failed to add node from " << binding->var << " : " << binding->value
-                 << ", reason: " << err.message();
+                 << ", reason: " << err.what();
     throw err;
   }
 }
@@ -757,7 +757,7 @@ void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const DataflowVa
 }
 
 void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const FunctionNode* val) {
-  const auto& name_opt = val->GetAttr<runtime::String>(relax::attr::kComposite);
+  const auto& name_opt = val->GetAttr<String>(relax::attr::kComposite);
   ICHECK(name_opt.defined()) << "Unexpected target func without composite";
   ICHECK(config_.target.size() > 0 && StringUtils::StartsWith(name_opt.value(), config_.target))
       << "Target should be given for target function";
@@ -766,15 +766,15 @@ void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const FunctionNo
 
 const std::tuple<String, String, String> GraphBuilder::ParseFunc(const Function& func) {
   String node_name, optype, layout;
-  const auto& name_opt = func->GetAttr<runtime::String>(msc_attr::kUnique);
+  const auto& name_opt = func->GetAttr<String>(msc_attr::kUnique);
   // get node_name
   if (name_opt.defined()) {
     node_name = name_opt.value();
   }
   // get optype
-  const auto& codegen_opt = func->GetAttr<runtime::String>(relax::attr::kCodegen);
-  const auto& optype_opt = func->GetAttr<runtime::String>(msc_attr::kOptype);
-  const auto& composite_opt = func->GetAttr<runtime::String>(relax::attr::kComposite);
+  const auto& codegen_opt = func->GetAttr<String>(relax::attr::kCodegen);
+  const auto& optype_opt = func->GetAttr<String>(msc_attr::kOptype);
+  const auto& composite_opt = func->GetAttr<String>(relax::attr::kComposite);
   if (codegen_opt.defined()) {
     optype = codegen_opt.value();
   } else if (optype_opt.defined()) {
@@ -786,7 +786,7 @@ const std::tuple<String, String, String> GraphBuilder::ParseFunc(const Function&
     }
   }
   // get layout
-  const auto& layout_opt = func->GetAttr<runtime::String>(msc_attr::kLayout);
+  const auto& layout_opt = func->GetAttr<String>(msc_attr::kLayout);
   if (layout_opt.defined()) {
     layout = layout_opt.value();
   }

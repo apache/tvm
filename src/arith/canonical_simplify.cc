@@ -921,7 +921,7 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
       // try eliminate from lhs
       for (size_t i = 0; i < lhs_prods.size(); ++i) {
         if (lhs_prods[i].defined() && deep_equal(value, lhs_prods[i].value())) {
-          lhs_prods.Set(i, NullOpt);
+          lhs_prods.Set(i, std::nullopt);
           ++num_elimination;
           new_common_scale = new_common_scale * value;
           return;

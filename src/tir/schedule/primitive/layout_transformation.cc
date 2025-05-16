@@ -513,14 +513,14 @@ class TransformLayoutPlanner : private StmtExprVisitor {
     auto generate_if_then_else_block = [&](const WriteInfo& info) -> Optional<Stmt> {
       if (!info.contains_row_major_traversal || !pad_value.defined() ||
           is_zero(padding_predicate)) {
-        return NullOpt;
+        return std::nullopt;
       }
 
       BufferStoreReplacer replacer(info, new_buffer, padding_predicate, inverse, pad_value,
                                    &new_block_to_old, analyzer);
       Stmt stmt = replacer(info.dependent_loopnest.back()->body);
       if (!replacer.is_all_stores_replaced()) {
-        return NullOpt;
+        return std::nullopt;
       }
 
       ICHECK_EQ(inverse->initial_indices.size(), new_buffer->shape.size());
@@ -707,7 +707,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
    *
    * Used to fill the `WriteInfo::innermost_block_realize` field..
    */
-  Optional<BlockRealize> innermost_block_realize_{NullOpt};
+  Optional<BlockRealize> innermost_block_realize_{std::nullopt};
 
   /*! \brief The buffer to be replaced */
   Buffer old_buffer_;
@@ -1176,7 +1176,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
                             : GetScopeRoot(self, block_sref, /*require_stage_pipeline=*/false);
   const BlockNode* scope_block = TVM_SREF_TO_BLOCK(scope_sref);
 
-  Optional<IndexMap> opt_inverse = NullOpt;
+  Optional<IndexMap> opt_inverse = std::nullopt;
   PrimExpr padding_predicate = Bool(false);
   if (!assume_injective_transform) {
     std::tie(opt_inverse, padding_predicate) = [&]() {
@@ -1209,7 +1209,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
     GlobalVar g_var;
     const auto* old_func = GetRootPrimFunc(self->mod, scope_block, &g_var);
     IRModuleNode* new_mod = self->mod.CopyOnWrite();
-    MapNode* new_map = new_mod->functions.CopyOnWrite();
+    ffi::MapObj* new_map = new_mod->functions.CopyOnWrite();
 
     Map<Var, Buffer> new_buffer_map;
     for (auto [var, buffer] : old_func->buffer_map) {
@@ -1533,10 +1533,10 @@ void SetAxisSeparator(ScheduleState self, const StmtSRef& block_sref, int buffer
     GlobalVar g_var;
     GetRootPrimFunc(self->mod, scope_block, &g_var);
     IRModuleNode* new_mod = self->mod.CopyOnWrite();
-    MapNode* new_map = new_mod->functions.CopyOnWrite();
+    ffi::MapObj* new_map = new_mod->functions.CopyOnWrite();
     PrimFunc ref_new_func = Downcast<PrimFunc>(std::move(new_map->at(g_var)));
     PrimFuncNode* new_func = ref_new_func.CopyOnWrite();
-    MapNode* new_buffer_map = new_func->buffer_map.CopyOnWrite();
+    ffi::MapObj* new_buffer_map = new_func->buffer_map.CopyOnWrite();
     for (auto it = new_buffer_map->begin(); it != new_buffer_map->end(); ++it) {
       if ((*it).second.same_as(old_buffer)) {
         (*it).second = new_buffer;
@@ -1587,12 +1587,12 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
   }
 
  public:
-  static ObjectRef AttrsAsJSON(const Array<ObjectRef>& attrs) {
-    Array<ObjectRef> attrs_record;
+  static ObjectRef AttrsAsJSON(const Array<Any>& attrs) {
+    Array<Any> attrs_record;
     attrs_record.reserve(kNumAttrs);
     attrs_record.push_back(attrs[0]);
     attrs_record.push_back(attrs[1]);
-    if (attrs[2].defined()) {
+    if (attrs[2] != nullptr) {
       attrs_record.push_back(String(::tvm::SaveJSON(attrs[2])));
     } else {
       attrs_record.push_back(attrs[2]);
@@ -1601,12 +1601,12 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
     return std::move(attrs_record);
   }
 
-  static Array<ObjectRef> AttrsFromJSON(const ObjectRef& attrs_record_) {
-    Array<ObjectRef> attrs_record = Downcast<Array<ObjectRef>>(attrs_record_);
-    Array<ObjectRef> attrs;
+  static Array<Any> AttrsFromJSON(const ObjectRef& attrs_record_) {
+    Array<Any> attrs_record = Downcast<Array<Any>>(attrs_record_);
+    Array<Any> attrs;
     attrs.push_back(attrs_record[0]);
     attrs.push_back(attrs_record[1]);
-    if (attrs_record[2].defined()) {
+    if (attrs_record[2] != nullptr) {
       attrs.push_back(::tvm::LoadJSON(Downcast<String>(attrs_record[2])));
     } else {
       attrs.push_back(attrs_record[2]);
@@ -1640,16 +1640,16 @@ struct TransformBlockLayoutTraits : public UnpackedInstTraits<TransformBlockLayo
   }
 
  public:
-  static ObjectRef AttrsAsJSON(const Array<ObjectRef>& attrs) {
-    Array<ObjectRef> attrs_record;
+  static ObjectRef AttrsAsJSON(const Array<Any>& attrs) {
+    Array<Any> attrs_record;
     attrs_record.reserve(kNumAttrs);
     attrs_record.push_back(String(::tvm::SaveJSON(attrs[0])));
     return std::move(attrs_record);
   }
 
-  static Array<ObjectRef> AttrsFromJSON(const ObjectRef& attrs_record_) {
-    Array<ObjectRef> attrs_record = Downcast<Array<ObjectRef>>(attrs_record_);
-    Array<ObjectRef> attrs;
+  static Array<Any> AttrsFromJSON(const ObjectRef& attrs_record_) {
+    Array<Any> attrs_record = Downcast<Array<Any>>(attrs_record_);
+    Array<Any> attrs;
     attrs.push_back(::tvm::LoadJSON(Downcast<String>(attrs_record[0])));
     return attrs;
   }

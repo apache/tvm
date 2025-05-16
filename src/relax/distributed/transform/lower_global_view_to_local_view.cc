@@ -429,8 +429,7 @@ class LowerTIRToLocalView : public ExprMutator {
 namespace transform {
 
 Pass LowerGlobalViewToLocalView() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return LowerTIRToLocalView(m).Lower(); };
+  auto pass_func = [=](IRModule m, PassContext pc) { return LowerTIRToLocalView(m).Lower(); };
   return CreateModulePass(pass_func, 1, "LowerGlobalViewToLocalView", {});
 }
 TVM_REGISTER_GLOBAL("relax.distributed.transform.LowerGlobalViewToLocalView")

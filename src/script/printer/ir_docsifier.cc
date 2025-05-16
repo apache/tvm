@@ -16,7 +16,6 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/container/base.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/script/printer/ir_docsifier.h>
@@ -62,14 +61,14 @@ IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, const St
 
 void IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, DocCreator doc_factory) {
   ICHECK(obj2info.find(obj) == obj2info.end()) << "Duplicated object: " << obj;
-  obj2info.insert({obj, VariableInfo{std::move(doc_factory), NullOpt}});
+  obj2info.insert({obj, VariableInfo{std::move(doc_factory), std::nullopt}});
   frame->AddExitCallback([this, obj]() { this->RemoveVar(obj); });
 }
 
 Optional<ExprDoc> IRDocsifierNode::GetVarDoc(const ObjectRef& obj) const {
   auto it = obj2info.find(obj);
   if (it == obj2info.end()) {
-    return NullOpt;
+    return std::nullopt;
   }
   return it->second.creator();
 }
@@ -82,7 +81,8 @@ ExprDoc IRDocsifierNode::AddMetadata(const ObjectRef& obj) {
   if (index == static_cast<int>(array.size())) {
     array.push_back(obj);
   }
-  return IdDoc("metadata")[{LiteralDoc::Str(key, NullOpt)}][{LiteralDoc::Int(index, NullOpt)}];
+  return IdDoc(
+      "metadata")[{LiteralDoc::Str(key, std::nullopt)}][{LiteralDoc::Int(index, std::nullopt)}];
 }
 
 void IRDocsifierNode::AddGlobalInfo(const String& name, const GlobalInfo& ginfo) {
@@ -103,12 +103,17 @@ void IRDocsifierNode::RemoveVar(const ObjectRef& obj) {
 }
 
 void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
-                                      runtime::TypedPackedFunc<bool(ObjectRef)> is_var) {
+                                      ffi::TypedFunction<bool(ObjectRef)> is_var) {
   class Visitor : public AttrVisitor {
    public:
     inline void operator()(ObjectRef obj) { Visit("", &obj); }
 
    private:
+    void RecursiveVisitAny(ffi::Any* value) {
+      if (std::optional<ObjectRef> opt = value->as<ObjectRef>()) {
+        this->Visit("", &opt.value());
+      }
+    }
     void Visit(const char* key, double* value) final {}
     void Visit(const char* key, int64_t* value) final {}
     void Visit(const char* key, uint64_t* value) final {}
@@ -118,6 +123,8 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
     void Visit(const char* key, void** value) final {}
     void Visit(const char* key, DataType* value) final {}
     void Visit(const char* key, runtime::NDArray* value) final {}
+    void Visit(const char* key, Optional<double>* value) final {}
+    void Visit(const char* key, Optional<int64_t>* value) final {}
     void Visit(const char* key, ObjectRef* value) final {
       const Object* obj = value->get();
       if (obj == nullptr) {
@@ -131,16 +138,16 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
       }
       visited_.insert(obj);
       stack_.push_back(obj);
-      if (obj->IsInstance<ArrayNode>()) {
-        const ArrayNode* array = static_cast<const ArrayNode*>(obj);
-        for (ObjectRef element : *array) {
-          this->Visit("", &element);
+      if (obj->IsInstance<ffi::ArrayObj>()) {
+        const ffi::ArrayObj* array = static_cast<const ffi::ArrayObj*>(obj);
+        for (Any element : *array) {
+          this->RecursiveVisitAny(&element);
         }
-      } else if (obj->IsInstance<MapNode>()) {
-        const MapNode* map = static_cast<const MapNode*>(obj);
-        for (std::pair<ObjectRef, ObjectRef> kv : *map) {
-          this->Visit("", &kv.first);
-          this->Visit("", &kv.second);
+      } else if (obj->IsInstance<ffi::MapObj>()) {
+        const ffi::MapObj* map = static_cast<const ffi::MapObj*>(obj);
+        for (std::pair<Any, Any> kv : *map) {
+          this->RecursiveVisitAny(&kv.first);
+          this->RecursiveVisitAny(&kv.second);
         }
       } else {
         vtable_->VisitAttrs(const_cast<Object*>(obj), this);
@@ -172,7 +179,7 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
     std::unordered_set<const Object*> visited_;
 
    public:
-    runtime::TypedPackedFunc<bool(ObjectRef)> is_var;
+    ffi::TypedFunction<bool(ObjectRef)> is_var;
     std::unordered_map<const Object*, std::vector<const Object*>> common_prefix;
   };
   Visitor visitor;

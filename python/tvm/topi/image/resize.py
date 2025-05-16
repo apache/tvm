@@ -236,7 +236,6 @@ def _resize_1d(
     exclude_outside=0,
     out_dtype=None,
 ):
-
     """Perform resize operation on the data with selected method and options.
 
     Parameters
@@ -377,7 +376,7 @@ def resize1d(
     method="linear",
     coordinate_transformation_mode="half_pixel",
     rounding_method="",
-    bicubic_alpha=-0.5,
+    bicubic_alpha=-0.75,
     bicubic_exclude=0,
     extrapolation_value=0.0,
     out_dtype=None,
@@ -510,7 +509,6 @@ def _resize_2d(
     exclude_outside=0,
     out_dtype=None,
 ):
-
     """Perform resize operation on the data with selected method and options.
 
     Parameters
@@ -750,7 +748,7 @@ def resize2d(
     method="linear",
     coordinate_transformation_mode="half_pixel",
     rounding_method="",
-    bicubic_alpha=-0.5,
+    bicubic_alpha=-0.75,
     bicubic_exclude=0,
     extrapolation_value=0.0,
     out_dtype=None,
@@ -976,7 +974,6 @@ def _resize_3d(
     exclude_outside=0,
     out_dtype=None,
 ):
-
     """Perform resize operation on the data with selected method and options.
 
     Parameters
@@ -1220,7 +1217,7 @@ def resize3d(
     method="linear",
     coordinate_transformation_mode="half_pixel",
     rounding_method="",
-    bicubic_alpha=-0.5,
+    bicubic_alpha=-0.75,
     bicubic_exclude=0,
     extrapolation_value=0.0,
     out_dtype=None,

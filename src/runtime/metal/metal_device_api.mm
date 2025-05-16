@@ -41,7 +41,7 @@ MetalWorkspace* MetalWorkspace::Global() {
   return inst;
 }
 
-void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
+void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) {
   AUTORELEASEPOOL {
     size_t index = static_cast<size_t>(dev.device_id);
     if (kind == kExist) {
@@ -362,7 +362,7 @@ typedef dmlc::ThreadLocalStore<MetalThreadEntry> MetalThreadStore;
 
 MetalThreadEntry* MetalThreadEntry::ThreadLocal() { return MetalThreadStore::Get(); }
 
-TVM_REGISTER_GLOBAL("device_api.metal").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("device_api.metal").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   DeviceAPI* ptr = MetalWorkspace::Global();
   *rv = static_cast<void*>(ptr);
 });

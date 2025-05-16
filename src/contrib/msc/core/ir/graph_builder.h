@@ -126,8 +126,24 @@ class AttrGetter : public AttrVisitor {
 
   void Visit(const char* key, std::string* value) final { attrs_->Set(key, *value); }
 
+  void Visit(const char* key, Optional<double>* value) final {
+    if (value->has_value()) {
+      attrs_->Set(key, std::to_string(value->value()));
+    } else {
+      attrs_->Set(key, "");
+    }
+  }
+
+  void Visit(const char* key, Optional<int64_t>* value) final {
+    if (value->has_value()) {
+      attrs_->Set(key, std::to_string(value->value()));
+    } else {
+      attrs_->Set(key, "");
+    }
+  }
+
   void Visit(const char* key, DataType* value) final {
-    attrs_->Set(key, runtime::DLDataType2String(*value));
+    attrs_->Set(key, runtime::DLDataTypeToString(*value));
   }
 
   void Visit(const char* key, runtime::ObjectRef* value) final {
@@ -257,7 +273,7 @@ class GraphBuilder : public ExprVisitor {
   const MSCRBuildConfig config() { return config_; }
 
   /*! \brief Create and add MSCJoint from expr*/
-  const MSCJoint AddNode(const Expr& expr, const Optional<Expr>& binding_var = NullOpt,
+  const MSCJoint AddNode(const Expr& expr, const Optional<Expr>& binding_var = std::nullopt,
                          const String& name = "");
 
   /*! \brief Create and add MSCPrim from prim*/

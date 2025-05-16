@@ -77,14 +77,14 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
 /*! \brief Simplify the binding of block realize and update the opaque block reuse mapping */
 class IterMapSimplifyBlockBinding : public StmtExprMutator {
  public:
-  explicit IterMapSimplifyBlockBinding(MapNode* opaque_blocks, Map<Var, Range> loop_var2extent,
+  explicit IterMapSimplifyBlockBinding(ffi::MapObj* opaque_blocks, Map<Var, Range> loop_var2extent,
                                        bool preserve_unit_iters)
       : opaque_blocks_(opaque_blocks),
         loop_var2extent_(loop_var2extent),
         preserve_unit_iters_(preserve_unit_iters) {}
 
-  static For SimplifyBindings(Stmt stmt, const Array<StmtSRef>& loop_srefs, MapNode* opaque_blocks,
-                              bool preserve_unit_iters) {
+  static For SimplifyBindings(Stmt stmt, const Array<StmtSRef>& loop_srefs,
+                              ffi::MapObj* opaque_blocks, bool preserve_unit_iters) {
     Map<Var, Range> loop_var2extent;
     for (const StmtSRef& sref : loop_srefs) {
       const ForNode* loop = TVM_SREF_TO_FOR(sref);
@@ -107,7 +107,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
     if (op->iter_values.empty()) {
       Block block = op->block;
       BlockRealize realize = Downcast<BlockRealize>(StmtMutator::VisitStmt_(op));
-      for (const std::pair<ObjectRef, ObjectRef>& entry : *opaque_blocks_) {
+      for (const auto& entry : *opaque_blocks_) {
         if (entry.second.same_as(block)) {
           opaque_blocks_->at(entry.first) = realize->block;
           break;
@@ -132,7 +132,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   }
 
   /*! \brief The reuse mapping */
-  MapNode* opaque_blocks_;
+  ffi::MapObj* opaque_blocks_;
   /*! \brief The range of loops */
   Map<Var, Range> loop_var2extent_;
   /*! \brief Internal analyzer */
@@ -164,7 +164,7 @@ class BlockPropertyError : public ScheduleError {
             throw BlockPropertyError(state_->mod, GetRef<Block>(op));
           }
           Optional<StmtSRef> high_exclusive =
-              top_->parent ? GetRef<StmtSRef>(top_->parent) : Optional<StmtSRef>(NullOpt);
+              top_->parent ? GetRef<StmtSRef>(top_->parent) : Optional<StmtSRef>(std::nullopt);
           CheckPartialAffineBinding(state_, GetRef<Block>(op), high_exclusive);
         }
       }
@@ -427,7 +427,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array
         if (v.same_as(loop->loop_var)) {
           return substitute_value;
         } else {
-          return NullOpt;
+          return std::nullopt;
         }
       },
       &opaque_block_reuse)(std::move(new_stmt));
@@ -933,7 +933,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs, bool preser
         return substitute_value[i];
       }
     }
-    return NullOpt;
+    return std::nullopt;
   };
   new_stmt =
       SubstituteVarAndCollectOpaqueBlock(f_substitute, &opaque_block_reuse)(std::move(new_stmt));
@@ -994,7 +994,7 @@ std::pair<const StmtSRefNode*, const StmtSRefNode*> GetBoundaryOfReorderRange(
       // Case 1. If `v` corresponds to a block, stop traversal.
       if (v->stmt->IsInstance<BlockNode>()) {
         if (scope_block_visited) {
-          throw LoopsNotAChainError(self->mod, NullOpt,
+          throw LoopsNotAChainError(self->mod, std::nullopt,
                                     LoopsNotAChainError::ProblemKind::kNotUnderAScope);
         }
         scope_block_visited = true;
@@ -1176,14 +1176,13 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
-                                           const Array<ObjectRef>& inputs) {
-    thread_local ObjectRef loop_rv{nullptr};
-    thread_local Array<ObjectRef> factors{nullptr};
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const Array<Any>& inputs) {
+    thread_local Any loop_rv{nullptr};
+    thread_local Array<Any> factors{nullptr};
     loop_rv = inputs[0];
-    factors = Array<ObjectRef>{inputs.begin() + 1, inputs.end()};
-    setter(delta, loop_rv);
-    setter(delta + 1, factors);
+    factors = Array<Any>{inputs.begin() + 1, inputs.end()};
+    packed_args[delta] = loop_rv;
+    packed_args[delta + 1] = factors;
   }
 
   static Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv,
@@ -1193,7 +1192,7 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
                       disable_predication.operator bool());
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Array<ObjectRef> factors,
+  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Array<Any> factors,
                                  Bool preserve_unit_iters, Bool disable_predication) {
     PythonAPICall py("split");
     py.Input("loop", loop_rv);
@@ -1218,14 +1217,13 @@ struct LoopPartitionTraits : public UnpackedInstTraits<LoopPartitionTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
-                                           const Array<ObjectRef>& inputs) {
-    thread_local ObjectRef loop_rv{nullptr};
-    thread_local Array<ObjectRef> factors{nullptr};
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const Array<Any>& inputs) {
+    thread_local Any loop_rv{nullptr};
+    thread_local Array<Any> factors{nullptr};
     loop_rv = inputs[0];
-    factors = Array<ObjectRef>{inputs.begin() + 1, inputs.end()};
-    setter(delta, loop_rv);
-    setter(delta + 1, factors);
+    factors = Array<Any>{inputs.begin() + 1, inputs.end()};
+    packed_args[delta] = loop_rv;
+    packed_args[delta + 1] = factors;
   }
 
   static Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv,
@@ -1234,7 +1232,7 @@ struct LoopPartitionTraits : public UnpackedInstTraits<LoopPartitionTraits> {
     return sch->LoopPartition(loop_rv, factors, preserve_unit_iters.operator bool());
   }
 
-  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Array<ObjectRef> factors,
+  static String UnpackedAsPython(Array<String> outputs, String loop_rv, Array<Any> factors,
                                  Bool preserve_unit_iters) {
     PythonAPICall py("loop_partition");
     py.Input("loop", loop_rv);
@@ -1258,9 +1256,8 @@ struct MergeTraits : public UnpackedInstTraits<MergeTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
-                                           const Array<ObjectRef>& inputs) {
-    setter(delta, inputs);
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const Array<Any>& inputs) {
+    packed_args[delta] = inputs;
   }
 
   static LoopRV UnpackedApplyToSchedule(Schedule sch, Array<LoopRV> loop_rvs) {
@@ -1290,9 +1287,8 @@ struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
-                                           const Array<ObjectRef>& inputs) {
-    setter(delta, inputs);
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const Array<Any>& inputs) {
+    packed_args[delta] = inputs;
   }
 
   static LoopRV UnpackedApplyToSchedule(Schedule sch, Array<LoopRV> loop_rvs,
@@ -1325,9 +1321,8 @@ struct ReorderTraits : public UnpackedInstTraits<ReorderTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
-                                           const Array<ObjectRef>& inputs) {
-    setter(delta, inputs);
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const Array<Any>& inputs) {
+    packed_args[delta] = inputs;
   }
 
   static void UnpackedApplyToSchedule(Schedule sch, Array<LoopRV> loop_rvs) {

@@ -36,6 +36,7 @@ run_pytest ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test tests/python/all
 
 # Then run all unittests on both ctypes and cython.
 TEST_FILES=(
+  "ffi"
   "arith"
   "ci"
   "codegen"

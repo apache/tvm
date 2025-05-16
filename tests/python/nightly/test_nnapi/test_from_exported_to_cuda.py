@@ -1054,5 +1054,21 @@ def test_interpolate(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
+@tvm.testing.parametrize_targets("cuda")
+def test_cross_entropy_module(target, dev):
+    class CrossEntropyModule(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.criterion = nn.CrossEntropyLoss()
+            self.target = torch.tensor([0, 1, 2, 1])
+
+        def forward(self, x):
+            return self.criterion(x, self.target)
+
+    raw_data = np.random.randn(4, 3).astype(np.float32)
+    torch_module = CrossEntropyModule().eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

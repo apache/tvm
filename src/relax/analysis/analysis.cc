@@ -178,7 +178,7 @@ Optional<Expr> FindImpureCall(const Expr& expr, const Optional<Expr>& own_name) 
 
    private:
     const Optional<Expr>& own_name_;
-    Optional<Expr> impure_expr_ = NullOpt;
+    Optional<Expr> impure_expr_ = std::nullopt;
   };
 
   if (own_name) {

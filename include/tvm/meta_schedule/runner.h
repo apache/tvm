@@ -19,12 +19,12 @@
 #ifndef TVM_META_SCHEDULE_RUNNER_H_
 #define TVM_META_SCHEDULE_RUNNER_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 
@@ -110,12 +110,12 @@ class RunnerFutureNode : public runtime::Object {
    * \brief The function type to check whether the runner has finished.
    * \return Whether the runner's output is ready.
    */
-  using FDone = runtime::TypedPackedFunc<bool()>;
+  using FDone = ffi::TypedFunction<bool()>;
   /*!
    * \brief The function type to fetch runner output if it is ready.
    * \return The runner's output.
    */
-  using FResult = runtime::TypedPackedFunc<RunnerResult()>;
+  using FResult = ffi::TypedFunction<RunnerResult()>;
 
   /*! \brief The packed function to check whether the runner has finished. */
   FDone f_done;
@@ -176,7 +176,7 @@ class RunnerNode : public runtime::Object {
    * \return The runner futures.
    * \sa RunnerFuture
    */
-  using FRun = runtime::TypedPackedFunc<Array<RunnerFuture>(Array<RunnerInput>)>;
+  using FRun = ffi::TypedFunction<Array<RunnerFuture>(Array<RunnerInput>)>;
 
   /*! \brief Default destructor */
   virtual ~RunnerNode() = default;

@@ -291,7 +291,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       // Dump tensor to CPU
       std::vector<int64_t> shape = node.GetOpShape()[0];
       DLDataType tvm_dtype = node.GetOpDataType()[0];
-      NDArray narr = NDArray::Empty(ShapeTuple(shape), tvm_dtype, {kDLCPU, 0});
+      NDArray narr = NDArray::Empty(ffi::Shape(shape), tvm_dtype, {kDLCPU, 0});
       CopyDataFromCLMLTensor(clml_desc, narr.operator->()->data);
 
       // Naming convention
@@ -311,8 +311,8 @@ class CLMLRuntime : public JSONRuntimeBase {
       dump_tensors.Set(node_name, narr);
     }
 
-    const PackedFunc* f = Registry::Get("runtime.SaveParams");
-    if (nullptr != f) {
+    const auto f = tvm::ffi::Function::GetGlobal("runtime.SaveParams");
+    if (f.has_value()) {
       std::string dump_bytes = (*f)(dump_tensors);
       std::ostringstream oss;
       /*TODO(Siva) HEX encoding doubles the size, look for better encode that can cross the RPC. */
@@ -478,7 +478,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       LOG_CLML << "Execution by Rec Queue";
       if (cws->workspace->IsProfiling(cws->tentry->device)) {
         Timer t;
-        auto f = Registry::Get(std::string("profiling.timer.opencl"));
+        auto f = tvm::ffi::Function::GetGlobal(std::string("profiling.timer.opencl"));
         t = f->operator()(cws->tentry->device);
         t->Start();
         queue = CLML_QUEUE;
@@ -499,7 +499,7 @@ class CLMLRuntime : public JSONRuntimeBase {
         LOG_CLML << "Run Layer:" << this->layer_.layer_names[i];
         if (cws->workspace->IsProfiling(cws->tentry->device)) {
           Timer t;
-          auto f = Registry::Get(std::string("profiling.timer.opencl"));
+          auto f = tvm::ffi::Function::GetGlobal(std::string("profiling.timer.opencl"));
           t = f->operator()(cws->tentry->device);
           t->Start();
           queue = CLML_QUEUE;

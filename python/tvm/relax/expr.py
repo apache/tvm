@@ -337,7 +337,7 @@ class _DLTensorDTypeProxy(tvm.runtime.ObjectGeneric):
         context that requires a `relax.Expr`.  This usage is not
         supported, and raising an error here can provide suggested
         fixes that are not present in the default error message from
-        `tvm.runtime.convert_to_object`.
+        `tvm.runtime.convert`.
         """
 
         fields = [f"{self.tensor}.dtype.{field}" for field in ["type_code", "bits", "lanes"]]
@@ -415,7 +415,7 @@ class _DLTensorShapeProxy(tvm.runtime.ObjectGeneric):
         context that requires a `relax.Expr`.  This usage is not
         supported, and raising an error here can provide suggested
         fixes that are not present in the default error message from
-        `tvm.runtime.convert_to_object`.
+        `tvm.runtime.convert`.
         """
         raise TypeError(
             f"{self.tensor}.shape cannot be converted to a relax expression, "
@@ -485,7 +485,7 @@ class _DLTensorStrideProxy(tvm.runtime.ObjectGeneric):
         context that requires a `relax.Expr`.  This usage is not
         supported, and raising an error here can provide suggested
         fixes that are not present in the default error message from
-        `tvm.runtime.convert_to_object`.
+        `tvm.runtime.convert`.
         """
         raise TypeError(
             f"{self.tensor}.strides cannot be converted to a relax expression, "
@@ -768,7 +768,7 @@ class Var(ExprWithOp):
         span: Optional[Span] = None,
     ) -> None:
         if struct_info is not None:
-            struct_info = tvm.runtime.convert_to_object(struct_info)
+            struct_info = tvm.runtime.convert(struct_info)
             if not isinstance(struct_info, StructInfo):
                 raise TypeError(
                     "struct_info needs to be an instance of StructInfo. "
@@ -818,7 +818,7 @@ class DataflowVar(Var):
     ) -> None:
         # pylint: disable=super-init-not-called
         if struct_info is not None:
-            struct_info = tvm.runtime.convert_to_object(struct_info)
+            struct_info = tvm.runtime.convert(struct_info)
             if not isinstance(struct_info, StructInfo):
                 raise TypeError(
                     "struct_info needs to be an instance of StructInfo. "

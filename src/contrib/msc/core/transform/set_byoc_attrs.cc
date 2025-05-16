@@ -53,7 +53,7 @@ class ByocNameSetter : public ExprMutator {
       if (gv->name_hint == entry_name_) {
         continue;
       }
-      const auto& name_opt = func->GetAttr<runtime::String>(attr::kCodegen);
+      const auto& name_opt = func->GetAttr<String>(attr::kCodegen);
       if (name_opt.defined() && name_opt.value() == target_) {
         const String& func_name = target_ + "_" + std::to_string(func_cnt);
         const auto& new_func = Downcast<Function>(VisitExpr(func));
@@ -73,7 +73,7 @@ class ByocNameSetter : public ExprMutator {
     ExprMutator::VisitBinding_(binding, val);
     if (val->op->IsInstance<relax::VarNode>()) {
       ICHECK(local_funcs_.count(val->op)) << "Can not find local func " << val->op;
-      const auto& name_opt = local_funcs_[val->op]->GetAttr<runtime::String>(msc_attr::kUnique);
+      const auto& name_opt = local_funcs_[val->op]->GetAttr<String>(msc_attr::kUnique);
       if (name_opt.defined()) {
         val->span = SpanUtils::SetAttr(val->span, "name", name_opt.value());
       }
@@ -95,8 +95,9 @@ IRModule SetBYOCAttrs(IRModule mod, const String& target, const String& entry_na
 namespace transform {
 
 Pass SetBYOCAttrs(const String& target, const String& entry_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::SetBYOCAttrs(m, target, entry_name); };
+  auto pass_func = [=](IRModule m, PassContext pc) {
+    return relax::SetBYOCAttrs(m, target, entry_name);
+  };
   return CreateModulePass(pass_func, 0, "SetBYOCAttrs", {});
 }
 

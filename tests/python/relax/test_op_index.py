@@ -1001,7 +1001,7 @@ def test_legalize_dynamic_begin_end():
             B: T.Buffer((T.int64(1), T.int64(16))),
             index: T.int64,
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for iters in T.grid(*B.shape):
                 with T.block("T_dynamic_strided_slice"):
                     i, j = T.axis.remap("SS", iters)
@@ -1028,7 +1028,7 @@ def test_legalize_dynamic_begin_inf_end():
     class expected:
         @T.prim_func(private=True)
         def strided_slice(A: T.Buffer((T.int64(16), T.int64(16)), "float32"), var_T_dynamic_strided_slice_with_axes: T.handle, index: T.int64):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             T_dynamic_strided_slice_with_axes = T.match_buffer(var_T_dynamic_strided_slice_with_axes, (T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)))
             # with T.block("root"):
             for ax0, ax1 in T.grid(T.max(T.int64(16) - T.max(T.if_then_else(index < T.int64(0), index + T.int64(16), index), T.int64(0)), T.int64(0)), T.int64(16)):

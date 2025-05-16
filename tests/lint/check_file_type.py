@@ -175,6 +175,9 @@ def filename_allowed(name):
     if name.startswith("3rdparty"):
         return True
 
+    if name.startswith("ffi/3rdparty"):
+        return True
+
     if name in ALLOW_SPECIFIC_FILE:
         return True
 

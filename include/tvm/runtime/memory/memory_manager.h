@@ -66,8 +66,8 @@ class Allocator {
    *  \param mem_scope The device memory scope hint.
    *  \return The empty NDArray.
    */
-  TVM_DLL NDArray Empty(ShapeTuple shape, DLDataType dtype, Device dev,
-                        Optional<String> mem_scope = NullOpt);
+  TVM_DLL NDArray Empty(ffi::Shape shape, DLDataType dtype, Device dev,
+                        Optional<String> mem_scope = std::nullopt);
   /*! \brief Return the allocator type. */
   inline AllocatorType type() const { return type_; }
   /*! \brief Allocate a buffer given a size, alignment and type.
@@ -86,7 +86,7 @@ class Allocator {
    *  \param mem_scope A memory scope of the buffer.
    *  \return A sized allocation in the form of a buffer.
    */
-  TVM_DLL virtual Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
+  TVM_DLL virtual Buffer Alloc(Device dev, ffi::Shape shape, DLDataType type_hint,
                                const std::string& mem_scope = "");
 
   /*! \brief Create a view for the buffer given a shape, type and scope.
@@ -96,7 +96,7 @@ class Allocator {
    *  \param mem_scope A memory scope of the view.
    *  \return A device pointer to the created view.
    */
-  TVM_DLL virtual void* CreateView(const Buffer& buffer, ShapeTuple shape, DLDataType type_hint,
+  TVM_DLL virtual void* CreateView(const Buffer& buffer, ffi::Shape shape, DLDataType type_hint,
                                    const std::string& mem_scope = "global") {
     return buffer.data;
   }
@@ -164,17 +164,11 @@ class StorageObj : public Object {
   Allocator* allocator = nullptr;
 
   /*! \brief Allocate an NDArray from a given piece of storage. */
-  TVM_DLL NDArray AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype);
+  TVM_DLL NDArray AllocNDArray(int64_t offset, ffi::Shape shape, DLDataType dtype);
 
   /*! \brief Allocate an NDArray with memory scope from a given piece of storage. */
-  TVM_DLL NDArray AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataType dtype,
+  TVM_DLL NDArray AllocNDArrayScoped(int64_t offset, ffi::Shape shape, DLDataType dtype,
                                      String scope = "global");
-
-  /*! \brief The deleter for an NDArray when allocated from underlying storage. */
-  static void ScopedDeleter(Object* ptr);
-
-  /*! \brief The deleter for an NDArray when allocated from underlying storage. */
-  static void Deleter(Object* ptr);
 
   ~StorageObj() {
     if (allocator) {
@@ -182,7 +176,6 @@ class StorageObj : public Object {
     }
   }
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "vm.Storage";
   TVM_DECLARE_FINAL_OBJECT_INFO(StorageObj, Object);
 };

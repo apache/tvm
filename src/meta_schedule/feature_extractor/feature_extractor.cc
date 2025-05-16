@@ -49,7 +49,7 @@ TVM_REGISTER_OBJECT_TYPE(FeatureExtractorNode);
 TVM_REGISTER_NODE_TYPE(PyFeatureExtractorNode);
 
 TVM_REGISTER_GLOBAL("meta_schedule.FeatureExtractorExtractFrom")
-    .set_body_method<FeatureExtractor>(&FeatureExtractorNode::ExtractFrom);
+    .set_body_method(&FeatureExtractorNode::ExtractFrom);
 TVM_REGISTER_GLOBAL("meta_schedule.FeatureExtractorPyFeatureExtractor")
     .set_body_typed(FeatureExtractor::PyFeatureExtractor);
 

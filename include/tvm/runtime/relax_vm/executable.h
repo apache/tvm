@@ -154,7 +154,7 @@ class VMExecutable : public runtime::ModuleNode {
   /*! \brief A map from globals (as strings) to their index in the function map. */
   std::unordered_map<std::string, Index> func_map;
   /*! \brief The global constant pool. */
-  std::vector<TVMRetValue> constants;
+  std::vector<ffi::Any> constants;
   /*! \brief The offset of instruction. */
   std::vector<Index> instr_offset;
   /*! \brief The byte data of instruction. */

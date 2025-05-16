@@ -430,7 +430,7 @@ void TorchPluginCodeGen::CodeGenMalloc(const Plugin& plugin, const Array<PluginT
     int device_idx = plugin->FindDeviceRefIdx(tensors[i]);
     if (device_idx >= 0) {
       const auto& input_doc = DocUtils::ToIndex("input_tensors", device_idx);
-      stack_.inplace_start("device", NullOpt, input_doc).inplace_end();
+      stack_.inplace_start("device", std::nullopt, input_doc).inplace_end();
     } else {
       stack_.inplace_start("TorchUtils::ToTorchDevice")
           .call_arg(DocUtils::ToStr(tensors[i]->device))

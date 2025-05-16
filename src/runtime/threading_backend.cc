@@ -369,7 +369,7 @@ int ThreadGroup::Configure(AffinityMode mode, int nthreads, bool exclude_worker0
   return impl_->Configure(mode, nthreads, exclude_worker0, cpus);
 }
 
-void Yield() {
+void YieldThread() {
 #ifdef __hexagon__
   // QuRT doesn't have a yield API, so instead we sleep for the minimum amount
   // of time to let the OS schedule another thread. std::this_thread::yield()
@@ -437,7 +437,7 @@ int MaxConcurrency() {
 // This global function can be used by disco runtime to bind processes
 // to CPUs.
 TVM_REGISTER_GLOBAL("tvm.runtime.threading.set_current_thread_affinity")
-    .set_body_typed([](IntTuple cpu_ids) {
+    .set_body_typed([](ffi::Shape cpu_ids) {
       SetThreadAffinity(CURRENT_THREAD_HANDLE,
                         std::vector<unsigned int>{cpu_ids.begin(), cpu_ids.end()});
     });

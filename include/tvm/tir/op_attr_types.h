@@ -28,8 +28,8 @@
 #ifndef TVM_TIR_OP_ATTR_TYPES_H_
 #define TVM_TIR_OP_ATTR_TYPES_H_
 
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/packed_func.h>
 
 #include <ostream>
@@ -49,12 +49,12 @@ using TVectorizable = bool;
 /*!
  * \brief The intrinsic lowering function for given op.
  */
-using FLowerIntrinsic = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
+using FLowerIntrinsic = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
 /*!
  * \brief The legalization function for given tir op.
  */
-using FLegalize = runtime::TypedPackedFunc<PrimExpr(PrimExpr)>;
+using FLegalize = ffi::TypedFunction<PrimExpr(PrimExpr)>;
 
 /*!
  * \brief The operator's name in TVMScript printer

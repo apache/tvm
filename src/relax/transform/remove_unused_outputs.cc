@@ -143,7 +143,7 @@ class PartialTupleUsageCollector : ExprVisitor {
           return known_binding.value();
         }
       }
-      return NullOpt;
+      return std::nullopt;
     };
 
     while (auto unwrapped = get_bound_value(expr)) {
@@ -221,8 +221,7 @@ class CallSiteMutator : public ExprMutator {
 namespace transform {
 
 Pass RemoveUnusedOutputs() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) -> IRModule {
+  auto pass_func = [=](IRModule mod, PassContext pc) -> IRModule {
     auto usage = PartialTupleUsageCollector::Collect(mod);
 
     if (usage.empty()) {

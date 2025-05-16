@@ -49,7 +49,7 @@ te::Tensor TETensor(Expr value, Map<tir::Var, PrimExpr> tir_var_map, std::string
     n->dtype = DataType(constant->data->dtype);
 
     int ndim = constant->data->ndim;
-    ShapeTuple shape_tuple = constant->data.Shape();
+    ffi::Shape shape_tuple = constant->data.Shape();
     Array<PrimExpr> shape;
     shape.reserve(ndim);
     for (int i = 0; i < ndim; ++i) {

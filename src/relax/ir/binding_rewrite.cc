@@ -183,7 +183,7 @@ TVM_REGISTER_GLOBAL("relax.dfb_rewrite_add_binding")
 
 TVM_REGISTER_GLOBAL("relax.dfb_rewrite_add")
     .set_body_typed([](DataflowBlockRewrite rwt, Expr expr, Optional<String> name, bool is_dfvar) {
-      if (name.get()) {
+      if (name.has_value()) {
         rwt->Add(name.value(), expr, is_dfvar);
       } else {
         rwt->Add(expr, is_dfvar);
@@ -235,7 +235,7 @@ std::set<Var> GetUnusedVars(Map<Var, Array<Var>> users_map, Array<Var> fn_output
 class RemoveUnusedVars : public ExprMutator {
  public:
   std::set<Var> unused_vars;
-  Optional<DataflowBlock> caught_rewrite = NullOpt;
+  Optional<DataflowBlock> caught_rewrite = std::nullopt;
 
   RemoveUnusedVars(std::set<Var> unused_vars) : unused_vars(std::move(unused_vars)) {}
 

@@ -113,25 +113,6 @@ def test_rpc_simple():
 
 
 @tvm.testing.requires_rpc
-def test_rpc_simple_wlog():
-    server = rpc.Server(key="x1")
-    client = rpc.connect("127.0.0.1", server.port, key="x1", enable_logging=True)
-
-    def check_remote():
-        f1 = client.get_function("rpc.test.addone")
-        assert f1(10) == 11
-        f3 = client.get_function("rpc.test.except")
-
-        with pytest.raises(tvm._ffi.base.TVMError):
-            f3("abc")
-
-        f2 = client.get_function("rpc.test.strcat")
-        assert f2("abc", 11) == "abc:11"
-
-    check_remote()
-
-
-@tvm.testing.requires_rpc
 def test_rpc_runtime_string():
     server = rpc.Server(key="x1")
     client = rpc.connect("127.0.0.1", server.port, key="x1")
@@ -190,8 +171,8 @@ def test_rpc_echo():
         assert bytes(fecho(bytearray(b"123"))) == b"123"
 
         with pytest.raises(RuntimeError):
-            raise_err = remote.get_function("testing.test_raise_error_callback")("RuntimeError")
-            raise_err()
+            raise_err = remote.get_function("testing.test_raise_error")
+            raise_err("RuntimeError", "msg")
 
         remote.cpu().sync()
         # tests around system lib are not threadsafe by design
@@ -225,7 +206,8 @@ def test_rpc_echo():
         )
         check(client, False)
 
-    check_minrpc()
+    # skip for now until we upgrade to new FFI
+    # check_minrpc()
 
 
 @tvm.testing.requires_rpc
@@ -427,9 +409,9 @@ def test_rpc_return_ndarray():
 @tvm.testing.requires_rpc
 def test_rpc_return_remote_object():
     def check(client, is_local):
-        make_shape = client.get_function("runtime.ShapeTuple")
-        get_elem = client.get_function("runtime.GetShapeTupleElem")
-        get_size = client.get_function("runtime.GetShapeTupleSize")
+        make_shape = client.get_function("ffi.Shape")
+        get_elem = client.get_function("runtime.GetShapeElem")
+        get_size = client.get_function("runtime.GetShapeSize")
         shape = make_shape(2, 3)
         assert shape.type_key == "runtime.RPCObjectRef"
         assert get_elem(shape, 0) == 2

@@ -34,12 +34,12 @@
 #ifndef TVM_NODE_NODE_H_
 #define TVM_NODE_NODE_H_
 
+#include <tvm/ffi/memory.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>
 
 #include <string>
@@ -49,18 +49,17 @@
 
 namespace tvm {
 
+using ffi::Any;
+using ffi::AnyView;
+using ffi::Object;
+using ffi::ObjectPtr;
+using ffi::ObjectPtrEqual;
+using ffi::ObjectPtrHash;
+using ffi::ObjectRef;
+using ffi::PackedArgs;
+using ffi::TypeIndex;
 using runtime::Downcast;
 using runtime::GetRef;
-using runtime::make_object;
-using runtime::Object;
-using runtime::ObjectPtr;
-using runtime::ObjectPtrEqual;
-using runtime::ObjectPtrHash;
-using runtime::ObjectRef;
-using runtime::PackedFunc;
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
-using runtime::TypeIndex;
 
 }  // namespace tvm
 #endif  // TVM_NODE_NODE_H_

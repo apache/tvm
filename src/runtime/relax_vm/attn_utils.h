@@ -65,7 +65,7 @@ enum class AttnKind : int {
 };
 
 /*! \brief Given the attention kind and other metadata, return the one-layer KV cache shape. */
-inline ShapeTuple GetKVCacheShape(AttnKind attn_kind, int64_t num_total_pages, int num_sequence,
+inline ffi::Shape GetKVCacheShape(AttnKind attn_kind, int64_t num_total_pages, int num_sequence,
                                   int64_t num_kv_heads, int64_t page_size, int64_t qk_head_dim,
                                   int64_t v_head_dim) {
   if (attn_kind == AttnKind::kMHA) {
@@ -77,7 +77,7 @@ inline ShapeTuple GetKVCacheShape(AttnKind attn_kind, int64_t num_total_pages, i
     return {num_sequence, num_kv_heads, qk_head_dim, v_head_dim};
   }
   ICHECK(false);
-  return ShapeTuple();
+  return ffi::Shape();
 }
 
 /*!
@@ -662,7 +662,7 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     int n_elem = last_page_len->size();
     ICHECK_GT(n_elem, 0);
     NDArray view = length_info_on_depths_device_[depth].CreateView({3, n_elem}, dtype_aux_);
-    ShapeTuple copy_shape{n_elem};
+    ffi::Shape copy_shape{n_elem};
     CopyVecDataToArray(view, last_page_len->data(), copy_shape);
     CopyVecDataToArray(view, sliding_window_offset->data(), copy_shape,
                        /*dst_elem_offset=*/n_elem);
@@ -689,7 +689,7 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     ICHECK_GT(n_elem, 0);
     NDArray view =
         commit_copy_src_dst_pos_in_page_table_device_.CreateView({2, n_elem}, dtype_aux_);
-    ShapeTuple copy_shape{n_elem};
+    ffi::Shape copy_shape{n_elem};
     CopyVecDataToArray(view, src_data->data(), copy_shape);
     CopyVecDataToArray(view, dst_data->data(), copy_shape,
                        /*dst_elem_offset=*/n_elem);
@@ -705,8 +705,8 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
    * It optionally supports specifying the shape of copy and the element
    * offset to the destination NDArray.
    */
-  void CopyVecDataToArray(NDArray array, int32_t* vec_data, Optional<ShapeTuple> shape = NullOpt,
-                          int dst_elem_offset = 0) {
+  void CopyVecDataToArray(NDArray array, int32_t* vec_data,
+                          Optional<ffi::Shape> shape = std::nullopt, int dst_elem_offset = 0) {
     if (array->shape[0] == 0) {
       return;
     }
@@ -730,7 +730,7 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     if (shape.defined()) {
       ICHECK_EQ(shape.value().size(), 1);
       copy_dst.ndim = 1;
-      copy_dst.shape = shape.value()->data;
+      copy_dst.shape = const_cast<int64_t*>(shape.value()->data);
     }
     copy_dst.byte_offset = dst_elem_offset * sizeof(int32_t);
 

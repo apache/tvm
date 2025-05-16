@@ -116,7 +116,7 @@ class RenewDefMutator : public StmtExprMutator {
         std::bind(&RenewDefMutator::VisitMatchBuffer, this, std::placeholders::_1));
 
     // Step 3. Visit body
-    Optional<Stmt> init = NullOpt;
+    Optional<Stmt> init = std::nullopt;
     if (op->init.defined()) {
       init = this->VisitStmt(op->init.value());
     }
