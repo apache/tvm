@@ -28,6 +28,7 @@ from tvm._ffi import register_object, register_func
 from tvm.runtime import Object
 from tvm.target import Target
 from tvm.tir import PrimFunc, Schedule
+from tvm.meta_schedule import postproc
 
 from . import _ffi_api
 from .logging import Logger, get_logger, get_logging_func
@@ -119,7 +120,12 @@ class TuneContext(Object):
                 target = Target(target)
         if space_generator is not None:
             if not isinstance(space_generator, SpaceGenerator):
-                space_generator = SpaceGenerator.create(space_generator)
+                if "gpu" in target.keys:
+                    space_generator = SpaceGenerator.create(
+                        space_generator, postprocs=[postproc.VerifyGPUCode()]
+                    )
+                else:
+                    space_generator = SpaceGenerator.create(space_generator)
         if search_strategy is not None:
             if not isinstance(search_strategy, SearchStrategy):
                 search_strategy = SearchStrategy.create(search_strategy)
