@@ -23,10 +23,7 @@ import java.util.Map;
 /**
  * Container of compiled functions of TVM.
  */
-public class Module extends TVMValue {
-  public final long handle;
-  private boolean isReleased = false;
-
+public class Module extends TVMObject {
   private static ThreadLocal<Map<String, Function>> apiFuncs
       = new ThreadLocal<Map<String, Function>>() {
         @Override
@@ -45,17 +42,12 @@ public class Module extends TVMValue {
   }
 
   Module(long handle) {
-    super(ArgTypeCode.MODULE_HANDLE);
-    this.handle = handle;
+    super(handle, TypeIndex.kTVMFFIModule);
   }
 
   private Function entry = null;
   private final String entryName = "__tvm_main__";
 
-  @Override protected void finalize() throws Throwable {
-    release();
-    super.finalize();
-  }
 
   /**
    * Easy for user to get the instance from returned TVMValue.
@@ -63,23 +55,6 @@ public class Module extends TVMValue {
    */
   @Override public Module asModule() {
     return this;
-  }
-
-  @Override long asHandle() {
-    return handle;
-  }
-
-  /**
-   * Release the Module.
-   * <p>
-   * We highly recommend you to do this manually since the GC strategy is lazy.
-   * </p>
-   */
-  @Override public void release() {
-    if (!isReleased) {
-      Base.checkCall(Base._LIB.tvmModFree(handle));
-      isReleased = true;
-    }
   }
 
   /**
@@ -100,13 +75,9 @@ public class Module extends TVMValue {
    * @return The result function.
    */
   public Function getFunction(String name, boolean queryImports) {
-    Base.RefLong retHandle = new Base.RefLong();
-    Base.checkCall(Base._LIB.tvmModGetFunction(
-        handle, name, queryImports ? 1 : 0, retHandle));
-    if (retHandle.value == 0) {
-      throw new IllegalArgumentException("Module has no function " + name);
-    }
-    return new Function(retHandle.value, false);
+    TVMValue ret = getApi("ModuleGetFunction")
+        .pushArg(this).pushArg(name).pushArg(queryImports ? 1 : 0).invoke();
+    return ret.asFunction();
   }
 
   public Function getFunction(String name) {
@@ -118,7 +89,8 @@ public class Module extends TVMValue {
    * @param module The other module.
    */
   public void importModule(Module module) {
-    Base.checkCall(Base._LIB.tvmModImport(handle, module.handle));
+    getApi("ModuleImport")
+        .pushArg(this).pushArg(module).invoke();
   }
 
   /**
@@ -138,7 +110,6 @@ public class Module extends TVMValue {
    */
   public static Module load(String path, String fmt) {
     TVMValue ret = getApi("ModuleLoadFromFile").pushArg(path).pushArg(fmt).invoke();
-    assert ret.typeCode == ArgTypeCode.MODULE_HANDLE;
     return ret.asModule();
   }
 

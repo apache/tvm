@@ -35,11 +35,6 @@ public class NDArray extends NDArrayBase {
     this.device = dev;
   }
 
-  @Override
-  protected void finalize() throws Throwable {
-    super.finalize();
-  }
-
   /**
    * Copy from a native array.
    * The NDArray type must by float64
@@ -54,9 +49,7 @@ public class NDArray extends NDArrayBase {
     for (int i = 0; i < sourceArray.length; ++i) {
       wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes).putDouble(sourceArray[i]);
     }
-    NDArray tmpArr = empty(shape(), this.dtype);
-    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
-    tmpArr.release();
+    Base.checkCall(Base._LIB.tvmFFIDLTensorCopyFromJArray(nativeArr, this.dltensorHandle));
   }
 
   /**
@@ -73,9 +66,7 @@ public class NDArray extends NDArrayBase {
     for (int i = 0; i < sourceArray.length; ++i) {
       wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes).putFloat(sourceArray[i]);
     }
-    NDArray tmpArr = empty(shape(), this.dtype);
-    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
-    tmpArr.release();
+    Base.checkCall(Base._LIB.tvmFFIDLTensorCopyFromJArray(nativeArr, this.dltensorHandle));
   }
 
   /**
@@ -92,9 +83,7 @@ public class NDArray extends NDArrayBase {
     for (int i = 0; i < sourceArray.length; ++i) {
       wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes).putLong(sourceArray[i]);
     }
-    NDArray tmpArr = empty(shape(), this.dtype);
-    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
-    tmpArr.release();
+    Base.checkCall(Base._LIB.tvmFFIDLTensorCopyFromJArray(nativeArr, this.dltensorHandle));
   }
 
   /**
@@ -111,9 +100,7 @@ public class NDArray extends NDArrayBase {
     for (int i = 0; i < sourceArray.length; ++i) {
       wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes).putInt(sourceArray[i]);
     }
-    NDArray tmpArr = empty(shape(), this.dtype);
-    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
-    tmpArr.release();
+    Base.checkCall(Base._LIB.tvmFFIDLTensorCopyFromJArray(nativeArr, this.dltensorHandle));
   }
 
   /**
@@ -130,9 +117,7 @@ public class NDArray extends NDArrayBase {
     for (int i = 0; i < sourceArray.length; ++i) {
       wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes).putShort(sourceArray[i]);
     }
-    NDArray tmpArr = empty(shape(), this.dtype);
-    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
-    tmpArr.release();
+    Base.checkCall(Base._LIB.tvmFFIDLTensorCopyFromJArray(nativeArr, this.dltensorHandle));
   }
 
   /**
@@ -162,9 +147,7 @@ public class NDArray extends NDArrayBase {
     for (int i = 0; i < sourceArray.length; ++i) {
       wrapBytes(nativeArr, i * dtype.numOfBytes, dtype.numOfBytes).putChar(sourceArray[i]);
     }
-    NDArray tmpArr = empty(shape(), this.dtype);
-    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(nativeArr, tmpArr.handle, handle));
-    tmpArr.release();
+    Base.checkCall(Base._LIB.tvmFFIDLTensorCopyFromJArray(nativeArr, this.dltensorHandle));
   }
 
   private void checkCopySize(int sourceLength) {
@@ -180,9 +163,7 @@ public class NDArray extends NDArrayBase {
    * @param sourceArray the source data
    */
   public void copyFromRaw(byte[] sourceArray) {
-    NDArray tmpArr = empty(shape(), this.dtype);
-    Base.checkCall(Base._LIB.tvmArrayCopyFromJArray(sourceArray, tmpArr.handle, handle));
-    tmpArr.release();
+    Base.checkCall(Base._LIB.tvmFFIDLTensorCopyFromJArray(sourceArray, this.dltensorHandle));
   }
 
   /**
@@ -191,7 +172,7 @@ public class NDArray extends NDArrayBase {
    */
   public long[] shape() {
     List<Long> data = new ArrayList<Long>();
-    Base.checkCall(Base._LIB.tvmArrayGetShape(handle, data));
+    Base.checkCall(Base._LIB.tvmFFIDLTensorGetShape(this.dltensorHandle, data));
     long[] shapeArr = new long[data.size()];
     for (int i = 0; i < shapeArr.length; ++i) {
       shapeArr[i] = data.get(i);
@@ -343,7 +324,7 @@ public class NDArray extends NDArrayBase {
 
     int arrLength = dtype.numOfBytes * (int) size();
     byte[] arr = new byte[arrLength];
-    Base.checkCall(Base._LIB.tvmArrayCopyToJArray(tmp.handle, arr));
+    Base.checkCall(Base._LIB.tvmFFIDLTensorCopyToJArray(this.dltensorHandle, arr));
     return arr;
   }
 
@@ -380,8 +361,9 @@ public class NDArray extends NDArrayBase {
    */
   public static NDArray empty(long[] shape, TVMType dtype, Device dev) {
     Base.RefLong refHandle = new Base.RefLong();
-    Base.checkCall(Base._LIB.tvmArrayAlloc(
-        shape, dtype.typeCode, dtype.bits, dtype.lanes, dev.deviceType, dev.deviceId, refHandle));
+    Base.checkCall(Base._LIB.tvmNDArrayEmpty(
+        shape, dtype.typeCode, dtype.bits,
+        dtype.lanes, dev.deviceType, dev.deviceId, refHandle));
     return new NDArray(refHandle.value, false, dtype, dev);
   }
 

@@ -24,7 +24,6 @@ public class TVMValueHandle extends TVMValue {
   public final long value;
 
   public TVMValueHandle(long value) {
-    super(ArgTypeCode.HANDLE);
     this.value = value;
   }
 
