@@ -134,6 +134,7 @@ from .unary import (
     erf,
     exp,
     floor,
+    frac,
     isfinite,
     isinf,
     isnan,

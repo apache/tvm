@@ -73,6 +73,7 @@ operator_basic_unary = [
     (torch.tan, R.tan),
     (torch.tanh, R.tanh),
     (torch.trunc, R.trunc),
+    (torch.frac, R.frac),
 ]
 
 

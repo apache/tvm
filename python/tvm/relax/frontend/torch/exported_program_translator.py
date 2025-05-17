@@ -322,6 +322,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "erf.default": self._unary_op(relax.op.erf),
             "exp.default": self._unary_op(relax.op.exp),
             "floor.default": self._unary_op(relax.op.floor),
+            "frac.default": self._unary_op(relax.op.frac),
             "gelu.default": self._gelu,
             "hardsigmoid.default": self._hardsigmoid,
             "hardswish.default": self._hardswish,

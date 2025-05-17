@@ -3452,6 +3452,26 @@ def test_extended_unary_ops():
 
     verify_model(Trunc(), input_info, {}, expected_trunc)
 
+    #  frac
+    class Frac(torch.nn.Module):
+        def forward(self, input):
+            return torch.frac(input)
+
+    @I.ir_module
+    class expected_frac:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.frac(inp_0)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Frac(), input_info, {}, expected_frac)
+
 
 def test_interpolate():
     input_info = [([1, 3, 10, 10], "float32")]

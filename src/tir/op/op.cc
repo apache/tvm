@@ -941,6 +941,25 @@ PrimExpr floor(PrimExpr x, Span span) {
 
 TVM_TIR_REGISTER_PURE_UNARY_OP("floor").set_attr<TVectorizable>("TVectorizable", true);
 
+// frac
+PrimExpr frac(PrimExpr x, Span span) {
+  // For integers, fractional part is always 0
+  if (x.dtype().is_int() || x.dtype().is_uint()) {
+    return make_zero(x.dtype());
+  }
+  using tir::FloatImmNode;
+  const FloatImmNode* fx = x.as<FloatImmNode>();
+  if (fx) {
+    // Compute fractional part for constant: x - trunc(x)
+    double trunc_val = (fx->value < 0 ? std::ceil(fx->value) : std::floor(fx->value));
+    return FloatImm(x.dtype(), fx->value - trunc_val, fx->span);
+  }
+  static auto op = Op::Get("tir.frac");
+  return tir::Call(x.dtype(), op, {x}, span);
+}
+
+TVM_TIR_REGISTER_PURE_UNARY_OP("tir.frac").set_attr<TVectorizable>("TVectorizable", true);
+
 // ceil
 PrimExpr ceil(PrimExpr x, Span span) {
   if (x.dtype().is_int() || x.dtype().is_uint()) {

@@ -525,6 +525,23 @@ def trunc(x: Expr) -> Expr:
     return _ffi_api.trunc(x)  # type: ignore
 
 
+def frac(x: Expr) -> Expr:
+    """Take fractional part of input data.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data (must be floating-point)
+
+    Returns
+    -------
+    result : relax.Expr
+        The fractional part of each element in the input tensor.
+        For each element x, returns x - trunc(x).
+    """
+    return _ffi_api.frac(x)  # type: ignore
+
+
 @args_converter.auto
 def clip(x: Expr, min: Expr, max: Expr) -> Expr:
     """Clips tensor values to a specified min and max.
