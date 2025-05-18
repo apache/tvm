@@ -17,18 +17,30 @@
 
 package org.apache.tvm;
 
+import org.apache.tvm.rpc.RPC;
+
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.tvm.rpc.RPC;
 
 public class Device {
   /**
    * Provides the same information as the C++ enums DLDeviceType and
    * TVMDeviceExtType.
    */
-  static final int kDLCPU = 1, kDLCUDA = 2, kDLCUDAHost = 3, kDLOpenCL = 4, kDLVulkan = 7,
-                   kDLMetal = 8, kDLVPI = 9, kDLROCM = 10, kDLROCMHost = 11, kDLExtDev = 12,
-                   kDLCUDAManaged = 13, kDLOneAPI = 14, kDLWebGPU = 15, kDLHexagon = 16;
+  static final int kDLCPU = 1;
+  static final int kDLCUDA = 2;
+  static final int kDLCUDAHost = 3;
+  static final int kDLOpenCL = 4;
+  static final int kDLVulkan = 7;
+  static final int kDLMetal = 8;
+  static final int kDLVPI = 9;
+  static final int kDLROCM = 10;
+  static final int kDLROCMHost = 11;
+  static final int kDLExtDev = 12;
+  static final int kDLCUDAManaged = 13;
+  static final int kDLOneAPI = 14;
+  static final int kDLWebGPU = 15;
+  static final int kDLHexagon = 16;
 
   private static final Map<Integer, String> DEVICE_TYPE_TO_NAME = new HashMap<Integer, String>();
   private static final Map<String, Integer> DEVICE_NAME_TO_TYPE = new HashMap<String, Integer>();
@@ -161,7 +173,8 @@ public class Device {
    */
   public boolean exist() {
     TVMValue ret =
-        APIInternal.get("_GetDeviceAttr").pushArg(deviceType).pushArg(deviceId).pushArg(0).invoke();
+        APIInternal.get("runtime.GetDeviceAttr").pushArg(deviceType)
+        .pushArg(deviceId).pushArg(0).invoke();
     return ((TVMValueLong) ret).value != 0;
   }
 
@@ -171,7 +184,8 @@ public class Device {
    */
   public long maxThreadsPerBlock() {
     TVMValue ret =
-        APIInternal.get("_GetDeviceAttr").pushArg(deviceType).pushArg(deviceId).pushArg(1).invoke();
+        APIInternal.get("runtime.GetDeviceAttr").pushArg(deviceType)
+        .pushArg(deviceId).pushArg(1).invoke();
     return ((TVMValueLong) ret).value;
   }
 
@@ -181,8 +195,9 @@ public class Device {
    */
   public long warpSize() {
     TVMValue ret =
-        APIInternal.get("_GetDeviceAttr").pushArg(deviceType).pushArg(deviceId).pushArg(2).invoke();
-    return ((TVMValueLong) ret).value;
+        APIInternal.get("runtime.GetDeviceAttr").pushArg(deviceType)
+        .pushArg(deviceId).pushArg(2).invoke();
+    return ret.asLong();
   }
 
   /**
