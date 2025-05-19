@@ -1269,8 +1269,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
         assert isinstance(dim, int), "Expected 2nd argument of unbind as int"
         selections = self.shape_of(x)[dim].value
-        n_section = list(range(1, selections + 1))
-        ret, split = [], self.block_builder.emit(relax.op.split(x, n_section, dim))
+        ret, split = [], self.block_builder.emit(relax.op.split(x, selections, dim))
         for i in range(selections):
             ret.append(self.block_builder.emit(relax.op.squeeze(split[i], axis=dim)))
         return self.block_builder.emit(relax.Tuple(ret))

@@ -3108,8 +3108,7 @@ def test_unbind():
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
-                    R.Tensor((0, 3, 10, 10), dtype="float32"),
-                ) = R.split(input_1, indices_or_sections=[1, 2, 3], axis=0)
+                ) = R.split(input_1, indices_or_sections=3, axis=0)
                 lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[0]
                 lv2: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv1, axis=[0])
                 lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[1]
@@ -3152,8 +3151,7 @@ def test_unbind():
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
-                    R.Tensor((3, 0, 10, 10), dtype="float32"),
-                ) = R.split(input_1, indices_or_sections=[1, 2, 3], axis=1)
+                ) = R.split(input_1, indices_or_sections=3, axis=1)
                 lv1: R.Tensor((3, 1, 10, 10), dtype="float32") = lv[0]
                 lv2: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv1, axis=[1])
                 lv3: R.Tensor((3, 1, 10, 10), dtype="float32") = lv[1]
@@ -3978,8 +3976,7 @@ def test_split():
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
-                    R.Tensor((0, 3, 10, 10), dtype="float32"),
-                ) = R.split(input_1, indices_or_sections=[1, 2, 3], axis=0)
+                ) = R.split(input_1, indices_or_sections=3, axis=0)
                 lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[0]
                 lv2: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv1, axis=[0])
                 lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[1]
@@ -4022,8 +4019,7 @@ def test_split():
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
-                    R.Tensor((3, 0, 10, 10), dtype="float32"),
-                ) = R.split(input_1, indices_or_sections=[1, 2, 3], axis=1)
+                ) = R.split(input_1, indices_or_sections=3, axis=1)
                 lv1: R.Tensor((3, 1, 10, 10), dtype="float32") = lv[0]
                 lv2: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv1, axis=[1])
                 lv3: R.Tensor((3, 1, 10, 10), dtype="float32") = lv[1]
