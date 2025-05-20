@@ -57,7 +57,7 @@ class DataType {
     kHandle = TVMArgTypeCode::kTVMOpaqueHandle,
     kBFloat = kDLBfloat,
     kFloat8_e4m3fn = 6U,
-    kFloat8_e4m3fnuz = 9U,
+    kFloat8_e4m3fnuz = 23,
     kFloat8_e5m2 = 7U,
     kFloat4_e2m1fn = 8U,
     kCustomBegin = 129
@@ -482,6 +482,10 @@ inline DLDataType String2DLDataType(std::string s) {
     t.code = DataType::kFloat8_e4m3fn;
     t.bits = 8;
     scan = s.c_str() + 10;
+  } else if (s.substr(0, 14) == "e4m3fnuz_float") {
+    t.code = DataType::kFloat8_e4m3fnuz;
+    t.bits = 8;
+    scan = s.c_str() + 14;
   } else if (s.substr(0, 10) == "e5m2_float") {
     t.code = DataType::kFloat8_e5m2;
     t.bits = 8;

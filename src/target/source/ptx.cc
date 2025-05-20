@@ -55,6 +55,7 @@ enum class DataType : int {
   kInt64 = 8,
   kUInt64 = 9,
   kFloat8_e4m3 = 10,
+  kFloat8_e4m3fnuz = 23,
   kFloat8_e5m2 = 11,
   kFloat16 = 12,
   kBFloat16 = 13,
@@ -102,6 +103,8 @@ inline DataType DTypeFromString(const std::string str) {
     return DataType::kUInt64;
   } else if (str == "e4m3" || str == ".e4m3") {
     return DataType::kFloat8_e4m3;
+  } else if (str == "e4m3fnuz" || str == ".e4m3fnu") {
+    return DataType::kFloat8_e4m3fnuz;
   } else if (str == "e5m2" || str == ".e5m2") {
     return DataType::kFloat8_e5m2;
   } else if (str == "float16" || str == "fp16" || str == ".f16") {

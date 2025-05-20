@@ -67,7 +67,7 @@ class DataTypeCode(object):
     BFLOAT = 4
     E4M3Float = 6
     E5M2Float = 7
-
+    E4M3FnuzFloat = 23
 
 class DataType(ctypes.Structure):
     """TVM datatype structure"""
@@ -81,6 +81,7 @@ class DataType(ctypes.Structure):
         DataTypeCode.BFLOAT: "bfloat",
         DataTypeCode.E4M3Float: "e4m3_float",
         DataTypeCode.E5M2Float: "e5m2_float",
+        DataTypeCode.E4M3FnuzFloat: "e4m3fnuz_float8",
     }
     NUMPY2STR = {
         np.dtype(np.bool_): "bool",
