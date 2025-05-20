@@ -57,6 +57,7 @@ class DataType {
     kHandle = TVMArgTypeCode::kTVMOpaqueHandle,
     kBFloat = kDLBfloat,
     kFloat8_e4m3fn = 6U,
+    kFloat8_e4m3fnuz = 9U,
     kFloat8_e5m2 = 7U,
     kFloat4_e2m1fn = 8U,
     kCustomBegin = 129
@@ -85,7 +86,8 @@ class DataType {
     if (code == kBFloat) {
       ICHECK_EQ(bits, 16);
     }
-    if (code == kFloat8_e4m3fn || code == kFloat8_e5m2) {
+    if (code == kFloat8_e4m3fn || code == kFloat8_e5m2 ||
+        code == kFloat8_e4m3fnuz) {
       ICHECK_EQ(bits, 8);
     }
   }
@@ -130,8 +132,14 @@ class DataType {
            bits() == 8;
   }
   bool is_float8_e4m3fn() const { return (code() == DataType::kFloat8_e4m3fn && bits() == 8); }
+  bool is_float8_e4m3fnuz() const {
+    return (code() == DataType::kFloat8_e4m3fnuz && bits() == 8);
+  }
   bool is_float8_e5m2() const { return (code() == DataType::kFloat8_e5m2 && bits() == 8); }
   bool is_e4m3_float8() const { return (code() == DataType::kFloat8_e4m3fn && bits() == 8); }
+  bool is_e4m3fnuz_float8() const {
+    return (code() == DataType::kFloat8_e4m3fnuz && bits() == 8);
+  }
 
   bool is_e5m2_float8() const { return (code() == DataType::kFloat8_e5m2 && bits() == 8); }
   /*! \return whether type is a float16 type. */
@@ -252,6 +260,13 @@ class DataType {
    * \return The constructed data type.
    */
   static DataType NVFloat8E4M3(int lanes = 1) { return DataType(kFloat8_e4m3fn, 8, lanes); }
+  /*!
+   * \brief Construct NV float8 e4m3fnuz datatype.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType NVFloat8E4M3UZN(int lanes = 1) { return DataType(kFloat8_e4m3fnuz, 8, lanes); }
+  
   /*!
    * \brief Construct NV float8 e5m2 datatype.
    * \param lanes The number of lanes

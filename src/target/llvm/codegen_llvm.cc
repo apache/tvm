@@ -586,7 +586,8 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
       default:
         LOG(FATAL) << "do not support " << dtype;
     }
-  } else if (dtype.code() == DataType::kFloat8_e4m3fn || dtype.code() == DataType::kFloat8_e5m2) {
+  } else if (dtype.code() == DataType::kFloat8_e4m3fn || dtype.code() == DataType::kFloat8_e5m2
+             || dtype.code() == DataType::kFloat8_e4m3fnuz) {
     etype = llvm::Type::getInt8Ty(*ctx);
   }
   if (!dtype.is_scalar()) {

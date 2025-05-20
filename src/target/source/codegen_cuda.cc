@@ -60,6 +60,8 @@ std::string GetFP8Type(DataType type) {
   }
   if (type.code() == DataType::kFloat8_e4m3fn) {
     stream << "fp8_e4" << vec << "_t";
+  } else if (type.code() == DataType::kFloat8_e4m3fnuz) {
+    stream << "fp8_e4" << vec << "_t";
   } else if (type.code() == DataType::kFloat8_e5m2) {
     stream << "fp8_e5" << vec << "_t";
   } else {
@@ -691,7 +693,8 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   if (from_ty.is_scalar()) return CodeGenC::VisitExpr_(op, os);
 
   if (target_ty.code() == DataType::kFloat8_e4m3fn || target_ty.code() == DataType::kFloat8_e5m2 ||
-      from_ty.code() == DataType::kFloat8_e4m3fn || from_ty.code() == DataType::kFloat8_e5m2) {
+      from_ty.code() == DataType::kFloat8_e4m3fn || from_ty.code() == DataType::kFloat8_e5m2
+      || target_ty.code() == DataType::kFloat8_e4m3fnuz) {
     std::ostringstream val;
     val << "(";
     PrintType(target_ty, val);

@@ -124,6 +124,9 @@ class FloatConfig {
         case DataType::kFloat8_e4m3fn:
           // E4M3 format, not consistent with IEEE-754
           return FloatConfig(4, 3, 7, InftyStyle::kNone, NaNStyle::kAllOnes);
+        case DataType::kFloat8_e4m3fnuz:
+          // E4M3 format, not consistent with IEEE-754
+          return FloatConfig(4, 3, 7, InftyStyle::kNone, NaNStyle::kNone);
         default:
           // E5M2 format, consistent with IEEE-754
           return FloatConfig(5, 2, 15, InftyStyle::kIEEE, NaNStyle::kIEEE);

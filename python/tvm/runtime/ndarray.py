@@ -247,6 +247,13 @@ class NDArray(NDArrayBase):
                 raise RuntimeError(
                     "ml_dtypes is not installed, cannot convert e4m3_float8 array to numpy."
                 )
+        if dtype == "e4m3fnuz_float8":
+            if ml_dtypes is not None:
+                dtype = ml_dtypes.float8_e4m3fnuz
+            else:
+                raise RuntimeError(
+                    "ml_dtypes is not installed, cannot convert e4m3fnuz_float8 array to numpy."
+                )
         if dtype == "e5m2_float8":
             if ml_dtypes is not None:
                 dtype = ml_dtypes.float8_e5m2
