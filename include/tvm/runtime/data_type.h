@@ -405,6 +405,8 @@ inline const char* DLDataTypeCode2Str(DLDataTypeCode type_code) {
       return "e4m3_float";
     case DataType::kFloat8_e5m2:
       return "e5m2_float";
+    case DataType::kFloat8_e4m3fnuz:
+      return "e4m3fnuz_float";
     default:
       LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
   }
@@ -456,12 +458,17 @@ inline DLDataType String2DLDataType(std::string s) {
   t.bits = 32;
   t.lanes = 1;
   const char* scan;
+  
   if (s.substr(0, 3) == "int") {
     t.code = kDLInt;
     scan = s.c_str() + 3;
   } else if (s.substr(0, 4) == "uint") {
     t.code = kDLUInt;
     scan = s.c_str() + 4;
+  } else if (s.find("e4m3fnuz") != std::string::npos) {
+    t.code = DataType::kFloat8_e4m3fnuz;
+    t.bits = 8;
+    scan = s.c_str() + 15;
   } else if (s.substr(0, 5) == "float") {
     t.code = kDLFloat;
     scan = s.c_str() + 5;
@@ -508,7 +515,12 @@ inline DLDataType String2DLDataType(std::string s) {
   if (*xdelim == 'x') {
     t.lanes = static_cast<uint16_t>(scalable_multiplier * strtoul(xdelim + 1, &endpt, 10));
   }
-  ICHECK(endpt == s.c_str() + s.length()) << "unknown type " << s;
+  if (endpt != s.c_str() + s.length()) {
+    std::string unprocessed_part(endpt); 
+    std::cout << "Unknown type: '" << s << "'. Unprocessed part starts at: '" << unprocessed_part << "'";
+    ICHECK(endpt == s.c_str() + s.length())
+       << "Unknown type: '" << s << "'. Unprocessed part: '" << std::string(endpt) << "'";
+  }
   return t;
 }
 
