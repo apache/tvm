@@ -471,7 +471,7 @@ def test_bitwise_shift(direction: str):
         "Sign",
         "Softplus",
         "Softsign",
-        # "Erf", // TODO @Cookiee235, fix the precision loss due to the approximation 
+        # "Erf", // TODO @Cookiee235, fix the precision loss due to the approximation
         "Sigmoid",
         "Softmax",
         "LogSoftmax",
