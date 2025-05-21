@@ -515,6 +515,8 @@ def sqrt(x):
     y : tvm.te.Tensor
         The result.
     """
+    if x.dtype.startswith("int"):
+        x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
     return te.compute(x.shape, lambda *i: te.sqrt(x(*i)))
 
 
@@ -532,6 +534,8 @@ def rsqrt(x):
     y : tvm.te.Tensor
         The result.
     """
+    if x.dtype.startswith("int"):
+        x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
     return te.compute(x.shape, lambda *i: te.rsqrt(x(*i)))
 
 

@@ -32,7 +32,6 @@ using namespace tvm::ffi::testing;
 TEST(Variant, Basic) {
   Variant<int, float> v1 = 1;
   EXPECT_EQ(v1.get<int>(), 1);
-  EXPECT_EQ(v1.as<float>().value(), 1.0f);
 
   Variant<int, float> v2 = 2.0f;
   EXPECT_EQ(v2.get<float>(), 2.0f);
@@ -134,4 +133,31 @@ TEST(Variant, Upcast) {
   EXPECT_EQ(a1[0].get<int>(), 1);
 }
 
+TEST(Variant, AllObjectRef) {
+  Variant<TInt, Array<TInt>> v0 = TInt(1);
+  EXPECT_EQ(v0.get<TInt>()->value, 1);
+  static_assert(std::is_base_of_v<ObjectRef, decltype(v0)>);
+  Any any0 = v0;
+  EXPECT_EQ(any0.cast<TInt>()->value, 1);
+  auto v2 = any0.cast<Variant<TInt, Array<TInt>>>();
+  EXPECT_TRUE(v0.same_as(v2));
+  // assignment operator
+  v0 = Array<TInt>({TInt(2), TInt(3)});
+  EXPECT_EQ(v0.get<Array<TInt>>().size(), 2);
+  EXPECT_EQ(v0.get<Array<TInt>>()[0]->value, 2);
+  EXPECT_EQ(v0.get<Array<TInt>>()[1]->value, 3);
+  EXPECT_EQ(sizeof(v0), sizeof(ObjectRef));
+}
+
+TEST(Variant, PODSameAs) {
+  Variant<String, int> v0 = 1;
+  Variant<String, int> v1 = 1;
+  EXPECT_TRUE(v0.same_as(v1));
+  String s = String("hello");
+  v0 = s;
+  v1 = s;
+  EXPECT_TRUE(v0.same_as(v1));
+  v1 = String("hello");
+  EXPECT_TRUE(!v0.same_as(v1));
+}
 }  // namespace

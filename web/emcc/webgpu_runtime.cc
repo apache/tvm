@@ -26,13 +26,11 @@
 #define TVM_LOG_STACK_TRACE 0
 #define TVM_LOG_DEBUG 0
 #define TVM_LOG_CUSTOMIZE 1
+#define TVM_FFI_ALWAYS_LOG_BEFORE_THROW 1
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
-#include <dmlc/thread_local.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <iostream>
 #include <string>
@@ -152,7 +150,10 @@ typedef dmlc::ThreadLocalStore<WebGPUThreadEntry> WebGPUThreadStore;
 WebGPUThreadEntry::WebGPUThreadEntry()
     : pool(static_cast<DLDeviceType>(kDLWebGPU), WebGPUDeviceAPI::Global()) {}
 
-WebGPUThreadEntry* WebGPUThreadEntry::ThreadLocal() { return WebGPUThreadStore::Get(); }
+WebGPUThreadEntry* WebGPUThreadEntry::ThreadLocal() {
+  static thread_local WebGPUThreadEntry inst = WebGPUThreadEntry();
+  return &inst;
+}
 
 class WebGPUModuleNode final : public runtime::ModuleNode {
  public:
@@ -241,12 +242,13 @@ Module WebGPUModuleLoadBinary(void* strm) {
 }
 
 // for now webgpu is hosted via a vulkan module.
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_webgpu").set_body_typed(WebGPUModuleLoadBinary);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_webgpu").set_body_typed(WebGPUModuleLoadBinary);
 
-TVM_REGISTER_GLOBAL("device_api.webgpu").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  DeviceAPI* ptr = WebGPUDeviceAPI::Global();
-  *rv = static_cast<void*>(ptr);
-});
+TVM_FFI_REGISTER_GLOBAL("device_api.webgpu")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      DeviceAPI* ptr = WebGPUDeviceAPI::Global();
+      *rv = static_cast<void*>(ptr);
+    });
 
 }  // namespace runtime
 }  // namespace tvm

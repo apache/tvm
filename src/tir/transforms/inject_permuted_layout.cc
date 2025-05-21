@@ -108,7 +108,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
       return GetRef<String>(node) != "";
     } else if (auto* node = annotation.as<IntImmNode>()) {
       return node->value != 0;
-    } else if (auto opt_val = annotation.as<int64_t>()) {
+    } else if (auto opt_val = annotation.try_cast<int64_t>()) {
       return *opt_val != 0;
     } else {
       LOG(FATAL) << "Invalid permuted layout annotation: " << annotation;

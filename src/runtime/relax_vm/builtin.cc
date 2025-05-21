@@ -123,7 +123,7 @@ void MatchShape(ffi::PackedArgs args, Any* rv) {
   } else {
     input_shape = args[0].cast<ffi::Shape>();
   }
-  auto heap = args[1].as<DLTensor*>();
+  auto heap = args[1].try_cast<DLTensor*>();
   int64_t* heap_data = heap.has_value() ? static_cast<int64_t*>((*heap)->data) : nullptr;
   int64_t size = args[2].cast<int64_t>();
   const int64_t kBeginCode = 3;
@@ -192,7 +192,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_prim_value").set_body_typed(MakePrimValue);
  */
 void MakeShape(ffi::PackedArgs args, Any* rv) {
   // NOTE: heap can be nullptr
-  auto heap = args[0].as<DLTensor*>();
+  auto heap = args[0].try_cast<DLTensor*>();
   int64_t* heap_data = heap.has_value() ? static_cast<int64_t*>((*heap)->data) : nullptr;
   int64_t size = args[1].cast<int64_t>();
   const int64_t kBeginCode = 2;
@@ -235,7 +235,7 @@ void CheckTensorInfo(ffi::PackedArgs args, Any* rv) {
     err_ctx = args[3].cast<Optional<String>>();
   }
 
-  auto opt_ptr = arg.as<DLTensor*>();
+  auto opt_ptr = arg.try_cast<DLTensor*>();
   CHECK(opt_ptr.has_value()) << "TypeError: " << err_ctx.value_or("") << " expect a Tensor but get "
                              << arg.GetTypeKey();
 
@@ -422,7 +422,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.to_device")
  * \return Bool
  */
 bool ReadIfCond(AnyView cond) {
-  if (auto opt_int = cond.as<bool>()) {
+  if (auto opt_int = cond.try_cast<bool>()) {
     return opt_int.value();
   }
   NDArray arr = cond.cast<tvm::runtime::NDArray>();

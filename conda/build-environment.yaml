@@ -20,12 +20,10 @@ name: tvm-build
 
 # The conda channels to lookup the dependencies
 channels:
-  - anaconda
   - conda-forge
 
 # The packages to install to the environment
 dependencies:
-  - python=3.9
   - conda < 24.9.0
   - conda-build < 24.9.0
   - git

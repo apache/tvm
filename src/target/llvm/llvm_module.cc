@@ -31,8 +31,10 @@
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
+#if _WIN32
 #include <llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h>
 #include <llvm/ExecutionEngine/SectionMemoryManager.h>
+#endif
 #include <llvm/IR/DataLayout.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Intrinsics.h>
@@ -503,9 +505,13 @@ void LLVMModuleNode::InitORCJIT() {
   const auto linkerBuilder =
       [&](llvm::orc::ExecutionSession& session,
           const llvm::Triple& triple) -> std::unique_ptr<llvm::orc::ObjectLayer> {
+#if _WIN32
     auto GetMemMgr = []() { return std::make_unique<llvm::SectionMemoryManager>(); };
     auto ObjLinkingLayer =
         std::make_unique<llvm::orc::RTDyldObjectLinkingLayer>(session, std::move(GetMemMgr));
+#else
+    auto ObjLinkingLayer = std::make_unique<llvm::orc::ObjectLinkingLayer>(session);
+#endif
     if (triple.isOSBinFormatCOFF()) {
       ObjLinkingLayer->setOverrideObjectFlagsWithResponsibilityFlags(true);
       ObjLinkingLayer->setAutoClaimResponsibilityForObjectSymbols(true);

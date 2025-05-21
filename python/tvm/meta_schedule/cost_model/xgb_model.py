@@ -537,13 +537,17 @@ class XGBModel(PyCostModel):
         self.last_train_size = self.data_size
 
         # Step 5. Re-train the model
-        self._train(
-            xs=list(itertools_chain.from_iterable([g.features for g in self.data.values()])),
-            ys=np.concatenate(
-                [g.min_cost / g.costs for g in self.data.values()],
-                axis=0,
-            ),
-        )
+        with np.errstate(divide="ignore", invalid="ignore"):
+            feature_list = list(
+                itertools_chain.from_iterable([g.features for g in self.data.values()])
+            )
+            cost_ratio_list = [
+                np.divide(g.min_cost, g.costs, out=np.zeros_like(g.costs), where=g.costs != 0)
+                for g in self.data.values()
+            ]
+            cost_ratios = np.concatenate(cost_ratio_list, axis=0)
+
+        self._train(xs=feature_list, ys=cost_ratios)
 
     def predict(
         self,

@@ -123,9 +123,9 @@
  * This macro is used to clear the padding parts for hash and equality check
  * in 32bit platform.
  */
-#define TVM_FFI_CLEAR_PTR_PADDING_IN_FFI_ANY(result)                \
-  if constexpr (sizeof(result->v_obj) != sizeof(result->v_int64)) { \
-    result->v_int64 = 0;                                            \
+#define TVM_FFI_CLEAR_PTR_PADDING_IN_FFI_ANY(result)                    \
+  if constexpr (sizeof((result)->v_obj) != sizeof((result)->v_int64)) { \
+    (result)->v_int64 = 0;                                              \
   }
 
 namespace tvm {

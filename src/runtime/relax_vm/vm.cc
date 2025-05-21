@@ -788,7 +788,7 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
     }
     int ret_kind = static_cast<int>(VMInstrumentReturnKind::kNoOp);
     instrument_.CallPacked(call_args.data(), call_args.size(), &rv);
-    if (auto opt_int = rv.as<int64_t>()) {
+    if (auto opt_int = rv.try_cast<int64_t>()) {
       ret_kind = opt_int.value();
     }
     if (ret_kind != static_cast<int>(VMInstrumentReturnKind::kSkipRun)) {

@@ -173,7 +173,7 @@ class StorageAlignInvalidAnnotationError : public ScheduleError {
 
  private:
   static bool IsValidAnnotation(const Block& block, const Any& anno_value) {
-    return anno_value.as<ffi::Array<ffi::Tuple<int, int, int, int>>>().has_value();
+    return anno_value.try_cast<ffi::Array<ffi::Tuple<int, int, int, int>>>().has_value();
   }
 
   IRModule mod_;

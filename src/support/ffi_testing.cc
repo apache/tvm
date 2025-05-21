@@ -255,7 +255,7 @@ class TestingEventLogger {
 };
 
 TVM_REGISTER_GLOBAL("testing.record_event").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  if (args.size() != 0 && args[0].as<String>()) {
+  if (args.size() != 0 && args[0].try_cast<String>()) {
     TestingEventLogger::ThreadLocal()->Record(args[0].cast<String>());
   } else {
     TestingEventLogger::ThreadLocal()->Record("X");

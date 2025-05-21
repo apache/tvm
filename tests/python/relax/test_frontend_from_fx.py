@@ -168,9 +168,10 @@ def test_conv1d_transpose():
                     w1,
                     strides=[1],
                     padding=[0, 0],
+                    output_padding=[0],
                     dilation=[1],
                     data_layout="NCW",
-                    kernel_layout="OIW",
+                    kernel_layout="IOW",
                     out_layout="NCW",
                     out_dtype="float32",
                 )
@@ -202,9 +203,10 @@ def test_conv1d_transpose():
                     w1,
                     strides=[1],
                     padding=[0, 0],
+                    output_padding=[0],
                     dilation=[1],
                     data_layout="NCW",
-                    kernel_layout="OIW",
+                    kernel_layout="IOW",
                     out_layout="NCW",
                     out_dtype="float32",
                 )
@@ -352,9 +354,10 @@ def test_conv2d_transpose():
                     w1,
                     strides=[1, 1],
                     padding=[0, 0, 0, 0],
+                    output_padding=[0, 0],
                     dilation=[1, 1],
                     data_layout="NCHW",
-                    kernel_layout="OIHW",
+                    kernel_layout="IOHW",
                     out_layout="NCHW",
                     out_dtype="float32",
                 )
@@ -386,9 +389,10 @@ def test_conv2d_transpose():
                     w1,
                     strides=[1, 1],
                     padding=[0, 0, 0, 0],
+                    output_padding=[0, 0],
                     dilation=[1, 1],
                     data_layout="NCHW",
-                    kernel_layout="OIHW",
+                    kernel_layout="IOHW",
                     out_layout="NCHW",
                     out_dtype="float32",
                 )
@@ -874,6 +878,27 @@ def test_einsum():
     verify_model(Einsum2(), [([5], "float32"), ([4], "float32")], {}, Expected2)
 
 
+def test_outer():
+    class Outer(torch.nn.Module):
+        def forward(self, x, y):
+            return torch.outer(x, y)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            a: R.Tensor((3,), dtype="float32"), b: R.Tensor((4,), dtype="float32")
+        ) -> R.Tensor((3, 4), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((3, 4), dtype="float32") = R.outer(a, b)
+                gv: R.Tensor((3, 4), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    input_infos = [([3], "float32"), ([4], "float32")]
+    verify_model(Outer(), input_infos, {}, expected)
+
+
 @tvm.testing.requires_gpu
 def test_softplus():
     import torch
@@ -1287,6 +1312,103 @@ def test_maxpool3d():
     verify_model(MaxPool3d3(), input_info, {}, expected3)
 
 
+def test_avgpool1d():
+    input_info = [([1, 3, 10], "float32")]
+
+    class AvgPool1d(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool1d(kernel_size=1)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10), dtype="float32"):
+            with R.dataflow():
+                lv = R.nn.avg_pool1d(
+                    input_1,
+                    pool_size=[1],
+                    strides=[1],
+                    dilation=[1],
+                    padding=[0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                gv = lv
+                R.output(gv)
+            return gv
+
+    class AvgPool1d2(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool1d(kernel_size=4, stride=2, padding=2, ceil_mode=True)
+
+        def forward(self, input):
+            return self.pool(input)
+
+    class AvgPool1d3(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool1d(
+                input, kernel_size=4, stride=2, padding=2, ceil_mode=True
+            )
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool1d(
+                    input_1,
+                    pool_size=[4],
+                    strides=[2],
+                    dilation=[1],
+                    padding=[2, 2],
+                    ceil_mode=True,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                gv = lv
+                R.output(gv)
+            return gv
+
+    class AvgPool1d4(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool1d(input, kernel_size=2)
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 10), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool1d(
+                    input_1,
+                    pool_size=[2],
+                    strides=[2],
+                    dilation=[1],
+                    padding=[0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCW",
+                    out_layout="NCW",
+                )
+                gv = lv
+                R.output(gv)
+            return gv
+
+    verify_model(AvgPool1d(), input_info, {}, expected1)
+    verify_model(AvgPool1d2(), input_info, {}, expected2)
+    verify_model(AvgPool1d3(), input_info, {}, expected2)
+    verify_model(AvgPool1d4(), input_info, {}, expected3)
+
+
 def test_avgpool2d():
     input_info = [([1, 3, 10, 10], "float32")]
 
@@ -1379,6 +1501,105 @@ def test_avgpool2d():
     verify_model(AvgPool2d2(), input_info, {}, expected2)
     verify_model(AvgPool2d3(), input_info, {}, expected2)
     verify_model(AvgPool2d4(), input_info, {}, expected3)
+
+
+def test_avgpool3d():
+    input_info = [([1, 3, 8, 8, 8], "float32")]
+
+    class AvgPool3d(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool3d(kernel_size=[1, 1, 1])
+
+        def forward(self, input):
+            return self.pool(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")
+        ) -> R.Tensor((1, 3, 8, 8, 8), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 8, 8, 8), dtype="float32") = R.nn.avg_pool3d(
+                    input_1,
+                    pool_size=[1, 1, 1],
+                    strides=[1, 1, 1],
+                    dilation=[1, 1, 1],
+                    padding=[0, 0, 0, 0, 0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                gv: R.Tensor((1, 3, 8, 8, 8), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    class AvgPool3d2(Module):
+        def __init__(self):
+            super().__init__()
+            self.pool = torch.nn.AvgPool3d(
+                kernel_size=[3, 3, 3], stride=2, padding=1, ceil_mode=True
+            )
+
+        def forward(self, input):
+            return self.pool(input)
+
+    class AvgPool3d3(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool3d(
+                input, kernel_size=[3, 3, 3], stride=2, padding=1, ceil_mode=True
+            )
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool3d(
+                    input_1,
+                    pool_size=[3, 3, 3],
+                    strides=[2, 2, 2],
+                    dilation=[1, 1, 1],
+                    padding=[1, 1, 1, 1, 1, 1],
+                    ceil_mode=True,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                gv = lv
+                R.output(gv)
+            return gv
+
+    class AvgPool3d4(Module):
+        def forward(self, input):
+            return torch.nn.functional.avg_pool3d(input, kernel_size=[2, 1, 2], stride=[2, 1, 2])
+
+    @tvm.script.ir_module
+    class expected3:
+        @R.function
+        def main(input_1: R.Tensor((1, 3, 8, 8, 8), dtype="float32")):
+            with R.dataflow():
+                lv = R.nn.avg_pool3d(
+                    input_1,
+                    pool_size=[2, 1, 2],
+                    strides=[2, 1, 2],
+                    dilation=[1, 1, 1],
+                    padding=[0, 0, 0, 0, 0, 0],
+                    ceil_mode=False,
+                    count_include_pad=True,
+                    layout="NCDHW",
+                    out_layout="NCDHW",
+                )
+                gv = lv
+                R.output(gv)
+            return gv
+
+    verify_model(AvgPool3d(), input_info, {}, expected1)
+    verify_model(AvgPool3d2(), input_info, {}, expected2)
+    verify_model(AvgPool3d3(), input_info, {}, expected2)
+    verify_model(AvgPool3d4(), input_info, {}, expected3)
 
 
 def test_adaptive_avgpool1d():
@@ -2991,27 +3212,32 @@ def test_extended_unary_ops():
     verify_model(ReLU1(), input_info, {}, expected_relu)
 
     # relu6
-    class ReLU6(Module):
+    class ReLU6_1(torch.nn.Module):
         def __init__(self):
             super().__init__()
             self.relu6 = torch.nn.ReLU6()
 
-        def forward(self, input):
-            return self.relu6(input)
+        def forward(self, x):
+            return self.relu6(x)
+
+    class ReLU6_2(torch.nn.Module):
+        def forward(self, x):
+            return torch.nn.functional.relu6(x)
 
     @tvm.script.ir_module
-    class expected_relu6:
+    class expected:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(input_1, 0, 6)
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu6(inp_0)
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
                 R.output(gv)
             return gv
 
-    verify_model(ReLU6(), input_info, {}, expected_relu6)
+    verify_model(ReLU6_1(), input_info, {}, expected)
+    verify_model(ReLU6_2(), input_info, {}, expected)
 
     # selu
     class Selu1(Module):
@@ -3250,7 +3476,7 @@ def test_interpolate():
                     method="nearest_neighbor",
                     coordinate_transformation_mode="asymmetric",
                     rounding_method="round",
-                    cubic_alpha=-0.5,
+                    cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
                     out_dtype="",
@@ -3287,7 +3513,7 @@ def test_interpolate():
                     method="linear",
                     coordinate_transformation_mode="half_pixel",
                     rounding_method="round",
-                    cubic_alpha=-0.5,
+                    cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
                     out_dtype="",
@@ -3324,7 +3550,7 @@ def test_interpolate():
                     method="linear",
                     coordinate_transformation_mode="half_pixel",
                     rounding_method="round",
-                    cubic_alpha=-0.5,
+                    cubic_alpha=-0.75,
                     cubic_exclude=0,
                     extrapolation_value=0,
                     out_dtype="",
@@ -3334,6 +3560,43 @@ def test_interpolate():
             return gv
 
     verify_model(Interpolate3(), input_info, {}, expected3)
+
+    class Interpolate4(Module):
+        def forward(self, input):
+            return torch.nn.functional.interpolate(
+                input,
+                size=None,
+                scale_factor=(2.0, 1.0),
+                mode="bicubic",
+                align_corners=False,
+            )
+
+    @tvm.script.ir_module
+    class expected4:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 20, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 20, 10), dtype="float32") = R.image.resize2d(
+                    input_1,
+                    (20, 10),
+                    roi=[0.000000, 0.000000, 0.000000, 0.000000],
+                    layout="NCHW",
+                    method="cubic",
+                    coordinate_transformation_mode="half_pixel",
+                    rounding_method="round",
+                    cubic_alpha=-0.75,
+                    cubic_exclude=0,
+                    extrapolation_value=0,
+                    out_dtype="",
+                )
+                gv: R.Tensor((1, 3, 20, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Interpolate4(), input_info, {}, expected4)
 
 
 def test_addmm():
@@ -3483,8 +3746,7 @@ def test_unbind():
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
-                    R.Tensor((0, 3, 10, 10), dtype="float32"),
-                ) = R.split(input_1, indices_or_sections=[1, 2, 3], axis=0)
+                ) = R.split(input_1, indices_or_sections=3, axis=0)
                 lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[0]
                 lv2: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv1, axis=[0])
                 lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[1]
@@ -3520,8 +3782,7 @@ def test_unbind():
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
-                    R.Tensor((3, 0, 10, 10), dtype="float32"),
-                ) = R.split(input_1, indices_or_sections=[1, 2, 3], axis=1)
+                ) = R.split(input_1, indices_or_sections=3, axis=1)
                 lv1: R.Tensor((3, 1, 10, 10), dtype="float32") = lv[0]
                 lv2: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv1, axis=[1])
                 lv3: R.Tensor((3, 1, 10, 10), dtype="float32") = lv[1]

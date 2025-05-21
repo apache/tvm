@@ -703,7 +703,8 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
     const IRModule& mod, const Variant<Bool, Array<String>>& shared_transform) {
   std::vector<std::pair<GlobalVar, Function>> target_functions;
   if (shared_transform.as<Array<String>>().value_or(Array<String>{}).size()) {
-    for (const auto& name : shared_transform.as<Array<String>>().value()) {
+    auto names = shared_transform.as<Array<String>>().value();
+    for (const auto& name : names) {
       auto gvar = mod->global_var_map_.Get(name);
       CHECK(gvar) << "When LiftTransformParams is called with a list of function names, "
                   << "all function names must occur within the IRModule.  "

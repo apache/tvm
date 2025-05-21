@@ -32,7 +32,7 @@ TVM_FFI_REGISTER_GLOBAL("ffi.Shape").set_body_packed([](ffi::PackedArgs args, An
   int64_t* mutable_data;
   ObjectPtr<ShapeObj> shape = details::MakeEmptyShape(args.size(), &mutable_data);
   for (int i = 0; i < args.size(); ++i) {
-    if (auto opt_int = args[i].as<int64_t>()) {
+    if (auto opt_int = args[i].try_cast<int64_t>()) {
       mutable_data[i] = *opt_int;
     } else {
       TVM_FFI_THROW(ValueError) << "Expect shape to take list of int arguments";

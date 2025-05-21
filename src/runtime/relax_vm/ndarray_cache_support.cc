@@ -364,7 +364,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name_unpacked")
       Array<String> names;
       names.reserve(args.size());
       for (int i = 0; i < args.size(); ++i) {
-        if (!args[i].as<String>()) {
+        if (!args[i].try_cast<String>()) {
           LOG(FATAL) << "ValueError: Expect string as input, but get " << args[i].GetTypeKey()
                      << " at " << i;
         }

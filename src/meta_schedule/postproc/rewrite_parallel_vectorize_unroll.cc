@@ -106,22 +106,22 @@ bool ParseAnnotation(const Block& block, ParsedAnnotation* parsed) {
   for (const auto& ann : block->annotations) {
     if (ann.first == attr::meta_schedule_parallel) {
       found = true;
-      if (auto opt_int_imm = ann.second.as<IntImm>()) {
+      if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->max_parallel_extent = (*opt_int_imm)->value;
       }
     } else if (ann.first == attr::meta_schedule_vectorize) {
       found = true;
-      if (auto opt_int_imm = ann.second.as<IntImm>()) {
+      if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->max_vectorize_extent = (*opt_int_imm)->value;
       }
     } else if (ann.first == attr::meta_schedule_unroll_explicit) {
       found = true;
-      if (auto opt_int_imm = ann.second.as<IntImm>()) {
+      if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->unroll_explicit = (*opt_int_imm)->value;
       }
     } else if (ann.first == attr::meta_schedule_unroll_implicit) {
       found = true;
-      if (auto opt_int_imm = ann.second.as<IntImm>()) {
+      if (auto opt_int_imm = ann.second.try_cast<IntImm>()) {
         parsed->unroll_implicit = (*opt_int_imm)->value;
       }
     }

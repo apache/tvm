@@ -279,6 +279,9 @@ Pass SimplifyForFeatureExtraction() {
     }
 
     Stmt VisitStmt_(const ForNode* loop) final {
+      if (is_zero(loop->extent)) {
+        return Evaluate(0);
+      }
       if (is_zero(loop->min) && is_one(loop->extent) && loop->kind == ForKind::kSerial &&
           loop->annotations.empty()) {
         unit_vars_.insert(loop->loop_var);

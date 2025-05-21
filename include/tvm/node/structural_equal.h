@@ -357,7 +357,11 @@ class SEqualReducer {
       // depth as array comparison is pretty common.
       if (lhs.size() != rhs.size()) return false;
       for (size_t i = 0; i < lhs.size(); ++i) {
-        if (!(operator()(lhs[i], rhs[i]))) return false;
+        if constexpr (std::is_same_v<T, ffi::Any>) {
+          if (!(AnyEqual(lhs[i], rhs[i]))) return false;
+        } else {
+          if (!(operator()(lhs[i], rhs[i]))) return false;
+        }
       }
       return true;
     }

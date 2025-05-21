@@ -424,9 +424,9 @@ inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
   results.reserve(arr->size());
   for (Any val : *arr) {
     auto float_value = [&]() -> FloatImm {
-      if (auto opt_int_imm = val.as<IntImm>()) {
+      if (auto opt_int_imm = val.try_cast<IntImm>()) {
         return FloatImm(DataType::Float(32), (*opt_int_imm)->value);
-      } else if (auto opt_float_imm = val.as<FloatImm>()) {
+      } else if (auto opt_float_imm = val.try_cast<FloatImm>()) {
         return *std::move(opt_float_imm);
       } else {
         LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: " << val.GetTypeKey();
@@ -451,7 +451,7 @@ inline Array<Integer> AsIntArray(const ObjectRef& obj) {
   results.reserve(arr->size());
   for (Any val : *arr) {
     auto int_value = [&]() -> int64_t {
-      if (auto opt_int_imm = val.as<IntImm>()) {
+      if (auto opt_int_imm = val.try_cast<IntImm>()) {
         return (*opt_int_imm)->value;
       } else {
         LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << val.GetTypeKey();

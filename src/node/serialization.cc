@@ -119,7 +119,7 @@ class NodeIndexer : public AttrVisitor {
     } else if (auto opt_map = node.as<const ffi::MapObj*>()) {
       const ffi::MapObj* n = opt_map.value();
       bool is_str_map = std::all_of(n->begin(), n->end(), [](const auto& v) {
-        return v.first.template as<const ffi::StringObj*>().has_value();
+        return v.first.template as<const ffi::StringObj*>();
       });
       if (is_str_map) {
         for (const auto& kv : *n) {
@@ -280,7 +280,7 @@ class JSONAttrGetter : public AttrVisitor {
     } else if (auto opt_map = node.as<const ffi::MapObj*>()) {
       const ffi::MapObj* n = opt_map.value();
       bool is_str_map = std::all_of(n->begin(), n->end(), [](const auto& v) {
-        return v.first.template as<const ffi::StringObj*>().has_value();
+        return v.first.template as<const ffi::StringObj*>();
       });
       if (is_str_map) {
         for (const auto& kv : *n) {

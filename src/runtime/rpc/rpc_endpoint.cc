@@ -189,14 +189,14 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     LOG(FATAL) << "RPCServerError:" << RPCServerStatusToString(code);
   }
 
-  uint64_t PackedSeqGetNumBytes(const TVMValue* arg_values, const int* type_codes, int num_args,
-                                bool client_mode) {
-    return RPCReference::PackedSeqGetNumBytes(arg_values, type_codes, num_args, client_mode, this);
+  uint64_t PackedSeqGetNumBytes(const ffi::AnyView* packed_args, int num_args, bool client_mode) {
+    return RPCReference::PackedSeqGetNumBytes(reinterpret_cast<const TVMFFIAny*>(packed_args),
+                                              num_args, client_mode, this);
   }
 
-  void SendPackedSeq(const TVMValue* arg_values, const int* type_codes, int num_args,
-                     bool client_mode) {
-    RPCReference::SendPackedSeq(arg_values, type_codes, num_args, client_mode, this);
+  void SendPackedSeq(const ffi::AnyView* packed_args, int num_args, bool client_mode) {
+    RPCReference::SendPackedSeq(reinterpret_cast<const TVMFFIAny*>(packed_args), num_args,
+                                client_mode, this);
   }
 
   // Endian aware IO handling
@@ -228,7 +228,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     // which is needed for wasm and other env that goes through C API
     if (obj->IsInstance<RPCObjectRefObj>()) {
       auto* ref = static_cast<RPCObjectRefObj*>(obj);
-      this->template Write<uint32_t>(kRuntimeRPCObjectRefTypeIndex);
+      this->template Write<uint32_t>(runtime::TypeIndex::kRuntimeRPCObjectRef);
       uint64_t handle = reinterpret_cast<uint64_t>(ref->object_handle());
       this->template Write<int64_t>(handle);
     } else {
@@ -246,7 +246,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     }
   }
 
-  void ReadObject(int* tcode, TVMValue* value) {
+  void ReadObject(TVMFFIAny* out) {
     // NOTE: for now all remote object are encoded as RPCObjectRef
     // follow the same disco protocol in case we would like to upgrade later
     //
@@ -254,7 +254,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     // which is needed for wasm and other env that goes through C API
     uint32_t type_index;
     this->template Read<uint32_t>(&type_index);
-    if (type_index == kRuntimeRPCObjectRefTypeIndex) {
+    if (type_index == runtime::TypeIndex::kRuntimeRPCObjectRef) {
       uint64_t handle;
       this->template Read<uint64_t>(&handle);
       // Always wrap things back in RPCObjectRef
@@ -263,8 +263,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       RPCObjectRef rpc_obj(make_object<RPCObjectRefObj>(reinterpret_cast<void*>(handle), nullptr));
       // Legacy ABI translation
       // TODO(tqchen): remove this once we have upgraded to new ABI
-      AnyView rpc_obj_view = rpc_obj;
-      AnyViewToLegacyTVMArgValue(rpc_obj_view.CopyToTVMFFIAny(), value, tcode);
+      *reinterpret_cast<AnyView*>(out) = rpc_obj;
       object_arena_.push_back(rpc_obj);
     } else {
       LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
@@ -342,7 +341,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       return;
     } else {
       ICHECK_EQ(init_header_step_, 1);
-      this->ReadArray(dmlc::BeginPtr(*remote_key_), remote_key_->length());
+      this->ReadArray(remote_key_->data(), remote_key_->length());
       this->SwitchToState(kRecvPacketNumBytes);
     }
   }
@@ -351,7 +350,6 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   void HandleProcessPacket(RPCSession::FEncodeReturn setreturn) {
     RPCCode code = RPCCode::kNone;
     this->Read(&code);
-
     if (code >= RPCCode::kSyscallCodeStart) {
       this->HandleSyscall(code);
     } else {
@@ -397,15 +395,9 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
    * \note The ffi::PackedArgs is available until we switchstate.
    */
   ffi::PackedArgs RecvPackedSeq() {
-    TVMValue* values;
-    int* tcodes;
+    ffi::AnyView* packed_args;
     int num_args;
-    RPCReference::RecvPackedSeq(&values, &tcodes, &num_args, this);
-
-    // Legacy ABI translation
-    // TODO(tqchen): remove this once we have upgraded to new ABI
-    AnyView* packed_args = reinterpret_cast<AnyView*>(this->ArenaAlloc<TVMFFIAny>(num_args));
-    LegacyTVMArgsToPackedArgs(values, tcodes, num_args, packed_args);
+    RPCReference::RecvPackedSeq(reinterpret_cast<TVMFFIAny**>(&packed_args), &num_args, this);
     return ffi::PackedArgs(packed_args, num_args);
   }
 
@@ -426,12 +418,8 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
    * \param args The arguments.
    */
   void ReturnPackedSeq(ffi::PackedArgs args) {
-    // Legacy ABI translation
-    // TODO(tqchen): remove this once we have upgraded to new ABI
-    TVMValue* values = this->ArenaAlloc<TVMValue>(args.size());
-    int* tcodes = this->ArenaAlloc<int>(args.size());
-    PackedArgsToLegacyTVMArgs(args.data(), args.size(), values, tcodes);
-    RPCReference::ReturnPackedSeq(values, tcodes, args.size(), this);
+    RPCReference::ReturnPackedSeq(reinterpret_cast<const TVMFFIAny*>(args.data()), args.size(),
+                                  this);
   }
 
   /*!
@@ -745,20 +733,15 @@ void RPCEndpoint::Init() {
     std::lock_guard<std::mutex> lock(mutex_);
     RPCCode code = static_cast<RPCCode>(all_args[0].cast<int>());
     ffi::PackedArgs args = all_args.Slice(1);
-    // Legacy ABI translation
-    // TODO(tqchen): remove this once we have upgraded to new ABI
-    TVMValue* values = handler_->ArenaAlloc<TVMValue>(args.size());
-    int* tcodes = handler_->ArenaAlloc<int>(args.size());
-    PackedArgsToLegacyTVMArgs(args.data(), args.size(), values, tcodes);
 
     // run transmission
     uint64_t packet_nbytes =
-        sizeof(code) + handler_->PackedSeqGetNumBytes(values, tcodes, args.size(), true);
+        sizeof(code) + handler_->PackedSeqGetNumBytes(args.data(), args.size(), true);
 
     // All packet begins with packet nbytes
     handler_->Write(packet_nbytes);
     handler_->Write(code);
-    handler_->SendPackedSeq(values, tcodes, args.size(), true);
+    handler_->SendPackedSeq(args.data(), args.size(), true);
 
     code = HandleUntilReturnEvent(true, [rv](ffi::PackedArgs args) {
       ICHECK_EQ(args.size(), 1);
@@ -838,8 +821,12 @@ int RPCEndpoint::ServerAsyncIOEventHandler(const std::string& in_bytes, int even
         writer_.bytes_available());
   }
   ICHECK(code != RPCCode::kReturn && code != RPCCode::kCopyAck);
+  // if the code is kShutdown, return 0 to indicate the server should exit
   if (code == RPCCode::kShutdown) return 0;
+  // if the writer has bytes available, return 2 to indicate the server should send data
+  // usually by calling the handler again
   if (writer_.bytes_available() != 0) return 2;
+  // otherwise, return 1 to indicate the server should and read
   return 1;
 }
 
@@ -849,22 +836,16 @@ void RPCEndpoint::InitRemoteSession(ffi::PackedArgs args) {
   std::string protocol_ver = kRPCProtocolVer;
   uint64_t length = protocol_ver.length();
 
-  // Legacy ABI translation
-  // TODO(tqchen): remove this once we have upgraded to new ABI
-  TVMValue* values = handler_->ArenaAlloc<TVMValue>(args.size());
-  int* tcodes = handler_->ArenaAlloc<int>(args.size());
-  PackedArgsToLegacyTVMArgs(args.data(), args.size(), values, tcodes);
-
   // run transmission
   uint64_t packet_nbytes = sizeof(code) + sizeof(length) + length +
-                           handler_->PackedSeqGetNumBytes(values, tcodes, args.size(), true);
+                           handler_->PackedSeqGetNumBytes(args.data(), args.size(), true);
 
   // All packet begins with packet nbytes
   handler_->Write(packet_nbytes);
   handler_->Write(code);
   handler_->Write(length);
   handler_->WriteArray(protocol_ver.data(), length);
-  handler_->SendPackedSeq(values, tcodes, args.size(), true);
+  handler_->SendPackedSeq(args.data(), args.size(), true);
 
   code = HandleUntilReturnEvent(true, [](ffi::PackedArgs args) {});
   ICHECK(code == RPCCode::kReturn) << "code=" << static_cast<int>(code);
@@ -879,20 +860,14 @@ void RPCEndpoint::CallFunc(RPCSession::PackedFuncHandle h, ffi::PackedArgs args,
   RPCCode code = RPCCode::kCallFunc;
   uint64_t handle = reinterpret_cast<uint64_t>(h);
 
-  // Legacy ABI translation
-  // TODO(tqchen): remove this once we have upgraded to new ABI
-  TVMValue* values = handler_->ArenaAlloc<TVMValue>(args.size());
-  int* tcodes = handler_->ArenaAlloc<int>(args.size());
-  PackedArgsToLegacyTVMArgs(args.data(), args.size(), values, tcodes);
-
   // run transmission
   uint64_t packet_nbytes = sizeof(code) + sizeof(handle) +
-                           handler_->PackedSeqGetNumBytes(values, tcodes, args.size(), true);
+                           handler_->PackedSeqGetNumBytes(args.data(), args.size(), true);
 
   handler_->Write(packet_nbytes);
   handler_->Write(code);
   handler_->Write(handle);
-  handler_->SendPackedSeq(values, tcodes, args.size(), true);
+  handler_->SendPackedSeq(args.data(), args.size(), true);
 
   code = HandleUntilReturnEvent(true, encode_return);
   ICHECK(code == RPCCode::kReturn) << "code=" << RPCCodeToString(code);

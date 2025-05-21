@@ -99,22 +99,21 @@ class AnyView {
     return *this;
   }
 
+  /*!
+   * \brief Try to see if we can reinterpret the AnyView to as T object.
+   *
+   * \tparam T The type to cast to.
+   * \return The casted value, or std::nullopt if the cast is not possible.
+   * \note This function won't try run type conversion (use try_cast for that purpose).
+   */
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
   TVM_FFI_INLINE std::optional<T> as() const {
-    return TypeTraits<T>::TryConvertFromAnyView(&data_);
-  }
-
-  template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
-  TVM_FFI_INLINE T cast() const {
-    std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
-    if (!opt.has_value()) {
-      TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
-                               << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
-                               << TypeTraits<T>::TypeStr() << "`";
+    if (TypeTraits<T>::CheckAnyStrict(&data_)) {
+      return TypeTraits<T>::CopyFromAnyViewAfterCheck(&data_);
+    } else {
+      return std::optional<T>(std::nullopt);
     }
-    return *std::move(opt);
   }
-
   /*
    * \brief Shortcut of as Object to cast to a const pointer when T is an Object.
    *
@@ -125,6 +124,35 @@ class AnyView {
   TVM_FFI_INLINE const T* as() const {
     return this->as<const T*>().value_or(nullptr);
   }
+
+  /**
+   * \brief Cast to a type T.
+   *
+   * \tparam T The type to cast to.
+   * \return The casted value, or throws an exception if the cast is not possible.
+   */
+  template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
+  TVM_FFI_INLINE T cast() const {
+    std::optional<T> opt = TypeTraits<T>::TryCastFromAnyView(&data_);
+    if (!opt.has_value()) {
+      TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
+                               << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
+                               << TypeTraits<T>::TypeStr() << "`";
+    }
+    return *std::move(opt);
+  }
+
+  /*!
+   * \brief Try to cast to a type T, return std::nullopt if the cast is not possible.
+   *
+   * \tparam T The type to cast to.
+   * \return The casted value, or std::nullopt if the cast is not possible.
+   */
+  template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
+  TVM_FFI_INLINE std::optional<T> try_cast() const {
+    return TypeTraits<T>::TryCastFromAnyView(&data_);
+  }
+
   // comparison with nullptr
   TVM_FFI_INLINE bool operator==(std::nullptr_t) const noexcept {
     return data_.type_index == TypeIndex::kTVMFFINone;
@@ -269,13 +297,45 @@ class Any {
     return *this;
   }
 
+  /**
+   * \brief Try to reinterpret the Any as a type T, return std::nullopt if it is not possible.
+   *
+   * \tparam T The type to cast to.
+   * \return The casted value, or std::nullopt if the cast is not possible.
+   * \note This function won't try to run type conversion (use try_cast for that purpose).
+   */
+  template <typename T,
+            typename = std::enable_if_t<TypeTraits<T>::storage_enabled || std::is_same_v<T, Any>>>
+  TVM_FFI_INLINE std::optional<T> as() && {
+    if constexpr (std::is_same_v<T, Any>) {
+      return std::move(*this);
+    } else {
+      if (TypeTraits<T>::CheckAnyStrict(&data_)) {
+        return TypeTraits<T>::MoveFromAnyAfterCheck(&data_);
+      } else {
+        return std::optional<T>(std::nullopt);
+      }
+    }
+  }
+
+  /**
+   * \brief Try to reinterpret the Any as a type T, return std::nullopt if it is not possible.
+   *
+   * \tparam T The type to cast to.
+   * \return The casted value, or std::nullopt if the cast is not possible.
+   * \note This function won't try to run type conversion (use try_cast for that purpose).
+   */
   template <typename T,
             typename = std::enable_if_t<TypeTraits<T>::convert_enabled || std::is_same_v<T, Any>>>
-  TVM_FFI_INLINE std::optional<T> as() const {
+  TVM_FFI_INLINE std::optional<T> as() const& {
     if constexpr (std::is_same_v<T, Any>) {
       return *this;
     } else {
-      return TypeTraits<T>::TryConvertFromAnyView(&data_);
+      if (TypeTraits<T>::CheckAnyStrict(&data_)) {
+        return TypeTraits<T>::CopyFromAnyViewAfterCheck(&data_);
+      } else {
+        return std::optional<T>(std::nullopt);
+      }
     }
   }
 
@@ -286,13 +346,18 @@ class Any {
    * \return The requested pointer, returns nullptr if type mismatches.
    */
   template <typename T, typename = std::enable_if_t<std::is_base_of_v<Object, T>>>
-  TVM_FFI_INLINE const T* as() const {
+  TVM_FFI_INLINE const T* as() const& {
     return this->as<const T*>().value_or(nullptr);
   }
 
+  /**
+   * \brief Cast to a type T, throw an exception if the cast is not possible.
+   *
+   * \tparam T The type to cast to.
+   */
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::convert_enabled>>
   TVM_FFI_INLINE T cast() const& {
-    std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
+    std::optional<T> opt = TypeTraits<T>::TryCastFromAnyView(&data_);
     if (!opt.has_value()) {
       TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
                                << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
@@ -301,13 +366,18 @@ class Any {
     return *std::move(opt);
   }
 
+  /**
+   * \brief Cast to a type T, throw an exception if the cast is not possible.
+   *
+   * \tparam T The type to cast to.
+   */
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::storage_enabled>>
   TVM_FFI_INLINE T cast() && {
-    if (TypeTraits<T>::CheckAnyStorage(&data_)) {
-      return TypeTraits<T>::MoveFromAnyStorageAfterCheck(&data_);
+    if (TypeTraits<T>::CheckAnyStrict(&data_)) {
+      return TypeTraits<T>::MoveFromAnyAfterCheck(&data_);
     }
     // slow path, try to do fallback convert
-    std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
+    std::optional<T> opt = TypeTraits<T>::TryCastFromAnyView(&data_);
     if (!opt.has_value()) {
       TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
                                << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
@@ -316,6 +386,22 @@ class Any {
     return *std::move(opt);
   }
 
+  /**
+   * \brief Try to cast to a type T.
+   *
+   * \tparam T The type to cast to.
+   * \return The casted value, or std::nullopt if the cast is not possible.
+   * \note use STL name since it to be more consistent with cast API.
+   */
+  template <typename T,
+            typename = std::enable_if_t<TypeTraits<T>::convert_enabled || std::is_same_v<T, Any>>>
+  TVM_FFI_INLINE std::optional<T> try_cast() const {
+    if constexpr (std::is_same_v<T, Any>) {
+      return *this;
+    } else {
+      return TypeTraits<T>::TryCastFromAnyView(&data_);
+    }
+  }
   /*
    * \brief Check if the two Any are same type and value in shallow comparison.
    * \param other The other Any
@@ -412,16 +498,25 @@ struct AnyUnsafe : public ObjectUnsafe {
   }
 
   template <typename T>
-  static TVM_FFI_INLINE bool CheckAnyStorage(const Any& ref) {
-    return TypeTraits<T>::CheckAnyStorage(&(ref.data_));
+  static TVM_FFI_INLINE bool CheckAnyStrict(const Any& ref) {
+    return TypeTraits<T>::CheckAnyStrict(&(ref.data_));
   }
 
   template <typename T>
-  static TVM_FFI_INLINE T CopyFromAnyStorageAfterCheck(const Any& ref) {
+  static TVM_FFI_INLINE T CopyFromAnyViewAfterCheck(const Any& ref) {
     if constexpr (!std::is_same_v<T, Any>) {
-      return TypeTraits<T>::CopyFromAnyStorageAfterCheck(&(ref.data_));
+      return TypeTraits<T>::CopyFromAnyViewAfterCheck(&(ref.data_));
     } else {
       return ref;
+    }
+  }
+
+  template <typename T>
+  static TVM_FFI_INLINE T MoveFromAnyAfterCheck(Any&& ref) {
+    if constexpr (!std::is_same_v<T, Any>) {
+      return TypeTraits<T>::MoveFromAnyAfterCheck(&(ref.data_));
+    } else {
+      return std::move(ref);
     }
   }
 
@@ -452,7 +547,7 @@ struct AnyHash {
       if (src.data_.type_index == TypeIndex::kTVMFFIStr ||
           src.data_.type_index == TypeIndex::kTVMFFIBytes) {
         const BytesObjBase* src_str =
-            details::AnyUnsafe::CopyFromAnyStorageAfterCheck<const BytesObjBase*>(src);
+            details::AnyUnsafe::CopyFromAnyViewAfterCheck<const BytesObjBase*>(src);
         return details::StableHashBytes(src_str->data, src_str->size);
       } else {
         return src.data_.v_uint64;
@@ -478,9 +573,9 @@ struct AnyEqual {
     if (lhs.data_.type_index == TypeIndex::kTVMFFIStr ||
         lhs.data_.type_index == TypeIndex::kTVMFFIBytes) {
       const BytesObjBase* lhs_str =
-          details::AnyUnsafe::CopyFromAnyStorageAfterCheck<const BytesObjBase*>(lhs);
+          details::AnyUnsafe::CopyFromAnyViewAfterCheck<const BytesObjBase*>(lhs);
       const BytesObjBase* rhs_str =
-          details::AnyUnsafe::CopyFromAnyStorageAfterCheck<const BytesObjBase*>(rhs);
+          details::AnyUnsafe::CopyFromAnyViewAfterCheck<const BytesObjBase*>(rhs);
       return Bytes::memncmp(lhs_str->data, rhs_str->data, lhs_str->size, rhs_str->size) == 0;
     }
     return false;

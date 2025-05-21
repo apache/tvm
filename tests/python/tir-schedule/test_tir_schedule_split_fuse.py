@@ -816,7 +816,7 @@ def test_unsupported_target_scalable_split(capfd):
     warning_msg = (
         "Warning: The expression contains scalable values. An attempt to prove by substituting "
         "with known values of vscale was not performed. This proof currently only supports "
-        "AArch64 SVE targets, but the target was "
+        "VLA targets, but the target was "
     )
     captured = capfd.readouterr().err
     assert warning_msg in captured
