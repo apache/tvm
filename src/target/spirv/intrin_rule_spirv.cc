@@ -91,6 +91,39 @@ TVM_REGISTER_OP("tir.sin").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
 TVM_REGISTER_OP("tir.cos").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
                                                      DispatchGLSLPureIntrin<GLSLstd450Cos>);
 
+TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
+                                                     DispatchGLSLPureIntrin<GLSLstd450Tan>);
+
+TVM_REGISTER_OP("tir.asin")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Asin>);
+
+TVM_REGISTER_OP("tir.acos")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Acos>);
+
+TVM_REGISTER_OP("tir.atan")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Atan>);
+
+TVM_REGISTER_OP("tir.sinh")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Sinh>);
+
+TVM_REGISTER_OP("tir.cosh")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Cosh>);
+
+TVM_REGISTER_OP("tir.tanh")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Tanh>);
+
+TVM_REGISTER_OP("tir.asinh")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Asinh>);
+
+TVM_REGISTER_OP("tir.acosh")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Acosh>);
+
+TVM_REGISTER_OP("tir.atanh")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Atanh>);
+
+TVM_REGISTER_OP("tir.atan2")
+    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Atan2>);
+
 TVM_REGISTER_OP("tir.log").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
                                                      DispatchGLSLPureIntrin<GLSLstd450Log>);
 
@@ -102,9 +135,6 @@ TVM_REGISTER_OP("tir.sqrt")
 
 TVM_REGISTER_OP("tir.pow").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
                                                      DispatchGLSLPureIntrin<GLSLstd450Pow>);
-
-TVM_REGISTER_OP("tir.tanh")
-    .set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic", DispatchGLSLPureIntrin<GLSLstd450Tanh>);
 
 TVM_REGISTER_OP("tir.erf").set_attr<FLowerIntrinsic>("vulkan.FLowerIntrinsic",
                                                      codegen::intrin ::DispatchFastErf);
