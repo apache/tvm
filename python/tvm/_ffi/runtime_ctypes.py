@@ -81,7 +81,7 @@ class DataType(ctypes.Structure):
         DataTypeCode.BFLOAT: "bfloat",
         DataTypeCode.E4M3Float: "e4m3_float",
         DataTypeCode.E5M2Float: "e5m2_float",
-        DataTypeCode.E4M3FnuzFloat: "e4m3fnuz_float8",
+        DataTypeCode.E4M3FnuzFloat: "e4m3fnuz_float",
     }
     NUMPY2STR = {
         np.dtype(np.bool_): "bool",
@@ -170,9 +170,9 @@ class DataType(ctypes.Structure):
         elif head.startswith("e5m2_float"):
             self.type_code = DataTypeCode.E5M2Float
             head = head[10:]
-        elif head.startswith("e4m3fnuz_float8"):
+        elif head.startswith("e4m3fnuz_float"):
             self.type_code = DataTypeCode.E4M3FnuzFloat
-            head = head[15:]
+            head = head[14:]
         elif head.startswith("custom"):
             # pylint: disable=import-outside-toplevel
             import tvm.runtime._ffi_api
