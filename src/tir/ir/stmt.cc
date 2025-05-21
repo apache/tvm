@@ -244,13 +244,7 @@ TVM_REGISTER_NODE_TYPE(WhileNode);
 
 // Allocate
 Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, Map<String, Any> annotations, Span span) {
-  CHECK(IsPointerType(buffer_var->type_annotation, dtype) ||
-        (dtype.is_bool() && IsPointerType(buffer_var->type_annotation, DataType::Int(8))))
-      << "The allocated data type (" << dtype
-      << ") does not match the type annotation of the buffer " << buffer_var << " ("
-      << buffer_var->type_annotation
-      << "). The data type should be an element of the pointer type.";
+                   Stmt body, Map<String, ObjectRef> annotations, Span span) {
 
   for (size_t i = 0; i < extents.size(); ++i) {
     ICHECK(extents[i].defined());
