@@ -568,5 +568,60 @@ def test_codegen_decl_buffer():
     vulkan_codegen(mod, target)
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_vulkan
+def test_unary():
+    test_funcs = [
+        (tvm.tir.sin, lambda x: np.sin(x)),
+        (tvm.tir.cos, lambda x: np.cos(x)),
+        (tvm.tir.tan, lambda x: np.tan(x)),
+        (tvm.tir.sinh, lambda x: np.sinh(x)),
+        (tvm.tir.cosh, lambda x: np.cosh(x)),
+        (tvm.tir.tanh, lambda x: np.tanh(x)),
+        (tvm.tir.asin, lambda x: np.arcsin(x)),
+        (tvm.tir.acos, lambda x: np.arccos(x)),
+        (tvm.tir.atan, lambda x: np.arctan(x)),
+        (tvm.tir.asinh, lambda x: np.arcsinh(x)),
+        (tvm.tir.acosh, lambda x: np.arccosh(x)),
+        (tvm.tir.atanh, lambda x: np.arctanh(x)),
+    ]
+
+    def run_test(tvm_intrin, np_func):
+        m = te.var("m")
+        A = te.placeholder((m,), name="A", dtype="float32")
+        B = te.compute((m,), lambda *i: tvm_intrin(A(*i)), name="B")
+
+        mod = te.create_prim_func([A, B])
+        sch = tir.Schedule(mod)
+
+        block = sch.get_block("B")
+        loop = sch.get_loops(block)[0]
+        bx, tx = sch.split(loop, factors=[None, 64])
+        sch.bind(bx, "blockIdx.x")
+        sch.bind(tx, "threadIdx.x")
+
+        target = tvm.target.Target("vulkan")
+        dev = tvm.device(target.kind.name, 0)
+        func = tvm.compile(sch.mod, target=target)
+
+        n = 16
+        if tvm_intrin in [tvm.tir.asin, tvm.tir.acos]:
+            data = np.random.uniform(-1.0, 1.0, size=n)
+        elif tvm_intrin == tvm.tir.atanh:
+            data = np.random.uniform(-0.999, 0.999, size=n)
+        elif tvm_intrin == tvm.tir.acosh:
+            data = np.random.uniform(1.0, 5.0, size=n)
+        else:
+            data = np.random.uniform(0.1, 0.9, size=n)
+
+        a = tvm.nd.array(data.astype(A.dtype), dev)
+        b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
+        func(a, b)
+        tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=1e-3, rtol=1e-3)
+
+    for func in test_funcs:
+        run_test(*func)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
