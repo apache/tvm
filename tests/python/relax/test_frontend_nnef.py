@@ -2086,7 +2086,7 @@ def test_avg_pool(dim):
     with bb.function("main"):
         with bb.dataflow():
             inp1 = nn.Placeholder([4, 16] + [32] * dim, name="inp1")
-            lv = op(inp1, pool_size=[3] * dim, strides=[2] * dim, padding=[1, 1] * dim)
+            lv = op(inp1, pool_size=[3] * dim, strides=[2] * dim, padding=[1, 1] * dim, count_include_pad=False)
             out = bb.emit_output(lv)
         bb.emit_func_output(out, [inp1])
     expected = bb.get()
@@ -2141,7 +2141,7 @@ def test_rms_pool(dim):
         with bb.dataflow():
             inp1 = nn.Placeholder([4, 16] + [32] * dim, name="inp1")
             lv = R.power(inp1, R.const(2, "float32"))
-            lv1 = avg_pool(lv, pool_size=[3] * dim, strides=[2] * dim, padding=[1, 1] * dim)
+            lv1 = avg_pool(lv, pool_size=[3] * dim, strides=[2] * dim, padding=[1, 1] * dim, count_include_pad=False)
             gv = R.sqrt(lv1)
             out = bb.emit_output(gv)
         bb.emit_func_output(out, [inp1])
@@ -2162,7 +2162,7 @@ def test_rms_pool(dim):
         with bb.dataflow():
             inp1 = nn.Placeholder([4, 16] + [32] * dim, name="inp1")
             lv = R.power(inp1, R.const(2, "float32"))
-            lv1 = avg_pool(lv, pool_size=[3] * dim, strides=[2] * dim, padding=[1, 1] * dim)
+            lv1 = avg_pool(lv, pool_size=[3] * dim, strides=[2] * dim, padding=[1, 1] * dim, count_include_pad=False)
             gv = R.sqrt(lv1)
             out = bb.emit_output(gv)
         bb.emit_func_output(out, [inp1])
