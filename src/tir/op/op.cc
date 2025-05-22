@@ -201,6 +201,12 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   } else if (ltype.is_float8() && !rtype.is_float8()) {
     // Cast int->float8 for rhs when lhs is a float8
     rhs = cast(ltype, rhs);
+  } else if (!ltype.is_float8_e4m3fnuz() && rtype.is_float8_e4m3fnuz()) {
+    // Cast int->float8_e4m3fnuz for rhs when lhs is a float8_e4m3fnuz
+    rhs = cast(ltype, rhs);
+  } else if (ltype.is_float8_e4m3fnuz() && !rtype.is_float8_e4m3fnuz()) {
+    // Cast int->float8_e4m3fnuz for lhs when rhs is a float8_e4m3fnuz
+    lhs = cast(rtype, lhs);
   } else if ((ltype.is_int() && rtype.is_int()) || (ltype.is_uint() && rtype.is_uint())) {
     // Promote int to higher bits e.g. int8 + int16 --> int16 + int16
     if (ltype.bits() < rtype.bits()) {
