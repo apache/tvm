@@ -564,15 +564,14 @@ class BitwiseXor(BitwiseBase):
         return cls.base_impl(bb, inputs, attr, params)
 
 
-class BitwiseNot(BitwiseBase):
+class BitwiseNot(OnnxOpConverter):
     """Converts an onnx BitwiseNot node into an equivalent Relax expression."""
-
-    numpy_op = _np.bitwise_not
-    relax_op = relax.op.bitwise_not
 
     @classmethod
     def _impl_v18(cls, bb, inputs, attr, params):
-        return cls.base_impl(bb, inputs, attr, params)
+        if isinstance(inputs[0], relax.Constant):
+            return relax.const(_np.bitwise_not(inputs[0].data.numpy()), inputs[0].struct_info.dtype)
+        return relax.op.bitwise_not(inputs[0])
 
 
 class BitShift(BitwiseBase):
@@ -3117,13 +3116,13 @@ def _get_convert_map():
         "BitwiseAnd": BitwiseAnd,
         "BitwiseOr": BitwiseOr,
         "BitwiseXor": BitwiseXor,
-        "BitwiseNot": BitwiseNot,
         "BitShift": BitShift,
         "And": And,
         "Or": Or,
         "Xor": Xor,
         "Not": Not,
         # Unary operators
+        "BitwiseNot": BitwiseNot,
         "Log": Log,
         "Exp": Exp,
         "Acos": Acos,
