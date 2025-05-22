@@ -402,13 +402,11 @@ def test_binary_bool(op_name: str):
     verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.BOOL)
 
 
-@pytest.mark.skip(reason="opset 18 is not supported in CI")
 @pytest.mark.parametrize("op_name", ["BitwiseAnd", "BitwiseOr", "BitwiseXor"])
 def test_bitwise(op_name: str):
     verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.UINT64, opset=18)
 
 
-@pytest.mark.skip(reason="opset 18 is not supported in CI")
 def test_bitwise_not():
     verify_unary(
         "BitwiseNot",
@@ -945,7 +943,6 @@ def test_selu():
     verify_unary("Selu", [3, 32, 32], attrs={"alpha": 0.25, "gamma": 0.3})
 
 
-@pytest.mark.skip(reason="opset 18 is not supported in CI")
 def test_mish():
     verify_unary("Mish", [3, 32, 32], opset=18)
 
