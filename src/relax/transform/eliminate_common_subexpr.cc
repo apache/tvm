@@ -221,7 +221,7 @@ Pass EliminateCommonSubexpr(bool call_only) {
   return CreateFunctionPass(pass_func, 1, "EliminateCommonSubexpr", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.EliminateCommonSubexpr")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.EliminateCommonSubexpr")
     .set_body_typed(EliminateCommonSubexpr);
 
 }  // namespace transform

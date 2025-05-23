@@ -285,7 +285,7 @@ Pass RemoveWeightLayoutRewriteBlock(bool skip_ndarray_rewrite) {
   return CreatePrimFuncPass(pass_func, 0, "tir.RemoveWeightLayoutRewriteBlock", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.RemoveWeightLayoutRewriteBlock")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.RemoveWeightLayoutRewriteBlock")
     .set_body_typed(RemoveWeightLayoutRewriteBlock);
 
 }  // namespace transform

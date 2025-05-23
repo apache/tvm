@@ -43,7 +43,7 @@ Map<GlobalVar, Array<GlobalVar>> CollectCallMap(const IRModule& mod) {
   return call_map;
 }
 
-TVM_REGISTER_GLOBAL("ir.analysis.CollectCallMap").set_body_typed(CollectCallMap);
+TVM_FFI_REGISTER_GLOBAL("ir.analysis.CollectCallMap").set_body_typed(CollectCallMap);
 
 }  // namespace ir
 }  // namespace tvm

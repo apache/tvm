@@ -63,7 +63,7 @@ TaskScheduler TaskScheduler::RoundRobin(ffi::Function logger) {
 }
 
 TVM_REGISTER_NODE_TYPE(RoundRobinNode);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerRoundRobin")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerRoundRobin")
     .set_body_typed(TaskScheduler::RoundRobin);
 
 }  // namespace meta_schedule

@@ -24,8 +24,8 @@
 #ifndef TVM_RUNTIME_LIBRARY_MODULE_H_
 #define TVM_RUNTIME_LIBRARY_MODULE_H_
 
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/module.h>
 
 #include <functional>

@@ -115,7 +115,7 @@ Pass BundleModelParams(Optional<String> param_tuple_name) {
   return CreateModulePass(pass_func, 1, "BundleModelParams", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.BundleModelParams").set_body_typed(BundleModelParams);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.BundleModelParams").set_body_typed(BundleModelParams);
 
 }  // namespace transform
 }  // namespace relax

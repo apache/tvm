@@ -23,9 +23,9 @@
 #include "rocblas.h"
 
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace contrib {
@@ -65,7 +65,7 @@ struct RocBlasThreadEntry {
 typedef dmlc::ThreadLocalStore<RocBlasThreadEntry> RocBlasThreadStore;
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto B = args[1].cast<DLTensor*>();
@@ -103,7 +103,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul")
                                         ldc));
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.rocblas.batch_matmul")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.rocblas.batch_matmul")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto B = args[1].cast<DLTensor*>();

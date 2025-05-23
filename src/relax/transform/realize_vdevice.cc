@@ -415,7 +415,7 @@ Pass RealizeVDevice() {
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.RealizeVDevice").set_body_typed(RealizeVDevice);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.RealizeVDevice").set_body_typed(RealizeVDevice);
 
 }  // namespace transform
 }  // namespace relax

@@ -350,7 +350,7 @@ Pass ConvertLayout(Map<String, Array<String>> desired_layouts) {
   return CreateDataflowBlockPass(pass_func, 0, "ConvertLayout", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ConvertLayout").set_body_typed(ConvertLayout);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.ConvertLayout").set_body_typed(ConvertLayout);
 
 }  // namespace transform
 }  // namespace relax

@@ -88,7 +88,8 @@ Pass RemovePurityChecking() {
   return CreateFunctionPass(pass_func, 0, "RemovePurityChecking", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.RemovePurityChecking").set_body_typed(RemovePurityChecking);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.RemovePurityChecking")
+    .set_body_typed(RemovePurityChecking);
 
 }  // namespace transform
 

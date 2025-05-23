@@ -1016,13 +1016,13 @@ Array<Array<InplaceOpportunity>> DataflowInplaceAnalysis(const DataflowBlock& bl
 }
 
 // these are exposed only for testing
-TVM_REGISTER_GLOBAL("relax.testing.transform.DataflowLivenessAnalysis")
+TVM_FFI_REGISTER_GLOBAL("relax.testing.transform.DataflowLivenessAnalysis")
     .set_body_typed(DataflowLivenessAnalysis);
-TVM_REGISTER_GLOBAL("relax.testing.transform.DataflowAliasAnalysis")
+TVM_FFI_REGISTER_GLOBAL("relax.testing.transform.DataflowAliasAnalysis")
     .set_body_typed(DataflowAliasAnalysis);
-TVM_REGISTER_GLOBAL("relax.testing.transform.DataflowInplaceAnalysis")
+TVM_FFI_REGISTER_GLOBAL("relax.testing.transform.DataflowInplaceAnalysis")
     .set_body_typed(DataflowInplaceAnalysis);
-TVM_REGISTER_GLOBAL("relax.testing.transform.SingleInplaceCall")
+TVM_FFI_REGISTER_GLOBAL("relax.testing.transform.SingleInplaceCall")
     .set_body_typed([](const IRModule& mod, const Call& call,
                        const Array<Integer>& inplace_indices) -> Array<ObjectRef> {
       ModuleInplaceTransformer transformer(mod);
@@ -1031,7 +1031,7 @@ TVM_REGISTER_GLOBAL("relax.testing.transform.SingleInplaceCall")
     });
 
 // actually exposed
-TVM_REGISTER_GLOBAL("relax.transform.DataflowUseInplaceCalls")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.DataflowUseInplaceCalls")
     .set_body_typed(DataflowUseInplaceCalls);
 
 }  // namespace transform

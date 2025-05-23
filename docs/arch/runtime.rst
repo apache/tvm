@@ -80,7 +80,7 @@ The following example registers PackedFunc in C++ and calls from python.
 .. code:: c
 
     // register a global packed function in c++
-    TVM_REGISTER_GLOBAL("myadd")
+    TVM_FFI_REGISTER_GLOBAL("myadd")
     .set_body_packed(MyAdd);
 
 .. code:: python
@@ -110,7 +110,7 @@ we can pass functions from python (as PackedFunc) to C++.
 
 .. code:: c
 
-    TVM_REGISTER_GLOBAL("callhello")
+    TVM_FFI_REGISTER_GLOBAL("callhello")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       PackedFunc f = args[0];
       f("hello world");
@@ -134,7 +134,7 @@ which allows us to embed the PackedFunc into any languages. Besides python, so f
 `java`_ and `javascript`_.
 This philosophy of embedded API is very like Lua, except that we don't have a new language but use C++.
 
-.. _minimum C API: https://github.com/apache/tvm/blob/main/include/tvm/runtime/c_runtime_api.h
+.. _minimum C API: https://github.com/apache/tvm/blob/main/include/tvm/runtime/base.h
 .. _java: https://github.com/apache/tvm/tree/main/jvm
 .. _javascript: https://github.com/apache/tvm/tree/main/web
 
@@ -282,7 +282,7 @@ Each argument in PackedFunc contains a union value `TVMValue`_
 and a type code. This design allows the dynamically typed language to convert to the corresponding type directly, and statically typed language to
 do runtime type checking during conversion.
 
-.. _TVMValue: https://github.com/apache/tvm/blob/main/include/tvm/runtime/c_runtime_api.h#L135
+.. _TVMValue: https://github.com/apache/tvm/blob/main/include/tvm/runtime/base.h#L135
 
 The relevant files are
 

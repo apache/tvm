@@ -21,7 +21,7 @@
  * \file tvm/tir/stmt.cc
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/op_attr_types.h>
 #include <tvm/tir/stmt.h>
@@ -52,7 +52,7 @@ LetStmt::LetStmt(Var var, PrimExpr value, Stmt body, Span span) {
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.LetStmt")
+TVM_FFI_REGISTER_GLOBAL("tir.LetStmt")
     .set_body_typed([](Var var, PrimExpr value, Stmt body, Span span) {
       return LetStmt(var, value, body, span);
     });
@@ -70,7 +70,7 @@ AttrStmt::AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, S
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("tir.AttrStmt")
+TVM_FFI_REGISTER_GLOBAL("tir.AttrStmt")
     .set_body_typed([](Any node, String attr_key, PrimExpr value, Stmt body, Span span) {
       // when node is a POD data type like int or bool, first convert to primexpr.
       if (node.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
@@ -100,7 +100,7 @@ AssertStmt::AssertStmt(PrimExpr condition, PrimExpr message, Stmt body, Span spa
 
 TVM_REGISTER_NODE_TYPE(AssertStmtNode);
 
-TVM_REGISTER_GLOBAL("tir.AssertStmt")
+TVM_FFI_REGISTER_GLOBAL("tir.AssertStmt")
     .set_body_typed([](PrimExpr condition, StringImm message, Stmt body, Span span) {
       return AssertStmt(condition, message, body, span);
     });
@@ -155,7 +155,7 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.For").set_body_typed(
+TVM_FFI_REGISTER_GLOBAL("tir.For").set_body_typed(
     [](Var loop_var, PrimExpr min, PrimExpr extent, int kind, Stmt body,
        Optional<IterVar> thread_binding, Optional<Map<String, Any>> annotations, Span span) {
       return For(loop_var, min, extent, static_cast<ForKind>(kind), body, thread_binding,
@@ -199,7 +199,7 @@ While::While(PrimExpr condition, Stmt body, Span span) {
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.While").set_body_typed([](PrimExpr condition, Stmt body, Span span) {
+TVM_FFI_REGISTER_GLOBAL("tir.While").set_body_typed([](PrimExpr condition, Stmt body, Span span) {
   return While(condition, body, span);
 });
 
@@ -216,7 +216,7 @@ ProducerStore::ProducerStore(DataProducer producer, PrimExpr value, Array<PrimEx
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.ProducerStore")
+TVM_FFI_REGISTER_GLOBAL("tir.ProducerStore")
     .set_body_typed([](DataProducer producer, PrimExpr value, Array<PrimExpr> indices, Span span) {
       return ProducerStore(producer, value, indices, span);
     });
@@ -267,7 +267,7 @@ int64_t AllocateNode::ConstantAllocationSize(const Array<PrimExpr>& extents) {
   return static_cast<int64_t>(result);
 }
 
-TVM_REGISTER_GLOBAL("tir.Allocate")
+TVM_FFI_REGISTER_GLOBAL("tir.Allocate")
     .set_body_typed([](Var buffer_var, DataType type, Array<PrimExpr> extents, PrimExpr condition,
                        Stmt body, Map<String, Any> annotations, Span span) {
       return Allocate(buffer_var, type, extents, condition, body, annotations, span);
@@ -328,7 +328,7 @@ int64_t AllocateConstNode::ConstantAllocationSize(const Array<PrimExpr>& extents
   }
   return static_cast<int64_t>(result);
 }
-TVM_REGISTER_GLOBAL("tir.AllocateConst")
+TVM_FFI_REGISTER_GLOBAL("tir.AllocateConst")
     .set_body_typed([](Var buffer_var, DataType dtype, Array<PrimExpr> extents,
                        ObjectRef data_or_idx, Stmt body, Optional<Map<String, Any>> annotations,
                        Span span) {
@@ -347,7 +347,7 @@ DeclBuffer::DeclBuffer(Buffer buffer, Stmt body, Span span) {
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.DeclBuffer").set_body_typed([](Buffer buffer, Stmt body, Span span) {
+TVM_FFI_REGISTER_GLOBAL("tir.DeclBuffer").set_body_typed([](Buffer buffer, Stmt body, Span span) {
   return DeclBuffer(buffer, body, span);
 });
 
@@ -376,7 +376,7 @@ ProducerRealize::ProducerRealize(DataProducer producer, Region bounds, PrimExpr 
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.ProducerRealize")
+TVM_FFI_REGISTER_GLOBAL("tir.ProducerRealize")
     .set_body_typed([](DataProducer producer, Region bounds, PrimExpr condition, Stmt body,
                        String storage_scope, Span span) {
       return ProducerRealize(producer, bounds, condition, body, storage_scope, span);
@@ -389,7 +389,7 @@ Prefetch::Prefetch(Buffer buffer, Array<Range> bounds, Span span) {
   data_ = make_object<PrefetchNode>(buffer, bounds, span);
 }
 
-TVM_REGISTER_GLOBAL("tir.Prefetch")
+TVM_FFI_REGISTER_GLOBAL("tir.Prefetch")
     .set_body_typed([](Buffer buffer, Array<Range> bounds, Span span) {
       return Prefetch(buffer, bounds, span);
     });
@@ -423,7 +423,7 @@ SeqStmt::SeqStmt(Array<Stmt> seq, Span span) {
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.SeqStmt").set_body_typed([](Array<Stmt> seq, Span span) {
+TVM_FFI_REGISTER_GLOBAL("tir.SeqStmt").set_body_typed([](Array<Stmt> seq, Span span) {
   return SeqStmt(std::move(seq), span);
 });
 
@@ -444,7 +444,7 @@ IfThenElse::IfThenElse(PrimExpr condition, Stmt then_case, Optional<Stmt> else_c
 
 TVM_REGISTER_NODE_TYPE(IfThenElseNode);
 
-TVM_REGISTER_GLOBAL("tir.IfThenElse")
+TVM_FFI_REGISTER_GLOBAL("tir.IfThenElse")
     .set_body_typed([](PrimExpr condition, Stmt then_case, Stmt else_case, Span span) {
       return IfThenElse(condition, then_case, else_case, span);
     });
@@ -459,7 +459,7 @@ Evaluate::Evaluate(PrimExpr value, Span span) {
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.Evaluate").set_body_typed([](PrimExpr value, Span span) {
+TVM_FFI_REGISTER_GLOBAL("tir.Evaluate").set_body_typed([](PrimExpr value, Span span) {
   return Evaluate(value, span);
 });
 
@@ -541,7 +541,7 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.BufferStore")
+TVM_FFI_REGISTER_GLOBAL("tir.BufferStore")
     .set_body_typed([](Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
                        Optional<PrimExpr> predicate,
                        Span span) { return BufferStore(buffer, value, indices, predicate, span); });
@@ -554,7 +554,7 @@ BufferRealize::BufferRealize(Buffer buffer, Array<Range> bounds, PrimExpr condit
   data_ = make_object<BufferRealizeNode>(buffer, bounds, condition, body, span);
 }
 
-TVM_REGISTER_GLOBAL("tir.BufferRealize")
+TVM_FFI_REGISTER_GLOBAL("tir.BufferRealize")
     .set_body_typed([](Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body,
                        Span span) { return BufferRealize(buffer, bounds, condition, body, span); });
 
@@ -608,7 +608,7 @@ BufferRegion BufferRegion::FromPoint(Buffer buffer, Array<PrimExpr> indices) {
   return BufferRegion(buffer, region);
 }
 
-TVM_REGISTER_GLOBAL("tir.BufferRegion").set_body_typed([](Buffer buffer, Array<Range> region) {
+TVM_FFI_REGISTER_GLOBAL("tir.BufferRegion").set_body_typed([](Buffer buffer, Array<Range> region) {
   return BufferRegion(buffer, region);
 });
 
@@ -665,9 +665,10 @@ MatchBufferRegion::MatchBufferRegion(Buffer buffer, BufferRegion source) {
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.MatchBufferRegion").set_body_typed([](Buffer buffer, BufferRegion source) {
-  return MatchBufferRegion(buffer, source);
-});
+TVM_FFI_REGISTER_GLOBAL("tir.MatchBufferRegion")
+    .set_body_typed([](Buffer buffer, BufferRegion source) {
+      return MatchBufferRegion(buffer, source);
+    });
 
 TVM_REGISTER_NODE_TYPE(MatchBufferRegionNode);
 
@@ -689,7 +690,7 @@ Block::Block(Array<IterVar> iter_vars, Array<BufferRegion> reads, Array<BufferRe
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.Block")
+TVM_FFI_REGISTER_GLOBAL("tir.Block")
     .set_body_typed([](Array<IterVar> iter_vars, Array<BufferRegion> reads,
                        Array<BufferRegion> writes, String name_hint, Stmt body, Optional<Stmt> init,
                        Array<Buffer> alloc_buffers, Array<MatchBufferRegion> match_buffers,
@@ -713,7 +714,7 @@ BlockRealize::BlockRealize(Array<PrimExpr> values, PrimExpr predicate, Block blo
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("tir.BlockRealize")
+TVM_FFI_REGISTER_GLOBAL("tir.BlockRealize")
     .set_body_typed([](Array<PrimExpr> iter_values, PrimExpr predicate, Block block, Span span) {
       return BlockRealize(iter_values, predicate, block, span);
     });

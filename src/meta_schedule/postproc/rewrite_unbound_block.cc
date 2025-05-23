@@ -146,7 +146,7 @@ Postproc Postproc::RewriteUnboundBlock(int max_threadblocks) {
 }
 
 TVM_REGISTER_NODE_TYPE(RewriteUnboundBlockNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocRewriteUnboundBlock")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteUnboundBlock")
     .set_body_typed(Postproc::RewriteUnboundBlock);
 
 }  // namespace meta_schedule

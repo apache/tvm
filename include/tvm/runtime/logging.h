@@ -32,7 +32,7 @@
 #include <dmlc/common.h>
 #include <dmlc/thread_local.h>
 #include <tvm/ffi/error.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 
 #include <ctime>
 #include <iomanip>

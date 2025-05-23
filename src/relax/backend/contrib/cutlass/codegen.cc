@@ -101,7 +101,7 @@ class CodegenResult : public ObjectRef {
 
 TVM_REGISTER_NODE_TYPE(CodegenResultNode);
 
-TVM_REGISTER_GLOBAL("contrib.cutlass.CodegenResult")
+TVM_FFI_REGISTER_GLOBAL("contrib.cutlass.CodegenResult")
     .set_body_typed([](String code, Array<String> headers) {
       return CodegenResult(code, headers);
     });
@@ -385,7 +385,7 @@ Array<runtime::Module> CUTLASSCompiler(Array<Function> functions, Map<String, ff
   return {cutlass_mod};
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.cutlass").set_body_typed(CUTLASSCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.cutlass").set_body_typed(CUTLASSCompiler);
 
 }  // namespace contrib
 }  // namespace relax

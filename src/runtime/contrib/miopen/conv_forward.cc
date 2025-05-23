@@ -20,9 +20,9 @@
 /*!
  * \file Use external miopen utils function
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include <cassert>
 
@@ -34,7 +34,7 @@ namespace miopen {
 
 using namespace runtime;
 
-TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       const int mode = args[0].cast<int>();
       const int dtype = args[1].cast<int>();
@@ -148,7 +148,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.setup")
       ret[0] = static_cast<int>(best_algo);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.forward")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.miopen.conv2d.forward")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       const int mode = args[0].cast<int>();
       const int dtype = args[1].cast<int>();

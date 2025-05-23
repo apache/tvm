@@ -20,9 +20,9 @@
 /*!
  * \file cuDNN kernel calls for backward algorithms.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include "cudnn_utils.h"
 
@@ -185,7 +185,7 @@ void BackwardFilterFindAlgo(int format, int dims, int groups, const int pad[], c
   ret[0] = static_cast<int>(best_algo);
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_data")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_data")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       int mode = args[0].cast<int>();
       int format = args[1].cast<int>();
@@ -206,7 +206,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_data")
                               conv_dtype);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.backward_data_find_algo")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.backward_data_find_algo")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       int format = args[0].cast<int>();
       int dims = args[1].cast<int>();
@@ -225,7 +225,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.backward_data_find_algo")
                            data_dtype, conv_dtype, verbose, ret);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_filter")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_filter")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       int mode = args[0].cast<int>();
       int format = args[1].cast<int>();
@@ -246,7 +246,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.backward_filter")
                                 dw, conv_dtype);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.backward_filter_find_algo")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.backward_filter_find_algo")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       int format = args[0].cast<int>();
       int dims = args[1].cast<int>();

@@ -21,7 +21,7 @@
  * \file rpc_event_impl.cc
  * \brief Event driven RPC server implementation.
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <memory>
 
@@ -44,6 +44,6 @@ ffi::Function CreateEventDrivenServer(ffi::Function fsend, std::string name,
   });
 }
 
-TVM_REGISTER_GLOBAL("rpc.CreateEventDrivenServer").set_body_typed(CreateEventDrivenServer);
+TVM_FFI_REGISTER_GLOBAL("rpc.CreateEventDrivenServer").set_body_typed(CreateEventDrivenServer);
 }  // namespace runtime
 }  // namespace tvm

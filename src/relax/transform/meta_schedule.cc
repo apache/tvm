@@ -201,10 +201,11 @@ Pass MetaScheduleTuneTIR(String work_dir, Integer max_trials_global) {
                                             /*traceable*/ true);
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.MetaScheduleApplyDatabase")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.MetaScheduleApplyDatabase")
     .set_body_typed(MetaScheduleApplyDatabase);
-TVM_REGISTER_GLOBAL("relax.transform.MetaScheduleTuneIRMod").set_body_typed(MetaScheduleTuneIRMod);
-TVM_REGISTER_GLOBAL("relax.transform.MetaScheduleTuneTIR").set_body_typed(MetaScheduleTuneTIR);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.MetaScheduleTuneIRMod")
+    .set_body_typed(MetaScheduleTuneIRMod);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.MetaScheduleTuneTIR").set_body_typed(MetaScheduleTuneTIR);
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

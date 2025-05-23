@@ -245,17 +245,18 @@ double EstimateTIRFlops(const IRModule& mod) {
   return PostprocessResults(result) + cached_result;
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.EstimateTIRFlops").set_body_typed([](ObjectRef obj) -> double {
-  if (auto mod = obj.as<IRModule>()) {
-    return EstimateTIRFlops(mod.value());
-  } else if (auto stmt = obj.as<Stmt>()) {
-    return EstimateTIRFlops(stmt.value());
-  } else {
-    LOG(FATAL) << "TypeError: Expect the input to be either IRModule or Stmt, but gets: "
-               << obj->GetTypeKey();
-    throw;
-  }
-});
+TVM_FFI_REGISTER_GLOBAL("tir.analysis.EstimateTIRFlops")
+    .set_body_typed([](ObjectRef obj) -> double {
+      if (auto mod = obj.as<IRModule>()) {
+        return EstimateTIRFlops(mod.value());
+      } else if (auto stmt = obj.as<Stmt>()) {
+        return EstimateTIRFlops(stmt.value());
+      } else {
+        LOG(FATAL) << "TypeError: Expect the input to be either IRModule or Stmt, but gets: "
+                   << obj->GetTypeKey();
+        throw;
+      }
+    });
 
 }  // namespace tir
 }  // namespace tvm

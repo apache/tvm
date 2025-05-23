@@ -18,7 +18,7 @@
  */
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <algorithm>
 #include <cassert>
@@ -130,7 +130,7 @@ __global__ void copy_blocks_kernel(int64_t* key_cache_ptrs, int64_t* value_cache
 namespace tvm {
 namespace runtime {
 
-TVM_REGISTER_GLOBAL("tvm.contrib.vllm.reshape_and_cache")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.reshape_and_cache")
     .set_body_typed([](NDArray key, NDArray value, NDArray key_cache, NDArray value_cache,
                        NDArray slot_mapping) {
       int num_tokens = key->shape[0];
@@ -155,7 +155,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.vllm.reshape_and_cache")
       return Array{key_cache, value_cache};
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.vllm.reconstruct_from_cache")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.reconstruct_from_cache")
     .set_body_typed([](NDArray key_cache, NDArray value_cache, NDArray slot_mapping) {
       int num_tokens = slot_mapping->shape[0];
       int num_heads = value_cache->shape[1];
@@ -184,7 +184,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.vllm.reconstruct_from_cache")
       return Array{key, value};
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.vllm.copy_blocks")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.copy_blocks")
     .set_body_typed([](Array<NDArray> key_value_caches, NDArray block_mapping) {
       auto num_layers = key_value_caches.size() / 2;
       auto num_pairs = block_mapping->shape[0] / 2;

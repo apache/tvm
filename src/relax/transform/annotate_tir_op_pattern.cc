@@ -47,7 +47,8 @@ Pass AnnotateTIROpPattern() {
   return tir::transform::CreatePrimFuncPass(pass_func, 0, "AnnotateTIROpPattern", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.AnnotateTIROpPattern").set_body_typed(AnnotateTIROpPattern);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.AnnotateTIROpPattern")
+    .set_body_typed(AnnotateTIROpPattern);
 
 }  // namespace transform
 

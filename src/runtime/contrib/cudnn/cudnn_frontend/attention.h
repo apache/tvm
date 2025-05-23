@@ -26,7 +26,7 @@
 #define TVM_RUNTIME_CONTRIB_CUDNN_CUDNN_FRONTEND_ATTENTION_H_
 
 #include <cudnn_frontend.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <memory>
 #include <string>

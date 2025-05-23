@@ -20,8 +20,8 @@
 #define TVM_RUNTIME_RELAX_VM_NDARRAY_CACHE_SUPPORT_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 
 #include <string>
 #include <unordered_map>

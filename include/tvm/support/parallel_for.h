@@ -24,7 +24,7 @@
 #ifndef TVM_SUPPORT_PARALLEL_FOR_H_
 #define TVM_SUPPORT_PARALLEL_FOR_H_
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 
 #include <functional>
 #include <vector>

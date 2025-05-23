@@ -22,9 +22,9 @@
  * \brief The hexagon graph related builtin functions for Relax virtual machine.
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
 #include "../../hexagon/hexagon_device_api.h"
@@ -32,7 +32,7 @@ namespace tvm {
 namespace runtime {
 namespace relax_vm {
 
-TVM_REGISTER_GLOBAL("vm.builtin.hexagon.dma_copy")
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.hexagon.dma_copy")
     .set_body_typed([](ffi::AnyView vm_ptr, NDArray src_arr, NDArray dst_arr, int queue_id,
                        bool bypass_cache) {
       const DLTensor* dptr = dst_arr.operator->();
@@ -54,7 +54,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.hexagon.dma_copy")
       CHECK(ret == DMA_SUCCESS);
     });
 
-TVM_REGISTER_GLOBAL("vm.builtin.hexagon.dma_wait")
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.hexagon.dma_wait")
     .set_body_typed([](ffi::AnyView vm_ptr, int queue_id, int inflight_dma, bool bypass_cache,
                        [[maybe_unused]] NDArray src_arr, [[maybe_unused]] NDArray dst_arr) {
       ICHECK(inflight_dma >= 0);

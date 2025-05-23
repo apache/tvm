@@ -31,7 +31,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/var.h>

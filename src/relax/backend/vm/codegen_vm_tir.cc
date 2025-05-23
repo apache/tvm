@@ -530,7 +530,7 @@ IRModule VMTIRCodeGen(ExecBuilder exec_builder, IRModule mod) {
   return CodeGenVMTIR::Run(exec_builder, mod);
 }
 
-TVM_REGISTER_GLOBAL("relax.VMTIRCodeGen").set_body_typed(VMTIRCodeGen);
+TVM_FFI_REGISTER_GLOBAL("relax.VMTIRCodeGen").set_body_typed(VMTIRCodeGen);
 
 }  // namespace relax_vm
 }  // namespace relax

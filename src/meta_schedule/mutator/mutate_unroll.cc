@@ -138,7 +138,7 @@ Optional<Trace> MutateUnrollNode::Apply(const Trace& trace, TRandState* rand_sta
 Mutator Mutator::MutateUnroll() { return Mutator(make_object<MutateUnrollNode>()); }
 
 TVM_REGISTER_NODE_TYPE(MutateUnrollNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorMutateUnroll").set_body_typed(Mutator::MutateUnroll);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateUnroll").set_body_typed(Mutator::MutateUnroll);
 
 }  // namespace meta_schedule
 }  // namespace tvm

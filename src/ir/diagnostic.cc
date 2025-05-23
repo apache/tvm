@@ -33,7 +33,7 @@ namespace tvm {
 /* Diagnostic */
 TVM_REGISTER_NODE_TYPE(DiagnosticNode);
 
-TVM_REGISTER_GLOBAL("diagnostics.Diagnostic")
+TVM_FFI_REGISTER_GLOBAL("diagnostics.Diagnostic")
     .set_body_typed([](int level, Span span, String message) {
       return Diagnostic(static_cast<DiagnosticLevel>(level), span, message);
     });
@@ -106,7 +106,7 @@ TVM_DLL DiagnosticRenderer::DiagnosticRenderer(
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("diagnostics.DiagnosticRenderer")
+TVM_FFI_REGISTER_GLOBAL("diagnostics.DiagnosticRenderer")
     .set_body_typed([](ffi::TypedFunction<void(DiagnosticContext ctx)> renderer) {
       return DiagnosticRenderer(renderer);
     });
@@ -134,7 +134,7 @@ void DiagnosticContext::Render() {
   }
 }
 
-TVM_REGISTER_GLOBAL("diagnostics.DiagnosticRendererRender")
+TVM_FFI_REGISTER_GLOBAL("diagnostics.DiagnosticRendererRender")
     .set_body_typed([](DiagnosticRenderer renderer, DiagnosticContext ctx) {
       renderer.Render(ctx);
     });
@@ -147,7 +147,7 @@ DiagnosticContext::DiagnosticContext(const IRModule& module, const DiagnosticRen
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("diagnostics.DiagnosticContext")
+TVM_FFI_REGISTER_GLOBAL("diagnostics.DiagnosticContext")
     .set_body_typed([](const IRModule& module, const DiagnosticRenderer& renderer) {
       return DiagnosticContext(module, renderer);
     });
@@ -157,12 +157,12 @@ void DiagnosticContext::Emit(const Diagnostic& diagnostic) {
   (*this)->diagnostics.push_back(diagnostic);
 }
 
-TVM_REGISTER_GLOBAL("diagnostics.Emit")
+TVM_FFI_REGISTER_GLOBAL("diagnostics.Emit")
     .set_body_typed([](DiagnosticContext ctx, const Diagnostic& diagnostic) {
       return ctx.Emit(diagnostic);
     });
 
-TVM_REGISTER_GLOBAL("diagnostics.DiagnosticContextRender")
+TVM_FFI_REGISTER_GLOBAL("diagnostics.DiagnosticContextRender")
     .set_body_typed([](DiagnosticContext context) { return context.Render(); });
 
 /*! \brief Emit a diagnostic. */
@@ -195,7 +195,7 @@ DiagnosticContext DiagnosticContext::Default(const IRModule& module) {
   return DiagnosticContext(module, renderer);
 }
 
-TVM_REGISTER_GLOBAL("diagnostics.Default").set_body_typed([](const IRModule& module) {
+TVM_FFI_REGISTER_GLOBAL("diagnostics.Default").set_body_typed([](const IRModule& module) {
   return DiagnosticContext::Default(module);
 });
 
@@ -311,11 +311,13 @@ DiagnosticRenderer TerminalRenderer(std::ostream& out) {
   });
 }
 
-TVM_REGISTER_GLOBAL(DEFAULT_RENDERER).set_body_typed([]() { return TerminalRenderer(std::cerr); });
+TVM_FFI_REGISTER_GLOBAL(DEFAULT_RENDERER).set_body_typed([]() {
+  return TerminalRenderer(std::cerr);
+});
 
-TVM_REGISTER_GLOBAL("diagnostics.GetRenderer").set_body_typed([]() { return GetRenderer(); });
+TVM_FFI_REGISTER_GLOBAL("diagnostics.GetRenderer").set_body_typed([]() { return GetRenderer(); });
 
-TVM_REGISTER_GLOBAL("diagnostics.ClearRenderer").set_body_typed([]() {
+TVM_FFI_REGISTER_GLOBAL("diagnostics.ClearRenderer").set_body_typed([]() {
   tvm::ffi::Function::RemoveGlobal(OVERRIDE_RENDERER);
 });
 

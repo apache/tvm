@@ -438,7 +438,7 @@ Pass AlterOpImpl(const Map<String, tir::PrimFunc>& op_impl_map,
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.AlterOpImpl").set_body_typed(AlterOpImpl);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.AlterOpImpl").set_body_typed(AlterOpImpl);
 
 }  // namespace transform
 }  // namespace relax

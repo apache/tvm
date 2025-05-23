@@ -43,11 +43,11 @@ namespace runtime {
 class DefaultTimerNode : public TimerNode {
  public:
   virtual void Start() {
-    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     start_ = std::chrono::high_resolution_clock::now();
   }
   virtual void Stop() {
-    TVMSynchronize(device_.device_type, device_.device_id, nullptr);
+    DeviceAPI::Get(device_)->StreamSync(device_, nullptr);
     duration_ = std::chrono::high_resolution_clock::now() - start_;
   }
   virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
@@ -84,7 +84,7 @@ class CPUTimerNode : public TimerNode {
 };
 TVM_REGISTER_OBJECT_TYPE(CPUTimerNode);
 
-TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](Device dev) {
+TVM_FFI_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](Device dev) {
   return Timer(make_object<CPUTimerNode>());
 });
 
@@ -115,7 +115,7 @@ Timer Timer::Start(Device dev) {
   }
 }
 
-TVM_REGISTER_GLOBAL("profiling.start_timer").set_body_typed(Timer::Start);
+TVM_FFI_REGISTER_GLOBAL("profiling.start_timer").set_body_typed(Timer::Start);
 
 namespace profiling {
 
@@ -788,13 +788,15 @@ TVM_REGISTER_OBJECT_TYPE(ReportNode);
 TVM_REGISTER_OBJECT_TYPE(DeviceWrapperNode);
 TVM_REGISTER_OBJECT_TYPE(MetricCollectorNode);
 
-TVM_REGISTER_GLOBAL("runtime.profiling.AsTable").set_body_method(&ReportNode::AsTable);
-TVM_REGISTER_GLOBAL("runtime.profiling.AsCSV").set_body_typed([](Report n) { return n->AsCSV(); });
-TVM_REGISTER_GLOBAL("runtime.profiling.AsJSON").set_body_typed([](Report n) {
+TVM_FFI_REGISTER_GLOBAL("runtime.profiling.AsTable").set_body_method(&ReportNode::AsTable);
+TVM_FFI_REGISTER_GLOBAL("runtime.profiling.AsCSV").set_body_typed([](Report n) {
+  return n->AsCSV();
+});
+TVM_FFI_REGISTER_GLOBAL("runtime.profiling.AsJSON").set_body_typed([](Report n) {
   return n->AsJSON();
 });
-TVM_REGISTER_GLOBAL("runtime.profiling.FromJSON").set_body_typed(Report::FromJSON);
-TVM_REGISTER_GLOBAL("runtime.profiling.DeviceWrapper").set_body_typed([](Device dev) {
+TVM_FFI_REGISTER_GLOBAL("runtime.profiling.FromJSON").set_body_typed(Report::FromJSON);
+TVM_FFI_REGISTER_GLOBAL("runtime.profiling.DeviceWrapper").set_body_typed([](Device dev) {
   return DeviceWrapper(dev);
 });
 
@@ -843,7 +845,7 @@ ffi::Function ProfileFunction(Module mod, std::string func_name, int device_type
   });
 }
 
-TVM_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
+TVM_FFI_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
     .set_body_typed<ffi::Function(Module, String, int, int, int,
                                   Array<MetricCollector>)>([](Module mod, String func_name,
                                                               int device_type, int device_id,
@@ -924,26 +926,26 @@ ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int re
   return ffi::Function::FromPacked(ftimer);
 }
 
-TVM_REGISTER_GLOBAL("runtime.profiling.Report")
+TVM_FFI_REGISTER_GLOBAL("runtime.profiling.Report")
     .set_body_typed([](Array<Map<String, ffi::Any>> calls,
                        Map<String, Map<String, ffi::Any>> device_metrics,
                        Map<String, ffi::Any> configuration) {
       return Report(calls, device_metrics, configuration);
     });
 
-TVM_REGISTER_GLOBAL("runtime.profiling.Count").set_body_typed([](int64_t count) {
+TVM_FFI_REGISTER_GLOBAL("runtime.profiling.Count").set_body_typed([](int64_t count) {
   return ObjectRef(make_object<CountNode>(count));
 });
 
-TVM_REGISTER_GLOBAL("runtime.profiling.Percent").set_body_typed([](double percent) {
+TVM_FFI_REGISTER_GLOBAL("runtime.profiling.Percent").set_body_typed([](double percent) {
   return ObjectRef(make_object<PercentNode>(percent));
 });
 
-TVM_REGISTER_GLOBAL("runtime.profiling.Duration").set_body_typed([](double duration) {
+TVM_FFI_REGISTER_GLOBAL("runtime.profiling.Duration").set_body_typed([](double duration) {
   return ObjectRef(make_object<DurationNode>(duration));
 });
 
-TVM_REGISTER_GLOBAL("runtime.profiling.Ratio").set_body_typed([](double ratio) {
+TVM_FFI_REGISTER_GLOBAL("runtime.profiling.Ratio").set_body_typed([](double ratio) {
   return ObjectRef(make_object<RatioNode>(ratio));
 });
 

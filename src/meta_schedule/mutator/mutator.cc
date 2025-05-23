@@ -88,20 +88,21 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_OBJECT_TYPE(MutatorNode);
 TVM_REGISTER_NODE_TYPE(PyMutatorNode);
 
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorInitializeWithTuneContext")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorInitializeWithTuneContext")
     .set_body_method(&MutatorNode::InitializeWithTuneContext);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorApply")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorApply")
     .set_body_typed([](Mutator self, tir::Trace trace, TRandState seed) -> Optional<tir::Trace> {
       TRandState seed_ = (seed != -1) ? seed : support::LinearCongruentialEngine::DeviceRandom();
       return self->Apply(trace, &seed_);
     });
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorClone").set_body_method(&MutatorNode::Clone);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorPyMutator").set_body_typed(Mutator::PyMutator);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultLLVM").set_body_typed(Mutator::DefaultLLVM);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultCUDA").set_body_typed(Mutator::DefaultCUDA);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultCUDATensorCore")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorClone").set_body_method(&MutatorNode::Clone);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorPyMutator").set_body_typed(Mutator::PyMutator);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorDefaultLLVM").set_body_typed(Mutator::DefaultLLVM);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorDefaultCUDA").set_body_typed(Mutator::DefaultCUDA);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorDefaultCUDATensorCore")
     .set_body_typed(Mutator::DefaultCUDATensorCore);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorDefaultHexagon").set_body_typed(Mutator::DefaultHexagon);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorDefaultHexagon")
+    .set_body_typed(Mutator::DefaultHexagon);
 
 }  // namespace meta_schedule
 }  // namespace tvm

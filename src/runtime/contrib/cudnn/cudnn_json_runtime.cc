@@ -22,8 +22,8 @@
  * \brief A simple JSON runtime for CUDNN.
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 
 #include <cstddef>
 #include <string>
@@ -237,9 +237,9 @@ runtime::Module cuDNNJSONRuntimeCreate(String symbol_name, String graph_json,
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.cuDNNJSONRuntimeCreate").set_body_typed(cuDNNJSONRuntimeCreate);
+TVM_FFI_REGISTER_GLOBAL("runtime.cuDNNJSONRuntimeCreate").set_body_typed(cuDNNJSONRuntimeCreate);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_cudnn_json")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_cudnn_json")
     .set_body_typed(JSONRuntimeBase::LoadFromBinary<cuDNNJSONRuntime>);
 
 }  // namespace contrib

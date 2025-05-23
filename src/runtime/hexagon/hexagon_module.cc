@@ -24,8 +24,8 @@
 #include "hexagon_module.h"
 
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/registry.h>
 
 #include <string>
 #include <utility>

@@ -79,7 +79,7 @@ Database Database::OrderedUnionDatabase(Array<Database> databases) {
 }
 
 TVM_REGISTER_NODE_TYPE(OrderedUnionDatabaseNode);
-TVM_REGISTER_GLOBAL("meta_schedule.DatabaseOrderedUnionDatabase")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseOrderedUnionDatabase")
     .set_body_typed(Database::OrderedUnionDatabase);
 
 }  // namespace meta_schedule

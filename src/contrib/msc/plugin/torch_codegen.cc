@@ -492,7 +492,7 @@ void TorchPluginCodeGen::CodeGenCompute(const Plugin& plugin, const String& devi
   }
 }
 
-TVM_REGISTER_GLOBAL("msc.plugin.GetTorchPluginSources")
+TVM_FFI_REGISTER_GLOBAL("msc.plugin.GetTorchPluginSources")
     .set_body_typed([](const String& codegen_config, const String& print_config,
                        const String& codegen_type) -> Map<String, String> {
       TorchPluginCodeGen codegen = TorchPluginCodeGen(codegen_config);

@@ -162,7 +162,7 @@ Pass DefaultGPUSchedule() {
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.DefaultGPUSchedule").set_body_typed(DefaultGPUSchedule);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.DefaultGPUSchedule").set_body_typed(DefaultGPUSchedule);
 
 }  // namespace transform
 

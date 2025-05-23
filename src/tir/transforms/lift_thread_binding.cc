@@ -183,7 +183,7 @@ Pass LiftThreadBinding() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LiftThreadBinding", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LiftThreadBinding").set_body_typed(LiftThreadBinding);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LiftThreadBinding").set_body_typed(LiftThreadBinding);
 }  // namespace transform
 
 }  // namespace tir

@@ -26,7 +26,7 @@
 
 #include <string>
 
-#include "tvm/runtime/c_runtime_api.h"
+#include "tvm/runtime/base.h"
 
 namespace tvm {
 namespace runtime {

@@ -31,7 +31,7 @@
 #include <thrust/scan.h>
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <algorithm>
 #include <functional>
@@ -232,7 +232,7 @@ void thrust_sort_common(DLTensor* input, DLTensor* values_out, DLTensor* indices
   }
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.thrust.sort")
 .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
   ICHECK_GE(args.num_args, 4);
   auto input = args[0].cast<DLTensor*>();
@@ -279,7 +279,7 @@ void thrust_stable_sort_by_key(DLTensor* keys_in, DLTensor* values_in, DLTensor*
   thrust::stable_sort_by_key(policy, keys_out_ptr, keys_out_ptr + size, values_out_ptr);
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       ICHECK_GE(args.num_args, 5);
       auto keys_in = args[0].cast<DLTensor*>();
@@ -394,7 +394,7 @@ void thrust_scan(DLTensor* data, DLTensor* output, bool exclusive, DLTensor* wor
   }
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
 .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
   ICHECK(args.num_args == 2 || args.num_args == 3 || args.num_args == 4);
   auto data = args[0].cast<DLTensor*>();

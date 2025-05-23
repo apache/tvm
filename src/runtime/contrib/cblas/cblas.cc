@@ -20,9 +20,9 @@
 /*!
  * \file Use external cblas library call.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 extern "C" {
 #include <cblas.h>
@@ -123,7 +123,7 @@ struct CblasDgemmBatchIterativeOp {
 };
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cblas.matmul")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
@@ -134,7 +134,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul")
         CallGemm(args, ret, CblasDgemmOp());
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
@@ -145,7 +145,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul")
       }
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul_iterative")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul_iterative")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));

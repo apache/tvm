@@ -23,8 +23,8 @@
  */
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
 #include "../../../support/utils.h"
@@ -241,7 +241,7 @@ class CUDAGraphExtension : public VMExtension {
   }
 };
 
-TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       ICHECK(args.size() == 5 || args.size() == 4);
       VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
@@ -256,7 +256,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
       *rv = extension->RunOrCapture(vm, capture_func, func_args, entry_index, shape_expr);
     });
 
-TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.get_cached_alloc")
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.cuda_graph.get_cached_alloc")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       ICHECK_EQ(args.size(), 3);
       VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);

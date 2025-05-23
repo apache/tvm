@@ -17,8 +17,8 @@
  * under the License.
  */
 #include <curand.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 
 #include "../../cuda/cuda_common.h"
 #include "./helper_cuda_kernels.h"
@@ -112,7 +112,7 @@ void RandomFill(DLTensor* tensor) {
   TVMSynchronize(tensor->device.device_type, tensor->device.device_type, nullptr);
 }
 
-TVM_REGISTER_GLOBAL("runtime.contrib.curand.RandomFill").set_body_typed(RandomFill);
+TVM_FFI_REGISTER_GLOBAL("runtime.contrib.curand.RandomFill").set_body_typed(RandomFill);
 
 }  // namespace curand
 }  // namespace runtime

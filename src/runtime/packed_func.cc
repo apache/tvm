@@ -20,8 +20,8 @@
  * \file src/runtime/packed_func.cc
  * \brief Implementation of non-inlinable ffi::Function pieces.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace runtime {

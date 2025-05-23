@@ -346,6 +346,7 @@ Map<Buffer, Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func) {
   return LCADetector::Detect(func);
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.detect_buffer_access_lca").set_body_typed(DetectBufferAccessLCA);
+TVM_FFI_REGISTER_GLOBAL("tir.analysis.detect_buffer_access_lca")
+    .set_body_typed(DetectBufferAccessLCA);
 }  // namespace tir
 }  // namespace tvm

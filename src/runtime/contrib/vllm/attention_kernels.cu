@@ -20,7 +20,7 @@
 #include <float.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <algorithm>
 #include <type_traits>
@@ -735,7 +735,7 @@ void single_query_cached_kv_attention_v2(
   }
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention")
     .set_body_typed([](const DLTensor* query, const DLTensor* key_cache,
                        const DLTensor* value_cache, const DLTensor* block_tables,
                        const DLTensor* context_lens, int block_size,
@@ -759,10 +759,10 @@ TVM_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention")
     });
 
 // Expose for testing
-TVM_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention_v1")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention_v1")
     .set_body_typed(single_query_cached_kv_attention_v1);
 
-TVM_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention_v2")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention_v2")
     .set_body_typed(single_query_cached_kv_attention_v2);
 
 }  // namespace runtime

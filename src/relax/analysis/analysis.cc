@@ -197,15 +197,15 @@ bool ContainsImpureCall(const Expr& expr, const Optional<Expr>& own_name) {
   return FindImpureCall(expr, own_name).defined();
 }
 
-TVM_REGISTER_GLOBAL("relax.analysis.free_vars").set_body_typed(FreeVars);
+TVM_FFI_REGISTER_GLOBAL("relax.analysis.free_vars").set_body_typed(FreeVars);
 
-TVM_REGISTER_GLOBAL("relax.analysis.bound_vars").set_body_typed(BoundVars);
+TVM_FFI_REGISTER_GLOBAL("relax.analysis.bound_vars").set_body_typed(BoundVars);
 
-TVM_REGISTER_GLOBAL("relax.analysis.all_vars").set_body_typed(AllVars);
+TVM_FFI_REGISTER_GLOBAL("relax.analysis.all_vars").set_body_typed(AllVars);
 
-TVM_REGISTER_GLOBAL("relax.analysis.all_global_vars").set_body_typed(AllGlobalVars);
+TVM_FFI_REGISTER_GLOBAL("relax.analysis.all_global_vars").set_body_typed(AllGlobalVars);
 
-TVM_REGISTER_GLOBAL("relax.analysis.contains_impure_call").set_body_typed(ContainsImpureCall);
+TVM_FFI_REGISTER_GLOBAL("relax.analysis.contains_impure_call").set_body_typed(ContainsImpureCall);
 
 }  // namespace relax
 }  // namespace tvm

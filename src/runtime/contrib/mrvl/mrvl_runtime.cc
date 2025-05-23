@@ -24,9 +24,9 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 
 #include <cstddef>
 #include <fstream>
@@ -149,9 +149,9 @@ runtime::Module MarvellSimulatorModuleRuntimeCreate(const String& symbol_name,
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.mrvl_runtime_create")
+TVM_FFI_REGISTER_GLOBAL("runtime.mrvl_runtime_create")
     .set_body_typed(MarvellSimulatorModuleRuntimeCreate);
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_mrvl_sim")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_mrvl_sim")
     .set_body_typed(MarvellSimulatorModuleNode::LoadFromBinary);
 }  // namespace contrib
 }  // namespace runtime

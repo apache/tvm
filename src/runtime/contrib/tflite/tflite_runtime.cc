@@ -25,7 +25,7 @@
 #include <tensorflow/lite/interpreter.h>
 #include <tensorflow/lite/kernels/register.h>
 #include <tensorflow/lite/model.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 namespace tvm {
 namespace runtime {
@@ -183,11 +183,11 @@ Module TFLiteRuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.tflite_runtime.create")
+TVM_FFI_REGISTER_GLOBAL("tvm.tflite_runtime.create")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       *rv = TFLiteRuntimeCreate(args[0].cast<std::string>(), args[1].cast<Device>());
     });
 
-TVM_REGISTER_GLOBAL("target.runtime.tflite").set_body_typed(TFLiteRuntimeCreate);
+TVM_FFI_REGISTER_GLOBAL("target.runtime.tflite").set_body_typed(TFLiteRuntimeCreate);
 }  // namespace runtime
 }  // namespace tvm

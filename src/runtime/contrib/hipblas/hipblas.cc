@@ -20,9 +20,9 @@
 /*!
  * \file Use external hipblas library call.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../3rdparty/compiler-rt/builtin_fp16.h"
 #include "../cblas/gemm_common.h"
@@ -407,7 +407,7 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t
 }
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto C = args[2].cast<DLTensor*>();
@@ -430,7 +430,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul")
       }
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.batch_matmul")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.hipblas.batch_matmul")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto C = args[2].cast<DLTensor*>();

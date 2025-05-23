@@ -120,7 +120,7 @@ Array<tir::Schedule> AddRFactorNode::Apply(const tir::Schedule& sch, const tir::
 }
 
 TVM_REGISTER_NODE_TYPE(AddRFactorNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAddRFactor")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAddRFactor")
     .set_body_typed(ScheduleRule::AddRFactor);
 
 }  // namespace meta_schedule

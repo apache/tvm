@@ -18,8 +18,8 @@
  */
 
 #include <gtest/gtest.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 #include <cmath>
 #include <random>

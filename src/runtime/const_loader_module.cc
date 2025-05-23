@@ -29,10 +29,10 @@
  */
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <cstdint>
 
@@ -143,7 +143,7 @@ class ConstLoaderModuleNode : public ModuleNode {
         // Initialize the module with constants.
         int ret = init(md).cast<int>();
         // Report the error if initialization is failed.
-        ICHECK_EQ(ret, 0) << TVMGetLastError();
+        ICHECK_EQ(ret, 0);
         break;
       }
     }
@@ -247,7 +247,7 @@ Module ConstLoaderModuleCreate(
   return Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_const_loader")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_const_loader")
     .set_body_typed(ConstLoaderModuleNode::LoadFromBinary);
 
 }  // namespace runtime

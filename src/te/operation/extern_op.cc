@@ -22,7 +22,7 @@
  * \file extern_op.cc
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
 
@@ -70,7 +70,7 @@ ExternOp::ExternOp(std::string name, std::string tag, Map<String, ffi::Any> attr
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("te.ExternOp")
+TVM_FFI_REGISTER_GLOBAL("te.ExternOp")
     .set_body_typed([](std::string name, std::string tag, Optional<Map<String, ffi::Any>> attrs,
                        Array<Tensor> inputs, Array<Buffer> input_placeholders,
                        Array<Buffer> output_placeholders, Stmt body) {

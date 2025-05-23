@@ -34,7 +34,7 @@
     https://discuss.tvm.apache.org/t/rfc-introducing-a-rolling-buffer-scheduling-primitive/9836
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -315,7 +315,7 @@ Pass InjectRollingBuffer() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectRollingBuffer", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InjectRollingBuffer").set_body_typed(InjectRollingBuffer);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectRollingBuffer").set_body_typed(InjectRollingBuffer);
 
 }  // namespace transform
 

@@ -1395,7 +1395,7 @@ FusionPattern::FusionPattern(String name, DFPattern pattern,
 }
 
 TVM_REGISTER_NODE_TYPE(FusionPatternNode);
-TVM_REGISTER_GLOBAL("relax.transform.FusionPattern")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.FusionPattern")
     .set_body_typed([](String name, DFPattern pattern, Map<String, DFPattern> annotation_patterns,
                        Optional<ffi::Function> check, Optional<ffi::Function> attrs_getter) {
       return FusionPattern(name, pattern, annotation_patterns, check, attrs_getter);
@@ -1429,7 +1429,7 @@ Pass FuseOps(int fuse_opt_level) {
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.FuseOps").set_body_typed(FuseOps);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.FuseOps").set_body_typed(FuseOps);
 
 Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_constants,
                       bool annotate_codegen, const Array<String>& entry_function_names) {
@@ -1444,7 +1444,7 @@ Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_const
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.FuseOpsByPattern").set_body_typed(FuseOpsByPattern);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.FuseOpsByPattern").set_body_typed(FuseOpsByPattern);
 
 }  // namespace transform
 

@@ -231,7 +231,7 @@ Pass LowerRuntimeBuiltin() {
   return CreateFunctionPass(pass_func, 0, "LowerRuntimeBuiltin", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.LowerRuntimeBuiltin").set_body_typed(LowerRuntimeBuiltin);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.LowerRuntimeBuiltin").set_body_typed(LowerRuntimeBuiltin);
 
 }  // namespace transform
 }  // namespace relax

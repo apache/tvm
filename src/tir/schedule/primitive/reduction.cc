@@ -1344,7 +1344,7 @@ TVM_REGISTER_INST_KIND_TRAITS(DecomposeReductionTraits);
 
 /******** FFI ********/
 
-TVM_REGISTER_GLOBAL("tir.schedule.RegisterReducer")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.RegisterReducer")
     .set_body_typed([](int n_buffers, ffi::Function combiner_getter,
                        ffi::Function identity_getter) {
       ReducerRegistry::RegisterReducer(n_buffers, std::move(combiner_getter),

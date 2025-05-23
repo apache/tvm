@@ -162,14 +162,7 @@ struct VMFrame {
   std::vector<RegType> register_file;
   /*! \brief Register in caller's frame to put return value */
   RegName caller_return_register;
-  // The following fields are used for ffi::Function call within
-  // a single function scope. The space is reused across multiple
-  // packed func calls to increase cache locality and avoid re-allocation
-  /*! \brief Temporary argument value stack for packed func call. */
-  std::vector<TVMValue> call_arg_values;
   /*! \brief Temporary argument tcode stack for packed func call. */
-  std::vector<int> call_arg_tcodes;
-
   std::vector<AnyView> call_args;
 
   VMFrame(Index pc, Index register_file_size)

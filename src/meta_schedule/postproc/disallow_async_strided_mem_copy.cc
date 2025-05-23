@@ -184,7 +184,7 @@ Postproc Postproc::DisallowAsyncStridedMemCopy() {
 }
 
 TVM_REGISTER_NODE_TYPE(DisallowAsyncStridedMemCopyNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocDisallowAsyncStridedMemCopy")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocDisallowAsyncStridedMemCopy")
     .set_body_typed(Postproc::DisallowAsyncStridedMemCopy);
 
 }  // namespace meta_schedule

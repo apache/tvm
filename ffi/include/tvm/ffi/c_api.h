@@ -27,6 +27,13 @@
 #include <dlpack/dlpack.h>
 #include <stdint.h>
 
+// Macros to do weak linking
+#ifdef _MSC_VER
+#define TVM_FFI_WEAK __declspec(selectany)
+#else
+#define TVM_FFI_WEAK __attribute__((weak))
+#endif
+
 #if !defined(TVM_FFI_DLL) && defined(__EMSCRIPTEN__)
 #include <emscripten/emscripten.h>
 #define TVM_FFI_DLL EMSCRIPTEN_KEEPALIVE

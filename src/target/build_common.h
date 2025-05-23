@@ -24,8 +24,8 @@
 #ifndef TVM_TARGET_BUILD_COMMON_H_
 #define TVM_TARGET_BUILD_COMMON_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/function.h>

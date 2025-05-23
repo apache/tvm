@@ -19,7 +19,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/iter_affine_map.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
@@ -123,7 +123,7 @@ Pass InjectPTXLDG32(bool enable_inject_ptx_intrin) {
 
 // The pass can now be invoked via the pass infrastructure, but we also add a
 // Python binding for it
-TVM_REGISTER_GLOBAL("tir.transform.InjectPTXLDG32").set_body_typed(InjectPTXLDG32);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectPTXLDG32").set_body_typed(InjectPTXLDG32);
 
 }  // namespace transform
 }  // namespace tir

@@ -24,7 +24,7 @@
 #ifndef TVM_NODE_SERIALIZATION_H_
 #define TVM_NODE_SERIALIZATION_H_
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/object.h>
 
 #include <string>
