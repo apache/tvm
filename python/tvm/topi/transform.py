@@ -97,7 +97,7 @@ def expand_like(a, shape_like, axis):
         for i in range(0, len(idxs)):
             if i not in real_axis:
                 dim = tvm.tir.if_then_else(
-                    idxs[i] < a.shape[len(indices)], idxs[i], a.shape[len(indices)] - 1
+                    a.shape[len(indices)] !=1, idxs[i], 0
                 )
                 indices.append(dim)
                 axis_index += 1
