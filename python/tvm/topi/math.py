@@ -366,6 +366,23 @@ def trunc(x):
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
+def frac(x):
+    """Take fractional part of the input x, element-wise.
+
+    Parameters
+    ----------
+    x : tvm.te.Tensor
+        Input argument (must be floating-point).
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The fractional part of each element (x - trunc(x)).
+    """
+    return te.compute(x.shape, lambda *i: x(*i) - te.trunc(x(*i)))
+
+
+@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def abs(x):
     """Take absolute value of the input of x, element-wise.
 
