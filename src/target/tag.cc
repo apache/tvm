@@ -22,8 +22,8 @@
  * \brief Target tag registry
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/tag.h>
 #include <tvm/target/target.h>
 
@@ -33,8 +33,8 @@ namespace tvm {
 
 TVM_REGISTER_NODE_TYPE(TargetTagNode);
 
-TVM_REGISTER_GLOBAL("target.TargetTagListTags").set_body_typed(TargetTag::ListTags);
-TVM_REGISTER_GLOBAL("target.TargetTagAddTag").set_body_typed(TargetTag::AddTag);
+TVM_FFI_REGISTER_GLOBAL("target.TargetTagListTags").set_body_typed(TargetTag::ListTags);
+TVM_FFI_REGISTER_GLOBAL("target.TargetTagAddTag").set_body_typed(TargetTag::AddTag);
 
 /**********  Registry-related code  **********/
 

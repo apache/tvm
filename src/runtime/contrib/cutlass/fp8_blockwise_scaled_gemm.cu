@@ -21,7 +21,7 @@
 #include <float.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include "../cublas/cublas_utils.h"
 #include "blockwise_scaled_gemm_runner.cuh"
@@ -153,9 +153,9 @@ void tvm_cutlass_fp8_blockwise_scaled_bmm(NDArray a, NDArray b, NDArray scales_a
   }
 }
 
-TVM_REGISTER_GLOBAL("cutlass.blockwise_scaled_gemm_e4m3fn_e4m3fn")
+TVM_FFI_REGISTER_GLOBAL("cutlass.blockwise_scaled_gemm_e4m3fn_e4m3fn")
     .set_body_typed(tvm_cutlass_fp8_blockwise_scaled_gemm);
-TVM_REGISTER_GLOBAL("cutlass.blockwise_scaled_bmm_e4m3fn_e4m3fn")
+TVM_FFI_REGISTER_GLOBAL("cutlass.blockwise_scaled_bmm_e4m3fn_e4m3fn")
     .set_body_typed(tvm_cutlass_fp8_blockwise_scaled_bmm);
 
 }  // namespace runtime

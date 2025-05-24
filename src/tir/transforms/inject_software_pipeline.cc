@@ -1259,7 +1259,8 @@ Pass InjectSoftwarePipeline() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectSoftwarePipeline", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InjectSoftwarePipeline").set_body_typed(InjectSoftwarePipeline);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectSoftwarePipeline")
+    .set_body_typed(InjectSoftwarePipeline);
 
 }  // namespace transform
 

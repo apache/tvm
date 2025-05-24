@@ -279,7 +279,7 @@ Pass Normalize() {
   return CreateFunctionPass(pass_func, 1, "Normalize", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.Normalize").set_body_typed(Normalize);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.Normalize").set_body_typed(Normalize);
 
 Pass NormalizeGlobalVar() {
   auto pass_func = [=](IRModule mod, PassContext pc) {
@@ -290,7 +290,7 @@ Pass NormalizeGlobalVar() {
                           /*pass_name=*/"NormalizeGlobalVar",
                           /*required=*/{});
 }
-TVM_REGISTER_GLOBAL("relax.transform.NormalizeGlobalVar").set_body_typed(NormalizeGlobalVar);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.NormalizeGlobalVar").set_body_typed(NormalizeGlobalVar);
 
 }  // namespace transform
 

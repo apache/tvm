@@ -116,7 +116,7 @@ SpaceGenerator SpaceGenerator::PostOrderApply(ffi::Function f_block_filter,
 }
 
 TVM_REGISTER_NODE_TYPE(PostOrderApplyNode);
-TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorPostOrderApply")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorPostOrderApply")
     .set_body_typed(SpaceGenerator::PostOrderApply);
 
 }  // namespace meta_schedule

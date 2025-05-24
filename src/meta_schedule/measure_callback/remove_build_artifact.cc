@@ -46,7 +46,7 @@ MeasureCallback MeasureCallback::RemoveBuildArtifact() {
 }
 
 TVM_REGISTER_NODE_TYPE(RemoveBuildArtifactNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackRemoveBuildArtifact")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MeasureCallbackRemoveBuildArtifact")
     .set_body_typed(MeasureCallback::RemoveBuildArtifact);
 
 }  // namespace meta_schedule

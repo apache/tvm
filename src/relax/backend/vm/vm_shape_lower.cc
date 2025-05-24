@@ -813,7 +813,7 @@ Pass VMShapeLower(bool emit_err_ctx) {
   return CreateModulePass(pass_func, 0, "VMShapeLower", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.VMShapeLower").set_body_typed([](bool emit_err_ctx) {
+TVM_FFI_REGISTER_GLOBAL("relax.transform.VMShapeLower").set_body_typed([](bool emit_err_ctx) {
   return VMShapeLower(emit_err_ctx);
 });
 

@@ -269,7 +269,8 @@ Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_s
 Mutator Mutator::MutateTileSize() { return Mutator(make_object<MutateTileSizeNode>()); }
 
 TVM_REGISTER_NODE_TYPE(MutateTileSizeNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorMutateTileSize").set_body_typed(Mutator::MutateTileSize);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateTileSize")
+    .set_body_typed(Mutator::MutateTileSize);
 
 }  // namespace meta_schedule
 }  // namespace tvm

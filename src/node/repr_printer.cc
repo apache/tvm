@@ -21,9 +21,9 @@
  * Printer utilities
  * \file node/repr_printer.cc
  */
+#include <tvm/ffi/function.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 namespace tvm {
 
@@ -133,12 +133,12 @@ void Dump(const runtime::ObjectRef& n) { std::cerr << n << "\n"; }
 
 void Dump(const runtime::Object* n) { Dump(runtime::GetRef<runtime::ObjectRef>(n)); }
 
-TVM_REGISTER_GLOBAL("node.AsRepr").set_body_typed([](ffi::Any obj) {
+TVM_FFI_REGISTER_GLOBAL("node.AsRepr").set_body_typed([](ffi::Any obj) {
   std::ostringstream os;
   os << obj;
   return os.str();
 });
 
-TVM_REGISTER_GLOBAL("node.AsLegacyRepr").set_body_typed(ffi::AsLegacyRepr);
+TVM_FFI_REGISTER_GLOBAL("node.AsLegacyRepr").set_body_typed(ffi::AsLegacyRepr);
 
 }  // namespace tvm

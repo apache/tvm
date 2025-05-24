@@ -21,8 +21,8 @@
  * \file tvm/runtime/memory/memory_manager.cc
  * \brief Allocate and manage memory for the runtime.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/registry.h>
 
 #include <memory>
 #include <utility>
@@ -264,7 +264,7 @@ void Allocator::Clear() {
   // Pooled allocator will override this method.
 }
 
-TVM_REGISTER_GLOBAL("vm.builtin.memory_manager.clear").set_body_typed(MemoryManager::Clear);
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.memory_manager.clear").set_body_typed(MemoryManager::Clear);
 
 }  // namespace memory
 }  // namespace runtime

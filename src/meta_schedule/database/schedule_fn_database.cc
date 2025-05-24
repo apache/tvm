@@ -99,7 +99,7 @@ Database Database::ScheduleFnDatabase(ffi::TypedFunction<bool(tir::Schedule)> sc
 }
 
 TVM_REGISTER_NODE_TYPE(ScheduleFnDatabaseNode);
-TVM_REGISTER_GLOBAL("meta_schedule.DatabaseScheduleFnDatabase")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseScheduleFnDatabase")
     .set_body_typed(Database::ScheduleFnDatabase);
 
 }  // namespace meta_schedule

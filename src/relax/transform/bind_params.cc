@@ -196,7 +196,7 @@ IRModule BindParam(IRModule m, String func_name, Map<ObjectRef, ObjectRef> bind_
   return GetRef<IRModule>(new_module);
 }
 
-TVM_REGISTER_GLOBAL("relax.FunctionBindParams").set_body_typed(FunctionBindParams);
+TVM_FFI_REGISTER_GLOBAL("relax.FunctionBindParams").set_body_typed(FunctionBindParams);
 
 namespace transform {
 
@@ -207,7 +207,7 @@ Pass BindParams(String func_name, Map<ObjectRef, ObjectRef> params) {
   return CreateModulePass(pass_func, 0, "BindParams", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.BindParams").set_body_typed(BindParams);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.BindParams").set_body_typed(BindParams);
 
 }  // namespace transform
 

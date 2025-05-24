@@ -21,9 +21,9 @@
  * Printer implementation for containers
  * \file node/container_printint.cc
  */
+#include <tvm/ffi/function.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/runtime/registry.h>
 
 namespace tvm {
 

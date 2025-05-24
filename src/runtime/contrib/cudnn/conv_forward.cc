@@ -20,9 +20,9 @@
 /*!
  * \file cuDNN kernel calls for the forward algorithm.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include "cudnn_utils.h"
 
@@ -153,7 +153,7 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
   ret[0] = static_cast<int>(best_algo);
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       int mode = args[0].cast<int>();
       int format = args[1].cast<int>();
@@ -174,7 +174,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d.forward")
                          conv_dtype);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d+bias+act.forward")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d+bias+act.forward")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       int mode = args[0].cast<int>();
       int format = args[1].cast<int>();
@@ -198,7 +198,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv2d+bias+act.forward")
                                        dilation_v, x, w, y, bias, conv_dtype);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv3d.forward")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cudnn.conv3d.forward")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       int mode = args[0].cast<int>();
       int format = args[1].cast<int>();
@@ -219,7 +219,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv3d.forward")
                          conv_dtype);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.forward_find_algo")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cudnn.conv.forward_find_algo")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       int format = args[0].cast<int>();
       int dims = args[1].cast<int>();

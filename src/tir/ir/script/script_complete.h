@@ -23,7 +23,7 @@
  */
 #ifndef TVM_TIR_IR_SCRIPT_SCRIPT_COMPLETE_H_
 #define TVM_TIR_IR_SCRIPT_SCRIPT_COMPLETE_H_
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 

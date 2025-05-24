@@ -124,7 +124,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingWideVector(String structure,
 }
 
 TVM_REGISTER_NODE_TYPE(MultiLevelTilingWideVectorNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTilingWideVector")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTilingWideVector")
     .set_body_typed(ScheduleRule::MultiLevelTilingWideVector);
 
 }  // namespace meta_schedule

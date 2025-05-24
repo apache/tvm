@@ -756,7 +756,7 @@ Pass CompactBufferAllocation(bool is_strict) {
   return CreatePrimFuncPass(pass_func, 0, "tir.CompactBufferAllocation", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.CompactBufferAllocation")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.CompactBufferAllocation")
     .set_body_typed(CompactBufferAllocation);
 }  // namespace transform
 

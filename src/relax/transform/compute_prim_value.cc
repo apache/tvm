@@ -86,7 +86,7 @@ Pass ComputePrimValue() {
   return CreateModulePass(pass_func, 0, "ComputePrimValue", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ComputePrimValue").set_body_typed(ComputePrimValue);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.ComputePrimValue").set_body_typed(ComputePrimValue);
 
 }  // namespace transform
 

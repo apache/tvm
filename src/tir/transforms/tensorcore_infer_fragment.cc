@@ -21,7 +21,7 @@
  * \brief Infer TensorCore metadata from tensor intrinsic.
  * \file tensorcore_fragment.cc
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -217,7 +217,7 @@ Pass InferFragment() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InferFragment", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InferFragment").set_body_typed(InferFragment);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.InferFragment").set_body_typed(InferFragment);
 
 }  // namespace transform
 }  // namespace tir

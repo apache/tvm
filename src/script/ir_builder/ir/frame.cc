@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/script/ir_builder/ir/frame.h>
 
 namespace tvm {

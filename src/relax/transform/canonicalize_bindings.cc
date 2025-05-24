@@ -591,7 +591,8 @@ Pass CanonicalizeBindings() {
       "CanonicalizeBindings");
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.CanonicalizeBindings").set_body_typed(CanonicalizeBindings);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.CanonicalizeBindings")
+    .set_body_typed(CanonicalizeBindings);
 
 }  // namespace transform
 

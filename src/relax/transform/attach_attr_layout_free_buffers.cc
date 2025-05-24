@@ -105,7 +105,7 @@ Pass AttachAttrLayoutFreeBuffers() {
   return tvm::transform::Sequential({pass, DeadCodeElimination()}, "AttachAttrLayoutFreeBuffers");
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.AttachAttrLayoutFreeBuffers")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.AttachAttrLayoutFreeBuffers")
     .set_body_typed(AttachAttrLayoutFreeBuffers);
 }  // namespace transform
 }  // namespace relax

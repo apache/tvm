@@ -102,7 +102,7 @@ Array<runtime::Module> HipblasCompiler(Array<Function> functions, Map<String, ff
   return compiled_functions;
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.hipblas").set_body_typed(HipblasCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.hipblas").set_body_typed(HipblasCompiler);
 
 }  // namespace contrib
 }  // namespace relax

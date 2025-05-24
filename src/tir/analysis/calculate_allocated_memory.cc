@@ -96,7 +96,7 @@ tvm::Map<String, tvm::Map<String, Integer> > CalculateAllocatedBytes(const IRMod
   return results;
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.calculate_allocated_bytes")
+TVM_FFI_REGISTER_GLOBAL("tir.analysis.calculate_allocated_bytes")
     .set_body_typed([](ObjectRef obj) -> tvm::Map<String, tvm::Map<String, Integer> > {
       if (auto func = obj.as<PrimFunc>()) {
         return CalculateAllocatedBytes(func.value());
@@ -155,7 +155,7 @@ Array<tvm::transform::Pass> GetVTCMCompactionPasses() {
   return pass_list;
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.get_vtcm_compaction_passes").set_body_typed([]() {
+TVM_FFI_REGISTER_GLOBAL("tir.analysis.get_vtcm_compaction_passes").set_body_typed([]() {
   return GetVTCMCompactionPasses();
 });
 
@@ -191,7 +191,7 @@ Pass VerifyVTCMLimit(Optional<Target> default_target) {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.calculate_allocated_bytes", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.VerifyVTCMLimit").set_body_typed(VerifyVTCMLimit);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.VerifyVTCMLimit").set_body_typed(VerifyVTCMLimit);
 
 }  // namespace transform
 }  // namespace tir

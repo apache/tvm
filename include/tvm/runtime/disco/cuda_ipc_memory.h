@@ -20,7 +20,7 @@
 #ifndef TVM_RUNTIME_DISCO_CUDA_IPC_MEMORY_H_
 #define TVM_RUNTIME_DISCO_CUDA_IPC_MEMORY_H_
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/object.h>
 

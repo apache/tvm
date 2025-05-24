@@ -21,7 +21,7 @@
  * \file hexagon_session.cc
  */
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 extern "C" {
 #include <AEEStdDef.h>
@@ -109,7 +109,7 @@ class HexagonTransportChannel : public RPCChannel {
   remote_handle64 _handle = AEE_EUNKNOWN;
 };
 
-TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       ICHECK(args.size() >= 4) << args.size() << " is less than 4";
 

@@ -21,7 +21,7 @@
  * \brief Pass for lowering custom datatypes
  */
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -249,7 +249,7 @@ Pass LowerCustomDatatypes() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerCustomDatatypes", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerCustomDatatypes").set_body_typed(LowerCustomDatatypes);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerCustomDatatypes").set_body_typed(LowerCustomDatatypes);
 
 }  // namespace transform
 

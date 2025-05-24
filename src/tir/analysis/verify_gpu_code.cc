@@ -24,7 +24,7 @@
  *        in a block exceeds the limit
  */
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
@@ -321,7 +321,7 @@ bool VerifyGPUCode(const PrimFunc& func, Map<String, PrimExpr> constraints) {
   return errs.size() == 0;
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.verify_gpu_code").set_body_typed(VerifyGPUCode);
+TVM_FFI_REGISTER_GLOBAL("tir.analysis.verify_gpu_code").set_body_typed(VerifyGPUCode);
 
 namespace transform {
 
@@ -346,7 +346,7 @@ Pass VerifyGPUCode(Map<String, PrimExpr> constraints) {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.VerifyGPUCode", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.VerifyGPUCode").set_body_typed(VerifyGPUCode);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.VerifyGPUCode").set_body_typed(VerifyGPUCode);
 
 }  // namespace transform
 }  // namespace tir

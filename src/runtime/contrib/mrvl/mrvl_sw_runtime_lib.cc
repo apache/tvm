@@ -25,8 +25,8 @@
 #include "mrvl_sw_runtime_lib.h"
 
 #include <assert.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 
 #include <fstream>
 #include <vector>

@@ -91,7 +91,7 @@ bool IsPureFunction(const PrimFunc& func, bool assert_on_error) {
   return PurityChecker::Check(func, assert_on_error);
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.is_pure_function").set_body_typed(IsPureFunction);
+TVM_FFI_REGISTER_GLOBAL("tir.analysis.is_pure_function").set_body_typed(IsPureFunction);
 
 }  // namespace tir
 }  // namespace tvm

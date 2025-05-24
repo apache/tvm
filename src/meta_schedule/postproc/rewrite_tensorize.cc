@@ -107,7 +107,7 @@ Postproc Postproc::RewriteTensorize(bool vectorize_init_loop) {
 }
 
 TVM_REGISTER_NODE_TYPE(RewriteTensorizeNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocRewriteTensorize")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteTensorize")
     .set_body_typed(Postproc::RewriteTensorize);
 
 }  // namespace meta_schedule

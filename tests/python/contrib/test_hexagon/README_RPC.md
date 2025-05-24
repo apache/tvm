@@ -80,7 +80,7 @@ Which eventually jumps to the following line in C++, which creates a RPC client 
 [https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L123-L129](https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L123-L129)
 
 ```cpp
-TVM_REGISTER_GLOBAL("rpc.Connect").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("rpc.Connect").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   auto url = args[0].cast<std::string>();
   int port = args[1].cast<int>();
   auto key = args[2].cast<std::string>();
@@ -94,7 +94,7 @@ TVM_REGISTER_GLOBAL("rpc.Connect").set_body_packed([](ffi::PackedArgs args, ffi:
 [https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/src/runtime/hexagon/rpc/android/session.cc#L106](https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/src/runtime/hexagon/rpc/android/session.cc#L106)
 
 ```cpp
-TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       auto session_name = args[0].cast<std::string>();
       int remote_stack_size_bytes = args[1].cast<int>();

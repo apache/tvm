@@ -22,8 +22,8 @@
  * \brief A simple JSON runtime for HIPBLAS.
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 
 #include <cstddef>
 #include <string>
@@ -141,9 +141,10 @@ runtime::Module HipblasJSONRuntimeCreate(String symbol_name, String graph_json,
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.HipblasJSONRuntimeCreate").set_body_typed(HipblasJSONRuntimeCreate);
+TVM_FFI_REGISTER_GLOBAL("runtime.HipblasJSONRuntimeCreate")
+    .set_body_typed(HipblasJSONRuntimeCreate);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_hipblas_json")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_hipblas_json")
     .set_body_typed(JSONRuntimeBase::LoadFromBinary<HipblasJSONRuntime>);
 
 }  // namespace contrib

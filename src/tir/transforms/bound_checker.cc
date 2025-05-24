@@ -23,7 +23,7 @@
 // Instrument checkers for out of the bounds access.
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -255,7 +255,7 @@ Pass InstrumentBoundCheckers() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InstrumentBoundCheckers", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InstrumentBoundCheckers")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.InstrumentBoundCheckers")
     .set_body_typed(InstrumentBoundCheckers);
 
 }  // namespace transform

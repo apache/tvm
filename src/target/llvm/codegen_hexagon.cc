@@ -589,9 +589,9 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
   return HexagonModuleCreate(so_name, "so", ExtractFuncInfo(mod), asm_str, obj_str, ir_str, bc_str);
 }
 
-TVM_REGISTER_GLOBAL("target.build.hexagon").set_body_typed(BuildHexagon);
+TVM_FFI_REGISTER_GLOBAL("target.build.hexagon").set_body_typed(BuildHexagon);
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_hexagon")
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.target_hexagon")
     .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
       *rv = static_cast<void*>(new CodeGenHexagon());
     });

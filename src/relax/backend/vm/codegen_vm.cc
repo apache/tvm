@@ -425,7 +425,7 @@ IRModule VMCodeGen(ExecBuilder exec_builder, IRModule mod) {
   return CodeGenVM::Run(exec_builder, mod);
 }
 
-TVM_REGISTER_GLOBAL("relax.VMCodeGen").set_body_typed(VMCodeGen);
+TVM_FFI_REGISTER_GLOBAL("relax.VMCodeGen").set_body_typed(VMCodeGen);
 
 /*!
  * \brief Link the modules together, possibly create a constant module.
@@ -490,7 +490,7 @@ Module VMLink(ExecBuilder builder, Target target, Optional<Module> lib, Array<Mo
   return Module(executable);
 }
 
-TVM_REGISTER_GLOBAL("relax.VMLink").set_body_typed(VMLink);
+TVM_FFI_REGISTER_GLOBAL("relax.VMLink").set_body_typed(VMLink);
 
 }  // namespace relax_vm
 }  // namespace relax

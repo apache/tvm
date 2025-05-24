@@ -172,7 +172,7 @@ Postproc Postproc::RewriteReductionBlock() {
 }
 
 TVM_REGISTER_NODE_TYPE(RewriteReductionBlockNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocRewriteReductionBlock")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteReductionBlock")
     .set_body_typed(Postproc::RewriteReductionBlock);
 
 }  // namespace meta_schedule

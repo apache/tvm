@@ -115,7 +115,7 @@ Pass LegalizeRedistribute() {
   };
   return CreateModulePass(pass_func, 1, "LegalizeRedistribute", {});
 }
-TVM_REGISTER_GLOBAL("relax.distributed.transform.LegalizeRedistribute")
+TVM_FFI_REGISTER_GLOBAL("relax.distributed.transform.LegalizeRedistribute")
     .set_body_typed(LegalizeRedistribute);
 }  // namespace transform
 

@@ -219,7 +219,7 @@ Pass RunCodegen(Optional<Map<String, Map<String, ffi::Any>>> target_options,
   return CreateModulePass(pass_func, 0, "RunCodegen", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.RunCodegen").set_body_typed(RunCodegen);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.RunCodegen").set_body_typed(RunCodegen);
 
 }  // namespace transform
 }  // namespace tvm

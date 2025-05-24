@@ -18,8 +18,8 @@
  */
 
 #include <gtest/gtest.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <string>
 #include <vector>
@@ -80,7 +80,7 @@ class GtestPrinter : public testing::EmptyTestEventListener {
   std::string GetOutput() { return gtest_out_.str(); }
 };
 
-TVM_REGISTER_GLOBAL("hexagon.run_unit_tests")
+TVM_FFI_REGISTER_GLOBAL("hexagon.run_unit_tests")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       // gtest args are passed into this packed func as a singular string
       // split gtest args using <space> delimiter and build argument vector

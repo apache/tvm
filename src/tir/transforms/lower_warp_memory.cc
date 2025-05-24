@@ -27,7 +27,7 @@
 // explaining the concept of warp shuffle.
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/pattern.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
@@ -461,7 +461,7 @@ Pass LowerWarpMemory() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerWarpMemory", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerWarpMemory").set_body_typed(LowerWarpMemory);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerWarpMemory").set_body_typed(LowerWarpMemory);
 
 }  // namespace transform
 

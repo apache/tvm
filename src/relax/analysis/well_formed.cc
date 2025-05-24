@@ -646,7 +646,7 @@ bool WellFormed(Variant<IRModule, Function> obj, bool check_struct_info) {
   return WellFormedChecker::Check(obj, check_struct_info);
 }
 
-TVM_REGISTER_GLOBAL(("relax.analysis.well_formed")).set_body_typed(WellFormed);
+TVM_FFI_REGISTER_GLOBAL(("relax.analysis.well_formed")).set_body_typed(WellFormed);
 
 }  // namespace relax
 }  // namespace tvm

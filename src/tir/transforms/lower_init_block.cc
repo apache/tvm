@@ -79,7 +79,7 @@ Pass LowerInitBlock() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerInitBlock", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerInitBlock").set_body_typed(LowerInitBlock);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerInitBlock").set_body_typed(LowerInitBlock);
 
 }  // namespace transform
 

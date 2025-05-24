@@ -23,18 +23,17 @@
  */
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <cctype>
 #include <map>
 #include <string>
 
-#include "../runtime/object_internal.h"
 #include "../support/base64.h"
 
 namespace tvm {
@@ -701,7 +700,7 @@ Any LoadJSON(std::string json_str) {
   return nodes.at(jgraph.root);
 }
 
-TVM_REGISTER_GLOBAL("node.SaveJSON").set_body_typed(SaveJSON);
+TVM_FFI_REGISTER_GLOBAL("node.SaveJSON").set_body_typed(SaveJSON);
 
-TVM_REGISTER_GLOBAL("node.LoadJSON").set_body_typed(LoadJSON);
+TVM_FFI_REGISTER_GLOBAL("node.LoadJSON").set_body_typed(LoadJSON);
 }  // namespace tvm

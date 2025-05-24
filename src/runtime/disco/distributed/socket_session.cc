@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <numeric>
 
@@ -294,7 +294,7 @@ void RemoteSocketSessionEntryPoint(const String& server_host, int server_port,
   proxy.MainLoop();
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.RemoteSocketSession")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.RemoteSocketSession")
     .set_body_typed(RemoteSocketSessionEntryPoint);
 
 Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups, const String& host,
@@ -303,9 +303,9 @@ Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups, c
   return Session(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.SocketSession").set_body_typed(SocketSession);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.SocketSession").set_body_typed(SocketSession);
 
-TVM_REGISTER_GLOBAL("runtime.disco.socket_session_init_workers")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.socket_session_init_workers")
     .set_body_typed([](int num_nodes, int node_id, int num_groups, int num_workers_per_node) {
       LOG(INFO) << "Initializing worker group with " << num_nodes << " nodes, "
                 << num_workers_per_node << " workers per node, and " << num_groups << " groups.";

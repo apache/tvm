@@ -17,7 +17,7 @@
  * under the License.
  */
 #include <dmlc/io.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/object.h>
 

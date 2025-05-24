@@ -23,10 +23,10 @@
  */
 #include "rpc_endpoint.h"
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/serializer.h>
 
 #include <algorithm>
@@ -41,7 +41,6 @@
 #include "../../support/arena.h"
 #include "../../support/ring_buffer.h"
 #include "../../support/utils.h"
-#include "../object_internal.h"
 #include "rpc_local_session.h"
 
 namespace tvm {

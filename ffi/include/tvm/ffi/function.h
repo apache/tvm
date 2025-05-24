@@ -787,7 +787,7 @@ class Function::Registry {
    * .set_body_typed(multiply); // will have type int(int, int)
    *
    * // will have type int(int, int)
-   * TVM_REGISTER_GLOBAL("sub")
+   * TVM_FFI_REGISTER_GLOBAL("sub")
    * .set_body_typed([](int a, int b) -> int { return a - b; });
    *
    * \endcode

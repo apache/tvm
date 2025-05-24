@@ -82,7 +82,8 @@ Database Database::UnionDatabase(Array<Database> databases) {
 }
 
 TVM_REGISTER_NODE_TYPE(UnionDatabaseNode);
-TVM_REGISTER_GLOBAL("meta_schedule.DatabaseUnionDatabase").set_body_typed(Database::UnionDatabase);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseUnionDatabase")
+    .set_body_typed(Database::UnionDatabase);
 
 }  // namespace meta_schedule
 }  // namespace tvm

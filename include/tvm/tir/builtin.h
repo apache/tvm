@@ -415,17 +415,15 @@ TVM_DLL const Op& tvm_thread_invariant();
  *  type codes are explicitly allocated.
  *
  *  return_type tvm_call_packed_lowered(name,
- *                                      TVMValue* value_stack,
- *                                      int* tcode_stack,
+ *                                      TVMFFIAny* args_stack,
  *                                      int begin,
  *                                      int end) {
  *     ModuleNode* env = GetCurrentEnv();
  *     const ffi::Function* f = env->GetFuncFromEnv(name);
- *     f->CallPacked(ffi::PackedArgs(value_stack[begin:end],
- *                           tcode_stack[begin:end]),
- *                   ffi::Any(value_stack + end, tcode_stack + end));
+ *     f->CallPacked(ffi::PackedArgs(args_stack[begin:end]),
+ *                   ffi::Any(args_stack + end));
  *     // return type can be int, float, handle.
- *     return cast(return_type, load_return_from(tcode_stack + end))
+ *     return cast(return_type, load_return_from(args_stack + end))
  *  }
  */
 TVM_DLL const Op& tvm_call_packed_lowered();
@@ -451,17 +449,15 @@ TVM_DLL const Op& tvm_call_cpacked_lowered();
  *  (end - 1) value on the stack.
  *
  *  return_type tvm_call_trace_packed_lowered(name,
- *                                            TVMValue* value_stack,
- *                                            int* tcode_stack,
+ *                                            TVMFFIAny* args_stack,
  *                                            int begin,
  *                                            int end) {
  *     ModuleNode* env = GetCurrentEnv();
  *     const ffi::Function* f = env->GetFuncFromEnv(name);
- *     f->CallPacked(ffi::PackedArgs(value_stack[begin:end],
- *                           tcode_stack[begin:end]),
- *                   ffi::Any(value_stack + end, tcode_stack + end));
+ *     f->CallPacked(ffi::PackedArgs(args_stack[begin:end]),
+ *                   ffi::Any(args_stack + end));
  *     // return type can be int, float, handle.
- *     return cast(return_type, load_return_from(tcode_stack + end))
+ *     return cast(return_type, load_return_from(args_stack + end))
  *  }
  */
 TVM_DLL const Op& tvm_call_trace_packed_lowered();

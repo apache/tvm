@@ -25,8 +25,8 @@
  * https://github.com/apache/tvm-rfcs/blob/main/rfcs/0022-tir-non-scalar-constants.md
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/transform.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include "ir_utils.h"
@@ -105,7 +105,7 @@ tvm::transform::Pass ExtractPrimFuncConstants() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.ExtractPrimFuncConstants", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.ExtractPrimFuncConstants")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.ExtractPrimFuncConstants")
     .set_body_typed(ExtractPrimFuncConstants);
 
 }  // namespace transform

@@ -26,7 +26,7 @@
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/object.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 
 #include <utility>
 

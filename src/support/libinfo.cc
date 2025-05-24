@@ -17,9 +17,9 @@
  * under the License.
  */
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/registry.h>
 
 #ifndef TVM_INFO_GIT_COMMIT_HASH
 #define TVM_INFO_GIT_COMMIT_HASH "NOT-FOUND"
@@ -367,6 +367,6 @@ TVM_DLL ffi::Map<ffi::String, ffi::String> GetLibInfo() {
   return result;
 }
 
-TVM_REGISTER_GLOBAL("support.GetLibInfo").set_body_typed(GetLibInfo);
+TVM_FFI_REGISTER_GLOBAL("support.GetLibInfo").set_body_typed(GetLibInfo);
 
 }  // namespace tvm

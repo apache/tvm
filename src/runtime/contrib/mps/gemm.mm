@@ -24,7 +24,7 @@ namespace contrib {
 
 using namespace runtime;
 
-TVM_REGISTER_GLOBAL("tvm.contrib.mps.matmul")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.mps.matmul")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto B = args[1].cast<DLTensor*>();

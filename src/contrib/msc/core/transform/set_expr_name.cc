@@ -324,7 +324,7 @@ Pass SetRelaxExprName(const String& entry_name, const String& target,
   return CreateModulePass(pass_func, 0, "SetRelaxExprName", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.SetRelaxExprName").set_body_typed(SetRelaxExprName);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.SetRelaxExprName").set_body_typed(SetRelaxExprName);
 
 }  // namespace transform
 }  // namespace relax

@@ -44,7 +44,7 @@ ExternFuncPattern::ExternFuncPattern(String global_symbol) {
   n->global_symbol_ = std::move(global_symbol);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.ExternFuncPattern").set_body_typed([](String global_symbol) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.ExternFuncPattern").set_body_typed([](String global_symbol) {
   return ExternFuncPattern(global_symbol);
 });
 RELAX_PATTERN_PRINTER_DEF(ExternFuncPatternNode, [](auto p, auto node) {
@@ -57,7 +57,7 @@ VarPattern::VarPattern(String name_hint) {
   n->name = std::move(name_hint);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.VarPattern").set_body_typed([](String name_hint) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.VarPattern").set_body_typed([](String name_hint) {
   return VarPattern(name_hint);
 });
 RELAX_PATTERN_PRINTER_DEF(VarPatternNode, [](auto p, auto node) {
@@ -65,7 +65,7 @@ RELAX_PATTERN_PRINTER_DEF(VarPatternNode, [](auto p, auto node) {
 });
 
 TVM_REGISTER_NODE_TYPE(DataflowVarPatternNode);
-TVM_REGISTER_GLOBAL("relax.dpl.DataflowVarPattern").set_body_typed([](String name_hint) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.DataflowVarPattern").set_body_typed([](String name_hint) {
   return DataflowVarPattern(name_hint);
 });
 DataflowVarPattern::DataflowVarPattern(String name_hint) {
@@ -83,7 +83,7 @@ GlobalVarPattern::GlobalVarPattern(String name_hint) {
   n->name = std::move(name_hint);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.GlobalVarPattern").set_body_typed([](String name_hint) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.GlobalVarPattern").set_body_typed([](String name_hint) {
   return GlobalVarPattern(name_hint);
 });
 RELAX_PATTERN_PRINTER_DEF(GlobalVarPatternNode, [](auto p, auto node) {
@@ -96,11 +96,13 @@ ExprPattern::ExprPattern(Expr expr) {
   n->expr = std::move(expr);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.ExprPattern").set_body_typed([](Expr e) { return ExprPattern(e); });
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.ExprPattern").set_body_typed([](Expr e) {
+  return ExprPattern(e);
+});
 RELAX_PATTERN_PRINTER_DEF(ExprPatternNode, [](auto p, auto node) { p->Print(node->expr); });
 
 TVM_REGISTER_NODE_TYPE(ConstantPatternNode);
-TVM_REGISTER_GLOBAL("relax.dpl.ConstantPattern").set_body_typed([]() {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.ConstantPattern").set_body_typed([]() {
   auto c = ConstantPattern(make_object<ConstantPatternNode>());
   return c;
 });
@@ -115,7 +117,7 @@ CallPattern::CallPattern(DFPattern op, Array<DFPattern> args, bool varg_default_
   n->varg_default_wildcard = varg_default_wildcard;
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.CallPattern")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.CallPattern")
     .set_body_typed([](DFPattern op, Array<DFPattern> args, bool varg_default_wildcard) {
       return CallPattern(op, args, varg_default_wildcard);
     });
@@ -138,7 +140,7 @@ PrimArrPattern::PrimArrPattern(Array<PrimExpr> arr) {
   n->fields = std::move(arr);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.PrimArrPattern").set_body_typed([](Array<PrimExpr> arr) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.PrimArrPattern").set_body_typed([](Array<PrimExpr> arr) {
   return PrimArrPattern(std::move(arr));
 });
 RELAX_PATTERN_PRINTER_DEF(PrimArrPatternNode, [](auto p, auto node) {
@@ -152,7 +154,7 @@ FunctionPattern::FunctionPattern(Array<DFPattern> params, DFPattern body) {
   n->body = std::move(body);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.FunctionPattern")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.FunctionPattern")
     .set_body_typed([](Array<DFPattern> params, DFPattern body) {
       return FunctionPattern(params, body);
     });
@@ -166,7 +168,7 @@ TuplePattern::TuplePattern(tvm::Array<DFPattern> fields) {
   n->fields = std::move(fields);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.TuplePattern").set_body_typed([](tvm::Array<DFPattern> fields) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.TuplePattern").set_body_typed([](tvm::Array<DFPattern> fields) {
   return TuplePattern(fields);
 });
 RELAX_PATTERN_PRINTER_DEF(TuplePatternNode, [](auto p, auto node) {
@@ -179,7 +181,7 @@ UnorderedTuplePattern::UnorderedTuplePattern(tvm::Array<DFPattern> fields) {
   n->fields = std::move(fields);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.UnorderedTuplePattern")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.UnorderedTuplePattern")
     .set_body_typed([](tvm::Array<DFPattern> fields) { return UnorderedTuplePattern(fields); });
 RELAX_PATTERN_PRINTER_DEF(UnorderedTuplePatternNode, [](auto p, auto node) {
   p->stream << "UnorderedTuplePattern(" << node->fields << ")";
@@ -192,9 +194,8 @@ TupleGetItemPattern::TupleGetItemPattern(DFPattern tuple, int index) {
   n->index = index;
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.TupleGetItemPattern").set_body_typed([](DFPattern tuple, int index) {
-  return TupleGetItemPattern(tuple, index);
-});
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.TupleGetItemPattern")
+    .set_body_typed([](DFPattern tuple, int index) { return TupleGetItemPattern(tuple, index); });
 RELAX_PATTERN_PRINTER_DEF(TupleGetItemPatternNode, [](auto p, auto node) {
   p->stream << "TupleGetItemPattern(" << node->tuple << ", " << node->index << ")";
 });
@@ -206,7 +207,7 @@ AndPattern::AndPattern(DFPattern left, DFPattern right) {
   n->right = std::move(right);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.AndPattern").set_body_typed([](DFPattern left, DFPattern right) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.AndPattern").set_body_typed([](DFPattern left, DFPattern right) {
   return AndPattern(left, right);
 });
 RELAX_PATTERN_PRINTER_DEF(AndPatternNode, [](auto p, auto node) {
@@ -220,7 +221,7 @@ OrPattern::OrPattern(DFPattern left, DFPattern right) {
   n->right = std::move(right);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.OrPattern").set_body_typed([](DFPattern left, DFPattern right) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.OrPattern").set_body_typed([](DFPattern left, DFPattern right) {
   return OrPattern(left, right);
 });
 RELAX_PATTERN_PRINTER_DEF(OrPatternNode, [](auto p, auto node) {
@@ -233,7 +234,7 @@ NotPattern::NotPattern(DFPattern reject) {
   n->reject = std::move(reject);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.NotPattern").set_body_typed([](DFPattern reject) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.NotPattern").set_body_typed([](DFPattern reject) {
   return NotPattern(reject);
 });
 RELAX_PATTERN_PRINTER_DEF(NotPatternNode,
@@ -241,7 +242,9 @@ RELAX_PATTERN_PRINTER_DEF(NotPatternNode,
 
 TVM_REGISTER_NODE_TYPE(WildcardPatternNode);
 WildcardPattern::WildcardPattern() { data_ = make_object<WildcardPatternNode>(); }
-TVM_REGISTER_GLOBAL("relax.dpl.WildcardPattern").set_body_typed([]() { return WildcardPattern(); });
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.WildcardPattern").set_body_typed([]() {
+  return WildcardPattern();
+});
 RELAX_PATTERN_PRINTER_DEF(WildcardPatternNode, [](auto p, auto node) { p->stream << "*"; });
 
 TVM_REGISTER_NODE_TYPE(TypePatternNode);
@@ -251,7 +254,7 @@ TypePattern::TypePattern(DFPattern pattern, Type type) {
   n->type = std::move(type);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.TypePattern").set_body_typed([](DFPattern pattern, Type type) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.TypePattern").set_body_typed([](DFPattern pattern, Type type) {
   return TypePattern(pattern, type);
 });
 RELAX_PATTERN_PRINTER_DEF(TypePatternNode, [](auto p, auto node) {
@@ -265,7 +268,7 @@ StructInfoPattern::StructInfoPattern(DFPattern pattern, StructInfo struct_info) 
   n->struct_info = std::move(struct_info);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.StructInfoPattern")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.StructInfoPattern")
     .set_body_typed([](DFPattern pattern, StructInfo struct_info) {
       return StructInfoPattern(pattern, struct_info);
     });
@@ -281,7 +284,7 @@ ShapePattern::ShapePattern(DFPattern pattern, Array<PrimExpr> shape) {
   n->shape = std::move(shape);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.ShapePattern")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.ShapePattern")
     .set_body_typed([](DFPattern pattern, Array<PrimExpr> shape) {
       return ShapePattern(pattern, shape);
     });
@@ -299,7 +302,7 @@ SameShapeConstraint::SameShapeConstraint(Array<DFPattern> args) {
     ctx.value().add_constraint(*this);
   }
 }
-TVM_REGISTER_GLOBAL("relax.dpl.SameShapeConstraint").set_body_typed([](Array<DFPattern> args) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.SameShapeConstraint").set_body_typed([](Array<DFPattern> args) {
   return SameShapeConstraint(args);
 });
 RELAX_PATTERN_PRINTER_DEF(SameShapeConstraintNode, [](auto p, auto node) {
@@ -320,7 +323,7 @@ DataTypePattern::DataTypePattern(DFPattern pattern, DataType dtype) {
   n->dtype = std::move(dtype);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.DataTypePattern")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.DataTypePattern")
     .set_body_typed([](DFPattern pattern, DataType dtype) {
       return DataTypePattern(pattern, dtype);
     });
@@ -335,9 +338,8 @@ AttrPattern::AttrPattern(DFPattern pattern, DictAttrs attrs) {
   n->attrs = std::move(attrs);
   data_ = std::move(n);
 }
-TVM_REGISTER_GLOBAL("relax.dpl.AttrPattern").set_body_typed([](DFPattern pattern, DictAttrs attrs) {
-  return AttrPattern(pattern, attrs);
-});
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.AttrPattern")
+    .set_body_typed([](DFPattern pattern, DictAttrs attrs) { return AttrPattern(pattern, attrs); });
 RELAX_PATTERN_PRINTER_DEF(AttrPatternNode, [](auto p, auto node) {
   p->stream << "AttrPattern(" << node->pattern << " has attributes " << node->attrs << ")";
 });
@@ -511,7 +513,7 @@ PatternSeq PatternSeq::dup() const {
 
   return ret;
 }
-TVM_REGISTER_GLOBAL("relax.dpl.PatternSeq")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.PatternSeq")
     .set_body_typed([](Array<DFPattern> patterns, bool only_used_by) {
       return PatternSeq(std::move(patterns), only_used_by);
     });
@@ -525,12 +527,12 @@ RELAX_PATTERN_PRINTER_DEF(PatternSeqNode, [](auto p, auto node) {
   p->stream << "]";
 });
 
-TVM_REGISTER_GLOBAL("relax.dpl.used_by")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.used_by")
     .set_body_typed([](PatternSeq lhs, PatternSeq rhs, int index) {
       return lhs.UsedBy(rhs, index);
     });
 
-TVM_REGISTER_GLOBAL("relax.dpl.only_used_by")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.only_used_by")
     .set_body_typed([](PatternSeq lhs, PatternSeq rhs, int index) {
       return lhs.OnlyUsedBy(rhs, index);
     });
@@ -643,25 +645,27 @@ DFPattern DFPattern::dup() const {
   return pattern;
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.dup_pattern").set_body_typed([](DFPattern pattern) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.dup_pattern").set_body_typed([](DFPattern pattern) {
   return pattern.dup();
 });
 
-TVM_REGISTER_GLOBAL("relax.dpl.dup_seq").set_body_typed([](PatternSeq seq) { return seq.dup(); });
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.dup_seq").set_body_typed([](PatternSeq seq) {
+  return seq.dup();
+});
 
-TVM_REGISTER_GLOBAL("relax.dpl.PatternContext").set_body_typed([](bool incre) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.PatternContext").set_body_typed([](bool incre) {
   return PatternContext(incre);
 });
 
-TVM_REGISTER_GLOBAL("relax.dpl.current_context").set_body_typed([] {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.current_context").set_body_typed([] {
   return PatternContext::Current();
 });
 
-TVM_REGISTER_GLOBAL("relax.dpl.enter_context").set_body_typed([](const PatternContext& ctx) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.enter_context").set_body_typed([](const PatternContext& ctx) {
   ctx.EnterWithScope();
 });
 
-TVM_REGISTER_GLOBAL("relax.dpl.exit_context").set_body_typed([](const PatternContext& ctx) {
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.exit_context").set_body_typed([](const PatternContext& ctx) {
   ctx.ExitWithScope();
 });
 

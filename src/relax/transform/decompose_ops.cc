@@ -250,10 +250,10 @@ Pass DecomposeOpsForTraining(Optional<String> func_name) {
   }
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.DecomposeOpsForInference")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.DecomposeOpsForInference")
     .set_body_typed(DecomposeOpsForInference);
 
-TVM_REGISTER_GLOBAL("relax.transform.DecomposeOpsForTraining")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.DecomposeOpsForTraining")
     .set_body_typed(DecomposeOpsForTraining);
 
 }  // namespace transform

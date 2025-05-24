@@ -199,7 +199,7 @@ Array<Var> UndefinedVars(const PrimExpr& expr, const Array<Var>& args) {
   return m.undefined_;
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.UndefinedVars")
+TVM_FFI_REGISTER_GLOBAL("tir.analysis.UndefinedVars")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       if (auto opt_stmt = args[0].as<Stmt>()) {
         *rv = UndefinedVars(opt_stmt.value(), args[1].cast<Array<Var>>());

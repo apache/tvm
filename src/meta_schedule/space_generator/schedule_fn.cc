@@ -97,7 +97,7 @@ SpaceGenerator SpaceGenerator::ScheduleFn(ffi::Function schedule_fn,
 }
 
 TVM_REGISTER_NODE_TYPE(ScheduleFnNode);
-TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorScheduleFn")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorScheduleFn")
     .set_body_typed(SpaceGenerator::ScheduleFn);
 
 }  // namespace meta_schedule

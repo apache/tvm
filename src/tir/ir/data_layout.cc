@@ -22,7 +22,7 @@
  * \brief Data Layout expression.
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/data_layout.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -427,43 +427,45 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ")";
     });
 
-TVM_REGISTER_GLOBAL("tir.Layout").set_body_typed([](std::string name, DataType dtype) {
+TVM_FFI_REGISTER_GLOBAL("tir.Layout").set_body_typed([](std::string name, DataType dtype) {
   return Layout(name, dtype);
 });
 
-TVM_REGISTER_GLOBAL("tir.LayoutIndexOf").set_body_typed([](Layout layout, std::string axis) -> int {
-  return layout.IndexOf(LayoutAxis::Get(axis));
-});
+TVM_FFI_REGISTER_GLOBAL("tir.LayoutIndexOf")
+    .set_body_typed([](Layout layout, std::string axis) -> int {
+      return layout.IndexOf(LayoutAxis::Get(axis));
+    });
 
-TVM_REGISTER_GLOBAL("tir.LayoutFactorOf")
+TVM_FFI_REGISTER_GLOBAL("tir.LayoutFactorOf")
     .set_body_typed([](Layout layout, std::string axis) -> int {
       return layout.FactorOf(LayoutAxis::Get(axis));
     });
 
-TVM_REGISTER_GLOBAL("tir.LayoutNdim").set_body_typed([](Layout layout) -> int {
+TVM_FFI_REGISTER_GLOBAL("tir.LayoutNdim").set_body_typed([](Layout layout) -> int {
   return layout.ndim();
 });
 
-TVM_REGISTER_GLOBAL("tir.LayoutGetItem").set_body_typed([](Layout layout, int idx) -> std::string {
-  const LayoutAxis& axis = layout[idx];
-  return axis.name();
-});
+TVM_FFI_REGISTER_GLOBAL("tir.LayoutGetItem")
+    .set_body_typed([](Layout layout, int idx) -> std::string {
+      const LayoutAxis& axis = layout[idx];
+      return axis.name();
+    });
 
-TVM_REGISTER_GLOBAL("tir.BijectiveLayout")
+TVM_FFI_REGISTER_GLOBAL("tir.BijectiveLayout")
     .set_body_typed([](Layout src_layout, Layout dst_layout) -> BijectiveLayout {
       return BijectiveLayout(src_layout, dst_layout);
     });
 
-TVM_REGISTER_GLOBAL("tir.BijectiveLayoutForwardIndex")
+TVM_FFI_REGISTER_GLOBAL("tir.BijectiveLayoutForwardIndex")
     .set_body_method(&BijectiveLayout::ForwardIndex);
 
-TVM_REGISTER_GLOBAL("tir.BijectiveLayoutBackwardIndex")
+TVM_FFI_REGISTER_GLOBAL("tir.BijectiveLayoutBackwardIndex")
     .set_body_method(&BijectiveLayout::BackwardIndex);
 
-TVM_REGISTER_GLOBAL("tir.BijectiveLayoutForwardShape")
+TVM_FFI_REGISTER_GLOBAL("tir.BijectiveLayoutForwardShape")
     .set_body_method(&BijectiveLayout::ForwardShape);
 
-TVM_REGISTER_GLOBAL("tir.BijectiveLayoutBackwardShape")
+TVM_FFI_REGISTER_GLOBAL("tir.BijectiveLayoutBackwardShape")
     .set_body_method(&BijectiveLayout::BackwardShape);
 }  // namespace tir
 }  // namespace tvm

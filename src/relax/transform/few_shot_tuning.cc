@@ -172,7 +172,7 @@ Pass FewShotTuning(int valid_count, bool benchmark) {
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.FewShotTuning").set_body_typed(FewShotTuning);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.FewShotTuning").set_body_typed(FewShotTuning);
 
 }  // namespace transform
 }  // namespace relax

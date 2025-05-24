@@ -20,13 +20,13 @@
  * \file src/node/structural_hash.cc
  */
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/function.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
 #include <tvm/node/object_path.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/profiling.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
 
 #include <algorithm>
@@ -291,7 +291,7 @@ void SHashHandlerDefault::DispatchSHash(const ObjectRef& key, bool map_free_vars
   impl->DispatchSHash(key, map_free_vars);
 }
 
-TVM_REGISTER_GLOBAL("node.StructuralHash")
+TVM_FFI_REGISTER_GLOBAL("node.StructuralHash")
     .set_body_typed([](const Any& object, bool map_free_vars) -> int64_t {
       uint64_t hashed_value = SHashHandlerDefault().Hash(object, map_free_vars);
       return static_cast<int64_t>(hashed_value);

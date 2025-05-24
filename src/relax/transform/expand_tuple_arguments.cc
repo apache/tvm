@@ -178,7 +178,8 @@ Pass ExpandTupleArguments() {
       "ExpandTupleArguments");
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ExpandTupleArguments").set_body_typed(ExpandTupleArguments);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.ExpandTupleArguments")
+    .set_body_typed(ExpandTupleArguments);
 
 }  // namespace transform
 

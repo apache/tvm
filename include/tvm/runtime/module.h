@@ -30,7 +30,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/object.h>
 
 #include <memory>

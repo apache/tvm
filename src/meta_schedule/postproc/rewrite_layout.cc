@@ -273,7 +273,8 @@ Postproc Postproc::RewriteLayout() {
 }
 
 TVM_REGISTER_NODE_TYPE(RewriteLayoutNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocRewriteLayout").set_body_typed(Postproc::RewriteLayout);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteLayout")
+    .set_body_typed(Postproc::RewriteLayout);
 
 }  // namespace meta_schedule
 }  // namespace tvm

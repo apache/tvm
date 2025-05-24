@@ -23,8 +23,8 @@
  */
 #include "rpc_local_session.h"
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include <memory>
 #include <vector>
@@ -146,7 +146,7 @@ DeviceAPI* LocalSession::GetDeviceAPI(Device dev, bool allow_missing) {
   return DeviceAPI::Get(dev, allow_missing);
 }
 
-TVM_REGISTER_GLOBAL("rpc.LocalSession").set_body_typed([]() {
+TVM_FFI_REGISTER_GLOBAL("rpc.LocalSession").set_body_typed([]() {
   return CreateRPCSessionModule(std::make_shared<LocalSession>());
 });
 

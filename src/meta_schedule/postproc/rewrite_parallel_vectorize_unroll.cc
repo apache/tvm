@@ -464,7 +464,7 @@ Postproc Postproc::RewriteParallelVectorizeUnroll() {
 }
 
 TVM_REGISTER_NODE_TYPE(RewriteParallelVectorizeUnrollNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocRewriteParallelVectorizeUnroll")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteParallelVectorizeUnroll")
     .set_body_typed(Postproc::RewriteParallelVectorizeUnroll);
 
 }  // namespace meta_schedule

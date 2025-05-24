@@ -503,7 +503,7 @@ Pass LambdaLift() {
   return tvm::transform::CreateModulePass(pass_func, 1, "LambdaLift", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.LambdaLift").set_body_typed(LambdaLift);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.LambdaLift").set_body_typed(LambdaLift);
 
 }  // namespace transform
 }  // namespace relax

@@ -227,7 +227,7 @@ Postproc Postproc::RewriteCooperativeFetch() {
 }
 
 TVM_REGISTER_NODE_TYPE(RewriteCooperativeFetchNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocRewriteCooperativeFetch")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteCooperativeFetch")
     .set_body_typed(Postproc::RewriteCooperativeFetch);
 
 }  // namespace meta_schedule

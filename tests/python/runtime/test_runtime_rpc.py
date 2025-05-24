@@ -410,8 +410,8 @@ def test_rpc_return_ndarray():
 def test_rpc_return_remote_object():
     def check(client, is_local):
         make_shape = client.get_function("ffi.Shape")
-        get_elem = client.get_function("runtime.GetShapeElem")
-        get_size = client.get_function("runtime.GetShapeSize")
+        get_elem = client.get_function("testing.GetShapeElem")
+        get_size = client.get_function("testing.GetShapeSize")
         shape = make_shape(2, 3)
         assert shape.type_key == "runtime.RPCObjectRef"
         assert get_elem(shape, 0) == 2
@@ -662,7 +662,7 @@ def test_compiled_function_with_zero_arguments(call_with_unused_argument):
     """RPC functions do not require an argument
 
     This is a regression test.  When no arguments are provided, RPC
-    provides NULL as the `TVMValue* args` argument to a PackedFunc.
+    provides NULL as the `TVMFFIAny* args` argument to a PackedFunc.
     However, previous implementations of `MakePackedAPI`
     unconditionally asserted that the `args` pointer was non-null.
     This assertion is now generated only when the function accepts

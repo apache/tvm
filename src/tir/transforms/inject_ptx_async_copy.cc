@@ -199,7 +199,7 @@ Pass InjectPTXAsyncCopy() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectPTXAsyncCopy", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InjectPTXAsyncCopy").set_body_typed(InjectPTXAsyncCopy);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectPTXAsyncCopy").set_body_typed(InjectPTXAsyncCopy);
 
 }  // namespace transform
 

@@ -20,12 +20,12 @@
  * \file src/runtime/relax_vm/paged_kv_cache.cc
  * \brief Runtime paged KV cache object for language models.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 
 #include <algorithm>
 #include <numeric>
@@ -2284,7 +2284,7 @@ TVM_REGISTER_OBJECT_TYPE(PagedAttentionKVCacheObj);
 //  Register runtime functions
 //-------------------------------------------------
 
-TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
     .set_body_packed([](ffi::PackedArgs args, Any* rv) {
       // Todo: cuda graph arg
       CHECK(args.size() == 28 || args.size() == 29)

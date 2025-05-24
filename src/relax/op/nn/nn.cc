@@ -50,7 +50,7 @@ Expr leakyrelu(Expr data, double alpha) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.leakyrelu").set_body_typed(leakyrelu);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.leakyrelu").set_body_typed(leakyrelu);
 
 TVM_REGISTER_OP("relax.nn.leakyrelu")
     .set_num_inputs(1)
@@ -71,7 +71,7 @@ Expr softplus(Expr data, double beta, double threshold) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.softplus").set_body_typed(softplus);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.softplus").set_body_typed(softplus);
 
 TVM_REGISTER_OP("relax.nn.softplus")
     .set_num_inputs(1)
@@ -91,7 +91,7 @@ Expr prelu(Expr data, Expr alpha, int axis = 1) {
   return Call(op, {data, alpha}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.prelu").set_body_typed(prelu);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.prelu").set_body_typed(prelu);
 
 TVM_REGISTER_OP("relax.nn.prelu")
     .set_num_inputs(2)
@@ -112,7 +112,7 @@ Expr softmax(Expr data, int axis) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.softmax").set_body_typed(softmax);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.softmax").set_body_typed(softmax);
 
 StructInfo InferStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -170,7 +170,7 @@ Expr log_softmax(Expr data, int axis) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.log_softmax").set_body_typed(log_softmax);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.log_softmax").set_body_typed(log_softmax);
 
 TVM_REGISTER_OP("relax.nn.log_softmax")
     .set_num_inputs(1)
@@ -191,7 +191,7 @@ Expr pad(Expr data, Array<Integer> pad_width, String pad_mode, double pad_value)
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.pad").set_body_typed(pad);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.pad").set_body_typed(pad);
 
 StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -234,7 +234,7 @@ Expr pixel_shuffle(Expr data, int upscale_factor) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.pixel_shuffle").set_body_typed(pixel_shuffle);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.pixel_shuffle").set_body_typed(pixel_shuffle);
 
 StructInfo InferStructInfoPixelShuffle(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -383,7 +383,7 @@ Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_
                std::move(moving_var)},
               Attrs{attrs}, {});
 }
-TVM_REGISTER_GLOBAL("relax.op.nn.batch_norm").set_body_typed(batch_norm);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.batch_norm").set_body_typed(batch_norm);
 
 StructInfo InferStructInfoBatchNorm(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -461,7 +461,7 @@ Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double ep
   return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.layer_norm").set_body_typed(layer_norm);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.layer_norm").set_body_typed(layer_norm);
 
 StructInfo InferStructInfoLayerNorm(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -529,7 +529,7 @@ Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_ax
   return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.group_norm").set_body_typed(group_norm);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.group_norm").set_body_typed(group_norm);
 
 StructInfo InferStructInfoGroupNorm(const Call& call, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
@@ -636,7 +636,7 @@ Expr rms_norm(Expr data, Expr weight, Array<Integer> axes, double epsilon) {
   return Call(op, {std::move(data), std::move(weight)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.rms_norm").set_body_typed(rms_norm);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.rms_norm").set_body_typed(rms_norm);
 
 StructInfo InferStructInfoRMSNorm(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -695,7 +695,7 @@ Expr dropout(Expr data, double rate) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.dropout").set_body_typed(dropout);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.dropout").set_body_typed(dropout);
 
 StructInfo InferStructInfoDropout(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -763,7 +763,7 @@ Expr cross_entropy_with_logits(Expr predictions, Expr labels) {
   return Call(op, {std::move(predictions), std::move(labels)}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.cross_entropy_with_logits")
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.cross_entropy_with_logits")
     .set_body_typed(cross_entropy_with_logits);
 
 TVM_REGISTER_OP("relax.nn.cross_entropy_with_logits")
@@ -797,7 +797,7 @@ Expr nll_loss(Expr predictions, Expr targets, Optional<Expr> weights, String red
   }
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.nll_loss").set_body_typed(nll_loss);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.nll_loss").set_body_typed(nll_loss);
 
 StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() < 2 || call->args.size() > 3) {

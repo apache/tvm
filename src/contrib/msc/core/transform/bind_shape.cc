@@ -132,7 +132,7 @@ Pass BindShape(const String& entry_name) {
   return CreateModulePass(pass_func, 0, "BindShape", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.BindShape").set_body_typed(BindShape);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.BindShape").set_body_typed(BindShape);
 
 }  // namespace transform
 }  // namespace relax

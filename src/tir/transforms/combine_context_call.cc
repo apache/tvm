@@ -22,9 +22,9 @@
  *
  * \file combine_context_call.cc
  */
+#include <tvm/ffi/function.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
@@ -112,7 +112,7 @@ Pass CombineContextCall() {
   return CreatePrimFuncPass(pass_func, 0, "tir.CombineContextCall", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.CombineContextCall").set_body_typed(CombineContextCall);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.CombineContextCall").set_body_typed(CombineContextCall);
 
 }  // namespace transform
 }  // namespace tir

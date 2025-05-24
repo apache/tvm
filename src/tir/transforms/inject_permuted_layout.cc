@@ -295,7 +295,7 @@ Pass InjectPermutedLayout() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectPermutedLayout", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InjectPermutedLayout").set_body_typed(InjectPermutedLayout);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectPermutedLayout").set_body_typed(InjectPermutedLayout);
 
 }  // namespace transform
 

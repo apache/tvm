@@ -22,8 +22,8 @@
  * \brief A simple JSON runtime for CUBLAS.
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 
 #include <cstddef>
 #include <string>
@@ -153,9 +153,9 @@ runtime::Module CublasJSONRuntimeCreate(String symbol_name, String graph_json,
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.CublasJSONRuntimeCreate").set_body_typed(CublasJSONRuntimeCreate);
+TVM_FFI_REGISTER_GLOBAL("runtime.CublasJSONRuntimeCreate").set_body_typed(CublasJSONRuntimeCreate);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_cublas_json")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_cublas_json")
     .set_body_typed(JSONRuntimeBase::LoadFromBinary<CublasJSONRuntime>);
 
 }  // namespace contrib

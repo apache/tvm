@@ -134,7 +134,7 @@ ScheduleRule ScheduleRule::ParallelizeVectorizeUnroll(int max_jobs_per_core,
 }
 
 TVM_REGISTER_NODE_TYPE(ParallelizeVectorizeUnrollNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleParallelizeVectorizeUnroll")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleParallelizeVectorizeUnroll")
     .set_body_typed(ScheduleRule::ParallelizeVectorizeUnroll);
 
 }  // namespace meta_schedule

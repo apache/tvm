@@ -21,8 +21,8 @@
  * \file src/runtime/contrib/miopen/softmax.cc
  * \brief Use external miopen softmax function
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/registry.h>
 
 #include "miopen_utils.h"
 
@@ -79,12 +79,12 @@ void softmax_impl(ffi::PackedArgs args, ffi::Any* ret, miopenSoftmaxAlgorithm_t 
                                       entry_ptr->softmax_entry.shape_desc, y->data, alg, mode));
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.miopen.softmax.forward")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.miopen.softmax.forward")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       softmax_impl(args, ret, MIOPEN_SOFTMAX_ACCURATE);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.miopen.log_softmax.forward")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.miopen.log_softmax.forward")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       softmax_impl(args, ret, MIOPEN_SOFTMAX_LOG);
     });

@@ -191,7 +191,7 @@ ScheduleRule ScheduleRule::AutoInline(bool into_producer,          //
 }
 
 TVM_REGISTER_NODE_TYPE(AutoInlineNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAutoInline")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAutoInline")
     .set_body_typed(ScheduleRule::AutoInline);
 
 /*! \brief Inline blocks that produce a constant scalar. */
@@ -232,7 +232,7 @@ ScheduleRule ScheduleRule::InlineConstantScalars() {
 }
 
 TVM_REGISTER_NODE_TYPE(InlineConstantScalarsNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleInlineConstantScalars")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleInlineConstantScalars")
     .set_body_typed(ScheduleRule::InlineConstantScalars);
 }  // namespace meta_schedule
 }  // namespace tvm

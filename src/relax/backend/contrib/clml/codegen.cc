@@ -322,7 +322,7 @@ Array<runtime::Module> OpenCLMLCompiler(Array<Function> functions, Map<String, A
   return compiled_functions;
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.openclml").set_body_typed(OpenCLMLCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.openclml").set_body_typed(OpenCLMLCompiler);
 
 /*!
  * \brief Check whether OpenCLML graph executor is enabled.
@@ -348,8 +348,9 @@ Integer GetOpenCLMLVersion() {
 #endif  // TVM_GRAPH_EXECUTOR_CLML
 }
 
-TVM_REGISTER_GLOBAL("relax.is_openclml_runtime_enabled").set_body_typed(IsOpenCLMLRuntimeEnabled);
-TVM_REGISTER_GLOBAL("relax.get_openclml_version").set_body_typed(GetOpenCLMLVersion);
+TVM_FFI_REGISTER_GLOBAL("relax.is_openclml_runtime_enabled")
+    .set_body_typed(IsOpenCLMLRuntimeEnabled);
+TVM_FFI_REGISTER_GLOBAL("relax.get_openclml_version").set_body_typed(GetOpenCLMLVersion);
 
 }  // namespace contrib
 }  // namespace relax

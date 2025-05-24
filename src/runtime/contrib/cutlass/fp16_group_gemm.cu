@@ -21,7 +21,7 @@
 #include <float.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include "group_gemm_runner.cuh"
 
@@ -60,7 +60,7 @@ void tvm_cutlass_group_gemm_sm90(NDArray x, NDArray weight, NDArray indptr, NDAr
                      static_cast<ElementC*>(out->data), stream);
 }
 
-TVM_REGISTER_GLOBAL("cutlass.group_gemm_fp16_sm90")
+TVM_FFI_REGISTER_GLOBAL("cutlass.group_gemm_fp16_sm90")
     .set_body_typed(tvm_cutlass_group_gemm_sm90<cutlass::half_t, cutlass::half_t, cutlass::half_t>);
 
 }  // namespace runtime

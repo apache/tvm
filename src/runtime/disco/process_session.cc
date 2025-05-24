@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <memory>
 #include <sstream>
@@ -197,8 +197,8 @@ void WorkerProcess(int worker_id, int num_workers, int num_group, int64_t read_f
   worker.MainLoop();
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.SessionProcess").set_body_typed(Session::ProcessSession);
-TVM_REGISTER_GLOBAL("runtime.disco.WorkerProcess").set_body_typed(WorkerProcess);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.SessionProcess").set_body_typed(Session::ProcessSession);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.WorkerProcess").set_body_typed(WorkerProcess);
 
 }  // namespace runtime
 }  // namespace tvm

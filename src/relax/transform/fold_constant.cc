@@ -326,7 +326,7 @@ Pass FoldConstant() {
   return CreateFunctionPass(pass_func, 0, "FoldConstant", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.FoldConstant").set_body_typed(FoldConstant);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.FoldConstant").set_body_typed(FoldConstant);
 
 }  // namespace transform
 

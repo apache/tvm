@@ -157,7 +157,7 @@ SearchStrategy SearchStrategy::ReplayFunc() {
 }
 
 TVM_REGISTER_NODE_TYPE(ReplayFuncNode);
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyReplayFunc")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyReplayFunc")
     .set_body_typed(SearchStrategy::ReplayFunc);
 
 }  // namespace meta_schedule

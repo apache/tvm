@@ -160,7 +160,7 @@ PrimFunc ScriptComplete(PrimFunc func, const Array<Buffer>& root_allocates) {
   }
 }
 
-TVM_REGISTER_GLOBAL("script.Complete").set_body_typed(ScriptComplete);
+TVM_FFI_REGISTER_GLOBAL("script.Complete").set_body_typed(ScriptComplete);
 
 }  // namespace tir
 }  // namespace tvm

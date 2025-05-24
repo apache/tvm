@@ -191,7 +191,7 @@ SearchStrategy SearchStrategy::ReplayTrace(int max_fail_count) {
 }
 
 TVM_REGISTER_NODE_TYPE(ReplayTraceNode);
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyReplayTrace")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyReplayTrace")
     .set_body_typed(SearchStrategy::ReplayTrace);
 
 }  // namespace meta_schedule
