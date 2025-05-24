@@ -21,7 +21,7 @@
  * \file tvm/arith/analyzer.cc
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
@@ -269,7 +269,7 @@ PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
   return res;
 }
 
-TVM_REGISTER_GLOBAL("arith.CreateAnalyzer")
+TVM_FFI_REGISTER_GLOBAL("arith.CreateAnalyzer")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       using ffi::Function;
       using ffi::TypedFunction;

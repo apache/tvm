@@ -20,7 +20,7 @@
 /*!
  * \file decorate_device_scope.cc
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/transform.h>
@@ -44,7 +44,7 @@ Pass DecorateDeviceScope() {
   return CreatePrimFuncPass(pass_func, 0, "tir.DecorateDeviceScope", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.DecorateDeviceScope").set_body_typed(DecorateDeviceScope);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.DecorateDeviceScope").set_body_typed(DecorateDeviceScope);
 
 }  // namespace transform
 }  // namespace tir

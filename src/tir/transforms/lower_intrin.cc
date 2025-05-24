@@ -21,7 +21,7 @@
  *  Lower intrinsic calls and ops to device specific ir when possible.
  * \file lower_intrin.cc
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -394,7 +394,7 @@ Pass LowerIntrin() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerIntrin", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerIntrin").set_body_typed(LowerIntrin);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerIntrin").set_body_typed(LowerIntrin);
 
 }  // namespace transform
 

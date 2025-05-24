@@ -20,8 +20,8 @@
 /*!
  * \file env_func.cc
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/env_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 
 namespace tvm {
@@ -47,15 +47,15 @@ ObjectPtr<Object> CreateEnvNode(const std::string& name) {
 
 EnvFunc EnvFunc::Get(const String& name) { return EnvFunc(CreateEnvNode(name)); }
 
-TVM_REGISTER_GLOBAL("ir.EnvFuncGet").set_body_typed(EnvFunc::Get);
+TVM_FFI_REGISTER_GLOBAL("ir.EnvFuncGet").set_body_typed(EnvFunc::Get);
 
-TVM_REGISTER_GLOBAL("ir.EnvFuncCall").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("ir.EnvFuncCall").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   EnvFunc env = args[0].cast<EnvFunc>();
   ICHECK_GE(args.size(), 1);
   env->func.CallPacked(args.Slice(1), rv);
 });
 
-TVM_REGISTER_GLOBAL("ir.EnvFuncGetFunction").set_body_typed([](const EnvFunc& n) {
+TVM_FFI_REGISTER_GLOBAL("ir.EnvFuncGetFunction").set_body_typed([](const EnvFunc& n) {
   return n->func;
 });
 

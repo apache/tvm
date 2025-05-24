@@ -21,7 +21,7 @@
  *  Lower TVM related builtin intrinsics such as packed call.
  * \file tir/transforms/lower_tvm_buildin.cc
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
@@ -673,7 +673,7 @@ Pass LowerTVMBuiltin() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerTVMBuiltin", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerTVMBuiltin").set_body_typed(LowerTVMBuiltin);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerTVMBuiltin").set_body_typed(LowerTVMBuiltin);
 
 }  // namespace transform
 }  // namespace tir

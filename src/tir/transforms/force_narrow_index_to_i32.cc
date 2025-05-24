@@ -86,7 +86,7 @@ Pass ForceNarrowIndexToInt32() {
   return CreatePrimFuncPass(pass_func, 0, "tir.NarrowDataType", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.ForceNarrowIndexToInt32")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.ForceNarrowIndexToInt32")
     .set_body_typed(ForceNarrowIndexToInt32);
 
 }  // namespace transform

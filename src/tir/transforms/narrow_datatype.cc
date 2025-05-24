@@ -22,7 +22,7 @@
  * \brief narrow the datatype of indexing vars
  */
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/op.h>
@@ -320,7 +320,7 @@ Pass NarrowDataType(int target_bits) {
   return CreatePrimFuncPass(pass_func, 0, "tir.NarrowDataType", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.NarrowDataType").set_body_typed(NarrowDataType);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.NarrowDataType").set_body_typed(NarrowDataType);
 
 }  // namespace transform
 }  // namespace tir

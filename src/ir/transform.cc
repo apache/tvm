@@ -22,6 +22,7 @@
  * \brief Infrastructure for transformation passes.
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/rvalue_ref.h>
 #include <tvm/ir/transform.h>
 #include <tvm/node/repr_printer.h>
@@ -29,14 +30,12 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relax/tuning_api.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include <chrono>
 #include <iomanip>
 #include <stack>
 #include <unordered_set>
 
-#include "../runtime/object_internal.h"
 #include "../runtime/regex.h"
 
 namespace tvm {
@@ -532,12 +531,12 @@ Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func, 
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
-TVM_REGISTER_GLOBAL("transform.PassInfo")
+TVM_FFI_REGISTER_GLOBAL("transform.PassInfo")
     .set_body_typed([](int opt_level, String name, tvm::Array<String> required, bool traceable) {
       return PassInfo(opt_level, name, required, traceable);
     });
 
-TVM_REGISTER_GLOBAL("transform.Info").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+TVM_FFI_REGISTER_GLOBAL("transform.Info").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
   Pass pass = args[0].cast<Pass>();
   *ret = pass->Info();
 });
@@ -562,7 +561,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
-TVM_REGISTER_GLOBAL("transform.MakeModulePass")
+TVM_FFI_REGISTER_GLOBAL("transform.MakeModulePass")
     .set_body_typed(
         [](ffi::TypedFunction<IRModule(ffi::RValueRef<IRModule>, PassContext)> pass_func,
            PassInfo pass_info) {
@@ -572,7 +571,7 @@ TVM_REGISTER_GLOBAL("transform.MakeModulePass")
           return ModulePass(wrapped_pass_func, pass_info);
         });
 
-TVM_REGISTER_GLOBAL("transform.RunPass")
+TVM_FFI_REGISTER_GLOBAL("transform.RunPass")
     .set_body_typed([](Pass pass, ffi::RValueRef<IRModule> mod) { return pass(*std::move(mod)); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -585,7 +584,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(SequentialNode);
 
-TVM_REGISTER_GLOBAL("transform.Sequential")
+TVM_FFI_REGISTER_GLOBAL("transform.Sequential")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto passes = args[0].cast<tvm::Array<Pass>>();
       int opt_level = args[1].cast<int>();
@@ -612,7 +611,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(PassContextNode);
 
-TVM_REGISTER_GLOBAL("transform.PassContext")
+TVM_FFI_REGISTER_GLOBAL("transform.PassContext")
     .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
                        Array<instrument::PassInstrument> instruments,
                        Optional<Map<String, ffi::Any>> config, Array<ObjectRef> trace_stack,
@@ -658,24 +657,27 @@ class PassContext::Internal {
   static void ExitScope(PassContext pass_ctx) { pass_ctx.ExitWithScope(); }
 };
 
-TVM_REGISTER_GLOBAL("transform.GetTraceStack").set_body_method(&PassContextNode::GetTraceStack);
-TVM_REGISTER_GLOBAL("transform.PushTrace").set_body_method(&PassContextNode::PushTrace);
-TVM_REGISTER_GLOBAL("transform.PopTrace").set_body_method(&PassContextNode::PopTrace);
-TVM_REGISTER_GLOBAL("transform.GetTraceStackSize")
+TVM_FFI_REGISTER_GLOBAL("transform.GetTraceStack").set_body_method(&PassContextNode::GetTraceStack);
+TVM_FFI_REGISTER_GLOBAL("transform.PushTrace").set_body_method(&PassContextNode::PushTrace);
+TVM_FFI_REGISTER_GLOBAL("transform.PopTrace").set_body_method(&PassContextNode::PopTrace);
+TVM_FFI_REGISTER_GLOBAL("transform.GetTraceStackSize")
     .set_body_method(&PassContextNode::GetTraceStackSize);
-TVM_REGISTER_GLOBAL("transform.GetCurrentTrace").set_body_method(&PassContextNode::GetCurrentTrace);
-TVM_REGISTER_GLOBAL("transform.SetNumEvals").set_body_method(&PassContextNode::SetNumEvals);
-TVM_REGISTER_GLOBAL("transform.IncNumEvals").set_body_method(&PassContextNode::IncNumEvals);
-TVM_REGISTER_GLOBAL("transform.GetTuningAPIDatabase")
+TVM_FFI_REGISTER_GLOBAL("transform.GetCurrentTrace")
+    .set_body_method(&PassContextNode::GetCurrentTrace);
+TVM_FFI_REGISTER_GLOBAL("transform.SetNumEvals").set_body_method(&PassContextNode::SetNumEvals);
+TVM_FFI_REGISTER_GLOBAL("transform.IncNumEvals").set_body_method(&PassContextNode::IncNumEvals);
+TVM_FFI_REGISTER_GLOBAL("transform.GetTuningAPIDatabase")
     .set_body_method(&PassContextNode::GetTuningAPIDatabase);
 
-TVM_REGISTER_GLOBAL("transform.GetCurrentPassContext").set_body_typed(PassContext::Current);
+TVM_FFI_REGISTER_GLOBAL("transform.GetCurrentPassContext").set_body_typed(PassContext::Current);
 
-TVM_REGISTER_GLOBAL("transform.EnterPassContext").set_body_typed(PassContext::Internal::EnterScope);
+TVM_FFI_REGISTER_GLOBAL("transform.EnterPassContext")
+    .set_body_typed(PassContext::Internal::EnterScope);
 
-TVM_REGISTER_GLOBAL("transform.ExitPassContext").set_body_typed(PassContext::Internal::ExitScope);
+TVM_FFI_REGISTER_GLOBAL("transform.ExitPassContext")
+    .set_body_typed(PassContext::Internal::ExitScope);
 
-TVM_REGISTER_GLOBAL("transform.OverrideInstruments")
+TVM_FFI_REGISTER_GLOBAL("transform.OverrideInstruments")
     .set_body_typed([](PassContext pass_ctx, Array<instrument::PassInstrument> instruments) {
       pass_ctx.InstrumentExitPassContext();
       pass_ctx->instruments = instruments;
@@ -690,9 +692,9 @@ Pass PrintIR(String header, bool show_meta_data) {
   return CreateModulePass(pass_func, 0, "PrintIR", {}, /* traceable */ false);
 }
 
-TVM_REGISTER_GLOBAL("transform.PrintIR").set_body_typed(PrintIR);
+TVM_FFI_REGISTER_GLOBAL("transform.PrintIR").set_body_typed(PrintIR);
 
-TVM_REGISTER_GLOBAL("transform.ListConfigs").set_body_typed(PassContext::ListConfigs);
+TVM_FFI_REGISTER_GLOBAL("transform.ListConfigs").set_body_typed(PassContext::ListConfigs);
 
 }  // namespace transform
 }  // namespace tvm

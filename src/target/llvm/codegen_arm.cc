@@ -24,7 +24,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <llvm/IR/Intrinsics.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsARM.h>
 #endif
@@ -132,7 +132,7 @@ PrimExpr CodeGenARM::ARMPopcount(const CallNode* call) {
   return tir::Call(call->dtype, builtin_call_llvm_pure_intrin_, vcnt64_args);
 }
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_arm")
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.target_arm")
     .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
       *rv = static_cast<void*>(new CodeGenARM());
     });

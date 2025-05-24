@@ -21,9 +21,9 @@
  * \file module.cc
  * \brief TVM module system
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <cstring>
 #include <unordered_set>
@@ -166,52 +166,52 @@ bool RuntimeEnabled(const String& target_str) {
   return tvm::ffi::Function::GetGlobal(f_name).has_value();
 }
 
-TVM_REGISTER_GLOBAL("runtime.RuntimeEnabled").set_body_typed(RuntimeEnabled);
+TVM_FFI_REGISTER_GLOBAL("runtime.RuntimeEnabled").set_body_typed(RuntimeEnabled);
 
-TVM_REGISTER_GLOBAL("runtime.ModuleGetSource").set_body_typed([](Module mod, std::string fmt) {
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleGetSource").set_body_typed([](Module mod, std::string fmt) {
   return mod->GetSource(fmt);
 });
 
-TVM_REGISTER_GLOBAL("runtime.ModuleImportsSize").set_body_typed([](Module mod) {
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleImportsSize").set_body_typed([](Module mod) {
   return static_cast<int64_t>(mod->imports().size());
 });
 
-TVM_REGISTER_GLOBAL("runtime.ModuleGetImport").set_body_typed([](Module mod, int index) {
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleGetImport").set_body_typed([](Module mod, int index) {
   return mod->imports().at(index);
 });
 
-TVM_REGISTER_GLOBAL("runtime.ModuleClearImports").set_body_typed([](Module mod) {
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleClearImports").set_body_typed([](Module mod) {
   mod->ClearImports();
 });
 
-TVM_REGISTER_GLOBAL("runtime.ModuleGetTypeKey").set_body_typed([](Module mod) {
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleGetTypeKey").set_body_typed([](Module mod) {
   return std::string(mod->type_key());
 });
 
-TVM_REGISTER_GLOBAL("runtime.ModuleGetFormat").set_body_typed([](Module mod) {
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleGetFormat").set_body_typed([](Module mod) {
   return mod->GetFormat();
 });
 
-TVM_REGISTER_GLOBAL("runtime.ModuleLoadFromFile").set_body_typed(Module::LoadFromFile);
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleLoadFromFile").set_body_typed(Module::LoadFromFile);
 
-TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
     .set_body_typed([](Module mod, String name, String fmt) { mod->SaveToFile(name, fmt); });
 
-TVM_REGISTER_GLOBAL("runtime.ModuleGetPropertyMask").set_body_typed([](Module mod) {
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleGetPropertyMask").set_body_typed([](Module mod) {
   return mod->GetPropertyMask();
 });
 
-TVM_REGISTER_GLOBAL("runtime.ModuleImplementsFunction")
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleImplementsFunction")
     .set_body_typed([](Module mod, String name, bool query_imports) {
       return mod->ImplementsFunction(std::move(name), query_imports);
     });
 
-TVM_REGISTER_GLOBAL("runtime.ModuleGetFunction")
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleGetFunction")
     .set_body_typed([](Module mod, String name, bool query_imports) {
       return mod->GetFunction(name, query_imports);
     });
 
-TVM_REGISTER_GLOBAL("runtime.ModuleImport").set_body_typed([](Module mod, Module other) {
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleImport").set_body_typed([](Module mod, Module other) {
   mod->Import(other);
 });
 
