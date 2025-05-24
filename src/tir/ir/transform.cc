@@ -21,9 +21,9 @@
  * \file tir/ir/transform.cc
  * \brief TIR specific transformation passes.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/rvalue_ref.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/transform.h>
 
 namespace tvm {
@@ -144,7 +144,7 @@ Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)>
 
 TVM_REGISTER_NODE_TYPE(PrimFuncPassNode);
 
-TVM_REGISTER_GLOBAL("tir.transform.CreatePrimFuncPass")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.CreatePrimFuncPass")
     .set_body_typed(
         [](ffi::TypedFunction<PrimFunc(ffi::RValueRef<PrimFunc>, IRModule, PassContext)> pass_func,
            PassInfo pass_info) {

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -47,7 +47,7 @@ Pass SkipAssert() {
   return CreatePrimFuncPass(pass_func, 0, "tir.SkipAssert", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.SkipAssert").set_body_typed(SkipAssert);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.SkipAssert").set_body_typed(SkipAssert);
 
 }  // namespace transform
 

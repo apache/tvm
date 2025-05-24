@@ -19,7 +19,7 @@
 #ifndef TVM_RUNTIME_NVTX_H_
 #define TVM_RUNTIME_NVTX_H_
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 
 #include <string>
 namespace tvm {

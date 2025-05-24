@@ -22,9 +22,9 @@
  * \brief The expression AST nodes for the common IR infra.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
 
@@ -64,7 +64,7 @@ IntImm::IntImm(DataType dtype, int64_t value, Span span) {
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("ir.IntImm").set_body_typed([](DataType dtype, int64_t value, Span span) {
+TVM_FFI_REGISTER_GLOBAL("ir.IntImm").set_body_typed([](DataType dtype, int64_t value, Span span) {
   return IntImm(dtype, value, span);
 });
 
@@ -115,7 +115,7 @@ FloatImm::FloatImm(DataType dtype, double value, Span span) {
   data_ = std::move(node);
 }
 
-TVM_REGISTER_GLOBAL("ir.FloatImm").set_body_typed([](DataType dtype, double value, Span span) {
+TVM_FFI_REGISTER_GLOBAL("ir.FloatImm").set_body_typed([](DataType dtype, double value, Span span) {
   return FloatImm(dtype, value, span);
 });
 
@@ -128,9 +128,9 @@ Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
   return Range(make_object<RangeNode>(min, extent, span));
 }
 
-TVM_REGISTER_GLOBAL("ir.Range_from_min_extent").set_body_typed(Range::FromMinExtent);
+TVM_FFI_REGISTER_GLOBAL("ir.Range_from_min_extent").set_body_typed(Range::FromMinExtent);
 
-TVM_REGISTER_GLOBAL("ir.Range")
+TVM_FFI_REGISTER_GLOBAL("ir.Range")
     .set_body_typed([](PrimExpr begin, Optional<PrimExpr> end, Span span) -> Range {
       if (end.defined()) {
         return Range(begin, end.value(), span);
@@ -151,11 +151,11 @@ GlobalVar::GlobalVar(String name_hint, Type type, Span span) {
 
 TVM_REGISTER_NODE_TYPE(GlobalVarNode);
 
-TVM_REGISTER_GLOBAL("ir.GlobalVar").set_body_typed([](String name, Type type) {
+TVM_FFI_REGISTER_GLOBAL("ir.GlobalVar").set_body_typed([](String name, Type type) {
   return GlobalVar(name, type);
 });
 
-TVM_REGISTER_GLOBAL("ir.DebugPrint").set_body_typed([](ObjectRef ref) {
+TVM_FFI_REGISTER_GLOBAL("ir.DebugPrint").set_body_typed([](ObjectRef ref) {
   std::stringstream ss;
   ss << ref;
   return ss.str();

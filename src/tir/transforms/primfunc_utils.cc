@@ -109,9 +109,9 @@ transform::Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "tir.Filter", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.BindTarget").set_body_typed(BindTarget);
-TVM_REGISTER_GLOBAL("tir.transform.AnnotateEntryFunc").set_body_typed(AnnotateEntryFunc);
-TVM_REGISTER_GLOBAL("tir.transform.Filter").set_body_typed(Filter);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.BindTarget").set_body_typed(BindTarget);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.AnnotateEntryFunc").set_body_typed(AnnotateEntryFunc);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.Filter").set_body_typed(Filter);
 
 }  // namespace transform
 }  // namespace tir

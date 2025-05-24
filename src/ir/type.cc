@@ -21,8 +21,8 @@
  * \file src/ir/type.cc
  * \brief Common type system AST nodes throughout the IR.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/type.h>
-#include <tvm/runtime/registry.h>
 namespace tvm {
 
 PrimType::PrimType(runtime::DataType dtype, Span span) {
@@ -34,7 +34,7 @@ PrimType::PrimType(runtime::DataType dtype, Span span) {
 
 TVM_REGISTER_NODE_TYPE(PrimTypeNode);
 
-TVM_REGISTER_GLOBAL("ir.PrimType").set_body_typed([](runtime::DataType dtype) {
+TVM_FFI_REGISTER_GLOBAL("ir.PrimType").set_body_typed([](runtime::DataType dtype) {
   return PrimType(dtype);
 });
 
@@ -47,7 +47,7 @@ PointerType::PointerType(Type element_type, String storage_scope) {
 
 TVM_REGISTER_NODE_TYPE(PointerTypeNode);
 
-TVM_REGISTER_GLOBAL("ir.PointerType")
+TVM_FFI_REGISTER_GLOBAL("ir.PointerType")
     .set_body_typed([](Type element_type, String storage_scope = "") {
       return PointerType(element_type, storage_scope);
     });
@@ -62,9 +62,10 @@ FuncType::FuncType(tvm::Array<Type> arg_types, Type ret_type, Span span) {
 
 TVM_REGISTER_NODE_TYPE(FuncTypeNode);
 
-TVM_REGISTER_GLOBAL("ir.FuncType").set_body_typed([](tvm::Array<Type> arg_types, Type ret_type) {
-  return FuncType(arg_types, ret_type);
-});
+TVM_FFI_REGISTER_GLOBAL("ir.FuncType")
+    .set_body_typed([](tvm::Array<Type> arg_types, Type ret_type) {
+      return FuncType(arg_types, ret_type);
+    });
 
 TupleType::TupleType(Array<Type> fields, Span span) {
   ObjectPtr<TupleTypeNode> n = make_object<TupleTypeNode>();
@@ -77,7 +78,7 @@ TupleType TupleType::Empty() { return TupleType(Array<Type>()); }
 
 TVM_REGISTER_NODE_TYPE(TupleTypeNode);
 
-TVM_REGISTER_GLOBAL("ir.TupleType").set_body_typed([](Array<Type> fields) {
+TVM_FFI_REGISTER_GLOBAL("ir.TupleType").set_body_typed([](Array<Type> fields) {
   return TupleType(fields);
 });
 

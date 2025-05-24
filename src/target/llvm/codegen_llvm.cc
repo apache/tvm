@@ -90,7 +90,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/op.h>
 
@@ -2325,19 +2325,18 @@ llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm)
   return nullptr;
 }
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetDefaultTargetTriple").set_body_typed([]() -> std::string {
-  return llvm::sys::getDefaultTargetTriple();
-});
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.GetDefaultTargetTriple")
+    .set_body_typed([]() -> std::string { return llvm::sys::getDefaultTargetTriple(); });
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetProcessTriple").set_body_typed([]() -> std::string {
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.GetProcessTriple").set_body_typed([]() -> std::string {
   return llvm::sys::getProcessTriple();
 });
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUName").set_body_typed([]() -> std::string {
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUName").set_body_typed([]() -> std::string {
   return llvm::sys::getHostCPUName().str();
 });
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUFeatures")
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUFeatures")
     .set_body_typed([]() -> Map<String, IntImm> {
 #if TVM_LLVM_VERSION >= 190
       Map<String, IntImm> ret;

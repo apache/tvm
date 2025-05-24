@@ -21,10 +21,10 @@
  * \file src/target/target.cc
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/tag.h>
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
@@ -39,8 +39,6 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-#include "../runtime/object_internal.h"
 
 namespace tvm {
 
@@ -1010,16 +1008,16 @@ std::unordered_map<String, ffi::Any> TargetInternal::QueryDevice(int device_id,
 
 /**********  Registry  **********/
 
-TVM_REGISTER_GLOBAL("target.Target").set_body_packed(TargetInternal::ConstructorDispatcher);
-TVM_REGISTER_GLOBAL("target.TargetEnterScope").set_body_typed(TargetInternal::EnterScope);
-TVM_REGISTER_GLOBAL("target.TargetExitScope").set_body_typed(TargetInternal::ExitScope);
-TVM_REGISTER_GLOBAL("target.TargetCurrent").set_body_typed(Target::Current);
-TVM_REGISTER_GLOBAL("target.TargetExport").set_body_typed(TargetInternal::Export);
-TVM_REGISTER_GLOBAL("target.WithHost").set_body_typed(TargetInternal::WithHost);
-TVM_REGISTER_GLOBAL("target.TargetGetDeviceType").set_body_typed([](const Target& target) {
+TVM_FFI_REGISTER_GLOBAL("target.Target").set_body_packed(TargetInternal::ConstructorDispatcher);
+TVM_FFI_REGISTER_GLOBAL("target.TargetEnterScope").set_body_typed(TargetInternal::EnterScope);
+TVM_FFI_REGISTER_GLOBAL("target.TargetExitScope").set_body_typed(TargetInternal::ExitScope);
+TVM_FFI_REGISTER_GLOBAL("target.TargetCurrent").set_body_typed(Target::Current);
+TVM_FFI_REGISTER_GLOBAL("target.TargetExport").set_body_typed(TargetInternal::Export);
+TVM_FFI_REGISTER_GLOBAL("target.WithHost").set_body_typed(TargetInternal::WithHost);
+TVM_FFI_REGISTER_GLOBAL("target.TargetGetDeviceType").set_body_typed([](const Target& target) {
   return target->GetTargetDeviceType();
 });
-TVM_REGISTER_GLOBAL("target.TargetGetFeature")
+TVM_FFI_REGISTER_GLOBAL("target.TargetGetFeature")
     .set_body_typed([](const Target& target, const String& feature_key) -> Any {
       if (auto opt_any = target->GetFeature<Any>(feature_key)) {
         return opt_any.value();

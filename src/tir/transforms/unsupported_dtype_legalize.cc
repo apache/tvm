@@ -21,7 +21,7 @@
  * \file unsupported_dtype_legalize.cc
  * \brief legalize bf16/fp8 type by adding cast_to_fp32
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -758,7 +758,7 @@ Pass BF16ComputeLegalize() {
   return CreatePrimFuncPass(pass_func, 0, "tir.BF16ComputeLegalize", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.BF16ComputeLegalize").set_body_typed(BF16ComputeLegalize);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.BF16ComputeLegalize").set_body_typed(BF16ComputeLegalize);
 
 Pass BF16StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
@@ -771,7 +771,7 @@ Pass BF16StorageLegalize() {
   return CreatePrimFuncPass(pass_func, 0, "tir.BF16StorageLegalize", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.BF16StorageLegalize").set_body_typed(BF16StorageLegalize);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.BF16StorageLegalize").set_body_typed(BF16StorageLegalize);
 
 Pass FP8ComputeLegalize(String promote_dtype_str) {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
@@ -784,7 +784,7 @@ Pass FP8ComputeLegalize(String promote_dtype_str) {
   return CreatePrimFuncPass(pass_func, 0, "tir.FP8ComputeLegalize", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.FP8ComputeLegalize").set_body_typed(FP8ComputeLegalize);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.FP8ComputeLegalize").set_body_typed(FP8ComputeLegalize);
 
 Pass FP8StorageLegalize() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
@@ -797,7 +797,7 @@ Pass FP8StorageLegalize() {
   return CreatePrimFuncPass(pass_func, 0, "tir.FP8StorageLegalize", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.FP8StorageLegalize").set_body_typed(FP8StorageLegalize);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.FP8StorageLegalize").set_body_typed(FP8StorageLegalize);
 
 }  // namespace transform
 }  // namespace tir

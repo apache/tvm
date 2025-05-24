@@ -49,7 +49,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/module.h>
 #include <tvm/tir/analysis.h>
 
@@ -75,12 +75,10 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   CodeGenLLVM::Init(module_name, llvm_target, system_lib_prefix, dynamic_lookup, target_c_runtime);
   system_lib_prefix_ = system_lib_prefix;
   dbg_info_ = CreateDebugInfo(module_.get());
-  static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
   func_handle_map_.clear();
   export_system_symbols_.clear();
 
   // Runtime types.
-
   t_tvm_shape_index_ =
       llvm::Type::getIntNTy(*llvm_target_->GetContext(), DataType::ShapeIndex().bits());
   // Defined in 3rdparty/dlpack/include/dlpack/dlpack.h:
@@ -89,7 +87,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   // Defined in 3rdparty/dlpack/include/dlpack/dlpack.h:
   // typedef struct { uint8_t code; uint8_t bits; uint16_t lanes; } DLDataType;
   t_tvm_type_ = llvm::StructType::create({t_int8_, t_int8_, t_int16_});
-  // Defined in include/tvm/runtime/c_runtime_api.h:
+  // Defined in include/tvm/runtime/base.h:
   // typedef void* TVMFunctionHandle;
   t_tvm_func_handle_ = t_void_p_;
   // Defined in 3rdparty/dlpack/include/dlpack/dlpack.h:
@@ -1158,7 +1156,7 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
   }
 }
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_cpu")
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.target_cpu")
     .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
       *rv = static_cast<void*>(new CodeGenCPU());
     });

@@ -657,9 +657,9 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
       Namer::Name(var->var, name);
     });
 
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Buffer").set_body_typed(BufferDecl);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.PrimFunc").set_body_typed(PrimFunc);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Arg")
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Buffer").set_body_typed(BufferDecl);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.PrimFunc").set_body_typed(PrimFunc);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Arg")
     .set_body_typed([](String name, ObjectRef obj) -> ObjectRef {
       using namespace tvm::tir;
       if (auto var = obj.as<Var>()) {
@@ -671,45 +671,45 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.Arg")
       LOG(FATAL) << "ValueError: Unexpected type for TIR Arg: " << obj->GetTypeKey();
       throw;
     });
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.FuncName").set_body_typed(FuncName);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.FuncAttrs").set_body_typed(FuncAttrs);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.FuncRet").set_body_typed(FuncRet);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.MatchBuffer").set_body_typed(MatchBuffer);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.FuncName").set_body_typed(FuncName);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.FuncAttrs").set_body_typed(FuncAttrs);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.FuncRet").set_body_typed(FuncRet);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.MatchBuffer").set_body_typed(MatchBuffer);
 
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Block").set_body_typed(Block);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Init").set_body_typed(Init);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Where").set_body_typed(Where);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Reads").set_body_typed(Reads);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Writes").set_body_typed(Writes);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.BlockAttrs").set_body_typed(BlockAttrs);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.AllocBuffer").set_body_typed(AllocBuffer);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Block").set_body_typed(Block);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Init").set_body_typed(Init);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Where").set_body_typed(Where);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Reads").set_body_typed(Reads);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Writes").set_body_typed(Writes);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.BlockAttrs").set_body_typed(BlockAttrs);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.AllocBuffer").set_body_typed(AllocBuffer);
 
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.AxisSpatial").set_body_typed(axis::Spatial);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.AxisReduce").set_body_typed(axis::Reduce);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.AxisScan").set_body_typed(axis::Scan);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.AxisOpaque").set_body_typed(axis::Opaque);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.AxisRemap").set_body_typed(axis::Remap);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.AxisSpatial").set_body_typed(axis::Spatial);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.AxisReduce").set_body_typed(axis::Reduce);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.AxisScan").set_body_typed(axis::Scan);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.AxisOpaque").set_body_typed(axis::Opaque);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.AxisRemap").set_body_typed(axis::Remap);
 
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Serial").set_body_typed(Serial);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Parallel").set_body_typed(Parallel);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Vectorized").set_body_typed(Vectorized);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Unroll").set_body_typed(Unroll);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.ThreadBinding").set_body_typed(ThreadBinding);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Grid").set_body_typed(Grid);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Serial").set_body_typed(Serial);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Parallel").set_body_typed(Parallel);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Vectorized").set_body_typed(Vectorized);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Unroll").set_body_typed(Unroll);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.ThreadBinding").set_body_typed(ThreadBinding);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Grid").set_body_typed(Grid);
 
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Assert").set_body_typed(Assert);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.LetStmt").set_body_typed(LetStmt);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.LegacyLetStmt").set_body_typed(LegacyLetStmt);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Allocate").set_body_typed(Allocate);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.AllocateConst").set_body_typed(AllocateConst);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Realize").set_body_typed(Realize);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Attr").set_body_typed(Attr);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.While").set_body_typed(While);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.If").set_body_typed(If);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Then").set_body_typed(Then);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Else").set_body_typed(Else);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.DeclBuffer").set_body_typed(DeclBuffer);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.LaunchThread")
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Assert").set_body_typed(Assert);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.LetStmt").set_body_typed(LetStmt);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.LegacyLetStmt").set_body_typed(LegacyLetStmt);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Allocate").set_body_typed(Allocate);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.AllocateConst").set_body_typed(AllocateConst);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Realize").set_body_typed(Realize);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Attr").set_body_typed(Attr);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.While").set_body_typed(While);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.If").set_body_typed(If);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Then").set_body_typed(Then);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Else").set_body_typed(Else);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.DeclBuffer").set_body_typed(DeclBuffer);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.LaunchThread")
     .set_body_typed([](ffi::Variant<tvm::tir::Var, String> thread_tag_or_var, PrimExpr extent) {
       if (auto var = thread_tag_or_var.as<tvm::tir::Var>()) {
         return LaunchThread(var.value(), extent);
@@ -721,60 +721,60 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.LaunchThread")
         throw;
       }
     });
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.EnvThread").set_body_typed(EnvThread);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.EnvThread").set_body_typed(EnvThread);
 
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.BufferStore").set_body_typed(BufferStore);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Prefetch").set_body_typed(Prefetch);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Evaluate").set_body_typed(Evaluate);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.BufferStore").set_body_typed(BufferStore);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Prefetch").set_body_typed(Prefetch);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Evaluate").set_body_typed(Evaluate);
 
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Ptr").set_body_typed(Ptr);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Ptr").set_body_typed(Ptr);
 
 #define TVM_TMP_STR(x) #x
 
-#define TVM_REGISTER_GLOBAL_SIZE(Prefix, DType)                          \
-  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(8)).set_body_typed(DType##8);   \
-  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(16)).set_body_typed(DType##16); \
-  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(32)).set_body_typed(DType##32); \
-  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(64)).set_body_typed(DType##64);
+#define TVM_FFI_REGISTER_GLOBAL_SIZE(Prefix, DType)                          \
+  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(8)).set_body_typed(DType##8);   \
+  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(16)).set_body_typed(DType##16); \
+  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(32)).set_body_typed(DType##32); \
+  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(64)).set_body_typed(DType##64);
 
-TVM_REGISTER_GLOBAL_SIZE("script.ir_builder.tir.Float", Float);
-TVM_REGISTER_GLOBAL_SIZE("script.ir_builder.tir.UInt", UInt);
-TVM_REGISTER_GLOBAL_SIZE("script.ir_builder.tir.Int", Int);
+TVM_FFI_REGISTER_GLOBAL_SIZE("script.ir_builder.tir.Float", Float);
+TVM_FFI_REGISTER_GLOBAL_SIZE("script.ir_builder.tir.UInt", UInt);
+TVM_FFI_REGISTER_GLOBAL_SIZE("script.ir_builder.tir.Int", Int);
 
-#define TVM_REGISTER_GLOBAL_LANES(Prefix, Func)                           \
-  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x4)).set_body_typed(Func##x4);   \
-  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x8)).set_body_typed(Func##x8);   \
-  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x16)).set_body_typed(Func##x16); \
-  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x32)).set_body_typed(Func##x32); \
-  TVM_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x64)).set_body_typed(Func##x64);
+#define TVM_FFI_REGISTER_GLOBAL_LANES(Prefix, Func)                           \
+  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x4)).set_body_typed(Func##x4);   \
+  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x8)).set_body_typed(Func##x8);   \
+  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x16)).set_body_typed(Func##x16); \
+  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x32)).set_body_typed(Func##x32); \
+  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x64)).set_body_typed(Func##x64);
 
-#define TVM_REGISTER_GLOBAL_SIZES_LANES(Prefix, DType)          \
-  TVM_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(8), DType##8);   \
-  TVM_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(16), DType##16); \
-  TVM_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(32), DType##32); \
-  TVM_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(64), DType##64);
+#define TVM_FFI_REGISTER_GLOBAL_SIZES_LANES(Prefix, DType)          \
+  TVM_FFI_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(8), DType##8);   \
+  TVM_FFI_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(16), DType##16); \
+  TVM_FFI_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(32), DType##32); \
+  TVM_FFI_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(64), DType##64);
 
-TVM_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.Float", Float);
-TVM_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.UInt", UInt);
-TVM_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.Int", Int);
+TVM_FFI_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.Float", Float);
+TVM_FFI_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.UInt", UInt);
+TVM_FFI_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.Int", Int);
 
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.BFloat16").set_body_typed(BFloat16);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Float8E4M3FN").set_body_typed(Float8E4M3FN);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Float8E5M2").set_body_typed(Float8E5M2);
-TVM_REGISTER_GLOBAL_LANES("script.ir_builder.tir.BFloat16", BFloat16);
-TVM_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float8E4M3FN", Float8E4M3FN);
-TVM_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float8E5M2", Float8E5M2);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.BFloat16").set_body_typed(BFloat16);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Float8E4M3FN").set_body_typed(Float8E4M3FN);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Float8E5M2").set_body_typed(Float8E5M2);
+TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.BFloat16", BFloat16);
+TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float8E4M3FN", Float8E4M3FN);
+TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float8E5M2", Float8E5M2);
 
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Float4E2M1FN").set_body_typed(Float4E2M1FN);
-TVM_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float4E2M1FN", Float4E2M1FN);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Float4E2M1FN").set_body_typed(Float4E2M1FN);
+TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float4E2M1FN", Float4E2M1FN);
 
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Boolean").set_body_typed(Boolean);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Handle").set_body_typed(Handle);
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.Void").set_body_typed(Void);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Boolean").set_body_typed(Boolean);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Handle").set_body_typed(Handle);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Void").set_body_typed(Void);
 
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.min")
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.min")
     .set_body_typed([](PrimExpr a, PrimExpr b) -> PrimExpr { return tvm::min(a, b); });
-TVM_REGISTER_GLOBAL("script.ir_builder.tir.max")
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.max")
     .set_body_typed([](PrimExpr a, PrimExpr b) -> PrimExpr { return tvm::max(a, b); });
 }  // namespace tir
 }  // namespace ir_builder

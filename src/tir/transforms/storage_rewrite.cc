@@ -23,8 +23,8 @@
  *  Re-write data access to enable memory sharing when possible.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/type.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/target_info.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
@@ -1761,7 +1761,7 @@ Pass StorageRewrite() {
   return CreatePrimFuncPass(pass_func, 0, "tir.StorageRewrite", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.StorageRewrite").set_body_typed(StorageRewrite);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.StorageRewrite").set_body_typed(StorageRewrite);
 
 Pass PointerValueTypeRewrite() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
@@ -1770,7 +1770,7 @@ Pass PointerValueTypeRewrite() {
   return CreatePrimFuncPass(pass_func, 0, "tir.PointerValueTypeRewrite", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.PointerValueTypeRewrite")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.PointerValueTypeRewrite")
     .set_body_typed(PointerValueTypeRewrite);
 
 }  // namespace transform

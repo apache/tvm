@@ -21,9 +21,9 @@
  * \file split_host_device.cc
  * \brief Split device function from host.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/transform.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
@@ -168,7 +168,7 @@ Pass SplitHostDevice() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.SplitHostDevice", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.SplitHostDevice").set_body_typed(SplitHostDevice);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.SplitHostDevice").set_body_typed(SplitHostDevice);
 
 }  // namespace transform
 }  // namespace tir

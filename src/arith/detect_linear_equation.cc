@@ -22,7 +22,7 @@
  * \brief Utility to detect patterns in the expression.
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
@@ -100,7 +100,8 @@ class LinearEqDetector : public ExprFunctor<LinearEqEntry(const PrimExpr&, const
   LinearEqEntry VisitExpr_(const VarNode* op, const PrimExpr& e) final {
     LinearEqEntry ret;
     if (op == var_.get()) {
-      ret.coeff = make_const(op->dtype, 1);
+      auto dtype = op->dtype;
+      ret.coeff = make_const(DataType::Int(dtype.bits(), dtype.lanes()), 1);
     } else {
       ret.base = e;
     }
@@ -289,9 +290,9 @@ Array<PrimExpr> DetectClipBound(const PrimExpr& e, const Array<Var>& vars) {
   return ret;
 }
 
-TVM_REGISTER_GLOBAL("arith.DetectLinearEquation").set_body_typed(DetectLinearEquation);
+TVM_FFI_REGISTER_GLOBAL("arith.DetectLinearEquation").set_body_typed(DetectLinearEquation);
 
-TVM_REGISTER_GLOBAL("arith.DetectClipBound")
+TVM_FFI_REGISTER_GLOBAL("arith.DetectClipBound")
     .set_body_typed([](const PrimExpr& e, const Array<Var>& vars) {
       return DetectClipBound(e, vars);
     });
