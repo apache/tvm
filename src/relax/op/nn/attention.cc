@@ -34,12 +34,8 @@ Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<F
   attrs->scale = scale;
   attrs->causal_mask = causal_mask;
   attrs->window_size = window_size;
+  attrs->bias = bias;
 
-  if (bias) {
-    return Call(Op::Get("relax.nn.attention_bias"),
-                {std::move(query), std::move(key), std::move(value), std::move(bias.value())},
-                Attrs(attrs), {});
-  }
   return Call(Op::Get("relax.nn.attention"), {std::move(query), std::move(key), std::move(value)},
               Attrs(attrs), {});
 }
@@ -147,18 +143,6 @@ TVM_REGISTER_OP("relax.nn.attention")
     .add_argument("query", "Tensor", "The input queries tensor.")
     .add_argument("key", "Tensor", "The input keys tensor.")
     .add_argument("value", "Tensor", "The input values tensor.")
-    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
-    .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
-    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
-    .set_attr<Bool>("FPurity", Bool(true));
-
-TVM_REGISTER_OP("relax.nn.attention_bias")
-    .set_attrs_type<AttentionAttrs>()
-    .set_num_inputs(4)
-    .add_argument("query", "Tensor", "The input queries tensor.")
-    .add_argument("key", "Tensor", "The input keys tensor.")
-    .add_argument("value", "Tensor", "The input values tensor.")
-    .add_argument("bias", "Tensor", "The input bias tensor.")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
