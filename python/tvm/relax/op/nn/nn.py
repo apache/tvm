@@ -1744,6 +1744,61 @@ def group_norm(
     )
 
 
+def instance_norm(
+    data: Expr,
+    gamma: Expr,
+    beta: Expr,
+    channel_axis: int,
+    axes: List[int],
+    epsilon: float = 1e-5,
+    center: bool = True,
+    scale: bool = True,
+) -> Expr:
+    r"""
+    Instance normalization
+
+    Parameters
+    ----------
+    data : relax.Expr
+        Input to which instance_norm will be applied.
+
+    gamma : relax.Expr
+        The gamma scale factor.
+
+    beta : relax.Expr
+        The beta offset factor.
+
+    axes : Union[int, List[int]]
+        The axes that along which the normalization is applied.
+
+    epsilon : float
+        Small float added to variance to avoid dividing by zero.
+
+    center : bool
+        Indicating if the beta offset will be added to the normalized tensor.
+
+    scale : bool
+        Indicating if the gamma scale will be multiplied.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    if isinstance(axes, int):
+        axes = [axes]
+    return _ffi_api.instance_norm(  # type: ignore
+        data,
+        gamma,
+        beta,
+        channel_axis,
+        axes,
+        epsilon,
+        center,
+        scale,
+    )
+
+
 def rms_norm(
     data: Expr,
     weight: Expr,

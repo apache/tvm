@@ -35,6 +35,7 @@ from .nn import (
     gelu,
     gelu_tanh,
     group_norm,
+    instance_norm,
     layer_norm,
     leakyrelu,
     log_softmax,
