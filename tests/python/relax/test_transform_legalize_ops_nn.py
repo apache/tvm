@@ -2598,6 +2598,7 @@ def test_layer_norm():
     mod = LegalizeOps()(LayerNorm)
     tvm.ir.assert_structural_equal(mod, Expected)
 
+
 def test_layer_norm_1d():
     # fmt: off
     @I.ir_module
@@ -2647,7 +2648,6 @@ def test_layer_norm_1d():
                 gv: R.Tensor((3,), dtype="float32") = layer_norm
                 R.output(gv)
             return gv
-    
     # fmt: on
     mod = LegalizeOps()(LayerNorm_1D)
     tvm.ir.assert_structural_equal(mod, LayerNorm_1D_Expected)
