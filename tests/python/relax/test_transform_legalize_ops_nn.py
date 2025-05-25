@@ -2611,7 +2611,7 @@ def test_layer_norm_1d():
                 gv: R.Tensor((3,), dtype="float32") = layer_norm
                 R.output(gv)
             return gv
-    
+
     @I.ir_module
     class LayerNorm_1D_Expected:
         @T.prim_func(private=True)
