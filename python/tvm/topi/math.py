@@ -484,7 +484,6 @@ def log2(x):
     return te.compute(x.shape, lambda *i: te.log2(x(*i)))
 
 
-@tvm.te.tag_scope(tag=tag.ELEMWISE)
 def log10(x):
     """Take logarithm to the base 10 of input x.
 
@@ -498,7 +497,9 @@ def log10(x):
     y : tvm.te.Tensor
         The result.
     """
-    return te.compute(x.shape, lambda *i: te.log10(x(*i)))
+    if x.dtype.startswith("int"):
+        x = te.compute(x.shape, lambda *i: x(*i).astype('float32'))
+    return te.compute(x.shape, lambda *i: te.log10(x(*i)), tag=tag.ELEMWISE)
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
