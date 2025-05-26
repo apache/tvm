@@ -273,7 +273,6 @@ def docs(
         # These are taken from the ci-gpu image via pip freeze, consult that
         # if there are any changes: https://github.com/apache/tvm/tree/main/docs#native
         requirements = [
-            "onnx"
             "Sphinx==4.2.0",
             "tlcpack-sphinx-addon==0.2.1",
             "image==1.5.33",
