@@ -592,6 +592,7 @@ std::vector<Schedule> EvolutionarySearchNode::State::EvolveWithCostModel(
         // Loop until success
         for (int fail_count = 0; fail_count <= self->genetic_max_fail_count; ++fail_count) {
           sampled_trace_id = trace_sampler();
+          sampled_trace_id = sampled_trace_id % self->population_size;
           tir::Trace trace = population.at(sampled_trace_id)->trace().value();
           if (Optional<Mutator> opt_mutator = mutator_sampler()) {
             // Decision: mutate
