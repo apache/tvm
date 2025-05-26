@@ -48,9 +48,9 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_OBJECT_TYPE(FeatureExtractorNode);
 TVM_REGISTER_NODE_TYPE(PyFeatureExtractorNode);
 
-TVM_REGISTER_GLOBAL("meta_schedule.FeatureExtractorExtractFrom")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.FeatureExtractorExtractFrom")
     .set_body_method(&FeatureExtractorNode::ExtractFrom);
-TVM_REGISTER_GLOBAL("meta_schedule.FeatureExtractorPyFeatureExtractor")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.FeatureExtractorPyFeatureExtractor")
     .set_body_typed(FeatureExtractor::PyFeatureExtractor);
 
 }  // namespace meta_schedule

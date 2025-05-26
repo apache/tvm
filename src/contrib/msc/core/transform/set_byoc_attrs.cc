@@ -101,7 +101,7 @@ Pass SetBYOCAttrs(const String& target, const String& entry_name) {
   return CreateModulePass(pass_func, 0, "SetBYOCAttrs", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.SetBYOCAttrs").set_body_typed(SetBYOCAttrs);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.SetBYOCAttrs").set_body_typed(SetBYOCAttrs);
 
 }  // namespace transform
 }  // namespace relax

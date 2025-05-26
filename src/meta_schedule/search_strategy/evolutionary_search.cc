@@ -801,11 +801,11 @@ Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch self,
 }
 
 TVM_REGISTER_NODE_TYPE(EvolutionarySearchNode);
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearch")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearch")
     .set_body_typed(SearchStrategy::EvolutionarySearch);
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearchSampleInitPopulation")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearchSampleInitPopulation")
     .set_body_typed(EvolutionarySearchSampleInitPopulation);
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel")
     .set_body_typed(EvolutionarySearchEvolveWithCostModel);
 
 }  // namespace meta_schedule

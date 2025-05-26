@@ -21,10 +21,10 @@
  * Reflection utilities.
  * \file node/reflection.cc
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/node/node.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/registry.h>
 
 namespace tvm {
 
@@ -292,11 +292,11 @@ void MakeNode(const ffi::PackedArgs& args, ffi::Any* rv) {
   *rv = ReflectionVTable::Global()->CreateObject(type_key, args.Slice(1));
 }
 
-TVM_REGISTER_GLOBAL("node.NodeGetAttr").set_body_packed(NodeGetAttr);
+TVM_FFI_REGISTER_GLOBAL("node.NodeGetAttr").set_body_packed(NodeGetAttr);
 
-TVM_REGISTER_GLOBAL("node.NodeListAttrNames").set_body_packed(NodeListAttrNames);
+TVM_FFI_REGISTER_GLOBAL("node.NodeListAttrNames").set_body_packed(NodeListAttrNames);
 
-TVM_REGISTER_GLOBAL("node.MakeNode").set_body_packed(MakeNode);
+TVM_FFI_REGISTER_GLOBAL("node.MakeNode").set_body_packed(MakeNode);
 
 namespace {
 // Attribute visitor class for finding the attribute key by its address

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 
 #include <algorithm>

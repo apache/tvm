@@ -183,7 +183,7 @@ Pass CallTIRRewrite() {
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.CallTIRRewrite").set_body_typed(CallTIRRewrite);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.CallTIRRewrite").set_body_typed(CallTIRRewrite);
 
 }  // namespace transform
 

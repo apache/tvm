@@ -23,11 +23,11 @@
 #ifndef TVM_RELAX_EXEC_BUILDER_H_
 #define TVM_RELAX_EXEC_BUILDER_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/bytecode.h>
 #include <tvm/runtime/relax_vm/executable.h>
 

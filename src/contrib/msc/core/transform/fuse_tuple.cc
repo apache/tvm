@@ -231,7 +231,7 @@ Pass FuseTuple(const String& target, const String& entry_name) {
   return CreateModulePass(pass_func, 0, "FuseTuple", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.FuseTuple").set_body_typed(FuseTuple);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.FuseTuple").set_body_typed(FuseTuple);
 
 }  // namespace transform
 }  // namespace relax

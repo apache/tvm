@@ -127,7 +127,7 @@ Mutator Mutator::MutateComputeLocation() {
 }
 
 TVM_REGISTER_NODE_TYPE(MutateComputeLocationNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorMutateComputeLocation")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateComputeLocation")
     .set_body_typed(Mutator::MutateComputeLocation);
 
 }  // namespace meta_schedule

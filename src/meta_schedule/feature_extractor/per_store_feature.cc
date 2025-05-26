@@ -1442,7 +1442,7 @@ FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
 }
 
 TVM_REGISTER_NODE_TYPE(PerStoreFeatureNode);
-TVM_REGISTER_GLOBAL("meta_schedule.FeatureExtractorPerStoreFeature")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.FeatureExtractorPerStoreFeature")
     .set_body_typed(FeatureExtractor::PerStoreFeature);
 
 }  // namespace meta_schedule

@@ -21,10 +21,10 @@
 #define TVM_RUNTIME_DISCO_NCCL_NCCL_CONTEXT_H_
 
 #include <dlpack/dlpack.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../../support/process_id.h"
 #include "../utils.h"

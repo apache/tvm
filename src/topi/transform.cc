@@ -21,8 +21,8 @@
  * \brief Registration of transform operators
  * \file transform.cc
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/topi/einsum.h>
 #include <tvm/topi/transform.h>
 #include <tvm/topi/utils.h>
@@ -37,55 +37,57 @@ namespace topi {
 using namespace tvm;
 using namespace tvm::runtime;
 
-TVM_REGISTER_GLOBAL("topi.expand_dims").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.expand_dims").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   *rv = expand_dims(args[0].cast<te::Tensor>(), args[1].cast<int>(), args[2].cast<int>());
 });
 
-TVM_REGISTER_GLOBAL("topi.transpose").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.transpose").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   *rv = transpose(args[0].cast<te::Tensor>(), args[1].cast<Optional<Array<Integer>>>());
 });
 
-TVM_REGISTER_GLOBAL("topi.flip").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.flip").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   // pass empty seq_lengths tensor to reverse_sequence
   *rv = reverse_sequence(args[0].cast<te::Tensor>(), Tensor(), args[1].cast<int>());
 });
 
-TVM_REGISTER_GLOBAL("topi.reverse_sequence")
+TVM_FFI_REGISTER_GLOBAL("topi.reverse_sequence")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       *rv = reverse_sequence(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(),
                              args[2].cast<int>());
     });
 
-TVM_REGISTER_GLOBAL("topi.reshape").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.reshape").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   *rv = reshape(args[0].cast<te::Tensor>(), args[1].cast<Array<PrimExpr>>());
 });
 
-TVM_REGISTER_GLOBAL("topi.sliding_window").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  *rv = sliding_window(args[0].cast<te::Tensor>(), args[1].cast<int>(),
-                       args[2].cast<Array<Integer>>(), args[3].cast<Array<Integer>>());
-});
+TVM_FFI_REGISTER_GLOBAL("topi.sliding_window")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      *rv = sliding_window(args[0].cast<te::Tensor>(), args[1].cast<int>(),
+                           args[2].cast<Array<Integer>>(), args[3].cast<Array<Integer>>());
+    });
 
-TVM_REGISTER_GLOBAL("topi.squeeze").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.squeeze").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   *rv = squeeze(args[0].cast<te::Tensor>(), ArrayOrInt(args[1]));
 });
 
-TVM_REGISTER_GLOBAL("topi.concatenate").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.concatenate").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   *rv = concatenate(args[0].cast<Array<te::Tensor>>(), args[1].cast<int>());
 });
 
-TVM_REGISTER_GLOBAL("topi.stack").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.stack").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   *rv = stack(args[0].cast<Array<te::Tensor>>(), args[1].cast<int>());
 });
 
-TVM_REGISTER_GLOBAL("topi.shape").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.shape").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   *rv = shape(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
 });
 
-TVM_REGISTER_GLOBAL("topi.ndarray_size").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  *rv = ndarray_size(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
-});
+TVM_FFI_REGISTER_GLOBAL("topi.ndarray_size")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      *rv = ndarray_size(args[0].cast<te::Tensor>(), args[1].cast<DataType>());
+    });
 
-TVM_REGISTER_GLOBAL("topi.split").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.split").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   if (args[1].try_cast<int>()) {
     *rv = split_n_sections(args[0].cast<te::Tensor>(), args[1].cast<int>(), args[2].cast<int>());
   } else {
@@ -94,13 +96,13 @@ TVM_REGISTER_GLOBAL("topi.split").set_body_packed([](ffi::PackedArgs args, ffi::
   }
 });
 
-TVM_REGISTER_GLOBAL("topi.layout_transform")
+TVM_FFI_REGISTER_GLOBAL("topi.layout_transform")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       *rv = layout_transform(args[0].cast<te::Tensor>(), args[1].cast<std::string>(),
                              args[2].cast<std::string>(), args[3].cast<std::string>());
     });
 
-TVM_REGISTER_GLOBAL("topi.take").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.take").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   if (args.size() == 4) {
     auto mode = args[3].cast<std::string>();
     int batch_dims = args[2].cast<int>();
@@ -115,52 +117,55 @@ TVM_REGISTER_GLOBAL("topi.take").set_body_packed([](ffi::PackedArgs args, ffi::A
   }
 });
 
-TVM_REGISTER_GLOBAL("topi.sequence_mask").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  double pad_val = args[2].cast<double>();
-  int axis = args[3].cast<int>();
-  *rv = sequence_mask(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(), pad_val, axis);
-});
+TVM_FFI_REGISTER_GLOBAL("topi.sequence_mask")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      double pad_val = args[2].cast<double>();
+      int axis = args[3].cast<int>();
+      *rv = sequence_mask(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(), pad_val, axis);
+    });
 
-TVM_REGISTER_GLOBAL("topi.where").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.where").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   *rv = where(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(), args[2].cast<te::Tensor>());
 });
 
-TVM_REGISTER_GLOBAL("topi.arange").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.arange").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   *rv = arange(args[0].cast<PrimExpr>(), args[1].cast<PrimExpr>(), args[2].cast<PrimExpr>(),
                args[3].cast<DataType>());
 });
 
-TVM_REGISTER_GLOBAL("topi.meshgrid").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.meshgrid").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   *rv = meshgrid(args[0].cast<Array<te::Tensor>>(), args[1].cast<std::string>());
 });
 
-TVM_REGISTER_GLOBAL("topi.repeat").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.repeat").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   *rv = repeat(args[0].cast<te::Tensor>(), args[1].cast<int>(), args[2].cast<int>());
 });
 
-TVM_REGISTER_GLOBAL("topi.tile").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.tile").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   *rv = tile(args[0].cast<te::Tensor>(), args[1].cast<Array<Integer>>());
 });
 
-TVM_REGISTER_GLOBAL("topi.gather").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.gather").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   *rv = gather(args[0].cast<te::Tensor>(), args[1].cast<int>(), args[2].cast<te::Tensor>());
 });
 
-TVM_REGISTER_GLOBAL("topi.gather_nd").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.gather_nd").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   int batch_dims = args[2].cast<int>();
   *rv = gather_nd(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(), batch_dims);
 });
 
-TVM_REGISTER_GLOBAL("topi.unravel_index").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  *rv = unravel_index(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>());
-});
+TVM_FFI_REGISTER_GLOBAL("topi.unravel_index")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      *rv = unravel_index(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>());
+    });
 
-TVM_REGISTER_GLOBAL("topi.sparse_to_dense").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  *rv = sparse_to_dense(args[0].cast<te::Tensor>(), args[1].cast<Array<PrimExpr>>(),
-                        args[2].cast<te::Tensor>(), args[3].cast<PrimExpr>());
-});
+TVM_FFI_REGISTER_GLOBAL("topi.sparse_to_dense")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      *rv = sparse_to_dense(args[0].cast<te::Tensor>(), args[1].cast<Array<PrimExpr>>(),
+                            args[2].cast<te::Tensor>(), args[3].cast<PrimExpr>());
+    });
 
-TVM_REGISTER_GLOBAL("topi.matmul").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.matmul").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   switch (args.size()) {
     case 2:
       *rv = matmul(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>());
@@ -177,7 +182,7 @@ TVM_REGISTER_GLOBAL("topi.matmul").set_body_packed([](ffi::PackedArgs args, ffi:
   }
 });
 
-TVM_REGISTER_GLOBAL("topi.tensordot").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.tensordot").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   if (args.size() == 2) {
     *rv = tensordot(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>());
   } else if (args.size() == 3) {
@@ -189,34 +194,36 @@ TVM_REGISTER_GLOBAL("topi.tensordot").set_body_packed([](ffi::PackedArgs args, f
   }
 });
 
-TVM_REGISTER_GLOBAL("topi.strided_slice").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  Tensor x = args[0].cast<te::Tensor>();
-  Array<PrimExpr> begin = args[1].cast<Array<PrimExpr>>();
-  Array<PrimExpr> end = args[2].cast<Array<PrimExpr>>();
-  Array<PrimExpr> strides = args[3].cast<Array<PrimExpr>>();
-  Array<Integer> axes = args[4].cast<Array<Integer>>();
-  bool assume_inbound = args[6].cast<bool>();
-  if (IsConstIntArray(begin) && IsConstIntArray(end) && IsConstIntArray(strides) &&
-      IsConstIntArray(x->shape)) {
-    Array<Integer> begin_static = args[1].cast<Array<Integer>>();
-    Array<Integer> end_static = args[2].cast<Array<Integer>>();
-    Array<Integer> strides_static = args[3].cast<Array<Integer>>();
-    auto slice_mode = args[5].cast<std::string>();
-    if (axes.size()) {
-      *rv = strided_slice_with_axes(x, begin_static, end_static, strides_static, axes, slice_mode);
-    } else {
-      *rv = strided_slice(x, begin_static, end_static, strides_static, slice_mode);
-    }
-  } else {
-    if (axes.size()) {
-      *rv = dynamic_strided_slice_with_axes(x, begin, end, strides, axes, assume_inbound);
-    } else {
-      *rv = dynamic_strided_slice(x, begin, end, strides, assume_inbound);
-    }
-  }
-});
+TVM_FFI_REGISTER_GLOBAL("topi.strided_slice")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      Tensor x = args[0].cast<te::Tensor>();
+      Array<PrimExpr> begin = args[1].cast<Array<PrimExpr>>();
+      Array<PrimExpr> end = args[2].cast<Array<PrimExpr>>();
+      Array<PrimExpr> strides = args[3].cast<Array<PrimExpr>>();
+      Array<Integer> axes = args[4].cast<Array<Integer>>();
+      bool assume_inbound = args[6].cast<bool>();
+      if (IsConstIntArray(begin) && IsConstIntArray(end) && IsConstIntArray(strides) &&
+          IsConstIntArray(x->shape)) {
+        Array<Integer> begin_static = args[1].cast<Array<Integer>>();
+        Array<Integer> end_static = args[2].cast<Array<Integer>>();
+        Array<Integer> strides_static = args[3].cast<Array<Integer>>();
+        auto slice_mode = args[5].cast<std::string>();
+        if (axes.size()) {
+          *rv = strided_slice_with_axes(x, begin_static, end_static, strides_static, axes,
+                                        slice_mode);
+        } else {
+          *rv = strided_slice(x, begin_static, end_static, strides_static, slice_mode);
+        }
+      } else {
+        if (axes.size()) {
+          *rv = dynamic_strided_slice_with_axes(x, begin, end, strides, axes, assume_inbound);
+        } else {
+          *rv = dynamic_strided_slice(x, begin, end, strides, assume_inbound);
+        }
+      }
+    });
 
-TVM_REGISTER_GLOBAL("topi.dynamic_strided_slice")
+TVM_FFI_REGISTER_GLOBAL("topi.dynamic_strided_slice")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       te::Tensor begin = args[1].cast<te::Tensor>();
       te::Tensor end = args[2].cast<te::Tensor>();
@@ -224,13 +231,13 @@ TVM_REGISTER_GLOBAL("topi.dynamic_strided_slice")
       *rv = dynamic_strided_slice(args[0].cast<te::Tensor>(), begin, end, strides);
     });
 
-TVM_REGISTER_GLOBAL("topi.relax_dynamic_strided_slice")
+TVM_FFI_REGISTER_GLOBAL("topi.relax_dynamic_strided_slice")
     .set_body_typed([](te::Tensor x, te::Tensor begin, te::Tensor end, te::Tensor strides,
                        Array<PrimExpr> output_shape) {
       return relax::dynamic_strided_slice(x, begin, end, strides, output_shape);
     });
 
-TVM_REGISTER_GLOBAL("topi.one_hot").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("topi.one_hot").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   int depth = args[3].cast<int>();
   int axis = args[4].cast<int>();
   DataType dtype = args[5].cast<DataType>();
@@ -238,18 +245,18 @@ TVM_REGISTER_GLOBAL("topi.one_hot").set_body_packed([](ffi::PackedArgs args, ffi
                 depth, axis, dtype);
 });
 
-TVM_REGISTER_GLOBAL("topi.matrix_set_diag").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  int k1 = args[2].cast<int>();
-  int k2 = args[3].cast<int>();
-  bool super_diag_right_align = args[4].cast<bool>();
-  bool sub_diag_right_align = args[5].cast<bool>();
-  *rv = matrix_set_diag(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(), k1, k2,
-                        super_diag_right_align, sub_diag_right_align);
-});
+TVM_FFI_REGISTER_GLOBAL("topi.matrix_set_diag")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      int k1 = args[2].cast<int>();
+      int k2 = args[3].cast<int>();
+      bool super_diag_right_align = args[4].cast<bool>();
+      bool sub_diag_right_align = args[5].cast<bool>();
+      *rv = matrix_set_diag(args[0].cast<te::Tensor>(), args[1].cast<te::Tensor>(), k1, k2,
+                            super_diag_right_align, sub_diag_right_align);
+    });
 
-TVM_REGISTER_GLOBAL("topi.adv_index").set_body_typed([](te::Tensor x, Array<te::Tensor> indices) {
-  return adv_index(x, indices);
-});
+TVM_FFI_REGISTER_GLOBAL("topi.adv_index")
+    .set_body_typed([](te::Tensor x, Array<te::Tensor> indices) { return adv_index(x, indices); });
 
 }  // namespace topi
 }  // namespace tvm

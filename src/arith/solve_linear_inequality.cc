@@ -24,8 +24,8 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -535,7 +535,7 @@ IntConstraintsTransform SolveInequalitiesDeskewRange(const IntConstraints& inequ
   return transform;
 }
 
-TVM_REGISTER_GLOBAL("arith.SolveInequalitiesAsCondition")
+TVM_FFI_REGISTER_GLOBAL("arith.SolveInequalitiesAsCondition")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       IntConstraints problem;
       PartialSolvedInequalities ret_ineq;
@@ -553,7 +553,7 @@ TVM_REGISTER_GLOBAL("arith.SolveInequalitiesAsCondition")
       *ret = AsConditions(problem->variables, ret_ineq.first, ret_ineq.second);
     });
 
-TVM_REGISTER_GLOBAL("arith.SolveInequalitiesToRange")
+TVM_FFI_REGISTER_GLOBAL("arith.SolveInequalitiesToRange")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       if (args.size() == 1) {
         *ret = SolveInequalitiesToRange(args[0].cast<IntConstraints>());
@@ -568,7 +568,7 @@ TVM_REGISTER_GLOBAL("arith.SolveInequalitiesToRange")
       }
     });
 
-TVM_REGISTER_GLOBAL("arith.SolveInequalitiesDeskewRange")
+TVM_FFI_REGISTER_GLOBAL("arith.SolveInequalitiesDeskewRange")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       if (args.size() == 1) {
         *ret = SolveInequalitiesDeskewRange(args[0].cast<IntConstraints>());

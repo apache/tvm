@@ -19,12 +19,12 @@
 #ifndef TVM_RUNTIME_RELAX_VM_KV_STATE_H_
 #define TVM_RUNTIME_RELAX_VM_KV_STATE_H_
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace runtime {

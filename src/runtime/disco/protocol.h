@@ -21,10 +21,10 @@
 
 #include <dmlc/io.h>
 #include <dmlc/memory_io.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <memory>
 #include <string>

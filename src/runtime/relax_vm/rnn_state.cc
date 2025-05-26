@@ -464,7 +464,7 @@ TVM_REGISTER_OBJECT_TYPE(RNNStateImpObj);
 //  Register runtime functions
 //-------------------------------------------------
 
-TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_create")
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.rnn_state_create")
     .set_body_typed([](int64_t num_layers,           //
                        int64_t reserved_num_seqs,    //
                        int64_t max_history,          //

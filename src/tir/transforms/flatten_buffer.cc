@@ -279,7 +279,7 @@ Pass FlattenBuffer() {
   return CreatePrimFuncPass(pass_func, 0, "tir.FlattenBuffer", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.FlattenBuffer").set_body_typed(FlattenBuffer);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.FlattenBuffer").set_body_typed(FlattenBuffer);
 }  // namespace transform
 
 }  // namespace tir

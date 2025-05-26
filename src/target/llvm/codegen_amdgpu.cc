@@ -47,9 +47,9 @@
 #endif
 #include <llvm/IR/Module.h>
 #include <llvm/Transforms/Utils/Cloning.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../runtime/rocm/rocm_module.h"
 #include "../build_common.h"
@@ -356,9 +356,9 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(mod), ll, assembly);
 }
 
-TVM_REGISTER_GLOBAL("target.build.rocm").set_body_typed(BuildAMDGPU);
+TVM_FFI_REGISTER_GLOBAL("target.build.rocm").set_body_typed(BuildAMDGPU);
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_rocm")
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.target_rocm")
     .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
       *rv = static_cast<void*>(new CodeGenAMDGPU());
     });

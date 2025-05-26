@@ -85,7 +85,7 @@ Expr clip(Expr x, Expr min, Expr max) {
   return Call(op, {std::move(x), std::move(min), std::move(max)});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.clip").set_body_typed(clip);
+TVM_FFI_REGISTER_GLOBAL("relax.op.clip").set_body_typed(clip);
 
 /***************** Check operators *****************/
 

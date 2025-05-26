@@ -774,7 +774,8 @@ Pass SplitCallTIRByPattern(Array<TIRPattern> patterns, FCodegen fcodegen) {
                           /*pass_name=*/"SplitCallTIRByPattern",  //
                           /*required=*/{});
 }
-TVM_REGISTER_GLOBAL("relax.transform.SplitCallTIRByPattern").set_body_typed(SplitCallTIRByPattern);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.SplitCallTIRByPattern")
+    .set_body_typed(SplitCallTIRByPattern);
 
 }  // namespace transform
 

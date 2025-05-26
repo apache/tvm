@@ -210,7 +210,7 @@ Module VMExecutable::LoadFromBinary(void* stream) {
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_relax.VMExecutable")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_relax.VMExecutable")
     .set_body_typed(VMExecutable::LoadFromBinary);
 
 Module VMExecutable::LoadFromFile(const String& file_name) {
@@ -221,7 +221,7 @@ Module VMExecutable::LoadFromFile(const String& file_name) {
   return VMExecutable::LoadFromBinary(reinterpret_cast<void*>(strm));
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_relax.VMExecutable")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_relax.VMExecutable")
     .set_body_typed(VMExecutable::LoadFromFile);
 
 void VMFuncInfo::Save(dmlc::Stream* strm) const {
@@ -354,7 +354,7 @@ void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
       this->constants.push_back(cell);
     } else {
       LOG(FATAL) << "Constant pool can only contain NDArray and DLDataType, but got "
-                 << ArgTypeCode2Str(constant_type) << " when loading the VM constant pool.";
+                 << ffi::TypeIndexToTypeKey(constant_type) << " when loading the VM constant pool.";
     }
   }
 }
@@ -557,7 +557,7 @@ String VMExecutable::AsPython() const {
   return String(os.str());
 }
 
-TVM_REGISTER_GLOBAL("relax.ExecutableLoadFromFile").set_body_typed(VMExecutable::LoadFromFile);
+TVM_FFI_REGISTER_GLOBAL("relax.ExecutableLoadFromFile").set_body_typed(VMExecutable::LoadFromFile);
 
 }  // namespace relax_vm
 }  // namespace runtime

@@ -99,7 +99,7 @@ Pass LowerAllocTensor() {
   return CreateFunctionPass(pass_func, /*opt_level=*/0, "LowerAllocTensor", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.LowerAllocTensor").set_body_typed(LowerAllocTensor);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.LowerAllocTensor").set_body_typed(LowerAllocTensor);
 
 }  // namespace transform
 }  // namespace relax

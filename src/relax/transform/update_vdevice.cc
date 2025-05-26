@@ -106,7 +106,7 @@ Pass UpdateVDevice(VDevice new_vdevice, int64_t index) {
                           /*pass_name=*/"UpdateVDevice",
                           /*required=*/{});
 }
-TVM_REGISTER_GLOBAL("relax.transform.UpdateVDevice").set_body_typed(UpdateVDevice);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.UpdateVDevice").set_body_typed(UpdateVDevice);
 
 }  // namespace transform
 }  // namespace relax

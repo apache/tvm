@@ -118,7 +118,7 @@ Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb) {
   return usage.downstream_usage;
 }
 
-TVM_REGISTER_GLOBAL("relax.analysis.udchain").set_body_typed(DataflowBlockUseDef);
+TVM_FFI_REGISTER_GLOBAL("relax.analysis.udchain").set_body_typed(DataflowBlockUseDef);
 
 VarUsageInfo CollectVarUsage(const Expr& expr) { return UDChain::Collect(expr); }
 

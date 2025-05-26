@@ -17,10 +17,10 @@
  * under the License.
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/node/object_path.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/runtime/registry.h>
 
 #include <algorithm>
 #include <cstring>
@@ -40,13 +40,13 @@ Optional<ObjectPath> ObjectPathNode::GetParent() const {
   return Downcast<Optional<ObjectPath>>(parent_);
 }
 
-TVM_REGISTER_GLOBAL("node.ObjectPathGetParent").set_body_method(&ObjectPathNode::GetParent);
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathGetParent").set_body_method(&ObjectPathNode::GetParent);
 
 // --- Length ---
 
 int32_t ObjectPathNode::Length() const { return length_; }
 
-TVM_REGISTER_GLOBAL("node.ObjectPathLength").set_body_method(&ObjectPathNode::Length);
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathLength").set_body_method(&ObjectPathNode::Length);
 
 // --- GetPrefix ---
 
@@ -63,7 +63,7 @@ ObjectPath ObjectPathNode::GetPrefix(int32_t length) const {
   return GetRef<ObjectPath>(node);
 }
 
-TVM_REGISTER_GLOBAL("node.ObjectPathGetPrefix").set_body_method(&ObjectPathNode::GetPrefix);
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathGetPrefix").set_body_method(&ObjectPathNode::GetPrefix);
 
 // --- IsPrefixOf ---
 
@@ -75,7 +75,7 @@ bool ObjectPathNode::IsPrefixOf(const ObjectPath& other) const {
   return this->PathsEqual(other->GetPrefix(this_len));
 }
 
-TVM_REGISTER_GLOBAL("node.ObjectPathIsPrefixOf").set_body_method(&ObjectPathNode::IsPrefixOf);
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathIsPrefixOf").set_body_method(&ObjectPathNode::IsPrefixOf);
 
 // --- Attr ---
 
@@ -95,7 +95,7 @@ ObjectPath ObjectPathNode::Attr(Optional<String> attr_key) const {
   }
 }
 
-TVM_REGISTER_GLOBAL("node.ObjectPathAttr")
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathAttr")
     .set_body_typed([](const ObjectPath& object_path, Optional<String> attr_key) {
       return object_path->Attr(attr_key);
     });
@@ -106,7 +106,7 @@ ObjectPath ObjectPathNode::ArrayIndex(int32_t index) const {
   return ObjectPath(make_object<ArrayIndexPathNode>(this, index));
 }
 
-TVM_REGISTER_GLOBAL("node.ObjectPathArrayIndex").set_body_method(&ObjectPathNode::ArrayIndex);
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathArrayIndex").set_body_method(&ObjectPathNode::ArrayIndex);
 
 // --- MissingArrayElement ---
 
@@ -114,7 +114,7 @@ ObjectPath ObjectPathNode::MissingArrayElement(int32_t index) const {
   return ObjectPath(make_object<MissingArrayElementPathNode>(this, index));
 }
 
-TVM_REGISTER_GLOBAL("node.ObjectPathMissingArrayElement")
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathMissingArrayElement")
     .set_body_method(&ObjectPathNode::MissingArrayElement);
 
 // --- MapValue ---
@@ -123,7 +123,7 @@ ObjectPath ObjectPathNode::MapValue(Any key) const {
   return ObjectPath(make_object<MapValuePathNode>(this, std::move(key)));
 }
 
-TVM_REGISTER_GLOBAL("node.ObjectPathMapValue").set_body_method(&ObjectPathNode::MapValue);
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathMapValue").set_body_method(&ObjectPathNode::MapValue);
 
 // --- MissingMapEntry ---
 
@@ -131,7 +131,7 @@ ObjectPath ObjectPathNode::MissingMapEntry() const {
   return ObjectPath(make_object<MissingMapEntryPathNode>(this));
 }
 
-TVM_REGISTER_GLOBAL("node.ObjectPathMissingMapEntry")
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathMissingMapEntry")
     .set_body_method(&ObjectPathNode::MissingMapEntry);
 
 // --- PathsEqual ----
@@ -158,7 +158,7 @@ bool ObjectPathNode::PathsEqual(const ObjectPath& other) const {
   return lhs == nullptr && rhs == nullptr;
 }
 
-TVM_REGISTER_GLOBAL("node.ObjectPathEqual").set_body_method(&ObjectPathNode::PathsEqual);
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathEqual").set_body_method(&ObjectPathNode::PathsEqual);
 
 // --- Repr ---
 
@@ -191,7 +191,7 @@ const ObjectPathNode* ObjectPathNode::ParentNode() const {
   return ObjectPath(make_object<RootPathNode>(name));
 }
 
-TVM_REGISTER_GLOBAL("node.ObjectPathRoot").set_body_typed(ObjectPath::Root);
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathRoot").set_body_typed(ObjectPath::Root);
 
 // ============== Individual path classes ==============
 

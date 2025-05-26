@@ -125,7 +125,7 @@ Array<runtime::Module> CublasCompiler(Array<Function> functions, Map<String, ffi
   return compiled_functions;
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.cublas").set_body_typed(CublasCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.cublas").set_body_typed(CublasCompiler);
 
 }  // namespace contrib
 }  // namespace relax

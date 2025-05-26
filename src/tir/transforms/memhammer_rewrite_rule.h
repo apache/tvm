@@ -20,7 +20,7 @@
 #define TVM_TIR_TRANSFORMS_MEMHAMMER_REWRITE_RULE_H_
 
 #include <tvm/arith/iter_affine_map.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>

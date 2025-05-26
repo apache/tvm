@@ -311,32 +311,34 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
 
 /**************** FFI ****************/
 TVM_REGISTER_NODE_TYPE(TuningRecordNode);
-TVM_REGISTER_GLOBAL("relax.tuning_api.TuningRecord")
+TVM_FFI_REGISTER_GLOBAL("relax.tuning_api.TuningRecord")
     .set_body_typed([](Trace trace, Optional<Array<FloatImm>> run_secs) {
       return TuningRecord(trace, run_secs);
     });
-TVM_REGISTER_GLOBAL("relax.tuning_api.TuningRecordAsJSON")
+TVM_FFI_REGISTER_GLOBAL("relax.tuning_api.TuningRecordAsJSON")
     .set_body_method(&TuningRecordNode::AsJSON);
-TVM_REGISTER_GLOBAL("relax.tuning_api.TuningRecordFromJSON").set_body_typed(TuningRecord::FromJSON);
+TVM_FFI_REGISTER_GLOBAL("relax.tuning_api.TuningRecordFromJSON")
+    .set_body_typed(TuningRecord::FromJSON);
 
 TVM_REGISTER_OBJECT_TYPE(DatabaseNode);
-TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseHasWorkload")
+TVM_FFI_REGISTER_GLOBAL("relax.tuning_api.DatabaseHasWorkload")
     .set_body_method(&DatabaseNode::HasWorkload);
-TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseHasMeasurementRecord")
+TVM_FFI_REGISTER_GLOBAL("relax.tuning_api.DatabaseHasMeasurementRecord")
     .set_body_method(&DatabaseNode::HasMeasurementRecord);
-TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseHasTuningRecord")
+TVM_FFI_REGISTER_GLOBAL("relax.tuning_api.DatabaseHasTuningRecord")
     .set_body_method(&DatabaseNode::HasTuningRecord);
-TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseCommitMeasurementRecord")
+TVM_FFI_REGISTER_GLOBAL("relax.tuning_api.DatabaseCommitMeasurementRecord")
     .set_body_method(&DatabaseNode::CommitMeasurementRecord);
-TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseCommitWorkload")
+TVM_FFI_REGISTER_GLOBAL("relax.tuning_api.DatabaseCommitWorkload")
     .set_body_method(&DatabaseNode::CommitWorkload);
-TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseCommitTuningRecord")
+TVM_FFI_REGISTER_GLOBAL("relax.tuning_api.DatabaseCommitTuningRecord")
     .set_body_method(&DatabaseNode::CommitTuningRecord);
-TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseGetTopK").set_body_method(&DatabaseNode::GetTopK);
-TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseGetMeasurementRecord")
+TVM_FFI_REGISTER_GLOBAL("relax.tuning_api.DatabaseGetTopK").set_body_method(&DatabaseNode::GetTopK);
+TVM_FFI_REGISTER_GLOBAL("relax.tuning_api.DatabaseGetMeasurementRecord")
     .set_body_method(&DatabaseNode::GetMeasurementRecord);
 
 TVM_REGISTER_NODE_TYPE(JSONDatabaseNode);
-TVM_REGISTER_GLOBAL("relax.tuning_api.DatabaseJSONDatabase").set_body_typed(Database::JSONDatabase);
+TVM_FFI_REGISTER_GLOBAL("relax.tuning_api.DatabaseJSONDatabase")
+    .set_body_typed(Database::JSONDatabase);
 }  // namespace relax
 }  // namespace tvm

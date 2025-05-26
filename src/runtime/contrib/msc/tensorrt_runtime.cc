@@ -23,8 +23,8 @@
  */
 
 #include <dmlc/parameter.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 
 #include <fstream>
 #include <memory>
@@ -348,9 +348,10 @@ runtime::Module MSCTensorRTRuntimeCreate(const String& symbol_name, const String
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.msc_tensorrt_runtime_create").set_body_typed(MSCTensorRTRuntimeCreate);
+TVM_FFI_REGISTER_GLOBAL("runtime.msc_tensorrt_runtime_create")
+    .set_body_typed(MSCTensorRTRuntimeCreate);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_msc_tensorrt")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_msc_tensorrt")
     .set_body_typed(JSONRuntimeBase::LoadFromBinary<MSCTensorRTRuntime>);
 
 }  // namespace contrib

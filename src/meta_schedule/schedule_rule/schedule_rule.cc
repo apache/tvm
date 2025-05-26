@@ -402,21 +402,23 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_OBJECT_TYPE(ScheduleRuleNode);
 TVM_REGISTER_NODE_TYPE(PyScheduleRuleNode);
 
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleInitializeWithTuneContext")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleInitializeWithTuneContext")
     .set_body_method(&ScheduleRuleNode::InitializeWithTuneContext);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleApply").set_body_method(&ScheduleRuleNode::Apply);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleClone").set_body_method(&ScheduleRuleNode::Clone);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRulePyScheduleRule")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleApply")
+    .set_body_method(&ScheduleRuleNode::Apply);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleClone")
+    .set_body_method(&ScheduleRuleNode::Clone);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRulePyScheduleRule")
     .set_body_typed(ScheduleRule::PyScheduleRule);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultLLVM")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultLLVM")
     .set_body_typed(ScheduleRule::DefaultLLVM);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultCUDA")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultCUDA")
     .set_body_typed(ScheduleRule::DefaultCUDA);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultCUDATensorCore")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultCUDATensorCore")
     .set_body_typed(ScheduleRule::DefaultCUDATensorCore);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultHexagon")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultHexagon")
     .set_body_typed(ScheduleRule::DefaultHexagon);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultARM")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultARM")
     .set_body_typed(ScheduleRule::DefaultARM);
 
 }  // namespace meta_schedule

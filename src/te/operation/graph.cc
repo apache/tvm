@@ -23,7 +23,7 @@
  */
 #include "graph.h"
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
@@ -80,9 +80,9 @@ Array<Operation> PostDFSOrder(const Array<Operation>& roots, const ReadGraph& g)
   return post_order;
 }
 
-TVM_REGISTER_GLOBAL("schedule.CreateReadGraph").set_body_typed(CreateReadGraph);
+TVM_FFI_REGISTER_GLOBAL("schedule.CreateReadGraph").set_body_typed(CreateReadGraph);
 
-TVM_REGISTER_GLOBAL("schedule.PostDFSOrder")
+TVM_FFI_REGISTER_GLOBAL("schedule.PostDFSOrder")
     .set_body_typed([](const Array<Operation>& roots, const ReadGraph& g) {
       return PostDFSOrder(roots, g);
     });

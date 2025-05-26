@@ -275,7 +275,7 @@ Pass ManifestSharedMemoryLocalStage() {
   return CreatePrimFuncPass(pass_func, 0, "tir.ManifestSharedMemoryLocalStage", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.ManifestSharedMemoryLocalStage")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.ManifestSharedMemoryLocalStage")
     .set_body_typed(ManifestSharedMemoryLocalStage);
 
 }  // namespace transform

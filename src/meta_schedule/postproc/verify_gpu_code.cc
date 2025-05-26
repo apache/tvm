@@ -215,7 +215,8 @@ Postproc Postproc::VerifyGPUCode() {
 }
 
 TVM_REGISTER_NODE_TYPE(VerifyGPUCodeNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocVerifyGPUCode").set_body_typed(Postproc::VerifyGPUCode);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocVerifyGPUCode")
+    .set_body_typed(Postproc::VerifyGPUCode);
 
 }  // namespace meta_schedule
 }  // namespace tvm

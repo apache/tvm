@@ -106,7 +106,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(String intrin_name, String
 }
 
 TVM_REGISTER_NODE_TYPE(MultiLevelTilingWithIntrinNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTilingWithIntrin")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTilingWithIntrin")
     .set_body_typed(ScheduleRule::MultiLevelTilingWithIntrin);
 
 }  // namespace meta_schedule

@@ -913,7 +913,7 @@ Pass TransformTensorRT(const String& config) {
   return CreateFunctionPass(pass_func, 0, "TransformTensorRT", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.TransformTensorRT").set_body_typed(TransformTensorRT);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.TransformTensorRT").set_body_typed(TransformTensorRT);
 
 }  // namespace transform
 }  // namespace relax

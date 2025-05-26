@@ -342,7 +342,7 @@ Pass TopologicalSort(TraversalOrder order, StartingLocation starting_location) {
   return relax::transform::CreateFunctionPass(pass_func, 0, "TopologicalSort", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.TopologicalSort")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.TopologicalSort")
     .set_body_typed([](String order_str, String direction_str) -> Pass {
       TraversalOrder order = [&]() {
         if (order_str == "depth-first") {

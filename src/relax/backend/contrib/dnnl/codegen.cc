@@ -97,7 +97,7 @@ Array<runtime::Module> DNNLCompiler(Array<Function> functions, Map<String, ffi::
   return compiled_functions;
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.dnnl").set_body_typed(DNNLCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.dnnl").set_body_typed(DNNLCompiler);
 
 }  // namespace contrib
 }  // namespace relax

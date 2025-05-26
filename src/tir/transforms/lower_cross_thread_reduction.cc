@@ -934,7 +934,7 @@ Pass LowerCrossThreadReduction() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerCrossThreadReduction", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerCrossThreadReduction")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerCrossThreadReduction")
     .set_body_typed(LowerCrossThreadReduction);
 
 }  // namespace transform

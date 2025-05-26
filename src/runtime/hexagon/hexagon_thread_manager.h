@@ -20,7 +20,7 @@
 #ifndef TVM_RUNTIME_HEXAGON_HEXAGON_THREAD_MANAGER_H_
 #define TVM_RUNTIME_HEXAGON_HEXAGON_THREAD_MANAGER_H_
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
 

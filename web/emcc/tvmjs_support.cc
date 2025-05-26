@@ -58,7 +58,7 @@ TVM_DLL void TVMWasmFreeSpace(void* data);
  * \sa TVMWasmPackedCFunc, TVMWasmPackedCFuncFinalizer
 3A * \return 0 if success.
  */
-TVM_DLL int TVMFFIWasmFunctionCreate(void* resource_handle, TVMFunctionHandle* out);
+TVM_DLL int TVMFFIWasmFunctionCreate(void* resource_handle, TVMFFIObjectHandle* out);
 
 /*!
  * \brief Get the last error message.
@@ -94,7 +94,7 @@ void* TVMWasmAllocSpace(int size) {
 
 void TVMWasmFreeSpace(void* arr) { delete[] static_cast<int64_t*>(arr); }
 
-int TVMFFIWasmFunctionCreate(void* self, TVMFunctionHandle* out) {
+int TVMFFIWasmFunctionCreate(void* self, TVMFFIObjectHandle* out) {
   return TVMFFIFunctionCreate(self, TVMFFIWasmSafeCall, TVMFFIWasmFunctionDeleter, out);
 }
 

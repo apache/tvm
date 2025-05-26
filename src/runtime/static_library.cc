@@ -24,10 +24,10 @@
  */
 #include "./static_library.h"
 
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <iostream>
 
@@ -127,8 +127,8 @@ Module LoadStaticLibrary(const std::string& filename, Array<String> func_names) 
   return Module(node);
 }
 
-TVM_REGISTER_GLOBAL("runtime.ModuleLoadStaticLibrary").set_body_typed(LoadStaticLibrary);
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_static_library")
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleLoadStaticLibrary").set_body_typed(LoadStaticLibrary);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_static_library")
     .set_body_typed(StaticLibraryNode::LoadFromBinary);
 
 }  // namespace runtime

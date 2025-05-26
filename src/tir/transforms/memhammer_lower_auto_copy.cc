@@ -18,7 +18,7 @@
  */
 
 #include <tvm/arith/iter_affine_map.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -776,7 +776,7 @@ Pass LowerAutoCopy() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerAutoCopy", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerAutoCopy").set_body_typed(LowerAutoCopy);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerAutoCopy").set_body_typed(LowerAutoCopy);
 
 }  // namespace transform
 }  // namespace tir

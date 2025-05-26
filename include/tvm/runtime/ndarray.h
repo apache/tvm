@@ -28,7 +28,7 @@
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
@@ -166,20 +166,15 @@ class NDArray : public tvm::ffi::NDArray {
   TVM_DLL static void CopyFromTo(const DLTensor* from, DLTensor* to,
                                  TVMStreamHandle stream = nullptr);
 
-  struct Internal;
-
- protected:
   /*!
-   * \brief DecRef resource managed by an FFI array handle.
-   * \param handle The array handle.
+   * \brief Function to copy data from one array to a byte buffer.
+   * \param from The source array.
+   * \param to The target byte buffer.
+   * \param nbytes The size of the data buffer.
+   * \param stream The stream used in copy.
    */
-  inline static void FFIDecRef(TVMArrayHandle handle);
-  /*!
-   * \brief Get FFI Array handle from ndarray.
-   * \param nd The object with ndarray type.
-   * \return The result array handle.
-   */
-  inline static TVMArrayHandle FFIGetHandle(const ObjectRef& nd);
+  TVM_DLL static void CopyToBytes(const DLTensor* from, void* to, size_t nbytes,
+                                  TVMStreamHandle stream = nullptr);
 };
 
 /*!
@@ -209,28 +204,6 @@ inline void NDArray::CopyTo(const NDArray& other) const {
   ICHECK(data_ != nullptr);
   ICHECK(other.data_ != nullptr);
   CopyFromTo(get_mutable(), other.get_mutable());
-}
-
-inline TVMArrayHandle NDArray::FFIGetHandle(const ObjectRef& nd) {
-  // NOTE: it is necessary to cast to container then to base
-  //       so that the FFI handle uses the ContainerBase address.
-  auto ptr = reinterpret_cast<TVMArrayHandle>(
-      TVMFFINDArrayGetDLTensorPtr(static_cast<ffi::NDArrayObj*>(const_cast<Object*>(nd.get()))));
-  return ptr;
-}
-
-inline TVMArrayHandle ObjectHandleToTVMArrayHandle(Object* handle) {
-  return reinterpret_cast<TVMArrayHandle>(
-      TVMFFINDArrayGetDLTensorPtr(static_cast<ffi::NDArrayObj*>(handle)));
-}
-
-inline Object* TVMArrayHandleToObjectHandle(void* handle) {
-  // NOTE: legacy patch here for TFM FFI
-  return reinterpret_cast<ffi::NDArrayObj*>(reinterpret_cast<char*>(handle) - sizeof(TVMFFIObject));
-}
-
-inline void NDArray::FFIDecRef(TVMArrayHandle handle) {
-  ffi::details::ObjectUnsafe::DecRefObjectHandle(TVMArrayHandleToObjectHandle(handle));
 }
 
 /*! \brief Magic number for NDArray file */
@@ -271,10 +244,7 @@ inline bool SaveDLTensor(dmlc::Stream* strm, const DLTensor* tensor) {
     strm->Write(tensor->data, data_byte_size);
   } else {
     std::vector<uint8_t> bytes(data_byte_size);
-    ICHECK_EQ(
-        TVMArrayCopyToBytes(const_cast<DLTensor*>(tensor), dmlc::BeginPtr(bytes), data_byte_size),
-        0)
-        << TVMGetLastError();
+    NDArray::CopyToBytes(const_cast<DLTensor*>(tensor), dmlc::BeginPtr(bytes), data_byte_size);
     if (!DMLC_IO_NO_ENDIAN_SWAP) {
       dmlc::ByteSwap(dmlc::BeginPtr(bytes), type_bytes, num_elems);
     }

@@ -23,7 +23,7 @@
 
 #import <Foundation/Foundation.h>
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include "RPCArgs.h"
 
@@ -51,14 +51,14 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 
 }  // namespace detail
 
-TVM_REGISTER_GLOBAL("tvm.rpc.server.workpath")
+TVM_FFI_REGISTER_GLOBAL("tvm.rpc.server.workpath")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       static const std::string base_ = NSTemporaryDirectory().UTF8String;
       const auto path = args[0].cast<std::string>();
       *rv = base_ + "/" + path;
     });
 
-TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module")
+TVM_FFI_REGISTER_GLOBAL("tvm.rpc.server.load_module")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       auto name = args[0].cast<std::string>();
       std::string fmt = GetFileFormat(name, "");
@@ -109,7 +109,7 @@ class UnsignedDSOLoader final : public Library {
 };
 
 // Add UnsignedDSOLoader plugin in global registry
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_dylib_custom")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_dylib_custom")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       auto n = make_object<UnsignedDSOLoader>();
       n->Init(args[0]);

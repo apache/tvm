@@ -24,8 +24,9 @@
 #ifndef TVM_RUNTIME_DATA_TYPE_H_
 #define TVM_RUNTIME_DATA_TYPE_H_
 
+#include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/dtype.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
 
 #include <cstring>
@@ -34,6 +35,8 @@
 
 namespace tvm {
 namespace runtime {
+
+using tvm_index_t = ffi::Shape::index_type;
 
 /*!
  * \brief Runtime primitive data type.

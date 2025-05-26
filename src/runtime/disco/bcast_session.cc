@@ -18,9 +18,9 @@
  */
 #include "./bcast_session.h"
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/session.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <sstream>
 

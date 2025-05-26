@@ -20,9 +20,9 @@
 /*!
  * \file Use external cblas library call.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../3rdparty/compiler-rt/builtin_fp16.h"
 #include "../cblas/gemm_common.h"
@@ -514,7 +514,7 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, cublasHandle_t 
 }
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto C = args[2].cast<DLTensor*>();
@@ -539,7 +539,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
     });
 
 #if CUDART_VERSION >= 10010
-TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
 
@@ -557,7 +557,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul")
     });
 #endif  // CUDART_VERSION >= 10010
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cublas.batch_matmul")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cublas.batch_matmul")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto C = args[2].cast<DLTensor*>();

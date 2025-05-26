@@ -19,8 +19,8 @@
 #include "../../../3rdparty/nvbench/l2_cache_flush.h"
 
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include "cuda_common.h"
 
@@ -32,11 +32,12 @@ typedef dmlc::ThreadLocalStore<L2Flush> L2FlushStore;
 
 L2Flush* L2Flush::ThreadLocal() { return L2FlushStore::Get(); }
 
-TVM_REGISTER_GLOBAL("l2_cache_flush_cuda").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  ICHECK(L2Flush::ThreadLocal() != nullptr) << "L2Flush::ThreadLocal do not exist.";
-  cudaStream_t stream = CUDAThreadEntry::ThreadLocal()->stream;
-  L2Flush::ThreadLocal()->Flush(stream);
-});
+TVM_FFI_REGISTER_GLOBAL("l2_cache_flush_cuda")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      ICHECK(L2Flush::ThreadLocal() != nullptr) << "L2Flush::ThreadLocal do not exist.";
+      cudaStream_t stream = CUDAThreadEntry::ThreadLocal()->stream;
+      L2Flush::ThreadLocal()->Flush(stream);
+    });
 
 }  // namespace runtime
 }  // namespace tvm

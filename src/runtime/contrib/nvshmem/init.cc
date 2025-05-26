@@ -19,9 +19,9 @@
 #include <nvshmem.h>
 #include <nvshmemx.h>
 #include <picojson.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../cuda/cuda_common.h"
 
@@ -107,11 +107,11 @@ void InitNVSHMEMWrapper(String args) {
   InitNVSHMEM(uid_64, num_workers, worker_id_start);
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_uid").set_body_typed(InitNVSHMEMUID);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_uid").set_body_typed(InitNVSHMEMUID);
 
-TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem").set_body_typed(InitNVSHMEM);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem").set_body_typed(InitNVSHMEM);
 
-TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_wrapper")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_wrapper")
     .set_body_typed(InitNVSHMEMWrapper);
 
 }  // namespace runtime

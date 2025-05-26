@@ -574,7 +574,7 @@ const Map<String, String> TensorRTCodeGen::GetStepCtx() {
   return step_ctx;
 }
 
-TVM_REGISTER_GLOBAL("msc.framework.tensorrt.GetTensorRTSources")
+TVM_FFI_REGISTER_GLOBAL("msc.framework.tensorrt.GetTensorRTSources")
     .set_body_typed([](const MSCGraph& graph, const String& codegen_config,
                        const String& print_config) -> Map<String, String> {
       TensorRTCodeGen codegen = TensorRTCodeGen(graph, codegen_config);
@@ -582,7 +582,7 @@ TVM_REGISTER_GLOBAL("msc.framework.tensorrt.GetTensorRTSources")
       return codegen.GetSources(print_config);
     });
 
-TVM_REGISTER_GLOBAL("msc.framework.tensorrt.GetTensorRTRoot").set_body_typed([]() -> String {
+TVM_FFI_REGISTER_GLOBAL("msc.framework.tensorrt.GetTensorRTRoot").set_body_typed([]() -> String {
 #ifdef TENSORRT_ROOT_DIR
   return TENSORRT_ROOT_DIR;
 #else
@@ -618,7 +618,7 @@ Array<runtime::Module> MSCTensorRTCompiler(Array<Function> functions,
   return compiled_functions;
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.msc_tensorrt").set_body_typed(MSCTensorRTCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.msc_tensorrt").set_body_typed(MSCTensorRTCompiler);
 
 }  // namespace msc
 }  // namespace contrib

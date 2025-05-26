@@ -165,7 +165,7 @@ Pass RewriteDataflowReshape() {
   return CreateFunctionPass(pass_func, 0, "RewriteDataflowReshape", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.RewriteDataflowReshape")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.RewriteDataflowReshape")
     .set_body_typed(RewriteDataflowReshape);
 
 }  // namespace transform

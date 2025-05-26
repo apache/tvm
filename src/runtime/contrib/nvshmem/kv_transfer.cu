@@ -21,7 +21,7 @@
 #include <nvshmem.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 template <int dim>
 __device__ int64_t calc_flattened_index(int shape[dim], int index[dim]) {
@@ -329,5 +329,5 @@ int _KVTransferPageToPage(DLTensor* remote_pages, DLTensor* local_pages,
   return 0;
 }
 
-TVM_REGISTER_GLOBAL("nvshmem.KVTransfer").set_body_typed(_KVTransfer);
-TVM_REGISTER_GLOBAL("nvshmem.KVTransferPageToPage").set_body_typed(_KVTransferPageToPage);
+TVM_FFI_REGISTER_GLOBAL("nvshmem.KVTransfer").set_body_typed(_KVTransfer);
+TVM_FFI_REGISTER_GLOBAL("nvshmem.KVTransferPageToPage").set_body_typed(_KVTransferPageToPage);

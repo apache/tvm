@@ -47,7 +47,7 @@ Expr take(Expr x, Expr indices, Optional<int64_t> axis) {
   return Call(op, {std::move(x), std::move(indices)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.take").set_body_typed(take);
+TVM_FFI_REGISTER_GLOBAL("relax.op.take").set_body_typed(take);
 
 StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   CheckNumArguments(call, ctx);
@@ -169,7 +169,7 @@ Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, Optional<Expr> strid
   return call;
 }
 
-TVM_REGISTER_GLOBAL("relax.op.strided_slice").set_body_typed(strided_slice);
+TVM_FFI_REGISTER_GLOBAL("relax.op.strided_slice").set_body_typed(strided_slice);
 
 /* \brief Helper function to unpack a relax::Tuple
  *
@@ -477,7 +477,7 @@ Expr dynamic_strided_slice(Expr x,      //
   return Call(op, {std::move(x), std::move(begin), std::move(end), std::move(strides)}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dynamic_strided_slice").set_body_typed(dynamic_strided_slice);
+TVM_FFI_REGISTER_GLOBAL("relax.op.dynamic_strided_slice").set_body_typed(dynamic_strided_slice);
 
 StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);

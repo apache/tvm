@@ -184,7 +184,7 @@ Pass TransformMmaBufferLayout() {
   return CreatePrimFuncPass(pass_func, 0, "tir.TransformMmaBufferLayout", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.TransformMmaBufferLayout")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.TransformMmaBufferLayout")
     .set_body_typed(TransformMmaBufferLayout);
 }  // namespace transform
 

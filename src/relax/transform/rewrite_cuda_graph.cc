@@ -897,7 +897,7 @@ Pass RewriteCUDAGraph() {
   return CreateModulePass(pass_func, 0, "RewriteCUDAGraph", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.RewriteCUDAGraph").set_body_typed(RewriteCUDAGraph);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.RewriteCUDAGraph").set_body_typed(RewriteCUDAGraph);
 
 }  // namespace transform
 

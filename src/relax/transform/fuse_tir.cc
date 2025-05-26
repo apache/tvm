@@ -1262,7 +1262,7 @@ Pass FuseTIR() {
       "FuseTIR");
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.FuseTIR").set_body_typed(FuseTIR);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.FuseTIR").set_body_typed(FuseTIR);
 
 }  // namespace transform
 

@@ -25,7 +25,7 @@
 
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/Target/TargetMachine.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include "../../arith/scalable_expression.h"
 #include "codegen_cpu.h"
@@ -106,7 +106,7 @@ void CodeGenAArch64::VisitStmt_(const AttrStmtNode* op) {
   this->VisitStmt(op->body);
 }
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_aarch64")
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.target_aarch64")
     .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
       *rv = static_cast<void*>(new CodeGenAArch64());
     });

@@ -23,7 +23,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/op.h>
@@ -195,15 +195,16 @@ Range IntGroupBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
 
 TVM_REGISTER_NODE_TYPE(IntGroupBoundsNode);
 
-TVM_REGISTER_GLOBAL("arith.IntGroupBounds")
+TVM_FFI_REGISTER_GLOBAL("arith.IntGroupBounds")
     .set_body_typed([](PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
                        Array<PrimExpr> upper) {
       return IntGroupBounds(coef, lower, equal, upper);
     });
 
-TVM_REGISTER_GLOBAL("arith.IntGroupBounds_from_range").set_body_typed(IntGroupBounds::FromRange);
+TVM_FFI_REGISTER_GLOBAL("arith.IntGroupBounds_from_range")
+    .set_body_typed(IntGroupBounds::FromRange);
 
-TVM_REGISTER_GLOBAL("arith.IntGroupBounds_FindBestRange")
+TVM_FFI_REGISTER_GLOBAL("arith.IntGroupBounds_FindBestRange")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       ICHECK(args.size() == 1 || args.size() == 2);
       auto bounds = args[0].cast<IntGroupBounds>();
@@ -243,7 +244,7 @@ IntConstraints::IntConstraints(Array<Var> variables, Map<Var, Range> ranges,
 
 TVM_REGISTER_NODE_TYPE(IntConstraintsNode);
 
-TVM_REGISTER_GLOBAL("arith.IntConstraints")
+TVM_FFI_REGISTER_GLOBAL("arith.IntConstraints")
     .set_body_typed([](Array<Var> variables, Map<Var, Range> ranges, Array<PrimExpr> relations) {
       return IntConstraints(variables, ranges, relations);
     });
@@ -288,7 +289,7 @@ IntConstraintsTransform IntConstraintsTransform::operator+(
 
 TVM_REGISTER_NODE_TYPE(IntConstraintsTransformNode);
 
-TVM_REGISTER_GLOBAL("arith.IntConstraintsTransform")
+TVM_FFI_REGISTER_GLOBAL("arith.IntConstraintsTransform")
     .set_body_typed([](IntConstraints src, IntConstraints dst, Map<Var, PrimExpr> src_to_dst,
                        Map<Var, PrimExpr> dst_to_src) {
       return IntConstraintsTransform(src, dst, src_to_dst, dst_to_src);

@@ -289,7 +289,7 @@ std::shared_ptr<VulkanPipeline> VulkanModuleNode::GetPipeline(size_t device_id,
     auto fit = fmap_.find(func_name);
     ICHECK(fit != fmap_.end());
     for (DLDataType arg_type : fit->second.arg_types) {
-      if (arg_type.code == kTVMOpaqueHandle) {
+      if (arg_type.code == kDLOpaqueHandle) {
         push_arg_info(num_buffer, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER);
         ++num_buffer;
       } else {
