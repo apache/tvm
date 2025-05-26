@@ -498,7 +498,7 @@ def log10(x):
         The result.
     """
     if x.dtype.startswith("int"):
-        x = te.compute(x.shape, lambda *i: x(*i).astype('float32'))
+        x = te.compute(x.shape, lambda *i: x(*i).astype("float32"))
     return te.compute(x.shape, lambda *i: te.log10(x(*i)), tag=tag.ELEMWISE)
 
 
