@@ -60,13 +60,13 @@ def get_type(elem_type: Union[str, int]) -> str:
         return elem_type
 
     try:
-        from onnx.mapping import (  # pylint: disable=import-outside-toplevel
-            TENSOR_TYPE_TO_NP_TYPE,
+        from onnx.helper import (  # pylint: disable=import-outside-toplevel
+            tensor_dtype_to_np_dtype,
         )
     except ImportError as exception:
         raise ImportError("Unable to import onnx which is required {}".format(exception))
 
-    return str(TENSOR_TYPE_TO_NP_TYPE[elem_type])
+    return str(tensor_dtype_to_np_dtype(elem_type))
 
 
 def get_constant(
