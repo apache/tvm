@@ -16,5 +16,5 @@
 # under the License.
 """Frontends for constructing Relax programs, with the model importers"""
 from . import nn
-from . import onnx
+#from . import onnx
 from .common import detach_params
