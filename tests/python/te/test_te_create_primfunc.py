@@ -884,8 +884,8 @@ def test_adaptive_pooling_window():
 
 def test_global_pool():
     # fix the issue-17938
-    data = te.placeholder((1, 1, 32, 32), dtype='int8', name='data')
-    op_output = topi.nn.global_pool(data=data, pool_type='avg', layout='NCHW')
+    data = te.placeholder((1, 1, 32, 32), dtype="int8", name="data")
+    op_output = topi.nn.global_pool(data=data, pool_type="avg", layout="NCHW")
     f = te.create_prim_func([data, op_output])
     assert f
 
