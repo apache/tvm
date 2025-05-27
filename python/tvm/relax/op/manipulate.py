@@ -786,12 +786,12 @@ def scatter_nd(data: Expr, indices: Expr, updates: Expr, reduction: str = "updat
     return _ffi_api.scatter_nd(data, indices, updates, reduction)  # type: ignore
 
 
-def slice_scatter(input: Expr, src: Expr, start, end, step, axis=0):
+def slice_scatter(input_tensor: Expr, src: Expr, start, end, step, axis=0):
     """Embeds the values of the src tensor into input at the given dimension.
 
     Parameters
     ----------
-    input: relax.Expr
+    input_tensor: relax.Expr
         The input tensor to be updated.
 
     src: relax.Expr
@@ -821,7 +821,7 @@ def slice_scatter(input: Expr, src: Expr, start, end, step, axis=0):
         end = PrimValue(end)
     if not isinstance(step, PrimValue):
         step = PrimValue(step)
-    return _ffi_api.slice_scatter(input, src, axis, start, end, step)
+    return _ffi_api.slice_scatter(input_tensor, src, axis, start, end, step)
 
 
 def one_hot(

@@ -13,19 +13,16 @@
 # specific language governing permissions and limitations
 # under the License.
 """SliceScatter operator"""
-import tvm
-from tvm import te
 from tvm import topi
-from tvm import tir
 from . import utils
 
 
-def slice_scatter(input, src, start, end, step, axis):
+def slice_scatter(input_tensor, src, start, end, step, axis):
     """
     Scatters a slice of src into input along the given axis (SSA form).
 
     Args:
-        input (te.Tensor): The input tensor to scatter into.
+        input_tensor (te.Tensor): The input tensor to scatter into.
         src (te.Tensor): The source tensor to scatter from.
         start (int): The starting index of the slice.
         end (int): The ending index of the slice.
@@ -36,11 +33,11 @@ def slice_scatter(input, src, start, end, step, axis):
         list[te.Tensor]: A list containing the output tensor with the slice scattered.
     """
 
-    dim_size_expr = input.shape[axis]  # Expression for dimension size
+    dim_size_expr = input_tensor.shape[axis]  # Expression for dimension size
     dim_size = utils.get_const_int(dim_size_expr)  # Dimension size (as constant int)
 
     if start == 0 and end == dim_size and step == 1:
-        return te.compute(src.shape, lambda *i: src(*i))
+        return topi.identity(src)
 
     mask = topi.full((dim_size,), "bool", True)
     idx = topi.arange(start=0, stop=dim_size, step=1, dtype="int64")
@@ -55,7 +52,7 @@ def slice_scatter(input, src, start, end, step, axis):
         step_mask = topi.equal(topi.floor_mod(idx - start, step), 0)
         mask = topi.logical_and(mask, step_mask)
 
-    mask_shape_base = [1] * len(input.shape)
+    mask_shape_base = [1] * len(input_tensor.shape)
     mask_shape_base[axis] = dim_size
     mask_shape = tuple(mask_shape_base)
 
@@ -67,11 +64,11 @@ def slice_scatter(input, src, start, end, step, axis):
 
     temp = topi.take(src, idx_new, axis=axis)
 
-    mask_shape_expanded_base = list(input.shape)
+    mask_shape_expanded_base = list(input_tensor.shape)
     mask_shape_expanded = tuple(mask_shape_expanded_base)
 
     mask_expanded = topi.broadcast_to(mask_reshaped, mask_shape_expanded)
 
-    output = topi.where(mask_expanded, temp, input)
+    output = topi.where(mask_expanded, temp, input_tensor)
 
     return [output]
