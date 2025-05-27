@@ -3923,6 +3923,51 @@ def test_select_slice():
     verify_model(Slice2(), example_args, {}, expected2)
 
 
+def test_slice_scatter():
+    class SliceScatter1(Module):
+        def forward(self, input, src):
+            return torch.slice_scatter(input, src, dim=1, start=1, end=7, step=2)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            a: R.Tensor((8, 8, 10, 10), dtype="float32"),
+            b: R.Tensor((8, 3, 10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((8, 8, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((8, 8, 10, 10), dtype="float32") = R.slice_scatter(
+                    a, b, R.prim_value(1), R.prim_value(7), R.prim_value(2), axis=1
+                )
+                gv: R.Tuple(R.Tensor((8, 8, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class SliceScatter2(Module):
+        def forward(self, input, src):
+            return torch.slice_scatter(input, src, dim=0, start=0, end=6, step=1)
+
+    @I.ir_module
+    class expected2:
+        @R.function
+        def main(
+            a: R.Tensor((8, 16), dtype="float32"), b: R.Tensor((6, 16), dtype="float32")
+        ) -> R.Tuple(R.Tensor((8, 16), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((8, 16), dtype="float32") = R.slice_scatter(
+                    a, b, R.prim_value(0), R.prim_value(6), R.prim_value(1), axis=0
+                )
+                gv: R.Tuple(R.Tensor((8, 16), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(8, 8, 10, 10, dtype=torch.float32), torch.randn(8, 3, 10, 10))
+    verify_model(SliceScatter1(), example_args, {}, expected1)
+
+    example_args = (torch.randn(8, 16, dtype=torch.float32), torch.randn(6, 16))
+    verify_model(SliceScatter2(), example_args, {}, expected2)
+
+
 def test_split():
     class Chunk(Module):
         def forward(self, input):

@@ -105,6 +105,7 @@ from .manipulate import (
     reshape,
     scatter_elements,
     scatter_nd,
+    slice_scatter,
     split,
     squeeze,
     stack,

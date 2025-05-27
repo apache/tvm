@@ -5033,6 +5033,51 @@ def test_scatter():
     verify_model(Scatter(), input_info, {}, expected)
 
 
+def test_slice_scatter():
+    class SliceScatter1(Module):
+        def forward(self, input, src):
+            return torch.slice_scatter(input, src, dim=1, start=1, end=7, step=2)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            a: R.Tensor((8, 8, 10, 10), dtype="float32"),
+            b: R.Tensor((8, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((8, 8, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((8, 8, 10, 10), dtype="float32") = R.slice_scatter(
+                    a, b, R.prim_value(1), R.prim_value(7), R.prim_value(2), axis=1
+                )
+                gv: R.Tensor((8, 8, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    class SliceScatter2(Module):
+        def forward(self, input, src):
+            return torch.slice_scatter(input, src, dim=0, start=0, end=6, step=1)
+
+    @I.ir_module
+    class expected2:
+        @R.function
+        def main(
+            a: R.Tensor((8, 16), dtype="float32"), b: R.Tensor((6, 16), dtype="float32")
+        ) -> R.Tensor((8, 16), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((8, 16), dtype="float32") = R.slice_scatter(
+                    a, b, R.prim_value(0), R.prim_value(6), R.prim_value(1), axis=0
+                )
+                gv: R.Tensor((8, 16), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(
+        SliceScatter1(), [((8, 8, 10, 10), "float32"), ((8, 3, 10, 10), "float32")], {}, expected1
+    )
+
+    verify_model(SliceScatter2(), [((8, 16), "float32"), ((6, 16), "float32")], {}, expected2)
+
+
 def test_masked_scatter():
     class MaskedScatter1(Module):
         def forward(self, data, mask, src):

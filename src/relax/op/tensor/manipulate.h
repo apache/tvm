@@ -274,6 +274,18 @@ Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, String re
 Expr scatter_nd(Expr data, Expr indices, Expr updates, String reduction);
 
 /*!
+ * \brief Embeds the values of the src tensor into input at the given dimension.
+ * \param input The input tensor to be updated.
+ * \param src The tensor to embed into input.
+ * \param dim The dimension to insert the slice into.
+ * \param start The start index of where to insert the slice.
+ * \param end The end index of where to insert the slice.
+ * \param step The how many elements to skip in
+ * \return  The computed result tensor with the same shape as `data`.
+ */
+Expr slice_scatter(Expr input, Expr src, int axis, PrimValue start, PrimValue end, PrimValue step);
+
+/*!
  * \brief Returns a one-hot tensor.
  * \param indices The indices to set to `on_value`.
  * \param on_value The value to fill at `indices`.
