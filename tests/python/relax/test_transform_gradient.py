@@ -20,7 +20,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm._ffi.base import TVMError
+from tvm.base import TVMError
 from tvm.ir.base import assert_structural_equal
 from tvm.script.parser import relax as R, tir as T, ir as I
 

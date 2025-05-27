@@ -25,7 +25,7 @@ import numpy as np
 import pytest
 import tvm
 import tvm.testing
-from tvm._ffi import register_func
+from tvm.ffi import register_func
 from tvm.meta_schedule.arg_info import TensorInfo
 from tvm.meta_schedule.builder import BuilderInput, LocalBuilder
 from tvm.meta_schedule.runner import (

@@ -15,6 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI APIs for tvm.relax.distributed"""
-import tvm._ffi
+import tvm.ffi
 
-tvm._ffi._init_api("relax.distributed", __name__)
+tvm.ffi._init_api("relax.distributed", __name__)

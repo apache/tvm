@@ -23,7 +23,7 @@ from tvm.runtime import Object
 from tvm.ir.module import IRModule
 from tvm.relax import Expr
 from tvm.tir.schedule.trace import JSON_TYPE, _json_from_tvm
-from tvm._ffi import register_object
+from tvm.ffi import register_object
 from . import _ffi_api
 
 logger = logging.getLogger("TuningAPI")  # pylint: disable=invalid-name

@@ -14,6 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 """FFI APIs for tvm.relax.op.builtin"""
-import tvm._ffi
+import tvm.ffi
 
-tvm._ffi._init_api("relax.op.builtin", __name__)
+tvm.ffi._init_api("relax.op.builtin", __name__)

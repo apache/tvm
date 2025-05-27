@@ -18,7 +18,7 @@
 import os
 from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 
-from tvm._ffi import register_object as _register_object
+from tvm.ffi import register_object as _register_object
 from tvm.runtime import Object
 
 from ...ir import Array, Map, save_json

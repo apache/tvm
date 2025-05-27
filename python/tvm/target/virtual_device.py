@@ -22,7 +22,7 @@ from tvm.runtime import Object
 from . import _ffi_api
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object
 class VirtualDevice(Object):
     """A compile time representation for where data is to be stored at runtime,
     and how to compile code to compute it."""

@@ -16,7 +16,7 @@
 # under the License.
 """FFI APIs for tvm.ir.analysis"""
 
-import tvm._ffi
+import tvm.ffi
 
 
-tvm._ffi._init_api("ir.analysis", __name__)
+tvm.ffi._init_api("ir.analysis", __name__)
