@@ -19,13 +19,12 @@
 import multiprocessing
 import sys
 import os
-import traceback
 
 # top-level alias
 # tvm._ffi
-from ._ffi.base import TVMError, __version__, _RUNTIME_ONLY
+from .base import TVMError, __version__, _RUNTIME_ONLY
 
-from ._ffi import register_object, register_func, get_global_func
+from .ffi import register_object, register_func, get_global_func
 
 # top-level alias
 # tvm.runtime

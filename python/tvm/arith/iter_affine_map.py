@@ -14,9 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" Iterator (quasi)affine mapping patterns."""
+"""Iterator (quasi)affine mapping patterns."""
 from enum import IntEnum
-import tvm._ffi
+import tvm.ffi
 from tvm.runtime import Object
 from tvm.ir import PrimExpr
 from . import _ffi_api
@@ -26,7 +26,7 @@ class IterMapExpr(PrimExpr):
     """Base class of all IterMap expressions."""
 
 
-@tvm._ffi.register_object("arith.IterMark")
+@tvm.ffi.register_object("arith.IterMark")
 class IterMark(Object):
     """Mark the source as an iterator in [0, extent).
 
@@ -43,7 +43,7 @@ class IterMark(Object):
         self.__init_handle_by_constructor__(_ffi_api.IterMark, source, extent)
 
 
-@tvm._ffi.register_object("arith.IterSplitExpr")
+@tvm.ffi.register_object("arith.IterSplitExpr")
 class IterSplitExpr(IterMapExpr):
     """Split of an iterator.
 
@@ -70,7 +70,7 @@ class IterSplitExpr(IterMapExpr):
         )
 
 
-@tvm._ffi.register_object("arith.IterSumExpr")
+@tvm.ffi.register_object("arith.IterSumExpr")
 class IterSumExpr(IterMapExpr):
     """Fuse multiple iterators by summing them with scaling.
 
@@ -152,6 +152,80 @@ def detect_iter_map(
     elif check_level is None:
         check_level = IterMapLevel.NoCheck
     return _ffi_api.DetectIterMap(
+        indices, input_iters, predicate, check_level, simplify_trivial_iterators
+    )
+
+
+def normalize_to_iter_sum(index, input_iters):
+    """Normalize expr to iter sum.
+
+    The normalized result ensures that
+    each scale is in the form of (symbol_prod) * cscale
+    It will also sort in desc order by cscale then len(symbol_prod).
+
+    Parameters
+    ----------
+    index : PrimExpr
+        The input index
+
+    input_iters : Map[Var, Range]
+        The domain of each input iterators.
+
+    Returns
+    -------
+    iter_sum: IterSumExpr
+        The result iter sum
+
+    Note
+    ----
+    This function does best effort detection, so some undetected
+    part can go into iter_sum.base
+
+    This function is useful to decide the stride multiplier and
+    division factor in buffer access patterns.
+    """
+    return _ffi_api.NormalizeToIterSum(index, input_iters)
+
+
+def iter_map_simplify(
+    indices,
+    input_iters,
+    predicate=True,
+    check_level=IterMapLevel.Surjective,
+    simplify_trivial_iterators=True,
+):
+    """Simplify the indices using iter map detection.
+
+    Parameters
+    ----------
+    indices : List[PrimExpr]
+        The input indices
+
+    input_iters : Map[Var, Range]
+        The domain of each input iterators.
+
+    predicate : PrimExpr
+        The predicate constraints on the input iterators
+
+    check_level : Union[str, IterMapLevel]
+        Checking level of iteration mapping
+
+    simplify_trivial_iterators: bool
+        If true, iterators with extent of 1 will be replaced with a
+        constant value.
+
+    Returns
+    -------
+    results : IterMapResult
+        The iter map matching result.
+        The result's .indices is empty array if no match can be found.
+
+    """
+    if isinstance(check_level, str):
+        check_level = IterMapLevel.from_str(check_level)
+    elif check_level is None:
+        check_level = IterMapLevel.NoCheck
+    return _ffi_api.IterMapSimplify(
         indices, input_iters, predicate, check_level, simplify_trivial_iterators
     )
 

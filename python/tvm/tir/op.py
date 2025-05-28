@@ -18,7 +18,7 @@
 """Operators used in TIR expression."""
 from typing import Any, Optional, Union
 
-import tvm._ffi
+import tvm.ffi
 from tvm import tir
 from tvm.ir import Array, Op, PrimExpr
 from tvm.ir.base import Span
@@ -1927,7 +1927,7 @@ def all(*args, span=None):
     return val
 
 
-@tvm._ffi.register_func("tvm.default_trace_action")
+@tvm.ffi.register_func("tvm.default_trace_action")
 def _tvm_default_trace_action(*args):
     print(list(args))
 

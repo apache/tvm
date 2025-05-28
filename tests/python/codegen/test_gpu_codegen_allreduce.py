@@ -102,7 +102,7 @@ def optional_metal_compile_callback(define_metal_compile_callback):
 
     if define_metal_compile_callback:
         if cached is None:
-            tvm._ffi.registry.remove_global_func(name)
+            tvm.ffi.registry.remove_global_func(name)
         else:
             tvm.register_func(name, cached, override=True)
 

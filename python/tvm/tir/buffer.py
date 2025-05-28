@@ -17,15 +17,14 @@
 """Abstraction for array data structures."""
 from numbers import Integral
 
-import tvm._ffi
-from tvm._ffi.base import string_types
+import tvm.ffi
 from tvm.ir import PointerType, PrimExpr, PrimType, Range
 from tvm.runtime import Object, Scriptable, convert
 
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("tir.Buffer")
+@tvm.ffi.register_object("tir.Buffer")
 class Buffer(Object, Scriptable):
     """Symbolic data buffer in TVM.
 
@@ -85,7 +84,7 @@ class Buffer(Object, Scriptable):
           # Get access ptr for read with extent
           buffer.access_ptr("r", extent = 100)
         """
-        if isinstance(access_mask, string_types):
+        if isinstance(access_mask, str):
             mask = 0
             for value in access_mask:
                 if value == "r":
@@ -350,6 +349,6 @@ def decl_buffer(
     )
 
 
-@tvm._ffi.register_object("tir.DataProducer")
+@tvm.ffi.register_object("tir.DataProducer")
 class DataProducer(Object):
     pass

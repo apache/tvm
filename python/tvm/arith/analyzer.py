@@ -19,7 +19,7 @@
 import enum
 from typing import Union
 
-import tvm._ffi
+import tvm.ffi
 from tvm import tir, ir
 from tvm.runtime import Object
 
@@ -46,7 +46,7 @@ class Extension(enum.Flag):
     ComparisonOfProductAndSum = 1 << 3
 
 
-@tvm._ffi.register_object("arith.ModularSet")
+@tvm.ffi.register_object("arith.ModularSet")
 class ModularSet(Object):
     """Represent range of (coeff * x + base) for x in Z"""
 
@@ -54,7 +54,7 @@ class ModularSet(Object):
         self.__init_handle_by_constructor__(_ffi_api.ModularSet, coeff, base)
 
 
-@tvm._ffi.register_object("arith.ConstIntBound")
+@tvm.ffi.register_object("arith.ConstIntBound")
 class ConstIntBound(Object):
     """Represent constant integer bound
 

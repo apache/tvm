@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Integer set."""
-import tvm._ffi
+import tvm.ffi
 from tvm.runtime import Object
 from . import _ffi_api
 
@@ -64,7 +64,7 @@ class IntSet(Object):
         return _ffi_api.intset_single_point(point)
 
 
-@tvm._ffi.register_object("arith.IntervalSet")
+@tvm.ffi.register_object("arith.IntervalSet")
 class IntervalSet(IntSet):
     """Represent set of continuous interval [min_value, max_value]
 
@@ -79,6 +79,14 @@ class IntervalSet(IntSet):
 
     def __init__(self, min_value, max_value):
         self.__init_handle_by_constructor__(_ffi_api.IntervalSet, min_value, max_value)
+
+
+@tvm.ffi.register_object("arith.PresburgerSet")
+class PresburgerSet(IntSet):
+    """Represent of Presburger Set"""
+
+    def __init__(self):
+        self.__init_handle_by_constructor__(_ffi_api.PresburgerSet)
 
 
 def estimate_region_lower_bound(region, var_dom, predicate):
