@@ -40,6 +40,7 @@ from .broadcast import *
 from .sort import *
 from .scatter import *
 from .scatter_elements import *
+from .slice_scatter import *
 from .sparse_reshape import *
 from .scan import *
 from .einsum import *

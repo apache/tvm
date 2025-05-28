@@ -909,6 +909,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "scatter": self._scatter,
             "select": self._select,
             "size": self._size,
+            "slice_scatter": self._slice_scatter,
             "sort": self._sort,
             "split": self._split,
             "squeeze": self._squeeze,

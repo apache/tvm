@@ -2448,6 +2448,161 @@ TVM_REGISTER_OP("relax.scatter_nd")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterND)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.scatter_nd */
+TVM_REGISTER_NODE_TYPE(SliceScatterAttrs);
+
+Expr slice_scatter(Expr input, Expr src, int axis, PrimValue start, PrimValue end, PrimValue step) {
+  auto attrs = make_object<SliceScatterAttrs>();
+  attrs->axis = std::move(axis);
+  static const Op& op = Op::Get("relax.slice_scatter");
+  return Call(op, {input, src, start, end, step}, Attrs(attrs), {});
+}
+
+TVM_FFI_REGISTER_GLOBAL("relax.op.slice_scatter").set_body_typed(slice_scatter);
+
+StructInfo InferStructInfoSliceScatter(const Call& call, const BlockBuilder& ctx) {
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* src_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  auto* attrs = call->attrs.as<SliceScatterAttrs>();
+
+  auto diag_tensor_check = [&](const TensorStructInfoNode* sinfo, const Expr& arg_expr,
+                               String name) {
+    if (sinfo == nullptr) {
+      ctx->ReportFatal(Diagnostic::Error(call) << "SliceScatter requires the input " << name
+                                               << " to be a Tensor. However, the given one is "
+                                               << arg_expr->struct_info_->GetTypeKey());
+    }
+  };
+
+  diag_tensor_check(data_sinfo, call->args[0], "data");
+  diag_tensor_check(src_sinfo, call->args[1], "src");
+
+  if (data_sinfo->IsUnknownNdim()) {
+    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
+  }
+
+  int ndim = data_sinfo->ndim;
+  int raw_axis = attrs->axis;
+  if (raw_axis < -ndim || raw_axis >= ndim) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "SliceScatter requires the input axis to be in the range "
+                     << "[" << -ndim << ", " << ndim - 1 << "]. However, the input axis is "
+                     << raw_axis << ", while ndim is " << ndim);
+  }
+
+  if (!data_sinfo->IsUnknownNdim() && !src_sinfo->IsUnknownNdim()) {
+    if (data_sinfo->ndim != src_sinfo->ndim) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "SliceScatter op requires the data tensor to have the same rank as the "
+                          "src tensor. However, the given dimensions are "
+                       << "src: " << src_sinfo->ndim << ", data: " << data_sinfo->ndim);
+    }
+  }
+
+  if (data_sinfo->IsUnknownDtype() || src_sinfo->IsUnknownDtype()) {
+    auto diag_dtype_warn = [&](const TensorStructInfoNode* sinfo, String name) {
+      if (sinfo->IsUnknownDtype()) {
+        LOG(WARNING) << "SliceScatter: Data type of " << name
+                     << " has not been specified for call node " << call
+                     << ". Assuming it is compatible.";
+      }
+    };
+    diag_dtype_warn(data_sinfo, "data");
+    diag_dtype_warn(src_sinfo, "src");
+  } else {
+    if (data_sinfo->dtype != src_sinfo->dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "SliceScatter op requires the input data to have the same type as "
+                          "src. However, the given types are "
+                       << "data: " << data_sinfo->dtype << ", src: " << src_sinfo->dtype);
+    }
+  }
+
+  auto get_prim_expr_from_arg = [&ctx, &call](const Expr& arg_expr, std::string key) -> PrimExpr {
+    const auto* prim_value_node = arg_expr.as<PrimValueNode>();
+    if (prim_value_node == nullptr) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "SliceScatter expects the `" << key << "` argument (" << arg_expr
+                       << ") to be a PrimValue, but got " << arg_expr->GetTypeKey());
+    }
+    const PrimExpr& prim_expr = prim_value_node->value;
+    if (!prim_expr.dtype().is_int() && !prim_expr.dtype().is_uint()) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "SliceScatter expects `" << key << "` (" << prim_expr
+                       << ") to be an integer PrimValue, but got dtype " << prim_expr.dtype());
+    }
+    return prim_expr;
+  };
+
+  PrimExpr start_val = get_prim_expr_from_arg(call->args[2], "start");
+  PrimExpr stop_val = get_prim_expr_from_arg(call->args[3], "end");
+  PrimExpr step_val = get_prim_expr_from_arg(call->args[4], "step");
+
+  if (analyzer->CanProve(step_val < 1)) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "SliceScatter op requires the step (" << step_val << ") to be >= 1.");
+  }
+
+  if (analyzer->CanProve(stop_val < start_val)) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "SliceScatter op requires start (" << start_val
+                                             << ") <= end (" << stop_val << ").");
+  }
+
+  int axis = NormalizeAxis(call, ctx, ndim, attrs->axis);
+
+  const auto* data_shape_node = data_sinfo->shape.as<ShapeExprNode>();
+  const auto* src_shape_node = src_sinfo->shape.as<ShapeExprNode>();
+
+  if (data_shape_node && src_shape_node && !src_sinfo->IsUnknownNdim()) {
+    ICHECK_EQ(data_shape_node->values.size(), static_cast<size_t>(ndim))
+        << "Internal error: data_shape_node rank mismatch with data_sinfo->ndim for call " << call;
+    ICHECK_EQ(src_shape_node->values.size(), static_cast<size_t>(src_sinfo->ndim))
+        << "Internal error: src_shape_node rank mismatch with src_sinfo->ndim for call " << call;
+
+    PrimExpr num_elem = tvm::floordiv((stop_val - start_val + step_val - PrimExpr(1)), step_val);
+
+    for (int i = 0; i < ndim; i++) {
+      if (i != axis) {
+        if (analyzer->CanProve(data_shape_node->values[i] != src_shape_node->values[i])) {
+          ctx->ReportFatal(
+              Diagnostic::Error(call)
+              << "SliceScatter op requires the data tensor to have the same shape as the "
+                 "src tensor except at the scatter axis ("
+              << axis << "). Mismatch at dimension " << i << ". "
+              << "data shape: " << data_sinfo->GetShape().value()
+              << ", src shape: " << src_sinfo->GetShape().value());
+        }
+      }
+    }
+
+    if (analyzer->CanProve(src_shape_node->values[axis] != num_elem)) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "SliceScatter op requires the src tensor's dimension at scatter axis ("
+                       << axis << ") to match the number of elements in the slice. "
+                       << "Actual src dimension at axis " << axis << ": "
+                       << src_shape_node->values[axis]
+                       << ", Expected elements in slice (num_elem): " << num_elem);
+    }
+  }
+
+  if (data_sinfo->shape.defined()) {
+    return TensorStructInfo(data_sinfo->shape.value(), data_sinfo->dtype, data_sinfo->vdevice);
+  }
+  return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.slice_scatter")
+    .set_attrs_type<SliceScatterAttrs>()
+    .set_num_inputs(5)
+    .add_argument("input", "Tensor", "The input tensor.")
+    .add_argument("src", "Tensor", "The source tensor to scatter.")
+    .add_argument("start", "PrimValue", "The starting index of the slice (inclusive).")
+    .add_argument("end", "PrimValue", "The ending index of the slice (exclusive).")
+    .add_argument("step", "PrimValue", "The step of the slice.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSliceScatter)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.one_hot */
 TVM_REGISTER_NODE_TYPE(OneHotAttrs);
 Expr one_hot(Expr indices, PrimValue on_value, PrimValue off_value, int depth, int axis) {

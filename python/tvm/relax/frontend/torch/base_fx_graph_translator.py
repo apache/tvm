@@ -1518,6 +1518,19 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return self.block_builder.emit(relax.op.meshgrid(new_inputs, indexing=indexing))
 
+    def _slice_scatter(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        input_tensor = args[0]
+        src = args[1]
+        dim = args[2] if len(args) > 2 else node.kwargs.get("dim", 0)
+        start = args[3] if len(args) > 3 else node.kwargs.get("start", 0)
+        end = args[4] if len(args) > 4 else node.kwargs.get("end", self.shape_of(input_tensor)[dim])
+        step = args[5] if len(args) > 5 else node.kwargs.get("step", 1)
+
+        return self.block_builder.emit(
+            relax.op.slice_scatter(input_tensor, src, start, end, step, axis=dim)
+        )
+
     def _permute(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 

@@ -493,6 +493,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "roll.default": self._roll,
             "select.int": self._select,
             "slice.Tensor": self._slice,
+            "slice_scatter.default": self._slice_scatter,
             "sort.default": self._sort,
             "split.Tensor": self._split,
             "split_with_sizes.default": self._split,
