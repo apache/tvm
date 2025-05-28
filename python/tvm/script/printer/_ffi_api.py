@@ -15,6 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI APIs for tvm.script.printer"""
-import tvm._ffi
+import tvm.ffi
 
-tvm._ffi._init_api("script.printer", __name__)  # pylint: disable=protected-access
+tvm.ffi._init_api("script.printer", __name__)  # pylint: disable=protected-access

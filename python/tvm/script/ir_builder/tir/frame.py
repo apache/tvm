@@ -17,7 +17,7 @@
 """IRBuilder for TIR"""
 from typing import List, Union
 
-from tvm._ffi import register_object as _register_object
+from tvm.ffi import register_object as _register_object
 from tvm.tir import Buffer, Var
 
 from ..base import IRBuilderFrame

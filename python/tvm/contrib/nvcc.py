@@ -22,10 +22,10 @@ import os
 import subprocess
 import warnings
 
-import tvm._ffi
+import tvm.ffi
 from tvm.target import Target
 
-from .._ffi.base import py_str
+from ..base import py_str
 from . import utils
 
 
@@ -198,14 +198,14 @@ def get_cuda_version(cuda_path=None):
     raise RuntimeError("Cannot read cuda version file")
 
 
-@tvm._ffi.register_func
+@tvm.ffi.register_func
 def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
     """use nvcc to generate fatbin code for better optimization"""
     ptx = compile_cuda(code, target_format="fatbin")
     return ptx
 
 
-@tvm._ffi.register_func("tvm_callback_libdevice_path")
+@tvm.ffi.register_func("tvm_callback_libdevice_path")
 def find_libdevice_path(arch):
     """Utility function to find libdevice
 
@@ -270,7 +270,7 @@ def callback_libdevice_path(arch):
         return ""
 
 
-@tvm._ffi.register_func("tvm.contrib.nvcc.get_compute_version")
+@tvm.ffi.register_func("tvm.contrib.nvcc.get_compute_version")
 def get_target_compute_version(target=None):
     """Utility function to get compute capability of compilation target.
 
@@ -415,7 +415,7 @@ def have_cudagraph():
         return False
 
 
-@tvm._ffi.register_func("tvm.contrib.nvcc.supports_bf16")
+@tvm.ffi.register_func("tvm.contrib.nvcc.supports_bf16")
 def have_bf16(compute_version):
     """Either bf16 support is provided in the compute capability or not
 
@@ -431,7 +431,7 @@ def have_bf16(compute_version):
     return False
 
 
-@tvm._ffi.register_func("tvm.contrib.nvcc.supports_fp8")
+@tvm.ffi.register_func("tvm.contrib.nvcc.supports_fp8")
 def have_fp8(compute_version):
     """Whether fp8 support is provided in the specified compute capability or not
 
@@ -449,7 +449,7 @@ def have_fp8(compute_version):
     return False
 
 
-@tvm._ffi.register_func("tvm.contrib.nvcc.supports_fp4")
+@tvm.ffi.register_func("tvm.contrib.nvcc.supports_fp4")
 def have_fp4(compute_version):
     """Whether fp4 support is provided in the specified compute capability or not
 

@@ -23,7 +23,7 @@ import subprocess
 import sys
 from typing import Dict
 
-from .._ffi.base import py_str
+from ..base import py_str
 from . import tar as _tar
 from . import utils as _utils
 

@@ -16,22 +16,23 @@
 # under the License.
 # coding: utf-8
 # pylint: disable=invalid-name, import-outside-toplevel
-"""Base library for TVM FFI."""
+"""Base library for TVM."""
 import ctypes
 import os
 import sys
 
-
-import numpy as np
-
 from . import libinfo
+
+# ----------------------------
+# Python3 version.
+# ----------------------------
+if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 8):
+    PY3STATEMENT = "The minimal Python requirement is Python 3.8"
+    raise Exception(PY3STATEMENT)
 
 # ----------------------------
 # library loading
 # ----------------------------
-string_types = (str,)
-integer_types = (int, np.int32)
-numeric_types = integer_types + (float, np.float16, np.float32)
 
 
 def _load_lib():
@@ -62,7 +63,7 @@ _RUNTIME_ONLY = "runtime" in _LIB_NAME
 
 
 if _RUNTIME_ONLY:
-    from ..ffi import registry as _tvm_ffi_registry
+    from .ffi import registry as _tvm_ffi_registry
 
     _tvm_ffi_registry._SKIP_UNKNOWN_OBJECTS = True
 

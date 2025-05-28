@@ -16,7 +16,7 @@
 # under the License.
 """Unified type system in the project."""
 import tvm
-import tvm._ffi
+import tvm.ffi
 from tvm.runtime import Scriptable
 
 from . import _ffi_api
@@ -38,7 +38,7 @@ class Type(Node, Scriptable):
         return super().__eq__(other)
 
 
-@tvm._ffi.register_object("PrimType")
+@tvm.ffi.register_object("PrimType")
 class PrimType(Type):
     """Primitive data type in the low level IR
 
@@ -52,7 +52,7 @@ class PrimType(Type):
         self.__init_handle_by_constructor__(_ffi_api.PrimType, dtype)
 
 
-@tvm._ffi.register_object("PointerType")
+@tvm.ffi.register_object("PointerType")
 class PointerType(Type):
     """PointerType used in the low-level TIR.
 
@@ -69,7 +69,7 @@ class PointerType(Type):
         self.__init_handle_by_constructor__(_ffi_api.PointerType, element_type, storage_scope)
 
 
-@tvm._ffi.register_object("TupleType")
+@tvm.ffi.register_object("TupleType")
 class TupleType(Type):
     """The type of tuple values.
 
@@ -83,7 +83,7 @@ class TupleType(Type):
         self.__init_handle_by_constructor__(_ffi_api.TupleType, fields)
 
 
-@tvm._ffi.register_object("FuncType")
+@tvm.ffi.register_object("FuncType")
 class FuncType(Type):
     """Function type.
 

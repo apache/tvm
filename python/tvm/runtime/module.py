@@ -24,8 +24,8 @@ from typing import Sequence
 import numpy as np
 
 import tvm.ffi
-from tvm._ffi.base import _RUNTIME_ONLY
-from tvm._ffi.libinfo import find_include_path
+from tvm.base import _RUNTIME_ONLY
+from tvm.libinfo import find_include_path
 
 from . import _ffi_api
 

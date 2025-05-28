@@ -17,7 +17,7 @@
 import tvm
 import pytest
 from tvm import tir
-from tvm._ffi.base import TVMError
+from tvm.base import TVMError
 from tvm.ir.transform import PassContext
 import itertools
 import pytest

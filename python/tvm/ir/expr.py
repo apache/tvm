@@ -18,7 +18,7 @@
 from numbers import Number
 from typing import Optional
 
-import tvm._ffi
+import tvm.ffi
 
 from ..runtime import Object, Scriptable
 from . import _ffi_api
@@ -71,7 +71,7 @@ class RelaxExpr(BaseExpr):
         return _ffi_api.ExprStructInfo(self)
 
 
-@tvm._ffi.register_object("GlobalVar")
+@tvm.ffi.register_object("GlobalVar")
 class GlobalVar(RelaxExpr):
     """A global variable in the IR.
 
@@ -117,7 +117,7 @@ class GlobalVar(RelaxExpr):
         raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object
 class Range(Node, Scriptable):
     """Represent a range in TVM.
 

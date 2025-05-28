@@ -21,7 +21,7 @@ import os
 import sys
 import subprocess
 import json
-from .._ffi.base import py_str
+from ..base import py_str
 from . import utils
 
 
