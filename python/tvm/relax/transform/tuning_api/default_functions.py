@@ -33,7 +33,7 @@ from tvm.meta_schedule.runner import (
     LocalRunner,
     RunnerInput,
 )
-from tvm._ffi.registry import register_func
+from tvm.ffi.registry import register_func
 from .primitives import Knob, Trace
 
 logger = logging.getLogger("TuningAPI")  # pylint: disable=invalid-name

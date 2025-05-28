@@ -25,7 +25,7 @@ from typing import Any, Callable, Optional, Sequence, Union
 
 import numpy as np
 
-from ..._ffi import get_global_func, register_func, register_object
+from ...ffi import get_global_func, register_func, register_object
 from ..device import Device
 from ..container import ShapeTuple
 from ..ndarray import NDArray

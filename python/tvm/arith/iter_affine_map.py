@@ -14,9 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" Iterator (quasi)affine mapping patterns."""
+"""Iterator (quasi)affine mapping patterns."""
 from enum import IntEnum
-import tvm._ffi
+import tvm.ffi
 from tvm.runtime import Object
 from tvm.ir import PrimExpr
 from . import _ffi_api
@@ -26,7 +26,7 @@ class IterMapExpr(PrimExpr):
     """Base class of all IterMap expressions."""
 
 
-@tvm._ffi.register_object("arith.IterMark")
+@tvm.ffi.register_object("arith.IterMark")
 class IterMark(Object):
     """Mark the source as an iterator in [0, extent).
 
@@ -43,7 +43,7 @@ class IterMark(Object):
         self.__init_handle_by_constructor__(_ffi_api.IterMark, source, extent)
 
 
-@tvm._ffi.register_object("arith.IterSplitExpr")
+@tvm.ffi.register_object("arith.IterSplitExpr")
 class IterSplitExpr(IterMapExpr):
     """Split of an iterator.
 
@@ -70,7 +70,7 @@ class IterSplitExpr(IterMapExpr):
         )
 
 
-@tvm._ffi.register_object("arith.IterSumExpr")
+@tvm.ffi.register_object("arith.IterSumExpr")
 class IterSumExpr(IterMapExpr):
     """Fuse multiple iterators by summing them with scaling.
 

@@ -18,7 +18,7 @@
 import subprocess
 import os
 from . import utils
-from .._ffi.base import py_str
+from ..base import py_str
 
 
 def optimize(spv_bin):

@@ -550,7 +550,7 @@ a certain scope.
 
 .. code:: python
 
-    @tvm._ffi.register_object("transform.PassContext")
+    @tvm.ffi.register_object("transform.PassContext")
     class PassContext(tvm.runtime.Object):
         def __enter__(self):
             _transform.EnterPassContext(self)

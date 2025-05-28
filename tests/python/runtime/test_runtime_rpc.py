@@ -103,7 +103,7 @@ def test_rpc_simple():
         assert f1(10) == 11
         f3 = client.get_function("rpc.test.except")
 
-        with pytest.raises(tvm._ffi.base.TVMError):
+        with pytest.raises(tvm.base.TVMError):
             f3("abc")
 
         f2 = client.get_function("rpc.test.strcat")

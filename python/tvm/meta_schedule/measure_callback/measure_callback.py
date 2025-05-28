@@ -23,7 +23,7 @@ from typing_extensions import Literal
 
 # isort: on
 
-from tvm._ffi import register_object
+from tvm.ffi import register_object
 from tvm.runtime import Object
 
 from .. import _ffi_api

@@ -24,7 +24,7 @@ from typing_extensions import Literal
 # isort: on
 
 from tvm import IRModule
-from tvm._ffi import register_object, register_func
+from tvm.ffi import register_object, register_func
 from tvm.runtime import Object
 from tvm.target import Target
 from tvm.tir import PrimFunc, Schedule

@@ -24,7 +24,7 @@ for constructing compute declaration as well as optimized schedules.
 Some of the schedule function may have been specially optimized for a
 specific workload.
 """
-from tvm._ffi.libinfo import __version__
+from tvm.libinfo import __version__
 
 # Ensure C++ schedules get registered first, so python schedules can
 # override them.

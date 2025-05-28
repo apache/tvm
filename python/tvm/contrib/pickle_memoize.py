@@ -23,7 +23,6 @@ import pathlib
 import sys
 
 import functools
-from .._ffi.base import string_types
 
 try:
     import cPickle as pickle
@@ -115,7 +114,7 @@ def memoize(key, save_at_exit=False):
 
     def _register(f):
         """Registration function"""
-        allow_types = (string_types, int, float, tuple)
+        allow_types = (str, int, float, tuple)
         fkey = key + "." + f.__name__ + ".pkl"
         if fkey not in Cache.cache_by_key:
             Cache.cache_by_key[fkey] = Cache(fkey, save_at_exit)

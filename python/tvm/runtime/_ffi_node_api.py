@@ -17,7 +17,7 @@
 
 # pylint: disable=invalid-name, unused-argument
 """FFI for tvm.node"""
-import tvm._ffi
+import tvm.ffi
 import tvm.ffi.core
 
 
@@ -47,4 +47,4 @@ def LoadJSON(json_str):
 
 # Exports functions registered via TVM_FFI_REGISTER_GLOBAL with the "node" prefix.
 # e.g. TVM_FFI_REGISTER_GLOBAL("node.AsRepr")
-tvm._ffi._init_api("node", __name__)
+tvm.ffi._init_api("node", __name__)

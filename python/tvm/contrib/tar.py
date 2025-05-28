@@ -22,7 +22,7 @@ import os
 import shutil
 import subprocess
 from . import utils
-from .._ffi.base import py_str
+from ..base import py_str
 
 
 def tar(output, files):
