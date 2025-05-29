@@ -22,6 +22,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/module.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
