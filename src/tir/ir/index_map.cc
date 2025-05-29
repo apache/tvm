@@ -97,7 +97,8 @@ std::pair<IndexMap, PrimExpr> IndexMapInverseImpl(const IndexMap& self,
                                        /*check_level=*/check_level, analyzer,
                                        /*simplify_trivial_iterators=*/false);
   CHECK(padded_iter_map->errors.empty()) << "Could not parse mapping as sum of iterators.  "
-                                         << "Error: " << padded_iter_map->errors[0];
+                                         << "\nIndex map: " << self->initial_indices << " -> " << self->final_indices
+                                         << "\nError: " << padded_iter_map->errors[0];
 
   // Determine expressions for the input variables, in terms of the
   // output variables.
