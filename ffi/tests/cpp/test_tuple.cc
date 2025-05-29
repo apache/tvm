@@ -136,4 +136,32 @@ TEST(Tuple, Upcast) {
   static_assert(details::type_contains_v<Tuple<Any, float>, Tuple<int, float>>);
   static_assert(details::type_contains_v<Tuple<TNumber, float>, Tuple<TInt, float>>);
 }
+
+TEST(Tuple, ArrayIterForwarding) {
+  Tuple<TInt, TInt> t0(1, 2);
+  Tuple<TInt, TInt> t1(3, 4);
+  Array<Tuple<TInt, TInt>> arr0 = {t0, t1};
+  std::vector<Tuple<TInt, TInt>> vec0 = {t0};
+  vec0.insert(vec0.end(), arr0.begin(), arr0.end());
+  EXPECT_EQ(vec0.size(), 3);
+  EXPECT_EQ(vec0[0].get<0>()->value, 1);
+  EXPECT_EQ(vec0[0].get<1>()->value, 2);
+  EXPECT_EQ(vec0[1].get<0>()->value, 1);
+  EXPECT_EQ(vec0[1].get<1>()->value, 2);
+  EXPECT_EQ(vec0[2].get<0>()->value, 3);
+  EXPECT_EQ(vec0[2].get<1>()->value, 4);
+}
+
+TEST(Tuple, ArrayIterForwardSingleElem) {
+  Tuple<TInt> t0(1);
+  Tuple<TInt> t1(2);
+  Array<Tuple<TInt>> arr0 = {t0, t1};
+  std::vector<Tuple<TInt>> vec0 = {t0};
+  vec0.insert(vec0.end(), arr0.begin(), arr0.end());
+  EXPECT_EQ(vec0.size(), 3);
+  EXPECT_EQ(vec0[0].get<0>()->value, 1);
+  EXPECT_EQ(vec0[1].get<0>()->value, 1);
+  EXPECT_EQ(vec0[2].get<0>()->value, 2);
+}
+
 }  // namespace

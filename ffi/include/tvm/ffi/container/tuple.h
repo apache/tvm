@@ -55,10 +55,13 @@ class Tuple : public ObjectRef {
   template <typename... UTypes,
             typename = std::enable_if_t<(details::type_contains_v<Types, UTypes> && ...), int>>
   Tuple(Tuple<UTypes...>&& other) : ObjectRef(std::move(other)) {}
-  template <typename... UTypes>
-  explicit Tuple(UTypes&&... args) : ObjectRef(MakeTupleNode(std::forward<UTypes>(args)...)) {
-    static_assert(sizeof...(Types) == sizeof...(UTypes), "Tuple size mismatch");
-  }
+
+  template <typename... UTypes,
+            typename = std::enable_if_t<sizeof...(Types) == sizeof...(UTypes) &&
+                                        !(sizeof...(Types) == 1 &&
+                                          (std::is_same_v<std::remove_cv_t<UTypes>, Tuple<Types>> &&
+                                           ...))>>
+  explicit Tuple(UTypes&&... args) : ObjectRef(MakeTupleNode(std::forward<UTypes>(args)...)) {}
 
   TVM_FFI_INLINE Tuple& operator=(const Tuple<Types...>& other) {
     data_ = other.data_;
