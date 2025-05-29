@@ -120,6 +120,7 @@ if __name__ == "__main__":
             to_add.append(new_reviewer)
 
     print(f"After filtering existing reviewers, adding: {to_add}")
+    print("114514")
 
     if not args.dry_run:
         github = GitHubRepo(token=os.environ["GITHUB_TOKEN"], user=user, repo=repo)
