@@ -25,7 +25,7 @@
 #ifndef TVM_RUNTIME_CONTRIB_MRVL_MRVL_SW_RUNTIME_LIB_H_
 #define TVM_RUNTIME_CONTRIB_MRVL_MRVL_SW_RUNTIME_LIB_H_
 
-#include <tvm/runtime/packed_func.h>
+#include <tvm/ffi/function.h>
 
 #include <cstddef>
 #include <string>

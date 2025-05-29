@@ -23,7 +23,6 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <cstring>
 #include <unordered_set>

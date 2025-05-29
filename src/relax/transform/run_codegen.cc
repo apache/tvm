@@ -26,6 +26,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/runtime/module.h>
 
 #include "../../support/ordered_set.h"
 #include "utils.h"

@@ -24,7 +24,7 @@
 #ifndef TVM_RUNTIME_RPC_RPC_ENDPOINT_H_
 #define TVM_RUNTIME_RPC_RPC_ENDPOINT_H_
 
-#include <tvm/runtime/packed_func.h>
+#include <tvm/ffi/function.h>
 
 #include <memory>
 #include <mutex>

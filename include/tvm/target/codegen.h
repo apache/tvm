@@ -25,7 +25,7 @@
 #define TVM_TARGET_CODEGEN_H_
 
 #include <tvm/ir/module.h>
-#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/module.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 

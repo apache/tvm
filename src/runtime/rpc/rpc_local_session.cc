@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/ndarray.h>
 
 #include <memory>
 #include <vector>
@@ -120,7 +121,7 @@ void LocalSession::CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes)
 }
 
 void LocalSession::CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes) {
-  ICHECK_EQ(nbytes, GetDataSize(*from));
+  ICHECK_EQ(nbytes, ffi::GetDataSize(*from));
   DLTensor to;
   to.data = to_bytes;
   to.device = {kDLCPU, 0};

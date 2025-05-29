@@ -20,13 +20,13 @@
 #define TVM_META_SCHEDULE_SPACE_GENERATOR_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/meta_schedule/mutator.h>
 #include <tvm/meta_schedule/postproc.h>
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/schedule/schedule.h>
 

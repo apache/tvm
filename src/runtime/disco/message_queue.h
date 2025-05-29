@@ -45,12 +45,12 @@ class DiscoStreamMessageQueue : private dmlc::Stream,
 
   ffi::PackedArgs Recv() {
     bool is_implicit_shutdown = DequeueNextPacket();
-    AnyView* packed_args = nullptr;
+    ffi::AnyView* packed_args = nullptr;
     int num_args = 0;
 
     if (is_implicit_shutdown) {
       num_args = 2;
-      packed_args = reinterpret_cast<AnyView*>(ArenaAlloc<TVMFFIAny>(num_args));
+      packed_args = reinterpret_cast<ffi::AnyView*>(ArenaAlloc<TVMFFIAny>(num_args));
       packed_args[0] = static_cast<int>(DiscoAction::kShutDown);
       packed_args[1] = 0;
     } else {

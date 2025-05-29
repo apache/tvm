@@ -24,7 +24,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/disco/builtin.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/relax_vm/ndarray_cache_support.h>
 
 #include <functional>
@@ -218,7 +217,7 @@ NDArray ShardLoaderObj::ApplyShardFunc(const ShardInfo::ShardFunc& shard_func,
   NDArray o = NDArray::Empty(shard_func.output_info.shape, shard_func.output_info.dtype, device);
   ffi::Function f = this->shard_funcs_.at(shard_func.name);
   int n = static_cast<int>(shard_func.params.size());
-  std::vector<AnyView> packed_args(n + 2);
+  std::vector<ffi::AnyView> packed_args(n + 2);
   const DLTensor* w_in = param.operator->();
   const DLTensor* w_out = o.operator->();
   packed_args[0] = const_cast<DLTensor*>(w_in);
@@ -226,7 +225,7 @@ NDArray ShardLoaderObj::ApplyShardFunc(const ShardInfo::ShardFunc& shard_func,
     packed_args[i + 1] = shard_func.params[i];
   }
   packed_args[n + 1] = const_cast<DLTensor*>(w_out);
-  Any rv;
+  ffi::Any rv;
   f.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
   return o;
 }

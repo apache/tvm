@@ -52,7 +52,7 @@ The following code block provides an example in C++
 
 .. code:: c
 
-    #include <tvm/runtime/packed_func.h>
+    #include <tvm/ffi/function.h>
 
     void MyAdd(ffi::PackedArgs args, ffi::Any* rv) {
       // automatically convert arguments to desired type.

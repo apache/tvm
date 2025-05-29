@@ -24,8 +24,8 @@
 #ifndef TVM_NODE_ATTR_REGISTRY_H_
 #define TVM_NODE_ATTR_REGISTRY_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/node/attr_registry_map.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <memory>
 #include <unordered_map>

@@ -22,7 +22,6 @@
  * \file vision.cc
  */
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/topi/vision/reorg.h>
 
 namespace tvm {

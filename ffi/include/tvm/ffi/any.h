@@ -583,5 +583,11 @@ struct AnyEqual {
 };
 
 }  // namespace ffi
+
+// Expose to the tvm namespace for usability
+// Rationale: no ambiguity even in root
+using tvm::ffi::Any;
+using tvm::ffi::AnyView;
+
 }  // namespace tvm
 #endif  // TVM_FFI_ANY_H_

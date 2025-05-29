@@ -22,7 +22,6 @@
  * \file nn.cc
  */
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/topi/nn.h>
 #include <tvm/topi/nn/bias_add.h>
 #include <tvm/topi/nn/bnn.h>

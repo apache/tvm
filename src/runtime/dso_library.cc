@@ -24,7 +24,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/packed_func.h>
 
 #include "library_module.h"
 

@@ -2285,7 +2285,7 @@ TVM_REGISTER_OBJECT_TYPE(PagedAttentionKVCacheObj);
 //-------------------------------------------------
 
 TVM_FFI_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
-    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       // Todo: cuda graph arg
       CHECK(args.size() == 28 || args.size() == 29)
           << "Invalid number of KV cache constructor args: " << args.size();

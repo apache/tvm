@@ -268,7 +268,7 @@ class NDArrayCache {
 
 TVM_FFI_REGISTER_GLOBAL("vm.builtin.ndarray_cache.get").set_body_typed(NDArrayCache::Get);
 TVM_FFI_REGISTER_GLOBAL("vm.builtin.ndarray_cache.update")
-    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       CHECK(args.size() == 2 || args.size() == 3);
       String name = args[0].cast<String>();
       bool is_override = args.size() == 2 ? false : args[2].cast<bool>();
@@ -362,7 +362,7 @@ TVM_FFI_REGISTER_GLOBAL("vm.builtin.param_array_from_cache")
 TVM_FFI_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name")
     .set_body_typed(ParamModuleNode::GetParamByName);
 TVM_FFI_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name_unpacked")
-    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       Array<String> names;
       names.reserve(args.size());
       for (int i = 0; i < args.size(); ++i) {

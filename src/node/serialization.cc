@@ -28,7 +28,6 @@
 #include <tvm/node/reflection.h>
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <cctype>
 #include <map>

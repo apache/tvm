@@ -18,9 +18,10 @@
  */
 
 /*!
- * \file c_runtime_api.cc
+ * \file device_api.cc
  * \brief Device specific implementations
  */
+#include <tvm/ffi/container/ndarray.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/rvalue_ref.h>
@@ -28,7 +29,7 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/module.h>
 
 #include <algorithm>
 #include <array>
@@ -144,7 +145,7 @@ void DeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle str
   size_t nbytes = GetDataSize(*from);
   ICHECK_EQ(nbytes, GetDataSize(*to));
 
-  ICHECK(IsContiguous(*from) && IsContiguous(*to))
+  ICHECK(ffi::IsContiguous(*from) && ffi::IsContiguous(*to))
       << "CopyDataFromTo only support contiguous array for now";
   CopyDataFromTo(from->data, from->byte_offset, to->data, to->byte_offset, nbytes, from->device,
                  to->device, from->dtype, stream);

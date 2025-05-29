@@ -22,7 +22,6 @@
  * \brief extraction of AMX configuration on x86 platforms
  */
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/packed_func.h>
 
 namespace tvm {
 namespace runtime {

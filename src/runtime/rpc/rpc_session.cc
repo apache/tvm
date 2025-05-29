@@ -23,8 +23,8 @@
  */
 #include "rpc_session.h"
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <array>
 #include <mutex>
@@ -35,7 +35,7 @@ namespace runtime {
 bool RPCSession::IsAsync() const { return false; }
 
 void RPCSession::SendException(FAsyncCallback callback, const char* msg) {
-  AnyView packed_args[1] = {msg};
+  ffi::AnyView packed_args[1] = {msg};
   callback(RPCCode::kException, ffi::PackedArgs(packed_args, 1));
 }
 
@@ -51,7 +51,7 @@ void RPCSession::AsyncCallFunc(PackedFuncHandle func, ffi::PackedArgs packed_arg
 
 void RPCSession::AsyncCopyToRemote(void* local_from_bytes, DLTensor* remote_to, uint64_t nbytes,
                                    RPCSession::FAsyncCallback callback) {
-  AnyView packed_args[1] = {nullptr};
+  ffi::AnyView packed_args[1] = {nullptr};
 
   try {
     this->CopyToRemote(local_from_bytes, remote_to, nbytes);
@@ -63,7 +63,7 @@ void RPCSession::AsyncCopyToRemote(void* local_from_bytes, DLTensor* remote_to, 
 
 void RPCSession::AsyncCopyFromRemote(DLTensor* remote_from, void* local_to_bytes, uint64_t nbytes,
                                      RPCSession::FAsyncCallback callback) {
-  AnyView packed_args[1] = {nullptr};
+  ffi::AnyView packed_args[1] = {nullptr};
 
   try {
     this->CopyFromRemote(remote_from, local_to_bytes, nbytes);

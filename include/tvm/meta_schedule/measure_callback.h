@@ -21,6 +21,7 @@
 #define TVM_META_SCHEDULE_MEASURE_CALLBACK_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/string.h>
 #include <tvm/meta_schedule/builder.h>
 #include <tvm/meta_schedule/measure_candidate.h>
@@ -29,7 +30,6 @@
 #include <tvm/meta_schedule/tune_context.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 
 namespace tvm {
 namespace meta_schedule {

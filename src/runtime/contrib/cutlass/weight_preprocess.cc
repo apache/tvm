@@ -19,7 +19,6 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
 
 #include "cutlass_kernels/cutlass_preprocessors.h"
 

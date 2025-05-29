@@ -21,10 +21,10 @@
  * \file src/ir/op.cc
  * \brief Primitive operators and intrinsics.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/tir/op_attr_types.h>
 
 #include <memory>

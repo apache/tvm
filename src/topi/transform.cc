@@ -22,7 +22,6 @@
  * \file transform.cc
  */
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/topi/einsum.h>
 #include <tvm/topi/transform.h>
 #include <tvm/topi/utils.h>

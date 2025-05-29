@@ -26,7 +26,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/serializer.h>
 
 #include <algorithm>

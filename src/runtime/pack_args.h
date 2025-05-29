@@ -31,8 +31,8 @@
 #ifndef TVM_RUNTIME_PACK_ARGS_H_
 #define TVM_RUNTIME_PACK_ARGS_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <cstring>
 #include <vector>
