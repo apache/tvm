@@ -23,7 +23,6 @@
  */
 
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/topi/detail/tensor_utils.h>
 
 namespace tvm {

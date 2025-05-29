@@ -21,7 +21,6 @@
 #define TVM_TARGET_DATATYPE_REGISTRY_H_
 
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <string>
 #include <unordered_map>

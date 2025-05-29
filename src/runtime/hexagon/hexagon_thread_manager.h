@@ -20,9 +20,9 @@
 #ifndef TVM_RUNTIME_HEXAGON_HEXAGON_THREAD_MANAGER_H_
 #define TVM_RUNTIME_HEXAGON_HEXAGON_THREAD_MANAGER_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <memory>
 #include <unordered_map>

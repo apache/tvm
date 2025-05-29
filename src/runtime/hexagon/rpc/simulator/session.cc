@@ -19,7 +19,6 @@
 
 #include <HexagonWrapper.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/packed_func.h>
 // POSIX includes
 #include <dirent.h>
 #include <unistd.h>

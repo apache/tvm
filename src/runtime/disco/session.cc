@@ -19,7 +19,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/packed_func.h>
 
 namespace tvm {
 namespace runtime {

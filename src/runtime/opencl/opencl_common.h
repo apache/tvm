@@ -24,12 +24,12 @@
 #ifndef TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
 #define TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
 
 /* There are many OpenCL platforms that do not yet support OpenCL 2.0,

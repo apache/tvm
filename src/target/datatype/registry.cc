@@ -19,6 +19,7 @@
 #include "registry.h"
 
 #include <tvm/ffi/function.h>
+#include <tvm/runtime/data_type.h>
 
 namespace tvm {
 namespace datatype {

@@ -25,11 +25,11 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/container/variant.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/string.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/structural_hash.h>
-#include <tvm/runtime/packed_func.h>
 
 // #include <tvm/node/structural_hash.h>
 //  #include <tvm/runtime/profiling.h>
@@ -37,7 +37,7 @@
 // #include <tvm/ir/expr.h>
 // #include <tvm/tir/expr.h>
 
-// #include <tvm/runtime/packed_func.h>
+// #include <tvm/ffi/function.h>
 // #include <tvm/ffi/function.h>
 // #include <tvm/tir/expr.h>
 

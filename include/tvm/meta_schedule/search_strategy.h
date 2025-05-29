@@ -20,6 +20,7 @@
 #define TVM_META_SCHEDULE_SEARCH_STRATEGY_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/meta_schedule/cost_model.h>
@@ -28,7 +29,6 @@
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/tir/schedule/schedule.h>
 
 namespace tvm {

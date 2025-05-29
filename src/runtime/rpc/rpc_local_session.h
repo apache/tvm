@@ -24,8 +24,8 @@
 #ifndef TVM_RUNTIME_RPC_RPC_LOCAL_SESSION_H_
 #define TVM_RUNTIME_RPC_RPC_LOCAL_SESSION_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <functional>
 #include <string>

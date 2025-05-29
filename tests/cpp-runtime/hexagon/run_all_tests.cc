@@ -19,7 +19,6 @@
 
 #include <gtest/gtest.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <string>
 #include <vector>

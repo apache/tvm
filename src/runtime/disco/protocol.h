@@ -24,7 +24,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <memory>
 #include <string>
@@ -212,7 +211,7 @@ inline void DiscoProtocol<SubClassType>::ReadObject(TVMFFIAny* out) {
     LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
                << Object::TypeIndex2Key(type_index) << " (type_index = " << type_index << ")";
   }
-  *reinterpret_cast<AnyView*>(out) = result;
+  *reinterpret_cast<ffi::AnyView*>(out) = result;
   object_arena_.push_back(result);
 }
 

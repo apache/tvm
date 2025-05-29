@@ -20,7 +20,6 @@
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <memory>
 #include <sstream>
@@ -100,7 +99,7 @@ class ProcessSessionObj final : public BcastSessionObj {
       return worker_0_->worker->register_file.at(reg_id);
     }
     {
-      AnyView packed_args[3];
+      ffi::AnyView packed_args[3];
       ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoAction::kDebugGetFromRemote), reg_id,
                             worker_id);
       workers_[worker_id - 1]->Send(ffi::PackedArgs(packed_args, 3));
@@ -113,7 +112,7 @@ class ProcessSessionObj final : public BcastSessionObj {
     return result;
   }
 
-  void DebugSetRegister(int64_t reg_id, AnyView value, int worker_id) {
+  void DebugSetRegister(int64_t reg_id, ffi::AnyView value, int worker_id) {
     if (worker_id == 0) {
       this->SyncWorker(worker_id);
       worker_0_->worker->SetRegister(reg_id, value);
@@ -125,7 +124,7 @@ class ProcessSessionObj final : public BcastSessionObj {
       value = wrapped;
     }
     {
-      AnyView packed_args[4];
+      ffi::AnyView packed_args[4];
       ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoAction::kDebugSetRegister), reg_id,
                             worker_id, value);
       SendPacked(worker_id, ffi::PackedArgs(packed_args, 4));

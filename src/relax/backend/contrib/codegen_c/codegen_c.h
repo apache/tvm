@@ -130,14 +130,14 @@ class CodegenCBase {
    *   return 0;
    * }
    *
-   * TVM_DLL_EXPORT_TYPED_FUNC(foo, foo_wrapper_);
+   * TVM_FFI_DLL_EXPORT_TYPED_FUNC(foo, foo_wrapper_);
    *
    * int foo_init_wrapper_(Array<NDArray> arr) {
    *   foo_consts = arr;
    *   return 0;
    * }
    *
-   * TVM_DLL_EXPORT_TYPED_FUNC(__init_foo, foo_init_wrapper_);
+   * TVM_FFI_DLL_EXPORT_TYPED_FUNC(__init_foo, foo_init_wrapper_);
    *
    * \endcode
    */
@@ -230,7 +230,7 @@ class CodegenCBase {
       code_stream_ << "return 0;\n";
       ExitScope();
       code_stream_ << "}\n\n";
-      code_stream_ << "TVM_DLL_EXPORT_TYPED_FUNC(__init_" << func_name << ", " << func_name
+      code_stream_ << "TVM_FFI_DLL_EXPORT_TYPED_FUNC(__init_" << func_name << ", " << func_name
                    << "_init_wrapper_);\n\n";
       code_stream_ << "#endif\n";
     }

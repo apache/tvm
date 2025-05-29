@@ -155,7 +155,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param rv The return value.
    */
   virtual void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, ffi::PackedArgs args,
-                                   Any* rv) = 0;
+                                   ffi::Any* rv) = 0;
   /*!
    * \brief Set an instrumentation function.
    *

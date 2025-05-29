@@ -22,7 +22,6 @@
  * \file reduction.cc
  */
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/topi/reduction.h>
 #include <tvm/topi/utils.h>
 

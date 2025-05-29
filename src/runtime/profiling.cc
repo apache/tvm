@@ -23,9 +23,9 @@
  */
 
 #include <dmlc/json.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/threading_backend.h>
 
@@ -495,7 +495,7 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
       }
     }
     for (const auto& p : aggregates) {
-      std::unordered_map<String, Any> aggregated;
+      std::unordered_map<String, ffi::Any> aggregated;
       std::unordered_set<std::string> metrics;
       for (auto& call : calls) {
         for (auto& metric : call) {
@@ -803,46 +803,47 @@ TVM_FFI_REGISTER_GLOBAL("runtime.profiling.DeviceWrapper").set_body_typed([](Dev
 ffi::Function ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
                               int warmup_iters, Array<MetricCollector> collectors) {
   // Module::GetFunction is not const, so this lambda has to be mutable
-  return ffi::Function::FromPacked([=](const AnyView* args, int32_t num_args, Any* ret) mutable {
-    ffi::Function f = mod.GetFunction(func_name);
-    CHECK(f.defined()) << "There is no function called \"" << func_name << "\" in the module";
-    Device dev{static_cast<DLDeviceType>(device_type), device_id};
+  return ffi::Function::FromPacked(
+      [=](const ffi::AnyView* args, int32_t num_args, ffi::Any* ret) mutable {
+        ffi::Function f = mod.GetFunction(func_name);
+        CHECK(f.defined()) << "There is no function called \"" << func_name << "\" in the module";
+        Device dev{static_cast<DLDeviceType>(device_type), device_id};
 
-    // warmup
-    for (int i = 0; i < warmup_iters; i++) {
-      f.CallPacked(args, num_args, ret);
-    }
+        // warmup
+        for (int i = 0; i < warmup_iters; i++) {
+          f.CallPacked(args, num_args, ret);
+        }
 
-    for (auto& collector : collectors) {
-      collector->Init({DeviceWrapper(dev)});
-    }
-    std::vector<Map<String, ffi::Any>> results;
-    results.reserve(collectors.size());
-    std::vector<std::pair<MetricCollector, ObjectRef>> collector_data;
-    collector_data.reserve(collectors.size());
-    for (auto& collector : collectors) {
-      ObjectRef o = collector->Start(dev);
-      // If not defined, then the collector cannot time this device.
-      if (o.defined()) {
-        collector_data.push_back({collector, o});
-      }
-    }
+        for (auto& collector : collectors) {
+          collector->Init({DeviceWrapper(dev)});
+        }
+        std::vector<Map<String, ffi::Any>> results;
+        results.reserve(collectors.size());
+        std::vector<std::pair<MetricCollector, ObjectRef>> collector_data;
+        collector_data.reserve(collectors.size());
+        for (auto& collector : collectors) {
+          ObjectRef o = collector->Start(dev);
+          // If not defined, then the collector cannot time this device.
+          if (o.defined()) {
+            collector_data.push_back({collector, o});
+          }
+        }
 
-    // TODO(tkonolige): repeated calls if the runtime is small?
-    f.CallPacked(args, num_args, ret);
+        // TODO(tkonolige): repeated calls if the runtime is small?
+        f.CallPacked(args, num_args, ret);
 
-    for (auto& kv : collector_data) {
-      results.push_back(kv.first->Stop(kv.second));
-    }
-    Map<String, ffi::Any> combined_results;
-    for (auto m : results) {
-      for (auto p : m) {
-        // assume that there is no shared metric name between collectors
-        combined_results.Set(p.first, p.second);
-      }
-    }
-    *ret = combined_results;
-  });
+        for (auto& kv : collector_data) {
+          results.push_back(kv.first->Stop(kv.second));
+        }
+        Map<String, ffi::Any> combined_results;
+        for (auto m : results) {
+          for (auto p : m) {
+            // assume that there is no shared metric name between collectors
+            combined_results.Set(p.first, p.second);
+          }
+        }
+        *ret = combined_results;
+      });
 }
 
 TVM_FFI_REGISTER_GLOBAL("runtime.profiling.ProfileFunction")
@@ -869,8 +870,8 @@ ffi::Function WrapTimeEvaluator(ffi::Function pf, Device dev, int number, int re
 
   auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
                  cooldown_interval_ms, repeats_to_cooldown, cache_flush_bytes,
-                 f_preproc](const AnyView* args, int num_args, Any* rv) mutable {
-    Any temp;
+                 f_preproc](const ffi::AnyView* args, int num_args, ffi::Any* rv) mutable {
+    ffi::Any temp;
     std::ostringstream os;
     // skip first time call, to activate lazy compilation components.
     pf.CallPacked(args, num_args, &temp);

@@ -24,8 +24,8 @@
 #ifndef TVM_TOPI_UTILS_H_
 #define TVM_TOPI_UTILS_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/packed_func.h>
 
 namespace tvm {
 namespace topi {

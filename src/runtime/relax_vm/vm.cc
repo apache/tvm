@@ -21,9 +21,9 @@
  * \file src/runtime/relax_vm/vm.cc
  */
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/nvtx.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
@@ -52,9 +52,9 @@ VMClosure::VMClosure(String func_name, ffi::Function impl) {
  * \param last_args The arguments to bound to in the end of the function.
  * \note The new function takes in arguments and append the last_args in the end.
  */
-ffi::Function VMClosure::BindLastArgs(ffi::Function func, std::vector<Any> last_args) {
+ffi::Function VMClosure::BindLastArgs(ffi::Function func, std::vector<ffi::Any> last_args) {
   return ffi::Function([func, last_args](ffi::PackedArgs args, ffi::Any* rv) {
-    std::vector<AnyView> packed_args(args.size() + last_args.size());
+    std::vector<ffi::AnyView> packed_args(args.size() + last_args.size());
     std::copy(args.data(), args.data() + args.size(), packed_args.data());
     for (size_t i = 0; i < last_args.size(); ++i) {
       packed_args[args.size() + i] = last_args[i];
@@ -68,14 +68,14 @@ ffi::Function VMClosure::BindLastArgs(ffi::Function func, std::vector<Any> last_
 //-----------------------------------------------------------
 // Use the args after `starting_arg_idx` as a series of indices into `obj`,
 // indexing into nested Array and returning the final indexed object.
-Any IndexIntoNestedObject(Any obj, ffi::PackedArgs args, int starting_arg_idx) {
+ffi::Any IndexIntoNestedObject(ffi::Any obj, ffi::PackedArgs args, int starting_arg_idx) {
   for (int i = starting_arg_idx; i < args.size(); i++) {
     // the object must be an Array to be able to index into it
     if (!obj.as<ffi::ArrayObj>()) {
       LOG(FATAL) << "ValueError: Attempted to index into an object that is not an Array.";
     }
     int index = args[i].cast<int>();
-    auto arr = Downcast<ffi::Array<Any>>(obj);
+    auto arr = Downcast<ffi::Array<ffi::Any>>(obj);
     // make sure the index is in bounds
     if (index >= static_cast<int>(arr.size())) {
       LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << arr.size() << ").";
@@ -110,12 +110,12 @@ Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc) {
   }
 }
 
-ffi::Any ConvertArgToDevice(AnyView input, Device dev, Allocator* alloc) {
+ffi::Any ConvertArgToDevice(ffi::AnyView input, Device dev, Allocator* alloc) {
   // in terms of memory-behavior.
   // To be extra careful, we copy DLTensor.
   // The developer can still explicitly allocate NDArray
   // in TVM Native API or NDArray::FromDLPack to regain zero copy behavior.
-  Any ret;
+  ffi::Any ret;
   if (auto opt_obj = input.as<ObjectRef>()) {
     ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc);
   } else if (auto opt_dltensor = input.as<DLTensor*>()) {
@@ -131,7 +131,7 @@ ffi::Any ConvertArgToDevice(AnyView input, Device dev, Allocator* alloc) {
 }
 
 ffi::Any ConvertRegToDevice(ffi::Any input, Device dev, Allocator* alloc) {
-  Any ret;
+  ffi::Any ret;
   if (auto opt_obj = input.as<ObjectRef>()) {
     ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc);
   } else {
@@ -163,7 +163,7 @@ struct VMFrame {
   /*! \brief Register in caller's frame to put return value */
   RegName caller_return_register;
   /*! \brief Temporary argument tcode stack for packed func call. */
-  std::vector<AnyView> call_args;
+  std::vector<ffi::AnyView> call_args;
 
   VMFrame(Index pc, Index register_file_size)
       : return_pc(pc), register_file(register_file_size), caller_return_register(0) {}
@@ -534,7 +534,7 @@ void VirtualMachineImpl::InvokeClosurePacked(const ObjectRef& closure_or_packedf
   auto* clo = closure_or_packedfunc.as<VMClosureObj>();
   ICHECK(clo != nullptr) << "Function expects a closure or ffi::Function ";
 
-  std::vector<AnyView> packed_args(args.size() + 1);
+  std::vector<ffi::AnyView> packed_args(args.size() + 1);
   // per convention, ctx ptr must be VirtualMachine* casted to void.
   // this and VirtualMachine* may or maynot be the same
   // do first cast to VirtualMachine* then to void*
@@ -554,7 +554,7 @@ RegType VirtualMachineImpl::InvokeClosureInternal(const ObjectRef& closure_or_pa
   auto* clo = closure_or_packed.as<VMClosureObj>();
   int clo_offset = clo != nullptr ? 1 : 0;
 
-  std::vector<AnyView> packed_args(args.size() + clo_offset);
+  std::vector<ffi::AnyView> packed_args(args.size() + clo_offset);
 
   if (clo != nullptr) {
     packed_args[0] = static_cast<void*>(static_cast<VirtualMachine*>(this));
@@ -726,7 +726,7 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
 
   // NOTE: no changes and resize to those vector ref(otherwise can leads to segfault)
   //       in the remainder part of the function.
-  std::vector<AnyView>& call_args = curr_frame->call_args;
+  std::vector<ffi::AnyView>& call_args = curr_frame->call_args;
 
   for (Index i = 0; i < instr.num_args; ++i) {
     Instruction::Arg arg = instr.args[i];
@@ -768,7 +768,7 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
     call_args[2] = true;
     call_args[3] = nullptr;
 
-    Any rv;
+    ffi::Any rv;
     // store dtype to str since py callback cannot handle dtype atm.
     std::vector<std::unique_ptr<std::string>> temp_dtype;
     for (int i = 0; i < instr.num_args; ++i) {
@@ -906,7 +906,7 @@ void VirtualMachineImpl::_SetInstrument(ffi::PackedArgs args, ffi::Any* rv) {
 void VirtualMachineImpl::_GetOutputArity(ffi::PackedArgs args, ffi::Any* rv) {
   std::string func_name = args[0].cast<std::string>();
   RegType out = LookupVMOutput(func_name);
-  Any obj = IndexIntoNestedObject(out, args, 1);
+  ffi::Any obj = IndexIntoNestedObject(out, args, 1);
   if (const auto* arr = obj.as<ffi::ArrayObj>()) {
     *rv = static_cast<int>(arr->size());
   } else {
@@ -917,7 +917,7 @@ void VirtualMachineImpl::_GetOutputArity(ffi::PackedArgs args, ffi::Any* rv) {
 void VirtualMachineImpl::_GetOutput(ffi::PackedArgs args, ffi::Any* rv) {
   std::string func_name = args[0].cast<std::string>();
   RegType out = LookupVMOutput(func_name);
-  Any obj = IndexIntoNestedObject(out, args, 1);
+  ffi::Any obj = IndexIntoNestedObject(out, args, 1);
   if (obj.as<ffi::ArrayObj>()) {
     LOG(FATAL) << "ValueError: `get_output` cannot return a tuple for RPC compatibility. "
                   "Please specify another index argument.";

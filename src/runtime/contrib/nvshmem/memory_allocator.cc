@@ -20,7 +20,6 @@
 #include <nvshmemx.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <thread>
 

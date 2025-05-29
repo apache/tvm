@@ -24,8 +24,8 @@
 #define TVM_RUNTIME_RELAX_VM_EXECUTABLE_H_
 
 #include <tvm/ffi/function.h>
+#include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <string>
 #include <unordered_map>

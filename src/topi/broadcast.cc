@@ -22,7 +22,6 @@
  * \file broadcast.cc
  */
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/topi/broadcast.h>
 #include <tvm/topi/utils.h>
 

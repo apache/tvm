@@ -26,7 +26,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <fstream>
 #include <string>

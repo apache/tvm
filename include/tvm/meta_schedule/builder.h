@@ -21,13 +21,13 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 
 namespace tvm {

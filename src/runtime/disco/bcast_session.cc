@@ -20,7 +20,6 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <sstream>
 
@@ -32,7 +31,7 @@ struct BcastSessionObj::Internal {
   static void TVM_ALWAYS_INLINE BroadcastUnpacked(BcastSessionObj* self, DiscoAction action,
                                                   int64_t reg_id, Args&&... args) {
     constexpr int kNumArgs = 2 + sizeof...(Args);
-    AnyView packed_args[kNumArgs];
+    ffi::AnyView packed_args[kNumArgs];
     ffi::PackedArgs::Fill(packed_args, static_cast<int>(action), reg_id,
                           std::forward<Args>(args)...);
     self->BroadcastPacked(ffi::PackedArgs(packed_args, kNumArgs));
@@ -88,7 +87,7 @@ void BcastSessionObj::SyncWorker(int worker_id) {
 DRef BcastSessionObj::CallWithPacked(const ffi::PackedArgs& args) {
   // NOTE: this action is not safe unless we know args is not
   // used else where in this case it is oK
-  AnyView* args_vec = const_cast<AnyView*>(args.data());
+  ffi::AnyView* args_vec = const_cast<ffi::AnyView*>(args.data());
   // tranlsate args into remote calling convention
   int reg_id = AllocateReg();
   {

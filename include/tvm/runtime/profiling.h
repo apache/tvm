@@ -29,8 +29,9 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <stack>
 #include <string>

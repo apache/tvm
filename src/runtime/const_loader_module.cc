@@ -31,8 +31,8 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/string.h>
+#include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <cstdint>
 

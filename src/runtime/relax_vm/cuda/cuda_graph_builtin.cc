@@ -24,7 +24,6 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
 #include "../../../support/utils.h"

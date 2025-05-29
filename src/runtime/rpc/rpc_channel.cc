@@ -22,6 +22,8 @@
  */
 #include "rpc_channel.h"
 
+#include <tvm/runtime/logging.h>
+
 #include <string>
 
 namespace tvm {

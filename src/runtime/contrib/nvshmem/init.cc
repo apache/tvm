@@ -21,7 +21,6 @@
 #include <picojson.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/disco_worker.h>
-#include <tvm/runtime/packed_func.h>
 
 #include "../../cuda/cuda_common.h"
 

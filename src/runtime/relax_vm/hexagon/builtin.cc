@@ -24,7 +24,6 @@
 
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
 #include "../../hexagon/hexagon_device_api.h"
