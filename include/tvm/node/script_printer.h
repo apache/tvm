@@ -23,6 +23,7 @@
 #ifndef TVM_NODE_SCRIPT_PRINTER_H_
 #define TVM_NODE_SCRIPT_PRINTER_H_
 
+#include <tvm/ffi/any.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/string.h>
@@ -151,7 +152,7 @@ class PrinterConfigNode : public Object {
 
 class PrinterConfig : public ObjectRef {
  public:
-  explicit PrinterConfig(Map<String, Any> config_dict = Map<String, Any>());
+  explicit PrinterConfig(Map<String, ffi::Any> config_dict = Map<String, ffi::Any>());
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PrinterConfig, runtime::ObjectRef,
                                                     PrinterConfigNode);

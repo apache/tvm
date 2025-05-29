@@ -62,7 +62,6 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/support/with.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
