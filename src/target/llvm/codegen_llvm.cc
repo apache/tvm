@@ -579,8 +579,15 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
       default:
         LOG(FATAL) << "do not support " << dtype;
     }
-  } else if (dtype.code() == DataType::kFloat8_e4m3fn || dtype.code() == DataType::kFloat8_e5m2) {
+  } else if (dtype.code() == DataType::kFloat8_e3m4 || dtype.code() == DataType::kFloat8_e4m3 ||
+             dtype.code() == DataType::kFloat8_e4m3b11fnuz ||
+             dtype.code() == DataType::kFloat8_e4m3fn ||
+             dtype.code() == DataType::kFloat8_e4m3fnuz || dtype.code() == DataType::kFloat8_e5m2 ||
+             dtype.code() == DataType::kFloat8_e5m2fnuz ||
+             dtype.code() == DataType::kFloat8_e8m0fnu) {
     etype = llvm::Type::getInt8Ty(*ctx);
+  } else if (dtype.code() == DataType::kFloat6_e2m3fn || dtype.code() == DataType::kFloat6_e3m2fn) {
+    etype = llvm::Type::getIntNTy(*ctx, 6);
   } else if (dtype.code() == DataType::kFloat4_e2m1fn) {
     etype = llvm::Type::getIntNTy(*ctx, 4);
   }
