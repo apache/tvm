@@ -134,7 +134,7 @@ enum ArgConvertCode {
 };
 
 inline ArgConvertCode GetArgConvertCode(DLDataType t) {
-  ICHECK_EQ(t.lanes, 1U) << "Cannot pass vector type argument to devic function for now";
+  ICHECK_EQ(t.lanes, 1U) << "Cannot pass vector type argument to device function for now";
   if (t.code == kDLInt) {
     if (t.bits == 64U) return INT64_TO_INT64;
     if (t.bits == 32U) return INT64_TO_INT32;
