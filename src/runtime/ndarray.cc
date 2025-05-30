@@ -46,6 +46,10 @@ inline void VerifyDataType(DLDataType dtype) {
       return;
     else if (dtype.bits == 4 && dtype.code == kDLInt)
       return;
+    else if (dtype.bits == 6 && dtype.code == DataType::kFloat6_e2m3fn)
+      return;
+    else if (dtype.bits == 6 && dtype.code == DataType::kFloat6_e3m2fn)
+      return;
     else if (dtype.bits == 4 && dtype.code == DataType::kFloat4_e2m1fn)
       return;
     else
