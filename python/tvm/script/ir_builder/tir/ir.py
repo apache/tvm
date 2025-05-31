@@ -1300,7 +1300,9 @@ def buffer_store(
     for index in indices:
         if isinstance(index, slice):
             step = 1 if index.step is None else index.step
-            lanes = Analyzer().simplify((index.stop - index.start + step - 1) // step)
+            lanes = Analyzer().simplify(  # pylint: disable=redefined-outer-name
+                (index.stop - index.start + step - 1) // step
+            )
             if lanes == 1:
                 expr_indices.append(index.start)
             else:
@@ -1426,6 +1428,9 @@ uint64x64 = func_gen(("UInt64x64"))
 float16 = func_gen(("Float16"))
 float32 = func_gen(("Float32"))
 float64 = func_gen(("Float64"))
+float16x2 = func_gen(("Float16x2"))
+float32x2 = func_gen(("Float32x2"))
+float64x2 = func_gen(("Float64x2"))
 float16x4 = func_gen(("Float16x4"))
 float32x4 = func_gen(("Float32x4"))
 float64x4 = func_gen(("Float64x4"))
@@ -1442,20 +1447,89 @@ float16x64 = func_gen(("Float16x64"))
 float32x64 = func_gen(("Float32x64"))
 float64x64 = func_gen(("Float64x64"))
 
+# Float8 variants
+float8_e3m4 = func_gen(("Float8E3M4"))
+float8_e3m4x2 = func_gen(("Float8E3M4x2"))
+float8_e3m4x4 = func_gen(("Float8E3M4x4"))
+float8_e3m4x8 = func_gen(("Float8E3M4x8"))
+float8_e3m4x16 = func_gen(("Float8E3M4x16"))
+float8_e3m4x32 = func_gen(("Float8E3M4x32"))
+float8_e3m4x64 = func_gen(("Float8E3M4x64"))
+
+float8_e4m3 = func_gen(("Float8E4M3"))
+float8_e4m3x2 = func_gen(("Float8E4M3x2"))
+float8_e4m3x4 = func_gen(("Float8E4M3x4"))
+float8_e4m3x8 = func_gen(("Float8E4M3x8"))
+float8_e4m3x16 = func_gen(("Float8E4M3x16"))
+float8_e4m3x32 = func_gen(("Float8E4M3x32"))
+float8_e4m3x64 = func_gen(("Float8E4M3x64"))
+
+float8_e4m3b11fnuz = func_gen(("Float8E4M3B11FNUZ"))
+float8_e4m3b11fnuzx2 = func_gen(("Float8E4M3B11FNUZx2"))
+float8_e4m3b11fnuzx4 = func_gen(("Float8E4M3B11FNUZx4"))
+float8_e4m3b11fnuzx8 = func_gen(("Float8E4M3B11FNUZx8"))
+float8_e4m3b11fnuzx16 = func_gen(("Float8E4M3B11FNUZx16"))
+float8_e4m3b11fnuzx32 = func_gen(("Float8E4M3B11FNUZx32"))
+float8_e4m3b11fnuzx64 = func_gen(("Float8E4M3B11FNUZx64"))
+
 float8_e4m3fn = func_gen(("Float8E4M3FN"))
+float8_e4m3fnx2 = func_gen(("Float8E4M3FNx2"))
 float8_e4m3fnx4 = func_gen(("Float8E4M3FNx4"))
 float8_e4m3fnx8 = func_gen(("Float8E4M3FNx8"))
 float8_e4m3fnx16 = func_gen(("Float8E4M3FNx16"))
 float8_e4m3fnx32 = func_gen(("Float8E4M3FNx32"))
 float8_e4m3fnx64 = func_gen(("Float8E4M3FNx64"))
 
+float8_e4m3fnuz = func_gen(("Float8E4M3FNUZ"))
+float8_e4m3fnuzx2 = func_gen(("Float8E4M3FNUZx2"))
+float8_e4m3fnuzx4 = func_gen(("Float8E4M3FNUZx4"))
+float8_e4m3fnuzx8 = func_gen(("Float8E4M3FNUZx8"))
+float8_e4m3fnuzx16 = func_gen(("Float8E4M3FNUZx16"))
+float8_e4m3fnuzx32 = func_gen(("Float8E4M3FNUZx32"))
+float8_e4m3fnuzx64 = func_gen(("Float8E4M3FNUZx64"))
+
 float8_e5m2 = func_gen(("Float8E5M2"))
+float8_e5m2x2 = func_gen(("Float8E5M2x2"))
 float8_e5m2x4 = func_gen(("Float8E5M2x4"))
 float8_e5m2x8 = func_gen(("Float8E5M2x8"))
 float8_e5m2x16 = func_gen(("Float8E5M2x16"))
 float8_e5m2x32 = func_gen(("Float8E5M2x32"))
 float8_e5m2x64 = func_gen(("Float8E5M2x64"))
 
+float8_e5m2fnuz = func_gen(("Float8E5M2FNUZ"))
+float8_e5m2fnuzx2 = func_gen(("Float8E5M2FNUZx2"))
+float8_e5m2fnuzx4 = func_gen(("Float8E5M2FNUZx4"))
+float8_e5m2fnuzx8 = func_gen(("Float8E5M2FNUZx8"))
+float8_e5m2fnuzx16 = func_gen(("Float8E5M2FNUZx16"))
+float8_e5m2fnuzx32 = func_gen(("Float8E5M2FNUZx32"))
+float8_e5m2fnuzx64 = func_gen(("Float8E5M2FNUZx64"))
+
+float8_e8m0fnu = func_gen(("Float8E8M0FNU"))
+float8_e8m0fnux2 = func_gen(("Float8E8M0FNUx2"))
+float8_e8m0fnux4 = func_gen(("Float8E8M0FNUx4"))
+float8_e8m0fnux8 = func_gen(("Float8E8M0FNUx8"))
+float8_e8m0fnux16 = func_gen(("Float8E8M0FNUx16"))
+float8_e8m0fnux32 = func_gen(("Float8E8M0FNUx32"))
+float8_e8m0fnux64 = func_gen(("Float8E8M0FNUx64"))
+
+# Float6 variants
+float6_e2m3fn = func_gen(("Float6E2M3FN"))
+float6_e2m3fnx2 = func_gen(("Float6E2M3FNx2"))
+float6_e2m3fnx4 = func_gen(("Float6E2M3FNx4"))
+float6_e2m3fnx8 = func_gen(("Float6E2M3FNx8"))
+float6_e2m3fnx16 = func_gen(("Float6E2M3FNx16"))
+float6_e2m3fnx32 = func_gen(("Float6E2M3FNx32"))
+float6_e2m3fnx64 = func_gen(("Float6E2M3FNx64"))
+
+float6_e3m2fn = func_gen(("Float6E3M2FN"))
+float6_e3m2fnx2 = func_gen(("Float6E3M2FNx2"))
+float6_e3m2fnx4 = func_gen(("Float6E3M2FNx4"))
+float6_e3m2fnx8 = func_gen(("Float6E3M2FNx8"))
+float6_e3m2fnx16 = func_gen(("Float6E3M2FNx16"))
+float6_e3m2fnx32 = func_gen(("Float6E3M2FNx32"))
+float6_e3m2fnx64 = func_gen(("Float6E3M2FNx64"))
+
+# Float4 variants
 float4_e2m1fn = func_gen(("Float4E2M1FN"))
 float4_e2m1fnx2 = func_gen(("Float4E2M1FNx2"))
 float4_e2m1fnx4 = func_gen(("Float4E2M1FNx4"))
@@ -1961,7 +2035,31 @@ tvm_call_cpacked_lowered = call_cpacked_lowered
 
 # pylint: enable=invalid-name
 
-__all__ = [
+bases = [
+    "float8_e3m4",
+    "float8_e4m3",
+    "float8_e4m3b11fnuz",
+    "float8_e4m3fn",
+    "float8_e4m3fnuz",
+    "float8_e5m2",
+    "float8_e5m2fnuz",
+    "float8_e8m0fnu",
+    "float6_e2m3fn",
+    "float6_e3m2fn",
+    "float4_e2m1fn",
+    "float16",
+    "float32",
+    "float64",
+]
+lanes = [1, 2, 4, 8, 16, 32, 64]
+
+float_types = []
+for base in bases:
+    for lane in lanes:
+        suffix = f"x{lane}" if lane != 1 else ""
+        float_types.append(f"{base}{suffix}")
+
+__all__ = float_types + [
     "int8",
     "int16",
     "int32",
@@ -2010,43 +2108,6 @@ __all__ = [
     "uint16x64",
     "uint32x64",
     "uint64x64",
-    "float8_e4m3fn",
-    "float8_e5m2",
-    "float4_e2m1fn",
-    "float16",
-    "float32",
-    "float64",
-    "float4_e2m1fnx2",
-    "float8_e4m3fnx4",
-    "float8_e5m2x4",
-    "float4_e2m1fnx4",
-    "float16x4",
-    "float32x4",
-    "float64x4",
-    "float8_e4m3fnx8",
-    "float8_e5m2x8",
-    "float4_e2m1fnx8",
-    "float16x8",
-    "float32x8",
-    "float64x8",
-    "float8_e4m3fnx16",
-    "float8_e5m2x16",
-    "float4_e2m1fnx16",
-    "float16x16",
-    "float32x16",
-    "float64x16",
-    "float8_e4m3fnx32",
-    "float8_e5m2x32",
-    "float4_e2m1fnx32",
-    "float16x32",
-    "float32x32",
-    "float64x32",
-    "float8_e4m3fnx64",
-    "float8_e5m2x64",
-    "float4_e2m1fnx64",
-    "float16x64",
-    "float32x64",
-    "float64x64",
     "bfloat16",
     "buffer",
     "buffer_decl",

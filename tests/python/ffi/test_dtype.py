@@ -18,6 +18,8 @@
 import pytest
 import pickle
 import numpy as np
+import tvm
+import tvm.testing
 from tvm import ffi as tvm_ffi
 
 
@@ -31,7 +33,14 @@ def test_dtype():
 
 @pytest.mark.parametrize(
     "dtype_str, expected_size",
-    [("float32", 4), ("float32x4", 16), ("float8_e5m2x4", 4), ("uint8", 1)],
+    [
+        ("float32", 4),
+        ("float32x4", 16),
+        ("float8_e5m2x4", 4),
+        ("float6_e2m3fnx4", 3),
+        ("float4_e2m1fnx4", 2),
+        ("uint8", 1),
+    ],
 )
 def test_dtype_itemsize(dtype_str, expected_size):
     dtype = tvm_ffi.dtype(dtype_str)
@@ -46,7 +55,7 @@ def test_dtype_itemmize_error(dtype_str):
 
 @pytest.mark.parametrize(
     "dtype_str",
-    ["float32", "float32x4", "float8_e5m2x4", "uint8"],
+    ["float32", "float32x4", "float8_e5m2x4", "float6_e2m3fnx4", "float4_e2m1fnx4", "uint8"],
 )
 def test_dtype_pickle(dtype_str):
     dtype = tvm_ffi.dtype(dtype_str)
@@ -62,3 +71,7 @@ def test_dtype_with_lanes():
     assert dtype_with_lanes.type_code == dtype.type_code
     assert dtype_with_lanes.bits == dtype.bits
     assert dtype_with_lanes.lanes == 4
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
