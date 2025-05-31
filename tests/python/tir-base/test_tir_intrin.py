@@ -100,6 +100,23 @@ def test_unary_intrin():
         func(a, b)
         tvm.testing.assert_allclose(b.numpy(), np_func(a.numpy()), atol=atol, rtol=rtol)
 
+        # Out‐of‐bounds test for asin/acos
+        name = tvm_intrin.__name__
+        if name in ("asin", "acos"):
+            # generate some values outside [-1, 1]
+            n = 8
+            out_np = np.concatenate(
+                [
+                    np.random.uniform(1.1, 2.0, size=n // 2),
+                    np.random.uniform(-2.0, -1.1, size=n // 2),
+                ]
+            ).astype(A.dtype)
+            a2 = tvm.nd.array(out_np, dev)
+            b2 = tvm.nd.array(np.empty_like(out_np), dev)
+            func(a2, b2)
+            # all outputs should be NaN
+            assert np.all(np.isnan(b2.numpy()))
+
     for func in test_funcs:
         atol = rtol = 1e-3 if func[0].__name__ in ["asin", "acos", "atan"] else 1e-5
         run_test(*func, atol, rtol)
