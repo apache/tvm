@@ -1300,7 +1300,9 @@ def buffer_store(
     for index in indices:
         if isinstance(index, slice):
             step = 1 if index.step is None else index.step
-            lanes = Analyzer().simplify((index.stop - index.start + step - 1) // step)
+            lanes = Analyzer().simplify(  # pylint: disable=redefined-outer-name
+                (index.stop - index.start + step - 1) // step
+            )
             if lanes == 1:
                 expr_indices.append(index.start)
             else:

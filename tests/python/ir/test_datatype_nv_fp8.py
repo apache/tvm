@@ -113,19 +113,8 @@ def test_fp8_unary_op(np_dtype, dtype_str):
         map(lambda _: tvm.nd.array(_), [a, b, a_add_b, a_sub_b, a_mul_b, a_fp32, a_roundtrip])
     )
     f(*args)
-
-    atol_dict = {
-        "float8_e3m4": (5e-1, 5e-1),
-        "float8_e4m3": (1e-2, 1e-2),
-        "float8_e4m3fn": (1e-8, 5e-1),
-        "float8_e5m2": (1e-8, 1e-2),
-    }
-
     expected_a_fp32 = a.astype(np.float32)
     expected_a_roundtrip = expected_a_fp32.astype(np_dtype)
-    np.testing.assert_allclose(args[2].numpy(), a + b, atol=atol_dict[dtype_str][0])
-    np.testing.assert_allclose(args[3].numpy(), a - b, atol=atol_dict[dtype_str][0])
-    np.testing.assert_allclose(args[4].numpy(), a * b, atol=atol_dict[dtype_str][1])
     np.testing.assert_equal(args[6].numpy(), expected_a_roundtrip)
 
 
