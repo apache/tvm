@@ -136,7 +136,7 @@ def test_batch_decode_gemv():
                             with T.block("NT_matmul_intermediate_pad"):
                                 v0 = T.axis.spatial(batch_size, ax0_0 * T.int64(4) + ax0)
                                 v1 = T.axis.spatial(T.int64(4096), u_fused_ax1_fused_fused_0 * T.int64(16) + ax1_fused_0_ax1_fused_1_fused * T.int64(2) + ax1_fused_2)
-                                T.where((ax0_0 - (batch_size + T.int64(3)) // T.int64(4) < T.int64(0) or ax0_0 == T.int64(0)) and ax0_0 * T.int64(4) + ax0 < batch_size)
+                                T.where((ax0_0 - (batch_size + T.int64(3)) // T.int64(4) < T.int64(0) or ax0_0 * T.int64(4) + ax0 == T.int64(0)) and ax0_0 * T.int64(4) + ax0 < batch_size)
                                 T.reads(NT_matmul_intermediate_pad_local[v0, T.int64(0), v1])
                                 T.writes(NT_matmul_intermediate[v0, T.int64(0), v1])
                                 NT_matmul_intermediate[v0, T.int64(0), v1] = NT_matmul_intermediate_pad_local[v0, T.int64(0), v1]
@@ -240,7 +240,7 @@ def test_batch_gemv():
                             with T.block("NT_matmul_pad"):
                                 v0 = T.axis.spatial(batch_size, ax0_0 * T.int64(4) + ax0)
                                 v1 = T.axis.spatial(T.int64(4096), u_fused_ax1_fused_fused_0 * T.int64(16) + ax1_fused_0_ax1_fused_1_fused * T.int64(2) + ax1_fused_2)
-                                T.where((ax0_0 - (batch_size + T.int64(3)) // T.int64(4) < T.int64(0) or ax0_0 == T.int64(0)) and ax0_0 * T.int64(4) + ax0 < batch_size)
+                                T.where((ax0_0 - (batch_size + T.int64(3)) // T.int64(4) < T.int64(0) or ax0_0 * T.int64(4) + ax0 == T.int64(0)) and ax0_0 * T.int64(4) + ax0 < batch_size)
                                 T.reads(NT_matmul_pad_local[v0, T.int64(0), v1])
                                 T.writes(NT_matmul[v0, T.int64(0), v1])
                                 NT_matmul[v0, T.int64(0), v1] = NT_matmul_pad_local[v0, T.int64(0), v1]
@@ -369,7 +369,7 @@ def test_small_spatial_axis():
                             with T.block("C_pad"):
                                 v0 = T.axis.spatial(batch_size, ax0_0 * T.int64(4) + ax0)
                                 v1 = T.axis.spatial(T.int64(8), ax1_fused_0_ax1_fused_1_fused * T.int64(2) + ax1_fused_2)
-                                T.where((ax0_0 - (batch_size + T.int64(3)) // T.int64(4) < T.int64(0) or ax0_0 == T.int64(0)) and ax0_0 * T.int64(4) + ax0 < batch_size and (T.Mul(T.int64(0), T.int64(16)) + ax1_fused_0_ax1_fused_1_fused % T.int64(16)) * T.int64(2) + ax1_fused_2 < T.int64(8))
+                                T.where((ax0_0 - (batch_size + T.int64(3)) // T.int64(4) < T.int64(0) or ax0_0 * T.int64(4) + ax0 == T.int64(0)) and ax0_0 * T.int64(4) + ax0 < batch_size and (T.Mul(T.int64(0), T.int64(16)) + ax1_fused_0_ax1_fused_1_fused % T.int64(16)) * T.int64(2) + ax1_fused_2 < T.int64(8))
                                 T.reads(C_pad_local[v0, v1])
                                 T.writes(C[v0, v1])
                                 C[v0, v1] = C_pad_local[v0, v1]
@@ -516,7 +516,7 @@ def test_outer_reduction():
                         with T.block("C_pad"):
                             v0 = T.axis.spatial(batch_size, ax0_0 * 4 + ax0)
                             v1 = T.axis.spatial(6144, ax1_fused_0 * 64 + ax1)
-                            T.where((ax0_0 - (batch_size + 3) // 4 < 0 or ax0_0 == 0) and ax0_0 * 4 + ax0 < batch_size)
+                            T.where((ax0_0 - (batch_size + 3) // 4 < 0 or ax0_0 * 4 + ax0 == 0) and ax0_0 * 4 + ax0 < batch_size)
                             T.reads(C_pad_local[v0, 0, v1])
                             T.writes(C[v0, 0, v1])
                             C[v0, 0, v1] = C_pad_local[v0, 0, v1]

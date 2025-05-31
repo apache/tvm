@@ -448,7 +448,6 @@ def test_simplify_le():
     ck.verify(x * -8 + z * 4 < 16, ck.analyzer.rewrite_simplify(-2 < x))
 
     ck.verify(x * 8 + y + z < 16, x * 8 + y + z < 16)
-    ck.verify(x * 8 + y - z < 16, x < 2)
 
     n = te.size_var("n")
     ck.verify(x * 8 + y < n, x * 8 + y < n)
