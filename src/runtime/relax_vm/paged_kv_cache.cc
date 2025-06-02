@@ -203,6 +203,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::vector<HostMemoryVector> sliding_window_offset_on_depths_host_;
   std::vector<HostMemoryVector> sink_size_on_depths_host_;
   std::vector<HostMemoryVector> k_rope_pos_offset_on_depths_host_;
+  std::vector<HostMemoryVector> k_rope_pos_offset_sliding_window_on_depths_host_;
   HostMemoryVector k_ragged_rope_pos_offset_host_;
   HostMemoryVector q_rope_position_map_host_;
   HostMemoryVector append_position_map_host_;
@@ -245,6 +246,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::vector<NDArray> length_info_on_depths_view_;
   std::vector<NDArray> layer_sliding_window_length_info_on_depths_view_;
   std::vector<NDArray> k_rope_pos_offset_view_;
+  std::vector<NDArray> k_rope_pos_offset_sliding_window_view_;
   std::vector<NDArray> tree_attn_mask_view_;
   std::vector<NDArray> tree_attn_mn_indptr_view_;
 
@@ -393,6 +395,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
           HostMemoryVector(reserved_num_seqs, dtype_aux_, preferred_host_device));
       k_rope_pos_offset_on_depths_host_.push_back(
           HostMemoryVector(reserved_num_seqs, dtype_aux_, preferred_host_device));
+      k_rope_pos_offset_sliding_window_on_depths_host_.push_back(
+          HostMemoryVector(reserved_num_seqs, dtype_aux_, preferred_host_device));
       tree_attn_mask_host_.push_back(HostMemoryVector(kTreeAttnMaxTreeSize * 2 * reserved_num_seqs,
                                                       dtype_aux_, preferred_host_device));
       tree_attn_mn_indptr_host_.push_back(
@@ -440,6 +444,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       length_info_on_depths_view_.push_back(NDArray());
       layer_sliding_window_length_info_on_depths_view_.push_back(NDArray());
       k_rope_pos_offset_view_.push_back(NDArray());
+      k_rope_pos_offset_sliding_window_view_.push_back(NDArray());
       tree_attn_mask_view_.push_back(NDArray());
       tree_attn_mn_indptr_view_.push_back(NDArray());
       is_chain_on_depths_.push_back(true);
@@ -977,6 +982,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       HostMemoryVector& sliding_window_offset_h = sliding_window_offset_on_depths_host_[d];
       HostMemoryVector& sink_size_h = sink_size_on_depths_host_[d];
       HostMemoryVector& k_rope_pos_offset_h = k_rope_pos_offset_on_depths_host_[d];
+      HostMemoryVector& k_rope_pos_offset_sliding_window_h = k_rope_pos_offset_sliding_window_on_depths_host_[d];
       qo_indptr_h.clear();
       page_indptr_h.clear();
       page_indices_h.clear();
@@ -986,6 +992,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       sliding_window_offset_h.clear();
       sink_size_h.clear();
       k_rope_pos_offset_h.clear();
+      k_rope_pos_offset_sliding_window_h.clear();
       qo_indptr_h.push_back(0);
       page_indptr_h.push_back(0);
       page_indptr_sliding_window_h.push_back(0);
@@ -999,29 +1006,23 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
           sliding_window_offset_h.push_back(0);
           sink_size_h.push_back(0);
           k_rope_pos_offset_h.push_back(0);
+          k_rope_pos_offset_sliding_window_h.push_back(0);
         } else {
           if (d < kPagedKVCacheMaxBlockDepth - 1) {
             // Blocks not at maximum depth
             const Block& block = global_block_pool_[block_id];
-            LOG(INFO) << "CHECKING BASE INDICES";
-            LOG(INFO) << page_indptr_h.back() + block.page_ids.size();
-            LOG(INFO) << "CHECKING PAGE IDS";
             page_indptr_h.push_back(page_indptr_h.back() + block.page_ids.size());
             for (int32_t page_id : block.page_ids) {
-              LOG(INFO) << page_id;
               page_indices_h.push_back(page_id);
               // Do the same for page_indices_sliding_window
             }
-            LOG(INFO) << "CHECKING SLIDING WINDOW INDPTR";
-            LOG(INFO) << page_indptr_sliding_window_h.back();
-            LOG(INFO) << std::min(static_cast<long>(block.page_ids.size()), sequences[d]->sliding_window_size / page_size_);
-            LOG(INFO) << sequences[d]->sliding_window_size;
+
+            // For sliding window, the first page and last page will both be partially used
             page_indptr_sliding_window_h.push_back(
-              page_indptr_sliding_window_h.back() + 
-              std::min(static_cast<long>(block.page_ids.size()), sequences[d]->sliding_window_size / page_size_));
-            LOG(INFO) << "CHECKING INDICES";
+              page_indptr_sliding_window_h.back() + std::min(static_cast<long>(block.page_ids.size()),
+              sequences[d]->sliding_window_size / page_size_ + (block.seq_length % sequences[d]->sliding_window_size ? 1 : 0)
+            ));
             for (int i = page_indices_h.size() - page_indptr_sliding_window_h.back(); i < static_cast<int32_t>(page_indices_h.size()); i++) {
-              LOG(INFO) << page_indices_h[i];
               page_indices_sliding_window_h.push_back(page_indices_h[i]);
             }
             // set up the page indices properly by choosing the last (sliding_window_size /
@@ -1032,9 +1033,25 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                     : (block.seq_length - block.sink_length + block.sliding_window_offset - 1) %
                               page_size_ +
                           1);
-            sliding_window_offset_h.push_back(block.sliding_window_offset);
+            if (support_layer_sliding_window_) {
+              if (block.seq_length < sequences[d]->sliding_window_size) {
+                sliding_window_offset_h.push_back(0);
+              } else {
+                sliding_window_offset_h.push_back(block.seq_length % page_size_);
+              }
+            } else {
+              sliding_window_offset_h.push_back(block.sliding_window_offset);
+            }
             sink_size_h.push_back(block.sink_length);
             k_rope_pos_offset_h.push_back(block.start_pos);
+
+            // If sliding window, we need to calculate the positional offset
+            if (support_layer_sliding_window_) {
+              k_rope_pos_offset_sliding_window_h.push_back(std::max(0, block.start_pos + block.seq_length - sequences[d]->sliding_window_size));
+            }
+            // if (page_indices_sliding_window_h.size() > 0) {
+            //   LOG(INFO) << "WOffset: "<< sliding_window_offset_h.back() << " SWIdx: "<< page_indptr_sliding_window_h.back() << " LastPgIdx: " << page_indices_sliding_window_h.back() << " LastPgLen: " << last_page_len_h.back() << " RopeOffset: " << k_rope_pos_offset_h.back() << " RopeOffsetSlide: " << k_rope_pos_offset_sliding_window_h.back();
+            // }
           } else {
             // Blocks at maximum depth
             const Block& block = global_block_pool_[block_id];
@@ -1057,8 +1074,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
             // Also add sliding window here?
             page_indptr_h.push_back(page_indptr_h.back() + num_pages);
             page_indptr_sliding_window_h.push_back(
-              page_indptr_sliding_window_h.back() + 
-              std::min(static_cast<long>(num_pages), sequences[d]->sliding_window_size / page_size_));
+              page_indptr_sliding_window_h.back() + std::min(static_cast<long>(block.page_ids.size()),
+              sequences[d]->sliding_window_size / page_size_ + (block.seq_length % sequences[d]->sliding_window_size ? 1 : 0)
+            ));
             for (int i = page_indices_h.size() - page_indptr_sliding_window_h.back(); i < static_cast<int32_t>(page_indices_h.size()); i++) {
               page_indices_sliding_window_h.push_back(page_indices_h[i]);
             }
@@ -1069,9 +1087,20 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                                              last_block.sliding_window_offset - 1) %
                                                     page_size_ +
                                                 1);
-            sliding_window_offset_h.push_back(last_block.sliding_window_offset);
+            if (support_layer_sliding_window_) {
+              if (last_block.seq_length < sequences[d]->sliding_window_size) {
+                sliding_window_offset_h.push_back(0);
+              } else {
+                sliding_window_offset_h.push_back(last_block.seq_length % page_size_);
+              }
+            } else {
+              sliding_window_offset_h.push_back(last_block.sliding_window_offset);
+            }
             sink_size_h.push_back(last_block.sink_length);
             k_rope_pos_offset_h.push_back(block.start_pos);
+            if (support_layer_sliding_window_) {
+              k_rope_pos_offset_sliding_window_h.push_back(std::max(0, block.start_pos + block.seq_length - sequences[d]->sliding_window_size));
+            }
           }
         }
       }
@@ -1833,7 +1862,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
    */
   void SlideWindowForSequence(Sequence* seq) {
     // - No action when the sequence is not enabled for sliding window.
-    if (seq->sliding_window_size == -1) {
+    if (seq->sliding_window_size == -1 || !support_sliding_window_) {
       return;
     }
     // - No action when the sequence length does not exceed the window size.
@@ -1864,18 +1893,12 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     int32_t page_start_offset_after_sliding =
         (block.sliding_window_offset + length_to_slide) % page_size_;
 
-    if (!support_sliding_window_) {
-      block.sliding_window_offset =
-        page_idx_after_sliding * page_size_ + page_start_offset_after_sliding;
-      return;
-    }
-
     // - Free the pages that are fully slidden.
     while (page_idx_after_sliding > num_sink_pages) {
-        if (block.page_ids[num_sink_pages] != kPagedKVCacheTempPageId) {
-          free_page_ids_.push_back(block.page_ids[num_sink_pages]);
-        }
-        block.page_ids.erase(block.page_ids.begin() + num_sink_pages);
+      if (block.page_ids[num_sink_pages] != kPagedKVCacheTempPageId) {
+        free_page_ids_.push_back(block.page_ids[num_sink_pages]);
+      }
+      block.page_ids.erase(block.page_ids.begin() + num_sink_pages);
       --page_idx_after_sliding;
     }
     // - The first sliding page after sliding is either the last sink page,
@@ -2140,14 +2163,17 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       NDArray page_indptr;
       NDArray page_indices;
       NDArray length_info;
+      NDArray k_rope_pos;
       if (attn_kinds_[local_layer_id + layer_id_begin_offset_] == AttnKind::kMHASliding) {
         page_indptr = page_indptr_sliding_window_on_depths_view_[d];
         page_indices = page_indices_sliding_window_on_depths_view_[d];
         length_info = layer_sliding_window_length_info_on_depths_view_[d];
+        k_rope_pos = k_rope_pos_offset_sliding_window_view_[d];
       } else {
         page_indptr = page_indptr_on_depths_view_[d];
         page_indices = page_indices_on_depths_view_[d];
         length_info = length_info_on_depths_view_[d];
+        k_rope_pos = k_rope_pos_offset_view_[d];
       }
 
       if (append_before_attn_ && !is_chain_on_depths_[d]) {
@@ -2155,7 +2181,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         f_attention_prefill_with_tree_mask_paged_kv_->MHA(
             q_data, qo_indptr_on_depths_view_[d], pages_[local_layer_id],
             page_indptr, page_indices,
-            length_info, k_rope_pos_offset_view_[d], q_rope_position_map_view_,
+            length_info, k_rope_pos, q_rope_position_map_view_,
             tree_attn_mn_indptr_view_[d], tree_attn_mask_view_[d], rope_mode_, rotary_scale_,
             rotary_theta_, sm_scale, attn_output, attn_lse, compute_stream_);
       } else if (use_decode_kernel_[d]) {
@@ -2163,7 +2189,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         ICHECK_NOTNULL(f_decode);
         f_decode->MHA(d, q_data, pages_[local_layer_id], page_indptr,
                       page_indices, length_info,
-                      k_rope_pos_offset_view_[d], q_rope_position_map_view_, rope_mode_,
+                      k_rope_pos, q_rope_position_map_view_, rope_mode_,
                       rotary_scale_, rotary_theta_, sm_scale, attn_output, attn_lse,
                       compute_stream_);
       } else {
@@ -2172,7 +2198,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         f_prefill->MHA(d, q_data, qo_indptr_on_depths_view_[d], pages_[local_layer_id],
                        page_indptr, page_indices,
                        length_info, q_rope_position_map_view_,
-                       k_rope_pos_offset_view_[d], /*causal=*/false,
+                       k_rope_pos, /*causal=*/false,
                        /*rotary_mode=*/rope_mode_, rotary_scale_, rotary_theta_, sm_scale,
                        attn_output, attn_lse, compute_stream_);
       }
@@ -2334,6 +2360,12 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                 qo_indptr_on_depths_host_[d].size());
       k_rope_pos_offset_view_[d] = aux_data_manager_->CopyKRoPEPosOffsetOnDepthAsync(
           &k_rope_pos_offset_on_depths_host_[d], d);
+      if (support_layer_sliding_window_) {
+        ICHECK_EQ(k_rope_pos_offset_sliding_window_on_depths_host_[d].size() + 1,
+                  qo_indptr_on_depths_host_[d].size());
+        k_rope_pos_offset_sliding_window_view_[d] = aux_data_manager_->CopyKRoPEPosOffsetOnDepthAsync(
+            &k_rope_pos_offset_sliding_window_on_depths_host_[d], d);
+      }
     }
     // 7. cur_append_lengths_indptr
     cur_append_length_indptr_view_ =
