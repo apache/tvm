@@ -503,8 +503,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       if (value.dtype().is_scalable_vector()) {
         return Call(op->dtype.with_scalable_vscale_factor(lanes), op->op, {value});
       } else {
-        int new_lanes = (op->dtype != DataType::NVFloat4E2M1FN() &&
-                         op->args[0].dtype() != DataType::NVFloat4E2M1FN())
+        int new_lanes = (op->dtype != DataType::Float4E2M1FN() &&
+                         op->args[0].dtype() != DataType::Float4E2M1FN())
                             ? (value.dtype().bits() * value.dtype().lanes()) / op->dtype.bits()
                             : value.dtype().lanes();
         return Call(op->dtype.with_lanes(new_lanes), op->op, {value});

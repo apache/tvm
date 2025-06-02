@@ -295,83 +295,83 @@ class DataType {
    */
   static DataType BFloat(int bits, int lanes = 1) { return DataType(kDLBfloat, bits, lanes); }
   /*!
-   * \brief Construct NV float8 e3m4 datatype.
+   * \brief Construct float8 e3m4 datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat8E3M4(int lanes = 1) { return DataType(kFloat8_e3m4, 8, lanes); }
+  static DataType Float8E3M4(int lanes = 1) { return DataType(kFloat8_e3m4, 8, lanes); }
 
   /*!
-   * \brief Construct NV float8 e4m3 datatype.
+   * \brief Construct float8 e4m3 datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat8E4M3(int lanes = 1) { return DataType(kFloat8_e4m3, 8, lanes); }
+  static DataType Float8E4M3(int lanes = 1) { return DataType(kFloat8_e4m3, 8, lanes); }
 
   /*!
-   * \brief Construct NV float8 e4m3b11fnuz datatype.
+   * \brief Construct float8 e4m3b11fnuz datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat8E4M3B11FNUZ(int lanes = 1) {
+  static DataType Float8E4M3B11FNUZ(int lanes = 1) {
     return DataType(kFloat8_e4m3b11fnuz, 8, lanes);
   }
 
   /*!
-   * \brief Construct NV float8 e4m3fn datatype.
+   * \brief Construct float8 e4m3fn datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat8E4M3FN(int lanes = 1) { return DataType(kFloat8_e4m3fn, 8, lanes); }
+  static DataType Float8E4M3FN(int lanes = 1) { return DataType(kFloat8_e4m3fn, 8, lanes); }
 
   /*!
-   * \brief Construct NV float8 e4m3fnuz datatype.
+   * \brief Construct float8 e4m3fnuz datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat8E4M3FNUZ(int lanes = 1) { return DataType(kFloat8_e4m3fnuz, 8, lanes); }
+  static DataType Float8E4M3FNUZ(int lanes = 1) { return DataType(kFloat8_e4m3fnuz, 8, lanes); }
 
   /*!
-   * \brief Construct NV float8 e5m2 datatype.
+   * \brief Construct float8 e5m2 datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat8E5M2(int lanes = 1) { return DataType(kFloat8_e5m2, 8, lanes); }
+  static DataType Float8E5M2(int lanes = 1) { return DataType(kFloat8_e5m2, 8, lanes); }
 
   /*!
-   * \brief Construct NV float8 e5m2fnuz datatype.
+   * \brief Construct float8 e5m2fnuz datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat8E5M2FNUZ(int lanes = 1) { return DataType(kFloat8_e5m2fnuz, 8, lanes); }
+  static DataType Float8E5M2FNUZ(int lanes = 1) { return DataType(kFloat8_e5m2fnuz, 8, lanes); }
 
   /*!
-   * \brief Construct NV float8 e8m0fnu datatype.
+   * \brief Construct float8 e8m0fnu datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat8E8M0FNU(int lanes = 1) { return DataType(kFloat8_e8m0fnu, 8, lanes); }
+  static DataType Float8E8M0FNU(int lanes = 1) { return DataType(kFloat8_e8m0fnu, 8, lanes); }
 
   /*!
-   * \brief Construct NV float6 e2m3fn datatype.
+   * \brief Construct float6 e2m3fn datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat6E2M3FN(int lanes = 1) { return DataType(kFloat6_e2m3fn, 6, lanes); }
+  static DataType Float6E2M3FN(int lanes = 1) { return DataType(kFloat6_e2m3fn, 6, lanes); }
 
   /*!
-   * \brief Construct NV float6 e3m2fn datatype.
+   * \brief Construct float6 e3m2fn datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat6E3M2FN(int lanes = 1) { return DataType(kFloat6_e3m2fn, 6, lanes); }
+  static DataType Float6E3M2FN(int lanes = 1) { return DataType(kFloat6_e3m2fn, 6, lanes); }
 
   /*!
-   * \brief Construct NV float4 e2m1fn datatype.
+   * \brief Construct float4 e2m1fn datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat4E2M1FN(int lanes = 1) { return DataType(kFloat4_e2m1fn, 4, lanes); }
+  static DataType Float4E2M1FN(int lanes = 1) { return DataType(kFloat4_e2m1fn, 4, lanes); }
   /*!
    * \brief Construct a bool type.
    * \param lanes The number of lanes.
@@ -418,8 +418,8 @@ inline int GetVectorBytes(DataType dtype) {
   int data_bits = dtype.bits() * dtype.lanes();
   // allow bool to exist
   if (dtype == DataType::Bool() || dtype == DataType::Int(4) || dtype == DataType::UInt(4) ||
-      dtype == DataType::Int(1) || dtype == DataType::NVFloat4E2M1FN() ||
-      dtype == DataType::NVFloat6E2M3FN() || dtype == DataType::NVFloat6E3M2FN()) {
+      dtype == DataType::Int(1) || dtype == DataType::Float4E2M1FN() ||
+      dtype == DataType::Float6E2M3FN() || dtype == DataType::Float6E3M2FN()) {
     return 1;
   }
   ICHECK_EQ(data_bits % 8, 0U) << "Need to load/store by multiple of bytes";

@@ -60,10 +60,9 @@ std::string GetFP8Type(DataType type) {
   }
   stream << "__nv_fp8";
   std::string suffix;
-  if (type.code() == DataType::kFloat8_e4m3fn || type.code() == DataType::kFloat8_e4m3fnuz ||
-      type.code() == DataType::kFloat8_e4m3 || type.code() == DataType::kFloat8_e4m3b11fnuz) {
+  if (type.code() == DataType::kFloat8_e4m3fn) {
     suffix = "_e4m3";
-  } else if (type.code() == DataType::kFloat8_e5m2 || type.code() == DataType::kFloat8_e5m2fnuz) {
+  } else if (type.code() == DataType::kFloat8_e5m2) {
     suffix = "_e5m2";
   } else if (type.code() == DataType::kFloat8_e8m0fnu) {
     suffix = "_e8m0";

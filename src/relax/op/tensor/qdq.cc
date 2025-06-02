@@ -50,8 +50,7 @@ StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();
   if (attrs->out_dtype != DataType::Int(8) && attrs->out_dtype != DataType::UInt(8) &&
       attrs->out_dtype != DataType::Int(16) && attrs->out_dtype != DataType::UInt(16) &&
-      attrs->out_dtype != DataType::NVFloat8E4M3() &&
-      attrs->out_dtype != DataType::NVFloat8E5M2()) {
+      attrs->out_dtype != DataType::Float8E4M3FN() && attrs->out_dtype != DataType::Float8E5M2()) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Unsupported output datatype attribute for operation: '"
                      << attrs->out_dtype);
@@ -145,8 +144,8 @@ StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) 
   // Check input datatype:
   if (input_sinfo->dtype != DataType::Int(8) && input_sinfo->dtype != DataType::UInt(8) &&
       input_sinfo->dtype != DataType::Int(16) && input_sinfo->dtype != DataType::UInt(16) &&
-      input_sinfo->dtype != DataType::Int(32) && input_sinfo->dtype != DataType::NVFloat8E4M3() &&
-      input_sinfo->dtype != DataType::NVFloat8E5M2() && input_sinfo->dtype != DataType::Float(16) &&
+      input_sinfo->dtype != DataType::Int(32) && input_sinfo->dtype != DataType::Float8E4M3FN() &&
+      input_sinfo->dtype != DataType::Float8E5M2() && input_sinfo->dtype != DataType::Float(16) &&
       input_sinfo->dtype != DataType::Float(32)) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Unsupported input datatype for operation: " << attrs->out_dtype);

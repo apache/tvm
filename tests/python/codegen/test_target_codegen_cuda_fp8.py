@@ -40,9 +40,7 @@ except ImportError:
     "input",
     [
         ("float8_e4m3fn", "__nv_fp8_e4m3"),
-        ("float8_e4m3fnuz", "__nv_fp8_e4m3"),
         ("float8_e5m2", "__nv_fp8_e5m2"),
-        ("float8_e5m2fnuz", "__nv_fp8_e5m2"),
     ],
 )
 @tvm.testing.requires_cuda_compute_version(10)
@@ -90,7 +88,7 @@ def test_fp8_conversions(input):
 
 @pytest.mark.parametrize(
     "dtype",
-    ["float8_e4m3fn", "float8_e4m3fnuz", "float8_e5m2", "float8_e5m2fnuz", "float8_e8m0fnu"],
+    ["float8_e4m3fn", "float8_e5m2", "float8_e8m0fnu"],
 )
 @tvm.testing.requires_cuda_compute_version(10)
 def test_fp8_packing(dtype):
