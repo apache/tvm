@@ -446,10 +446,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
     // mul co-efficient folding
     TVM_TRY_REWRITE(x + x, x * 2);
 
-    TVM_TRY_REWRITE(matches_one_of(x * y + x, y * x + x, x + y * x, x + x * y), x * (y + 1));
+    TVM_TRY_REWRITE(matches_one_of(x * y + x, y * x + x, x + y * x, x + x * y), (y + 1) * x);
 
     TVM_TRY_REWRITE(matches_one_of(x * y + x * z, y * x + x * z, x * y + z * x, y * x + z * x),
-                    x * (y + z));
+                    (y + z) * x);
 
     // DivMod rules
     // truc div
@@ -563,12 +563,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
     TVM_TRY_REWRITE(matches_one_of(max(x, y) - y, x - min(y, x)), max(x - y, 0));
     TVM_TRY_REWRITE(matches_one_of(x - min(x, y), max(y, x) - y), max(0, x - y));
 
-    // mul co-efficient folding
+    // mul co-efficient folding: pefer co-effiicent to stay at rhs
     TVM_TRY_REWRITE(x - x, ZeroWithTypeLike(x));
-    TVM_TRY_REWRITE(matches_one_of(x * y - x, y * x - x), x * (y - 1));
-    TVM_TRY_REWRITE(matches_one_of(x - y * x, x - x * y), x * (1 - y));
+    TVM_TRY_REWRITE(matches_one_of(x * y - x, y * x - x), (y - 1) * x);
+    TVM_TRY_REWRITE(matches_one_of(x - y * x, x - x * y), (1 - y) * x);
     TVM_TRY_REWRITE(matches_one_of(x * y - x * z, y * x - x * z, x * y - z * x, y * x - z * x),
-                    x * (y - z));
+                    (y - z) * x);
 
     // constant cancelation
     TVM_TRY_REWRITE((x + c1) - c2, x + (c1 - c2));

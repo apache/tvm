@@ -131,5 +131,18 @@ def test_regression_simplify_inf_recursion():
     ana.rewrite_simplify(res)
 
 
+def test_simplify_floor_mod_with_linear_offset():
+    """
+    Test that the floor_mod is simplified correctly when the offset is linear.
+    """
+    ana = tvm.arith.Analyzer()
+    past_decoder_sequence_length = tir.Var("past_decoder_sequence_length", "int64")
+    expr1 = (past_decoder_sequence_length + 1) * 64
+    divisor1 = (past_decoder_sequence_length + 1) * 32
+    assert ana.can_prove_equal(tvm.tir.floormod(expr1, divisor1), 0)
+    divisor2 = 32 * (past_decoder_sequence_length + 1)
+    assert ana.can_prove_equal(tvm.tir.floormod(expr1, divisor2), 0)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
