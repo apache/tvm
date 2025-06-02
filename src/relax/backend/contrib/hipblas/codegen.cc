@@ -96,7 +96,7 @@ Array<runtime::Module> HipblasCompiler(Array<Function> functions, Map<String, ff
     auto constant_names = serializer.GetConstantNames();
     const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.HipblasJSONRuntimeCreate");
     auto func_name = GetExtSymbol(func);
-    compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<runtime::Module>());
   }
 
   return compiled_functions;
