@@ -213,7 +213,8 @@ class NDArray(tvm.ffi.core.NDArray):
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags["C_CONTIGUOUS"]
         data = np_arr.ctypes.data_as(ctypes.c_void_p)
-        # TODO(kathy): revisit and get a mirrored function of ffi::GetDataSize in Python to replace line below
+        # TODO(kathy): revisit and get a mirrored function of ffi::GetDataSize
+        # in Python to replace line below
         nbytes = np_arr.size if dtype == "bool" else (np_arr.size * old_dtype.bits + 7) // 8
         _ffi_api.TVMArrayCopyToBytes(self, data, nbytes)
 
