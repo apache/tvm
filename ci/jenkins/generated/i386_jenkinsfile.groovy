@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-02-15T10:14:10.142167
+// Generated at 2025-06-03T18:16:35.814567
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -280,10 +280,13 @@ def cancel_previous_build() {
 }
 
 def is_last_build() {
-  // whether it is last build
-  def job = Jenkins.instance.getItem(env.JOB_NAME)
-  def lastBuild = job.getLastBuild()
-  return lastBuild.getNumber() == env.BUILD_NUMBER
+  // check whether it is last build
+  try {
+    return currentBuild.number == currentBuild.rawBuild.project.getLastBuild().number
+  } catch (Throwable ex) {
+    echo 'Error during check is_last_build ' + ex.toString()
+    return false
+  }
 }
 
 def checkout_trusted_files() {
@@ -530,17 +533,18 @@ def build() {
     try {
         run_build('CPU-SPOT')
     } catch (Throwable ex) {
-        if (is_last_build()) {
-          // retry if we are currently at last build
-          // mark the current stage as success
-          // and try again via on demand node
-          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-          currentBuild.result = 'SUCCESS'
-          run_build('CPU')
-        } else {
-          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
-          throw ex
-        }
+      echo 'Exception during SPOT run ' + ex.toString()
+      if (is_last_build()) {
+        // retry if we are currently at last build
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Retry on-demand given it is last build'
+        currentBuild.result = 'SUCCESS'
+        run_build('CPU')
+      } else {
+        echo 'Exit since it is not last build'
+        throw ex
+      }
     }
   }
 }
@@ -702,15 +706,16 @@ def test() {
       try {
       shard_run_python_i386_1_of_3('CPU-SMALL-SPOT')
       } catch (Throwable ex) {
+        echo 'Exception during SPOT run ' + ex.toString()
         if (is_last_build()) {
           // retry if at last build
           // mark the current stage as success
           // and try again via on demand node
-          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          echo 'Retry on-demand given it is last build'
           currentBuild.result = 'SUCCESS'
           shard_run_python_i386_1_of_3('CPU-SMALL')
         } else {
-          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          echo 'Exit since it is not last build'
           throw ex
         }
       }
@@ -719,15 +724,16 @@ def test() {
       try {
       shard_run_python_i386_2_of_3('CPU-SMALL-SPOT')
       } catch (Throwable ex) {
+        echo 'Exception during SPOT run ' + ex.toString()
         if (is_last_build()) {
           // retry if at last build
           // mark the current stage as success
           // and try again via on demand node
-          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          echo 'Retry on-demand given it is last build'
           currentBuild.result = 'SUCCESS'
           shard_run_python_i386_2_of_3('CPU-SMALL')
         } else {
-          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          echo 'Exit since it is not last build'
           throw ex
         }
       }
@@ -736,15 +742,16 @@ def test() {
       try {
       shard_run_python_i386_3_of_3('CPU-SMALL-SPOT')
       } catch (Throwable ex) {
+        echo 'Exception during SPOT run ' + ex.toString()
         if (is_last_build()) {
           // retry if at last build
           // mark the current stage as success
           // and try again via on demand node
-          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          echo 'Retry on-demand given it is last build'
           currentBuild.result = 'SUCCESS'
           shard_run_python_i386_3_of_3('CPU-SMALL')
         } else {
-          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          echo 'Exit since it is not last build'
           throw ex
         }
       }
