@@ -525,6 +525,7 @@ if(BUILD_STATIC_RUNTIME)
   add_library(tvm_runtime STATIC
     $<TARGET_OBJECTS:tvm_runtime_objs>
     $<TARGET_OBJECTS:tvm_libinfo_objs>
+    $<TARGET_OBJECTS:tvm_ffi_objs>
     ${TVM_RUNTIME_EXT_OBJS}
   )
   set(NOTICE_MULTILINE
