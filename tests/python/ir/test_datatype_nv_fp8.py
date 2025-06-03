@@ -23,10 +23,19 @@ from tvm import te
 from tvm.script import tir as T
 
 try:
-    from ml_dtypes import float8_e4m3fn as float8_e4m3fn
-    from ml_dtypes import float8_e5m2 as float8_e5m2
+    from ml_dtypes import (
+        float8_e3m4,
+        float8_e4m3,
+        float8_e4m3b11fnuz,
+        float8_e4m3fn,
+        float8_e4m3fnuz,
+        float8_e5m2,
+        float8_e5m2fnuz,
+        float8_e8m0fnu,
+    )
 except ImportError:
-    float8_e4m3fn, float8_e5m2 = None, None
+    float8_e3m4 = float8_e4m3 = float8_e4m3b11fnuz = float8_e4m3fn = None
+    float8_e4m3fnuz = float8_e5m2 = float8_e5m2fnuz = float8_e8m0fnu = None
 
 
 def fp8_unary(dtype: str):
@@ -60,7 +69,14 @@ def fp8_unary(dtype: str):
 
 
 np_dtype, dtype_str = tvm.testing.parameters(
-    (float8_e4m3fn, "float8_e4m3fn"), (float8_e5m2, "float8_e5m2")
+    (float8_e3m4, "float8_e3m4"),
+    (float8_e4m3, "float8_e4m3"),
+    (float8_e4m3b11fnuz, "float8_e4m3b11fnuz"),
+    (float8_e4m3fn, "float8_e4m3fn"),
+    (float8_e4m3fnuz, "float8_e4m3fnuz"),
+    (float8_e5m2, "float8_e5m2"),
+    (float8_e5m2fnuz, "float8_e5m2fnuz"),
+    (float8_e8m0fnu, "float8_e8m0fnu"),
 )
 
 
@@ -71,6 +87,7 @@ def test_create_nv_fp8_nd_array(np_dtype, dtype_str):
     x = np.random.rand(128, 128).astype(np_dtype)
     x_nd = tvm.nd.array(x)
     assert x_nd.dtype == dtype_str
+    np.testing.assert_equal(x_nd.numpy(), x)
 
 
 def test_fp8_unary_op(np_dtype, dtype_str):
@@ -79,6 +96,9 @@ def test_fp8_unary_op(np_dtype, dtype_str):
         return
     if np_dtype is None:
         """Skip test if ml_dtypes is not installed"""
+        return
+    if dtype_str in ["float8_e8m0fnu", "float8_e4m3b11fnuz", "float8_e4m3fnuz", "float8_e5m2fnuz"]:
+        # float8_e8m0fnu does not support arithmetic operations, and unsigned arithmetic is not tested here
         return
 
     f = tvm.compile(func, target="llvm")
@@ -93,6 +113,9 @@ def test_fp8_unary_op(np_dtype, dtype_str):
         map(lambda _: tvm.nd.array(_), [a, b, a_add_b, a_sub_b, a_mul_b, a_fp32, a_roundtrip])
     )
     f(*args)
+    expected_a_fp32 = a.astype(np.float32)
+    expected_a_roundtrip = expected_a_fp32.astype(np_dtype)
+    np.testing.assert_equal(args[6].numpy(), expected_a_roundtrip)
 
 
 def test_nv_fp8_buffer(np_dtype, dtype_str):
