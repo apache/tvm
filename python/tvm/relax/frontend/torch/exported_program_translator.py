@@ -542,6 +542,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "fill_.Scalar": self._inplace_fill,
             "full.default": self._full,
             "full_like.default": self._full_like,
+            "hamming_window.periodic": self._hamming_window,
+            "hamming_window.periodic_alpha": self._hamming_window,
+            "hamming_window.periodic_alpha_beta": self._hamming_window,
             "index_select.default": self._index_select,
             "lift_fresh_copy.default": self._to_copy,
             "linspace.default": self._linspace,
@@ -564,9 +567,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # other
             "getitem": self._getitem,
             "item.default": self._item,
-            "hamming_window.periodic": self._hamming_window,
-            "hamming_window.periodic_alpha": self._hamming_window,
-            "hamming_window.periodic_alpha_beta": self._hamming_window,
         }
 
     def create_input_vars(
