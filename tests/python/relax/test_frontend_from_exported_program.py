@@ -4349,6 +4349,33 @@ def test_arange():
     verify_model(Arange(), example_args, {}, Expected)
 
 
+def test_hamming_window():
+    class HammingWindow(Module):
+        def forward(self, input):
+            return torch.hamming_window(20, True, dtype=torch.float32)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((20,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((20,), dtype="float32") = R.hamming_window(
+                    R.prim_value(20),
+                    R.prim_value(1),
+                    R.prim_value(T.float32(0.54000000000000004)),
+                    R.prim_value(T.float32(0.46000000000000002)),
+                    dtype="float32",
+                )
+                gv: R.Tuple(R.Tensor((20,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(10, 10, dtype=torch.float32),)
+    verify_model(HammingWindow(), example_args, {}, Expected)
+
+
 def test_contiguous():
     class Contiguous(Module):
         def forward(self, input):
