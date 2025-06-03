@@ -267,7 +267,7 @@ ffi::Function MetalModuleNode::GetFunction(const String& name,
     auto it = fmap_.find(name);
     if (it == fmap_.end()) {
       ret = ffi::Function();
-      return ret;
+      return;
     }
     const FunctionInfo& info = it->second;
     MetalWrappedFunc f;

@@ -16,7 +16,7 @@
 # under the License.
 function(add_dsymutil target_name)
   # running dsymutil on macos to generate debugging symbols for backtraces
-  if(APPLE)
+  if(APPLE AND TVM_FFI_USE_LIBBACKTRACE)
     find_program(DSYMUTIL dsymutil)
     mark_as_advanced(DSYMUTIL)
     add_custom_command(TARGET ${target_name}
