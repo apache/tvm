@@ -201,6 +201,12 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   } else if (ltype.is_float8() && !rtype.is_float8()) {
     // Cast int->float8 for rhs when lhs is a float8
     rhs = cast(ltype, rhs);
+  } else if (!ltype.is_float6() && rtype.is_float6()) {
+    // Cast int->float6 for lhs when rhs is a float6
+    lhs = cast(rtype, lhs);
+  } else if (ltype.is_float6() && !rtype.is_float6()) {
+    // Cast int->float6 for rhs when lhs is a float6
+    rhs = cast(ltype, rhs);
   } else if (!ltype.is_float4() && rtype.is_float4()) {
     // Cast int->float4 for lhs when rhs is a float4
     lhs = cast(rtype, lhs);
@@ -275,8 +281,25 @@ PrimExpr max_value(const DataType& dtype, Span span) {
     // according to https://arxiv.org/pdf/2209.05433.pdf
     if (dtype.code() == DataType::TypeCode::kFloat8_e5m2) {
       return FloatImm(dtype, 57344.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e5m2fnuz) {
+      return FloatImm(dtype, 57344.0, span);
     } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3fn) {
       return FloatImm(dtype, 448.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3fnuz ||
+               dtype.code() == DataType::TypeCode::kFloat8_e4m3) {
+      return FloatImm(dtype, 448.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3b11fnuz) {
+      return FloatImm(dtype, 30.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e3m4) {
+      return FloatImm(dtype, 31.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e8m0fnu) {
+      return FloatImm(dtype, 3.4028236692093846e+38, span);
+    }
+  } else if (dtype.is_float6()) {
+    if (dtype.code() == DataType::TypeCode::kFloat6_e2m3fn) {
+      return FloatImm(dtype, 7.5, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat6_e3m2fn) {
+      return FloatImm(dtype, 28.0, span);
     }
   } else if (dtype.is_float4()) {
     return FloatImm(dtype, 6.0, span);
@@ -318,8 +341,26 @@ PrimExpr min_value(const DataType& dtype, Span span) {
     // according to https://arxiv.org/pdf/2209.05433.pdf
     if (dtype.code() == DataType::TypeCode::kFloat8_e5m2) {
       return FloatImm(dtype, -57344.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e5m2fnuz) {
+      return FloatImm(dtype, 0.0, span);
     } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3fn) {
       return FloatImm(dtype, -448.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3fnuz) {
+      return FloatImm(dtype, 0.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3) {
+      return FloatImm(dtype, -448.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3b11fnuz) {
+      return FloatImm(dtype, 0.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e3m4) {
+      return FloatImm(dtype, -31.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e8m0fnu) {
+      return FloatImm(dtype, 0.0, span);
+    }
+  } else if (dtype.is_float6()) {
+    if (dtype.code() == DataType::TypeCode::kFloat6_e2m3fn) {
+      return FloatImm(dtype, -7.5, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat6_e3m2fn) {
+      return FloatImm(dtype, -28.0, span);
     }
   } else if (dtype.is_float4()) {
     return FloatImm(dtype, -6.0, span);

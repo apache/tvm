@@ -111,8 +111,7 @@ size_t DeviceAPI::GetDataSize(const DLTensor& arr, Optional<String> mem_scope) {
     for (int i = 0; i < arr.ndim; ++i) {
       size *= static_cast<size_t>(arr.shape[i]);
     }
-    size *= (arr.dtype.bits * arr.dtype.lanes + 7) / 8;
-    return size;
+    return ffi::GetDataSize(size, arr.dtype);
   }
   LOG(FATAL) << "Device does not support physical mem computation with "
              << "specified memory scope: " << mem_scope.value();

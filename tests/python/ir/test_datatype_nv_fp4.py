@@ -14,34 +14,38 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Test data type related API"""
-import pytest
+import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import DataType
+import tvm.tir as tir
+from tvm import te
+from tvm.script import tir as T
+
+try:
+    from ml_dtypes import float4_e2m1fn
+except ImportError:
+    float4_e2m1fn = None
 
 
-@pytest.mark.parametrize(
-    "dtype_str, expected_size",
-    [
-        ("float32", 4),
-        ("float32x4", 16),
-        ("float8_e5m2x4", 4),
-        ("float6_e2m3fnx4", 3),
-        ("float4_e2m1fnx4", 2),
-        ("uint8", 1),
-    ],
-)
-def test_dtype_itemsize(dtype_str, expected_size):
-    dtype = DataType(dtype_str)
-    assert dtype.itemsize == expected_size
+np_dtype, dtype_str = tvm.testing.parameters((float4_e2m1fn, "float4_e2m1fn"))
 
 
-@pytest.mark.parametrize("dtype_str", ["int32xvscalex4"])
-def test_dtype_itemmize_error(dtype_str):
-    with pytest.raises(ValueError):
-        size = DataType(dtype_str).itemsize
+def test_create_nv_fp4_nd_array(np_dtype, dtype_str):
+    if np_dtype is None:
+        """Skip test if ml_dtypes is not installed"""
+        return
+    x = np.random.rand(128, 128).astype(np_dtype)
+    x_nd = tvm.nd.array(x)
+    assert x_nd.dtype == dtype_str
+    np.testing.assert_equal(x_nd.numpy(), x)
+
+
+def test_nv_fp4_buffer(np_dtype, dtype_str):
+    m = te.size_var("m")
+    n = te.size_var("n")
+    A = tvm.tir.decl_buffer((m, n), dtype_str)
+    assert A.dtype == dtype_str
 
 
 if __name__ == "__main__":

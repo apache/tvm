@@ -454,6 +454,26 @@ struct __align__(8) half4_bfloat164 {
         (static_cast<__uint32_t>(lo_part.__x) | (static_cast<__uint32_t>(hi_part.__x) << 16));
     return result;
   }
+  __host__ __device__ explicit half4_bfloat164(const __nv_fp8x4_e8m0& fp8x4) {
+      __nv_fp8x2_e8m0 lo_part, hi_part;
+      lo_part.__x = static_cast<__nv_fp8x2_storage_t>(fp8x4.__x & 0xFFFF);
+      hi_part.__x = static_cast<__nv_fp8x2_storage_t>((fp8x4.__x >> 16) & 0xFFFF);
+      TVec2 lo_half2 = static_cast<TVec2>(lo_part);
+      TVec2 hi_half2 = static_cast<TVec2>(hi_part);
+      x = reinterpret_cast<T*>(&lo_half2)[0];
+      y = reinterpret_cast<T*>(&lo_half2)[1];
+      z = reinterpret_cast<T*>(&hi_half2)[0];
+      w = reinterpret_cast<T*>(&hi_half2)[1];
+  }
+  __host__ __device__ explicit operator __nv_fp8x4_e8m0() const {
+    __nv_fp8x4_e8m0 result;
+    TVec2 lo_half2 = *reinterpret_cast<const TVec2*>(&x);
+    TVec2 hi_half2 = *reinterpret_cast<const TVec2*>(&z);
+    __nv_fp8x2_e8m0 lo_part(lo_half2), hi_part(hi_half2);
+    result.__x =
+        (static_cast<__uint32_t>(lo_part.__x) | (static_cast<__uint32_t>(hi_part.__x) << 16));
+    return result;
+  }
   )";
     }
     if (enable_fp4) {
@@ -519,6 +539,22 @@ __host__ __device__ nv_bfloat162 cast_to_nv_bfloat162(const __nv_fp8x2_e4m3& fp8
     nv_bfloat16 y = nv_bfloat16(elem1);
     return nv_bfloat162(x, y);
 }
+__host__ __device__ nv_bfloat162 cast_to_nv_bfloat162(const __nv_fp8x2_e5m2& fp8x2) {
+    __nv_fp8_e5m2 elem0, elem1;
+    elem0.__x = static_cast<__nv_fp8_storage_t>(fp8x2.__x & 0xFF);
+    elem1.__x = static_cast<__nv_fp8_storage_t>((fp8x2.__x >> 8) & 0xFF);
+    nv_bfloat16 x = nv_bfloat16(elem0);
+    nv_bfloat16 y = nv_bfloat16(elem1);
+    return nv_bfloat162(x, y);
+}
+__host__ __device__ nv_bfloat162 cast_to_nv_bfloat162(const __nv_fp8x2_e8m0& fp8x2) {
+    __nv_fp8_e8m0 elem0, elem1;
+    elem0.__x = static_cast<__nv_fp8_storage_t>(fp8x2.__x & 0xFF);
+    elem1.__x = static_cast<__nv_fp8_storage_t>((fp8x2.__x >> 8) & 0xFF);
+    nv_bfloat16 x = nv_bfloat16(elem0);
+    nv_bfloat16 y = nv_bfloat16(elem1);
+    return nv_bfloat162(x, y);
+}
 )";
     }
   }
@@ -541,6 +577,16 @@ __device__ __nv_fp8x2_e4m3 make___nv_fp8x2_e4m3(__nv_fp8_e4m3 x, __nv_fp8_e4m3 y
 }
 __device__ __nv_fp8x4_e4m3 make___nv_fp8x4_e4m3(__nv_fp8_e4m3 a, __nv_fp8_e4m3 b, __nv_fp8_e4m3 c, __nv_fp8_e4m3 d) {
     __nv_fp8x4_e4m3 result;
+    result.__x = (a.__x) | (b.__x << 8) | (c.__x << 16) | (d.__x << 24);
+    return result;
+}
+__device__ __nv_fp8x2_e8m0 make___nv_fp8x2_e8m0(__nv_fp8_e8m0 x, __nv_fp8_e8m0 y) {
+    __nv_fp8x2_e8m0 result;
+    result.__x = (x.__x) | (y.__x << 8);
+    return result;
+}
+__device__ __nv_fp8x4_e8m0 make___nv_fp8x4_e8m0(__nv_fp8_e8m0 a, __nv_fp8_e8m0 b, __nv_fp8_e8m0 c, __nv_fp8_e8m0 d) {
+    __nv_fp8x4_e8m0 result;
     result.__x = (a.__x) | (b.__x << 8) | (c.__x << 16) | (d.__x << 24);
     return result;
 }
