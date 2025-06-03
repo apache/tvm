@@ -73,6 +73,7 @@ from .create import (
     arange,
     full,
     full_like,
+    hamming_window,
     ones,
     ones_like,
     eye,

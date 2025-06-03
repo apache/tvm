@@ -1106,3 +1106,47 @@ def index_tensor(data, indices):
         z = topi.index_tensor(x, [row, col])             # shape (2, 3)
     """
     return topi.adv_index(data, indices)
+
+
+def hamming_window(window_size, periodic, alpha, beta, dtype):
+    """Hamming window function.
+
+    Parameters
+    ----------
+    window_size: tvm.Expr
+        The size of returned window.
+
+    periodic: tvm.Expr
+        If True, returns a window to be used as periodic function. If False, return a symmetric window.
+
+    alpha: tvm.Expr
+        The co-efficient alpha.
+
+    beta: tvm.Expr
+        The co-efficient beta.
+
+    Returns
+    -------
+    ret : tvm.te.Tensor
+        The result tensor.
+    """
+    import numpy as np
+    import math
+
+    if window_size == 1:
+        return topi.const_vector(np.array([1], dtype=dtype))
+
+    periodic = topi.cast(periodic, "bool")
+
+    if periodic:
+        window_size += 1
+
+    index = topi.arange(0, window_size, dtype=dtype)
+    angular_freq = 2 * math.pi * index / (window_size - 1)
+    cos_values = topi.cos(angular_freq)
+    window = topi.cast(alpha - beta * cos_values, dtype=dtype)
+
+    if periodic:
+        return topi.strided_slice(window, [0], [window.shape[0] - 1])
+
+    return window
