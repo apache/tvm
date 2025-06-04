@@ -2162,6 +2162,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
         } else {
           return "O";
         }
+      })
+      .def("tir.schedule.HasIfThenElse", [](const Stmt& stmt) -> bool {
         return HasIfThenElse(stmt);
       });
 });

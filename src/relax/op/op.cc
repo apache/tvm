@@ -1460,14 +1460,12 @@ Expr MakeHintOnDevice(Expr data, Device device, String memory_scope = "global") 
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("relax.op.hint_on_device", [](TVMArgs args, TVMRetValue* rv), {
-    Expr data = args[0];
-    Device device = args[1];
+  refl::GlobalDef().def("relax.op.hint_on_device", [](ffi::PackedArgs args, ffi::Any* ret) -> Expr , {
     if (args.size() == 3) {
-      String scope = args[2];
-      *rv = MakeHintOnDevice(data, device, scope);
+      *ret =
+          MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>(), args[2].cast<String>());
     } else {
-      *rv = MakeHintOnDevice(data, device);
+      *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>());
     }
   });
 });

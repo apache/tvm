@@ -473,7 +473,7 @@ class LegalizeMutator : public ExprMutator {
 
 namespace transform {
 
-Pass LegalizeOps(Optional<Map<String, ffi::Function>> cmap, Optional<Array<String>> skip_ops, 
+Pass LegalizeOps(Optional<Map<String, ffi::Function>> cmap, Optional<Array<String>> skip_ops,
                  bool enable_warning) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     bool apply_legalize_ops =
