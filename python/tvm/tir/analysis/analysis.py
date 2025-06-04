@@ -19,7 +19,6 @@
 from typing import Dict, List, Optional, Union
 
 import tvm
-from tvm import _ffi
 from tvm.ir import IRModule
 from tvm.tir.expr import Var
 from tvm.tir.stmt import Block, BufferRegion, PrimExpr
@@ -303,7 +302,7 @@ def find_anchor_block(mod: IRModule) -> Block:
 
 
 def has_if_then_else(stmt: Stmt) -> bool:
-    return _ffi.get_global_func("tir.schedule.HasIfThenElse")(stmt)
+    return tvm.ffi.get_global_func("tir.schedule.HasIfThenElse")(stmt)
 
 
 def get_vtcm_compaction_passes() -> List[tvm.transform.Pass]:

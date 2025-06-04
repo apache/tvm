@@ -1376,16 +1376,15 @@ Expr MakeHintOnDevice(Expr data, Device device, String memory_scope = "global") 
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.hint_on_device").set_body([](TVMArgs args, TVMRetValue* rv) {
-  Expr data = args[0];
-  Device device = args[1];
-  if (args.size() == 3) {
-    String scope = args[2];
-    *rv = MakeHintOnDevice(data, device, scope);
-  } else {
-    *rv = MakeHintOnDevice(data, device);
-  }
-});
+TVM_FFI_REGISTER_GLOBAL("relax.op.hint_on_device")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      if (args.size() == 3) {
+        *ret =
+            MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>(), args[2].cast<String>());
+      } else {
+        *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>());
+      }
+    });
 
 }  // namespace relax
 }  // namespace tvm
