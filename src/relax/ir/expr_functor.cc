@@ -326,7 +326,7 @@ void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
   ExprApplyVisit(fvisit).VisitExpr(e);
 }
 
-TVM_REGISTER_GLOBAL("relax.analysis.post_order_visit")
+TVM_FFI_REGISTER_GLOBAL("relax.analysis.post_order_visit")
     .set_body_typed([](Expr expr, ffi::Function f) {
       PostOrderVisit(expr, [f](const Expr& n) { f(n); });
     });
@@ -601,7 +601,7 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
     // example, if the previous return value was
     // `TensorStructInfo(shape=[16,16])`, but the new return value is
     // `TensorStructInfo(shape=[8,8])`.
-    return Function(params, body, NullOpt, op->is_pure, op->attrs);
+    return Function(params, body, std::nullopt, op->is_pure, op->attrs);
   }
 }
 

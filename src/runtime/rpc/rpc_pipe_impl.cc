@@ -27,7 +27,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <sys/types.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <unistd.h>
 
 #include <cstdlib>
@@ -112,13 +112,14 @@ Module CreatePipeClient(std::vector<std::string> cmd) {
   return CreateRPCSessionModule(CreateClientSession(endpt));
 }
 
-TVM_REGISTER_GLOBAL("rpc.CreatePipeClient").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  std::vector<std::string> cmd;
-  for (int i = 0; i < args.size(); ++i) {
-    cmd.push_back(args[i].cast<std::string>());
-  }
-  *rv = CreatePipeClient(cmd);
-});
+TVM_FFI_REGISTER_GLOBAL("rpc.CreatePipeClient")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      std::vector<std::string> cmd;
+      for (int i = 0; i < args.size(); ++i) {
+        cmd.push_back(args[i].cast<std::string>());
+      }
+      *rv = CreatePipeClient(cmd);
+    });
 
 }  // namespace runtime
 }  // namespace tvm

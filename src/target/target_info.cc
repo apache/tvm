@@ -20,8 +20,8 @@
 /*!
  * \file target/target_info.cc
  */
+#include <tvm/ffi/function.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/target_info.h>
 
 namespace tvm {

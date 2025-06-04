@@ -29,9 +29,9 @@
 
 #include "common_subexpr_elim.h"
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/transform.h>  // For the class Pass and the class PassContext
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/tir/analysis.h>  // For the analysis which gives the size of an expr
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
@@ -655,7 +655,7 @@ Pass CommonSubexprElimTIR(bool enable_cse_tir, bool identify_equiv_terms) {
 }
 
 // The pass can now be invoked via the pass infrastructure, but we also add a Python binding for it
-TVM_REGISTER_GLOBAL("tir.transform.CommonSubexprElimTIR").set_body_typed(CommonSubexprElimTIR);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.CommonSubexprElimTIR").set_body_typed(CommonSubexprElimTIR);
 
 }  // namespace transform
 }  // namespace tir

@@ -24,8 +24,8 @@
 #ifndef TVM_TOPI_UTILS_H_
 #define TVM_TOPI_UTILS_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/packed_func.h>
 
 namespace tvm {
 namespace topi {
@@ -37,7 +37,7 @@ inline Optional<Array<Integer>> ArrayOrInt(AnyView arg) {
   if (arg == nullptr) {
     return std::nullopt;
   }
-  if (auto opt_int = arg.as<int>()) {
+  if (auto opt_int = arg.try_cast<int>()) {
     Array<Integer> result;
     result.push_back(opt_int.value());
     return result;

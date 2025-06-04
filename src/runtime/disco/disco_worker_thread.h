@@ -25,9 +25,9 @@
 #ifndef TVM_RUNTIME_DISCO_DISCO_WORKER_THREAD_H_
 #define TVM_RUNTIME_DISCO_DISCO_WORKER_THREAD_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <memory>
 #include <thread>

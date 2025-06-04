@@ -173,8 +173,8 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
 
 Pass MetaScheduleTuneIRMod(Map<String, runtime::NDArray> params, String work_dir,
                            Integer max_trials_global,
-                           Optional<Integer> max_trials_per_task = NullOpt,
-                           Optional<Array<String>> op_names = NullOpt) {
+                           Optional<Integer> max_trials_per_task = std::nullopt,
+                           Optional<Array<String>> op_names = std::nullopt) {
   Target target = Target::Current(false);
   auto pass_func = [=](IRModule m, PassContext ctx) {
     auto max_trials_task = max_trials_per_task.value_or(max_trials_global);
@@ -191,7 +191,8 @@ Pass MetaScheduleTuneTIR(String work_dir, Integer max_trials_global) {
   Target target = Target::Current(false);
   ffi::TypedFunction<tir::PrimFunc(tir::PrimFunc, IRModule, PassContext)> pass_func =
       [=](tir::PrimFunc f, IRModule mod, PassContext ctx) {
-        return MetaScheduleTuner(target, work_dir, max_trials_global, max_trials_global, NullOpt)
+        return MetaScheduleTuner(target, work_dir, max_trials_global, max_trials_global,
+                                 std::nullopt)
             .TuneTIR(f, ctx);
       };
   return tir::transform::CreatePrimFuncPass(/*pass function*/ pass_func, /*opt level*/ 0,
@@ -200,10 +201,11 @@ Pass MetaScheduleTuneTIR(String work_dir, Integer max_trials_global) {
                                             /*traceable*/ true);
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.MetaScheduleApplyDatabase")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.MetaScheduleApplyDatabase")
     .set_body_typed(MetaScheduleApplyDatabase);
-TVM_REGISTER_GLOBAL("relax.transform.MetaScheduleTuneIRMod").set_body_typed(MetaScheduleTuneIRMod);
-TVM_REGISTER_GLOBAL("relax.transform.MetaScheduleTuneTIR").set_body_typed(MetaScheduleTuneTIR);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.MetaScheduleTuneIRMod")
+    .set_body_typed(MetaScheduleTuneIRMod);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.MetaScheduleTuneTIR").set_body_typed(MetaScheduleTuneTIR);
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

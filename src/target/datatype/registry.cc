@@ -18,7 +18,8 @@
  */
 #include "registry.h"
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/data_type.h>
 
 namespace tvm {
 namespace datatype {
@@ -26,23 +27,23 @@ namespace datatype {
 using ffi::Any;
 using ffi::PackedArgs;
 
-TVM_REGISTER_GLOBAL("dtype.register_custom_type")
+TVM_FFI_REGISTER_GLOBAL("dtype.register_custom_type")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       datatype::Registry::Global()->Register(args[0].cast<std::string>(),
                                              static_cast<uint8_t>(args[1].cast<int>()));
     });
 
-TVM_REGISTER_GLOBAL("dtype.get_custom_type_code")
+TVM_FFI_REGISTER_GLOBAL("dtype.get_custom_type_code")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       *ret = datatype::Registry::Global()->GetTypeCode(args[0].cast<std::string>());
     });
 
-TVM_REGISTER_GLOBAL("dtype.get_custom_type_name")
+TVM_FFI_REGISTER_GLOBAL("dtype.get_custom_type_name")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       *ret = Registry::Global()->GetTypeName(args[0].cast<int>());
     });
 
-TVM_REGISTER_GLOBAL("runtime._datatype_get_type_registered")
+TVM_FFI_REGISTER_GLOBAL("runtime._datatype_get_type_registered")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       *ret = Registry::Global()->GetTypeRegistered(args[0].cast<int>());
     });

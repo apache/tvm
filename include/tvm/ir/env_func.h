@@ -24,8 +24,8 @@
 #ifndef TVM_IR_ENV_FUNC_H_
 #define TVM_IR_ENV_FUNC_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <string>
 #include <utility>
@@ -142,8 +142,8 @@ class TypedEnvFunc<R(Args...)> : public ObjectRef {
     if constexpr (std::is_same_v<R, void>) {
       n->func(std::forward<Args>(args)...);
     } else {
-      Any res = n->func(std::forward<Args>(args)...);
-      if constexpr (std::is_same_v<R, Any>) {
+      ffi::Any res = n->func(std::forward<Args>(args)...);
+      if constexpr (std::is_same_v<R, ffi::Any>) {
         return res;
       } else {
         return std::move(res).cast<R>();

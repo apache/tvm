@@ -25,8 +25,8 @@
 
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/object.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container/optional.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/runtime/base.h>
 
 #include <utility>
 
@@ -55,10 +55,11 @@ enum TypeIndex : int32_t {
   kRuntimeModule = TVMFFITypeIndex::kTVMFFIModule,
   /*! \brief runtime::NDArray. */
   kRuntimeNDArray = TVMFFITypeIndex::kTVMFFINDArray,
-  /*! \brief runtime::ShapeTuple. */
-  kRuntimeShapeTuple = TVMFFITypeIndex::kTVMFFIShape,
+  /*! \brief runtime::Shape. */
+  kRuntimeShape = TVMFFITypeIndex::kTVMFFIShape,
   // Extra builtin static index here
-  kCustomStaticIndex = TVMFFITypeIndex::kTVMFFIStaticObjectEnd,
+  // We reserve 16 extra static indices for custom types
+  kCustomStaticIndex = TVMFFITypeIndex::kTVMFFIDynObjectBegin - 16,
   /*! \brief ffi::Function. */
   kRuntimePackedFunc = kCustomStaticIndex + 1,
   /*! \brief runtime::DRef for disco distributed runtime */
@@ -72,6 +73,10 @@ enum TypeIndex : int32_t {
   // static assignments that may subject to change.
   kStaticIndexEnd,
 };
+
+static_assert(static_cast<int>(TypeIndex::kCustomStaticIndex) >=
+                  static_cast<int>(TVMFFITypeIndex::kTVMFFIStaticObjectEnd),
+              "Static slot overflows to custom indices");
 
 /*
  * \brief Define the default copy/move constructor and assign operator

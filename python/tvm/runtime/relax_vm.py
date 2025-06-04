@@ -18,12 +18,12 @@
 """The Relax virtual machine."""
 from enum import IntEnum
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from numbers import Number, Integral
 
 import numpy as np  # type: ignore
 
 import tvm
-from tvm._ffi import base as _base
-from tvm._ffi import register_func
+from tvm.ffi import register_func
 from tvm.runtime import Device, Object, PackedFunc
 from tvm.runtime.profiling import Report
 
@@ -198,7 +198,7 @@ class VirtualMachine(object):
         def _gettype(arg):
             if isinstance(arg, np.float16):
                 return "float16"
-            elif isinstance(arg, (_base.integer_types, bool)):
+            elif isinstance(arg, (Integral, bool)):
                 return "int32"
             else:
                 return "float32"
@@ -215,7 +215,7 @@ class VirtualMachine(object):
             for field in arg:
                 self._convert(field, field_args)
             cargs.append(tuple(field_args))
-        elif isinstance(arg, (_base.numeric_types, bool)):
+        elif isinstance(arg, (Number, bool)):
             dtype = _gettype(arg)
             value = tvm.nd.array(np.array(arg, dtype=dtype), device=tvm.cpu(0))
             cargs.append(value)

@@ -115,7 +115,7 @@ std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::Fin
 Optional<Trace> MutateComputeLocationNode::Apply(const Trace& trace, TRandState* rand_state) {
   std::vector<Candidate> candidates = FindCandidates(trace, rand_state);
   if (candidates.empty()) {
-    return NullOpt;
+    return std::nullopt;
   }
   const Candidate& candidate = candidates[tir::SampleInt(rand_state, 0, candidates.size())];
   int loc = candidate.locs[tir::SampleInt(rand_state, 0, candidate.locs.size())];
@@ -127,7 +127,7 @@ Mutator Mutator::MutateComputeLocation() {
 }
 
 TVM_REGISTER_NODE_TYPE(MutateComputeLocationNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorMutateComputeLocation")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateComputeLocation")
     .set_body_typed(Mutator::MutateComputeLocation);
 
 }  // namespace meta_schedule

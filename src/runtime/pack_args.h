@@ -31,8 +31,8 @@
 #ifndef TVM_RUNTIME_PACK_ARGS_H_
 #define TVM_RUNTIME_PACK_ARGS_H_
 
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/packed_func.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 
 #include <cstring>
 #include <vector>
@@ -134,7 +134,7 @@ enum ArgConvertCode {
 };
 
 inline ArgConvertCode GetArgConvertCode(DLDataType t) {
-  ICHECK_EQ(t.lanes, 1U) << "Cannot pass vector type argument to devic function for now";
+  ICHECK_EQ(t.lanes, 1U) << "Cannot pass vector type argument to device function for now";
   if (t.code == kDLInt) {
     if (t.bits == 64U) return INT64_TO_INT64;
     if (t.bits == 32U) return INT64_TO_INT32;
@@ -143,7 +143,7 @@ inline ArgConvertCode GetArgConvertCode(DLDataType t) {
   } else if (t.code == kDLFloat) {
     if (t.bits == 64U) return FLOAT64_TO_FLOAT64;
     if (t.bits == 32U) return FLOAT64_TO_FLOAT32;
-  } else if (t.code == kTVMOpaqueHandle) {
+  } else if (t.code == kDLOpaqueHandle) {
     return HANDLE_TO_HANDLE;
   }
   LOG(FATAL) << "Cannot handle " << t << " as device function argument";
@@ -240,7 +240,6 @@ inline ffi::Function PackFuncPackedArgAligned_(F f, const std::vector<ArgConvert
     TempArray<uint64_t, N> pack_(num_args);
     int32_t* pack = reinterpret_cast<int32_t*>(pack_.data());
     int32_t* ptr = pack;
-    static_assert(sizeof(TVMValue) == 8, "invariant");
     static_assert(sizeof(void*) % sizeof(int32_t) == 0, "invariant");
     const TVMFFIAny* raw_args = reinterpret_cast<const TVMFFIAny*>(args.data());
 
@@ -317,13 +316,13 @@ inline ffi::Function PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_ty
 inline size_t NumBufferArgs(const std::vector<DLDataType>& arg_types) {
   size_t base = arg_types.size();
   for (size_t i = 0; i < arg_types.size(); ++i) {
-    if (arg_types[i].code != kTVMOpaqueHandle) {
+    if (arg_types[i].code != kDLOpaqueHandle) {
       base = i;
       break;
     }
   }
   for (size_t i = base; i < arg_types.size(); ++i) {
-    ICHECK(arg_types[i].code != kTVMOpaqueHandle) << "Device function need to be organized";
+    ICHECK(arg_types[i].code != kDLOpaqueHandle) << "Device function need to be organized";
   }
   return base;
 }

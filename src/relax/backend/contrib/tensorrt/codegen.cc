@@ -231,7 +231,7 @@ Array<runtime::Module> TensorRTCompiler(Array<Function> functions, Map<String, f
   return compiled_functions;
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.tensorrt").set_body_typed(TensorRTCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.tensorrt").set_body_typed(TensorRTCompiler);
 
 /*!
  * \brief Check whether TensorRT graph executor is enabled.
@@ -258,8 +258,9 @@ Array<Integer> GetTensorRTVersion() {
 #endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 }
 
-TVM_REGISTER_GLOBAL("relax.is_tensorrt_runtime_enabled").set_body_typed(IsTensorRTRuntimeEnabled);
-TVM_REGISTER_GLOBAL("relax.get_tensorrt_version").set_body_typed(GetTensorRTVersion);
+TVM_FFI_REGISTER_GLOBAL("relax.is_tensorrt_runtime_enabled")
+    .set_body_typed(IsTensorRTRuntimeEnabled);
+TVM_FFI_REGISTER_GLOBAL("relax.get_tensorrt_version").set_body_typed(GetTensorRTVersion);
 
 }  // namespace contrib
 }  // namespace relax

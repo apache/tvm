@@ -27,9 +27,21 @@
 #include <dlpack/dlpack.h>
 #include <stdint.h>
 
+// Macros to do weak linking
+#ifdef _MSC_VER
+#define TVM_FFI_WEAK __declspec(selectany)
+#else
+#define TVM_FFI_WEAK __attribute__((weak))
+#endif
+
+// Defines two macros
+// TVM_FFI_DLL: marks the function as a DLL export/import
+//              depending on whether TVM_FFI_EXPORTS is defined
+// TVM_FFI_DLL_EXPORT: always marks the function as a DLL export
 #if !defined(TVM_FFI_DLL) && defined(__EMSCRIPTEN__)
 #include <emscripten/emscripten.h>
 #define TVM_FFI_DLL EMSCRIPTEN_KEEPALIVE
+#define TVM_FFI_DLL_EXPORT EMSCRIPTEN_KEEPALIVE
 #endif
 #if !defined(TVM_FFI_DLL) && defined(_MSC_VER)
 #ifdef TVM_FFI_EXPORTS
@@ -37,9 +49,11 @@
 #else
 #define TVM_FFI_DLL __declspec(dllimport)
 #endif
+#define TVM_FFI_DLL_EXPORT __declspec(dllexport)
 #endif
 #ifndef TVM_FFI_DLL
 #define TVM_FFI_DLL __attribute__((visibility("default")))
+#define TVM_FFI_DLL_EXPORT __attribute__((visibility("default")))
 #endif
 
 #ifdef __cplusplus
@@ -579,8 +593,10 @@ TVM_FFI_DLL int TVMFFIDataTypeFromString(const TVMFFIByteArray* str, DLDataType*
  * \return 0 when success, nonzero when failure happens
  * \note out is a String object that needs to be freed by the caller via TVMFFIObjectFree.
          The content of string can be accessed via TVMFFIObjectGetByteArrayPtr.
+
+ * \note The input dtype is a pointer to the DLDataType to avoid ABI compatibility issues.
  */
-TVM_FFI_DLL int TVMFFIDataTypeToString(DLDataType dtype, TVMFFIObjectHandle* out);
+TVM_FFI_DLL int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIObjectHandle* out);
 
 //------------------------------------------------------------
 // Section: Backend noexcept functions for internal use

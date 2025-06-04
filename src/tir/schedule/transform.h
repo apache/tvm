@@ -212,7 +212,7 @@ void LeafBlockRemovalPlan(const ScheduleState& self, const StmtSRef& leaf_block_
  * TensorIntrin.register(...) beforehand
  * \param allow_padding Whether to allow padding when tiling
  * \return LoopRV corresponding to the outermost loop of a
- * block tiled according to the given intrin, NullOpt if a valid loop mapping is not found
+ * block tiled according to the given intrin, std::nullopt if a valid loop mapping is not found
  */
 Optional<tir::LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::BlockRV& block_rv,
                                            const String& intrin_name, bool allow_padding = false);

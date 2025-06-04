@@ -21,10 +21,10 @@
  * \file rpc_module.cc
  * \brief RPC runtime module.
  */
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/profiling.h>
-#include <tvm/runtime/registry.h>
 
 #include <chrono>
 #include <cstring>
@@ -120,9 +120,7 @@ class RPCWrappedFunc : public Object {
         case ffi::TypeIndex::kTVMFFIFunction:
         case ffi::TypeIndex::kTVMFFIModule: {
           packed_args[i] = UnwrapRemoteValueToHandle(args[i]);
-          // hack, need to force set the type index to the correct one
-          // so legacy RPC ABI translation can work
-          // TODO(tqchen): remove this once we migrate to use new ABI as transport
+          // need to force set the type index to the correct one
           TVMFFIAny temp = packed_args[i].CopyToTVMFFIAny();
           temp.type_index = args[i].type_index();
           packed_args[i] = AnyView::CopyFromTVMFFIAny(temp);
@@ -290,30 +288,34 @@ void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
 }
 
 void RPCWrappedFunc::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv) const {
-  int tcode = args[0].cast<int>();
-  // TODO(tqchen): move to RPC to new ABI
-  if (tcode == kTVMNullptr) {
+  int type_index = args[0].cast<int>();
+  if (type_index == ffi::TypeIndex::kTVMFFINone) {
     *rv = nullptr;
     return;
-  } else if (tcode == kTVMPackedFuncHandle) {
+  } else if (type_index == ffi::TypeIndex::kTVMFFIFunction) {
     ICHECK_EQ(args.size(), 2);
     void* handle = args[1].cast<void*>();
     auto wf = std::make_shared<RPCWrappedFunc>(handle, sess_);
     *rv = ffi::Function(
         [wf](ffi::PackedArgs args, ffi::Any* rv) { return wf->operator()(args, rv); });
-  } else if (tcode == kTVMModuleHandle) {
+  } else if (type_index == ffi::TypeIndex::kTVMFFIModule) {
     ICHECK_EQ(args.size(), 2);
     void* handle = args[1].cast<void*>();
     auto n = make_object<RPCModuleNode>(handle, sess_);
     *rv = Module(n);
-  } else if (tcode == kTVMNDArrayHandle || tcode == kTVMDLTensorHandle) {
+  } else if (type_index == ffi::TypeIndex::kTVMFFINDArray ||
+             type_index == ffi::TypeIndex::kTVMFFIDLTensorPtr) {
     ICHECK_EQ(args.size(), 3);
     auto tensor = args[1].cast<DLTensor*>();
     void* nd_handle = args[2].cast<void*>();
     *rv = NDArrayFromRemoteOpaqueHandle(sess_, tensor->data, tensor,
                                         AddRPCSessionMask(tensor->device, sess_->table_index()),
                                         nd_handle);
-  } else if (tcode == kTVMObjectHandle) {
+  } else if (type_index == ffi::TypeIndex::kTVMFFIBytes ||
+             type_index == ffi::TypeIndex::kTVMFFIStr) {
+    ICHECK_EQ(args.size(), 2);
+    *rv = args[1];
+  } else if (type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
     ICHECK_EQ(args.size(), 2);
     void* handle = args[1].cast<void*>();
     auto n = make_object<RPCObjectRefObj>(handle, sess_);
@@ -387,7 +389,7 @@ inline void CPUCacheFlush(int begin_index, const ffi::PackedArgs& args) {
   }
 }
 
-TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
+TVM_FFI_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
     .set_body_typed([](Optional<Module> opt_mod, std::string name, int device_type, int device_id,
                        int number, int repeat, int min_repeat_ms, int limit_zero_time_iterations,
                        int cooldown_interval_ms, int repeats_to_cooldown, int cache_flush_bytes,
@@ -433,40 +435,40 @@ TVM_REGISTER_GLOBAL("runtime.RPCTimeEvaluator")
       }
     });
 
-TVM_REGISTER_GLOBAL("cache_flush_cpu_non_first_arg")
+TVM_FFI_REGISTER_GLOBAL("cache_flush_cpu_non_first_arg")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) { CPUCacheFlush(1, args); });
 
 // server function registration.
-TVM_REGISTER_GLOBAL("tvm.rpc.server.ImportModule").set_body_typed([](Module parent, Module child) {
-  parent->Import(child);
-});
+TVM_FFI_REGISTER_GLOBAL("tvm.rpc.server.ImportModule")
+    .set_body_typed([](Module parent, Module child) { parent->Import(child); });
 
-TVM_REGISTER_GLOBAL("tvm.rpc.server.ModuleGetFunction")
+TVM_FFI_REGISTER_GLOBAL("tvm.rpc.server.ModuleGetFunction")
     .set_body_typed([](Module parent, std::string name, bool query_imports) {
       return parent->GetFunction(name, query_imports);
     });
 
 // functions to access an RPC module.
-TVM_REGISTER_GLOBAL("rpc.LoadRemoteModule").set_body_typed([](Module sess, std::string name) {
+TVM_FFI_REGISTER_GLOBAL("rpc.LoadRemoteModule").set_body_typed([](Module sess, std::string name) {
   std::string tkey = sess->type_key();
   ICHECK_EQ(tkey, "rpc");
   return static_cast<RPCModuleNode*>(sess.operator->())->LoadModule(name);
 });
 
-TVM_REGISTER_GLOBAL("rpc.ImportRemoteModule").set_body_typed([](Module parent, Module child) {
+TVM_FFI_REGISTER_GLOBAL("rpc.ImportRemoteModule").set_body_typed([](Module parent, Module child) {
   std::string tkey = parent->type_key();
   ICHECK_EQ(tkey, "rpc");
   static_cast<RPCModuleNode*>(parent.operator->())->ImportModule(child);
 });
 
-TVM_REGISTER_GLOBAL("rpc.SessTableIndex").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  Module m = args[0].cast<Module>();
-  std::string tkey = m->type_key();
-  ICHECK_EQ(tkey, "rpc");
-  *rv = static_cast<RPCModuleNode*>(m.operator->())->sess()->table_index();
-});
+TVM_FFI_REGISTER_GLOBAL("rpc.SessTableIndex")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      Module m = args[0].cast<Module>();
+      std::string tkey = m->type_key();
+      ICHECK_EQ(tkey, "rpc");
+      *rv = static_cast<RPCModuleNode*>(m.operator->())->sess()->table_index();
+    });
 
-TVM_REGISTER_GLOBAL("tvm.rpc.NDArrayFromRemoteOpaqueHandle")
+TVM_FFI_REGISTER_GLOBAL("tvm.rpc.NDArrayFromRemoteOpaqueHandle")
     .set_body_typed([](Module mod, void* remote_array, DLTensor* template_tensor, Device dev,
                        void* ndarray_handle) -> NDArray {
       return NDArrayFromRemoteOpaqueHandle(RPCModuleGetSession(mod), remote_array, template_tensor,

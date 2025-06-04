@@ -275,22 +275,23 @@ TEST(String, Any) {
   Any b = view;
   EXPECT_EQ(b.type_index(), TypeIndex::kTVMFFIStr);
   EXPECT_EQ(b.as<String>().value(), "hello");
-  EXPECT_EQ(b.as<std::string>().value(), "hello");
+  EXPECT_TRUE(b.as<String>().has_value());
+  EXPECT_EQ(b.try_cast<std::string>().value(), "hello");
 
   std::string s_world = "world";
   view = s_world;
-  EXPECT_EQ(view.as<std::string>().value(), "world");
+  EXPECT_EQ(view.try_cast<std::string>().value(), "world");
 
   String s{"hello"};
   Any a = s;
   EXPECT_EQ(a.type_index(), TypeIndex::kTVMFFIStr);
   EXPECT_EQ(a.as<String>().value(), "hello");
-  EXPECT_EQ(a.as<std::string>().value(), "hello");
+  EXPECT_EQ(a.try_cast<std::string>().value(), "hello");
 
   Any c = "helloworld";
   EXPECT_EQ(c.type_index(), TypeIndex::kTVMFFIStr);
   EXPECT_EQ(c.as<String>().value(), "helloworld");
-  EXPECT_EQ(c.as<std::string>().value(), "helloworld");
+  EXPECT_EQ(c.try_cast<std::string>().value(), "helloworld");
 }
 
 TEST(String, Bytes) {
@@ -312,52 +313,52 @@ TEST(String, BytesAny) {
 
   AnyView view = &arr;
   EXPECT_EQ(view.type_index(), TypeIndex::kTVMFFIByteArrayPtr);
-  EXPECT_EQ(view.as<Bytes>().value().operator std::string(), s);
+  EXPECT_EQ(view.try_cast<Bytes>().value().operator std::string(), s);
 
   Any b = view;
   EXPECT_EQ(b.type_index(), TypeIndex::kTVMFFIBytes);
 
-  EXPECT_EQ(b.as<Bytes>().value().operator std::string(), s);
-  EXPECT_EQ(b.as<std::string>().value(), s);
+  EXPECT_EQ(b.try_cast<Bytes>().value().operator std::string(), s);
+  EXPECT_EQ(b.cast<std::string>(), s);
 }
 
 TEST(String, StdString) {
   std::string s1 = "test_string";
   AnyView view1 = s1;
   EXPECT_EQ(view1.type_index(), TypeIndex::kTVMFFIRawStr);
-  EXPECT_EQ(view1.as<std::string>().value(), s1);
+  EXPECT_EQ(view1.try_cast<std::string>().value(), s1);
 
   TVMFFIByteArray arr1{s1.data(), static_cast<size_t>(s1.size())};
   AnyView view2 = &arr1;
   EXPECT_EQ(view2.type_index(), TypeIndex::kTVMFFIByteArrayPtr);
-  EXPECT_EQ(view2.as<std::string>().value(), s1);
+  EXPECT_EQ(view2.try_cast<std::string>().value(), s1);
 
   Bytes bytes1 = s1;
   AnyView view3 = bytes1;
   EXPECT_EQ(view3.type_index(), TypeIndex::kTVMFFIBytes);
-  EXPECT_EQ(view3.as<std::string>().value(), s1);
+  EXPECT_EQ(view3.try_cast<std::string>().value(), s1);
 
   String string1 = s1;
   AnyView view4 = string1;
   EXPECT_EQ(view4.type_index(), TypeIndex::kTVMFFIStr);
-  EXPECT_EQ(view4.as<std::string>().value(), s1);
+  EXPECT_EQ(view4.try_cast<std::string>().value(), s1);
 
   // Test with Any
   Any any1 = s1;
   EXPECT_EQ(any1.type_index(), TypeIndex::kTVMFFIStr);
-  EXPECT_EQ(any1.as<std::string>().value(), s1);
+  EXPECT_EQ(any1.try_cast<std::string>().value(), s1);
 
   Any any2 = &arr1;
   EXPECT_EQ(any2.type_index(), TypeIndex::kTVMFFIBytes);
-  EXPECT_EQ(any2.as<std::string>().value(), s1);
+  EXPECT_EQ(any2.try_cast<std::string>().value(), s1);
 
   Any any3 = bytes1;
   EXPECT_EQ(any3.type_index(), TypeIndex::kTVMFFIBytes);
-  EXPECT_EQ(any3.as<std::string>().value(), s1);
+  EXPECT_EQ(any3.try_cast<std::string>().value(), s1);
 
   Any any4 = string1;
   EXPECT_EQ(any4.type_index(), TypeIndex::kTVMFFIStr);
-  EXPECT_EQ(any4.as<std::string>().value(), s1);
+  EXPECT_EQ(any4.try_cast<std::string>().value(), s1);
 }
 
 TEST(String, CAPIAccessor) {

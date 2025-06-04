@@ -91,7 +91,7 @@ class DataflowBlockExtractor : public ExprMutator {
       }
 
       dataflow_bindings = {};
-      input_dataflow_block = NullOpt;
+      input_dataflow_block = std::nullopt;
     };
 
     for (auto block : seq->blocks) {
@@ -159,7 +159,7 @@ Pass ConvertToDataflow(int min_size) {
   return tvm::transform::Sequential({pass, CanonicalizeBindings()});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ConvertToDataflow").set_body_typed(ConvertToDataflow);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.ConvertToDataflow").set_body_typed(ConvertToDataflow);
 
 }  // namespace transform
 

@@ -795,7 +795,7 @@ Expr RewriteSplit(BlockBuilder builder, const Var& var, const Call& src_call,
       split_begins.push_back(i * size);
       split_ends.push_back(i * size + size);
     }
-  } else if (src_attrs->indices_or_sections->IsInstance<ArrayObj>()) {
+  } else if (src_attrs->indices_or_sections->IsInstance<ffi::ArrayObj>()) {
     const auto& indices = Downcast<Array<Integer>>(src_attrs->indices_or_sections);
     int64_t last_index = 0;
     for (size_t i = 0; i < indices.size(); ++i) {
@@ -913,7 +913,7 @@ Pass TransformTensorRT(const String& config) {
   return CreateFunctionPass(pass_func, 0, "TransformTensorRT", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.TransformTensorRT").set_body_typed(TransformTensorRT);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.TransformTensorRT").set_body_typed(TransformTensorRT);
 
 }  // namespace transform
 }  // namespace relax

@@ -143,7 +143,7 @@ class PartialTupleUsageCollector : ExprVisitor {
           return known_binding.value();
         }
       }
-      return NullOpt;
+      return std::nullopt;
     };
 
     while (auto unwrapped = get_bound_value(expr)) {
@@ -336,7 +336,7 @@ Pass RemoveUnusedOutputs() {
       "RemoveUnusedOutputs");
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.RemoveUnusedOutputs").set_body_typed(RemoveUnusedOutputs);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.RemoveUnusedOutputs").set_body_typed(RemoveUnusedOutputs);
 
 }  // namespace transform
 

@@ -166,7 +166,7 @@ class TokenAllocator1D {
    * \brief Request a storage token from the available token pool for a
    * given prototype, or report no appropriate available token in the pool.
    * \param prototype The requesting prototype storage token.
-   * \return The request result token. Return NullOpt if there is no
+   * \return The request result token. Return std::nullopt if there is no
    * appropriate available token in the pool.
    */
   Optional<StorageToken> RequestReuse(StorageToken prototype) {
@@ -175,7 +175,7 @@ class TokenAllocator1D {
     // If the prototype has no reference at all, feel free to allocate new storage.
     // The unused binding can be removed by cleaning passes.
     if (prototype->ref_counter == 0) {
-      return NullOpt;
+      return std::nullopt;
     }
 
     // Step 1. Get the available pool of the token dtype.
@@ -197,7 +197,7 @@ class TokenAllocator1D {
           return available_token;
         }
       }
-      return NullOpt;
+      return std::nullopt;
     }
     // Step 2. Get the range of memory blocks in [size / match_range_, size * match_range_)
     auto begin = pool.lower_bound(size / match_range_);
@@ -228,8 +228,9 @@ class TokenAllocator1D {
       pool.erase(mid);
       return available_token;
     }
-    // Return `NullOpt` indicating that no satisfiable storage token is found in the available pool.
-    return NullOpt;
+    // Return `std::nullopt` indicating that no satisfiable storage token is found in the available
+    // pool.
+    return std::nullopt;
   }
 
   /*!
@@ -982,7 +983,8 @@ Pass StaticPlanBlockMemory() {
   return CreateModulePass(pass_func, /*opt_level=*/0, "StaticPlanBlockMemory", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.StaticPlanBlockMemory").set_body_typed(StaticPlanBlockMemory);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.StaticPlanBlockMemory")
+    .set_body_typed(StaticPlanBlockMemory);
 
 }  // namespace transform
 }  // namespace relax

@@ -35,7 +35,7 @@ runtime::Module BuildSPIRV(IRModule mod, Target target) {
   return runtime::VulkanModuleCreate(smap, ExtractFuncInfo(mod), spirv_text);
 }
 
-TVM_REGISTER_GLOBAL("target.build.vulkan").set_body_typed([](IRModule mod, Target target) {
+TVM_FFI_REGISTER_GLOBAL("target.build.vulkan").set_body_typed([](IRModule mod, Target target) {
   return BuildSPIRV(mod, target);
 });
 

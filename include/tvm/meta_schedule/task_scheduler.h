@@ -19,16 +19,16 @@
 #ifndef TVM_META_SCHEDULE_TASK_SCHEDULER_H_
 #define TVM_META_SCHEDULE_TASK_SCHEDULER_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/meta_schedule/builder.h>
 #include <tvm/meta_schedule/cost_model.h>
 #include <tvm/meta_schedule/measure_callback.h>
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/meta_schedule/tune_context.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/optional.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/support/random_engine.h>
 
 #include <string>
@@ -54,11 +54,11 @@ class TaskRecordNode : public runtime::Object {
   /*! \brief The latency of each run, in milliseconds. */
   std::vector<double> latency_ms = {};
   /*! \brief The measure candidates. */
-  Optional<Array<MeasureCandidate>> measure_candidates = NullOpt;
+  Optional<Array<MeasureCandidate>> measure_candidates = std::nullopt;
   /*! \brief The building results. */
-  Optional<Array<BuilderResult>> builder_results = NullOpt;
+  Optional<Array<BuilderResult>> builder_results = std::nullopt;
   /*! \brief Packed functions to fetch the runner results asynchronously. */
-  Optional<Array<RunnerFuture>> runner_futures = NullOpt;
+  Optional<Array<RunnerFuture>> runner_futures = std::nullopt;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("ctx", &ctx);

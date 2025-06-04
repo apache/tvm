@@ -23,6 +23,7 @@
 
 using namespace tvm::runtime;
 using namespace tvm::runtime::hexagon;
+using namespace tvm::ffi;
 
 class HexagonDeviceAPITest : public ::testing::Test {
  protected:

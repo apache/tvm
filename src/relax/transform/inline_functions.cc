@@ -85,7 +85,7 @@ class FunctionInliner : public ExprMutator {
     } else if (auto opt = replacements_.Get(gvar->name_hint)) {
       return opt;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }
 
@@ -164,7 +164,7 @@ Function FunctionInlineFunctions(Function func,
   return Downcast<Function>(mutator(std::move(func)));
 }
 
-TVM_REGISTER_GLOBAL("relax.FunctionInlineFunctions").set_body_typed(FunctionInlineFunctions);
+TVM_FFI_REGISTER_GLOBAL("relax.FunctionInlineFunctions").set_body_typed(FunctionInlineFunctions);
 
 namespace transform {
 
@@ -219,7 +219,7 @@ Pass InlinePrivateFunctions() {
   return tvm::transform::CreateModulePass(pass_func, 0, "InlinePrivateFunctions", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.InlinePrivateFunctions")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.InlinePrivateFunctions")
     .set_body_typed(InlinePrivateFunctions);
 
 }  // namespace transform

@@ -273,7 +273,7 @@ class GraphBuilder : public ExprVisitor {
   const MSCRBuildConfig config() { return config_; }
 
   /*! \brief Create and add MSCJoint from expr*/
-  const MSCJoint AddNode(const Expr& expr, const Optional<Expr>& binding_var = NullOpt,
+  const MSCJoint AddNode(const Expr& expr, const Optional<Expr>& binding_var = std::nullopt,
                          const String& name = "");
 
   /*! \brief Create and add MSCPrim from prim*/

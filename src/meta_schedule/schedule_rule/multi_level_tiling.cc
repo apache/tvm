@@ -405,7 +405,7 @@ ScheduleRule ScheduleRule::MultiLevelTiling(String structure, Optional<Array<Str
 }
 
 TVM_REGISTER_NODE_TYPE(MultiLevelTilingNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTiling")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTiling")
     .set_body_typed(ScheduleRule::MultiLevelTiling);
 
 }  // namespace meta_schedule

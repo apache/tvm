@@ -18,13 +18,13 @@
  */
 #ifndef TVM_RUNTIME_RELAX_VM_KV_STATE_H_
 #define TVM_RUNTIME_RELAX_VM_KV_STATE_H_
-#include <tvm/runtime/container/array.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
-
-#include "tvm/runtime/object.h"
+#include <tvm/runtime/object.h>
 
 namespace tvm {
 namespace runtime {
@@ -95,7 +95,7 @@ class KVStateObj : public Object {
    * is a chain.
    */
   virtual void BeginForward(const IntTuple& seq_ids, const IntTuple& append_lengths,
-                            const Optional<IntTuple>& token_tree_parent_ptr = NullOpt) = 0;
+                            const Optional<IntTuple>& token_tree_parent_ptr = std::nullopt) = 0;
 
   /*!
    * \brief Mark the start of the forward function.

@@ -22,11 +22,10 @@ from typing import Any, Callable, Dict, List, Optional, Union, Mapping
 import numpy as _np  # type: ignore
 
 import tvm
-import tvm._ffi
+import tvm.ffi
 import tvm.ir
 import tvm.relax
 from tvm import DataType
-from tvm._ffi import base as _base
 from tvm.runtime import Object
 from tvm.runtime import ndarray as _nd
 
@@ -43,7 +42,7 @@ Type = Union[tvm.ir.Type]  # pylint: disable=invalid-name
 GlobalVar = Union[tvm.ir.GlobalVar]
 
 
-@tvm._ffi.register_object("relax.Id")
+@tvm.ffi.register_object("relax.Id")
 class Id(Object):
     """Unique identifier(name) used in Var.
     Guaranteed to be stable across all passes.
@@ -528,7 +527,7 @@ class _DLTensorStrideProxy(tvm.runtime.ObjectGeneric):
         return tvm.relax.Call(op, [self.tensor, axis])
 
 
-@tvm._ffi.register_object("relax.expr.Call")
+@tvm.ffi.register_object("relax.expr.Call")
 class Call(ExprWithOp):
     """Function call node in Relax.
 
@@ -577,7 +576,7 @@ class Call(ExprWithOp):
         )
 
 
-@tvm._ffi.register_object("relax.expr.If")
+@tvm.ffi.register_object("relax.expr.If")
 class If(ExprWithOp):
     """A conditional expression in Relax.
 
@@ -609,7 +608,7 @@ class If(ExprWithOp):
         )
 
 
-@tvm._ffi.register_object("relax.expr.Tuple")
+@tvm.ffi.register_object("relax.expr.Tuple")
 class Tuple(ExprWithOp):
     """Tuple expression that groups several fields together.
 
@@ -644,7 +643,7 @@ class Tuple(ExprWithOp):
         return len(self.fields)
 
 
-@tvm._ffi.register_object("relax.expr.TupleGetItem")
+@tvm.ffi.register_object("relax.expr.TupleGetItem")
 class TupleGetItem(ExprWithOp):
     """Get index-th item from a tuple.
 
@@ -670,7 +669,7 @@ class TupleGetItem(ExprWithOp):
         )
 
 
-@tvm._ffi.register_object("relax.expr.ShapeExpr")
+@tvm.ffi.register_object("relax.expr.ShapeExpr")
 class ShapeExpr(ExprWithOp):
     """A shape expression which allows users to construct a shape containing PrimExpr.
 
@@ -708,7 +707,7 @@ def make_shape(shape: Union[List[Any], typing.Tuple[Any, ...]]) -> ShapeExpr:
     raise ValueError("Wrong type")
 
 
-@tvm._ffi.register_object("relax.expr.Constant")
+@tvm.ffi.register_object("relax.expr.Constant")
 class Constant(ExprWithOp):
     """Constant Tensor
 
@@ -742,7 +741,7 @@ class Constant(ExprWithOp):
         )
 
 
-@tvm._ffi.register_object("relax.expr.Var")
+@tvm.ffi.register_object("relax.expr.Var")
 class Var(ExprWithOp):
     """The variable class for all Relax bindings.
 
@@ -789,7 +788,7 @@ class Var(ExprWithOp):
         return name
 
 
-@tvm._ffi.register_object("relax.expr.DataflowVar")
+@tvm.ffi.register_object("relax.expr.DataflowVar")
 class DataflowVar(Var):
     """A sub-type of the variable node used to mark dataflow variables from
     normal visible "function local" bindings.
@@ -838,7 +837,7 @@ class DataflowVar(Var):
         )
 
 
-@tvm._ffi.register_object("relax.expr.PrimValue")
+@tvm.ffi.register_object("relax.expr.PrimValue")
 class PrimValue(Expr, Scriptable):
     """The prim expr representing the value."""
 
@@ -850,7 +849,7 @@ class PrimValue(Expr, Scriptable):
         self.__init_handle_by_constructor__(_ffi_api.PrimValue, value, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.StringImm")
+@tvm.ffi.register_object("relax.expr.StringImm")
 class StringImm(Expr, Scriptable):
     """Represent a string literal constant."""
 
@@ -861,7 +860,7 @@ class StringImm(Expr, Scriptable):
         self.__init_handle_by_constructor__(_ffi_api.StringImm, value, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.DataTypeImm")
+@tvm.ffi.register_object("relax.expr.DataTypeImm")
 class DataTypeImm(Expr, Scriptable):
     """Represent a data type constant."""
 
@@ -872,7 +871,7 @@ class DataTypeImm(Expr, Scriptable):
         self.__init_handle_by_constructor__(_ffi_api.DataTypeImm, value, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.Binding")
+@tvm.ffi.register_object("relax.expr.Binding")
 class Binding(Node, Scriptable):
     """The base class of a binding in Relax."""
 
@@ -880,7 +879,7 @@ class Binding(Node, Scriptable):
     span: Optional[Span]
 
 
-@tvm._ffi.register_object("relax.expr.MatchCast")
+@tvm.ffi.register_object("relax.expr.MatchCast")
 class MatchCast(Binding):
     """Runtime-match the value to the struct info.
 
@@ -912,7 +911,7 @@ class MatchCast(Binding):
         )
 
 
-@tvm._ffi.register_object("relax.expr.VarBinding")
+@tvm.ffi.register_object("relax.expr.VarBinding")
 class VarBinding(Binding):
     """Variable binding, bind he variable of the lhs with the rhs.
 
@@ -934,7 +933,7 @@ class VarBinding(Binding):
         self.__init_handle_by_constructor__(_ffi_api.VarBinding, var, value, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.BindingBlock")
+@tvm.ffi.register_object("relax.expr.BindingBlock")
 class BindingBlock(Node, Scriptable):
     """base class of binding block, bindings inside can be impure
     (with side effect or control flow)"""
@@ -946,7 +945,7 @@ class BindingBlock(Node, Scriptable):
         self.__init_handle_by_constructor__(_ffi_api.BindingBlock, bindings, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.DataflowBlock")
+@tvm.ffi.register_object("relax.expr.DataflowBlock")
 class DataflowBlock(BindingBlock):
     """dataflow block, bindings inside are pure (no side effect and no control flow)"""
 
@@ -958,7 +957,7 @@ class DataflowBlock(BindingBlock):
         self.__init_handle_by_constructor__(_ffi_api.DataflowBlock, bindings, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.SeqExpr")
+@tvm.ffi.register_object("relax.expr.SeqExpr")
 class SeqExpr(ExprWithOp):
     """A sequence of binding blocks followed by an expression."""
 
@@ -970,7 +969,7 @@ class SeqExpr(ExprWithOp):
         self.__init_handle_by_constructor__(_ffi_api.SeqExpr, blocks, body, span)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.Function")
+@tvm.ffi.register_object("relax.expr.Function")
 class Function(BaseFunc, Scriptable):
     """A Relax function."""
 
@@ -1109,7 +1108,7 @@ class Function(BaseFunc, Scriptable):
         return _ffi_api.FunctionInlineFunctions(self, function_map)  # type: ignore
 
 
-@tvm._ffi.register_object("relax.expr.ExternFunc")
+@tvm.ffi.register_object("relax.expr.ExternFunc")
 class ExternFunc(BaseFunc, ExprWithOp):
     """extern function, which represents a PackedFunc."""
 
@@ -1154,7 +1153,7 @@ def const(
     - bool maps to "bool"
     - other using the same default rule as numpy.
     """
-    if isinstance(value, (_base.numeric_types, (bool, list))):
+    if isinstance(value, (Number, (bool, list))):
         value = _np.array(value, dtype=dtype)
 
     if not dtype:

@@ -169,7 +169,7 @@ runtime::Module BuildCUDA(IRModule mod, Target target) {
   return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code);
 }
 
-TVM_REGISTER_GLOBAL("target.build.cuda").set_body_typed(BuildCUDA);
+TVM_FFI_REGISTER_GLOBAL("target.build.cuda").set_body_typed(BuildCUDA);
 TVM_REGISTER_PASS_CONFIG_OPTION("cuda.kernels_output_dir", String);
 }  // namespace codegen
 }  // namespace tvm

@@ -27,7 +27,7 @@ namespace tir {
 /*!
  * \brief Check if buffer indices are all Vars and expr
  * \param buffer_access The BufferLoad or BufferStore
- * \return The indices if the indices are all Vars, otherwise NullOpt
+ * \return The indices if the indices are all Vars, otherwise std::nullopt
  */
 Optional<Array<Var>> CheckTrivialBufferIndices(const Array<PrimExpr>& buffer_access) {
   Array<Var> indices;
@@ -37,7 +37,7 @@ Optional<Array<Var>> CheckTrivialBufferIndices(const Array<PrimExpr>& buffer_acc
     }
     const VarNode* var = index.as<VarNode>();
     if (var == nullptr) {
-      return NullOpt;
+      return std::nullopt;
     }
     indices.push_back(GetRef<Var>(var));
   }
@@ -49,7 +49,7 @@ Optional<Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buffer_region)
   indices.reserve(buffer_region->region.size());
   for (const Range& range : buffer_region->region) {
     if (!tir::is_one(range->extent)) {
-      return NullOpt;
+      return std::nullopt;
     }
     if (range->min->IsInstance<IntImmNode>()) {
       continue;
@@ -57,7 +57,7 @@ Optional<Array<Var>> CheckTrivialBufferAccess(const BufferRegion& buffer_region)
     if (const auto* var = range->min.as<VarNode>()) {
       indices.push_back(GetRef<Var>(var));
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }
   return indices;

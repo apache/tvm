@@ -103,9 +103,9 @@ class RNNStateImpObj : public RNNStateObj {
   /*! \brief The batch size of the current round of forwarding. */
   int64_t cur_batch_size_;
   /*! \brief The append lengths of the sequences in the current round of forwarding. */
-  IntTuple cur_append_lengths_;
+  ffi::Shape cur_append_lengths_;
   /*! \brief The sequence ids of the current round of forwarding. */
-  IntTuple cur_seq_ids_;
+  ffi::Shape cur_seq_ids_;
 
   /**************** Auxiliary Arrays on Device *****************/
 
@@ -173,8 +173,8 @@ class RNNStateImpObj : public RNNStateObj {
       Array<NDArray> layer_storages;
       layer_storages.reserve(num_states_per_layer_);
       for (int64_t state_id = 0; state_id < num_states_per_layer_; ++state_id) {
-        ShapeTuple state_shape = init_layer_value[state_id].Shape();
-        std::vector<ShapeTupleObj::index_type> storage_shape = {reserved_num_seqs, max_history};
+        ffi::Shape state_shape = init_layer_value[state_id].Shape();
+        std::vector<ffi::ShapeObj::index_type> storage_shape = {reserved_num_seqs, max_history};
         storage_shape.insert(storage_shape.end(), state_shape.begin(), state_shape.end());
         NDArray state_storage =
             NDArray::Empty(storage_shape, init_layer_value[state_id].DataType(), device);
@@ -205,14 +205,14 @@ class RNNStateImpObj : public RNNStateObj {
 
   /************** Interaction **************/
 
-  void BeginForward(const IntTuple& seq_ids, const IntTuple& append_lengths,
-                    const Optional<IntTuple>& opt_token_tree_parent_ptr) final {
+  void BeginForward(const ffi::Shape& seq_ids, const ffi::Shape& append_lengths,
+                    const Optional<ffi::Shape>& opt_token_tree_parent_ptr) final {
     CHECK_EQ(seq_ids.size(), append_lengths.size())
         << "The seq_ids size (" << seq_ids.size() << ") and append_lengths size ("
         << append_lengths.size() << ") mismatch.";
 
     if (opt_token_tree_parent_ptr.defined()) {
-      IntTuple token_tree_parent_ptr = opt_token_tree_parent_ptr.value();
+      ffi::Shape token_tree_parent_ptr = opt_token_tree_parent_ptr.value();
       int matched_pos = 0;
       for (int64_t append_length : append_lengths) {
         for (int64_t i = 0; i < append_length; ++i) {
@@ -464,7 +464,7 @@ TVM_REGISTER_OBJECT_TYPE(RNNStateImpObj);
 //  Register runtime functions
 //-------------------------------------------------
 
-TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_create")
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.rnn_state_create")
     .set_body_typed([](int64_t num_layers,           //
                        int64_t reserved_num_seqs,    //
                        int64_t max_history,          //

@@ -24,7 +24,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
-#include <tvm/runtime/container/array.h>
+#include <tvm/ffi/container/array.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/var.h>

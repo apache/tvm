@@ -735,17 +735,17 @@ struct TypeTraits<TypedFunction<FType>> : public TypeTraitsBase {
     TypeTraits<Function>::MoveToAny(std::move(src.packed()), result);
   }
 
-  static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE bool CheckAnyStrict(const TVMFFIAny* src) {
     return src->type_index == TypeIndex::kTVMFFIFunction;
   }
 
-  static TVM_FFI_INLINE TypedFunction<FType> CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
-    return TypedFunction<FType>(TypeTraits<Function>::CopyFromAnyStorageAfterCheck(src));
+  static TVM_FFI_INLINE TypedFunction<FType> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    return TypedFunction<FType>(TypeTraits<Function>::CopyFromAnyViewAfterCheck(src));
   }
 
-  static TVM_FFI_INLINE std::optional<TypedFunction<FType>> TryConvertFromAnyView(
+  static TVM_FFI_INLINE std::optional<TypedFunction<FType>> TryCastFromAnyView(
       const TVMFFIAny* src) {
-    std::optional<Function> opt = TypeTraits<Function>::TryConvertFromAnyView(src);
+    std::optional<Function> opt = TypeTraits<Function>::TryCastFromAnyView(src);
     if (opt.has_value()) {
       return TypedFunction<FType>(*std::move(opt));
     } else {
@@ -787,7 +787,7 @@ class Function::Registry {
    * .set_body_typed(multiply); // will have type int(int, int)
    *
    * // will have type int(int, int)
-   * TVM_REGISTER_GLOBAL("sub")
+   * TVM_FFI_REGISTER_GLOBAL("sub")
    * .set_body_typed([](int a, int b) -> int { return a - b; });
    *
    * \endcode
@@ -909,6 +909,55 @@ inline int32_t TypeKeyToIndex(std::string_view type_key) {
  */
 #define TVM_FFI_REGISTER_GLOBAL(OpName) \
   TVM_FFI_STR_CONCAT(TVM_FFI_FUNC_REG_VAR_DEF, __COUNTER__) = ::tvm::ffi::Function::Registry(OpName)
+
+/*!
+ * \brief Export typed function as a SafeCallType symbol.
+ *
+ * \param ExportName The symbol name to be exported.
+ * \param Function The typed function.
+ * \note ExportName and Function must be different,
+ *       see code examples below.
+ *
+ * \sa ffi::TypedFunction
+ *
+ * \code
+ *
+ * int AddOne_(int x) {
+ *   return x + 1;
+ * }
+ *
+ * // Expose the function as "AddOne"
+ * TVM_FFI_DLL_EXPORT_TYPED_FUNC(AddOne, AddOne_);
+ *
+ * // Expose the function as "SubOne"
+ * TVM_FFI_DLL_EXPORT_TYPED_FUNC(SubOne, [](int x) {
+ *   return x - 1;
+ * });
+ *
+ * // The following code will cause compilation error.
+ * // Because the same Function and ExportName
+ * // TVM_FFI_DLL_EXPORT_TYPED_FUNC(AddOne_, AddOne_);
+ *
+ * // The following code is OK, assuming the macro
+ * // is in a different namespace from xyz
+ * // TVM_FFI_DLL_EXPORT_TYPED_FUNC(AddOne_, xyz::AddOne_);
+ *
+ * \endcode
+ */
+#define TVM_FFI_DLL_EXPORT_TYPED_FUNC(ExportName, Function)                        \
+  extern "C" {                                                                     \
+  TVM_FFI_DLL_EXPORT int ExportName(void* self, TVMFFIAny* args, int32_t num_args, \
+                                    TVMFFIAny* result) {                           \
+    TVM_FFI_SAFE_CALL_BEGIN();                                                     \
+    using FuncInfo = ::tvm::ffi::details::FunctionInfo<decltype(Function)>;        \
+    static std::string name = #ExportName;                                         \
+    ::tvm::ffi::details::unpack_call<typename FuncInfo::RetType>(                  \
+        std::make_index_sequence<FuncInfo::num_args>{}, &name, Function,           \
+        reinterpret_cast<const ::tvm::ffi::AnyView*>(args), num_args,              \
+        reinterpret_cast<::tvm::ffi::Any*>(result));                               \
+    TVM_FFI_SAFE_CALL_END();                                                       \
+  }                                                                                \
+  }
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_FUNCTION_H_

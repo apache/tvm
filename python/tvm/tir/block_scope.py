@@ -18,7 +18,7 @@
 from enum import IntEnum
 from typing import List, Optional, Union
 
-from tvm._ffi import register_object
+from tvm.ffi import register_object
 from tvm.runtime import Object
 from tvm.tir import Block, For
 

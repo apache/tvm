@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/script/ir_builder/base.h>
 
 namespace tvm {
@@ -46,7 +46,7 @@ void IRBuilderFrameNode::AddCallback(ffi::TypedFunction<void()> callback) {
 IRBuilder::IRBuilder() {
   ObjectPtr<IRBuilderNode> n = make_object<IRBuilderNode>();
   n->frames.clear();
-  n->result = NullOpt;
+  n->result = std::nullopt;
   data_ = n;
 }
 
@@ -60,7 +60,7 @@ void IRBuilder::EnterWithScope() {
   CHECK(n->frames.empty()) << "ValueError: There are frame(s) left in the builder: "
                            << n->frames.size()
                            << ". Please use a fresh new builder every time building IRs";
-  n->result = NullOpt;
+  n->result = std::nullopt;
   std::vector<IRBuilder>* stack = ThreadLocalBuilderStack();
   stack->push_back(*this);
 }
@@ -101,20 +101,24 @@ void Namer::Name(ObjectRef node, String name) {
 
 TVM_REGISTER_NODE_TYPE(IRBuilderFrameNode);
 TVM_REGISTER_NODE_TYPE(IRBuilderNode);
-TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderFrameEnter")
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.IRBuilderFrameEnter")
     .set_body_method(&IRBuilderFrameNode::EnterWithScope);
-TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderFrameExit")
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.IRBuilderFrameExit")
     .set_body_method(&IRBuilderFrameNode::ExitWithScope);
-TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderFrameAddCallback")
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.IRBuilderFrameAddCallback")
     .set_body_method(&IRBuilderFrameNode::AddCallback);
-TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilder").set_body_typed([]() { return IRBuilder(); });
-TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderEnter").set_body_method(&IRBuilder::EnterWithScope);
-TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderExit").set_body_method(&IRBuilder::ExitWithScope);
-TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderCurrent").set_body_typed(IRBuilder::Current);
-TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderIsInScope").set_body_typed(IRBuilder::IsInScope);
-TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderGet")
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.IRBuilder").set_body_typed([]() { return IRBuilder(); });
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.IRBuilderEnter")
+    .set_body_method(&IRBuilder::EnterWithScope);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.IRBuilderExit")
+    .set_body_method(&IRBuilder::ExitWithScope);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.IRBuilderCurrent").set_body_typed(IRBuilder::Current);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.IRBuilderIsInScope")
+    .set_body_typed(IRBuilder::IsInScope);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.IRBuilderGet")
     .set_body_method(&IRBuilderNode::Get<ObjectRef>);
-TVM_REGISTER_GLOBAL("script.ir_builder.IRBuilderName").set_body_typed(IRBuilder::Name<ObjectRef>);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.IRBuilderName")
+    .set_body_typed(IRBuilder::Name<ObjectRef>);
 
 }  // namespace ir_builder
 }  // namespace script

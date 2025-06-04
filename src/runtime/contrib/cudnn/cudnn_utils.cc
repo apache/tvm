@@ -24,8 +24,8 @@
 #include "cudnn_utils.h"
 
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/registry.h>
 
 #include <string>
 #include <vector>
@@ -177,7 +177,7 @@ void SetConvDescriptors(CuDNNThreadEntry* entry_ptr, int format, int dims, int g
   entry_ptr->conv_entry.tensor_format = static_cast<cudnnTensorFormat_t>(format);
   // Set Data Type
   entry_ptr->conv_entry.data_type =
-      CuDNNDataType::DLTypeToCuDNNType(runtime::StringToDLDataType(conv_dtype));
+      CuDNNDataType::DLTypeToCuDNNType(ffi::StringToDLDataType(conv_dtype));
 
   cudnnDataType_t cudnn_data_type = CuDNNDataType::DLTypeToCuDNNType(data_dtype);
 
@@ -265,7 +265,7 @@ SoftmaxEntry::SoftmaxEntry() { CUDNN_CALL(cudnnCreateTensorDescriptor(&shape_des
 
 SoftmaxEntry::~SoftmaxEntry() { CUDNN_CALL(cudnnDestroyTensorDescriptor(shape_desc)); }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.exists").set_body_typed([]() -> bool {
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cudnn.exists").set_body_typed([]() -> bool {
   return CuDNNThreadEntry::ThreadLocal(false)->exists();
 });
 

@@ -20,8 +20,8 @@
 #include "create_primfunc.h"
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/name_supply.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/data_type_rewriter.h>
@@ -299,7 +299,7 @@ Map<String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& compute_op,
                                                CreateFuncInfo* info) {
   Map<String, ffi::Any> annotations;
   auto mutate_attr = [&info](const ffi::Any& value) -> ffi::Any {
-    if (auto tensor_value = value.as<te::Tensor>()) {
+    if (auto tensor_value = value.try_cast<te::Tensor>()) {
       return info->tensor2buffers.at(tensor_value.value());
     } else {
       return value;
@@ -309,7 +309,7 @@ Map<String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& compute_op,
     const String& key = pair.first;
     const Any& value = pair.second;
     // TensorIR will not allow Tensor data structure
-    if (value.as<ArrayObj>()) {
+    if (value.as<ffi::ArrayObj>()) {
       const auto array_value = Downcast<Array<ffi::Any>>(value);
       annotations.Set(key, array_value.Map(mutate_attr));
     } else {
@@ -337,7 +337,7 @@ Stmt GenerateInitStmt(const Array<PrimExpr>& indices, const Array<Buffer>& buffe
   auto f_transform_and_remap = [&](const PrimExpr& e) {
     return Substitute(info->transformer(e), var_map);
   };
-  Optional<Stmt> init = NullOpt;
+  Optional<Stmt> init = std::nullopt;
   Stmt body;
   int n_buffers = buffers.size();
   Array<Stmt> init_stmts;
@@ -521,7 +521,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       // for the leaf scope, we ensure at least one block var exists
       IterVar dummy(Range::FromMinExtent(0, 1), Var("vi", DataType::Int(32)),
                     IterVarType::kDataPar);
-      cur_scope.AddBlockIter(NullOpt, dummy, 0);
+      cur_scope.AddBlockIter(std::nullopt, dummy, 0);
     }
     scopes.push_back(cur_scope);
   }
@@ -569,7 +569,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
                                             /*writes=*/{},
                                             /*name_hint=*/info->FreshName(buffers[i]->name),
                                             /*body=*/body,
-                                            /*init=*/NullOpt,
+                                            /*init=*/std::nullopt,
                                             /*alloc_buffers=*/{},
                                             /*match_buffers=*/{},
                                             /*annotations=*/annotations)));
@@ -584,7 +584,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       auto block_name = info->FreshName(compute_op->name + "_l" + std::to_string(i));
       const auto& block_iters = cur.block_iters;
 
-      Optional<Stmt> init{NullOpt};
+      Optional<Stmt> init{std::nullopt};
       if (reduce && std::any_of(block_iters.begin(), block_iters.end(), [](const IterVar& iter) {
             return iter->iter_type == IterVarType::kCommReduce;
           })) {
@@ -659,7 +659,7 @@ Stmt GenerateStmtFromExternOp(const te::ExternOp& extern_op, CreateFuncInfo* inf
                             /*writes=*/{},
                             /*name_hint=*/info->FreshName(extern_op->name),
                             /*body=*/std::move(body),
-                            /*init=*/NullOpt,
+                            /*init=*/std::nullopt,
                             /*alloc_buffers=*/{},
                             /*match_buffers=*/{},
                             /*annotations=*/extern_op->attrs));
@@ -784,15 +784,16 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
   return CreatePrimFuncWithConstants(arg_list, {}, index_dtype_override);
 }
 
-TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-  Array<ObjectRef> arg_list = args[0].cast<Array<ObjectRef>>();
-  std::optional<DataType> index_dtype_override{std::nullopt};
-  // Add conversion to make std::optional compatible with FFI.
-  if (args[1] != nullptr) {
-    index_dtype_override = args[1].cast<DataType>();
-  }
-  *ret = CreatePrimFunc(arg_list, index_dtype_override);
-});
+TVM_FFI_REGISTER_GLOBAL("te.CreatePrimFunc")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      Array<ObjectRef> arg_list = args[0].cast<Array<ObjectRef>>();
+      std::optional<DataType> index_dtype_override{std::nullopt};
+      // Add conversion to make std::optional compatible with FFI.
+      if (args[1] != nullptr) {
+        index_dtype_override = args[1].cast<DataType>();
+      }
+      *ret = CreatePrimFunc(arg_list, index_dtype_override);
+    });
 
 // Relax version impl
 PrimFunc GenerateAndCompletePrimFunc(const Array<ObjectRef>& arg_tir_var_list,

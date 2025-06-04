@@ -22,7 +22,7 @@
  */
 // Loop vectorizer as in Halide pipeline.
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -80,8 +80,8 @@ bool EnableBufferLevelPredication(Target target) {
     return enable_buffer_predication.value();
   }
 
-  // Use buffer-level predication by default for AArch64 SVE targets
-  return arith::TargetHasSVE(target);
+  // Use buffer-level predication by default for VLA targets
+  return arith::TargetHasVLA(target);
 }
 
 /*!
@@ -769,7 +769,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     // temp clear need_scalarize flag, so VisitStmt
     // won't trigger an ICHECK eror
     Stmt then_case = this->VisitStmt(op->then_case);
-    Optional<Stmt> else_case = NullOpt;
+    Optional<Stmt> else_case = std::nullopt;
     if (op->else_case) {
       else_case = this->VisitStmt(op->else_case.value());
     }
@@ -972,7 +972,7 @@ class LoopVectorizer : public StmtMutator {
 
       if (!extent_as_int || extent_as_int->value < 1) {
         bool is_scalable_expr = CheckContains::ExprContains(op->extent, arith::IsVScaleCall);
-        ICHECK(is_scalable_expr && arith::TargetHasSVE(target_))
+        ICHECK(is_scalable_expr && arith::TargetHasVLA(target_))
             << "Failed to vectorize loop with extent " << op->extent << " for target " << target_;
       }
       ICHECK(is_zero(op->min));
@@ -1028,7 +1028,7 @@ Pass VectorizeLoop(bool enable_vectorize) {
   return CreatePrimFuncPass(pass_func, 0, "tir.VectorizeLoop", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.VectorizeLoop").set_body_typed(VectorizeLoop);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.VectorizeLoop").set_body_typed(VectorizeLoop);
 
 }  // namespace transform
 

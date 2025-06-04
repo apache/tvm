@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """integer constraints data structures and solvers"""
-import tvm._ffi
+import tvm.ffi
 from tvm.runtime import Object
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("arith.IntGroupBounds")
+@tvm.ffi.register_object("arith.IntGroupBounds")
 class IntGroupBounds(Object):
     """Represent integer grouped bounds which are classified into
        lower bounds (include), upper bounds (include) and equalities.
@@ -66,7 +66,7 @@ class IntGroupBounds(Object):
         return _ffi_api.IntGroupBounds_FindBestRange(self)
 
 
-@tvm._ffi.register_object("arith.IntConstraints")
+@tvm.ffi.register_object("arith.IntConstraints")
 class IntConstraints(Object):
     """Represent a set of integer constraints including variables, their ranges and
        the relations between them (either equations or inequalities)
@@ -85,7 +85,7 @@ class IntConstraints(Object):
         self.__init_handle_by_constructor__(_ffi_api.IntConstraints, variables, ranges, relations)
 
 
-@tvm._ffi.register_object("arith.IntConstraintsTransform")
+@tvm.ffi.register_object("arith.IntConstraintsTransform")
 class IntConstraintsTransform(Object):
     """We can have different set of variables to represent the same integer constraints.
        For example, the following two constrains are equivalent,

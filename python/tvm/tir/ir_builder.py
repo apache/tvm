@@ -16,7 +16,6 @@
 # under the License.
 """Developer API of IR node builder make function."""
 import tvm
-from tvm._ffi.base import string_types
 from tvm.runtime import ObjectGeneric, const
 from tvm.ir import container as _container
 
@@ -194,9 +193,9 @@ class IRBuilder(object):
             ib.scope_attr(x, "storage_scope", "global")
             x[i] = x[i - 1] + 1
         """
-        if isinstance(node, string_types):
+        if isinstance(node, str):
             node = _expr.StringImm(node)
-        if isinstance(value, string_types):
+        if isinstance(value, str):
             value = _expr.StringImm(value)
         # thread_extent could be zero for dynamic workloads
         if attr_key == "thread_extent":

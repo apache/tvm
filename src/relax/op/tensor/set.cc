@@ -46,7 +46,7 @@ Expr unique(Expr x, PrimValue sorted, PrimValue return_index, PrimValue return_i
   return call;
 }
 
-TVM_REGISTER_GLOBAL("relax.op.unique").set_body_typed(unique);
+TVM_FFI_REGISTER_GLOBAL("relax.op.unique").set_body_typed(unique);
 
 StructInfo InferStructInfoUnique(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = Downcast<TensorStructInfo>(call->args[0]->struct_info_);
@@ -130,10 +130,10 @@ TVM_REGISTER_OP("relax.unique")
                   "original input ended up in the returned unique list.")
     .add_argument("return_counts", "Tensor",
                   "Whether to return an additional tensor with counts of each unique elements")
-    .add_argument(
-        "axis", "Tensor",
-        "The dimension to apply unique. If it is NullOpt, the unique values of the flattened input "
-        "are returned.")
+    .add_argument("axis", "Tensor",
+                  "The dimension to apply unique. If it is std::nullopt, the unique values of the "
+                  "flattened input "
+                  "are returned.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnique)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
     .set_attr<Bool>("FPurity", Bool(true));
@@ -144,7 +144,7 @@ Expr nonzero(Expr x) {
   return Call(op, {std::move(x)});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nonzero").set_body_typed(nonzero);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nonzero").set_body_typed(nonzero);
 
 StructInfo InferStructInfoNonzero(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);

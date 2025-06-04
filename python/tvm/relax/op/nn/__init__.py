@@ -47,6 +47,7 @@ from .nn import (
     pixel_shuffle,
     prelu,
     relu,
+    relu6,
     rms_norm,
     selu,
     silu,

@@ -83,7 +83,7 @@ Postproc Postproc::DisallowDynamicLoop() {
 }
 
 TVM_REGISTER_NODE_TYPE(DisallowDynamicLoopNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocDisallowDynamicLoop")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocDisallowDynamicLoop")
     .set_body_typed(Postproc::DisallowDynamicLoop);
 
 }  // namespace meta_schedule

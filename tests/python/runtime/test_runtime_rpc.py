@@ -103,26 +103,7 @@ def test_rpc_simple():
         assert f1(10) == 11
         f3 = client.get_function("rpc.test.except")
 
-        with pytest.raises(tvm._ffi.base.TVMError):
-            f3("abc")
-
-        f2 = client.get_function("rpc.test.strcat")
-        assert f2("abc", 11) == "abc:11"
-
-    check_remote()
-
-
-@tvm.testing.requires_rpc
-def test_rpc_simple_wlog():
-    server = rpc.Server(key="x1")
-    client = rpc.connect("127.0.0.1", server.port, key="x1", enable_logging=True)
-
-    def check_remote():
-        f1 = client.get_function("rpc.test.addone")
-        assert f1(10) == 11
-        f3 = client.get_function("rpc.test.except")
-
-        with pytest.raises(tvm._ffi.base.TVMError):
+        with pytest.raises(tvm.base.TVMError):
             f3("abc")
 
         f2 = client.get_function("rpc.test.strcat")
@@ -428,9 +409,9 @@ def test_rpc_return_ndarray():
 @tvm.testing.requires_rpc
 def test_rpc_return_remote_object():
     def check(client, is_local):
-        make_shape = client.get_function("runtime.ShapeTuple")
-        get_elem = client.get_function("runtime.GetShapeTupleElem")
-        get_size = client.get_function("runtime.GetShapeTupleSize")
+        make_shape = client.get_function("ffi.Shape")
+        get_elem = client.get_function("testing.GetShapeElem")
+        get_size = client.get_function("testing.GetShapeSize")
         shape = make_shape(2, 3)
         assert shape.type_key == "runtime.RPCObjectRef"
         assert get_elem(shape, 0) == 2
@@ -681,7 +662,7 @@ def test_compiled_function_with_zero_arguments(call_with_unused_argument):
     """RPC functions do not require an argument
 
     This is a regression test.  When no arguments are provided, RPC
-    provides NULL as the `TVMValue* args` argument to a PackedFunc.
+    provides NULL as the `TVMFFIAny* args` argument to a PackedFunc.
     However, previous implementations of `MakePackedAPI`
     unconditionally asserted that the `args` pointer was non-null.
     This assertion is now generated only when the function accepts

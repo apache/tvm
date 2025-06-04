@@ -23,25 +23,23 @@
  */
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/serialization.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <cctype>
 #include <map>
 #include <string>
 
-#include "../runtime/object_internal.h"
 #include "../support/base64.h"
 
 namespace tvm {
 
 inline std::string Type2String(const DataType& t) { return runtime::DLDataTypeToString(t); }
 
-inline DataType String2Type(std::string s) { return DataType(runtime::StringToDLDataType(s)); }
+inline DataType String2Type(std::string s) { return DataType(ffi::StringToDLDataType(s)); }
 
 inline std::string Base64Decode(std::string s) {
   dmlc::MemoryStringStream mstrm(&s);
@@ -111,15 +109,15 @@ class NodeIndexer : public AttrVisitor {
       return;
     }
     MakeNodeIndex(node);
-    if (auto opt_array = node.as<const ArrayObj*>()) {
-      const ArrayObj* n = opt_array.value();
+    if (auto opt_array = node.as<const ffi::ArrayObj*>()) {
+      const ffi::ArrayObj* n = opt_array.value();
       for (auto elem : *n) {
         MakeIndex(elem);
       }
-    } else if (auto opt_map = node.as<const MapObj*>()) {
-      const MapObj* n = opt_map.value();
+    } else if (auto opt_map = node.as<const ffi::MapObj*>()) {
+      const ffi::MapObj* n = opt_map.value();
       bool is_str_map = std::all_of(n->begin(), n->end(), [](const auto& v) {
-        return v.first.template as<const ffi::StringObj*>().has_value();
+        return v.first.template as<const ffi::StringObj*>();
       });
       if (is_str_map) {
         for (const auto& kv : *n) {
@@ -272,15 +270,15 @@ class JSONAttrGetter : public AttrVisitor {
     node_->attrs.clear();
     node_->data.clear();
 
-    if (auto opt_array = node.as<const ArrayObj*>()) {
-      const ArrayObj* n = opt_array.value();
+    if (auto opt_array = node.as<const ffi::ArrayObj*>()) {
+      const ffi::ArrayObj* n = opt_array.value();
       for (size_t i = 0; i < n->size(); ++i) {
         node_->data.push_back(node_index_->at(n->at(i)));
       }
-    } else if (auto opt_map = node.as<const MapObj*>()) {
-      const MapObj* n = opt_map.value();
+    } else if (auto opt_map = node.as<const ffi::MapObj*>()) {
+      const ffi::MapObj* n = opt_map.value();
       bool is_str_map = std::all_of(n->begin(), n->end(), [](const auto& v) {
-        return v.first.template as<const ffi::StringObj*>().has_value();
+        return v.first.template as<const ffi::StringObj*>();
       });
       if (is_str_map) {
         for (const auto& kv : *n) {
@@ -381,7 +379,7 @@ class FieldDependencyFinder : public AttrVisitor {
       return;
     }
     // Skip containers
-    if (jnode->type_key == ArrayObj::_type_key || jnode->type_key == MapObj::_type_key) {
+    if (jnode->type_key == ffi::ArrayObj::_type_key || jnode->type_key == ffi::MapObj::_type_key) {
       return;
     }
     jnode_ = jnode;
@@ -518,13 +516,13 @@ class JSONAttrSetter : public AttrVisitor {
   void SetAttrs(Any* node, JSONNode* jnode) {
     jnode_ = jnode;
     // handling Array
-    if (jnode->type_key == ArrayObj::_type_key) {
+    if (jnode->type_key == ffi::ArrayObj::_type_key) {
       Array<Any> result;
       for (auto index : jnode->data) {
         result.push_back(node_list_->at(index));
       }
       *node = result;
-    } else if (jnode->type_key == MapObj::_type_key) {
+    } else if (jnode->type_key == ffi::MapObj::_type_key) {
       Map<Any, Any> result;
       if (jnode->keys.empty()) {
         ICHECK_EQ(jnode->data.size() % 2, 0U);
@@ -701,7 +699,7 @@ Any LoadJSON(std::string json_str) {
   return nodes.at(jgraph.root);
 }
 
-TVM_REGISTER_GLOBAL("node.SaveJSON").set_body_typed(SaveJSON);
+TVM_FFI_REGISTER_GLOBAL("node.SaveJSON").set_body_typed(SaveJSON);
 
-TVM_REGISTER_GLOBAL("node.LoadJSON").set_body_typed(LoadJSON);
+TVM_FFI_REGISTER_GLOBAL("node.LoadJSON").set_body_typed(LoadJSON);
 }  // namespace tvm

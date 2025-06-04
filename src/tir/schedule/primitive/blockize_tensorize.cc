@@ -288,7 +288,7 @@ BlockRealize GenerateInner(bool is_write_reduction,
                            Block block) {
   BlockNode* n = block.CopyOnWrite();
   n->iter_vars = iter_vars;
-  n->init = NullOpt;
+  n->init = std::nullopt;
   if (is_write_reduction) {
     Array<BufferRegion> reads;
     reads.reserve(block->writes.size() + block->reads.size());
@@ -343,7 +343,7 @@ Stmt GenerateOuterInit(const Stmt& block_init, const BlockRealize& inner_realize
             /*writes=*/inner_block->writes,
             /*name_hint=*/block_name,
             /*body=*/block_init,
-            /*init=*/NullOpt));
+            /*init=*/std::nullopt));
   // Step 3. Create the loop nest on top of the block
   for (const ForNode* loop : loops) {
     bool is_init_loop = false;
@@ -549,7 +549,7 @@ BlockRealize BlockizeImpl(const ScheduleState& self, const StmtSRef& loop_sref,
             block_subst->init.defined()  //
                 ? GenerateOuterInit(block_subst->init.value(), inner_realize, loops,
                                     block_subst->name_hint + "_init")
-                : Optional<Stmt>(NullOpt)));
+                : Optional<Stmt>(std::nullopt)));
 }
 
 StmtSRef Blockize(ScheduleState self, const StmtSRef& loop_sref, bool preserve_unit_iters) {
@@ -654,7 +654,7 @@ BlockRealize BlockizeBlocks(const ScheduleState& self, const Array<StmtSRef>& bl
             /*writes=*/UnionRegions(write_regions),
             /*name_hint=*/outer_block_name,
             /*body=*/SeqStmt(seq_body),
-            /*init=*/Optional<Stmt>(NullOpt)));
+            /*init=*/Optional<Stmt>(std::nullopt)));
 }
 
 class BlockizeRewriter : public StmtMutator {
@@ -743,7 +743,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
                bool preserve_unit_iters) {
   // Step 1: Blockize the subtree rooted at the given loop if needed
   BlockRealize block_realize{nullptr};
-  Optional<Block> old_block = NullOpt;
+  Optional<Block> old_block = std::nullopt;
   if (sref->stmt->IsInstance<BlockNode>()) {
     block_realize = GetBlockRealize(self, sref);
     old_block = block_realize->block;

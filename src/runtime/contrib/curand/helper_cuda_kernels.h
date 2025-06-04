@@ -20,7 +20,7 @@
 #define TVM_RUNTIME_CONTRIB_CURAND_HELPER_CUDA_KERNELS_H_
 
 #include <curand.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 namespace tvm {
 namespace runtime {

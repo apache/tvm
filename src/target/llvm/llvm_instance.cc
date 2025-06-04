@@ -53,22 +53,10 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
-#if TVM_LLVM_VERSION >= 190
-#include <llvm/TargetParser/RISCVISAInfo.h>
-#else
-#if TVM_LLVM_VERSION >= 140
-#include <llvm/Support/RISCVISAInfo.h>
-#endif
-#endif
-#if TVM_LLVM_VERSION >= 160
-#include <llvm/TargetParser/RISCVTargetParser.h>
-#else
-#include <llvm/Support/TargetParser.h>
-#endif
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 #include <tvm/target/target.h>
@@ -299,34 +287,25 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     // code model
     code_model_ = llvm::CodeModel::Medium;
 #if TVM_LLVM_VERSION >= 140
-    // VLEN inference
-    const auto cpu_name = GetOrCreateTargetMachine(false)->getMCSubtargetInfo()->getCPU();
-    const auto canon_arch = llvm::RISCV::getMArchFromMcpu(cpu_name);
-    auto ISAInfo =
-        llvm::RISCVISAInfo::parseArchString(canon_arch, /*EnableExperimentalExtensions=*/true);
-    // infer VLEN from LLVM RISCVInfo parser
-    if (!llvm::errorToBool(ISAInfo.takeError()) && (vector_width_ == 0)) {
-      vector_width_ = (*ISAInfo)->getMinVLen();
-    }
-    // infer VLEN from LLVM options (zvlXXXb override)
-    for (const auto& attr : attrs_) {
-      if (attr.find("zvl") != std::string::npos) {
-        std::string vec;
-        for (char c : attr) {
-          if (std::isdigit(c)) vec += c;
+    // get VLEN from the LLVM backend (zvlXXXb)
+    Map<String, String> features = GetAllLLVMCpuFeatures();
+    // check vector ISA
+    if (features.count("v") > 0) {
+      vector_width_ = 0;
+      int zvlbits = 0;
+      for (const auto& [attr, val] : features) {
+        if (std::string(attr).find("zvl") != std::string::npos) {
+          std::string vec;
+          for (char c : std::string(attr)) {
+            if (std::isdigit(c)) vec += c;
+          }
+          zvlbits = std::stoi(vec);
+          // max of the multiple zvlXXXb
+          if (vector_width_ < zvlbits) vector_width_ = zvlbits;
         }
-        vector_width_ = std::stoi(vec);
       }
     }
 #endif
-    if (vector_width_ > 0) {
-      // push cl-opt to LLVM
-      llvm_options_.push_back(
-          ParseOptionString("-riscv-v-vector-bits-min:int=" + std::to_string(vector_width_)));
-    } else {
-      // fallback default (codegen will warn)
-      llvm_options_.push_back(ParseOptionString("-riscv-v-vector-bits-min:int=256"));
-    }
   }
 
   // Target options
@@ -943,9 +922,7 @@ const int LLVMTargetInfo::GetVectorWidth() {
     } else if (arch == llvm::Triple::arm || arch == llvm::Triple::aarch64) {
       vector_width_ = 128;
     } else if (arch == llvm::Triple::riscv32 || arch == llvm::Triple::riscv64) {
-      vector_width_ = 256;
-      LOG(WARNING) << "LLVM RVV VLEN inference failed, "
-                   << "using 256 bits, set -vector-width=XXX to override";
+      vector_width_ = 128;
     } else {
       // fallback default
       vector_width_ = 128;

@@ -429,7 +429,7 @@ class DistributedIRBuilder : public ExprMutator {
       }
     }
     auto new_body = VisitWithNewScope(func->body, new_params);
-    Function new_func(new_params, new_body, NullOpt, func->is_pure, func->attrs);
+    Function new_func(new_params, new_body, std::nullopt, func->is_pure, func->attrs);
     return new_func;
   }
 
@@ -615,7 +615,7 @@ Pass PropagateSharding() {
   };
   return CreateModulePass(pass_func, 1, "PropagateSharding", {});
 }
-TVM_REGISTER_GLOBAL("relax.distributed.transform.PropagateSharding")
+TVM_FFI_REGISTER_GLOBAL("relax.distributed.transform.PropagateSharding")
     .set_body_typed(PropagateSharding);
 }  // namespace transform
 

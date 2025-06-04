@@ -22,10 +22,10 @@
  * \brief Common utilities to generated C style code.
  */
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/function.h>
@@ -361,17 +361,17 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
       .cast<runtime::Module>();
 }
 
-TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
+TVM_FFI_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
 
 // Export a few auxiliary function to the runtime namespace.
-TVM_REGISTER_GLOBAL("runtime.ModuleImportsBlobName").set_body_typed([]() -> std::string {
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleImportsBlobName").set_body_typed([]() -> std::string {
   return runtime::symbol::tvm_dev_mblob;
 });
 
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")
+TVM_FFI_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")
     .set_body_typed([](const runtime::Module& mod) {
       std::string buffer = PackImportsToBytes(mod);
-      ShapeTuple::index_type size = buffer.size();
+      ffi::Shape::index_type size = buffer.size();
       DLDataType uchar;
       uchar.code = kDLUInt;
       uchar.bits = 8;
@@ -384,8 +384,8 @@ TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")
       return array;
     });
 
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC").set_body_typed(PackImportsToC);
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToLLVM").set_body_typed(PackImportsToLLVM);
+TVM_FFI_REGISTER_GLOBAL("runtime.ModulePackImportsToC").set_body_typed(PackImportsToC);
+TVM_FFI_REGISTER_GLOBAL("runtime.ModulePackImportsToLLVM").set_body_typed(PackImportsToLLVM);
 
 }  // namespace codegen
 }  // namespace tvm

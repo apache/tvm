@@ -36,10 +36,10 @@ import multiprocessing
 import time
 import errno
 import sys
-import tvm._ffi
+import tvm.ffi
 
-from tvm._ffi.base import py_str
-from tvm._ffi.libinfo import find_lib_path
+from tvm.base import py_str
+from tvm.libinfo import find_lib_path
 from tvm.runtime.module import load_module as _load_module
 from tvm.contrib import utils
 from tvm.contrib.popen_pool import PopenWorker
@@ -70,11 +70,11 @@ def _server_env(load_library, work_path=None):
         temp = utils.tempdir()
 
     # pylint: disable=unused-variable
-    @tvm._ffi.register_func("tvm.rpc.server.workpath", override=True)
+    @tvm.ffi.register_func("tvm.rpc.server.workpath", override=True)
     def get_workpath(path):
         return temp.relpath(path)
 
-    @tvm._ffi.register_func("tvm.rpc.server.load_module", override=True)
+    @tvm.ffi.register_func("tvm.rpc.server.load_module", override=True)
     def load_module(file_name):
         """Load module from remote side."""
         path = temp.relpath(file_name)
@@ -82,7 +82,7 @@ def _server_env(load_library, work_path=None):
         logger.info("load_module %s", path)
         return m
 
-    @tvm._ffi.register_func("tvm.rpc.server.download_linked_module", override=True)
+    @tvm.ffi.register_func("tvm.rpc.server.download_linked_module", override=True)
     def download_linked_module(file_name):
         """Load module from remote side."""
         # pylint: disable=import-outside-toplevel

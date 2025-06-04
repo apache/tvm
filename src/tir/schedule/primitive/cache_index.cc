@@ -315,7 +315,7 @@ Array<Block> MakeIndexCacheStage(IndexInfo* info, const String& storage_scope) {
         /*name_hint=*/"index_" + std::to_string(expr_index),
         /*body=*/
         BufferStore(info->cache_buffer[expr_index], new_expr, access_indices),
-        /*init=*/NullOpt,
+        /*init=*/std::nullopt,
         /*alloc_buffers=*/{},
         /*match_buffers=*/{},
         /*annotations=*/{});

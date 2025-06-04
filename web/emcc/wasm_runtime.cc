@@ -27,23 +27,20 @@
 #define TVM_LOG_DEBUG 0
 #define TVM_LOG_CUSTOMIZE 1
 #define TVM_FFI_USE_LIBBACKTRACE 0
+#define TVM_FFI_ALWAYS_LOG_BEFORE_THROW 1
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
-#include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/logging.h>
 
-#include "src/runtime/c_runtime_api.cc"
-#include "src/runtime/container.cc"
 #include "src/runtime/contrib/sort/sort.cc"
 #include "src/runtime/cpu_device_api.cc"
+#include "src/runtime/device_api.cc"
 #include "src/runtime/file_utils.cc"
 #include "src/runtime/library_module.cc"
 #include "src/runtime/logging.cc"
 #include "src/runtime/module.cc"
 #include "src/runtime/ndarray.cc"
-#include "src/runtime/object.cc"
 #include "src/runtime/profiling.cc"
-#include "src/runtime/registry.cc"
 #include "src/runtime/rpc/rpc_channel.cc"
 #include "src/runtime/rpc/rpc_endpoint.cc"
 #include "src/runtime/rpc/rpc_event_impl.cc"
@@ -107,43 +104,22 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 
 }  // namespace detail
 
-TVM_REGISTER_GLOBAL("testing.echo").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-  *ret = args[0];
-});
+TVM_FFI_REGISTER_GLOBAL("tvmjs.testing.call")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      (args[0].cast<ffi::Function>()).CallPacked(args.Slice(1), ret);
+    });
 
-TVM_REGISTER_GLOBAL("testing.call").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-  (args[0].cast<ffi::Function>()).CallPacked(args.Slice(1), ret);
-});
-
-TVM_REGISTER_GLOBAL("testing.ret_string").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-  *ret = args[0].cast<String>();
-});
-
-TVM_REGISTER_GLOBAL("testing.log_info_str")
+TVM_FFI_REGISTER_GLOBAL("tvmjs.testing.log_info_str")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       LOG(INFO) << args[0].cast<String>();
     });
 
-TVM_REGISTER_GLOBAL("testing.log_fatal_str")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      LOG(FATAL) << args[0].cast<String>();
-    });
+TVM_FFI_REGISTER_GLOBAL("tvmjs.testing.add_one").set_body_typed([](int x) { return x + 1; });
 
-TVM_REGISTER_GLOBAL("testing.add_one").set_body_typed([](int x) { return x + 1; });
-
-TVM_REGISTER_GLOBAL("testing.wrap_callback")
+TVM_FFI_REGISTER_GLOBAL("tvmjs.testing.wrap_callback")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       ffi::Function pf = args[0].cast<ffi::Function>();
       *ret = ffi::TypedFunction<void()>([pf]() { pf(); });
-    });
-
-// internal function used for debug and testing purposes
-TVM_REGISTER_GLOBAL("testing.object_use_count")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      auto obj = args[0].cast<ffi::ObjectRef>();
-      // subtract the current one because we always copy
-      // and get another value.
-      *ret = (obj.use_count() - 1);
     });
 
 void ArrayDecodeStorage(NDArray cpu_arr, std::string bytes, std::string format, std::string dtype) {
@@ -167,15 +143,15 @@ void ArrayDecodeStorage(NDArray cpu_arr, std::string bytes, std::string format, 
   }
 }
 
-TVM_REGISTER_GLOBAL("tvmjs.array.decode_storage").set_body_typed(ArrayDecodeStorage);
+TVM_FFI_REGISTER_GLOBAL("tvmjs.array.decode_storage").set_body_typed(ArrayDecodeStorage);
 
 // Concatenate n TVMArrays
-TVM_REGISTER_GLOBAL("tvmjs.runtime.ArrayConcat")
+TVM_FFI_REGISTER_GLOBAL("tvmjs.runtime.ArrayConcat")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       std::vector<Any> data;
       for (int i = 0; i < args.size(); ++i) {
         // Get i-th TVMArray
-        auto* arr_i = args[i].as<ArrayObj>();
+        auto* arr_i = args[i].as<ffi::ArrayObj>();
         ICHECK(arr_i != nullptr);
         for (size_t j = 0; j < arr_i->size(); ++j) {
           // Push back each j-th element of the i-th array
@@ -220,7 +196,7 @@ NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
 }
 
 // Concatenate n NDArrays
-TVM_REGISTER_GLOBAL("tvmjs.runtime.ConcatEmbeddings")
+TVM_FFI_REGISTER_GLOBAL("tvmjs.runtime.ConcatEmbeddings")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       std::vector<NDArray> embeddings;
       for (int i = 0; i < args.size(); ++i) {
@@ -228,6 +204,20 @@ TVM_REGISTER_GLOBAL("tvmjs.runtime.ConcatEmbeddings")
       }
       NDArray result = ConcatEmbeddings(std::move(embeddings));
       *ret = result;
+    });
+
+TVM_FFI_REGISTER_GLOBAL("tvmjs.runtime.NDArrayCopyFromBytes")
+    .set_body_typed([](NDArray nd, TVMFFIByteArray* bytes) {
+      nd.CopyFromBytes(bytes->data, bytes->size);
+    });
+
+TVM_FFI_REGISTER_GLOBAL("tvmjs.runtime.NDArrayCopyToBytes")
+    .set_body_typed([](NDArray nd) -> ffi::Bytes {
+      size_t size = GetDataSize(*(nd.operator->()));
+      std::string bytes;
+      bytes.resize(size);
+      nd.CopyToBytes(bytes.data(), size);
+      return ffi::Bytes(bytes);
     });
 
 }  // namespace runtime

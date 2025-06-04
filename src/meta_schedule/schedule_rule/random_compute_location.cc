@@ -122,7 +122,7 @@ ScheduleRule ScheduleRule::RandomComputeLocation() {
 }
 
 TVM_REGISTER_NODE_TYPE(RandomComputeLocationNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleRandomComputeLocation")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleRandomComputeLocation")
     .set_body_typed(ScheduleRule::RandomComputeLocation);
 }  // namespace meta_schedule
 }  // namespace tvm

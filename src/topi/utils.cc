@@ -22,25 +22,24 @@
  * \file utils.cc
  */
 
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/topi/detail/tensor_utils.h>
 
 namespace tvm {
 namespace topi {
-TVM_REGISTER_GLOBAL("topi.utils.is_empty_shape")
+TVM_FFI_REGISTER_GLOBAL("topi.utils.is_empty_shape")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       *rv = topi::detail::is_empty_shape(args[0].cast<Array<PrimExpr>>());
     });
 
-TVM_REGISTER_GLOBAL("topi.utils.bilinear_sample_nchw")
+TVM_FFI_REGISTER_GLOBAL("topi.utils.bilinear_sample_nchw")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       *rv =
           detail::bilinear_sample_nchw(args[0].cast<te::Tensor>(), args[1].cast<Array<PrimExpr>>(),
                                        args[2].cast<PrimExpr>(), args[3].cast<PrimExpr>());
     });
 
-TVM_REGISTER_GLOBAL("topi.utils.bilinear_sample_nhwc")
+TVM_FFI_REGISTER_GLOBAL("topi.utils.bilinear_sample_nhwc")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       *rv =
           detail::bilinear_sample_nhwc(args[0].cast<te::Tensor>(), args[1].cast<Array<PrimExpr>>(),

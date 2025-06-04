@@ -22,8 +22,8 @@
  */
 #include "metal_module.h"
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/registry.h>
 #include <array>
 #include <mutex>
 #include <string>
@@ -260,23 +260,23 @@ class MetalWrappedFunc {
 
 ffi::Function MetalModuleNode::GetFunction(const String& name,
                                            const ObjectPtr<Object>& sptr_to_self) {
-  ffi::Function f;
+  ffi::Function ret;
   AUTORELEASEPOOL {
     ICHECK_EQ(sptr_to_self.get(), this);
     ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
     auto it = fmap_.find(name);
     if (it == fmap_.end()) {
-      f = ffi::Function();
-      return;
+      ret = ffi::Function();
+      return ret;
     }
     const FunctionInfo& info = it->second;
     MetalWrappedFunc f;
     size_t num_buffer_args = NumBufferArgs(info.arg_types);
     f.Init(this, sptr_to_self, name, num_buffer_args, info.arg_types.size() - num_buffer_args,
            info.launch_param_tags);
-    pf = PackFuncNonBufferArg(f, info.arg_types);
+    ret = PackFuncNonBufferArg(f, info.arg_types);
   };
-  return pf;
+  return ret;
 }
 
 Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
@@ -287,7 +287,7 @@ Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
   return Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.create_metal_module")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.create_metal_module")
     .set_body_typed([](Map<String, String> smap, std::string fmap_json, std::string fmt,
                        std::string source) {
       std::istringstream stream(fmap_json);
@@ -317,6 +317,6 @@ Module MetalModuleLoadBinary(void* strm) {
   return MetalModuleCreate(smap, fmap, fmt, "");
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_metal").set_body_typed(MetalModuleLoadBinary);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_metal").set_body_typed(MetalModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

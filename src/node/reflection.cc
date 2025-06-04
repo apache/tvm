@@ -21,10 +21,10 @@
  * Reflection utilities.
  * \file node/reflection.cc
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/node/node.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/registry.h>
 
 namespace tvm {
 
@@ -253,7 +253,7 @@ ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
   std::vector<AnyView> packed_args(kwargs.size() * 2);
   int index = 0;
 
-  for (const auto& kv : *static_cast<const MapObj*>(kwargs.get())) {
+  for (const auto& kv : *static_cast<const ffi::MapObj*>(kwargs.get())) {
     packed_args[index] = kv.first.cast<String>().c_str();
     packed_args[index + 1] = kv.second;
     index += 2;
@@ -292,11 +292,11 @@ void MakeNode(const ffi::PackedArgs& args, ffi::Any* rv) {
   *rv = ReflectionVTable::Global()->CreateObject(type_key, args.Slice(1));
 }
 
-TVM_REGISTER_GLOBAL("node.NodeGetAttr").set_body_packed(NodeGetAttr);
+TVM_FFI_REGISTER_GLOBAL("node.NodeGetAttr").set_body_packed(NodeGetAttr);
 
-TVM_REGISTER_GLOBAL("node.NodeListAttrNames").set_body_packed(NodeListAttrNames);
+TVM_FFI_REGISTER_GLOBAL("node.NodeListAttrNames").set_body_packed(NodeListAttrNames);
 
-TVM_REGISTER_GLOBAL("node.MakeNode").set_body_packed(MakeNode);
+TVM_FFI_REGISTER_GLOBAL("node.MakeNode").set_body_packed(MakeNode);
 
 namespace {
 // Attribute visitor class for finding the attribute key by its address
@@ -336,7 +336,7 @@ Optional<String> GetAttrKeyByAddress(const Object* object, const void* attr_addr
   ReflectionVTable::Global()->VisitAttrs(const_cast<Object*>(object), &visitor);
   const char* key = visitor.GetKey();
   if (key == nullptr) {
-    return NullOpt;
+    return std::nullopt;
   } else {
     return String(key);
   }

@@ -16,10 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/script_printer.h>
-#include <tvm/runtime/registry.h>
 
 #include <algorithm>
 
@@ -72,13 +72,13 @@ PrinterConfig::PrinterConfig(Map<String, Any> config_dict) {
     n->module_alias = Downcast<String>(v.value());
   }
   if (auto v = config_dict.Get("buffer_dtype")) {
-    n->buffer_dtype = DataType(runtime::StringToDLDataType(Downcast<String>(v.value())));
+    n->buffer_dtype = DataType(StringToDLDataType(Downcast<String>(v.value())));
   }
   if (auto v = config_dict.Get("int_dtype")) {
-    n->int_dtype = DataType(runtime::StringToDLDataType(Downcast<String>(v.value())));
+    n->int_dtype = DataType(StringToDLDataType(Downcast<String>(v.value())));
   }
   if (auto v = config_dict.Get("float_dtype")) {
-    n->float_dtype = DataType(runtime::StringToDLDataType(Downcast<String>(v.value())));
+    n->float_dtype = DataType(StringToDLDataType(Downcast<String>(v.value())));
   }
   if (auto v = config_dict.Get("verbose_expr")) {
     n->verbose_expr = v.value().cast<bool>();
@@ -135,9 +135,9 @@ Array<String> PrinterConfigNode::GetBuiltinKeywords() {
 }
 
 TVM_REGISTER_NODE_TYPE(PrinterConfigNode);
-TVM_REGISTER_GLOBAL("node.PrinterConfig").set_body_typed([](Map<String, Any> config_dict) {
+TVM_FFI_REGISTER_GLOBAL("node.PrinterConfig").set_body_typed([](Map<String, Any> config_dict) {
   return PrinterConfig(config_dict);
 });
-TVM_REGISTER_GLOBAL("node.TVMScriptPrinterScript").set_body_typed(TVMScriptPrinter::Script);
+TVM_FFI_REGISTER_GLOBAL("node.TVMScriptPrinterScript").set_body_typed(TVMScriptPrinter::Script);
 
 }  // namespace tvm

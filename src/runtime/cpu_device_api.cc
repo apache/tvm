@@ -21,9 +21,9 @@
  * \file cpu_device_api.cc
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 #include <cstdlib>
 #include <cstring>
@@ -150,7 +150,7 @@ void CPUDeviceAPI::FreeWorkspace(Device dev, void* data) {
   dmlc::ThreadLocalStore<CPUWorkspacePool>::Get()->FreeWorkspace(dev, data);
 }
 
-TVM_REGISTER_GLOBAL("device_api.cpu").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("device_api.cpu").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   DeviceAPI* ptr = CPUDeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });

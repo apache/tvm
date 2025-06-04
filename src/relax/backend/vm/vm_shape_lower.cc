@@ -288,7 +288,7 @@ class VMShapeLowerMutator
 
     auto new_body = builder_->Normalize(SeqExpr(blocks, body_seq->body));
 
-    current_gvar_ = NullOpt;
+    current_gvar_ = std::nullopt;
 
     // create a new function
     return Function(func->params, new_body, func->ret_struct_info, func->is_pure, func->attrs);
@@ -778,7 +778,7 @@ class VMShapeLowerMutator
   std::vector<std::unique_ptr<PrimExprSlot>> slot_vec_;
   /*! \brief Expr => slot. */
   PrimExprSlotMap slot_map_;
-  Optional<GlobalVar> current_gvar_ = NullOpt;
+  Optional<GlobalVar> current_gvar_ = std::nullopt;
   /*!
    * \brief List of vars that are being defined but
    * have not go through outstanding shape compute check.
@@ -813,7 +813,7 @@ Pass VMShapeLower(bool emit_err_ctx) {
   return CreateModulePass(pass_func, 0, "VMShapeLower", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.VMShapeLower").set_body_typed([](bool emit_err_ctx) {
+TVM_FFI_REGISTER_GLOBAL("relax.transform.VMShapeLower").set_body_typed([](bool emit_err_ctx) {
   return VMShapeLower(emit_err_ctx);
 });
 

@@ -77,7 +77,7 @@ class AppendLossMutator : private ExprMutator {
                       loss_function_->params.end());
     Expr new_body = this->VisitExpr(func->body);
 
-    return Function(new_params, new_body, NullOpt, func->is_pure, func->attrs);
+    return Function(new_params, new_body, std::nullopt, func->is_pure, func->attrs);
   }
 
   Expr VisitExpr_(const SeqExprNode* seq_expr) final {
@@ -215,7 +215,7 @@ Pass AppendLoss(String func_name, Function loss_function, int num_backbone_outpu
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.training.AppendLoss").set_body_typed(AppendLoss);
+TVM_FFI_REGISTER_GLOBAL("relax.training.AppendLoss").set_body_typed(AppendLoss);
 
 }  // namespace transform
 

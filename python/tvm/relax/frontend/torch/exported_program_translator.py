@@ -66,7 +66,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     ########## Neural Network ##########
 
-    def _batch_norm(self, node: fx.Node, training) -> relax.Var:
+    def _batch_norm(self, node: fx.Node, training: bool) -> relax.Var:
         import numpy as np
 
         x = self.env[node.args[0]]
@@ -112,6 +112,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         # This method is called for batch_norm in eval mode
         training = False
         return self._batch_norm(node, training)
+
+    def _cross_entropy_default(self, node: fx.Node) -> relax.Expr:
+        preds = self.env[node.args[0]]
+        targets = self.env[node.args[1]]
+        weight = self.env.get(node.args[2], None) if len(node.args) > 2 else None
+        reduction = node.kwargs.get("reduction", "mean")
+        ignore_index = node.kwargs.get("ignore_index", -100)
+        return self._cross_entropy_loss(preds, targets, weight, reduction, ignore_index)
 
     def _group_norm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -197,6 +205,29 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             size=size,
             scale_factor=scale_factor,
             method="nearest_neighbor",
+            align_corners=align_corners,
+        )
+
+    def _upsample_bicubic2d(self, node: fx.node) -> relax.Var:
+        x = self.env[node.args[0]]
+        size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
+        align_corners = (
+            node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", None)
+        )
+        if size is not None:
+            scale_factor = None
+        else:
+            scale_arg = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", 1)
+            if isinstance(scale_arg, (list, tuple)):
+                scale_factor = scale_arg[0]
+            else:
+                scale_factor = scale_arg
+
+        return self._upsample_impl(
+            x,
+            size=size,
+            scale_factor=scale_factor,
+            method="cubic",
             align_corners=align_corners,
         )
 
@@ -339,6 +370,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "reciprocal.default": self._reciprocal,
             "relu.default": self._unary_op(relax.op.nn.relu),
             "relu_.default": self._unary_op(relax.op.nn.relu),
+            "relu6.default": self._unary_op(relax.op.nn.relu6),
+            "relu6_.default": self._unary_op(relax.op.nn.relu6),
             "round.default": self._round,
             "rsqrt.default": self._unary_op(relax.op.rsqrt),
             "rsub.Tensor": self._rsub,
@@ -396,6 +429,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "mul_.Tensor": self._binary_op(relax.op.multiply, operator.mul),
             "ne.Tensor": self._binary_op(relax.op.not_equal, operator.ne),
             "ne.Scalar": self._binary_op(relax.op.not_equal, operator.ne),
+            "outer.default": lambda node: self.block_builder.emit(
+                relax.op.outer(self.env[node.args[0]], self.env[node.args[1]])
+            ),
             "pow.Scalar": self._binary_op(relax.op.power, operator.pow),
             "pow.Tensor_Scalar": self._binary_op(relax.op.power, operator.pow),
             "pow.Tensor_Tensor": self._binary_op(relax.op.power, operator.pow),
@@ -412,9 +448,13 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "_native_batch_norm_legit_functional.default": self._batch_norm_legit_functional,
             "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
             "batch_norm.default": self._batch_norm_legit_no_training,
+            "adaptive_avg_pool1d.default": self._adaptive_avg_pool1d,
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
+            "adaptive_avg_pool3d.default": self._adaptive_avg_pool3d,
             "addmm.default": self._addmm,
+            "avg_pool1d.default": self._avg_pool1d,
             "avg_pool2d.default": self._avg_pool2d,
+            "avg_pool3d.default": self._avg_pool3d,
             "baddbmm.default": self._baddbmm,
             "bmm.default": self._binary_op(
                 partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
@@ -424,6 +464,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "conv1d.default": self._conv1d,
             "conv2d.default": self._conv2d,
             "conv3d.default": self._conv3d,
+            "cross_entropy_loss.default": self._cross_entropy_default,
             "einsum.default": self._einsum,
             "embedding.default": lambda node: self._embedding_impl(
                 self.env[node.args[1]], self.env[node.args[0]]
@@ -432,11 +473,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "instance_norm.default": self._instance_norm,
             "layer_norm.default": self._layer_norm,
             "linear.default": self._linear,
+            "max_pool1d.default": self._max_pool1d,
             "max_pool2d.default": self._max_pool2d,
+            "max_pool3d.default": self._max_pool3d,
             "scaled_dot_product_attention.default": self._scaled_dot_product_attention,
             "unbind.int": self._unbind,
             "upsample_bilinear2d.vec": self._upsample_bilinear2d,
             "upsample_nearest2d.vec": self._upsample_nearest2d,
+            "upsample_bicubic2d.vec": self._upsample_bicubic2d,
             # statistical
             "mean.dim": self._mean,
             "prod.default": self._prod,
@@ -473,6 +517,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "roll.default": self._roll,
             "select.int": self._select,
             "slice.Tensor": self._slice,
+            "slice_scatter.default": self._slice_scatter,
             "sort.default": self._sort,
             "split.Tensor": self._split,
             "split_with_sizes.default": self._split,

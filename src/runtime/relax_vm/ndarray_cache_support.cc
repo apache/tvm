@@ -39,8 +39,8 @@
 #define __STDC_FORMAT_MACROS
 #endif
 #include <picojson.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/ndarray_cache_support.h>
 
 #include <string>
@@ -65,7 +65,7 @@ inline ValueType GetValue(const picojson::object& json, const std::string& key) 
 }
 
 NDArrayCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const picojson::object& json) {
-  std::vector<ShapeTuple::index_type> shape;
+  std::vector<ffi::Shape::index_type> shape;
   {
     picojson::array shape_json = GetValue<picojson::array>(json, "shape");
     shape.reserve(shape_json.size());
@@ -80,7 +80,7 @@ NDArrayCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const picojson::
   result.format = GetValue<std::string>(json, "format");
   result.nbytes = GetValue<int64_t>(json, "nbytes");
   result.byte_offset = GetValue<int64_t>(json, "byteOffset");
-  result.shape = ShapeTuple(std::move(shape));
+  result.shape = ffi::Shape(std::move(shape));
   return result;
 }
 
@@ -153,7 +153,7 @@ void CopyNDArrayFromBytes(NDArray param, const void* data, size_t nbytes,
   if (staging_buffer->defined()) {
     size_t curr_size = runtime::GetDataSize(*(staging_buffer->value().operator->()));
     if (curr_size < nbytes) {
-      *staging_buffer = NullOpt;
+      *staging_buffer = std::nullopt;
     }
   }
   if (!staging_buffer->defined()) {
@@ -162,7 +162,7 @@ void CopyNDArrayFromBytes(NDArray param, const void* data, size_t nbytes,
   NDArray staging_view = staging_buffer->value().CreateView(param.Shape(), param->dtype);
   staging_view.CopyFromBytes(data, nbytes);
   param.CopyFrom(staging_view);
-  TVMSynchronize(device.device_type, device.device_id, nullptr);
+  DeviceAPI::Get(device)->StreamSync(device, nullptr);
 }
 
 NDArray NDArrayCacheMetadata::FileRecord::ParamRecord::Load(
@@ -225,7 +225,7 @@ class NDArrayCache {
     if (it != pool->pool_.end()) {
       return (*it).second;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }
 
@@ -266,9 +266,9 @@ class NDArrayCache {
   Map<String, NDArray> pool_;
 };
 
-TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.get").set_body_typed(NDArrayCache::Get);
-TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.update")
-    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.ndarray_cache.get").set_body_typed(NDArrayCache::Get);
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.ndarray_cache.update")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       CHECK(args.size() == 2 || args.size() == 3);
       String name = args[0].cast<String>();
       bool is_override = args.size() == 2 ? false : args[2].cast<bool>();
@@ -285,14 +285,14 @@ TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.update")
         }
         arr = NDArray::Empty(shape, tensor->dtype, tensor->device);
         arr.CopyFrom(tensor);
-        TVMSynchronize(arr->device.device_type, arr->device.device_id, nullptr);
+        DeviceAPI::Get(arr->device)->StreamSync(arr->device, nullptr);
       }
 
       NDArrayCache::Update(name, arr, is_override);
     });
-TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.remove").set_body_typed(NDArrayCache::Remove);
-TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.clear").set_body_typed(NDArrayCache::Clear);
-TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.load").set_body_typed(NDArrayCache::Load);
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.ndarray_cache.remove").set_body_typed(NDArrayCache::Remove);
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.ndarray_cache.clear").set_body_typed(NDArrayCache::Clear);
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.ndarray_cache.load").set_body_typed(NDArrayCache::Load);
 
 // This param module node can be useful to get param dict in RPC mode
 // when the remote already have loaded parameters from file.
@@ -353,18 +353,20 @@ class ParamModuleNode : public runtime::ModuleNode {
   Array<NDArray> params_;
 };
 
-TVM_REGISTER_GLOBAL("vm.builtin.param_module_from_cache").set_body_typed(ParamModuleNode::Create);
-TVM_REGISTER_GLOBAL("vm.builtin.param_module_from_cache_by_name")
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.param_module_from_cache")
+    .set_body_typed(ParamModuleNode::Create);
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.param_module_from_cache_by_name")
     .set_body_typed(ParamModuleNode::CreateByName);
-TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache").set_body_typed(ParamModuleNode::GetParams);
-TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name")
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.param_array_from_cache")
+    .set_body_typed(ParamModuleNode::GetParams);
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name")
     .set_body_typed(ParamModuleNode::GetParamByName);
-TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name_unpacked")
-    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name_unpacked")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       Array<String> names;
       names.reserve(args.size());
       for (int i = 0; i < args.size(); ++i) {
-        if (!args[i].as<String>()) {
+        if (!args[i].try_cast<String>()) {
           LOG(FATAL) << "ValueError: Expect string as input, but get " << args[i].GetTypeKey()
                      << " at " << i;
         }

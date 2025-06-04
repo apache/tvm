@@ -226,7 +226,7 @@ class TVM_DLL StmtMutator : protected StmtFunctor<Stmt(const Stmt&)> {
     } else {
       // Make a new copy of the node.
       // need to rely on the default copy constructor
-      return runtime::make_object<TNode>(*node);
+      return ffi::make_object<TNode>(*node);
     }
   }
   /*!
@@ -331,13 +331,13 @@ class StmtExprMutator : public StmtMutator, public ExprMutator {
  *          won't do further recursion.
  * \param postorder The function called after recursive mutation.
  *          The recursive mutation result is passed to postorder for further mutation.
- * \param only_enable List of runtime::String.
+ * \param only_enable List of String.
  *          If it is null, all IRNode will call preorder/postorder
  *          If it is not null, preorder/postorder will only be called
  *          when the IRNode's type key is in the list.
  */
 TVM_DLL Stmt IRTransform(Stmt stmt, const ffi::Function& preorder, const ffi::Function& postorder,
-                         Optional<Array<String>> only_enable = NullOpt);
+                         Optional<Array<String>> only_enable = std::nullopt);
 
 /*!
  * \brief Recursively visit the ir in post DFS order node, apply fvisit
@@ -418,7 +418,7 @@ auto Substitute(Obj&& obj, const Map<Var, Expr>& vmap) {
     if (auto opt = vmap.Get(var)) {
       return opt.value();
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   };
   return Substitute(std::forward<Obj>(obj), func);
@@ -440,7 +440,7 @@ auto Substitute(Obj&& obj, const std::unordered_map<const VarNode*, Expr>& vmap)
     if (auto it = vmap.find(var.get()); it != vmap.end()) {
       return it->second;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   };
   return Substitute(std::forward<Obj>(obj), func);
@@ -462,7 +462,7 @@ auto Substitute(Obj&& obj, const std::unordered_map<Var, Expr, Hasher, EqualityC
     if (auto it = vmap.find(var); it != vmap.end()) {
       return it->second;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   };
   return Substitute(std::forward<Obj>(obj), func);
@@ -489,7 +489,7 @@ auto Substitute(Obj&& obj, const std::unordered_map<IterVar, Expr>& iter_vmap) {
     if (auto it = vmap.find(var.get()); it != vmap.end()) {
       return it->second;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   };
   return Substitute(std::forward<Obj>(obj), func);

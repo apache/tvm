@@ -1354,7 +1354,7 @@ class Map : public ObjectRef {
    * \return the corresonding element.
    */
   const V at(const K& key) const {
-    return details::AnyUnsafe::CopyFromAnyStorageAfterCheck<V>(GetMapObj()->at(key));
+    return details::AnyUnsafe::CopyFromAnyViewAfterCheck<V>(GetMapObj()->at(key));
   }
   /*!
    * \brief Read element from map.
@@ -1396,13 +1396,13 @@ class Map : public ObjectRef {
   iterator end() const { return iterator(GetMapObj()->end()); }
   /*! \return find the key and returns the associated iterator */
   iterator find(const K& key) const { return iterator(GetMapObj()->find(key)); }
-  /*! \return The value associated with the key, NullOpt if not found */
+  /*! \return The value associated with the key, std::nullopt if not found */
   std::optional<V> Get(const K& key) const {
     MapObj::iterator iter = GetMapObj()->find(key);
     if (iter == GetMapObj()->end()) {
       return std::nullopt;
     }
-    return details::AnyUnsafe::CopyFromAnyStorageAfterCheck<V>(iter->second);
+    return details::AnyUnsafe::CopyFromAnyViewAfterCheck<V>(iter->second);
   }
   void erase(const K& key) { CopyOnWrite()->erase(key); }
 
@@ -1445,8 +1445,8 @@ class Map : public ObjectRef {
     /*! \brief De-reference iterators */
     reference operator*() const {
       auto& kv = *itr;
-      return std::make_pair(details::AnyUnsafe::CopyFromAnyStorageAfterCheck<K>(kv.first),
-                            details::AnyUnsafe::CopyFromAnyStorageAfterCheck<V>(kv.second));
+      return std::make_pair(details::AnyUnsafe::CopyFromAnyViewAfterCheck<K>(kv.first),
+                            details::AnyUnsafe::CopyFromAnyViewAfterCheck<V>(kv.second));
     }
     /*! \brief Prefix self increment, e.g. ++iter */
     iterator& operator++() {
@@ -1513,7 +1513,7 @@ inline constexpr bool use_default_type_traits_v<Map<K, V>> = false;
 template <typename K, typename V>
 struct TypeTraits<Map<K, V>> : public ObjectRefTypeTraitsBase<Map<K, V>> {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIMap;
-  using ObjectRefTypeTraitsBase<Map<K, V>>::CopyFromAnyStorageAfterCheck;
+  using ObjectRefTypeTraitsBase<Map<K, V>>::CopyFromAnyViewAfterCheck;
 
   static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIMap) {
@@ -1523,14 +1523,15 @@ struct TypeTraits<Map<K, V>> : public ObjectRefTypeTraitsBase<Map<K, V>> {
       const MapObj* n = reinterpret_cast<const MapObj*>(src->v_obj);
       for (const auto& kv : *n) {
         if constexpr (!std::is_same_v<K, Any>) {
-          if (!details::AnyUnsafe::CheckAnyStorage<K>(kv.first) && !kv.first.as<K>().has_value()) {
+          if (!details::AnyUnsafe::CheckAnyStrict<K>(kv.first) &&
+              !kv.first.try_cast<K>().has_value()) {
             return "Map[some key is " + details::AnyUnsafe::GetMismatchTypeInfo<K>(kv.first) +
                    ", V]";
           }
         }
         if constexpr (!std::is_same_v<V, Any>) {
-          if (!details::AnyUnsafe::CheckAnyStorage<V>(kv.second) &&
-              !kv.second.as<V>().has_value()) {
+          if (!details::AnyUnsafe::CheckAnyStrict<V>(kv.second) &&
+              !kv.second.try_cast<V>().has_value()) {
             return "Map[K, some value is " + details::AnyUnsafe::GetMismatchTypeInfo<V>(kv.second) +
                    "]";
           }
@@ -1541,7 +1542,7 @@ struct TypeTraits<Map<K, V>> : public ObjectRefTypeTraitsBase<Map<K, V>> {
     TVM_FFI_UNREACHABLE();
   }
 
-  static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE bool CheckAnyStrict(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIMap) return false;
     if constexpr (std::is_same_v<K, Any> && std::is_same_v<V, Any>) {
       return true;
@@ -1549,44 +1550,44 @@ struct TypeTraits<Map<K, V>> : public ObjectRefTypeTraitsBase<Map<K, V>> {
       const MapObj* n = reinterpret_cast<const MapObj*>(src->v_obj);
       for (const auto& kv : *n) {
         if constexpr (!std::is_same_v<K, Any>) {
-          if (!details::AnyUnsafe::CheckAnyStorage<K>(kv.first)) return false;
+          if (!details::AnyUnsafe::CheckAnyStrict<K>(kv.first)) return false;
         }
         if constexpr (!std::is_same_v<V, Any>) {
-          if (!details::AnyUnsafe::CheckAnyStorage<V>(kv.second)) return false;
+          if (!details::AnyUnsafe::CheckAnyStrict<V>(kv.second)) return false;
         }
       }
       return true;
     }
   }
 
-  static TVM_FFI_INLINE std::optional<Map<K, V>> TryConvertFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<Map<K, V>> TryCastFromAnyView(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIMap) return std::nullopt;
     if constexpr (!std::is_same_v<K, Any> || !std::is_same_v<V, Any>) {
       const MapObj* n = reinterpret_cast<const MapObj*>(src->v_obj);
       bool storage_check = [&]() {
         for (const auto& kv : *n) {
           if constexpr (!std::is_same_v<K, Any>) {
-            if (!details::AnyUnsafe::CheckAnyStorage<K>(kv.first)) return false;
+            if (!details::AnyUnsafe::CheckAnyStrict<K>(kv.first)) return false;
           }
           if constexpr (!std::is_same_v<V, Any>) {
-            if (!details::AnyUnsafe::CheckAnyStorage<V>(kv.second)) return false;
+            if (!details::AnyUnsafe::CheckAnyStrict<V>(kv.second)) return false;
           }
         }
         return true;
       }();
       // fast path, if storage check passes, we can return the array directly.
-      if (storage_check) return CopyFromAnyStorageAfterCheck(src);
+      if (storage_check) return CopyFromAnyViewAfterCheck(src);
       // slow path, we need to create a new map and convert to the target type.
       Map<K, V> ret;
       for (const auto& kv : *n) {
-        auto k = kv.first.as<K>();
-        auto v = kv.second.as<V>();
+        auto k = kv.first.try_cast<K>();
+        auto v = kv.second.try_cast<V>();
         if (!k.has_value() || !v.has_value()) return std::nullopt;
         ret.Set(*std::move(k), *std::move(v));
       }
       return ret;
     } else {
-      return CopyFromAnyStorageAfterCheck(src);
+      return CopyFromAnyViewAfterCheck(src);
     }
   }
 
@@ -1602,5 +1603,9 @@ inline constexpr bool type_contains_v<Map<K, V>, Map<KU, VU>> =
 }  // namespace details
 
 }  // namespace ffi
+
+// Expose to the tvm namespace
+// Rationale: convinience and no ambiguity
+using ffi::Map;
 }  // namespace tvm
 #endif  // TVM_FFI_CONTAINER_MAP_H_

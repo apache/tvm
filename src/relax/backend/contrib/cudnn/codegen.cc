@@ -149,7 +149,7 @@ Array<runtime::Module> cuDNNCompiler(Array<Function> functions, Map<String, ffi:
   return compiled_functions;
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.cudnn").set_body_typed(cuDNNCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.cudnn").set_body_typed(cuDNNCompiler);
 
 }  // namespace contrib
 }  // namespace relax

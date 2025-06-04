@@ -263,6 +263,20 @@ def _scatter_nd(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.slice_scatter")
+def _slice_scatter(bb: BlockBuilder, call: Call) -> Expr:
+
+    return bb.call_te(
+        topi.slice_scatter,
+        call.args[0],
+        call.args[1],
+        call.args[2],
+        call.args[3],
+        call.args[4],
+        call.attrs.axis,
+    )
+
+
 @register_legalize("relax.one_hot")
 def _one_hot(bb: BlockBuilder, call: Call) -> Expr:
     indices, on_value, off_value = call.args

@@ -24,10 +24,10 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
+#include <tvm/ffi/string.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
 #include <tvm/node/node.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
 
 #include <algorithm>
@@ -38,7 +38,7 @@
 
 namespace tvm {
 
-using tvm::runtime::String;
+using tvm::String;
 
 // Forward-declare VirtualDevice to avoid circular imports.
 class VirtualDevice;

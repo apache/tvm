@@ -14,6 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
+try:
+    import torch
+except ImportError:
+    torch = None
 
 from tvm import ffi as tvm_ffi
 import numpy as np
@@ -47,3 +53,24 @@ def test_shape_object():
     shape3 = tvm_ffi.convert(shape)
     assert shape3.__tvm_ffi_object__.same_as(shape.__tvm_ffi_object__)
     assert isinstance(shape3, tvm_ffi.Shape)
+
+
+@pytest.mark.skipif(torch is None, reason="Torch is not installed")
+def test_ndarray_auto_dlpack():
+    def check(x, y):
+        assert isinstance(y, tvm_ffi.NDArray)
+        assert y.shape == (128,)
+        assert y.dtype == tvm_ffi.dtype("int64")
+        assert y.device.device_type == tvm_ffi.Device.kDLCPU
+        assert y.device.device_id == 0
+        x2 = torch.from_dlpack(y)
+        np.testing.assert_equal(x2.numpy(), x.numpy())
+
+    x = torch.arange(128)
+    fecho = tvm_ffi.get_global_func("testing.echo")
+    y = fecho(x)
+    check(x, y)
+
+    # pass in list of tensors
+    y = fecho([x])
+    check(x, y[0])

@@ -47,7 +47,7 @@ namespace {
  */
 struct ReplacementKey {
   tvm::relax::Expr bound_value;
-  tvm::Optional<tvm::relax::StructInfo> match_cast = tvm::NullOpt;
+  tvm::Optional<tvm::relax::StructInfo> match_cast = std::nullopt;
 
   explicit ReplacementKey(const tvm::relax::Binding& binding)
       : bound_value(GetBoundValue(binding)) {
@@ -221,7 +221,7 @@ Pass EliminateCommonSubexpr(bool call_only) {
   return CreateFunctionPass(pass_func, 1, "EliminateCommonSubexpr", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.EliminateCommonSubexpr")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.EliminateCommonSubexpr")
     .set_body_typed(EliminateCommonSubexpr);
 
 }  // namespace transform

@@ -34,12 +34,12 @@
 #ifndef TVM_NODE_NODE_H_
 #define TVM_NODE_NODE_H_
 
+#include <tvm/ffi/memory.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/memory.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/object.h>
 
 #include <string>
@@ -60,7 +60,6 @@ using ffi::PackedArgs;
 using ffi::TypeIndex;
 using runtime::Downcast;
 using runtime::GetRef;
-using runtime::make_object;
 
 }  // namespace tvm
 #endif  // TVM_NODE_NODE_H_

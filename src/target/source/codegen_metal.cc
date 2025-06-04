@@ -466,6 +466,6 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
   return MetalModuleCreate(smap, ExtractFuncInfo(mod), fmt, source_maker.str());
 }
 
-TVM_REGISTER_GLOBAL("target.build.metal").set_body_typed(BuildMetal);
+TVM_FFI_REGISTER_GLOBAL("target.build.metal").set_body_typed(BuildMetal);
 }  // namespace codegen
 }  // namespace tvm

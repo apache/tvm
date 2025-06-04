@@ -22,8 +22,8 @@
  * \brief Target tag registry
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/tag.h>
 #include <tvm/target/target.h>
 
@@ -33,8 +33,8 @@ namespace tvm {
 
 TVM_REGISTER_NODE_TYPE(TargetTagNode);
 
-TVM_REGISTER_GLOBAL("target.TargetTagListTags").set_body_typed(TargetTag::ListTags);
-TVM_REGISTER_GLOBAL("target.TargetTagAddTag").set_body_typed(TargetTag::AddTag);
+TVM_FFI_REGISTER_GLOBAL("target.TargetTagListTags").set_body_typed(TargetTag::ListTags);
+TVM_FFI_REGISTER_GLOBAL("target.TargetTagAddTag").set_body_typed(TargetTag::AddTag);
 
 /**********  Registry-related code  **********/
 
@@ -47,7 +47,7 @@ TargetTagRegEntry& TargetTagRegEntry::RegisterOrGet(const String& target_tag_nam
 Optional<Target> TargetTag::Get(const String& target_tag_name) {
   const TargetTagRegEntry* reg = TargetTagRegistry::Global()->Get(target_tag_name);
   if (reg == nullptr) {
-    return NullOpt;
+    return std::nullopt;
   }
   return Target(reg->tag_->config);
 }

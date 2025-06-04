@@ -265,7 +265,7 @@ class BufferStoreNode : public StmtNode {
 class BufferStore : public Stmt {
  public:
   TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
-                               Optional<PrimExpr> predicate = NullOpt, Span span = Span());
+                               Optional<PrimExpr> predicate = std::nullopt, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
@@ -818,16 +818,16 @@ class SeqStmt : public Stmt {
         return t;
       }
       if constexpr (!std::is_base_of_v<T, SeqStmt>) {
-        return NullOpt;
+        return std::nullopt;
       }
       if constexpr (std::is_base_of_v<Stmt, T>) {
         if (const SeqStmtNode* ptr = t.template as<SeqStmtNode>()) {
           return GetRef<SeqStmt>(ptr);
         } else {
-          return NullOpt;
+          return std::nullopt;
         }
       }
-      return NullOpt;
+      return std::nullopt;
     }
 
     template <typename T>
@@ -925,7 +925,7 @@ class IfThenElseNode : public StmtNode {
  */
 class IfThenElse : public Stmt {
  public:
-  TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case, Optional<Stmt> else_case = NullOpt,
+  TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case, Optional<Stmt> else_case = std::nullopt,
                      Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(IfThenElse, Stmt, IfThenElseNode);
@@ -1035,7 +1035,7 @@ class ForNode : public StmtNode {
 class For : public Stmt {
  public:
   TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
-              Optional<IterVar> thread_binding = NullOpt,
+              Optional<IterVar> thread_binding = std::nullopt,
               Map<String, ffi::Any> annotations = Map<String, ffi::Any>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
@@ -1280,7 +1280,7 @@ class BlockNode : public StmtNode {
    *  reduction block. The optional init field allows us to represent initialization and
    *  reduction update in a single block and transform them collectively.
    *  We also provide primitives to decompose the init into a separate block during scheduling.
-   *  Init field is `NullOpt` if there is no reduction iter_vars
+   *  Init field is `std::nullopt` if there is no reduction iter_vars
    */
   Optional<Stmt> init;
   /*! \brief The buffer allocated in the block. */
@@ -1334,7 +1334,7 @@ class Block : public Stmt {
  public:
   TVM_DLL explicit Block(Array<IterVar> iter_vars, Array<BufferRegion> reads,
                          Array<BufferRegion> writes, String name_hint, Stmt body,
-                         Optional<Stmt> init = NullOpt,
+                         Optional<Stmt> init = std::nullopt,
                          Array<Buffer> alloc_buffers = Array<Buffer>(),
                          Array<MatchBufferRegion> match_buffers = Array<MatchBufferRegion>(),
                          Map<String, ffi::Any> annotations = Map<String, ffi::Any>(),

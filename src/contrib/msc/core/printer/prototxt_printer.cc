@@ -31,16 +31,16 @@ namespace contrib {
 namespace msc {
 
 LiteralDoc PrototxtPrinter::ToLiteralDoc(const ObjectRef& obj) {
-  if (obj.as<StringObj>()) {
-    return LiteralDoc::Str(Downcast<String>(obj), NullOpt);
+  if (obj.as<ffi::StringObj>()) {
+    return LiteralDoc::Str(Downcast<String>(obj), std::nullopt);
   } else if (obj.as<IntImmNode>()) {
-    return LiteralDoc::Int(Downcast<IntImm>(obj)->value, NullOpt);
+    return LiteralDoc::Int(Downcast<IntImm>(obj)->value, std::nullopt);
   } else if (obj.as<FloatImmNode>()) {
-    return LiteralDoc::Float(Downcast<FloatImm>(obj)->value, NullOpt);
+    return LiteralDoc::Float(Downcast<FloatImm>(obj)->value, std::nullopt);
   }
   std::ostringstream obj_des;
   obj_des << obj;
-  return LiteralDoc::Str(obj_des.str(), NullOpt);
+  return LiteralDoc::Str(obj_des.str(), std::nullopt);
 }
 
 DictDoc PrototxtPrinter::ToDictDoc(const Map<String, ffi::Any>& dict) {

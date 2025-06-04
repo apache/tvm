@@ -34,7 +34,7 @@ except ImportError:
     ml_dtypes = None
 
 import tvm
-from tvm._ffi.libinfo import find_lib_path
+from tvm.libinfo import find_lib_path
 from tvm.runtime import DataType
 
 from .emcc import create_tvmjs_wasm

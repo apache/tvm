@@ -42,7 +42,7 @@ std::pair<Stmt, Optional<For>> TileWmmaBlock(Stmt stmt) {
     arith::Analyzer analyzer;
     if (!analyzer.CanProveEqual(floormod(extent_last1, 16), 0) ||
         !analyzer.CanProveEqual(floormod(extent_last2, 16), 0)) {
-      return std::make_pair(stmt, NullOpt);
+      return std::make_pair(stmt, std::nullopt);
     }
   }
   Var new_loop_vars[4] = {
@@ -177,7 +177,7 @@ Stmt RewriteWmmaLoad(Stmt stmt) {
                   /*6:*/ new_src_buffer->strides[new_src_buffer->strides.size() - 2],
                   /*7:*/ StringImm(layout),
               })),
-          /*init=*/NullOpt,
+          /*init=*/std::nullopt,
           /*alloc_buffers=*/{},
           /*match_buffers=*/
           {
@@ -280,7 +280,7 @@ Stmt RewriteWmmaStore(Stmt stmt) {
                      }),
                  /*6:*/ new_tgt_buffer->strides[0],
                  /*7:*/ StringImm("row_major")})),
-            /*init=*/NullOpt,
+            /*init=*/std::nullopt,
             /*alloc_buffers=*/{},
             /*match_buffers=*/
             {
@@ -366,7 +366,7 @@ std::pair<Stmt, Optional<For>> TileMmaToGlobalBlock(Stmt stmt) {
     // Only tile when both extent % 8 == 0
     if (!analyzer.CanProveEqual(floormod(extent_last1, 8), 0) ||
         !analyzer.CanProveEqual(floormod(extent_last2, 8), 0)) {
-      return std::make_pair(stmt, NullOpt);
+      return std::make_pair(stmt, std::nullopt);
     }
   }
   Var new_loop_vars[4] = {
@@ -498,7 +498,7 @@ Stmt RewriteMmaStore(Stmt stmt) {
                                                 {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}),
                                      {floordiv(tx, 4), floormod(tx, 4) * 2 + vec}),
                          /*annotations=*/{})),
-            /*init=*/NullOpt,
+            /*init=*/std::nullopt,
             /*alloc_buffers=*/{},
             /*match_buffers=*/
             {

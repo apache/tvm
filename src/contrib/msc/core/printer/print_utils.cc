@@ -32,7 +32,7 @@ const String DocSymbol::Empty() { return "::EMPTY"; }
 
 const String DocSymbol::NextLine() { return "::NEXT_LINE"; }
 
-const ExprDoc DocUtils::ToDoc(int64_t val) { return LiteralDoc::Int(val, NullOpt); }
+const ExprDoc DocUtils::ToDoc(int64_t val) { return LiteralDoc::Int(val, std::nullopt); }
 
 const ExprDoc DocUtils::ToDoc(int val) { return ToDoc(static_cast<int64_t>(val)); }
 
@@ -42,7 +42,7 @@ const ExprDoc DocUtils::ToDoc(const IntImm& val) { return ToDoc(val->value); }
 
 const ExprDoc DocUtils::ToDoc(const Integer& val) { return ToDoc(val->value); }
 
-const ExprDoc DocUtils::ToDoc(double val) { return LiteralDoc::Float(val, NullOpt); }
+const ExprDoc DocUtils::ToDoc(double val) { return LiteralDoc::Float(val, std::nullopt); }
 
 const ExprDoc DocUtils::ToDoc(float val) { return ToDoc(static_cast<double>(val)); }
 
@@ -52,11 +52,11 @@ const ExprDoc DocUtils::ToDoc(const char* val) { return IdDoc(std::string(val));
 
 const ExprDoc DocUtils::ToDoc(const String& val) { return IdDoc(val); }
 
-const ExprDoc DocUtils::ToDoc(bool val) { return LiteralDoc::Boolean(val, NullOpt); }
+const ExprDoc DocUtils::ToDoc(bool val) { return LiteralDoc::Boolean(val, std::nullopt); }
 
 const ExprDoc DocUtils::ToDoc(const ExprDoc& val) { return val; }
 
-const ExprDoc DocUtils::ToStr(const String& val) { return LiteralDoc::Str(val, NullOpt); }
+const ExprDoc DocUtils::ToStr(const String& val) { return LiteralDoc::Str(val, std::nullopt); }
 
 const PointerDoc DocUtils::ToPtr(const String& val) { return PointerDoc(val); }
 

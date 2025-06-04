@@ -41,7 +41,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
     if (layout_rewrite_preproc_stmts_.size() > 0) {
       return std::make_tuple(create_layout_rewrite_preproc_func(), create_compute_func());
     } else {
-      return std::make_tuple(NullOpt, func);
+      return std::make_tuple(std::nullopt, func);
     }
   }
 
@@ -124,7 +124,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
         /*block=*/
         Block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
               /*name_hint=*/"root", body,
-              /*init=*/NullOpt,
+              /*init=*/std::nullopt,
               /*alloc_buffers=*/alloc_buffers));
 
     Map<String, ffi::Any> dict;
@@ -340,7 +340,7 @@ Pass SplitLayoutRewritePreproc() {
   return tvm::transform::Sequential({pass, relax::transform::DeadCodeElimination()},
                                     "SplitLayoutRewritePreproc");
 }
-TVM_REGISTER_GLOBAL("relax.transform.SplitLayoutRewritePreproc")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.SplitLayoutRewritePreproc")
     .set_body_typed(SplitLayoutRewritePreproc);
 }  // namespace transform
 }  // namespace tvm

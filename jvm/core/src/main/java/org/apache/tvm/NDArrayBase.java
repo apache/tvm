@@ -22,26 +22,33 @@ package org.apache.tvm;
  * Only deep-copy supported.
  */
 public class NDArrayBase extends TVMValue {
-  protected final long handle;
-  protected final boolean isView;
-  private boolean isReleased = false;
+  protected long handle;
+  public final boolean isView;
+  protected final long dltensorHandle;
 
   NDArrayBase(long handle, boolean isView) {
-    super(ArgTypeCode.ARRAY_HANDLE);
-    this.handle = handle;
+    this.dltensorHandle = isView ? handle : handle + 8 * 2;
+    this.handle = isView ? 0 : handle;
     this.isView = isView;
-  }
-
-  NDArrayBase(long handle) {
-    this(handle, true);
   }
 
   @Override public NDArrayBase asNDArray() {
     return this;
   }
 
-  @Override long asHandle() {
-    return handle;
+  /**
+   * Release the NDArray.
+   */
+  public void release() {
+    if (this.handle != 0) {
+      Base.checkCall(Base._LIB.tvmFFIObjectFree(this.handle));
+      this.handle = 0;
+    }
+  }
+
+  @Override protected void finalize() throws Throwable {
+    release();
+    super.finalize();
   }
 
   /**
@@ -50,27 +57,7 @@ public class NDArrayBase extends TVMValue {
    * @return target
    */
   public NDArrayBase copyTo(NDArrayBase target) {
-    Base.checkCall(Base._LIB.tvmArrayCopyFromTo(handle, target.handle));
+    Base.checkCall(Base._LIB.tvmFFIDLTensorCopyFromTo(this.dltensorHandle, target.dltensorHandle));
     return target;
-  }
-
-  /**
-   * Release the NDArray memory.
-   * <p>
-   * We highly recommend you to do this manually since the GC strategy is lazy.
-   * </p>
-   */
-  public void release() {
-    if (!isReleased) {
-      if (!isView) {
-        Base.checkCall(Base._LIB.tvmArrayFree(handle));
-        isReleased = true;
-      }
-    }
-  }
-
-  @Override protected void finalize() throws Throwable {
-    release();
-    super.finalize();
   }
 }

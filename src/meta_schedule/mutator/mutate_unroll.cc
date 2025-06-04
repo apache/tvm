@@ -122,10 +122,10 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
 Optional<Trace> MutateUnrollNode::Apply(const Trace& trace, TRandState* rand_state) {
   Candidate candidate;
   if (!FindUnrollDecision(trace, rand_state, &candidate)) {
-    return NullOpt;
+    return std::nullopt;
   }
   if (candidate.probs.size() == 0) {
-    return NullOpt;
+    return std::nullopt;
   }
   candidate.probs.erase(candidate.probs.begin() + candidate.decision);
   int result = tir::MakeMultinomialSampler(rand_state, candidate.probs)();
@@ -138,7 +138,7 @@ Optional<Trace> MutateUnrollNode::Apply(const Trace& trace, TRandState* rand_sta
 Mutator Mutator::MutateUnroll() { return Mutator(make_object<MutateUnrollNode>()); }
 
 TVM_REGISTER_NODE_TYPE(MutateUnrollNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorMutateUnroll").set_body_typed(Mutator::MutateUnroll);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateUnroll").set_body_typed(Mutator::MutateUnroll);
 
 }  // namespace meta_schedule
 }  // namespace tvm

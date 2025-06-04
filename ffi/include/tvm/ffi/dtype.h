@@ -121,7 +121,7 @@ inline DLDataType StringToDLDataType(const String& str) {
 
 inline String DLDataTypeToString(DLDataType dtype) {
   TVMFFIObjectHandle out;
-  TVM_FFI_CHECK_SAFE_CALL(TVMFFIDataTypeToString(dtype, &out));
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFIDataTypeToString(&dtype, &out));
   return String(details::ObjectUnsafe::ObjectPtrFromOwned<Object>(static_cast<TVMFFIObject*>(out)));
 }
 
@@ -140,20 +140,20 @@ struct TypeTraits<DLDataType> : public TypeTraitsBase {
     result->v_dtype = src;
   }
 
-  static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE bool CheckAnyStrict(const TVMFFIAny* src) {
     return src->type_index == TypeIndex::kTVMFFIDataType;
   }
 
-  static TVM_FFI_INLINE DLDataType CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE DLDataType CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
     return src->v_dtype;
   }
 
-  static TVM_FFI_INLINE std::optional<DLDataType> TryConvertFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<DLDataType> TryCastFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIDataType) {
       return src->v_dtype;
     }
     // enable string to dtype auto conversion
-    if (auto opt_str = TypeTraits<std::string>::TryConvertFromAnyView(src)) {
+    if (auto opt_str = TypeTraits<std::string>::TryCastFromAnyView(src)) {
       return StringToDLDataType(*opt_str);
     }
     return std::nullopt;

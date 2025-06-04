@@ -22,8 +22,8 @@
  * \brief IRModule transform to replace GlobalVar instances across any IR type.
  */
 
+#include <tvm/ffi/container/variant.h>
 #include <tvm/ir/replace_global_vars.h>
-#include <tvm/runtime/container/variant.h>
 
 #include <vector>
 
@@ -62,7 +62,7 @@ IRModule ReplaceGlobalVars(IRModule mod, Map<GlobalVar, GlobalVar> replacements)
   return mod;
 }
 
-TVM_REGISTER_GLOBAL("transform.ReplaceGlobalVars").set_body_typed(ReplaceGlobalVars);
+TVM_FFI_REGISTER_GLOBAL("transform.ReplaceGlobalVars").set_body_typed(ReplaceGlobalVars);
 
 IRModule ModuleReplaceGlobalVars(
     IRModule mod, Map<Variant<String, GlobalVar>, Variant<String, GlobalVar>> replacements) {
@@ -93,7 +93,7 @@ IRModule ModuleReplaceGlobalVars(
   return ReplaceGlobalVars(mod, gvar_replacements);
 }
 
-TVM_REGISTER_GLOBAL("ir.Module_ReplaceGlobalVars").set_body_typed(ModuleReplaceGlobalVars);
+TVM_FFI_REGISTER_GLOBAL("ir.Module_ReplaceGlobalVars").set_body_typed(ModuleReplaceGlobalVars);
 
 }  // namespace transform
 }  // namespace tvm

@@ -21,8 +21,8 @@
  * \file lower_device_kernel_launch.cc
  * \brief Split device function from host.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/transform.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -143,7 +143,7 @@ class DeviceInfoCollector : public StmtVisitor {
   // The extent of each thread
   Map<String, PrimExpr> thread_extent;
   // The amount of dynamic shared memory used
-  Optional<PrimExpr> dyn_shmem_size{NullOpt};
+  Optional<PrimExpr> dyn_shmem_size{std::nullopt};
 };
 
 class ReturnRemover : public StmtExprMutator {
@@ -195,7 +195,7 @@ class DeviceKernelMutator : public StmtExprMutator {
       func.CopyOnWrite()->body = body;
     }
 
-    current_target_ = NullOpt;
+    current_target_ = std::nullopt;
     return func;
   }
 
@@ -369,7 +369,7 @@ Pass LowerDeviceKernelLaunch() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.LowerDeviceKernelLaunch", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerDeviceKernelLaunch")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerDeviceKernelLaunch")
     .set_body_typed(LowerDeviceKernelLaunch);
 
 }  // namespace transform

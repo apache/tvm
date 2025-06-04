@@ -18,7 +18,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <tvm/runtime/container/optional.h>
+#include <tvm/ffi/optional.h>
 
 #include <cmath>
 #include <random>

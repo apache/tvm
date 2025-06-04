@@ -52,7 +52,7 @@ inline ncclRedOp_t AsNCCLRedOp(ReduceKind kind) {
   throw;
 }
 
-void InitCCL(Session sess, IntTuple device_ids) {
+void InitCCL(Session sess, ffi::Shape device_ids) {
   DRef func = sess->GetGlobalFunc("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker");
   DLOG(INFO) << "Initializing " TVM_DISCO_CCL_NAME " with devices: " << device_ids;
   ncclUniqueId id;
@@ -60,7 +60,7 @@ void InitCCL(Session sess, IntTuple device_ids) {
   sess->CallPacked(func, device_ids, ffi::Bytes(id.internal, NCCL_UNIQUE_ID_BYTES));
 }
 
-void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
+void InitCCLPerWorker(ffi::Shape device_ids, std::string unique_id_bytes) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   ICHECK(worker != nullptr);
@@ -116,7 +116,7 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
 
 void AllReduce(NDArray send, ReduceKind reduce_kind, bool in_group, NDArray recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
-  ShapeTuple shape = send.Shape();
+  ffi::Shape shape = send.Shape();
   int64_t numel = shape->Product();
   deviceStream_t stream = ctx->GetDefaultStream();
   DataType dtype = DataType(send->dtype);
@@ -131,7 +131,7 @@ void AllReduce(NDArray send, ReduceKind reduce_kind, bool in_group, NDArray recv
 
 void AllGather(NDArray send, bool in_group, NDArray recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
-  ShapeTuple shape = send.Shape();
+  ffi::Shape shape = send.Shape();
   int64_t numel = shape->Product();
   deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclAllGather(send->data, recv->data, numel,
@@ -325,41 +325,42 @@ void SyncWorker() {
   StreamSynchronize(stream);
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.compiled_ccl").set_body_typed([]() -> String {
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.compiled_ccl").set_body_typed([]() -> String {
   return TVM_DISCO_CCL_NAME;
 });
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl").set_body_typed(InitCCL);
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl").set_body_typed(InitCCL);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker")
     .set_body_typed(InitCCLPerWorker);
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allreduce")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allreduce")
     .set_body_typed([](NDArray send, int kind, bool in_group, NDArray recv) {
       CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
       nccl::AllReduce(send, static_cast<ReduceKind>(kind), in_group, recv);
     });
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allgather")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allgather")
     .set_body_typed([](NDArray send, bool in_group, NDArray recv) {
       nccl::AllGather(send, in_group, recv);
     });
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".broadcast_from_worker0")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".broadcast_from_worker0")
     .set_body_typed(BroadcastFromWorker0);
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".scatter_from_worker0")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".scatter_from_worker0")
     .set_body_typed(ScatterFromWorker0);
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".gather_to_worker0")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".gather_to_worker0")
     .set_body_typed(GatherToWorker0);
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker0")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker0")
     .set_body_typed(RecvFromWorker0);
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".send_to_next_group")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".send_to_next_group")
     .set_body_typed(SendToNextGroup);
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_prev_group")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_prev_group")
     .set_body_typed(RecvFromPrevGroup);
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".send_to_worker")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".send_to_worker")
     .set_body_typed(SendToWorker);
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker")
     .set_body_typed(RecvFromWorker);
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".sync_worker").set_body_typed(SyncWorker);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".sync_worker")
+    .set_body_typed(SyncWorker);
 
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME
-                    ".test_send_to_next_group_recv_from_prev_group")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME
+                        ".test_send_to_next_group_recv_from_prev_group")
     .set_body_typed([](NDArray buffer) {
       CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
       CHECK_EQ(ctx->worker->num_workers, 4) << "The test requires the world size to be 4.";
@@ -373,7 +374,7 @@ TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME
       }
     });
 
-TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".test_worker2_sends_to_worker0")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".test_worker2_sends_to_worker0")
     .set_body_typed([](NDArray buffer) {
       CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
       CHECK_EQ(ctx->worker->num_workers, 4) << "The test requires the world size to be 4.";

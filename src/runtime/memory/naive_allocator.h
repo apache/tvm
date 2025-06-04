@@ -48,7 +48,7 @@ class NaiveAllocator final : public Allocator {
     return buf;
   }
 
-  Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
+  Buffer Alloc(Device dev, ffi::Shape shape, DLDataType type_hint,
                const std::string& mem_scope) final {
     Buffer buf;
     size_t nbytes = 1;

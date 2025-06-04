@@ -49,7 +49,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           std::vector<POO> items{dict.begin(), dict.end()};
           bool is_str_map = true;
           for (const auto& kv : items) {
-            if (!kv.first.as<runtime::StringObj>()) {
+            if (!kv.first.as<ffi::StringObj>()) {
               is_str_map = false;
               break;
             }

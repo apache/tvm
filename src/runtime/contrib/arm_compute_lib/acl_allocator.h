@@ -28,9 +28,9 @@
 #include <arm_compute/runtime/IAllocator.h>
 #include <arm_compute/runtime/IMemoryRegion.h>
 #include <arm_compute/runtime/MemoryRegion.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include <memory>
 

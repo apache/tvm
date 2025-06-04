@@ -31,8 +31,10 @@
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
+#if _WIN32
 #include <llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h>
 #include <llvm/ExecutionEngine/SectionMemoryManager.h>
+#endif
 #include <llvm/IR/DataLayout.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Intrinsics.h>
@@ -53,14 +55,13 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/Transforms/Utils/Cloning.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/support/with.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
@@ -503,9 +504,13 @@ void LLVMModuleNode::InitORCJIT() {
   const auto linkerBuilder =
       [&](llvm::orc::ExecutionSession& session,
           const llvm::Triple& triple) -> std::unique_ptr<llvm::orc::ObjectLayer> {
+#if _WIN32
     auto GetMemMgr = []() { return std::make_unique<llvm::SectionMemoryManager>(); };
     auto ObjLinkingLayer =
         std::make_unique<llvm::orc::RTDyldObjectLinkingLayer>(session, std::move(GetMemMgr));
+#else
+    auto ObjLinkingLayer = std::make_unique<llvm::orc::ObjectLinkingLayer>(session);
+#endif
     if (triple.isOSBinFormatCOFF()) {
       ObjLinkingLayer->setOverrideObjectFlagsWithResponsibilityFlags(true);
       ObjLinkingLayer->setAutoClaimResponsibilityForObjectSymbols(true);
@@ -615,14 +620,14 @@ void* LLVMModuleNode::GetFunctionAddr(const std::string& name,
   return nullptr;
 }
 
-TVM_REGISTER_GLOBAL("target.build.llvm")
+TVM_FFI_REGISTER_GLOBAL("target.build.llvm")
     .set_body_typed([](IRModule mod, Target target) -> runtime::Module {
       auto n = make_object<LLVMModuleNode>();
       n->Init(mod, target);
       return runtime::Module(n);
     });
 
-TVM_REGISTER_GLOBAL("codegen.LLVMModuleCreate")
+TVM_FFI_REGISTER_GLOBAL("codegen.LLVMModuleCreate")
     .set_body_typed([](std::string target_str, std::string module_name) -> runtime::Module {
       auto llvm_instance = std::make_unique<LLVMInstance>();
       With<LLVMTarget> llvm_target(*llvm_instance, target_str);
@@ -637,7 +642,7 @@ TVM_REGISTER_GLOBAL("codegen.LLVMModuleCreate")
       return runtime::Module(n);
     });
 
-TVM_REGISTER_GLOBAL("target.llvm_lookup_intrinsic_id")
+TVM_FFI_REGISTER_GLOBAL("target.llvm_lookup_intrinsic_id")
     .set_body_typed([](std::string name) -> int64_t {
 #if TVM_LLVM_VERSION >= 200
       return static_cast<int64_t>(llvm::Intrinsic::lookupIntrinsicID(name));
@@ -646,7 +651,7 @@ TVM_REGISTER_GLOBAL("target.llvm_lookup_intrinsic_id")
 #endif
     });
 
-TVM_REGISTER_GLOBAL("target.llvm_get_intrinsic_name").set_body_typed([](int64_t id) -> String {
+TVM_FFI_REGISTER_GLOBAL("target.llvm_get_intrinsic_name").set_body_typed([](int64_t id) -> String {
 #if TVM_LLVM_VERSION >= 130
   return std::string(llvm::Intrinsic::getBaseName(static_cast<llvm::Intrinsic::ID>(id)));
 #elif TVM_LLVM_VERSION >= 40
@@ -661,7 +666,7 @@ TVM_REGISTER_GLOBAL("target.llvm_get_intrinsic_name").set_body_typed([](int64_t 
 #endif
 });
 
-TVM_REGISTER_GLOBAL("target.llvm_get_system_x86_vendor").set_body_typed([]() -> String {
+TVM_FFI_REGISTER_GLOBAL("target.llvm_get_system_x86_vendor").set_body_typed([]() -> String {
 #if TVM_LLVM_VERSION >= 120
 #if defined(__i386__) || defined(_M_IX86) || defined(__x86_64__) || defined(_M_X64)
   using namespace llvm::sys::detail::x86;
@@ -677,34 +682,35 @@ TVM_REGISTER_GLOBAL("target.llvm_get_system_x86_vendor").set_body_typed([]() -> 
   return "unimplemented";
 });
 
-TVM_REGISTER_GLOBAL("target.llvm_get_vector_width").set_body_typed([](const Target& target) -> int {
-  auto use_target = target.defined() ? target : Target::Current(false);
-  // ignore non "llvm" target
-  if (target.defined()) {
-    if (target->kind->name != "llvm") {
-      return -1;
-    }
-  }
-  auto llvm_instance = std::make_unique<LLVMInstance>();
-  LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
-  return llvm_backend.GetVectorWidth();
-});
+TVM_FFI_REGISTER_GLOBAL("target.llvm_get_vector_width")
+    .set_body_typed([](const Target& target) -> int {
+      auto use_target = target.defined() ? target : Target::Current(false);
+      // ignore non "llvm" target
+      if (target.defined()) {
+        if (target->kind->name != "llvm") {
+          return -1;
+        }
+      }
+      auto llvm_instance = std::make_unique<LLVMInstance>();
+      LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
+      return llvm_backend.GetVectorWidth();
+    });
 
-TVM_REGISTER_GLOBAL("target.llvm_get_system_triple").set_body_typed([]() -> String {
+TVM_FFI_REGISTER_GLOBAL("target.llvm_get_system_triple").set_body_typed([]() -> String {
   return llvm::sys::getDefaultTargetTriple();
 });
 
-TVM_REGISTER_GLOBAL("target.llvm_get_system_cpu").set_body_typed([]() -> String {
+TVM_FFI_REGISTER_GLOBAL("target.llvm_get_system_cpu").set_body_typed([]() -> String {
   return llvm::sys::getHostCPUName().str();
 });
 
-TVM_REGISTER_GLOBAL("target.llvm_get_targets").set_body_typed([]() -> Array<String> {
+TVM_FFI_REGISTER_GLOBAL("target.llvm_get_targets").set_body_typed([]() -> Array<String> {
   auto llvm_instance = std::make_unique<LLVMInstance>();
   LLVMTargetInfo llvm_backend(*llvm_instance, "llvm");
   return llvm_backend.GetAllLLVMTargets();
 });
 
-TVM_REGISTER_GLOBAL("target.llvm_get_cpu_archlist")
+TVM_FFI_REGISTER_GLOBAL("target.llvm_get_cpu_archlist")
     .set_body_typed([](const Target& target) -> Array<String> {
       auto use_target = target.defined() ? target : Target::Current(false);
       // ignore non "llvm" target
@@ -718,7 +724,7 @@ TVM_REGISTER_GLOBAL("target.llvm_get_cpu_archlist")
       return llvm_backend.GetAllLLVMTargetArches();
     });
 
-TVM_REGISTER_GLOBAL("target.llvm_get_cpu_features")
+TVM_FFI_REGISTER_GLOBAL("target.llvm_get_cpu_features")
     .set_body_typed([](const Target& target) -> Map<String, String> {
       auto use_target = target.defined() ? target : Target::Current(false);
       // ignore non "llvm" target
@@ -732,7 +738,7 @@ TVM_REGISTER_GLOBAL("target.llvm_get_cpu_features")
       return llvm_backend.GetAllLLVMCpuFeatures();
     });
 
-TVM_REGISTER_GLOBAL("target.llvm_cpu_has_feature")
+TVM_FFI_REGISTER_GLOBAL("target.llvm_cpu_has_feature")
     .set_body_typed([](const String feature, const Target& target) -> bool {
       auto use_target = target.defined() ? target : Target::Current(false);
       // ignore non "llvm" target
@@ -748,7 +754,7 @@ TVM_REGISTER_GLOBAL("target.llvm_cpu_has_feature")
       return has_feature;
     });
 
-TVM_REGISTER_GLOBAL("target.target_has_feature")
+TVM_FFI_REGISTER_GLOBAL("target.target_has_feature")
     .set_body_typed([](const String feature, const Target& target) -> bool {
       auto use_target = target.defined() ? target : Target::Current(false);
       // ignore non "llvm" target
@@ -762,11 +768,11 @@ TVM_REGISTER_GLOBAL("target.target_has_feature")
       return llvm_target.TargetHasCPUFeature(feature);
     });
 
-TVM_REGISTER_GLOBAL("target.llvm_version_major").set_body_typed([]() -> int {
+TVM_FFI_REGISTER_GLOBAL("target.llvm_version_major").set_body_typed([]() -> int {
   return TVM_LLVM_VERSION / 10;
 });
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_ll")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_ll")
     .set_body_typed([](std::string filename, std::string fmt) -> runtime::Module {
       auto n = make_object<LLVMModuleNode>();
       n->SetJITEngine("orcjit");
@@ -774,7 +780,7 @@ TVM_REGISTER_GLOBAL("runtime.module.loadfile_ll")
       return runtime::Module(n);
     });
 
-TVM_REGISTER_GLOBAL("codegen.llvm_target_enabled")
+TVM_FFI_REGISTER_GLOBAL("codegen.llvm_target_enabled")
     .set_body_typed([](std::string target_str) -> bool {
       LLVMInstance llvm_instance;
       auto* tm = With<LLVMTarget>(llvm_instance, target_str)
@@ -782,7 +788,7 @@ TVM_REGISTER_GLOBAL("codegen.llvm_target_enabled")
       return tm != nullptr;
     });
 
-TVM_REGISTER_GLOBAL("codegen.codegen_blob")
+TVM_FFI_REGISTER_GLOBAL("codegen.codegen_blob")
     .set_body_typed([](std::string data, bool system_lib, std::string llvm_target_string,
                        std::string c_symbol_prefix) -> runtime::Module {
       auto n = make_object<LLVMModuleNode>();

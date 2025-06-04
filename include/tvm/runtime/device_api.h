@@ -26,10 +26,15 @@
 
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
 
 #include <string>
+/*!
+ * \brief The stream that is specific to device
+ * can be NULL, which indicates the default one.
+ */
+typedef void* TVMStreamHandle;
 
 namespace tvm {
 
@@ -37,6 +42,41 @@ namespace tvm {
 using Device = DLDevice;
 
 namespace runtime {
+
+/*! \brief Extension device types in TVM
+ *
+ * Additional enumerators to supplement those provided by
+ * DLPack's `DLDeviceType` enumeration.
+ *
+ * MAINTAINERS NOTE #1: We need to ensure that the two devices
+ * are identified by the same integer.
+ * Currently this requires manual verification.
+ * Discussed here: https://github.com/dmlc/dlpack/issues/111
+ * As of DLPack v0.7, the highest-valued enumerator in
+ * `DLDeviceType` is kDLHexagon = 16.
+ *
+ * MAINTAINERS NOTE #2: As of DLPack v0.7, the definition for
+ * `DLDeviceType` specifies an underlying storage type of
+ * `int32_t`.  That guarantees a variable of type
+ * `DLDeviceType` is capable of holding any integers provided
+ * by *either* of these enumerations.
+ *
+ * However, the `int32_t` specification only applies when the
+ * header file is compiled as C++, and this header file is also
+ * meant to work as C code.  So the unspecified storage type
+ * could be a latent bug when compiled as C.
+ */
+#ifdef __cplusplus
+typedef enum : int32_t {
+#else
+typedef enum {
+#endif
+  // To help avoid accidental conflicts between `DLDeviceType`
+  // and this enumeration, start numbering the new enumerators
+  // a little higher than (currently) seems necessary.
+  TVMDeviceExtType_End = 36,  // sentinel value
+} TVMDeviceExtType;
+
 /*!
  * \brief the query type into GetAttr
  */

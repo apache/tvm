@@ -19,13 +19,13 @@
 #ifndef TVM_META_SCHEDULE_PROFILER_H_
 #define TVM_META_SCHEDULE_PROFILER_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 
 #include <string>

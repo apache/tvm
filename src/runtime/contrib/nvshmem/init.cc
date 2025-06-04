@@ -19,16 +19,15 @@
 #include <nvshmem.h>
 #include <nvshmemx.h>
 #include <picojson.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/disco_worker.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../cuda/cuda_common.h"
 
 namespace tvm {
 namespace runtime {
 
-ShapeTuple InitNVSHMEMUID() {
+ffi::Shape InitNVSHMEMUID() {
   nvshmemx_uniqueid_t uid;
   nvshmemx_get_uniqueid(&uid);
   std::vector<int64_t> uid_64;
@@ -36,10 +35,10 @@ ShapeTuple InitNVSHMEMUID() {
   for (int i = 0; i < UNIQUEID_PADDING; ++i) {
     uid_64.push_back(static_cast<int64_t>(uid.internal[i]));
   }
-  return ShapeTuple(uid_64);
+  return ffi::Shape(uid_64);
 }
 
-void InitNVSHMEM(ShapeTuple uid_64, int num_workers, int worker_id_start) {
+void InitNVSHMEM(ffi::Shape uid_64, int num_workers, int worker_id_start) {
   DiscoWorker* worker = ThreadLocalDiscoWorker::Get()->worker;
   int worker_id;
   if (worker == nullptr) {
@@ -99,7 +98,7 @@ void InitNVSHMEMWrapper(String args) {
     uid_vector.push_back(elem.get<int64_t>());
   }
 
-  ShapeTuple uid_64(uid_vector);
+  ffi::Shape uid_64(uid_vector);
 
   int num_workers = static_cast<int>(obj["npes"].get<int64_t>());
   int worker_id_start = static_cast<int>(obj["pe_start"].get<int64_t>());
@@ -107,11 +106,11 @@ void InitNVSHMEMWrapper(String args) {
   InitNVSHMEM(uid_64, num_workers, worker_id_start);
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_uid").set_body_typed(InitNVSHMEMUID);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_uid").set_body_typed(InitNVSHMEMUID);
 
-TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem").set_body_typed(InitNVSHMEM);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem").set_body_typed(InitNVSHMEM);
 
-TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_wrapper")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_wrapper")
     .set_body_typed(InitNVSHMEMWrapper);
 
 }  // namespace runtime

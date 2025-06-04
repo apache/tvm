@@ -168,13 +168,13 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   Optional<String> GetCodegenName(const Expr& callee) {
     auto const* gvar = callee.as<GlobalVarNode>();
     if (!gvar) {
-      return NullOpt;
+      return std::nullopt;
     }
 
     auto composite_name_opt =
         mod_->Lookup(GetRef<GlobalVar>(gvar))->GetAttr<String>(attr::kComposite);
     if (!composite_name_opt) {
-      return NullOpt;
+      return std::nullopt;
     }
 
     return relax::GetCodegenName(composite_name_opt.value());
@@ -421,7 +421,7 @@ Pass MergeCompositeFunctions() {
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.MergeCompositeFunctions")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.MergeCompositeFunctions")
     .set_body_typed(MergeCompositeFunctions);
 
 }  // namespace transform

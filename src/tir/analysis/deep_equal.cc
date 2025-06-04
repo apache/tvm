@@ -21,10 +21,10 @@
  * \file tir/analysis/deep_equal.cc
  * \brief Deep equality checking.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/node/object_path.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/structural_equal.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
 
 namespace tvm {
@@ -65,10 +65,10 @@ bool ExprDeepEqual::operator()(const PrimExpr& lhs, const PrimExpr& rhs) const {
     auto* prhs = rhs.as<IntImmNode>();
     return plhs->dtype == prhs->dtype && plhs->value == prhs->value;
   }
-  return DeepCmpSEqualHandler().SEqualReduce(lhs, rhs, false, NullOpt);
+  return DeepCmpSEqualHandler().SEqualReduce(lhs, rhs, false, std::nullopt);
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.expr_deep_equal")
+TVM_FFI_REGISTER_GLOBAL("tir.analysis.expr_deep_equal")
     .set_body_typed([](const PrimExpr& lhs, const PrimExpr& rhs) {
       return ExprDeepEqual()(lhs, rhs);
     });

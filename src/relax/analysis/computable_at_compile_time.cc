@@ -92,7 +92,7 @@ Array<Var> ComputableAtCompileTime(const Function& func) {
   return CompileTimeCollector::Collect(func);
 }
 
-TVM_REGISTER_GLOBAL("relax.analysis.computable_at_compile_time")
+TVM_FFI_REGISTER_GLOBAL("relax.analysis.computable_at_compile_time")
     .set_body_typed(ComputableAtCompileTime);
 
 }  // namespace relax

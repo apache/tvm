@@ -104,7 +104,8 @@ Pass UpdateParamStructInfo(ffi::TypedFunction<Optional<StructInfo>(Var)> sinfo_f
   return tvm::transform::CreateModulePass(pass_func, 1, "UpdateParamStructInfo", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.UpdateParamStructInfo").set_body_typed(UpdateParamStructInfo);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.UpdateParamStructInfo")
+    .set_body_typed(UpdateParamStructInfo);
 
 }  // namespace transform
 }  // namespace relax

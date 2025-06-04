@@ -154,7 +154,7 @@ Pass BindNamedParams(String func_name, Map<ObjectRef, ObjectRef> params) {
   return CreateModulePass(pass_func, 0, "BindNamedParams", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.BindNamedParams").set_body_typed(BindNamedParams);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.BindNamedParams").set_body_typed(BindNamedParams);
 
 }  // namespace transform
 

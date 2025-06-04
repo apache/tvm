@@ -206,13 +206,13 @@ TVM_DLL Pass BindParams(String func_name, Map<ObjectRef, ObjectRef> params);
  *      symbolic variable in each function where it is used.
  *
  * \param func_name The name of the function in which to bind shape
- *      values.  If NullOpt, all functions in the module will be
+ *      values.  If std::nullopt, all functions in the module will be
  *      updated.
  *
  * \return The Pass.
  */
 TVM_DLL Pass BindSymbolicVars(Map<ObjectRef, PrimExpr> binding_map,
-                              Optional<String> func_name = NullOpt);
+                              Optional<String> func_name = std::nullopt);
 
 /*!
  * \brief Fold constant expressions within dataflow blocks.
@@ -378,7 +378,7 @@ class FusionPatternNode : public Object {
 
   /*!
    * \brief The function to determine whether the match result is accepted. This can be
-   * NullOpt if check function is not necessary for this pattern.
+   * std::nullopt if check function is not necessary for this pattern.
    *
    * It should have signature
    * bool(const PatternCheckContext& context)
@@ -411,7 +411,7 @@ class FusionPattern : public ObjectRef {
                 Optional<ffi::Function> check, Optional<ffi::Function> attrs_getter);
 
   FusionPattern(String name, DFPattern pattern)
-      : FusionPattern(name, pattern, {}, NullOpt, NullOpt) {}
+      : FusionPattern(name, pattern, {}, std::nullopt, std::nullopt) {}
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FusionPattern, ObjectRef, FusionPatternNode);
 };
@@ -497,7 +497,7 @@ class PatternCheckContext : public ObjectRef {
  *
  * \note ConvertToDataflow may need to be called first to provide dataflow blocks.
  */
-TVM_DLL Pass Gradient(String func_name, Optional<Array<Var>> require_grads = NullOpt,
+TVM_DLL Pass Gradient(String func_name, Optional<Array<Var>> require_grads = std::nullopt,
                       int target_index = 0);
 
 /*!
@@ -548,7 +548,7 @@ TVM_DLL Pass FuseTIR();
  * \return The Pass.
  */
 TVM_DLL Pass RunCodegen(Optional<Map<String, Map<String, ffi::Any>>> target_options,
-                        Array<runtime::String> entry_functions);
+                        Array<String> entry_functions);
 
 /*!
  * \brief Decompose composite operators during inference. For example, The result of batch norm (a
@@ -622,7 +622,7 @@ TVM_DLL Pass ConvertToDataflow(int min_size = 2);
  *
  * \return The Pass.
  */
-TVM_DLL Pass DeadCodeElimination(Array<runtime::String> entry_functions = {});
+TVM_DLL Pass DeadCodeElimination(Array<String> entry_functions = {});
 
 /*!
  * \brief Pass that changes calls to operators that can be done in-place
@@ -646,7 +646,7 @@ TVM_DLL Pass DataflowUseInplaceCalls();
  * \note Mainly operates within dataflow blocks. ConvertToDataflow may need to be called first.
  */
 TVM_DLL Pass ToMixedPrecision(const DataType& out_dtype,
-                              Optional<Array<String>> fp16_input_names = NullOpt);
+                              Optional<Array<String>> fp16_input_names = std::nullopt);
 
 /*!
  * \brief Rewrite a Relax module for executing with CUDA graph. This pass identifies

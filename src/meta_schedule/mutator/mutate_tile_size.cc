@@ -216,7 +216,7 @@ Optional<Trace> MutateSampleTileSize(const Trace& trace, Instruction inst,
       }
       if (max_factor_index == 0) {
         if (n_splits <= 2) {
-          return NullOpt;
+          return std::nullopt;
         }
         // Failed on this dst_idx, try next one.
         continue;
@@ -253,7 +253,7 @@ Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_s
   int size_a = sample_perfect_tile_insts.size();
   int size_b = sample_vectorize_insts.size();
   if (size_a == 0 && size_b == 0) {
-    return NullOpt;
+    return std::nullopt;
   }
   int n = tir::SampleInt(rand_state, 0, size_a + size_b);
   if (n < size_a) {
@@ -269,7 +269,8 @@ Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_s
 Mutator Mutator::MutateTileSize() { return Mutator(make_object<MutateTileSizeNode>()); }
 
 TVM_REGISTER_NODE_TYPE(MutateTileSizeNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorMutateTileSize").set_body_typed(Mutator::MutateTileSize);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateTileSize")
+    .set_body_typed(Mutator::MutateTileSize);
 
 }  // namespace meta_schedule
 }  // namespace tvm

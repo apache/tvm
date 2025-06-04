@@ -98,7 +98,7 @@ class BindingOrderCollector : ExprVisitor {
     // If there is a variable without any inputs (e.g. `R.const(1)`)
     // or an unused variable, these must be handled somewhere, to
     // ensure they are visited corrected.  It's easiest to perform the
-    // depth/breadth-first search if handled here, with `NullOpt`
+    // depth/breadth-first search if handled here, with `std::nullopt`
     // acting as a special value, so that the later traversal doesn't
     // need to check for this special case.
     std::vector<DataflowNode> zero_input_bindings;
@@ -247,7 +247,7 @@ class TopologicalSorter : public ExprMutator {
 
     std::unordered_set<DataflowNode> visited;
 
-    // Given a variable that has just been defined (or NullOpt for the
+    // Given a variable that has just been defined (or std::nullopt for the
     // function's output), mark nodes as ready to visit.
     auto push_descendents_to_stack = [&](const DataflowNode& var) {
       auto it = forward_edge_lookup.find(var);
@@ -342,7 +342,7 @@ Pass TopologicalSort(TraversalOrder order, StartingLocation starting_location) {
   return relax::transform::CreateFunctionPass(pass_func, 0, "TopologicalSort", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.TopologicalSort")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.TopologicalSort")
     .set_body_typed([](String order_str, String direction_str) -> Pass {
       TraversalOrder order = [&]() {
         if (order_str == "depth-first") {

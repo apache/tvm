@@ -39,7 +39,7 @@ ExtractedTask::ExtractedTask(String task_name, IRModule mod, Target target,
 }
 
 TVM_REGISTER_NODE_TYPE(ExtractedTaskNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ExtractedTask")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ExtractedTask")
     .set_body_typed([](String task_name, IRModule mod, Target target, Array<IRModule> dispatched,
                        int weight) -> ExtractedTask {
       return ExtractedTask(task_name, mod, target, dispatched, weight);

@@ -21,8 +21,8 @@
  * \file src/runtime/contrib/cudnn/softmax.cc
  * \brief Use external cudnn softmax function
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include "cudnn_utils.h"
 
@@ -77,12 +77,12 @@ void softmax_impl(cudnnSoftmaxAlgorithm_t alg, ffi::PackedArgs args, ffi::Any* r
                                  entry_ptr->softmax_entry.shape_desc, y->data));
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cudnn.softmax.forward")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       softmax_impl(CUDNN_SOFTMAX_ACCURATE, args, ret);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cudnn.log_softmax.forward")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cudnn.log_softmax.forward")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       softmax_impl(CUDNN_SOFTMAX_LOG, args, ret);
     });

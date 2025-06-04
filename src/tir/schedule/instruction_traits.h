@@ -190,7 +190,7 @@ class PythonAPICall {
    * \brief Constructor
    * \param method_name The name of the schedule API to be called
    */
-  explicit PythonAPICall(String method_name) : method_name_(method_name), output_(NullOpt) {}
+  explicit PythonAPICall(String method_name) : method_name_(method_name), output_(std::nullopt) {}
   /*! \brief Add an integer input */
   inline void Input(String arg_name, int arg);
   /*! \brief Add an integer input */
@@ -272,7 +272,7 @@ template <typename>
 struct _IsTVMArray : std::false_type {};
 
 template <typename T>
-struct _IsTVMArray<runtime::Array<T>> : std::true_type {};
+struct _IsTVMArray<Array<T>> : std::true_type {};
 
 template <typename T>
 struct _IsSingleObject
@@ -409,7 +409,7 @@ TVM_ALWAYS_INLINE Array<Any> UnpackedInstTraits<TTraits>::_ConvertOutputs(const 
   } else if (is_single_obj) {
     return {rv};
   } else if (is_array) {
-    return rv.cast<runtime::Array<Any>>();
+    return rv.cast<Array<Any>>();
   }
 }
 
@@ -420,12 +420,12 @@ inline void PythonAPICall::AsPythonString(const Any& obj, std::ostream& os) {
     os << "None";
   } else if (const auto* str = obj.as<ffi::StringObj>()) {
     os << str->data;
-  } else if (const auto opt_int_imm = obj.as<IntImm>()) {
+  } else if (const auto opt_int_imm = obj.try_cast<IntImm>()) {
     os << (*opt_int_imm)->value;
-  } else if (const auto opt_float_imm = obj.as<FloatImm>()) {
+  } else if (const auto opt_float_imm = obj.try_cast<FloatImm>()) {
     os.precision(17);
     os << (*opt_float_imm)->value;
-  } else if (const auto* array = obj.as<ArrayObj>()) {
+  } else if (const auto* array = obj.as<ffi::ArrayObj>()) {
     os << '[';
     bool is_first = true;
     for (Any e : *array) {
@@ -437,7 +437,7 @@ inline void PythonAPICall::AsPythonString(const Any& obj, std::ostream& os) {
       AsPythonString(e, os);
     }
     os << ']';
-  } else if (const auto* dict = obj.as<MapObj>()) {
+  } else if (const auto* dict = obj.as<ffi::MapObj>()) {
     os << '{';
     bool is_first = true;
     std::vector<std::pair<std::string, std::string>> dict_items;

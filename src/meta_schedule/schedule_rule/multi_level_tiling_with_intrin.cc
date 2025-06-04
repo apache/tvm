@@ -33,7 +33,7 @@ Optional<tir::BlockRV> TileForIntrin(tir::Schedule sch, tir::BlockRV block,
                                      const std::string& intrin_name) {
   Optional<tir::LoopRV> tiled_loop_rv = TileWithTensorIntrin(sch, block, intrin_name);
   if (!tiled_loop_rv) {
-    return NullOpt;
+    return std::nullopt;
   }
   ICHECK(tiled_loop_rv.defined());
   tir::BlockRV outer_block = sch->Blockize(tiled_loop_rv.value());
@@ -106,7 +106,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(String intrin_name, String
 }
 
 TVM_REGISTER_NODE_TYPE(MultiLevelTilingWithIntrinNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTilingWithIntrin")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTilingWithIntrin")
     .set_body_typed(ScheduleRule::MultiLevelTilingWithIntrin);
 
 }  // namespace meta_schedule

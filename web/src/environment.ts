@@ -75,7 +75,7 @@ export class Environment implements LibraryProvider {
    * We maintain a separate table so that we can have un-limited amount
    * of functions that do not maps to the address space.
    */
-  packedCFuncTable: Array<ctypes.FTVMWasmPackedCFunc | undefined> = [
+  packedCFuncTable: Array<ctypes.FTVMFFIWasmSafeCallType | undefined> = [
     undefined,
   ];
   /**
@@ -115,28 +115,27 @@ export class Environment implements LibraryProvider {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       "emscripten_notify_memory_growth": (index: number): void => {}
     };
-    const wasmPackedCFunc: ctypes.FTVMWasmPackedCFunc = (
+    const wasmSafeCall: ctypes.FTVMFFIWasmSafeCallType = (
+      self: Pointer,
       args: Pointer,
-      typeCodes: Pointer,
-      nargs: number,
-      ret: Pointer,
-      resourceHandle: Pointer
+      num_args: number,
+      result: Pointer
     ): number => {
-      const cfunc = this.packedCFuncTable[resourceHandle];
+      const cfunc = this.packedCFuncTable[self];
       assert(cfunc !== undefined);
-      return cfunc(args, typeCodes, nargs, ret, resourceHandle);
+      return cfunc(self, args, num_args, result);
     };
 
-    const wasmPackedCFuncFinalizer: ctypes.FTVMWasmPackedCFuncFinalizer = (
-      resourceHandle: Pointer
+    const wasmFunctionDeleter: ctypes.FTVMFFIWasmFunctionDeleter = (
+      self: Pointer
     ): void => {
-      this.packedCFuncTable[resourceHandle] = undefined;
-      this.packedCFuncTableFreeId.push(resourceHandle);
+      this.packedCFuncTable[self] = undefined;
+      this.packedCFuncTableFreeId.push(self);
     };
 
     const newEnv = {
-      TVMWasmPackedCFunc: wasmPackedCFunc,
-      TVMWasmPackedCFuncFinalizer: wasmPackedCFuncFinalizer,
+      "TVMFFIWasmSafeCall": wasmSafeCall,
+      "TVMFFIWasmFunctionDeleter": wasmFunctionDeleter,
       "__console_log": (msg: string): void => {
         this.logger(msg);
       }

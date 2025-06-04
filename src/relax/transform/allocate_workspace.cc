@@ -201,7 +201,7 @@ Pass AllocateWorkspace() {
   return CreateModulePass(pass_func, 0, "AllocateWorkspace", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.AllocateWorkspace").set_body_typed(AllocateWorkspace);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.AllocateWorkspace").set_body_typed(AllocateWorkspace);
 
 }  // namespace transform
 }  // namespace tvm

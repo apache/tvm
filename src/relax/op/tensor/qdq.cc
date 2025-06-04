@@ -44,7 +44,7 @@ Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dty
   return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
 }
 
-TVM_REGISTER_GLOBAL("relax.op.quantize").set_body_typed(quantize);
+TVM_FFI_REGISTER_GLOBAL("relax.op.quantize").set_body_typed(quantize);
 
 StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();
@@ -128,7 +128,7 @@ Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_d
   return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dequantize").set_body_typed(dequantize);
+TVM_FFI_REGISTER_GLOBAL("relax.op.dequantize").set_body_typed(dequantize);
 
 StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();

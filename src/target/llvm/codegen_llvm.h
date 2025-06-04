@@ -117,7 +117,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    * \param module_name The name of the module.
    * \param tm Target machine model
    * \param ctx The context.
-   * \param system_lib_prefix If the value is not NullOpt, insert system lib registration.
+   * \param system_lib_prefix If the value is not std::nullopt, insert system lib registration.
    *                          The value corresponds to the prefix of the system lib symbols.
    * \param dynamic_lookup Whether dynamically lookup runtime function
    *                       or use the runtime function table passed by caller.

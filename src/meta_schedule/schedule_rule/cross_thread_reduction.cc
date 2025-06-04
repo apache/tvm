@@ -86,7 +86,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
       // - Otherwise, we search for the extent of "threadIdx.x" and use it as the split factor.
       if (!InThreadScope(tmp_sch, target_block)) {
         const Array<tir::LoopRV>& split_res =
-            tmp_sch->Split(tgt_block_innermost_loop, {NullOpt, thread_extent});
+            tmp_sch->Split(tgt_block_innermost_loop, {std::nullopt, thread_extent});
         tmp_sch->Bind(split_res[1], "threadIdx.x");
         if (tgt_block_innermost_loop.same_as(target_loop)) {
           target_loop = split_res[0];
@@ -107,7 +107,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
     ReorderAndFuseReductionLoops(tmp_sch, block_rv, &fused_reduce_loop, &num_spatial_loops);
     // Step 5. Split the fused reduction loop and bind the inner one to threadIdx.
     const Array<tir::LoopRV>& split_res =
-        tmp_sch->Split(fused_reduce_loop, {NullOpt, thread_extent});
+        tmp_sch->Split(fused_reduce_loop, {std::nullopt, thread_extent});
     tmp_sch->Bind(split_res[1], "threadIdx.x");
 
     return {tmp_sch, sch};
@@ -291,7 +291,7 @@ ScheduleRule ScheduleRule::CrossThreadReduction(Array<Integer> thread_extents) {
 }
 
 TVM_REGISTER_NODE_TYPE(CrossThreadReductionNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleCrossThreadReduction")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleCrossThreadReduction")
     .set_body_typed(ScheduleRule::CrossThreadReduction);
 
 }  // namespace meta_schedule

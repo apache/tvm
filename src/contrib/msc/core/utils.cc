@@ -263,13 +263,13 @@ const String StringUtils::ToString(const runtime::ObjectRef& obj) {
   String obj_string;
   if (!obj.defined()) {
     obj_string = "";
-  } else if (obj.as<StringObj>()) {
+  } else if (obj.as<ffi::StringObj>()) {
     obj_string = Downcast<String>(obj);
   } else if (const auto* n = obj.as<IntImmNode>()) {
     obj_string = std::to_string(n->value);
   } else if (const auto* n = obj.as<FloatImmNode>()) {
     obj_string = std::to_string(n->value);
-  } else if (const auto* n = obj.as<ArrayObj>()) {
+  } else if (const auto* n = obj.as<ffi::ArrayObj>()) {
     for (size_t i = 0; i < n->size(); i++) {
       obj_string = obj_string + ToString((*n)[i].cast<ObjectRef>());
       if (n->size() == 1 || i < n->size() - 1) {
@@ -523,27 +523,27 @@ const DataType ExprUtils::GetDataType(const Expr& expr) {
   return Downcast<TensorStructInfo>(GetStructInfo(expr))->dtype;
 }
 
-TVM_REGISTER_GLOBAL("msc.core.SpanGetAttr").set_body_typed(SpanUtils::GetAttr);
+TVM_FFI_REGISTER_GLOBAL("msc.core.SpanGetAttr").set_body_typed(SpanUtils::GetAttr);
 
-TVM_REGISTER_GLOBAL("msc.core.SpanGetAttrs").set_body_typed(SpanUtils::GetAttrs);
+TVM_FFI_REGISTER_GLOBAL("msc.core.SpanGetAttrs").set_body_typed(SpanUtils::GetAttrs);
 
-TVM_REGISTER_GLOBAL("msc.core.SpanCreateWithAttr")
+TVM_FFI_REGISTER_GLOBAL("msc.core.SpanCreateWithAttr")
     .set_body_typed([](const String& key, const String& value) -> Span {
       return SpanUtils::CreateWithAttr(key, value);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.SpanSetAttr")
+TVM_FFI_REGISTER_GLOBAL("msc.core.SpanSetAttr")
     .set_body_typed([](const Span& span, const String& key, const String& value) -> Span {
       return SpanUtils::SetAttr(span, key, value);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.CompareVersion")
+TVM_FFI_REGISTER_GLOBAL("msc.core.CompareVersion")
     .set_body_typed([](const Array<Integer>& given_version,
                        const Array<Integer>& target_version) -> Integer {
       return Integer(CommonUtils::CompareVersion(given_version, target_version));
     });
 
-TVM_REGISTER_GLOBAL("msc.core.ToAttrKey").set_body_typed([](const String& key) -> String {
+TVM_FFI_REGISTER_GLOBAL("msc.core.ToAttrKey").set_body_typed([](const String& key) -> String {
   return CommonUtils::ToAttrKey(key);
 });
 

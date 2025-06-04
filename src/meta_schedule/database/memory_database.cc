@@ -97,7 +97,7 @@ Database Database::MemoryDatabase(String mod_eq_name) {
 }
 
 TVM_REGISTER_NODE_TYPE(MemoryDatabaseNode);
-TVM_REGISTER_GLOBAL("meta_schedule.DatabaseMemoryDatabase")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseMemoryDatabase")
     .set_body_typed(Database::MemoryDatabase);
 
 }  // namespace meta_schedule

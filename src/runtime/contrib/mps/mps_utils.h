@@ -26,10 +26,10 @@
 
 #import <MetalPerformanceShaders/MetalPerformanceShaders.h>
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 #include <vector>
 

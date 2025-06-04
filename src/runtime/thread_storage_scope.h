@@ -24,7 +24,7 @@
 #ifndef TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
 #define TVM_RUNTIME_THREAD_STORAGE_SCOPE_H_
 
-#include <tvm/runtime/packed_func.h>
+#include <tvm/ffi/function.h>
 
 #include <string>
 #include <vector>

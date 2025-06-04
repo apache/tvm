@@ -20,8 +20,7 @@ from __future__ import annotations
 
 from typing import Dict, Union
 
-import tvm._ffi
-from tvm._ffi.base import string_types
+import tvm.ffi
 from tvm.runtime import Scriptable
 from tvm.runtime.object import Object
 
@@ -31,7 +30,7 @@ from .attrs import DictAttrs
 from .base import Node
 
 
-@tvm._ffi.register_object("IRModule")
+@tvm.ffi.register_object("IRModule")
 class IRModule(Node, Scriptable):
     """IRModule that holds functions and type definitions.
 
@@ -49,7 +48,7 @@ class IRModule(Node, Scriptable):
         elif isinstance(functions, dict):
             mapped_funcs = {}
             for k, v in functions.items():
-                if isinstance(k, string_types):
+                if isinstance(k, str):
                     k = _expr.GlobalVar(k)
                 if not isinstance(k, _expr.GlobalVar):
                     raise TypeError("Expect functions to be Dict[GlobalVar, Function]")
@@ -98,7 +97,7 @@ class IRModule(Node, Scriptable):
 
     def _add(self, var, val, update=True):
         if isinstance(val, _expr.RelaxExpr):
-            if isinstance(var, string_types):
+            if isinstance(var, str):
                 if _ffi_api.Module_ContainGlobalVar(self, var):
                     var = _ffi_api.Module_GetGlobalVar(self, var)
                 else:
@@ -118,7 +117,7 @@ class IRModule(Node, Scriptable):
         val: Union[Function, Type]
             The definition referenced by :code:`var` (either a function or type).
         """
-        if isinstance(var, string_types):
+        if isinstance(var, str):
             return _ffi_api.Module_Lookup_str(self, var)
         assert isinstance(var, _expr.GlobalVar)
         return _ffi_api.Module_Lookup(self, var)

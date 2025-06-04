@@ -22,9 +22,8 @@
  * \brief The CUDA graph related builtin functions for Relax virtual machine.
  */
 
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/relax_vm/vm.h>
 
 #include "../../../support/utils.h"
@@ -41,9 +40,9 @@ struct CUDAGraphCaptureKey {
   // The symbolic variables the capture function depends on. When the capture function is ran with
   // different symbolic variable values, the CUDA graph will be re-captured as a different version,
   // identified by this shape tuple. This is default constructed as an empty tuple.
-  ShapeTuple shape_expr;
+  ffi::Shape shape_expr;
 
-  CUDAGraphCaptureKey(int64_t index, const Optional<ShapeTuple>& shape_expr) : index(index) {
+  CUDAGraphCaptureKey(int64_t index, const Optional<ffi::Shape>& shape_expr) : index(index) {
     if (shape_expr) {
       this->shape_expr = shape_expr.value();
     }
@@ -150,7 +149,7 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
    * \return The return value of the capture function.
    */
   ObjectRef RunOrCapture(VirtualMachine* vm, const ObjectRef& capture_func, ObjectRef args,
-                         int64_t entry_index, Optional<ShapeTuple> shape_expr) {
+                         int64_t entry_index, Optional<ffi::Shape> shape_expr) {
     CUDAGraphCaptureKey entry_key{entry_index, shape_expr};
     if (auto it = capture_cache_.find(entry_key); it != capture_cache_.end()) {
       // Launch CUDA graph
@@ -241,7 +240,7 @@ class CUDAGraphExtension : public VMExtension {
   }
 };
 
-TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       ICHECK(args.size() == 5 || args.size() == 4);
       VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
@@ -249,14 +248,14 @@ TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
       auto capture_func = args[1].cast<ObjectRef>();
       auto func_args = args[2].cast<ObjectRef>();
       int64_t entry_index = args[3].cast<int64_t>();
-      Optional<ShapeTuple> shape_expr = NullOpt;
+      Optional<ffi::Shape> shape_expr = std::nullopt;
       if (args.size() == 5) {
-        shape_expr = args[4].cast<ShapeTuple>();
+        shape_expr = args[4].cast<ffi::Shape>();
       }
       *rv = extension->RunOrCapture(vm, capture_func, func_args, entry_index, shape_expr);
     });
 
-TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.get_cached_alloc")
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.cuda_graph.get_cached_alloc")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       ICHECK_EQ(args.size(), 3);
       VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);

@@ -61,7 +61,7 @@ class ParamsInliner : public ExprMutator {
             continue;
           }
           if (struct_info->IsInstance<FuncStructInfoNode>()) {
-            const auto& optype_opt = func->GetAttr<runtime::String>(msc_attr::kOptype);
+            const auto& optype_opt = func->GetAttr<String>(msc_attr::kOptype);
             ICHECK(optype_opt.defined())
                 << "Can not find attr " << msc_attr::kOptype << " form extern func";
             extern_types_.Set(p, optype_opt.value());
@@ -184,7 +184,7 @@ Pass InlineParams(const String& entry_name) {
   return CreateModulePass(pass_func, 0, "InlineParams", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.InlineParams").set_body_typed(InlineParams);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.InlineParams").set_body_typed(InlineParams);
 
 }  // namespace transform
 }  // namespace relax

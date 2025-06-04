@@ -79,7 +79,7 @@ Pass AttachGlobalSymbol() {
   return CreateModulePass(pass_func, 0, "AttachGlobalSymbol", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.AttachGlobalSymbol").set_body_typed(AttachGlobalSymbol);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.AttachGlobalSymbol").set_body_typed(AttachGlobalSymbol);
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

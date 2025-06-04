@@ -203,7 +203,7 @@ class IRDocsifierNode : public Object {
    * \brief Get the doc for variable.
    * \param obj The variable object.
    *
-   * \return The doc for variable, if it exists in the table. Otherwise it returns NullOpt.
+   * \return The doc for variable, if it exists in the table. Otherwise it returns std::nullopt.
    */
   Optional<ExprDoc> GetVarDoc(const ObjectRef& obj) const;
   /*! \brief Add a TVM object to the metadata section*/

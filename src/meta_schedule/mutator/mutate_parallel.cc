@@ -250,7 +250,7 @@ Optional<Trace> MutateParallelNode::Apply(const Trace& trace, TRandState* rand_s
   // Step 1. Find a parallel decision.
   Candidate candidate;
   if (!FindParallelDecision(trace, rand_state, &candidate)) {
-    return NullOpt;
+    return std::nullopt;
   }
   // Step 2. Replay the instructions to recover loop extents
   tir::Schedule sch = tir::Schedule::Traced(               //
@@ -283,7 +283,7 @@ Optional<Trace> MutateParallelNode::Apply(const Trace& trace, TRandState* rand_s
   // Step 5. Pick a new plan
   int n_plans = plan2limit.size();
   if (n_plans == 0) {
-    return NullOpt;
+    return std::nullopt;
   }
   it = plan2limit.begin();
   for (int i = 0, n = tir::SampleInt(rand_state, 0, n_plans); i < n; ++i) {
@@ -312,7 +312,8 @@ Mutator Mutator::MutateParallel(int64_t max_jobs_per_core) {
 }
 
 TVM_REGISTER_NODE_TYPE(MutateParallelNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorMutateParallel").set_body_typed(Mutator::MutateParallel);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateParallel")
+    .set_body_typed(Mutator::MutateParallel);
 
 }  // namespace meta_schedule
 }  // namespace tvm

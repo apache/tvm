@@ -17,9 +17,8 @@
  * under the License.
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include "cutlass_kernels/cutlass_preprocessors.h"
 
@@ -35,7 +34,7 @@ namespace runtime {
 // black box.
 //
 // The preprocessing functions are defined in C++, so we need to copy the input weight to CPU.
-TVM_REGISTER_GLOBAL("cutlass.ft_preprocess_weight")
+TVM_FFI_REGISTER_GLOBAL("cutlass.ft_preprocess_weight")
     .set_body_typed([](NDArray packed_weight, int sm, bool is_int4) {
       bool is_2d = packed_weight->ndim == 2;
       int num_experts = is_2d ? 1 : packed_weight->shape[0];

@@ -24,7 +24,7 @@ from tvm.meta_schedule.utils import _json_de_tvm
 from tvm.meta_schedule.database import Workload
 from tvm.tir.schedule.trace import JSON_TYPE
 from tvm.target import Target
-from tvm._ffi import register_object
+from tvm.ffi import register_object
 from .primitives import Trace
 from . import _ffi_api
 

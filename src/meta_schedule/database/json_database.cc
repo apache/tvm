@@ -189,7 +189,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
           auto json_obj = json_objs[task_id].cast<ObjectRef>();
           Workload workload{nullptr};
           try {
-            const ArrayObj* arr = json_obj.as<ArrayObj>();
+            const ffi::ArrayObj* arr = json_obj.as<ffi::ArrayObj>();
             ICHECK_EQ(arr->size(), 2);
             int64_t workload_index = arr->at(0).cast<IntImm>()->value;
             ICHECK(workload_index >= 0 && static_cast<size_t>(workload_index) < workloads.size());
@@ -214,7 +214,8 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
 }
 
 TVM_REGISTER_NODE_TYPE(JSONDatabaseNode);
-TVM_REGISTER_GLOBAL("meta_schedule.DatabaseJSONDatabase").set_body_typed(Database::JSONDatabase);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseJSONDatabase")
+    .set_body_typed(Database::JSONDatabase);
 
 }  // namespace meta_schedule
 }  // namespace tvm

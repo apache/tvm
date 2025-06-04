@@ -101,7 +101,7 @@ TVM_DLL void DataflowBlockOutput(const Array<tvm::relax::Var>& vars);
  */
 TVM_DLL tvm::relax::Var Emit(
     const tvm::relax::Expr& value,
-    const Optional<tvm::relax::StructInfo>& annotate_struct_info = NullOpt);
+    const Optional<tvm::relax::StructInfo>& annotate_struct_info = std::nullopt);
 
 /*!
  * \brief Emit a match_cast binding to the last binding block frame.

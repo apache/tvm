@@ -61,7 +61,7 @@ Pass ToNonDataflow() {
   return CreateFunctionPass(pass_func, 0, "ToNonDataflow", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ToNonDataflow").set_body_typed(ToNonDataflow);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.ToNonDataflow").set_body_typed(ToNonDataflow);
 
 }  // namespace transform
 

@@ -25,9 +25,10 @@
 #ifndef TVM_RUNTIME_RELAX_VM_ATTN_BACKEND_H_
 #define TVM_RUNTIME_RELAX_VM_ATTN_BACKEND_H_
 
-#include <tvm/runtime/container/array.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/int_tuple.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <memory>
 #include <tuple>

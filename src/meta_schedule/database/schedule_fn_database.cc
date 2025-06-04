@@ -40,11 +40,11 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
     if (Optional<tir::Schedule> sch = this->QuerySchedule(mod, target, workload_name)) {
       return TuningRecord(sch.value()->trace().value(),
                           /*workload=*/Workload(mod, 0),  //
-                          /*run_secs=*/NullOpt,           //
+                          /*run_secs=*/std::nullopt,      //
                           /*target=*/target,              //
-                          /*arg_info=*/NullOpt);
+                          /*arg_info=*/std::nullopt);
     }
-    return NullOpt;
+    return std::nullopt;
   }
 
   Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
@@ -55,7 +55,7 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
                               /*debug_mode=*/0,
                               /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
     if (!schedule_fn(sch)) {
-      return NullOpt;
+      return std::nullopt;
     }
     return sch;
   }
@@ -99,7 +99,7 @@ Database Database::ScheduleFnDatabase(ffi::TypedFunction<bool(tir::Schedule)> sc
 }
 
 TVM_REGISTER_NODE_TYPE(ScheduleFnDatabaseNode);
-TVM_REGISTER_GLOBAL("meta_schedule.DatabaseScheduleFnDatabase")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseScheduleFnDatabase")
     .set_body_typed(Database::ScheduleFnDatabase);
 
 }  // namespace meta_schedule
