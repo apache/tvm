@@ -908,25 +908,31 @@ def func():
     _assert_print(func, expected_output)
 
 
-@pytest.mark.parametrize("dtype", ["float8_e4m3fn", "float8_e5m2"])
-def test_float8(dtype):
+CUSTOM_FLOAT_DTYPES = [
+    # Float8 variants
+    "float8_e3m4",
+    "float8_e4m3",
+    "float8_e4m3b11fnuz",
+    "float8_e4m3fn",
+    "float8_e4m3fnuz",
+    "float8_e5m2",
+    "float8_e5m2fnuz",
+    "float8_e8m0fnu",
+    # Float6 variants
+    "float6_e2m3fn",
+    "float6_e3m2fn",
+    # Float4 variant
+    "float4_e2m1fn",
+]
+
+
+@pytest.mark.parametrize("dtype", CUSTOM_FLOAT_DTYPES)
+def test_custom_float_types(dtype):
     from tvm.script import tir as T
 
-    def get_func(dtype):
-        if dtype == "float8_e4m3fn":
-
-            @T.prim_func
-            def func():
-                T.evaluate(T.float8_e4m3fn(0.0))
-
-            return func
-        elif dtype == "float8_e5m2":
-
-            @T.prim_func
-            def func():
-                T.evaluate(T.float8_e5m2(0.0))
-
-            return func
+    @T.prim_func()
+    def func():
+        T.evaluate(getattr(T, dtype)(0.0))
 
     expected_output = f"""
 # from tvm.script import tir as T
@@ -934,8 +940,7 @@ def test_float8(dtype):
 @T.prim_func
 def func():
     T.evaluate(T.{dtype}(0.0))
-    """
-    func = get_func(dtype)
+"""
     _assert_print(func, expected_output)
 
 

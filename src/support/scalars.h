@@ -61,13 +61,37 @@ constexpr double kMaxFloat16 = 65504.0;
 // See https://en.wikipedia.org/wiki/Bfloat16_floating-point_format
 constexpr double kMaxBFloat16 = 3.895313892515354759047080037148786688e38;
 
+// 2^15 * (1 + 3/4)
+// See https://arxiv.org/pdf/2209.05433.pdf
+constexpr double kMaxE5M2 = 57344;
+
+// 2^15 * (1 + 3/4)
+constexpr double kMaxE5M2FNUZ = 57344;
+
 // 2^8 * (1 + 6/8)
 // See https://arxiv.org/pdf/2209.05433.pdf
 constexpr double kMaxE4M3FN = 448;
 
-// 2^15 * (1 + 3/4)
-// See https://arxiv.org/pdf/2209.05433.pdf
-constexpr double kMaxE5M2 = 57344;
+// 2^8 * (1 + 6/8)
+constexpr double kMaxE4M3 = 448;
+
+// 2^8 * (1 + 6/8)
+constexpr double kMaxE4M3FNUZ = 448;
+
+// 2^4 * 1.875
+constexpr double kMaxE4M3B11FNUZ = 30;
+
+// 2^4 * 1.9375
+constexpr double kMaxE3M4 = 31;
+
+// 2^(255 - 127)
+constexpr double kMaxE8M0FNU = 3.4028236692093846e38;
+
+// 2^2 * (1 + 7/8)
+constexpr double kMaxE2M3FN = 7.5;
+
+// 2^4 * (1 + 3/4)
+constexpr double kMaxE3M2FN = 28.0;
 
 // 2^2 * (1 + 1/2)
 constexpr double kMaxE2M1FN = 6.0;
