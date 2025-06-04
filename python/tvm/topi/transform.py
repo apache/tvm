@@ -18,6 +18,9 @@
 """Injective transformation operators"""
 from __future__ import absolute_import as _abs
 
+from math import pi
+import numpy as np
+
 import tvm
 from tvm import te, topi
 
@@ -1117,7 +1120,8 @@ def hamming_window(window_size, periodic, alpha, beta, dtype):
         The size of returned window.
 
     periodic: tvm.Expr
-        If True, returns a window to be used as periodic function. If False, return a symmetric window.
+        If True, returns a window to be used as periodic function.
+        If False, return a symmetric window.
 
     alpha: tvm.Expr
         The co-efficient alpha.
@@ -1130,9 +1134,6 @@ def hamming_window(window_size, periodic, alpha, beta, dtype):
     ret : tvm.te.Tensor
         The result tensor.
     """
-    import numpy as np
-    import math
-
     if window_size == 1:
         return topi.const_vector(np.array([1], dtype=dtype))
 
@@ -1142,7 +1143,7 @@ def hamming_window(window_size, periodic, alpha, beta, dtype):
         window_size += 1
 
     index = topi.arange(0, window_size, dtype=dtype)
-    angular_freq = 2 * math.pi * index / (window_size - 1)
+    angular_freq = 2 * pi * index / (window_size - 1)
     cos_values = topi.cos(angular_freq)
     window = topi.cast(alpha - beta * cos_values, dtype=dtype)
 

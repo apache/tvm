@@ -292,7 +292,8 @@ def hamming_window(window_size, periodic, alpha, beta, dtype):
         The size of returned window.
 
     periodic : PrimExpr
-        If True, returns a window to be used as periodic function. If False, return a symmetric window.
+        If True, returns a window to be used as periodic function.
+        If False, return a symmetric window.
 
     alpha : PrimExpr
         The co-efficient alpha.
