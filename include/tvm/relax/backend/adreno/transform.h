@@ -37,6 +37,8 @@ using PassInfo = tvm::transform::PassInfo;
 using PassContext = tvm::transform::PassContext;
 using Function = tvm::relax::Function;
 using DataflowBlock = tvm::relax::DataflowBlock;
+using tvm::relax::transform::CreateFunctionPass;
+using tvm::transform::CreateModulePass;
 
 /*!
  * \brief This pass is designed to annotate the memory scope information via VDevice attribute.

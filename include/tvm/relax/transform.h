@@ -247,8 +247,8 @@ TVM_DLL Pass FoldConstant();
  * showing up in the database.
  * \return The Pass.
  */
-TVM_DLL Pass LegalizeOps(Optional<Map<String, ffi::Function>> cmap, Optional<Array<String>> skip_ops,
-                         bool enable_warning = false);
+TVM_DLL Pass LegalizeOps(Optional<Map<String, ffi::Function>> cmap,
+                         Optional<Array<String>> skip_ops, bool enable_warning = false);
 
 /*!
  * \brief Propagate virtual device information.
