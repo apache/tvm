@@ -716,7 +716,7 @@ class DefineVDevice : ExprMutator {
         return vdevice->target;
       }
     }
-    return NullOpt;
+    return std::nullopt;
   }
 
   const Op& hint_on_device_op_ = Op::Get("relax.hint_on_device");
@@ -732,8 +732,7 @@ class DefineVDevice : ExprMutator {
 namespace transform {
 
 Pass AnnotateCustomMemoryScope(Target target) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule mod, PassContext pc) {
     return tvm::relax::backend::adreno::DefineVDevice(target).Run(mod);
   };
   return CreateModulePass(/*pass_function=*/pass_func,
@@ -742,7 +741,7 @@ Pass AnnotateCustomMemoryScope(Target target) {
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.backend.adreno.transform.AnnotateCustomMemoryScope")
+TVM_FFI_REGISTER_GLOBAL("relax.backend.adreno.transform.AnnotateCustomMemoryScope")
     .set_body_typed(AnnotateCustomMemoryScope);
 
 }  // namespace transform

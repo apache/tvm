@@ -315,7 +315,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     const auto f = tvm::ffi::Function::GetGlobal("runtime.SaveParams");
     if (f.has_value()) {
-      std::string dump_bytes = (*f)(dump_tensors);
+      std::string dump_bytes = (*f)(dump_tensors).cast<String>();
       std::ostringstream oss;
       /*TODO(Siva) HEX encoding doubles the size, look for better encode that can cross the RPC. */
       for (size_t i = 0; i < dump_bytes.size(); ++i) {
@@ -466,7 +466,7 @@ class CLMLRuntime : public JSONRuntimeBase {
           cl_channel_type cl_dtype = MakeCLDataType(tvm_dtype);
           int dtype_size = cl_dtype == CL_FLOAT ? 4 : 2;
           void* tmpptr = reinterpret_cast<void*>(malloc(isize * dtype_size));
-          TVMTensorCopyToBytes(const_cast<DLTensor*>(data_entry_[eid]), const_cast<void*>(tmpptr),
+          NDArray::CopyToBytes(const_cast<DLTensor*>(data_entry_[eid]), const_cast<void*>(tmpptr),
                                isize * dtype_size);
           CopyDataToCLMLTensor(layer_.inputs[nid], tmpptr);
           free(tmpptr);
@@ -481,7 +481,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       if (cws->workspace->IsProfiling(cws->tentry->device)) {
         Timer t;
         auto f = tvm::ffi::Function::GetGlobal(std::string("profiling.timer.opencl"));
-        t = f->operator()(cws->tentry->device);
+        t = f->operator()(cws->tentry->device).cast<Timer>();
         t->Start();
         queue = CLML_QUEUE;
         evts.resize(evts.size() + 1);
@@ -502,7 +502,7 @@ class CLMLRuntime : public JSONRuntimeBase {
         if (cws->workspace->IsProfiling(cws->tentry->device)) {
           Timer t;
           auto f = tvm::ffi::Function::GetGlobal(std::string("profiling.timer.opencl"));
-          t = f->operator()(cws->tentry->device);
+          t = f->operator()(cws->tentry->device).cast<Timer>();
           t->Start();
           queue = CLML_QUEUE;
           evts.resize(evts.size() + 1);
@@ -553,7 +553,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
         void* tmpptr = reinterpret_cast<void*>(malloc(osize * dtype_size));
         CopyDataFromCLMLTensor(layer_.outputs[0], tmpptr);
-        TVMTensorCopyFromBytes(const_cast<DLTensor*>(data_entry_[eid]), const_cast<void*>(tmpptr),
+        NDArray::CopyFromBytes(const_cast<DLTensor*>(data_entry_[eid]), const_cast<void*>(tmpptr),
                                osize * dtype_size);
         free(tmpptr);
       }

@@ -44,7 +44,7 @@ namespace backend {
 namespace adreno {
 
 namespace {
-std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
+std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
     Map<Expr, Array<Expr>> consumers) {
   auto pat_gv = WildcardPattern();
 
@@ -177,9 +177,9 @@ Pass FoldVDeviceScopeChange() {
     auto [pattern, rewriter] = CreatePatterns(consumers);
     return RewriteCall(pattern, rewriter, func);
   };
-  return tvm::relax::transform::CreateFunctionPass(pass_func, 1, "FoldVDeviceScopeChange", {});
+  return CreateFunctionPass(pass_func, 1, "FoldVDeviceScopeChange", {});
 }
-TVM_REGISTER_GLOBAL("relax.backend.adreno.transform.FoldVDeviceScopeChange")
+TVM_FFI_REGISTER_GLOBAL("relax.backend.adreno.transform.FoldVDeviceScopeChange")
     .set_body_typed(FoldVDeviceScopeChange);
 }  // namespace transform
 }  // namespace adreno
