@@ -1836,6 +1836,7 @@ def attention(
         query, key, value, bias, scale, causal_mask, window_size
     )  # type: ignore
 
+
 def attention_bias(
     query: Expr,
     key: Expr,
