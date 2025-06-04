@@ -1848,7 +1848,8 @@ def attention_bias(
 ) -> Expr:
     r"""Computes fused multi head attention.
 
-    IRModule.script() transforms attention op to attention_bias which is incompatible with TVMScript Parser
+    IRModule.script() transforms attention op to attention_bias which is incompatible
+    with TVMScript Parser.
     The function makes TVMScript's print compatible with TVMScript's parser.
 
     All input tensors are of 4-D tensors with BSNH layout.
