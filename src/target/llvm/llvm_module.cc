@@ -437,8 +437,8 @@ void LLVMModuleNode::InitMCJIT() {
   // run ctors
   mcjit_ee_->runStaticConstructorsDestructors(false);
 
-  if (void** ctx_addr =
-          reinterpret_cast<void**>(GetGlobalAddr(runtime::symbol::tvm_module_ctx, *llvm_target))) {
+  if (void** ctx_addr = reinterpret_cast<void**>(
+          GetGlobalAddr(runtime::symbol::tvm_ffi_library_ctx, *llvm_target))) {
     *ctx_addr = this;
   }
   runtime::InitContextFunctions(
@@ -561,8 +561,8 @@ void LLVMModuleNode::InitORCJIT() {
   err = ctorRunner.run();
   ICHECK(!err) << llvm::toString(std::move(err));
 
-  if (void** ctx_addr =
-          reinterpret_cast<void**>(GetGlobalAddr(runtime::symbol::tvm_module_ctx, *llvm_target))) {
+  if (void** ctx_addr = reinterpret_cast<void**>(
+          GetGlobalAddr(runtime::symbol::tvm_ffi_library_ctx, *llvm_target))) {
     *ctx_addr = this;
   }
   runtime::InitContextFunctions(
