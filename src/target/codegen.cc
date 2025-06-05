@@ -305,7 +305,7 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
         << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
   }
 
-  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_dev_mblob;
+  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_ffi_library_bin;
   std::string blob = PackImportsToBytes(mod);
 
   // translate to C program
@@ -365,7 +365,7 @@ TVM_FFI_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
 
 // Export a few auxiliary function to the runtime namespace.
 TVM_FFI_REGISTER_GLOBAL("runtime.ModuleImportsBlobName").set_body_typed([]() -> std::string {
-  return runtime::symbol::tvm_dev_mblob;
+  return runtime::symbol::tvm_ffi_library_bin;
 });
 
 TVM_FFI_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")

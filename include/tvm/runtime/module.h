@@ -286,12 +286,10 @@ inline ffi::Function Module::GetFunction(const String& name, bool query_imports)
 
 /*! \brief namespace for constant symbols */
 namespace symbol {
-/*! \brief A ffi::Function that retrieves exported metadata. */
-constexpr const char* tvm_get_c_metadata = "get_c_metadata";
-/*! \brief Global variable to store module context. */
-constexpr const char* tvm_module_ctx = "__tvm_module_ctx";
-/*! \brief Global variable to store device module blob */
-constexpr const char* tvm_dev_mblob = "__tvm_dev_mblob";
+/*! \brief Global variable to store context pointer for a library module. */
+constexpr const char* tvm_ffi_library_ctx = "__tvm_ffi_library_ctx";
+/*! \brief Global variable to store binary data alongside a library module. */
+constexpr const char* tvm_ffi_library_bin = "__tvm_ffi_library_bin";
 /*! \brief global function to set device */
 constexpr const char* tvm_set_device = "__tvm_set_device";
 /*! \brief Auxiliary counter to global barrier. */
@@ -300,12 +298,6 @@ constexpr const char* tvm_global_barrier_state = "__tvm_global_barrier_state";
 constexpr const char* tvm_prepare_global_barrier = "__tvm_prepare_global_barrier";
 /*! \brief Placeholder for the module's entry function. */
 constexpr const char* tvm_module_main = "__tvm_main__";
-/*! \brief Prefix for parameter symbols emitted into the main program. */
-constexpr const char* tvm_param_prefix = "__tvm_param__";
-/*! \brief A ffi::Function that looks up linked parameters by storage_id. */
-constexpr const char* tvm_lookup_linked_param = "_lookup_linked_param";
-/*! \brief Model entrypoint generated as an interface to the AOT function outside of TIR */
-constexpr const char* tvm_entrypoint_suffix = "run";
 }  // namespace symbol
 
 // implementations of inline functions.

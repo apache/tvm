@@ -251,7 +251,7 @@ typedef struct {
  *
  * Safe call explicitly catches exception on function boundary.
  *
- * \param self The function handle
+ * \param handle The function handle
  * \param num_args Number of input arguments
  * \param args The input arguments to the call.
  * \param result Store output result.
@@ -278,7 +278,7 @@ typedef struct {
  * \sa TVMFFIErrorSetRaised
  * \sa TVMFFIErrorSetRaisedByCStr
  */
-typedef int (*TVMFFISafeCallType)(void* self, const TVMFFIAny* args, int32_t num_args,
+typedef int (*TVMFFISafeCallType)(void* handle, const TVMFFIAny* args, int32_t num_args,
                                   TVMFFIAny* result);
 
 /*!

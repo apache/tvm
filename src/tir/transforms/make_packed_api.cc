@@ -336,7 +336,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     }
   }
 
-  // signature: (void* self, TVMFFIAny* packed_args, int num_args, TVMFFIAny* v_result)
+  // signature: (void* handle, TVMFFIAny* packed_args, int num_args, TVMFFIAny* v_result)
   Array<Var> args{v_self_handle, v_packed_args, v_num_packed_args, v_result};
 
   // Arg definitions are defined before buffer binding to avoid the use before
