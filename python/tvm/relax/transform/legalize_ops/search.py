@@ -43,8 +43,7 @@ register_legalize("relax.argmin", _argmax_argmin(topi.argmin))
 
 @register_legalize("relax.bucketize")
 def _bucketize(bb, call):
-    input = call.args[0]
+    input_tensor = call.args[0]
     boundaries = call.args[1]
     right = call.attrs.right
-    print(input.struct_info.dtype)
-    return bb.call_te(topi.searchsorted, boundaries, input, right, input.struct_info.dtype)
+    return bb.call_te(topi.searchsorted, boundaries, input_tensor, right, input_tensor.struct_info.dtype)
