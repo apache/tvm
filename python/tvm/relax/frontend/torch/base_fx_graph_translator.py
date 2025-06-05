@@ -1370,6 +1370,16 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         y = self.env[node.args[2]]
         return self.block_builder.emit(relax.op.where(condition, x, y))
 
+    def _bucketize(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        input = args[0]
+        boundaries = args[1]
+
+        right = node.kwargs.get("right", False)
+        out_int32 = node.kwargs.get("out_int32", False)
+
+        return self.block_builder.emit(relax.op.bucketize(input, boundaries, out_int32, right))
+
     ########## Manipulation ##########
 
     def _argsort(self, node: fx.Node) -> relax.Var:
