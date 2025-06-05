@@ -28,7 +28,6 @@
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relax/tuning_api.h>
 #include <tvm/runtime/device_api.h>
 
 #include <chrono>
@@ -485,40 +484,7 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
       mod = GetPass(it)(std::move(mod), pass_ctx);
     }
 
-    // This handles passes that does not use Relax tuning API (untraceable passes).
-    // We make untraceable passes trackable when pass context has a trace (trace mode).
-    // When passes to trace (make_traceable) is provided from users, we only make them trackable.
-    if (pass_ctx->trace_stack.size() && !pass_info->traceable &&
-        (!pass_ctx->make_traceable.defined() ||
-         pass_ctx->make_traceable.value().count(pass_info->name))) {
-      // TODO(tvm-team): Currently, there are some inconsistency in the pass registration.
-      // 1. Some passes are not registered in ffi registry.
-      // 2. Some passes do not follow the name convention. (e.g., <ffi key> = <namespace> + <pass
-      // name>)
-
-      // Due to these problems, serialization with non-traceable passes is handled in a hacky way
-      // now. Find a systematic way to identify such inconsistencies and fix them.
-
-      // In the future, we should pass the ffi key for a pass by deducing from its name.
-      String transform_func_key = "relax.tuning_api.Choice.default_transform_func";
-      String constr_func_key = "relax.tuning_api.Choice.default_constr_func";
-
-      relax::Knob knob = relax::Knob(
-          pass_info->name, {{"Applied", relax::Choice(transform_func_key, Array<ObjectRef>(),
-                                                      constr_func_key, Array<ObjectRef>())}});
-
-      // Add new decision to the trace at the top of the stack.
-      auto trace = Downcast<relax::Trace>(pass_ctx->trace_stack.back());
-      trace->Add(knob, "Applied");
-      // In the future, we should just have
-      // mod = trace->Add(knob, "enabled");
-      // instead of the two lines below.
-      mod = pass(std::move(mod), pass_ctx);
-      trace->SetOutMod(mod);
-
-    } else {
-      mod = pass(std::move(mod), pass_ctx);
-    }
+    mod = pass(std::move(mod), pass_ctx);
   }
   return mod;
 }
@@ -614,9 +580,7 @@ TVM_REGISTER_NODE_TYPE(PassContextNode);
 TVM_FFI_REGISTER_GLOBAL("transform.PassContext")
     .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
                        Array<instrument::PassInstrument> instruments,
-                       Optional<Map<String, ffi::Any>> config, Array<ObjectRef> trace_stack,
-                       Optional<Map<String, Bool>> make_traceable, int num_evals,
-                       Optional<ObjectRef> tuning_api_database) {
+                       Optional<Map<String, ffi::Any>> config) {
       auto pctx = PassContext::Create();
       pctx->opt_level = opt_level;
 
@@ -627,10 +591,6 @@ TVM_FFI_REGISTER_GLOBAL("transform.PassContext")
       if (config.defined()) {
         pctx->config = config.value();
       }
-      pctx->trace_stack = std::move(trace_stack);
-      pctx->make_traceable = std::move(make_traceable);
-      pctx->num_evals = std::move(num_evals);
-      pctx->tuning_api_database = std::move(tuning_api_database);
       PassConfigManager::Global()->Legalize(&(pctx->config));
       return pctx;
     });
@@ -647,7 +607,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "\tinstruments: " << node->instruments << "\n";
 
       p->stream << "\tconfig: " << node->config << "\n";
-      p->stream << "\ttrace stack: " << node->trace_stack;
     });
 
 class PassContext::Internal {
@@ -656,18 +615,6 @@ class PassContext::Internal {
 
   static void ExitScope(PassContext pass_ctx) { pass_ctx.ExitWithScope(); }
 };
-
-TVM_FFI_REGISTER_GLOBAL("transform.GetTraceStack").set_body_method(&PassContextNode::GetTraceStack);
-TVM_FFI_REGISTER_GLOBAL("transform.PushTrace").set_body_method(&PassContextNode::PushTrace);
-TVM_FFI_REGISTER_GLOBAL("transform.PopTrace").set_body_method(&PassContextNode::PopTrace);
-TVM_FFI_REGISTER_GLOBAL("transform.GetTraceStackSize")
-    .set_body_method(&PassContextNode::GetTraceStackSize);
-TVM_FFI_REGISTER_GLOBAL("transform.GetCurrentTrace")
-    .set_body_method(&PassContextNode::GetCurrentTrace);
-TVM_FFI_REGISTER_GLOBAL("transform.SetNumEvals").set_body_method(&PassContextNode::SetNumEvals);
-TVM_FFI_REGISTER_GLOBAL("transform.IncNumEvals").set_body_method(&PassContextNode::IncNumEvals);
-TVM_FFI_REGISTER_GLOBAL("transform.GetTuningAPIDatabase")
-    .set_body_method(&PassContextNode::GetTuningAPIDatabase);
 
 TVM_FFI_REGISTER_GLOBAL("transform.GetCurrentPassContext").set_body_typed(PassContext::Current);
 

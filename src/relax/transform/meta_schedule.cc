@@ -23,7 +23,6 @@
  */
 #include <tvm/meta_schedule/database.h>
 #include <tvm/relax/transform.h>
-#include <tvm/relax/tuning_api.h>
 #include <tvm/tir/transform.h>
 
 #include "../src/meta_schedule/module_equality.h"
@@ -44,46 +43,21 @@ class MetaScheduleTuner {
         max_trials_per_task_(max_trials_per_task),
         op_names_(op_names),
         params_(params) {
-    normalize_mod_func_ = tvm::ffi::Function::GetGlobal("tvm.meta_schedule.normalize_mod");
-    ICHECK(normalize_mod_func_.has_value()) << "Normalization function is not found.";
+    normalize_mod_func_ = tvm::ffi::Function::GetGlobalRequired("tvm.meta_schedule.normalize_mod");
   }
 
-  // TODO(@sunggg): Currently, only supports basic arguments.
   IRModule TuneIRMod(IRModule mod, transform::PassContext ctx) {
-    Choice choice(
-        "tvm.meta_schedule.tune_relax",
-        {params_, target_, work_dir_, max_trials_global_, max_trials_per_task_, op_names_},
-        "relax.tuning_api.Choice.default_constr_func", {});
-    Knob knob("meta_schedule.tune_irmod", {{"0", choice}});
-    knob->Apply(mod, "0");
-    /*
-    // TODO(@sunggg): revisit when we have a solution for large params
-    Trace trace = Downcast<Trace>(ctx->GetCurrentTrace());
-    ctx->PopTrace();
-    Array<Trace> candidates = (*candgen_func_)(Array<Knob>({knob}), trace);
-    ICHECK(candidates.size() == 1);
-    Trace best_trace = candidates[0];
-    ctx->PushTrace(best_trace);
-    */
-    // since we separate tuning from application, return original IRModule
+    static ffi::Function tune_relax_func =
+        tvm::ffi::Function::GetGlobalRequired("tvm.meta_schedule.tune_relax");
+    tune_relax_func(mod, params_, target_, work_dir_, max_trials_global_, max_trials_per_task_,
+                    op_names_);
     return mod;
   }
 
-  // TODO(@sunggg): Currently, only supports basic arguments.
   tir::PrimFunc TuneTIR(tir::PrimFunc f, transform::PassContext ctx) {
-    // TODO(@sunggg): Whenever we tune tir, assume we start a new trace w/o pushing to the trace
-    // stack. Revisit later when we collect more usecases.
-    Choice choice("tvm.meta_schedule.tune_tir", {target_, work_dir_, max_trials_global_},
-                  "relax.tuning_api.Choice.default_constr_func", {});
-    Knob knob("meta_schedule.tune_primfunc", {{"0", choice}});
-    knob->Apply((*normalize_mod_func_)(f).cast<IRModule>(), "0");
-    /*
-    // TODO(@sunggg): revisit when we have a solution for large params
-    Trace trace = Trace((*normalize_mod_func_)(f), {}, {});
-    Array<Trace> candidates = (*candgen_func_)(Array<Knob>({knob}), trace);
-    ICHECK(candidates.size() == 1);
-    */
-    // since we separate tuning from application, return original IRModule
+    static ffi::Function tune_tir_func =
+        tvm::ffi::Function::GetGlobalRequired("tvm.meta_schedule.tune_tir");
+    tune_tir_func(normalize_mod_func_(f), target_, work_dir_, max_trials_global_);
     return f;
   }
 
@@ -94,7 +68,7 @@ class MetaScheduleTuner {
   Integer max_trials_per_task_;
   Optional<Array<String>> op_names_;
   Map<String, runtime::NDArray> params_;
-  std::optional<tvm::ffi::Function> normalize_mod_func_;
+  tvm::ffi::Function normalize_mod_func_;
 };
 
 Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = false) {
