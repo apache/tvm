@@ -1378,7 +1378,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         right = node.kwargs.get("right", False)
         out_int32 = node.kwargs.get("out_int32", False)
 
-        return self.block_builder.emit(relax.op.bucketize(input_tensor, boundaries, out_int32, right))
+        return self.block_builder.emit(
+            relax.op.bucketize(input_tensor, boundaries, out_int32, right)
+        )
 
     ########## Manipulation ##########
 
