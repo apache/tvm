@@ -230,8 +230,7 @@ Advanced Build Configuration
 Ccache
 ~~~~~~
 On supported platforms, the `Ccache compiler wrapper <https://ccache.dev/>`_ may be helpful for
-reducing TVM's build time, especially when building with `cutlass <https://github.com/NVIDIA/cutlass>`_
-or `flashinfer <https://github.com/flashinfer-ai/flashinfer>`_.
+reducing TVM's build time, especially when building with `cutlass <https://github.com/NVIDIA/cutlass>`_.
 There are several ways to enable CCache in TVM builds:
 
     - Leave ``USE_CCACHE=AUTO`` in ``build/config.cmake``. CCache will be used if it is found.
