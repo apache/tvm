@@ -334,7 +334,7 @@ tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/memory/*.cc
   src/runtime/disco/*.cc
   src/runtime/minrpc/*.cc
-  src/runtime/relax_vm/*.cc
+  src/runtime/vm/*.cc
 )
 set(TVM_RUNTIME_EXT_OBJS "")
 
