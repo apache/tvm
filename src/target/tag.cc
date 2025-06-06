@@ -161,6 +161,8 @@ TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a100", "sm_80", 49152, 65536)
     .with_config("l2_cache_size_bytes", 41943040);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-h100", "sm_90a", 49152, 65536)
     .with_config("l2_cache_size_bytes", 52428800);
+TVM_REGISTER_CUDA_TAG("nvidia/nvidia-b100", "sm_100a", 49152, 65536)
+    .with_config("l2_cache_size_bytes", 52428800);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a40", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a30", "sm_80", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a10", "sm_86", 49152, 65536);

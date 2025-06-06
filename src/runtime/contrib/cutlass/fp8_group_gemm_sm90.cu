@@ -23,7 +23,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/function.h>
 
-#include "group_gemm_runner.cuh"
+#include "fp16_group_gemm_runner_sm90.cuh"
 
 #if defined(CUTLASS_ARCH_MMA_MODIFIABLE_TMA_SM90_SUPPORTED)
 
