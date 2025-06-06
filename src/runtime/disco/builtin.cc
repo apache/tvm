@@ -22,7 +22,7 @@
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/relax_vm/vm.h>
+#include <tvm/runtime/vm/vm.h>
 
 #include <sstream>
 

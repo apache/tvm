@@ -18,12 +18,12 @@
  */
 
 /*!
- * \file src/runtime/relax_vm/attn_backend.h
+ * \file src/runtime/vm/attn_backend.h
  * \brief The attention backend classes used by KV cache.
  */
 
-#ifndef TVM_RUNTIME_RELAX_VM_ATTN_BACKEND_H_
-#define TVM_RUNTIME_RELAX_VM_ATTN_BACKEND_H_
+#ifndef TVM_RUNTIME_VM_ATTN_BACKEND_H_
+#define TVM_RUNTIME_VM_ATTN_BACKEND_H_
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
@@ -39,7 +39,7 @@
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 /*! \brief The attention backend kinds. */
 enum class AttnBackendKind : int {
@@ -537,8 +537,8 @@ std::unique_ptr<PagedPrefillTreeMaskFunc> ConvertPagedPrefillTreeMaskFunc(Array<
 std::unique_ptr<RaggedPrefillTreeMaskFunc> ConvertRaggedPrefillTreeMaskFunc(Array<ObjectRef> args,
                                                                             AttnKind attn_kind);
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_RELAX_VM_ATTN_BACKEND_H_
+#endif  // TVM_RUNTIME_VM_ATTN_BACKEND_H_

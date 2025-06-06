@@ -24,7 +24,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/disco/builtin.h>
-#include <tvm/runtime/relax_vm/ndarray_cache_support.h>
+#include <tvm/runtime/vm/ndarray_cache_support.h>
 
 #include <functional>
 #include <numeric>
@@ -38,7 +38,7 @@
 namespace tvm {
 namespace runtime {
 
-using relax_vm::NDArrayCacheMetadata;
+using vm::NDArrayCacheMetadata;
 using FileRecord = NDArrayCacheMetadata::FileRecord;
 using ParamRecord = NDArrayCacheMetadata::FileRecord::ParamRecord;
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/runtime/relax_vm/lm_support.cc
+ * \file src/runtime/vm/lm_support.cc
  * \brief Runtime to support language model related task
  *
  * Including inplace attention kv cache for runtime and simple sampler.
@@ -42,13 +42,13 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/relax_vm/vm.h>
+#include <tvm/runtime/vm/vm.h>
 
 #include <cmath>
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 //-------------------------------------------
 // We keep the implementation private as
@@ -621,6 +621,6 @@ void ApplySoftmaxWithTemperature(NDArray logits, double temperature) {
 TVM_FFI_REGISTER_GLOBAL("vm.builtin.apply_softmax_with_temperature")
     .set_body_typed(ApplySoftmaxWithTemperature);
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

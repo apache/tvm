@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/runtime/relax_vm/rnn_state.cc
+ * \file src/runtime/vm/rnn_state.cc
  * \brief Runtime RNN state object for space state models.
  */
 
@@ -28,7 +28,7 @@
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 //-----------------------------------------------------------------------------
 // We keep the implementation private as they may subject to future changes.
@@ -495,6 +495,6 @@ TVM_FFI_REGISTER_GLOBAL("vm.builtin.rnn_state_create")
       return RNNState(std::move(n));
     });
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

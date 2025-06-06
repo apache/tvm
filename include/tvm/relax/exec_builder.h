@@ -28,8 +28,8 @@
 #include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/relax_vm/bytecode.h>
-#include <tvm/runtime/relax_vm/executable.h>
+#include <tvm/runtime/vm/bytecode.h>
+#include <tvm/runtime/vm/executable.h>
 
 #include <string>
 #include <unordered_map>
@@ -38,7 +38,7 @@
 namespace tvm {
 namespace relax {
 
-namespace vm = tvm::runtime::relax_vm;
+namespace vm = tvm::runtime::vm;
 
 class ExecBuilder;
 

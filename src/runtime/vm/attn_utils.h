@@ -17,12 +17,12 @@
  * under the License.
  */
 /*!
- * \file src/runtime/relax_vm/attn_utils.h
+ * \file src/runtime/vm/attn_utils.h
  * \brief Data structure and utilities for KV cache.
  */
 
-#ifndef TVM_RUNTIME_RELAX_VM_ATTN_UTILS_H_
-#define TVM_RUNTIME_RELAX_VM_ATTN_UTILS_H_
+#ifndef TVM_RUNTIME_VM_ATTN_UTILS_H_
+#define TVM_RUNTIME_VM_ATTN_UTILS_H_
 
 #include <tvm/runtime/ndarray.h>
 
@@ -36,7 +36,7 @@
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 /*!
  * \brief The maximum allowed block depth (a.k.a. number of common
@@ -1023,8 +1023,8 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
   NDArray merged_compact_kv_aux_data_device_;
 };
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_RELAX_VM_ATTN_UTILS_H_
+#endif  // TVM_RUNTIME_VM_ATTN_UTILS_H_

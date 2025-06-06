@@ -18,18 +18,18 @@
  */
 
 /*!
- * \file src/runtime/relax_vm/hexagon/builtin.cc
+ * \file src/runtime/vm/hexagon/builtin.cc
  * \brief The hexagon graph related builtin functions for Relax virtual machine.
  */
 
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/relax_vm/vm.h>
+#include <tvm/runtime/vm/vm.h>
 
 #include "../../hexagon/hexagon_device_api.h"
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 TVM_FFI_REGISTER_GLOBAL("vm.builtin.hexagon.dma_copy")
     .set_body_typed([](ffi::AnyView vm_ptr, NDArray src_arr, NDArray dst_arr, int queue_id,
@@ -66,6 +66,6 @@ TVM_FFI_REGISTER_GLOBAL("vm.builtin.hexagon.dma_wait")
                              QURT_MEM_DCACHE);
       }
     });
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

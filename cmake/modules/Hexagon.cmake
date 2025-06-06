@@ -126,8 +126,8 @@ if(BUILD_FOR_HEXAGON)
     "${TVMRT_SOURCE_DIR}/hexagon/*.cc"
   )
   # Add builtins to RelaxVM
-  tvm_file_glob(GLOB RELAX_VM_BUILTIN_SRC_CC src/runtime/relax_vm/hexagon/*.cc)
-  list(APPEND RUNTIME_SRCS ${RELAX_VM_BUILTIN_SRC_CC})
+  tvm_file_glob(GLOB VM_BUILTIN_SRC_CC src/runtime/vm/hexagon/*.cc)
+  list(APPEND RUNTIME_SRCS ${VM_BUILTIN_SRC_CC})
 else()
   file_glob_append(RUNTIME_HEXAGON_SRCS
     "${TVMRT_SOURCE_DIR}/hexagon/hexagon_module.cc"

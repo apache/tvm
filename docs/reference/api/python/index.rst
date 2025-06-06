@@ -35,7 +35,7 @@ Python API
 
     runtime/runtime
     runtime/ndarray
-    runtime/relax_vm
+    runtime/vm
     runtime/disco
     runtime/profiling
 

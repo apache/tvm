@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file tvm/runtime/relax_vm/vm.h
+ * \file tvm/runtime/vm/vm.h
  */
-#ifndef TVM_RUNTIME_RELAX_VM_VM_H_
-#define TVM_RUNTIME_RELAX_VM_VM_H_
+#ifndef TVM_RUNTIME_VM_VM_H_
+#define TVM_RUNTIME_VM_VM_H_
 
-#ifndef TVM_RELAX_VM_ENABLE_PROFILER
-#define TVM_RELAX_VM_ENABLE_PROFILER 1
+#ifndef TVM_VM_ENABLE_PROFILER
+#define TVM_VM_ENABLE_PROFILER 1
 #endif
 
 #include <memory>
@@ -45,7 +45,7 @@ using memory::MemoryManager;
 using memory::Storage;
 using memory::StorageObj;
 
-namespace relax_vm {
+namespace vm {
 
 /*!
  * \brief Possible instrument actions.
@@ -227,8 +227,8 @@ class VirtualMachine : public runtime::ModuleNode {
   std::unordered_map<uint32_t, VMExtension> extensions;
 };
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_RELAX_VM_VM_H_
+#endif  // TVM_RUNTIME_VM_VM_H_

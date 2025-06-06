@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file src/runtime/relax_vm/executable.cc
+ * \file src/runtime/vm/executable.cc
  */
 
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/relax_vm/executable.h>
-#include <tvm/runtime/relax_vm/vm.h>
+#include <tvm/runtime/vm/executable.h>
+#include <tvm/runtime/vm/vm.h>
 
 #include <functional>
 #include <sstream>
@@ -33,7 +33,7 @@
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 /*! \brief The magic number for the serialized VM bytecode file  */
 constexpr uint64_t kTVMVMBytecodeMagic = 0xD225DE2F4214151D;
@@ -144,7 +144,7 @@ Instruction VMExecutable::GetInstruction(Index i) const {
 void SaveHeader(dmlc::Stream* strm) {
   uint64_t header = kTVMVMBytecodeMagic;
   strm->Write(header);
-  std::string version = RELAX_VM_VERSION;
+  std::string version = VM_VERSION;
   strm->Write(version);
 }
 
@@ -157,7 +157,7 @@ void LoadHeader(dmlc::Stream* strm) {
   // Check version.
   std::string version;
   STREAM_CHECK(strm->Read(&version), "version");
-  STREAM_CHECK(version == RELAX_VM_VERSION, "version");
+  STREAM_CHECK(version == VM_VERSION, "version");
 }
 
 void VMExecutable::SaveToBinary(dmlc::Stream* stream) {
@@ -559,6 +559,6 @@ String VMExecutable::AsPython() const {
 
 TVM_FFI_REGISTER_GLOBAL("relax.ExecutableLoadFromFile").set_body_typed(VMExecutable::LoadFromFile);
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
