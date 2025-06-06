@@ -26,7 +26,6 @@ import tvm.testing
 from tvm import relax, tir
 from tvm.relax.dpl import is_op, wildcard
 from tvm.relax.testing import transform
-from tvm.relax.transform.tuning_api import Trace
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
@@ -164,7 +163,7 @@ def test_mix_use_tensorrt_and_tvm():
 
     # Run Codegen pass
     with tempfile.TemporaryDirectory() as work_dir:
-        with target, tvm.transform.PassContext(trace=Trace(mod), opt_level=0):
+        with target, tvm.transform.PassContext(opt_level=0):
             new_mod = tvm.transform.Sequential(
                 [
                     relax.transform.FuseOpsByPattern(patterns),
