@@ -67,8 +67,8 @@ void tvm_cutlass_fp8_blockwise_scaled_gemm(NDArray a, NDArray b, NDArray scales_
   CHECK_EQ(scales_b->shape[1] * block_size_1, k);
 
   using tvm::runtime::DataType;
-  CHECK_EQ(DataType(a->dtype), DataType::NVFloat8E4M3());
-  CHECK_EQ(DataType(b->dtype), DataType::NVFloat8E4M3());
+  CHECK_EQ(DataType(a->dtype), DataType::Float8E4M3FN());
+  CHECK_EQ(DataType(b->dtype), DataType::Float8E4M3FN());
   CHECK_EQ(DataType(scales_a->dtype), DataType::Float(32));
   CHECK_EQ(DataType(scales_b->dtype), DataType::Float(32));
   CHECK_EQ(DataType(workspace->dtype), DataType::UInt(8));
@@ -128,8 +128,8 @@ void tvm_cutlass_fp8_blockwise_scaled_bmm(NDArray a, NDArray b, NDArray scales_a
   CHECK_EQ(scales_b->shape[2] * block_size_1, k);
 
   using tvm::runtime::DataType;
-  CHECK_EQ(DataType(a->dtype), DataType::NVFloat8E4M3());
-  CHECK_EQ(DataType(b->dtype), DataType::NVFloat8E4M3());
+  CHECK_EQ(DataType(a->dtype), DataType::Float8E4M3FN());
+  CHECK_EQ(DataType(b->dtype), DataType::Float8E4M3FN());
   CHECK_EQ(DataType(scales_a->dtype), DataType::Float(32));
   CHECK_EQ(DataType(scales_b->dtype), DataType::Float(32));
   CHECK_EQ(DataType(workspace->dtype), DataType::UInt(8));

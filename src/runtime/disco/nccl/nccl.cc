@@ -120,7 +120,7 @@ void AllReduce(NDArray send, ReduceKind reduce_kind, bool in_group, NDArray recv
   int64_t numel = shape->Product();
   deviceStream_t stream = ctx->GetDefaultStream();
   DataType dtype = DataType(send->dtype);
-  if (dtype == DataType::NVFloat8E4M3() || dtype == DataType::NVFloat8E5M2()) {
+  if (dtype == DataType::Float8E4M3FN() || dtype == DataType::Float8E5M2()) {
     LOG(FATAL) << "Float8 data type cannot be allreduced, as nccl does not support this data type.";
   }
   NCCL_CALL(ncclAllReduce(send->data, recv->data, numel,
