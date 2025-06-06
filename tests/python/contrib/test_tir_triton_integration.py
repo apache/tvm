@@ -14,17 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
 import sys
 
+import numpy as np
+import pytest
+
 import tvm
-from tvm.script import tir as T
-from tvm.script import relax as R
-from tvm.script import ir as I
+import tvm.testing
 from tvm import relax
 from tvm.relax.frontend import nn
-import tvm.testing
-import pytest
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 try:
     import triton
@@ -115,5 +116,5 @@ def test_tir_triton_integration():
 
     with tvm.target.Target("cuda"):
         lib = tvm.compile(Module)
-        output_nd = tvm.runtime.relax_vm.VirtualMachine(lib, device)["main"](x_nd, y_nd)
+        output_nd = tvm.runtime.vm.VirtualMachine(lib, device)["main"](x_nd, y_nd)
         tvm.testing.assert_allclose(output_nd.numpy(), output_np, rtol=1e-5)
