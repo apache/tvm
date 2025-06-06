@@ -18,19 +18,19 @@
  */
 
 /*!
- * \file src/runtime/relax_vm/bytecode.cc
+ * \file src/runtime/vm/bytecode.cc
  * \brief The bytecode for Relax virtual machine.
  */
 
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/relax_vm/bytecode.h>
+#include <tvm/runtime/vm/bytecode.h>
 
 #include <functional>
 #include <sstream>
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 Instruction Instruction::Call(Index func_idx, Index num_args, Instruction::Arg* args, RegName dst) {
   Instruction instr;
@@ -63,6 +63,6 @@ Instruction Instruction::If(RegName cond, Index false_offset) {
   instr.false_offset = false_offset;
   return instr;
 }
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

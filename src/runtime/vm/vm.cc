@@ -18,21 +18,21 @@
  */
 
 /*!
- * \file src/runtime/relax_vm/vm.cc
+ * \file src/runtime/vm/vm.cc
  */
 #include <dlpack/dlpack.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/nvtx.h>
 #include <tvm/runtime/profiling.h>
-#include <tvm/runtime/relax_vm/vm.h>
+#include <tvm/runtime/vm/vm.h>
 
 #include <optional>
 #include <thread>
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 //---------------------------------------------
 // VM Closure object
@@ -965,7 +965,7 @@ ffi::Function VirtualMachineImpl::_LookupFunction(const String& name) {
 //----------------------------------------------------------------
 // Profiler can be optionally disabled via a macro to reduce dep.
 //----------------------------------------------------------------
-#if TVM_RELAX_VM_ENABLE_PROFILER
+#if TVM_VM_ENABLE_PROFILER
 
 /*!
  * \brief An extension of VirtualMachineImpl to support per-op profiling
@@ -1081,7 +1081,7 @@ ObjectPtr<VirtualMachine> VirtualMachine::CreateProfiler() {
   LOG(FATAL) << "Profiler support is disabled";
   return nullptr;
 }
-#endif  // TVM_RELAX_VM_ENABLE_PROFILER
-}  // namespace relax_vm
+#endif  // TVM_VM_ENABLE_PROFILER
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

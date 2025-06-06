@@ -23,7 +23,7 @@
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 // Register Object Type
 TVM_REGISTER_OBJECT_TYPE(KVStateObj);
@@ -114,6 +114,6 @@ TVM_FFI_REGISTER_GLOBAL("vm.builtin.rnn_state_set")
     });
 TVM_FFI_REGISTER_GLOBAL("vm.builtin.rnn_state_debug_get").set_body_method(&RNNStateObj::DebugGet);
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

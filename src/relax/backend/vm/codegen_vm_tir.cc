@@ -25,7 +25,7 @@
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/runtime/relax_vm/executable.h>
+#include <tvm/runtime/vm/executable.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -39,7 +39,7 @@
 
 namespace tvm {
 namespace relax {
-namespace relax_vm {
+namespace codegen_vm {
 
 using vm::VMFuncInfo;
 
@@ -532,6 +532,6 @@ IRModule VMTIRCodeGen(ExecBuilder exec_builder, IRModule mod) {
 
 TVM_FFI_REGISTER_GLOBAL("relax.VMTIRCodeGen").set_body_typed(VMTIRCodeGen);
 
-}  // namespace relax_vm
+}  // namespace codegen_vm
 }  // namespace relax
 }  // namespace tvm

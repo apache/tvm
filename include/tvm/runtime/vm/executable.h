@@ -18,10 +18,10 @@
  */
 
 /*!
- * \file tvm/runtime/relax_vm/executable.h
+ * \file tvm/runtime/vm/executable.h
  */
-#ifndef TVM_RUNTIME_RELAX_VM_EXECUTABLE_H_
-#define TVM_RUNTIME_RELAX_VM_EXECUTABLE_H_
+#ifndef TVM_RUNTIME_VM_EXECUTABLE_H_
+#define TVM_RUNTIME_VM_EXECUTABLE_H_
 
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
@@ -37,11 +37,11 @@
 // NOTE: this file only changes if we change relax vm format
 // for example if relax vm format do not change in 0.15, this should remain as 0.14
 // if it changes in 0.16, we will change it to 0.16
-#define RELAX_VM_VERSION "0.14"
+#define VM_VERSION "0.14"
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 /*!
  * \brief Information entry in executable function table.
@@ -214,11 +214,11 @@ class VMExecutable : public runtime::ModuleNode {
   void LoadPackedFuncNames(dmlc::Stream* strm);
 };
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 
 namespace dmlc {
-DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::relax_vm::VMFuncInfo, true);
+DMLC_DECLARE_TRAITS(has_saveload, ::tvm::runtime::vm::VMFuncInfo, true);
 }  // namespace dmlc
-#endif  // TVM_RUNTIME_RELAX_VM_EXECUTABLE_H_
+#endif  // TVM_RUNTIME_VM_EXECUTABLE_H_

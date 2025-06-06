@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file tvm/runtime/relax_vm/bytecode.h
+ * \file tvm/runtime/vm/bytecode.h
  * \brief The bytecode for the virtual machine.
  */
-#ifndef TVM_RUNTIME_RELAX_VM_BYTECODE_H_
-#define TVM_RUNTIME_RELAX_VM_BYTECODE_H_
+#ifndef TVM_RUNTIME_VM_BYTECODE_H_
+#define TVM_RUNTIME_VM_BYTECODE_H_
 
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
@@ -32,7 +32,7 @@
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 /*!
  * \brief The storage type for the bytecode in the VM.
@@ -238,8 +238,8 @@ struct Instruction {
   static Instruction If(RegName cond, Index false_offset);
 };
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_RELAX_VM_BYTECODE_H_
+#endif  // TVM_RUNTIME_VM_BYTECODE_H_

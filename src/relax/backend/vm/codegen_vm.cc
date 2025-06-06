@@ -24,7 +24,7 @@
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/runtime/relax_vm/bytecode.h>
+#include <tvm/runtime/vm/bytecode.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/function.h>
 
@@ -37,12 +37,12 @@
 
 namespace tvm {
 namespace relax {
-namespace relax_vm {
+namespace codegen_vm {
 
 using tvm::Target;
 using namespace relax;
 using namespace tvm::runtime;
-using namespace tvm::runtime::relax_vm;
+using namespace tvm::runtime::vm;
 
 /*!
  * \brief A class to generate VM executable for Relax functions.
@@ -492,6 +492,6 @@ Module VMLink(ExecBuilder builder, Target target, Optional<Module> lib, Array<Mo
 
 TVM_FFI_REGISTER_GLOBAL("relax.VMLink").set_body_typed(VMLink);
 
-}  // namespace relax_vm
+}  // namespace codegen_vm
 }  // namespace relax
 }  // namespace tvm

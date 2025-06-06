@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_RUNTIME_RELAX_VM_NDARRAY_CACHE_SUPPORT_H_
-#define TVM_RUNTIME_RELAX_VM_NDARRAY_CACHE_SUPPORT_H_
+#ifndef TVM_RUNTIME_VM_NDARRAY_CACHE_SUPPORT_H_
+#define TVM_RUNTIME_VM_NDARRAY_CACHE_SUPPORT_H_
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
@@ -29,7 +29,7 @@
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 /*!
  * \brief Metadata for NDArray cache, which by default, is named as "ndarray-cache.json".
@@ -89,8 +89,8 @@ struct NDArrayCacheMetadata {
   static NDArrayCacheMetadata LoadFromStr(const std::string& json_str, const std::string& path);
 };
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_RELAX_VM_NDARRAY_CACHE_SUPPORT_H_
+#endif  // TVM_RUNTIME_VM_NDARRAY_CACHE_SUPPORT_H_

@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/runtime/relax_vm/paged_kv_cache.cc
+ * \file src/runtime/vm/paged_kv_cache.cc
  * \brief Runtime paged KV cache object for language models.
  */
 #include <tvm/ffi/function.h>
@@ -39,7 +39,7 @@
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 //-------------------------------------------
 // We keep the implementation private as
@@ -2276,7 +2276,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // - Reset the dirty flag to false.
     dirty_aux_data_device_ = false;
   }
-};  // namespace relax_vm
+};  // namespace vm
 
 TVM_REGISTER_OBJECT_TYPE(PagedAttentionKVCacheObj);
 
@@ -2387,6 +2387,6 @@ TVM_FFI_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
       *rv = AttentionKVCache(std::move(n));
     });
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

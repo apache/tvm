@@ -18,19 +18,19 @@
  */
 
 /*!
- * \file src/runtime/relax_vm/cuda_graph_builtin.cc
+ * \file src/runtime/vm/cuda_graph_builtin.cc
  * \brief The CUDA graph related builtin functions for Relax virtual machine.
  */
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/relax_vm/vm.h>
+#include <tvm/runtime/vm/vm.h>
 
 #include "../../../support/utils.h"
 #include "../../cuda/cuda_common.h"
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 namespace {
 
@@ -213,7 +213,7 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
     return alloc_result;
   }
 
-  static constexpr const char* _type_key = "relax_vm.CUDAGraphExtension";
+  static constexpr const char* _type_key = "vm.CUDAGraphExtension";
 
  private:
   /*!
@@ -265,6 +265,6 @@ TVM_FFI_REGISTER_GLOBAL("vm.builtin.cuda_graph.get_cached_alloc")
       *rv = extension->GetCachedAllocation(vm, alloc_func, entry_index);
     });
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

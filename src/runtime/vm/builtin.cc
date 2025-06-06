@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/runtime/relax_vm/builtin.cc
+ * \file src/runtime/vm/builtin.cc
  */
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/array.h>
@@ -29,13 +29,13 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/relax_vm/builtin.h>
-#include <tvm/runtime/relax_vm/bytecode.h>
-#include <tvm/runtime/relax_vm/vm.h>
+#include <tvm/runtime/vm/builtin.h>
+#include <tvm/runtime/vm/bytecode.h>
+#include <tvm/runtime/vm/vm.h>
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 using tvm::runtime::NDArray;
 
@@ -562,7 +562,7 @@ TVM_FFI_REGISTER_GLOBAL("vm.builtin.ensure_zero_offset").set_body_typed([](NDArr
   }
 });
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 

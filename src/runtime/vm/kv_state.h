@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#ifndef TVM_RUNTIME_RELAX_VM_KV_STATE_H_
-#define TVM_RUNTIME_RELAX_VM_KV_STATE_H_
+#ifndef TVM_RUNTIME_VM_KV_STATE_H_
+#define TVM_RUNTIME_VM_KV_STATE_H_
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
@@ -28,7 +28,7 @@
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 /*! \brief The base class of attention KV cache and rnn state. */
 class KVStateObj : public Object {
@@ -345,8 +345,8 @@ class RNNState : public KVState {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(RNNState, KVState, RNNStateObj);
 };
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
 
-#endif  // TVM_RUNTIME_RELAX_VM_KV_STATE_H_
+#endif  // TVM_RUNTIME_VM_KV_STATE_H_

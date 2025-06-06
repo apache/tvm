@@ -17,13 +17,13 @@
  * under the License.
  */
 
-/*! \file src/runtime/relax_vm/attn_backend.cc */
+/*! \file src/runtime/vm/attn_backend.cc */
 
 #include "attn_backend.h"
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 std::unique_ptr<PagedPrefillFunc> ConvertPagedPrefillFunc(Array<ObjectRef> args,
                                                           AttnKind attn_kind) {
@@ -120,6 +120,6 @@ std::unique_ptr<RaggedPrefillTreeMaskFunc> ConvertRaggedPrefillTreeMaskFunc(Arra
   throw;
 }
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

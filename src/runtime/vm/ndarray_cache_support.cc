@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/runtime/relax_vm/ndarray_cache_support.cc
+ * \file src/runtime/vm/ndarray_cache_support.cc
  * \brief Runtime to support ndarray cache file loading.
  *
  * This file provides a minimum support for ndarray cache file loading.
@@ -41,7 +41,7 @@
 #include <picojson.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/relax_vm/ndarray_cache_support.h>
+#include <tvm/runtime/vm/ndarray_cache_support.h>
 
 #include <string>
 #include <vector>
@@ -51,7 +51,7 @@
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 template <typename ExpectedType>
 inline ExpectedType AsType(const picojson::value& json) {
@@ -375,6 +375,6 @@ TVM_FFI_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name_unpacked")
       *rv = ParamModuleNode::GetParamByName(names);
     });
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm

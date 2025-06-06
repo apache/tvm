@@ -18,15 +18,15 @@
  */
 
 /*!
- * \file tvm/runtime/relax_vm/builtin.h
+ * \file tvm/runtime/vm/builtin.h
  * \brief Builtin runtime APIs.
  */
-#ifndef TVM_RUNTIME_RELAX_VM_BUILTIN_H_
-#define TVM_RUNTIME_RELAX_VM_BUILTIN_H_
+#ifndef TVM_RUNTIME_VM_BUILTIN_H_
+#define TVM_RUNTIME_VM_BUILTIN_H_
 
 namespace tvm {
 namespace runtime {
-namespace relax_vm {
+namespace vm {
 
 /*!
  * \brief Op code used in built-in match-shape function.
@@ -83,7 +83,7 @@ enum class MakeShapeCode : int {
   kLoadShape = 1,
 };
 
-}  // namespace relax_vm
+}  // namespace vm
 }  // namespace runtime
 }  // namespace tvm
-#endif  // TVM_RUNTIME_RELAX_VM_BUILTIN_H_
+#endif  // TVM_RUNTIME_VM_BUILTIN_H_
