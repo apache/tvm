@@ -164,6 +164,9 @@ class NDArray(tvm.ffi.core.NDArray):
         return self
 
     def __repr__(self):
+        # exception safety handling for chandle=None
+        if self.__chandle__() == 0:
+            return type(self).__name__ + "(chandle=None)"
         res = f"<tvm.nd.NDArray shape={self.shape}, {self.device}>\n"
         res += self.numpy().__repr__()
         return res
