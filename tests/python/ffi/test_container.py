@@ -27,6 +27,20 @@ def test_array():
     assert (a_slice[0], a_slice[1]) == (1, 2)
 
 
+def test_bad_constructor_init_state():
+    """Test when error is raised before __init_handle_by_constructor
+
+    This case we need the FFI binding to gracefully handle both repr
+    and dealloc by ensuring the chandle is initialized and there is
+    proper repr code
+    """
+    with pytest.raises(TypeError):
+        tvm_ffi.Array(1)
+
+    with pytest.raises(AttributeError):
+        tvm_ffi.Map(1)
+
+
 def test_array_of_array_map():
     a = tvm_ffi.convert([[1, 2, 3], {"A": 5, "B": 6}])
     assert isinstance(a, tvm_ffi.Array)
