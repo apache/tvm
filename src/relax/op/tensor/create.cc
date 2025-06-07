@@ -29,6 +29,8 @@
 #include <string>
 #include <utility>
 
+#include "tvm/relax/expr.h"
+
 namespace tvm {
 namespace relax {
 
@@ -360,6 +362,57 @@ TVM_REGISTER_OP("relax.arange")
     .add_argument("end", "PrimValue", "The ending value for the set of points.")
     .add_argument("step", "PrimValue", "The gap between each pair of adjacent points.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoArange)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.hamming_window */
+Expr hamming_window(PrimValue window_size, PrimValue periodic, PrimValue alpha, PrimValue beta,
+                    DataType dtype) {
+  ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
+  attrs->dtype = dtype;
+  static const Op& op = Op::Get("relax.hamming_window");
+  return Call(op, {std::move(window_size), std::move(periodic), std::move(alpha), std::move(beta)},
+              Attrs(attrs), {});
+}
+
+TVM_FFI_REGISTER_GLOBAL("relax.op.hamming_window").set_body_typed(hamming_window);
+
+StructInfo InferStructInfoHammingWindow(const Call& call, const BlockBuilder& ctx) {
+  DataType dtype = call->attrs.as<InitAttrs>()->dtype;
+  if (dtype.is_int() || dtype.is_uint() || dtype.is_uint()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Hamming Window expects the datatype to be float but got " << dtype);
+  }
+  auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
+    if (!expr->IsInstance<PrimValueNode>()) {
+      ctx->ReportFatal(Diagnostic::Error(expr)
+                       << "Hamming_window expects the `" << key << "` to be a PrimValue, but got "
+                       << expr->GetTypeKey());
+    }
+    return expr.as<PrimValueNode>()->value;
+  };
+  PrimExpr window_size = get_prim_value(call->args[0], "window_size");
+
+  arith::Analyzer analyzer;
+  if (analyzer.CanProveLess(window_size, 1)) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Hamming_window expects the window_size must be greater than zero but got "
+                     << window_size);
+  }
+  window_size = analyzer.Simplify(window_size);
+  return TensorStructInfo(ShapeExpr({window_size}), dtype);
+}
+
+TVM_REGISTER_OP("relax.hamming_window")
+    .set_attrs_type<InitAttrs>()
+    .set_num_inputs(4)
+    .add_argument("window_size", "PrimValue", "The size of the window")
+    .add_argument("periodic", "PrimValue",
+                  "If True, returns a window to be used as periodic function. If False, return a "
+                  "symmetric window")
+    .add_argument("alpha", "PrimValue", "The coefficient alpha")
+    .add_argument("beta", "PrimValue", "The coefficient beta")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoHammingWindow)
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 

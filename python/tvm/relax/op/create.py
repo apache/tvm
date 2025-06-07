@@ -283,6 +283,41 @@ def arange(
     return _ffi_api.arange(start, end, step, dtype)  # type: ignore
 
 
+def hamming_window(window_size, periodic, alpha, beta, dtype):
+    """Hamming window function.
+
+    Parameters
+    ----------
+    window_size : PrimExpr
+        The size of returned window.
+
+    periodic : PrimExpr
+        If True, returns a window to be used as periodic function.
+        If False, return a symmetric window.
+
+    alpha : PrimExpr
+        The co-efficient alpha.
+
+    beta : PrimExpr
+        The co-efficient beta.
+
+    Returns
+    -------
+    ret : relax.Expr
+        The result tensor.
+    """
+    if not isinstance(window_size, Expr):
+        window_size = PrimValue(window_size)
+    if not isinstance(periodic, Expr):
+        periodic = PrimValue(periodic)
+    if not isinstance(alpha, Expr):
+        alpha = PrimValue(alpha)
+    if not isinstance(beta, Expr):
+        beta = PrimValue(beta)
+
+    return _ffi_api.hamming_window(window_size, periodic, alpha, beta, dtype)
+
+
 def tril(x: Expr, k: Union[int, PrimExpr, Expr] = 0) -> Expr:
     """Return the lower triangular part of a matrix or a batch of matrices.
 

@@ -28,6 +28,7 @@
 #include <tvm/relax/attrs/create.h>
 
 #include "../op_common.h"
+#include "tvm/relax/expr.h"
 
 namespace tvm {
 namespace relax {
@@ -117,6 +118,19 @@ Expr eye_like(Expr x, PrimValue k, Optional<DataType> dtype);
 
 /*! \brief Construct a tensor with evenly spaced elements. */
 Expr arange(PrimValue start, PrimValue stop, PrimValue step, DataType dtype);
+
+/*!
+ * \brief Hamming window function.
+ * \param window_size The size of the returned window.
+ * \param periodic If True, returns a window to be used as periodic function.
+ * If False, return a symmetric window.
+ * \param alpha The co-efficient alpha.
+ * \param beta The co-efficient beta.
+ * \param dtype The data type of the created tensor.
+ * \return The result tensor.
+ */
+Expr hamming_window(PrimValue window_size, PrimValue periodic, PrimValue alpha, PrimValue beta,
+                    DataType dtype);
 
 /*! \brief Return the lower triangular part of a matrix or a batch of matrices. */
 Expr tril(Expr x, Expr k);
