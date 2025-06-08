@@ -85,9 +85,15 @@ cdef class Object:
     """
     cdef void* chandle
 
+    def __cinit__(self):
+        # initialize chandle to NULL to avoid leak in
+        # case of error before chandle is set
+        self.chandle = NULL
+
     def __dealloc__(self):
         if self.chandle != NULL:
             CHECK_CALL(TVMFFIObjectFree(self.chandle))
+            self.chandle = NULL
 
     def __ctypes_handle__(self):
         return ctypes_handle(self.chandle)
@@ -116,16 +122,23 @@ cdef class Object:
             self.chandle = NULL
 
     def __getattr__(self, name):
+        if self.chandle == NULL:
+            raise AttributeError(f"{type(self)} has no attribute {name}")
         try:
             return __object_getattr__(self, name)
         except AttributeError:
             raise AttributeError(f"{type(self)} has no attribute {name}")
 
     def __dir__(self):
+        # exception safety handling for chandle=None
+        if self.chandle == NULL:
+            return []
         return __object_dir__(self)
 
     def __repr__(self):
-        # make sure repr is a raw string
+        # exception safety handling for chandle=None
+        if self.chandle == NULL:
+            return type(self).__name__ + "(chandle=None)"
         return str(__object_repr__(self))
 
     def __eq__(self, other):
