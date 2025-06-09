@@ -26,6 +26,8 @@ import torch
 import tvm
 from tvm import relax
 
+import tvm.relax
+tvm.relax.get_default_pipeline
 from .base_fx_graph_translator import BaseFXGraphImporter
 
 
@@ -288,7 +290,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         args = self.retrieve_args(node)
 
         window_size = args[0]
-        periodic = args[1] if len(args) > 1 else False
+        periodic = args[1] if len(args) > 1 else True
         alpha = args[2] if len(args) > 2 else 0.54
         beta = args[3] if len(args) > 3 else 0.46
         dtype = node.kwargs.get("dtype", "float")
@@ -545,6 +547,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "hamming_window.periodic": self._hamming_window,
             "hamming_window.periodic_alpha": self._hamming_window,
             "hamming_window.periodic_alpha_beta": self._hamming_window,
+            "hamming_window.default": self._hamming_window,
             "index_select.default": self._index_select,
             "lift_fresh_copy.default": self._to_copy,
             "linspace.default": self._linspace,
