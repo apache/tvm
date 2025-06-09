@@ -1050,7 +1050,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
               k_rope_pos_offset_sliding_window_h.push_back(std::max(0, block.start_pos + block.seq_length - sequences[d]->sliding_window_size));
             }
             // if (page_indices_sliding_window_h.size() > 0) {
-            //   LOG(INFO) << "WOffset: "<< sliding_window_offset_h.back() << " SWIdx: "<< page_indptr_sliding_window_h.back() << " LastPgIdx: " << page_indices_sliding_window_h.back() << " LastPgLen: " << last_page_len_h.back() << " RopeOffset: " << k_rope_pos_offset_h.back() << " RopeOffsetSlide: " << k_rope_pos_offset_sliding_window_h.back();
+            //   LOG(INFO) << "WOffset: "<< sliding_window_offset_h.back() << " SWIdx: "<< page_indptr_sliding_window_h.back() << " LastPgIdx: " << page_indices_sliding_window_h.back() << " LastPgLen: " << last_page_len_h.back() << " RopeOffset: " << k_rope_pos_offset_h.back() << " RopeOffsetSlide: " << k_rope_pos_offset_sliding_window_h.back() << " Block Start: " << block.start_pos;
             // }
           } else {
             // Blocks at maximum depth
@@ -2164,16 +2164,23 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       NDArray page_indices;
       NDArray length_info;
       NDArray k_rope_pos;
+      double rotary_theta;
+      double rotary_scale;
+
       if (attn_kinds_[local_layer_id + layer_id_begin_offset_] == AttnKind::kMHASliding) {
         page_indptr = page_indptr_sliding_window_on_depths_view_[d];
         page_indices = page_indices_sliding_window_on_depths_view_[d];
         length_info = layer_sliding_window_length_info_on_depths_view_[d];
         k_rope_pos = k_rope_pos_offset_sliding_window_view_[d];
+        rotary_theta = 10000;
+        rotary_scale = 1;
       } else {
         page_indptr = page_indptr_on_depths_view_[d];
         page_indices = page_indices_on_depths_view_[d];
         length_info = length_info_on_depths_view_[d];
         k_rope_pos = k_rope_pos_offset_view_[d];
+        rotary_theta = rotary_theta_;
+        rotary_scale = rotary_scale_;
       }
 
       if (append_before_attn_ && !is_chain_on_depths_[d]) {
@@ -2182,15 +2189,15 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
             q_data, qo_indptr_on_depths_view_[d], pages_[local_layer_id],
             page_indptr, page_indices,
             length_info, k_rope_pos, q_rope_position_map_view_,
-            tree_attn_mn_indptr_view_[d], tree_attn_mask_view_[d], rope_mode_, rotary_scale_,
-            rotary_theta_, sm_scale, attn_output, attn_lse, compute_stream_);
+            tree_attn_mn_indptr_view_[d], tree_attn_mask_view_[d], rope_mode_, rotary_scale,
+            rotary_theta, sm_scale, attn_output, attn_lse, compute_stream_);
       } else if (use_decode_kernel_[d]) {
         // Use decode kernel for depth d
         ICHECK_NOTNULL(f_decode);
         f_decode->MHA(d, q_data, pages_[local_layer_id], page_indptr,
                       page_indices, length_info,
                       k_rope_pos, q_rope_position_map_view_, rope_mode_,
-                      rotary_scale_, rotary_theta_, sm_scale, attn_output, attn_lse,
+                      rotary_scale, rotary_theta, sm_scale, attn_output, attn_lse,
                       compute_stream_);
       } else {
         // Use prefill kernel for depth d
@@ -2199,7 +2206,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                        page_indptr, page_indices,
                        length_info, q_rope_position_map_view_,
                        k_rope_pos, /*causal=*/false,
-                       /*rotary_mode=*/rope_mode_, rotary_scale_, rotary_theta_, sm_scale,
+                       /*rotary_mode=*/rope_mode_, rotary_scale, rotary_theta, sm_scale,
                        attn_output, attn_lse, compute_stream_);
       }
 
