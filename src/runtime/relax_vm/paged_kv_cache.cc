@@ -733,28 +733,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                                  int32_t attn_sink_size) final {
     // If per layer sliding window exists, enable sliding window for sequence
     CHECK(support_sliding_window_ || support_layer_sliding_window_) << "The KV cache does not support sliding window.";
-    // for (AttnKind attn_kind : attn_kinds_) {
-    //   if (attn_kind == AttnKind::kMHASliding) {
-    //     LOG(INFO) << "Found sliding";
-    //   } else if (attn_kind == AttnKind::kMHA) {
-    //     LOG(INFO) << "Found non-sliding";
-    //   } else {
-    //     LOG(INFO) << "Found other";
-    //   }
-    // }
-    // if (support_sliding_window_) {
-    //   LOG(INFO) << "Sldiing window supported";
-    // } else {
-    //   LOG(INFO) << "Sldiing window not supported";
-    // }
-    // if (std::find(attn_kinds_.begin(), attn_kinds_.end(), AttnKind::kMHASliding) != attn_kinds_.end()) {
-    //   LOG(INFO) << "Sliding layer found";
-    // } else {
-    //   LOG(INFO) << "Sliding layer not found";
-    // }
-    // CHECK(!support_sliding_window_) << "The KV cache does not support sliding window.";
-    // LOG(INFO) << "Enabling sliding window";
-    // LOG(INFO) << sliding_window_size;
     auto it = seq_map_.find(seq_id);
     CHECK(it != seq_map_.end()) << "The sequence \"" << seq_id << "\" cannot be found in KV cache.";
     CHECK_GE(attn_sink_size, 0)
