@@ -284,6 +284,20 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         return self.block_builder.emit(relax.op.one_hot(x, on_value, off_value, num_classes, axis))
 
+    def _hamming_window(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+
+        window_size = args[0]
+        periodic = args[1] if len(args) > 1 else True
+        alpha = args[2] if len(args) > 2 else 0.54
+        beta = args[3] if len(args) > 3 else 0.46
+        dtype = node.kwargs.get("dtype", "float")
+        dtype = self._convert_data_type(dtype)
+
+        return self.block_builder.emit(
+            relax.op.hamming_window(window_size, periodic, alpha, beta, dtype)
+        )
+
     def _zeros(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
@@ -528,6 +542,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "fill_.Scalar": self._inplace_fill,
             "full.default": self._full,
             "full_like.default": self._full_like,
+            "hamming_window.periodic": self._hamming_window,
+            "hamming_window.periodic_alpha": self._hamming_window,
+            "hamming_window.periodic_alpha_beta": self._hamming_window,
+            "hamming_window.default": self._hamming_window,
             "index_select.default": self._index_select,
             "lift_fresh_copy.default": self._to_copy,
             "linspace.default": self._linspace,
