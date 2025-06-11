@@ -998,7 +998,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
             // For sliding window, the first page and last page will both be partially used
             page_indptr_sliding_window_h.push_back(
               page_indptr_sliding_window_h.back() + std::min(static_cast<long>(block.page_ids.size()),
-              sequences[d]->sliding_window_size / page_size_ + (block.seq_length % sequences[d]->sliding_window_size ? 1 : 0)
+              static_cast<long>(sequences[d]->sliding_window_size / page_size_ + (block.seq_length % page_size_ ? 1 : 0))
             ));
             for (int i = page_indices_h.size() - page_indptr_sliding_window_h.back(); i < static_cast<int32_t>(page_indices_h.size()); i++) {
               page_indices_sliding_window_h.push_back(page_indices_h[i]);
@@ -1027,9 +1027,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
             if (support_layer_sliding_window_) {
               k_rope_pos_offset_sliding_window_h.push_back(std::max(0, block.start_pos + block.seq_length - sequences[d]->sliding_window_size));
             }
-            // if (page_indices_sliding_window_h.size() > 0) {
-            //   LOG(INFO) << "WOffset: "<< sliding_window_offset_h.back() << " SWIdx: "<< page_indptr_sliding_window_h.back() << " LastPgIdx: " << page_indices_sliding_window_h.back() << " LastPgLen: " << last_page_len_h.back() << " RopeOffset: " << k_rope_pos_offset_h.back() << " RopeOffsetSlide: " << k_rope_pos_offset_sliding_window_h.back() << " Block Start: " << block.start_pos;
-            // }
           } else {
             // Blocks at maximum depth
             const Block& block = global_block_pool_[block_id];
@@ -1049,11 +1046,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
               total_seq_length += block.seq_length;
               last_block_id = id;
             }
-            // Also add sliding window here?
+            
             page_indptr_h.push_back(page_indptr_h.back() + num_pages);
             page_indptr_sliding_window_h.push_back(
               page_indptr_sliding_window_h.back() + std::min(static_cast<long>(block.page_ids.size()),
-              sequences[d]->sliding_window_size / page_size_ + (block.seq_length % sequences[d]->sliding_window_size ? 1 : 0)
+              static_cast<long>(sequences[d]->sliding_window_size / page_size_ + (block.seq_length % page_size_ ? 1 : 0))
             ));
             for (int i = page_indices_h.size() - page_indptr_sliding_window_h.back(); i < static_cast<int32_t>(page_indices_h.size()); i++) {
               page_indices_sliding_window_h.push_back(page_indices_h[i]);
