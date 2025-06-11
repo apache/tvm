@@ -2247,7 +2247,9 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
   Array<PrimExpr> original_indices = ReIndexCollector::Collect(self->mod, buffer, block);
   // Simplify the indices if possible
   for (const IterVar& iter : block->iter_vars) {
-    analyzer.Bind(iter->var, iter->dom);
+    if (!is_one(iter->dom->extent)) {
+      analyzer.Bind(iter->var, iter->dom);
+    }
   }
   original_indices.MutateByApply(
       [&analyzer](const PrimExpr& expr) { return SimplifyNonTrivialExpr(expr, &analyzer); });

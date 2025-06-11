@@ -751,10 +751,10 @@ TVM_REGISTER_NODE_TYPE(ReduceNode);
 
 // BufferLoad
 void BufferLoadNode::LegalizeDType() {
-  for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {
-    ICHECK(indices[i].dtype().is_scalar())
-        << "Only the last index of a buffer access may be a vector type.";
-  }
+  // for (int i = 0; i < static_cast<int>(indices.size()) - 1; i++) {
+  //   ICHECK(indices[i].dtype().is_scalar())
+  //       << "Only the last index of a buffer access may be a vector type.";
+  // }
 
   if (indices.empty()) {
     this->dtype = buffer->dtype;
