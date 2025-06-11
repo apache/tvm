@@ -26,8 +26,6 @@ import torch
 import tvm
 from tvm import relax
 
-import tvm.relax
-tvm.relax.get_default_pipeline
 from .base_fx_graph_translator import BaseFXGraphImporter
 
 
