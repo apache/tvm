@@ -165,7 +165,7 @@ Therefore, it is highly recommended to validate Apache TVM installation before u
 
 .. code-block:: bash
 
-    >>> python -c "import tvm; print(tvm._ffi.base._LIB)"
+    >>> python -c "import tvm; print(tvm.base._LIB)"
     <CDLL '/some-path/lib/python3.11/site-packages/tvm/libtvm.dylib', handle 95ada510 at 0x1030e4e50>
 
 **Step 3. Reflect TVM build option.** Sometimes when downstream application fails, it could likely be some mistakes with a wrong TVM commit, or wrong build flags. To find it out, the following commands will be helpful:
