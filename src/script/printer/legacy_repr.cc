@@ -668,34 +668,6 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<ProducerRealizeNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const ProducerRealizeNode*>(node.get());
-      p->PrintIndent();
-      (*p) << "producer_realize " << op->producer->GetNameHint() << "(";
-      for (size_t i = 0; i < op->bounds.size(); ++i) {
-        (*p) << "[";
-        p->Print(op->bounds[i]->min);
-        (*p) << ", ";
-        p->Print(op->bounds[i]->extent);
-        (*p) << "]";
-        if (i < op->bounds.size() - 1) (*p) << ", ";
-      }
-      (*p) << ")";
-      if (!is_one(op->condition)) {
-        (*p) << " if ";
-        p->Print(op->condition);
-      }
-      (*p) << " {\n";
-
-      p->indent += 2;
-      p->Print(op->body);
-      p->indent -= 2;
-
-      p->PrintIndent();
-      (*p) << "}\n";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     .set_dispatch<PrefetchNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
       auto* op = static_cast<const PrefetchNode*>(node.get());
       p->PrintIndent();

@@ -475,58 +475,6 @@ class AttrStmt(Stmt):
         )
 
 
-@tvm.ffi.register_object("tir.ProducerRealize")
-class ProducerRealize(Stmt):
-    """ProducerRealize node.
-
-    Parameters
-    ----------
-    producer : DataProducer
-        The data producer.
-
-    bounds : List[Range]
-        The bound of realize
-
-    condition : PrimExpr
-        The realize condition.
-
-    body : Stmt
-        The realize body
-
-    storage_scope : str
-        The storage scope associated with this realization
-
-    span : Optional[Span]
-        The location of the stmt in the source code.
-    """
-
-    producer: DataProducer
-    bounds: List[Range]
-    condition: PrimExpr
-    body: Stmt
-    storage_scope: str
-    span: Optional[Span]
-
-    def __init__(
-        self,
-        producer: DataProducer,
-        bounds: List[Range],
-        condition: PrimExpr,
-        body: Stmt,
-        storage_scope: str = "",
-        span: Optional[Span] = None,
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.ProducerRealize,  # type: ignore
-            producer,
-            bounds,
-            condition,
-            body,
-            storage_scope,
-            span,
-        )
-
-
 @tvm.ffi.register_object("tir.SeqStmt")
 class SeqStmt(Stmt):
     """Sequence of statements.

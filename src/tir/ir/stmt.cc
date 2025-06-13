@@ -335,37 +335,6 @@ TVM_FFI_REGISTER_GLOBAL("tir.DeclBuffer").set_body_typed([](Buffer buffer, Stmt 
 
 TVM_REGISTER_NODE_TYPE(DeclBufferNode);
 
-// ProducerRealize
-ProducerRealize::ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition,
-                                 Stmt body, String storage_scope, Span span) {
-  for (size_t i = 0; i < bounds.size(); ++i) {
-    ICHECK(bounds[i]->min.defined());
-    ICHECK(bounds[i]->extent.defined());
-    ICHECK(bounds[i]->min.dtype().is_scalar());
-    ICHECK(bounds[i]->extent.dtype().is_scalar());
-  }
-  ICHECK(body.defined());
-  ICHECK(condition.defined());
-  ICHECK(condition.dtype().is_bool());
-
-  ObjectPtr<ProducerRealizeNode> node = make_object<ProducerRealizeNode>();
-  node->producer = std::move(producer);
-  node->bounds = std::move(bounds);
-  node->condition = std::move(condition);
-  node->body = std::move(body);
-  node->span = std::move(span);
-  node->storage_scope = std::move(storage_scope);
-  data_ = std::move(node);
-}
-
-TVM_FFI_REGISTER_GLOBAL("tir.ProducerRealize")
-    .set_body_typed([](DataProducer producer, Region bounds, PrimExpr condition, Stmt body,
-                       String storage_scope, Span span) {
-      return ProducerRealize(producer, bounds, condition, body, storage_scope, span);
-    });
-
-TVM_REGISTER_NODE_TYPE(ProducerRealizeNode);
-
 // Prefetch
 Prefetch::Prefetch(Buffer buffer, Array<Range> bounds, Span span) {
   data_ = make_object<PrefetchNode>(buffer, bounds, span);

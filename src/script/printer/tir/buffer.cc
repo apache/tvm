@@ -338,25 +338,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return prefix[BufferIndices(load->indices, p->Attr("indices"), d)];
         });
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::ProducerRealize>(  //
-        "", [](tir::ProducerRealize stmt, ObjectPath p, IRDocsifier d) -> Doc {
-          ExprDoc prefix = IdDoc(stmt->producer->GetNameHint());
-          prefix = prefix[BufferSlices(stmt->bounds, p->Attr("bounds"), d)];
-          prefix = TIR(d, "ProducerRealize")
-                       ->Call({prefix, d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"))});
-          With<TIRFrame> f(d, stmt);
-          AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-          return ScopeDoc(std::nullopt, prefix, (*f)->stmts);
-        });
-
 TVM_SCRIPT_REPR(tir::BufferRegionNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::BufferLoadNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::BufferStoreNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::BufferNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::MatchBufferRegionNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::ProducerLoadNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::ProducerRealizeNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script
