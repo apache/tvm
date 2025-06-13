@@ -15,5 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Frontends for constructing Relax programs, with the model importers"""
+
 from . import nn
+<<<<<<< HEAD
+from . common import detach_params
+from . import onnx
+=======
+#from . import onnx
 from .common import detach_params
+>>>>>>> parent of 18b9170d6 (commented-lint)
