@@ -663,8 +663,10 @@ def test_vm_relax_dyn_tir_shape(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(mod, target, exec_mode=exec_mode)
 
-    ex.export_library("exec.so")
-    vm = relax.VirtualMachine(tvm.runtime.load_module("exec.so"), tvm.cpu())
+    with utils.tempdir() as temp:
+        ex.export_library(temp.relpath("exec.so"))
+        vm = relax.VirtualMachine(tvm.runtime.load_module(temp.relpath("exec.so")), tvm.cpu())
+
     inp = tvm.nd.array(np.random.rand(2).astype(np.float32))
     inp2 = tvm.nd.array(np.random.rand(3).astype(np.float32))
 
@@ -956,7 +958,7 @@ class TestVMSetInput:
     # test returning a tuple
     @R.function
     def test_vm_tuple(
-        x: R.Tensor((), "int32")
+        x: R.Tensor((), "int32"),
     ) -> R.Tuple(R.Tensor((), "int32"), R.Tensor((), "int32")):
         return (x, x)
 
