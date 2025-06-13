@@ -110,7 +110,6 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const PrimExpr&, ObjectPat
   void VisitStmt_(const BufferStoreNode* op, ObjectPath path) override;
   void VisitStmt_(const BufferRealizeNode* op, ObjectPath path) override;
   void VisitStmt_(const AssertStmtNode* op, ObjectPath path) override;
-  void VisitStmt_(const ProducerStoreNode* op, ObjectPath path) override;
   void VisitStmt_(const ProducerRealizeNode* op, ObjectPath path) override;
   void VisitStmt_(const PrefetchNode* op, ObjectPath path) override;
   void VisitStmt_(const SeqStmtNode* op, ObjectPath path) override;

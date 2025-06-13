@@ -205,24 +205,6 @@ TVM_FFI_REGISTER_GLOBAL("tir.While").set_body_typed([](PrimExpr condition, Stmt 
 
 TVM_REGISTER_NODE_TYPE(WhileNode);
 
-// ProducerStore
-ProducerStore::ProducerStore(DataProducer producer, PrimExpr value, Array<PrimExpr> indices,
-                             Span span) {
-  ObjectPtr<ProducerStoreNode> node = make_object<ProducerStoreNode>();
-  node->producer = std::move(producer);
-  node->value = std::move(value);
-  node->indices = std::move(indices);
-  node->span = std::move(span);
-  data_ = std::move(node);
-}
-
-TVM_FFI_REGISTER_GLOBAL("tir.ProducerStore")
-    .set_body_typed([](DataProducer producer, PrimExpr value, Array<PrimExpr> indices, Span span) {
-      return ProducerStore(producer, value, indices, span);
-    });
-
-TVM_REGISTER_NODE_TYPE(ProducerStoreNode);
-
 // Allocate
 Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
                    Stmt body, Map<String, Any> annotations, Span span) {

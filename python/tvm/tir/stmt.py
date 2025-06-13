@@ -293,42 +293,6 @@ class BufferRealize(Stmt):
         )
 
 
-@tvm.ffi.register_object("tir.ProducerStore")
-class ProducerStore(Stmt):
-    """ProducerStore node.
-
-    Parameters
-    ----------
-    producer : DataProducer
-        The data producer.
-
-    value : PrimExpr
-        The value to be stored.
-
-    indices : list of Expr
-        The index arguments of the store.
-
-    span : Optional[Span]
-        The location of the stmt in the source code.
-    """
-
-    producer: DataProducer
-    value: PrimExpr
-    indices: List[PrimExpr]
-    span: Optional[Span]
-
-    def __init__(
-        self,
-        producer: DataProducer,
-        value: PrimExpr,
-        indices: List[PrimExpr],
-        span: Optional[Span] = None,
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.ProducerStore, producer, value, indices, span  # type: ignore
-        )
-
-
 @tvm.ffi.register_object("tir.Allocate")
 class Allocate(Stmt):
     """Allocate node.

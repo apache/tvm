@@ -32,7 +32,6 @@ from .stmt import Stmt, LetStmt, AssertStmt, ForKind, For, While
 from .stmt import (
     BufferStore,
     BufferRealize,
-    ProducerStore,
     Allocate,
     AllocateConst,
     AttrStmt,

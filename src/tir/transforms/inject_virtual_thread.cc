@@ -506,8 +506,6 @@ class VirtualThreadInjector : public arith::IRMutatorWithAnalyzer {
       return stmt;
     }
   }
-
-  Stmt VisitStmt_(const ProducerStoreNode* op) final { LOG(FATAL) << "Should not appear in TIR"; }
 };
 
 namespace transform {

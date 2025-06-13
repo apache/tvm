@@ -336,60 +336,6 @@ class BufferRealize : public Stmt {
 };
 
 /*!
- * \brief Store value into mult-dimensional array that will be read by the consumer
- *        of the producer.
- *
- * \note This node only appears in high-level DSLs that are built on top of the TIR.
- *       It should not appear in a valid TIR PrimFunc. A high-level DSL needs to lower
- *       this node before TIR transformations.
- *
- * \sa DataProducer
- */
-class ProducerStoreNode : public StmtNode {
- public:
-  /*! \brief The producer to store the results into. */
-  DataProducer producer;
-  /*! \brief The value to be stored. */
-  PrimExpr value;
-  /*! \brief The index arguments of the function. */
-  Array<PrimExpr> indices;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("producer", &producer);
-    v->Visit("value", &value);
-    v->Visit("indices", &indices);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const ProducerStoreNode* other, SEqualReducer equal) const {
-    return equal(producer, other->producer) && equal(value, other->value) &&
-           equal(indices, other->indices);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(producer);
-    hash_reduce(value);
-    hash_reduce(indices);
-  }
-
-  static constexpr const char* _type_key = "tir.ProducerStore";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerStoreNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to ProducerStoreNode.
- * \sa ProducerStoreNode
- */
-class ProducerStore : public Stmt {
- public:
-  TVM_DLL ProducerStore(DataProducer producer, PrimExpr value, Array<PrimExpr> indices,
-                        Span span = Span());
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ProducerStore, Stmt, ProducerStoreNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ProducerStoreNode);
-};
-
-/*!
  * \brief Annotate the bounds where the data produced by the producer
  *  need to be written and read in body.
  *  We will need to allocate space for the corresponding regions.

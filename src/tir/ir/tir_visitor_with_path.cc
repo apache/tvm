@@ -266,11 +266,6 @@ void TIRVisitorWithPath::VisitStmt_(const AssertStmtNode* op, ObjectPath path) {
   Visit(op->body, path->Attr("body"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const ProducerStoreNode* op, ObjectPath path) {
-  Visit(op->indices, path->Attr("indices"));
-  Visit(op->value, path->Attr("value"));
-}
-
 void TIRVisitorWithPath::VisitStmt_(const ProducerRealizeNode* op, ObjectPath path) {
   Visit(op->bounds, path->Attr("bounds"));
   Visit(op->body, path->Attr("body"));

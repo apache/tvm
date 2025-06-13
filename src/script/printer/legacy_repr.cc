@@ -626,21 +626,6 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<ProducerStoreNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const ProducerStoreNode*>(node.get());
-      p->PrintIndent();
-      (*p) << op->producer->GetNameHint() << "[";
-      for (size_t i = 0; i < op->indices.size(); ++i) {
-        p->Print(op->indices[i]);
-        if (i < op->indices.size() - 1) (*p) << ", ";
-      }
-      (*p) << "]";
-      (*p) << " =";
-      p->Print(op->value);
-      (*p) << '\n';
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     .set_dispatch<AllocateNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
       auto* op = static_cast<const AllocateNode*>(node.get());
       const auto* ptr_type = op->buffer_var->type_annotation.as<PointerTypeNode>();
