@@ -39,7 +39,7 @@ from .stmt import (
 )
 
 from .stmt import SeqStmt
-from .stmt import IfThenElse, Evaluate, Prefetch, stmt_seq, stmt_list
+from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
 from .stmt import BufferRegion, MatchBufferRegion, Block, BlockRealize
 
 from .function import PrimFunc, TensorIntrin, IndexMap

@@ -973,51 +973,6 @@ class While : public Stmt {
 };
 
 /*!
- * \brief A prefetch hint for a buffer
- */
-class PrefetchNode : public StmtNode {
- public:
-  /*! \brief The function to be prefetched. */
-  Buffer buffer;
-  /*! \brief Bounds to be prefetched. */
-  Array<Range> bounds;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
-    v->Visit("bounds", &bounds);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const PrefetchNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(bounds, other->bounds);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
-    hash_reduce(bounds);
-  }
-
-  PrefetchNode() = default;
-  PrefetchNode(Buffer buffer, Array<Range> bounds, Span span = Span())
-      : StmtNode(span), buffer(buffer), bounds(bounds) {}
-
-  static constexpr const char* _type_key = "tir.Prefetch";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrefetchNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to PrefetchNode.
- * \sa PrefetchNode
- */
-class Prefetch : public Stmt {
- public:
-  TVM_DLL explicit Prefetch(Buffer buffer, Array<Range> bounds, Span span = Span());
-
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Prefetch, Stmt, PrefetchNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(PrefetchNode);
-};
-
-/*!
  * \brief Representing the region of multi-dimensional buffer access.
  */
 class BufferRegionNode : public PrimExprConvertibleNode {

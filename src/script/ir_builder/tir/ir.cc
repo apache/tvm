@@ -596,10 +596,6 @@ void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
   AddToParent(tvm::tir::BufferStore(buffer, value, indices, predicate));
 }
 
-void Prefetch(Buffer buffer, Array<Range> bounds) {
-  AddToParent(tvm::tir::Prefetch(buffer, bounds));
-}
-
 DeclBufferFrame DeclBuffer(Array<PrimExpr> shape, DataType dtype, String buffer_name,
                            Optional<Var> data, Optional<Array<PrimExpr>> strides,
                            Optional<PrimExpr> elem_offset, String storage_scope, int align,
@@ -724,7 +720,6 @@ TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.LaunchThread")
 TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.EnvThread").set_body_typed(EnvThread);
 
 TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.BufferStore").set_body_typed(BufferStore);
-TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Prefetch").set_body_typed(Prefetch);
 TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Evaluate").set_body_typed(Evaluate);
 
 TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Ptr").set_body_typed(Ptr);

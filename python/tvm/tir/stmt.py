@@ -556,30 +556,6 @@ class Evaluate(Stmt):
         self.__init_handle_by_constructor__(_ffi_api.Evaluate, value, span)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.Prefetch")
-class Prefetch(Stmt):
-    """Prefetch node.
-
-    Parameters
-    ----------
-    buffer : Buffer
-        The buffer to be prefetched.
-
-    bounds : List[Range]
-        The bounds to be prefetched.
-
-    span : Optional[Span]
-        The location of the stmt in the source code.
-    """
-
-    buffer: Buffer
-    bounds: List[Range]
-    span: Optional[Span]
-
-    def __init__(self, buffer: Buffer, bounds: List[Range], span: Optional[Span] = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Prefetch, buffer, bounds, span)  # type: ignore
-
-
 @tvm.ffi.register_object("tir.BufferRegion")
 class BufferRegion(Object, Scriptable):
     """BufferRegion node.

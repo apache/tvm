@@ -266,10 +266,6 @@ void TIRVisitorWithPath::VisitStmt_(const AssertStmtNode* op, ObjectPath path) {
   Visit(op->body, path->Attr("body"));
 }
 
-void TIRVisitorWithPath::VisitStmt_(const PrefetchNode* op, ObjectPath path) {
-  Visit(op->bounds, path->Attr("bounds"));
-}
-
 void TIRVisitorWithPath::VisitStmt_(const SeqStmtNode* op, ObjectPath path) {
   Visit(op->seq, path->Attr("seq"));
 }

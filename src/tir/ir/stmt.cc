@@ -335,17 +335,6 @@ TVM_FFI_REGISTER_GLOBAL("tir.DeclBuffer").set_body_typed([](Buffer buffer, Stmt 
 
 TVM_REGISTER_NODE_TYPE(DeclBufferNode);
 
-// Prefetch
-Prefetch::Prefetch(Buffer buffer, Array<Range> bounds, Span span) {
-  data_ = make_object<PrefetchNode>(buffer, bounds, span);
-}
-
-TVM_FFI_REGISTER_GLOBAL("tir.Prefetch")
-    .set_body_typed([](Buffer buffer, Array<Range> bounds, Span span) {
-      return Prefetch(buffer, bounds, span);
-    });
-
-TVM_REGISTER_NODE_TYPE(PrefetchNode);
 
 // SeqStmt
 SeqStmt::SeqStmt(Array<Stmt> seq, Span span) {

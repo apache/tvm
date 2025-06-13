@@ -668,22 +668,6 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<PrefetchNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const PrefetchNode*>(node.get());
-      p->PrintIndent();
-      (*p) << "prefetch " << op->buffer << "(";
-      for (size_t i = 0; i < op->bounds.size(); ++i) {
-        (*p) << "[";
-        p->Print(op->bounds[i]->min);
-        (*p) << ", ";
-        p->Print(op->bounds[i]->extent);
-        (*p) << "]";
-        if (i < op->bounds.size() - 1) (*p) << ", ";
-      }
-      (*p) << ")";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     .set_dispatch<SeqStmtNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
       auto* op = static_cast<const SeqStmtNode*>(node.get());
       for (Stmt stmt : op->seq) {

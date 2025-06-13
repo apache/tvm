@@ -94,13 +94,6 @@ void StmtVisitor::VisitStmt_(const AssertStmtNode* op) {
   this->VisitStmt(op->body);
 }
 
-void StmtVisitor::VisitStmt_(const PrefetchNode* op) {
-  VisitArray(op->bounds, [this](const Range& r) {
-    this->VisitExpr(r->min);
-    this->VisitExpr(r->extent);
-  });
-}
-
 void StmtVisitor::VisitStmt_(const SeqStmtNode* op) {
   VisitArray(op->seq, [this](const Stmt& s) { this->VisitStmt(s); });
 }
@@ -377,17 +370,6 @@ Stmt StmtMutator::VisitStmt_(const BufferRealizeNode* op) {
     n->bounds = std::move(bounds);
     n->condition = std::move(condition);
     n->body = std::move(body);
-    return Stmt(n);
-  }
-}
-
-Stmt StmtMutator::VisitStmt_(const PrefetchNode* op) {
-  Region bounds = Internal::Mutate(this, op->bounds);
-  if (bounds.same_as(op->bounds)) {
-    return GetRef<Stmt>(op);
-  } else {
-    auto n = CopyOnWrite(op);
-    n->bounds = std::move(bounds);
     return Stmt(n);
   }
 }
