@@ -805,7 +805,8 @@ def test_llvm_crt_static_lib():
         target=tvm.target.Target("llvm"),
     )
     module.get_source()
-    module.save("test.o")
+    with utils.tempdir() as temp:
+        module.save(temp.relpath("test.o"))
 
 
 @tvm.testing.requires_llvm
