@@ -26,7 +26,7 @@ from .. import args_converter
 PrimExprLike = Union[int, PrimExpr]
 
 
-def take(x: Expr, indices: Expr, axis: Optional[int] = None) -> Expr:
+def take(x: Expr, indices: Expr, axis: Optional[int] = None, mode: str = "fast") -> Expr:
     """Take elements from a tensor along an axis.
     Its semantic is mostly similar to `numpy.take`
     (https://numpy.org/doc/stable/reference/generated/numpy.take.html),
@@ -45,12 +45,18 @@ def take(x: Expr, indices: Expr, axis: Optional[int] = None) -> Expr:
         The axis over which to select values.
         If it is none, the input tensor is required to be one-dimensional.
 
+    mode : str
+        Specifies how out-of-bounds indices will behave.
+        - fast (default): extra indices lead to seg fault (user must make sure indices are in-bound)
+        - nan: produce NaNs for out-of-bounds indices
+        - wrap: wrap around the indices
+        - clip: clip to the range
     Returns
     -------
     ret : relax.Expr
         The taken result.
     """
-    return _ffi_api.take(x, indices, axis)  # type: ignore
+    return _ffi_api.take(x, indices, axis, mode)  # type: ignore
 
 
 @args_converter.auto

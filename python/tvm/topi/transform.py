@@ -446,7 +446,7 @@ def split(ary, indices_or_sections, axis=0):
     return cpp.split(ary, indices_or_sections, axis)
 
 
-def take(a, indices, axis=None, batch_dims=0, mode="clip"):
+def take(a, indices, axis=None, batch_dims=0, mode="fast"):
     """Take elements from an array along an axis.
 
     Parameters
@@ -465,10 +465,11 @@ def take(a, indices, axis=None, batch_dims=0, mode="clip"):
         The number of batch dimensions. By default is 0.
 
     mode : str, optional
-        Specifies how out-of-bound indices will behave.
-        clip - clip to the range (default)
-        wrap - wrap around the indices
-        fast - no clip or wrap around (user must make sure indices are in-bound)
+        Specifies how out-of-bounds indices will behave.
+        - fast (default): extra indices lead to seg fault (user must make sure indices are in-bound)
+        - nan: produce NaNs for out-of-bounds indices
+        - wrap: wrap around the indices
+        - clip: clip to the range
 
     Returns
     -------
