@@ -20,6 +20,7 @@
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/variant.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
 
 #include "./testing_object.h"

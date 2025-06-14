@@ -232,6 +232,9 @@ TEST(Any, Object) {
   EXPECT_EQ(v1.use_count(), 3);
   EXPECT_TRUE(any2.as<TInt>().has_value());
 
+  any2 = const_cast<TIntObj*>(v1_ptr);
+  EXPECT_TRUE(any2.as<TInt>().has_value());
+
   // convert to raw opaque ptr
   void* raw_v1_ptr = const_cast<TIntObj*>(v1_ptr);
   any2 = raw_v1_ptr;

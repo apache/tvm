@@ -18,6 +18,7 @@
  */
 #include <gtest/gtest.h>
 #include <tvm/ffi/container/tuple.h>
+#include <tvm/ffi/function.h>
 
 #include "./testing_object.h"
 
