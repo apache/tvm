@@ -32,9 +32,11 @@ namespace relax {
 /*! \brief Attributes used in take operator */
 struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
   Optional<int64_t> axis;
+  String mode;
 
   TVM_DECLARE_ATTRS(TakeAttrs, "relax.attrs.TakeAttrs") {
     TVM_ATTR_FIELD(axis).describe("The axis over which to select values.");
+    TVM_ATTR_FIELD(mode).describe("The mode for handling out-of-bounds indices.");
   }
 };  // struct TakeAttrs
 
