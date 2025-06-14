@@ -20,8 +20,8 @@ from typing import Callable, Optional
 
 import tvm
 from tvm.ir import Op
-from tvm.meta_schedule.utils import derived_object
 from tvm.runtime import Object
+from tvm.runtime.support import derived_object
 
 from ..ir.module import IRModule
 from . import _ffi_api
@@ -31,7 +31,6 @@ from .expr import (
     BindingBlock,
     Call,
     Constant,
-    Id,
     DataflowBlock,
     DataflowVar,
     DataTypeImm,
@@ -39,6 +38,7 @@ from .expr import (
     ExternFunc,
     Function,
     GlobalVar,
+    Id,
     If,
     MatchCast,
     PrimValue,
