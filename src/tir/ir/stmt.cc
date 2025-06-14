@@ -335,7 +335,6 @@ TVM_FFI_REGISTER_GLOBAL("tir.DeclBuffer").set_body_typed([](Buffer buffer, Stmt 
 
 TVM_REGISTER_NODE_TYPE(DeclBufferNode);
 
-
 // SeqStmt
 SeqStmt::SeqStmt(Array<Stmt> seq, Span span) {
   bool requires_flattening = std::any_of(

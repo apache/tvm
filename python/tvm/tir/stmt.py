@@ -34,7 +34,7 @@ from tvm.ir import PrimExpr, Range, Span
 from tvm.runtime import Object, Scriptable, const, NDArray
 
 from . import _ffi_api
-from .buffer import Buffer, DataProducer
+from .buffer import Buffer
 from .expr import Var, IterVar
 
 

@@ -1316,7 +1316,6 @@ def buffer_store(
     )
 
 
-
 def evaluate(value: PrimExpr) -> None:
     """Evaluate the input expression.
 
