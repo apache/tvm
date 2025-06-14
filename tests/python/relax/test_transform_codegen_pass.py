@@ -24,6 +24,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax, tir
+from tvm.contrib import utils
 from tvm.relax.dpl import is_op, wildcard
 from tvm.relax.testing import transform
 from tvm.script import ir as I
@@ -58,9 +59,9 @@ def check_executable(exec, dev, inputs, expected, entry_func_name):
 
 
 def check_roundtrip(exec0, dev, inputs, expected, entry_func_name="main"):
-    exec0.mod.export_library("exec.so")
-    exec1 = tvm.runtime.load_module("exec.so")
-    os.remove("exec.so")
+    with utils.tempdir() as temp:
+        exec0.mod.export_library(temp.relpath("exec.so"))
+        exec1 = tvm.runtime.load_module(temp.relpath("exec.so"))
     assert exec0.stats() == exec1["stats"]()
     assert exec0.as_text() == exec1["as_text"]()
 
