@@ -385,20 +385,6 @@ with T.decl_buffer((10, 10), data=v) as buffer:
     )
 
 
-def test_prefetch():
-    a = tir.decl_buffer((128, 128), "float16", name="A")
-    with IRBuilder() as ib:
-        T.prefetch(a, [Range(0, 64), Range(0, 64)])
-    obj = ib.get()
-    _assert_print(
-        obj,
-        """
-A = T.Buffer((128, 128), "float16")
-T.prefetch(A, [T.Range(0, 64), T.Range(0, 64)])
-""",
-    )
-
-
 def test_seq_stmt():
     with IRBuilder() as ib:
         with T.serial(10):

@@ -418,13 +418,6 @@ void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
                  Optional<PrimExpr> predicate);
 
 /*!
- * \brief The prefetch hint for a buffer
- * \param buffer The buffer to be prefetched.
- * \param bounds The bounds to be prefetched.
- */
-void Prefetch(Buffer buffer, Array<Range> bounds);
-
-/*!
  * \brief Evaluate the input expression.
  * \param value The input expression to evaluate.
  */

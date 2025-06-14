@@ -199,16 +199,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return StmtBlockDoc((*f)->stmts);
     });
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::Prefetch>(  //
-        "", [](tir::Prefetch stmt, ObjectPath p, IRDocsifier d) -> Doc {
-          return ExprStmtDoc(TIR(d, "prefetch")
-                                 ->Call({
-                                     d->AsDoc<ExprDoc>(stmt->buffer, p->Attr("buffer")),
-                                     d->AsDoc<ExprDoc>(stmt->bounds, p->Attr("bounds")),
-                                 }));
-        });
-
 bool IsAllocateDeclBufferPattern(const tir::AllocateNode* allocate) {
   const tir::Var& buffer_var = allocate->buffer_var;
   if (const tir::DeclBufferNode* decl_buffer = allocate->body.as<tir::DeclBufferNode>()) {
@@ -462,7 +452,6 @@ TVM_SCRIPT_REPR(tir::WhileNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AllocateNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AllocateConstNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::DeclBufferNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::PrefetchNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::SeqStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::IfThenElseNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::EvaluateNode, ReprPrintTIR);
