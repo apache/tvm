@@ -29,7 +29,6 @@
 #include <string>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 namespace tvm {
 namespace tir {
@@ -333,124 +332,6 @@ class BufferRealize : public Stmt {
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BufferRealize, Stmt, BufferRealizeNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRealizeNode);
-};
-
-/*!
- * \brief Store value into mult-dimensional array that will be read by the consumer
- *        of the producer.
- *
- * \note This node only appears in high-level DSLs that are built on top of the TIR.
- *       It should not appear in a valid TIR PrimFunc. A high-level DSL needs to lower
- *       this node before TIR transformations.
- *
- * \sa DataProducer
- */
-class ProducerStoreNode : public StmtNode {
- public:
-  /*! \brief The producer to store the results into. */
-  DataProducer producer;
-  /*! \brief The value to be stored. */
-  PrimExpr value;
-  /*! \brief The index arguments of the function. */
-  Array<PrimExpr> indices;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("producer", &producer);
-    v->Visit("value", &value);
-    v->Visit("indices", &indices);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const ProducerStoreNode* other, SEqualReducer equal) const {
-    return equal(producer, other->producer) && equal(value, other->value) &&
-           equal(indices, other->indices);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(producer);
-    hash_reduce(value);
-    hash_reduce(indices);
-  }
-
-  static constexpr const char* _type_key = "tir.ProducerStore";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerStoreNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to ProducerStoreNode.
- * \sa ProducerStoreNode
- */
-class ProducerStore : public Stmt {
- public:
-  TVM_DLL ProducerStore(DataProducer producer, PrimExpr value, Array<PrimExpr> indices,
-                        Span span = Span());
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ProducerStore, Stmt, ProducerStoreNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ProducerStoreNode);
-};
-
-/*!
- * \brief Annotate the bounds where the data produced by the producer
- *  need to be written and read in body.
- *  We will need to allocate space for the corresponding regions.
- *
- * \note This node only appears in high-level DSLs that are built on top of the TIR.
- *       It should not appear in a valid TIR PrimFunc. A high-level DSL needs to lower
- *       this node before TIR transformations.
- *
- * \sa DataProducer
- */
-class ProducerRealizeNode : public StmtNode {
- public:
-  /*! \brief The producer that produces the data. */
-  DataProducer producer;
-  /*! \brief Bounds to be realized. */
-  Region bounds;
-  /*! \brief Only realize if condition holds. */
-  PrimExpr condition;
-  /*! \brief The body of realization. */
-  Stmt body;
-  /*! \brief The storage scope associated with this realization. */
-  String storage_scope;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("producer", &producer);
-    v->Visit("bounds", &bounds);
-    v->Visit("condition", &condition);
-    v->Visit("body", &body);
-    v->Visit("storage_scope", &storage_scope);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const ProducerRealizeNode* other, SEqualReducer equal) const {
-    return equal(producer, other->producer) && equal(bounds, other->bounds) &&
-           equal(condition, other->condition) && equal(body, other->body) &&
-           equal(storage_scope, other->storage_scope);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(producer);
-    hash_reduce(bounds);
-    hash_reduce(condition);
-    hash_reduce(body);
-    hash_reduce(storage_scope);
-  }
-
-  static constexpr const char* _type_key = "tir.ProducerRealize";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerRealizeNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to ProducerRealizeNode.
- * \sa ProducerRealizeNode
- */
-class ProducerRealize : public Stmt {
- public:
-  TVM_DLL ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition, Stmt body,
-                          String storage_scope = "", Span span = Span());
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ProducerRealize, Stmt, ProducerRealizeNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ProducerRealizeNode);
 };
 
 /*!
@@ -1088,51 +969,6 @@ class While : public Stmt {
 
   TVM_DEFINE_OBJECT_REF_METHODS(While, Stmt, WhileNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(WhileNode);
-};
-
-/*!
- * \brief A prefetch hint for a buffer
- */
-class PrefetchNode : public StmtNode {
- public:
-  /*! \brief The function to be prefetched. */
-  Buffer buffer;
-  /*! \brief Bounds to be prefetched. */
-  Array<Range> bounds;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
-    v->Visit("bounds", &bounds);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const PrefetchNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(bounds, other->bounds);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
-    hash_reduce(bounds);
-  }
-
-  PrefetchNode() = default;
-  PrefetchNode(Buffer buffer, Array<Range> bounds, Span span = Span())
-      : StmtNode(span), buffer(buffer), bounds(bounds) {}
-
-  static constexpr const char* _type_key = "tir.Prefetch";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrefetchNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to PrefetchNode.
- * \sa PrefetchNode
- */
-class Prefetch : public Stmt {
- public:
-  TVM_DLL explicit Prefetch(Buffer buffer, Array<Range> bounds, Span span = Span());
-
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Prefetch, Stmt, PrefetchNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(PrefetchNode);
 };
 
 /*!

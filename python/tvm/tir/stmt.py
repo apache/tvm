@@ -34,7 +34,7 @@ from tvm.ir import PrimExpr, Range, Span
 from tvm.runtime import Object, Scriptable, const, NDArray
 
 from . import _ffi_api
-from .buffer import Buffer, DataProducer
+from .buffer import Buffer
 from .expr import Var, IterVar
 
 
@@ -293,42 +293,6 @@ class BufferRealize(Stmt):
         )
 
 
-@tvm.ffi.register_object("tir.ProducerStore")
-class ProducerStore(Stmt):
-    """ProducerStore node.
-
-    Parameters
-    ----------
-    producer : DataProducer
-        The data producer.
-
-    value : PrimExpr
-        The value to be stored.
-
-    indices : list of Expr
-        The index arguments of the store.
-
-    span : Optional[Span]
-        The location of the stmt in the source code.
-    """
-
-    producer: DataProducer
-    value: PrimExpr
-    indices: List[PrimExpr]
-    span: Optional[Span]
-
-    def __init__(
-        self,
-        producer: DataProducer,
-        value: PrimExpr,
-        indices: List[PrimExpr],
-        span: Optional[Span] = None,
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.ProducerStore, producer, value, indices, span  # type: ignore
-        )
-
-
 @tvm.ffi.register_object("tir.Allocate")
 class Allocate(Stmt):
     """Allocate node.
@@ -511,58 +475,6 @@ class AttrStmt(Stmt):
         )
 
 
-@tvm.ffi.register_object("tir.ProducerRealize")
-class ProducerRealize(Stmt):
-    """ProducerRealize node.
-
-    Parameters
-    ----------
-    producer : DataProducer
-        The data producer.
-
-    bounds : List[Range]
-        The bound of realize
-
-    condition : PrimExpr
-        The realize condition.
-
-    body : Stmt
-        The realize body
-
-    storage_scope : str
-        The storage scope associated with this realization
-
-    span : Optional[Span]
-        The location of the stmt in the source code.
-    """
-
-    producer: DataProducer
-    bounds: List[Range]
-    condition: PrimExpr
-    body: Stmt
-    storage_scope: str
-    span: Optional[Span]
-
-    def __init__(
-        self,
-        producer: DataProducer,
-        bounds: List[Range],
-        condition: PrimExpr,
-        body: Stmt,
-        storage_scope: str = "",
-        span: Optional[Span] = None,
-    ) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.ProducerRealize,  # type: ignore
-            producer,
-            bounds,
-            condition,
-            body,
-            storage_scope,
-            span,
-        )
-
-
 @tvm.ffi.register_object("tir.SeqStmt")
 class SeqStmt(Stmt):
     """Sequence of statements.
@@ -642,30 +554,6 @@ class Evaluate(Stmt):
 
     def __init__(self, value: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Evaluate, value, span)  # type: ignore
-
-
-@tvm.ffi.register_object("tir.Prefetch")
-class Prefetch(Stmt):
-    """Prefetch node.
-
-    Parameters
-    ----------
-    buffer : Buffer
-        The buffer to be prefetched.
-
-    bounds : List[Range]
-        The bounds to be prefetched.
-
-    span : Optional[Span]
-        The location of the stmt in the source code.
-    """
-
-    buffer: Buffer
-    bounds: List[Range]
-    span: Optional[Span]
-
-    def __init__(self, buffer: Buffer, bounds: List[Range], span: Optional[Span] = None) -> None:
-        self.__init_handle_by_constructor__(_ffi_api.Prefetch, buffer, bounds, span)  # type: ignore
 
 
 @tvm.ffi.register_object("tir.BufferRegion")

@@ -1316,22 +1316,6 @@ def buffer_store(
     )
 
 
-def prefetch(
-    buffer: Buffer,  # pylint: disable=redefined-outer-name
-    bounds: List[ir.Range],
-) -> None:
-    """The prefetch hint for a buffer.
-
-    Parameters
-    ----------
-    buffer : Buffer
-        The buffer to be prefetched.
-    bounds : List[Range]
-        The range to be prefetched.
-    """
-    return _ffi_api.Prefetch(buffer, bounds)  # type: ignore[attr-defined] # pylint: disable=no-member
-
-
 def evaluate(value: PrimExpr) -> None:
     """Evaluate the input expression.
 
@@ -2144,7 +2128,6 @@ __all__ = float_types + [
     "launch_thread",
     "env_thread",
     "buffer_store",
-    "prefetch",
     "evaluate",
     "boolean",
     "handle",
