@@ -45,10 +45,11 @@
 #define TVM_IR_ATTRS_H_
 
 #include <dmlc/common.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <functional>
 #include <string>
@@ -63,10 +64,10 @@ namespace tvm {
  * \param ClassName The name of the class.
  * \param TypeKey The type key to be used by the TVM node system.
  */
-#define TVM_DECLARE_ATTRS(ClassName, TypeKey)                    \
-  static constexpr const char* _type_key = TypeKey;              \
-  TVM_DECLARE_FINAL_OBJECT_INFO(ClassName, ::tvm::BaseAttrsNode) \
-  template <typename FVisit>                                     \
+#define TVM_DECLARE_ATTRS(ClassName, TypeKey)                     \
+  static constexpr const char* _type_key = TypeKey;               \
+  TVM_DECLARE_FINAL_OBJECT_INFO(ClassName, ::tvm::BaseAttrsNode); \
+  template <typename FVisit>                                      \
   void _tvm_VisitAttrs(FVisit& _tvm_fvisit)  // NOLINT(*)
 
 /*!
@@ -97,7 +98,7 @@ struct AttrError : public Error {
    * \brief constructor
    * \param msg error message
    */
-  explicit AttrError(std::string msg) : Error("AttributeError:" + msg) {}
+  explicit AttrError(std::string msg) : Error("AttributeError", msg, TVM_FFI_TRACEBACK_HERE) {}
 };
 
 /*!
@@ -138,8 +139,6 @@ class AttrFieldInfo : public ObjectRef {
  */
 class BaseAttrsNode : public Object {
  public:
-  using TVMArgs = runtime::TVMArgs;
-  using TVMRetValue = runtime::TVMRetValue;
   /*! \brief virtual destructor */
   virtual ~BaseAttrsNode() {}
   // visit function
@@ -175,7 +174,8 @@ class BaseAttrsNode : public Object {
    * \param allow_unknown Whether allow additional unknown fields.
    * \note This function throws when the required field is not present.
    */
-  TVM_DLL virtual void InitByPackedArgs(const TVMArgs& kwargs, bool allow_unknown = false) = 0;
+  TVM_DLL virtual void InitByPackedArgs(const ffi::PackedArgs& kwargs,
+                                        bool allow_unknown = false) = 0;
 
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
@@ -201,7 +201,7 @@ class Attrs : public ObjectRef {
 class DictAttrsNode : public BaseAttrsNode {
  public:
   /*! \brief internal attrs map */
-  Map<String, ObjectRef> dict;
+  Map<String, ffi::Any> dict;
 
   bool SEqualReduce(const DictAttrsNode* other, SEqualReducer equal) const {
     return equal(dict, other->dict);
@@ -212,7 +212,7 @@ class DictAttrsNode : public BaseAttrsNode {
   // implementations
   void VisitAttrs(AttrVisitor* v) final;
   void VisitNonDefaultAttrs(AttrVisitor* v) final;
-  void InitByPackedArgs(const runtime::TVMArgs& args, bool allow_unknown) final;
+  void InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) final;
   Array<AttrFieldInfo> ListFieldInfo() const final;
 
   // type info
@@ -230,7 +230,7 @@ class DictAttrs : public Attrs {
    * \brief Consruct a Attrs backed by DictAttrsNode.
    * \param dict The attributes.
    */
-  TVM_DLL explicit DictAttrs(Map<String, ObjectRef> dict = {});
+  TVM_DLL explicit DictAttrs(Map<String, Any> dict = {});
 
   // Utils for accessing attributes
   // This needs to be on DictAttrs, not DictAttrsNode because we return the default
@@ -257,24 +257,12 @@ class DictAttrs : public Attrs {
   template <typename TObjectRef>
   Optional<TObjectRef> GetAttr(
       const std::string& attr_key,
-      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
-    static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
-                  "Can only call GetAttr with ObjectRef types.");
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
     if (!defined()) return default_value;
     const DictAttrsNode* node = this->as<DictAttrsNode>();
-
     auto it = node->dict.find(attr_key);
     if (it != node->dict.end()) {
-      // For backwards compatibility, return through TVMRetValue.
-      // This triggers any automatic conversions registered with
-      // PackedFuncValueConverter.  Importantly, this allows use of
-      // `GetAttr<Integer>` and `GetAttr<Bool>` for properties that
-      // are stored internally as `runtime::Box<int64_t>` and
-      // `runtime::Box<bool>`.
-      TVMRetValue ret;
-      ret = (*it).second;
-      Optional<TObjectRef> obj = ret;
-      return obj;
+      return (*it).second.cast<TObjectRef>();
     } else {
       return default_value;
     }
@@ -320,7 +308,7 @@ template <typename TAttrs>
 inline TAttrs AttrsWithDefaultValues() {
   static_assert(std::is_base_of<Attrs, TAttrs>::value, "Can only take attr nodes");
   auto n = make_object<typename TAttrs::ContainerType>();
-  n->InitByPackedArgs(runtime::TVMArgs(nullptr, nullptr, 0), false);
+  n->InitByPackedArgs(ffi::PackedArgs(nullptr, 0), false);
   return TAttrs(n);
 }
 
@@ -334,7 +322,7 @@ inline TAttrs AttrsWithDefaultValues() {
  *
  * \returns The new DictAttrs with updated attributes.
  */
-DictAttrs WithAttrs(DictAttrs attrs, Map<String, ObjectRef> new_attrs);
+DictAttrs WithAttrs(DictAttrs attrs, Map<String, Any> new_attrs);
 
 /*!
  * \brief Copy the DictAttrs, but overrides a single attribute.
@@ -347,9 +335,9 @@ DictAttrs WithAttrs(DictAttrs attrs, Map<String, ObjectRef> new_attrs);
  *
  * \returns The new DictAttrs with updated attributes.
  */
-DictAttrs WithAttr(DictAttrs attrs, String key, ObjectRef value);
+DictAttrs WithAttr(DictAttrs attrs, String key, Any value);
 
-inline DictAttrs WithAttr(DictAttrs attrs, const std::string& key, ObjectRef value) {
+inline DictAttrs WithAttr(DictAttrs attrs, const std::string& key, Any value) {
   return WithAttr(std::move(attrs), String(key), std::move(value));
 }
 
@@ -392,7 +380,7 @@ DictAttrs WithoutAttr(DictAttrs attrs, const std::string& key);
  * \endcode
  */
 template <typename TFunc>
-inline TFunc WithAttr(TFunc input, const std::string& attr_key, ObjectRef attr_value) {
+inline TFunc WithAttr(TFunc input, const std::string& attr_key, Any attr_value) {
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
   TNode* node = input.CopyOnWrite();
@@ -412,7 +400,7 @@ inline TFunc WithAttr(TFunc input, const std::string& attr_key, ObjectRef attr_v
  * \returns The new function or module with updated attributes.
  */
 template <typename TFunc>
-inline TFunc WithAttrs(TFunc input, Map<String, ObjectRef> attrs) {
+inline TFunc WithAttrs(TFunc input, Map<String, Any> attrs) {
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
   TNode* node = input.CopyOnWrite();
@@ -461,7 +449,8 @@ inline TFunc WithoutAttr(TFunc input, const std::string& attr_key) {
 
 // Namespace containing detail implementations
 namespace detail {
-using runtime::TVMArgValue;
+
+using tvm::ffi::AnyView;
 
 // helper entry that does nothing in set_default/bound/describe calls.
 struct AttrNopEntry {
@@ -578,7 +567,7 @@ struct AttrInitEntry {
     const T& val = *value_;
     if (begin > val) {
       std::ostringstream os;
-      os << type_key_ << "." << key_ << ": "
+      os << type_key_ << "." << key_ << "'s "
          << "value " << val << " is smaller than the lower bound " << begin;
       throw AttrError(os.str());
     }
@@ -590,7 +579,7 @@ struct AttrInitEntry {
     const T& val = *value_;
     if (val > end) {
       std::ostringstream os;
-      os << type_key_ << "." << key_ << ": "
+      os << type_key_ << "." << key_ << "'s "
          << "value " << val << " is bigger than the upper bound " << end;
       throw AttrError(os.str());
     }
@@ -609,41 +598,37 @@ struct AttrInitEntry {
 // Template function to allow smart conversion
 // from Expr types into the constants.
 template <typename T>
-inline void SetValue(T* ptr, const TVMArgValue& val) {
-  *ptr = val.operator T();
+inline void SetValue(T* ptr, const ffi::AnyView& val) {
+  *ptr = val.cast<T>();
 }
 
 template <typename T>
-inline void SetIntValue(T* ptr, const TVMArgValue& val) {
-  if (val.type_code() == kDLInt) {
-    *ptr = static_cast<T>(val.value().v_int64);
+inline void SetIntValue(T* ptr, const ffi::AnyView& val) {
+  if (auto opt_int = val.try_cast<int64_t>()) {
+    *ptr = static_cast<T>(opt_int.value());
   } else {
-    IntImm expr = val;
+    IntImm expr = val.cast<IntImm>();
     *ptr = static_cast<T>(expr->value);
   }
 }
 
 // Workaround for GCC8.1 / GCC8.2
 template <>
-inline void SetValue<DataType>(DataType* ptr, const TVMArgValue& val) {
-  *ptr = val.operator DataType();
+inline void SetValue<DataType>(DataType* ptr, const ffi::AnyView& val) {
+  *ptr = DataType(val.cast<DLDataType>());
 }
 
 template <>
-inline void SetValue<std::string>(std::string* ptr, const TVMArgValue& val) {
-  if (String::CanConvertFrom(val)) {
-    *ptr = val.operator std::string();
-  } else {
-    LOG(FATAL) << "Expect str";
-  }
+inline void SetValue<std::string>(std::string* ptr, const ffi::AnyView& val) {
+  *ptr = val.cast<std::string>();
 }
 
 template <>
-inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
-  if (val.type_code() == kDLFloat || val.type_code() == kDLInt) {
-    *ptr = val.operator double();
+inline void SetValue<double>(double* ptr, const ffi::AnyView& val) {
+  if (auto opt_double = val.try_cast<double>()) {
+    *ptr = opt_double.value();
   } else {
-    ObjectRef expr = val;
+    ObjectRef expr = val.cast<ObjectRef>();
     ICHECK(expr.defined());
     if (const IntImmNode* op = expr.as<IntImmNode>()) {
       *ptr = static_cast<double>(op->value);
@@ -655,19 +640,19 @@ inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
   }
 }
 template <>
-inline void SetValue<int>(int* ptr, const TVMArgValue& val) {
+inline void SetValue<int>(int* ptr, const ffi::AnyView& val) {
   SetIntValue(ptr, val);
 }
 template <>
-inline void SetValue<int64_t>(int64_t* ptr, const TVMArgValue& val) {
+inline void SetValue<int64_t>(int64_t* ptr, const ffi::AnyView& val) {
   SetIntValue(ptr, val);
 }
 template <>
-inline void SetValue<uint64_t>(uint64_t* ptr, const TVMArgValue& val) {
+inline void SetValue<uint64_t>(uint64_t* ptr, const ffi::AnyView& val) {
   SetIntValue(ptr, val);
 }
 template <>
-inline void SetValue<bool>(bool* ptr, const TVMArgValue& val) {
+inline void SetValue<bool>(bool* ptr, const ffi::AnyView& val) {
   SetIntValue(ptr, val);
 }
 
@@ -683,7 +668,7 @@ class AttrInitVisitor {
 
   template <typename T>
   AttrInitEntry<T> operator()(const char* key, T* value) {
-    TVMArgValue val;
+    ffi::AnyView val;
     AttrInitEntry<T> opt;
     opt.type_key_ = type_key_;
     opt.key_ = key;
@@ -729,12 +714,22 @@ struct TypeName<int> {
 
 template <>
 struct TypeName<int64_t> {
-  static constexpr const char* value = "int64";
+  static constexpr const char* value = "int";
+};
+
+template <>
+struct TypeName<Optional<int64_t>> {
+  static constexpr const char* value = "Optional[int]";
+};
+
+template <>
+struct TypeName<Optional<double>> {
+  static constexpr const char* value = "Optional[float]";
 };
 
 template <>
 struct TypeName<uint64_t> {
-  static constexpr const char* value = "uint64_t";
+  static constexpr const char* value = "int";
 };
 
 template <>
@@ -759,7 +754,7 @@ struct TypeName<void*> {
 
 template <>
 struct TypeName<double> {
-  static constexpr const char* value = "double";
+  static constexpr const char* value = "float";
 };
 
 class AttrDocEntry {
@@ -879,17 +874,16 @@ class AttrsNode : public BaseAttrsNode {
     self()->_tvm_VisitAttrs(vis);
   }
 
-  void InitByPackedArgs(const runtime::TVMArgs& args, bool allow_unknown) final {
+  void InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) final {
     ICHECK_EQ(args.size() % 2, 0);
     const int kLinearSearchBound = 16;
     int hit_count = 0;
     // applies two strategies to lookup
     if (args.size() < kLinearSearchBound) {
       // linear search.
-      auto ffind = [&args](const char* key, runtime::TVMArgValue* val) {
+      auto ffind = [&args](const char* key, ffi::AnyView* val) {
         for (int i = 0; i < args.size(); i += 2) {
-          ICHECK_EQ(args.type_codes[i], kTVMStr);
-          if (!std::strcmp(key, args.values[i].v_str)) {
+          if (!std::strcmp(key, args[i].cast<const char*>())) {
             *val = args[i + 1];
             return true;
           }
@@ -901,12 +895,11 @@ class AttrsNode : public BaseAttrsNode {
       hit_count = vis.hit_count_;
     } else {
       // construct a map then do lookup.
-      std::unordered_map<std::string, runtime::TVMArgValue> kwargs;
+      std::unordered_map<std::string, ffi::AnyView> kwargs;
       for (int i = 0; i < args.size(); i += 2) {
-        ICHECK_EQ(args.type_codes[i], kTVMStr);
-        kwargs[args[i].operator std::string()] = args[i + 1];
+        kwargs[args[i].cast<std::string>()] = args[i + 1];
       }
-      auto ffind = [&kwargs](const char* key, runtime::TVMArgValue* val) {
+      auto ffind = [&kwargs](const char* key, ffi::AnyView* val) {
         auto it = kwargs.find(key);
         if (it != kwargs.end()) {
           *val = it->second;
@@ -922,11 +915,11 @@ class AttrsNode : public BaseAttrsNode {
     if (hit_count * 2 != args.size() && !allow_unknown) {
       for (int i = 0; i < args.size(); i += 2) {
         ::tvm::detail::AttrExistVisitor visitor;
-        visitor.key_ = args[i].operator std::string();
+        visitor.key_ = args[i].cast<std::string>();
         self()->_tvm_VisitAttrs(visitor);
         if (!visitor.exist_) {
           std::ostringstream os;
-          os << DerivedType::_type_key << ": does not have field \'" << visitor.key_
+          os << DerivedType::_type_key << " does not have field \'" << visitor.key_
              << "\', Possible fields:\n";
           os << "----------------\n";
           this->PrintDocString(os);
@@ -962,8 +955,8 @@ class AttrsNode : public BaseAttrsNode {
 
 template <typename... Args>
 inline void BaseAttrsNode::InitBySeq(Args&&... args) {
-  runtime::PackedFunc pf(
-      [this](const TVMArgs& args, TVMRetValue* rv) { this->InitByPackedArgs(args); });
+  ffi::Function pf(
+      [this](const ffi::PackedArgs& args, ffi::Any* rv) { this->InitByPackedArgs(args); });
   pf(std::forward<Args>(args)...);
 }
 

@@ -27,11 +27,12 @@
  * code and constants significantly reduces the efforts for handling external
  * codegen and runtimes.
  */
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/string.h>
+#include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <cstdint>
 
@@ -64,7 +65,7 @@ class ConstLoaderModuleNode : public ModuleNode {
     }
   }
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     VLOG(1) << "ConstLoaderModuleNode::GetFunction(" << name << ")";
     // Initialize and memoize the module.
     // Usually, we have some warmup runs. The module initialization should be
@@ -75,8 +76,8 @@ class ConstLoaderModuleNode : public ModuleNode {
     }
 
     if (name == "get_const_var_ndarray") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        Map<String, ObjectRef> ret_map;
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
+        Map<String, ffi::Any> ret_map;
         for (const auto& kv : const_var_ndarray_) {
           ret_map.Set(kv.first, kv.second);
         }
@@ -89,10 +90,10 @@ class ConstLoaderModuleNode : public ModuleNode {
     // symobl lookup overhead should be minimal.
     ICHECK(!this->imports().empty());
     for (Module it : this->imports()) {
-      PackedFunc pf = it.GetFunction(name);
+      ffi::Function pf = it.GetFunction(name);
       if (pf != nullptr) return pf;
     }
-    return PackedFunc(nullptr);
+    return ffi::Function(nullptr);
   }
 
   const char* type_key() const final { return "const_loader"; }
@@ -132,7 +133,7 @@ class ConstLoaderModuleNode : public ModuleNode {
    *  found module accordingly by passing the needed constants into it.
    */
   void InitSubModule(const std::string& symbol) {
-    PackedFunc init(nullptr);
+    ffi::Function init(nullptr);
     for (Module it : this->imports()) {
       // Get the initialization function from the imported modules.
       std::string init_name = "__init_" + symbol;
@@ -140,9 +141,9 @@ class ConstLoaderModuleNode : public ModuleNode {
       if (init != nullptr) {
         auto md = GetRequiredConstants(symbol);
         // Initialize the module with constants.
-        int ret = init(md);
+        int ret = init(md).cast<int>();
         // Report the error if initialization is failed.
-        ICHECK_EQ(ret, 0) << TVMGetLastError();
+        ICHECK_EQ(ret, 0);
         break;
       }
     }
@@ -246,7 +247,7 @@ Module ConstLoaderModuleCreate(
   return Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_const_loader")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_const_loader")
     .set_body_typed(ConstLoaderModuleNode::LoadFromBinary);
 
 }  // namespace runtime

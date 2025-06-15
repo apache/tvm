@@ -19,7 +19,7 @@
 
 /*!
  * \brief EdgeTPU runtime that can run tflite model compiled
- *        for EdgeTPU containing only tvm PackedFunc.
+ *        for EdgeTPU containing only tvm ffi::Function.
  * \file edgetpu_runtime.h
  */
 #ifndef TVM_RUNTIME_CONTRIB_EDGETPU_EDGETPU_RUNTIME_H_
@@ -40,7 +40,7 @@ namespace runtime {
  * \brief EdgeTPU runtime.
  *
  *  This runtime can be accessed in various languages via
- *  the TVM runtime PackedFunc API.
+ *  the TVM runtime ffi::Function API.
  */
 class EdgeTPURuntime : public TFLiteRuntime {
  public:

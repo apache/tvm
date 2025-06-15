@@ -23,7 +23,7 @@
  */
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
@@ -91,7 +91,7 @@ Array<PrimExpr> BaseComputeOpNode::output_shape(size_t idx) const {
 }
 
 Tensor compute(Array<PrimExpr> shape, FCompute fcompute, std::string name, std::string tag,
-               Map<String, ObjectRef> attrs) {
+               Map<String, ffi::Any> attrs) {
   // compute dimension.
   size_t ndim = shape.size();
   std::vector<IterVar> axis;
@@ -108,7 +108,7 @@ Tensor compute(Array<PrimExpr> shape, FCompute fcompute, std::string name, std::
 }
 
 Array<Tensor> compute(Array<PrimExpr> shape, FBatchCompute fcompute, std::string name,
-                      std::string tag, Map<String, ObjectRef> attrs) {
+                      std::string tag, Map<String, ffi::Any> attrs) {
   // compute dimension.
   size_t ndim = shape.size();
   std::vector<IterVar> axis;
@@ -129,10 +129,10 @@ Array<Tensor> compute(Array<PrimExpr> shape, FBatchCompute fcompute, std::string
   return outputs;
 }
 
-ComputeOp::ComputeOp(std::string name, std::string tag, Map<String, ObjectRef> attrs,
+ComputeOp::ComputeOp(std::string name, std::string tag, Map<String, ffi::Any> attrs,
                      Array<IterVar> axis, Array<PrimExpr> body) {
   if (!attrs.defined()) {
-    attrs = Map<String, ObjectRef>();
+    attrs = Map<String, ffi::Any>();
   }
   auto n = make_object<ComputeOpNode>();
   n->name = std::move(name);
@@ -148,10 +148,11 @@ ComputeOp::ComputeOp(std::string name, std::string tag, Map<String, ObjectRef> a
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("te.ComputeOp")
-    .set_body_typed([](std::string name, std::string tag, Map<String, ObjectRef> attrs,
-                       Array<IterVar> axis,
-                       Array<PrimExpr> body) { return ComputeOp(name, tag, attrs, axis, body); });
+TVM_FFI_REGISTER_GLOBAL("te.ComputeOp")
+    .set_body_typed([](std::string name, std::string tag, Optional<Map<String, ffi::Any>> attrs,
+                       Array<IterVar> axis, Array<PrimExpr> body) {
+      return ComputeOp(name, tag, attrs.value_or({}), axis, body);
+    });
 
 // The schedule related logics
 Array<Tensor> ComputeOpNode::InputTensors() const {

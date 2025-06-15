@@ -78,7 +78,7 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool VisitExpr_(const SelectNode* op, const PrimExpr& other) override;
 
   /*! \brief Map from RHS buffer to LHS buffer */
-  std::unordered_map<Buffer, Buffer, ObjectHash, ObjectEqual> rhs_buffer_map_;
+  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> rhs_buffer_map_;
   /*! \brief Base indices of the LHS buffer. */
   std::unordered_map<Buffer, std::vector<PrimExpr>, ObjectPtrHash, ObjectPtrEqual> buffer_indices_;
 
@@ -86,9 +86,9 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool DefEqual(const Var& lhs, const Var& rhs);
   virtual bool CompareBuffer(const Buffer& lhs, const Buffer& rhs);
   bool CompareBufferRegion(const BufferRegion& lhs, const BufferRegion& rhs);
-  bool CompareAnnotation(const std::pair<String, ObjectRef>& lhs,
-                         const std::pair<String, ObjectRef>& rhs);
-  bool CompareAnnotationMap(const Map<String, ObjectRef>& lhs, const Map<String, ObjectRef>& rhs);
+  bool CompareAnnotation(const std::pair<String, ffi::Any>& lhs,
+                         const std::pair<String, ffi::Any>& rhs);
+  bool CompareAnnotationMap(const Map<String, ffi::Any>& lhs, const Map<String, ffi::Any>& rhs);
   template <typename T>
   bool CompareBufferAccess(const T* lhs, const T* rhs);
   template <typename T, typename Self, typename F>
@@ -157,7 +157,7 @@ class AutoTensorizeComparator : public TensorizeComparator {
   std::unordered_map<Buffer, Array<PrimExpr>, ObjectPtrHash, ObjectPtrEqual>
       rhs_buffer_indices_map_;
   /*! \brief Map from LHS buffer to RHS buffer */
-  std::unordered_map<Buffer, Buffer, ObjectHash, ObjectEqual> lhs_buffer_map_;
+  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> lhs_buffer_map_;
 
  private:
   /*! \brief The domain of the inner block iters. */

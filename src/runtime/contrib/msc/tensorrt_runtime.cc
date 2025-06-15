@@ -23,8 +23,8 @@
  */
 
 #include <dmlc/parameter.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 
 #include <fstream>
 #include <memory>
@@ -119,8 +119,8 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
   void Run() override {
     SetInputOutputBinds();
     if (tool_tag_.size() > 0) {
-      const auto* pf = runtime::Registry::Get("msc_tool.callback_step");
-      ICHECK(pf != nullptr) << "Cannot find msc_tool.callback_step func.";
+      const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
+      ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
       Map<String, runtime::NDArray> input_datas;
       for (const auto& pair : input_bindings_) {
         const auto& tensor_name = engine_->getBindingName(pair.first);
@@ -150,8 +150,8 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
       }
     }
     if (tool_tag_.size() > 0) {
-      const auto* pf = runtime::Registry::Get("msc_tool.callback_step");
-      ICHECK(pf != nullptr) << "Cannot find msc_tool.callback_step func.";
+      const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
+      ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
       Map<String, runtime::NDArray> output_datas;
       for (int bid = 0; bid < engine_->getNbBindings(); bid++) {
         if (input_bindings_.count(bid)) {
@@ -348,9 +348,10 @@ runtime::Module MSCTensorRTRuntimeCreate(const String& symbol_name, const String
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.msc_tensorrt_runtime_create").set_body_typed(MSCTensorRTRuntimeCreate);
+TVM_FFI_REGISTER_GLOBAL("runtime.msc_tensorrt_runtime_create")
+    .set_body_typed(MSCTensorRTRuntimeCreate);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_msc_tensorrt")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_msc_tensorrt")
     .set_body_typed(JSONRuntimeBase::LoadFromBinary<MSCTensorRTRuntime>);
 
 }  // namespace contrib

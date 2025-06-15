@@ -23,7 +23,7 @@ from typing_extensions import Literal
 
 # isort: on
 
-from tvm._ffi import get_global_func, register_func
+from tvm.ffi import get_global_func, register_func
 from tvm.ir import IRModule
 from tvm.ir.transform import PassContext
 from tvm.runtime import NDArray

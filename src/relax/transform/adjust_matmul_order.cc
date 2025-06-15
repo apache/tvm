@@ -39,19 +39,19 @@ namespace tvm {
 namespace relax {
 
 namespace {
-std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
+std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
     const Function& func) {
   auto compile_time_arr = ComputableAtCompileTime(func);
   std::unordered_set<Var> compile_time_lookup(compile_time_arr.begin(), compile_time_arr.end());
 
-  TypedPackedFunc<bool(Expr)> is_compile_time = [compile_time_lookup](Expr arg) -> bool {
+  ffi::TypedFunction<bool(Expr)> is_compile_time = [compile_time_lookup](Expr arg) -> bool {
     if (auto as_var = arg.as<Var>()) {
       return compile_time_lookup.count(as_var.value());
     } else {
       return false;
     }
   };
-  TypedPackedFunc<bool(Expr)> is_runtime = [is_compile_time](Expr arg) -> bool {
+  ffi::TypedFunction<bool(Expr)> is_runtime = [is_compile_time](Expr arg) -> bool {
     return !is_compile_time(arg);
   };
 
@@ -72,7 +72,7 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
              pat_permuted_matmul_on_rhs;
 
   PrimExpr symbolic_var_constraints = Bool(true);
-  if (auto upper_bounds = func->GetAttr<Map<ObjectRef, ObjectRef>>("tir_var_upper_bound")) {
+  if (auto upper_bounds = func->GetAttr<Map<String, Any>>("tir_var_upper_bound")) {
     Map<String, tir::Var> name_lookup;
     for (const auto& tir_var : TIRVarsInStructInfo(GetStructInfo(func))) {
       name_lookup.Set(tir_var->name_hint, tir_var);
@@ -106,7 +106,7 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
       if (sinfo) {
         return sinfo->GetShape();
       } else {
-        return NullOpt;
+        return std::nullopt;
       }
     };
 
@@ -122,15 +122,15 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
     auto shape_c = opt_shape_c.value();
 
     if (matches.count(pat_permuted_matmul_on_lhs)) {
-      expr_a = permute_dims(expr_a, NullOpt);
-      expr_b = permute_dims(expr_b, NullOpt);
+      expr_a = permute_dims(expr_a, std::nullopt);
+      expr_b = permute_dims(expr_b, std::nullopt);
       CHECK_EQ(shape_a.size(), 2);
       CHECK_EQ(shape_b.size(), 2);
       shape_a = {shape_a[1], shape_a[0]};
       shape_b = {shape_b[1], shape_b[0]};
     } else if (matches.count(pat_permuted_matmul_on_rhs)) {
-      expr_b = permute_dims(expr_b, NullOpt);
-      expr_c = permute_dims(expr_c, NullOpt);
+      expr_b = permute_dims(expr_b, std::nullopt);
+      expr_c = permute_dims(expr_c, std::nullopt);
       CHECK_EQ(shape_b.size(), 2);
       CHECK_EQ(shape_c.size(), 2);
       shape_b = {shape_b[1], shape_b[0]};
@@ -213,7 +213,7 @@ Pass AdjustMatmulOrder() {
   return CreateFunctionPass(pass_func, 1, "AdjustMatmulOrder", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.AdjustMatmulOrder").set_body_typed(AdjustMatmulOrder);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.AdjustMatmulOrder").set_body_typed(AdjustMatmulOrder);
 
 }  // namespace transform
 }  // namespace relax

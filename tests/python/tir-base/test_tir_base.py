@@ -17,7 +17,7 @@
 import tvm
 import pytest
 from tvm import tir
-from tvm._ffi.base import TVMError
+from tvm.base import TVMError
 from tvm.ir.transform import PassContext
 import itertools
 import pytest
@@ -114,7 +114,7 @@ def test_control_flow_jump():
 
 
 def test_exception():
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(TypeError):
         x = tir.Var(name=1, dtype="int")
 
 

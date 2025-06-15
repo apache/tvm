@@ -41,7 +41,7 @@ Expr broadcast_to(Expr x, Expr shape) {
   return Call(op, {std::move(x), std::move(shape)}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.broadcast_to").set_body_typed(broadcast_to);
+TVM_FFI_REGISTER_GLOBAL("relax.op.broadcast_to").set_body_typed(broadcast_to);
 
 StructInfo InferStructInfoBroadcastTo(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
@@ -116,7 +116,7 @@ TVM_REGISTER_OP("relax.broadcast_to")
 /* relax.concat */
 TVM_REGISTER_NODE_TYPE(ConcatAttrs);
 
-Expr concat(Expr tensors, Optional<Integer> axis) {
+Expr concat(Expr tensors, Optional<int64_t> axis) {
   ObjectPtr<ConcatAttrs> attrs = make_object<ConcatAttrs>();
   attrs->axis = std::move(axis);
 
@@ -124,7 +124,7 @@ Expr concat(Expr tensors, Optional<Integer> axis) {
   return Call(op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.concat").set_body_typed(concat);
+TVM_FFI_REGISTER_GLOBAL("relax.op.concat").set_body_typed(concat);
 
 Optional<Array<PrimExpr>> CheckConcatOutputShape(const Call& call, const BlockBuilder& ctx,
                                                  const std::vector<Array<PrimExpr>>& shape_values,
@@ -171,7 +171,7 @@ Optional<Array<PrimExpr>> CheckConcatOutputShape(const Call& call, const BlockBu
   }
 
   if (shape_unknown) {
-    return NullOpt;
+    return std::nullopt;
   }
   Array<PrimExpr> output_shape = shape_values[0];
   output_shape.Set(axis, concat_sum);
@@ -190,9 +190,9 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<ConcatAttrs>();
-  int output_ndim = attrs->axis.defined() ? kUnknownNDim : 1;
+  int output_ndim = attrs->axis.has_value() ? kUnknownNDim : 1;
   DataType output_dtype = DataType::Void();
-  Optional<VDevice> vdev = NullOpt;
+  Optional<VDevice> vdev = std::nullopt;
   bool shape_unknown = false;
   bool is_void_dtype = false;
   bool vdevice_unknown = false;
@@ -260,7 +260,7 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
     output_dtype = DataType::Void();
   }
   if (vdevice_unknown) {
-    vdev = NullOpt;
+    vdev = std::nullopt;
   }
 
   if (output_ndim == kUnknownNDim) {
@@ -269,7 +269,7 @@ StructInfo InferStructInfoConcat(const Call& call, const BlockBuilder& ctx) {
   }
 
   int axis =
-      attrs->axis.defined() ? NormalizeAxis(call, ctx, output_ndim, attrs->axis.value()->value) : 0;
+      attrs->axis.has_value() ? NormalizeAxis(call, ctx, output_ndim, attrs->axis.value()) : 0;
   // If there is only one input tensor, no action is needed.
   if (tensor_sinfo.size() == 1) {
     return tensor_sinfo[0];
@@ -316,7 +316,7 @@ InferLayoutOutput InferLayoutConcat(const Call& call,
   }
   output_layouts.push_back(layout);
   ObjectPtr<ConcatAttrs> new_attrs = make_object<ConcatAttrs>(*attrs);
-  new_attrs->axis = Integer(FindAxis(layout->layout, attrs->axis.value_or(0)->value));
+  new_attrs->axis = FindAxis(layout->layout, attrs->axis.value_or(0));
   return InferLayoutOutput({NLayout(input_layouts)}, output_layouts, Attrs(new_attrs));
 }
 
@@ -340,7 +340,7 @@ Expr expand_dims(Expr x, Array<Integer> axis) {
   return Call(op, {std::move(x)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.expand_dims").set_body_typed(expand_dims);
+TVM_FFI_REGISTER_GLOBAL("relax.op.expand_dims").set_body_typed(expand_dims);
 
 StructInfo InferStructInfoExpandDims(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -446,7 +446,7 @@ Expr flatten(Expr x) {
   return Call(op, {std::move(x)}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.flatten").set_body_typed(flatten);
+TVM_FFI_REGISTER_GLOBAL("relax.op.flatten").set_body_typed(flatten);
 
 StructInfo InferStructInfoFlatten(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -481,7 +481,7 @@ Expr index_tensor(Expr first, Expr tensors) {
   return Call(op, {std::move(first), std::move(tensors)}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.index_tensor").set_body_typed(index_tensor);
+TVM_FFI_REGISTER_GLOBAL("relax.op.index_tensor").set_body_typed(index_tensor);
 
 StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
@@ -635,7 +635,7 @@ Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_v
   return Call(op, {std::move(x)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.layout_transform").set_body_typed(layout_transform);
+TVM_FFI_REGISTER_GLOBAL("relax.op.layout_transform").set_body_typed(layout_transform);
 
 StructInfo InferStructInfoLayoutTransform(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -702,7 +702,7 @@ Expr permute_dims(Expr x, Optional<Array<Integer>> axes) {
   return Call(op, {std::move(x)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.permute_dims").set_body_typed(permute_dims);
+TVM_FFI_REGISTER_GLOBAL("relax.op.permute_dims").set_body_typed(permute_dims);
 
 bool IsIdentityPermutation(const std::vector<int>& permutation) {
   for (int i = 0; i < static_cast<int>(permutation.size()); ++i) {
@@ -812,16 +812,16 @@ TVM_REGISTER_OP("relax.permute_dims")
 
 /* relax.reshape */
 Expr ConvertNewShapeToExpr(const Expr& data, const Variant<Expr, Array<PrimExpr>>& shape) {
-  const ArrayNode* array;
+  const ffi::ArrayObj* array;
   // Treat shape expressions as constant arrays to handle special values.
   if (const auto* e = shape.as<ShapeExprNode>()) {
-    array = e->values.as<ArrayNode>();
+    array = e->values.as<ffi::ArrayObj>();
     // Other non-shape expressions are used directly.
   } else if (const auto* e = shape.as<ExprNode>()) {
     return GetRef<Expr>(e);
     // Process special values in constants and produce an expression.
   } else {
-    array = shape.as<ArrayNode>();
+    array = shape.as<ffi::ArrayObj>();
   }
   CHECK(array != nullptr) << "Reshape only expects the input new shape to be either an Expr or an "
                              "Array of PrimExprs. However, the given new shape is "
@@ -910,7 +910,7 @@ Expr reshape(Expr x, Variant<Expr, Array<PrimExpr>> shape) {
   return Call(op, {std::move(x), std::move(shape_in_expr)}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.reshape").set_body_typed(reshape);
+TVM_FFI_REGISTER_GLOBAL("relax.op.reshape").set_body_typed(reshape);
 
 StructInfo InferStructInfoReshape(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
@@ -971,32 +971,33 @@ TVM_REGISTER_NODE_TYPE(SplitAttrs);
 
 Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis) {
   ObjectPtr<SplitAttrs> attrs = make_object<SplitAttrs>();
-  if (const auto* indices = indices_or_sections.as<ArrayNode>()) {
+  ObjectRef indices_or_sections_obj;
+
+  if (const auto* indices = indices_or_sections.as<ffi::ArrayObj>()) {
     for (int i = 0; i < static_cast<int>(indices->size()); ++i) {
       const auto* idx = indices->at(i).as<IntImmNode>();
       CHECK(idx != nullptr) << "Split op only accepts an array of integers as the indices. "
                                "However, the given indices "
                             << indices_or_sections << " contains some non-integer.";
     }
-    indices_or_sections = ConvertIntImmToInt64(GetRef<Array<IntImm>>(indices));
+    indices_or_sections_obj = ConvertIntImmToInt64(GetRef<Array<IntImm>>(indices));
   } else if (const auto* n_section = indices_or_sections.as<IntImmNode>()) {
     CHECK_GT(n_section->value, 0) << "Split op expects the input number of sections to be a "
                                      "positive integer. However, the given number of sections is "
                                   << n_section->value;
-    indices_or_sections = IntImm(DataType::Int(64), n_section->value);
+    indices_or_sections_obj = IntImm(DataType::Int(64), n_section->value);
   } else {
     LOG(FATAL) << "Split op expects the input indices_or_sections to be either an Array of "
-                  "PrimExpr or an integer. However, the given one is "
-               << indices_or_sections->GetTypeKey();
+                  "PrimExpr or an integer.";
   }
-  attrs->indices_or_sections = indices_or_sections;
+  attrs->indices_or_sections = indices_or_sections_obj;
   attrs->axis = axis;
 
   static const Op& op = Op::Get("relax.split");
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.split").set_body_typed(split);
+TVM_FFI_REGISTER_GLOBAL("relax.op.split").set_body_typed(split);
 
 StructInfo InferStructInfoSplit(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -1149,7 +1150,7 @@ Expr squeeze(Expr x, Optional<Array<Integer>> axis) {
   return Call(op, {std::move(x)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.squeeze").set_body_typed(squeeze);
+TVM_FFI_REGISTER_GLOBAL("relax.op.squeeze").set_body_typed(squeeze);
 
 StructInfo InferStructInfoSqueeze(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -1349,7 +1350,7 @@ Expr stack(Expr tensors, Optional<Integer> axis) {
   return Call(op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.stack").set_body_typed(stack);
+TVM_FFI_REGISTER_GLOBAL("relax.op.stack").set_body_typed(stack);
 
 Optional<Array<PrimExpr>> CheckStackOutputShape(const Call& call, const BlockBuilder& ctx,
                                                 const std::vector<Array<PrimExpr>>& shape_values,
@@ -1372,7 +1373,7 @@ Optional<Array<PrimExpr>> CheckStackOutputShape(const Call& call, const BlockBui
   }
 
   if (shape_unknown) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   // Insert new dimension at axis position
@@ -1405,7 +1406,7 @@ StructInfo InferStructInfoStack(const Call& call, const BlockBuilder& ctx) {
   // Default axis is 0 if not specified
   int output_ndim = tensor_sinfo[0]->ndim + 1;  // Stack adds one dimension
   DataType output_dtype = DataType::Void();
-  Optional<VDevice> vdev = NullOpt;
+  Optional<VDevice> vdev = std::nullopt;
   bool shape_unknown = false;
   bool is_void_dtype = false;
   bool vdevice_unknown = false;
@@ -1458,7 +1459,7 @@ StructInfo InferStructInfoStack(const Call& call, const BlockBuilder& ctx) {
   }
 
   if (is_void_dtype) output_dtype = DataType::Void();
-  if (vdevice_unknown) vdev = NullOpt;
+  if (vdevice_unknown) vdev = std::nullopt;
 
   // Normalize axis (default to 0 if not specified)
   int axis =
@@ -1553,7 +1554,7 @@ Expr collapse_sum_like(Expr data, Expr collapse_target) {
   return Call(op, {std::move(data), std::move(collapse_target)}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.collapse_sum_like").set_body_typed(collapse_sum_like);
+TVM_FFI_REGISTER_GLOBAL("relax.op.collapse_sum_like").set_body_typed(collapse_sum_like);
 
 StructInfo InferStructInfoCollapseSumLike(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -1599,7 +1600,7 @@ Expr collapse_sum_to(Expr data, Expr shape) {
   return Call(op, {std::move(data), std::move(shape)}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.collapse_sum_to").set_body_typed(collapse_sum_to);
+TVM_FFI_REGISTER_GLOBAL("relax.op.collapse_sum_to").set_body_typed(collapse_sum_to);
 
 StructInfo InferStructInfoCollapseSumTo(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
@@ -1645,7 +1646,7 @@ TVM_REGISTER_OP("relax.collapse_sum_to")
 /* relax.repeat */
 TVM_REGISTER_NODE_TYPE(RepeatAttrs);
 
-Expr repeat(Expr data, int repeats, Optional<Integer> axis) {
+Expr repeat(Expr data, int repeats, Optional<int64_t> axis) {
   auto attrs = make_object<RepeatAttrs>();
   attrs->repeats = std::move(repeats);
   attrs->axis = std::move(axis);
@@ -1654,7 +1655,7 @@ Expr repeat(Expr data, int repeats, Optional<Integer> axis) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.repeat").set_body_typed(repeat);
+TVM_FFI_REGISTER_GLOBAL("relax.op.repeat").set_body_typed(repeat);
 
 StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
@@ -1662,8 +1663,8 @@ StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<RepeatAttrs>();
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
 
-  if (attrs->axis.defined() && !data_sinfo->IsUnknownNdim()) {
-    int axis = attrs->axis.value()->value;
+  if (attrs->axis.has_value() && !data_sinfo->IsUnknownNdim()) {
+    int axis = attrs->axis.value();
     int ndim = data_sinfo->ndim;
     if (axis < -ndim || axis >= ndim) {
       ctx->ReportFatal(
@@ -1675,7 +1676,7 @@ StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
   }
 
   if (data_shape == nullptr) {
-    if (attrs->axis.defined()) {
+    if (attrs->axis.has_value()) {
       if (analyzer->CanProveEqual(attrs->repeats, 1)) {
         // the shape does not changes
         return data_sinfo;
@@ -1687,14 +1688,14 @@ StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
     }
   }
 
-  if (!attrs->axis.defined()) {
+  if (!attrs->axis.has_value()) {
     PrimExpr new_shape =
         analyzer->Simplify(ComputeShapeProduct(data_shape->values) * attrs->repeats);
     return TensorStructInfo(ShapeExpr(Array<PrimExpr>({new_shape})), data_sinfo->dtype,
                             data_sinfo->vdevice);
   }
 
-  int axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value()->value);
+  int axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value());
   auto shape_array = data_shape->values;
   shape_array.Set(axis, analyzer->Simplify(shape_array[axis] * attrs->repeats));
   return TensorStructInfo(ShapeExpr(shape_array), data_sinfo->dtype, data_sinfo->vdevice);
@@ -1719,7 +1720,7 @@ Expr tile(Expr data, Array<Integer> repeats) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.tile").set_body_typed(tile);
+TVM_FFI_REGISTER_GLOBAL("relax.op.tile").set_body_typed(tile);
 
 StructInfo InferStructInfoTile(const Call& call, const BlockBuilder& ctx) {
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
@@ -1782,7 +1783,7 @@ Expr flip(Expr data, Integer axis) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.flip").set_body_typed(flip);
+TVM_FFI_REGISTER_GLOBAL("relax.op.flip").set_body_typed(flip);
 
 StructInfo InferStructInfoFlip(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
@@ -1819,7 +1820,7 @@ Expr gather_elements(Expr data, Expr indices, int axis) {
   return Call(op, {data, indices}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.gather_elements").set_body_typed(gather_elements);
+TVM_FFI_REGISTER_GLOBAL("relax.op.gather_elements").set_body_typed(gather_elements);
 
 StructInfo InferStructInfoGatherElements(const Call& call, const BlockBuilder& ctx) {
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
@@ -1888,7 +1889,7 @@ Expr gather_nd(Expr data, Expr indices, int batch_dims) {
   return Call(op, {data, indices}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.gather_nd").set_body_typed(gather_nd);
+TVM_FFI_REGISTER_GLOBAL("relax.op.gather_nd").set_body_typed(gather_nd);
 
 StructInfo InferStructInfoGatherND(const Call& call, const BlockBuilder& ctx) {
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
@@ -1982,7 +1983,7 @@ Expr index_put(Expr data, Expr indices, Expr values, bool accumulate) {
   return Call(op, {data, indices, values}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.index_put").set_body_typed(index_put);
+TVM_FFI_REGISTER_GLOBAL("relax.op.index_put").set_body_typed(index_put);
 
 StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
@@ -2105,7 +2106,7 @@ Expr meshgrid(Expr tensors, Optional<String> indexing) {
   return Call(op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.meshgrid").set_body_typed(meshgrid);
+TVM_FFI_REGISTER_GLOBAL("relax.op.meshgrid").set_body_typed(meshgrid);
 
 StructInfo InferStructInfoMeshgrid(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
@@ -2123,7 +2124,7 @@ StructInfo InferStructInfoMeshgrid(const Call& call, const BlockBuilder& ctx) {
   std::vector<PrimExpr> lengths;
   DataType common_dtype = DataType::Void();
   bool shape_unknown = false;
-  Optional<VDevice> vdev = NullOpt;
+  Optional<VDevice> vdev = std::nullopt;
   bool vdevice_unknown = false;
 
   for (int i = 0; i < n_inputs; ++i) {
@@ -2209,7 +2210,7 @@ Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, String re
   return Call(op, {data, indices, updates}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.scatter_elements").set_body_typed(scatter_elements);
+TVM_FFI_REGISTER_GLOBAL("relax.op.scatter_elements").set_body_typed(scatter_elements);
 
 StructInfo InferStructInfoScatterElements(const Call& call, const BlockBuilder& ctx) {
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
@@ -2323,7 +2324,7 @@ Expr scatter_nd(Expr data, Expr indices, Expr updates, String reduction) {
   return Call(op, {data, indices, updates}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.scatter_nd").set_body_typed(scatter_nd);
+TVM_FFI_REGISTER_GLOBAL("relax.op.scatter_nd").set_body_typed(scatter_nd);
 
 StructInfo InferStructInfoScatterND(const Call& call, const BlockBuilder& ctx) {
   // `call->args` contains: [data, indices, updates]
@@ -2447,6 +2448,161 @@ TVM_REGISTER_OP("relax.scatter_nd")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterND)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.scatter_nd */
+TVM_REGISTER_NODE_TYPE(SliceScatterAttrs);
+
+Expr slice_scatter(Expr input, Expr src, int axis, PrimValue start, PrimValue end, PrimValue step) {
+  auto attrs = make_object<SliceScatterAttrs>();
+  attrs->axis = std::move(axis);
+  static const Op& op = Op::Get("relax.slice_scatter");
+  return Call(op, {input, src, start, end, step}, Attrs(attrs), {});
+}
+
+TVM_FFI_REGISTER_GLOBAL("relax.op.slice_scatter").set_body_typed(slice_scatter);
+
+StructInfo InferStructInfoSliceScatter(const Call& call, const BlockBuilder& ctx) {
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* src_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  auto* attrs = call->attrs.as<SliceScatterAttrs>();
+
+  auto diag_tensor_check = [&](const TensorStructInfoNode* sinfo, const Expr& arg_expr,
+                               String name) {
+    if (sinfo == nullptr) {
+      ctx->ReportFatal(Diagnostic::Error(call) << "SliceScatter requires the input " << name
+                                               << " to be a Tensor. However, the given one is "
+                                               << arg_expr->struct_info_->GetTypeKey());
+    }
+  };
+
+  diag_tensor_check(data_sinfo, call->args[0], "data");
+  diag_tensor_check(src_sinfo, call->args[1], "src");
+
+  if (data_sinfo->IsUnknownNdim()) {
+    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
+  }
+
+  int ndim = data_sinfo->ndim;
+  int raw_axis = attrs->axis;
+  if (raw_axis < -ndim || raw_axis >= ndim) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "SliceScatter requires the input axis to be in the range "
+                     << "[" << -ndim << ", " << ndim - 1 << "]. However, the input axis is "
+                     << raw_axis << ", while ndim is " << ndim);
+  }
+
+  if (!data_sinfo->IsUnknownNdim() && !src_sinfo->IsUnknownNdim()) {
+    if (data_sinfo->ndim != src_sinfo->ndim) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "SliceScatter op requires the data tensor to have the same rank as the "
+                          "src tensor. However, the given dimensions are "
+                       << "src: " << src_sinfo->ndim << ", data: " << data_sinfo->ndim);
+    }
+  }
+
+  if (data_sinfo->IsUnknownDtype() || src_sinfo->IsUnknownDtype()) {
+    auto diag_dtype_warn = [&](const TensorStructInfoNode* sinfo, String name) {
+      if (sinfo->IsUnknownDtype()) {
+        LOG(WARNING) << "SliceScatter: Data type of " << name
+                     << " has not been specified for call node " << call
+                     << ". Assuming it is compatible.";
+      }
+    };
+    diag_dtype_warn(data_sinfo, "data");
+    diag_dtype_warn(src_sinfo, "src");
+  } else {
+    if (data_sinfo->dtype != src_sinfo->dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "SliceScatter op requires the input data to have the same type as "
+                          "src. However, the given types are "
+                       << "data: " << data_sinfo->dtype << ", src: " << src_sinfo->dtype);
+    }
+  }
+
+  auto get_prim_expr_from_arg = [&ctx, &call](const Expr& arg_expr, std::string key) -> PrimExpr {
+    const auto* prim_value_node = arg_expr.as<PrimValueNode>();
+    if (prim_value_node == nullptr) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "SliceScatter expects the `" << key << "` argument (" << arg_expr
+                       << ") to be a PrimValue, but got " << arg_expr->GetTypeKey());
+    }
+    const PrimExpr& prim_expr = prim_value_node->value;
+    if (!prim_expr.dtype().is_int() && !prim_expr.dtype().is_uint()) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "SliceScatter expects `" << key << "` (" << prim_expr
+                       << ") to be an integer PrimValue, but got dtype " << prim_expr.dtype());
+    }
+    return prim_expr;
+  };
+
+  PrimExpr start_val = get_prim_expr_from_arg(call->args[2], "start");
+  PrimExpr stop_val = get_prim_expr_from_arg(call->args[3], "end");
+  PrimExpr step_val = get_prim_expr_from_arg(call->args[4], "step");
+
+  if (analyzer->CanProve(step_val < 1)) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "SliceScatter op requires the step (" << step_val << ") to be >= 1.");
+  }
+
+  if (analyzer->CanProve(stop_val < start_val)) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "SliceScatter op requires start (" << start_val
+                                             << ") <= end (" << stop_val << ").");
+  }
+
+  int axis = NormalizeAxis(call, ctx, ndim, attrs->axis);
+
+  const auto* data_shape_node = data_sinfo->shape.as<ShapeExprNode>();
+  const auto* src_shape_node = src_sinfo->shape.as<ShapeExprNode>();
+
+  if (data_shape_node && src_shape_node && !src_sinfo->IsUnknownNdim()) {
+    ICHECK_EQ(data_shape_node->values.size(), static_cast<size_t>(ndim))
+        << "Internal error: data_shape_node rank mismatch with data_sinfo->ndim for call " << call;
+    ICHECK_EQ(src_shape_node->values.size(), static_cast<size_t>(src_sinfo->ndim))
+        << "Internal error: src_shape_node rank mismatch with src_sinfo->ndim for call " << call;
+
+    PrimExpr num_elem = tvm::floordiv((stop_val - start_val + step_val - PrimExpr(1)), step_val);
+
+    for (int i = 0; i < ndim; i++) {
+      if (i != axis) {
+        if (analyzer->CanProve(data_shape_node->values[i] != src_shape_node->values[i])) {
+          ctx->ReportFatal(
+              Diagnostic::Error(call)
+              << "SliceScatter op requires the data tensor to have the same shape as the "
+                 "src tensor except at the scatter axis ("
+              << axis << "). Mismatch at dimension " << i << ". "
+              << "data shape: " << data_sinfo->GetShape().value()
+              << ", src shape: " << src_sinfo->GetShape().value());
+        }
+      }
+    }
+
+    if (analyzer->CanProve(src_shape_node->values[axis] != num_elem)) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "SliceScatter op requires the src tensor's dimension at scatter axis ("
+                       << axis << ") to match the number of elements in the slice. "
+                       << "Actual src dimension at axis " << axis << ": "
+                       << src_shape_node->values[axis]
+                       << ", Expected elements in slice (num_elem): " << num_elem);
+    }
+  }
+
+  if (data_sinfo->shape.defined()) {
+    return TensorStructInfo(data_sinfo->shape.value(), data_sinfo->dtype, data_sinfo->vdevice);
+  }
+  return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.slice_scatter")
+    .set_attrs_type<SliceScatterAttrs>()
+    .set_num_inputs(5)
+    .add_argument("input", "Tensor", "The input tensor.")
+    .add_argument("src", "Tensor", "The source tensor to scatter.")
+    .add_argument("start", "PrimValue", "The starting index of the slice (inclusive).")
+    .add_argument("end", "PrimValue", "The ending index of the slice (exclusive).")
+    .add_argument("step", "PrimValue", "The step of the slice.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoSliceScatter)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.one_hot */
 TVM_REGISTER_NODE_TYPE(OneHotAttrs);
 Expr one_hot(Expr indices, PrimValue on_value, PrimValue off_value, int depth, int axis) {
@@ -2466,7 +2622,7 @@ Expr one_hot(Expr indices, PrimValue on_value, PrimValue off_value, int depth, i
   return Call(op, {indices, on_value, off_value}, Attrs(attrs), {});
 }  // namespace relax
 
-TVM_REGISTER_GLOBAL("relax.op.one_hot").set_body_typed(one_hot);
+TVM_FFI_REGISTER_GLOBAL("relax.op.one_hot").set_body_typed(one_hot);
 
 StructInfo InferStructInfoOneHot(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo indices_sinfo = GetInputTensorStructInfo(call, 0, ctx);

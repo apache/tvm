@@ -63,7 +63,7 @@ static Array<tir::LoopRV> ScheduleDataPack(tir::Schedule sch, tir::BlockRV block
   return {t0[0], t1[0], t0[1], t1[1]};
 }
 
-TVM_REGISTER_GLOBAL("meta_schedule.cuda.conv2d_nhwc_winograd_data_pack")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.cuda.conv2d_nhwc_winograd_data_pack")
     .set_body_typed([](Schedule sch, BlockRV data_pack) -> Array<Schedule> {
       BlockRV input_tile = GetWinogradProducerAndInlineConst(sch, data_pack);
       BlockRV data_pad = GetWinogradProducerAndInlineConst(sch, input_tile);
@@ -88,7 +88,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.cuda.conv2d_nhwc_winograd_data_pack")
       return {sch};
     });
 
-TVM_REGISTER_GLOBAL("meta_schedule.cuda.conv2d_nhwc_winograd_inverse")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.cuda.conv2d_nhwc_winograd_inverse")
     .set_body_typed([](Schedule sch, BlockRV inverse) -> Array<Schedule> {
       GetWinogradProducerAndInlineConst(sch, inverse);
       ScheduleDataPack(sch, inverse, /*tiled=*/{2, 3}, /*unrolled=*/{0, 1, 4, 5});
@@ -101,7 +101,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.cuda.conv2d_nhwc_winograd_inverse")
       return {sch};
     });
 
-TVM_REGISTER_GLOBAL("meta_schedule.cuda.conv2d_nchw_winograd_data_pack")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.cuda.conv2d_nchw_winograd_data_pack")
     .set_body_typed([](Schedule sch, BlockRV data_pack) -> Array<Schedule> {
       int64_t max_threadblocks = 256;
       int64_t max_threads_per_block = 1024;
@@ -132,7 +132,7 @@ TVM_REGISTER_GLOBAL("meta_schedule.cuda.conv2d_nchw_winograd_data_pack")
       return {sch};
     });
 
-TVM_REGISTER_GLOBAL("meta_schedule.cuda.conv2d_nchw_winograd_inverse")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.cuda.conv2d_nchw_winograd_inverse")
     .set_body_typed([](Schedule sch, BlockRV inverse) -> Array<Schedule> {
       GetWinogradProducerAndInlineConst(sch, inverse);
       // loops on top of the inverse block: [CO, P, tile_size, tile_size, alpha, alpha]
@@ -142,8 +142,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.cuda.conv2d_nchw_winograd_inverse")
         BlockRV output = sch->GetConsumers(inverse)[0];
         Array<LoopRV> nchw = sch->GetLoops(output);
         ICHECK_EQ(nchw.size(), 4);
-        Array<LoopRV> hs = sch->Split(nchw[2], {NullOpt, Integer(tile_size)});
-        Array<LoopRV> ws = sch->Split(nchw[3], {NullOpt, Integer(tile_size)});
+        Array<LoopRV> hs = sch->Split(nchw[2], {std::nullopt, Integer(tile_size)});
+        Array<LoopRV> ws = sch->Split(nchw[3], {std::nullopt, Integer(tile_size)});
         sch->Reorder({hs[0], ws[0], hs[1], ws[1]});
         outer = ws[0];
       }

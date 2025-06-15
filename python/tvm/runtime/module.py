@@ -23,9 +23,9 @@ import struct
 from typing import Sequence
 import numpy as np
 
-from tvm._ffi.base import _LIB, check_call, c_str, string_types, _RUNTIME_ONLY
-from tvm._ffi.libinfo import find_include_path
-from .packed_func import PackedFunc, PackedFuncHandle, _set_class_module
+import tvm.ffi
+from tvm.base import _RUNTIME_ONLY
+from tvm.libinfo import find_include_path
 
 from . import _ffi_api
 
@@ -97,22 +97,15 @@ class ModulePropertyMask(object):
     DSO_EXPORTABLE = 0b100
 
 
-class Module(object):
+@tvm.ffi.register_object("runtime.Module")
+class Module(tvm.ffi.Object):
     """Runtime Module."""
 
-    __slots__ = ["handle", "_entry", "entry_name"]
-
-    def __init__(self, handle):
-        self.handle = handle
-        self._entry = None
-        self.entry_name = "__tvm_main__"
-
-    def __del__(self):
-        if _LIB:
-            check_call(_LIB.TVMModFree(self.handle))
-
-    def __hash__(self):
-        return ctypes.cast(self.handle, ctypes.c_void_p).value
+    def __new__(cls):
+        instance = super(Module, cls).__new__(cls)  # pylint: disable=no-value-for-parameter
+        instance.entry_name = "__tvm_main__"
+        instance._entry = None
+        return instance
 
     @property
     def entry_func(self):
@@ -125,7 +118,7 @@ class Module(object):
         """
         if self._entry:
             return self._entry
-        self._entry = self.get_function(self.entry_name)
+        self._entry = self.get_function("__tvm_main__")
         return self._entry
 
     def implements_function(self, name, query_imports=False):
@@ -166,15 +159,10 @@ class Module(object):
         f : tvm.runtime.PackedFunc
             The result function.
         """
-        ret_handle = PackedFuncHandle()
-        check_call(
-            _LIB.TVMModGetFunction(
-                self.handle, c_str(name), ctypes.c_int(query_imports), ctypes.byref(ret_handle)
-            )
-        )
-        if not ret_handle.value:
+        func = _ffi_api.ModuleGetFunction(self, name, query_imports)
+        if func is None:
             raise AttributeError(f"Module has no function '{name}'")
-        return PackedFunc(ret_handle, False)
+        return func
 
     def import_module(self, module):
         """Add module to the import list of current one.
@@ -184,24 +172,18 @@ class Module(object):
         module : tvm.runtime.Module
             The other module.
         """
-        check_call(_LIB.TVMModImport(self.handle, module.handle))
+        _ffi_api.ModuleImport(self, module)
 
     def __getitem__(self, name):
-        if not isinstance(name, string_types):
+        if not isinstance(name, str):
             raise ValueError("Can only take string as function name")
         return self.get_function(name)
-
-    def __eq__(self, other):
-        return self.handle.value == other.handle.value
 
     def __call__(self, *args):
         if self._entry:
             return self._entry(*args)
         # pylint: disable=not-callable
         return self.entry_func(*args)
-
-    def __repr__(self):
-        return f"Module({self.type_key}, {self.handle.value:x})"
 
     @property
     def type_key(self):
@@ -732,6 +714,3 @@ def num_threads() -> int:
         Number of threads in use.
     """
     return _ffi_api.NumThreads()
-
-
-_set_class_module(Module)

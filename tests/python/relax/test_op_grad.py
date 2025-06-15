@@ -16,7 +16,7 @@
 # under the License.
 import pytest
 import tvm
-from tvm._ffi.base import TVMError
+from tvm.base import TVMError
 import tvm.testing
 from tvm import relax
 from tvm.ir import Op
@@ -68,11 +68,11 @@ def test_start_checkpoint_input_not_var():
         bb.emit_func_output(gv)
 
     # wrong: tuple will not be normalized
-    with pytest.raises(TVMError):
+    with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.grad.start_checkpoint((x, y)))
 
     # wrong: const will not be normalized
-    with pytest.raises(TVMError):
+    with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.grad.start_checkpoint(relax.const(1, "float32")))
 
 
@@ -87,11 +87,11 @@ def test_end_checkpoint_input_not_var():
         bb.emit_func_output(gv)
 
     # wrong: tuple will not be normalized
-    with pytest.raises(TVMError):
+    with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.grad.end_checkpoint((x, y)))
 
     # wrong: const will not be normalized
-    with pytest.raises(TVMError):
+    with pytest.raises((TypeError, TVMError)):
         bb.normalize(relax.op.grad.end_checkpoint(relax.const(1, "float32")))
 
 

@@ -55,7 +55,7 @@ class RoundRobinNode final : public TaskSchedulerNode {
   }
 };
 
-TaskScheduler TaskScheduler::RoundRobin(PackedFunc logger) {
+TaskScheduler TaskScheduler::RoundRobin(ffi::Function logger) {
   ObjectPtr<RoundRobinNode> n = make_object<RoundRobinNode>();
   n->logger = logger;
   n->task_id = -1;
@@ -63,7 +63,7 @@ TaskScheduler TaskScheduler::RoundRobin(PackedFunc logger) {
 }
 
 TVM_REGISTER_NODE_TYPE(RoundRobinNode);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerRoundRobin")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerRoundRobin")
     .set_body_typed(TaskScheduler::RoundRobin);
 
 }  // namespace meta_schedule

@@ -66,7 +66,7 @@ transform::Pass AnnotateEntryFunc() {
       auto [gvar, base_func] = *mod->functions.begin();
       if (!base_func->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
         if (auto ptr = base_func.as<PrimFuncNode>()) {
-          mod->Update(gvar, WithAttr(GetRef<PrimFunc>(ptr), tir::attr::kIsEntryFunc, Bool(true)));
+          mod->Update(gvar, WithAttr(GetRef<PrimFunc>(ptr), tir::attr::kIsEntryFunc, true));
         }
       }
       return mod;
@@ -80,8 +80,8 @@ transform::Pass AnnotateEntryFunc() {
       bool is_external = base_func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
       if (is_external) {
         if (auto ptr = base_func.as<PrimFuncNode>()) {
-          with_annotations->Add(
-              gvar, WithAttr(GetRef<PrimFunc>(ptr), tir::attr::kIsEntryFunc, Bool(true)));
+          with_annotations->Add(gvar,
+                                WithAttr(GetRef<PrimFunc>(ptr), tir::attr::kIsEntryFunc, true));
         } else {
           has_external_non_primfuncs = true;
         }
@@ -98,7 +98,7 @@ transform::Pass AnnotateEntryFunc() {
   return tvm::transform::CreateModulePass(fpass, 0, "tir.AnnotateEntryFunc", {});
 }
 
-transform::Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond) {
+transform::Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond) {
   auto fpass = [fcond](tir::PrimFunc f, IRModule m, transform::PassContext ctx) {
     if (fcond(f)) {
       return f;
@@ -109,9 +109,9 @@ transform::Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "tir.Filter", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.BindTarget").set_body_typed(BindTarget);
-TVM_REGISTER_GLOBAL("tir.transform.AnnotateEntryFunc").set_body_typed(AnnotateEntryFunc);
-TVM_REGISTER_GLOBAL("tir.transform.Filter").set_body_typed(Filter);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.BindTarget").set_body_typed(BindTarget);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.AnnotateEntryFunc").set_body_typed(AnnotateEntryFunc);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.Filter").set_body_typed(Filter);
 
 }  // namespace transform
 }  // namespace tir

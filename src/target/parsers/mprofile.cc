@@ -31,9 +31,9 @@ namespace target {
 namespace parsers {
 namespace mprofile {
 
-const TargetFeatures kNoExt = {{"has_dsp", Bool(false)}, {"has_mve", Bool(false)}};
-const TargetFeatures kHasDSP = {{"has_dsp", Bool(true)}, {"has_mve", Bool(false)}};
-const TargetFeatures kHasMVE = {{"has_dsp", Bool(true)}, {"has_mve", Bool(true)}};
+const TargetFeatures kNoExt = {{"has_dsp", false}, {"has_mve", false}};
+const TargetFeatures kHasDSP = {{"has_dsp", true}, {"has_mve", false}};
+const TargetFeatures kHasMVE = {{"has_dsp", true}, {"has_mve", true}};
 
 static const char* baseCPUs[] = {"cortex-m0", "cortex-m3"};
 static const char* dspCPUs[] = {"cortex-m55", "cortex-m4",   "cortex-m7",

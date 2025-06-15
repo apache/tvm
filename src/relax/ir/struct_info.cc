@@ -21,10 +21,10 @@
  * \file src/relax/ir/struct_info.cc
  * \brief Relax struct info.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/struct_info_functor.h>
-#include <tvm/runtime/registry.h>
 
 namespace tvm {
 namespace relax {
@@ -37,7 +37,7 @@ ObjectStructInfo::ObjectStructInfo(Span span) {
 
 TVM_REGISTER_NODE_TYPE(ObjectStructInfoNode);
 
-TVM_REGISTER_GLOBAL("relax.ObjectStructInfo").set_body_typed([](Span span) {
+TVM_FFI_REGISTER_GLOBAL("relax.ObjectStructInfo").set_body_typed([](Span span) {
   return ObjectStructInfo(span);
 });
 
@@ -53,20 +53,18 @@ PrimStructInfo::PrimStructInfo(PrimExpr value, Span span) {
 PrimStructInfo::PrimStructInfo(DataType dtype, Span span) {
   ObjectPtr<PrimStructInfoNode> n = make_object<PrimStructInfoNode>();
   n->dtype = dtype;
-  n->value = NullOpt;
+  n->value = std::nullopt;
   n->span = span;
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(PrimStructInfoNode);
 
-TVM_REGISTER_GLOBAL("relax.PrimStructInfoFromDtype").set_body_typed([](DataType dtype, Span span) {
-  return PrimStructInfo(dtype, span);
-});
+TVM_FFI_REGISTER_GLOBAL("relax.PrimStructInfoFromDtype")
+    .set_body_typed([](DataType dtype, Span span) { return PrimStructInfo(dtype, span); });
 
-TVM_REGISTER_GLOBAL("relax.PrimStructInfoFromValue").set_body_typed([](PrimExpr value, Span span) {
-  return PrimStructInfo(value, span);
-});
+TVM_FFI_REGISTER_GLOBAL("relax.PrimStructInfoFromValue")
+    .set_body_typed([](PrimExpr value, Span span) { return PrimStructInfo(value, span); });
 
 // Shape
 ShapeStructInfo::ShapeStructInfo(Array<PrimExpr> values, Span span) {
@@ -94,7 +92,7 @@ ShapeStructInfo::ShapeStructInfo(int ndim, Span span) {
 
 TVM_REGISTER_NODE_TYPE(ShapeStructInfoNode);
 
-TVM_REGISTER_GLOBAL("relax.ShapeStructInfo")
+TVM_FFI_REGISTER_GLOBAL("relax.ShapeStructInfo")
     .set_body_typed([](Optional<Array<PrimExpr>> values, int ndim, Span span) {
       if (values.defined()) {
         CHECK_EQ(ndim, kUnknownNDim) << "ValueError: Cannot both specify values and ndim";
@@ -114,7 +112,7 @@ TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, Optional<VDevice>
   ICHECK(shape.defined()) << "Must provide a shape in this constructor";
   ICHECK(shape->IsInstance<ShapeExprNode>() || shape->IsInstance<VarNode>())
       << "We require shape to be normalized when constructing TensorStructInfo";
-  n->ndim = sinfo.get()->ndim;
+  n->ndim = sinfo.value()->ndim;
   // assign rest of the fields.
   n->shape = std::move(shape);
   n->dtype = dtype;
@@ -135,13 +133,14 @@ TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, Optional<VDevice> v
 
 TVM_REGISTER_NODE_TYPE(TensorStructInfoNode);
 
-TVM_REGISTER_GLOBAL("relax.TensorStructInfo")
-    .set_body_typed([](Optional<Expr> shape, DataType dtype, int ndim, VDevice vdevice, Span span) {
+TVM_FFI_REGISTER_GLOBAL("relax.TensorStructInfo")
+    .set_body_typed([](Optional<Expr> shape, Optional<DataType> dtype, int ndim, VDevice vdevice,
+                       Span span) {
       if (shape.defined()) {
         CHECK_EQ(ndim, kUnknownNDim) << "ValueError: Cannot both specify shape and ndim";
-        return TensorStructInfo(shape.value(), dtype, vdevice, span);
+        return TensorStructInfo(shape.value(), dtype.value_or(DataType::Void()), vdevice, span);
       } else {
-        return TensorStructInfo(dtype, ndim, vdevice, span);
+        return TensorStructInfo(dtype.value_or(DataType::Void()), ndim, vdevice, span);
       }
     });
 
@@ -155,7 +154,7 @@ TupleStructInfo::TupleStructInfo(Array<StructInfo> fields, Span span) {
 
 TVM_REGISTER_NODE_TYPE(TupleStructInfoNode);
 
-TVM_REGISTER_GLOBAL("relax.TupleStructInfo")
+TVM_FFI_REGISTER_GLOBAL("relax.TupleStructInfo")
     .set_body_typed([](Array<StructInfo> fields, Span span) {
       return TupleStructInfo(fields, span);
     });
@@ -190,12 +189,12 @@ FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfo ret, bool purity, Span span
 
 TVM_REGISTER_NODE_TYPE(FuncStructInfoNode);
 
-TVM_REGISTER_GLOBAL("relax.FuncStructInfo")
+TVM_FFI_REGISTER_GLOBAL("relax.FuncStructInfo")
     .set_body_typed([](Array<StructInfo> params, StructInfo ret, bool purity, Span span) {
       return FuncStructInfo(params, ret, purity, span);
     });
 
-TVM_REGISTER_GLOBAL("relax.FuncStructInfoOpaqueFunc")
+TVM_FFI_REGISTER_GLOBAL("relax.FuncStructInfoOpaqueFunc")
     .set_body_typed([](Optional<StructInfo> ret, Optional<StructInfoDeriveFunc> derive_func,
                        bool purity, Span span) {
       if (derive_func.defined()) {
@@ -219,11 +218,10 @@ void UpdateStructInfo(Expr expr, StructInfo struct_info) {
   expr->checked_type_ = GetStaticType(struct_info);
 }
 
-TVM_REGISTER_GLOBAL("relax.UpdateStructInfo").set_body_typed([](Expr expr, StructInfo struct_info) {
-  UpdateStructInfo(expr, struct_info);
-});
+TVM_FFI_REGISTER_GLOBAL("relax.UpdateStructInfo")
+    .set_body_typed([](Expr expr, StructInfo struct_info) { UpdateStructInfo(expr, struct_info); });
 
-TVM_REGISTER_GLOBAL("ir.ExprStructInfo").set_body_typed([](Expr expr) {
+TVM_FFI_REGISTER_GLOBAL("ir.ExprStructInfo").set_body_typed([](Expr expr) {
   return GetStructInfo(expr);
 });
 

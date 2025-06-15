@@ -335,8 +335,8 @@ def MakePackedAPI():
 
     Prior to this pass, the PrimFunc may have Buffer arguments defined
     in the `PrimFuncNode::buffer_map`.  This pass consumes the
-    `buffer_map`, using it to generate `TVMArgs` and `TVMRetValue*`
-    arguments that implement the `PackedFunc` API.
+    `buffer_map`, using it to generate arguments that implement
+    the packed based TVM FFI API.
 
     For static shapes, the `BufferNode::shape`, `BufferNode::strides`,
     and `BufferNode::elem_offset` member variables are used to
@@ -511,17 +511,6 @@ def LowerTVMBuiltin():
         The result pass
     """
     return _ffi_api.LowerTVMBuiltin()  # type: ignore
-
-
-def LegalizePackedCalls():
-    """Legalize packed calls to have its arguments wrapped in TVMValues
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LegalizePackedCalls()  # type: ignore
 
 
 def LowerIntrin():

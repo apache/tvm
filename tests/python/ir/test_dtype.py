@@ -24,17 +24,24 @@ from tvm import DataType
 
 @pytest.mark.parametrize(
     "dtype_str, expected_size",
-    [("float32", 4), ("float32x4", 16), ("float8_e5m2x4", 4), ("uint8", 1)],
+    [
+        ("float32", 4),
+        ("float32x4", 16),
+        ("float8_e5m2x4", 4),
+        ("float6_e2m3fnx4", 3),
+        ("float4_e2m1fnx4", 2),
+        ("uint8", 1),
+    ],
 )
 def test_dtype_itemsize(dtype_str, expected_size):
     dtype = DataType(dtype_str)
-    assert dtype.itemsize() == expected_size
+    assert dtype.itemsize == expected_size
 
 
 @pytest.mark.parametrize("dtype_str", ["int32xvscalex4"])
 def test_dtype_itemmize_error(dtype_str):
     with pytest.raises(ValueError):
-        size = DataType(dtype_str).itemsize()
+        size = DataType(dtype_str).itemsize
 
 
 if __name__ == "__main__":

@@ -60,13 +60,13 @@ def get_type(elem_type: Union[str, int]) -> str:
         return elem_type
 
     try:
-        from onnx.mapping import (  # pylint: disable=import-outside-toplevel
-            TENSOR_TYPE_TO_NP_TYPE,
+        from onnx.helper import (  # pylint: disable=import-outside-toplevel
+            tensor_dtype_to_np_dtype,
         )
     except ImportError as exception:
         raise ImportError("Unable to import onnx which is required {}".format(exception))
 
-    return str(TENSOR_TYPE_TO_NP_TYPE[elem_type])
+    return str(tensor_dtype_to_np_dtype(elem_type))
 
 
 def get_constant(
@@ -564,15 +564,14 @@ class BitwiseXor(BitwiseBase):
         return cls.base_impl(bb, inputs, attr, params)
 
 
-class BitwiseNot(BitwiseBase):
+class BitwiseNot(OnnxOpConverter):
     """Converts an onnx BitwiseNot node into an equivalent Relax expression."""
-
-    numpy_op = _np.bitwise_not
-    relax_op = relax.op.bitwise_not
 
     @classmethod
     def _impl_v18(cls, bb, inputs, attr, params):
-        return cls.base_impl(bb, inputs, attr, params)
+        if isinstance(inputs[0], relax.Constant):
+            return relax.const(_np.bitwise_not(inputs[0].data.numpy()), inputs[0].struct_info.dtype)
+        return relax.op.bitwise_not(inputs[0])
 
 
 class BitShift(BitwiseBase):
@@ -2489,6 +2488,10 @@ class LayerNormalization(OnnxOpConverter):
         axis = attr.get("axis", -1)
         epsilon = attr.get("epsilon", 1e-05)
 
+        if bias is None:
+            seq_len = data.struct_info.shape[1].value
+            bias = relax.const([0.0] * seq_len, dtype="float32")
+
         output = relax.op.nn.layer_norm(data, scale, bias, axis, epsilon)
         # Onnx layernorm has 3 outputs but only the first is used.
         # We construct two empty constants for this.
@@ -3113,13 +3116,13 @@ def _get_convert_map():
         "BitwiseAnd": BitwiseAnd,
         "BitwiseOr": BitwiseOr,
         "BitwiseXor": BitwiseXor,
-        "BitwiseNot": BitwiseNot,
         "BitShift": BitShift,
         "And": And,
         "Or": Or,
         "Xor": Xor,
         "Not": Not,
         # Unary operators
+        "BitwiseNot": BitwiseNot,
         "Log": Log,
         "Exp": Exp,
         "Acos": Acos,

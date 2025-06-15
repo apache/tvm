@@ -68,8 +68,8 @@ const TensorRTTransConfig ParseConfig(const String& config_str) {
 }
 
 using FRewriteTensorRT =
-    runtime::TypedPackedFunc<Expr(BlockBuilder builder, const Var& var, const Call& src_call,
-                                  const Map<Expr, Call>& new_calls, const String& config)>;
+    ffi::TypedFunction<Expr(BlockBuilder builder, const Var& var, const Call& src_call,
+                            const Map<Expr, Call>& new_calls, const String& config)>;
 
 const Array<PrimExpr> BroadcastShape(const Array<PrimExpr>& src_shape,
                                      const Array<PrimExpr>& out_shape) {
@@ -163,8 +163,8 @@ Expr RewriteArgmaxmin(BlockBuilder builder, const Var& var, const Call& src_call
   static const Op& topk_op = Op::Get("relax.topk");
   auto topk_attrs = make_object<TopKAttrs>();
   topk_attrs->k = 1;
-  if (src_attrs->axis.defined()) {
-    topk_attrs->axis = src_attrs->axis.value()->value;
+  if (src_attrs->axis.has_value()) {
+    topk_attrs->axis = src_attrs->axis.value();
   }
   topk_attrs->largest = call->op == Op::Get("relax.argmax");
   topk_attrs->ret_type = "both";
@@ -395,7 +395,7 @@ Expr RewriteBroadcastTo(BlockBuilder builder, const Var& var, const Call& src_ca
     if (in_dim != out_dim) {
       Array<Expr> concat_inputs(out_dim / in_dim, concat_input);
       auto concat_attrs = make_object<ConcatAttrs>();
-      concat_attrs->axis = Integer(i);
+      concat_attrs->axis = i;
       concat_input = RewriteUtils::MakeCall(
           builder, ExprUtils::GetSpanName(call, "concat_" + std::to_string(i)), concat_op,
           {Tuple(concat_inputs)}, Attrs(concat_attrs));
@@ -795,7 +795,7 @@ Expr RewriteSplit(BlockBuilder builder, const Var& var, const Call& src_call,
       split_begins.push_back(i * size);
       split_ends.push_back(i * size + size);
     }
-  } else if (src_attrs->indices_or_sections->IsInstance<ArrayNode>()) {
+  } else if (src_attrs->indices_or_sections->IsInstance<ffi::ArrayObj>()) {
     const auto& indices = Downcast<Array<Integer>>(src_attrs->indices_or_sections);
     int64_t last_index = 0;
     for (size_t i = 0; i < indices.size(); ++i) {
@@ -907,14 +907,13 @@ Function TransformTensorRT(const Function& func, const IRModule& module, const S
 namespace transform {
 
 Pass TransformTensorRT(const String& config) {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return relax::TransformTensorRT(f, m, config);
-      };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return relax::TransformTensorRT(f, m, config);
+  };
   return CreateFunctionPass(pass_func, 0, "TransformTensorRT", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.TransformTensorRT").set_body_typed(TransformTensorRT);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.TransformTensorRT").set_body_typed(TransformTensorRT);
 
 }  // namespace transform
 }  // namespace relax

@@ -23,7 +23,7 @@
 #ifdef TVM_LLVM_VERSION
 
 #include <llvm/IR/Intrinsics.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>

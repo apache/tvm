@@ -15,8 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI APIs for tvm.script.ir_builder.relax.distributed"""
-import tvm._ffi
+import tvm.ffi
 
-tvm._ffi._init_api(
+tvm.ffi._init_api(
     "script.ir_builder.relax.distributed", __name__
 )  # pylint: disable=protected-access

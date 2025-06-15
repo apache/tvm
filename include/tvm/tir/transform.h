@@ -36,6 +36,7 @@ namespace tvm {
 namespace tir {
 namespace transform {
 
+using tvm::transform::CreateModulePass;
 using tvm::transform::Pass;
 using tvm::transform::PassContext;
 using tvm::transform::PassContextNode;
@@ -54,9 +55,9 @@ using tvm::transform::Sequential;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreatePrimFuncPass(
-    const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
+TVM_DLL Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
+                                int opt_level, String name, tvm::Array<String> required,
+                                bool traceable = false);
 
 /*!
  * \brief partition loops in the stmt.
@@ -165,9 +166,9 @@ TVM_DLL Pass InstrumentBoundCheckers();
  *     f()
  *
  *  if num_packed_args is not zero:
- *       f(TVMArg* packed_args, int* packed_arg_type_ids, int num_packed_args,
+ *       f(void *, TVMFFIAny* packed_args, int num_packed_args,
  *         api_arg_k, api_arg_k+1, ... api_arg_n,
- *         TVMValue* out_ret_val, int* out_ret_tcode)
+ *         TVMFFIAny* out_ret_val)
  *
  *       where n == len(api_args), k == num_packed_args
  *
@@ -489,11 +490,6 @@ TVM_DLL Pass LiftThreadBinding();
 TVM_DLL Pass CompactBufferAllocation(bool is_strict = true);
 
 /*!
- * This pass legalizes packed calls by wrapping their arguments into TVMValues
- */
-TVM_DLL Pass LegalizePackedCalls();
-
-/*!
  * \brief Remove match buffers inside the block. Also, it will validate the binding.
  * \return The pass.
  */
@@ -717,7 +713,7 @@ TVM_DLL Pass AnnotateEntryFunc();
  * \brief Filter PrimFuncs with a given condition.
  * \return The pass.
  */
-TVM_DLL Pass Filter(runtime::TypedPackedFunc<bool(PrimFunc)> fcond);
+TVM_DLL Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond);
 
 /*!
  * \brief Pass to rewrite global to shared memory copy on CUDA with asyncronous copy.

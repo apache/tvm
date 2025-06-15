@@ -53,7 +53,7 @@ class TupleFuser : public ExprMutator {
       if (gv->name_hint == entry_name_) {
         main_var = gv;
       } else {
-        const auto& name_opt = func->GetAttr<runtime::String>(attr::kComposite);
+        const auto& name_opt = func->GetAttr<String>(attr::kComposite);
         if (name_opt.defined() && StringUtils::StartsWith(name_opt.value(), target_)) {
           target_funcs_.Set(gv, Downcast<Function>(func));
         }
@@ -74,8 +74,7 @@ class TupleFuser : public ExprMutator {
         const auto& arg = val->args[i];
         if (arg->IsInstance<TupleNode>()) {
           String tuple_name;
-          const auto& name_opt =
-              target_funcs_[val->op]->GetAttr<runtime::String>(msc_attr::kUnique);
+          const auto& name_opt = target_funcs_[val->op]->GetAttr<String>(msc_attr::kUnique);
           if (name_opt.defined()) {
             if (val->args.size() == 1) {
               tuple_name = name_opt.value() + "_input";
@@ -180,24 +179,24 @@ class TupleFuser : public ExprMutator {
     Expr body = builder_->Normalize(output);
     body = builder_->Normalize(SeqExpr({new_block}, body));
 
-    Map<String, ObjectRef> func_attrs;
-    func_attrs.Set(attr::kPrimitive, Integer(1));
+    Map<String, ffi::Any> func_attrs;
+    func_attrs.Set(attr::kPrimitive, true);
     func_attrs.Set(attr::kComposite, target_ + func_name);
     func_attrs.Set(msc_attr::kUnique, SpanUtils::GetAttr(expr_span, msc_attr::kName));
 
-    Function function = Function(/*params=*/params,            //
-                                 /*body=*/body,                //
-                                 /*ret_struct_info=*/NullOpt,  //
-                                 /*is_pure=*/true,             //
+    Function function = Function(/*params=*/params,                 //
+                                 /*body=*/body,                     //
+                                 /*ret_struct_info=*/std::nullopt,  //
+                                 /*is_pure=*/true,                  //
                                  /*attrs=*/DictAttrs(func_attrs));
     Array<PrimExpr> free_vars =
         FreeSymbolicVars(function).Map([](const tir::Var& var) -> PrimExpr { return var; });
     if (!free_vars.empty()) {
       params.push_back(Var("tir_vars", ShapeStructInfo(free_vars)));
-      function = Function(/*params=*/params,            //
-                          /*body=*/body,                //
-                          /*ret_struct_info=*/NullOpt,  //
-                          /*is_pure=*/true,             //
+      function = Function(/*params=*/params,                 //
+                          /*body=*/body,                     //
+                          /*ret_struct_info=*/std::nullopt,  //
+                          /*is_pure=*/true,                  //
                           /*attrs=*/DictAttrs(func_attrs));
     }
     function = SymbolicVarRenewMutator::Renew(function);
@@ -226,12 +225,13 @@ IRModule FuseTuple(IRModule mod, const String& target, const String& entry_name)
 namespace transform {
 
 Pass FuseTuple(const String& target, const String& entry_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::FuseTuple(m, target, entry_name); };
+  auto pass_func = [=](IRModule m, PassContext pc) {
+    return relax::FuseTuple(m, target, entry_name);
+  };
   return CreateModulePass(pass_func, 0, "FuseTuple", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.FuseTuple").set_body_typed(FuseTuple);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.FuseTuple").set_body_typed(FuseTuple);
 
 }  // namespace transform
 }  // namespace relax

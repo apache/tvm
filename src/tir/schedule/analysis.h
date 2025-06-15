@@ -264,7 +264,7 @@ void CheckPartialAffineBinding(const ScheduleState& self, Block block,
  * \return The loop domain
  */
 Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
-                                         const Optional<StmtSRef>& high_exclusive = NullOpt,
+                                         const Optional<StmtSRef>& high_exclusive = std::nullopt,
                                          const runtime::StorageScope& extra_relax_scope =  //
                                          runtime::StorageScope{runtime::StorageRank::kGlobal, ""});
 
@@ -522,7 +522,7 @@ std::tuple<CommReducer, Array<PrimExpr>, Array<PrimExpr>> GetReducerAndCombinerL
  * \return The list of the registered reducer-getter functions
  * \sa ReducerRegistry
  */
-std::vector<runtime::TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)>> GetReducerGetters();
+std::vector<ffi::TypedFunction<Optional<CommReducer>(Array<PrimExpr>)>> GetReducerGetters();
 
 /*!
  * \brief Given the input identities and the combiner BufferStores of a reduction, extract the
@@ -762,7 +762,7 @@ class TensorizeInfo : public ObjectRef {
  * \param block_sref The target block to match against
  * \param desc_func The prim func describing the computation to be tensorized
  * \param allow_padding Whether to allow padding the block iters to match the intrinsic description
- * \return TensorizeInfo structure if a valid mapping is found, NullOpt otherwise
+ * \return TensorizeInfo structure if a valid mapping is found, std::nullopt otherwise
  */
 Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
                                                 const tir::StmtSRef& block_sref,
@@ -809,10 +809,10 @@ class AutoTensorizeMappingInfo : public ObjectRef {
  * \param self The schedule state
  * \param block_sref The compute block for auto tensorization
  * \param desc_func The prim func describing the computation to be tensorized
- * \return AutoTensorizeMappingInfo structure if a potential mapping is found, NullOpt otherwise.
- * \note Returning a valid AutoTensorizeMappingInfo doesn't guarantee the block can be tensorized.
- * We will need to apply the suggested layout transformations and then match against the tensor
- * intrinsics.
+ * \return AutoTensorizeMappingInfo structure if a potential mapping is found, std::nullopt
+ * otherwise. \note Returning a valid AutoTensorizeMappingInfo doesn't guarantee the block can be
+ * tensorized. We will need to apply the suggested layout transformations and then match against the
+ * tensor intrinsics.
  */
 Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const ScheduleState& self,
                                                                const StmtSRef& block_sref,

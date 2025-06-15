@@ -21,7 +21,7 @@ import operator
 from typing import List
 
 from tvm import relax
-from tvm._ffi.base import TVMError
+from tvm.base import TVMError
 from tvm.arith import Analyzer
 from tvm.relax.struct_info import ShapeStructInfo
 
@@ -1090,7 +1090,7 @@ def log_softmax_grad(
         Returns `[y_grad - sum(y_grad, axis, keepdims=True) * exp(y)]`
     """
     y_exp = exp(orig_var)
-    return [(output_grad - sum(output_grad, orig_call.attrs.axis, True) * y_exp)]
+    return [output_grad - sum(output_grad, orig_call.attrs.axis, True) * y_exp]
 
 
 @register_gradient("relax.nn.cross_entropy_with_logits")

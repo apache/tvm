@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../support/process_id.h"
 #include "./protocol.h"
@@ -34,12 +33,13 @@ TVM_DLL DiscoWorker* DiscoWorker::ThreadLocal() {
   return ret;
 }
 
-void DiscoWorker::SetRegister(int reg_id, TVMArgValue value) {
+void DiscoWorker::SetRegister(int reg_id, ffi::AnyView value) {
   ICHECK(0 <= reg_id && reg_id < static_cast<int>(register_file.size()));
-  TVMRetValue& rv = register_file.at(reg_id);
-  if (rv.type_code() == kTVMNDArrayHandle && value.type_code() == kTVMNDArrayHandle) {
-    NDArray dst = rv;
-    NDArray src = value;
+  ffi::Any& rv = register_file.at(reg_id);
+  if (rv.type_index() == ffi::TypeIndex::kTVMFFINDArray &&
+      value.type_index() == ffi::TypeIndex::kTVMFFINDArray) {
+    NDArray dst = rv.cast<NDArray>();
+    NDArray src = value.cast<NDArray>();
     dst.CopyFrom(src);
   } else {
     rv = value;
@@ -49,10 +49,11 @@ void DiscoWorker::SetRegister(int reg_id, TVMArgValue value) {
 struct DiscoWorker::Impl {
   static void MainLoop(DiscoWorker* self) {
     ThreadLocalDiscoWorker::Get()->worker = self;
+    using namespace tvm;
     while (true) {
-      TVMArgs args = self->channel->Recv();
-      DiscoAction action = static_cast<DiscoAction>(args[0].operator int());
-      int64_t reg_id = args[1];
+      ffi::PackedArgs args = self->channel->Recv();
+      DiscoAction action = static_cast<DiscoAction>(args[0].cast<int>());
+      int64_t reg_id = args[1].cast<int64_t>();
       switch (action) {
         case DiscoAction::kShutDown: {
           Shutdown(self);
@@ -63,16 +64,15 @@ struct DiscoWorker::Impl {
           break;
         }
         case DiscoAction::kGetGlobalFunc: {
-          GetGlobalFunc(self, reg_id, args[2]);
+          GetGlobalFunc(self, reg_id, args[2].cast<std::string>());
           break;
         }
         case DiscoAction::kCallPacked: {
-          int func_reg_id = args[2];
+          int func_reg_id = args[2].cast<int>();
           CHECK_LT(func_reg_id, self->register_file.size());
-          PackedFunc func = GetReg(self, func_reg_id);
+          ffi::Function func = GetReg(self, func_reg_id).cast<ffi::Function>();
           CHECK(func.defined());
-          CallPacked(self, reg_id, func,
-                     TVMArgs(args.values + 3, args.type_codes + 3, args.num_args - 3));
+          CallPacked(self, reg_id, func, args.Slice(3));
           break;
         }
         case DiscoAction::kCopyFromWorker0: {
@@ -88,13 +88,13 @@ struct DiscoWorker::Impl {
           break;
         }
         case DiscoAction::kDebugGetFromRemote: {
-          int worker_id = args[2];
+          int worker_id = args[2].cast<int>();
           DebugGetFromRemote(self, reg_id, worker_id);
           break;
         }
         case DiscoAction::kDebugSetRegister: {
-          int worker_id = args[2];
-          TVMArgValue value = args[3];
+          int worker_id = args[2].cast<int>();
+          ffi::AnyView value = args[3];
           DebugSetRegister(self, reg_id, worker_id, value);
           break;
         }
@@ -105,8 +105,8 @@ struct DiscoWorker::Impl {
   static void Shutdown(DiscoWorker* self) {}
 
   static void GetGlobalFunc(DiscoWorker* self, int reg_id, const std::string& name) {
-    const PackedFunc* pf = runtime::Registry::Get(name);
-    CHECK(pf) << "ValueError: Cannot find global function: " << name;
+    const auto pf = tvm::ffi::Function::GetGlobal(name);
+    CHECK(pf.has_value()) << "ValueError: Cannot find global function: " << name;
     if (reg_id != 0) {
       GetReg(self, reg_id) = *pf;
     }
@@ -122,7 +122,7 @@ struct DiscoWorker::Impl {
   static void CopyFromWorker0(DiscoWorker* self, int reg_id) {
     if (self->worker_id == 0) {
       NDArray tgt = GetNDArrayFromHost(self);
-      NDArray src = GetReg(self, reg_id);
+      NDArray src = GetReg(self, reg_id).cast<NDArray>();
       tgt.CopyFrom(src);
     }
   }
@@ -130,7 +130,7 @@ struct DiscoWorker::Impl {
   static void CopyToWorker0(DiscoWorker* self, int reg_id) {
     if (self->worker_id == 0) {
       NDArray src = GetNDArrayFromHost(self);
-      NDArray tgt = GetReg(self, reg_id);
+      NDArray tgt = GetReg(self, reg_id).cast<NDArray>();
       tgt.CopyFrom(src);
     }
   }
@@ -138,56 +138,52 @@ struct DiscoWorker::Impl {
   static void SyncWorker(DiscoWorker* self, int worker_id) {
     if (worker_id == self->worker_id) {
       ::tvm::runtime::SyncWorker();
-      TVMValue values[2];
-      int type_codes[2];
-      PackArgs(values, type_codes, static_cast<int>(DiscoAction::kSyncWorker), worker_id);
-      self->channel->Reply(TVMArgs(values, type_codes, 2));
+      ffi::AnyView packed_args[2];
+      ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoAction::kSyncWorker), worker_id);
+      self->channel->Reply(ffi::PackedArgs(packed_args, 2));
     }
   }
 
   static void DebugGetFromRemote(DiscoWorker* self, int reg_id, int worker_id) {
     if (worker_id == self->worker_id) {
-      TVMRetValue rv = GetReg(self, reg_id);
-      if (rv.type_code() == kTVMNDArrayHandle || rv.type_code() == kTVMObjectHandle) {
+      ffi::Any rv = GetReg(self, reg_id);
+      if (rv.as<ObjectRef>()) {
         rv = DiscoDebugObject::Wrap(rv);
       }
-      TVMValue values[2];
-      int type_codes[2];
-      PackArgs(values, type_codes, static_cast<int>(DiscoAction::kDebugGetFromRemote), rv);
-      self->channel->Reply(TVMArgs(values, type_codes, 2));
+      ffi::AnyView packed_args[2];
+      ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoAction::kDebugGetFromRemote), rv);
+      self->channel->Reply(ffi::PackedArgs(packed_args, 2));
     }
   }
 
-  static void DebugSetRegister(DiscoWorker* self, int reg_id, int worker_id, TVMArgValue value) {
+  static void DebugSetRegister(DiscoWorker* self, int reg_id, int worker_id, ffi::AnyView value) {
     if (worker_id == self->worker_id) {
       ::tvm::runtime::SyncWorker();
       self->SetRegister(reg_id, value);
-      TVMValue values[1];
-      int type_codes[1];
-      PackArgs(values, type_codes, static_cast<int>(DiscoAction::kDebugSetRegister));
-      self->channel->Reply(TVMArgs(values, type_codes, 1));
+      ffi::AnyView packed_args[1];
+      ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoAction::kDebugSetRegister));
+      self->channel->Reply(ffi::PackedArgs(packed_args, 1));
     }
   }
 
-  static void CallPacked(DiscoWorker* self, int64_t ret_reg_id, PackedFunc func,
-                         const TVMArgs& args) {
-    TVMValue* values = const_cast<TVMValue*>(args.values);
-    int* type_codes = const_cast<int*>(args.type_codes);
-    int num_args = args.num_args;
-    TVMArgsSetter setter(values, type_codes);
-    for (int i = 0; i < num_args; ++i) {
-      TVMArgValue val = TVMArgValue(values[i], type_codes[i]);
-      if (val.IsObjectRef<DRef>()) {
-        DRef dref = val;
-        setter(i, GetReg(self, dref->reg_id));
+  static void CallPacked(DiscoWorker* self, int64_t ret_reg_id, ffi::Function func,
+                         const ffi::PackedArgs& args) {
+    // NOTE: this action is not safe unless we know args is not
+    // used else where in this case it is oK
+    ffi::AnyView* args_vec = const_cast<ffi::AnyView*>(args.data());
+    // translate args into remote calling convention
+    for (int i = 0; i < args.size(); ++i) {
+      if (auto opt_dref = args_vec[i].as<DRef>()) {
+        DRef dref = opt_dref.value();
+        args_vec[i] = GetReg(self, dref->reg_id);
       }
     }
-    TVMRetValue rv;
-    func.CallPacked(TVMArgs(values, type_codes, num_args), &rv);
+    ffi::Any rv;
+    func.CallPacked(ffi::PackedArgs(args_vec, args.size()), &rv);
     GetReg(self, ret_reg_id) = std::move(rv);
   }
 
-  static TVMRetValue& GetReg(DiscoWorker* self, int64_t reg_id) {
+  static ffi::Any& GetReg(DiscoWorker* self, int64_t reg_id) {
     if (reg_id >= static_cast<int64_t>(self->register_file.size())) {
       self->register_file.resize(reg_id + 1);
     }

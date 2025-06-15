@@ -32,9 +32,9 @@
 #include <CL/cl.h>
 #include <CL/opencl.h>
 #include <stdlib.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/profiling.h>
-#include <tvm/runtime/registry.h>
 
 #include <fstream>
 #include <map>

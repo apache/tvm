@@ -37,7 +37,6 @@ def build_and_run(
     load_path="vm_library.so",
     clml_enable=False,
 ):
-
     tgt = tvm.target.Target(target, host="llvm -mtriple=aarch64-linux-gnu")
     pipeline = relax.pipeline.get_default_pipeline(tgt)
     mod = pipeline(mod)

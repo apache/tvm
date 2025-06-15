@@ -324,14 +324,14 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
   int compute_ver = GetCUDAComputeVersion(target);
   auto cg = std::make_unique<CodeGenNVPTX>();
 
-  cg->Init("TVMPTXModule", llvm_target.get(), NullOpt, false, false);
+  cg->Init("TVMPTXModule", llvm_target.get(), std::nullopt, false, false);
 
   cg->AddFunctionsOrdered(mod->functions.begin(), mod->functions.end());
 
   llvm::TargetMachine* tm = llvm_target->GetOrCreateTargetMachine();
-  const auto* flibdevice_path = tvm::runtime::Registry::Get("tvm_callback_libdevice_path");
-  if (flibdevice_path != nullptr) {
-    std::string path = (*flibdevice_path)(compute_ver);
+  const auto flibdevice_path = tvm::ffi::Function::GetGlobal("tvm_callback_libdevice_path");
+  if (flibdevice_path.has_value()) {
+    std::string path = (*flibdevice_path)(compute_ver).cast<std::string>();
     if (path.length() != 0) {
       std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(path);
       mlib->setTargetTriple(llvm_target->GetTargetTriple());
@@ -368,10 +368,10 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
   return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(mod), ll);
 }
 
-TVM_REGISTER_GLOBAL("target.build.nvptx").set_body_typed(BuildNVPTX);
+TVM_FFI_REGISTER_GLOBAL("target.build.nvptx").set_body_typed(BuildNVPTX);
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_nvptx")
-    .set_body([](const TVMArgs& targs, TVMRetValue* rv) {
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.target_nvptx")
+    .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
       *rv = static_cast<void*>(new CodeGenNVPTX());
     });
 

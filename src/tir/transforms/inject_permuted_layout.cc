@@ -102,12 +102,14 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return {row_idx, analyzer_->Simplify(new_col_idx_outer * 8 + col_idx_inner)};
   }
 
-  static bool CheckAnnotation(ObjectRef annotation) {
-    if (auto* node = annotation.as<StringObj>()) {
+  static bool CheckAnnotation(const Any& annotation) {
+    if (auto* node = annotation.as<ffi::StringObj>()) {
       // Support string annotation for backward compatibility
       return GetRef<String>(node) != "";
     } else if (auto* node = annotation.as<IntImmNode>()) {
       return node->value != 0;
+    } else if (auto opt_val = annotation.try_cast<int64_t>()) {
+      return *opt_val != 0;
     } else {
       LOG(FATAL) << "Invalid permuted layout annotation: " << annotation;
     }
@@ -213,7 +215,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return load;
   }
 
-  PrimExpr HandleAccessPtrAndOffset(PrimExpr access_ptr, Optional<PrimExpr> offset = NullOpt) {
+  PrimExpr HandleAccessPtrAndOffset(PrimExpr access_ptr, Optional<PrimExpr> offset = std::nullopt) {
     // The 2th arg of T.tvm_access_ptr call is offset, we set it to 0 and accumulate it to
     // smem_offset
     CHECK(access_ptr->IsInstance<CallNode>())
@@ -293,7 +295,7 @@ Pass InjectPermutedLayout() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectPermutedLayout", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InjectPermutedLayout").set_body_typed(InjectPermutedLayout);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectPermutedLayout").set_body_typed(InjectPermutedLayout);
 
 }  // namespace transform
 

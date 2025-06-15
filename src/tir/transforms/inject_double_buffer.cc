@@ -21,7 +21,7 @@
  * \brief Inject double buffering optimization for data fetch.
  * \file inject_double_buffer.cc
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -319,7 +319,7 @@ Pass InjectDoubleBuffer() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectDoubleBuffer", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InjectDoubleBuffer").set_body_typed(InjectDoubleBuffer);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectDoubleBuffer").set_body_typed(InjectDoubleBuffer);
 
 }  // namespace transform
 

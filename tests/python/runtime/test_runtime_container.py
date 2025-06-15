@@ -29,22 +29,18 @@ from tvm.runtime import container as _container
 def test_string():
     s = tvm.runtime.String("xyz")
 
-    assert isinstance(s, tvm.runtime.String)
     assert isinstance(s, str)
     assert s.startswith("xy")
     assert s + "1" == "xyz1"
     y = tvm.testing.echo(s)
-    assert isinstance(y, tvm.runtime.String)
-    assert s.__tvm_object__.same_as(y.__tvm_object__)
+    assert isinstance(y, str)
     assert s == y
 
     x = tvm.ir.load_json(tvm.ir.save_json(y))
-    assert isinstance(x, tvm.runtime.String)
     assert x == y
 
     # test pickle
     z = pickle.loads(pickle.dumps(s))
-    assert isinstance(z, tvm.runtime.String)
     assert s == z
 
 
@@ -54,8 +50,6 @@ def test_shape_tuple():
     len(stuple) == len(shape)
     for a, b in zip(stuple, shape):
         assert a == b
-    # ShapleTuple vs. list
-    assert stuple == list(shape)
     # ShapleTuple vs. tuple
     assert stuple == tuple(shape)
     # ShapleTuple vs. ShapeTuple
@@ -82,15 +76,6 @@ def test_int_argument():
     assert isinstance(func(True), int)
     assert isinstance(func(1), int)
     assert isinstance(func(0), int)
-
-
-def test_object_ref_argument():
-    func = tvm.get_global_func("testing.AcceptsObjectRef")
-
-    assert isinstance(func(True), bool)
-    assert isinstance(func(1), int)
-    assert isinstance(func(3.5), float)
-    assert func(3.5) == 3.5
 
 
 def test_object_ref_array_argument():

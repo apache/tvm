@@ -68,7 +68,7 @@ def _concat(bb: BlockBuilder, call: Call) -> Expr:
         t.fields if isinstance(t, Tuple) else [bb.emit(TupleGetItem(t, i)) for i in range(n_field)]
     )
     return bb.call_te(
-        topi.concatenate, fields, None if call.attrs.axis is None else call.attrs.axis.value
+        topi.concatenate, fields, None if call.attrs.axis is None else call.attrs.axis
     )
 
 
@@ -260,6 +260,20 @@ def _scatter_nd(bb: BlockBuilder, call: Call) -> Expr:
         call.args[1],
         call.args[2],
         call.attrs.reduction,
+    )
+
+
+@register_legalize("relax.slice_scatter")
+def _slice_scatter(bb: BlockBuilder, call: Call) -> Expr:
+
+    return bb.call_te(
+        topi.slice_scatter,
+        call.args[0],
+        call.args[1],
+        call.args[2],
+        call.args[3],
+        call.args[4],
+        call.attrs.axis,
     )
 
 

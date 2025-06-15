@@ -19,14 +19,14 @@
 #ifndef TVM_META_SCHEDULE_DATABASE_H_
 #define TVM_META_SCHEDULE_DATABASE_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/trace.h>
@@ -238,7 +238,7 @@ class DatabaseNode : public runtime::Object {
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The best record of the given workload; NullOpt if not found.
+   * \return The best record of the given workload; std::nullopt if not found.
    */
   virtual Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
                                                    const String& workload_name);
@@ -247,7 +247,7 @@ class DatabaseNode : public runtime::Object {
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The schedule in the best schedule of the given workload; NullOpt if not found.
+   * \return The schedule in the best schedule of the given workload; std::nullopt if not found.
    */
   virtual Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
                                                 const String& workload_name);
@@ -256,7 +256,7 @@ class DatabaseNode : public runtime::Object {
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The IRModule in the best IRModule of the given workload; NullOpt if not found.
+   * \return The IRModule in the best IRModule of the given workload; std::nullopt if not found.
    */
   virtual Optional<IRModule> QueryIRModule(const IRModule& mod, const Target& target,
                                            const String& workload_name);
@@ -301,62 +301,62 @@ class PyDatabaseNode : public DatabaseNode {
    * \param mod The IRModule to be searched for.
    * \return Whether the database has the given workload.
    */
-  using FHasWorkload = runtime::TypedPackedFunc<bool(const IRModule&)>;
+  using FHasWorkload = ffi::TypedFunction<bool(const IRModule&)>;
   /*!
    * \brief The function type of `CommitWorkload` method.
    * \param mod The IRModule to be searched for or added.
    * \return The workload corresponding to the given IRModule.
    */
-  using FCommitWorkload = runtime::TypedPackedFunc<Workload(const IRModule&)>;
+  using FCommitWorkload = ffi::TypedFunction<Workload(const IRModule&)>;
   /*!
    * \brief The function type of `CommitTuningRecord` method.
    * \param record The tuning record to be added.
    */
-  using FCommitTuningRecord = runtime::TypedPackedFunc<void(const TuningRecord&)>;
+  using FCommitTuningRecord = ffi::TypedFunction<void(const TuningRecord&)>;
   /*!
    * \brief The function type of `GetTopK` method.
    * \param workload The workload to be searched for.
    * \param top_k The number of top records to be returned.
    * \return An array of top K tuning records for the given workload.
    */
-  using FGetTopK = runtime::TypedPackedFunc<Array<TuningRecord>(const Workload&, int)>;
+  using FGetTopK = ffi::TypedFunction<Array<TuningRecord>(const Workload&, int)>;
   /*!
    * \brief The function type of `GetAllTuningRecords` method.
    * \return An Array of all the tuning records in the database.
    */
-  using FGetAllTuningRecords = runtime::TypedPackedFunc<Array<TuningRecord>()>;
+  using FGetAllTuningRecords = ffi::TypedFunction<Array<TuningRecord>()>;
   /*!
    * \brief The function type of `QueryTuningRecord` method.
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The best record of the given workload; NullOpt if not found.
+   * \return The best record of the given workload; std::nullopt if not found.
    */
-  using FQueryTuningRecord = runtime::TypedPackedFunc<Optional<TuningRecord>(
-      const IRModule&, const Target&, const String&)>;
+  using FQueryTuningRecord =
+      ffi::TypedFunction<Optional<TuningRecord>(const IRModule&, const Target&, const String&)>;
   /*!
    * \brief The function type of `QuerySchedule` method.
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The schedule in the best schedule of the given workload; NullOpt if not found.
+   * \return The schedule in the best schedule of the given workload; std::nullopt if not found.
    */
-  using FQuerySchedule = runtime::TypedPackedFunc<Optional<tir::Schedule>(
-      const IRModule&, const Target&, const String&)>;
+  using FQuerySchedule =
+      ffi::TypedFunction<Optional<tir::Schedule>(const IRModule&, const Target&, const String&)>;
   /*!
    * \brief The function type of `QueryIRModule` method.
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The IRModule in the best IRModule of the given workload; NullOpt if not found.
+   * \return The IRModule in the best IRModule of the given workload; std::nullopt if not found.
    */
   using FQueryIRModule =
-      runtime::TypedPackedFunc<Optional<IRModule>(const IRModule&, const Target&, const String&)>;
+      ffi::TypedFunction<Optional<IRModule>(const IRModule&, const Target&, const String&)>;
   /*!
    * \brief The function type of `Size` method.
    * \return The size of the database.
    */
-  using FSize = runtime::TypedPackedFunc<int64_t()>;
+  using FSize = ffi::TypedFunction<int64_t()>;
 
   /*! \brief The packed function to the `HasWorkload` function. */
   FHasWorkload f_has_workload;
@@ -378,7 +378,7 @@ class PyDatabaseNode : public DatabaseNode {
   FSize f_size;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
-    // PackedFuncs are all not visited, because the reflection system doesn't take care of them,
+    // ffi::Functions are all not visited, because the reflection system doesn't take care of them,
     // so it cannot be accessible on the python side. If there is such need from the future,
     // we can then add corresponding accessor methods to help access on python.
     // `f_has_workload` is not visited
@@ -472,8 +472,8 @@ class Database : public runtime::ObjectRef {
    * and returns a boolean indicating if the schedule is successful.
    * \param mod_eq_name A string to specify the module equality testing and hashing method.
    */
-  TVM_DLL static Database ScheduleFnDatabase(
-      runtime::TypedPackedFunc<bool(tir::Schedule)> schedule_fn, String mod_eq_name = "structural");
+  TVM_DLL static Database ScheduleFnDatabase(ffi::TypedFunction<bool(tir::Schedule)> schedule_fn,
+                                             String mod_eq_name = "structural");
   /*!
    * \brief Create a default database that uses JSON file for tuning records.
    * \param path_workload The path to the workload table.

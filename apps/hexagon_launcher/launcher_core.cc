@@ -19,9 +19,8 @@
 
 #include "launcher_core.h"
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <fstream>
 #include <ios>
@@ -37,7 +36,7 @@ const std::string TensorConfig::dtype_key = "dtype";  // NOLINT(runtime/string)
 
 std::string tensor_meta::to_string() const {
   std::stringstream out;
-  out << "ndim=" << ndim << ", dtype=" << tvm::runtime::DLDataType2String(dtype) << ", shape=";
+  out << "ndim=" << ndim << ", dtype=" << tvm::runtime::DLDataTypeToString(dtype) << ", shape=";
   for (int i = 0; i != ndim; ++i) {
     out << shape[i];
     if (i + 1 < ndim) {
@@ -137,27 +136,25 @@ Model::Model(tvm::runtime::Module executor, tvm::runtime::Module module, std::st
   run = get_module_func(model_executor, "run");
 }
 
-const tvm::runtime::PackedFunc get_runtime_func(const std::string& name) {
-  if (const tvm::runtime::PackedFunc* pf = tvm::runtime::Registry::Get(name)) {
+const tvm::ffi::Function get_runtime_func(const std::string& name) {
+  if (auto pf = tvm::ffi::Function::GetGlobal(name)) {
     return *pf;
   }
-  return tvm::runtime::PackedFunc();
+  return tvm::ffi::Function();
 }
 
-const tvm::runtime::PackedFunc get_module_func(tvm::runtime::Module module,
-                                               const std::string& name) {
+const tvm::ffi::Function get_module_func(tvm::runtime::Module module, const std::string& name) {
   return module.GetFunction(name, false);
 }
 
 void reset_device_api() {
-  const tvm::runtime::PackedFunc api = get_runtime_func("device_api.hexagon");
-  tvm::runtime::Registry::Register("device_api.cpu", true).set_body(api);
+  const tvm::ffi::Function api = get_runtime_func("device_api.hexagon");
+  tvm::ffi::Function::SetGlobal("device_api.cpu", api, true);
 }
 
 tvm::runtime::Module load_module(const std::string& file_name) {
-  static const tvm::runtime::PackedFunc loader =
-      get_runtime_func("runtime.module.loadfile_hexagon");
-  tvm::runtime::TVMRetValue rv = loader(file_name);
+  static const tvm::ffi::Function loader = get_runtime_func("runtime.module.loadfile_hexagon");
+  tvm::ffi::Any rv = loader(file_name);
   if (rv.type_code() == kTVMModuleHandle) {
     ICHECK_EQ(rv.type_code(), kTVMModuleHandle)
         << __func__ << ": loaded " << file_name << ", but did not get module handle";
@@ -180,7 +177,7 @@ tvm::runtime::Module create_graph_executor(const std::string& graph_json,
                                            tvm::runtime::Module graph_module, tvm::Device device) {
   std::string launcher_name = "tvm.graph_executor.create";
 
-  const tvm::runtime::PackedFunc create_executor = get_runtime_func(launcher_name);
+  const tvm::ffi::Function create_executor = get_runtime_func(launcher_name);
   uint64_t device_type = device.device_type;
   uint64_t device_id = device.device_id;
 
@@ -188,18 +185,18 @@ tvm::runtime::Module create_graph_executor(const std::string& graph_json,
     LOG(ERROR) << __func__ << ": graph executor requires graph JSON";
     return tvm::runtime::Module();
   }
-  tvm::runtime::TVMRetValue rv = create_executor(graph_json, graph_module, device_type, device_id);
+  tvm::ffi::Any rv = create_executor(graph_json, graph_module, device_type, device_id);
   return rv.operator tvm::runtime::Module();
 }
 
 tvm::runtime::Module create_aot_executor(tvm::runtime::Module factory_module, tvm::Device device) {
-  tvm::runtime::PackedFunc list_modules = get_module_func(factory_module, "list_module_names");
+  tvm::ffi::Function list_modules = get_module_func(factory_module, "list_module_names");
   tvm::Array<tvm::String> module_names = list_modules();
   if (module_names.size() != 1) {
     LOG(WARNING) << __func__ << ": expecting single module, got: " << module_names << ", using "
                  << module_names[0];
   }
-  tvm::runtime::PackedFunc f = get_module_func(factory_module, module_names[0]);
+  tvm::ffi::Function f = get_module_func(factory_module, module_names[0]);
   if (f.get() == nullptr) {
     LOG(ERROR) << __func__ << ": failed to obtain function " << module_names[0];
     return tvm::runtime::Module();

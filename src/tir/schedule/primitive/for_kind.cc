@@ -171,23 +171,22 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
   ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop);
   new_loop->kind = for_kind;
   if (thread_axis.defined()) {
-    const String& thread_tag = thread_axis.value();
     new_loop->thread_binding = IterVar(/*dom=*/Range(nullptr),                                    //
                                        /*var=*/Var(thread_axis.value(), loop->loop_var.dtype()),  //
                                        /*iter_type=*/kThreadIndex,                                //
                                        /*thread_tag=*/thread_axis.value());
   } else {
-    new_loop->thread_binding = NullOpt;
+    new_loop->thread_binding = std::nullopt;
   }
   self->Replace(loop_sref, For(new_loop), {});
 }
 
 void Parallel(ScheduleState self, const StmtSRef& loop_sref) {
-  ParallelizeComputation(self, loop_sref, ForKind::kParallel, NullOpt);
+  ParallelizeComputation(self, loop_sref, ForKind::kParallel, std::nullopt);
 }
 
 void Vectorize(ScheduleState self, const StmtSRef& loop_sref) {
-  ParallelizeComputation(self, loop_sref, ForKind::kVectorized, NullOpt);
+  ParallelizeComputation(self, loop_sref, ForKind::kVectorized, std::nullopt);
 }
 
 void Bind(ScheduleState self, const StmtSRef& loop_sref, const String& thread_axis) {
@@ -198,7 +197,7 @@ void Unroll(ScheduleState self, const StmtSRef& loop_sref) {
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
   ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop);
   new_loop->kind = ForKind::kUnrolled;
-  new_loop->thread_binding = NullOpt;
+  new_loop->thread_binding = std::nullopt;
   self->Replace(loop_sref, For(new_loop), {});
 }
 

@@ -87,7 +87,7 @@ import tvm
 import tvm.arith
 import tvm.tir
 import tvm.te
-import tvm._ffi
+import tvm.ffi
 
 from tvm.target import codegen
 from tvm.contrib import nvcc, cudnn, rocm

@@ -20,9 +20,9 @@
 /*!
  * \file Use external cblas library call.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 extern "C" {
 #include <dnnl.h>
@@ -46,10 +46,11 @@ struct DNNLSgemmOp {
 };
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.dnnl.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* A = args[0];
-  ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
-  CallGemm(args, ret, DNNLSgemmOp());
-});
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.dnnl.matmul")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      auto A = args[0].cast<DLTensor*>();
+      ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
+      CallGemm(args, ret, DNNLSgemmOp());
+    });
 }  // namespace contrib
 }  // namespace tvm

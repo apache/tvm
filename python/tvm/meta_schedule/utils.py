@@ -22,7 +22,7 @@ from typing import Any, Callable, List, Optional, Union
 
 import numpy as np  # type: ignore
 import psutil  # type: ignore
-from tvm._ffi import get_global_func, register_func
+from tvm.ffi import get_global_func, register_func
 from tvm.error import TVMError
 from tvm.ir import Array, IRModule, Map
 from tvm.rpc import RPCSession
@@ -113,7 +113,6 @@ def derived_object(cls: type) -> type:
 
         def __init__(self, *args, **kwargs):
             """Constructor."""
-            self.handle = None
             self._inst = cls(*args, **kwargs)
 
             super().__init__(
@@ -383,7 +382,7 @@ def _get_default_str(obj: Any) -> str:
     return (
         # pylint: disable=protected-access
         f"meta_schedule.{obj.__class__.__name__}"
-        + f"({_to_hex_address(obj._outer().handle)})"  # type: ignore
+        + f"({_to_hex_address(obj._outer().__ctypes_handle__())})"  # type: ignore
         # pylint: enable=protected-access
     )
 

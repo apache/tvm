@@ -85,7 +85,7 @@ class HipblasJSONSerializer : public JSONSerializer {
   Map<Var, Expr> bindings_;
 };
 
-Array<runtime::Module> HipblasCompiler(Array<Function> functions, Map<String, ObjectRef> /*unused*/,
+Array<runtime::Module> HipblasCompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
                                        Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
 
@@ -94,16 +94,15 @@ Array<runtime::Module> HipblasCompiler(Array<Function> functions, Map<String, Ob
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto* pf = runtime::Registry::Get("runtime.HipblasJSONRuntimeCreate");
-    ICHECK(pf != nullptr) << "Cannot find HIPBLAS runtime module create function.";
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.HipblasJSONRuntimeCreate");
     auto func_name = GetExtSymbol(func);
-    compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<runtime::Module>());
   }
 
   return compiled_functions;
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.hipblas").set_body_typed(HipblasCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.hipblas").set_body_typed(HipblasCompiler);
 
 }  // namespace contrib
 }  // namespace relax

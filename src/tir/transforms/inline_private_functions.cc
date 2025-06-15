@@ -21,7 +21,7 @@
  * \file inline_private_functions.cc
  * \brief Inline private functions to their callsite
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
@@ -155,7 +155,7 @@ class PrimFuncInliner : StmtExprMutator {
   PrimFunc VisitFunc(PrimFunc func) {
     current_target_ = func->GetAttr<Target>(tvm::attr::kTarget);
     auto new_body = VisitStmt(func->body);
-    current_target_ = NullOpt;
+    current_target_ = std::nullopt;
 
     if (!new_body.same_as(func->body)) {
       func.CopyOnWrite()->body = new_body;
@@ -177,13 +177,13 @@ class PrimFuncInliner : StmtExprMutator {
 
   Optional<Stmt> GetInlinedFunction(const EvaluateNode* eval) {
     auto call = eval->value.as<CallNode>();
-    if (!call) return NullOpt;
+    if (!call) return std::nullopt;
 
     auto gvar = call->op.as<GlobalVar>();
-    if (!gvar) return NullOpt;
+    if (!gvar) return std::nullopt;
 
     auto opt_callee = inlinable_funcs_.Get(gvar.value());
-    if (!opt_callee) return NullOpt;
+    if (!opt_callee) return std::nullopt;
     auto callee = opt_callee.value();
 
     bool is_same_target = [&]() -> bool {
@@ -194,7 +194,7 @@ class PrimFuncInliner : StmtExprMutator {
         return true;
       }
     }();
-    if (!is_same_target) return NullOpt;
+    if (!is_same_target) return std::nullopt;
 
     Stmt inlined = InlineArguments(gvar.value(), callee, call->args);
     return VisitStmt(inlined);
@@ -252,7 +252,7 @@ class PrimFuncInliner : StmtExprMutator {
    */
   PSet<GlobalVar> removable_funcs_;
 
-  Optional<Target> current_target_ = NullOpt;
+  Optional<Target> current_target_ = std::nullopt;
 };
 
 }  // namespace
@@ -292,7 +292,8 @@ Pass InlinePrivateFunctions() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.InlinePrivateFunctions", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InlinePrivateFunctions").set_body_typed(InlinePrivateFunctions);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.InlinePrivateFunctions")
+    .set_body_typed(InlinePrivateFunctions);
 
 }  // namespace transform
 

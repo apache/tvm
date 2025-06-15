@@ -32,7 +32,7 @@ namespace relax {
 
 /*! \brief Attributes used in concat operators */
 struct ConcatAttrs : public tvm::AttrsNode<ConcatAttrs> {
-  Optional<Integer> axis;
+  Optional<int64_t> axis;
 
   TVM_DECLARE_ATTRS(ConcatAttrs, "relax.attrs.ConcatAttrs") {
     TVM_ATTR_FIELD(axis).describe(
@@ -135,7 +135,7 @@ struct StackAttrs : public tvm::AttrsNode<StackAttrs> {
 /*! \brief Attributes used in repeat operators */
 struct RepeatAttrs : public tvm::AttrsNode<RepeatAttrs> {
   int repeats;
-  Optional<Integer> axis;
+  Optional<int64_t> axis;
 
   TVM_DECLARE_ATTRS(RepeatAttrs, "relax.attrs.RepeatAttrs") {
     TVM_ATTR_FIELD(repeats).describe("The number of repetitions.");
@@ -228,6 +228,15 @@ struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
         "either \"update\", \"add\", \"mul\", \"min\" or \"max\".");
   }
 };  // struct ScatterNDAttrs
+
+/*! \brief Attributes used in slice_scatter operator */
+struct SliceScatterAttrs : public tvm::AttrsNode<SliceScatterAttrs> {
+  int axis;
+
+  TVM_DECLARE_ATTRS(SliceScatterAttrs, "relax.attrs.SliceScatterAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(0).describe("the dimension to insert the slice into ");
+  }
+};  // struct SliceScatterAttrs
 
 /*! \brief Attributes used in one_hot operator */
 struct OneHotAttrs : public tvm::AttrsNode<OneHotAttrs> {

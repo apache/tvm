@@ -24,8 +24,9 @@
 #include "library_module.h"
 
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/any.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/registry.h>
 
 #include <string>
 #include <utility>
@@ -37,7 +38,7 @@ namespace runtime {
 // Library module that exposes symbols from a library.
 class LibraryModuleNode final : public ModuleNode {
  public:
-  explicit LibraryModuleNode(ObjectPtr<Library> lib, PackedFuncWrapper wrapper)
+  explicit LibraryModuleNode(ObjectPtr<Library> lib, FFIFunctionWrapper wrapper)
       : lib_(lib), packed_func_wrapper_(wrapper) {}
 
   const char* type_key() const final { return "library"; }
@@ -47,43 +48,31 @@ class LibraryModuleNode final : public ModuleNode {
     return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
   };
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
-    TVMBackendPackedCFunc faddr;
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+    TVMFFISafeCallType faddr;
     if (name == runtime::symbol::tvm_module_main) {
       const char* entry_name =
           reinterpret_cast<const char*>(lib_->GetSymbol(runtime::symbol::tvm_module_main));
       ICHECK(entry_name != nullptr)
           << "Symbol " << runtime::symbol::tvm_module_main << " is not presented";
-      faddr = reinterpret_cast<TVMBackendPackedCFunc>(lib_->GetSymbol(entry_name));
+      faddr = reinterpret_cast<TVMFFISafeCallType>(lib_->GetSymbol(entry_name));
     } else {
-      faddr = reinterpret_cast<TVMBackendPackedCFunc>(lib_->GetSymbol(name.c_str()));
+      faddr = reinterpret_cast<TVMFFISafeCallType>(lib_->GetSymbol(name.c_str()));
     }
-    if (faddr == nullptr) return PackedFunc();
+    if (faddr == nullptr) return ffi::Function();
     return packed_func_wrapper_(faddr, sptr_to_self);
   }
 
  private:
   ObjectPtr<Library> lib_;
-  PackedFuncWrapper packed_func_wrapper_;
+  FFIFunctionWrapper packed_func_wrapper_;
 };
 
-PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& sptr_to_self) {
-  return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-    TVMValue ret_value;
-    int ret_type_code = kTVMNullptr;
-    auto arg_values = const_cast<TVMValue*>(args.values);
-    auto arg_type_codes = const_cast<int*>(args.type_codes);
-    int ret =
-        (*faddr)(arg_values, arg_type_codes, args.num_args, &ret_value, &ret_type_code, nullptr);
-    // NOTE: It is important to keep the original error message.
-    // Using the `TVMThrowLastError()` function will also preserve the
-    // full stack trace for debugging in pdb.
-    if (ret != 0) {
-      TVMThrowLastError();
-    }
-    if (ret_type_code != kTVMNullptr) {
-      *rv = TVMRetValue::MoveFromCHost(ret_value, ret_type_code);
-    }
+ffi::Function WrapFFIFunction(TVMFFISafeCallType faddr, const ObjectPtr<Object>& sptr_to_self) {
+  return ffi::Function::FromPacked([faddr, sptr_to_self](ffi::PackedArgs args, ffi::Any* rv) {
+    ICHECK_LT(rv->type_index(), ffi::TypeIndex::kTVMFFIStaticObjectBegin);
+    TVM_FFI_CHECK_SAFE_CALL((*faddr)(nullptr, reinterpret_cast<const TVMFFIAny*>(args.data()),
+                                     args.size(), reinterpret_cast<TVMFFIAny*>(rv)));
   });
 }
 
@@ -93,8 +82,8 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol) {
     *fp = FuncName;                                                                    \
   }
   // Initialize the functions
-  TVM_INIT_CONTEXT_FUNC(TVMFuncCall);
-  TVM_INIT_CONTEXT_FUNC(TVMAPISetLastError);
+  TVM_INIT_CONTEXT_FUNC(TVMFFIFunctionCall);
+  TVM_INIT_CONTEXT_FUNC(TVMFFIErrorSetRaisedByCStr);
   TVM_INIT_CONTEXT_FUNC(TVMBackendGetFuncFromEnv);
   TVM_INIT_CONTEXT_FUNC(TVMBackendAllocWorkspace);
   TVM_INIT_CONTEXT_FUNC(TVMBackendFreeWorkspace);
@@ -107,24 +96,14 @@ void InitContextFunctions(std::function<void*(const char*)> fgetsymbol) {
 Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream) {
   std::string loadkey = "runtime.module.loadbinary_";
   std::string fkey = loadkey + type_key;
-  const PackedFunc* f = Registry::Get(fkey);
-  if (f == nullptr) {
-    std::string loaders = "";
-    for (auto reg_name : Registry::ListNames()) {
-      std::string name = reg_name;
-      if (name.find(loadkey, 0) == 0) {
-        if (loaders.size() > 0) {
-          loaders += ", ";
-        }
-        loaders += name.substr(loadkey.size());
-      }
-    }
+  const auto f = tvm::ffi::Function::GetGlobal(fkey);
+  if (!f.has_value()) {
     LOG(FATAL) << "Binary was created using {" << type_key
-               << "} but a loader of that name is not registered. Available loaders are " << loaders
-               << ". Perhaps you need to recompile with this runtime enabled.";
+               << "} but a loader of that name is not registered."
+               << "Perhaps you need to recompile with this runtime enabled.";
   }
 
-  return (*f)(static_cast<void*>(stream));
+  return (*f)(static_cast<void*>(stream)).cast<Module>();
 }
 
 /*!
@@ -134,8 +113,8 @@ Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream) {
  * \param root_module the output root module
  * \param dso_ctx_addr the output dso module
  */
-void ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib,
-                       PackedFuncWrapper packed_func_wrapper, runtime::Module* root_module,
+void ProcessLibraryBin(const char* mblob, ObjectPtr<Library> lib,
+                       FFIFunctionWrapper packed_func_wrapper, runtime::Module* root_module,
                        runtime::ModuleNode** dso_ctx_addr = nullptr) {
   ICHECK(mblob != nullptr);
   uint64_t nbytes = 0;
@@ -201,17 +180,17 @@ void ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib,
   }
 }
 
-Module CreateModuleFromLibrary(ObjectPtr<Library> lib, PackedFuncWrapper packed_func_wrapper) {
+Module CreateModuleFromLibrary(ObjectPtr<Library> lib, FFIFunctionWrapper packed_func_wrapper) {
   InitContextFunctions([lib](const char* fname) { return lib->GetSymbol(fname); });
   auto n = make_object<LibraryModuleNode>(lib, packed_func_wrapper);
   // Load the imported modules
-  const char* dev_mblob =
-      reinterpret_cast<const char*>(lib->GetSymbol(runtime::symbol::tvm_dev_mblob));
+  const char* library_bin =
+      reinterpret_cast<const char*>(lib->GetSymbol(runtime::symbol::tvm_ffi_library_bin));
 
   Module root_mod;
   runtime::ModuleNode* dso_ctx_addr = nullptr;
-  if (dev_mblob != nullptr) {
-    ProcessModuleBlob(dev_mblob, lib, packed_func_wrapper, &root_mod, &dso_ctx_addr);
+  if (library_bin != nullptr) {
+    ProcessLibraryBin(library_bin, lib, packed_func_wrapper, &root_mod, &dso_ctx_addr);
   } else {
     // Only have one single DSO Module
     root_mod = Module(n);
@@ -219,7 +198,8 @@ Module CreateModuleFromLibrary(ObjectPtr<Library> lib, PackedFuncWrapper packed_
   }
 
   // allow lookup of symbol from root (so all symbols are visible).
-  if (auto* ctx_addr = reinterpret_cast<void**>(lib->GetSymbol(runtime::symbol::tvm_module_ctx))) {
+  if (auto* ctx_addr =
+          reinterpret_cast<void**>(lib->GetSymbol(runtime::symbol::tvm_ffi_library_ctx))) {
     *ctx_addr = dso_ctx_addr;
   }
 

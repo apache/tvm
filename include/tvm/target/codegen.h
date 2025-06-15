@@ -25,7 +25,7 @@
 #define TVM_TARGET_CODEGEN_H_
 
 #include <tvm/ir/module.h>
-#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/module.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 
@@ -35,9 +35,9 @@ namespace tvm {
 /*! \brief namespace for target translation and codegen. */
 namespace codegen {
 // use packed function from runtime.
-using runtime::PackedFunc;
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
+using ffi::Any;
+using ffi::Function;
+using ffi::PackedArgs;
 
 /*!
  * \brief Build a module from array of lowered function.

@@ -20,9 +20,9 @@ import re
 import warnings
 from typing import Union
 
-import tvm._ffi
-from tvm._ffi import register_func as _register_func
-from tvm._ffi.runtime_ctypes import Device
+import tvm.ffi
+from tvm.ffi import register_func as _register_func
+from tvm.runtime import Device
 from tvm.runtime import Object, convert
 from tvm.runtime.container import String
 from tvm.ir.container import Map, Array
@@ -30,7 +30,7 @@ from tvm.ir.container import Map, Array
 from . import _ffi_api
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object
 class TargetKind(Object):
     """Kind of a compilation target"""
 
@@ -53,7 +53,7 @@ class TargetFeatures:
         return _ffi_api.TargetGetFeature(self.target, name)
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object
 class Target(Object):
     """Target device information, use through TVM API.
 
@@ -128,10 +128,10 @@ class Target(Object):
             target = convert(target)
         if isinstance(host, (dict, str)):
             host = convert(host)
-        if target is None or not isinstance(target, (Map, String, Target)):
-            raise ValueError("target has to be a string or dictionary.")
+        if target is None or not isinstance(target, (Map, String, Target, str)):
+            raise ValueError(f"target has to be a string or dictionary. instead get {type(target)}")
         if host is not None:
-            if not isinstance(host, (Map, String, Target)):
+            if not isinstance(host, (Map, String, Target, str)):
                 raise ValueError("target host has to be a string or dictionary.")
             self.__init_handle_by_constructor__(_ffi_api.Target, Target(target), Target(host))
         else:

@@ -16,6 +16,6 @@
 # under the License.
 """tvm.contrib.msc.framework.tensorflow._ffi_api"""
 
-import tvm._ffi
+import tvm.ffi
 
-tvm._ffi._init_api("msc.framework.tensorflow", __name__)
+tvm.ffi._init_api("msc.framework.tensorflow", __name__)

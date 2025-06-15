@@ -71,8 +71,6 @@ public class ModuleTest {
     }
 
     Module fadd = Module.load(loadingDir + File.separator + "add_cuda.so");
-    Module faddDev = Module.load(loadingDir + File.separator + "add_cuda.ptx");
-    fadd.importModule(faddDev);
 
     final int dim = 100;
     long[] shape = new long[]{dim};
@@ -93,7 +91,6 @@ public class ModuleTest {
 
     arr.release();
     res.release();
-    faddDev.release();
     fadd.release();
   }
 }

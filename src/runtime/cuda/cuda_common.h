@@ -25,7 +25,7 @@
 #define TVM_RUNTIME_CUDA_CUDA_COMMON_H_
 
 #include <cuda_runtime.h>
-#include <tvm/runtime/packed_func.h>
+#include <tvm/ffi/function.h>
 
 #include <string>
 

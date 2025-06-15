@@ -99,7 +99,7 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
     } else {
       rhs = rhs->Call({dom});
     }
-    (*frame)->stmts.push_back(AssignDoc(DefineVar(iter_var->var, *frame, d), rhs, NullOpt));
+    (*frame)->stmts.push_back(AssignDoc(DefineVar(iter_var->var, *frame, d), rhs, std::nullopt));
   };
 
   auto print_remapped_iter_var = [&]() {
@@ -129,10 +129,10 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
         binding_type += iter_var->iter_type == tir::IterVarType::kDataPar ? "S" : "R";
       }
       ExprDoc rhs = TIR(d, "axis")->Attr("remap");
-      ExprDoc binding_str = LiteralDoc::Str(binding_type, NullOpt);
+      ExprDoc binding_str = LiteralDoc::Str(binding_type, std::nullopt);
       binding_str->source_paths = std::move(binding_paths);
       rhs = rhs->Call({binding_str, ListDoc(loop_var_doc)});
-      (*frame)->stmts.push_back(AssignDoc(TupleDoc(lhs), rhs, NullOpt));
+      (*frame)->stmts.push_back(AssignDoc(TupleDoc(lhs), rhs, std::nullopt));
       remap_vars_indices.clear();
     }
   };
@@ -182,7 +182,7 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
     IdDoc lhs = DefineBuffer(buffer, *frame, d);
     ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *frame, d,
                              BufferVarDefinition::DataPointer);
-    (*frame)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+    (*frame)->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
   }
   // Step 6. Handle `match_buffer`
   for (int i = 0, n = block->match_buffers.size(); i < n; ++i) {
@@ -196,7 +196,8 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
     tir::Stmt init = block->init.value();
     With<TIRFrame> init_frame(d, init);
     AsDocBody(init, block_p->Attr("init"), init_frame->get(), d);
-    (*frame)->stmts.push_back(ScopeDoc(NullOpt, TIR(d, "init")->Call({}), (*init_frame)->stmts));
+    (*frame)->stmts.push_back(
+        ScopeDoc(std::nullopt, TIR(d, "init")->Call({}), (*init_frame)->stmts));
   }
   // Step 8. Handle block body
   AsDocBody(block->body, block_p->Attr("body"), frame->get(), d);
@@ -204,9 +205,9 @@ Doc PrintBlock(IRDocsifier d, tir::Block block, ObjectPath block_p,  //
   Array<ExprDoc> kwargs_values;
   if (!realize) {
     kwargs_keys.push_back("no_realize");
-    kwargs_values.push_back(LiteralDoc::Boolean(true, NullOpt));
+    kwargs_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
   }
-  return ScopeDoc(NullOpt,
+  return ScopeDoc(std::nullopt,
                   TIR(d, "block")  //
                       ->Call({LiteralDoc::Str(block->name_hint, block_p->Attr("name_hint"))},
                              kwargs_keys, kwargs_values),
@@ -225,7 +226,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Block>("", [](tir::Block block, ObjectPath p, IRDocsifier d) -> Doc {
-      return PrintBlock(d, block, p, NullOpt, NullOpt);
+      return PrintBlock(d, block, p, std::nullopt, std::nullopt);
     });
 
 TVM_SCRIPT_REPR(tir::BlockNode, ReprPrintTIR);

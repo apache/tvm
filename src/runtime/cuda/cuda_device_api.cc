@@ -24,9 +24,9 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/profiling.h>
-#include <tvm/runtime/registry.h>
 
 #include <cstring>
 
@@ -38,7 +38,7 @@ namespace runtime {
 class CUDADeviceAPI final : public DeviceAPI {
  public:
   void SetDevice(Device dev) final { CUDA_CALL(cudaSetDevice(dev.device_id)); }
-  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final {
+  void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final {
     int value = 0;
     switch (kind) {
       case kExist: {
@@ -286,15 +286,16 @@ CUDAThreadEntry::CUDAThreadEntry() : pool(kDLCUDA, CUDADeviceAPI::Global()) {}
 
 CUDAThreadEntry* CUDAThreadEntry::ThreadLocal() { return CUDAThreadStore::Get(); }
 
-TVM_REGISTER_GLOBAL("device_api.cuda").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_FFI_REGISTER_GLOBAL("device_api.cuda").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   DeviceAPI* ptr = CUDADeviceAPI::Global();
   *rv = static_cast<void*>(ptr);
 });
 
-TVM_REGISTER_GLOBAL("device_api.cuda_host").set_body([](TVMArgs args, TVMRetValue* rv) {
-  DeviceAPI* ptr = CUDADeviceAPI::Global();
-  *rv = static_cast<void*>(ptr);
-});
+TVM_FFI_REGISTER_GLOBAL("device_api.cuda_host")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      DeviceAPI* ptr = CUDADeviceAPI::Global();
+      *rv = static_cast<void*>(ptr);
+    });
 
 class CUDATimerNode : public TimerNode {
  public:
@@ -329,7 +330,7 @@ class CUDATimerNode : public TimerNode {
 
 TVM_REGISTER_OBJECT_TYPE(CUDATimerNode);
 
-TVM_REGISTER_GLOBAL("profiling.timer.cuda").set_body_typed([](Device dev) {
+TVM_FFI_REGISTER_GLOBAL("profiling.timer.cuda").set_body_typed([](Device dev) {
   return Timer(make_object<CUDATimerNode>());
 });
 
@@ -342,9 +343,9 @@ TVM_DLL String GetCudaFreeMemory() {
   return ss.str();
 }
 
-TVM_REGISTER_GLOBAL("runtime.GetCudaFreeMemory").set_body_typed(GetCudaFreeMemory);
+TVM_FFI_REGISTER_GLOBAL("runtime.GetCudaFreeMemory").set_body_typed(GetCudaFreeMemory);
 
-TVM_REGISTER_GLOBAL("runtime.get_cuda_stream").set_body_typed([]() {
+TVM_FFI_REGISTER_GLOBAL("runtime.get_cuda_stream").set_body_typed([]() {
   return static_cast<void*>(CUDAThreadEntry::ThreadLocal()->stream);
 });
 
@@ -354,7 +355,7 @@ TVM_DLL int GetCudaDeviceCount() {
   return count;
 }
 
-TVM_REGISTER_GLOBAL("runtime.GetCudaDeviceCount").set_body_typed(GetCudaDeviceCount);
+TVM_FFI_REGISTER_GLOBAL("runtime.GetCudaDeviceCount").set_body_typed(GetCudaDeviceCount);
 
 }  // namespace runtime
 }  // namespace tvm

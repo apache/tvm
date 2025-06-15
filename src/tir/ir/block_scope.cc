@@ -190,20 +190,21 @@ TVM_REGISTER_NODE_TYPE(StmtSRefNode);
 TVM_REGISTER_NODE_TYPE(DependencyNode);
 TVM_REGISTER_NODE_TYPE(BlockScopeNode);
 
-TVM_REGISTER_GLOBAL("tir.StmtSRefStmt").set_body_typed([](StmtSRef sref) -> Optional<Stmt> {
+TVM_FFI_REGISTER_GLOBAL("tir.StmtSRefStmt").set_body_typed([](StmtSRef sref) -> Optional<Stmt> {
   return GetRef<Optional<Stmt>>(sref->stmt);
 });
-TVM_REGISTER_GLOBAL("tir.StmtSRefParent").set_body_typed([](StmtSRef sref) -> Optional<StmtSRef> {
-  return GetRef<Optional<StmtSRef>>(sref->parent);
-});
-TVM_REGISTER_GLOBAL("tir.StmtSRefRootMark")  //
+TVM_FFI_REGISTER_GLOBAL("tir.StmtSRefParent")
+    .set_body_typed([](StmtSRef sref) -> Optional<StmtSRef> {
+      return GetRef<Optional<StmtSRef>>(sref->parent);
+    });
+TVM_FFI_REGISTER_GLOBAL("tir.StmtSRefRootMark")  //
     .set_body_typed(StmtSRef::RootMark);
-TVM_REGISTER_GLOBAL("tir.StmtSRefInlineMark")  //
+TVM_FFI_REGISTER_GLOBAL("tir.StmtSRefInlineMark")  //
     .set_body_typed(StmtSRef::InlineMark);
-TVM_REGISTER_GLOBAL("tir.BlockScopeGetDepsBySrc")
-    .set_body_method<BlockScope>(&BlockScopeNode::GetDepsBySrc);
-TVM_REGISTER_GLOBAL("tir.BlockScopeGetDepsByDst")
-    .set_body_method<BlockScope>(&BlockScopeNode::GetDepsByDst);
+TVM_FFI_REGISTER_GLOBAL("tir.BlockScopeGetDepsBySrc")
+    .set_body_method(&BlockScopeNode::GetDepsBySrc);
+TVM_FFI_REGISTER_GLOBAL("tir.BlockScopeGetDepsByDst")
+    .set_body_method(&BlockScopeNode::GetDepsByDst);
 
 }  // namespace tir
 }  // namespace tvm

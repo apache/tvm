@@ -21,7 +21,7 @@ from typing import Optional, Callable
 
 import tvm
 from tvm import relax
-from tvm._ffi.registry import register_func
+from tvm.ffi.registry import register_func
 from tvm.relax.block_builder import BlockBuilder
 
 from ..expr import Function, Var, Call

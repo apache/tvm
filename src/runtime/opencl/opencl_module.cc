@@ -23,7 +23,7 @@
 #include "opencl_module.h"
 
 #include <dmlc/memory_io.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <string>
 #include <unordered_map>
@@ -50,7 +50,7 @@ class OpenCLWrappedFunc {
     launch_param_config_.Init(arg_size.size(), launch_param_tags);
   }
   // invoke the function with void arguments
-  void operator()(TVMArgs args, TVMRetValue* rv, void** void_args) const {
+  void operator()(ffi::PackedArgs args, ffi::Any* rv, void** void_args) const {
     ICHECK(w_->devices.size() > 0) << "No OpenCL device";
     cl::OpenCLThreadEntry* t = w_->GetThreadEntry();
     // get the kernel from thread local kernel table.
@@ -65,7 +65,7 @@ class OpenCLWrappedFunc {
     // setup arguments.
     for (cl_uint i = 0; i < arg_size_.size(); ++i) {
       void* arg = nullptr;
-      if (args.type_codes[i] == DLDataTypeCode::kDLOpaqueHandle) {
+      if (args[i].as<void*>()) {
         arg = static_cast<cl::BufferDescriptor*>(void_args[i])->buffer;
       } else {
         arg = void_args[i];
@@ -134,19 +134,19 @@ cl::OpenCLWorkspace* OpenCLModuleNodeBase::GetGlobalWorkspace() {
   return cl::OpenCLWorkspace::Global();
 }
 
-PackedFunc OpenCLModuleNodeBase::GetFunction(const String& name,
-                                             const ObjectPtr<Object>& sptr_to_self) {
+ffi::Function OpenCLModuleNodeBase::GetFunction(const String& name,
+                                                const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
-  if (it == fmap_.end()) return PackedFunc();
+  if (it == fmap_.end()) return ffi::Function();
   const FunctionInfo& info = it->second;
   OpenCLWrappedFunc f;
   std::vector<size_t> arg_size(info.arg_types.size());
   for (size_t i = 0; i < info.arg_types.size(); ++i) {
     DLDataType t = info.arg_types[i];
     ICHECK_EQ(t.lanes, 1U);
-    if (t.code == kTVMOpaqueHandle) {
+    if (t.code == kDLOpaqueHandle) {
       // specially store pointer type size in OpenCL driver
       arg_size[i] = sizeof(void*);
     } else {
@@ -345,16 +345,16 @@ std::string OpenCLModuleNode::GetPreCompiledPrograms() {
   return data;
 }
 
-PackedFunc OpenCLModuleNode::GetFunction(const String& name,
-                                         const ObjectPtr<Object>& sptr_to_self) {
+ffi::Function OpenCLModuleNode::GetFunction(const String& name,
+                                            const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
   if (name == "opencl.GetPreCompiledPrograms") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+    return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
       *rv = this->GetPreCompiledPrograms();
     });
   } else if (name == "opencl.SetPreCompiledPrograms") {
-    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-      this->SetPreCompiledPrograms(args[0]);
+    return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
+      this->SetPreCompiledPrograms(args[0].cast<std::string>());
     });
   }
   return OpenCLModuleNodeBase::GetFunction(name, sptr_to_self);
@@ -389,10 +389,10 @@ Module OpenCLModuleLoadBinary(void* strm) {
   return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_cl").set_body_typed(OpenCLModuleLoadFile);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_cl").set_body_typed(OpenCLModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_clbin").set_body_typed(OpenCLModuleLoadFile);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_clbin").set_body_typed(OpenCLModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_opencl").set_body_typed(OpenCLModuleLoadBinary);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_opencl").set_body_typed(OpenCLModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

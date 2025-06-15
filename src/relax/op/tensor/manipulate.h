@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_OP_TENSOR_MANIPULATE_H_
 #define TVM_RELAX_OP_TENSOR_MANIPULATE_H_
 
+#include <tvm/ffi/container/variant.h>
 #include <tvm/relax/attrs/manipulate.h>
 
 #include "../op_common.h"
@@ -40,10 +41,10 @@ Expr broadcast_to(Expr x, Expr shape);
  * \param tensors An Expr in Tuple type, containing the tensors to be concatenated,
  * or a list of tensors
  * \param axis The axis along which the tensors are concatenated.
- * If it is `NullOpt`, the input tensor is required to be flattened before concatenation.
+ * If it is `std::nullopt`, the input tensor is required to be flattened before concatenation.
  * \return The concatenated tensor.
  */
-Expr concat(Expr tensors, Optional<Integer> axis);
+Expr concat(Expr tensors, Optional<int64_t> axis);
 
 /*!
  * \brief Insert new axes at the positions given by `axis`.
@@ -73,7 +74,7 @@ Expr flatten(Expr x);
  */
 Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value,
                       Optional<Array<IntImm>> axis_separators,
-                      Optional<Array<IntImm>> input_axis_separators = NullOpt);
+                      Optional<Array<IntImm>> input_axis_separators = std::nullopt);
 
 /*!
  * \brief Permutes the dimensions of an array.
@@ -112,7 +113,7 @@ Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis)
  * \brief Squeeze axes in the array.
  * \param x The input data to the operator.
  * \param axis The set of axes to remove.
- * If it is `NullOpt`, remove all axis of dimensions 1.
+ * If it is `std::nullopt`, remove all axis of dimensions 1.
  * If any specified axis has dimension that does not equal 1, it is an error.
  * \return The squeezed result.
  */
@@ -153,7 +154,7 @@ Expr collapse_sum_to(Expr data, Expr shape);
  * from the backward. By default, use the flattened input array, and return a flat output array.
  * \return The computed result.
  */
-Expr repeat(Expr data, int repeats, Optional<Integer> axis = NullOpt);
+Expr repeat(Expr data, int repeats, Optional<int64_t> axis = std::nullopt);
 
 /*!
  * \brief Construct an array by repeating data the number of times given by reps.
@@ -271,6 +272,18 @@ Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, String re
  *       which must match the slice shape at each index.
  */
 Expr scatter_nd(Expr data, Expr indices, Expr updates, String reduction);
+
+/*!
+ * \brief Embeds the values of the src tensor into input at the given dimension.
+ * \param input The input tensor to be updated.
+ * \param src The tensor to embed into input.
+ * \param dim The dimension to insert the slice into.
+ * \param start The start index of where to insert the slice.
+ * \param end The end index of where to insert the slice.
+ * \param step The how many elements to skip in
+ * \return  The computed result tensor with the same shape as `data`.
+ */
+Expr slice_scatter(Expr input, Expr src, int axis, PrimValue start, PrimValue end, PrimValue step);
 
 /*!
  * \brief Returns a one-hot tensor.

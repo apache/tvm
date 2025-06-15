@@ -41,7 +41,7 @@ Expr sort(Expr data, int axis, bool descending) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.sort").set_body_typed(sort);
+TVM_FFI_REGISTER_GLOBAL("relax.op.sort").set_body_typed(sort);
 
 StructInfo InferStructInfoSort(const Call& call, const BlockBuilder& ctx) {
   return GetUnaryInputTensorStructInfo(call, ctx);
@@ -67,7 +67,7 @@ Expr argsort(Expr data, int axis, bool descending, DataType dtype) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.argsort").set_body_typed(argsort);
+TVM_FFI_REGISTER_GLOBAL("relax.op.argsort").set_body_typed(argsort);
 
 StructInfo InferStructInfoArgsort(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -101,7 +101,7 @@ Expr topk(Expr data, int k, int axis, String ret_type, bool largest, DataType dt
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.topk").set_body_typed(topk);
+TVM_FFI_REGISTER_GLOBAL("relax.op.topk").set_body_typed(topk);
 
 StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -142,6 +142,7 @@ StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
     return output_sinfos[1];
   }
   LOG(FATAL) << "Unsupported ret type: " << ret_type;
+  TVM_FFI_UNREACHABLE();
 }
 
 TVM_REGISTER_OP("relax.topk")

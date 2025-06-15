@@ -97,7 +97,7 @@ class HexagonDeviceAPI final : public DeviceAPI {
   void SetDevice(Device dev) final{};
 
   //! \brief Return the queried Hexagon device attribute.
-  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
+  void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final;
 
   //! \brief Currently unimplemented interface to synchronize a device stream.
   void StreamSync(Device dev, TVMStreamHandle stream) final {}

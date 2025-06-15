@@ -66,8 +66,8 @@ class PatternMatchingRewriterNode : public tvm::transform::PassNode {
 class PatternMatchingRewriter : public tvm::transform::Pass {
  public:
   static PatternMatchingRewriter FromPattern(
-      DFPattern pattern, TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
-      Optional<Array<DFPattern>> additional_bindings = NullOpt,
+      DFPattern pattern, ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
+      Optional<Array<DFPattern>> additional_bindings = std::nullopt,
       Map<GlobalVar, BaseFunc> new_subroutines = {});
 
   static PatternMatchingRewriter FromModule(IRModule mod);
@@ -81,7 +81,7 @@ class PatternMatchingRewriter : public tvm::transform::Pass {
 class ExprPatternRewriterNode : public PatternMatchingRewriterNode {
  public:
   DFPattern pattern;
-  TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func;
+  ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func;
   Optional<Array<DFPattern>> additional_bindings;
   Map<GlobalVar, BaseFunc> new_subroutines;
 
@@ -91,7 +91,7 @@ class ExprPatternRewriterNode : public PatternMatchingRewriterNode {
 
   void VisitAttrs(AttrVisitor* visitor) {
     visitor->Visit("pattern", &pattern);
-    PackedFunc untyped_func = func;
+    ffi::Function untyped_func = func;
     visitor->Visit("func", &untyped_func);
   }
 
@@ -102,8 +102,8 @@ class ExprPatternRewriterNode : public PatternMatchingRewriterNode {
 class ExprPatternRewriter : public PatternMatchingRewriter {
  public:
   ExprPatternRewriter(DFPattern pattern,
-                      TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
-                      Optional<Array<DFPattern>> additional_bindings = NullOpt,
+                      ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
+                      Optional<Array<DFPattern>> additional_bindings = std::nullopt,
                       Map<GlobalVar, BaseFunc> new_subroutines = {});
 
   TVM_DEFINE_OBJECT_REF_METHODS(ExprPatternRewriter, PatternMatchingRewriter,
@@ -136,7 +136,7 @@ class OrRewriter : public PatternMatchingRewriter {
 class TupleRewriterNode : public PatternMatchingRewriterNode {
  public:
   Array<DFPattern> patterns;
-  TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func;
+  ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func;
   Optional<Array<DFPattern>> additional_bindings;
   Map<GlobalVar, BaseFunc> new_subroutines;
 
@@ -144,7 +144,7 @@ class TupleRewriterNode : public PatternMatchingRewriterNode {
 
   void VisitAttrs(AttrVisitor* visitor) {
     visitor->Visit("patterns", &patterns);
-    PackedFunc untyped_func = func;
+    ffi::Function untyped_func = func;
     visitor->Visit("func", &untyped_func);
   }
 
@@ -169,8 +169,8 @@ class TupleRewriterNode : public PatternMatchingRewriterNode {
 class TupleRewriter : public PatternMatchingRewriter {
  public:
   TupleRewriter(Array<DFPattern> patterns,
-                TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
-                Optional<Array<DFPattern>> additional_bindings = NullOpt,
+                ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
+                Optional<Array<DFPattern>> additional_bindings = std::nullopt,
                 Map<GlobalVar, BaseFunc> new_subroutines = {});
 
   TVM_DEFINE_OBJECT_REF_METHODS(TupleRewriter, PatternMatchingRewriter, TupleRewriterNode);

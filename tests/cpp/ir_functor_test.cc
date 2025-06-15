@@ -336,7 +336,7 @@ TEST(IRF, Substitute) {
       if (var.same_as(x)) {
         return y;
       }
-      return NullOpt;
+      return std::nullopt;
     };
     BufferLoad new_buffer_load = Downcast<BufferLoad>(Substitute(buffer_load, f_subst));
     ICHECK(new_buffer_load->buffer->data.same_as(y));

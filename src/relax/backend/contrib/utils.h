@@ -37,16 +37,6 @@ namespace relax {
 namespace backend {
 
 /*!
- * \brief Get the Packed Func
- *
- * \param func_name
- * \return const PackedFunc*
- */
-inline const PackedFunc* GetPackedFunc(const std::string& func_name) {
-  return tvm::runtime::Registry::Get(func_name);
-}
-
-/*!
  * \brief Extract shape from an IndexExpr array to std::vector<int64_t>
  *
  * \param shape The shape in Array
@@ -69,30 +59,7 @@ inline std::vector<int64_t> GetIntShape(const Array<PrimExpr>& shape) {
  * \return std::string string format of type
  */
 inline std::string DType2String(const tvm::DataType dtype) {
-  std::ostringstream os;
-  if (dtype.is_float()) {
-    os << "float";
-  } else if (dtype.is_float8_e4m3fn()) {
-    return "float8_e4m3fn";
-  } else if (dtype.is_float8_e5m2()) {
-    return "float8_e5m2";
-  } else if (dtype.is_float4_e2m1fn()) {
-    return "float4_e2m1fn";
-  } else if (dtype.is_int()) {
-    os << "int";
-  } else if (dtype.is_uint()) {
-    os << "uint";
-  } else if (dtype.is_bfloat16()) {
-    os << "bfloat";
-  } else if ((*GetPackedFunc("runtime._datatype_get_type_registered"))(dtype.code())) {
-    os << "custom["
-       << (*GetPackedFunc("runtime._datatype_get_type_name"))(dtype.code()).operator std::string()
-       << "]";
-  } else {
-    LOG(FATAL) << "Unknown type with code " << static_cast<unsigned>(dtype.code());
-  }
-  os << dtype.bits();
-  return os.str();
+  return tvm::ffi::DLDataTypeToString(dtype);
 }
 
 /*!

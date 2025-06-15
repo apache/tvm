@@ -75,7 +75,7 @@ bool EndsWithPattern(const std::string& str, const std::string& pattern) {
   return str.compare(str.length() - pattern.length(), pattern.length(), pattern) == 0;
 }
 
-TVM_REGISTER_GLOBAL("relax.contrib.extract_arg_idx").set_body_typed(ExtractArgIdx);
+TVM_FFI_REGISTER_GLOBAL("relax.contrib.extract_arg_idx").set_body_typed(ExtractArgIdx);
 
 }  // namespace backend
 }  // namespace relax

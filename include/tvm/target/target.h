@@ -53,9 +53,9 @@ class TargetNode : public Object {
   /*! \brief Keys for this target */
   Array<String> keys;
   /*! \brief Collection of attributes */
-  Map<String, ObjectRef> attrs;
+  Map<String, Any> attrs;
   /*! \brief Target features */
-  Map<String, ObjectRef> features;
+  Map<String, Any> features;
 
   /*!
    * \brief The raw string representation of the target
@@ -64,7 +64,7 @@ class TargetNode : public Object {
    */
   TVM_DLL const std::string& str() const;
   /*! \return Export target to JSON-like configuration */
-  TVM_DLL Map<String, ObjectRef> Export() const;
+  TVM_DLL Map<String, ffi::Any> Export() const;
   /*! \return The Optional<Target> typed target host of the TargetNode */
   TVM_DLL Optional<Target> GetHost() const;
   /*! \return The device type for this target */
@@ -103,25 +103,15 @@ class TargetNode : public Object {
    * \tparam TObjectRef Type of the attribute
    * \param attr_key The name of the attribute key
    * \param default_value The value returned if the key is not present
-   * \return An optional, NullOpt if not found, otherwise the value found
+   * \return An optional, std::nullopt if not found, otherwise the value found
    */
   template <typename TObjectRef>
   Optional<TObjectRef> GetAttr(
       const std::string& attr_key,
-      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
-    static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
-                  "Can only call GetAttr with ObjectRef types.");
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
     auto it = attrs.find(attr_key);
     if (it != attrs.end()) {
-      // For backwards compatibility, return through TVMRetValue.
-      // This triggers any automatic conversions registered with
-      // PackedFuncValueConverter.  Importantly, this allows use of
-      // `GetAttr<Integer>` and `GetAttr<Bool>` for properties that
-      // are stored internally as `runtime::Box<int64_t>` and
-      // `runtime::Box<bool>`.
-      TVMRetValue ret;
-      ret = (*it).second;
-      return ret;
+      return Downcast<Optional<TObjectRef>>((*it).second);
     } else {
       return default_value;
     }
@@ -131,7 +121,7 @@ class TargetNode : public Object {
    * \tparam TObjectRef Type of the attribute
    * \param attr_key The name of the attribute key
    * \param default_value The value returned if the key is not present
-   * \return An optional, NullOpt if not found, otherwise the value found
+   * \return An optional, std::nullopt if not found, otherwise the value found
    */
   template <typename TObjectRef>
   Optional<TObjectRef> GetAttr(const std::string& attr_key, TObjectRef default_value) const {
@@ -158,14 +148,13 @@ class TargetNode : public Object {
    * \endcode
    */
   template <typename TObjectRef>
-  Optional<TObjectRef> GetFeature(
-      const std::string& feature_key,
-      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
-    Optional<TObjectRef> feature = Downcast<Optional<TObjectRef>>(features.Get(feature_key));
-    if (!feature) {
+  Optional<TObjectRef> GetFeature(const std::string& feature_key,
+                                  Optional<TObjectRef> default_value = std::nullopt) const {
+    if (auto feature = features.Get(feature_key)) {
+      return Downcast<TObjectRef>(feature.value());
+    } else {
       return default_value;
     }
-    return feature;
   }
   // variant that uses TObjectRef to enable implicit conversion to default value.
   template <typename TObjectRef>
@@ -210,7 +199,7 @@ class Target : public ObjectRef {
    * \brief Construct a Target using a JSON-like configuration
    * \param config The JSON-like configuration for target
    */
-  TVM_DLL explicit Target(const Map<String, ObjectRef>& config);
+  TVM_DLL explicit Target(const Map<String, ffi::Any>& config);
   /*!
    * \brief Get the current target context from thread local storage.
    * \param allow_not_defined If the context stack is empty and this is set to true, an
@@ -240,7 +229,7 @@ class Target : public ObjectRef {
 
  private:
   Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<String> keys,
-         Map<String, ObjectRef> attrs);
+         Map<String, ffi::Any> attrs);
 
   // enable with syntax.
   friend class TargetInternal;

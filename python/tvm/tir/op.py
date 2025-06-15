@@ -18,7 +18,7 @@
 """Operators used in TIR expression."""
 from typing import Any, Optional, Union
 
-import tvm._ffi
+import tvm.ffi
 from tvm import tir
 from tvm.ir import Array, Op, PrimExpr
 from tvm.ir.base import Span
@@ -319,24 +319,6 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     )
 
 
-def tvm_check_return(expected, return_unexpected, nested_call):
-    """Return new on stack dtype[num]
-    Parameters
-    ----------
-    expected : int
-        The expected return code.
-    return_unexpected : int
-        The unexpected return code.
-    nested_call : PrimExpr
-        The call expression to check return.
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin("int32", "tir.tvm_check_return", expected, return_unexpected, nested_call)
-
-
 def tvm_stack_alloca(dtype_str, num):
     """Return new on stack dtype[num]
 
@@ -401,7 +383,14 @@ def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
         The call expression.
     """
     return call_intrin(
-        "handle", "tir.tvm_stack_make_array", data, shape, strides, ndim, arr_dtype, elem_offset
+        "handle",
+        "tir.tvm_stack_make_array",
+        data,
+        shape,
+        strides,
+        ndim,
+        arr_dtype,
+        elem_offset,
     )
 
 
@@ -493,6 +482,25 @@ def tvm_tuple(*value):
         The call expression.
     """
     return call_intrin("handle", "tir.tvm_tuple", *value)
+
+
+def handle_add_byte_offset(handle, offset):
+    """Add offset to handle
+
+    Parameters
+    ----------
+    handle : Expr
+        The handle.
+
+    offset : int
+        The offset.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.handle_add_byte_offset", handle, offset)
 
 
 def tvm_struct_get(arr, index, field, dtype):
@@ -1376,7 +1384,13 @@ def ptx_cp_async(dtype, shared_ptr, shared_offset, global_ptr, global_offset, by
         The call expression.
     """
     return call_intrin(
-        dtype, "tir.ptx_cp_async", shared_ptr, shared_offset, global_ptr, global_offset, bytes
+        dtype,
+        "tir.ptx_cp_async",
+        shared_ptr,
+        shared_offset,
+        global_ptr,
+        global_offset,
+        bytes,
     )
 
 
@@ -1691,7 +1705,15 @@ def simdgroup_store(
         The call expression.
     """
     return call_intrin(
-        "handle", "tir.simdgroup_store", d, index, ptr, stride, col, row, transpose_matrix
+        "handle",
+        "tir.simdgroup_store",
+        d,
+        index,
+        ptr,
+        stride,
+        col,
+        row,
+        transpose_matrix,
     )
 
 
@@ -1905,7 +1927,7 @@ def all(*args, span=None):
     return val
 
 
-@tvm._ffi.register_func("tvm.default_trace_action")
+@tvm.ffi.register_func("tvm.default_trace_action")
 def _tvm_default_trace_action(*args):
     print(list(args))
 
@@ -3587,7 +3609,7 @@ def get_active_lane_mask(dtype, base, limit):
     return call_intrin(dtype, "tir.get_active_lane_mask", base, limit)
 
 
-def get_vscale_expr(dtype: Union[str, tvm.DataType], min_size: int = 128) -> PrimExpr:
+def get_vscale_expr(dtype: Union[str, tvm.ffi.dtype], min_size: int = 128) -> PrimExpr:
     """
     Create a datatype dependent scalable expression.
 
@@ -3599,7 +3621,7 @@ def get_vscale_expr(dtype: Union[str, tvm.DataType], min_size: int = 128) -> Pri
         The minimum size of the scalable vector in bits.
     """
     if isinstance(dtype, str):
-        dtype = tvm.DataType(dtype)
+        dtype = tvm.ffi.dtype(dtype)
     return min_size // dtype.bits * vscale()
 
 

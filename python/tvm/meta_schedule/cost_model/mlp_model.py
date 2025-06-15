@@ -534,6 +534,7 @@ class State:
                         if json_file.endswith("_workload.json"):
                             workload_paths.append(json_file)
                 for workload_path in tqdm(workload_paths):
+                    # pylint: disable=protected-access,broad-exception-caught
                     try:
                         database = JSONDatabase(
                             path_workload=workload_path,
@@ -541,7 +542,7 @@ class State:
                                 "_workload.json", "_candidates.json"
                             ),
                         )
-                    except tvm._ffi.base.TVMError:  # pylint: disable=protected-access
+                    except tvm.base.TVMError:
                         continue
                     candidates, results = [], []
                     tuning_records = database.get_all_tuning_records()

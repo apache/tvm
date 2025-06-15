@@ -23,7 +23,6 @@
  */
 #include <tvm/meta_schedule/database.h>
 #include <tvm/relax/transform.h>
-#include <tvm/relax/tuning_api.h>
 #include <tvm/tir/transform.h>
 
 #include "../src/meta_schedule/module_equality.h"
@@ -44,48 +43,21 @@ class MetaScheduleTuner {
         max_trials_per_task_(max_trials_per_task),
         op_names_(op_names),
         params_(params) {
-    // candgen_func_ = runtime::Registry::Get("relax.tuning_api.default_generate_candidate");
-    // ICHECK(candgen_func_) << "Default candidate generation function is not found.";
-    normalize_mod_func_ = runtime::Registry::Get("tvm.meta_schedule.normalize_mod");
-    ICHECK(normalize_mod_func_) << "Normalization function is not found.";
+    normalize_mod_func_ = tvm::ffi::Function::GetGlobalRequired("tvm.meta_schedule.normalize_mod");
   }
 
-  // TODO(@sunggg): Currently, only supports basic arguments.
   IRModule TuneIRMod(IRModule mod, transform::PassContext ctx) {
-    Choice choice(
-        "tvm.meta_schedule.tune_relax",
-        {params_, target_, work_dir_, max_trials_global_, max_trials_per_task_, op_names_},
-        "relax.tuning_api.Choice.default_constr_func", {});
-    Knob knob("meta_schedule.tune_irmod", {{"0", choice}});
-    knob->Apply(mod, "0");
-    /*
-    // TODO(@sunggg): revisit when we have a solution for large params
-    Trace trace = Downcast<Trace>(ctx->GetCurrentTrace());
-    ctx->PopTrace();
-    Array<Trace> candidates = (*candgen_func_)(Array<Knob>({knob}), trace);
-    ICHECK(candidates.size() == 1);
-    Trace best_trace = candidates[0];
-    ctx->PushTrace(best_trace);
-    */
-    // since we separate tuning from application, return original IRModule
+    static ffi::Function tune_relax_func =
+        tvm::ffi::Function::GetGlobalRequired("tvm.meta_schedule.tune_relax");
+    tune_relax_func(mod, params_, target_, work_dir_, max_trials_global_, max_trials_per_task_,
+                    op_names_);
     return mod;
   }
 
-  // TODO(@sunggg): Currently, only supports basic arguments.
   tir::PrimFunc TuneTIR(tir::PrimFunc f, transform::PassContext ctx) {
-    // TODO(@sunggg): Whenever we tune tir, assume we start a new trace w/o pushing to the trace
-    // stack. Revisit later when we collect more usecases.
-    Choice choice("tvm.meta_schedule.tune_tir", {target_, work_dir_, max_trials_global_},
-                  "relax.tuning_api.Choice.default_constr_func", {});
-    Knob knob("meta_schedule.tune_primfunc", {{"0", choice}});
-    knob->Apply((*normalize_mod_func_)(f), "0");
-    /*
-    // TODO(@sunggg): revisit when we have a solution for large params
-    Trace trace = Trace((*normalize_mod_func_)(f), {}, {});
-    Array<Trace> candidates = (*candgen_func_)(Array<Knob>({knob}), trace);
-    ICHECK(candidates.size() == 1);
-    */
-    // since we separate tuning from application, return original IRModule
+    static ffi::Function tune_tir_func =
+        tvm::ffi::Function::GetGlobalRequired("tvm.meta_schedule.tune_tir");
+    tune_tir_func(normalize_mod_func_(f), target_, work_dir_, max_trials_global_);
     return f;
   }
 
@@ -96,19 +68,17 @@ class MetaScheduleTuner {
   Integer max_trials_per_task_;
   Optional<Array<String>> op_names_;
   Map<String, runtime::NDArray> params_;
-  // const runtime::PackedFunc* candgen_func_;
-  const runtime::PackedFunc* normalize_mod_func_;
+  tvm::ffi::Function normalize_mod_func_;
 };
 
 Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = false) {
   using tvm::meta_schedule::Database;
   Target target = Target::Current(false);
-  const runtime::PackedFunc* normalize_mod_func_ =
-      runtime::Registry::Get("tvm.meta_schedule.normalize_mod");
-  ICHECK(normalize_mod_func_) << "Normalization function is not found.";
+  const std::optional<tvm::ffi::Function> normalize_mod_func_ =
+      tvm::ffi::Function::GetGlobalRequired("tvm.meta_schedule.normalize_mod");
+  ICHECK(normalize_mod_func_.has_value()) << "Normalization function is not found.";
 
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext ctx) {
+  auto pass_func = [=](IRModule mod, PassContext ctx) {
     Database database{nullptr};
     if (Database::Current().defined()) {
       database = Database::Current().value();
@@ -129,7 +99,7 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
       if (const auto* prim_func_node = base_func.as<tir::PrimFuncNode>()) {
         tir::PrimFunc prim_func = GetRef<tir::PrimFunc>(prim_func_node);
 
-        IRModule tir_mod = (*normalize_mod_func_)(prim_func);
+        IRModule tir_mod = (*normalize_mod_func_)(prim_func).cast<IRModule>();
         if (Optional<meta_schedule::TuningRecord> opt_record =
                 database->QueryTuningRecord(tir_mod, target, gv->name_hint)) {
           meta_schedule::TuningRecord record = opt_record.value();
@@ -159,7 +129,7 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
                                                       /*ret_type=*/tuned_prim_func->ret_type,
                                                       /*buffer_map=*/tuned_prim_func->buffer_map,
                                                       /*attrs=*/prim_func->attrs);
-          new_prim_func = WithAttr(std::move(new_prim_func), tir::attr::kIsScheduled, Bool(true));
+          new_prim_func = WithAttr(std::move(new_prim_func), tir::attr::kIsScheduled, true);
           result.Set(gv, new_prim_func);
           continue;
         } else if (enable_warning) {
@@ -177,11 +147,10 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
 
 Pass MetaScheduleTuneIRMod(Map<String, runtime::NDArray> params, String work_dir,
                            Integer max_trials_global,
-                           Optional<Integer> max_trials_per_task = NullOpt,
-                           Optional<Array<String>> op_names = NullOpt) {
+                           Optional<Integer> max_trials_per_task = std::nullopt,
+                           Optional<Array<String>> op_names = std::nullopt) {
   Target target = Target::Current(false);
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
-                                                                            PassContext ctx) {
+  auto pass_func = [=](IRModule m, PassContext ctx) {
     auto max_trials_task = max_trials_per_task.value_or(max_trials_global);
     return MetaScheduleTuner(target, work_dir, max_trials_global, max_trials_task, op_names, params)
         .TuneIRMod(m, ctx);
@@ -194,9 +163,10 @@ Pass MetaScheduleTuneIRMod(Map<String, runtime::NDArray> params, String work_dir
 
 Pass MetaScheduleTuneTIR(String work_dir, Integer max_trials_global) {
   Target target = Target::Current(false);
-  runtime::TypedPackedFunc<tir::PrimFunc(tir::PrimFunc, IRModule, PassContext)> pass_func =
+  ffi::TypedFunction<tir::PrimFunc(tir::PrimFunc, IRModule, PassContext)> pass_func =
       [=](tir::PrimFunc f, IRModule mod, PassContext ctx) {
-        return MetaScheduleTuner(target, work_dir, max_trials_global, max_trials_global, NullOpt)
+        return MetaScheduleTuner(target, work_dir, max_trials_global, max_trials_global,
+                                 std::nullopt)
             .TuneTIR(f, ctx);
       };
   return tir::transform::CreatePrimFuncPass(/*pass function*/ pass_func, /*opt level*/ 0,
@@ -205,10 +175,11 @@ Pass MetaScheduleTuneTIR(String work_dir, Integer max_trials_global) {
                                             /*traceable*/ true);
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.MetaScheduleApplyDatabase")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.MetaScheduleApplyDatabase")
     .set_body_typed(MetaScheduleApplyDatabase);
-TVM_REGISTER_GLOBAL("relax.transform.MetaScheduleTuneIRMod").set_body_typed(MetaScheduleTuneIRMod);
-TVM_REGISTER_GLOBAL("relax.transform.MetaScheduleTuneTIR").set_body_typed(MetaScheduleTuneTIR);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.MetaScheduleTuneIRMod")
+    .set_body_typed(MetaScheduleTuneIRMod);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.MetaScheduleTuneTIR").set_body_typed(MetaScheduleTuneTIR);
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

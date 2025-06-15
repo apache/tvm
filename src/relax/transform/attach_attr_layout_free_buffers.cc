@@ -71,10 +71,10 @@ class AttrAttacher : public ExprMutator {
     GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
     Array<Expr> call_tir_args = Downcast<Tuple>(call->args[1])->fields;
     // Compute the layout free buffers
-    Array<Integer> layout_free_buffers;
+    Array<int64_t> layout_free_buffers;
     for (size_t i = 0; i < call_tir_args.size(); i++) {
       if (layout_free_exprs_.count(call_tir_args[i].get())) {
-        layout_free_buffers.push_back(Integer(i));
+        layout_free_buffers.push_back(i);
       }
     }
     // Attach the layout free buffers to the tir::PrimFunc
@@ -99,14 +99,13 @@ class AttrAttacher : public ExprMutator {
 namespace transform {
 
 Pass AttachAttrLayoutFreeBuffers() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) { return AttrAttacher::Transform(mod); };
+  auto pass_func = [=](IRModule mod, PassContext pc) { return AttrAttacher::Transform(mod); };
   auto pass = CreateModulePass(pass_func, 0, "_AttachAttrLayoutFreeBuffers", {});
   // Apply DeadCodeElimination to remove unused tir::PrimFunc
   return tvm::transform::Sequential({pass, DeadCodeElimination()}, "AttachAttrLayoutFreeBuffers");
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.AttachAttrLayoutFreeBuffers")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.AttachAttrLayoutFreeBuffers")
     .set_body_typed(AttachAttrLayoutFreeBuffers);
 }  // namespace transform
 }  // namespace relax

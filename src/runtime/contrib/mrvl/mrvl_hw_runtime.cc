@@ -23,9 +23,9 @@
  */
 
 #include <dlfcn.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 
 #include <cstddef>
 #include <string>
@@ -211,12 +211,12 @@ class MarvellHardwareModuleNode : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The packed function.
    */
-  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
+  virtual ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
     if (name == "get_symbol") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->symbol_name_; });
+      return ffi::Function(
+          [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->symbol_name_; });
     } else if (name == "register_cb") {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         struct ml_dpdk_cb* a = static_cast<struct ml_dpdk_cb*>(args[0].value().v_handle);
         memcpy(&dpdk_cb_, a, sizeof(struct ml_dpdk_cb));
         device_handle = args[1].value().v_handle;
@@ -224,22 +224,22 @@ class MarvellHardwareModuleNode : public ModuleNode {
         use_dpdk_cb = true;
       });
     } else if (name == "get_const_vars") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = Array<String>{}; });
+      return ffi::Function(
+          [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = Array<String>{}; });
     } else if (this->symbol_name_ == name) {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         RunInference(args);
         *rv = 0;
       });
     } else if ("__init_" + this->symbol_name_ == name) {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         run_arg.device = device_handle;
         run_arg.model_id = model_id;
         load_and_initialize_model();
         *rv = 0;
       });
     }
-    return PackedFunc(nullptr);
+    return ffi::Function(nullptr);
   }
 
   virtual void SaveToBinary(dmlc::Stream* stream) {
@@ -295,7 +295,7 @@ class MarvellHardwareModuleNode : public ModuleNode {
   struct run_args run_arg;
   static bool use_dpdk_cb;
 
-  void RunInference_TVMC(TVMArgs args) {
+  void RunInference_TVMC(ffi::PackedArgs args) {
     float* i_d_buf_float;
     float* o_d_buf_float;
     const DLTensor* tensor;
@@ -371,7 +371,7 @@ class MarvellHardwareModuleNode : public ModuleNode {
     }
   }
 
-  void RunInference_DPDK(TVMArgs args) {
+  void RunInference_DPDK(ffi::PackedArgs args) {
     const DLTensor* tensor[64];
 
     for (int in = 0; in < num_inputs_; in++) {
@@ -404,7 +404,7 @@ class MarvellHardwareModuleNode : public ModuleNode {
                                   run_arg.o_q_buf, tensor);
   }
 
-  void RunInference(TVMArgs args) {
+  void RunInference(ffi::PackedArgs args) {
     if (use_dpdk_cb)
       RunInference_DPDK(args);
     else
@@ -476,9 +476,9 @@ bool MarvellHardwareModuleNode::use_dpdk_cb = false;
 ml_tvmc_cb MarvellHardwareModuleNode::tvmc_cb_ = {};
 ml_dpdk_cb MarvellHardwareModuleNode::dpdk_cb_ = {};
 
-TVM_REGISTER_GLOBAL("runtime.mrvl_hw_runtime_create")
+TVM_FFI_REGISTER_GLOBAL("runtime.mrvl_hw_runtime_create")
     .set_body_typed(MarvellHardwareModuleRuntimeCreate);
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_mrvl_hw")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_mrvl_hw")
     .set_body_typed(MarvellHardwareModuleNode::LoadFromBinary);
 }  // namespace contrib
 }  // namespace runtime

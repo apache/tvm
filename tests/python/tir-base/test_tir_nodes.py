@@ -417,7 +417,6 @@ def test_scalable_vec(lanes, node_func):
 )
 @pytest.mark.parametrize("node_func", [_create_ramp, _create_broadcast])
 def test_scalable_vec_error(lanes, node_func):
-
     with pytest.raises(tvm.error.TVMError):
         node_func(lanes)
 

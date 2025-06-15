@@ -118,7 +118,7 @@ Stmt SplitBindVectorize(const Stmt& stmt, const ConstraintSet& constraints) {
     if (v.same_as(loop->loop_var)) {
       return substitute_value;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   });
   PrimExpr predicate = substitute_value < loop->extent;

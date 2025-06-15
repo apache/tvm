@@ -18,7 +18,7 @@
  */
 
 #include <dmlc/memory_io.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <string>
 #include <unordered_map>

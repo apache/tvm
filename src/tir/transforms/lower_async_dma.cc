@@ -175,7 +175,7 @@ Pass LowerAsyncDMA() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerAsyncDMA", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerAsyncDMA").set_body_typed(LowerAsyncDMA);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerAsyncDMA").set_body_typed(LowerAsyncDMA);
 }  // namespace transform
 
 }  // namespace tir

@@ -24,14 +24,14 @@
 #ifndef TVM_IR_MODULE_H_
 #define TVM_IR_MODULE_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/global_info.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/string.h>
 
 #include <string>
 #include <unordered_map>
@@ -91,7 +91,7 @@ class IRModuleNode : public Object {
   template <typename TObjectRef>
   Optional<TObjectRef> GetAttr(
       const std::string& attr_key,
-      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
     return attrs.GetAttr(attr_key, default_value);
   }
   // variant that uses TObjectRef to enable implicit conversion to default value.
@@ -290,9 +290,6 @@ class IRModule : public ObjectRef {
   /*! \brief Declare the container type. */
   using ContainerType = IRModuleNode;
 
-  /*! \brief Declare whether Ref is nullable. */
-  static constexpr bool _type_is_nullable = false;
-
   // allow copy on write.
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IRModuleNode);
 };
@@ -305,8 +302,6 @@ namespace attr {
  * \brief Name of the module
  *
  * Type: String
- *
- * \sa tvm::runtime::String
  */
 constexpr const char* kModuleName = "mod_name";
 

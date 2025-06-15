@@ -17,11 +17,11 @@
  * under the License.
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 #include <memory>
 #include <string>
@@ -70,7 +70,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     ICHECK(astype_attrs);
 
     std::vector<dmlc::any> dtype_attr;
-    auto dtype_str = runtime::DLDataType2String(astype_attrs->dtype);
+    auto dtype_str = runtime::DLDataTypeToString(astype_attrs->dtype);
     dtype_attr.emplace_back(std::vector<std::string>{dtype_str});
     node_->SetAttr("astype_dtype", dtype_attr);
   }
@@ -246,7 +246,7 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
   ExprVisitor::VisitExpr_(call_node);
 }
 
-Array<runtime::Module> NNAPICompiler(Array<Function> functions, Map<String, ObjectRef> /*unused*/,
+Array<runtime::Module> NNAPICompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
                                      Map<Constant, String> constant_names) {
   VLOG(1) << "NNAPI Compiler";
 
@@ -256,16 +256,15 @@ Array<runtime::Module> NNAPICompiler(Array<Function> functions, Map<String, Obje
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto* pf = runtime::Registry::Get("runtime.nnapi_runtime_create");
-    ICHECK(pf != nullptr) << "Cannot find NNAPI runtime module create function.";
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.nnapi_runtime_create");
     auto func_name = GetExtSymbol(func);
-    compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names));
   }
 
   return compiled_functions;
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.nnapi").set_body_typed(NNAPICompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.nnapi").set_body_typed(NNAPICompiler);
 
 }  // namespace contrib
 }  // namespace relax

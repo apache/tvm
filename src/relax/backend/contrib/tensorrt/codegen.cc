@@ -213,8 +213,7 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
  * \param functions The extern functions to be compiled via TensorRT
  * \return Runtime modules.
  */
-Array<runtime::Module> TensorRTCompiler(Array<Function> functions,
-                                        Map<String, ObjectRef> /*unused*/,
+Array<runtime::Module> TensorRTCompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
                                         Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
   for (const auto& func : functions) {
@@ -224,16 +223,15 @@ Array<runtime::Module> TensorRTCompiler(Array<Function> functions,
     std::string graph_json = serializer.GetJSON();
     VLOG(1) << "TensorRT JSON:" << std::endl << graph_json;
     auto constant_names = serializer.GetConstantNames();
-    const auto* pf = runtime::Registry::Get("runtime.tensorrt_runtime_create");
-    ICHECK(pf != nullptr) << "Cannot find TensorRT runtime module create function.";
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.tensorrt_runtime_create");
     std::string func_name = GetExtSymbol(func);
     VLOG(1) << "Creating tensorrt runtime::Module for '" << func_name << "'";
-    compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<runtime::Module>());
   }
   return compiled_functions;
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.tensorrt").set_body_typed(TensorRTCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.tensorrt").set_body_typed(TensorRTCompiler);
 
 /*!
  * \brief Check whether TensorRT graph executor is enabled.
@@ -260,8 +258,9 @@ Array<Integer> GetTensorRTVersion() {
 #endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 }
 
-TVM_REGISTER_GLOBAL("relax.is_tensorrt_runtime_enabled").set_body_typed(IsTensorRTRuntimeEnabled);
-TVM_REGISTER_GLOBAL("relax.get_tensorrt_version").set_body_typed(GetTensorRTVersion);
+TVM_FFI_REGISTER_GLOBAL("relax.is_tensorrt_runtime_enabled")
+    .set_body_typed(IsTensorRTRuntimeEnabled);
+TVM_FFI_REGISTER_GLOBAL("relax.get_tensorrt_version").set_body_typed(GetTensorRTVersion);
 
 }  // namespace contrib
 }  // namespace relax

@@ -82,7 +82,8 @@ ScheduleRule ScheduleRule::AutoBind(int max_threadblocks, Array<Integer> thread_
 }
 
 TVM_REGISTER_NODE_TYPE(AutoBindNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAutoBind").set_body_typed(ScheduleRule::AutoBind);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAutoBind")
+    .set_body_typed(ScheduleRule::AutoBind);
 
 }  // namespace meta_schedule
 }  // namespace tvm

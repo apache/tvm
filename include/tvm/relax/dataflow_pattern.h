@@ -24,11 +24,11 @@
 #ifndef TVM_RELAX_DATAFLOW_PATTERN_H_
 #define TVM_RELAX_DATAFLOW_PATTERN_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/ir/expr.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/optional.h>
 #include <tvm/support/with.h>
 
 #include <cstdint>
@@ -113,7 +113,7 @@ class DFPattern : public ObjectRef {
   /*! \brief Syntatic Sugar for creating a NotPattern */
   TVM_DLL NotPattern operator~() const;
   /*! \brief Syntatic Sugar for creating an AttrPattern */
-  TVM_DLL AttrPattern HasAttr(const Map<String, ObjectRef>& attrs) const;
+  TVM_DLL AttrPattern HasAttr(const Map<String, Any>& attrs) const;
   /*! \brief Syntatic Sugar for creating a StructInfoPattern */
   TVM_DLL StructInfoPattern HasStructInfo(const StructInfo& struct_info) const;
   /*! \brief Syntatic Sugar for creating a TypePattern */
@@ -188,7 +188,7 @@ class DFConstraintNode : public Object {
    * \param match_state A function that can be called to check the
    *    current state of the match.  The function takes as argument a
    *    pattern on which the constraint depends, and returns the relax
-   *    variable matched by that pattern, or NullOpt if the pattern
+   *    variable matched by that pattern, or std::nullopt if the pattern
    *    has not yet been matched.
    *
    * \return A tuple of `PrimExpr` and `bool`.  The first element is a
@@ -946,11 +946,11 @@ ExprPattern IsExpr(const Expr& expr);
 ExprPattern IsOp(const String& op_name);
 /*! \brief Syntatic Sugar for call_tir (return a tensor) */
 // Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
-CallPattern IsCallTIR(const String& name, Optional<TuplePattern> args = NullOpt);
+CallPattern IsCallTIR(const String& name, Optional<TuplePattern> args = std::nullopt);
 /*! \brief Syntatic Sugar for call_tir (return a tuple of tensor) */
 CallPattern IsCallTIR(const String& name, TuplePattern var_args);
 /*! \brief Syntatic Sugar for call_dps_packed (return a tensor) */
-CallPattern IsCallDPSPacked(const String& name, Optional<TuplePattern> args = NullOpt);
+CallPattern IsCallDPSPacked(const String& name, Optional<TuplePattern> args = std::nullopt);
 /*! \brief Syntatic Sugar for call_dps_packed (return a tuple of tensor) */
 CallPattern IsCallDPSPacked(const String& name, TuplePattern var_args);
 /*! \brief Syntatic Sugar for creating TuplePattern or UnorderedTuplePattern (unordered=true) */

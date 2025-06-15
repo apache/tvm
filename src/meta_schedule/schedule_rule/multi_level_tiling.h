@@ -89,7 +89,7 @@ struct ReuseConfig {
   ReuseConfig() : req(ReuseType::kNoReuse) {}
 
   /*! \brief Construct from a configuration dictionary */
-  explicit ReuseConfig(const Map<String, ObjectRef>& config)
+  explicit ReuseConfig(const Map<String, ffi::Any>& config)
       : req(Str2ReuseType(Downcast<String>(config.at("req")))),
         levels(support::AsVector<Integer, int>(Downcast<Array<Integer>>(config.at("levels")))),
         scope(Downcast<String>(config.at("scope"))) {
@@ -216,9 +216,9 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   /*! \brief All available async pipeline stages. */
   std::vector<int> stages;
   /*! \brief The logging function */
-  PackedFunc logger;
+  ffi::Function logger;
   /*! \brief The function to overwrite the default condition for applying MultiLevelTiling. */
-  Optional<PackedFunc> filter_fn_;
+  Optional<ffi::Function> filter_fn_;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("structure", &structure);
@@ -241,8 +241,8 @@ template <typename NodeType>
 ObjectPtr<NodeType> MultiLevelTilingInitCommon(String structure, Optional<Array<String>> tile_binds,
                                                Optional<Integer> max_innermost_factor,
                                                Optional<Array<Integer>> vector_load_lens,
-                                               Optional<Map<String, ObjectRef>> reuse_read,
-                                               Optional<Map<String, ObjectRef>> reuse_write) {
+                                               Optional<Map<String, ffi::Any>> reuse_read,
+                                               Optional<Map<String, ffi::Any>> reuse_write) {
   ObjectPtr<NodeType> n = make_object<NodeType>();
   n->structure = structure;
   n->tile_binds = tile_binds.value_or({});

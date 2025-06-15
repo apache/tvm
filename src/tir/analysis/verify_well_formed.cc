@@ -22,7 +22,7 @@
  * \brief Check if schedulable tir is well-formed.
  */
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -368,7 +368,7 @@ bool VerifyWellFormed(const IRModule& mod, bool assert_mode) {
   return true;
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.VerifyWellFormed")
+TVM_FFI_REGISTER_GLOBAL("tir.analysis.VerifyWellFormed")
     .set_body_typed([](const ObjectRef& obj, bool assert_mode) {
       if (auto opt = obj.as<PrimFunc>()) {
         return VerifyWellFormed(opt.value(), assert_mode);

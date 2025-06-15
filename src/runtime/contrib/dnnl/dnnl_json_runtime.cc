@@ -22,8 +22,8 @@
  * \brief A simple JSON runtime for DNNL.
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 
 #include <cstddef>
 #include <string>
@@ -72,7 +72,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   void Run() override { LOG(FATAL) << "Unreachable code"; }
 
   /* Thread safe implementation of Run. Keep runtime instance immutable */
-  void Run(const TVMArgs& args) const {
+  void Run(const ffi::PackedArgs& args) const {
     auto arg_data_provider = makeIODataProvider(args);
     auto mem_solver = tensor_registry_.MakeSolver(arg_data_provider);
     // Execute primitives one by one
@@ -99,9 +99,9 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   /* Override GetFunction to reimplement Run method */
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
     if (this->symbol_name_ == name) {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         ICHECK(this->initialized_) << "The module has not been initialized";
 
         ICHECK_EQ(args.size(), input_var_eid_.size() + outputs_.size())
@@ -115,17 +115,10 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
   }
 
   /* Same as makeInitDataProvider but in case of InputOutput return real DLTensor */
-  TensorRegistry::DLTensorProvider makeIODataProvider(const TVMArgs& args) const {
-    auto extract_dl_tensor = [](const TVMArgValue& val) -> const DLTensor* {
-      ICHECK(val.type_code() == kTVMNDArrayHandle || val.type_code() == kTVMDLTensorHandle)
-          << "Expect NDArray or DLTensor";
-      return val.IsObjectRef<NDArray>() ? val.operator NDArray().operator->()
-                                        : val.operator DLTensor*();
-    };
-
+  TensorRegistry::DLTensorProvider makeIODataProvider(const ffi::PackedArgs& args) const {
     std::map<uint32_t, const DLTensor*> io_map;  // eid to dl tensor map
     for (size_t i = 0; i < run_arg_eid_.size(); i++) {
-      io_map[run_arg_eid_[i]] = extract_dl_tensor(args[i]);
+      io_map[run_arg_eid_[i]] = args[i].cast<DLTensor*>();
     }
 
     // lambda with captured IO data handlers
@@ -934,9 +927,9 @@ runtime::Module DNNLJSONRuntimeCreate(String symbol_name, String graph_json,
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.DNNLJSONRuntimeCreate").set_body_typed(DNNLJSONRuntimeCreate);
+TVM_FFI_REGISTER_GLOBAL("runtime.DNNLJSONRuntimeCreate").set_body_typed(DNNLJSONRuntimeCreate);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_dnnl_json")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_dnnl_json")
     .set_body_typed(JSONRuntimeBase::LoadFromBinary<DNNLJSONRuntime>);
 
 }  // namespace contrib

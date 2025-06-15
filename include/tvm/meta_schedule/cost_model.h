@@ -20,14 +20,14 @@
 #ifndef TVM_META_SCHEDULE_COST_MODEL_H_
 #define TVM_META_SCHEDULE_COST_MODEL_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/string.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/meta_schedule/measure_candidate.h>
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/tir/schedule/schedule.h>
 
 #include <vector>
@@ -86,12 +86,12 @@ class PyCostModelNode : public CostModelNode {
    * \brief Load the cost model from given file location.
    * \param path The file path.
    */
-  using FLoad = runtime::TypedPackedFunc<void(String)>;
+  using FLoad = ffi::TypedFunction<void(String)>;
   /*!
    * \brief Save the cost model to given file location.
    * \param path The file path.
    */
-  using FSave = runtime::TypedPackedFunc<void(String)>;
+  using FSave = ffi::TypedFunction<void(String)>;
   /*!
    * \brief Update the cost model given running results.
    * \param context The tuning context.
@@ -99,21 +99,21 @@ class PyCostModelNode : public CostModelNode {
    * \param results The running results of the measure candidates.
    * \return Whether cost model was updated successfully.
    */
-  using FUpdate = runtime::TypedPackedFunc<void(const TuneContext&, const Array<MeasureCandidate>&,
-                                                const Array<RunnerResult>&)>;
+  using FUpdate = ffi::TypedFunction<void(const TuneContext&, const Array<MeasureCandidate>&,
+                                          const Array<RunnerResult>&)>;
   /*!
    * \brief Predict the running results of given measure candidates.
    * \param context The tuning context.
    * \param candidates The measure candidates.
    * \param p_addr The address to save the estimated running results.
    */
-  using FPredict = runtime::TypedPackedFunc<void(const TuneContext&, const Array<MeasureCandidate>&,
-                                                 void* p_addr)>;
+  using FPredict =
+      ffi::TypedFunction<void(const TuneContext&, const Array<MeasureCandidate>&, void* p_addr)>;
   /*!
    * \brief Get the cost model as string with name.
    * \return The string representation of the cost model.
    */
-  using FAsString = runtime::TypedPackedFunc<String()>;
+  using FAsString = ffi::TypedFunction<String()>;
 
   /*! \brief The packed function to the `Load` function. */
   FLoad f_load;

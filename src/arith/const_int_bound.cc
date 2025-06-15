@@ -21,7 +21,7 @@
  * \file tvm/arith/const_int_bound.cc
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr_functor.h>
 
@@ -51,7 +51,7 @@ ConstIntBound MakeConstIntBound(int64_t min_value, int64_t max_value) {
   return ConstIntBound(min_value, max_value);
 }
 
-TVM_REGISTER_GLOBAL("arith.ConstIntBound").set_body_typed(MakeConstIntBound);
+TVM_FFI_REGISTER_GLOBAL("arith.ConstIntBound").set_body_typed(MakeConstIntBound);
 
 inline void PrintBoundValue(std::ostream& os, int64_t val) {
   if (val == ConstIntBound::kPosInf) {
@@ -364,15 +364,16 @@ class ConstIntBoundAnalyzer::Impl
     // only special handle >> and & which can be
     // used for index calculation.
 
+    auto curr_target = Target::Current();
     if (op->op.same_as(tir::builtin::shift_right())) {
       return VisitRightShift(op);
     } else if (op->op.same_as(tir::builtin::shift_left())) {
       return VisitLeftShift(op);
     } else if (op->op.same_as(tir::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
-    } else if (op->op.same_as(tir::builtin::vscale()) && TargetHasSVE(Target::Current())) {
-      unsigned int max_val =
-          *std::max_element(kAArch64VScaleValues.begin(), kAArch64VScaleValues.end());
+    } else if (op->op.same_as(tir::builtin::vscale()) && TargetHasVLA(curr_target)) {
+      auto kVScaleValues = GetVScaleValues(curr_target);
+      unsigned int max_val = *std::max_element(kVScaleValues.begin(), kVScaleValues.end());
       return MakeBound(1, max_val);
     } else {
       return Everything(op->dtype);
@@ -751,7 +752,7 @@ class ConstIntBoundAnalyzer::Impl
         }
       }
     }
-    return NullOpt;
+    return std::nullopt;
   }
 
   /*! \brief Propagate constraints through ceil(log2(arg))

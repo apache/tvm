@@ -98,8 +98,7 @@ class VDeviceMutator : public ExprMutator {
 namespace transform {
 
 Pass UpdateVDevice(VDevice new_vdevice, int64_t index) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule m, PassContext pc) {
     return relax::VDeviceMutator(m, new_vdevice, index).Run();
   };
   return CreateModulePass(/*pass_function=*/pass_func,
@@ -107,7 +106,7 @@ Pass UpdateVDevice(VDevice new_vdevice, int64_t index) {
                           /*pass_name=*/"UpdateVDevice",
                           /*required=*/{});
 }
-TVM_REGISTER_GLOBAL("relax.transform.UpdateVDevice").set_body_typed(UpdateVDevice);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.UpdateVDevice").set_body_typed(UpdateVDevice);
 
 }  // namespace transform
 }  // namespace relax

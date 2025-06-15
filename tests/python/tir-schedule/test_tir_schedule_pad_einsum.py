@@ -165,7 +165,7 @@ def test_pad_matmul_2():
         m: T.handle,
         d: T.handle,
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         n = T.int32()
         A = T.match_buffer(a, (1, n, 4096))
         B = T.match_buffer(b, (11008, 4096))
@@ -187,7 +187,7 @@ def test_pad_matmul_2():
 
     @T.prim_func
     def after(a: T.handle, b: T.handle, m: T.handle, d: T.handle):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         n = T.int32()
         A = T.match_buffer(a, (1, n, 4096))
         B = T.match_buffer(b, (11008, 4096))
@@ -234,7 +234,7 @@ def test_pad_rms():
         w: T.handle,
         r: T.handle,
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         n = T.int32()
         A = T.match_buffer(a, (1, n, 4096))
         W = T.match_buffer(w, (4096,), "float32")
@@ -258,7 +258,7 @@ def test_pad_rms():
 
     @T.prim_func
     def after(a: T.handle, w: T.handle, r: T.handle):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         n = T.int32()
         A = T.match_buffer(a, (1, n, 4096))
         W = T.match_buffer(w, (4096,), "float32")

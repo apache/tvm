@@ -22,6 +22,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/device_api.h>
 
 #include <string>
 
@@ -80,7 +81,6 @@ class Doc : public ObjectRef {
   Doc() = default;
 
  public:
-  virtual ~Doc() = default;
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Doc, ObjectRef, DocNode);
 };
 
@@ -161,7 +161,7 @@ class StmtDocNode : public DocNode {
    * line as the statement, or the line above, or inside the statement
    * if it spans over multiple lines.
    * */
-  mutable Optional<String> comment{NullOpt};
+  mutable Optional<String> comment{std::nullopt};
 
   void VisitAttrs(AttrVisitor* v) {
     DocNode::VisitAttrs(v);
@@ -299,8 +299,18 @@ class LiteralDoc : public ExprDoc {
    * \param p The object path
    */
   static LiteralDoc DataType(const runtime::DataType& v, const Optional<ObjectPath>& p) {
-    std::string dtype = v.is_void() ? "void" : runtime::DLDataType2String(v);
+    std::string dtype = v.is_void() ? "void" : runtime::DLDataTypeToString(v);
     return LiteralDoc::Str(dtype, p);
+  }
+  /*!
+   * \brief Create a LiteralDoc to represent device.
+   * \param v The device.
+   * \param p The object path
+   */
+  static LiteralDoc Device(const DLDevice& v, const Optional<ObjectPath>& p) {
+    std::ostringstream os;
+    runtime::operator<<(os, v);
+    return LiteralDoc::Str(os.str(), p);
   }
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LiteralDoc, ExprDoc, LiteralDocNode);
@@ -624,7 +634,7 @@ class TupleDoc : public ExprDoc {
   /*!
    * \brief Create an empty TupleDoc
    */
-  TupleDoc() : TupleDoc(runtime::make_object<TupleDocNode>()) {}
+  TupleDoc() : TupleDoc(ffi::make_object<TupleDocNode>()) {}
   /*!
    * \brief Constructor of TupleDoc
    * \param elements Elements of tuple.
@@ -662,7 +672,7 @@ class ListDoc : public ExprDoc {
   /*!
    * \brief Create an empty ListDoc
    */
-  ListDoc() : ListDoc(runtime::make_object<ListDocNode>()) {}
+  ListDoc() : ListDoc(ffi::make_object<ListDocNode>()) {}
   /*!
    * \brief Constructor of ListDoc
    * \param elements Elements of list.
@@ -708,7 +718,7 @@ class DictDoc : public ExprDoc {
   /*!
    * \brief Create an empty dictionary
    */
-  DictDoc() : DictDoc(runtime::make_object<DictDocNode>()) {}
+  DictDoc() : DictDoc(ffi::make_object<DictDocNode>()) {}
   /*!
    * \brief Constructor of DictDoc
    * \param keys Keys of dictionary.
@@ -947,7 +957,7 @@ class ForDoc : public StmtDoc {
 class ScopeDocNode : public StmtDocNode {
  public:
   /*! \brief The name of the scoped variable. */
-  Optional<ExprDoc> lhs{NullOpt};
+  Optional<ExprDoc> lhs{std::nullopt};
   /*! \brief The value of the scoped variable. */
   ExprDoc rhs{nullptr};
   /*! \brief The body of the scope doc. */
@@ -1033,7 +1043,7 @@ class AssertDocNode : public StmtDocNode {
   /*! \brief The expression to test. */
   ExprDoc test{nullptr};
   /*! \brief The optional error message when assertion failed. */
-  Optional<ExprDoc> msg{NullOpt};
+  Optional<ExprDoc> msg{std::nullopt};
 
   void VisitAttrs(AttrVisitor* v) {
     StmtDocNode::VisitAttrs(v);
@@ -1057,7 +1067,7 @@ class AssertDoc : public StmtDoc {
    * \param test The expression to test.
    * \param msg The optional error message when assertion failed.
    */
-  explicit AssertDoc(ExprDoc test, Optional<ExprDoc> msg = NullOpt);
+  explicit AssertDoc(ExprDoc test, Optional<ExprDoc> msg = std::nullopt);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AssertDoc, StmtDoc, AssertDocNode);
 };
 
@@ -1115,7 +1125,7 @@ class FunctionDocNode : public StmtDocNode {
   /*! \brief Decorators of function. */
   Array<ExprDoc> decorators;
   /*! \brief The return type of function. */
-  Optional<ExprDoc> return_type{NullOpt};
+  Optional<ExprDoc> return_type{std::nullopt};
   /*! \brief The body of function. */
   Array<StmtDoc> body;
 

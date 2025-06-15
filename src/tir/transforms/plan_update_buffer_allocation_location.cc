@@ -212,7 +212,7 @@ class BufferAllocationLocator : public StmtExprMutator {
                        /*writes=*/{},
                        /*name_hint=*/"",
                        /*body=*/std::move(body),
-                       /*init=*/NullOpt,
+                       /*init=*/std::nullopt,
                        /*alloc_buffers=*/alloc_buffers);
     ObjectPtr<BlockNode> n = CopyOnWrite(opaque_block.get());
     Array<Array<BufferRegion>> access =
@@ -257,7 +257,7 @@ Pass PlanAndUpdateBufferAllocationLocation() {
   return CreatePrimFuncPass(pass_func, 0, "tir.PlanAndUpdateBufferAllocationLocation", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.PlanAndUpdateBufferAllocationLocation")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.PlanAndUpdateBufferAllocationLocation")
     .set_body_typed(PlanAndUpdateBufferAllocationLocation);
 
 }  // namespace transform

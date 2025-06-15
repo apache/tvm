@@ -352,7 +352,7 @@ def test_no_normalization_without_commoning():
 def func_distributivity(
     B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
-    B[i1] = x * (y + z)
+    B[i1] = (y + z) * x
     B[i2] = x * y + x * z
 
 

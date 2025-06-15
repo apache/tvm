@@ -60,7 +60,7 @@ Expr avg_pool2d_backward(Expr output_grad, Expr data, Array<IntImm> pool_size,
 
 /*! \brief Backward operator of relax.take. All parameters except output_grad is the same as
  * relax.take. Returns the gradient w.r.t. data. */
-Expr take_backward(Expr output_grad, Expr x, Expr indices, Optional<Integer> axis);
+Expr take_backward(Expr output_grad, Expr x, Expr indices, Optional<int64_t> axis);
 
 }  // namespace relax
 }  // namespace tvm

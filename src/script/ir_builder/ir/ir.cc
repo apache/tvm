@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/script/ir_builder/ir/ir.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
@@ -88,7 +88,7 @@ void DefFunction(const String& func_name, const BaseFunc& func) {
   gv->checked_type_ = func->checked_type_;
 }
 
-void ModuleAttrs(Map<String, ObjectRef> attrs, bool allow_overwrite) {
+void ModuleAttrs(Map<String, Any> attrs, bool allow_overwrite) {
   if (IRBuilder::IsInScope()) {
     // TODO(hongyi): add comments to explain why we need to check if the module frame is in scope
     IRModuleFrame frame = FindModuleFrame("I.ModuleAttr");
@@ -103,10 +103,10 @@ Optional<ObjectRef> ModuleGetAttr(const String& key) {
   if (IRBuilder::IsInScope()) {
     IRModuleFrame frame = FindModuleFrame();
     if (frame->attrs.find(key) != frame->attrs.end()) {
-      return frame->attrs[key];
+      return frame->attrs[key].cast<ObjectRef>();
     }
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 void ModuleSetAttr(const String& key, const Optional<ObjectRef>& value, bool allow_override) {
@@ -165,14 +165,14 @@ VDevice LookupVDevice(String target_kind, int device_index) {
   return VDevice();
 }
 
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.DeclFunction").set_body_typed(DeclFunction);
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.DefFunction").set_body_typed(DefFunction);
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleAttrs").set_body_typed(ModuleAttrs);
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGetAttr").set_body_typed(ModuleGetAttr);
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleSetAttr").set_body_typed(ModuleSetAttr);
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGlobalInfos").set_body_typed(ModuleGlobalInfos);
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.LookupVDevice").set_body_typed(LookupVDevice);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.DeclFunction").set_body_typed(DeclFunction);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.DefFunction").set_body_typed(DefFunction);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.ModuleAttrs").set_body_typed(ModuleAttrs);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGetAttr").set_body_typed(ModuleGetAttr);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.ModuleSetAttr").set_body_typed(ModuleSetAttr);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGlobalInfos").set_body_typed(ModuleGlobalInfos);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.LookupVDevice").set_body_typed(LookupVDevice);
 
 }  // namespace ir
 }  // namespace ir_builder

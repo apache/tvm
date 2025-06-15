@@ -20,9 +20,9 @@
 /*!
  * \file Use external cblas library call.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 extern "C" {
 #include <cblas.h>
@@ -123,29 +123,31 @@ struct CblasDgemmBatchIterativeOp {
 };
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.cblas.matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* A = args[0];
-  ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cblas.matmul")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      auto A = args[0].cast<DLTensor*>();
+      ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
 
-  if (TypeMatch(A->dtype, kDLFloat, 32))
-    CallGemm(args, ret, CblasSgemmOp());
-  else
-    CallGemm(args, ret, CblasDgemmOp());
-});
+      if (TypeMatch(A->dtype, kDLFloat, 32))
+        CallGemm(args, ret, CblasSgemmOp());
+      else
+        CallGemm(args, ret, CblasDgemmOp());
+    });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul").set_body([](TVMArgs args, TVMRetValue* ret) {
-  DLTensor* A = args[0];
-  ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
-  if (TypeMatch(A->dtype, kDLFloat, 32)) {
-    CallBatchGemm(args, ret, CblasSgemmBatchOp());
-  } else {
-    CallBatchGemm(args, ret, CblasDgemmBatchOp());
-  }
-});
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      auto A = args[0].cast<DLTensor*>();
+      ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
+      if (TypeMatch(A->dtype, kDLFloat, 32)) {
+        CallBatchGemm(args, ret, CblasSgemmBatchOp());
+      } else {
+        CallBatchGemm(args, ret, CblasDgemmBatchOp());
+      }
+    });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul_iterative")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      DLTensor* A = args[0];
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cblas.batch_matmul_iterative")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      auto A = args[0].cast<DLTensor*>();
       ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
       if (TypeMatch(A->dtype, kDLFloat, 32)) {
         CallBatchGemm(args, ret, CblasSgemmBatchIterativeOp());

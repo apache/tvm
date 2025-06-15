@@ -27,7 +27,7 @@ Doc DoConciseScoping(const Optional<ExprDoc>& lhs, const ExprDoc& rhs, Array<Stm
                      bool concise_scoping) {
   if (concise_scoping) {
     if (lhs.defined()) {
-      stmts->insert(stmts->begin(), AssignDoc(lhs.value(), rhs, NullOpt));
+      stmts->insert(stmts->begin(), AssignDoc(lhs.value(), rhs, std::nullopt));
     } else {
       stmts->insert(stmts->begin(), ExprStmtDoc(rhs));
     }
@@ -66,14 +66,14 @@ bool IsAncestorOfAllVarUse(const tir::Stmt& node, const ObjectRef& var, const IR
 
 Optional<PrimExpr> FindReturnValue(const tir::Stmt& node) {
   auto eval = node.as<tir::EvaluateNode>();
-  if (!eval) return NullOpt;
+  if (!eval) return std::nullopt;
 
   auto call = eval->value.as<tir::CallNode>();
-  if (!call) return NullOpt;
+  if (!call) return std::nullopt;
 
-  if (!call->op.same_as(tir::builtin::ret())) return NullOpt;
+  if (!call->op.same_as(tir::builtin::ret())) return std::nullopt;
 
-  if (call->args.size() != 1) return NullOpt;
+  if (call->args.size() != 1) return std::nullopt;
 
   return call->args[0];
 }
@@ -103,7 +103,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                                                      p->Attr("var")->Attr("type_annotation"));
       if (const auto* tuple_type = stmt->var->type_annotation.as<TupleTypeNode>()) {
         if (tuple_type->fields.empty()) {
-          type_doc = NullOpt;
+          type_doc = std::nullopt;
         }
       }
       // Step 2. RHS
@@ -119,7 +119,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
       // Step 4. Dispatch
       if (var_defined) {
-        return ScopeDoc(NullOpt, TIR(d, "LetStmt")->Call({rhs}, {"var"}, {lhs}), *stmts);
+        return ScopeDoc(std::nullopt, TIR(d, "LetStmt")->Call({rhs}, {"var"}, {lhs}), *stmts);
       } else if (concise) {
         stmts->insert(stmts->begin(), AssignDoc(lhs, rhs, type_doc));
         return StmtBlockDoc(*stmts);
@@ -143,7 +143,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             stmts->insert(stmts->begin(), AssertDoc(cond, msg));
             return StmtBlockDoc(*stmts);
           }
-          return ScopeDoc(NullOpt, TIR(d, "Assert")->Call({cond, msg}), (*f)->stmts);
+          return ScopeDoc(std::nullopt, TIR(d, "Assert")->Call({cond, msg}), (*f)->stmts);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -198,16 +198,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       AsDocBody(stmt, p, f->get(), d);
       return StmtBlockDoc((*f)->stmts);
     });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::Prefetch>(  //
-        "", [](tir::Prefetch stmt, ObjectPath p, IRDocsifier d) -> Doc {
-          return ExprStmtDoc(TIR(d, "prefetch")
-                                 ->Call({
-                                     d->AsDoc<ExprDoc>(stmt->buffer, p->Attr("buffer")),
-                                     d->AsDoc<ExprDoc>(stmt->bounds, p->Attr("bounds")),
-                                 }));
-        });
 
 bool IsAllocateDeclBufferPattern(const tir::AllocateNode* allocate) {
   const tir::Var& buffer_var = allocate->buffer_var;
@@ -275,9 +265,9 @@ ExprDoc PrintNDArray(::tvm::runtime::NDArray arr) {
   runtime::DataType dtype = arr.DataType();
   for (int i = 0; i < tot_dim; i++) {
     if (dtype.is_float()) {
-      result.push_back(LiteralDoc::Float(data_ptr[i], NullOpt));
+      result.push_back(LiteralDoc::Float(data_ptr[i], std::nullopt));
     } else {
-      result.push_back(LiteralDoc::Int(data_ptr[i], NullOpt));
+      result.push_back(LiteralDoc::Int(data_ptr[i], std::nullopt));
     }
     if (i == NUM_PRINT) {
       break;
@@ -354,7 +344,7 @@ ExprDoc DocsifyBufferRealize(const tir::BufferRealizeNode* stmt, Optional<ExprDo
       bounds.push_back(
           SliceDoc(d->AsDoc<ExprDoc>(range->min, range_p->Attr("min")),
                    d->AsDoc<ExprDoc>(range->min + range->extent, range_p->Attr("extent")),  //
-                   NullOpt));
+                   std::nullopt));
     }
     buffer = buffer[bounds];
   }
@@ -379,7 +369,7 @@ void InsertEnvThread(const tir::IterVar& iter_var, const ObjectPath& iter_var_p,
                     ->Call({LiteralDoc::Str(iter_var->thread_tag,  //
                                             iter_var_p->Attr("thread_tag"))});
   ExprDoc lhs = d->AsDoc<ExprDoc>(iter_var->var, iter_var_p->Attr("var"));
-  f->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+  f->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
 }
 
 ExprDoc DocsifyLaunchThread(const tir::AttrStmt& attr_stmt, const ObjectPath& attr_stmt_p,
@@ -408,19 +398,19 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BufferRealize>(  //
         "", [](tir::BufferRealize stmt, ObjectPath p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d, stmt);
-          ExprDoc rhs = DocsifyBufferRealize(stmt.get(), NullOpt, p, d);
+          ExprDoc rhs = DocsifyBufferRealize(stmt.get(), std::nullopt, p, d);
           With<TIRFrame> f(d, stmt);
           AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-          return DoConciseScoping(NullOpt, rhs, &(*f)->stmts, concise);
+          return DoConciseScoping(std::nullopt, rhs, &(*f)->stmts, concise);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::AttrStmt>(  //
         "", [](tir::AttrStmt stmt, ObjectPath stmt_p, IRDocsifier d) -> Doc {
           bool concise = AllowConciseScoping(d, stmt);
-          Optional<ExprDoc> lhs = NullOpt;
-          Optional<ExprDoc> rhs = NullOpt;
-          Optional<tir::Var> define_var = NullOpt;
+          Optional<ExprDoc> lhs = std::nullopt;
+          Optional<ExprDoc> rhs = std::nullopt;
+          Optional<tir::Var> define_var = std::nullopt;
           tir::Stmt body = stmt->body;
           ObjectPath body_p = stmt_p->Attr("body");
           if (stmt->attr_key == "realize_scope") {
@@ -462,7 +452,6 @@ TVM_SCRIPT_REPR(tir::WhileNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AllocateNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::AllocateConstNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::DeclBufferNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::PrefetchNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::SeqStmtNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::IfThenElseNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::EvaluateNode, ReprPrintTIR);

@@ -22,9 +22,9 @@
  */
 #include "hexagon_common.h"
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/profiling.h>
-#include <tvm/runtime/registry.h>
 
 #include <sstream>
 #include <string>
@@ -56,7 +56,7 @@ class HexagonTimerNode : public TimerNode {
 
 TVM_REGISTER_OBJECT_TYPE(HexagonTimerNode);
 
-TVM_REGISTER_GLOBAL("profiling.timer.hexagon").set_body_typed([](Device dev) {
+TVM_FFI_REGISTER_GLOBAL("profiling.timer.hexagon").set_body_typed([](Device dev) {
   return Timer(make_object<HexagonTimerNode>());
 });
 }  // namespace hexagon
@@ -89,10 +89,11 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 }
 }  // namespace detail
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_hexagon").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ObjectPtr<Library> n = CreateDSOLibraryObject(args[0]);
-  *rv = CreateModuleFromLibrary(n);
-});
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_hexagon")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      ObjectPtr<Library> n = CreateDSOLibraryObject(args[0].cast<String>());
+      *rv = CreateModuleFromLibrary(n);
+    });
 
 }  // namespace runtime
 }  // namespace tvm

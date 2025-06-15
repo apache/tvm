@@ -54,7 +54,7 @@ class TVMStructFieldKind(enum.IntEnum):
 def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
     @T.prim_func(private=True)
     def _get_tensor_stride_i(dlpack_handle: T.handle, axis: T.int64) -> T.int64:
-        T.func_attr({"tir.is_host": T.bool(True), "tir.is_scheduled": T.bool(True)})
+        T.func_attr({"tir.is_host": True, "tir.is_scheduled": True})
         assert T.int64(0) <= axis, "Specified axis may not be negative"
         ndim: T.int32 = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kArrNDim), "int32"
@@ -96,7 +96,7 @@ def _tensor_stride_i(bb: BlockBuilder, call: Call) -> Expr:
 def _tensor_byte_offset(bb: BlockBuilder, call: Call) -> Expr:
     @T.prim_func(private=True)
     def _get_tensor_byte_offset(dlpack_handle: T.handle) -> T.int64:
-        T.func_attr({"tir.is_host": T.bool(True), "tir.is_scheduled": T.bool(True)})
+        T.func_attr({"tir.is_host": True, "tir.is_scheduled": True})
         byte_offset: T.uint64 = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kArrByteOffset), "uint64"
         )
@@ -110,7 +110,7 @@ def _tensor_byte_offset(bb: BlockBuilder, call: Call) -> Expr:
 def _tensor_elem_offset(bb: BlockBuilder, call: Call) -> Expr:
     @T.prim_func(private=True)
     def _get_tensor_elem_offset(dlpack_handle: T.handle) -> T.int64:
-        T.func_attr({"tir.is_host": T.bool(True), "tir.is_scheduled": T.bool(True)})
+        T.func_attr({"tir.is_host": True, "tir.is_scheduled": True})
         byte_offset: T.uint64 = T.tvm_struct_get(
             dlpack_handle, 0, int(TVMStructFieldKind.kArrByteOffset), "uint64"
         )

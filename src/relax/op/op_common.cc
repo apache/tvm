@@ -136,7 +136,7 @@ Optional<Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call, const Bloc
                        << " is " << dim1 << ", which are not broadcastable.");
     } else {
       // Use simple fallback when shape mismatch.
-      return NullOpt;
+      return std::nullopt;
     }
   }
   auto& longer_shape = (x1_ndim > x2_ndim) ? x1_shape : x2_shape;

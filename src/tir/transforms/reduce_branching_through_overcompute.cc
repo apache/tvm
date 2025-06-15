@@ -169,7 +169,7 @@ Pass ReduceBranchingThroughOvercompute() {
   return CreatePrimFuncPass(pass_func, 0, "tir.ReduceBranchingThroughOvercompute", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.ReduceBranchingThroughOvercompute")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.ReduceBranchingThroughOvercompute")
     .set_body_typed(ReduceBranchingThroughOvercompute);
 
 }  // namespace transform

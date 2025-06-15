@@ -44,7 +44,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
 
   // Implement active device
   void SetDevice(Device dev) final;
-  void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
+  void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final;
 
   // Implement memory management required by DeviceAPI
   void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final;
@@ -107,7 +107,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
    * Returns the results of feature/property queries done during the
    * device initialization.
    */
-  void GetTargetProperty(Device dev, const std::string& property, TVMRetValue* rv) final;
+  void GetTargetProperty(Device dev, const std::string& property, ffi::Any* rv) final;
 
  private:
   std::vector<uint32_t> GetComputeQueueFamilies(VkPhysicalDevice phy_dev);

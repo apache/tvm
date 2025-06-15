@@ -16,13 +16,13 @@
 # under the License.
 
 """FlashInfer JIT compilation module for CUDA backend"""
+import hashlib
+import json
 import os
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import List
-import hashlib
-import json
 
 import tvm
 from tvm.target import Target
@@ -130,6 +130,7 @@ def _compile_flashinfer_kernels(
         FLASHINFER_CSRC_DIR,
         FLASHINFER_TVM_BINDING_DIR,
         Path(tvm_home).resolve() / "include",
+        Path(tvm_home).resolve() / "ffi" / "include",
         Path(tvm_home).resolve() / "3rdparty" / "dlpack" / "include",
         Path(tvm_home).resolve() / "3rdparty" / "dmlc-core" / "include",
     ] + CUTLASS_INCLUDE_DIRS

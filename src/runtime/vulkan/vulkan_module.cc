@@ -20,7 +20,7 @@
 #include "vulkan_module.h"
 
 #include <dmlc/memory_io.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include "../file_utils.h"
 #include "vulkan_wrapped_func.h"
@@ -64,9 +64,9 @@ Module VulkanModuleLoadBinary(void* strm) {
   return VulkanModuleCreate(smap, fmap, "");
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_vulkan").set_body_typed(VulkanModuleLoadFile);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_vulkan").set_body_typed(VulkanModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_vulkan").set_body_typed(VulkanModuleLoadBinary);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_vulkan").set_body_typed(VulkanModuleLoadBinary);
 
 }  // namespace vulkan
 }  // namespace runtime

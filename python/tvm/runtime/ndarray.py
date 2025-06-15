@@ -26,28 +26,52 @@ try:
     import ml_dtypes
 except ImportError:
     ml_dtypes = None
-import tvm._ffi
-from tvm._ffi.base import _LIB, c_array, check_call, string_types
-from tvm._ffi.runtime_ctypes import (
-    DataType,
-    DataTypeCode,
-    Device,
-    TVMArray,
-    TVMArrayHandle,
-    tvm_shape_index_t,
-)
-from tvm._ffi._cy3.core import (
-    NDArrayBase,
-    _from_dlpack,
-    _make_array,
-    _set_class_ndarray,
-)
 
+from tvm.runtime import Device
+
+import tvm.ffi
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("runtime.NDArray")
-class NDArray(NDArrayBase):
+from ..ffi import (
+    device,
+    cpu,
+    cuda,
+    rocm,
+    opencl,
+    metal,
+    vpi,
+    vulkan,
+    ext_dev,
+    hexagon,
+    webgpu,
+)
+
+
+def from_dlpack(ext_tensor):
+    """
+    Convert an external tensor to an NDArray.
+
+    Parameters
+    ----------
+    ext_tensor : object
+        The external tensor to convert.
+
+    required_alignment : int
+        The minimum required alignment to check for the tensor.
+
+    required_contiguous : bool
+        Whether to check for contiguous memory.
+    """
+    return tvm.ffi.from_dlpack(
+        ext_tensor,
+        required_alignment=64,
+        required_contiguous=True,
+    )
+
+
+@tvm.ffi.register_object("object.NDArray")
+class NDArray(tvm.ffi.core.NDArray):
     """Lightweight NDArray class of TVM runtime.
 
     Strictly this is only an Array Container (a buffer object)
@@ -59,63 +83,6 @@ class NDArray(NDArrayBase):
     how can we use TVM in existing project which might have their own array containers.
     """
 
-    @property
-    def dtype(self):
-        """Type of this array"""
-        return str(self.handle.contents.dtype)
-
-    @property
-    def device(self):
-        """Device of this array"""
-        return self.handle.contents.device
-
-    def __dlpack__(self, stream=None):  # pylint: disable=unused-argument
-        """Export the array for consumption by from_dlpack() as a DLPack capsule.
-
-        Parameters
-        ----------
-        stream : int, optional
-            A Python integer representing a pointer to a stream.
-            Stream is provided by the consumer to the producer to instruct the producer
-            to ensure that operations can safely be performed on the array.
-
-        Returns
-        -------
-        capsule : PyCapsule
-            A DLPack capsule for the array, containing a DLPackManagedTensor.
-        """
-        return self.to_dlpack()
-
-    def __dlpack_device__(self):
-        """Return a tuple of device_type, device_id in DLPack convention"""
-        return (self.handle.contents.device.device_type, self.handle.contents.device.device_id)
-
-    def __hash__(self):
-        return ctypes.cast(self.handle, ctypes.c_void_p).value
-
-    def __eq__(self, other):
-        return self.same_as(other)
-
-    def __ne__(self, other):
-        return not self.__eq__(other)
-
-    def same_as(self, other):
-        """Check object identity equality
-
-        Parameters
-        ----------
-        other : object
-            The other object to compare to
-
-        Returns
-        -------
-        same : bool
-            Whether other is same as self.
-        """
-        if not isinstance(other, NDArrayBase):
-            return False
-        return self.__hash__() == other.__hash__()
-
     def __setitem__(self, in_slice, value):
         """Set ndarray value"""
         if (
@@ -124,8 +91,8 @@ class NDArray(NDArrayBase):
             or in_slice.stop is not None
         ):
             raise ValueError("Array only support set from numpy array")
-        if isinstance(value, NDArrayBase):
-            if value.handle is not self.handle:
+        if isinstance(value, NDArray):
+            if not value.same_as(self):
                 value.copyto(self)
         elif isinstance(value, (np.ndarray, np.generic)):
             self.copyfrom(value)
@@ -145,7 +112,7 @@ class NDArray(NDArrayBase):
         arr : NDArray
             Reference to self.
         """
-        if isinstance(source_array, NDArrayBase):
+        if isinstance(source_array, NDArray):
             source_array.copyto(self)
             return self
 
@@ -157,18 +124,18 @@ class NDArray(NDArrayBase):
                     f"array must be an array_like data, type {type(source_array)} is not supported"
                 )
 
-        t = DataType(self.dtype)
+        t = tvm.ffi.dtype(self.dtype)
         shape, dtype = self.shape, self.dtype
         if t.lanes > 1:
             shape = shape + (t.lanes,)
-            t.lanes = 1
+            t = t.with_lanes(1)
             dtype = str(t)
 
         if source_array.shape != shape:
             raise ValueError(
                 f"array shape do not match the shape of NDArray {source_array.shape} vs {shape}"
             )
-        numpy_str_map = DataType.NUMPY2STR
+        numpy_str_map = tvm.ffi.dtype.NUMPY_DTYPE_TO_STR
         np_dtype_str = (
             numpy_str_map[source_array.dtype]
             if source_array.dtype in numpy_str_map
@@ -182,10 +149,9 @@ class NDArray(NDArrayBase):
             source_array = np.ascontiguousarray(
                 source_array, dtype="uint16" if dtype == "bfloat16" else dtype
             )
-        if self.dtype.startswith("float4_e2m1fn") and self.dtype != "float4_e2m1fn":
-            # float4_e2m1fn in numpy is not packed.
-            # So we need to pack the input data when converting to vectorized float4_e2m1fn type.
-            data_bits = source_array.view(dtype="uint8")
+        if self.dtype.startswith("float4_e2m1fn"):
+            # we need to pack the input data when converting to float4_e2m1fn type,
+            data_bits = source_array.view(dtype="uint8").flatten()
             if data_bits.size % 2:
                 data_bits = np.pad(data_bits, (0, 1), mode="constant", constant_values=0)
             data_bits = data_bits.reshape(-1, 2)
@@ -193,27 +159,20 @@ class NDArray(NDArrayBase):
             source_array = packed.astype(np.int8)
         assert source_array.flags["C_CONTIGUOUS"]
         data = source_array.ctypes.data_as(ctypes.c_void_p)
-        nbytes = ctypes.c_size_t(source_array.size * source_array.dtype.itemsize)
-        check_call(_LIB.TVMArrayCopyFromBytes(self.handle, data, nbytes))
+        nbytes = source_array.size * source_array.dtype.itemsize
+        _ffi_api.TVMArrayCopyFromBytes(self, data, nbytes)
         return self
 
     def __repr__(self):
+        # exception safety handling for chandle=None
+        if self.__chandle__() == 0:
+            return type(self).__name__ + "(chandle=None)"
         res = f"<tvm.nd.NDArray shape={self.shape}, {self.device}>\n"
         res += self.numpy().__repr__()
         return res
 
     def __str__(self):
         return str(self.numpy())
-
-    def asnumpy(self):
-        """Convert this array to numpy array. This API will be deprecated in TVM v0.8 release.
-        Please use `numpy` instead."""
-        warnings.warn(
-            "NDArray.asnumpy() will be deprecated in TVM v0.8 release. "
-            "Please use NDArray.numpy() instead.",
-            DeprecationWarning,
-        )
-        return self.numpy()
 
     def numpy(self):
         """Convert this array to numpy array
@@ -223,62 +182,54 @@ class NDArray(NDArrayBase):
         np_arr : numpy.ndarray
             The corresponding numpy array.
         """
-        t = DataType(self.dtype)
+        t = tvm.ffi.dtype(self.dtype)
         shape, dtype = self.shape, self.dtype
         old_dtype = dtype
         if t.lanes > 1:
             shape = shape + (t.lanes,)
-            t.lanes = 1
+            t = t.with_lanes(1)
             dtype = str(t)
         if dtype == "int4":
             dtype = "int8"
-        if dtype == "bfloat16":
-            if ml_dtypes is not None:
-                dtype = ml_dtypes.bfloat16
-            else:
+        if dtype in [
+            "bfloat16",
+            "float8_e3m4",
+            "float8_e4m3",
+            "float8_e4m3b11fnuz",
+            "float8_e4m3fn",
+            "float8_e4m3fnuz",
+            "float8_e5m2",
+            "float8_e5m2fnuz",
+            "float8_e8m0fnu",
+            "float6_e2m3fn",
+            "float6_e3m2fn",
+            "float4_e2m1fn",
+        ]:
+            if ml_dtypes is None:
                 raise RuntimeError(
-                    "ml_dtypes is not installed, cannot convert bfloat16 array to numpy."
+                    f"ml_dtypes is not installed, cannot convert {dtype} array to numpy."
                 )
-        if dtype == "float8_e4m3fn":
-            if ml_dtypes is not None:
-                dtype = ml_dtypes.float8_e4m3fn
-            else:
-                raise RuntimeError(
-                    "ml_dtypes is not installed, cannot convert float8_e4m3fn array to numpy."
-                )
-        if dtype == "float8_e5m2":
-            if ml_dtypes is not None:
-                dtype = ml_dtypes.float8_e5m2
-            else:
-                raise RuntimeError(
-                    "ml_dtypes is not installed, cannot convert float8_e5m2 array to numpy."
-                )
-        if dtype == "float4_e2m1fn":
-            if ml_dtypes is not None:
-                dtype = ml_dtypes.float4_e2m1fn
-            else:
-                raise RuntimeError(
-                    "ml_dtypes is not installed, cannot convert float4_e2m1fn array to numpy."
-                )
+            try:
+                dtype = getattr(ml_dtypes, dtype)
+            except AttributeError:
+                raise RuntimeError(f"ml_dtypes has no attribute '{dtype}', cannot convert array.")
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags["C_CONTIGUOUS"]
         data = np_arr.ctypes.data_as(ctypes.c_void_p)
-        if old_dtype.startswith("float4_e2m1fn") and old_dtype != "float4_e2m1fn":
-            nbytes = ctypes.c_size_t(np_arr.size * np_arr.dtype.itemsize // 2)
-        else:
-            nbytes = ctypes.c_size_t(np_arr.size * np_arr.dtype.itemsize)
-        check_call(_LIB.TVMArrayCopyToBytes(self.handle, data, nbytes))
-        if old_dtype == "int4" or (
-            old_dtype.startswith("float4_e2m1fn") and old_dtype != "float4_e2m1fn"
-        ):
+        # TODO(kathy): revisit and get a mirrored function of ffi::GetDataSize
+        # in Python to replace line below
+        nbytes = np_arr.size if dtype == "bool" else (np_arr.size * old_dtype.bits + 7) // 8
+        _ffi_api.TVMArrayCopyToBytes(self, data, nbytes)
+
+        if old_dtype == "int4" or old_dtype.startswith("float4_e2m1fn"):
             length = np_arr.size
             np_arr = np_arr.view("int8")
             np_arr_ret = np.empty((length,), dtype="int8")
             np_arr = np_arr.reshape((length,))
-            old_index = np.bitwise_and(np_arr, 0x0F)
+            odd_index = np.bitwise_and(np_arr, 0x0F)
             even_index = np.bitwise_and(np_arr >> 4, 0x0F)
-            np_arr_ret[1::2] = old_index[0 : length // 2]
-            np_arr_ret[0::2] = even_index[0 : length // 2]
+            np_arr_ret[1::2] = odd_index[0 : length // 2]
+            np_arr_ret[0::2] = even_index[0 : (length + 1) // 2]
             return np_arr_ret.reshape(shape).view(dtype)
 
         return np_arr
@@ -294,12 +245,17 @@ class NDArray(NDArrayBase):
         mem_scope : Optional[str]
             The memory scope of the array.
         """
-        if isinstance(target, NDArrayBase):
+        if isinstance(target, NDArray):
             return self._copyto(target)
-        if isinstance(target, Device):
+        if isinstance(target, tvm.ffi.core.Device):
             res = empty(self.shape, self.dtype, target, mem_scope)
             return self._copyto(res)
         raise ValueError(f"Unsupported target type {type(target)}")
+
+    def _copyto(self, target_nd):
+        """Internal function that implements copy to target ndarray."""
+        _ffi_api.TVMArrayCopyFromTo(self, target_nd)
+        return target_nd
 
     def _create_view(self, shape, dtype: Optional[str] = None, relative_byte_offset: int = 0):
         """Create a view into an existing array.
@@ -349,74 +305,7 @@ class NDArray(NDArrayBase):
         return _ffi_api.TVMArrayCreateView(self, shape, dtype, relative_byte_offset)
 
 
-def device(dev_type, dev_id=0):
-    """Construct a TVM device with given device type and id.
-
-    Parameters
-    ----------
-    dev_type: int or str
-        The device type mask or name of the device.
-
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    dev: tvm.runtime.Device
-        The corresponding device.
-
-    Examples
-    --------
-    Device can be used to create reflection of device by
-    string representation of the device type.
-
-    .. code-block:: python
-
-      assert tvm.device("cpu", 1) == tvm.cpu(1)
-      assert tvm.device("cuda", 0) == tvm.cuda(0)
-    """
-    if isinstance(dev_type, Device):
-        return dev_type
-    if not isinstance(dev_id, int):
-        raise ValueError(f"Invalid device id: {dev_id}")
-
-    if isinstance(dev_type, string_types):
-        dev_type = dev_type.split()[0]
-        if dev_type.count(":") == 0:
-            pass
-        elif dev_type.count(":") == 1:
-            # It will override the dev_id passed by the user.
-            dev_type, dev_id = dev_type.split(":")
-            if not dev_id.isdigit():
-                raise ValueError(f"Invalid device id: {dev_id}")
-            dev_id = int(dev_id)
-        else:
-            raise ValueError(f"Invalid device string: {dev_type}")
-
-        if dev_type not in Device.STR2MASK:
-            raise ValueError(f"Unknown device type: {dev_type}")
-
-        return Device(Device.STR2MASK[dev_type], dev_id)
-    return Device(dev_type, dev_id)
-
-
-def numpyasarray(np_data):
-    """Return a TVMArray representation of a numpy array."""
-    data = np_data
-    assert data.flags["C_CONTIGUOUS"]
-    arr = TVMArray()
-    shape = c_array(tvm_shape_index_t, data.shape)
-    arr.data = data.ctypes.data_as(ctypes.c_void_p)
-    arr.shape = shape
-    arr.strides = None
-    arr.dtype = DataType(np.dtype(data.dtype).name)
-    arr.ndim = data.ndim
-    # CPU device
-    arr.device = device(Device.kDLCPU, 0)
-    return arr, shape
-
-
-def empty(shape, dtype="float32", device=device(Device.kDLCPU, 0), mem_scope=None):
+def empty(shape, dtype="float32", device=None, mem_scope=None):
     """Create an empty array given shape and device
 
     Parameters
@@ -438,230 +327,15 @@ def empty(shape, dtype="float32", device=device(Device.kDLCPU, 0), mem_scope=Non
     arr : tvm.nd.NDArray
         The array tvm supported.
     """
+    device = device or cpu()
     if not isinstance(shape, tvm.runtime.ShapeTuple):
         shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
-    dtype = DataType(dtype)
+    dtype = tvm.ffi.dtype(dtype)
     arr = _ffi_api.TVMArrayAllocWithScope(shape, dtype, device, mem_scope)
     return arr
 
 
-def from_dlpack(dltensor):
-    """Produces an array from an object with __dlpack__ method or a DLPack tensor w/o memory copy.
-    Retreives the underlying DLPack tensor's pointer to create an array from the
-    data. Removes the original DLPack tensor's destructor as now the array is
-    responsible for destruction.
-
-    Parameters
-    ----------
-    dltensor : object with __dlpack__ attribute or a DLPack capsule
-
-    Returns
-    -------
-    arr: tvm.nd.NDArray
-        The array view of the tensor data.
-    """
-    t = type(dltensor)
-    if t.__module__ == "builtins" and t.__name__ == "PyCapsule":
-        return _from_dlpack(dltensor)
-
-    if hasattr(dltensor, "__dlpack__"):
-        dlpack_caps = dltensor.__dlpack__()
-        return _from_dlpack(dlpack_caps)
-    raise AttributeError("Required attribute __dlpack__ not found")
-
-
-def cpu(dev_id=0):
-    """Construct a CPU device
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    dev : Device
-        The created device
-    """
-    return Device(Device.kDLCPU, dev_id)
-
-
-def cuda(dev_id=0):
-    """Construct a CUDA GPU device
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    dev : Device
-        The created device
-    """
-    return Device(Device.kDLCUDA, dev_id)
-
-
-def gpu(dev_id=0):
-    """Construct a CUDA GPU device
-
-        deprecated:: 0.9.0
-        Use :py:func:`tvm.cuda` instead.
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    dev : Device
-        The created device
-    """
-    warnings.warn(
-        "Please use tvm.cuda() instead of tvm.gpu(). tvm.gpu() is going to be deprecated in 0.9.0"
-    )
-    return Device(Device.kDLCUDA, dev_id)
-
-
-def rocm(dev_id=0):
-    """Construct a ROCM device
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    dev : Device
-        The created device
-    """
-    return Device(Device.kDLROCM, dev_id)
-
-
-def opencl(dev_id=0):
-    """Construct a OpenCL device
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    dev : Device
-        The created device
-    """
-    return Device(Device.kDLOpenCL, dev_id)
-
-
-def metal(dev_id=0):
-    """Construct a metal device
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    dev : Device
-        The created device
-    """
-    return Device(Device.kDLMetal, dev_id)
-
-
-def vpi(dev_id=0):
-    """Construct a VPI simulated device
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    dev : Device
-        The created device
-    """
-    return Device(Device.kDLVPI, dev_id)
-
-
-def vulkan(dev_id=0):
-    """Construct a Vulkan device
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    dev : Device
-        The created device
-    """
-    return Device(Device.kDLVulkan, dev_id)
-
-
-def ext_dev(dev_id=0):
-    """Construct a extension device
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    dev : Device
-        The created device
-
-    Note
-    ----
-    This API is reserved for quick testing of new
-    device by plugin device API as ext_dev.
-    """
-    return Device(Device.kDLExtDev, dev_id)
-
-
-def hexagon(dev_id=0):
-    """Construct a Hexagon device
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    dev : Device
-        The created device
-    """
-    return Device(Device.kDLHexagon, dev_id)
-
-
-def webgpu(dev_id=0):
-    """Construct a webgpu device.
-
-    Parameters
-    ----------
-    dev_id : int, optional
-        The integer device id
-
-    Returns
-    -------
-    dev : Device
-        The created device
-    """
-    return Device(Device.kDLWebGPU, dev_id)
-
-
-cl = opencl
-mtl = metal
-
-
-def array(arr, device=cpu(0), mem_scope=None):
+def array(arr, device=None, mem_scope=None):
     """Create an array from source arr.
 
     Parameters
@@ -680,8 +354,7 @@ def array(arr, device=cpu(0), mem_scope=None):
     ret : NDArray
         The created array
     """
-    if isinstance(arr, tvm.ir.container.Array):
-        raise AttributeError("arr is an instance of", type(arr))
+    device = device or cpu()
 
     if not isinstance(arr, (np.ndarray, NDArray)):
         arr = np.array(arr)
@@ -689,4 +362,4 @@ def array(arr, device=cpu(0), mem_scope=None):
 
 
 # Register back to FFI
-_set_class_ndarray(NDArray)
+tvm.ffi.core._set_class_ndarray(NDArray)

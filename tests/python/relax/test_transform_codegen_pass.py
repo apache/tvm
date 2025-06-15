@@ -24,9 +24,9 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax, tir
+from tvm.contrib import utils
 from tvm.relax.dpl import is_op, wildcard
 from tvm.relax.testing import transform
-from tvm.relax.transform.tuning_api import Trace
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
@@ -59,9 +59,9 @@ def check_executable(exec, dev, inputs, expected, entry_func_name):
 
 
 def check_roundtrip(exec0, dev, inputs, expected, entry_func_name="main"):
-    exec0.mod.export_library("exec.so")
-    exec1 = tvm.runtime.load_module("exec.so")
-    os.remove("exec.so")
+    with utils.tempdir() as temp:
+        exec0.mod.export_library(temp.relpath("exec.so"))
+        exec1 = tvm.runtime.load_module(temp.relpath("exec.so"))
     assert exec0.stats() == exec1["stats"]()
     assert exec0.as_text() == exec1["as_text"]()
 
@@ -164,7 +164,7 @@ def test_mix_use_tensorrt_and_tvm():
 
     # Run Codegen pass
     with tempfile.TemporaryDirectory() as work_dir:
-        with target, tvm.transform.PassContext(trace=Trace(mod), opt_level=0):
+        with target, tvm.transform.PassContext(opt_level=0):
             new_mod = tvm.transform.Sequential(
                 [
                     relax.transform.FuseOpsByPattern(patterns),
@@ -216,7 +216,7 @@ class Conv2dx2:
             data_1: R.Tensor((16, 32, 32, 16), dtype="float16"),
             weight1_1: R.Tensor((16, 3, 3, 16), dtype="float16"),
         ) -> R.Tensor((16, 32, 32, 16), dtype="float16"):
-            R.func_attr({"Composite": "tensorrt.conv2d", "Primitive": 1})
+            R.func_attr({"Composite": "tensorrt.conv2d", "Primitive": True})
             with R.dataflow():
                 gv_1: R.Tensor((16, 32, 32, 16), dtype="float16") = R.nn.conv2d(
                     data_1,

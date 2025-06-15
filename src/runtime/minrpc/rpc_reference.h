@@ -25,21 +25,15 @@
 #define TVM_RUNTIME_MINRPC_RPC_REFERENCE_H_
 
 namespace tvm {
-namespace runtime {
-
+namespace ffi {
 // Forward declare TVM Object to use `Object*` in RPC protocol.
 class Object;
+}  // namespace ffi
+
+namespace runtime {
 
 /*! \brief The current RPC procotol version. */
 constexpr const char* kRPCProtocolVer = "0.8.0";
-
-/*!
- * \brief type index of kRuntimeRPCObjectRefTypeIndex
- * \note this needs to be kept consistent with runtime/object.h
- * but we explicitly declare it here because minrpc needs to be minimum dep
- * only c C API
- */
-constexpr const int kRuntimeRPCObjectRefTypeIndex = 9;
 
 // When tvm.rpc.server.GetCRTMaxPacketSize global function is not registered.
 const uint64_t kRPCMaxTransferSizeBytesDefault = UINT64_MAX;
@@ -81,7 +75,7 @@ enum class RPCServerStatus : int {
   kInvalidTypeCodeNDArray,
   kInvalidDLTensorFieldStride,
   kInvalidDLTensorFieldByteOffset,
-  kUnknownTypeCode,
+  kUnknownTypeIndex,
   kUnknownRPCCode,
   kRPCCodeNotSupported,
   kUnknownRPCSyscall,
@@ -157,8 +151,8 @@ inline const char* RPCServerStatusToString(RPCServerStatus status) {
     case RPCServerStatus::kInvalidDLTensorFieldByteOffset: {
       return "kInvalidDLTensorFieldByteOffset";
     }
-    case RPCServerStatus::kUnknownTypeCode:
-      return "kUnknownTypeCode";
+    case RPCServerStatus::kUnknownTypeIndex:
+      return "kUnknownTypeIndex";
     case RPCServerStatus::kUnknownRPCCode:
       return "kUnknownRPCCode";
     case RPCServerStatus::kRPCCodeNotSupported:
@@ -206,7 +200,7 @@ struct RPCReference {
       num_bytes_ += sizeof(T) * num;
     }
 
-    void WriteObject(Object* obj) { num_bytes_ += channel_->GetObjectBytes(obj); }
+    void WriteObject(ffi::Object* obj) { num_bytes_ += channel_->GetObjectBytes(obj); }
 
     void ThrowError(RPCServerStatus status) { channel_->ThrowError(status); }
 
@@ -240,10 +234,10 @@ struct RPCReference {
    * \return The total number of bytes.
    */
   template <typename TChannel>
-  static uint64_t PackedSeqGetNumBytes(const TVMValue* arg_values, const int* type_codes,
-                                       int num_args, bool client_mode, TChannel* channel) {
+  static uint64_t PackedSeqGetNumBytes(const TVMFFIAny* packed_args, int num_args, bool client_mode,
+                                       TChannel* channel) {
     PackedSeqNumBytesGetter<TChannel> getter(channel);
-    SendPackedSeq(arg_values, type_codes, num_args, client_mode, &getter);
+    SendPackedSeq(packed_args, num_args, client_mode, &getter);
     return getter.num_bytes();
   }
 
@@ -301,93 +295,89 @@ struct RPCReference {
    *   Note that we cannot simply take these argument out(as the handle)
    *   refers to a value on the remote(instead of local).
    *
-   * \param arg_values The values to be sent over.
-   * \param type_codes The type codes to be sent over.
+   * \param packed_args The values to be sent over.
    * \param num_args Number of argument.
    * \param client_mode Whether it is a client to server call.
    * \param channel The communication channel handler.
    * \tparam TChannel The type of the communication channel.
    */
   template <typename TChannel>
-  static void SendPackedSeq(const TVMValue* arg_values, const int* type_codes, int num_args,
-                            bool client_mode, TChannel* channel) {
+  static void SendPackedSeq(const TVMFFIAny* packed_args, int num_args, bool client_mode,
+                            TChannel* channel) {
     channel->Write(num_args);
-    channel->WriteArray(type_codes, num_args);
 
     // Argument packing.
     for (int i = 0; i < num_args; ++i) {
-      int tcode = type_codes[i];
-      TVMValue value = arg_values[i];
-      switch (tcode) {
-        case kDLInt:
-        case kDLUInt:
-        case kDLFloat: {
-          channel->template Write<int64_t>(value.v_int64);
+      int32_t type_index = packed_args[i].type_index;
+      channel->template Write<int32_t>(type_index);
+      switch (type_index) {
+        case ffi::TypeIndex::kTVMFFINone: {
           break;
         }
-        case kTVMArgBool: {
-          channel->template Write<int64_t>(value.v_int64);
+        case ffi::TypeIndex::kTVMFFIBool:
+        case ffi::TypeIndex::kTVMFFIInt:
+        case ffi::TypeIndex::kTVMFFIFloat: {
+          channel->template Write<int64_t>(packed_args[i].v_int64);
           break;
         }
-        case kTVMDataType: {
-          channel->Write(value.v_type);
+        case ffi::TypeIndex::kTVMFFIOpaquePtr: {
+          // always send handle in 64 bit.
+          uint64_t handle = reinterpret_cast<uint64_t>(packed_args[i].v_ptr);
+          channel->template Write<int64_t>(handle);
+          break;
+        }
+        case ffi::TypeIndex::kTVMFFIDataType: {
+          channel->Write(packed_args[i].v_dtype);
           // padding
           int32_t padding = 0;
           channel->template Write<int32_t>(padding);
           break;
         }
-        case kDLDevice: {
-          channel->Write(value.v_device);
+        case ffi::TypeIndex::kTVMFFIDevice: {
+          channel->Write(packed_args[i].v_device);
           break;
         }
 
-        case kTVMPackedFuncHandle:
-        case kTVMModuleHandle: {
+        case ffi::TypeIndex::kTVMFFIFunction:
+        case ffi::TypeIndex::kTVMFFIModule: {
           if (!client_mode) {
             channel->ThrowError(RPCServerStatus::kInvalidTypeCodeObject);
           }
           // always send handle in 64 bit.
-          uint64_t handle = reinterpret_cast<uint64_t>(value.v_handle);
+          uint64_t handle = reinterpret_cast<uint64_t>(packed_args[i].v_obj);
           channel->Write(handle);
           break;
         }
-        case kTVMOpaqueHandle: {
-          // always send handle in 64 bit.
-          uint64_t handle = reinterpret_cast<uint64_t>(value.v_handle);
-          channel->Write(handle);
-          break;
-        }
-        case kTVMNDArrayHandle: {
+
+        case ffi::TypeIndex::kTVMFFINDArray: {
           channel->ThrowError(RPCServerStatus::kInvalidTypeCodeNDArray);
           break;
         }
-        case kTVMDLTensorHandle: {
-          DLTensor* arr = static_cast<DLTensor*>(value.v_handle);
+        case ffi::TypeIndex::kTVMFFIDLTensorPtr: {
+          DLTensor* arr = static_cast<DLTensor*>(packed_args[i].v_ptr);
           SendDLTensor(channel, arr);
           break;
         }
-        case kTVMNullptr:
-          break;
-        case kTVMStr: {
-          const char* s = value.v_str;
+        case ffi::TypeIndex::kTVMFFIRawStr: {
+          const char* s = packed_args[i].v_c_str;
           uint64_t len = StrLength(s);
           channel->Write(len);
           channel->WriteArray(s, len);
           break;
         }
-        case kTVMBytes: {
-          TVMByteArray* bytes = static_cast<TVMByteArray*>(arg_values[i].v_handle);
+        case ffi::TypeIndex::kTVMFFIByteArrayPtr: {
+          TVMFFIByteArray* bytes = static_cast<TVMFFIByteArray*>(packed_args[i].v_ptr);
           uint64_t len = bytes->size;
           channel->Write(len);
           channel->WriteArray(bytes->data, len);
           break;
         }
-        case kTVMObjectHandle: {
-          channel->WriteObject(static_cast<Object*>(value.v_handle));
-          break;
-        }
         default: {
-          channel->ThrowError(RPCServerStatus::kUnknownTypeCode);
+          if (type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+            channel->WriteObject(reinterpret_cast<ffi::Object*>(packed_args[i].v_obj));
+          } else {
+            channel->ThrowError(RPCServerStatus::kUnknownTypeIndex);
+          }
           break;
         }
       }
@@ -397,102 +387,95 @@ struct RPCReference {
   /*!
    * \brief Receive packed seq from the channel.
    *
-   * \param out_arg_values The values to be received.
-   * \param out_tcodes The type codes to be received.
+   * \param out_packed_args The values to be received.
    * \param out_num_args Number of argument.
    * \param channel The communication channel handler.
    * \tparam TChannel The type of the communication channel.
    * \note The temporary space are populated via an arena inside channel.
    */
   template <typename TChannel>
-  static void RecvPackedSeq(TVMValue** out_values, int** out_tcodes, int* out_num_args,
-                            TChannel* channel) {
+  static void RecvPackedSeq(TVMFFIAny** out_packed_args, int32_t* out_num_args, TChannel* channel) {
     // receive number of args
-    int num_args;
+    int32_t num_args;
     channel->Read(&num_args);
     *out_num_args = num_args;
-
     if (num_args == 0) {
-      *out_values = nullptr;
-      *out_tcodes = nullptr;
+      *out_packed_args = nullptr;
       return;
     }
 
-    TVMValue* values = channel->template ArenaAlloc<TVMValue>(num_args);
-    int* tcodes = channel->template ArenaAlloc<int>(num_args);
-    *out_values = values;
-    *out_tcodes = tcodes;
-
-    // receive type code.
-    channel->ReadArray(tcodes, num_args);
+    TVMFFIAny* packed_args = channel->template ArenaAlloc<TVMFFIAny>(num_args);
+    *out_packed_args = packed_args;
 
     // receive arguments
-    for (int i = 0; i < num_args; ++i) {
-      auto& value = values[i];
-      switch (tcodes[i]) {
-        case kDLInt:
-        case kDLUInt:
-        case kDLFloat: {
-          channel->template Read<int64_t>(&(value.v_int64));
+    for (int32_t i = 0; i < num_args; ++i) {
+      int32_t type_index;
+      channel->Read(&type_index);
+      packed_args[i].type_index = type_index;
+      switch (type_index) {
+        case ffi::TypeIndex::kTVMFFINone: {
           break;
         }
-        case kTVMArgBool: {
-          channel->template Read<int64_t>(&(value.v_int64));
+        case ffi::TypeIndex::kTVMFFIBool:
+        case ffi::TypeIndex::kTVMFFIInt:
+        case ffi::TypeIndex::kTVMFFIFloat: {
+          channel->template Read<int64_t>(&(packed_args[i].v_int64));
           break;
         }
-        case kTVMDataType: {
-          channel->Read(&(value.v_type));
+        case ffi::TypeIndex::kTVMFFIOpaquePtr: {
+          uint64_t handle;
+          channel->Read(&handle);
+          packed_args[i].v_ptr = reinterpret_cast<void*>(handle);
+          break;
+        }
+        case ffi::TypeIndex::kTVMFFIDataType: {
+          channel->Read(&(packed_args[i].v_dtype));
           int32_t padding = 0;
           channel->template Read<int32_t>(&padding);
           break;
         }
-        case kDLDevice: {
-          channel->Read(&(value.v_device));
+        case ffi::TypeIndex::kTVMFFIDevice: {
+          channel->Read(&(packed_args[i].v_device));
           break;
         }
-        case kTVMPackedFuncHandle:
-        case kTVMModuleHandle:
-        case kTVMOpaqueHandle: {
+        case ffi::TypeIndex::kTVMFFIFunction:
+        case ffi::TypeIndex::kTVMFFIModule: {
           // always send handle in 64 bit.
           uint64_t handle;
           channel->Read(&handle);
-          value.v_handle = reinterpret_cast<void*>(handle);
+          packed_args[i].v_obj = reinterpret_cast<TVMFFIObject*>(handle);
           break;
         }
-        case kTVMNullptr: {
-          value.v_handle = nullptr;
-          break;
-        }
-        case kTVMStr: {
+        case ffi::TypeIndex::kTVMFFIRawStr: {
           uint64_t len;
           channel->Read(&len);
           char* str = channel->template ArenaAlloc<char>(len + 1);
           str[len] = '\0';
           channel->ReadArray(str, len);
-          value.v_str = str;
+          packed_args[i].v_c_str = str;
           break;
         }
-        case kTVMBytes: {
+        case ffi::TypeIndex::kTVMFFIByteArrayPtr: {
           uint64_t len;
           channel->Read(&len);
-          TVMByteArray* arr = channel->template ArenaAlloc<TVMByteArray>(1);
+          TVMFFIByteArray* arr = channel->template ArenaAlloc<TVMFFIByteArray>(1);
           char* data = channel->template ArenaAlloc<char>(len);
           arr->size = len;
           arr->data = data;
           channel->ReadArray(data, len);
-          value.v_handle = arr;
+          packed_args[i].v_ptr = arr;
           break;
         }
-        case kTVMDLTensorHandle: {
-          value.v_handle = ReceiveDLTensor(channel);
-          break;
-        }
-        case kTVMObjectHandle: {
-          channel->ReadObject(&tcodes[i], &value);
+        case ffi::TypeIndex::kTVMFFIDLTensorPtr: {
+          packed_args[i].v_ptr = ReceiveDLTensor(channel);
           break;
         }
         default: {
-          channel->ThrowError(RPCServerStatus::kUnknownTypeCode);
+          if (type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+            channel->ReadObject(&(packed_args[i]));
+          } else {
+            channel->ThrowError(RPCServerStatus::kUnknownTypeIndex);
+          }
           break;
         }
       }
@@ -510,16 +493,17 @@ struct RPCReference {
   static void ReturnException(const char* msg, TChannel* channel) {
     RPCCode code = RPCCode::kException;
     int32_t num_args = 1;
-    int32_t tcode = kTVMStr;
+    int32_t type_index = ffi::TypeIndex::kTVMFFIRawStr;
     uint64_t len = StrLength(msg);
 
-    uint64_t packet_nbytes = sizeof(code) + sizeof(num_args) + sizeof(tcode) + sizeof(len) + len;
+    uint64_t packet_nbytes =
+        sizeof(code) + sizeof(num_args) + sizeof(type_index) + sizeof(len) + len;
 
     channel->MessageStart(packet_nbytes);
     channel->Write(packet_nbytes);
     channel->Write(code);
     channel->Write(num_args);
-    channel->Write(tcode);
+    channel->Write(type_index);
     channel->Write(len);
     channel->WriteArray(msg, len);
     channel->MessageDone();
@@ -533,17 +517,16 @@ struct RPCReference {
    * \tparam TChannel The type of the communication channel.
    */
   template <typename TChannel>
-  static void ReturnPackedSeq(const TVMValue* arg_values, const int* type_codes, int num_args,
-                              TChannel* channel) {
+  static void ReturnPackedSeq(const TVMFFIAny* packed_args, int num_args, TChannel* channel) {
     RPCCode code = RPCCode::kReturn;
 
     uint64_t packet_nbytes =
-        sizeof(code) + PackedSeqGetNumBytes(arg_values, type_codes, num_args, false, channel);
+        sizeof(code) + PackedSeqGetNumBytes(packed_args, num_args, false, channel);
 
     channel->MessageStart(packet_nbytes);
     channel->Write(packet_nbytes);
     channel->Write(code);
-    SendPackedSeq(arg_values, type_codes, num_args, false, channel);
+    SendPackedSeq(packed_args, num_args, false, channel);
     channel->MessageDone();
   }
 
@@ -556,16 +539,16 @@ struct RPCReference {
   template <typename TChannel>
   static void ReturnVoid(TChannel* channel) {
     int32_t num_args = 1;
-    int32_t tcode = kTVMNullptr;
+    int32_t type_index = ffi::TypeIndex::kTVMFFINone;
     RPCCode code = RPCCode::kReturn;
 
-    uint64_t packet_nbytes = sizeof(code) + sizeof(num_args) + sizeof(tcode);
+    uint64_t packet_nbytes = sizeof(code) + sizeof(num_args) + sizeof(type_index);
 
     channel->MessageStart(packet_nbytes);
     channel->Write(packet_nbytes);
     channel->Write(code);
     channel->Write(num_args);
-    channel->Write(tcode);
+    channel->Write(type_index);
     channel->MessageDone();
   }
 };

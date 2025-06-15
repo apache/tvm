@@ -66,7 +66,7 @@ Pass ConvertForLoopsToSerial() {
   return CreatePrimFuncPass(pass_func, 0, "tir.ConvertForLoopsToSerial", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.ConvertForLoopsToSerial")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.ConvertForLoopsToSerial")
     .set_body_typed(ConvertForLoopsToSerial);
 
 }  // namespace transform

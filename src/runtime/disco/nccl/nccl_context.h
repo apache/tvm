@@ -21,10 +21,10 @@
 #define TVM_RUNTIME_DISCO_NCCL_NCCL_CONTEXT_H_
 
 #include <dlpack/dlpack.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../../support/process_id.h"
 #include "../utils.h"
@@ -86,8 +86,8 @@ inline ncclDataType_t AsNCCLDataType(runtime::DataType dtype) {
   if (dtype == DataType::Int(8)) {
     return ncclInt8;
   }
-  if (dtype == DataType::UInt(8) || dtype == DataType::NVFloat8E4M3() ||
-      dtype == DataType::NVFloat8E5M2()) {
+  if (dtype == DataType::UInt(8) || dtype == DataType::Float8E4M3FN() ||
+      dtype == DataType::Float8E5M2()) {
     // For float8 data type, pretend to be uint8 in nccl.
     // And will throw error when allreduce, as it makes no sense in this case.
     return ncclUint8;
@@ -149,9 +149,9 @@ struct CCLThreadLocalContext {
   }
 
   deviceStream_t GetDefaultStream() {
-    const auto* func = tvm::runtime::Registry::Get("runtime.get_" TVM_DISCO_DEVICE_NAME "_stream");
-    ICHECK(func != nullptr);
-    deviceStream_t stream = static_cast<deviceStream_t>((*func)().operator void*());
+    const auto func = tvm::ffi::Function::GetGlobal("runtime.get_" TVM_DISCO_DEVICE_NAME "_stream");
+    ICHECK(func.has_value());
+    deviceStream_t stream = static_cast<deviceStream_t>((*func)().cast<void*>());
     return stream == nullptr ? default_stream : stream;
   }
 

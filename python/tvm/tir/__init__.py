@@ -32,15 +32,14 @@ from .stmt import Stmt, LetStmt, AssertStmt, ForKind, For, While
 from .stmt import (
     BufferStore,
     BufferRealize,
-    ProducerStore,
     Allocate,
     AllocateConst,
     AttrStmt,
     DeclBuffer,
 )
 
-from .stmt import ProducerRealize, SeqStmt
-from .stmt import IfThenElse, Evaluate, Prefetch, stmt_seq, stmt_list
+from .stmt import SeqStmt
+from .stmt import IfThenElse, Evaluate, stmt_seq, stmt_list
 from .stmt import BufferRegion, MatchBufferRegion, Block, BlockRealize
 
 from .function import PrimFunc, TensorIntrin, IndexMap
@@ -48,9 +47,8 @@ from .function import PrimFunc, TensorIntrin, IndexMap
 from .op import call_packed_lowered, call_cpacked_lowered, call_tir
 from .op import call_packed, call_cpacked, call_intrin, call_pure_extern, call_extern
 from .op import call_llvm_intrin, call_llvm_pure_intrin, ret, all, any, min_value, max_value, trace
-from .op import tvm_check_return
 from .op import tvm_stack_alloca, tvm_stack_make_shape, tvm_stack_make_array
-from .op import tvm_tuple, tvm_struct_get, tvm_struct_set
+from .op import tvm_tuple, handle_add_byte_offset, tvm_struct_get, tvm_struct_set
 from .op import address_of, lookup_param, assume, undef
 from .op import tvm_thread_allreduce, type_annotation, tvm_access_ptr, tvm_throw_last_error
 from .op import (

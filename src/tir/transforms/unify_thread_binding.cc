@@ -59,7 +59,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
     if (op->kind != ForKind::kThreadBinding) {
       return StmtExprMutator::VisitStmt_(op);
     }
-    Map<String, ObjectRef> annotations = op->annotations;
+    Map<String, Any> annotations = op->annotations;
     Stmt stmt = UnifyThreadBindingImpl(op, op->loop_var, op->thread_binding.value(),
                                        Range::FromMinExtent(op->min, op->extent));
     if (annotations.empty()) {
@@ -76,7 +76,7 @@ class ThreadBindingUnifier : public StmtExprMutator {
                  /*min=*/IntImm(dtype, 0),         //
                  /*extent=*/IntImm(dtype, 1),      //
                  /*kind=*/ForKind::kSerial, stmt,  //
-                 /*thread_binding=*/NullOpt,       //
+                 /*thread_binding=*/std::nullopt,  //
                  /*annotation=*/std::move(annotations));
     }
   }
@@ -199,7 +199,7 @@ Pass UnifyThreadBinding() {
   return CreatePrimFuncPass(pass_func, 0, "tir.UnifyThreadBinding", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.UnifyThreadBinding").set_body_typed(UnifyThreadBinding);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.UnifyThreadBinding").set_body_typed(UnifyThreadBinding);
 
 }  // namespace transform
 

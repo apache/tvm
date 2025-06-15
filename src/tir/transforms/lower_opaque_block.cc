@@ -58,13 +58,12 @@ class OpaqueBlockLower : public StmtExprMutator {
       const Buffer& buffer = new_block->alloc_buffers[i - 1];
       Array<PrimExpr> allocation_shape = GetBufferAllocationShape(buffer);
       body = DeclBuffer(buffer, std::move(body));
-      Map<String, ObjectRef> allocate_annotations;
+      Map<String, ffi::Any> allocate_annotations;
       auto it = storage_align_.find(buffer->data);
       if (it != storage_align_.end()) {
         StorageAlignAnnotation allocate_aligns;
         for (auto tuple : it->second) {
-          ICHECK_EQ(tuple.size(), 4);
-          tuple.Set(0, -1);
+          tuple.Set<0>(-1);
           allocate_aligns.push_back(tuple);
         }
         allocate_annotations.Set(attr::buffer_dim_align, allocate_aligns);
@@ -94,7 +93,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     Stmt body = this->VisitStmt(op->body);
     // Step 3. Handle annotations
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
-    Map<String, ObjectRef> new_annotations =
+    Map<String, ffi::Any> new_annotations =
         HandleAnnotations(op->annotations, &pragma_attrs, /*is_block=*/false);
     // Step 4. Create new For loop accordingly
     if (op->kind == ForKind::kThreadBinding) {
@@ -108,7 +107,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     } else {
       // Case 3. An ordinary loop
       body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
-                 NullOpt, new_annotations);
+                 std::nullopt, new_annotations);
     }
     // Step 5. Insert nested attrs
     for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
@@ -148,15 +147,15 @@ class OpaqueBlockLower : public StmtExprMutator {
   }
 
   /*! \brief Convert attr value from annotation map into PrimExpr. */
-  PrimExpr ConvertAttrValue(const String& key, const ObjectRef& obj) {
-    if (!obj.defined()) {
+  PrimExpr ConvertAttrValue(const String& key, const Any& obj) {
+    if (obj == nullptr) {
       return PrimExpr();
-    } else if (auto expr = obj.as<PrimExpr>()) {
+    } else if (auto expr = obj.try_cast<PrimExpr>()) {
       return expr.value();
-    } else if (auto str = obj.as<String>()) {
+    } else if (auto str = obj.try_cast<String>()) {
       return std::move(StringImm(str.value()));
     } else {
-      LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj->GetTypeKey()
+      LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj.GetTypeKey()
                  << " not supported";
       return PrimExpr();
     }
@@ -170,10 +169,10 @@ class OpaqueBlockLower : public StmtExprMutator {
    * (3) the non-pragma block annotations are dropped
    * \return New annotation dict with preserved keys. Also update pragma attr pairs ordered by key.
    */
-  Map<String, ObjectRef> HandleAnnotations(
-      const Map<String, ObjectRef>& annotations,
+  Map<String, ffi::Any> HandleAnnotations(
+      const Map<String, ffi::Any>& annotations,
       std::vector<std::pair<std::string, PrimExpr>>* pragma_attrs, bool is_block) {
-    Map<String, ObjectRef> preserved_annotations;
+    Map<String, ffi::Any> preserved_annotations;
     pragma_attrs->clear();
     for (const auto& kv : annotations) {
       const String& key = kv.first;
@@ -214,7 +213,7 @@ Pass LowerOpaqueBlock() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerOpaqueBlock", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerOpaqueBlock").set_body_typed(LowerOpaqueBlock);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerOpaqueBlock").set_body_typed(LowerOpaqueBlock);
 }  // namespace transform
 
 }  // namespace tir

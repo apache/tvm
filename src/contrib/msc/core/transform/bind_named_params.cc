@@ -148,14 +148,13 @@ IRModule BindNamedParam(IRModule m, String func_name, Map<ObjectRef, ObjectRef> 
 namespace transform {
 
 Pass BindNamedParams(String func_name, Map<ObjectRef, ObjectRef> params) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule mod, PassContext pc) {
     return BindNamedParam(std::move(mod), func_name, params);
   };
   return CreateModulePass(pass_func, 0, "BindNamedParams", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.BindNamedParams").set_body_typed(BindNamedParams);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.BindNamedParams").set_body_typed(BindNamedParams);
 
 }  // namespace transform
 

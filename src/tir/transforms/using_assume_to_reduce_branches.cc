@@ -161,7 +161,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     With<arith::ConstraintContext> analyzer_context;
     size_t old_num_constraints{0};
     size_t new_num_constraints{0};
-    Optional<PrimExpr> assume{NullOpt};
+    Optional<PrimExpr> assume{std::nullopt};
 
     // Disable default-generated copy/move assignment and constructors
     InternalConstraintContext(const InternalConstraintContext&) = delete;
@@ -381,7 +381,7 @@ Pass UseAssumeToReduceBranches() {
   return CreatePrimFuncPass(pass_func, 0, "tir.UseAssumeToReduceBranches", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.UseAssumeToReduceBranches")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.UseAssumeToReduceBranches")
     .set_body_typed(UseAssumeToReduceBranches);
 
 }  // namespace transform

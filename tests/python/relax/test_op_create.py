@@ -209,9 +209,9 @@ def test_full_shape_not_tuple():
     m = tir.Var("m", "int64")
     v = relax.Var("v", R.Tensor((), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.full(4, v)
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.full(m, v)
 
 
@@ -449,9 +449,9 @@ def test_ones_zeros_infer_struct_info_more_input_dtype():
 def test_ones_zeros_shape_not_tuple():
     m = tir.Var("m", "int64")
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.ones(10, "float32")
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.zeros(m, "float32")
 
 

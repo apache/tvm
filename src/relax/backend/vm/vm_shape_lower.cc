@@ -25,7 +25,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/struct_info_functor.h>
-#include <tvm/runtime/relax_vm/builtin.h>
+#include <tvm/runtime/vm/builtin.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
@@ -176,7 +176,7 @@ class PrimExprSlotCollector : public ExprVisitor, public StructInfoVisitor {
  * - VisitExpr_(ShapeExprNode*): makes symbolic shape tuple.
  *
  * The checks and symbolic shape all maps to runtime builtin functions. Please checkout
- * runtime/relax_vm/builtin.cc for their definitions.
+ * runtime/vm/builtin.cc for their definitions.
  *
  * Shape computation are lowered to host-side TIR functions that load var from slot
  * and store computed results into the slot. For a given slot map: {0:m, 1: n+1: 2: n}
@@ -288,7 +288,7 @@ class VMShapeLowerMutator
 
     auto new_body = builder_->Normalize(SeqExpr(blocks, body_seq->body));
 
-    current_gvar_ = NullOpt;
+    current_gvar_ = std::nullopt;
 
     // create a new function
     return Function(func->params, new_body, func->ret_struct_info, func->is_pure, func->attrs);
@@ -353,7 +353,7 @@ class VMShapeLowerMutator
   }
 
   std::pair<Expr, Expr> MakeSymbolicShapeArg(const PrimExpr& expr) {
-    using runtime::relax_vm::MakeShapeCode;
+    using runtime::vm::MakeShapeCode;
 
     if (auto* int_expr = expr.as<IntImmNode>()) {
       return {PrimValue::Int64(static_cast<int>(MakeShapeCode::kUseImm)),
@@ -370,7 +370,7 @@ class VMShapeLowerMutator
   }
 
   Expr VisitExpr_(const PrimValueNode* op) final {
-    using runtime::relax_vm::MakeShapeCode;
+    using runtime::vm::MakeShapeCode;
     // Constant shape can be preserved.
     bool is_const_value =
         op->value->IsInstance<IntImmNode>() || op->value->IsInstance<FloatImmNode>();
@@ -389,7 +389,7 @@ class VMShapeLowerMutator
   }
 
   Expr VisitExpr_(const ShapeExprNode* op) final {
-    using runtime::relax_vm::MakeShapeCode;
+    using runtime::vm::MakeShapeCode;
     // Constant shape can be preserved.
     bool is_const_shape = std::all_of(op->values.begin(), op->values.end(), [](const PrimExpr& e) {
       return e->IsInstance<IntImmNode>();
@@ -444,9 +444,9 @@ class VMShapeLowerMutator
    * \return The MatchShapeCode, and a relax expression specifying the
    *    argument used by that MatchShapeCode.
    */
-  std::pair<runtime::relax_vm::MatchShapeCode, Expr> MakeMatchArgs(const PrimExpr& expr,
-                                                                   bool require_value_computed) {
-    using runtime::relax_vm::MatchShapeCode;
+  std::pair<runtime::vm::MatchShapeCode, Expr> MakeMatchArgs(const PrimExpr& expr,
+                                                             bool require_value_computed) {
+    using runtime::vm::MatchShapeCode;
 
     if (auto* int_expr = expr.as<IntImmNode>()) {
       return {MatchShapeCode::kAssertEqualToImm, PrimValue::Int64(int_expr->value)};
@@ -496,7 +496,7 @@ class VMShapeLowerMutator
                                            bool require_value_computed) {
     std::vector<MatchShapeTodoItem> outstanding_todos;
 
-    using runtime::relax_vm::MatchShapeCode;
+    using runtime::vm::MatchShapeCode;
     for (const MatchShapeTodoItem& item : match_todos) {
       bool all_nop = true;
       bool any_nop = false;
@@ -593,10 +593,10 @@ class VMShapeLowerMutator
     // the shape_func to indicate that this is a host function
     // This could require us to attach target to the relax function here.
     tir::PrimFunc shape_func(params, body, ret_type, buffer_map);
-    if (shape_func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget) == nullptr) {
+    if (!shape_func->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget).has_value()) {
       // kTarget and kIsHostFunc are mutually exclusive
       shape_func =
-          WithAttr<tir::PrimFunc>(std::move(shape_func), tvm::tir::attr::kIsHostFunc, Integer(1));
+          WithAttr<tir::PrimFunc>(std::move(shape_func), tvm::tir::attr::kIsHostFunc, true);
     }
     GlobalVar shape_func_var = builder_->AddFunction(shape_func, "shape_func");
     builder_->Emit(Call(shape_func_var, {shape_heap_}), "_");
@@ -778,7 +778,7 @@ class VMShapeLowerMutator
   std::vector<std::unique_ptr<PrimExprSlot>> slot_vec_;
   /*! \brief Expr => slot. */
   PrimExprSlotMap slot_map_;
-  Optional<GlobalVar> current_gvar_ = NullOpt;
+  Optional<GlobalVar> current_gvar_ = std::nullopt;
   /*!
    * \brief List of vars that are being defined but
    * have not go through outstanding shape compute check.
@@ -807,12 +807,13 @@ class VMShapeLowerMutator
 namespace transform {
 
 Pass VMShapeLower(bool emit_err_ctx) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) { return VMShapeLowerMutator::Lower(mod, emit_err_ctx); };
+  auto pass_func = [=](IRModule mod, PassContext pc) {
+    return VMShapeLowerMutator::Lower(mod, emit_err_ctx);
+  };
   return CreateModulePass(pass_func, 0, "VMShapeLower", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.VMShapeLower").set_body_typed([](bool emit_err_ctx) {
+TVM_FFI_REGISTER_GLOBAL("relax.transform.VMShapeLower").set_body_typed([](bool emit_err_ctx) {
   return VMShapeLower(emit_err_ctx);
 });
 

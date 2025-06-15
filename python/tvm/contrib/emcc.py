@@ -20,8 +20,8 @@ import os
 import subprocess
 from pathlib import Path
 
-from tvm._ffi.base import py_str
-from tvm._ffi.libinfo import find_lib_path
+from tvm.base import py_str
+from tvm.libinfo import find_lib_path
 
 
 def create_tvmjs_wasm(output, objects, options=None, cc="emcc", libs=None):

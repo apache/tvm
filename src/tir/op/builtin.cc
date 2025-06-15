@@ -22,7 +22,7 @@
  *
  *  builtin intrinsic operators.
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/op_attr_types.h>
@@ -163,6 +163,10 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_context_id)
 TIR_DEFINE_BUILTIN_FUNC(tvm_tuple).set_attr<TCallEffectKind>("TCallEffectKind",
                                                              Integer(CallEffectKind::kEmbedInfo));
 
+TIR_DEFINE_BUILTIN_FUNC(handle_add_byte_offset)
+    .set_num_inputs(2)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
+
 TIR_DEFINE_BUILTIN_FUNC(tvm_struct_get)
     .set_num_inputs(3)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kReadState))
@@ -203,10 +207,6 @@ TIR_DEFINE_BUILTIN_FUNC(tvm_call_cpacked)
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_call_trace_packed)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
-
-TIR_DEFINE_BUILTIN_FUNC(tvm_check_return)
-    .set_num_inputs(3)
-    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
 
 TIR_DEFINE_BUILTIN_FUNC(tvm_thread_context)
     .set_num_inputs(1)

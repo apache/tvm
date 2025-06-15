@@ -26,7 +26,7 @@
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/stmt_functor.h>
@@ -272,7 +272,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 PresburgerSet MakePresburgerSet(const PrimExpr& constraint) { return PresburgerSet(constraint); }
 
-TVM_REGISTER_GLOBAL("arith.PresburgerSet").set_body_typed(MakePresburgerSet);
+TVM_FFI_REGISTER_GLOBAL("arith.PresburgerSet").set_body_typed(MakePresburgerSet);
 
 TVM_REGISTER_NODE_TYPE(PresburgerSetNode);
 

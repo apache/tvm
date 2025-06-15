@@ -59,8 +59,7 @@ enum OpPatternKind {
  * \param call The call expression to be derived.
  * \param ctx The builder context.
  */
-using FInferStructInfo =
-    runtime::TypedPackedFunc<StructInfo(const Call& call, const BlockBuilder& ctx)>;
+using FInferStructInfo = ffi::TypedFunction<StructInfo(const Call& call, const BlockBuilder& ctx)>;
 
 /*!
  * \brief Packed function implementation for operators. The relax operator will be lowered to
@@ -88,7 +87,7 @@ using FCallPacked = String;
  * \param call The call to be normalized.  It is provided by-value, to
  * avoid copies for the common case where the call is already normalized.
  */
-using FNormalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, Call call)>;
+using FNormalize = ffi::TypedFunction<Expr(const BlockBuilder& bb, Call call)>;
 
 /*!
  * \brief The function type of a validation function.
@@ -107,7 +106,7 @@ using FNormalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, Call ca
  *
  * \param call The call to be validated.
  */
-using FValidate = runtime::TypedPackedFunc<void(const Call& call)>;
+using FValidate = ffi::TypedFunction<void(const Call& call)>;
 
 /*! \brief The function type of a legalization function.
  *
@@ -123,7 +122,7 @@ using FValidate = runtime::TypedPackedFunc<void(const Call& call)>;
  * \param bb The BlockBuilder context.
  * \param call The call to be legalized.
  */
-using FLegalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, const Call& call)>;
+using FLegalize = ffi::TypedFunction<Expr(const BlockBuilder& bb, const Call& call)>;
 
 /*! \brief The function type of a function to lower the runtime builtin.
  *
@@ -132,7 +131,7 @@ using FLegalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, const Ca
  * \param bb The BlockBuilder context.
  * \param call The call to be lowered.
  */
-using FLowerBuiltin = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, const Call& call)>;
+using FLowerBuiltin = ffi::TypedFunction<Expr(const BlockBuilder& bb, const Call& call)>;
 
 /*!
  * \brief Gradient for a specific op.
@@ -143,7 +142,7 @@ using FLowerBuiltin = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, cons
  * \param ctx the current block builder context.
  * \return the gradient for each parameter.
  */
-using FPrimalGradient = runtime::TypedPackedFunc<tvm::Array<Expr>(
+using FPrimalGradient = ffi::TypedFunction<tvm::Array<Expr>(
     const Var& orig_var, const Call& orig_call, const Var& output_grad, const BlockBuilder& ctx)>;
 
 }  // namespace relax

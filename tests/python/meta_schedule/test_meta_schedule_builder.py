@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" Test Meta Schedule Builder """
+"""Test Meta Schedule Builder"""
 
 import os
 import sys
@@ -25,7 +25,7 @@ import pytest
 import tvm.testing
 
 from tvm import script
-from tvm._ffi import register_func
+from tvm.ffi import register_func
 from tvm.meta_schedule.builder import (
     BuilderInput,
     BuilderResult,

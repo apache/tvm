@@ -25,7 +25,7 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm.ir.module import IRModule
-from tvm._ffi import register_func
+from tvm.ffi import register_func
 from tvm.error import TVMError
 from tvm.meta_schedule import TuneContext
 from tvm.meta_schedule.schedule_rule import PyScheduleRule
@@ -313,8 +313,7 @@ def test_meta_schedule_post_order_apply_duplicate_matmul():
     post_order_apply = context.space_generator
     with pytest.raises(
         TVMError,
-        match=r".*TVMError: Check failed: \(block_names_.count\(block->name_hint\) == 0\)"
-        r" is false: Duplicated block name matmul in function main not supported!",
+        match=r".*Duplicated block name matmul in function main not supported!",
     ):
         post_order_apply.generate_design_space(mod)
 

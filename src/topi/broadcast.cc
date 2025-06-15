@@ -21,8 +21,7 @@
  * \brief Registration of broadcast operators
  * \file broadcast.cc
  */
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/topi/broadcast.h>
 #include <tvm/topi/utils.h>
 
@@ -32,19 +31,19 @@ namespace topi {
 using namespace tvm;
 using namespace tvm::runtime;
 
-#define TOPI_REGISTER_BCAST_OP(OpName, Op)                                              \
-  TVM_REGISTER_GLOBAL(OpName).set_body([](TVMArgs args, TVMRetValue* rv) {              \
-    bool lhs_is_tensor = args[0].IsObjectRef<tvm::te::Tensor>();                        \
-    bool rhs_is_tensor = args[1].IsObjectRef<tvm::te::Tensor>();                        \
-    if (lhs_is_tensor && rhs_is_tensor) {                                               \
-      *rv = Op(args[0].operator tvm::te::Tensor(), args[1].operator tvm::te::Tensor()); \
-    } else if (!lhs_is_tensor && rhs_is_tensor) {                                       \
-      *rv = Op(args[0].operator tvm::PrimExpr(), args[1].operator tvm::te::Tensor());   \
-    } else if (lhs_is_tensor && !rhs_is_tensor) {                                       \
-      *rv = Op(args[0].operator tvm::te::Tensor(), args[1].operator tvm::PrimExpr());   \
-    } else if (!lhs_is_tensor && !rhs_is_tensor) {                                      \
-      *rv = Op(args[0].operator tvm::PrimExpr(), args[1].operator tvm::PrimExpr());     \
-    }                                                                                   \
+#define TOPI_REGISTER_BCAST_OP(OpName, Op)                                                 \
+  TVM_FFI_REGISTER_GLOBAL(OpName).set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) { \
+    bool lhs_is_tensor = args[0].as<tvm::te::Tensor>().has_value();                        \
+    bool rhs_is_tensor = args[1].as<tvm::te::Tensor>().has_value();                        \
+    if (lhs_is_tensor && rhs_is_tensor) {                                                  \
+      *rv = Op(args[0].cast<tvm::te::Tensor>(), args[1].cast<tvm::te::Tensor>());          \
+    } else if (!lhs_is_tensor && rhs_is_tensor) {                                          \
+      *rv = Op(args[0].cast<tvm::PrimExpr>(), args[1].cast<tvm::te::Tensor>());            \
+    } else if (lhs_is_tensor && !rhs_is_tensor) {                                          \
+      *rv = Op(args[0].cast<tvm::te::Tensor>(), args[1].cast<tvm::PrimExpr>());            \
+    } else if (!lhs_is_tensor && !rhs_is_tensor) {                                         \
+      *rv = Op(args[0].cast<tvm::PrimExpr>(), args[1].cast<tvm::PrimExpr>());              \
+    }                                                                                      \
   });
 
 TOPI_REGISTER_BCAST_OP("topi.add", topi::add);
@@ -73,9 +72,10 @@ TOPI_REGISTER_BCAST_OP("topi.not_equal", topi::not_equal);
 TOPI_REGISTER_BCAST_OP("topi.greater_equal", topi::greater_equal);
 TOPI_REGISTER_BCAST_OP("topi.less_equal", topi::less_equal);
 
-TVM_REGISTER_GLOBAL("topi.broadcast_to").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = broadcast_to(args[0], args[1]);
-});
+TVM_FFI_REGISTER_GLOBAL("topi.broadcast_to")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      *rv = broadcast_to(args[0].cast<te::Tensor>(), args[1].cast<Array<PrimExpr>>());
+    });
 
 }  // namespace topi
 }  // namespace tvm

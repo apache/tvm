@@ -18,9 +18,8 @@
  */
 #include <nvshmem.h>
 #include <nvshmemx.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <thread>
 
@@ -57,7 +56,7 @@ class NVSHMEMAllocator final : public PooledAllocator {
     return allocator;
   }
 
-  NDArray Empty(ShapeTuple shape, DataType dtype, Device device) {
+  NDArray Empty(ffi::Shape shape, DataType dtype, Device device) {
     NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, device);
     container->SetDeleter([](Object* obj) {
       auto* ptr = static_cast<NDArray::Container*>(obj);
@@ -88,18 +87,18 @@ class NVSHMEMAllocator final : public PooledAllocator {
   void DeviceFreeDataSpace(Device dev, void* ptr) final { nvshmem_free(ptr); }
 };
 
-NDArray NVSHMEMEmpty(ShapeTuple shape, DataType dtype, Device device) {
+NDArray NVSHMEMEmpty(ffi::Shape shape, DataType dtype, Device device) {
   return NVSHMEMAllocator::Global()->Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.empty").set_body_typed(NVSHMEMEmpty);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.empty").set_body_typed(NVSHMEMEmpty);
 
 void NVSHMEMFinalize() {
   NVSHMEMAllocator::Global()->Clear();
   nvshmem_finalize();
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.finalize_nvshmem").set_body_typed(NVSHMEMFinalize);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.finalize_nvshmem").set_body_typed(NVSHMEMFinalize);
 
 }  // namespace runtime
 }  // namespace tvm

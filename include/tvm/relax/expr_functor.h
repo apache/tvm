@@ -71,7 +71,7 @@ class ExprFunctor;
 #define PY_EXPR_MUTATOR_DEFAULT(N, PY_FUNC, DEFAULT_FUNC, RET_TYPE) \
   {                                                                 \
     if (PY_FUNC != nullptr) {                                       \
-      RET_TYPE ret = PY_FUNC(N);                                    \
+      RET_TYPE ret = PY_FUNC(N).cast<RET_TYPE>();                   \
       return ret;                                                   \
     } else {                                                        \
       return DEFAULT_FUNC;                                          \
@@ -89,7 +89,7 @@ class ExprFunctor;
 #define PY_EXPR_MUTATOR_DISPATCH(OP, PY_FUNC)                            \
   vtable.template set_dispatch<OP>([](const ObjectRef& n, TSelf* self) { \
     if (self->PY_FUNC != nullptr) {                                      \
-      Expr expr = self->PY_FUNC(n);                                      \
+      Expr expr = self->PY_FUNC(n).cast<Expr>();                         \
       return expr;                                                       \
     } else {                                                             \
       return self->VisitExpr_(static_cast<const OP*>(n.get()));          \
@@ -421,7 +421,7 @@ class ExprMutator : public ExprMutatorBase {
  public:
   using ExprMutatorBase::VisitExpr_;
 
-  ExprMutator(Optional<IRModule> mod = NullOpt) { builder_ = BlockBuilder::Create(mod); }
+  ExprMutator(Optional<IRModule> mod = std::nullopt) { builder_ = BlockBuilder::Create(mod); }
   Expr VisitExpr(const Expr& expr) override;
   Expr VisitExpr_(const VarNode* op) override;
   Expr VisitExpr_(const DataflowVarNode* op) override;
@@ -502,7 +502,7 @@ class ExprMutator : public ExprMutatorBase {
    *
    * \note The body_expr must be an SeqExpr in the normal form.
    */
-  Expr VisitWithNewScope(const Expr& body_expr, Optional<Array<Var>> params = NullOpt);
+  Expr VisitWithNewScope(const Expr& body_expr, Optional<Array<Var>> params = std::nullopt);
 
   /*!
    * \brief Rewrite the expr with a new scope, used in the branches of If.
@@ -524,7 +524,7 @@ class ExprMutator : public ExprMutatorBase {
    * \brief Look up the value bound to a variable.
    * \param var The var to be looked up.
    * \return The value bound to the input \p var.
-   * \note For function parameters, this function returns NullOpt.
+   * \note For function parameters, this function returns std::nullopt.
    */
   Optional<Expr> LookupBinding(const Var& var);
 

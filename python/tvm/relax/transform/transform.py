@@ -36,14 +36,14 @@ from .legalize_ops.common import LegalizeFunc
 from ..expr import Var
 
 
-@tvm._ffi.register_object("relax.FunctionPass")
+@tvm.ffi.register_object("relax.FunctionPass")
 class FunctionPass(tvm.ir.transform.Pass):
     """A pass that works on each tvm.relax.Function in a module. A function
     pass class should be created through `function_pass`.
     """
 
 
-@tvm._ffi.register_object("relax.DataflowBlockPass")
+@tvm.ffi.register_object("relax.DataflowBlockPass")
 class DataflowBlockPass(tvm.ir.transform.Pass):
     """A pass that works on each tvm.relax.DataflowBlock in a module."""
 
@@ -820,7 +820,7 @@ def FuseTIR() -> tvm.ir.transform.Pass:
     return _ffi_api.FuseTIR()  # type: ignore
 
 
-@tvm._ffi.register_object("relax.transform.PatternCheckContext")
+@tvm.ffi.register_object("relax.transform.PatternCheckContext")
 class PatternCheckContext(Object):
     """
     The input of check function `FusionPattern.check`.
@@ -854,7 +854,7 @@ class PatternCheckContext(Object):
     value_to_bound_var: Mapping[Expr, Var]
 
 
-@tvm._ffi.register_object("relax.transform.FusionPattern")
+@tvm.ffi.register_object("relax.transform.FusionPattern")
 class FusionPattern(Object):
     """
     The pattern used by `FuseOpsByPattern`. It's mainly DFPattern but with other
@@ -1612,8 +1612,6 @@ def _wrap_class_function_pass(pass_cls, pass_info):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
-            # initialize handle in case pass_cls creation failed.
-            self.handle = None
             inst = pass_cls(*args, **kwargs)
 
             # it is important not to capture self to
@@ -1760,8 +1758,6 @@ def _wrap_class_dataflowblock_pass(pass_cls, pass_info):
         """Internal wrapper class to create a class instance."""
 
         def __init__(self, *args, **kwargs):
-            # initialize handle in case pass_cls creation failed.
-            self.handle = None
             inst = pass_cls(*args, **kwargs)
 
             # it is important not to capture self to

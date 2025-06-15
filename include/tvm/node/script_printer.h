@@ -23,6 +23,10 @@
 #ifndef TVM_NODE_SCRIPT_PRINTER_H_
 #define TVM_NODE_SCRIPT_PRINTER_H_
 
+#include <tvm/ffi/any.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/string.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/object_path.h>
 #include <tvm/node/reflection.h>
@@ -148,7 +152,7 @@ class PrinterConfigNode : public Object {
 
 class PrinterConfig : public ObjectRef {
  public:
-  explicit PrinterConfig(Map<String, ObjectRef> config_dict = Map<String, ObjectRef>());
+  explicit PrinterConfig(Map<String, ffi::Any> config_dict = Map<String, ffi::Any>());
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PrinterConfig, runtime::ObjectRef,
                                                     PrinterConfigNode);
@@ -165,7 +169,7 @@ class TVMScriptPrinter {
 };
 
 #define TVM_OBJECT_ENABLE_SCRIPT_PRINTER()                                                      \
-  std::string Script(const Optional<PrinterConfig>& config = NullOpt) const {                   \
+  std::string Script(const Optional<PrinterConfig>& config = std::nullopt) const {              \
     return TVMScriptPrinter::Script(GetRef<ObjectRef>(this), config.value_or(PrinterConfig())); \
   }
 

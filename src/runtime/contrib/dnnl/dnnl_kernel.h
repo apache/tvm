@@ -25,9 +25,9 @@
 #ifndef TVM_RUNTIME_CONTRIB_DNNL_DNNL_KERNEL_H_
 #define TVM_RUNTIME_CONTRIB_DNNL_DNNL_KERNEL_H_
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 #include <vector>
 

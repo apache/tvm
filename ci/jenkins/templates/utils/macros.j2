@@ -96,17 +96,18 @@ def build() {
     try {
         run_build('{{ node }}-SPOT')
     } catch (Throwable ex) {
-        if (is_last_build()) {
-          // retry if we are currently at last build
-          // mark the current stage as success
-          // and try again via on demand node
-          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-          currentBuild.result = 'SUCCESS'
-          run_build('{{ node }}')
-        } else {
-          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
-          throw ex
-        }
+      echo 'Exception during SPOT run ' + ex.toString()
+      if (is_last_build()) {
+        // retry if we are currently at last build
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Retry on-demand given it is last build'
+        currentBuild.result = 'SUCCESS'
+        run_build('{{ node }}')
+      } else {
+        echo 'Exit since it is not last build'
+        throw ex
+      }
     }
   }
 }
@@ -125,15 +126,16 @@ def test() {
       try {
       {{ method_name }}('{{ node }}-SPOT')
       } catch (Throwable ex) {
+        echo 'Exception during SPOT run ' + ex.toString()
         if (is_last_build()) {
           // retry if at last build
           // mark the current stage as success
           // and try again via on demand node
-          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          echo 'Retry on-demand given it is last build'
           currentBuild.result = 'SUCCESS'
           {{ method_name }}('{{ node }}')
         } else {
-          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          echo 'Exit since it is not last build'
           throw ex
         }
       }

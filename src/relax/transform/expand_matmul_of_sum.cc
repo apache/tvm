@@ -40,7 +40,7 @@ namespace tvm {
 namespace relax {
 
 namespace {
-std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
+std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
     const Function& func) {
   auto compile_time_arr = ComputableAtCompileTime(func);
   std::unordered_set<Var> compile_time_lookup(compile_time_arr.begin(), compile_time_arr.end());
@@ -104,7 +104,7 @@ Pass ExpandMatmulOfSum() {
   return CreateFunctionPass(pass_func, 1, "ExpandMatmulOfSum", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ExpandMatmulOfSum").set_body_typed(ExpandMatmulOfSum);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.ExpandMatmulOfSum").set_body_typed(ExpandMatmulOfSum);
 
 }  // namespace transform
 }  // namespace relax

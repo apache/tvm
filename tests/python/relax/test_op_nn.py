@@ -74,9 +74,12 @@ def test_linear_unit_infer_struct_info():
 
     _check_inference(bb, relax.op.nn.relu(x0), relax.TensorStructInfo((2, 3), "float32"))
     _check_inference(bb, relax.op.nn.relu(x6), relax.TensorStructInfo((2, 3), "float32", vdev0))
+    _check_inference(bb, relax.op.nn.relu6(x0), relax.TensorStructInfo((2, 3), "float32"))
+    _check_inference(bb, relax.op.nn.relu6(x6), relax.TensorStructInfo((2, 3), "float32", vdev0))
     _check_inference(bb, relax.op.nn.silu(x1), relax.TensorStructInfo(dtype="float32", ndim=3))
     _check_inference(bb, relax.op.nn.gelu(x2), relax.TensorStructInfo(dtype="float32"))
     _check_inference(bb, relax.op.nn.relu(x3), relax.TensorStructInfo((2, 3), dtype=""))
+    _check_inference(bb, relax.op.nn.relu6(x3), relax.TensorStructInfo((2, 3), dtype=""))
     _check_inference(bb, relax.op.nn.gelu(x4), relax.TensorStructInfo(dtype=""))
     _check_inference(bb, relax.op.nn.leakyrelu(x0), relax.TensorStructInfo((2, 3), "float32"))
     _check_inference(bb, relax.op.nn.leakyrelu(x5), relax.TensorStructInfo((3, 4), dtype=""))
@@ -93,6 +96,7 @@ def test_linear_unit_infer_struct_info_shape_symbolic():
 
     _check_inference(bb, relax.op.nn.silu(x0), relax.TensorStructInfo((m, n), "float32"))
     _check_inference(bb, relax.op.nn.relu(x1), relax.TensorStructInfo((4, n), "float32"))
+    _check_inference(bb, relax.op.nn.relu6(x1), relax.TensorStructInfo((4, n), "float32"))
     _check_inference(bb, relax.op.nn.leakyrelu(x1), relax.TensorStructInfo((4, n), "float32"))
     _check_inference(bb, relax.op.nn.softplus(x1), relax.TensorStructInfo((4, n), "float32"))
 
@@ -106,6 +110,7 @@ def test_linear_unit_infer_struct_info_shape_var():
 
     _check_inference(bb, relax.op.nn.gelu(x0), relax.TensorStructInfo(s0, "float32"))
     _check_inference(bb, relax.op.nn.relu(x1), relax.TensorStructInfo(s1, "float32"))
+    _check_inference(bb, relax.op.nn.relu6(x1), relax.TensorStructInfo(s1, "float32"))
     _check_inference(bb, relax.op.nn.leakyrelu(x1), relax.TensorStructInfo(s1, "float32"))
     _check_inference(bb, relax.op.nn.softplus(x1), relax.TensorStructInfo(s1, "float32"))
 
@@ -254,13 +259,13 @@ def test_softmax_log_softmax_infer_struct_info_axis_out_of_range():
 def test_softmax_log_softmax_wrong_with_multiple_axes():
     x = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
 
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.nn.softmax(x, axis=[1, 2])
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.nn.softmax(x, axis=[-1, -2, -3])
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.nn.log_softmax(x, axis=[1, 2])
-    with pytest.raises(TVMError):
+    with pytest.raises(TypeError):
         relax.op.nn.log_softmax(x, axis=[-1, -2, -3])
 
 

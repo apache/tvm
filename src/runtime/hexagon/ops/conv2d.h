@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 
 #include <algorithm>
@@ -286,7 +286,7 @@ void chunkify_hwio_8b(void** out_ptr, int out_ptr_size, void* out, void* inp, in
 template <typename T, int block_height, int block_width, int block_depth>
 SDLTensor<4> prepare_nhwc(tvm::runtime::DeviceAPI* device_api, const DLTensor* nhwc_flat,
                           bool copy_data) {
-  tvm::runtime::String vtcm_scope = "global.vtcm";
+  tvm::ffi::String vtcm_scope = "global.vtcm";
 
   // Allocate blocks for activations. We will use the block pointers
   // directly from the allocated area.

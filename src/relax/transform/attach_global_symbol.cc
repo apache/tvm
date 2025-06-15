@@ -32,8 +32,7 @@ namespace relax {
 namespace transform {
 
 Pass AttachGlobalSymbol() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule mod, PassContext pc) {
     String c_prefix = mod->GetAttr<String>(tvm::attr::kSystemLibPrefix).value_or("");
     IRModule updates;
     Map<GlobalVar, GlobalVar> gvar_updates;
@@ -80,7 +79,7 @@ Pass AttachGlobalSymbol() {
   return CreateModulePass(pass_func, 0, "AttachGlobalSymbol", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.AttachGlobalSymbol").set_body_typed(AttachGlobalSymbol);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.AttachGlobalSymbol").set_body_typed(AttachGlobalSymbol);
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

@@ -20,6 +20,7 @@ import os
 import pathlib
 import shutil
 import sys
+import sys
 
 from setuptools import find_packages
 from setuptools.dist import Distribution
@@ -42,7 +43,7 @@ def get_lib_path():
     """Get library path, name and version"""
     # We can not import `libinfo.py` in setup.py directly since __init__.py
     # Will be invoked which introduces dependencies
-    libinfo_py = os.path.join(CURRENT_DIR, "./tvm/_ffi/libinfo.py")
+    libinfo_py = os.path.join(CURRENT_DIR, "./tvm/libinfo.py")
     libinfo = {"__file__": libinfo_py}
     exec(compile(open(libinfo_py, "rb").read(), libinfo_py, "exec"), libinfo, libinfo)
     version = libinfo["__version__"]
@@ -145,10 +146,17 @@ def config_cython():
     try:
         from Cython.Build import cythonize
 
-        subdir = "_cy3"
+        # for python 3.12+, use limited API for future compact
+        limited_api_kwargs = {}
+        if sys.version_info >= (3, 12):
+            limited_api_kwargs = {
+                "define_macros": [
+                    ("Py_LIMITED_API", 0x030C0000),
+                ],
+                "py_limited_api": True,
+            }
 
         ret = []
-        cython_source = "tvm/_ffi/_cython"
         extra_compile_args = ["-std=c++17", "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>"]
         if os.name == "nt":
             library_dirs = ["tvm", "../build/Release", "../build"]
@@ -164,22 +172,23 @@ def config_cython():
             library_dirs = None
             libraries = None
 
-        for fn in os.listdir(cython_source):
+        # the latest ffi source
+        for fn in os.listdir("tvm/ffi/cython"):
             if not fn.endswith(".pyx"):
                 continue
             ret.append(
                 Extension(
-                    "tvm._ffi.%s.%s" % (subdir, fn[:-4]),
-                    ["tvm/_ffi/_cython/%s" % fn],
+                    f"tvm.ffi.{fn[:-4]}",
+                    ["tvm/ffi/cython/%s" % fn],
                     include_dirs=[
-                        "../include/",
-                        "../3rdparty/dmlc-core/include",
-                        "../3rdparty/dlpack/include",
+                        "../ffi/include/",
+                        "../ffi/3rdparty/dlpack/include",
                     ],
                     extra_compile_args=extra_compile_args,
                     library_dirs=library_dirs,
                     libraries=libraries,
                     language="c++",
+                    **limited_api_kwargs,
                 )
             )
         return cythonize(ret, compiler_directives={"language_level": 3})
@@ -243,7 +252,6 @@ setup(
     license="Apache",
     # See https://pypi.org/classifiers/
     classifiers=[
-        "License :: OSI Approved :: Apache Software License",
         "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "Intended Audience :: Education",
@@ -251,7 +259,6 @@ setup(
     ],
     keywords="machine learning",
     zip_safe=False,
-    entry_points={"console_scripts": ["tvmc = tvm.driver.tvmc.main:main"]},
     install_requires=requirements["core"][1],
     extras_require=extras_require,
     packages=find_packages(),

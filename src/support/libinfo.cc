@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/registry.h>
 
 #ifndef TVM_INFO_GIT_COMMIT_HASH
 #define TVM_INFO_GIT_COMMIT_HASH "NOT-FOUND"
@@ -265,8 +267,8 @@ namespace tvm {
  * \brief Get a dictionary containing compile-time info, including cmake flags and git commit hash
  * \return The compile-time info
  */
-TVM_DLL Map<String, String> GetLibInfo() {
-  Map<String, String> result = {
+TVM_DLL ffi::Map<ffi::String, ffi::String> GetLibInfo() {
+  ffi::Map<ffi::String, ffi::String> result = {
       {"BUILD_STATIC_RUNTIME", TVM_INFO_BUILD_STATIC_RUNTIME},
       {"BUILD_DUMMY_LIBTVM", TVM_INFO_BUILD_DUMMY_LIBTVM},
       {"COMPILER_RT_PATH", TVM_INFO_COMPILER_RT_PATH},
@@ -302,7 +304,6 @@ TVM_DLL Map<String, String> GetLibInfo() {
       {"USE_CUDNN", TVM_INFO_USE_CUDNN},
       {"USE_CUSTOM_LOGGING", TVM_INFO_USE_CUSTOM_LOGGING},
       {"USE_CUTLASS", TVM_INFO_USE_CUTLASS},
-      {"USE_FLASHINFER", TVM_INFO_USE_FLASHINFER},
       {"USE_AMX", TVM_INFO_USE_AMX},
       {"USE_DNNL", TVM_INFO_USE_DNNL},
       {"USE_FALLBACK_STL_MAP", TVM_INFO_USE_FALLBACK_STL_MAP},
@@ -365,6 +366,6 @@ TVM_DLL Map<String, String> GetLibInfo() {
   return result;
 }
 
-TVM_REGISTER_GLOBAL("support.GetLibInfo").set_body_typed(GetLibInfo);
+TVM_FFI_REGISTER_GLOBAL("support.GetLibInfo").set_body_typed(GetLibInfo);
 
 }  // namespace tvm

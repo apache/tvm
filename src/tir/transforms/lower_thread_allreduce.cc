@@ -22,7 +22,7 @@
  * \file lower_thread_allreduce.cc
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -103,7 +103,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       return new_buf;
     }
 
-    return NullOpt;
+    return std::nullopt;
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
@@ -294,8 +294,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       PrimExpr mask = Call(mask_dtype, builtin::tvm_warp_activemask(), {});
 
       if (reduce_extent <= warp_size_) {
-        std::tie(reduce_results, new_alloc_bufs) = MakeWarpAllreduce(
-            values, types, combiner, reduce_index, reduce_extent, group_index, mask, NullOpt, &seq);
+        std::tie(reduce_results, new_alloc_bufs) =
+            MakeWarpAllreduce(values, types, combiner, reduce_index, reduce_extent, group_index,
+                              mask, std::nullopt, &seq);
 
         // Broadcast the reduction result from lane 0 to all other lanes.
         // This avoids to emit predicated stores, as all threads are
@@ -324,8 +325,9 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         }
 
         // 2. First round of allreduce.
-        std::tie(reduce_results, local_bufs) = MakeWarpAllreduce(
-            values, types, combiner, reduce_index, warp_size_, group_index, mask, NullOpt, &seq);
+        std::tie(reduce_results, local_bufs) =
+            MakeWarpAllreduce(values, types, combiner, reduce_index, warp_size_, group_index, mask,
+                              std::nullopt, &seq);
         new_alloc_bufs.insert(new_alloc_bufs.end(), local_bufs.begin(), local_bufs.end());
 
         // 3. Write allreduce results to staging buffer.
@@ -807,7 +809,7 @@ Pass LowerThreadAllreduce() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerThreadAllreduce", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerThreadAllreduce").set_body_typed(LowerThreadAllreduce);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerThreadAllreduce").set_body_typed(LowerThreadAllreduce);
 
 }  // namespace transform
 }  // namespace tir

@@ -392,7 +392,7 @@ tvm::Array<tvm::Array<GlobalVar>> DetectRecursion(const IRModule& m) {
   return ret;
 }
 
-TVM_REGISTER_GLOBAL("relax.analysis.detect_recursion").set_body_typed(DetectRecursion);
+TVM_FFI_REGISTER_GLOBAL("relax.analysis.detect_recursion").set_body_typed(DetectRecursion);
 
 }  // namespace relax
 }  // namespace tvm

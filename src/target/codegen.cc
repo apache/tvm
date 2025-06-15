@@ -22,10 +22,10 @@
  * \brief Common utilities to generated C style code.
  */
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/function.h>
@@ -51,9 +51,9 @@ runtime::Module Build(IRModule mod, Target target) {
 
   // the build function.
   std::string build_f_name = "target.build." + target->kind->name;
-  const PackedFunc* bf = runtime::Registry::Get(build_f_name);
-  ICHECK(bf != nullptr) << build_f_name << " is not enabled";
-  return (*bf)(mod, target);
+  const auto bf = tvm::ffi::Function::GetGlobal(build_f_name);
+  ICHECK(bf.has_value()) << build_f_name << " is not enabled";
+  return (*bf)(mod, target).cast<runtime::Module>();
 }
 
 /*! \brief Helper class to serialize module */
@@ -305,7 +305,7 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
         << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
   }
 
-  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_dev_mblob;
+  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_ffi_library_bin;
   std::string blob = PackImportsToBytes(mod);
 
   // translate to C program
@@ -351,29 +351,27 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   }
 
   std::string blob = PackImportsToBytes(mod);
-  TVMByteArray blob_byte_array;
-  blob_byte_array.size = blob.length();
-  blob_byte_array.data = blob.data();
 
   // Call codegen_blob to generate LLVM module
   std::string codegen_f_name = "codegen.codegen_blob";
   // the codegen function.
-  const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
-  ICHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
-  return (*codegen_f)(blob_byte_array, system_lib, llvm_target_string, c_symbol_prefix);
+  const auto codegen_f = tvm::ffi::Function::GetGlobal(codegen_f_name);
+  ICHECK(codegen_f.has_value()) << "codegen.codegen_blob is not presented.";
+  return (*codegen_f)(ffi::Bytes(blob), system_lib, llvm_target_string, c_symbol_prefix)
+      .cast<runtime::Module>();
 }
 
-TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
+TVM_FFI_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
 
 // Export a few auxiliary function to the runtime namespace.
-TVM_REGISTER_GLOBAL("runtime.ModuleImportsBlobName").set_body_typed([]() -> std::string {
-  return runtime::symbol::tvm_dev_mblob;
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleImportsBlobName").set_body_typed([]() -> std::string {
+  return runtime::symbol::tvm_ffi_library_bin;
 });
 
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")
+TVM_FFI_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")
     .set_body_typed([](const runtime::Module& mod) {
       std::string buffer = PackImportsToBytes(mod);
-      ShapeTuple::index_type size = buffer.size();
+      ffi::Shape::index_type size = buffer.size();
       DLDataType uchar;
       uchar.code = kDLUInt;
       uchar.bits = 8;
@@ -386,8 +384,8 @@ TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")
       return array;
     });
 
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC").set_body_typed(PackImportsToC);
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToLLVM").set_body_typed(PackImportsToLLVM);
+TVM_FFI_REGISTER_GLOBAL("runtime.ModulePackImportsToC").set_body_typed(PackImportsToC);
+TVM_FFI_REGISTER_GLOBAL("runtime.ModulePackImportsToLLVM").set_body_typed(PackImportsToLLVM);
 
 }  // namespace codegen
 }  // namespace tvm

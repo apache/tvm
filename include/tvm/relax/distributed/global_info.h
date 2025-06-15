@@ -37,7 +37,7 @@ namespace distributed {
 class DeviceMeshNode : public GlobalInfoNode {
  public:
   /*! \brief logical shape of the mesh*/
-  ShapeTuple shape;
+  ffi::Shape shape;
 
   /*! \brief device ids in the mesh*/
   Array<Integer> device_ids;
@@ -80,8 +80,8 @@ class DeviceMeshNode : public GlobalInfoNode {
  */
 class DeviceMesh : public GlobalInfo {
  public:
-  TVM_DLL DeviceMesh(ShapeTuple shape, Array<Integer> device_ids);
-  TVM_DLL DeviceMesh(ShapeTuple shape, Range device_range);
+  TVM_DLL DeviceMesh(ffi::Shape shape, Array<Integer> device_ids);
+  TVM_DLL DeviceMesh(ffi::Shape shape, Range device_range);
   TVM_DEFINE_OBJECT_REF_METHODS(DeviceMesh, GlobalInfo, DeviceMeshNode);
 };
 

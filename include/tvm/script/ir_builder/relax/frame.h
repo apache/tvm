@@ -54,7 +54,7 @@ class SeqExprFrameNode : public RelaxFrameNode {
  public:
   /*! \brief The binding blocks inside the frame. */
   Array<tvm::relax::BindingBlock> binding_blocks;
-  /*! \brief The frame output expr. `NullOpt` when undefined. */
+  /*! \brief The frame output expr. `std::nullopt` when undefined. */
   Optional<tvm::relax::Expr> output;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -102,7 +102,7 @@ class FunctionFrameNode : public SeqExprFrameNode {
   /*! \brief Whether the function is annotated as private */
   Optional<Bool> is_private;
   /*! \brief The function attributes. */
-  Map<String, ObjectRef> attrs;
+  Map<String, Any> attrs;
   /*! \brief The block builder to create Relax function. */
   tvm::relax::BlockBuilder block_builder;
 

@@ -20,15 +20,15 @@
 /*!
  * \file env_func.cc
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/env_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 
 namespace tvm {
 
-using runtime::PackedFunc;
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
+using ffi::Any;
+using ffi::Function;
+using ffi::PackedArgs;
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<EnvFuncNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -37,8 +37,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 ObjectPtr<Object> CreateEnvNode(const std::string& name) {
-  auto* f = runtime::Registry::Get(name);
-  ICHECK(f != nullptr) << "Cannot find global function \'" << name << '\'';
+  auto f = tvm::ffi::Function::GetGlobal(name);
+  ICHECK(f.has_value()) << "Cannot find global function \'" << name << '\'';
   ObjectPtr<EnvFuncNode> n = make_object<EnvFuncNode>();
   n->func = *f;
   n->name = name;
@@ -47,15 +47,15 @@ ObjectPtr<Object> CreateEnvNode(const std::string& name) {
 
 EnvFunc EnvFunc::Get(const String& name) { return EnvFunc(CreateEnvNode(name)); }
 
-TVM_REGISTER_GLOBAL("ir.EnvFuncGet").set_body_typed(EnvFunc::Get);
+TVM_FFI_REGISTER_GLOBAL("ir.EnvFuncGet").set_body_typed(EnvFunc::Get);
 
-TVM_REGISTER_GLOBAL("ir.EnvFuncCall").set_body([](TVMArgs args, TVMRetValue* rv) {
-  EnvFunc env = args[0];
+TVM_FFI_REGISTER_GLOBAL("ir.EnvFuncCall").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+  EnvFunc env = args[0].cast<EnvFunc>();
   ICHECK_GE(args.size(), 1);
-  env->func.CallPacked(TVMArgs(args.values + 1, args.type_codes + 1, args.size() - 1), rv);
+  env->func.CallPacked(args.Slice(1), rv);
 });
 
-TVM_REGISTER_GLOBAL("ir.EnvFuncGetPackedFunc").set_body_typed([](const EnvFunc& n) {
+TVM_FFI_REGISTER_GLOBAL("ir.EnvFuncGetFunction").set_body_typed([](const EnvFunc& n) {
   return n->func;
 });
 

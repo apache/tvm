@@ -23,13 +23,13 @@
 #ifndef TVM_RELAX_EXEC_BUILDER_H_
 #define TVM_RELAX_EXEC_BUILDER_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/relax_vm/bytecode.h>
-#include <tvm/runtime/relax_vm/executable.h>
+#include <tvm/runtime/vm/bytecode.h>
+#include <tvm/runtime/vm/executable.h>
 
 #include <string>
 #include <unordered_map>
@@ -38,7 +38,7 @@
 namespace tvm {
 namespace relax {
 
-namespace vm = tvm::runtime::relax_vm;
+namespace vm = tvm::runtime::vm;
 
 class ExecBuilder;
 
@@ -118,7 +118,7 @@ class ExecBuilderNode : public Object {
    */
   template <typename T>
   vm::Instruction::Arg ConvertConstant(T value) {
-    TVMRetValue rv;
+    ffi::Any rv;
     rv = value;
     return ConvertConstant_(rv);
   }
@@ -139,7 +139,6 @@ class ExecBuilderNode : public Object {
 
   void VisitAttrs(AttrVisitor* v) {}
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.ExecBuilder";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecBuilderNode, Object);
 
@@ -152,7 +151,7 @@ class ExecBuilderNode : public Object {
    * \param obj The constant value to be emitted
    * \return An Arg that represents the result of constant argument.
    */
-  vm::Instruction::Arg ConvertConstant_(TVMRetValue obj);
+  vm::Instruction::Arg ConvertConstant_(ffi::Any obj);
 
   /*!
    * \brief A helper function to check if an executable is legal by checking if registers are used

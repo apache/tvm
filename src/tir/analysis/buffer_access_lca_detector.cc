@@ -62,7 +62,8 @@ class LCADetector : public StmtExprVisitor {
     Map<Buffer, Optional<Stmt>> buffer_lca;
     for (const auto& kv : detector.buffer_lca_) {
       const Buffer& buffer = GetRef<Buffer>(kv.first);
-      const Optional<Stmt> stmt = kv.second ? GetRef<Optional<Stmt>>(kv.second->stmt) : NullOpt;
+      const Optional<Stmt> stmt =
+          kv.second ? GetRef<Optional<Stmt>>(kv.second->stmt) : std::nullopt;
       buffer_lca.Set(buffer, stmt);
     }
     return buffer_lca;
@@ -345,6 +346,7 @@ Map<Buffer, Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func) {
   return LCADetector::Detect(func);
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.detect_buffer_access_lca").set_body_typed(DetectBufferAccessLCA);
+TVM_FFI_REGISTER_GLOBAL("tir.analysis.detect_buffer_access_lca")
+    .set_body_typed(DetectBufferAccessLCA);
 }  // namespace tir
 }  // namespace tvm

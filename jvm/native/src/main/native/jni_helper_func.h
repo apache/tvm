@@ -113,8 +113,8 @@ jobject newTVMValueDouble(JNIEnv* env, jdouble value) {
   return object;
 }
 
-jobject newTVMValueString(JNIEnv* env, const char* value) {
-  jstring jvalue = env->NewStringUTF(value);
+jobject newTVMValueString(JNIEnv* env, const TVMFFIByteArray* value) {
+  jstring jvalue = env->NewStringUTF(value->data);
   jclass cls = env->FindClass("org/apache/tvm/TVMValueString");
   jmethodID constructor = env->GetMethodID(cls, "<init>", "(Ljava/lang/String;)V");
   jobject object = env->NewObject(cls, constructor, jvalue);
@@ -123,7 +123,7 @@ jobject newTVMValueString(JNIEnv* env, const char* value) {
   return object;
 }
 
-jobject newTVMValueBytes(JNIEnv* env, const TVMByteArray* arr) {
+jobject newTVMValueBytes(JNIEnv* env, const TVMFFIByteArray* arr) {
   jbyteArray jarr = env->NewByteArray(arr->size);
   env->SetByteArrayRegion(jarr, 0, arr->size,
                           reinterpret_cast<jbyte*>(const_cast<char*>(arr->data)));
@@ -159,10 +159,18 @@ jobject newNDArray(JNIEnv* env, jlong handle, jboolean isview) {
   return object;
 }
 
-jobject newObject(JNIEnv* env, const char* clsname) {
-  jclass cls = env->FindClass(clsname);
+jobject newTVMNull(JNIEnv* env) {
+  jclass cls = env->FindClass("org/apache/tvm/TVMValueNull");
   jmethodID constructor = env->GetMethodID(cls, "<init>", "()V");
   jobject object = env->NewObject(cls, constructor);
+  env->DeleteLocalRef(cls);
+  return object;
+}
+
+jobject newTVMObject(JNIEnv* env, jlong handle, jint type_index) {
+  jclass cls = env->FindClass("org/apache/tvm/TVMObject");
+  jmethodID constructor = env->GetMethodID(cls, "<init>", "(JI)V");
+  jobject object = env->NewObject(cls, constructor, handle, type_index);
   env->DeleteLocalRef(cls);
   return object;
 }
@@ -184,55 +192,56 @@ void fromJavaDevice(JNIEnv* env, jobject jdev, DLDevice* dev) {
   env->DeleteLocalRef(deviceClass);
 }
 
-jobject tvmRetValueToJava(JNIEnv* env, TVMValue value, int tcode) {
-  switch (tcode) {
-    case kDLUInt:
-    case kDLInt:
-    case kTVMArgBool:
+jobject tvmRetValueToJava(JNIEnv* env, TVMFFIAny value) {
+  using tvm::ffi::TypeIndex;
+  switch (value.type_index) {
+    case TypeIndex::kTVMFFINone: {
+      return newTVMNull(env);
+    }
+    case TypeIndex::kTVMFFIBool: {
+      // use long for now to represent bool
       return newTVMValueLong(env, static_cast<jlong>(value.v_int64));
-    case kDLFloat:
+    }
+    case TypeIndex::kTVMFFIInt: {
+      return newTVMValueLong(env, static_cast<jlong>(value.v_int64));
+    }
+    case TypeIndex::kTVMFFIFloat: {
       return newTVMValueDouble(env, static_cast<jdouble>(value.v_float64));
-    case kTVMOpaqueHandle:
-      return newTVMValueHandle(env, reinterpret_cast<jlong>(value.v_handle));
-    case kTVMModuleHandle:
-      return newModule(env, reinterpret_cast<jlong>(value.v_handle));
-    case kTVMPackedFuncHandle:
-      return newFunction(env, reinterpret_cast<jlong>(value.v_handle));
-    case kTVMDLTensorHandle:
-      return newNDArray(env, reinterpret_cast<jlong>(value.v_handle), true);
-    case kTVMNDArrayHandle:
-      return newNDArray(env, reinterpret_cast<jlong>(value.v_handle), false);
-    case kTVMStr:
-      return newTVMValueString(env, value.v_str);
-    case kTVMBytes:
-      return newTVMValueBytes(env, reinterpret_cast<TVMByteArray*>(value.v_handle));
-    case kTVMNullptr:
-      return newObject(env, "org/apache/tvm/TVMValueNull");
-    default:
-      LOG(FATAL) << "Do NOT know how to handle return type code " << tcode;
+    }
+    case TypeIndex::kTVMFFIOpaquePtr: {
+      return newTVMValueHandle(env, reinterpret_cast<jlong>(value.v_ptr));
+    }
+    case TypeIndex::kTVMFFIModule: {
+      return newModule(env, reinterpret_cast<jlong>(value.v_obj));
+    }
+    case TypeIndex::kTVMFFIFunction: {
+      return newFunction(env, reinterpret_cast<jlong>(value.v_obj));
+    }
+    case TypeIndex::kTVMFFIDLTensorPtr: {
+      return newNDArray(env, reinterpret_cast<jlong>(value.v_ptr), true);
+    }
+    case TypeIndex::kTVMFFINDArray: {
+      return newNDArray(env, reinterpret_cast<jlong>(value.v_obj), false);
+    }
+    case TypeIndex::kTVMFFIStr: {
+      jobject ret = newTVMValueString(env, TVMFFIBytesGetByteArrayPtr(value.v_obj));
+      TVMFFIObjectFree(value.v_obj);
+      return ret;
+    }
+    case TypeIndex::kTVMFFIBytes: {
+      jobject ret = newTVMValueBytes(env, TVMFFIBytesGetByteArrayPtr(value.v_obj));
+      TVMFFIObjectFree(value.v_obj);
+      return ret;
+    }
+    default: {
+      if (value.type_index >= TypeIndex::kTVMFFIStaticObjectBegin) {
+        return newTVMObject(env, reinterpret_cast<jlong>(value.v_obj), value.type_index);
+      }
+      TVM_FFI_THROW(RuntimeError) << "Do NOT know how to handle return type_index "
+                                  << value.type_index;
+      TVM_FFI_UNREACHABLE();
+    }
   }
-  return NULL;
-}
-
-// Helper function to pack two int32_t values into an int64_t
-inline int64_t deviceToInt64(const int32_t device_type, const int32_t device_id) {
-  int64_t result;
-  int32_t* parts = reinterpret_cast<int32_t*>(&result);
-
-  // Lambda function to check endianness
-  const auto isLittleEndian = []() -> bool {
-    uint32_t i = 1;
-    return *reinterpret_cast<char*>(&i) == 1;
-  };
-
-  if (isLittleEndian()) {
-    parts[0] = device_type;
-    parts[1] = device_id;
-  } else {
-    parts[1] = device_type;
-    parts[0] = device_id;
-  }
-  return result;
 }
 
 #endif  // TVM4J_JNI_MAIN_NATIVE_JNI_HELPER_FUNC_H_

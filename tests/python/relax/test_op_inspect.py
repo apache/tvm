@@ -158,10 +158,6 @@ def test_strides_of_compact_tensor(shape):
 
 
 def test_strides_of_non_compact_tensor():
-    backing_shape = [64, 64]
-    view_shape = [16, 16]
-    expected_strides = [backing_shape[0], 1]
-
     @I.ir_module
     class mod:
         @R.function
@@ -170,20 +166,12 @@ def test_strides_of_non_compact_tensor():
 
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
-
-    backing_ndarray = tvm.nd.empty(backing_shape, "int32")
-
-    # Manually overwrite the DLTensor fields to make a view into the
-    # tensor.
-    view = backing_ndarray.handle[0]
-    np_shape = np.array([16, 16], "int64")
-    view.shape = np_shape.ctypes.data_as(ctypes.POINTER(ctypes.c_long))
-    np_strides = np.array([64, 1], "int64")
-    view.strides = np_strides.ctypes.data_as(ctypes.POINTER(ctypes.c_long))
-    backing_ndarray.handle[0] = view
-
-    res = [vm["main"](backing_ndarray, i) for i, _ in enumerate(view_shape)]
-
+    view_shape = [4, 4]
+    expected_strides = [1, 4]
+    # use transpose to make strides non-compact
+    x = np.zeros([4, 4], "int32").T
+    y = tvm.ffi.from_dlpack(x, required_alignment=4, required_contiguous=False)
+    res = [vm["main"](y, i) for i, _ in enumerate(view_shape)]
     tvm.ir.assert_structural_equal(res, expected_strides)
 
 
@@ -200,19 +188,10 @@ def test_byte_offset(elem_offset):
 
     built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
-
-    backing_ndarray = tvm.nd.empty(backing_shape, "int32")
-
-    # Manually overwrite the DLTensor fields to make a view into the
-    # tensor.
-    view = backing_ndarray.handle[0]
-    np_shape = np.array(view_shape, "int64")
-    view.shape = np_shape.ctypes.data_as(ctypes.POINTER(ctypes.c_long))
-    view.byte_offset = byte_offset
-    backing_ndarray.handle[0] = view
-
-    res = vm["main"](backing_ndarray)
-
+    dtype = "int32"
+    backing_ndarray = tvm.nd.empty(backing_shape, dtype)
+    view = backing_ndarray._create_view(view_shape, dtype, relative_byte_offset=byte_offset)
+    res = vm["main"](view)
     assert res == byte_offset
 
 
@@ -234,16 +213,8 @@ def test_elem_offset(elem_offset, dtype):
     vm = relax.VirtualMachine(built, tvm.cpu())
 
     backing_ndarray = tvm.nd.empty(backing_shape, dtype)
-
-    # Manually overwrite the DLTensor fields to make a view into the
-    # tensor.
-    view = backing_ndarray.handle[0]
-    np_shape = np.array(view_shape, "int64")
-    view.shape = np_shape.ctypes.data_as(ctypes.POINTER(ctypes.c_long))
-    view.byte_offset = byte_offset
-    backing_ndarray.handle[0] = view
-
-    res = vm["main"](backing_ndarray)
+    view = backing_ndarray._create_view(view_shape, dtype, relative_byte_offset=byte_offset)
+    res = vm["main"](view)
 
     assert res == elem_offset
 

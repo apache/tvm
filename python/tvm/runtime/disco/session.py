@@ -25,8 +25,8 @@ from typing import Any, Callable, Optional, Sequence, Union
 
 import numpy as np
 
-from ..._ffi import get_global_func, register_func, register_object
-from ..._ffi.runtime_ctypes import Device
+from ...ffi import get_global_func, register_func, register_object
+from ..device import Device
 from ..container import ShapeTuple
 from ..ndarray import NDArray
 from ..ndarray import array as _as_NDArray
@@ -79,8 +79,7 @@ class DPackedFunc(DRef):
     """A PackedFunc in a Disco session."""
 
     def __init__(self, dref: DRef, session: "Session") -> None:
-        self.handle = dref.handle
-        dref.handle = None
+        self.__move_handle_from__(dref)
         self.session = session
 
     def __call__(self, *args) -> DRef:
@@ -91,8 +90,7 @@ class DModule(DRef):
     """A Module in a Disco session."""
 
     def __init__(self, dref: DRef, session: "Session") -> None:
-        self.handle = dref.handle
-        dref.handle = None
+        self.__move_handle_from__(dref)
         self.session = session
 
     def __getitem__(self, name: str) -> DPackedFunc:
@@ -273,7 +271,7 @@ class Session(Object):
         output_array: DRef
 
             The DRef containing the copied data on worker0, and
-            NullOpt on all other workers.  If `remote_array` was
+            std::nullopt on all other workers.  If `remote_array` was
             provided, this return value is the same as `remote_array`.
             Otherwise, it is the newly allocated space.
 

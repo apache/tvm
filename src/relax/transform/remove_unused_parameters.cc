@@ -184,8 +184,7 @@ class CallSiteMutator : public ExprMutator {
 namespace transform {
 
 Pass RemoveUnusedParameters() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) -> IRModule {
+  auto pass_func = [=](IRModule mod, PassContext pc) -> IRModule {
     PMap<GlobalVar, std::function<Call(Call)>> callsite_updaters;
 
     {
@@ -251,7 +250,7 @@ Pass RemoveUnusedParameters() {
   return CreateModulePass(pass_func, 0, "RemoveUnusedParameters", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.RemoveUnusedParameters")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.RemoveUnusedParameters")
     .set_body_typed(RemoveUnusedParameters);
 
 }  // namespace transform
