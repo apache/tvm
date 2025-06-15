@@ -59,13 +59,14 @@ static backtrace_state* _bt_state = BacktraceCreate();
 std::string DemangleName(std::string name) {
   int status = 0;
   size_t length = name.size();
-  std::unique_ptr<char, void (*)(void* __ptr)> demangled_name = {
-      abi::__cxa_demangle(name.c_str(), nullptr, &length, &status), &std::free};
+  char* demangled_name = abi::__cxa_demangle(name.c_str(), nullptr, &length, &status);
   if (demangled_name && status == 0 && length > 0) {
-    return demangled_name.get();
-  } else {
-    return name;
+    name = demangled_name;
   }
+  if (demangled_name) {
+    std::free(demangled_name);
+  }
+  return name;
 }
 
 void BacktraceErrorCallback(void*, const char*, int) {

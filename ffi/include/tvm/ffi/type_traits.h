@@ -566,7 +566,7 @@ template <typename ObjectRefType, typename... FallbackTypes>
 struct ObjectRefWithFallbackTraitsBase : public ObjectRefTypeTraitsBase<ObjectRefType> {
   static TVM_FFI_INLINE std::optional<ObjectRefType> TryCastFromAnyView(const TVMFFIAny* src) {
     if (auto opt_obj = ObjectRefTypeTraitsBase<ObjectRefType>::TryCastFromAnyView(src)) {
-      return opt_obj.value();
+      return *opt_obj;
     }
     // apply fallback types in TryCastFromAnyView
     return TryFallbackTypes<FallbackTypes...>(src);
