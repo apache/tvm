@@ -65,7 +65,7 @@ inline Tensor layer_norm(const Tensor& data, const Tensor& gamma, const Tensor& 
   auto real_axis = GetRealAxis(static_cast<int>(ndim), axis);
   auto reduce_axes = MakeReduceAxes(real_axis, data);
   auto target_shape =
-      MakeReduceTargetShape(real_axis, data, /*keepdims=*/false, /*atleast1d=*/true);
+      MakeReduceTargetShape(real_axis, data, /*keepdims=*/false, /*atleast1d=*/false);
   auto func = MakeTupleSumReducer();
 
   auto compute = [ndim, is_float16, &real_axis, &reduce_axes, &func,
