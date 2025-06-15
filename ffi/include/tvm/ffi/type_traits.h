@@ -84,6 +84,7 @@ inline constexpr bool use_default_type_traits_v = true;
 struct TypeTraitsBase {
   static constexpr bool convert_enabled = true;
   static constexpr bool storage_enabled = true;
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIAny;
   // get mismatched type when result mismatches the trait.
   // this function is called after TryCastFromAnyView fails
   // to get more detailed type information in runtime
@@ -588,17 +589,18 @@ struct ObjectRefWithFallbackTraitsBase : public ObjectRefTypeTraitsBase<ObjectRe
 
 // Traits for weak pointer of object
 // NOTE: we require the weak pointer cast from
+
 template <typename TObject>
-struct TypeTraits<const TObject*, std::enable_if_t<std::is_base_of_v<Object, TObject>>>
+struct TypeTraits<TObject*, std::enable_if_t<std::is_base_of_v<Object, TObject>>>
     : public TypeTraitsBase {
-  static TVM_FFI_INLINE void CopyToAnyView(const TObject* src, TVMFFIAny* result) {
+  static TVM_FFI_INLINE void CopyToAnyView(TObject* src, TVMFFIAny* result) {
     TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetHeader(src);
     result->type_index = obj_ptr->type_index;
     TVM_FFI_CLEAR_PTR_PADDING_IN_FFI_ANY(result);
     result->v_obj = obj_ptr;
   }
 
-  static TVM_FFI_INLINE void MoveToAny(const TObject* src, TVMFFIAny* result) {
+  static TVM_FFI_INLINE void MoveToAny(TObject* src, TVMFFIAny* result) {
     TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetHeader(src);
     result->type_index = obj_ptr->type_index;
     TVM_FFI_CLEAR_PTR_PADDING_IN_FFI_ANY(result);
@@ -612,11 +614,17 @@ struct TypeTraits<const TObject*, std::enable_if_t<std::is_base_of_v<Object, TOb
            details::IsObjectInstance<TObject>(src->type_index);
   }
 
-  static TVM_FFI_INLINE const TObject* CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE TObject* CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    if constexpr (!std::is_const_v<TObject>) {
+      static_assert(TObject::_type_mutable, "TObject must be mutable to enable cast from Any");
+    }
     return details::ObjectUnsafe::RawObjectPtrFromUnowned<TObject>(src->v_obj);
   }
 
-  static TVM_FFI_INLINE std::optional<const TObject*> TryCastFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<TObject*> TryCastFromAnyView(const TVMFFIAny* src) {
+    if constexpr (!std::is_const_v<TObject>) {
+      static_assert(TObject::_type_mutable, "TObject must be mutable to enable cast from Any");
+    }
     if (CheckAnyStrict(src)) return CopyFromAnyViewAfterCheck(src);
     return std::nullopt;
   }
