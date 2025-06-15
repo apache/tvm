@@ -267,7 +267,7 @@ Pass LowerMatchBuffer() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerMatchBuffer", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerMatchBuffer").set_body_typed(LowerMatchBuffer);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerMatchBuffer").set_body_typed(LowerMatchBuffer);
 
 }  // namespace transform
 

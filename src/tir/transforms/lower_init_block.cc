@@ -39,7 +39,7 @@ class InitBlockLower : public StmtMutator {
     Stmt init = DoLowering(block->init.value(), block->iter_vars);
     Stmt body = VisitStmt(block->body);
     auto n = CopyOnWrite(block);
-    n->init = NullOpt;
+    n->init = std::nullopt;
     n->body = SeqStmt::Flatten(init, body);
     return Block(n);
   }
@@ -79,7 +79,7 @@ Pass LowerInitBlock() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerInitBlock", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerInitBlock").set_body_typed(LowerInitBlock);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerInitBlock").set_body_typed(LowerInitBlock);
 
 }  // namespace transform
 

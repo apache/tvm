@@ -201,7 +201,7 @@ static std::optional<MatchState> TryValidate(
     if (auto ptr = current_match.matched(p_node)) {
       return GetRef<Var>(ptr);
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   };
 
@@ -340,14 +340,14 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
   }
 
   if (roots.empty()) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   arith::Analyzer analyzer;
   auto match = MatchTree({}, 0, pattern2node, var2node, &matcher, roots,
                          ctx->validation_constraints, ud_analysis, &analyzer);
   if (!match) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   Map<DFPattern, Var> ret;
@@ -362,7 +362,7 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const Datafl
   return MatchGraph(ctx, dfb->bindings, AnalyzeVar2Value(dfb));
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.match_dfb")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.match_dfb")
     .set_body_typed([](const PatternContext& ctx, const DataflowBlock& dfb) {
       return MatchGraph(ctx, dfb);
     });
@@ -397,7 +397,7 @@ class PatternContextRewriterNode : public PatternMatchingRewriterNode {
       }
     }
 
-    return NullOpt;
+    return std::nullopt;
   }
 };
 
@@ -447,7 +447,7 @@ Function RewriteBindings(
   return Downcast<Function>(PatternContextRewriter(ctx, rewriter)(func));
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.rewrite_bindings").set_body_typed(RewriteBindings);
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.rewrite_bindings").set_body_typed(RewriteBindings);
 
 }  // namespace relax
 }  // namespace tvm

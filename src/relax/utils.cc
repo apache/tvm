@@ -245,7 +245,7 @@ Expr GetBoundValue(const Binding& b) {
  */
 Function CopyWithNewVars(Function func) { return FunctionCopier().Copy(func); }
 
-TVM_REGISTER_GLOBAL("relax.CopyWithNewVars").set_body_typed(CopyWithNewVars);
+TVM_FFI_REGISTER_GLOBAL("relax.CopyWithNewVars").set_body_typed(CopyWithNewVars);
 
 }  // namespace relax
 }  // namespace tvm

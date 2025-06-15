@@ -54,7 +54,7 @@ Expr MakeCallTIRDist(Expr func, Tuple args, Array<distributed::DTensorStructInfo
   return call;
 }
 
-TVM_REGISTER_GLOBAL("script.ir_builder.relax.distributed.call_tir_dist")
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.relax.distributed.call_tir_dist")
     .set_body_typed(MakeCallTIRDist);
 
 }  // namespace relax

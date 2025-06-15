@@ -150,7 +150,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
 Optional<Trace> MutateThreadBindingNode::Apply(const Trace& trace, TRandState* rand_state) {
   std::vector<Candidate> candidates = FindCandidates(trace, rand_state);
   if (candidates.empty()) {
-    return NullOpt;
+    return std::nullopt;
   }
   Candidate candidate = candidates[tir::SampleInt(rand_state, 0, candidates.size())];
   // Remove the current decision
@@ -165,7 +165,7 @@ Optional<Trace> MutateThreadBindingNode::Apply(const Trace& trace, TRandState* r
 Mutator Mutator::MutateThreadBinding() { return Mutator(make_object<MutateThreadBindingNode>()); }
 
 TVM_REGISTER_NODE_TYPE(MutateThreadBindingNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MutateThreadBinding")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutateThreadBinding")
     .set_body_typed(Mutator::MutateThreadBinding);
 
 }  // namespace meta_schedule

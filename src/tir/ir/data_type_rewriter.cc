@@ -340,7 +340,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BlockNode* op) {
       [this](const BufferRegion& buffer_region) { return this->VisitBufferRegion(buffer_region); });
   Array<IterVar> new_iter_vars =
       op->iter_vars.Map([this](const IterVar& iter_var) { return this->VisitIterVar(iter_var); });
-  Optional<Stmt> new_init = NullOpt;
+  Optional<Stmt> new_init = std::nullopt;
   if (op->init.defined()) {
     new_init = this->VisitStmt(op->init.value());
   }
@@ -381,7 +381,7 @@ Map<String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
       if (Buffer new_buffer = GetRemappedBuffer(buffer); !new_buffer.same_as(buffer)) {
         return new_buffer;
       }
-    } else if (obj->IsInstance<ArrayObj>()) {
+    } else if (obj->IsInstance<ffi::ArrayObj>()) {
       return Downcast<Array<ObjectRef>>(obj).Map(f_mutate_obj);
     }
     return obj;
@@ -521,7 +521,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const IfThenElseNode* op) {
 
   Stmt then_case = VisitStmt(op->then_case);
   Optional<Stmt> else_case =
-      op->else_case.defined() ? Optional<Stmt>{VisitStmt(op->else_case.value())} : NullOpt;
+      op->else_case.defined() ? Optional<Stmt>{VisitStmt(op->else_case.value())} : std::nullopt;
   if (!cond.same_as(op->condition) || !then_case.same_as(op->then_case) ||
       !else_case.same_as(op->else_case)) {
     IfThenElse new_stmt = GetRef<IfThenElse>(op);

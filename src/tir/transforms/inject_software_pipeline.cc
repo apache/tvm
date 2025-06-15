@@ -364,7 +364,7 @@ class PipelineRewriter : public StmtExprMutator {
     // introduce extra lowerbound when the loop length is smaller than num stages
     // to ensure the epilogue interval do not overlap the prologue interval.
     PrimExpr epigogue_start = pipeline_loop_->min + pipeline_loop_->extent;
-    Optional<PrimExpr> extra_epilogue_lower_bound = NullOpt;
+    Optional<PrimExpr> extra_epilogue_lower_bound = std::nullopt;
     if (max_stage_ > 1 && !analyzer_.CanProveGreaterEqual(pipeline_loop_->extent, max_stage_)) {
       if (is_const_int(epigogue_start)) {
         epigogue_start = max(epigogue_start, pipeline_loop_->min + max_stage_);
@@ -811,7 +811,7 @@ class PipelineRewriter : public StmtExprMutator {
    * \return The result loop.
    */
   Stmt EmitImpl(PrimExpr start, PrimExpr end, bool unroll_loop,
-                Optional<PrimExpr> extra_loop_lower_bound = NullOpt) {
+                Optional<PrimExpr> extra_loop_lower_bound = std::nullopt) {
     PrimExpr new_loop_var;
     PrimExpr extent = end - start;
 
@@ -941,7 +941,7 @@ class PipelineRewriter : public StmtExprMutator {
     if (!is_unit_loop) {
       new_loop = For(Downcast<Var>(new_loop_var), pipeline_loop_->min, extent,
                      unroll_loop ? ForKind::kUnrolled : pipeline_loop_->kind, std::move(new_loop),
-                     NullOpt, preserved_annotations_);
+                     std::nullopt, preserved_annotations_);
     }
 
     // Update producer heads in the global async states.
@@ -957,7 +957,7 @@ class PipelineRewriter : public StmtExprMutator {
             async_states[stage_id].producer_head.value() + extent;
       } else {
         // Otherwise, invalidate the global producer head
-        async_states[stage_id].producer_head = NullOpt;
+        async_states[stage_id].producer_head = std::nullopt;
       }
     }
 
@@ -1259,7 +1259,8 @@ Pass InjectSoftwarePipeline() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectSoftwarePipeline", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InjectSoftwarePipeline").set_body_typed(InjectSoftwarePipeline);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectSoftwarePipeline")
+    .set_body_typed(InjectSoftwarePipeline);
 
 }  // namespace transform
 

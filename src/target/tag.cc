@@ -22,8 +22,8 @@
  * \brief Target tag registry
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/tag.h>
 #include <tvm/target/target.h>
 
@@ -33,8 +33,8 @@ namespace tvm {
 
 TVM_REGISTER_NODE_TYPE(TargetTagNode);
 
-TVM_REGISTER_GLOBAL("target.TargetTagListTags").set_body_typed(TargetTag::ListTags);
-TVM_REGISTER_GLOBAL("target.TargetTagAddTag").set_body_typed(TargetTag::AddTag);
+TVM_FFI_REGISTER_GLOBAL("target.TargetTagListTags").set_body_typed(TargetTag::ListTags);
+TVM_FFI_REGISTER_GLOBAL("target.TargetTagAddTag").set_body_typed(TargetTag::AddTag);
 
 /**********  Registry-related code  **********/
 
@@ -47,7 +47,7 @@ TargetTagRegEntry& TargetTagRegEntry::RegisterOrGet(const String& target_tag_nam
 Optional<Target> TargetTag::Get(const String& target_tag_name) {
   const TargetTagRegEntry* reg = TargetTagRegistry::Global()->Get(target_tag_name);
   if (reg == nullptr) {
-    return NullOpt;
+    return std::nullopt;
   }
   return Target(reg->tag_->config);
 }
@@ -160,6 +160,8 @@ TVM_REGISTER_CUDA_TAG("nvidia/tesla-c2070", "sm_20", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a100", "sm_80", 49152, 65536)
     .with_config("l2_cache_size_bytes", 41943040);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-h100", "sm_90a", 49152, 65536)
+    .with_config("l2_cache_size_bytes", 52428800);
+TVM_REGISTER_CUDA_TAG("nvidia/nvidia-b100", "sm_100a", 49152, 65536)
     .with_config("l2_cache_size_bytes", 52428800);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a40", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a30", "sm_80", 49152, 65536);

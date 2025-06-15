@@ -22,7 +22,7 @@ namespace tvm {
 namespace meta_schedule {
 
 TaskRecord::TaskRecord(TuneContext ctx, double task_weight) {
-  ObjectPtr<TaskRecordNode> n = runtime::make_object<TaskRecordNode>();
+  ObjectPtr<TaskRecordNode> n = ffi::make_object<TaskRecordNode>();
   n->ctx = ctx;
   n->task_weight = task_weight;
   n->flop = 1.0;
@@ -85,7 +85,7 @@ void SendToRunner(TaskRecordNode* self, const Runner& runner) {
           /*f_done=*/[]() -> bool { return true; },
           /*f_result=*/
           [msg = builder_result->error_msg]() -> RunnerResult {
-            return RunnerResult(NullOpt, msg);
+            return RunnerResult(std::nullopt, msg);
           }));
     } else {
       results.push_back(futures[j++]);
@@ -104,7 +104,7 @@ void TaskCleanUp(TaskRecordNode* self, int task_id, const Array<RunnerResult>& r
     const BuilderResult& builder_result = self->builder_results.value()[i];
     const MeasureCandidate& candidate = self->measure_candidates.value()[i];
     const RunnerResult& runner_result = results[i];
-    Optional<String> error_msg = NullOpt;
+    Optional<String> error_msg = std::nullopt;
     int trials = self->latency_ms.size() + 1;
     double run_ms = 1e9;
     if ((error_msg = builder_result->error_msg)) {
@@ -135,9 +135,9 @@ void TaskCleanUp(TaskRecordNode* self, int task_id, const Array<RunnerResult>& r
                                << ". Best GFLOPs: " << (self->flop / best_ms / 1e6);
     }
   }
-  self->measure_candidates = NullOpt;
-  self->builder_results = NullOpt;
-  self->runner_futures = NullOpt;
+  self->measure_candidates = std::nullopt;
+  self->builder_results = std::nullopt;
+  self->runner_futures = std::nullopt;
 }
 
 void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weights,
@@ -364,18 +364,19 @@ void PyTaskSchedulerNode::Tune(Array<TuneContext> tasks, Array<FloatImm> task_we
 TVM_REGISTER_NODE_TYPE(TaskRecordNode);
 TVM_REGISTER_OBJECT_TYPE(TaskSchedulerNode);
 TVM_REGISTER_NODE_TYPE(PyTaskSchedulerNode);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerPyTaskScheduler")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerPyTaskScheduler")
     .set_body_typed(TaskScheduler::PyTaskScheduler);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTune").set_body_method(&TaskSchedulerNode::Tune);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerJoinRunningTask")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTune")
+    .set_body_method(&TaskSchedulerNode::Tune);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerJoinRunningTask")
     .set_body_method(&TaskSchedulerNode::JoinRunningTask);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerNextTaskId")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerNextTaskId")
     .set_body_method(&TaskSchedulerNode::NextTaskId);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTerminateTask")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTerminateTask")
     .set_body_method(&TaskSchedulerNode::TerminateTask);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTouchTask")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTouchTask")
     .set_body_method(&TaskSchedulerNode::TouchTask);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerPrintTuningStatistics")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerPrintTuningStatistics")
     .set_body_method(&TaskSchedulerNode::PrintTuningStatistics);
 
 }  // namespace meta_schedule

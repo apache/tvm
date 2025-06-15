@@ -229,6 +229,15 @@ struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
   }
 };  // struct ScatterNDAttrs
 
+/*! \brief Attributes used in slice_scatter operator */
+struct SliceScatterAttrs : public tvm::AttrsNode<SliceScatterAttrs> {
+  int axis;
+
+  TVM_DECLARE_ATTRS(SliceScatterAttrs, "relax.attrs.SliceScatterAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(0).describe("the dimension to insert the slice into ");
+  }
+};  // struct SliceScatterAttrs
+
 /*! \brief Attributes used in one_hot operator */
 struct OneHotAttrs : public tvm::AttrsNode<OneHotAttrs> {
   int depth;

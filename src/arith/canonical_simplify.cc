@@ -921,7 +921,7 @@ bool CanonicalSimplifier::Impl::ProdDivSimplify(PrimExpr* plhs, PrimExpr* prhs,
       // try eliminate from lhs
       for (size_t i = 0; i < lhs_prods.size(); ++i) {
         if (lhs_prods[i].defined() && deep_equal(value, lhs_prods[i].value())) {
-          lhs_prods.Set(i, NullOpt);
+          lhs_prods.Set(i, std::nullopt);
           ++num_elimination;
           new_common_scale = new_common_scale * value;
           return;
@@ -1391,7 +1391,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const LTNode* op) {
   // First convert a < b into a - b < 0
   PrimExpr expr = this->CanonicalMutate(op->a - op->b);
   // Case: x0 * s0 + x1 * s1 + ... + xn + c < 0, let d = gcd(s0, s1, ..., s{n-1}, c)
-  // 1. if can prove -d < xn < d, then we can simplify
+  // 1. if can prove 0 <= xn < d, then we can simplify
   //    the expression to x0 * (s0/d) + x1 * (s1/d) + ... + x{n-1} * (s{n-1}/d) < c/d,
   //    e.g. `x * 8 + y < 16` where `y` \in [0, 8), we can simplify it to `x < 2`
   // 2. if xn is in pattern of yn % m, where m % d == 0, convert it to yn // d % (m/d)
@@ -1417,8 +1417,8 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const LTNode* op) {
     ICHECK(extra->dtype == dtype);
     PrimExpr normal_extra = extra->Normalize();
     if (this->analyzer_->CanProve(normal_extra < make_const(dtype, gcd)) &&
-        this->analyzer_->CanProve(normal_extra > make_const(dtype, -gcd))) {
-      // Case 1. -d < xn < d
+        this->analyzer_->CanProve(normal_extra >= make_const(dtype, 0))) {
+      // Case 1. 0 <= xn < d
       divisible.CopyOnWrite()->DivideBy(gcd);
       return Rewriter::VisitExpr(divisible->Normalize() < make_zero(dtype));
     } else if (extra->args.size() == 1 &&

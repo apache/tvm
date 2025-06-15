@@ -279,6 +279,9 @@ Pass SimplifyForFeatureExtraction() {
     }
 
     Stmt VisitStmt_(const ForNode* loop) final {
+      if (is_zero(loop->extent)) {
+        return Evaluate(0);
+      }
       if (is_zero(loop->min) && is_one(loop->extent) && loop->kind == ForKind::kSerial &&
           loop->annotations.empty()) {
         unit_vars_.insert(loop->loop_var);
@@ -1439,7 +1442,7 @@ FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
 }
 
 TVM_REGISTER_NODE_TYPE(PerStoreFeatureNode);
-TVM_REGISTER_GLOBAL("meta_schedule.FeatureExtractorPerStoreFeature")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.FeatureExtractorPerStoreFeature")
     .set_body_typed(FeatureExtractor::PerStoreFeature);
 
 }  // namespace meta_schedule

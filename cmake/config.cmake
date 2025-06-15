@@ -197,9 +197,6 @@ set(USE_OPENMP none)
 # Whether use contrib.random in runtime
 set(USE_RANDOM ON)
 
-# Whether use NNPack
-set(USE_NNPACK OFF)
-
 # Possible values:
 # - ON: enable tflite with cmake's find search
 # - OFF: disable tflite
@@ -278,18 +275,6 @@ set(USE_CLML OFF)
 # USE_CLML_GRAPH_EXECUTOR - CLML SDK PATH or ON or OFF
 set(USE_CLML_GRAPH_EXECUTOR OFF)
 
-# Whether to enable debug code that may cause ABI changes
-set(TVM_DEBUG_WITH_ABI_CHANGE OFF)
-
-# Whether to build fast VTA simulator driver
-set(USE_VTA_FSIM OFF)
-
-# Whether to build cycle-accurate VTA simulator driver
-set(USE_VTA_TSIM OFF)
-
-# Whether to build VTA FPGA driver (device side only)
-set(USE_VTA_FPGA OFF)
-
 # Whether use Thrust
 # Possible values:
 # - ON: enable Thrust with cmake's auto search
@@ -357,18 +342,14 @@ set(USE_CCACHE AUTO)
 
 # Whether to use libbacktrace to supply linenumbers on stack traces.
 # Possible values:
-# - ON: Find libbacktrace from system paths. Report an error if not found.
+# - ON: Build from ffi/3rdparty/libbacktrace.
 # - OFF: Don't use libbacktrace.
 # - /path/to/libbacktrace: Looking for the libbacktrace header and static lib from a user-provided path. Report error if not found.
-# - COMPILE: Build and link to libbacktrace from 3rdparty/libbacktrace.
-# - AUTO:
-#   - Find libbacktrace from system paths.
-#   - If not found, fallback to COMPILE on Linux or MacOS, fallback to OFF on Windows or other platforms.
-set(USE_LIBBACKTRACE AUTO)
+set(TVM_FFI_USE_LIBBACKTRACE ON)
 
 # Whether to install a signal handler to print a backtrace on segfault.
-# Need to have USE_LIBBACKTRACE enabled.
-set(BACKTRACE_ON_SEGFAULT OFF)
+# Need to have TVM_FFI_USE_LIBBACKTRACE enabled.
+set(TVM_FFI_BACKTRACE_ON_SEGFAULT ON)
 
 # Whether to enable PAPI support in profiling. PAPI provides access to hardware
 # counters while profiling.

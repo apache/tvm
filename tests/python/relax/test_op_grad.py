@@ -16,7 +16,7 @@
 # under the License.
 import pytest
 import tvm
-from tvm._ffi.base import TVMError
+from tvm.base import TVMError
 import tvm.testing
 from tvm import relax
 from tvm.ir import Op

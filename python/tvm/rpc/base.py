@@ -25,7 +25,7 @@ import struct
 import random
 import logging
 
-from .._ffi.base import py_str
+from ..base import py_str
 
 # Magic header for RPC data plane
 RPC_MAGIC = 0xFF271

@@ -20,9 +20,9 @@
 #ifndef TVM_META_SCHEDULE_MEASURE_CANDIDATE_H_
 #define TVM_META_SCHEDULE_MEASURE_CANDIDATE_H_
 
+#include <tvm/ffi/container/array.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/schedule/schedule.h>
 

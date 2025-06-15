@@ -21,13 +21,11 @@
  * \file src/tir/ir/function.cc
  * \brief The function data structure.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
-
-#include "utils.h"
 
 namespace tvm {
 namespace tir {
@@ -147,7 +145,7 @@ Optional<TensorIntrin> TensorIntrin::Get(String name, bool allow_missing) {
   auto it = manager->reg.find(name);
   if (it == manager->reg.end()) {
     if (allow_missing) {
-      return NullOpt;
+      return std::nullopt;
     } else {
       LOG(FATAL) << "ValueError: TensorIntrin '" << name << "' is not registered";
     }
@@ -157,19 +155,19 @@ Optional<TensorIntrin> TensorIntrin::Get(String name, bool allow_missing) {
 
 TVM_REGISTER_NODE_TYPE(TensorIntrinNode);
 
-TVM_REGISTER_GLOBAL("tir.PrimFunc")
+TVM_FFI_REGISTER_GLOBAL("tir.PrimFunc")
     .set_body_typed([](Array<tir::Var> params, Stmt body, Type ret_type,
                        Map<tir::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
       return PrimFunc(params, body, ret_type, buffer_map, attrs, span);
     });
 
-TVM_REGISTER_GLOBAL("tir.TensorIntrin")
+TVM_FFI_REGISTER_GLOBAL("tir.TensorIntrin")
     .set_body_typed([](PrimFunc desc_func, PrimFunc intrin_func) {
       return TensorIntrin(desc_func, intrin_func);
     });
 
-TVM_REGISTER_GLOBAL("tir.TensorIntrinRegister").set_body_typed(TensorIntrin::Register);
-TVM_REGISTER_GLOBAL("tir.TensorIntrinGet").set_body_typed(TensorIntrin::Get);
+TVM_FFI_REGISTER_GLOBAL("tir.TensorIntrinRegister").set_body_typed(TensorIntrin::Register);
+TVM_FFI_REGISTER_GLOBAL("tir.TensorIntrinGet").set_body_typed(TensorIntrin::Get);
 
 }  // namespace tir
 }  // namespace tvm

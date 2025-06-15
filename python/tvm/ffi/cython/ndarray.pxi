@@ -16,7 +16,9 @@
 # under the License.
 
 __dlpack_version__ = (1, 1)
+__dlpack_auto_import_required_alignment__ = 8
 _CLASS_NDARRAY = None
+
 
 def _set_class_ndarray(cls):
     global _CLASS_NDARRAY

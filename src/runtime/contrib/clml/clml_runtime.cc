@@ -291,7 +291,7 @@ class CLMLRuntime : public JSONRuntimeBase {
       // Dump tensor to CPU
       std::vector<int64_t> shape = node.GetOpShape()[0];
       DLDataType tvm_dtype = node.GetOpDataType()[0];
-      NDArray narr = NDArray::Empty(ShapeTuple(shape), tvm_dtype, {kDLCPU, 0});
+      NDArray narr = NDArray::Empty(ffi::Shape(shape), tvm_dtype, {kDLCPU, 0});
       CopyDataFromCLMLTensor(clml_desc, narr.operator->()->data);
 
       // Naming convention
@@ -1830,8 +1830,8 @@ runtime::Module CLMLRuntimeCreate(const String& symbol_name, const String& graph
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.clml_runtime_create").set_body_typed(CLMLRuntimeCreate);
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_clml")
+TVM_FFI_REGISTER_GLOBAL("runtime.clml_runtime_create").set_body_typed(CLMLRuntimeCreate);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_clml")
     .set_body_typed(JSONRuntimeBase::LoadFromBinary<CLMLRuntime>);
 }  //  namespace contrib
 }  //  namespace runtime

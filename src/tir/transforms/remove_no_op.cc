@@ -22,7 +22,7 @@
  * \brief Remove no op from the stmt
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
@@ -167,17 +167,13 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     }
     return is_no_op(op->body) ? MakeEvaluate({op->min, op->extent}) : stmt;
   }
+
   Stmt VisitStmt_(const AllocateNode* op) final {
     Stmt stmt = StmtMutator::VisitStmt_(op);
     op = stmt.as<AllocateNode>();
     return is_no_op(op->body) ? MakeEvaluate(op->extents) : stmt;
   }
 
-  Stmt VisitStmt_(const ProducerRealizeNode* op) final {
-    Stmt stmt = StmtMutator::VisitStmt_(op);
-    op = stmt.as<ProducerRealizeNode>();
-    return is_no_op(op->body) ? op->body : stmt;
-  }
   Stmt VisitStmt_(const EvaluateNode* op) final {
     if (HasSideEffect(op->value)) {
       return GetRef<Stmt>(op);
@@ -331,7 +327,7 @@ Pass RemoveNoOp() {
   return CreatePrimFuncPass(pass_func, 0, "tir.RemoveNoOp", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.RemoveNoOp").set_body_typed(RemoveNoOp);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.RemoveNoOp").set_body_typed(RemoveNoOp);
 
 }  // namespace transform
 

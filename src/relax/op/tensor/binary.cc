@@ -92,7 +92,7 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
     } else if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
       return tensor->GetShape();
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   };
 
@@ -113,7 +113,7 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
     if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
       return tensor->shape;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   };
 

@@ -24,8 +24,8 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -454,7 +454,7 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   return transform;
 }
 
-TVM_REGISTER_GLOBAL("arith.SolveLinearEquations")
+TVM_FFI_REGISTER_GLOBAL("arith.SolveLinearEquations")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       if (args.size() == 1) {
         *ret = SolveLinearEquations(args[0].cast<IntConstraints>());

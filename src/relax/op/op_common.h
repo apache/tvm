@@ -181,7 +181,7 @@ std::tuple<ArgTypes...> GetArgStructInfo(const Call& call, const BlockBuilder& c
     static const Op& op = Op::Get("relax." OpRegName); \
     return Call(op, {std::move(x)}, Attrs(), {});      \
   }                                                    \
-  TVM_REGISTER_GLOBAL("relax.op." OpRegName).set_body_typed(OpName)
+  TVM_FFI_REGISTER_GLOBAL("relax.op." OpRegName).set_body_typed(OpName)
 
 /************ Utilities ************/
 
@@ -344,7 +344,7 @@ inline Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call, const Bl
     if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
       return tensor->vdevice;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   };
 
@@ -374,8 +374,8 @@ inline Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call, const Bl
  * \param ctx The error reporting context.
  * \param x1_shape The shape of the first operand.
  * \param x2_shape The shape of the second operand.
- * \return The inferred output shape after broadcasting. Or `NullOpt` if the output shape cannot be
- * determined due to symbolic broadcast.
+ * \return The inferred output shape after broadcasting. Or `std::nullopt` if the output shape
+ * cannot be determined due to symbolic broadcast.
  */
 Optional<Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call, const BlockBuilder& ctx,
                                                     const Array<PrimExpr>& x1_shape,
@@ -536,7 +536,7 @@ inline std::pair<tir::Layout, tir::BijectiveLayout> CheckTensorLayout(const Call
  * \param ctx The error reporting context.
  * \param sinfo The input tensor struct info to be checked.
  * \param layout The layout that the given tensor is expected to have.
- * \return The shape of the input tensor in ShapeExpr, or `NullOpt` if the shape is unknown.
+ * \return The shape of the input tensor in ShapeExpr, or `std::nullopt` if the shape is unknown.
  */
 inline Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call, const BlockBuilder& ctx,
                                                          const TensorStructInfo& sinfo,
@@ -550,7 +550,7 @@ inline Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call, const
   if (const auto* shape_expr = sinfo->shape.as<ShapeExprNode>()) {
     return GetRef<ShapeExpr>(shape_expr);
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype,

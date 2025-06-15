@@ -28,7 +28,7 @@ from tvm import dlight as dl
 from tvm import get_global_func
 from tvm import relax as rx
 from tvm.runtime import disco as di
-from tvm.runtime.relax_vm import VirtualMachine
+from tvm.runtime.vm import VirtualMachine
 from tvm.script import relax as R
 
 _all_session_kinds = [di.ThreadedSession, di.ProcessSession]

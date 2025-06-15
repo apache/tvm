@@ -19,10 +19,10 @@
 
 import re
 
-import tvm._ffi
+import tvm.ffi
 
 
-@tvm._ffi.register_func("tvm.runtime.regex_match")
+@tvm.ffi.register_func("tvm.runtime.regex_match")
 def _regex_match(regex_pattern: str, match_against: str) -> bool:
     """Check if a pattern matches a regular expression
 

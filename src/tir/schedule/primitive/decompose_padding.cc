@@ -531,7 +531,7 @@ bool CanDecomposePadding(ScheduleState self, const StmtSRef& block_sref,
 
 /******** FFI ********/
 
-TVM_REGISTER_GLOBAL("tir.schedule.CanDecomposePadding")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.CanDecomposePadding")
     .set_body_typed([](Schedule self, BlockRV block_rv, LoopRV loop_rv) {
       return CanDecomposePadding(self->state(), self->GetSRef(block_rv), self->GetSRef(loop_rv));
     });

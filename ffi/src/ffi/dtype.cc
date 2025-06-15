@@ -320,9 +320,9 @@ int TVMFFIDataTypeFromString(const TVMFFIByteArray* str, DLDataType* out) {
   TVM_FFI_SAFE_CALL_END();
 }
 
-int TVMFFIDataTypeToString(DLDataType dtype, TVMFFIObjectHandle* out) {
+int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIObjectHandle* out) {
   TVM_FFI_SAFE_CALL_BEGIN();
-  tvm::ffi::String out_str(tvm::ffi::DLDataTypeToString_(dtype));
+  tvm::ffi::String out_str(tvm::ffi::DLDataTypeToString_(*dtype));
   *out = tvm::ffi::details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(out_str));
   TVM_FFI_SAFE_CALL_END();
 }

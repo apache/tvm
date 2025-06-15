@@ -232,6 +232,9 @@ TEST(Any, Object) {
   EXPECT_EQ(v1.use_count(), 3);
   EXPECT_TRUE(any2.as<TInt>().has_value());
 
+  any2 = const_cast<TIntObj*>(v1_ptr);
+  EXPECT_TRUE(any2.as<TInt>().has_value());
+
   // convert to raw opaque ptr
   void* raw_v1_ptr = const_cast<TIntObj*>(v1_ptr);
   any2 = raw_v1_ptr;
@@ -332,11 +335,45 @@ TEST(Any, ObjectRefWithFallbackTraits) {
   EXPECT_EQ(v9->value, 0);
 }
 
+TEST(Any, CastVsAs) {
+  AnyView view0 = 1;
+  // as only runs strict check
+  auto opt_v0 = view0.as<int64_t>();
+  EXPECT_TRUE(opt_v0.has_value());
+  EXPECT_EQ(opt_v0.value(), 1);
+
+  auto opt_v1 = view0.as<bool>();
+  EXPECT_TRUE(!opt_v1.has_value());
+  auto opt_v2 = view0.as<double>();
+  EXPECT_TRUE(!opt_v2.has_value());
+
+  // try_cast will try run the conversion.
+  auto opt_v3 = view0.try_cast<bool>();
+  EXPECT_TRUE(opt_v3.has_value());
+  EXPECT_EQ(opt_v3.value(), 1);
+  auto opt_v4 = view0.try_cast<double>();
+  EXPECT_TRUE(opt_v4.has_value());
+  EXPECT_EQ(opt_v4.value(), 1);
+
+  Any any1 = true;
+  auto opt_v5 = any1.as<bool>();
+  EXPECT_TRUE(opt_v5.has_value());
+  EXPECT_EQ(opt_v5.value(), 1);
+
+  auto opt_v6 = any1.try_cast<int>();
+  EXPECT_TRUE(opt_v6.has_value());
+  EXPECT_EQ(opt_v6.value(), 1);
+
+  auto opt_v7 = any1.try_cast<double>();
+  EXPECT_TRUE(opt_v7.has_value());
+}
+
 TEST(Any, ObjectMove) {
   Any any1 = TPrimExpr("float32", 3.14);
   auto v0 = std::move(any1).cast<TPrimExpr>();
   EXPECT_EQ(v0->value, 3.14);
   EXPECT_EQ(v0.use_count(), 1);
+  EXPECT_TRUE(any1 == nullptr);
 }
 
 }  // namespace

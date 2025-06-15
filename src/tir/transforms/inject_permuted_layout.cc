@@ -103,12 +103,12 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
   }
 
   static bool CheckAnnotation(const Any& annotation) {
-    if (auto* node = annotation.as<StringObj>()) {
+    if (auto* node = annotation.as<ffi::StringObj>()) {
       // Support string annotation for backward compatibility
       return GetRef<String>(node) != "";
     } else if (auto* node = annotation.as<IntImmNode>()) {
       return node->value != 0;
-    } else if (auto opt_val = annotation.as<int64_t>()) {
+    } else if (auto opt_val = annotation.try_cast<int64_t>()) {
       return *opt_val != 0;
     } else {
       LOG(FATAL) << "Invalid permuted layout annotation: " << annotation;
@@ -295,7 +295,7 @@ Pass InjectPermutedLayout() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectPermutedLayout", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InjectPermutedLayout").set_body_typed(InjectPermutedLayout);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectPermutedLayout").set_body_typed(InjectPermutedLayout);
 
 }  // namespace transform
 

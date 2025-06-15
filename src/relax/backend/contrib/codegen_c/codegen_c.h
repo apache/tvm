@@ -24,8 +24,8 @@
 #ifndef TVM_RELAX_BACKEND_CONTRIB_CODEGEN_C_CODEGEN_C_H_
 #define TVM_RELAX_BACKEND_CONTRIB_CODEGEN_C_CODEGEN_C_H_
 
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/string.h>
 
 #include <sstream>
 #include <string>
@@ -130,14 +130,14 @@ class CodegenCBase {
    *   return 0;
    * }
    *
-   * TVM_DLL_EXPORT_TYPED_FUNC(foo, foo_wrapper_);
+   * TVM_FFI_DLL_EXPORT_TYPED_FUNC(foo, foo_wrapper_);
    *
    * int foo_init_wrapper_(Array<NDArray> arr) {
    *   foo_consts = arr;
    *   return 0;
    * }
    *
-   * TVM_DLL_EXPORT_TYPED_FUNC(__init_foo, foo_init_wrapper_);
+   * TVM_FFI_DLL_EXPORT_TYPED_FUNC(__init_foo, foo_init_wrapper_);
    *
    * \endcode
    */
@@ -218,19 +218,19 @@ class CodegenCBase {
     if (!const_arr_name.empty()) {
       // If there are constants, insert the __init_ and the wrapper
       // This segment would be generated in C++ because of the usage
-      // of tvm::runtime::Array. This is not ideal, but this to demonstrate
+      // of tvm::Array. This is not ideal, but this to demonstrate
       // constant copying process used packed imports in other external
       // codegen. Moreover, in microTVM we dont expect this part to be generated.
       code_stream_ << "#ifdef __cplusplus\n";
       code_stream_ << "int " << func_name
-                   << "_init_wrapper_(tvm::runtime::Array<tvm::runtime::NDArray> arr) {\n";
+                   << "_init_wrapper_(tvm::Array<tvm::runtime::NDArray> arr) {\n";
       EnterScope();
       PrintIndents();
       code_stream_ << func_name << "_consts = arr;\n";
       code_stream_ << "return 0;\n";
       ExitScope();
       code_stream_ << "}\n\n";
-      code_stream_ << "TVM_DLL_EXPORT_TYPED_FUNC(__init_" << func_name << ", " << func_name
+      code_stream_ << "TVM_FFI_DLL_EXPORT_TYPED_FUNC(__init_" << func_name << ", " << func_name
                    << "_init_wrapper_);\n\n";
       code_stream_ << "#endif\n";
     }
@@ -393,7 +393,7 @@ class CodegenCBase {
    * \return The created declaration
    */
   std::string CreateNDArrayPool(const std::string& symbol) const {
-    return "tvm::runtime::Array<tvm::runtime::NDArray> " + symbol + "_consts;";
+    return "tvm::Array<tvm::runtime::NDArray> " + symbol + "_consts;";
   }
 
   /*!

@@ -66,15 +66,15 @@ void ThreadBind(tir::Schedule sch, const tir::BlockRV& block, int64_t max_thread
   }
   // schedule the fused loop
   if (product > max_thread_per_block * max_threadblocks) {
-    Array<tir::LoopRV> splits =
-        sch->Split(fused,
-                   /*factors=*/{NullOpt, Integer(max_threadblocks), Integer(max_thread_per_block)});
+    Array<tir::LoopRV> splits = sch->Split(
+        fused,
+        /*factors=*/{std::nullopt, Integer(max_threadblocks), Integer(max_thread_per_block)});
     sch->Reorder(/*ordered_loop_rvs=*/{splits[1], splits[2], splits[0]});
     sch->Bind(splits[1], "blockIdx.x");
     sch->Bind(splits[2], "threadIdx.x");
   } else {
-    Array<tir::LoopRV> splits =
-        sch->Split(fused, /*factors=*/{NullOpt, Integer(std::min(product, max_thread_per_block))});
+    Array<tir::LoopRV> splits = sch->Split(
+        fused, /*factors=*/{std::nullopt, Integer(std::min(product, max_thread_per_block))});
     sch->Bind(splits[0], "blockIdx.x");
     sch->Bind(splits[1], "threadIdx.x");
   }
@@ -162,7 +162,7 @@ Pass DefaultGPUSchedule() {
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.DefaultGPUSchedule").set_body_typed(DefaultGPUSchedule);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.DefaultGPUSchedule").set_body_typed(DefaultGPUSchedule);
 
 }  // namespace transform
 

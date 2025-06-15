@@ -182,13 +182,62 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Neural Network ##########
 
+    def _adaptive_avg_pool1d_module(self, node: fx.Node) -> relax.Var:
+        module = self.named_modules[node.target]
+        x = self.env[node.args[0]]
+        output_size = module.output_size
+        # Expand to 3D by adding batch dim if input is 2D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 2:
+            x = relax.op.expand_dims(x, axis=0)
+        result = self.block_builder.emit(
+            relax.op.nn.adaptive_avg_pool1d(x, output_size, layout="NCW")  # (N, C, L)
+        )
+        # Remove added batch dim from result
+        if x_ndim == 2:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
     def _adaptive_avg_pool2d_module(self, node: fx.Node) -> relax.Var:
         module = self.named_modules[node.target]
         x = self.env[node.args[0]]
         output_size = module.output_size
-        return self.block_builder.emit(
+        # Expand to 4D by adding batch dim if input is 3D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 3:
+            x = relax.op.expand_dims(x, axis=0)
+        result = self.block_builder.emit(
             relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
         )
+        # Remove added batch dim from result
+        if x_ndim == 3:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _adaptive_avg_pool3d_module(self, node: fx.Node) -> relax.Var:
+        module = self.named_modules[node.target]
+        x = self.env[node.args[0]]
+        output_size = module.output_size
+        # Expand to 5D by adding batch dim if input is 4D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 4:
+            x = relax.op.expand_dims(x, axis=0)
+        result = self.block_builder.emit(
+            relax.op.nn.adaptive_avg_pool3d(x, output_size, layout="NCDHW")  # (N, C, D, H, W)
+        )
+        # Remove added batch dim from result
+        if x_ndim == 4:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _avg_pool1d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        kernel_size = module.kernel_size
+        stride = module.stride
+        padding = module.padding
+        ceil_mode = module.ceil_mode
+        return self._avg_pool1d_impl(x, kernel_size, stride, padding, ceil_mode)
 
     def _avg_pool2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -198,6 +247,15 @@ class TorchFXImporter(BaseFXGraphImporter):
         padding = module.padding
         ceil_mode = module.ceil_mode
         return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode)
+
+    def _avg_pool3d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        kernel_size = module.kernel_size
+        stride = module.stride
+        padding = module.padding
+        ceil_mode = module.ceil_mode
+        return self._avg_pool3d_impl(x, kernel_size, stride, padding, ceil_mode)
 
     def _batch_norm_2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -236,6 +294,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             padding=module.padding,
             dilation=module.dilation,
             groups=module.groups,
+            output_padding=module.output_padding,
         )
 
     def _conv_transpose2d_module(self, node: fx.Node) -> relax.Var:
@@ -252,6 +311,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             padding=module.padding,
             dilation=module.dilation,
             groups=module.groups,
+            output_padding=module.output_padding,
         )
 
     def _conv1d_module(self, node: fx.Node) -> relax.Var:
@@ -308,12 +368,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         weights = self.env.get(node.kwargs["weight"], None)
         reduction = node.kwargs["reduction"]
         ignore_index = node.kwargs["ignore_index"]
-
-        return self.block_builder.emit(
-            relax.op.nn.nll_loss(
-                relax.op.nn.log_softmax(preds), targets, weights, reduction, ignore_index
-            )
-        )
+        return self._cross_entropy_loss(preds, targets, weights, reduction, ignore_index)
 
     def _cross_entropy_module(self, node: fx.Node) -> relax.Expr:
         preds = self.env[node.args[0]]
@@ -330,10 +385,12 @@ class TorchFXImporter(BaseFXGraphImporter):
         reduction = module.reduction
         ignore_index = module.ignore_index
 
-        return self.block_builder.emit(
-            relax.op.nn.nll_loss(
-                relax.op.nn.log_softmax(preds), targets, weights, reduction, ignore_index
-            )
+        return self._cross_entropy_loss(
+            preds,
+            targets,
+            weights,
+            reduction,
+            ignore_index,
         )
 
     def _embedding_module(self, node: fx.Node) -> relax.Var:
@@ -449,6 +506,17 @@ class TorchFXImporter(BaseFXGraphImporter):
         bias = self.params.get(module.bias, None)
         return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
 
+    def _max_pool1d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        kernel_size = module.kernel_size
+        stride = module.stride
+        padding = module.padding
+        dilation = module.dilation
+        ceil_mode = module.ceil_mode
+
+        return self._max_pool1d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
     def _max_pool2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -459,6 +527,17 @@ class TorchFXImporter(BaseFXGraphImporter):
         ceil_mode = module.ceil_mode
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
+    def _max_pool3d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        kernel_size = module.kernel_size
+        stride = module.stride
+        padding = module.padding
+        dilation = module.dilation
+        ceil_mode = module.ceil_mode
+
+        return self._max_pool3d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
 
     def _pixel_shuffle_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -639,9 +718,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.LogSoftmax: self._log_softmax_module,
             nn.PReLU: self._prelu_module,
             nn.ReLU: self._unary_op(relax.op.nn.relu),
-            nn.ReLU6: lambda node: self.block_builder.emit(
-                relax.op.clip(self.env[node.args[0]], 0, 6)
-            ),
+            nn.ReLU6: self._unary_op(relax.op.nn.relu6),
             nn.Sigmoid: self._unary_op(relax.op.sigmoid),
             nn.SELU: self._unary_op(relax.op.nn.selu),
             nn.SiLU: self._unary_op(relax.op.nn.silu),
@@ -649,8 +726,12 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.Softplus: self._softplus_module,
             nn.Tanh: self._unary_op(relax.op.tanh),
             # neural network
+            nn.AdaptiveAvgPool1d: self._adaptive_avg_pool1d_module,
             nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d_module,
+            nn.AdaptiveAvgPool3d: self._adaptive_avg_pool3d_module,
+            nn.AvgPool1d: self._avg_pool1d_module,
             nn.AvgPool2d: self._avg_pool2d_module,
+            nn.AvgPool3d: self._avg_pool3d_module,
             nn.BatchNorm2d: self._batch_norm_2d_module,
             nn.Conv1d: self._conv1d_module,
             nn.Conv2d: self._conv2d_module,
@@ -661,7 +742,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.GroupNorm: self._group_norm_module,
             nn.LayerNorm: self._layer_norm_module,
             nn.Linear: self._linear_module,
+            nn.MaxPool1d: self._max_pool1d_module,
             nn.MaxPool2d: self._max_pool2d_module,
+            nn.MaxPool3d: self._max_pool3d_module,
             nn.modules.sparse.Embedding: self._embedding_module,
             nn.PixelShuffle: self._pixel_shuffle_module,
             # tensor manipulation
@@ -707,6 +790,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "prelu": self._prelu,
             "reciprocal": self._reciprocal,
             "relu": self._unary_op(relax.op.nn.relu),
+            "relu6": self._unary_op(relax.op.nn.relu6),
             "round": self._round,
             "rsqrt": self._unary_op(relax.op.rsqrt),
             "selu": self._unary_op(relax.op.nn.selu),
@@ -749,6 +833,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             "mod": self._binary_op(relax.op.floor_mod, operator.mod),
             "mul": self._binary_op(relax.op.multiply, operator.mul),
             "ne": self._binary_op(relax.op.not_equal, operator.ne),
+            "outer": lambda node: self.block_builder.emit(
+                relax.op.outer(self.env[node.args[0]], self.env[node.args[1]])
+            ),
             "pow": self._binary_op(relax.op.power, operator.pow),
             "or_": self._binary_op(relax.op.bitwise_or, operator.or_),
             "rshift": self._binary_op(relax.op.right_shift, operator.rshift),
@@ -757,9 +844,13 @@ class TorchFXImporter(BaseFXGraphImporter):
             "truediv": self._binary_op(relax.op.divide, operator.truediv),
             "xor": self._binary_op(relax.op.bitwise_xor, operator.xor),
             # neural network
+            "adaptive_avg_pool1d": self._adaptive_avg_pool1d,
             "adaptive_avg_pool2d": self._adaptive_avg_pool2d,
+            "adaptive_avg_pool3d": self._adaptive_avg_pool3d,
             "addmm": self._addmm,
+            "avg_pool1d": self._avg_pool1d,
             "avg_pool2d": self._avg_pool2d,
+            "avg_pool3d": self._avg_pool3d,
             "baddbmm": self._baddbmm,
             "bmm": self._binary_op(
                 partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
@@ -774,7 +865,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             "interpolate": self._interpolate,
             "layer_norm": self._layer_norm,
             "linear": self._linear,
+            "max_pool1d": self._max_pool1d,
             "max_pool2d": self._max_pool2d,
+            "max_pool3d": self._max_pool3d,
             "scaled_dot_product_attention": self._scaled_dot_product_attention,
             "stochastic_depth": lambda node: self.env[node.args[0]],
             "unbind": self._unbind,
@@ -816,6 +909,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "scatter": self._scatter,
             "select": self._select,
             "size": self._size,
+            "slice_scatter": self._slice_scatter,
             "sort": self._sort,
             "split": self._split,
             "squeeze": self._squeeze,

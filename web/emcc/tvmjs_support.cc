@@ -28,12 +28,11 @@
 #define TVM_LOG_STACK_TRACE 0
 #define TVM_LOG_DEBUG 0
 #define TVM_LOG_CUSTOMIZE 1
+#define TVM_FFI_ALWAYS_LOG_BEFORE_THROW 1
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../src/runtime/rpc/rpc_local_session.h"
 
@@ -59,27 +58,33 @@ TVM_DLL void TVMWasmFreeSpace(void* data);
  * \sa TVMWasmPackedCFunc, TVMWasmPackedCFuncFinalizer
 3A * \return 0 if success.
  */
-TVM_DLL int TVMWasmFuncCreateFromCFunc(void* resource_handle, TVMFunctionHandle* out);
+TVM_DLL int TVMFFIWasmFunctionCreate(void* resource_handle, TVMFFIObjectHandle* out);
+
+/*!
+ * \brief Get the last error message.
+ * \return The last error message.
+ */
+TVM_DLL const char* TVMFFIWasmGetLastError();
 
 // --- APIs to be implemented by the frontend. ---
-/*!
- * \brief Wasm frontend packed function caller.
- *
- * \param args The arguments
- * \param type_codes The type codes of the arguments
- * \param num_args Number of arguments.
- * \param ret The return value handle.
- * \param resource_handle The handle additional resource handle from front-end.
- * \return 0 if success, -1 if failure happens, set error via TVMAPISetLastError.
- */
-extern int TVMWasmPackedCFunc(TVMValue* args, int* type_codes, int num_args, TVMRetValueHandle ret,
-                              void* resource_handle);
 
 /*!
- * \brief Wasm frontend resource finalizer.
- * \param resource_handle The pointer to the external resource.
+ * \brief Wasm frontend new ffi call function caller.
+ *
+ * \param self The pointer to the ffi::Function.
+ * \param args The arguments
+ * \param num_args Number of arguments.
+ * \param result The return value handle.
+ * \return 0 if success, -1 if failure happens, set error via TVMAPISetLastError.
  */
-extern void TVMWasmPackedCFuncFinalizer(void* resource_handle);
+extern int TVMFFIWasmSafeCall(void* self, const TVMFFIAny* args, int32_t num_args,
+                              TVMFFIAny* result);
+/*!
+ * \brief Delete ffi::Function.
+ * \param self The pointer to the ffi::Function.
+ */
+extern void TVMFFIWasmFunctionDeleter(void* self);
+
 }  // extern "C"
 
 void* TVMWasmAllocSpace(int size) {
@@ -89,9 +94,14 @@ void* TVMWasmAllocSpace(int size) {
 
 void TVMWasmFreeSpace(void* arr) { delete[] static_cast<int64_t*>(arr); }
 
-int TVMWasmFuncCreateFromCFunc(void* resource_handle, TVMFunctionHandle* out) {
-  return TVMFuncCreateFromCFunc(TVMWasmPackedCFunc, resource_handle, TVMWasmPackedCFuncFinalizer,
-                                out);
+int TVMFFIWasmFunctionCreate(void* self, TVMFFIObjectHandle* out) {
+  return TVMFFIFunctionCreate(self, TVMFFIWasmSafeCall, TVMFFIWasmFunctionDeleter, out);
+}
+
+const char* TVMFFIWasmGetLastError() {
+  static thread_local std::string last_error;
+  last_error = ::tvm::ffi::details::MoveFromSafeCallRaised().what();
+  return last_error.c_str();
 }
 
 namespace tvm {
@@ -291,7 +301,7 @@ class AsyncLocalSession : public LocalSession {
   }
 };
 
-TVM_REGISTER_GLOBAL("wasm.LocalSession").set_body_typed([]() {
+TVM_FFI_REGISTER_GLOBAL("wasm.LocalSession").set_body_typed([]() {
   return CreateRPCSessionModule(std::make_shared<AsyncLocalSession>());
 });
 

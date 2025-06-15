@@ -65,7 +65,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
           inputs.push_back(String("None"));
         } else if (obj.as<BlockRVNode>() || obj.as<LoopRVNode>()) {
           inputs.push_back(String("_"));
-        } else if (const auto* str_obj = obj.as<StringObj>()) {
+        } else if (const auto* str_obj = obj.as<ffi::StringObj>()) {
           inputs.push_back(String('"' + std::string(str_obj->data) + '"'));
         } else if (obj.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
           inputs.push_back(obj);
@@ -100,8 +100,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(InstructionNode);
 TVM_REGISTER_NODE_TYPE(InstructionKindNode);
 
-TVM_REGISTER_GLOBAL("tir.schedule.InstructionKindGet").set_body_typed(InstructionKind::Get);
-TVM_REGISTER_GLOBAL("tir.schedule.Instruction")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.InstructionKindGet").set_body_typed(InstructionKind::Get);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.Instruction")
     .set_body_typed([](InstructionKind kind, Array<Any> inputs, Array<Any> attrs,
                        Array<Any> outputs) -> Instruction {
       return Instruction(kind, inputs, attrs, outputs);

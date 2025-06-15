@@ -18,8 +18,7 @@
  */
 
 #include <HexagonWrapper.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 // POSIX includes
 #include <dirent.h>
 #include <unistd.h>
@@ -1370,7 +1369,7 @@ std::optional<HEXAPI_Nullptr> SimulatorRPCChannel::to_nullptr(const detail::Mayb
       .Default(std::nullopt);
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       ICHECK(args.size() >= 4) << args.size() << " is less than 4";
 

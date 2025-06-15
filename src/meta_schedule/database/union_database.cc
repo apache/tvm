@@ -41,7 +41,7 @@ class UnionDatabaseNode : public DatabaseNode {
       }
     }
     std::stable_sort(results.begin(), results.end(), SortTuningRecordByMeanRunSecs());
-    return results.empty() ? Optional<TuningRecord>(NullOpt) : results[0];
+    return results.empty() ? Optional<TuningRecord>(std::nullopt) : results[0];
   }
 
   bool HasWorkload(const IRModule& mod) final {
@@ -82,7 +82,8 @@ Database Database::UnionDatabase(Array<Database> databases) {
 }
 
 TVM_REGISTER_NODE_TYPE(UnionDatabaseNode);
-TVM_REGISTER_GLOBAL("meta_schedule.DatabaseUnionDatabase").set_body_typed(Database::UnionDatabase);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseUnionDatabase")
+    .set_body_typed(Database::UnionDatabase);
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -27,9 +27,21 @@
 #include <dlpack/dlpack.h>
 #include <stdint.h>
 
+// Macros to do weak linking
+#ifdef _MSC_VER
+#define TVM_FFI_WEAK __declspec(selectany)
+#else
+#define TVM_FFI_WEAK __attribute__((weak))
+#endif
+
+// Defines two macros
+// TVM_FFI_DLL: marks the function as a DLL export/import
+//              depending on whether TVM_FFI_EXPORTS is defined
+// TVM_FFI_DLL_EXPORT: always marks the function as a DLL export
 #if !defined(TVM_FFI_DLL) && defined(__EMSCRIPTEN__)
 #include <emscripten/emscripten.h>
 #define TVM_FFI_DLL EMSCRIPTEN_KEEPALIVE
+#define TVM_FFI_DLL_EXPORT EMSCRIPTEN_KEEPALIVE
 #endif
 #if !defined(TVM_FFI_DLL) && defined(_MSC_VER)
 #ifdef TVM_FFI_EXPORTS
@@ -37,9 +49,11 @@
 #else
 #define TVM_FFI_DLL __declspec(dllimport)
 #endif
+#define TVM_FFI_DLL_EXPORT __declspec(dllexport)
 #endif
 #ifndef TVM_FFI_DLL
 #define TVM_FFI_DLL __attribute__((visibility("default")))
+#define TVM_FFI_DLL_EXPORT __attribute__((visibility("default")))
 #endif
 
 #ifdef __cplusplus
@@ -237,7 +251,7 @@ typedef struct {
  *
  * Safe call explicitly catches exception on function boundary.
  *
- * \param self The function handle
+ * \param handle The function handle
  * \param num_args Number of input arguments
  * \param args The input arguments to the call.
  * \param result Store output result.
@@ -264,7 +278,7 @@ typedef struct {
  * \sa TVMFFIErrorSetRaised
  * \sa TVMFFIErrorSetRaisedByCStr
  */
-typedef int (*TVMFFISafeCallType)(void* self, const TVMFFIAny* args, int32_t num_args,
+typedef int (*TVMFFISafeCallType)(void* handle, const TVMFFIAny* args, int32_t num_args,
                                   TVMFFIAny* result);
 
 /*!
@@ -290,11 +304,53 @@ typedef int (*TVMFFIFieldGetter)(void* field, TVMFFIAny* result);
 typedef int (*TVMFFIFieldSetter)(void* field, const TVMFFIAny* value);
 
 /*!
+ * \brief bitmask of the field.
+ */
+#ifdef __cplusplus
+enum TVMFFIFieldFlagBitMask : int32_t {
+#else
+typedef enum {
+#endif
+  /*! \brief The field is writable. */
+  TVMFFIFieldFlagBitMaskWritable = 1 << 0,
+  /*! \brief The field has default value. */
+  TVMFFIFieldFlagBitMaskHasDefault = 1 << 1,
+  /*! \brief The field is a static method. */
+  TVMFFIFieldFlagBitMaskIsStaticMethod = 1 << 2,
+#ifdef __cplusplus
+};
+#else
+} TVMFFIFieldFlagBitMask;
+#endif
+
+/*!
  * \brief Information support for optional object reflection.
  */
 typedef struct {
   /*! \brief The name of the field. */
   TVMFFIByteArray name;
+  /*! \brief The docstring about the field. */
+  TVMFFIByteArray doc;
+  /*!
+   * \brief bitmask flags of the field.
+   */
+  int64_t flags;
+  /*!
+   * \brief Byte offset of the field.
+   */
+  int64_t byte_offset;
+  /*! \brief The getter to access the field. */
+  TVMFFIFieldGetter getter;
+  /*!
+   * \brief The setter to access the field.
+   * \note The setter is set even if the field is readonly for serialization.
+   */
+  TVMFFIFieldSetter setter;
+  /*!
+   * \brief The default value of the field, this field hold AnyView,
+   *        valid when flags set TVMFFIFieldFlagBitMaskHasDefault
+   */
+  TVMFFIAny default_value;
   /*!
    * \brief Records the static type kind of the field.
    *
@@ -303,28 +359,18 @@ typedef struct {
    *  - TVMFFITypeIndex::kTVMFFIObject for general objects
    *    - The value is nullable when kTVMFFIObject is chosen
    * - static object type kinds such as Map, Dict, String
-   * - POD type index
+   * - POD type index, note it does not give information about storage size of the field.
    * - TVMFFITypeIndex::kTVMFFIAny if we don't have specialized info
    *   about the field.
    *
-   * \note This information is helpful in designing serializer
-   * of the field. As it helps to narrow down the type of the
-   * object. It also helps to provide opportunities to enable
-   * short-cut access to the field.
+   * When the value is a type index of Object type, the field is storaged as an ObjectRef.
+   *
+   * \note This information maybe helpful in designing serializer.
+   * As it helps to narrow down the field type so we don't have to
+   * print type_key for cases like POD types.
+   * It also helps to provide opportunities to enable short-cut getter to ObjectRef fields.
    */
   int32_t field_static_type_index;
-  /*!
-   * \brief Mark whether field is readonly.
-   */
-  int32_t readonly;
-  /*!
-   * \brief Byte offset of the field.
-   */
-  int64_t byte_offset;
-  /*! \brief The getter to access the field. */
-  TVMFFIFieldGetter getter;
-  /*! \brief The setter to access the field. */
-  TVMFFIFieldSetter setter;
 } TVMFFIFieldInfo;
 
 /*!
@@ -333,11 +379,15 @@ typedef struct {
 typedef struct {
   /*! \brief The name of the field. */
   TVMFFIByteArray name;
+  /*! \brief The docstring about the method. */
+  TVMFFIByteArray doc;
+  /*! \brief bitmask flags of the method. */
+  int64_t flags;
   /*!
-   * \brief The method wrapped as Function
-   * \note The first argument to the method is always the self.
+   * \brief The method wrapped as ffi::Function, stored as AnyView.
+   * \note The first argument to the method is always the self for instance methods.
    */
-  TVMFFIObjectHandle method;
+  TVMFFIAny method;
 } TVMFFIMethodInfo;
 
 /*!
@@ -365,6 +415,7 @@ typedef struct {
   int32_t num_fields;
   /*! \brief number of reflection acccesible methods. */
   int32_t num_methods;
+
   /*! \brief The reflection field information. */
   TVMFFIFieldInfo* fields;
   /*! \brief The reflection method. */
@@ -508,12 +559,29 @@ TVM_FFI_DLL int TVMFFIEnvRegisterCAPI(const TVMFFIByteArray* name, void* symbol)
 // Section: Type reflection support APIs
 //------------------------------------------------------------
 /*!
- * \brief Register type field information for rutnime reflection.
+ * \brief Register type field information for runtime reflection.
  * \param type_index The type index
  * \param info The field info to be registered.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFIRegisterTypeField(int32_t type_index, const TVMFFIFieldInfo* info);
+TVM_FFI_DLL int TVMFFITypeRegisterField(int32_t type_index, const TVMFFIFieldInfo* info);
+
+/*!
+ * \brief Register type method information for runtime reflection.
+ * \param type_index The type index
+ * \param info The method info to be registered.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFITypeRegisterMethod(int32_t type_index, const TVMFFIMethodInfo* info);
+
+/*!
+ * \brief Get dynamic type info by type index.
+ *
+ * \param type_index The type index
+ * \param result The output type information
+ * \return The type info
+ */
+TVM_FFI_DLL const TVMFFITypeInfo* TVMFFITypeGetMethod(int32_t type_index);
 
 //------------------------------------------------------------
 // Section: DLPack support APIs
@@ -579,8 +647,10 @@ TVM_FFI_DLL int TVMFFIDataTypeFromString(const TVMFFIByteArray* str, DLDataType*
  * \return 0 when success, nonzero when failure happens
  * \note out is a String object that needs to be freed by the caller via TVMFFIObjectFree.
          The content of string can be accessed via TVMFFIObjectGetByteArrayPtr.
+
+ * \note The input dtype is a pointer to the DLDataType to avoid ABI compatibility issues.
  */
-TVM_FFI_DLL int TVMFFIDataTypeToString(DLDataType dtype, TVMFFIObjectHandle* out);
+TVM_FFI_DLL int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIObjectHandle* out);
 
 //------------------------------------------------------------
 // Section: Backend noexcept functions for internal use
@@ -622,7 +692,7 @@ TVM_FFI_DLL const TVMFFIByteArray* TVMFFITraceback(const char* filename, int lin
  *
  * \return 0 if success, -1 if error occured
  */
-TVM_FFI_DLL int32_t TVMFFIGetOrAllocTypeIndex(const TVMFFIByteArray* type_key,
+TVM_FFI_DLL int32_t TVMFFITypeGetOrAllocIndex(const TVMFFIByteArray* type_key,
                                               int32_t static_type_index, int32_t type_depth,
                                               int32_t num_child_slots,
                                               int32_t child_slots_can_overflow,

@@ -166,9 +166,9 @@ TVM_DLL Pass InstrumentBoundCheckers();
  *     f()
  *
  *  if num_packed_args is not zero:
- *       f(TVMArg* packed_args, int* packed_arg_type_ids, int num_packed_args,
+ *       f(void *, TVMFFIAny* packed_args, int num_packed_args,
  *         api_arg_k, api_arg_k+1, ... api_arg_n,
- *         TVMValue* out_ret_val, int* out_ret_tcode)
+ *         TVMFFIAny* out_ret_val)
  *
  *       where n == len(api_args), k == num_packed_args
  *

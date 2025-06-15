@@ -21,8 +21,8 @@
  * \file tvm/runtime/memory/memory_manager.cc
  * \brief Allocate and manage memory for the runtime.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/registry.h>
 
 #include <memory>
 #include <utility>
@@ -59,7 +59,7 @@ inline size_t GetDataAlignment(const DLDataType& dtype) {
   return align;
 }
 
-NDArray StorageObj::AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataType dtype,
+NDArray StorageObj::AllocNDArrayScoped(int64_t offset, ffi::Shape shape, DLDataType dtype,
                                        String scope) {
   if (scope == "global" || scope.empty()) {
     return AllocNDArray(offset, shape, dtype);
@@ -90,7 +90,7 @@ NDArray StorageObj::AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataT
                               this->buffer.device, shape, scope, offset);
 }
 
-NDArray StorageObj::AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype) {
+NDArray StorageObj::AllocNDArray(int64_t offset, ffi::Shape shape, DLDataType dtype) {
   VerifyDataType(dtype);
 
   size_t needed_size = ffi::GetDataSize(shape.Product(), dtype);
@@ -212,7 +212,7 @@ void MemoryManager::Clear() {
   }
 }
 
-NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
+NDArray Allocator::Empty(ffi::Shape shape, DLDataType dtype, DLDevice dev,
                          Optional<String> mem_scope) {
   VerifyDataType(dtype);
 
@@ -245,7 +245,7 @@ bool Allocator::AllowMemoryScope(const std::string& mem_scope) const {
   return mem_scope.empty() || mem_scope == "global";
 }
 
-Buffer Allocator::Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
+Buffer Allocator::Alloc(Device dev, ffi::Shape shape, DLDataType type_hint,
                         const std::string& mem_scope) {
   if (AllowMemoryScope(mem_scope)) {
     // by default, we can always redirect to the flat memory allocations
@@ -264,7 +264,7 @@ void Allocator::Clear() {
   // Pooled allocator will override this method.
 }
 
-TVM_REGISTER_GLOBAL("vm.builtin.memory_manager.clear").set_body_typed(MemoryManager::Clear);
+TVM_FFI_REGISTER_GLOBAL("vm.builtin.memory_manager.clear").set_body_typed(MemoryManager::Clear);
 
 }  // namespace memory
 }  // namespace runtime

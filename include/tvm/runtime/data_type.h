@@ -24,8 +24,9 @@
 #ifndef TVM_RUNTIME_DATA_TYPE_H_
 #define TVM_RUNTIME_DATA_TYPE_H_
 
+#include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/dtype.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/logging.h>
 
 #include <cstring>
@@ -34,6 +35,8 @@
 
 namespace tvm {
 namespace runtime {
+
+using tvm_index_t = ffi::Shape::index_type;
 
 /*!
  * \brief Runtime primitive data type.
@@ -94,8 +97,13 @@ class DataType {
     if (code == kBFloat) {
       ICHECK_EQ(bits, 16);
     }
-    if (code == kFloat8_e4m3fn || code == kFloat8_e5m2) {
+    if (code == kFloat8_e3m4 || code == kFloat8_e4m3 || code == kFloat8_e4m3b11fnuz ||
+        code == kFloat8_e4m3fn || code == kFloat8_e4m3fnuz || code == kFloat8_e5m2 ||
+        code == kFloat8_e5m2fnuz || code == kFloat8_e8m0fnu) {
       ICHECK_EQ(bits, 8);
+    }
+    if (code == kFloat6_e2m3fn || code == kFloat6_e3m2fn) {
+      ICHECK_EQ(bits, 6);
     }
     if (code == kFloat4_e2m1fn) {
       ICHECK_EQ(bits, 4);
@@ -135,17 +143,45 @@ class DataType {
   bool is_float() const { return code() == DataType::kFloat; }
   /*! \return whether type is a bfloat type. */
   bool is_bfloat() const { return code() == DataType::kBFloat; }
-  /*! \return whether type is a float8 type. */
+  /*! \return whether type is any 8-bit custom Float8 variant. */
   bool is_float8() const {
-    return (code() == DataType::kFloat || code() == DataType::kFloat8_e4m3fn ||
-            code() == DataType::kFloat8_e5m2) &&
-           bits() == 8;
+    return bits() == 8 &&
+           (code() == DataType::kFloat8_e3m4 || code() == DataType::kFloat8_e4m3 ||
+            code() == DataType::kFloat8_e4m3b11fnuz || code() == DataType::kFloat8_e4m3fn ||
+            code() == DataType::kFloat8_e4m3fnuz || code() == DataType::kFloat8_e5m2 ||
+            code() == DataType::kFloat8_e5m2fnuz || code() == DataType::kFloat8_e8m0fnu);
   }
-  /*! \return whether type is a float4 type. */
-  bool is_float4() const { return code() == DataType::kFloat4_e2m1fn && bits() == 4; }
-  bool is_float8_e4m3fn() const { return (code() == DataType::kFloat8_e4m3fn && bits() == 8); }
-  bool is_float8_e5m2() const { return (code() == DataType::kFloat8_e5m2 && bits() == 8); }
-  bool is_float4_e2m1fn() const { return (code() == DataType::kFloat4_e2m1fn && bits() == 4); }
+  /*! \return whether type is any 6-bit custom Float6 variant. */
+  bool is_float6() const {
+    return bits() == 6 &&
+           (code() == DataType::kFloat6_e2m3fn || code() == DataType::kFloat6_e3m2fn);
+  }
+  /*! \return whether type is the 4-bit custom Float4_e2m1fn variant. */
+  bool is_float4() const { return bits() == 4 && code() == DataType::kFloat4_e2m1fn; }
+  /*! \return whether type is Float8E3M4. */
+  bool is_float8_e3m4() const { return bits() == 8 && code() == DataType::kFloat8_e3m4; }
+  /*! \return whether type is Float8E4M3. */
+  bool is_float8_e4m3() const { return bits() == 8 && code() == DataType::kFloat8_e4m3; }
+  /*! \return whether type is Float8E4M3B11FNUZ. */
+  bool is_float8_e4m3b11fnuz() const {
+    return bits() == 8 && code() == DataType::kFloat8_e4m3b11fnuz;
+  }
+  /*! \return whether type is Float8E4M3FN. */
+  bool is_float8_e4m3fn() const { return bits() == 8 && code() == DataType::kFloat8_e4m3fn; }
+  /*! \return whether type is Float8E4M3FNUZ. */
+  bool is_float8_e4m3fnuz() const { return bits() == 8 && code() == DataType::kFloat8_e4m3fnuz; }
+  /*! \return whether type is Float8E5M2. */
+  bool is_float8_e5m2() const { return bits() == 8 && code() == DataType::kFloat8_e5m2; }
+  /*! \return whether type is Float8E5M2FNUZ. */
+  bool is_float8_e5m2fnuz() const { return bits() == 8 && code() == DataType::kFloat8_e5m2fnuz; }
+  /*! \return whether type is Float8E8M0FNU. */
+  bool is_float8_e8m0fnu() const { return bits() == 8 && code() == DataType::kFloat8_e8m0fnu; }
+  /*! \return whether type is Float6E2M3FN. */
+  bool is_float6_e2m3fn() const { return bits() == 6 && code() == DataType::kFloat6_e2m3fn; }
+  /*! \return whether type is Float6E3M2FN. */
+  bool is_float6_e3m2fn() const { return bits() == 6 && code() == DataType::kFloat6_e3m2fn; }
+  /*! \return whether type is Float4E2M1FN. */
+  bool is_float4_e2m1fn() const { return bits() == 4 && code() == DataType::kFloat4_e2m1fn; }
   /*! \return whether type is a float16 type. */
   bool is_float16() const { return is_float() && bits() == 16; }
   /*! \return whether type is a bfloat16 type. */
@@ -259,23 +295,83 @@ class DataType {
    */
   static DataType BFloat(int bits, int lanes = 1) { return DataType(kDLBfloat, bits, lanes); }
   /*!
-   * \brief Construct NV float8 e4m3 datatype.
+   * \brief Construct float8 e3m4 datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat8E4M3(int lanes = 1) { return DataType(kFloat8_e4m3fn, 8, lanes); }
+  static DataType Float8E3M4(int lanes = 1) { return DataType(kFloat8_e3m4, 8, lanes); }
+
   /*!
-   * \brief Construct NV float8 e5m2 datatype.
+   * \brief Construct float8 e4m3 datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat8E5M2(int lanes = 1) { return DataType(kFloat8_e5m2, 8, lanes); }
+  static DataType Float8E4M3(int lanes = 1) { return DataType(kFloat8_e4m3, 8, lanes); }
+
   /*!
-   * \brief Construct NV float4_e2m1fn datatype.
+   * \brief Construct float8 e4m3b11fnuz datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat4E2M1FN(int lanes = 1) { return DataType(kFloat4_e2m1fn, 4, lanes); }
+  static DataType Float8E4M3B11FNUZ(int lanes = 1) {
+    return DataType(kFloat8_e4m3b11fnuz, 8, lanes);
+  }
+
+  /*!
+   * \brief Construct float8 e4m3fn datatype.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType Float8E4M3FN(int lanes = 1) { return DataType(kFloat8_e4m3fn, 8, lanes); }
+
+  /*!
+   * \brief Construct float8 e4m3fnuz datatype.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType Float8E4M3FNUZ(int lanes = 1) { return DataType(kFloat8_e4m3fnuz, 8, lanes); }
+
+  /*!
+   * \brief Construct float8 e5m2 datatype.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType Float8E5M2(int lanes = 1) { return DataType(kFloat8_e5m2, 8, lanes); }
+
+  /*!
+   * \brief Construct float8 e5m2fnuz datatype.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType Float8E5M2FNUZ(int lanes = 1) { return DataType(kFloat8_e5m2fnuz, 8, lanes); }
+
+  /*!
+   * \brief Construct float8 e8m0fnu datatype.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType Float8E8M0FNU(int lanes = 1) { return DataType(kFloat8_e8m0fnu, 8, lanes); }
+
+  /*!
+   * \brief Construct float6 e2m3fn datatype.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType Float6E2M3FN(int lanes = 1) { return DataType(kFloat6_e2m3fn, 6, lanes); }
+
+  /*!
+   * \brief Construct float6 e3m2fn datatype.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType Float6E3M2FN(int lanes = 1) { return DataType(kFloat6_e3m2fn, 6, lanes); }
+
+  /*!
+   * \brief Construct float4 e2m1fn datatype.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType Float4E2M1FN(int lanes = 1) { return DataType(kFloat4_e2m1fn, 4, lanes); }
   /*!
    * \brief Construct a bool type.
    * \param lanes The number of lanes.
@@ -322,7 +418,8 @@ inline int GetVectorBytes(DataType dtype) {
   int data_bits = dtype.bits() * dtype.lanes();
   // allow bool to exist
   if (dtype == DataType::Bool() || dtype == DataType::Int(4) || dtype == DataType::UInt(4) ||
-      dtype == DataType::Int(1) || dtype == DataType::NVFloat4E2M1FN()) {
+      dtype == DataType::Int(1) || dtype == DataType::Float4E2M1FN() ||
+      dtype == DataType::Float6E2M3FN() || dtype == DataType::Float6E3M2FN()) {
     return 1;
   }
   ICHECK_EQ(data_bits % 8, 0U) << "Need to load/store by multiple of bytes";
@@ -375,21 +472,20 @@ struct TypeTraits<runtime::DataType> : public TypeTraitsBase {
     result->v_dtype = src;
   }
 
-  static TVM_FFI_INLINE std::optional<runtime::DataType> TryConvertFromAnyView(
-      const TVMFFIAny* src) {
-    auto opt_dtype = TypeTraits<DLDataType>::TryConvertFromAnyView(src);
+  static TVM_FFI_INLINE std::optional<runtime::DataType> TryCastFromAnyView(const TVMFFIAny* src) {
+    auto opt_dtype = TypeTraits<DLDataType>::TryCastFromAnyView(src);
     if (opt_dtype) {
       return runtime::DataType(opt_dtype.value());
     }
     return std::nullopt;
   }
 
-  static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
-    return TypeTraits<DLDataType>::CheckAnyStorage(src);
+  static TVM_FFI_INLINE bool CheckAnyStrict(const TVMFFIAny* src) {
+    return TypeTraits<DLDataType>::CheckAnyStrict(src);
   }
 
-  static TVM_FFI_INLINE runtime::DataType CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
-    return runtime::DataType(TypeTraits<DLDataType>::CopyFromAnyStorageAfterCheck(src));
+  static TVM_FFI_INLINE runtime::DataType CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    return runtime::DataType(TypeTraits<DLDataType>::CopyFromAnyViewAfterCheck(src));
   }
 
   static TVM_FFI_INLINE std::string TypeStr() { return ffi::StaticTypeKey::kTVMFFIDataType; }

@@ -18,7 +18,7 @@
 # pylint: disable=invalid-name
 import subprocess
 
-from tvm._ffi.base import py_str
+from tvm.base import py_str
 import tvm.target
 from . import utils
 

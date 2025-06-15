@@ -22,7 +22,7 @@ import torch
 
 from tvm.ir import Array
 from tvm.runtime import NDArray, ShapeTuple, ndarray
-from tvm.runtime.relax_vm import VirtualMachine
+from tvm.runtime.vm import VirtualMachine
 
 from . import core
 from . import spec as _spec

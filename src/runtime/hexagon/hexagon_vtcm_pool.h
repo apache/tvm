@@ -20,11 +20,11 @@
 #ifndef TVM_RUNTIME_HEXAGON_HEXAGON_VTCM_POOL_H_
 #define TVM_RUNTIME_HEXAGON_HEXAGON_VTCM_POOL_H_
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <utility>
 #include <vector>

@@ -28,15 +28,16 @@
 
 #include <dmlc/io.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container/string.h>
-#include <tvm/runtime/memory.h>
+#include <tvm/ffi/memory.h>
+#include <tvm/ffi/string.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/object.h>
 
 #include <memory>
 #include <mutex>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -133,7 +134,7 @@ class Module : public ObjectRef {
  *  // instace of MyModuleNode.
  *  Module CreateMyModule() {
  *    ObjectPtr<MyModuleNode> n =
- *      tvm::runtime::make_object<MyModuleNode>();
+ *      tvm::ffi::make_object<MyModuleNode>();
  *    return Module(n);
  *  }
  *
@@ -285,12 +286,10 @@ inline ffi::Function Module::GetFunction(const String& name, bool query_imports)
 
 /*! \brief namespace for constant symbols */
 namespace symbol {
-/*! \brief A ffi::Function that retrieves exported metadata. */
-constexpr const char* tvm_get_c_metadata = "get_c_metadata";
-/*! \brief Global variable to store module context. */
-constexpr const char* tvm_module_ctx = "__tvm_module_ctx";
-/*! \brief Global variable to store device module blob */
-constexpr const char* tvm_dev_mblob = "__tvm_dev_mblob";
+/*! \brief Global variable to store context pointer for a library module. */
+constexpr const char* tvm_ffi_library_ctx = "__tvm_ffi_library_ctx";
+/*! \brief Global variable to store binary data alongside a library module. */
+constexpr const char* tvm_ffi_library_bin = "__tvm_ffi_library_bin";
 /*! \brief global function to set device */
 constexpr const char* tvm_set_device = "__tvm_set_device";
 /*! \brief Auxiliary counter to global barrier. */
@@ -299,12 +298,6 @@ constexpr const char* tvm_global_barrier_state = "__tvm_global_barrier_state";
 constexpr const char* tvm_prepare_global_barrier = "__tvm_prepare_global_barrier";
 /*! \brief Placeholder for the module's entry function. */
 constexpr const char* tvm_module_main = "__tvm_main__";
-/*! \brief Prefix for parameter symbols emitted into the main program. */
-constexpr const char* tvm_param_prefix = "__tvm_param__";
-/*! \brief A ffi::Function that looks up linked parameters by storage_id. */
-constexpr const char* tvm_lookup_linked_param = "_lookup_linked_param";
-/*! \brief Model entrypoint generated as an interface to the AOT function outside of TIR */
-constexpr const char* tvm_entrypoint_suffix = "run";
 }  // namespace symbol
 
 // implementations of inline functions.
@@ -325,8 +318,80 @@ inline std::ostream& operator<<(std::ostream& out, const Module& module) {
   return out;
 }
 
+namespace details {
+
+template <typename T>
+struct ModuleVTableEntryHelper {};
+
+template <typename T, typename R, typename... Args>
+struct ModuleVTableEntryHelper<R (T::*)(Args...) const> {
+  using MemFnType = R (T::*)(Args...) const;
+  static TVM_ALWAYS_INLINE void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
+    auto wrapped = [self, f](Args... args) -> R { return (self->*f)(std::forward<Args>(args)...); };
+    ffi::details::unpack_call<R>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
+                                 args.data(), args.size(), rv);
+  }
+};
+
+template <typename T, typename R, typename... Args>
+struct ModuleVTableEntryHelper<R (T::*)(Args...)> {
+  using MemFnType = R (T::*)(Args...);
+  static TVM_ALWAYS_INLINE void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
+    auto wrapped = [self, f](Args... args) -> R { return (self->*f)(std::forward<Args>(args)...); };
+    ffi::details::unpack_call<R>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
+                                 args.data(), args.size(), rv);
+  }
+};
+
+template <typename T, typename... Args>
+struct ModuleVTableEntryHelper<void (T::*)(Args...) const> {
+  using MemFnType = void (T::*)(Args...) const;
+  static TVM_ALWAYS_INLINE void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
+    auto wrapped = [self, f](Args... args) -> void { (self->*f)(std::forward<Args>(args)...); };
+    ffi::details::unpack_call<void>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
+                                    args.data(), args.size(), rv);
+  }
+};
+
+template <typename T, typename... Args>
+struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
+  using MemFnType = void (T::*)(Args...);
+  static TVM_ALWAYS_INLINE void Call(ffi::Any* rv, T* self, MemFnType f, ffi::PackedArgs args) {
+    auto wrapped = [self, f](Args... args) -> void { (self->*f)(std::forward<Args>(args)...); };
+    ffi::details::unpack_call<void>(std::make_index_sequence<sizeof...(Args)>{}, nullptr, wrapped,
+                                    args.data(), args.size(), rv);
+  }
+};
+}  // namespace details
 }  // namespace runtime
 }  // namespace tvm
 
-#include <tvm/runtime/packed_func.h>  // NOLINT(*)
-#endif                                // TVM_RUNTIME_MODULE_H_
+#define TVM_MODULE_VTABLE_BEGIN(TypeKey)                                                    \
+  const char* type_key() const final { return TypeKey; }                                    \
+  ffi::Function GetFunction(const String& _name, const ObjectPtr<Object>& _self) override { \
+    using SelfPtr = std::remove_cv_t<decltype(this)>;
+#define TVM_MODULE_VTABLE_END()  \
+  return ffi::Function(nullptr); \
+  }
+#define TVM_MODULE_VTABLE_END_WITH_DEFAULT(MemFunc) \
+  {                                                 \
+    auto f = (MemFunc);                             \
+    return (this->*f)(_name);                       \
+  }                                                 \
+  }  // NOLINT(*)
+#define TVM_MODULE_VTABLE_ENTRY(Name, MemFunc)                                             \
+  if (_name == Name) {                                                                     \
+    return ffi::Function::FromPacked([_self](ffi::PackedArgs args, ffi::Any* rv) -> void { \
+      using Helper = ::tvm::runtime::details::ModuleVTableEntryHelper<decltype(MemFunc)>;  \
+      SelfPtr self = static_cast<SelfPtr>(_self.get());                                    \
+      Helper::Call(rv, self, MemFunc, args);                                               \
+    });                                                                                    \
+  }
+#define TVM_MODULE_VTABLE_ENTRY_PACKED(Name, MemFunc)                          \
+  if (_name == Name) {                                                         \
+    return ffi::Function([_self](ffi::PackedArgs args, ffi::Any* rv) -> void { \
+      (static_cast<SelfPtr>(_self.get())->*(MemFunc))(args, rv);               \
+    });                                                                        \
+  }
+
+#endif  // TVM_RUNTIME_MODULE_H_

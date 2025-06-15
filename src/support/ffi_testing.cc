@@ -21,11 +21,11 @@
  *  FFI registration code used for frontend testing purposes.
  * \file ffi_testing.cc
  */
+#include <tvm/ffi/container/variant.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
-#include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
 
@@ -53,13 +53,22 @@ struct TestAttrs : public AttrsNode<TestAttrs> {
 
 TVM_REGISTER_NODE_TYPE(TestAttrs);
 
-TVM_REGISTER_GLOBAL("testing.test_wrap_callback")
+TVM_FFI_REGISTER_GLOBAL("testing.GetShapeSize").set_body_typed([](ffi::Shape shape) {
+  return static_cast<int64_t>(shape.size());
+});
+
+TVM_FFI_REGISTER_GLOBAL("testing.GetShapeElem").set_body_typed([](ffi::Shape shape, int idx) {
+  ICHECK_LT(idx, shape.size());
+  return shape[idx];
+});
+
+TVM_FFI_REGISTER_GLOBAL("testing.test_wrap_callback")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       ffi::Function pf = args[0].cast<ffi::Function>();
       *ret = ffi::TypedFunction<void()>([pf]() { pf(); });
     });
 
-TVM_REGISTER_GLOBAL("testing.test_wrap_callback_suppress_err")
+TVM_FFI_REGISTER_GLOBAL("testing.test_wrap_callback_suppress_err")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       ffi::Function pf = args[0].cast<ffi::Function>();
       auto result = ffi::TypedFunction<void()>([pf]() {
@@ -71,22 +80,23 @@ TVM_REGISTER_GLOBAL("testing.test_wrap_callback_suppress_err")
       *ret = result;
     });
 
-TVM_REGISTER_GLOBAL("testing.test_check_eq_callback")
+TVM_FFI_REGISTER_GLOBAL("testing.test_check_eq_callback")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto msg = args[0].cast<std::string>();
       *ret = ffi::TypedFunction<void(int x, int y)>([msg](int x, int y) { CHECK_EQ(x, y) << msg; });
     });
 
-TVM_REGISTER_GLOBAL("testing.device_test").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-  auto dev = args[0].cast<Device>();
-  int dtype = args[1].cast<int>();
-  int did = args[2].cast<int>();
-  CHECK_EQ(static_cast<int>(dev.device_type), dtype);
-  CHECK_EQ(static_cast<int>(dev.device_id), did);
-  *ret = dev;
-});
+TVM_FFI_REGISTER_GLOBAL("testing.device_test")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      auto dev = args[0].cast<Device>();
+      int dtype = args[1].cast<int>();
+      int did = args[2].cast<int>();
+      CHECK_EQ(static_cast<int>(dev.device_type), dtype);
+      CHECK_EQ(static_cast<int>(dev.device_id), did);
+      *ret = dev;
+    });
 
-TVM_REGISTER_GLOBAL("testing.identity_cpp")
+TVM_FFI_REGISTER_GLOBAL("testing.identity_cpp")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       const auto identity_func = tvm::ffi::Function::GetGlobal("testing.identity_py");
       ICHECK(identity_func.has_value())
@@ -105,7 +115,7 @@ void ErrorTest(int x, int y) {
   }
 }
 
-TVM_REGISTER_GLOBAL("testing.ErrorTest").set_body_typed(ErrorTest);
+TVM_FFI_REGISTER_GLOBAL("testing.ErrorTest").set_body_typed(ErrorTest);
 
 class FrontendTestModuleNode : public runtime::ModuleNode {
  public:
@@ -145,22 +155,23 @@ runtime::Module NewFrontendTestModule() {
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("testing.FrontendTestModule").set_body_typed(NewFrontendTestModule);
+TVM_FFI_REGISTER_GLOBAL("testing.FrontendTestModule").set_body_typed(NewFrontendTestModule);
 
-TVM_REGISTER_GLOBAL("testing.sleep_in_ffi").set_body_typed([](double timeout) {
+TVM_FFI_REGISTER_GLOBAL("testing.sleep_in_ffi").set_body_typed([](double timeout) {
   std::chrono::duration<int64_t, std::nano> duration(static_cast<int64_t>(timeout * 1e9));
   std::this_thread::sleep_for(duration);
 });
 
-TVM_REGISTER_GLOBAL("testing.ReturnsVariant").set_body_typed([](int x) -> Variant<String, IntImm> {
-  if (x % 2 == 0) {
-    return IntImm(DataType::Int(64), x / 2);
-  } else {
-    return String("argument was odd");
-  }
-});
+TVM_FFI_REGISTER_GLOBAL("testing.ReturnsVariant")
+    .set_body_typed([](int x) -> Variant<String, IntImm> {
+      if (x % 2 == 0) {
+        return IntImm(DataType::Int(64), x / 2);
+      } else {
+        return String("argument was odd");
+      }
+    });
 
-TVM_REGISTER_GLOBAL("testing.AcceptsVariant")
+TVM_FFI_REGISTER_GLOBAL("testing.AcceptsVariant")
     .set_body_typed([](Variant<String, Integer> arg) -> String {
       if (auto opt_str = arg.as<String>()) {
         return opt_str.value()->GetTypeKey();
@@ -169,25 +180,25 @@ TVM_REGISTER_GLOBAL("testing.AcceptsVariant")
       }
     });
 
-TVM_REGISTER_GLOBAL("testing.AcceptsBool").set_body_typed([](bool arg) -> bool { return arg; });
+TVM_FFI_REGISTER_GLOBAL("testing.AcceptsBool").set_body_typed([](bool arg) -> bool { return arg; });
 
-TVM_REGISTER_GLOBAL("testing.AcceptsInt").set_body_typed([](int arg) -> int { return arg; });
+TVM_FFI_REGISTER_GLOBAL("testing.AcceptsInt").set_body_typed([](int arg) -> int { return arg; });
 
-TVM_REGISTER_GLOBAL("testing.AcceptsObjectRefArray").set_body_typed([](Array<Any> arg) -> Any {
+TVM_FFI_REGISTER_GLOBAL("testing.AcceptsObjectRefArray").set_body_typed([](Array<Any> arg) -> Any {
   return arg[0];
 });
 
-TVM_REGISTER_GLOBAL("testing.AcceptsMapReturnsValue")
+TVM_FFI_REGISTER_GLOBAL("testing.AcceptsMapReturnsValue")
     .set_body_typed([](Map<Any, Any> map, Any key) -> Any { return map[key]; });
 
-TVM_REGISTER_GLOBAL("testing.AcceptsMapReturnsMap")
+TVM_FFI_REGISTER_GLOBAL("testing.AcceptsMapReturnsMap")
     .set_body_typed([](Map<Any, Any> map) -> ObjectRef { return map; });
 
-TVM_REGISTER_GLOBAL("testing.AcceptsPrimExpr").set_body_typed([](PrimExpr expr) -> ObjectRef {
+TVM_FFI_REGISTER_GLOBAL("testing.AcceptsPrimExpr").set_body_typed([](PrimExpr expr) -> ObjectRef {
   return expr;
 });
 
-TVM_REGISTER_GLOBAL("testing.AcceptsArrayOfPrimExpr")
+TVM_FFI_REGISTER_GLOBAL("testing.AcceptsArrayOfPrimExpr")
     .set_body_typed([](Array<PrimExpr> arr) -> ObjectRef {
       for (ObjectRef item : arr) {
         CHECK(item->IsInstance<PrimExprNode>())
@@ -196,7 +207,7 @@ TVM_REGISTER_GLOBAL("testing.AcceptsArrayOfPrimExpr")
       return arr;
     });
 
-TVM_REGISTER_GLOBAL("testing.AcceptsArrayOfVariant")
+TVM_FFI_REGISTER_GLOBAL("testing.AcceptsArrayOfVariant")
     .set_body_typed([](Array<Variant<ffi::Function, PrimExpr>> arr) -> ObjectRef {
       for (auto item : arr) {
         CHECK(item.as<PrimExpr>() || item.as<ffi::Function>())
@@ -205,7 +216,7 @@ TVM_REGISTER_GLOBAL("testing.AcceptsArrayOfVariant")
       return arr;
     });
 
-TVM_REGISTER_GLOBAL("testing.AcceptsMapOfPrimExpr")
+TVM_FFI_REGISTER_GLOBAL("testing.AcceptsMapOfPrimExpr")
     .set_body_typed([](Map<ObjectRef, PrimExpr> map) -> ObjectRef {
       for (const auto& kv : map) {
         ObjectRef value = kv.second;
@@ -254,19 +265,21 @@ class TestingEventLogger {
   std::vector<Entry> entries_;
 };
 
-TVM_REGISTER_GLOBAL("testing.record_event").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  if (args.size() != 0 && args[0].as<String>()) {
-    TestingEventLogger::ThreadLocal()->Record(args[0].cast<String>());
-  } else {
-    TestingEventLogger::ThreadLocal()->Record("X");
-  }
-});
+TVM_FFI_REGISTER_GLOBAL("testing.record_event")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      if (args.size() != 0 && args[0].try_cast<String>()) {
+        TestingEventLogger::ThreadLocal()->Record(args[0].cast<String>());
+      } else {
+        TestingEventLogger::ThreadLocal()->Record("X");
+      }
+    });
 
-TVM_REGISTER_GLOBAL("testing.reset_events").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  TestingEventLogger::ThreadLocal()->Reset();
-});
+TVM_FFI_REGISTER_GLOBAL("testing.reset_events")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      TestingEventLogger::ThreadLocal()->Reset();
+    });
 
-TVM_REGISTER_GLOBAL("testing.dump_events").set_body_typed([]() {
+TVM_FFI_REGISTER_GLOBAL("testing.dump_events").set_body_typed([]() {
   TestingEventLogger::ThreadLocal()->Dump();
 });
 }  // namespace tvm

@@ -16,7 +16,7 @@
 # under the License.
 """Tensor class for computation declaration."""
 # pylint: disable=invalid-name
-import tvm._ffi
+import tvm.ffi
 
 from tvm.runtime import Object, ObjectGeneric
 from tvm.tir import expr as _expr, DataProducer
@@ -48,7 +48,7 @@ class TensorSlice(ObjectGeneric, _expr.ExprOp):
         return self.tensor.dtype
 
 
-@tvm._ffi.register_object("te.Tensor")
+@tvm.ffi.register_object("te.Tensor")
 class Tensor(DataProducer, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
 
@@ -141,12 +141,12 @@ class Operation(Object):
         return _ffi_api.OpInputTensors(self)
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object
 class PlaceholderOp(Operation):
     """Placeholder operation."""
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object
 class BaseComputeOp(Operation):
     """Compute operation."""
 
@@ -161,12 +161,12 @@ class BaseComputeOp(Operation):
         return self.__getattr__("reduce_axis")
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object
 class ComputeOp(BaseComputeOp):
     """Scalar operation."""
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object
 class ScanOp(Operation):
     """Scan operation."""
 
@@ -176,6 +176,6 @@ class ScanOp(Operation):
         return self.__getattr__("scan_axis")
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object
 class ExternOp(Operation):
     """External operation."""

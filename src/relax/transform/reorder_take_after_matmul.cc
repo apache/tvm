@@ -156,7 +156,7 @@ Pass ReorderTakeAfterMatmul() {
   return CreateFunctionPass(pass_func, 1, "ReorderTakeAfterMatmul", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ReorderTakeAfterMatmul")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.ReorderTakeAfterMatmul")
     .set_body_typed(ReorderTakeAfterMatmul);
 
 }  // namespace transform

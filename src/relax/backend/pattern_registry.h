@@ -26,10 +26,10 @@
 #ifndef TVM_RELAX_BACKEND_PATTERN_REGISTRY_H_
 #define TVM_RELAX_BACKEND_PATTERN_REGISTRY_H_
 
+#include <tvm/ffi/optional.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/transform.h>
-#include <tvm/runtime/container/optional.h>
 #include <tvm/runtime/object.h>
 
 namespace tvm {
@@ -62,7 +62,7 @@ Array<FusionPattern> GetPatternsWithPrefix(const String& prefix);
 /*!
  * \brief Find the pattern with a particular name.
  * \param name The pattern name.
- * \return The matched pattern. NullOpt if not found.
+ * \return The matched pattern. std::nullopt if not found.
  */
 Optional<FusionPattern> GetPattern(const String& name);
 

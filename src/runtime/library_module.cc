@@ -25,8 +25,8 @@
 
 #include <dmlc/memory_io.h>
 #include <tvm/ffi/any.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/registry.h>
 
 #include <string>
 #include <utility>
@@ -113,7 +113,7 @@ Module LoadModuleFromBinary(const std::string& type_key, dmlc::Stream* stream) {
  * \param root_module the output root module
  * \param dso_ctx_addr the output dso module
  */
-void ProcessModuleBlob(const char* mblob, ObjectPtr<Library> lib,
+void ProcessLibraryBin(const char* mblob, ObjectPtr<Library> lib,
                        FFIFunctionWrapper packed_func_wrapper, runtime::Module* root_module,
                        runtime::ModuleNode** dso_ctx_addr = nullptr) {
   ICHECK(mblob != nullptr);
@@ -184,13 +184,13 @@ Module CreateModuleFromLibrary(ObjectPtr<Library> lib, FFIFunctionWrapper packed
   InitContextFunctions([lib](const char* fname) { return lib->GetSymbol(fname); });
   auto n = make_object<LibraryModuleNode>(lib, packed_func_wrapper);
   // Load the imported modules
-  const char* dev_mblob =
-      reinterpret_cast<const char*>(lib->GetSymbol(runtime::symbol::tvm_dev_mblob));
+  const char* library_bin =
+      reinterpret_cast<const char*>(lib->GetSymbol(runtime::symbol::tvm_ffi_library_bin));
 
   Module root_mod;
   runtime::ModuleNode* dso_ctx_addr = nullptr;
-  if (dev_mblob != nullptr) {
-    ProcessModuleBlob(dev_mblob, lib, packed_func_wrapper, &root_mod, &dso_ctx_addr);
+  if (library_bin != nullptr) {
+    ProcessLibraryBin(library_bin, lib, packed_func_wrapper, &root_mod, &dso_ctx_addr);
   } else {
     // Only have one single DSO Module
     root_mod = Module(n);
@@ -198,7 +198,8 @@ Module CreateModuleFromLibrary(ObjectPtr<Library> lib, FFIFunctionWrapper packed
   }
 
   // allow lookup of symbol from root (so all symbols are visible).
-  if (auto* ctx_addr = reinterpret_cast<void**>(lib->GetSymbol(runtime::symbol::tvm_module_ctx))) {
+  if (auto* ctx_addr =
+          reinterpret_cast<void**>(lib->GetSymbol(runtime::symbol::tvm_ffi_library_ctx))) {
     *ctx_addr = dso_ctx_addr;
   }
 

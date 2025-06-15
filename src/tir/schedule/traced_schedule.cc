@@ -35,7 +35,7 @@ Schedule Schedule::Traced(IRModule mod, support::LinearCongruentialEngine::TRand
   if (FindEntryFunc(mod, &gv) != nullptr) {
     n->func_working_on_ = gv;
   } else {
-    n->func_working_on_ = NullOpt;
+    n->func_working_on_ = std::nullopt;
   }
   return Schedule(std::move(n));
 }

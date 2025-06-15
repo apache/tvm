@@ -24,7 +24,7 @@
 #ifndef TVM_TARGET_INTRIN_RULE_H_
 #define TVM_TARGET_INTRIN_RULE_H_
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 

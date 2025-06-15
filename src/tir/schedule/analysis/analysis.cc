@@ -328,7 +328,7 @@ bool IsReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
   return CheckReductionBlockErrorCode(self, block_sref, scope_root_sref) == 0;
 }
 
-TVM_REGISTER_GLOBAL("tir.schedule.IsReductionBlock")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.IsReductionBlock")
     .set_body_typed([](Schedule sch, BlockRV block_rv, BlockRV scope_block_rv) {
       return IsReductionBlock(sch->state(), sch->GetSRef(block_rv), sch->GetSRef(scope_block_rv));
     });
@@ -614,7 +614,7 @@ void CheckPartialAffineBinding(const ScheduleState& self, Block block,
 }
 
 void CheckAffineBinding(const ScheduleState& self, Block block) {
-  CheckPartialAffineBinding(self, std::move(block), NullOpt);
+  CheckPartialAffineBinding(self, std::move(block), std::nullopt);
 }
 
 void CheckBlockHasTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
@@ -864,7 +864,7 @@ BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sr
   }
 }
 
-TVM_REGISTER_GLOBAL("tir.schedule.GetBlockRealize")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.GetBlockRealize")
     .set_body_typed([](Schedule sch, BlockRV block_rv) {
       return GetBlockRealize(sch->state(), sch->GetSRef(block_rv));
     });
@@ -1267,7 +1267,7 @@ std::pair<Optional<StmtSRef>, bool> GetBufferDefiningSite(const StmtSRef& block_
   }
   // If we cannot find the defining site block, it means that the buffer must be in the function's
   // buffer_map, which isn't an intermediate buffer.
-  return {NullOpt, false};
+  return {std::nullopt, false};
 }
 
 /******** SRef Tree Related ********/
@@ -1385,7 +1385,7 @@ AnalyzeReadWritePattern(const BufferRegion& read_region, const BufferRegion& wri
     }
     // Case 2. Read index cannot be recognized as `var +/- const`
     // where `var` is a write index and `const` is an optional constant shift
-    Optional<IntImm> opt_const = NullOpt;
+    Optional<IntImm> opt_const = std::nullopt;
     const VarNode* var =
         static_cast<const VarNode*>(AnalyzeVarWithShift(dom->min, &opt_const).get());
     if (var == nullptr || !var2idx.count(var)) {
@@ -1483,7 +1483,7 @@ bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
   return true;
 }
 
-TVM_REGISTER_GLOBAL("tir.schedule.IsTrivialBinding")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.IsTrivialBinding")
     .set_body_typed([](Schedule sch, BlockRV block_rv) {
       return IsTrivialBinding(sch->state(), sch->GetSRef(block_rv));
     });
@@ -1752,7 +1752,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
       block_loops.push_back(loop);
       block_loop_vars.insert(loop->loop_var.get());
       if (!analyzer.CanProve(loop->min == 0)) {
-        return NullOpt;
+        return std::nullopt;
       }
     }
     std::reverse(block_loops.begin(), block_loops.end());
@@ -1769,7 +1769,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
   std::unordered_map<int, int> block_index_to_padding;  // padding of each block iter if necessary
 
   if (offset < 0) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   const std::vector<IterVarType> iter_types_block = GetBlockVarTypes(block_sref);
@@ -1811,7 +1811,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
       }
     }
     if (desc_loop == nullptr || desc_loop->extent.as<IntImmNode>() == nullptr) {
-      return NullOpt;
+      return std::nullopt;
     }
 
     const IntImmNode* int_desc_extent = desc_loop->extent.as<IntImmNode>();
@@ -1827,7 +1827,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
       }
     }
 
-    if (!block_bind.defined()) return NullOpt;
+    if (!block_bind.defined()) return std::nullopt;
 
     // Step 3.3. Find the corresponding loop of the target block
     for (int i = 0, n = block_loops.size(); i < n; ++i) {
@@ -1851,7 +1851,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
 
       // Check divisibility
       if (!int_block_extent) {
-        return NullOpt;
+        return std::nullopt;
       }
       int64_t remainder = int_block_extent->value % int_desc_extent->value;
       if (remainder != 0) {
@@ -1860,7 +1860,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
           // divisible if padding is allowed.
           block_index_to_padding[current_block_ind] = int_desc_extent->value;
         } else {
-          return NullOpt;
+          return std::nullopt;
         }
       }
 
@@ -1874,7 +1874,7 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
   }
   if (!block_index_to_padding.empty()) {
     if (!allow_padding) {
-      return NullOpt;
+      return std::nullopt;
     }
     Array<Integer> paddings;
     for (int i = 0, n = block->block->iter_vars.size(); i < n; ++i) {
@@ -1891,8 +1891,8 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
   return TensorizeInfo(ret);
 }
 
-TVM_REGISTER_GLOBAL("tir.schedule.IsSpatialPrimFunc").set_body_typed(IsSpatialPrimFunc);
-TVM_REGISTER_GLOBAL("tir.schedule.GetTensorizeLoopMapping")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.IsSpatialPrimFunc").set_body_typed(IsSpatialPrimFunc);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.GetTensorizeLoopMapping")
     .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func, bool allow_padding) {
       return GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block), desc_func, allow_padding);
     });
@@ -2103,12 +2103,12 @@ Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const tir::Schedu
                                                                const tir::PrimFunc& desc_func) {
   AutoTensorizeComparator extractor(self->mod);
   if (!CheckAutoTensorizeApplicable(self, block_sref, desc_func, &extractor)) {
-    return NullOpt;
+    return std::nullopt;
   }
   arith::Analyzer analyzer;
   Array<IndexMap> mappings = AutoTensorizeMappingProposer::ProposeMappings(&extractor, &analyzer);
   if (mappings.empty()) {
-    return NullOpt;
+    return std::nullopt;
   }
   ObjectPtr<AutoTensorizeMappingInfoNode> ret = make_object<AutoTensorizeMappingInfoNode>();
   ret->mappings = std::move(mappings);
@@ -2121,19 +2121,20 @@ Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const tir::Schedu
 
 TVM_REGISTER_NODE_TYPE(AutoTensorizeMappingInfoNode);
 
-TVM_REGISTER_GLOBAL("tir.schedule.GetAutoTensorizeMappingInfo")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.GetAutoTensorizeMappingInfo")
     .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func) {
       return GetAutoTensorizeMappingInfo(sch->state(), sch->GetSRef(block), desc_func);
     });
 
-TVM_REGISTER_GLOBAL("tir.schedule.HasBlock").set_body_typed(HasBlock);
-TVM_REGISTER_GLOBAL("tir.schedule.IsOutputBlock").set_body_typed([](Schedule sch, BlockRV block) {
-  auto state = sch->state();
-  auto block_sref = sch->GetSRef(block);
-  return IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false));
-});
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.HasBlock").set_body_typed(HasBlock);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.IsOutputBlock")
+    .set_body_typed([](Schedule sch, BlockRV block) {
+      auto state = sch->state();
+      auto block_sref = sch->GetSRef(block);
+      return IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false));
+    });
 
-TVM_REGISTER_GLOBAL("tir.schedule.GetLoopIterType")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.GetLoopIterType")
     .set_body_typed([](Schedule sch, LoopRV loop) -> String {
       IterVarType kind = GetLoopIterType(sch->GetSRef(loop));
       if (kind == kDataPar) {

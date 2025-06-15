@@ -21,7 +21,7 @@
  * \file rpc_socket_impl.cc
  * \brief Socket based RPC implementation.
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <memory>
 
@@ -98,9 +98,6 @@ std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string k
   }
 
   std::unique_ptr<RPCChannel> channel = std::make_unique<SockChannel>(sock);
-  if (enable_logging) {
-    channel.reset(new RPCChannelLogging(std::move(channel)));
-  }
   auto endpt = RPCEndpoint::Create(std::move(channel), key, remote_key);
 
   endpt->InitRemoteSession(init_seq);
@@ -124,7 +121,7 @@ void RPCServerLoop(ffi::Function fsend, ffi::Function frecv) {
       ->ServerLoop();
 }
 
-TVM_REGISTER_GLOBAL("rpc.Connect").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("rpc.Connect").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   auto url = args[0].cast<std::string>();
   int port = args[1].cast<int>();
   auto key = args[2].cast<std::string>();
@@ -132,7 +129,7 @@ TVM_REGISTER_GLOBAL("rpc.Connect").set_body_packed([](ffi::PackedArgs args, ffi:
   *rv = RPCClientConnect(url, port, key, enable_logging, args.Slice(4));
 });
 
-TVM_REGISTER_GLOBAL("rpc.ServerLoop").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("rpc.ServerLoop").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   if (auto opt_int = args[0].as<int64_t>()) {
     RPCServerLoop(opt_int.value());
   } else {
@@ -165,7 +162,7 @@ class SimpleSockHandler : public dmlc::Stream {
   support::TCPSocket sock_;
 };
 
-TVM_REGISTER_GLOBAL("rpc.ReturnException").set_body_typed([](int sockfd, String msg) {
+TVM_FFI_REGISTER_GLOBAL("rpc.ReturnException").set_body_typed([](int sockfd, String msg) {
   auto handler = SimpleSockHandler(sockfd);
   RPCReference::ReturnException(msg.c_str(), &handler);
   return;

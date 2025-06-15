@@ -45,7 +45,7 @@ from tvm.ir.transform import Pass
 from tvm.runtime import Device, NDArray
 from tvm.runtime import device as as_device
 from tvm.runtime import ndarray
-from tvm.runtime.relax_vm import VirtualMachine
+from tvm.runtime.vm import VirtualMachine
 from tvm.target import Target
 
 from .... import relax as rx

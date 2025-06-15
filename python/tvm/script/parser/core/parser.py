@@ -24,7 +24,7 @@ from typing import Any, Callable, Dict, List, Optional, Set, Union
 
 import numpy as np
 
-from tvm._ffi.base import TVMError
+from tvm.base import TVMError
 from tvm.error import DiagnosticError
 from tvm.ir import GlobalVar
 

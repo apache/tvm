@@ -77,14 +77,14 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
 /*! \brief Simplify the binding of block realize and update the opaque block reuse mapping */
 class IterMapSimplifyBlockBinding : public StmtExprMutator {
  public:
-  explicit IterMapSimplifyBlockBinding(MapObj* opaque_blocks, Map<Var, Range> loop_var2extent,
+  explicit IterMapSimplifyBlockBinding(ffi::MapObj* opaque_blocks, Map<Var, Range> loop_var2extent,
                                        bool preserve_unit_iters)
       : opaque_blocks_(opaque_blocks),
         loop_var2extent_(loop_var2extent),
         preserve_unit_iters_(preserve_unit_iters) {}
 
-  static For SimplifyBindings(Stmt stmt, const Array<StmtSRef>& loop_srefs, MapObj* opaque_blocks,
-                              bool preserve_unit_iters) {
+  static For SimplifyBindings(Stmt stmt, const Array<StmtSRef>& loop_srefs,
+                              ffi::MapObj* opaque_blocks, bool preserve_unit_iters) {
     Map<Var, Range> loop_var2extent;
     for (const StmtSRef& sref : loop_srefs) {
       const ForNode* loop = TVM_SREF_TO_FOR(sref);
@@ -132,7 +132,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
   }
 
   /*! \brief The reuse mapping */
-  MapObj* opaque_blocks_;
+  ffi::MapObj* opaque_blocks_;
   /*! \brief The range of loops */
   Map<Var, Range> loop_var2extent_;
   /*! \brief Internal analyzer */
@@ -164,7 +164,7 @@ class BlockPropertyError : public ScheduleError {
             throw BlockPropertyError(state_->mod, GetRef<Block>(op));
           }
           Optional<StmtSRef> high_exclusive =
-              top_->parent ? GetRef<StmtSRef>(top_->parent) : Optional<StmtSRef>(NullOpt);
+              top_->parent ? GetRef<StmtSRef>(top_->parent) : Optional<StmtSRef>(std::nullopt);
           CheckPartialAffineBinding(state_, GetRef<Block>(op), high_exclusive);
         }
       }
@@ -427,7 +427,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array
         if (v.same_as(loop->loop_var)) {
           return substitute_value;
         } else {
-          return NullOpt;
+          return std::nullopt;
         }
       },
       &opaque_block_reuse)(std::move(new_stmt));
@@ -933,7 +933,7 @@ StmtSRef Fuse(ScheduleState self, const Array<StmtSRef>& loop_srefs, bool preser
         return substitute_value[i];
       }
     }
-    return NullOpt;
+    return std::nullopt;
   };
   new_stmt =
       SubstituteVarAndCollectOpaqueBlock(f_substitute, &opaque_block_reuse)(std::move(new_stmt));
@@ -994,7 +994,7 @@ std::pair<const StmtSRefNode*, const StmtSRefNode*> GetBoundaryOfReorderRange(
       // Case 1. If `v` corresponds to a block, stop traversal.
       if (v->stmt->IsInstance<BlockNode>()) {
         if (scope_block_visited) {
-          throw LoopsNotAChainError(self->mod, NullOpt,
+          throw LoopsNotAChainError(self->mod, std::nullopt,
                                     LoopsNotAChainError::ProblemKind::kNotUnderAScope);
         }
         scope_block_visited = true;

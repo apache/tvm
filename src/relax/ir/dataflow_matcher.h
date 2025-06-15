@@ -38,7 +38,7 @@ namespace relax {
 
 class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Expr&)> {
  public:
-  using var2val_t = runtime::Map<Var, Expr>;
+  using var2val_t = Map<Var, Expr>;
 
   explicit DFPatternMatcher() {}
   explicit DFPatternMatcher(var2val_t var2val) : var2val_(std::move(var2val)) {}

@@ -92,7 +92,7 @@ class TraceNode : public runtime::Object {
   void Append(Instruction inst, Any decision);
   /*!
    * \brief Remove the last instruction, along with the decision made on that instruction, if any
-   * \return The instruction removed; NullOpt if the trace is empty
+   * \return The instruction removed; std::nullopt if the trace is empty
    */
   Optional<Instruction> Pop();
   /*!

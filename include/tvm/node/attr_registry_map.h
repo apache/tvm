@@ -23,7 +23,7 @@
 #ifndef TVM_NODE_ATTR_REGISTRY_MAP_H_
 #define TVM_NODE_ATTR_REGISTRY_MAP_H_
 
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/string.h>
 
 #include <utility>
 #include <vector>

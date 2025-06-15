@@ -82,7 +82,7 @@ SpaceGenerator SpaceGenerator::SpaceGeneratorUnion(Array<SpaceGenerator> space_g
 }
 
 TVM_REGISTER_NODE_TYPE(SpaceGeneratorUnionNode);
-TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorSpaceGeneratorUnion")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorSpaceGeneratorUnion")
     .set_body_typed(SpaceGenerator::SpaceGeneratorUnion);
 
 }  // namespace meta_schedule

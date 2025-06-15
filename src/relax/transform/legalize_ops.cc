@@ -149,7 +149,7 @@ class LegalizeMutator : public ExprMutator {
         return GetTarget(tup_sinfo->fields);
       }
     }
-    return NullOpt;
+    return std::nullopt;
   }
 
   Expr BindTarget(Expr expr) {
@@ -404,7 +404,7 @@ Pass LegalizeOps(Optional<Map<String, ffi::Function>> cmap, bool enable_warning)
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.LegalizeOps").set_body_typed(LegalizeOps);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.LegalizeOps").set_body_typed(LegalizeOps);
 
 }  // namespace transform
 

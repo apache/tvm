@@ -19,7 +19,7 @@ import os
 import tempfile
 from typing import Callable, Dict, List, Optional, Union
 
-from tvm._ffi import register_func
+from tvm.ffi import register_func
 from tvm.ir import IRModule
 from tvm.runtime import Module, NDArray, load_param_dict, save_param_dict
 from tvm.target import Target

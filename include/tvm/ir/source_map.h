@@ -23,10 +23,9 @@
 #ifndef TVM_IR_SOURCE_MAP_H_
 #define TVM_IR_SOURCE_MAP_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <fstream>
 #include <string>

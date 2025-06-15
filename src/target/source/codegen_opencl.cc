@@ -672,7 +672,7 @@ runtime::Module BuildOpenCL(IRModule mod, Target target) {
   return OpenCLModuleCreate(code.str(), "cl", ExtractFuncInfo(mod), code.str());
 }
 
-TVM_REGISTER_GLOBAL("target.build.opencl").set_body_typed(BuildOpenCL);
+TVM_FFI_REGISTER_GLOBAL("target.build.opencl").set_body_typed(BuildOpenCL);
 
 String DeviceScopeCompatibilityFromTarget(Target target, String memory_scope) {
   auto prototype_keys = target->GetKeys();
@@ -684,7 +684,7 @@ String DeviceScopeCompatibilityFromTarget(Target target, String memory_scope) {
   return memory_scope;
 }
 
-TVM_REGISTER_GLOBAL("DeviceScopeCompatibility.opencl")
+TVM_FFI_REGISTER_GLOBAL("DeviceScopeCompatibility.opencl")
     .set_body_typed(DeviceScopeCompatibilityFromTarget);
 
 }  // namespace codegen

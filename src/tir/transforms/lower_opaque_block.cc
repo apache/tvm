@@ -107,7 +107,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     } else {
       // Case 3. An ordinary loop
       body = For(op->loop_var, std::move(min), std::move(extent), op->kind, std::move(body),
-                 NullOpt, new_annotations);
+                 std::nullopt, new_annotations);
     }
     // Step 5. Insert nested attrs
     for (auto it = pragma_attrs.rbegin(); it != pragma_attrs.rend(); ++it) {
@@ -150,9 +150,9 @@ class OpaqueBlockLower : public StmtExprMutator {
   PrimExpr ConvertAttrValue(const String& key, const Any& obj) {
     if (obj == nullptr) {
       return PrimExpr();
-    } else if (auto expr = obj.as<PrimExpr>()) {
+    } else if (auto expr = obj.try_cast<PrimExpr>()) {
       return expr.value();
-    } else if (auto str = obj.as<String>()) {
+    } else if (auto str = obj.try_cast<String>()) {
       return std::move(StringImm(str.value()));
     } else {
       LOG(FATAL) << "Illegal attribute of key " << key << ", value type " << obj.GetTypeKey()
@@ -213,7 +213,7 @@ Pass LowerOpaqueBlock() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerOpaqueBlock", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerOpaqueBlock").set_body_typed(LowerOpaqueBlock);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerOpaqueBlock").set_body_typed(LowerOpaqueBlock);
 }  // namespace transform
 
 }  // namespace tir

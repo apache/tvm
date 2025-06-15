@@ -139,7 +139,7 @@ inline void AsDocBody(const tir::Stmt& stmt, ObjectPath p, TIRFrameNode* f, cons
  */
 inline Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsifier& d) {
   if (!d->common_prefix.count(var.get())) {
-    return NullOpt;
+    return std::nullopt;
   }
   int n_frames = d->frames.size();
   std::unordered_map<const Object*, const FrameNode*> tir_to_frame;
@@ -163,7 +163,7 @@ inline Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsifier&
   if (fallback_frame != nullptr) {
     return GetRef<Frame>(fallback_frame);
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 /*! \brief Redirected method for the ReprPrinter */

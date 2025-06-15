@@ -119,7 +119,7 @@ Map<String, ExprDoc> BufferAttrs(tir::Buffer buffer, const ObjectPath& buffer_p,
       if (is_new_var(e)) {
         if (try_inline_def(e, e_p, [=]() {
               return d->AsDoc<ExprDoc>(buffer, buffer_p)
-                  ->Attr("strides")[{LiteralDoc::Int(i, NullOpt)}];
+                  ->Attr("strides")[{LiteralDoc::Int(i, std::nullopt)}];
             })) {
           results.push_back(LiteralDoc::Str(Downcast<Var>(e)->name_hint, e_p));
           continue;
@@ -175,9 +175,9 @@ Map<String, ExprDoc> BufferAttrs(tir::Buffer buffer, const ObjectPath& buffer_p,
                d->AsDoc<ExprDoc>(buffer->axis_separators, buffer_p->Attr("axis_separators")));
   }
   if (var_def_lhs.size() == 1) {
-    frame->stmts.push_back(AssignDoc(var_def_lhs[0], var_def_rhs[0], NullOpt));
+    frame->stmts.push_back(AssignDoc(var_def_lhs[0], var_def_rhs[0], std::nullopt));
   } else if (var_def_lhs.size() > 1) {
-    frame->stmts.push_back(AssignDoc(TupleDoc(var_def_lhs), TupleDoc(var_def_rhs), NullOpt));
+    frame->stmts.push_back(AssignDoc(TupleDoc(var_def_lhs), TupleDoc(var_def_rhs), std::nullopt));
   }
   return kwargs;
 }
@@ -231,7 +231,7 @@ Array<Doc> BufferIndices(const Array<PrimExpr>& indices, const ObjectPath& p,
                                           ramp_p->Attr("base"));
         ExprDoc stop = d->AsDoc<ExprDoc>(ramp->base + ramp->lanes * ramp->stride,  //
                                          ramp_p->Attr("lanes"));
-        Optional<ExprDoc> step = NullOpt;
+        Optional<ExprDoc> step = std::nullopt;
         if (stride->value != 1) {
           step = d->AsDoc<ExprDoc>(ramp->stride, ramp_p->Attr("stride"));
         }
@@ -256,7 +256,7 @@ Array<Doc> BufferSlices(const Array<Range>& region, const ObjectPath& p, const I
       indices.push_back(min);
     } else {
       ExprDoc max = d->AsDoc<ExprDoc>(range->min + range->extent, range_p->Attr("extent"));
-      indices.push_back(SliceDoc(min, max, NullOpt));
+      indices.push_back(SliceDoc(min, max, std::nullopt));
     }
   }
   return indices;
@@ -285,7 +285,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
           return AssignDoc(
               /*lhs=*/buffer[BufferIndices(store->indices, p->Attr("indices"), d)],
-              /*rhs=*/value, NullOpt);
+              /*rhs=*/value, std::nullopt);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -310,7 +310,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
           ExprDoc lhs = DefineBuffer(buffer, opt_f.value(), d);
           ExprDoc rhs = BufferDecl(buffer, "Buffer", {}, p, opt_f.value(), d,
                                    BufferVarDefinition::DataPointer);
-          opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+          opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
         }
       }
       if (Optional<ExprDoc> doc = d->GetVarDoc(buffer)) {
@@ -328,7 +328,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ExprDoc src_buffer = d->AsDoc<ExprDoc>(stmt->source, p->Attr("source"));
           ExprDoc rhs = BufferDecl(stmt->buffer, "match_buffer", {src_buffer}, p->Attr("buffer"),
                                    d->frames.back(), d, BufferVarDefinition::MatchBuffer);
-          return AssignDoc(lhs, rhs, NullOpt);
+          return AssignDoc(lhs, rhs, std::nullopt);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -338,34 +338,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return prefix[BufferIndices(load->indices, p->Attr("indices"), d)];
         });
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::ProducerStore>(  //
-        "", [](tir::ProducerStore store, ObjectPath p, IRDocsifier d) -> Doc {
-          ExprDoc prefix = IdDoc(store->producer->GetNameHint());
-          prefix = prefix[BufferIndices(store->indices, p->Attr("indices"), d)];
-          return AssignDoc(prefix, d->AsDoc<ExprDoc>(store->value, p->Attr("value")), NullOpt);
-        });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::ProducerRealize>(  //
-        "", [](tir::ProducerRealize stmt, ObjectPath p, IRDocsifier d) -> Doc {
-          ExprDoc prefix = IdDoc(stmt->producer->GetNameHint());
-          prefix = prefix[BufferSlices(stmt->bounds, p->Attr("bounds"), d)];
-          prefix = TIR(d, "ProducerRealize")
-                       ->Call({prefix, d->AsDoc<ExprDoc>(stmt->condition, p->Attr("condition"))});
-          With<TIRFrame> f(d, stmt);
-          AsDocBody(stmt->body, p->Attr("body"), f->get(), d);
-          return ScopeDoc(NullOpt, prefix, (*f)->stmts);
-        });
-
 TVM_SCRIPT_REPR(tir::BufferRegionNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::BufferLoadNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::BufferStoreNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::BufferNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::MatchBufferRegionNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::ProducerLoadNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::ProducerStoreNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::ProducerRealizeNode, ReprPrintTIR);
 
 }  // namespace printer
 }  // namespace script

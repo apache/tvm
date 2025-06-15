@@ -33,13 +33,13 @@ using PMap = std::unordered_map<T, U, ObjectPtrHash, ObjectPtrEqual>;
 
 Optional<Function> ExpandParams(Function func) {
   bool is_exposed = func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
-  if (is_exposed) return NullOpt;
+  if (is_exposed) return std::nullopt;
 
   bool has_tuple_param = std::any_of(
       func->params.begin(), func->params.end(),
       [](const Var& param) -> bool { return param->struct_info_.as<TupleStructInfoNode>(); });
 
-  if (!has_tuple_param) return NullOpt;
+  if (!has_tuple_param) return std::nullopt;
 
   Array<Var> params;
   Array<Binding> bindings;
@@ -178,7 +178,8 @@ Pass ExpandTupleArguments() {
       "ExpandTupleArguments");
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ExpandTupleArguments").set_body_typed(ExpandTupleArguments);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.ExpandTupleArguments")
+    .set_body_typed(ExpandTupleArguments);
 
 }  // namespace transform
 

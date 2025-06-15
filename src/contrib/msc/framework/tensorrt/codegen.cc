@@ -136,7 +136,7 @@ void TensorRTCodeGen::CodeGenClassDefine() {
   stack_.comment("Mark outputs");
   for (const auto& o : graph()->GetOutputs()) {
     const auto& pair = graph()->FindProducerAndIdx(o);
-    stack_.func_call("markOutput", NullOpt, DocUtils::ToPtr("network"))
+    stack_.func_call("markOutput", std::nullopt, DocUtils::ToPtr("network"))
         .call_arg("*" + IdxOutputBase(pair.first, pair.second));
   }
   // mark batch_size
@@ -146,7 +146,7 @@ void TensorRTCodeGen::CodeGenClassDefine() {
   Array<String> batch_flags{"MIN", "MAX", "OPT"};
   for (const auto& i : graph()->GetInputs()) {
     for (const auto& f : batch_flags) {
-      stack_.func_call("setDimensions", NullOpt, DocUtils::ToPtr("profile"))
+      stack_.func_call("setDimensions", std::nullopt, DocUtils::ToPtr("profile"))
           .call_arg(DocUtils::ToStr(i->name))
           .call_arg("OptProfileSelector::k" + f)
           .call_arg(ToDims(i->shape));
@@ -155,10 +155,10 @@ void TensorRTCodeGen::CodeGenClassDefine() {
   // set max workspace
   stack_.comment("Set max worksapce");
   if (CompareVersion(6, 0, 0) >= 0) {
-    stack_.func_call("setMaxWorkspaceSize", NullOpt, DocUtils::ToPtr("config"))
+    stack_.func_call("setMaxWorkspaceSize", std::nullopt, DocUtils::ToPtr("config"))
         .call_arg(config()->max_workspace);
   } else {
-    stack_.func_call("setMaxWorkspaceSize", NullOpt, DocUtils::ToPtr("builder"))
+    stack_.func_call("setMaxWorkspaceSize", std::nullopt, DocUtils::ToPtr("builder"))
         .call_arg(config()->max_workspace);
   }
   // set data type
@@ -169,10 +169,10 @@ void TensorRTCodeGen::CodeGenClassDefine() {
         .call_arg("ILogger::Severity::kINTERNAL_ERROR")
         .call_arg(DocUtils::ToStr("platform do not support float16, fallback to float32"))
         .cond_else()
-        .func_call("setFlag", NullOpt, DocUtils::ToPtr("config"))
+        .func_call("setFlag", std::nullopt, DocUtils::ToPtr("config"))
         .call_arg("BuilderFlag::kFP16");
     if (config()->precision_mode == "strict") {
-      stack_.func_call("setFlag", NullOpt, DocUtils::ToPtr("config"))
+      stack_.func_call("setFlag", std::nullopt, DocUtils::ToPtr("config"))
           .call_arg("BuilderFlag::kSTRICT_TYPES");
     }
     stack_.func_call("log", "", "logger")
@@ -186,16 +186,16 @@ void TensorRTCodeGen::CodeGenClassDefine() {
         .call_arg("ILogger::Severity::kINTERNAL_ERROR")
         .call_arg(DocUtils::ToStr("platform do not support int8, fallback to float32"))
         .cond_else()
-        .func_call("setFlag", NullOpt, DocUtils::ToPtr("config"))
+        .func_call("setFlag", std::nullopt, DocUtils::ToPtr("config"))
         .call_arg("BuilderFlag::kINT8");
     if (config()->precision_mode == "strict") {
-      stack_.func_call("setFlag", NullOpt, DocUtils::ToPtr("config"))
+      stack_.func_call("setFlag", std::nullopt, DocUtils::ToPtr("config"))
           .call_arg("BuilderFlag::kSTRICT_TYPES");
     } else if (config()->precision_mode == "prefer") {
-      stack_.func_call("setFlag", NullOpt, DocUtils::ToPtr("config"))
+      stack_.func_call("setFlag", std::nullopt, DocUtils::ToPtr("config"))
           .call_arg("BuilderFlag::kPREFER_PRECISION_CONSTRAINTS");
     } else if (config()->precision_mode == "obey") {
-      stack_.func_call("setFlag", NullOpt, DocUtils::ToPtr("config"))
+      stack_.func_call("setFlag", std::nullopt, DocUtils::ToPtr("config"))
           .call_arg("BuilderFlag::kOBEY_PRECISION_CONSTRAINTS");
     }
     stack_.func_call("log", "", "logger")
@@ -219,7 +219,7 @@ void TensorRTCodeGen::CodeGenClassDefine() {
       .func_start();
   stack_.comment("Create context")
       .func_call("TRTPtr<IExecutionContext>", DocUtils::ToDeclare("auto", "context"))
-      .func_call("createExecutionContext", NullOpt, DocUtils::ToPtr("engine"))
+      .func_call("createExecutionContext", std::nullopt, DocUtils::ToPtr("engine"))
       .pop_nest();
   ReturnOnFail("context", "Failed to create the context");
   // prepare variables
@@ -262,7 +262,7 @@ void TensorRTCodeGen::CodeGenClassDefine() {
   stack_.func_call("cudaStreamSynchronize")
       .call_arg("stream")
       .comment("enquque with gpu buffers")
-      .func_call("enqueueV2", NullOpt, DocUtils::ToPtr("context"))
+      .func_call("enqueueV2", std::nullopt, DocUtils::ToPtr("context"))
       .call_arg("gpu_buffers")
       .call_arg("stream")
       .call_arg("nullptr")
@@ -350,18 +350,18 @@ void TensorRTCodeGen::CodeGenMain() {
                 "1U << static_cast<uint32_t>(NetworkDefinitionCreationFlag::kEXPLICIT_BATCH)",
                 "uint32_t")
         .func_call("TRTPtr<INetworkDefinition>", DocUtils::ToDeclare("auto", "network"))
-        .func_call("createNetworkV2", NullOpt, DocUtils::ToPtr("builder"))
+        .func_call("createNetworkV2", std::nullopt, DocUtils::ToPtr("builder"))
         .call_arg("flags")
         .pop_nest();
   } else {
     stack_.func_call("TRTPtr<INetworkDefinition>", DocUtils::ToDeclare("auto", "network"))
-        .func_call("createNetwork", NullOpt, DocUtils::ToPtr("builder"))
+        .func_call("createNetwork", std::nullopt, DocUtils::ToPtr("builder"))
         .pop_nest();
   }
   ReturnOnFail("network", "Failed to create network");
   // create config
   stack_.func_call("TRTPtr<IBuilderConfig>", DocUtils::ToDeclare("auto", "config"))
-      .func_call("createBuilderConfig", NullOpt, DocUtils::ToPtr("builder"))
+      .func_call("createBuilderConfig", std::nullopt, DocUtils::ToPtr("builder"))
       .pop_nest();
   ReturnOnFail("config", "Failed to create config");
   // add codegen before build
@@ -395,7 +395,7 @@ void TensorRTCodeGen::CodeGenMain() {
       .assign("profile_verbose", "ProfilingVerbosity::kNONE")
       .cond_end()
       .cond_end()
-      .func_call("setProfilingVerbosity", NullOpt, DocUtils::ToPtr("config"))
+      .func_call("setProfilingVerbosity", std::nullopt, DocUtils::ToPtr("config"))
       .call_arg("profile_verbose");
   // Serialize engine
   stack_.comment("Serialize engine")
@@ -422,7 +422,7 @@ void TensorRTCodeGen::CodeGenMain() {
   stack_.comment("Dump info by inspector")
       .cond_if("profile_level > 0")
       .func_call("TRTPtr<IEngineInspector>", DocUtils::ToDeclare("auto", "inspector"))
-      .func_call("createEngineInspector", NullOpt, DocUtils::ToPtr("engine"))
+      .func_call("createEngineInspector", std::nullopt, DocUtils::ToPtr("engine"))
       .pop_nest()
       .func_call("getEngineInformation", DocUtils::ToDeclare("std::string", "result"),
                  DocUtils::ToPtr("inspector"))
@@ -574,7 +574,7 @@ const Map<String, String> TensorRTCodeGen::GetStepCtx() {
   return step_ctx;
 }
 
-TVM_REGISTER_GLOBAL("msc.framework.tensorrt.GetTensorRTSources")
+TVM_FFI_REGISTER_GLOBAL("msc.framework.tensorrt.GetTensorRTSources")
     .set_body_typed([](const MSCGraph& graph, const String& codegen_config,
                        const String& print_config) -> Map<String, String> {
       TensorRTCodeGen codegen = TensorRTCodeGen(graph, codegen_config);
@@ -582,7 +582,7 @@ TVM_REGISTER_GLOBAL("msc.framework.tensorrt.GetTensorRTSources")
       return codegen.GetSources(print_config);
     });
 
-TVM_REGISTER_GLOBAL("msc.framework.tensorrt.GetTensorRTRoot").set_body_typed([]() -> String {
+TVM_FFI_REGISTER_GLOBAL("msc.framework.tensorrt.GetTensorRTRoot").set_body_typed([]() -> String {
 #ifdef TENSORRT_ROOT_DIR
   return TENSORRT_ROOT_DIR;
 #else
@@ -601,7 +601,7 @@ Array<runtime::Module> MSCTensorRTCompiler(Array<Function> functions,
   Array<runtime::Module> compiled_functions;
   for (const auto& func : functions) {
     VLOG(1) << "MSC.TensorRT partition:" << std::endl << func;
-    const auto& name_opt = func->GetAttr<runtime::String>(msc_attr::kUnique);
+    const auto& name_opt = func->GetAttr<String>(msc_attr::kUnique);
     ICHECK(name_opt.defined()) << "Can not find " << msc_attr::kUnique << " from attrs";
     const auto& name = name_opt.value();
     std::string func_name = GetExtSymbol(func);
@@ -618,7 +618,7 @@ Array<runtime::Module> MSCTensorRTCompiler(Array<Function> functions,
   return compiled_functions;
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.msc_tensorrt").set_body_typed(MSCTensorRTCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.msc_tensorrt").set_body_typed(MSCTensorRTCompiler);
 
 }  // namespace msc
 }  // namespace contrib

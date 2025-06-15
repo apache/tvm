@@ -25,7 +25,7 @@
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/runtime/relax_vm/executable.h>
+#include <tvm/runtime/vm/executable.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -39,7 +39,7 @@
 
 namespace tvm {
 namespace relax {
-namespace relax_vm {
+namespace codegen_vm {
 
 using vm::VMFuncInfo;
 
@@ -247,7 +247,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     if (dst_reg >= 0) {
       return RegListGet(dst_reg);
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }
 
@@ -291,7 +291,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
         LOG(FATAL) << "Should only use constant shape after shape lowering: " << op->values;
       }
     }
-    return ConstListGet(builder_->ConvertConstant(ShapeTuple(shape)).value());
+    return ConstListGet(builder_->ConvertConstant(ffi::Shape(shape)).value());
   }
 
   Optional<PrimExpr> VisitExpr_(const PrimValueNode* op) final { return op->value; }
@@ -356,13 +356,13 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
       *kind = VMFuncInfo::FuncKind::kPackedFunc;
       return gvar->name_hint;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }
   // Lookup PrimFunc in the same module
   // We can do direct PrimFunc call in such cases
   Optional<tir::PrimFunc> LookupPrimFunc(const String& name) {
-    if (!ctx_mod_->ContainGlobalVar(name)) return NullOpt;
+    if (!ctx_mod_->ContainGlobalVar(name)) return std::nullopt;
 
     GlobalVar gvar = ctx_mod_->GetGlobalVar(name);
     auto it = ctx_mod_->functions.find(gvar);
@@ -372,7 +372,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
         return GetRef<tir::PrimFunc>(prim_func);
       }
     }
-    return NullOpt;
+    return std::nullopt;
   }
 
   Optional<PrimExpr> VisitExpr_(const GlobalVarNode* op) final {
@@ -530,8 +530,8 @@ IRModule VMTIRCodeGen(ExecBuilder exec_builder, IRModule mod) {
   return CodeGenVMTIR::Run(exec_builder, mod);
 }
 
-TVM_REGISTER_GLOBAL("relax.VMTIRCodeGen").set_body_typed(VMTIRCodeGen);
+TVM_FFI_REGISTER_GLOBAL("relax.VMTIRCodeGen").set_body_typed(VMTIRCodeGen);
 
-}  // namespace relax_vm
+}  // namespace codegen_vm
 }  // namespace relax
 }  // namespace tvm

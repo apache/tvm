@@ -123,7 +123,7 @@ transform::Pass OOBChecker() {
   return transform::CreatePrimFuncPass(pass_func, 0, "tir.analysis.OOBChecker", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.OOBChecker").set_body_typed(OOBChecker);
+TVM_FFI_REGISTER_GLOBAL("tir.analysis.OOBChecker").set_body_typed(OOBChecker);
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

@@ -600,7 +600,7 @@ Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
   arith::Analyzer analyzer;
   PrimExpr condition = analyzer.Simplify(condition_);
   if (is_const_int(condition)) {
-    return NullOpt;
+    return std::nullopt;
   }
   Array<PrimExpr> equations;
   Array<Var> vars;
@@ -644,7 +644,7 @@ Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
   };
   fvisit(condition);
   if (equations.empty() || vars.empty()) {
-    return NullOpt;
+    return std::nullopt;
   }
   // build dom ranges for related vars
   Map<Var, Range> ranges;
@@ -667,7 +667,7 @@ Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
   arith::IntConstraints constraint(vars, ranges, equations);
   arith::IntConstraints result = arith::SolveInequalitiesToRange(constraint);
   if (!result->relations.empty()) {
-    return NullOpt;
+    return std::nullopt;
   }
   return std::move(result);
 }
@@ -850,7 +850,7 @@ Pass ConvertSSA() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.ConvertSSA", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.ConvertSSA").set_body_typed(ConvertSSA);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.ConvertSSA").set_body_typed(ConvertSSA);
 
 }  // namespace transform
 }  // namespace tir

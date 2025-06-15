@@ -25,7 +25,7 @@ from typing import Any, Callable, Optional, Sequence, Union
 
 import numpy as np
 
-from ..._ffi import get_global_func, register_func, register_object
+from ...ffi import get_global_func, register_func, register_object
 from ..device import Device
 from ..container import ShapeTuple
 from ..ndarray import NDArray
@@ -271,7 +271,7 @@ class Session(Object):
         output_array: DRef
 
             The DRef containing the copied data on worker0, and
-            NullOpt on all other workers.  If `remote_array` was
+            std::nullopt on all other workers.  If `remote_array` was
             provided, this return value is the same as `remote_array`.
             Otherwise, it is the newly allocated space.
 

@@ -36,7 +36,7 @@ Expr where(Expr condition, Expr x1, Expr x2) {
   return Call(op, {std::move(condition), std::move(x1), std::move(x2)}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.where").set_body_typed(where);
+TVM_FFI_REGISTER_GLOBAL("relax.op.where").set_body_typed(where);
 
 StructInfo InferStructInfoWhere(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -195,7 +195,7 @@ StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx
     static const Op& op = Op::Get("relax." #OpName);                               \
     return Call(op, {std::move(x)}, Attrs(attrs));                                 \
   }                                                                                \
-  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);                 \
+  TVM_FFI_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);             \
   TVM_REGISTER_OP("relax." #OpName)                                                \
       .set_num_inputs(1)                                                           \
       .add_argument("x", "Tensor", "The input data tensor")                        \

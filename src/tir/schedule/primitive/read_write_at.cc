@@ -311,7 +311,7 @@ struct ReadWriteAtImpl {
               /*writes=*/{BufferRegion(copy_to, domain)},
               /*name_hint=*/name_hint,  //
               /*body=*/std::move(stmt),
-              /*init=*/NullOpt,
+              /*init=*/std::nullopt,
               /*alloc_buffers=*/{},
               /*match_buffers=*/{},
               /*annotations=*/annotations_));

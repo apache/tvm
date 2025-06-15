@@ -75,8 +75,8 @@ ReprLegacyPrinter& operator<<(ReprLegacyPrinter& out, tir::ForKind type) {  // N
 }
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<ArrayObj>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const ArrayObj*>(node.get());
+    .set_dispatch<ffi::ArrayObj>([](const ObjectRef& node, ReprLegacyPrinter* p) {
+      auto* op = static_cast<const ffi::ArrayObj*>(node.get());
       (*p) << '[';
       for (size_t i = 0; i < op->size(); ++i) {
         if (i != 0) {
@@ -88,8 +88,8 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<MapObj>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const MapObj*>(node.get());
+    .set_dispatch<ffi::MapObj>([](const ObjectRef& node, ReprLegacyPrinter* p) {
+      auto* op = static_cast<const ffi::MapObj*>(node.get());
       (*p) << '{';
       for (auto it = op->begin(); it != op->end(); ++it) {
         if (it != op->begin()) {
@@ -107,8 +107,8 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<ShapeTupleObj>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const ShapeTupleObj*>(node.get());
+    .set_dispatch<ffi::ShapeObj>([](const ObjectRef& node, ReprLegacyPrinter* p) {
+      auto* op = static_cast<const ffi::ShapeObj*>(node.get());
       (*p) << '[';
       for (size_t i = 0; i < op->size; ++i) {
         if (i != 0) {
@@ -626,21 +626,6 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<ProducerStoreNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const ProducerStoreNode*>(node.get());
-      p->PrintIndent();
-      (*p) << op->producer->GetNameHint() << "[";
-      for (size_t i = 0; i < op->indices.size(); ++i) {
-        p->Print(op->indices[i]);
-        if (i < op->indices.size() - 1) (*p) << ", ";
-      }
-      (*p) << "]";
-      (*p) << " =";
-      p->Print(op->value);
-      (*p) << '\n';
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     .set_dispatch<AllocateNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
       auto* op = static_cast<const AllocateNode*>(node.get());
       const auto* ptr_type = op->buffer_var->type_annotation.as<PointerTypeNode>();
@@ -680,50 +665,6 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
       p->PrintIndent();
       (*p) << "decl_buffer " << op->buffer << "\n";
       (*p) << op->body;
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<ProducerRealizeNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const ProducerRealizeNode*>(node.get());
-      p->PrintIndent();
-      (*p) << "producer_realize " << op->producer->GetNameHint() << "(";
-      for (size_t i = 0; i < op->bounds.size(); ++i) {
-        (*p) << "[";
-        p->Print(op->bounds[i]->min);
-        (*p) << ", ";
-        p->Print(op->bounds[i]->extent);
-        (*p) << "]";
-        if (i < op->bounds.size() - 1) (*p) << ", ";
-      }
-      (*p) << ")";
-      if (!is_one(op->condition)) {
-        (*p) << " if ";
-        p->Print(op->condition);
-      }
-      (*p) << " {\n";
-
-      p->indent += 2;
-      p->Print(op->body);
-      p->indent -= 2;
-
-      p->PrintIndent();
-      (*p) << "}\n";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<PrefetchNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
-      auto* op = static_cast<const PrefetchNode*>(node.get());
-      p->PrintIndent();
-      (*p) << "prefetch " << op->buffer << "(";
-      for (size_t i = 0; i < op->bounds.size(); ++i) {
-        (*p) << "[";
-        p->Print(op->bounds[i]->min);
-        (*p) << ", ";
-        p->Print(op->bounds[i]->extent);
-        (*p) << "]";
-        if (i < op->bounds.size() - 1) (*p) << ", ";
-      }
-      (*p) << ")";
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)

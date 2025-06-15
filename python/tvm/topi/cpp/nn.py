@@ -15,6 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI for NN TOPI ops and schedules"""
-import tvm._ffi
+import tvm.ffi
 
-tvm._ffi._init_api("topi.nn", "tvm.topi.cpp.nn")
+tvm.ffi._init_api("topi.nn", "tvm.topi.cpp.nn")

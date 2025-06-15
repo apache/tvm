@@ -402,8 +402,9 @@ Array<Array<BufferRegion>> GetBlockReadWriteRegion(const Block& block,
   return {reads, writes};
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.GetBlockAccessRegion").set_body_typed(GetBlockAccessRegion);
-TVM_REGISTER_GLOBAL("tir.analysis.GetBlockReadWriteRegion").set_body_typed(GetBlockReadWriteRegion);
+TVM_FFI_REGISTER_GLOBAL("tir.analysis.GetBlockAccessRegion").set_body_typed(GetBlockAccessRegion);
+TVM_FFI_REGISTER_GLOBAL("tir.analysis.GetBlockReadWriteRegion")
+    .set_body_typed(GetBlockReadWriteRegion);
 
 }  // namespace tir
 }  // namespace tvm

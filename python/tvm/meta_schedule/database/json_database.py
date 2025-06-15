@@ -18,7 +18,7 @@
 import os.path as osp
 from typing import Optional
 
-from tvm._ffi import register_object
+from tvm.ffi import register_object
 
 from .. import _ffi_api
 from .database import Database

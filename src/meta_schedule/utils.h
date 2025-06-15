@@ -21,6 +21,7 @@
 
 #include <dmlc/memory_io.h>
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/meta_schedule/builder.h>
 #include <tvm/meta_schedule/cost_model.h>
@@ -37,7 +38,6 @@
 #include <tvm/meta_schedule/tune_context.h>
 #include <tvm/node/node.h>
 #include <tvm/node/serialization.h>
-#include <tvm/runtime/container/optional.h>
 #include <tvm/support/parallel_for.h>
 #include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/transform.h>
@@ -319,7 +319,7 @@ struct ThreadedTraceApply {
    * \param mod The IRModule to be applied
    * \param trace The trace to apply to the IRModule
    * \param rand_state The random seed
-   * \return The schedule created, or NullOpt if any postprocessor fails
+   * \return The schedule created, or std::nullopt if any postprocessor fails
    */
   Optional<tir::Schedule> Apply(const IRModule& mod, const tir::Trace& trace,
                                 TRandState* rand_state) {
@@ -336,7 +336,7 @@ struct ThreadedTraceApply {
       Item& item = items_[i];
       if (!item.postproc->Apply(sch)) {
         item.fail_counter++;
-        return NullOpt;
+        return std::nullopt;
       }
     }
     return sch;
@@ -418,15 +418,15 @@ inline double GetRunMsMedian(const RunnerResult& runner_result) {
  * \return The array of floating point numbers
  */
 inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
-  const ArrayObj* arr = obj.as<ArrayObj>();
+  const ffi::ArrayObj* arr = obj.as<ffi::ArrayObj>();
   ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
   Array<FloatImm> results;
   results.reserve(arr->size());
   for (Any val : *arr) {
     auto float_value = [&]() -> FloatImm {
-      if (auto opt_int_imm = val.as<IntImm>()) {
+      if (auto opt_int_imm = val.try_cast<IntImm>()) {
         return FloatImm(DataType::Float(32), (*opt_int_imm)->value);
-      } else if (auto opt_float_imm = val.as<FloatImm>()) {
+      } else if (auto opt_float_imm = val.try_cast<FloatImm>()) {
         return *std::move(opt_float_imm);
       } else {
         LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: " << val.GetTypeKey();
@@ -445,13 +445,13 @@ inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
  * \return The array of integers
  */
 inline Array<Integer> AsIntArray(const ObjectRef& obj) {
-  const ArrayObj* arr = obj.as<ArrayObj>();
+  const ffi::ArrayObj* arr = obj.as<ffi::ArrayObj>();
   ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
   Array<Integer> results;
   results.reserve(arr->size());
   for (Any val : *arr) {
     auto int_value = [&]() -> int64_t {
-      if (auto opt_int_imm = val.as<IntImm>()) {
+      if (auto opt_int_imm = val.try_cast<IntImm>()) {
         return (*opt_int_imm)->value;
       } else {
         LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << val.GetTypeKey();

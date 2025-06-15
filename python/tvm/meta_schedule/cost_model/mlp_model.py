@@ -542,7 +542,7 @@ class State:
                                 "_workload.json", "_candidates.json"
                             ),
                         )
-                    except tvm._ffi.base.TVMError:
+                    except tvm.base.TVMError:
                         continue
                     candidates, results = [], []
                     tuning_records = database.get_all_tuning_records()

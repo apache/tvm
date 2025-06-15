@@ -90,7 +90,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/op.h>
 
@@ -579,8 +579,15 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
       default:
         LOG(FATAL) << "do not support " << dtype;
     }
-  } else if (dtype.code() == DataType::kFloat8_e4m3fn || dtype.code() == DataType::kFloat8_e5m2) {
+  } else if (dtype.code() == DataType::kFloat8_e3m4 || dtype.code() == DataType::kFloat8_e4m3 ||
+             dtype.code() == DataType::kFloat8_e4m3b11fnuz ||
+             dtype.code() == DataType::kFloat8_e4m3fn ||
+             dtype.code() == DataType::kFloat8_e4m3fnuz || dtype.code() == DataType::kFloat8_e5m2 ||
+             dtype.code() == DataType::kFloat8_e5m2fnuz ||
+             dtype.code() == DataType::kFloat8_e8m0fnu) {
     etype = llvm::Type::getInt8Ty(*ctx);
+  } else if (dtype.code() == DataType::kFloat6_e2m3fn || dtype.code() == DataType::kFloat6_e3m2fn) {
+    etype = llvm::Type::getIntNTy(*ctx, 6);
   } else if (dtype.code() == DataType::kFloat4_e2m1fn) {
     etype = llvm::Type::getIntNTy(*ctx, 4);
   }
@@ -2325,19 +2332,18 @@ llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm)
   return nullptr;
 }
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetDefaultTargetTriple").set_body_typed([]() -> std::string {
-  return llvm::sys::getDefaultTargetTriple();
-});
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.GetDefaultTargetTriple")
+    .set_body_typed([]() -> std::string { return llvm::sys::getDefaultTargetTriple(); });
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetProcessTriple").set_body_typed([]() -> std::string {
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.GetProcessTriple").set_body_typed([]() -> std::string {
   return llvm::sys::getProcessTriple();
 });
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUName").set_body_typed([]() -> std::string {
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUName").set_body_typed([]() -> std::string {
   return llvm::sys::getHostCPUName().str();
 });
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUFeatures")
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUFeatures")
     .set_body_typed([]() -> Map<String, IntImm> {
 #if TVM_LLVM_VERSION >= 190
       Map<String, IntImm> ret;

@@ -20,7 +20,9 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.script import tir as T, ir as I, relax as R
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 add_cuda_source = """
 extern "C" __global__ void add_kernel(float* x, float* y, float* output, int n_elements) {
@@ -96,5 +98,5 @@ def test_tir_call_source_kernel():
 
     with tvm.target.Target("cuda"):
         lib = tvm.compile(Module)
-        output_nd = tvm.runtime.relax_vm.VirtualMachine(lib, device)["main"](x_nd, y_nd)
+        output_nd = tvm.runtime.vm.VirtualMachine(lib, device)["main"](x_nd, y_nd)
         tvm.testing.assert_allclose(output_nd.numpy(), output_np, rtol=1e-5)

@@ -21,10 +21,10 @@
  * \file src/target/target.cc
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/transform.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/tag.h>
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
@@ -39,8 +39,6 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-#include "../runtime/object_internal.h"
 
 namespace tvm {
 
@@ -76,7 +74,7 @@ class TargetInternal {
   static std::string Interpret(const std::string& str);
   static std::string Uninterpret(const std::string& str);
   static std::string StringifyAtomicType(const Any& obj);
-  static std::string StringifyArray(const ArrayObj& array);
+  static std::string StringifyArray(const ffi::ArrayObj& array);
 
   static constexpr char quote = '\'';
   static constexpr char escape = '\\';
@@ -111,7 +109,7 @@ static std::vector<String> DeduplicateKeys(const std::vector<String>& keys) {
 
 template <class T>
 static T ObjTypeCheck(const Any& obj, const std::string& expected_type) {
-  auto opt = obj.as<T>();
+  auto opt = obj.try_cast<T>();
   if (!opt.has_value()) {
     TVM_FFI_THROW(TypeError) << "Expects type \"" << expected_type << "\", but gets \""
                              << obj.GetTypeKey() << "\" for object: " << obj;
@@ -394,7 +392,7 @@ Any TargetInternal::ParseType(const std::string& str, const TargetKindNode::Valu
   } else if (info.type_index == Target::ContainerType::RuntimeTypeIndex()) {
     // Parsing target
     return Target(TargetInternal::FromString(interp_str));
-  } else if (info.type_index == ArrayObj::RuntimeTypeIndex()) {
+  } else if (info.type_index == ffi::ArrayObj::RuntimeTypeIndex()) {
     // Parsing array
     std::vector<ObjectRef> result;
     for (const std::string& substr : SplitString(interp_str, ',')) {
@@ -426,11 +424,11 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
     // Parsing target
     if (auto opt = obj.as<Target>()) {
       return opt.value();
-    } else if (auto str = obj.as<String>()) {
+    } else if (auto str = obj.try_cast<String>()) {
       return Target(TargetInternal::FromString(str.value()));
-    } else if (const auto* ptr = obj.as<MapObj>()) {
+    } else if (const auto* ptr = obj.as<ffi::MapObj>()) {
       for (const auto& kv : *ptr) {
-        if (!kv.first.as<StringObj>()) {
+        if (!kv.first.as<ffi::StringObj>()) {
           TVM_FFI_THROW(TypeError)
               << "Target object requires key of dict to be str, but get: " << kv.first.GetTypeKey();
         }
@@ -440,9 +438,9 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
     }
     TVM_FFI_THROW(TypeError) << "Expect type 'dict' or 'str' to construct Target, but get: " +
                                     obj.GetTypeKey();
-  } else if (info.type_index == ArrayObj::RuntimeTypeIndex()) {
+  } else if (info.type_index == ffi::ArrayObj::RuntimeTypeIndex()) {
     // Parsing array
-    const auto* array = ObjTypeCheck<const ArrayObj*>(obj, "Array");
+    const auto* array = ObjTypeCheck<const ffi::ArrayObj*>(obj, "Array");
     std::vector<ObjectRef> result;
     for (const Any& e : *array) {
       try {
@@ -453,9 +451,9 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
       }
     }
     return Array<ObjectRef>(result);
-  } else if (info.type_index == MapObj::RuntimeTypeIndex()) {
+  } else if (info.type_index == ffi::MapObj::RuntimeTypeIndex()) {
     // Parsing map
-    const auto* map = ObjTypeCheck<const MapObj*>(obj, "Map");
+    const auto* map = ObjTypeCheck<const ffi::MapObj*>(obj, "Map");
     std::unordered_map<Any, Any, ffi::AnyHash, ffi::AnyEqual> result;
     for (const auto& kv : *map) {
       Any key, val;
@@ -487,9 +485,9 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
 
 std::string TargetInternal::StringifyAtomicType(const Any& obj) {
   if (obj.type_index() == ffi::TypeIndex::kTVMFFIBool) {
-    return std::to_string(obj.as<bool>().value());
+    return std::to_string(obj.cast<bool>());
   } else if (obj.type_index() == ffi::TypeIndex::kTVMFFIInt) {
-    return std::to_string(obj.as<int64_t>().value());
+    return std::to_string(obj.cast<int64_t>());
   } else if (auto opt_str = obj.as<String>()) {
     std::string s = opt_str.value();
     auto u = Uninterpret(s);
@@ -502,7 +500,7 @@ std::string TargetInternal::StringifyAtomicType(const Any& obj) {
   TVM_FFI_UNREACHABLE();
 }
 
-std::string TargetInternal::StringifyArray(const ArrayObj& array) {
+std::string TargetInternal::StringifyArray(const ffi::ArrayObj& array) {
   std::vector<std::string> elements;
 
   for (const Any& item : array) {
@@ -531,7 +529,7 @@ Optional<String> TargetInternal::StringifyAttrsToRaw(const Map<String, ffi::Any>
     std::string value;
     // skip undefined attrs
     if (obj == nullptr) continue;
-    if (const auto* array = obj.as<ArrayObj>()) {
+    if (const auto* array = obj.as<ffi::ArrayObj>()) {
       value = String(StringifyArray(*array));
     } else {
       value = StringifyAtomicType(obj);
@@ -602,7 +600,7 @@ Target::Target(Target target, Target host) {
 
 Target::Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<String> keys,
                Map<String, ffi::Any> attrs) {
-  auto data = runtime::make_object<TargetNode>();
+  auto data = ffi::make_object<TargetNode>();
   data->kind = std::move(kind);
   data->host = std::move(host);
   data->tag = std::move(tag);
@@ -651,7 +649,7 @@ Optional<Target> TargetNode::GetHost() const { return this->host.as<Target>(); }
 Target Target::WithoutHost() const {
   if ((*this)->GetHost()) {
     auto output = make_object<TargetNode>(*get());
-    output->host = NullOpt;
+    output->host = std::nullopt;
     return Target(output);
   } else {
     return *this;
@@ -761,9 +759,9 @@ void TargetInternal::ConstructorDispatcher(ffi::PackedArgs args, ffi::Any* rv) {
     const auto& arg = args[0];
     if (auto opt_target = arg.as<Target>()) {
       *rv = Target(opt_target.value());
-    } else if (auto opt_str = arg.as<String>()) {
+    } else if (auto opt_str = arg.try_cast<String>()) {
       *rv = Target(opt_str.value());
-    } else if (auto opt_map = arg.as<Map<String, ffi::Any>>()) {
+    } else if (auto opt_map = arg.try_cast<Map<String, ffi::Any>>()) {
       *rv = Target(opt_map.value());
     } else {
       LOG(FATAL) << "TypeError: Cannot create target with type: " << args[0].GetTypeKey();
@@ -850,7 +848,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
 
   // parse 'kind'
   if (config.count(kKind)) {
-    if (auto kind = config[kKind].as<String>()) {
+    if (auto kind = config[kKind].try_cast<String>()) {
       target->kind = GetTargetKind(kind.value());
       ICHECK(!(target->kind->preprocessor != nullptr && target->kind->target_parser != nullptr))
           << "Cannot use both set_attrs_preprocessor and set_target_parser";
@@ -875,7 +873,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
   }
   // parse "tag"
   if (config.count(kTag)) {
-    if (auto tag = config[kTag].as<String>()) {
+    if (auto tag = config[kTag].try_cast<String>()) {
       target->tag = tag.value();
       config.erase(kTag);
     } else {
@@ -891,9 +889,9 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
     bool has_user_keys = config.count(kKeys);
     if (has_user_keys) {
       // user provided keys
-      if (const auto* cfg_keys = config[kKeys].as<ArrayObj>()) {
+      if (const auto* cfg_keys = config[kKeys].as<ffi::ArrayObj>()) {
         for (const Any& e : *cfg_keys) {
-          if (auto key = e.as<String>()) {
+          if (auto key = e.try_cast<String>()) {
             keys.push_back(key.value());
           } else {
             TVM_FFI_THROW(TypeError) << "Expect 'keys' to be an array of strings, but it "
@@ -907,7 +905,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
     }
     // add device name
     if (config.count(kDeviceName)) {
-      if (auto device = config.at(kDeviceName).as<String>()) {
+      if (auto device = config.at(kDeviceName).try_cast<String>()) {
         keys.push_back(device.value());
       }
     }
@@ -926,7 +924,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
     target->host = ffi::Function(ConstructorDispatcher)(config[kHost]).cast<Target>();
     config.erase(kHost);
   } else {
-    target->host = NullOpt;
+    target->host = std::nullopt;
   }
   // parse attrs
   std::unordered_map<String, ffi::Any> attrs;
@@ -945,7 +943,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
   // If requested, query attributes from the device.  User-specified
   // parameters take precedence over queried parameters.
   if (attrs.count("from_device")) {
-    int device_id = attrs.at("from_device").as<int64_t>().value();
+    int device_id = attrs.at("from_device").cast<int64_t>();
     attrs.erase("from_device");
     auto device_params = QueryDevice(device_id, target.get());
 
@@ -1010,16 +1008,16 @@ std::unordered_map<String, ffi::Any> TargetInternal::QueryDevice(int device_id,
 
 /**********  Registry  **********/
 
-TVM_REGISTER_GLOBAL("target.Target").set_body_packed(TargetInternal::ConstructorDispatcher);
-TVM_REGISTER_GLOBAL("target.TargetEnterScope").set_body_typed(TargetInternal::EnterScope);
-TVM_REGISTER_GLOBAL("target.TargetExitScope").set_body_typed(TargetInternal::ExitScope);
-TVM_REGISTER_GLOBAL("target.TargetCurrent").set_body_typed(Target::Current);
-TVM_REGISTER_GLOBAL("target.TargetExport").set_body_typed(TargetInternal::Export);
-TVM_REGISTER_GLOBAL("target.WithHost").set_body_typed(TargetInternal::WithHost);
-TVM_REGISTER_GLOBAL("target.TargetGetDeviceType").set_body_typed([](const Target& target) {
+TVM_FFI_REGISTER_GLOBAL("target.Target").set_body_packed(TargetInternal::ConstructorDispatcher);
+TVM_FFI_REGISTER_GLOBAL("target.TargetEnterScope").set_body_typed(TargetInternal::EnterScope);
+TVM_FFI_REGISTER_GLOBAL("target.TargetExitScope").set_body_typed(TargetInternal::ExitScope);
+TVM_FFI_REGISTER_GLOBAL("target.TargetCurrent").set_body_typed(Target::Current);
+TVM_FFI_REGISTER_GLOBAL("target.TargetExport").set_body_typed(TargetInternal::Export);
+TVM_FFI_REGISTER_GLOBAL("target.WithHost").set_body_typed(TargetInternal::WithHost);
+TVM_FFI_REGISTER_GLOBAL("target.TargetGetDeviceType").set_body_typed([](const Target& target) {
   return target->GetTargetDeviceType();
 });
-TVM_REGISTER_GLOBAL("target.TargetGetFeature")
+TVM_FFI_REGISTER_GLOBAL("target.TargetGetFeature")
     .set_body_typed([](const Target& target, const String& feature_key) -> Any {
       if (auto opt_any = target->GetFeature<Any>(feature_key)) {
         return opt_any.value();

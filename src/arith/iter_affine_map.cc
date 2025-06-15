@@ -47,7 +47,7 @@ IterMark::IterMark(PrimExpr source, PrimExpr extent) {
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("arith.IterMark").set_body_typed([](PrimExpr source, PrimExpr extent) {
+TVM_FFI_REGISTER_GLOBAL("arith.IterMark").set_body_typed([](PrimExpr source, PrimExpr extent) {
   return IterMark(source, extent);
 });
 
@@ -92,7 +92,7 @@ IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr lower_factor, PrimExpr ex
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("arith.IterSplitExpr")
+TVM_FFI_REGISTER_GLOBAL("arith.IterSplitExpr")
     .set_body_typed([](IterMark source, PrimExpr lower_factor, PrimExpr extent, PrimExpr scale) {
       return IterSplitExpr(source, lower_factor, extent, scale);
     });
@@ -114,7 +114,7 @@ IterSumExpr::IterSumExpr(Array<IterSplitExpr> args, PrimExpr base) {
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("arith.IterSumExpr")
+TVM_FFI_REGISTER_GLOBAL("arith.IterSumExpr")
     .set_body_typed([](Array<IterSplitExpr> args, PrimExpr base) {
       return IterSumExpr(args, base);
     });
@@ -985,7 +985,7 @@ class IterMapRewriter : public ExprMutator {
    * \return The sum with the fused IterMark and extra offset if succeed.
    */
   Optional<IterSumExpr> TryCombineSplitFromSameSource(IterSumExpr expr) {
-    if (expr->args.size() <= 1) return NullOpt;
+    if (expr->args.size() <= 1) return std::nullopt;
     std::unordered_map<IterMark, int, ObjectPtrHash, ObjectPtrEqual> hit_count;
     // most iter map are small n < 5
     // so we can afford N^2 complexity
@@ -1000,7 +1000,7 @@ class IterMapRewriter : public ExprMutator {
         hit_count[expr->args[i]->source] = 1;
       }
     }
-    if (!has_overlap) return NullOpt;
+    if (!has_overlap) return std::nullopt;
 
     std::vector<bool> visited(expr->args.size(), false);
     std::vector<IterSplitExpr> reverse_flattened_iters;
@@ -1096,8 +1096,8 @@ class IterMapRewriter : public ExprMutator {
     }
     // select the iterators in order
     std::vector<bool> visited(expr->args.size(), false);
-    int base_index = FindBaseIter(expr, visited, NullOpt);
-    if (base_index == -1) return NullOpt;
+    int base_index = FindBaseIter(expr, visited, std::nullopt);
+    if (base_index == -1) return std::nullopt;
     PrimExpr base_scale = expr->args[base_index]->scale;
 
     std::vector<IterSplitExpr> flattened_iters, grouped_iters;
@@ -1114,8 +1114,8 @@ class IterMapRewriter : public ExprMutator {
       // find position such that expr->args[j] match expected scale
       // if it is first step, we can simply start with base index
       int matched_pos = i == 0 ? base_index
-                               : FindIterWithExactScale(expr, visited, expected_scale, NullOpt, -1,
-                                                        first_possible_unit_extent_pos);
+                               : FindIterWithExactScale(expr, visited, expected_scale, std::nullopt,
+                                                        -1, first_possible_unit_extent_pos);
       if (matched_pos != -1) {
         matched_scale = expected_scale;
         is_exact_match = true;
@@ -1129,7 +1129,7 @@ class IterMapRewriter : public ExprMutator {
         }
       }
       if (matched_pos == -1) {
-        return NullOpt;
+        return std::nullopt;
       }
       ICHECK(matched_scale.defined());
       // look for the longest constrained iter started from expr->args[j]
@@ -1163,7 +1163,7 @@ class IterMapRewriter : public ExprMutator {
             }
           }
           if (k == expr->args.size()) {
-            return NullOpt;
+            return std::nullopt;
           }
           visited[k] = true;
           flattened_iters.push_back(expr->args[k]);
@@ -1209,7 +1209,7 @@ class IterMapRewriter : public ExprMutator {
       // old iter
       if (!analyzer_->CanProveEqual(expected_extra_base, it->second.offset * base_scale)) {
         // the extra offset is not consistent with old
-        return NullOpt;
+        return std::nullopt;
       }
       return IterSumExpr({IterSplitExpr(it->second.mark, base_scale)},
                          expr->base + expected_extra_base);
@@ -1372,7 +1372,7 @@ bool MatchBoundConstraints(PrimExpr pred, Map<Var, Range>* input_iters,
         lhs_expr = analyzer.Simplify(lhs_expr);
         rhs_expr = analyzer.Simplify(rhs_expr);
       }
-      Optional<PrimExpr> lower_bound = NullOpt, upper_bound = NullOpt;
+      Optional<PrimExpr> lower_bound = std::nullopt, upper_bound = std::nullopt;
       PrimExpr iter;
       if (is_greater) {
         if (bound_at_left) {
@@ -1513,7 +1513,7 @@ IterMapResult DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range
   return result;
 }
 
-TVM_REGISTER_GLOBAL("arith.DetectIterMap")
+TVM_FFI_REGISTER_GLOBAL("arith.DetectIterMap")
     .set_body_typed([](const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                        const PrimExpr& input_pred, int check_level,
                        bool simplify_trivial_iterators) {
@@ -1538,7 +1538,7 @@ IterSumExpr NormalizeToIterSum(PrimExpr index, const Map<Var, Range>& input_iter
   return rewriter.RewriteToNormalizedIterSum(index);
 }
 
-TVM_REGISTER_GLOBAL("arith.NormalizeToIterSum")
+TVM_FFI_REGISTER_GLOBAL("arith.NormalizeToIterSum")
     .set_body_typed([](PrimExpr index, const Map<Var, Range>& input_iters) {
       arith::Analyzer ana;
       return NormalizeToIterSum(index, input_iters, &ana);
@@ -2133,7 +2133,7 @@ PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr) {
   return normalizer.Convert(expr);
 }
 
-TVM_REGISTER_GLOBAL("arith.NormalizeIterMapToExpr").set_body_typed(NormalizeIterMapToExpr);
+TVM_FFI_REGISTER_GLOBAL("arith.NormalizeIterMapToExpr").set_body_typed(NormalizeIterMapToExpr);
 
 Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                 const PrimExpr& input_pred, IterMapLevel check_level,
@@ -2162,7 +2162,7 @@ Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, R
   return simplified;
 }
 
-TVM_REGISTER_GLOBAL("arith.IterMapSimplify")
+TVM_FFI_REGISTER_GLOBAL("arith.IterMapSimplify")
     .set_body_typed([](const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                        const PrimExpr& input_pred, int check_level,
                        bool simplify_trivial_iterators) {
@@ -2495,7 +2495,7 @@ Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
   return results;
 }
 
-TVM_REGISTER_GLOBAL("arith.SubspaceDivide")
+TVM_FFI_REGISTER_GLOBAL("arith.SubspaceDivide")
     .set_body_typed([](const Array<PrimExpr>& bindings, const Map<Var, Range>& root_iters,
                        const Array<Var>& sub_iters, const PrimExpr& predicate, int check_level,
                        bool simplify_trivial_iterators) {
@@ -2634,7 +2634,7 @@ Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,
   return InverseAffineIterMapTransformer(&analyzer)(iter_map, outputs);
 }
 
-TVM_REGISTER_GLOBAL("arith.InverseAffineIterMap").set_body_typed(InverseAffineIterMap);
+TVM_FFI_REGISTER_GLOBAL("arith.InverseAffineIterMap").set_body_typed(InverseAffineIterMap);
 
 TVM_REGISTER_NODE_TYPE(IterMapResultNode);
 

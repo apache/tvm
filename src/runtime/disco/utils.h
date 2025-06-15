@@ -39,7 +39,7 @@ inline Device UseDefaultDeviceIfNone(Device device) {
  * \note At the time of scaffolding Disco, RelaxVM has not provided mature support for standalone
  * integers. A common workaround is to use a 1-d shape tuple as an integer.
  */
-inline int64_t IntegerFromShapeTuple(const ShapeTuple& shape) {
+inline int64_t IntegerFromShape(const ffi::Shape& shape) {
   CHECK_EQ(shape.size(), 1) << "ValueError: shape tuple must be 1-d to be converted to integer.";
   return shape[0];
 }

@@ -250,7 +250,7 @@ Pass RemoveUnusedParameters() {
   return CreateModulePass(pass_func, 0, "RemoveUnusedParameters", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.RemoveUnusedParameters")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.RemoveUnusedParameters")
     .set_body_typed(RemoveUnusedParameters);
 
 }  // namespace transform

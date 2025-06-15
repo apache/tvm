@@ -58,7 +58,7 @@ Array<Any> TranslateInputRVs(const Array<Any>& inputs,
   auto f_subst_with_rv_map = [&rv_map](const Var& var) -> Optional<PrimExpr> {
     auto it = rv_map.find(var.get());
     if (it == rv_map.end()) {
-      return NullOpt;
+      return std::nullopt;
     }
     const Object* dst = it->second;
     ICHECK(dst->IsInstance<VarNode>())
@@ -78,7 +78,7 @@ Array<Any> TranslateInputRVs(const Array<Any>& inputs,
       auto it = rv_map.find(input.as<Object>());
       ICHECK(it != rv_map.end()) << "IndexError: Random variable doesn't exist: " << input;
       result.push_back(GetRef<ObjectRef>(it->second));
-    } else if (auto expr = input.as<PrimExpr>()) {  // RV: Expr
+    } else if (auto expr = input.try_cast<PrimExpr>()) {  // RV: Expr
       result.push_back(Substitute(expr.value(), f_subst_with_rv_map));
     } else if (auto index_map = input.as<IndexMap>()) {
       result.push_back(Substitute(index_map.value(), f_subst_with_rv_map));
@@ -120,16 +120,16 @@ Array<Any> TranslateInputRVs(
         LOG(FATAL) << "IndexError: Random variable is not defined " << input;
         throw;
       }
-    } else if (const auto* str_obj = input.as<StringObj>()) {
+    } else if (const auto* str_obj = input.as<ffi::StringObj>()) {
       // Case 2. string => "content"
       results.push_back(String('"' + std::string(str_obj->data) + '"'));
     } else if (input.as<IntImmNode>() || input.as<FloatImmNode>()) {
       // Case 3. integer or floating-point number
       results.push_back(input);
-    } else if (input.as<ArrayObj>()) {
+    } else if (input.as<ffi::ArrayObj>()) {
       // Case 4: array
       results.push_back(TranslateInputRVs(Downcast<Array<Any>>(Any(input)), rv_names));
-    } else if (input.as<MapObj>()) {
+    } else if (input.as<ffi::MapObj>()) {
       // Case 5: dict
       results.push_back(input);
     } else if (input.as<IndexMapNode>()) {
@@ -139,7 +139,7 @@ Array<Any> TranslateInputRVs(
         if (auto it = rv_names.find(var); it != rv_names.end()) {
           return it->second;
         }
-        return NullOpt;
+        return std::nullopt;
       });
       results.push_back(index_map);
     } else {
@@ -166,12 +166,12 @@ Array<Any> TranslateInputRVs(const Array<Any>& inputs,
       continue;
     }
     // Case 4. array
-    if (input.as<ArrayObj>()) {
+    if (input.as<ffi::ArrayObj>()) {
       results.push_back(TranslateInputRVs(Downcast<Array<Any>>(input), named_rvs));
       continue;
     }
     // Case 5. dict
-    if (input.as<MapObj>()) {
+    if (input.as<ffi::MapObj>()) {
       results.push_back(input);
       continue;
     }
@@ -190,7 +190,7 @@ Array<Any> TranslateInputRVs(const Array<Any>& inputs,
           if (it != named_rvs.end()) {
             return Downcast<Var>(it->second);
           }
-          return NullOpt;
+          return std::nullopt;
         });
         results.push_back(index_map);
         continue;
@@ -236,7 +236,7 @@ Array<String> TranslateAddOutputRVs(
     ICHECK(!rv_names->count(output.cast<ObjectRef>()))
         << "ValueError: The random variable has been produced once: "
         << rv_names->at(output.cast<ObjectRef>());
-    String result{ObjectPtr<StringObj>{nullptr}};
+    String result{ffi::ObjectPtr<ffi::StringObj>{nullptr}};
     if (output == nullptr) {
       result = "_";
     } else if (output.as<BlockRVNode>()) {
@@ -280,7 +280,7 @@ void TraceNode::Append(Instruction inst, Any decision) {
 
 Optional<Instruction> TraceNode::Pop() {
   if (insts.empty()) {
-    return NullOpt;
+    return std::nullopt;
   }
   Instruction inst = insts.back();
   insts.pop_back();
@@ -359,7 +359,7 @@ Array<String> TraceNode::AsPython(bool remove_postproc) const {
     Array<Any> attrs;
     attrs.reserve(inst->attrs.size());
     for (const Any& obj : inst->attrs) {
-      if (const auto* str = obj.as<StringObj>()) {
+      if (const auto* str = obj.as<ffi::StringObj>()) {
         attrs.push_back(String('"' + std::string(str->data) + '"'));
       } else {
         attrs.push_back(obj);
@@ -379,10 +379,10 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
   Array<Any> json_decisions{nullptr};
   // Parse `json` into `json_insts` and `json_decisions`
   try {
-    const ArrayObj* arr = json.as<ArrayObj>();
+    const ffi::ArrayObj* arr = json.as<ffi::ArrayObj>();
     ICHECK(arr && arr->size() == 2);
-    const auto* arr0 = arr->at(0).as<ArrayObj>();
-    const auto* arr1 = arr->at(1).as<ArrayObj>();
+    const auto* arr0 = arr->at(0).as<ffi::ArrayObj>();
+    const auto* arr1 = arr->at(1).as<ffi::ArrayObj>();
     ICHECK(arr0 && arr1);
     json_insts = GetRef<Array<Any>>(arr0);
     json_decisions = GetRef<Array<Any>>(arr1);
@@ -398,9 +398,9 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
     int index = -1;
     Any decision{nullptr};
     try {
-      const ArrayObj* arr = decision_entry.as<ArrayObj>();
+      const ffi::ArrayObj* arr = decision_entry.as<ffi::ArrayObj>();
       ICHECK(arr && arr->size() == 2);
-      auto arr0 = arr->at(0).as<IntImm>();
+      auto arr0 = arr->at(0).try_cast<IntImm>();
       ICHECK(arr0);
       index = arr0.value()->value;
       decision = arr->at(1);
@@ -422,9 +422,9 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
     Array<String> outputs{ObjectPtr<Object>{nullptr}};
     // Parse the entry
     try {
-      const auto* arr = inst_entry.as<ArrayObj>();
+      const auto* arr = inst_entry.as<ffi::ArrayObj>();
       ICHECK(arr && arr->size() == 4);
-      const auto* arr0 = arr->at(0).as<StringObj>();
+      const auto* arr0 = arr->at(0).as<ffi::StringObj>();
       kind = InstructionKind::Get(arr0->data);
       inputs = arr->at(1).cast<Array<Any>>();
       attrs = arr->at(2).cast<Array<Any>>();
@@ -563,13 +563,13 @@ TVM_REGISTER_INST_KIND_TRAITS(EnterPostprocTraits);
 /**************** FFI ****************/
 
 TVM_REGISTER_NODE_TYPE(TraceNode);
-TVM_REGISTER_GLOBAL("tir.schedule.Trace")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.Trace")
     .set_body_typed([](Optional<Array<Instruction>> insts,
                        Optional<Map<Instruction, Any>> decisions) {
       return Trace(insts.value_or(Array<Instruction>()), decisions.value_or({}));
     });
-TVM_REGISTER_GLOBAL("tir.schedule.TraceGetDecision").set_body_method(&TraceNode::GetDecision);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceAppend")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceGetDecision").set_body_method(&TraceNode::GetDecision);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceAppend")
     .set_body_typed([](Trace self, Instruction inst, Optional<ObjectRef> decision) {
       if (decision.defined()) {
         return self->Append(inst, decision.value());
@@ -577,14 +577,14 @@ TVM_REGISTER_GLOBAL("tir.schedule.TraceAppend")
         return self->Append(inst);
       }
     });
-TVM_REGISTER_GLOBAL("tir.schedule.TracePop").set_body_method(&TraceNode::Pop);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceApplyToSchedule")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TracePop").set_body_method(&TraceNode::Pop);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceApplyToSchedule")
     .set_body_method(&TraceNode::ApplyToSchedule);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceAsJSON").set_body_method(&TraceNode::AsJSON);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceAsPython").set_body_method(&TraceNode::AsPython);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceWithDecision").set_body_method(&TraceNode::WithDecision);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceSimplified").set_body_method(&TraceNode::Simplified);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceApplyJSONToSchedule")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceAsJSON").set_body_method(&TraceNode::AsJSON);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceAsPython").set_body_method(&TraceNode::AsPython);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceWithDecision").set_body_method(&TraceNode::WithDecision);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceSimplified").set_body_method(&TraceNode::Simplified);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceApplyJSONToSchedule")
     .set_body_typed(Trace::ApplyJSONToSchedule);
 
 }  // namespace tir

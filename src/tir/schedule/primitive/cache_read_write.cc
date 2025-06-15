@@ -88,7 +88,7 @@ struct CacheStageInfo {
 /*! \brief Return the buffer region related with the buffer */
 Optional<BufferRegion> GetBufferRegionFromBuffer(const Array<BufferRegion>& buffer_regions,
                                                  const Buffer& buffer) {
-  Optional<BufferRegion> res = NullOpt;
+  Optional<BufferRegion> res = std::nullopt;
   for (const auto& region : buffer_regions) {
     if (region->buffer.same_as(buffer)) {
       ICHECK(!res.defined());
@@ -204,7 +204,7 @@ Block MakeReindexCacheStage(const BufferRegion& cache_region, ReindexCacheStageI
       /*body=*/
       BufferStore(info->write_buffer, BufferLoad(info->read_buffer, read_access_indices),
                   write_access_indices),
-      /*init=*/NullOpt,
+      /*init=*/std::nullopt,
       /*alloc_buffers=*/{},
       /*match_buffers=*/{},
       /*buf_doms=*/{});
@@ -304,7 +304,7 @@ Block MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
       /*body=*/
       BufferStore(info->write_buffer, BufferLoad(info->read_buffer, read_access_indices),
                   write_access_indices),
-      /*init=*/NullOpt,
+      /*init=*/std::nullopt,
       /*alloc_buffers=*/{},
       /*match_buffers=*/{},
       /*annotations=*/{});
@@ -503,7 +503,7 @@ Stmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
  * \param scope_sref The scope block where the write is considered
  * \param buffer The queried buffer
  * \return The sref of the only writer of the input buffer in the given scope,
- *         or `NullOpt` if no block writes it in the scope.
+ *         or `std::nullopt` if no block writes it in the scope.
  * \throw NotSingleWriteBlock if there are more than one interested block.
  */
 Optional<StmtSRef> GetOnlyWriteBlock(ScheduleState self, const StmtSRef& scope_sref,
@@ -511,7 +511,7 @@ Optional<StmtSRef> GetOnlyWriteBlock(ScheduleState self, const StmtSRef& scope_s
   BlockScope scope = self->GetBlockScope(scope_sref);
   auto it = scope->buffer_writers.find(buffer);
   if (it == scope->buffer_writers.end()) {
-    return NullOpt;
+    return std::nullopt;
   } else {
     const Array<StmtSRef>& block_srefs = it->second;
     ICHECK(!block_srefs.empty());

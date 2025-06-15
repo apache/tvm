@@ -32,10 +32,10 @@
 #endif
 #include <llvm/Support/CodeGen.h>
 #include <llvm/Target/TargetOptions.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/target/target.h>
 
 #include <algorithm>

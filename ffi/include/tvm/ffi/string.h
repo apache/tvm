@@ -210,7 +210,7 @@ class Bytes : public ObjectRef {
  */
 class String : public ObjectRef {
  public:
-  String(nullptr_t) = delete;  // NOLINT(*)
+  String(std::nullptr_t) = delete;  // NOLINT(*)
 
   /*!
    * \brief constructor from char [N]
@@ -401,7 +401,6 @@ TVM_FFI_INLINE std::string_view ToStringView(TVMFFIByteArray str) {
 template <int N>
 struct TypeTraits<char[N]> : public TypeTraitsBase {
   // NOTE: only enable implicit conversion into AnyView
-  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIRawStr;
   static constexpr bool storage_enabled = false;
 
   static TVM_FFI_INLINE void CopyToAnyView(const char src[N], TVMFFIAny* result) {
@@ -417,7 +416,6 @@ struct TypeTraits<char[N]> : public TypeTraitsBase {
 
 template <>
 struct TypeTraits<const char*> : public TypeTraitsBase {
-  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIRawStr;
   static constexpr bool storage_enabled = false;
 
   static TVM_FFI_INLINE void CopyToAnyView(const char* src, TVMFFIAny* result) {
@@ -430,8 +428,8 @@ struct TypeTraits<const char*> : public TypeTraitsBase {
     // when we need to move to any, convert to owned object first
     ObjectRefTypeTraitsBase<String>::MoveToAny(String(src), result);
   }
-  // Do not allow const char* in a container, so we do not need CheckAnyStorage
-  static TVM_FFI_INLINE std::optional<const char*> TryConvertFromAnyView(const TVMFFIAny* src) {
+  // Do not allow const char* in a container, so we do not need CheckAnyStrict
+  static TVM_FFI_INLINE std::optional<const char*> TryCastFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIRawStr) {
       return static_cast<const char*>(src->v_c_str);
     }
@@ -458,8 +456,7 @@ struct TypeTraits<TVMFFIByteArray*> : public TypeTraitsBase {
     ObjectRefTypeTraitsBase<Bytes>::MoveToAny(Bytes(*src), result);
   }
 
-  static TVM_FFI_INLINE std::optional<TVMFFIByteArray*> TryConvertFromAnyView(
-      const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<TVMFFIByteArray*> TryCastFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIByteArrayPtr) {
       return static_cast<TVMFFIByteArray*>(src->v_ptr);
     }
@@ -641,6 +638,11 @@ inline int Bytes::memncmp(const char* lhs, const char* rhs, size_t lhs_count, si
   }
 }
 }  // namespace ffi
+
+// Expose to the tvm namespace for usability
+// Rationale: no ambiguity even in root
+using ffi::Bytes;
+using ffi::String;
 }  // namespace tvm
 
 namespace std {

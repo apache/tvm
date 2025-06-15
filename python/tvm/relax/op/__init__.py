@@ -73,6 +73,7 @@ from .create import (
     arange,
     full,
     full_like,
+    hamming_window,
     ones,
     ones_like,
     eye,
@@ -84,7 +85,7 @@ from .create import (
 )
 from .datatype import astype, wrap_param
 from .index import dynamic_strided_slice, strided_slice, take
-from .linear_algebra import einsum, linear, matmul
+from .linear_algebra import einsum, linear, matmul, outer
 from .manipulate import (
     broadcast_to,
     collapse_sum_like,
@@ -105,6 +106,7 @@ from .manipulate import (
     reshape,
     scatter_elements,
     scatter_nd,
+    slice_scatter,
     split,
     squeeze,
     stack,

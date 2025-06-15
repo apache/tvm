@@ -218,12 +218,12 @@ inline const int64_t* GetLoopIntExtent(const StmtSRef& loop_sref) {
  * \brief Check if an expression consists of a single variable,
  * or a variable plus/minus an constant integer shift
  * \param expr The expression to be checked
- * \return The single variable in the expression, or NullOpt if the expression is neither a variable
- * or a constant shift from a variable
+ * \return The single variable in the expression, or std::nullopt if the expression is neither a
+ * variable or a constant shift from a variable
  */
 inline Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr, Optional<IntImm>* constant) {
   if (const auto* var = expr.as<VarNode>()) {
-    *constant = NullOpt;
+    *constant = std::nullopt;
     return GetRef<Var>(var);
   }
   arith::PVar<Var> var;
@@ -239,7 +239,7 @@ inline Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr, Optional<IntImm>*
     *constant = IntImm(result->dtype, -result->value);
     return var.Eval();
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 /******** Annotation ********/
@@ -249,7 +249,7 @@ inline Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr, Optional<IntImm>*
  * \tparam TObjectRef The type of the annotation value
  * \param sref The sref to the block or the for loop
  * \param ann_key The annotation key to be looked up
- * \return NullOpt if not found; otherwise the annotation value
+ * \return std::nullopt if not found; otherwise the annotation value
  */
 template <class TObjectRef, class TStmtNode>
 inline Optional<TObjectRef> GetAnn(const TStmtNode* stmt, const String& ann_key) {
@@ -259,7 +259,7 @@ inline Optional<TObjectRef> GetAnn(const TStmtNode* stmt, const String& ann_key)
       return Downcast<TObjectRef>(ann.second);
     }
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 /*!
@@ -267,7 +267,7 @@ inline Optional<TObjectRef> GetAnn(const TStmtNode* stmt, const String& ann_key)
  * \tparam TObjectRef The type of the annotation value
  * \param sref The sref to the block or the for loop
  * \param ann_key The annotation key to be looked up
- * \return NullOpt if not found; otherwise the annotation value
+ * \return std::nullopt if not found; otherwise the annotation value
  */
 template <class TObjectRef>
 inline Optional<TObjectRef> GetAnn(const StmtSRef& sref, const String& ann_key) {

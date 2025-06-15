@@ -19,14 +19,14 @@
 #ifndef TVM_META_SCHEDULE_DATABASE_H_
 #define TVM_META_SCHEDULE_DATABASE_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/trace.h>
@@ -238,7 +238,7 @@ class DatabaseNode : public runtime::Object {
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The best record of the given workload; NullOpt if not found.
+   * \return The best record of the given workload; std::nullopt if not found.
    */
   virtual Optional<TuningRecord> QueryTuningRecord(const IRModule& mod, const Target& target,
                                                    const String& workload_name);
@@ -247,7 +247,7 @@ class DatabaseNode : public runtime::Object {
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The schedule in the best schedule of the given workload; NullOpt if not found.
+   * \return The schedule in the best schedule of the given workload; std::nullopt if not found.
    */
   virtual Optional<tir::Schedule> QuerySchedule(const IRModule& mod, const Target& target,
                                                 const String& workload_name);
@@ -256,7 +256,7 @@ class DatabaseNode : public runtime::Object {
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The IRModule in the best IRModule of the given workload; NullOpt if not found.
+   * \return The IRModule in the best IRModule of the given workload; std::nullopt if not found.
    */
   virtual Optional<IRModule> QueryIRModule(const IRModule& mod, const Target& target,
                                            const String& workload_name);
@@ -330,7 +330,7 @@ class PyDatabaseNode : public DatabaseNode {
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The best record of the given workload; NullOpt if not found.
+   * \return The best record of the given workload; std::nullopt if not found.
    */
   using FQueryTuningRecord =
       ffi::TypedFunction<Optional<TuningRecord>(const IRModule&, const Target&, const String&)>;
@@ -339,7 +339,7 @@ class PyDatabaseNode : public DatabaseNode {
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The schedule in the best schedule of the given workload; NullOpt if not found.
+   * \return The schedule in the best schedule of the given workload; std::nullopt if not found.
    */
   using FQuerySchedule =
       ffi::TypedFunction<Optional<tir::Schedule>(const IRModule&, const Target&, const String&)>;
@@ -348,7 +348,7 @@ class PyDatabaseNode : public DatabaseNode {
    * \param mod The IRModule to be searched for.
    * \param target The target to be searched for.
    * \param workload_name The name of the workload to be searched for.
-   * \return The IRModule in the best IRModule of the given workload; NullOpt if not found.
+   * \return The IRModule in the best IRModule of the given workload; std::nullopt if not found.
    */
   using FQueryIRModule =
       ffi::TypedFunction<Optional<IRModule>(const IRModule&, const Target&, const String&)>;

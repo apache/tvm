@@ -334,7 +334,7 @@ tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/memory/*.cc
   src/runtime/disco/*.cc
   src/runtime/minrpc/*.cc
-  src/runtime/relax_vm/*.cc
+  src/runtime/vm/*.cc
 )
 set(TVM_RUNTIME_EXT_OBJS "")
 
@@ -525,6 +525,7 @@ if(BUILD_STATIC_RUNTIME)
   add_library(tvm_runtime STATIC
     $<TARGET_OBJECTS:tvm_runtime_objs>
     $<TARGET_OBJECTS:tvm_libinfo_objs>
+    $<TARGET_OBJECTS:tvm_ffi_objs>
     ${TVM_RUNTIME_EXT_OBJS}
   )
   set(NOTICE_MULTILINE
@@ -844,26 +845,3 @@ if(USE_ROCM AND USE_RCCL)
   target_link_libraries(tvm PRIVATE rccl)
   target_link_libraries(tvm_runtime PRIVATE rccl)
 endif()
-
-
-option(USE_FLASHINFER "Build TVM with FlashInfer" OFF)
-if (USE_FLASHINFER STREQUAL "ON")
-  message(STATUS "Build with FlashInfer")
-  set(FLASHINFER_TVM_BINDING ON)
-  set(FLASHINFER_TVM_SOURCE_DIR ${PROJECT_SOURCE_DIR})
-  set(FLASHINFER_PREFILL OFF)
-  set(FLASHINFER_DECODE OFF)
-  set(FLASHINFER_PAGE OFF)
-  set(FLASHINFER_CASCADE OFF)
-  set(FLASHINFER_SAMPLING OFF)
-  set(FLASHINFER_NORM OFF)
-  add_subdirectory(3rdparty/flashinfer)
-else ()
-  message(STATUS "Build without FlashInfer")
-endif ()
-
-
-if (USE_FLASHINFER STREQUAL "ON")
-  target_link_libraries(tvm PRIVATE flashinfer_tvm)
-  target_link_libraries(tvm_runtime PRIVATE flashinfer_tvm)
-endif ()

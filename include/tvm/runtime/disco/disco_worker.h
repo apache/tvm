@@ -25,8 +25,8 @@
 #ifndef TVM_RUNTIME_DISCO_DISCO_WORKER_H_
 #define TVM_RUNTIME_DISCO_DISCO_WORKER_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <vector>
 

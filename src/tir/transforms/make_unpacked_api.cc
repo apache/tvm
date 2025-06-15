@@ -20,8 +20,8 @@
 /*!
  * \file make_unpacked_api.cc Lower PrimFunc to a standard C function API.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
@@ -51,7 +51,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
     if (rewriter.made_change_) {
       return stmt;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }
 
@@ -200,7 +200,7 @@ Pass MakeUnpackedAPI() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.MakeUnpackedAPI", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.MakeUnpackedAPI").set_body_typed(MakeUnpackedAPI);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.MakeUnpackedAPI").set_body_typed(MakeUnpackedAPI);
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

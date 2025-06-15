@@ -131,7 +131,7 @@ cdef extern from "tvm/ffi/c_api.h":
         void (*update_traceback)(TVMFFIObjectHandle self, const TVMFFIByteArray* traceback)
 
     ctypedef int (*TVMFFISafeCallType)(
-        void* ctx, const TVMFFIAny* args, int32_t num_args,
+        void* handle, const TVMFFIAny* args, int32_t num_args,
         TVMFFIAny* result) noexcept
 
     int TVMFFIObjectFree(TVMFFIObjectHandle obj) nogil
@@ -150,7 +150,7 @@ cdef extern from "tvm/ffi/c_api.h":
     int TVMFFIEnvRegisterCAPI(TVMFFIByteArray* name, void* ptr) nogil
     int TVMFFITypeKeyToIndex(TVMFFIByteArray* type_key, int32_t* out_tindex) nogil
     int TVMFFIDataTypeFromString(TVMFFIByteArray* str, DLDataType* out) nogil
-    int TVMFFIDataTypeToString(DLDataType dtype, TVMFFIObjectHandle* out) nogil
+    int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIObjectHandle* out) nogil
     const TVMFFIByteArray* TVMFFITraceback(const char* filename, int lineno, const char* func) nogil;
     int TVMFFINDArrayFromDLPack(DLManagedTensor* src, int32_t require_alignment,
                                 int32_t require_contiguous, TVMFFIObjectHandle* out) nogil

@@ -26,7 +26,7 @@ from typing import Optional, Sequence
 
 import tvm
 from tvm import relax, runtime
-from tvm._ffi.registry import register_func
+from tvm.ffi.registry import register_func
 from tvm.contrib.nvcc import get_cuda_version
 from tvm.topi.utils import get_const_tuple
 

@@ -23,9 +23,9 @@
 #ifndef TVM_NODE_STRUCTURAL_EQUAL_H_
 #define TVM_NODE_STRUCTURAL_EQUAL_H_
 
+#include <tvm/ffi/container/array.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/object_path.h>
-#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/data_type.h>
 
 #include <cmath>
@@ -253,24 +253,26 @@ class SEqualReducer {
    * \return the immediate check result.
    */
   bool operator()(const double& lhs, const double& rhs,
-                  Optional<ObjectPathPair> paths = NullOpt) const;
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
   bool operator()(const int64_t& lhs, const int64_t& rhs,
-                  Optional<ObjectPathPair> paths = NullOpt) const;
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
   bool operator()(const uint64_t& lhs, const uint64_t& rhs,
-                  Optional<ObjectPathPair> paths = NullOpt) const;
-  bool operator()(const int& lhs, const int& rhs, Optional<ObjectPathPair> paths = NullOpt) const;
-  bool operator()(const bool& lhs, const bool& rhs, Optional<ObjectPathPair> paths = NullOpt) const;
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
+  bool operator()(const int& lhs, const int& rhs,
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
+  bool operator()(const bool& lhs, const bool& rhs,
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
   bool operator()(const std::string& lhs, const std::string& rhs,
-                  Optional<ObjectPathPair> paths = NullOpt) const;
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
   bool operator()(const DataType& lhs, const DataType& rhs,
-                  Optional<ObjectPathPair> paths = NullOpt) const;
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
   bool operator()(const Optional<double>& lhs, const Optional<double>& rhs,
-                  Optional<ObjectPathPair> paths = NullOpt) const;
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
   bool operator()(const Optional<int64_t>& lhs, const Optional<int64_t>& rhs,
-                  Optional<ObjectPathPair> paths = NullOpt) const;
+                  Optional<ObjectPathPair> paths = std::nullopt) const;
   template <typename ENum, typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
   bool operator()(const ENum& lhs, const ENum& rhs,
-                  Optional<ObjectPathPair> paths = NullOpt) const {
+                  Optional<ObjectPathPair> paths = std::nullopt) const {
     using Underlying = typename std::underlying_type<ENum>::type;
     static_assert(std::is_same<Underlying, int>::value,
                   "Enum must have `int` as the underlying type");
@@ -327,7 +329,7 @@ class SEqualReducer {
    * \return the immediate check result.
    */
   bool AnyEqual(const ffi::Any& lhs, const ffi::Any& rhs,
-                Optional<ObjectPathPair> paths = NullOpt) const;
+                Optional<ObjectPathPair> paths = std::nullopt) const;
 
   /*!
    * \brief Reduce condition to comparison of two definitions,
@@ -355,7 +357,11 @@ class SEqualReducer {
       // depth as array comparison is pretty common.
       if (lhs.size() != rhs.size()) return false;
       for (size_t i = 0; i < lhs.size(); ++i) {
-        if (!(operator()(lhs[i], rhs[i]))) return false;
+        if constexpr (std::is_same_v<T, ffi::Any>) {
+          if (!(AnyEqual(lhs[i], rhs[i]))) return false;
+        } else {
+          if (!(operator()(lhs[i], rhs[i]))) return false;
+        }
       }
       return true;
     }
@@ -401,7 +407,7 @@ class SEqualReducer {
 
  private:
   bool EnumAttrsEqual(int lhs, int rhs, const void* lhs_address, const void* rhs_address,
-                      Optional<ObjectPathPair> paths = NullOpt) const;
+                      Optional<ObjectPathPair> paths = std::nullopt) const;
 
   bool ObjectAttrsEqual(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
                         const ObjectPathPair* paths) const;
@@ -413,7 +419,7 @@ class SEqualReducer {
   template <typename T>
   static bool CompareAttributeValues(const T& lhs, const T& rhs,
                                      const PathTracingData* tracing_data,
-                                     Optional<ObjectPathPair> paths = NullOpt);
+                                     Optional<ObjectPathPair> paths = std::nullopt);
 
   /*! \brief Internal class pointer. */
   Handler* handler_ = nullptr;

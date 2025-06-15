@@ -25,7 +25,7 @@ from tvm.contrib.msc.core import _ffi_api
 from tvm.contrib.msc.core import utils as msc_utils
 
 
-@tvm._ffi.register_object("msc.core.MSCTensor")
+@tvm.ffi.register_object("msc.core.MSCTensor")
 class MSCTensor(Object):
     """Tensor in MSCGraph
 
@@ -198,7 +198,7 @@ class BaseJoint(Object):
     """Base class of all MSC Nodes."""
 
 
-@tvm._ffi.register_object("msc.core.MSCJoint")
+@tvm.ffi.register_object("msc.core.MSCJoint")
 class MSCJoint(BaseJoint):
     """Node in MSCGraph
 
@@ -423,7 +423,7 @@ class MSCJoint(BaseJoint):
         return msc_utils.dict_equal(self.get_attrs(), other.get_attrs())
 
 
-@tvm._ffi.register_object("msc.core.MSCPrim")
+@tvm.ffi.register_object("msc.core.MSCPrim")
 class MSCPrim(BaseJoint):
     """Prim in MSCGraph
 
@@ -447,7 +447,7 @@ class MSCPrim(BaseJoint):
         self.__init_handle_by_constructor__(_ffi_api.MSCPrim, index, name, optype, attrs, parents)
 
 
-@tvm._ffi.register_object("msc.core.WeightJoint")
+@tvm.ffi.register_object("msc.core.WeightJoint")
 class WeightJoint(BaseJoint):
     """Node in WeightGraph
 
@@ -565,7 +565,7 @@ class BaseGraph(Object):
     """Base class of all MSC Graphs."""
 
 
-@tvm._ffi.register_object("msc.core.MSCGraph")
+@tvm.ffi.register_object("msc.core.MSCGraph")
 class MSCGraph(BaseGraph):
     """The MSCGraph
 
@@ -954,7 +954,7 @@ class MSCGraph(BaseGraph):
         return graph_proto
 
 
-@tvm._ffi.register_object("msc.core.WeightGraph")
+@tvm.ffi.register_object("msc.core.WeightGraph")
 class WeightGraph(Object):
     """The WeightGraph
 

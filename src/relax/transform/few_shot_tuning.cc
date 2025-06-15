@@ -55,11 +55,11 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
       /*target=*/target,
       /*space_generator=*/
       meta_schedule::SpaceGenerator::PostOrderApply(/*f_block_filter=*/nullptr,
-                                                    /*sch_rules=*/NullOpt,
-                                                    /*postprocs=*/NullOpt,
-                                                    /*mutator_probs=*/NullOpt),
+                                                    /*sch_rules=*/std::nullopt,
+                                                    /*postprocs=*/std::nullopt,
+                                                    /*mutator_probs=*/std::nullopt),
       /*search_strategy=*/meta_schedule::SearchStrategy::ReplayTrace(/*max_fail_count=*/100),
-      /*task_name=*/NullOpt,
+      /*task_name=*/std::nullopt,
       /*num_threads=*/num_threads,  // use all available local threads
       /*rand_state=*/-1,            // -1 means use random seed
       /*logger=*/nullptr);
@@ -67,8 +67,8 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
   task->search_strategy.value()->PreTuning(
       /*max_trials=*/valid_count, /*num_trials_per_iter=*/valid_count,
       /*design_spaces=*/task->space_generator.value()->GenerateDesignSpace(mod),
-      /*database=*/NullOpt,
-      /*cost_model=*/NullOpt);
+      /*database=*/std::nullopt,
+      /*cost_model=*/std::nullopt);
   int fail_count = 0, max_fail_count = 100;
   while (valid_count > 0 && fail_count < max_fail_count) {
     Optional<Array<meta_schedule::MeasureCandidate>> candidates =
@@ -172,7 +172,7 @@ Pass FewShotTuning(int valid_count, bool benchmark) {
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.FewShotTuning").set_body_typed(FewShotTuning);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.FewShotTuning").set_body_typed(FewShotTuning);
 
 }  // namespace transform
 }  // namespace relax

@@ -29,7 +29,6 @@
 #include <string>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 namespace tvm {
 namespace tir {
@@ -265,7 +264,7 @@ class BufferStoreNode : public StmtNode {
 class BufferStore : public Stmt {
  public:
   TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
-                               Optional<PrimExpr> predicate = NullOpt, Span span = Span());
+                               Optional<PrimExpr> predicate = std::nullopt, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);
@@ -333,124 +332,6 @@ class BufferRealize : public Stmt {
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(BufferRealize, Stmt, BufferRealizeNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRealizeNode);
-};
-
-/*!
- * \brief Store value into mult-dimensional array that will be read by the consumer
- *        of the producer.
- *
- * \note This node only appears in high-level DSLs that are built on top of the TIR.
- *       It should not appear in a valid TIR PrimFunc. A high-level DSL needs to lower
- *       this node before TIR transformations.
- *
- * \sa DataProducer
- */
-class ProducerStoreNode : public StmtNode {
- public:
-  /*! \brief The producer to store the results into. */
-  DataProducer producer;
-  /*! \brief The value to be stored. */
-  PrimExpr value;
-  /*! \brief The index arguments of the function. */
-  Array<PrimExpr> indices;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("producer", &producer);
-    v->Visit("value", &value);
-    v->Visit("indices", &indices);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const ProducerStoreNode* other, SEqualReducer equal) const {
-    return equal(producer, other->producer) && equal(value, other->value) &&
-           equal(indices, other->indices);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(producer);
-    hash_reduce(value);
-    hash_reduce(indices);
-  }
-
-  static constexpr const char* _type_key = "tir.ProducerStore";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerStoreNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to ProducerStoreNode.
- * \sa ProducerStoreNode
- */
-class ProducerStore : public Stmt {
- public:
-  TVM_DLL ProducerStore(DataProducer producer, PrimExpr value, Array<PrimExpr> indices,
-                        Span span = Span());
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ProducerStore, Stmt, ProducerStoreNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ProducerStoreNode);
-};
-
-/*!
- * \brief Annotate the bounds where the data produced by the producer
- *  need to be written and read in body.
- *  We will need to allocate space for the corresponding regions.
- *
- * \note This node only appears in high-level DSLs that are built on top of the TIR.
- *       It should not appear in a valid TIR PrimFunc. A high-level DSL needs to lower
- *       this node before TIR transformations.
- *
- * \sa DataProducer
- */
-class ProducerRealizeNode : public StmtNode {
- public:
-  /*! \brief The producer that produces the data. */
-  DataProducer producer;
-  /*! \brief Bounds to be realized. */
-  Region bounds;
-  /*! \brief Only realize if condition holds. */
-  PrimExpr condition;
-  /*! \brief The body of realization. */
-  Stmt body;
-  /*! \brief The storage scope associated with this realization. */
-  String storage_scope;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("producer", &producer);
-    v->Visit("bounds", &bounds);
-    v->Visit("condition", &condition);
-    v->Visit("body", &body);
-    v->Visit("storage_scope", &storage_scope);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const ProducerRealizeNode* other, SEqualReducer equal) const {
-    return equal(producer, other->producer) && equal(bounds, other->bounds) &&
-           equal(condition, other->condition) && equal(body, other->body) &&
-           equal(storage_scope, other->storage_scope);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(producer);
-    hash_reduce(bounds);
-    hash_reduce(condition);
-    hash_reduce(body);
-    hash_reduce(storage_scope);
-  }
-
-  static constexpr const char* _type_key = "tir.ProducerRealize";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerRealizeNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to ProducerRealizeNode.
- * \sa ProducerRealizeNode
- */
-class ProducerRealize : public Stmt {
- public:
-  TVM_DLL ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition, Stmt body,
-                          String storage_scope = "", Span span = Span());
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ProducerRealize, Stmt, ProducerRealizeNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ProducerRealizeNode);
 };
 
 /*!
@@ -818,16 +699,16 @@ class SeqStmt : public Stmt {
         return t;
       }
       if constexpr (!std::is_base_of_v<T, SeqStmt>) {
-        return NullOpt;
+        return std::nullopt;
       }
       if constexpr (std::is_base_of_v<Stmt, T>) {
         if (const SeqStmtNode* ptr = t.template as<SeqStmtNode>()) {
           return GetRef<SeqStmt>(ptr);
         } else {
-          return NullOpt;
+          return std::nullopt;
         }
       }
-      return NullOpt;
+      return std::nullopt;
     }
 
     template <typename T>
@@ -925,7 +806,7 @@ class IfThenElseNode : public StmtNode {
  */
 class IfThenElse : public Stmt {
  public:
-  TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case, Optional<Stmt> else_case = NullOpt,
+  TVM_DLL IfThenElse(PrimExpr condition, Stmt then_case, Optional<Stmt> else_case = std::nullopt,
                      Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(IfThenElse, Stmt, IfThenElseNode);
@@ -1035,7 +916,7 @@ class ForNode : public StmtNode {
 class For : public Stmt {
  public:
   TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
-              Optional<IterVar> thread_binding = NullOpt,
+              Optional<IterVar> thread_binding = std::nullopt,
               Map<String, ffi::Any> annotations = Map<String, ffi::Any>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
@@ -1088,51 +969,6 @@ class While : public Stmt {
 
   TVM_DEFINE_OBJECT_REF_METHODS(While, Stmt, WhileNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(WhileNode);
-};
-
-/*!
- * \brief A prefetch hint for a buffer
- */
-class PrefetchNode : public StmtNode {
- public:
-  /*! \brief The function to be prefetched. */
-  Buffer buffer;
-  /*! \brief Bounds to be prefetched. */
-  Array<Range> bounds;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
-    v->Visit("bounds", &bounds);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const PrefetchNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(bounds, other->bounds);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
-    hash_reduce(bounds);
-  }
-
-  PrefetchNode() = default;
-  PrefetchNode(Buffer buffer, Array<Range> bounds, Span span = Span())
-      : StmtNode(span), buffer(buffer), bounds(bounds) {}
-
-  static constexpr const char* _type_key = "tir.Prefetch";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrefetchNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to PrefetchNode.
- * \sa PrefetchNode
- */
-class Prefetch : public Stmt {
- public:
-  TVM_DLL explicit Prefetch(Buffer buffer, Array<Range> bounds, Span span = Span());
-
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Prefetch, Stmt, PrefetchNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(PrefetchNode);
 };
 
 /*!
@@ -1280,7 +1116,7 @@ class BlockNode : public StmtNode {
    *  reduction block. The optional init field allows us to represent initialization and
    *  reduction update in a single block and transform them collectively.
    *  We also provide primitives to decompose the init into a separate block during scheduling.
-   *  Init field is `NullOpt` if there is no reduction iter_vars
+   *  Init field is `std::nullopt` if there is no reduction iter_vars
    */
   Optional<Stmt> init;
   /*! \brief The buffer allocated in the block. */
@@ -1334,7 +1170,7 @@ class Block : public Stmt {
  public:
   TVM_DLL explicit Block(Array<IterVar> iter_vars, Array<BufferRegion> reads,
                          Array<BufferRegion> writes, String name_hint, Stmt body,
-                         Optional<Stmt> init = NullOpt,
+                         Optional<Stmt> init = std::nullopt,
                          Array<Buffer> alloc_buffers = Array<Buffer>(),
                          Array<MatchBufferRegion> match_buffers = Array<MatchBufferRegion>(),
                          Map<String, ffi::Any> annotations = Map<String, ffi::Any>(),

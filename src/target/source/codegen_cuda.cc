@@ -24,7 +24,7 @@
 #include "codegen_cuda.h"
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/index_map.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -64,8 +64,40 @@ std::string GetFP8Type(DataType type) {
     suffix = "_e4m3";
   } else if (type.code() == DataType::kFloat8_e5m2) {
     suffix = "_e5m2";
+  } else if (type.code() == DataType::kFloat8_e8m0fnu) {
+    suffix = "_e8m0";
   } else {
     LOG(FATAL) << "Unsupported FP8 type in CUDA codegen";
+  }
+  stream << vec << suffix;
+  return stream.str();
+}
+
+std::string GetFP6Type(DataType type) {
+  std::stringstream stream;
+  int32_t lanes = type.lanes();
+  std::string vec;
+  if (type.is_scalar()) {
+    vec = "";
+  } else if (lanes == 2) {
+    vec = "x2";
+  } else if (lanes == 4) {
+    vec = "x4";
+  } else if (lanes == 8) {
+    vec = "x8";
+  } else if (lanes == 16) {
+    vec = "x16";
+  } else {
+    LOG(FATAL) << "Only support scalar and vector types of width (2, 4) for FP6";
+  }
+  stream << "__nv_fp6";
+  std::string suffix;
+  if (type.code() == DataType::kFloat6_e2m3fn) {
+    suffix = "_e2m3";
+  } else if (type.code() == DataType::kFloat6_e3m2fn) {
+    suffix = "_e3m2";
+  } else {
+    LOG(FATAL) << "Unsupported FP6 type in CUDA codegen";
   }
   stream << vec << suffix;
   return stream.str();
@@ -81,15 +113,19 @@ std::string GetFP4Type(DataType type) {
     vec = "x2";
   } else if (lanes == 4) {
     vec = "x4";
+  } else if (lanes == 8) {
+    vec = "x8";
+  } else if (lanes == 16) {
+    vec = "x16";
   } else {
-    LOG(FATAL) << "Only support scalar and vector types of width (2, 4) for FP8";
+    LOG(FATAL) << "Only support scalar and vector types of width (2, 4) for FP4";
   }
   stream << "__nv_fp4";
   std::string suffix;
   if (type.code() == DataType::kFloat4_e2m1fn) {
     suffix = "_e2m1";
   } else {
-    LOG(FATAL) << "Unsupported FP8 type in CUDA codegen";
+    LOG(FATAL) << "Unsupported FP4 type in CUDA codegen";
   }
   stream << vec << suffix;
   return stream.str();
@@ -187,11 +223,38 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << "using fp8_e5x4_t = __nv_fp8x4_e5m2;\n";
     decl_stream << "struct fp8_e5x8_t {\n fp8_e5_t data[8]; \n};\n";
     decl_stream << "struct fp8_e5x16_t {\n fp8_e5_t data[16]; \n};\n";
+    decl_stream << "using fp8_e8_t = __nv_fp8_e8m0;\n";
+    decl_stream << "using fp8_e8x2_t = __nv_fp8x2_e8m0;\n";
+    decl_stream << "using fp8_e8x4_t = __nv_fp8x4_e8m0;\n";
+    decl_stream << "struct fp8_e8x8_t {\n fp8_e8_t data[8]; \n};\n";
+    decl_stream << "struct fp8_e8x16_t {\n fp8_e8_t data[16]; \n};\n";
     decl_stream << "#endif\n\n";
   }
+
+  if (enable_fp6_) {
+    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 1000)\n";
+    decl_stream << "#include <cuda_fp6.h>\n";
+    decl_stream << "using fp6_e2_t = __nv_fp6_e2m3;\n";
+    decl_stream << "using fp6_e2x2_t = __nv_fp6x2_e2m3;\n";
+    decl_stream << "using fp6_e2x4_t = __nv_fp6x4_e2m3;\n";
+    decl_stream << "struct fp6_e2x8_t {\n fp6_e2_t data[8]; \n};\n";
+    decl_stream << "struct fp6_e2x16_t {\n fp6_e2_t data[16]; \n};\n";
+    decl_stream << "using fp6_e3_t = __nv_fp6_e3m2;\n";
+    decl_stream << "using fp6_e3x2_t = __nv_fp6x2_e3m2;\n";
+    decl_stream << "using fp6_e3x4_t = __nv_fp6x4_e3m2;\n";
+    decl_stream << "struct fp6_e3x8_t {\n fp6_e3_t data[8]; \n};\n";
+    decl_stream << "struct fp6_e3x16_t {\n fp6_e3_t data[16]; \n};\n";
+    decl_stream << "#endif\n\n";
+  }
+
   if (enable_fp4_) {
     decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)\n";
     decl_stream << "#include <cuda_fp4.h>\n";
+    decl_stream << "using fp4_e2_t = __nv_fp4_e2m1;\n";
+    decl_stream << "using fp4_e2x2_t = __nv_fp4x2_e2m1;\n";
+    decl_stream << "using fp4_e2x4_t = __nv_fp4x4_e2m1;\n";
+    decl_stream << "struct fp4_e2x8_t {\n fp4_e2_t data[8]; \n};\n";
+    decl_stream << "struct fp4_e2x16_t {\n fp4_e2_t data[16]; \n};\n";
     decl_stream << "#endif\n\n";
   }
   declare_vector_type_extensions(decl_stream, enable_fp16_, enable_bf16_, enable_fp8_, enable_fp4_);
@@ -347,6 +410,14 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       os << GetFP8Type(t);
     } else {
       os << "uint" << t.lanes() / 4;
+    }
+    return;
+  } else if (t.is_float6()) {
+    enable_fp6_ = true;
+    if (t.lanes() <= 4) {
+      os << GetFP6Type(t);
+    } else {
+      fail = true;
     }
     return;
   } else if (t.is_float4()) {
@@ -744,9 +815,20 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   // Emit simple C-style type conversion.
   if (from_ty.is_scalar()) return CodeGenC::VisitExpr_(op, os);
 
-  if (target_ty.code() == DataType::kFloat8_e4m3fn || target_ty.code() == DataType::kFloat8_e5m2 ||
-      target_ty.code() == DataType::kFloat4_e2m1fn || from_ty.code() == DataType::kFloat8_e4m3fn ||
-      from_ty.code() == DataType::kFloat8_e5m2 || from_ty.code() == DataType::kFloat4_e2m1fn) {
+  if (target_ty.code() == DataType::kFloat8_e3m4 || target_ty.code() == DataType::kFloat8_e4m3 ||
+      target_ty.code() == DataType::kFloat8_e4m3b11fnuz ||
+      target_ty.code() == DataType::kFloat8_e4m3fn ||
+      target_ty.code() == DataType::kFloat8_e4m3fnuz ||
+      target_ty.code() == DataType::kFloat8_e5m2 ||
+      target_ty.code() == DataType::kFloat8_e5m2fnuz ||
+      target_ty.code() == DataType::kFloat8_e8m0fnu ||
+      target_ty.code() == DataType::kFloat4_e2m1fn ||
+
+      from_ty.code() == DataType::kFloat8_e3m4 || from_ty.code() == DataType::kFloat8_e4m3 ||
+      from_ty.code() == DataType::kFloat8_e4m3b11fnuz ||
+      from_ty.code() == DataType::kFloat8_e4m3fn || from_ty.code() == DataType::kFloat8_e4m3fnuz ||
+      from_ty.code() == DataType::kFloat8_e5m2 || from_ty.code() == DataType::kFloat8_e5m2fnuz ||
+      from_ty.code() == DataType::kFloat8_e8m0fnu || from_ty.code() == DataType::kFloat4_e2m1fn) {
     std::ostringstream val;
     if (target_ty.code() == DataType::kBFloat && target_ty.lanes() == 2) {
       val << "cast_to_nv_bfloat162(" << PrintExpr(op->value) << ")";
@@ -1537,21 +1619,37 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
   }
   // Type code is kFloat
   switch (op->dtype.bits()) {
-    case 64:
+    case 64: {
+      std::ostringstream temp;
+      if (std::isinf(op->value)) {
+        if (op->value < 0) {
+          temp << "-";
+        }
+        temp << "CUDART_INF";
+        p->need_math_constants_h_ = true;
+      } else if (std::isnan(op->value)) {
+        temp << "CUDART_NAN";
+        p->need_math_constants_h_ = true;
+      } else {
+        temp << std::fixed << std::setprecision(15) << op->value;
+      }
+      p->MarkConst(temp.str());
+      os << temp.str();
+      break;
+    }
     case 32: {
       std::ostringstream temp;
       if (std::isinf(op->value)) {
         if (op->value < 0) {
           temp << "-";
         }
-        temp << ((op->dtype.bits() == 32) ? "CUDART_INF_F" : "CUDART_INF");
+        temp << "CUDART_INF_F";
         p->need_math_constants_h_ = true;
       } else if (std::isnan(op->value)) {
-        temp << ((op->dtype.bits() == 32) ? "CUDART_NAN_F" : "CUDART_NAN");
+        temp << "CUDART_NAN_F";
         p->need_math_constants_h_ = true;
       } else {
-        temp << std::scientific << op->value;
-        if (op->dtype.bits() == 32) temp << 'f';
+        temp << std::scientific << op->value << 'f';
       }
       p->MarkConst(temp.str());
       os << temp.str();

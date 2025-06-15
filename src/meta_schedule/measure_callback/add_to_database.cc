@@ -65,7 +65,7 @@ MeasureCallback MeasureCallback::AddToDatabase() {
 }
 
 TVM_REGISTER_NODE_TYPE(AddToDatabaseNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackAddToDatabase")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MeasureCallbackAddToDatabase")
     .set_body_typed(MeasureCallback::AddToDatabase);
 
 }  // namespace meta_schedule

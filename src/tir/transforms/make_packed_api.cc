@@ -20,8 +20,9 @@
 /*!
  * \file make_packed_api.cc Lower PrimFunc to use the packed function API.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/runtime/module.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
@@ -123,7 +124,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
     if (rewriter.made_change_) {
       return stmt;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }
 
@@ -172,21 +173,21 @@ inline Stmt MakeAssertNotNull(PrimExpr ptr, std::string msg) {
  * \param func The function to be inspected
  *
  * \returns The global_symbol to be used for the function at call
- * sites, or NullOpt if the function is to remain unchanged.
+ * sites, or std::nullopt if the function is to remain unchanged.
  */
 Optional<String> RequiresPackedAPI(const PrimFunc& func) {
   // A function with an explicit calling convention has already been
   // lowered, and should not be modified.
   if (auto opt = func->GetAttr<Integer>(tvm::attr::kCallingConv)) {
     if (CallingConv(opt.value()->value) != CallingConv::kDefault) {
-      return NullOpt;
+      return std::nullopt;
     }
   }
 
   // Internal function calls do not need the ffi::Function API
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
   if (!global_symbol.defined()) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   return global_symbol;
@@ -335,7 +336,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     }
   }
 
-  // signature: (void* self, TVMFFIAny* packed_args, int num_args, TVMFFIAny* v_result)
+  // signature: (void* handle, TVMFFIAny* packed_args, int num_args, TVMFFIAny* v_result)
   Array<Var> args{v_self_handle, v_packed_args, v_num_packed_args, v_result};
 
   // Arg definitions are defined before buffer binding to avoid the use before
@@ -438,7 +439,9 @@ Pass MakePackedAPI() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.MakePackedAPI", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.MakePackedAPI").set_body_typed([]() { return MakePackedAPI(); });
+TVM_FFI_REGISTER_GLOBAL("tir.transform.MakePackedAPI").set_body_typed([]() {
+  return MakePackedAPI();
+});
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

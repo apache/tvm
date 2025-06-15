@@ -22,12 +22,11 @@
  * \brief Threadpool for multi-threading runtime.
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 #if TVM_THREADPOOL_USE_OPENMP
 #include <omp.h>
@@ -379,7 +378,7 @@ class ThreadPool {
  * \brief args[0] is the AffinityMode, args[1] is the number of threads.
  *  args2 is a list of CPUs which is used to set the CPU affinity.
  */
-TVM_REGISTER_GLOBAL("runtime.config_threadpool")
+TVM_FFI_REGISTER_GLOBAL("runtime.config_threadpool")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       threading::ThreadGroup::AffinityMode mode =
           static_cast<threading::ThreadGroup::AffinityMode>(args[0].cast<int>());
@@ -395,7 +394,7 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool")
       threading::Configure(mode, nthreads, cpus);
     });
 
-TVM_REGISTER_GLOBAL("runtime.NumThreads").set_body_typed([]() -> int32_t {
+TVM_FFI_REGISTER_GLOBAL("runtime.NumThreads").set_body_typed([]() -> int32_t {
   return threading::NumThreads();
 });
 

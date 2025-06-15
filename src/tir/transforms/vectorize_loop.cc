@@ -22,7 +22,7 @@
  */
 // Loop vectorizer as in Halide pipeline.
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -80,8 +80,8 @@ bool EnableBufferLevelPredication(Target target) {
     return enable_buffer_predication.value();
   }
 
-  // Use buffer-level predication by default for AArch64 SVE targets
-  return arith::TargetHasSVE(target);
+  // Use buffer-level predication by default for VLA targets
+  return arith::TargetHasVLA(target);
 }
 
 /*!
@@ -503,8 +503,8 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       if (value.dtype().is_scalable_vector()) {
         return Call(op->dtype.with_scalable_vscale_factor(lanes), op->op, {value});
       } else {
-        int new_lanes = (op->dtype != DataType::NVFloat4E2M1FN() &&
-                         op->args[0].dtype() != DataType::NVFloat4E2M1FN())
+        int new_lanes = (op->dtype != DataType::Float4E2M1FN() &&
+                         op->args[0].dtype() != DataType::Float4E2M1FN())
                             ? (value.dtype().bits() * value.dtype().lanes()) / op->dtype.bits()
                             : value.dtype().lanes();
         return Call(op->dtype.with_lanes(new_lanes), op->op, {value});
@@ -769,7 +769,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     // temp clear need_scalarize flag, so VisitStmt
     // won't trigger an ICHECK eror
     Stmt then_case = this->VisitStmt(op->then_case);
-    Optional<Stmt> else_case = NullOpt;
+    Optional<Stmt> else_case = std::nullopt;
     if (op->else_case) {
       else_case = this->VisitStmt(op->else_case.value());
     }
@@ -866,10 +866,6 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     Var idx(var_->name_hint + ".s", var_->dtype);
     stmt = Substitute(stmt, {{var_, idx}});
     return For(idx, IntImm(var_->dtype, 0), var_lanes_, ForKind::kSerial, stmt);
-  }
-  // ProducerStore
-  Stmt VisitStmt_(const ProducerStoreNode* op) final {
-    LOG(FATAL) << "ProducerProvide cannot appear in a TIR PrimFunc";
   }
 
  private:
@@ -972,7 +968,7 @@ class LoopVectorizer : public StmtMutator {
 
       if (!extent_as_int || extent_as_int->value < 1) {
         bool is_scalable_expr = CheckContains::ExprContains(op->extent, arith::IsVScaleCall);
-        ICHECK(is_scalable_expr && arith::TargetHasSVE(target_))
+        ICHECK(is_scalable_expr && arith::TargetHasVLA(target_))
             << "Failed to vectorize loop with extent " << op->extent << " for target " << target_;
       }
       ICHECK(is_zero(op->min));
@@ -1028,7 +1024,7 @@ Pass VectorizeLoop(bool enable_vectorize) {
   return CreatePrimFuncPass(pass_func, 0, "tir.VectorizeLoop", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.VectorizeLoop").set_body_typed(VectorizeLoop);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.VectorizeLoop").set_body_typed(VectorizeLoop);
 
 }  // namespace transform
 

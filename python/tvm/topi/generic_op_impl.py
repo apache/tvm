@@ -64,7 +64,7 @@ def _make_bop(broadcast_bop, orig_bop):
         it performs tensor-scalar {op} operation on an element-wise basis.
 
         Otherwise, it performs default generic.{op} operation, as defined
-        in tvm.generic module.
+        in tvm.tir.generic module.
 
         Parameters
         ----------

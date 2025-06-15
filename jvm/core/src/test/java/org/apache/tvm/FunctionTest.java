@@ -43,6 +43,8 @@ public class FunctionTest {
 
   @Test
   public void test_add_string() {
+    System.err.println("[TEST] test_add_string");
+
     Function func = Function.convertFunc(new Function.Callback() {
       @Override public Object invoke(TVMValue... args) {
         String res = "";

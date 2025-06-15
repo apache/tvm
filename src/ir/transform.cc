@@ -22,21 +22,19 @@
  * \brief Infrastructure for transformation passes.
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/rvalue_ref.h>
 #include <tvm/ir/transform.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relax/tuning_api.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include <chrono>
 #include <iomanip>
 #include <stack>
 #include <unordered_set>
 
-#include "../runtime/object_internal.h"
 #include "../runtime/regex.h"
 
 namespace tvm {
@@ -87,7 +85,7 @@ PassContext PassContext::Current() {
 }
 
 // linearly scan the pass array to match pass_name
-bool PassArrayContains(const Array<runtime::String>& pass_array, const std::string& pass_name) {
+bool PassArrayContains(const Array<String>& pass_array, const std::string& pass_name) {
   for (auto x : pass_array) {
     if (x == pass_name) return true;
   }
@@ -378,8 +376,7 @@ class ModulePass : public Pass {
   TVM_DEFINE_OBJECT_REF_METHODS(ModulePass, Pass, ModulePassNode);
 };
 
-PassInfo::PassInfo(int opt_level, String name, tvm::Array<runtime::String> required,
-                   bool traceable) {
+PassInfo::PassInfo(int opt_level, String name, tvm::Array<String> required, bool traceable) {
   auto pass_info = make_object<PassInfoNode>();
   pass_info->opt_level = opt_level;
   pass_info->name = std::move(name);
@@ -487,40 +484,7 @@ IRModule SequentialNode::operator()(IRModule mod, const PassContext& pass_ctx) c
       mod = GetPass(it)(std::move(mod), pass_ctx);
     }
 
-    // This handles passes that does not use Relax tuning API (untraceable passes).
-    // We make untraceable passes trackable when pass context has a trace (trace mode).
-    // When passes to trace (make_traceable) is provided from users, we only make them trackable.
-    if (pass_ctx->trace_stack.size() && !pass_info->traceable &&
-        (!pass_ctx->make_traceable.defined() ||
-         pass_ctx->make_traceable.value().count(pass_info->name))) {
-      // TODO(tvm-team): Currently, there are some inconsistency in the pass registration.
-      // 1. Some passes are not registered in ffi registry.
-      // 2. Some passes do not follow the name convention. (e.g., <ffi key> = <namespace> + <pass
-      // name>)
-
-      // Due to these problems, serialization with non-traceable passes is handled in a hacky way
-      // now. Find a systematic way to identify such inconsistencies and fix them.
-
-      // In the future, we should pass the ffi key for a pass by deducing from its name.
-      String transform_func_key = "relax.tuning_api.Choice.default_transform_func";
-      String constr_func_key = "relax.tuning_api.Choice.default_constr_func";
-
-      relax::Knob knob = relax::Knob(
-          pass_info->name, {{"Applied", relax::Choice(transform_func_key, Array<ObjectRef>(),
-                                                      constr_func_key, Array<ObjectRef>())}});
-
-      // Add new decision to the trace at the top of the stack.
-      auto trace = Downcast<relax::Trace>(pass_ctx->trace_stack.back());
-      trace->Add(knob, "Applied");
-      // In the future, we should just have
-      // mod = trace->Add(knob, "enabled");
-      // instead of the two lines below.
-      mod = pass(std::move(mod), pass_ctx);
-      trace->SetOutMod(mod);
-
-    } else {
-      mod = pass(std::move(mod), pass_ctx);
-    }
+    mod = pass(std::move(mod), pass_ctx);
   }
   return mod;
 }
@@ -533,12 +497,12 @@ Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func, 
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 
-TVM_REGISTER_GLOBAL("transform.PassInfo")
+TVM_FFI_REGISTER_GLOBAL("transform.PassInfo")
     .set_body_typed([](int opt_level, String name, tvm::Array<String> required, bool traceable) {
       return PassInfo(opt_level, name, required, traceable);
     });
 
-TVM_REGISTER_GLOBAL("transform.Info").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+TVM_FFI_REGISTER_GLOBAL("transform.Info").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
   Pass pass = args[0].cast<Pass>();
   *ret = pass->Info();
 });
@@ -563,7 +527,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
 
-TVM_REGISTER_GLOBAL("transform.MakeModulePass")
+TVM_FFI_REGISTER_GLOBAL("transform.MakeModulePass")
     .set_body_typed(
         [](ffi::TypedFunction<IRModule(ffi::RValueRef<IRModule>, PassContext)> pass_func,
            PassInfo pass_info) {
@@ -573,7 +537,7 @@ TVM_REGISTER_GLOBAL("transform.MakeModulePass")
           return ModulePass(wrapped_pass_func, pass_info);
         });
 
-TVM_REGISTER_GLOBAL("transform.RunPass")
+TVM_FFI_REGISTER_GLOBAL("transform.RunPass")
     .set_body_typed([](Pass pass, ffi::RValueRef<IRModule> mod) { return pass(*std::move(mod)); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -586,12 +550,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(SequentialNode);
 
-TVM_REGISTER_GLOBAL("transform.Sequential")
+TVM_FFI_REGISTER_GLOBAL("transform.Sequential")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto passes = args[0].cast<tvm::Array<Pass>>();
       int opt_level = args[1].cast<int>();
       std::string name = args[2].cast<std::string>();
-      auto required = args[3].cast<tvm::Array<runtime::String>>();
+      auto required = args[3].cast<tvm::Array<String>>();
       bool traceable = args[4].cast<bool>();
       PassInfo pass_info = PassInfo(opt_level, name, required, /* traceable */ traceable);
       *ret = Sequential(passes, pass_info);
@@ -613,12 +577,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 TVM_REGISTER_NODE_TYPE(PassContextNode);
 
-TVM_REGISTER_GLOBAL("transform.PassContext")
+TVM_FFI_REGISTER_GLOBAL("transform.PassContext")
     .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
                        Array<instrument::PassInstrument> instruments,
-                       Optional<Map<String, ffi::Any>> config, Array<ObjectRef> trace_stack,
-                       Optional<Map<String, Bool>> make_traceable, int num_evals,
-                       Optional<ObjectRef> tuning_api_database) {
+                       Optional<Map<String, ffi::Any>> config) {
       auto pctx = PassContext::Create();
       pctx->opt_level = opt_level;
 
@@ -629,10 +591,6 @@ TVM_REGISTER_GLOBAL("transform.PassContext")
       if (config.defined()) {
         pctx->config = config.value();
       }
-      pctx->trace_stack = std::move(trace_stack);
-      pctx->make_traceable = std::move(make_traceable);
-      pctx->num_evals = std::move(num_evals);
-      pctx->tuning_api_database = std::move(tuning_api_database);
       PassConfigManager::Global()->Legalize(&(pctx->config));
       return pctx;
     });
@@ -649,7 +607,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "\tinstruments: " << node->instruments << "\n";
 
       p->stream << "\tconfig: " << node->config << "\n";
-      p->stream << "\ttrace stack: " << node->trace_stack;
     });
 
 class PassContext::Internal {
@@ -659,24 +616,15 @@ class PassContext::Internal {
   static void ExitScope(PassContext pass_ctx) { pass_ctx.ExitWithScope(); }
 };
 
-TVM_REGISTER_GLOBAL("transform.GetTraceStack").set_body_method(&PassContextNode::GetTraceStack);
-TVM_REGISTER_GLOBAL("transform.PushTrace").set_body_method(&PassContextNode::PushTrace);
-TVM_REGISTER_GLOBAL("transform.PopTrace").set_body_method(&PassContextNode::PopTrace);
-TVM_REGISTER_GLOBAL("transform.GetTraceStackSize")
-    .set_body_method(&PassContextNode::GetTraceStackSize);
-TVM_REGISTER_GLOBAL("transform.GetCurrentTrace").set_body_method(&PassContextNode::GetCurrentTrace);
-TVM_REGISTER_GLOBAL("transform.SetNumEvals").set_body_method(&PassContextNode::SetNumEvals);
-TVM_REGISTER_GLOBAL("transform.IncNumEvals").set_body_method(&PassContextNode::IncNumEvals);
-TVM_REGISTER_GLOBAL("transform.GetTuningAPIDatabase")
-    .set_body_method(&PassContextNode::GetTuningAPIDatabase);
+TVM_FFI_REGISTER_GLOBAL("transform.GetCurrentPassContext").set_body_typed(PassContext::Current);
 
-TVM_REGISTER_GLOBAL("transform.GetCurrentPassContext").set_body_typed(PassContext::Current);
+TVM_FFI_REGISTER_GLOBAL("transform.EnterPassContext")
+    .set_body_typed(PassContext::Internal::EnterScope);
 
-TVM_REGISTER_GLOBAL("transform.EnterPassContext").set_body_typed(PassContext::Internal::EnterScope);
+TVM_FFI_REGISTER_GLOBAL("transform.ExitPassContext")
+    .set_body_typed(PassContext::Internal::ExitScope);
 
-TVM_REGISTER_GLOBAL("transform.ExitPassContext").set_body_typed(PassContext::Internal::ExitScope);
-
-TVM_REGISTER_GLOBAL("transform.OverrideInstruments")
+TVM_FFI_REGISTER_GLOBAL("transform.OverrideInstruments")
     .set_body_typed([](PassContext pass_ctx, Array<instrument::PassInstrument> instruments) {
       pass_ctx.InstrumentExitPassContext();
       pass_ctx->instruments = instruments;
@@ -691,9 +639,9 @@ Pass PrintIR(String header, bool show_meta_data) {
   return CreateModulePass(pass_func, 0, "PrintIR", {}, /* traceable */ false);
 }
 
-TVM_REGISTER_GLOBAL("transform.PrintIR").set_body_typed(PrintIR);
+TVM_FFI_REGISTER_GLOBAL("transform.PrintIR").set_body_typed(PrintIR);
 
-TVM_REGISTER_GLOBAL("transform.ListConfigs").set_body_typed(PassContext::ListConfigs);
+TVM_FFI_REGISTER_GLOBAL("transform.ListConfigs").set_body_typed(PassContext::ListConfigs);
 
 }  // namespace transform
 }  // namespace tvm

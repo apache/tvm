@@ -22,8 +22,8 @@
  * \brief A simple JSON runtime for DNNL.
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 
 #include <cstddef>
 #include <string>
@@ -927,9 +927,9 @@ runtime::Module DNNLJSONRuntimeCreate(String symbol_name, String graph_json,
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.DNNLJSONRuntimeCreate").set_body_typed(DNNLJSONRuntimeCreate);
+TVM_FFI_REGISTER_GLOBAL("runtime.DNNLJSONRuntimeCreate").set_body_typed(DNNLJSONRuntimeCreate);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_dnnl_json")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_dnnl_json")
     .set_body_typed(JSONRuntimeBase::LoadFromBinary<DNNLJSONRuntime>);
 
 }  // namespace contrib

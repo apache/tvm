@@ -173,7 +173,7 @@ class StorageAlignInvalidAnnotationError : public ScheduleError {
 
  private:
   static bool IsValidAnnotation(const Block& block, const Any& anno_value) {
-    return anno_value.as<ffi::Array<ffi::Tuple<int, int, int, int>>>().has_value();
+    return anno_value.try_cast<ffi::Array<ffi::Tuple<int, int, int, int>>>().has_value();
   }
 
   IRModule mod_;
@@ -347,7 +347,7 @@ void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_i
   const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   Buffer buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block), buffer_index, BufferIndexType::kWrite);
-  DataType target_dtype(runtime::StringToDLDataType(dtype));
+  DataType target_dtype(StringToDLDataType(dtype));
 
   // Step 1. If `dtype` equals the original data type, just return.
   if (buffer->dtype == target_dtype) {

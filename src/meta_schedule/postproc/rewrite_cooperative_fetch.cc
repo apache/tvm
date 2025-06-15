@@ -26,18 +26,18 @@ namespace tir {
  * \param sch The schedule
  * \param inst The instruction to be parsed
  * \param axis The axis name expected
- * \return NullOpt if parsing fails; Otherwise, the extent of thread axis
+ * \return std::nullopt if parsing fails; Otherwise, the extent of thread axis
  */
 Optional<Integer> ParseThreadBinding(const Schedule& sch, const Instruction& inst, String axis) {
   static InstructionKind inst_kind_bind = InstructionKind::Get("Bind");
   if (!inst->kind.same_as(inst_kind_bind)) {
-    return NullOpt;
+    return std::nullopt;
   }
   ICHECK_EQ(inst->inputs.size(), 1);
   ICHECK_EQ(inst->attrs.size(), 1);
   String thread_axis = Downcast<String>(inst->attrs[0]);
   if (thread_axis != axis) {
-    return NullOpt;
+    return std::nullopt;
   }
   return Downcast<Integer>(sch->Get(Downcast<LoopRV>(inst->inputs[0]))->extent);
 }
@@ -47,19 +47,19 @@ Optional<Integer> ParseThreadBinding(const Schedule& sch, const Instruction& ins
  * \param sch The schedule
  * \param inst The instruction to be parsed
  * \param vector_lane The number of vector lane in vectorized cooperative fetching
- * \return NullOpt if parsing fails; Otherwise, the annotated block
+ * \return std::nullopt if parsing fails; Otherwise, the annotated block
  */
 Optional<BlockRV> ParseAnnotate(const Schedule& sch, const Instruction& inst,
                                 int64_t* vector_lane) {
   static InstructionKind inst_kind_annotate = InstructionKind::Get("Annotate");
   if (!inst->kind.same_as(inst_kind_annotate)) {
-    return NullOpt;
+    return std::nullopt;
   }
   ICHECK_EQ(inst->inputs.size(), 2);
   ICHECK_EQ(inst->attrs.size(), 1);
   String ann_key = Downcast<String>(inst->attrs[0]);
   if (ann_key != attr::meta_schedule_cooperative_fetch) {
-    return NullOpt;
+    return std::nullopt;
   }
   *vector_lane = Downcast<Integer>(sch->Get(Downcast<ExprRV>(inst->inputs[1])))->value;
   return Downcast<BlockRV>(inst->inputs[0]);
@@ -186,7 +186,7 @@ bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
       }
       if (thread_extent_y != -1) {
         if (vector_lane > 1) {
-          Array<tir::LoopRV> split = sch->Split(fused, {NullOpt,                   //
+          Array<tir::LoopRV> split = sch->Split(fused, {std::nullopt,              //
                                                         Integer(thread_extent_y),  //
                                                         Integer(thread_extent_x),  //
                                                         Integer(vector_lane)});
@@ -194,7 +194,7 @@ bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
           sch->Bind(split[2], "threadIdx.x");
           sch->Bind(split[1], "threadIdx.y");
         } else {
-          Array<tir::LoopRV> split = sch->Split(fused, {NullOpt,                   //
+          Array<tir::LoopRV> split = sch->Split(fused, {std::nullopt,              //
                                                         Integer(thread_extent_y),  //
                                                         Integer(thread_extent_x)});
           sch->Bind(split[2], "threadIdx.x");
@@ -202,13 +202,13 @@ bool RewriteCooperativeFetchNode::Apply(const tir::Schedule& sch) {
         }
       } else {
         if (vector_lane > 1) {
-          Array<tir::LoopRV> split = sch->Split(fused, {NullOpt,                   //
+          Array<tir::LoopRV> split = sch->Split(fused, {std::nullopt,              //
                                                         Integer(thread_extent_x),  //
                                                         Integer(vector_lane)});
           sch->Vectorize(split[2]);
           sch->Bind(split[1], "threadIdx.x");
         } else {
-          Array<tir::LoopRV> split = sch->Split(fused, {NullOpt, Integer(thread_extent_x)});
+          Array<tir::LoopRV> split = sch->Split(fused, {std::nullopt, Integer(thread_extent_x)});
           sch->Bind(split[1], "threadIdx.x");
         }
       }
@@ -227,7 +227,7 @@ Postproc Postproc::RewriteCooperativeFetch() {
 }
 
 TVM_REGISTER_NODE_TYPE(RewriteCooperativeFetchNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocRewriteCooperativeFetch")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteCooperativeFetch")
     .set_body_typed(Postproc::RewriteCooperativeFetch);
 
 }  // namespace meta_schedule

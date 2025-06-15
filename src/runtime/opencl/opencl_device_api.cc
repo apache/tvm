@@ -22,8 +22,8 @@
  */
 #include <dmlc/parameter.h>
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/profiling.h>
-#include <tvm/runtime/registry.h>
 
 #include <sstream>
 
@@ -358,7 +358,7 @@ size_t OpenCLWorkspace::GetDataSize(const DLTensor& arr, Optional<String> mem_sc
                                                              mem_scope.value(), row_align);
 }
 
-void* OpenCLWorkspace::AllocDataSpaceView(Device dev, void* data, ShapeTuple shape,
+void* OpenCLWorkspace::AllocDataSpaceView(Device dev, void* data, ffi::Shape shape,
                                           DLDataType dtype, Optional<String> mem_scope) {
   cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(data);
 
@@ -760,7 +760,7 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   initialized_ = true;
 }
 
-TVM_REGISTER_GLOBAL("device_api.opencl.alloc_nd")
+TVM_FFI_REGISTER_GLOBAL("device_api.opencl.alloc_nd")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       int32_t device_type = args[0].cast<int32_t>();
       int32_t device_id = args[1].cast<int32_t>();
@@ -788,7 +788,7 @@ TVM_REGISTER_GLOBAL("device_api.opencl.alloc_nd")
                                                       String("global.texture"));
     });
 
-TVM_REGISTER_GLOBAL("device_api.opencl.free_nd")
+TVM_FFI_REGISTER_GLOBAL("device_api.opencl.free_nd")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       int32_t device_type = args[0].cast<int32_t>();
       int32_t device_id = args[1].cast<int32_t>();
@@ -803,14 +803,15 @@ TVM_REGISTER_GLOBAL("device_api.opencl.free_nd")
       *rv = static_cast<int32_t>(0);
     });
 
-TVM_REGISTER_GLOBAL("device_api.opencl").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  DeviceAPI* ptr = OpenCLWorkspace::Global();
-  *rv = static_cast<void*>(ptr);
-});
+TVM_FFI_REGISTER_GLOBAL("device_api.opencl")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      DeviceAPI* ptr = OpenCLWorkspace::Global();
+      *rv = static_cast<void*>(ptr);
+    });
 
 TVM_REGISTER_OBJECT_TYPE(OpenCLTimerNode);
 
-TVM_REGISTER_GLOBAL("profiling.timer.opencl").set_body_typed([](Device dev) {
+TVM_FFI_REGISTER_GLOBAL("profiling.timer.opencl").set_body_typed([](Device dev) {
   return Timer(make_object<OpenCLTimerNode>(dev));
 });
 
@@ -851,7 +852,7 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
     return buf;
   }
 
-  Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
+  Buffer Alloc(Device dev, ffi::Shape shape, DLDataType type_hint,
                const std::string& mem_scope) override {
     if (AllowMemoryScope(mem_scope)) {
       size_t size = ffi::GetDataSize(shape.Product(), type_hint);
@@ -881,7 +882,7 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
     VLOG(1) << "reclaim buffer " << buffer.size;
   }
 
-  void* CreateView(const Buffer& buffer, ShapeTuple shape, DLDataType type_hint,
+  void* CreateView(const Buffer& buffer, ffi::Shape shape, DLDataType type_hint,
                    const std::string& mem_scope) final {
     OpenCLWorkspace* ws_ = OpenCLWorkspace::Global();
     return ws_->AllocDataSpaceView(buffer.device, buffer.data, shape, type_hint, String(mem_scope));
@@ -893,7 +894,7 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
   }
 };
 
-TVM_REGISTER_GLOBAL("DeviceAllocator.opencl")
+TVM_FFI_REGISTER_GLOBAL("DeviceAllocator.opencl")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       Allocator* alloc = new OpenCLPooledAllocator();
       *rv = static_cast<void*>(alloc);

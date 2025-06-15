@@ -668,7 +668,7 @@ class GradientMutator : private ExprMutator {
     orig_params_ = func->params;
     Expr new_body = this->VisitExpr(func->body);
 
-    return Function(func->params, new_body, NullOpt, func->is_pure, func->attrs);
+    return Function(func->params, new_body, std::nullopt, func->is_pure, func->attrs);
   }
 
   Expr VisitExpr_(const SeqExprNode* seq_expr) final {
@@ -787,7 +787,7 @@ Pass Gradient(String func_name, Optional<Array<Var>> require_grads, int target_i
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.Gradient").set_body_typed(Gradient);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.Gradient").set_body_typed(Gradient);
 
 }  // namespace transform
 

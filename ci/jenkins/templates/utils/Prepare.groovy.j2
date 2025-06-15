@@ -156,10 +156,13 @@ def cancel_previous_build() {
 }
 
 def is_last_build() {
-  // whether it is last build
-  def job = Jenkins.instance.getItem(env.JOB_NAME)
-  def lastBuild = job.getLastBuild()
-  return lastBuild.getNumber() == env.BUILD_NUMBER
+  // check whether it is last build
+  try {
+    return currentBuild.number == currentBuild.rawBuild.project.getLastBuild().number
+  } catch (Throwable ex) {
+    echo 'Error during check is_last_build ' + ex.toString()
+    return false
+  }
 }
 
 def checkout_trusted_files() {

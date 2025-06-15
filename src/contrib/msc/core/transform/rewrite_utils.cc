@@ -44,7 +44,7 @@ Expr RewriteUtils::MakeConstant(BlockBuilder builder, const String& name, double
                                 const DataType& dtype, size_t ndim) {
   const auto& data = support::FloatImmToNDArray(FloatImm(dtype, value));
   Span span = SpanUtils::CreateWithAttr(msc_attr::kName, name);
-  const auto& constant = Constant(data, NullOpt, span);
+  const auto& constant = Constant(data, std::nullopt, span);
   if (ndim == 0) {
     return constant;
   }

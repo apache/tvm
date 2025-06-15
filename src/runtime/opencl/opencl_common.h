@@ -24,12 +24,12 @@
 #ifndef TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
 #define TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
 
 /* There are many OpenCL platforms that do not yet support OpenCL 2.0,
@@ -340,8 +340,8 @@ class OpenCLWorkspace : public DeviceAPI {
     return device_info[GetCLDeviceID(device_id)].image_from_buffer_support;
   }
 
-  void* AllocDataSpaceView(Device dev, void* data, ShapeTuple shape, DLDataType dtype,
-                           Optional<String> mem_scope = NullOpt);
+  void* AllocDataSpaceView(Device dev, void* data, ffi::Shape shape, DLDataType dtype,
+                           Optional<String> mem_scope = std::nullopt);
   void FreeDataSpaceView(Device dev, void* ptr);
 
   cl_device_id GetCLDeviceID(int device_id);
@@ -350,9 +350,9 @@ class OpenCLWorkspace : public DeviceAPI {
   void GetAttr(Device dev, DeviceAttrKind kind, ffi::Any* rv) final;
   void* AllocDataSpace(Device dev, size_t size, size_t alignment, DLDataType type_hint) final;
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
-                       Optional<String> mem_scope = NullOpt) final;
+                       Optional<String> mem_scope = std::nullopt) final;
   void* AllocDataSpace(Device dev, size_t width, size_t height, DLDataType type_hint,
-                       Optional<String> mem_scope = NullOpt);
+                       Optional<String> mem_scope = std::nullopt);
   void* GetNativePtr(const tvm::runtime::NDArray& narr);
   void SetNativePtr(const tvm::runtime::NDArray& narr, void* host_ptr, size_t buf_size);
   void SetPerfHint(Device dev, cl_uint perf_hint);
@@ -360,7 +360,7 @@ class OpenCLWorkspace : public DeviceAPI {
   void StreamSync(Device dev, TVMStreamHandle stream) final;
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(Device dev, void* data) final;
-  size_t GetDataSize(const DLTensor& arr, Optional<String> mem_scope = NullOpt) final;
+  size_t GetDataSize(const DLTensor& arr, Optional<String> mem_scope = std::nullopt) final;
 
   // cl_mem alloc utils
   void* AllocCLBuffer(Device dev, size_t size, size_t alignment, DLDataType type_hint);

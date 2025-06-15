@@ -16,6 +16,6 @@
 # under the License.
 """tvm.contrib.msc.framework.tensorrt._ffi_api"""
 
-import tvm._ffi
+import tvm.ffi
 
-tvm._ffi._init_api("msc.framework.tensorrt", __name__)
+tvm.ffi._init_api("msc.framework.tensorrt", __name__)

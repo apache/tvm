@@ -265,7 +265,7 @@ Pass KillAfterLastUse() {
   return CreateFunctionPass(pass_func, /*opt_level=*/0, "KillAfterLastUse", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.KillAfterLastUse").set_body_typed(KillAfterLastUse);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.KillAfterLastUse").set_body_typed(KillAfterLastUse);
 
 }  // namespace transform
 }  // namespace relax

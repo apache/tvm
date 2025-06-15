@@ -26,7 +26,7 @@
  *
  * TODO(@gussmith23 @hypercubestart) Link to BYODT docs when they exist?
  */
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 
 #include <cmath>
 #include <cstdint>

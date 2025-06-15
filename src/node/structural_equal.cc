@@ -19,13 +19,13 @@
 /*!
  * \file src/node/structural_equal.cc
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
 #include <tvm/node/object_path.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/structural_equal.h>
-#include <tvm/runtime/registry.h>
 
 #include <optional>
 #include <unordered_map>
@@ -36,12 +36,12 @@ namespace tvm {
 
 TVM_REGISTER_OBJECT_TYPE(ObjectPathPairNode);
 
-TVM_REGISTER_GLOBAL("node.ObjectPathPairLhsPath")
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathPairLhsPath")
     .set_body_typed([](const ObjectPathPair& object_path_pair) {
       return object_path_pair->lhs_path;
     });
 
-TVM_REGISTER_GLOBAL("node.ObjectPathPairRhsPath")
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathPairRhsPath")
     .set_body_typed([](const ObjectPathPair& object_path_pair) {
       return object_path_pair->rhs_path;
     });
@@ -88,7 +88,7 @@ struct SEqualReducer::PathTracingData {
 bool SEqualReducer::operator()(const ObjectRef& lhs, const ObjectRef& rhs) const {
   if (tracing_data_ == nullptr) {
     // Fast path: no tracing
-    return handler_->SEqualReduce(lhs, rhs, map_free_vars_, NullOpt);
+    return handler_->SEqualReduce(lhs, rhs, map_free_vars_, std::nullopt);
   }
   return ObjectAttrsEqual(lhs, rhs, map_free_vars_, nullptr);
 }
@@ -96,7 +96,7 @@ bool SEqualReducer::operator()(const ObjectRef& lhs, const ObjectRef& rhs) const
 bool SEqualReducer::DefEqual(const ObjectRef& lhs, const ObjectRef& rhs) {
   if (tracing_data_ == nullptr) {
     // Fast path: no tracing
-    return handler_->SEqualReduce(lhs, rhs, true, NullOpt);
+    return handler_->SEqualReduce(lhs, rhs, true, std::nullopt);
   }
   return ObjectAttrsEqual(lhs, rhs, true, nullptr);
 }
@@ -239,7 +239,7 @@ bool SEqualReducer::ObjectAttrsEqual(const ObjectRef& lhs, const ObjectRef& rhs,
                                      const ObjectPathPair* paths) const {
   if (tracing_data_ == nullptr) {
     // Fast path: no tracing
-    return handler_->SEqualReduce(lhs, rhs, map_free_vars, NullOpt);
+    return handler_->SEqualReduce(lhs, rhs, map_free_vars, std::nullopt);
   }
 
   // Slow path: tracing object paths for better error reporting
@@ -595,7 +595,7 @@ bool SEqualHandlerDefault::DispatchSEqualReduce(const ObjectRef& lhs, const Obje
   return impl->DispatchSEqualReduce(lhs, rhs, map_free_vars, current_paths);
 }
 
-TVM_REGISTER_GLOBAL("node.StructuralEqual")
+TVM_FFI_REGISTER_GLOBAL("node.StructuralEqual")
     .set_body_typed([](const Any& lhs, const Any& rhs, bool assert_mode, bool map_free_vars) {
       // If we are asserting on failure, then the `defer_fails` option
       // should be enabled, to provide better error messages.  For
@@ -608,7 +608,7 @@ TVM_REGISTER_GLOBAL("node.StructuralEqual")
           .Equal(lhs, rhs, map_free_vars);
     });
 
-TVM_REGISTER_GLOBAL("node.GetFirstStructuralMismatch")
+TVM_FFI_REGISTER_GLOBAL("node.GetFirstStructuralMismatch")
     .set_body_typed([](const Any& lhs, const Any& rhs, bool map_free_vars) {
       Optional<ObjectPathPair> first_mismatch;
       bool equal =

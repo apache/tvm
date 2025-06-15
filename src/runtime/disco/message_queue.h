@@ -37,31 +37,24 @@ class DiscoStreamMessageQueue : private dmlc::Stream,
   ~DiscoStreamMessageQueue() = default;
 
   void Send(const ffi::PackedArgs& args) {
-    // Run legacy ABI translation.
-    std::vector<TVMValue> values(args.size());
-    std::vector<int> type_codes(args.size());
-    PackedArgsToLegacyTVMArgs(args.data(), args.size(), values.data(), type_codes.data());
     // TODO(tqchen): use native convention that do not need ABI translation.
-    RPCReference::ReturnPackedSeq(values.data(), type_codes.data(), args.size(), this);
+    RPCReference::ReturnPackedSeq(reinterpret_cast<const TVMFFIAny*>(args.data()), args.size(),
+                                  this);
     CommitSendAndNotifyEnqueue();
   }
 
   ffi::PackedArgs Recv() {
     bool is_implicit_shutdown = DequeueNextPacket();
-    AnyView* packed_args = nullptr;
+    ffi::AnyView* packed_args = nullptr;
     int num_args = 0;
 
     if (is_implicit_shutdown) {
       num_args = 2;
-      packed_args = reinterpret_cast<AnyView*>(ArenaAlloc<TVMFFIAny>(num_args));
+      packed_args = reinterpret_cast<ffi::AnyView*>(ArenaAlloc<TVMFFIAny>(num_args));
       packed_args[0] = static_cast<int>(DiscoAction::kShutDown);
       packed_args[1] = 0;
     } else {
-      TVMValue* values = nullptr;
-      int* type_codes = nullptr;
-      RPCReference::RecvPackedSeq(&values, &type_codes, &num_args, this);
-      packed_args = reinterpret_cast<AnyView*>(ArenaAlloc<TVMFFIAny>(num_args));
-      LegacyTVMArgsToPackedArgs(values, type_codes, num_args, packed_args);
+      RPCReference::RecvPackedSeq(reinterpret_cast<TVMFFIAny**>(&packed_args), &num_args, this);
     }
     return ffi::PackedArgs(packed_args, num_args);
   }

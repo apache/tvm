@@ -930,6 +930,28 @@ def relu(x: Tensor, name: str = "relu") -> Tensor:
     return wrap_nested(_op.nn.relu(x._expr), name)
 
 
+def relu6(x: Tensor, name: str = "relu6") -> Tensor:
+    r"""ReLU6 activation function.
+
+    .. math::
+        \text{ReLU6}(x) = \min(\max(x, 0), 6)
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.nn.relu6(x._expr), name)
+
+
 def silu(x: Tensor, name: str = "silu") -> Tensor:
     r"""Sigmoid Linear Unit function
 
@@ -2065,7 +2087,7 @@ def extern(
     out: OutType,
 ) -> OutType:
     """Invoke an extern function during runtime. The extern function must be registered with the "
-    TVM runtime using `TVM_REGISTER_GLOBAL` (C++), or `tvm.register_func` (Python).
+    TVM runtime using `TVM_FFI_REGISTER_GLOBAL` (C++), or `tvm.register_func` (Python).
 
     Parameters
     ----------

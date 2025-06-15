@@ -173,7 +173,7 @@ class MultiLevelTilingTensorCoreNode : public MultiLevelTilingNode {
    * \brief Transform and tensorize with the given tensor intrin
    * \param state The state of the meta schedule rule
    * \param intrin_name The name of the tensor intrin
-   * \return The loop to be tensorized. NullOpt if the workload can't be tensorized.
+   * \return The loop to be tensorized. std::nullopt if the workload can't be tensorized.
    */
   Optional<LoopRV> TransformWithTensorIntrin(TensorCoreStateNode* state,
                                              const String& intrin_name) const;
@@ -502,7 +502,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::TransformIntermediateOutputLa
                                 return result;
                               });
   sch->TransformLayout(state->block_rv, 0, tir::BufferIndexType::kWrite, index_map,
-                       /*pad_value=*/NullOpt, /*assume_injective_transform=*/true);
+                       /*pad_value=*/std::nullopt, /*assume_injective_transform=*/true);
 
   return {state};
 }
@@ -759,7 +759,7 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   const tir::Block block_before_reindex = GetRef<tir::Block>(block);
   if (block->reads.size() != 2 || block->writes.size() != 1) {
     // only matmul-like computation is allowed
-    return NullOpt;
+    return std::nullopt;
   }
   state->tensor_core_reindex_store =
       state->sch->ReIndex(state->block_rv, 0, tir::BufferIndexType::kWrite);
@@ -840,7 +840,7 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
     auto sub_index_map = f_get_sub_index_map(lhs_buffer, reindexed_buffer_region->region);
     buffer_sub_index_map.Set(lhs_buffer, sub_index_map);
     state->sch->TransformLayout(state->block_rv, buffer_index, index_type, sub_index_map,
-                                /*pad_value=*/NullOpt, /*assume_injective_transform=*/true);
+                                /*pad_value=*/std::nullopt, /*assume_injective_transform=*/true);
   };
 
   for (int i = 0, n = block_before_reindex->reads.size(); i < n; ++i) {
@@ -923,7 +923,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
 }
 
 TVM_REGISTER_NODE_TYPE(MultiLevelTilingTensorCoreNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTilingTensorCore")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTilingTensorCore")
     .set_body_typed(ScheduleRule::MultiLevelTilingTensorCore);
 
 }  // namespace meta_schedule

@@ -22,7 +22,9 @@
  */
 
 #include <dlpack/dlpack.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/data_type.h>
+#include <tvm/runtime/logging.h>
 
 #include <algorithm>
 #include <vector>
@@ -77,7 +79,7 @@ struct float16 {
 // If input tensor has dimension (d0, d1, ..., d(k-1), dk, d(k+1), ..., d(n-1))
 // and sort axis is dk. sort_num should have dimension of
 // (d1, d2, ..., d(k-1), d(k+1), ..., dn).
-TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort_nms")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.sort.argsort_nms")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto input = args[0].cast<DLTensor*>();
       auto sort_num = args[1].cast<DLTensor*>();
@@ -216,7 +218,7 @@ void sort(DLTensor* input, DLTensor* output, int32_t axis, bool is_ascend) {
 // If input tensor has dimension (d0, d1, ..., d(k-1), dk, d(k+1), ..., d(n-1))
 // and sort axis is dk. sort_num should have dimension of
 // (d1, d2, ..., d(k-1), d(k+1), ..., dn).
-TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto input = args[0].cast<DLTensor*>();
       auto output = args[1].cast<DLTensor*>();
@@ -229,8 +231,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
                                       "input ndim "
                                    << input->ndim;
 
-      auto data_dtype = DLDataTypeToString(input->dtype);
-      auto out_dtype = DLDataTypeToString(output->dtype);
+      auto data_dtype = ffi::DLDataTypeToString(input->dtype);
+      auto out_dtype = ffi::DLDataTypeToString(output->dtype);
 
       if (data_dtype == "float32") {
         if (out_dtype == "int32") {
@@ -312,7 +314,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort")
 // If input tensor has dimension (d0, d1, ..., d(k-1), dk, d(k+1), ..., d(n-1))
 // and sort axis is dk. sort_num should have dimension of
 // (d1, d2, ..., d(k-1), d(k+1), ..., dn).
-TVM_REGISTER_GLOBAL("tvm.contrib.sort.sort")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.sort.sort")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto input = args[0].cast<DLTensor*>();
       auto output = args[1].cast<DLTensor*>();
@@ -442,7 +444,7 @@ void topk(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, int k, i
 // If input tensor has dimension (d0, d1, ..., d(k-1), dk, d(k+1), ..., d(n-1))
 // and sort axis is dk. sort_num should have dimension of
 // (d1, d2, ..., d(k-1), d(k+1), ..., dn).
-TVM_REGISTER_GLOBAL("tvm.contrib.sort.topk")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.sort.topk")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto input = args[0].cast<DLTensor*>();
       DLTensor* values_out = nullptr;
@@ -467,8 +469,9 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.topk")
       ICHECK(axis >= 0 && axis < input->ndim)
           << "Axis out of boundary for input ndim " << input->ndim;
 
-      auto data_dtype = DLDataTypeToString(input->dtype);
-      auto out_dtype = (indices_out == nullptr) ? "int64" : DLDataTypeToString(indices_out->dtype);
+      auto data_dtype = ffi::DLDataTypeToString(input->dtype);
+      auto out_dtype =
+          (indices_out == nullptr) ? "int64" : ffi::DLDataTypeToString(indices_out->dtype);
 
       if (data_dtype == "float32") {
         if (out_dtype == "int32") {

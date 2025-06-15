@@ -44,8 +44,8 @@ def verify_group_gemm(
     def get_ref_data():
         assert M % num_groups == 0
         M_per_group = M // num_groups
-        a_np = get_random_ndarray((M, K), "float16")
-        b_np = get_random_ndarray((num_groups, N, K), "float16")
+        a_np = get_random_ndarray((M, K), x_dtype)
+        b_np = get_random_ndarray((num_groups, N, K), weight_dtype)
         indptr_np = np.arange(1, num_groups + 1).astype("int64") * M_per_group
         c_np = np.concatenate(
             [a_np[i * M_per_group : (i + 1) * M_per_group] @ b_np[i].T for i in range(num_groups)],
@@ -76,7 +76,7 @@ def verify_group_gemm(
 @tvm.testing.requires_cuda_compute_version(9)
 def test_group_gemm_sm90():
     verify_group_gemm(
-        "cutlass.group_gemm_fp16_sm90",
+        "cutlass.group_gemm",
         8,
         128,
         128,
@@ -113,6 +113,24 @@ def test_group_gemm_sm90():
         True,
         rtol=1e-1,
         atol=1,
+    )
+
+
+@tvm.testing.requires_cutlass
+@tvm.testing.requires_cuda_compute_version(10)
+def test_group_gemm_sm100():
+    verify_group_gemm(
+        "cutlass.group_gemm",
+        8,
+        128,
+        128,
+        4,
+        "bfloat16",
+        "bfloat16",
+        "bfloat16",
+        False,
+        rtol=1e-2,
+        atol=1e-3,
     )
 
 
@@ -283,14 +301,14 @@ def blockwise_bmm(
 
 @tvm.testing.requires_cutlass
 @tvm.testing.requires_cuda_compute_version(9)
-def test_fp8_e4m3_blockwise_scaled_gemm():
+def test_fp8_e4m3_groupwise_scaled_gemm():
     M = 16
     N = 4608
     K = 896
     block_size = (128, 128)
     assert N % 128 == 0 and K % 128 == 0  # Only support N/K are multiple of 128
 
-    func_name = "cutlass.blockwise_scaled_gemm_e4m3fn_e4m3fn"
+    func_name = "cutlass.groupwise_scaled_gemm_e4m3fn_e4m3fn"
     gemm_func = tvm.get_global_func(func_name, allow_missing=True)
     if gemm_func is None:
         print(f"Skipped as {func_name} is not available")
@@ -316,7 +334,7 @@ def test_fp8_e4m3_blockwise_scaled_gemm():
 
 @tvm.testing.requires_cutlass
 @tvm.testing.requires_cuda_compute_version(9)
-def test_fp8_e4m3_blockwise_scaled_bmm():
+def test_fp8_e4m3_groupwise_scaled_bmm():
     B = 16
     M = 40
     N = 512
@@ -324,7 +342,7 @@ def test_fp8_e4m3_blockwise_scaled_bmm():
     block_size = (128, 128)
     assert N % 128 == 0 and K % 128 == 0  # Only support N/K are multiple of 128
 
-    func_name = "cutlass.blockwise_scaled_bmm_e4m3fn_e4m3fn"
+    func_name = "cutlass.groupwise_scaled_bmm_e4m3fn_e4m3fn"
     gemm_func = tvm.get_global_func(func_name, allow_missing=True)
     if gemm_func is None:
         print(f"Skipped as {func_name} is not available")

@@ -56,11 +56,11 @@
 #ifndef TVM_IR_TRANSFORM_H_
 #define TVM_IR_TRANSFORM_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/support/with.h>
 
 #include <string>
@@ -90,16 +90,7 @@ class PassContextNode : public Object {
 
   /*! \brief A list of pass instrument implementations. */
   Array<instrument::PassInstrument> instruments;
-  // TODO(@sunggg): Fix dependency issue in the header file and correct the types
-  // e.g., relax::trace, relax::database in tvm/relax/tuning_api.h
-  /*! \brief Trace stack for relax pass infra. */
-  mutable Array<ObjectRef> trace_stack;
-  /*! \brief List of passes to be traced. If not defined, make every pass traceable. */
-  Optional<Map<String, Bool>> make_traceable;
-  /*! \brief Number of evaluations conducted in the pass pipeline. */
-  mutable int num_evals{0};
-  /*! \brief Database for tuning API. */
-  Optional<ObjectRef> tuning_api_database;
+
   PassContextNode() = default;
 
   /*!
@@ -138,27 +129,7 @@ class PassContextNode : public Object {
     v->Visit("instruments", &instruments);
     v->Visit("config", &config);
     v->Visit("diag_ctx", &diag_ctx);
-    v->Visit("trace_stack", &trace_stack);
-    v->Visit("make_traceable", &make_traceable);
-    v->Visit("num_evals", &num_evals);
-    v->Visit("tuning_api_daatabase", &tuning_api_database);
   }
-
-  Array<ObjectRef> GetTraceStack() { return trace_stack; }
-  void PushTrace(ObjectRef new_trace) { trace_stack.push_back(new_trace); }
-  void PopTrace() {
-    ICHECK(GetTraceStackSize()) << "Trace stack is currently empty. Please double check.";
-    trace_stack.pop_back();
-  }
-  int GetTraceStackSize() { return trace_stack.size(); }
-  ObjectRef GetCurrentTrace() {
-    ICHECK(GetTraceStackSize()) << "Trace stack is currently empty. Please double check.";
-    return trace_stack.back();
-  }
-  void SetNumEvals(int _num_evals) { num_evals = _num_evals; }
-  void IncNumEvals(int _num_evals) { num_evals += _num_evals; }
-
-  Optional<ObjectRef> GetTuningAPIDatabase() { return tuning_api_database; }
 
   static constexpr const char* _type_key = "transform.PassContext";
   static constexpr bool _type_has_method_sequal_reduce = false;
@@ -273,10 +244,10 @@ class PassContext : public ObjectRef {
     auto type_key = ffi::TypeIndexToTypeKey(tindex);
 
     auto legalization = [=](ffi::Any value) -> ffi::Any {
-      if (auto opt_map = value.as<Map<String, ffi::Any>>()) {
+      if (auto opt_map = value.try_cast<Map<String, ffi::Any>>()) {
         return reflection->CreateObject(type_key, opt_map.value());
       } else {
-        auto opt_val = value.as<ValueType>();
+        auto opt_val = value.try_cast<ValueType>();
         if (!opt_val.has_value()) {
           TVM_FFI_THROW(AttributeError)
               << "Expect config " << key << " to have type " << type_key << ", but instead get "
@@ -365,7 +336,7 @@ class PassInfo : public ObjectRef {
    * \param required  The passes that are required to perform the current pass.
    * \param traceable Boolean that tells whether the pass is traceable.
    */
-  TVM_DLL PassInfo(int opt_level, String name, Array<runtime::String> required, bool traceable);
+  TVM_DLL PassInfo(int opt_level, String name, Array<String> required, bool traceable);
 
   TVM_DEFINE_OBJECT_REF_METHODS(PassInfo, ObjectRef, PassInfoNode);
 };
@@ -538,7 +509,7 @@ class Sequential : public Pass {
  * \return The created module pass.
  */
 TVM_DLL Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func,
-                              int opt_level, String name, Array<runtime::String> required,
+                              int opt_level, String name, Array<String> required,
                               bool traceable = false);
 
 /*

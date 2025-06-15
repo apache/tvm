@@ -72,9 +72,10 @@
 #ifndef TVM_RUNTIME_DISCO_SESSION_H_
 #define TVM_RUNTIME_DISCO_SESSION_H_
 
-#include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/int_tuple.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <queue>
 #include <string>
@@ -243,7 +244,7 @@ class SessionObj : public Object {
    * \param value The value to be set.
    * \param worker_id The id of the worker to be set.
    */
-  TVM_DLL virtual void DebugSetRegister(int64_t reg_id, AnyView value, int worker_id) = 0;
+  TVM_DLL virtual void DebugSetRegister(int64_t reg_id, ffi::AnyView value, int worker_id) = 0;
 
   struct FFI;
   friend struct SessionObj::FFI;
@@ -338,7 +339,7 @@ template <typename... Args>
 DRef SessionObj::CallPacked(const DRef& func, Args&&... args) {
   constexpr int offset = 3;
   constexpr int kNumArgs = offset + sizeof...(Args);
-  AnyView packed_args[kNumArgs];
+  ffi::AnyView packed_args[kNumArgs];
   ffi::PackedArgs::Fill(packed_args,
                         /*.0=*/static_cast<int>(DiscoAction::kCallPacked),  // action
                         /*.1=*/0,     // reg_id, which will be updated by this->CallWithPacked

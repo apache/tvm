@@ -199,6 +199,16 @@ class IterAdapter {
 
   IterAdapter operator-(difference_type offset) const { return IterAdapter(iter_ - offset); }
 
+  IterAdapter& operator+=(difference_type offset) {
+    iter_ += offset;
+    return *this;
+  }
+
+  IterAdapter& operator-=(difference_type offset) {
+    iter_ -= offset;
+    return *this;
+  }
+
   template <typename T = IterAdapter>
   typename std::enable_if<std::is_same<iterator_category, std::random_access_iterator_tag>::value,
                           typename T::difference_type>::type inline
@@ -284,6 +294,14 @@ inline constexpr bool storage_enabled_v = std::is_same_v<T, Any> || TypeTraits<T
 template <typename... T>
 inline constexpr bool all_storage_enabled_v = (storage_enabled_v<T> && ...);
 
+/*!
+ * \brief Check if all T are compatible with Any.
+ *
+ * \tparam T The type to check.
+ * \return True if T is compatible with Any, false otherwise.
+ */
+template <typename... T>
+inline constexpr bool all_object_ref_v = (std::is_base_of_v<ObjectRef, T> && ...);
 /**
  * \brief Check if Any storage of Derived can always be directly used as Base.
  *

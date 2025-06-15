@@ -1359,7 +1359,7 @@ Pass SetExprLayout(bool allow_missing, const String& entry_name) {
   return CreateModulePass(pass_func, 0, "SetExprLayout", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.SetExprLayout").set_body_typed(SetExprLayout);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.SetExprLayout").set_body_typed(SetExprLayout);
 
 }  // namespace transform
 }  // namespace relax

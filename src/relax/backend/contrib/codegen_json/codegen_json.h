@@ -111,14 +111,14 @@ class OpAttrExtractor : public AttrVisitor {
   }
 
   void Visit(const char* key, runtime::ObjectRef* value) final {
-    if (const auto* an = (*value).as<ArrayObj>()) {
+    if (const auto* an = (*value).as<ffi::ArrayObj>()) {
       std::vector<std::string> attr;
       for (size_t i = 0; i < an->size(); ++i) {
         if (const auto* im = (*an)[i].as<IntImmNode>()) {
           attr.push_back(std::to_string(im->value));
         } else if (const auto* fm = (*an)[i].as<FloatImmNode>()) {
           attr.push_back(Fp2String(fm->value));
-        } else if (const auto* str = (*an)[i].as<StringObj>()) {
+        } else if (const auto* str = (*an)[i].as<ffi::StringObj>()) {
           String s = GetRef<String>(str);
           attr.push_back(s);
         } else {
@@ -132,7 +132,7 @@ class OpAttrExtractor : public AttrVisitor {
       SetNodeAttr(key, std::vector<std::string>{std::to_string(im->value)});
     } else if (const auto* fm = (*value).as<FloatImmNode>()) {
       SetNodeAttr(key, std::vector<std::string>{Fp2String(fm->value)});
-    } else if (const auto* str = (*value).as<StringObj>()) {
+    } else if (const auto* str = (*value).as<ffi::StringObj>()) {
       String s = GetRef<String>(str);
       SetNodeAttr(key, std::vector<std::string>{s});
     } else {

@@ -218,7 +218,7 @@ class Session:
             The hexagon arch to be used
         """
         if isinstance(module, (runtime.Executable, str)):
-            return self._relax_vm_executable_executor(module, hexagon_arch=hexagon_arch)
+            return self._vm_executable_executor(module, hexagon_arch=hexagon_arch)
 
         raise TypeError(f"Unsupported executor type: {type(module)}")
 
@@ -244,7 +244,7 @@ class Session:
             else:
                 self._requires_cpu_device = False
 
-    def _relax_vm_executable_executor(
+    def _vm_executable_executor(
         self, executable: Union[runtime.Executable, str], hexagon_arch: str
     ):
         """Create a local TVM module which consumes a remote vm executable.

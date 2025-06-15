@@ -25,7 +25,7 @@ import numpy as np  # type: ignore
 
 import tvm
 from tvm import meta_schedule as ms
-from tvm._ffi import get_global_func, register_func
+from tvm.ffi import get_global_func, register_func
 from tvm.ir import IRModule
 from tvm.support import describe
 from tvm.target import Target
@@ -469,9 +469,9 @@ def make_alloc_arg_and_check(
             number=evaluator_config.number,
             repeat=evaluator_config.repeat,
             min_repeat_ms=evaluator_config.min_repeat_ms,
-            f_preproc="cache_flush_cpu_non_first_arg"
-            if evaluator_config.enable_cpu_cache_flush
-            else "",
+            f_preproc=(
+                "cache_flush_cpu_non_first_arg" if evaluator_config.enable_cpu_cache_flush else ""
+            ),
         )
 
         repeated_costs: List[List[float]] = []

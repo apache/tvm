@@ -126,7 +126,7 @@ class BlockBuilderNode : public Object {
    * \brief Lookup the binding value that var binds to in the current emitted sequences.
    * \param var The input var.
    * \return The Expr bound to the input \p var.
-   * \note For function parameters, this function returns NullOpt.
+   * \note For function parameters, this function returns std::nullopt.
    */
   virtual Optional<Expr> LookupBinding(const Var& var) = 0;
 
