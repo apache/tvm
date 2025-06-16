@@ -48,7 +48,7 @@ class DefaultValue : public FieldInfoTrait {
 
   void Apply(TVMFFIFieldInfo* info) const {
     info->default_value = AnyView(value_).CopyToTVMFFIAny();
-    info->flags |= TVMFFIFieldFlagBitMaskHasDefault;
+    info->flags |= kTVMFFIFieldFlagBitMaskHasDefault;
   }
 
  private:
@@ -71,10 +71,10 @@ inline int64_t GetFieldByteOffsetToObject(T Class::*field_ptr) {
   return field_offset_to_class - details::ObjectUnsafe::GetObjectOffsetToSubclass<Class>();
 }
 
-class ReflectionDef {
+template <typename Class>
+class ObjectDef {
  public:
-  explicit ReflectionDef(int32_t type_index, const char* type_key)
-      : type_index_(type_index), type_key_(type_key) {}
+  ObjectDef() : type_index_(Class::_GetOrAllocRuntimeTypeIndex()), type_key_(Class::_type_key) {}
 
   /*!
    * \brief Define a readonly field.
@@ -89,8 +89,8 @@ class ReflectionDef {
    *
    * \return The reflection definition.
    */
-  template <typename Class, typename T, typename... Extra>
-  ReflectionDef& def_ro(const char* name, T Class::*field_ptr, Extra&&... extra) {
+  template <typename T, typename... Extra>
+  ObjectDef& def_ro(const char* name, T Class::*field_ptr, Extra&&... extra) {
     RegisterField(name, field_ptr, false, std::forward<Extra>(extra)...);
     return *this;
   }
@@ -108,8 +108,8 @@ class ReflectionDef {
    *
    * \return The reflection definition.
    */
-  template <typename Class, typename T, typename... Extra>
-  ReflectionDef& def_rw(const char* name, T Class::*field_ptr, Extra&&... extra) {
+  template <typename T, typename... Extra>
+  ObjectDef& def_rw(const char* name, T Class::*field_ptr, Extra&&... extra) {
     RegisterField(name, field_ptr, true, std::forward<Extra>(extra)...);
     return *this;
   }
@@ -127,7 +127,7 @@ class ReflectionDef {
    * \return The reflection definition.
    */
   template <typename Func, typename... Extra>
-  ReflectionDef& def(const char* name, Func&& func, Extra&&... extra) {
+  ObjectDef& def(const char* name, Func&& func, Extra&&... extra) {
     RegisterMethod(name, false, std::forward<Func>(func), std::forward<Extra>(extra)...);
     return *this;
   }
@@ -145,13 +145,13 @@ class ReflectionDef {
    * \return The reflection definition.
    */
   template <typename Func, typename... Extra>
-  ReflectionDef& def_static(const char* name, Func&& func, Extra&&... extra) {
+  ObjectDef& def_static(const char* name, Func&& func, Extra&&... extra) {
     RegisterMethod(name, true, std::forward<Func>(func), std::forward<Extra>(extra)...);
     return *this;
   }
 
  private:
-  template <typename Class, typename T, typename... ExtraArgs>
+  template <typename T, typename... ExtraArgs>
   void RegisterField(const char* name, T Class::*field_ptr, bool writable,
                      ExtraArgs&&... extra_args) {
     TVMFFIFieldInfo info;
@@ -159,16 +159,19 @@ class ReflectionDef {
     info.field_static_type_index = TypeToFieldStaticTypeIndex<T>::value;
     // store byte offset and setter, getter
     // so the same setter can be reused for all the same type
-    info.byte_offset = GetFieldByteOffsetToObject<Class, T>(field_ptr);
+    info.offset = GetFieldByteOffsetToObject<Class, T>(field_ptr);
+    info.size = sizeof(T);
+    info.alignment = alignof(T);
     info.flags = 0;
     if (writable) {
-      info.flags |= TVMFFIFieldFlagBitMaskWritable;
+      info.flags |= kTVMFFIFieldFlagBitMaskWritable;
     }
     info.getter = FieldGetter<T>;
     info.setter = FieldSetter<T>;
     // initialize default value to nullptr
     info.default_value = AnyView(nullptr).CopyToTVMFFIAny();
     info.doc = TVMFFIByteArray{nullptr, 0};
+    info.type_schema = TVMFFIByteArray{nullptr, 0};
     // apply field info traits
     ((ApplyFieldInfoTrait(&info, std::forward<ExtraArgs>(extra_args)), ...));
     // call register
@@ -205,9 +208,10 @@ class ReflectionDef {
     TVMFFIMethodInfo info;
     info.name = TVMFFIByteArray{name, std::char_traits<char>::length(name)};
     info.doc = TVMFFIByteArray{nullptr, 0};
+    info.type_schema = TVMFFIByteArray{nullptr, 0};
     info.flags = 0;
     if (is_static) {
-      info.flags |= TVMFFIFieldFlagBitMaskIsStaticMethod;
+      info.flags |= kTVMFFIFieldFlagBitMaskIsStaticMethod;
     }
     // obtain the method function
     Function method = GetMethod(std::string(type_key_) + "." + name, std::forward<Func>(func));
@@ -224,7 +228,7 @@ class ReflectionDef {
     }
   }
 
-  template <typename Class, typename R, typename... Args>
+  template <typename R, typename... Args>
   static Function GetMethod(std::string name, R (Class::*func)(Args...)) {
     auto fwrap = [func](const Class* target, Args... params) -> R {
       return (const_cast<Class*>(target)->*func)(std::forward<Args>(params)...);
@@ -232,7 +236,7 @@ class ReflectionDef {
     return ffi::Function::FromTyped(fwrap, name);
   }
 
-  template <typename Class, typename R, typename... Args>
+  template <typename R, typename... Args>
   static Function GetMethod(std::string name, R (Class::*func)(Args...) const) {
     auto fwrap = [func](const Class* target, Args... params) -> R {
       return (target->*func)(std::forward<Args>(params)...);
@@ -278,7 +282,7 @@ class FieldGetter {
 
   Any operator()(const Object* obj_ptr) const {
     Any result;
-    const void* addr = reinterpret_cast<const char*>(obj_ptr) + field_info_->byte_offset;
+    const void* addr = reinterpret_cast<const char*>(obj_ptr) + field_info_->offset;
     TVM_FFI_CHECK_SAFE_CALL(
         field_info_->getter(const_cast<void*>(addr), reinterpret_cast<TVMFFIAny*>(&result)));
     return result;
@@ -303,7 +307,7 @@ class FieldSetter {
       : FieldSetter(GetFieldInfo(type_key, field_name)) {}
 
   void operator()(const Object* obj_ptr, AnyView value) const {
-    const void* addr = reinterpret_cast<const char*>(obj_ptr) + field_info_->byte_offset;
+    const void* addr = reinterpret_cast<const char*>(obj_ptr) + field_info_->offset;
     TVM_FFI_CHECK_SAFE_CALL(
         field_info_->setter(const_cast<void*>(addr), reinterpret_cast<const TVMFFIAny*>(&value)));
   }
@@ -351,22 +355,7 @@ inline Function GetMethod(std::string_view type_key, const char* method_name) {
   return AnyView::CopyFromTVMFFIAny(info->method).cast<Function>();
 }
 
-#define TVM_FFI_REFLECTION_REG_VAR_DEF                                          \
-  static inline TVM_FFI_ATTRIBUTE_UNUSED ::tvm::ffi::reflection::ReflectionDef& \
-      __TVMFFIReflectionReg
-
-/*!
- * helper macro to define a reflection definition for an object
- */
-#define TVM_FFI_REFLECTION_DEF(TypeName)                                             \
-  TVM_FFI_STR_CONCAT(TVM_FFI_REFLECTION_REG_VAR_DEF, __COUNTER__) =                  \
-      ::tvm::ffi::reflection::ReflectionDef(TypeName::_GetOrAllocRuntimeTypeIndex(), \
-                                            TypeName::_type_key)
-
 }  // namespace reflection
-
-/*! \brief Shortcut to the reflection namespace */
-namespace refl = reflection;
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_REFLECTION_REFLECTION_H_
