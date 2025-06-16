@@ -1002,8 +1002,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
             // For sliding window, the first page and last page will both be partially used
             page_indptr_sliding_window_h.push_back(
-              page_indptr_sliding_window_h.back() + std::min(static_cast<long>(block.page_ids.size()),
-              static_cast<long>(sequences[d]->sliding_window_size / page_size_ + (block.seq_length % page_size_ ? 1 : 0))
+              page_indptr_sliding_window_h.back() + std::min(static_cast<int32_t>(block.page_ids.size()),
+              static_cast<int32_t>(sequences[d]->sliding_window_size / page_size_ + (block.seq_length % page_size_ ? 1 : 0))
             ));
             for (int i = page_indices_h.size() - page_indptr_sliding_window_h.back(); i < static_cast<int32_t>(page_indices_h.size()); i++) {
               page_indices_sliding_window_h.push_back(page_indices_h[i]);
@@ -1054,8 +1054,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
             
             page_indptr_h.push_back(page_indptr_h.back() + num_pages);
             page_indptr_sliding_window_h.push_back(
-              page_indptr_sliding_window_h.back() + std::min(static_cast<long>(block.page_ids.size()),
-              static_cast<long>(sequences[d]->sliding_window_size / page_size_ + (block.seq_length % page_size_ ? 1 : 0))
+              page_indptr_sliding_window_h.back() + std::min(static_cast<int32_t>(block.page_ids.size()),
+              static_cast<int32_t>(sequences[d]->sliding_window_size / page_size_ + (block.seq_length % page_size_ ? 1 : 0))
             ));
             for (int i = page_indices_h.size() - page_indptr_sliding_window_h.back(); i < static_cast<int32_t>(page_indices_h.size()); i++) {
               page_indices_sliding_window_h.push_back(page_indices_h[i]);
