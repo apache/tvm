@@ -1077,9 +1077,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
               sliding_window_offset_h.push_back(last_block.sliding_window_offset);
             }
             sink_size_h.push_back(last_block.sink_length);
-            k_rope_pos_offset_h.push_back(block.start_pos);
+            k_rope_pos_offset_h.push_back(last_block.start_pos);
             if (support_layer_sliding_window_) {
-              k_rope_pos_offset_sliding_window_h.push_back(std::max(0, block.start_pos + block.seq_length - sequences[d]->sliding_window_size));
+              k_rope_pos_offset_sliding_window_h.push_back(std::max(0, last_block.start_pos + last_block.seq_length - sequences[d]->sliding_window_size));
             }
           }
         }
