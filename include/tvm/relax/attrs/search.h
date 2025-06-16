@@ -42,6 +42,18 @@ struct ArgmaxArgminAttrs : public tvm::AttrsNode<ArgmaxArgminAttrs> {
   }
 };  // struct ArgmaxArgminAttrs
 
+/*! \brief Attributes for bucketize operator */
+struct BucketizeAttrs : public tvm::AttrsNode<BucketizeAttrs> {
+  bool out_int32;
+  bool right;
+
+  TVM_DECLARE_ATTRS(BucketizeAttrs, "relax.attrs.BucketizeAttrs") {
+    TVM_ATTR_FIELD(out_int32).describe(
+        "Indicate the output data type. torch.int32 if True, torch.int64 otherwise ");
+    TVM_ATTR_FIELD(right).describe("Determines the behavior for values in boundaries ");
+  }
+};  // struct BucketizeAttrs
+
 }  // namespace relax
 }  // namespace tvm
 

@@ -30,6 +30,16 @@
 
 namespace tvm {
 namespace relax {
+/*!
+ * \brief Returns the indices of the buckets to which each value in the input belongs.
+ * \param input_tensor N-D tensor containing the search values.
+ * \param boundaries 1-D tensor, must contain a strictly increasing sequence.
+ * \param out_int32 Indicate the output data type. int32 if True, int64 otherwise.
+ * \param right Determines the behavior for values in boundaries. Similar to torch.bucketize
+
+ * \return The computed result with the same shape as input.
+ */
+Expr bucketize(Expr input_tensor, Expr boundaries, bool out_int32, bool right);
 
 /*!
  * \brief Selecting elements from either the input tensors depending on the value of the
