@@ -1051,7 +1051,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
               total_seq_length += block.seq_length;
               last_block_id = id;
             }
-            
+            if (sequences[d]->sliding_window_size > 0) {
+              LOG(INFO) << "TEST";
+            }
             page_indptr_h.push_back(page_indptr_h.back() + num_pages);
             page_indptr_sliding_window_h.push_back(
               page_indptr_sliding_window_h.back() + std::min(static_cast<int32_t>(block.page_ids.size()),
@@ -1077,9 +1079,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
               sliding_window_offset_h.push_back(last_block.sliding_window_offset);
             }
             sink_size_h.push_back(last_block.sink_length);
-            k_rope_pos_offset_h.push_back(last_block.start_pos);
+            k_rope_pos_offset_h.push_back(block.start_pos);
             if (support_layer_sliding_window_) {
-              k_rope_pos_offset_sliding_window_h.push_back(std::max(0, last_block.start_pos + last_block.seq_length - sequences[d]->sliding_window_size));
+              k_rope_pos_offset_sliding_window_h.push_back(std::max(0, block.start_pos + block.seq_length - sequences[d]->sliding_window_size));
             }
           }
         }
