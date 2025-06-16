@@ -387,9 +387,9 @@ class ExprEvaluator:
         """
         lower, upper, step = fields["lower"], fields["upper"], fields["step"]
 
-        lower = self._eval_expr(lower) if lower is not None else None
-        upper = self._eval_expr(upper) if upper is not None else None
-        step = self._eval_expr(step) if step is not None else None
+        lower = self._eval_expr(lower) if lower is not None else 0
+        upper = self._eval_expr(upper) if upper is not None else 0
+        step = self._eval_expr(step) if step is not None else 1
 
         return slice(lower, upper, step)
 
