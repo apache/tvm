@@ -24,11 +24,11 @@
 #include <tvm/ffi/c_api.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/memory.h>
 #include <tvm/ffi/string.h>
-
-#include <unordered_map>
 
 namespace tvm {
 namespace ffi {
@@ -47,26 +47,68 @@ namespace ffi {
  */
 class GlobalFunctionTable {
  public:
+  // Note: this class is hidden from the public API, so we just
+  // use it as a private class as ObjectRef
+  class Entry : public Object, public TVMFFIMethodInfo {
+   public:
+    String name_data;
+    String doc_data;
+    String type_schema_data;
+    ffi::Function func_data;
+
+    explicit Entry(const TVMFFIMethodInfo* method_info) {
+      // make copy of the metadata
+      name_data = String(method_info->name.data, method_info->name.size);
+      doc_data = String(method_info->doc.data, method_info->doc.size);
+      type_schema_data = String(method_info->type_schema.data, method_info->type_schema.size);
+      func_data = AnyView::CopyFromTVMFFIAny(method_info->method).cast<ffi::Function>();
+      this->SyncMethodInfo(method_info->flags);
+      // no need to update method pointer as it would remain the same as func and we retained
+    }
+    explicit Entry(String name, ffi::Function func) : name_data(name), func_data(func) {
+      this->SyncMethodInfo(kTVMFFIFieldFlagBitMaskIsStaticMethod);
+    }
+
+   private:
+    void SyncMethodInfo(int64_t flags) {
+      this->flags = flags;
+      this->name = TVMFFIByteArray{name_data.data(), name_data.size()};
+      this->doc = TVMFFIByteArray{doc_data.data(), doc_data.size()};
+      this->type_schema = TVMFFIByteArray{type_schema_data.data(), type_schema_data.size()};
+    }
+  };
+
   void Update(const String& name, Function func, bool can_override) {
     if (table_.count(name)) {
       if (!can_override) {
         TVM_FFI_THROW(RuntimeError) << "Global Function `" << name << "` is already registered";
       }
     }
-    table_[name] = new Function(func);
+    table_.Set(name, ObjectRef(make_object<Entry>(name, func)));
+  }
+
+  void Update(const TVMFFIMethodInfo* method_info, bool can_override) {
+    String name(method_info->name.data, method_info->name.size);
+    if (table_.count(name)) {
+      if (!can_override) {
+        TVM_FFI_THROW(RuntimeError) << "Global Function `" << name << "` is already registered";
+      }
+    }
+    table_.Set(name, ObjectRef(make_object<Entry>(method_info)));
   }
 
   bool Remove(const String& name) {
     auto it = table_.find(name);
     if (it == table_.end()) return false;
-    table_.erase(it);
+    table_.erase(name);
     return true;
   }
 
-  const Function* Get(const String& name) {
+  const Entry* Get(const String& name) {
     auto it = table_.find(name);
     if (it == table_.end()) return nullptr;
-    return it->second;
+    const Object* obj = (*it).second.cast<const Object*>();
+    return static_cast<const Entry*>(obj);
   }
 
   Array<String> ListNames() const {
@@ -89,9 +131,7 @@ class GlobalFunctionTable {
   }
 
  private:
-  // deliberately track function pointer without recycling
-  // to avoid
-  std::unordered_map<String, Function*> table_;
+  Map<String, Any> table_;
 };
 
 /*!
@@ -143,7 +183,7 @@ class EnvCAPIRegistry {
   }
 
   // register environment(e.g. python) specific api functions
-  void Register(const std::string& symbol_name, void* fptr) {
+  void Register(const String& symbol_name, void* fptr) {
     if (symbol_name == "PyErr_CheckSignals") {
       Update(symbol_name, &pyerr_check_signals, fptr);
     } else if (symbol_name == "PyGILState_Ensure") {
@@ -155,7 +195,6 @@ class EnvCAPIRegistry {
     }
   }
 
-  // implementation of tvm::runtime::EnvCheckSignals
   int EnvCheckSignals() {
     // check python signal to see if there are exception raised
     if (pyerr_check_signals != nullptr) {
@@ -225,13 +264,20 @@ int TVMFFIFunctionSetGlobal(const TVMFFIByteArray* name, TVMFFIObjectHandle f, i
   TVM_FFI_SAFE_CALL_END();
 }
 
+int TVMFFIFunctionSetGlobalFromMethodInfo(const TVMFFIMethodInfo* method_info, int override) {
+  using namespace tvm::ffi;
+  TVM_FFI_SAFE_CALL_BEGIN();
+  GlobalFunctionTable::Global()->Update(method_info, override != 0);
+  TVM_FFI_SAFE_CALL_END();
+}
+
 int TVMFFIFunctionGetGlobal(const TVMFFIByteArray* name, TVMFFIObjectHandle* out) {
   using namespace tvm::ffi;
   TVM_FFI_SAFE_CALL_BEGIN();
   String name_str(name->data, name->size);
-  const Function* fp = GlobalFunctionTable::Global()->Get(name_str);
+  const GlobalFunctionTable::Entry* fp = GlobalFunctionTable::Global()->Get(name_str);
   if (fp != nullptr) {
-    tvm::ffi::Function func(*fp);
+    tvm::ffi::Function func(fp->func_data);
     *out = tvm::ffi::details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(func));
   } else {
     *out = nullptr;
@@ -256,7 +302,7 @@ int TVMFFIEnvCheckSignals() { return tvm::ffi::EnvCAPIRegistry::Global()->EnvChe
  */
 int TVMFFIEnvRegisterCAPI(const TVMFFIByteArray* name, void* symbol) {
   TVM_FFI_SAFE_CALL_BEGIN();
-  std::string s_name(name->data, name->size);
+  tvm::ffi::String s_name(name->data, name->size);
   tvm::ffi::EnvCAPIRegistry::Global()->Register(s_name, symbol);
   TVM_FFI_SAFE_CALL_END();
 }

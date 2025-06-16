@@ -408,7 +408,7 @@ class Function : public ObjectRef {
     if (!res.has_value()) {
       TVM_FFI_THROW(ValueError) << "Function " << name << " not found";
     }
-    return res.value();
+    return *res;
   }
 
   static Function GetGlobalRequired(const std::string& name) {

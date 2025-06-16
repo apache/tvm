@@ -119,7 +119,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   //                    TVMFFIAny* result);
   ftype_tvm_ffi_func_call_ = ftype_tvm_ffi_c_func_;
   // Defined in include/tvm/ffi/c_api.h:
-  // void TVMFFIErrorSetRaisedByCStr(const char *kind, const char* msg);
+  // void TVMFFIErrorSetRaisedFromCStr(const char *kind, const char* msg);
   ftype_tvm_ffi_error_set_raised_by_c_str_ = llvm::FunctionType::get(
       t_void_, {llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(t_char_, 0)}, false);
   // Defined in include/tvm/runtime/c_backend_api.h:
@@ -158,7 +158,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
                                "TVMFFIFunctionCall", module_.get());
     f_tvm_ffi_set_raised_by_c_str_ = llvm::Function::Create(
         ftype_tvm_ffi_error_set_raised_by_c_str_, llvm::Function::ExternalLinkage,
-        "TVMFFIErrorSetRaisedByCStr", module_.get());
+        "TVMFFIErrorSetRaisedFromCStr", module_.get());
     f_tvm_get_func_from_env_ =
         llvm::Function::Create(ftype_tvm_get_func_from_env_, llvm::Function::ExternalLinkage,
                                "TVMBackendGetFuncFromEnv", module_.get());
@@ -449,7 +449,7 @@ void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
                                                  "__TVMBackendGetFuncFromEnv");
       gv_tvm_ffi_set_last_error_c_str_ =
           InitContextPtr(llvmGetPointerTo(ftype_tvm_ffi_error_set_raised_by_c_str_, 0),
-                         "__TVMFFIErrorSetRaisedByCStr");
+                         "__TVMFFIErrorSetRaisedFromCStr");
       gv_tvm_parallel_launch_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_parallel_launch_, 0),
                                                "__TVMBackendParallelLaunch");
       gv_tvm_parallel_barrier_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_parallel_barrier_, 0),
@@ -937,7 +937,7 @@ llvm::Value* CodeGenCPU::RuntimeTVMGetFuncFromEnv() {
   if (f_tvm_get_func_from_env_ != nullptr) return f_tvm_get_func_from_env_;
   return GetContextPtr(gv_tvm_get_func_from_env_);
 }
-llvm::Value* CodeGenCPU::RuntimeTVMFFIErrorSetRaisedByCStr() {
+llvm::Value* CodeGenCPU::RuntimeTVMFFIErrorSetRaisedFromCStr() {
   if (f_tvm_ffi_set_raised_by_c_str_ != nullptr) return f_tvm_ffi_set_raised_by_c_str_;
   return GetContextPtr(gv_tvm_ffi_set_last_error_c_str_);
 }
@@ -1064,9 +1064,9 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
 
 #if TVM_LLVM_VERSION >= 90
   auto err_callee = llvm::FunctionCallee(ftype_tvm_ffi_error_set_raised_by_c_str_,
-                                         RuntimeTVMFFIErrorSetRaisedByCStr());
+                                         RuntimeTVMFFIErrorSetRaisedFromCStr());
 #else
-  auto err_callee = RuntimeTVMFFIErrorSetRaisedByCStr();
+  auto err_callee = RuntimeTVMFFIErrorSetRaisedFromCStr();
 #endif
   builder_->CreateCall(err_callee, {GetConstString("RuntimeError"), msg});
   builder_->CreateRet(ConstInt32(-1));

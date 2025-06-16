@@ -89,6 +89,13 @@
 #define TVM_FFI_FUNC_SIG __func__
 #endif
 
+#define TVM_FFI_STATIC_INIT_BLOCK_VAR_DEF \
+  static inline TVM_FFI_ATTRIBUTE_UNUSED int __##TVMFFIStaticInitReg
+
+/*! \brief helper macro to run code once during initialization */
+#define TVM_FFI_STATIC_INIT_BLOCK(Body) \
+  TVM_FFI_STR_CONCAT(TVM_FFI_STATIC_INIT_BLOCK_VAR_DEF, __COUNTER__) = []() { Body return 0; }()
+
 /*
  * \brief Define the default copy/move constructor and assign operator
  * \param TypeName The class typename.

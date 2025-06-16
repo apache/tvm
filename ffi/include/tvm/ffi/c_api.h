@@ -276,7 +276,7 @@ typedef struct {
  *
  * \sa TVMFFIErrorMoveFromRaised
  * \sa TVMFFIErrorSetRaised
- * \sa TVMFFIErrorSetRaisedByCStr
+ * \sa TVMFFIErrorSetRaisedFromCStr
  */
 typedef int (*TVMFFISafeCallType)(void* handle, const TVMFFIAny* args, int32_t num_args,
                                   TVMFFIAny* result);
@@ -293,6 +293,7 @@ typedef struct {
  * \brief Getter that can take address of a field and set the result.
  * \param field The raw address of the field.
  * \param result Stores the result.
+ * \return 0 when success, nonzero when failure happens
  */
 typedef int (*TVMFFIFieldGetter)(void* field, TVMFFIAny* result);
 
@@ -300,8 +301,16 @@ typedef int (*TVMFFIFieldGetter)(void* field, TVMFFIAny* result);
  * \brief Getter that can take address of a field and set to value.
  * \param field The raw address of the field.
  * \param value The value to set.
+ * \return 0 when success, nonzero when failure happens
  */
 typedef int (*TVMFFIFieldSetter)(void* field, const TVMFFIAny* value);
+
+/*!
+ * \brief Function that create a new instance of the type.
+ * \param result The new object handle
+ * \return 0 when success, nonzero when failure happens
+ */
+typedef int (*TVMFFIObjectCreator)(TVMFFIObjectHandle* result);
 
 /*!
  * \brief bitmask of the field.
@@ -312,11 +321,11 @@ enum TVMFFIFieldFlagBitMask : int32_t {
 typedef enum {
 #endif
   /*! \brief The field is writable. */
-  TVMFFIFieldFlagBitMaskWritable = 1 << 0,
+  kTVMFFIFieldFlagBitMaskWritable = 1 << 0,
   /*! \brief The field has default value. */
-  TVMFFIFieldFlagBitMaskHasDefault = 1 << 1,
+  kTVMFFIFieldFlagBitMaskHasDefault = 1 << 1,
   /*! \brief The field is a static method. */
-  TVMFFIFieldFlagBitMaskIsStaticMethod = 1 << 2,
+  kTVMFFIFieldFlagBitMaskIsStaticMethod = 1 << 2,
 #ifdef __cplusplus
 };
 #else
@@ -331,14 +340,18 @@ typedef struct {
   TVMFFIByteArray name;
   /*! \brief The docstring about the field. */
   TVMFFIByteArray doc;
+  /*! \brief The type schema of the field in JSON string. */
+  TVMFFIByteArray type_schema;
   /*!
    * \brief bitmask flags of the field.
    */
   int64_t flags;
-  /*!
-   * \brief Byte offset of the field.
-   */
-  int64_t byte_offset;
+  /*! \brief The size of the field. */
+  int64_t size;
+  /*! \brief The alignment of the field. */
+  int64_t alignment;
+  /*! \brief The offset of the field. */
+  int64_t offset;
   /*! \brief The getter to access the field. */
   TVMFFIFieldGetter getter;
   /*!
@@ -348,7 +361,7 @@ typedef struct {
   TVMFFIFieldSetter setter;
   /*!
    * \brief The default value of the field, this field hold AnyView,
-   *        valid when flags set TVMFFIFieldFlagBitMaskHasDefault
+   *        valid when flags set kTVMFFIFieldFlagBitMaskHasDefault
    */
   TVMFFIAny default_value;
   /*!
@@ -381,6 +394,8 @@ typedef struct {
   TVMFFIByteArray name;
   /*! \brief The docstring about the method. */
   TVMFFIByteArray doc;
+  /*! \brief Optional type schema of the method in JSON string. */
+  TVMFFIByteArray type_schema;
   /*! \brief bitmask flags of the method. */
   int64_t flags;
   /*!
@@ -389,6 +404,35 @@ typedef struct {
    */
   TVMFFIAny method;
 } TVMFFIMethodInfo;
+
+/*!
+ * \brief Extra information of object type that can be used for reflection.
+ *
+ * \note This information is optional and can be used to enable reflection based
+ *       creation of the object.
+ */
+typedef struct {
+  /*! \brief The docstring about the object. */
+  TVMFFIByteArray doc;
+  /*!
+   * \brief An optional function that can create a new empty instance of the type.
+   *
+   * When known_fixed_size is non-zero, creator can be called
+   * with nullptr passed to optional_bytes.
+   *
+   * \note Caller must call setter for each field to initialize the object for
+   *       the final object to be in valid state.
+   *
+   * \note This field is optional to enable reflection based creation.
+   */
+  TVMFFIObjectCreator creator;
+  /*!
+   * \brief Total size of the object struct, if it is fixed and known.
+   *
+   * This field is set optional and set to 0 if not registered.
+   */
+  int64_t total_size;
+} TVMFFITypeExtraInfo;
 
 /*!
  * \brief Runtime type information for object type checking.
@@ -403,23 +447,25 @@ typedef struct {
   int32_t type_depth;
   /*! \brief the unique type key to identify the type. */
   TVMFFIByteArray type_key;
-  /*! \brief Cached hash value of the type key, used for consistent structural hashing. */
-  uint64_t type_key_hash;
   /*!
    * \brief type_acenstors[depth] stores the type_index of the acenstors at depth level
    * \note To keep things simple, we do not allow multiple inheritance so the
    *       hieracy stays as a tree
    */
   const int32_t* type_acenstors;
+  // The following fields are used for reflection
+  /*! \brief Cached hash value of the type key, used for consistent structural hashing. */
+  uint64_t type_key_hash;
   /*! \brief number of reflection accessible fields. */
   int32_t num_fields;
   /*! \brief number of reflection acccesible methods. */
   int32_t num_methods;
-
   /*! \brief The reflection field information. */
-  TVMFFIFieldInfo* fields;
+  const TVMFFIFieldInfo* fields;
   /*! \brief The reflection method. */
-  TVMFFIMethodInfo* methods;
+  const TVMFFIMethodInfo* methods;
+  /*! \brief The extra information of the type. */
+  const TVMFFITypeExtraInfo* extra_info;
 } TVMFFITypeInfo;
 
 //------------------------------------------------------------
@@ -493,6 +539,19 @@ TVM_FFI_DLL int TVMFFIFunctionSetGlobal(const TVMFFIByteArray* name, TVMFFIObjec
                                         int override);
 
 /*!
+ * \brief Register the function to runtime's global table with method info.
+ *
+ * This is same as TVMFFIFunctionSetGlobal but with method info that can provide extra
+ * metadata used in the runtime.
+ *
+ * \param method_info The method info to be registered.
+ * \param override Whether allow override already registered function.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIFunctionSetGlobalFromMethodInfo(const TVMFFIMethodInfo* method_info,
+                                                      int override);
+
+/*!
  * \brief Get a global function.
  *
  * \param name The name of the function.
@@ -524,7 +583,7 @@ TVM_FFI_DLL void TVMFFIErrorSetRaised(TVMFFIObjectHandle error);
  * \param message The error message.
  * \note This is a convenient method for C API side to set error directly from string.
  */
-TVM_FFI_DLL void TVMFFIErrorSetRaisedByCStr(const char* kind, const char* message);
+TVM_FFI_DLL void TVMFFIErrorSetRaisedFromCStr(const char* kind, const char* message);
 
 /*!
  * \brief Create an initial error object.
@@ -575,13 +634,13 @@ TVM_FFI_DLL int TVMFFITypeRegisterField(int32_t type_index, const TVMFFIFieldInf
 TVM_FFI_DLL int TVMFFITypeRegisterMethod(int32_t type_index, const TVMFFIMethodInfo* info);
 
 /*!
- * \brief Get dynamic type info by type index.
- *
+ * \brief Register type creator information for runtime reflection.
  * \param type_index The type index
- * \param result The output type information
- * \return The type info
+ * \param extra_info The extra information to be registered.
+ * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL const TVMFFITypeInfo* TVMFFITypeGetMethod(int32_t type_index);
+TVM_FFI_DLL int TVMFFITypeRegisterExtraInfo(int32_t type_index,
+                                            const TVMFFITypeExtraInfo* extra_info);
 
 //------------------------------------------------------------
 // Section: DLPack support APIs

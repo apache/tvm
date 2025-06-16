@@ -117,7 +117,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* GetContextPtr(llvm::GlobalVariable* gv);
   llvm::Value* RuntimeTVMFFIFunctionCall();
   llvm::Value* RuntimeTVMGetFuncFromEnv();
-  llvm::Value* RuntimeTVMFFIErrorSetRaisedByCStr();
+  llvm::Value* RuntimeTVMFFIErrorSetRaisedFromCStr();
   llvm::Value* RuntimeTVMParallelLaunch();
   llvm::Value* RuntimeTVMParallelBarrier();
   llvm::Value* CreateStaticHandle();

@@ -153,9 +153,9 @@ export type FTVMFFITypeKeyToIndex = (type_key: Pointer, out_tindex: Pointer) => 
 export type FTVMFFIAnyViewToOwnedAny = (any_view: Pointer, out: Pointer) => number;
 
 /**
- * void TVMFFIErrorSetRaisedByCStr(const char* kind, const char* message);
+ * void TVMFFIErrorSetRaisedFromCStr(const char* kind, const char* message);
  */
-export type FTVMFFIErrorSetRaisedByCStr = (kind: Pointer, message: Pointer) => void;
+export type FTVMFFIErrorSetRaisedFromCStr = (kind: Pointer, message: Pointer) => void;
 
 /**
  * int TVMFFIFunctionSetGlobal(const TVMFFIByteArray* name, TVMFFIObjectHandle f,

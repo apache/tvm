@@ -146,9 +146,9 @@ template <typename OptionalType, typename = std::enable_if_t<is_optional_type_v<
 inline OptionalType Downcast(const std::optional<Any>& ref) {
   if (ref.has_value()) {
     if constexpr (std::is_same_v<OptionalType, Any>) {
-      return ref.value();
+      return *ref;
     } else {
-      return ref.value().cast<OptionalType>();
+      return (*ref).cast<OptionalType>();
     }
   } else {
     return OptionalType(std::nullopt);
