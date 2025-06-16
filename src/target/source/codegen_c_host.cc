@@ -319,7 +319,7 @@ void CodeGenCHost::VisitStmt_(const AssertStmtNode* op) {  // NOLINT(*)
     stream << "if (!(" << cond << ")) {\n";
     int assert_if_scope = this->BeginScope();
     PrintIndent();
-    stream << "TVMFFIErrorSetRaisedByCStr(\"RuntimeError\", \""
+    stream << "TVMFFIErrorSetRaisedFromCStr(\"RuntimeError\", \""
            << op->message.as<StringImmNode>()->value << "\", NULL);\n";
     PrintIndent();
     stream << "return -1;\n";
