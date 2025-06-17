@@ -21,7 +21,7 @@ mkdir build
 cd build
 
 cmake ^
-      -G "Visual Studio 16 2019" ^
+      -G "Visual Studio 17 2022" ^
       -DCMAKE_PREFIX_PATH=%LIBRARY_PREFIX% ^
       -DCMAKE_INSTALL_PREFIX:PATH=%LIBRARY_PREFIX% ^
       -DUSE_LLVM=ON ^

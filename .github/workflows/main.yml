@@ -91,7 +91,7 @@ jobs:
 
   Windows:
     if: ${{ github.repository == 'apache/tvm' }}
-    runs-on: windows-2019
+    runs-on: windows-latest
     steps:
       - uses: actions/checkout@v2
         with:
