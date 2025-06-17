@@ -332,8 +332,6 @@ def _register_constant_handling():
             return doc.Constant(
                 value=getattr(x, f) if isinstance(f, str) else f(x),
                 kind=None,
-                s=None,
-                n=None,
                 lineno=x.lineno,
                 col_offset=x.col_offset,
                 end_lineno=x.lineno,

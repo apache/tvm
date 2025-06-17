@@ -514,14 +514,12 @@ class JoinedStr(expr):
 
 
 class Constant(expr):
-    _FIELDS = ["value", "kind", "s", "n", "lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = ["value", "kind", "lineno", "col_offset", "end_lineno", "end_col_offset"]
 
-    def __init__(self, value, kind, s, n, lineno, col_offset, end_lineno, end_col_offset):
+    def __init__(self, value, kind, lineno, col_offset, end_lineno, end_col_offset):
         super().__init__(lineno, col_offset, end_lineno, end_col_offset)
         self.value = value
         self.kind = kind
-        self.s = s
-        self.n = n
 
 
 class NamedExpr(expr):
