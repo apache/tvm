@@ -19,9 +19,8 @@
 
 #include <cuda_fp16.h>
 #include <float.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/ffi/function.h>
-#include <tvm/ffi/function.h>
 
 #include "fp16_group_gemm_runner_sm90.cuh"
 
@@ -60,10 +59,11 @@ void tvm_cutlass_fp8_group_gemm(NDArray x, NDArray weight, NDArray indptr, NDArr
   int n = weight->shape[1];
   int k = x->shape[1];
   const float* beta = nullptr;
-  cutlass_group_gemm(static_cast<ElementA*>(x->data), static_cast<ElementB*>(weight->data),
-                     static_cast<int64_t*>(indptr->data), static_cast<uint8_t*>(workspace->data),
-                     workspace->shape[0], n, k, num_groups, static_cast<float*>(alpha->data), beta,
-                     static_cast<ElementC*>(out->data), stream);
+  cutlass_group_gemm_sm90(static_cast<ElementA*>(x->data), static_cast<ElementB*>(weight->data),
+                          static_cast<int64_t*>(indptr->data),
+                          static_cast<uint8_t*>(workspace->data), workspace->shape[0], n, k,
+                          num_groups, static_cast<float*>(alpha->data), beta,
+                          static_cast<ElementC*>(out->data), stream);
 }
 
 TVM_FFI_REGISTER_GLOBAL("cutlass.group_gemm_e5m2_e5m2_fp16")
