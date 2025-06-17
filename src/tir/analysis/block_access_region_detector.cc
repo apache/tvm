@@ -153,8 +153,12 @@ void BlockReadWriteDetector::VisitExpr_(const VarNode* op) { UpdateOpaque(GetRef
 
 void BlockReadWriteDetector::VisitExpr_(const BufferLoadNode* op) {
   std::vector<arith::IntSet> relaxed_region;
-  for (const PrimExpr& index : op->indices) {
+  for (PrimExpr index : op->indices) {
     PrimExpr remapped_index = Substitute(index, let_bindings_);
+    while (!remapped_index.same_as(index)) {
+      index = remapped_index;
+      remapped_index = Substitute(index, let_bindings_);
+    }
     relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(remapped_index), dom_map_));
   }
   Update(&read_buffers_, &read_regions_, op->buffer, relaxed_region);
@@ -236,8 +240,12 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
 
 void BlockReadWriteDetector::VisitStmt_(const BufferStoreNode* op) {
   std::vector<arith::IntSet> relaxed_region;
-  for (const PrimExpr& index : op->indices) {
+  for (PrimExpr index : op->indices) {
     PrimExpr remapped_index = Substitute(index, let_bindings_);
+    while (!remapped_index.same_as(index)) {
+      index = remapped_index;
+      remapped_index = Substitute(index, let_bindings_);
+    }
     relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(remapped_index), dom_map_));
   }
   Update(&writes_buffers_, &write_regions_, op->buffer, relaxed_region);
