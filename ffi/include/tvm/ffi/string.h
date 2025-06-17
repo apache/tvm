@@ -307,6 +307,18 @@ class String : public ObjectRef {
   }
 
   /*!
+   * \brief Compares this to other
+   *
+   * \param other The TVMFFIByteArray to compare with.
+   *
+   * \return zero if both char sequences compare equal. negative if this appear
+   * before other, positive otherwise.
+   */
+  int compare(const TVMFFIByteArray& other) const {
+    return Bytes::memncmp(data(), other.data, size(), other.size);
+  }
+
+  /*!
    * \brief Returns a pointer to the char array in the string.
    *
    * \return const char*

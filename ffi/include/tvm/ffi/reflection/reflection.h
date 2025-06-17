@@ -46,7 +46,7 @@ class DefaultValue : public FieldInfoTrait {
  public:
   explicit DefaultValue(Any value) : value_(value) {}
 
-  void Apply(TVMFFIFieldInfo* info) const {
+  TVM_FFI_INLINE void Apply(TVMFFIFieldInfo* info) const {
     info->default_value = AnyView(value_).CopyToTVMFFIAny();
     info->flags |= kTVMFFIFieldFlagBitMaskHasDefault;
   }
@@ -65,16 +65,89 @@ class DefaultValue : public FieldInfoTrait {
  * \returns The byteoffset
  */
 template <typename Class, typename T>
-inline int64_t GetFieldByteOffsetToObject(T Class::*field_ptr) {
+TVM_FFI_INLINE int64_t GetFieldByteOffsetToObject(T Class::*field_ptr) {
   int64_t field_offset_to_class =
       reinterpret_cast<int64_t>(&(static_cast<Class*>(nullptr)->*field_ptr));
   return field_offset_to_class - details::ObjectUnsafe::GetObjectOffsetToSubclass<Class>();
 }
 
+class ReflectionDefBase {
+ protected:
+  template <typename T>
+  static int FieldGetter(void* field, TVMFFIAny* result) {
+    TVM_FFI_SAFE_CALL_BEGIN();
+    *result = details::AnyUnsafe::MoveAnyToTVMFFIAny(Any(*reinterpret_cast<T*>(field)));
+    TVM_FFI_SAFE_CALL_END();
+  }
+
+  template <typename T>
+  static int FieldSetter(void* field, const TVMFFIAny* value) {
+    TVM_FFI_SAFE_CALL_BEGIN();
+    *reinterpret_cast<T*>(field) = AnyView::CopyFromTVMFFIAny(*value).cast<T>();
+    TVM_FFI_SAFE_CALL_END();
+  }
+
+  template <typename T>
+  static int ObjectCreatorDefault(TVMFFIObjectHandle* result) {
+    TVM_FFI_SAFE_CALL_BEGIN();
+    ObjectPtr<T> obj = make_object<T>();
+    *result = details::ObjectUnsafe::MoveObjectPtrToTVMFFIObjectPtr(std::move(obj));
+    TVM_FFI_SAFE_CALL_END();
+  }
+
+  template <typename T>
+  static TVM_FFI_INLINE void ApplyFieldInfoTrait(TVMFFIFieldInfo* info, const T& value) {
+    if constexpr (std::is_base_of_v<FieldInfoTrait, std::decay_t<T>>) {
+      value.Apply(info);
+    }
+    if constexpr (std::is_same_v<std::decay_t<T>, char*>) {
+      info->doc = TVMFFIByteArray{value, std::char_traits<char>::length(value)};
+    }
+  }
+
+  template <typename T>
+  static TVM_FFI_INLINE void ApplyMethodInfoTrait(TVMFFIMethodInfo* info, const T& value) {
+    if constexpr (std::is_same_v<std::decay_t<T>, char*>) {
+      info->doc = TVMFFIByteArray{value, std::char_traits<char>::length(value)};
+    }
+  }
+
+  template <typename T>
+  static TVM_FFI_INLINE void ApplyExtraInfoTrait(TVMFFITypeExtraInfo* info, const T& value) {
+    if constexpr (std::is_same_v<std::decay_t<T>, char*>) {
+      info->doc = TVMFFIByteArray{value, std::char_traits<char>::length(value)};
+    }
+  }
+  template <typename Class, typename R, typename... Args>
+  static TVM_FFI_INLINE Function GetMethod(std::string name, R (Class::*func)(Args...)) {
+    auto fwrap = [func](const Class* target, Args... params) -> R {
+      return (const_cast<Class*>(target)->*func)(std::forward<Args>(params)...);
+    };
+    return ffi::Function::FromTyped(fwrap, name);
+  }
+
+  template <typename Class, typename R, typename... Args>
+  static TVM_FFI_INLINE Function GetMethod(std::string name, R (Class::*func)(Args...) const) {
+    auto fwrap = [func](const Class* target, Args... params) -> R {
+      return (target->*func)(std::forward<Args>(params)...);
+    };
+    return ffi::Function::FromTyped(fwrap, name);
+  }
+
+  template <typename Class, typename Func>
+  static TVM_FFI_INLINE Function GetMethod(std::string name, Func&& func) {
+    return ffi::Function::FromTyped(std::forward<Func>(func), name);
+  }
+};
+
 template <typename Class>
-class ObjectDef {
+class ObjectDef : public ReflectionDefBase {
  public:
-  ObjectDef() : type_index_(Class::_GetOrAllocRuntimeTypeIndex()), type_key_(Class::_type_key) {}
+  template <typename... ExtraArgs>
+  explicit ObjectDef(ExtraArgs&&... extra_args)
+      : type_index_(Class::_GetOrAllocRuntimeTypeIndex()), type_key_(Class::_type_key) {
+    RegisterExtraInfo(std::forward<ExtraArgs>(extra_args)...);
+  }
 
   /*!
    * \brief Define a readonly field.
@@ -90,7 +163,7 @@ class ObjectDef {
    * \return The reflection definition.
    */
   template <typename T, typename... Extra>
-  ObjectDef& def_ro(const char* name, T Class::*field_ptr, Extra&&... extra) {
+  TVM_FFI_INLINE ObjectDef& def_ro(const char* name, T Class::*field_ptr, Extra&&... extra) {
     RegisterField(name, field_ptr, false, std::forward<Extra>(extra)...);
     return *this;
   }
@@ -109,7 +182,8 @@ class ObjectDef {
    * \return The reflection definition.
    */
   template <typename T, typename... Extra>
-  ObjectDef& def_rw(const char* name, T Class::*field_ptr, Extra&&... extra) {
+  TVM_FFI_INLINE ObjectDef& def_rw(const char* name, T Class::*field_ptr, Extra&&... extra) {
+    static_assert(Class::_type_mutable, "Only mutable classes are supported for writable fields");
     RegisterField(name, field_ptr, true, std::forward<Extra>(extra)...);
     return *this;
   }
@@ -127,7 +201,7 @@ class ObjectDef {
    * \return The reflection definition.
    */
   template <typename Func, typename... Extra>
-  ObjectDef& def(const char* name, Func&& func, Extra&&... extra) {
+  TVM_FFI_INLINE ObjectDef& def(const char* name, Func&& func, Extra&&... extra) {
     RegisterMethod(name, false, std::forward<Func>(func), std::forward<Extra>(extra)...);
     return *this;
   }
@@ -145,12 +219,26 @@ class ObjectDef {
    * \return The reflection definition.
    */
   template <typename Func, typename... Extra>
-  ObjectDef& def_static(const char* name, Func&& func, Extra&&... extra) {
+  TVM_FFI_INLINE ObjectDef& def_static(const char* name, Func&& func, Extra&&... extra) {
     RegisterMethod(name, true, std::forward<Func>(func), std::forward<Extra>(extra)...);
     return *this;
   }
 
  private:
+  template <typename... ExtraArgs>
+  void RegisterExtraInfo(ExtraArgs&&... extra_args) {
+    TVMFFITypeExtraInfo info;
+    info.total_size = sizeof(Class);
+    info.creator = nullptr;
+    info.doc = TVMFFIByteArray{nullptr, 0};
+    if constexpr (std::is_default_constructible_v<Class>) {
+      info.creator = ObjectCreatorDefault<Class>;
+    }
+    // apply extra info traits
+    ((ApplyExtraInfoTrait(&info, std::forward<ExtraArgs>(extra_args)), ...));
+    TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeRegisterExtraInfo(type_index_, &info));
+  }
+
   template <typename T, typename... ExtraArgs>
   void RegisterField(const char* name, T Class::*field_ptr, bool writable,
                      ExtraArgs&&... extra_args) {
@@ -178,30 +266,6 @@ class ObjectDef {
     TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeRegisterField(type_index_, &info));
   }
 
-  template <typename T>
-  static int FieldGetter(void* field, TVMFFIAny* result) {
-    TVM_FFI_SAFE_CALL_BEGIN();
-    *result = details::AnyUnsafe::MoveAnyToTVMFFIAny(Any(*reinterpret_cast<T*>(field)));
-    TVM_FFI_SAFE_CALL_END();
-  }
-
-  template <typename T>
-  static int FieldSetter(void* field, const TVMFFIAny* value) {
-    TVM_FFI_SAFE_CALL_BEGIN();
-    *reinterpret_cast<T*>(field) = AnyView::CopyFromTVMFFIAny(*value).cast<T>();
-    TVM_FFI_SAFE_CALL_END();
-  }
-
-  template <typename T>
-  static void ApplyFieldInfoTrait(TVMFFIFieldInfo* info, const T& value) {
-    if constexpr (std::is_base_of_v<FieldInfoTrait, std::decay_t<T>>) {
-      value.Apply(info);
-    }
-    if constexpr (std::is_same_v<std::decay_t<T>, char*>) {
-      info->doc = TVMFFIByteArray{value, std::char_traits<char>::length(value)};
-    }
-  }
-
   // register a method
   template <typename Func, typename... Extra>
   void RegisterMethod(const char* name, bool is_static, Func&& func, Extra&&... extra) {
@@ -214,39 +278,12 @@ class ObjectDef {
       info.flags |= kTVMFFIFieldFlagBitMaskIsStaticMethod;
     }
     // obtain the method function
-    Function method = GetMethod(std::string(type_key_) + "." + name, std::forward<Func>(func));
+    Function method =
+        GetMethod<Class>(std::string(type_key_) + "." + name, std::forward<Func>(func));
     info.method = AnyView(method).CopyToTVMFFIAny();
     // apply method info traits
     ((ApplyMethodInfoTrait(&info, std::forward<Extra>(extra)), ...));
     TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeRegisterMethod(type_index_, &info));
-  }
-
-  template <typename T>
-  static void ApplyMethodInfoTrait(TVMFFIMethodInfo* info, const T& value) {
-    if constexpr (std::is_same_v<std::decay_t<T>, char*>) {
-      info->doc = TVMFFIByteArray{value, std::char_traits<char>::length(value)};
-    }
-  }
-
-  template <typename R, typename... Args>
-  static Function GetMethod(std::string name, R (Class::*func)(Args...)) {
-    auto fwrap = [func](const Class* target, Args... params) -> R {
-      return (const_cast<Class*>(target)->*func)(std::forward<Args>(params)...);
-    };
-    return ffi::Function::FromTyped(fwrap, name);
-  }
-
-  template <typename R, typename... Args>
-  static Function GetMethod(std::string name, R (Class::*func)(Args...) const) {
-    auto fwrap = [func](const Class* target, Args... params) -> R {
-      return (target->*func)(std::forward<Args>(params)...);
-    };
-    return ffi::Function::FromTyped(fwrap, name);
-  }
-
-  template <typename Func>
-  static Function GetMethod(std::string name, Func&& func) {
-    return ffi::Function::FromTyped(std::forward<Func>(func), name);
   }
 
   int32_t type_index_;

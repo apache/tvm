@@ -30,6 +30,7 @@ from .ndarray import Device, device
 from .ndarray import cpu, cuda, rocm, opencl, metal, vpi, vulkan, ext_dev, hexagon, webgpu
 from .ndarray import from_dlpack, NDArray, Shape
 from .container import Array, Map
+from . import testing
 
 
 __all__ = [

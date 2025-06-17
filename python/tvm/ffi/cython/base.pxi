@@ -134,6 +134,52 @@ cdef extern from "tvm/ffi/c_api.h":
         void* handle, const TVMFFIAny* args, int32_t num_args,
         TVMFFIAny* result) noexcept
 
+    cdef enum TVMFFIFieldFlagBitMask:
+        kTVMFFIFieldFlagBitMaskWritable = 1 << 0
+        kTVMFFIFieldFlagBitMaskHasDefault = 1 << 1
+        kTVMFFIFieldFlagBitMaskIsStaticMethod = 1 << 2
+
+    ctypedef int (*TVMFFIFieldGetter)(void* field, TVMFFIAny* result) noexcept;
+    ctypedef int (*TVMFFIFieldSetter)(void* field, const TVMFFIAny* value) noexcept;
+    ctypedef int (*TVMFFIObjectCreator)(TVMFFIObjectHandle* result) noexcept;
+
+    ctypedef struct TVMFFIFieldInfo:
+        TVMFFIByteArray name
+        TVMFFIByteArray doc
+        TVMFFIByteArray type_schema
+        int64_t flags
+        int64_t size
+        int64_t alignment
+        int64_t offset
+        TVMFFIFieldGetter getter
+        TVMFFIFieldSetter setter
+        TVMFFIAny default_value
+        int32_t field_static_type_index
+
+    ctypedef struct TVMFFIMethodInfo:
+        TVMFFIByteArray name
+        TVMFFIByteArray doc
+        TVMFFIByteArray type_schema
+        int64_t flags
+        TVMFFIAny method
+
+    ctypedef struct TVMFFITypeExtraInfo:
+        TVMFFIByteArray doc
+        TVMFFIObjectCreator creator
+        int64_t total_size
+
+    ctypedef struct TVMFFITypeInfo:
+        int32_t type_index
+        int32_t type_depth
+        TVMFFIByteArray type_key
+        const int32_t* type_acenstors
+        uint64_t type_key_hash
+        int32_t num_fields
+        int32_t num_methods
+        const TVMFFIFieldInfo* fields
+        const TVMFFIMethodInfo* methods
+        const TVMFFITypeExtraInfo* extra_info
+
     int TVMFFIObjectFree(TVMFFIObjectHandle obj) nogil
     int TVMFFIObjectGetTypeIndex(TVMFFIObjectHandle obj) nogil
     int TVMFFIFunctionCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args,
@@ -161,6 +207,7 @@ cdef extern from "tvm/ffi/c_api.h":
     int TVMFFINDArrayToDLPack(TVMFFIObjectHandle src, DLManagedTensor** out) nogil
     int TVMFFINDArrayToDLPackVersioned(TVMFFIObjectHandle src,
                                         DLManagedTensorVersioned** out) nogil
+    const TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index) nogil
     TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) nogil
     TVMFFIErrorCell* TVMFFIErrorGetCellPtr(TVMFFIObjectHandle obj) nogil
     TVMFFIShapeCell* TVMFFIShapeGetCellPtr(TVMFFIObjectHandle obj) nogil

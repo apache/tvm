@@ -50,6 +50,7 @@ def register_object(type_key=None):
             if _SKIP_UNKNOWN_OBJECTS:
                 return cls
             raise ValueError("Cannot find object type index for %s" % object_name)
+        core._add_class_attrs_by_reflection(type_index, cls)
         core._register_object_by_index(type_index, cls)
         return cls
 
