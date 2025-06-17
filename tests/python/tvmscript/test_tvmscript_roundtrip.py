@@ -4266,5 +4266,14 @@ def test_return_none_no_trailing_type():
     assert "-> None" not in script
 
 
+def test_address_of_buffer():
+    @T.prim_func
+    def func(a: T.handle):
+        A = T.match_buffer(a, (128, 128), "float32")
+        T.evaluate(T.address_of(A))
+
+    assert "T.address_of(A[0, 0])" in func.script()
+
+
 if __name__ == "__main__":
     tvm.testing.main()
