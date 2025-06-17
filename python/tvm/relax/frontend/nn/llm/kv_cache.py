@@ -302,7 +302,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
 
     def __init__(  # pylint: disable=too-many-locals
         self,
-        attn_kind: Union[Literal["mha", "mla"], List[Literal["mha", "mla","mha_sliding"]]],
+        attn_kind: Union[Literal["mha", "mla"], List[Literal["mha", "mla", "mha_sliding"]]],
         max_batch_size: tir.Var,
         max_total_seq_len: tir.Var,
         prefill_chunk_size: tir.Var,
@@ -378,8 +378,16 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             dtype_q=dtype,
             dtype_kv=dtype,
             dtype_o=dtype,
-            qk_head_dim=qk_head_dim if (attn_kind == "mha" or isinstance(attn_kind, List)) else mla_original_qk_head_dim,
-            v_head_dim=v_head_dim if (attn_kind == "mha" or isinstance(attn_kind, List)) else mla_original_v_head_dim,
+            qk_head_dim=(
+                qk_head_dim
+                if (attn_kind == "mha" or isinstance(attn_kind, List))
+                else mla_original_qk_head_dim
+            ),
+            v_head_dim=(
+                v_head_dim
+                if (attn_kind == "mha" or isinstance(attn_kind, List))
+                else mla_original_v_head_dim
+            ),
             target=target,
             enable_inline_rope=rope_mode == RopeMode.INLINE,
         )
@@ -488,7 +496,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
 
     def __init__(  # pylint: disable=too-many-locals
         self,
-        attn_kind: Union[Literal["mha", "mla"], List[Literal["mha", "mla","mha_sliding"]]],
+        attn_kind: Union[Literal["mha", "mla"], List[Literal["mha", "mla", "mha_sliding"]]],
         max_batch_size: tir.Var,
         max_total_seq_len: tir.Var,
         prefill_chunk_size: tir.Var,
@@ -560,9 +568,11 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             The target to build the model to.
         """
         if isinstance(attn_kind, List):
-            attn_kind = [int(getattr(AttnKind, layer_kind.upper())) for layer_kind in attn_kind] 
+            attn_kind = [int(getattr(AttnKind, layer_kind.upper())) for layer_kind in attn_kind]
         else:
-            attn_kind = [int(getattr(AttnKind, attn_kind.upper())) for _ in range(num_hidden_layers)]
+            attn_kind = [
+                int(getattr(AttnKind, attn_kind.upper())) for _ in range(num_hidden_layers)
+            ]
         bb = rx.BlockBuilder.current()
         args = [
             rx.ShapeExpr(
