@@ -204,8 +204,6 @@ class ExprEvaluator:
                         s.step = doc.Constant(
                             1,
                             None,
-                            1,
-                            1,
                             s.upper.lineno,
                             s.upper.end_col_offset + 1,
                             s.upper.lineno,
