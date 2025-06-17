@@ -288,6 +288,10 @@ TVM_FFI_REGISTER_GLOBAL("arith.CreateAnalyzer")
             self->const_int_bound.Update(args[0].cast<Var>(), args[1].cast<ConstIntBound>(),
                                          args[2].cast<bool>());
           });
+        } else if (name == "const_int_bound_is_bound") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            *ret = self->const_int_bound.IsBound(args[0].cast<Var>());
+          });
         } else if (name == "Simplify") {
           return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
             if (args.size() == 1) {

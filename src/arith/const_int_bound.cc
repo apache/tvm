@@ -109,6 +109,8 @@ class ConstIntBoundAnalyzer::Impl
     BoundInfo(PrimExpr expr, Entry bound) : expr(expr), bound(bound) {}
   };
 
+  bool IsBound(const Var& var) const { return var_map_.find(var) != var_map_.end(); }
+
   void Bind(const Var& var, const Range& range, bool allow_override) {
     Entry a = VisitExpr(range->min);
     Entry b = VisitExpr(range->extent);
@@ -792,6 +794,8 @@ void ConstIntBoundAnalyzer::Update(const Var& var, const ConstIntBound& info, bo
 void ConstIntBoundAnalyzer::Bind(const Var& var, const Range& range, bool allow_override) {
   impl_->Bind(var, range, allow_override);
 }
+
+bool ConstIntBoundAnalyzer::IsBound(const Var& var) const { return impl_->IsBound(var); }
 
 std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const PrimExpr& constraint) {
   return impl_->EnterConstraint(constraint);
