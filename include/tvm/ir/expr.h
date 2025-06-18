@@ -401,36 +401,11 @@ TVM_DLL PrimExpr operator~(PrimExpr a);
 class RelaxExprNode : public BaseExprNode {
  public:
   /*!
-   * \brief Stores the result of type inference(type checking).
-   *
-   * \note This can be undefined before type inference.
-   *       This value is discarded during serialization.
-   */
-  mutable Type checked_type_ = Type(nullptr);
-
-  /*!
    * \brief Stores the result of structure information of the
    *        expression that encapsulate both static shape and
    *        runtime information such as shape.
    */
   mutable Optional<ObjectRef> struct_info_ = Optional<ObjectRef>();
-
-  /*!
-   * \return The checked_type
-   */
-  inline const Type& checked_type() const;
-  /*!
-   * \brief Check if the inferred(checked) type of the Expr
-   *  is backed by a TTypeNode and return it.
-   *
-   * \note This function will thrown an error if the node type
-   *       of this Expr is not TTypeNode.
-   *
-   * \return The corresponding TTypeNode pointer.
-   * \tparam The specific TypeNode we look for.
-   */
-  template <typename TTypeNode>
-  inline const TTypeNode* type_as() const;
 
   static constexpr const char* _type_key = "RelaxExpr";
   static constexpr const uint32_t _type_child_slots = 22;
@@ -463,7 +438,6 @@ class GlobalVarNode : public RelaxExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
     v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("struct_info_", &struct_info_);
   }
 
@@ -487,7 +461,7 @@ class GlobalVarNode : public RelaxExprNode {
  */
 class GlobalVar : public RelaxExpr {
  public:
-  TVM_DLL explicit GlobalVar(String name_hint, Type type = {}, Span span = {});
+  TVM_DLL explicit GlobalVar(String name_hint, Span span = {});
 
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelaxExpr, GlobalVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GlobalVarNode);
@@ -746,26 +720,6 @@ class Range : public ObjectRef {
   // declare range.
   TVM_DEFINE_OBJECT_REF_METHODS(Range, ObjectRef, RangeNode);
 };
-
-// implementations
-inline const Type& RelaxExprNode::checked_type() const {
-  ICHECK(checked_type_.defined()) << "internal error: the type checker has "
-                                  << "not populated the checked_type "
-                                  << "field for " << GetRef<RelaxExpr>(this);
-  return this->checked_type_;
-}
-
-template <typename TTypeNode>
-inline const TTypeNode* RelaxExprNode::type_as() const {
-  static_assert(std::is_base_of<TypeNode, TTypeNode>::value,
-                "TType must be a special case of type");
-  ICHECK(checked_type_.defined())
-      << "Type inference for this Expr has not completed. Try to call infer_type pass.";
-  const TTypeNode* node = checked_type_.as<TTypeNode>();
-  ICHECK(node != nullptr) << "Expected type to be " << TTypeNode::_type_key << ", but get "
-                          << checked_type_->GetTypeKey();
-  return node;
-}
 
 namespace ffi {
 // Type traits to enable automatic conversion into IntImm, Integer, and Bool

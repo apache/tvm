@@ -389,7 +389,6 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                                  << " are used, but are not passed in as API arguments";
 
   func_ptr->buffer_map = Map<Var, Buffer>();
-  func_ptr->checked_type_ = func_ptr->func_type_annotation();
   func_ptr->ret_type = PrimType(DataType::Int(32));
 
   // return the function.
