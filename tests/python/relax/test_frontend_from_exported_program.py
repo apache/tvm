@@ -800,6 +800,37 @@ def test_softmax():
     verify_model(Softmax(), example_args, {}, expected1)
     verify_model(Softmax2(), example_args, {}, expected1)
 
+def test_softsign():
+    class Softsign(Module):
+        def __init__(self):
+            super().__init__()
+            self.ss = torch.nn.Softsign()
+
+        def forward(self, input):
+            return self.ss(input)
+
+    class Softsign2(Module):
+        def forward(self, input):
+            return torch.nn.functional.softsign(input)
+
+    @tvm.script.ir_module
+    class expected_softsign:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                abs_val = R.abs(input)
+                denom = R.add(abs_val, R.const(1.0, "float32"))
+                result = R.divide(input, denom)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (result,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+    verify_model(Softsign(), example_args, {}, expected_softsign)
+    verify_model(Softsign2(), example_args, {}, expected_softsign)
+
 
 def test_softshrink():
     class Softshrink(Module):
