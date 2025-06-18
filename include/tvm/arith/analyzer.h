@@ -154,6 +154,7 @@ class ConstIntBoundAnalyzer {
    * \param allow_override whether we allow override of existing information.
    */
   TVM_DLL void Update(const Var& var, const ConstIntBound& info, bool allow_override = false);
+
   /*!
    * \brief Bind variable to a range.
    *
@@ -162,6 +163,13 @@ class ConstIntBoundAnalyzer {
    * \param allow_override Whether we allow overriding an existing var's range.
    */
   TVM_DLL void Bind(const Var& var, const Range& range, bool allow_override = false);
+
+  /*!
+   * \brief Check if a variable is bound to a range.
+   * \param var The variable.
+   * \return Whether the variable is bound to a range.
+   */
+  TVM_DLL bool IsBound(const Var& var) const;
 
  private:
   friend class Analyzer;
