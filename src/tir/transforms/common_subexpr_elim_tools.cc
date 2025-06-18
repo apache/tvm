@@ -797,7 +797,7 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // normalized. This normalized table will keep the count for each set of equivalent terms
   // (i.e. each equivalence class), together with a term that did appear in this equivalence class
   // (in practice, the first term of the equivalence class that was encoutered).
-  std::unordered_map<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash, ExprDeepEqual>
+  support::OrderedMap<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash, ExprDeepEqual>
       norm_table;
 
   // In order to avoid frequent rehashing if the norm_table becomes big, we immediately ask for
@@ -806,23 +806,7 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // equivalence classes as there are elements)
   norm_table.reserve(table.size());
 
-  // Transform the input hashtable to a vector and sort it according to some order, as we will be
-  // iterating through its items soon, and the order of appearance will be used to determine the
-  // individual representant for each class of equivalence, which we want to be deterministic
-  // (otherwise {x+y, y+x} could be both replaced by x+y, and on another run by y+x).
-  std::vector<std::pair<PrimExpr, size_t>> sorted_items_of_table(table.begin(), table.end());
-
-  // We do the ordering by comparing the string repr of each expr to get a determinstic ordering
-  sort(sorted_items_of_table.begin(), sorted_items_of_table.end(),
-       [](std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b) {
-         std::stringstream a_stream;
-         std::stringstream b_stream;
-         a_stream << AsLegacyRepr(a.first);
-         b_stream << AsLegacyRepr(b.first);
-         return a_stream.str().compare(b_stream.str()) < 0;
-       });
-
-  for (const auto& elem : sorted_items_of_table) {
+  for (const auto& elem : table) {
     PrimExpr norm_elem = NormalizeTerm(elem.first, identify_equiv_terms);
     // If the normalized term is not already a key in the normalized table
     auto it_found = norm_table.find(norm_elem);
@@ -831,7 +815,7 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
       // (i.e. `norm_elem` has been seen `elem`.second many times so far, and the chosen element
       // to represent the equivalence class will be `elem`.first as it's the first element of the
       // class that we see)
-      norm_table[norm_elem] = elem;
+      norm_table.insert(norm_elem, elem);
     } else {
       // Otherwise, it's not the first time we see a term in this equivalence class, so we just
       // increase the count of this equivalence class as we now have `elem`.second additional items
@@ -850,10 +834,8 @@ std::vector<std::pair<PrimExpr, size_t>> SyntacticToSemanticComputations(
   // Careful : the pairs will never change (the canonical represantants chosen will always be the
   // same), but the order in which the pairs are produced can vary as we are iterating through the
   // hashtable `norm_table`. It is not an issue as the called will be sorting the result anyway.
-  std::unordered_map<PrimExpr, std::pair<PrimExpr, size_t>, StructuralHash,
-                     ExprDeepEqual>::const_iterator it_norm_table;
-  for (it_norm_table = norm_table.begin(); it_norm_table != norm_table.end(); ++it_norm_table) {
-    result.push_back(it_norm_table->second);
+  for (const auto& kv : norm_table) {
+    result.push_back(kv.second);
   }
 
   return result;

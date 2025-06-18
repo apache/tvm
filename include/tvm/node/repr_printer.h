@@ -52,32 +52,6 @@ class ReprPrinter {
   TVM_DLL static FType& vtable();
 };
 
-/*! \brief Legacy behavior of ReprPrinter. */
-class ReprLegacyPrinter {
- public:
-  /*! \brief The indentation level. */
-  int indent{0};
-
-  explicit ReprLegacyPrinter(std::ostream& stream)  // NOLINT(*)
-      : stream(stream) {}
-
-  /*! \brief The node to be printed. */
-  TVM_DLL void Print(const ObjectRef& node);
-  /*! \brief Print indent to the stream */
-  TVM_DLL void PrintIndent();
-  /*! \brief Could the LegacyPrinter dispatch the node */
-  TVM_DLL static bool CanDispatch(const ObjectRef& node);
-  /*! \brief Return the ostream it maintains */
-  TVM_DLL std::ostream& Stream() const;
-  // Allow registration to be printer.
-  using FType = NodeFunctor<void(const ObjectRef&, ReprLegacyPrinter*)>;
-  TVM_DLL static FType& vtable();
-
- private:
-  /*! \brief The output stream */
-  std::ostream& stream;
-};
-
 /*!
  * \brief Dump the node to stderr, used for debug purposes.
  * \param node The input node
@@ -113,12 +87,6 @@ inline std::ostream& operator<<(std::ostream& os, const Variant<V...>& n) {  // 
   return os;
 }
 
-inline std::string AsLegacyRepr(const ObjectRef& n) {
-  std::ostringstream os;
-  ReprLegacyPrinter(os).Print(n);
-  return os.str();
-}
 }  // namespace ffi
-using ffi::AsLegacyRepr;
 }  // namespace tvm
 #endif  // TVM_NODE_REPR_PRINTER_H_

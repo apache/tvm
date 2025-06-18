@@ -138,7 +138,7 @@ class FunctionInliner : public ExprMutator {
   }
 
   const Map<Variant<String, GlobalVar>, Function>& replacements_;
-  support::OrderedSet<GlobalVar> inline_stack_;
+  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> inline_stack_;
 };
 }  // namespace
 

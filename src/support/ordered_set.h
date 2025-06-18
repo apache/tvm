@@ -26,30 +26,14 @@
 
 #include <tvm/runtime/object.h>
 
-#include <list>
+#include <functional>
 #include <unordered_map>
+#include <vector>
 
 namespace tvm {
 namespace support {
 
-namespace detail {
-/* \brief Utility to allow use for standard and ObjectRef types
- *
- * \tparam T The type held by the OrderedSet
- */
-template <typename T, typename = void>
-struct OrderedSetLookupType {
-  using MapType = std::unordered_map<T, typename std::list<T>::iterator>;
-};
-
-template <typename T>
-struct OrderedSetLookupType<T, std::enable_if_t<std::is_base_of_v<runtime::ObjectRef, T>>> {
-  using MapType = std::unordered_map<T, typename std::list<T>::iterator, runtime::ObjectPtrHash,
-                                     runtime::ObjectPtrEqual>;
-};
-}  // namespace detail
-
-template <typename T>
+template <typename T, typename Hash = std::hash<T>, typename KeyEqual = std::equal_to<T>>
 class OrderedSet {
  public:
   OrderedSet() = default;
@@ -61,17 +45,21 @@ class OrderedSet {
    * `elements_`, the copy of `elem_to_iter_` would contain references
    * to the original's `element_`, rather than to its own
    */
-  OrderedSet(const OrderedSet<T>& other) : elements_(other.elements_) { InitElementToIter(); }
+  OrderedSet(const OrderedSet<T, Hash, KeyEqual>& other) : elements_(other.elements_) {
+    InitElementToIter();
+  }
 
   /* \brief Explicit copy assignment
    *
    * Implemented in terms of the copy constructor, and the default
    * move assignment.
    */
-  OrderedSet& operator=(const OrderedSet<T>& other) { return *this = OrderedSet(other); }
+  OrderedSet& operator=(const OrderedSet<T, Hash, KeyEqual>& other) {
+    return *this = OrderedSet(other);
+  }
 
-  OrderedSet(OrderedSet<T>&&) = default;
-  OrderedSet& operator=(OrderedSet<T>&&) = default;
+  OrderedSet(OrderedSet<T, Hash, KeyEqual>&&) = default;
+  OrderedSet& operator=(OrderedSet<T, Hash, KeyEqual>&&) = default;
 
   template <typename Iter>
   OrderedSet(Iter begin, Iter end) : elements_(begin, end) {
@@ -79,27 +67,20 @@ class OrderedSet {
   }
 
   void push_back(const T& t) {
-    if (!elem_to_iter_.count(t)) {
+    if (!elem_to_index_.count(t)) {
       elements_.push_back(t);
-      elem_to_iter_[t] = std::prev(elements_.end());
+      elem_to_index_[t] = elements_.size() - 1;
     }
   }
 
   void insert(const T& t) { push_back(t); }
 
-  void erase(const T& t) {
-    if (auto it = elem_to_iter_.find(t); it != elem_to_iter_.end()) {
-      elements_.erase(it->second);
-      elem_to_iter_.erase(it);
-    }
-  }
-
   void clear() {
     elements_.clear();
-    elem_to_iter_.clear();
+    elem_to_index_.clear();
   }
 
-  size_t count(const T& t) const { return elem_to_iter_.count(t); }
+  size_t count(const T& t) const { return elem_to_index_.count(t); }
 
   auto begin() const { return elements_.begin(); }
   auto end() const { return elements_.end(); }
@@ -108,13 +89,13 @@ class OrderedSet {
 
  private:
   void InitElementToIter() {
-    for (auto it = elements_.begin(); it != elements_.end(); it++) {
-      elem_to_iter_[*it] = it;
+    for (size_t i = 0; i < elements_.size(); ++i) {
+      elem_to_index_[elements_[i]] = i;
     }
   }
 
-  std::list<T> elements_;
-  typename detail::OrderedSetLookupType<T>::MapType elem_to_iter_;
+  std::vector<T> elements_;
+  std::unordered_map<T, size_t, Hash, KeyEqual> elem_to_index_;
 };
 
 }  // namespace support

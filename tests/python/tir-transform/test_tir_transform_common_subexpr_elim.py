@@ -93,14 +93,14 @@ def test_cse():
 
     assert body.var.name == "z2"
     assert body.value == 2
-    # This is the let-in for the first variable generated cse_var_1
+    # This is the let-in for the first variable generated cse_v1
     assert isinstance(body.body, tvm.tir.LetStmt)
 
     body = body.body
 
     # And this is the name and value of this variable
-    cse_var_1 = body.var  # Keep the variable accessible for later checking the replacements
-    assert body.var.name == "cse_var_1"
+    cse_v1 = body.var  # Keep the variable accessible for later checking the replacements
+    assert body.var.name == "cse_v1"
     tvm.ir.assert_structural_equal(body.value, z1 + z2)
     assert isinstance(body.body, tvm.tir.SeqStmt)
 
@@ -118,27 +118,27 @@ def test_cse():
 
     assert body.var.name == "y"
     assert body.value == 1
-    # This is the let-in for the second variable generated cse_var_2
+    # This is the let-in for the second variable generated cse_v2
     assert isinstance(body.body, tvm.tir.LetStmt)
 
     body = body.body
 
     # And this is the name and value of this variable
-    cse_var_2 = body.var  # Keep the variable accessible for later checking the replacements
-    assert body.var.name == "cse_var_2"
+    cse_v2 = body.var  # Keep the variable accessible for later checking the replacements
+    assert body.var.name == "cse_v2"
     tvm.ir.assert_structural_equal(body.value, x + y)
 
     body = body.body
 
     body.var.name == "a"
     # Check that the replacement has been done correctly!
-    tvm.ir.assert_structural_equal(body.value, cse_var_2 + cse_var_1)
+    tvm.ir.assert_structural_equal(body.value, cse_v2 + cse_v1)
 
     body = body.body
 
     body.var.name == "b"
     # Check that the replacement has been done correctly!
-    tvm.ir.assert_structural_equal(body.value, cse_var_2 + z3)
+    tvm.ir.assert_structural_equal(body.value, cse_v2 + z3)
 
     assert isinstance(body.body, tvm.tir.BufferStore)
 
@@ -199,7 +199,7 @@ def test_cse_ifNode_1():
     body = body.then_case
 
     # The let-in introduced by the CSE should appear now, inside the Then branch of the If node
-    assert body.var.name == "cse_var_1"
+    assert body.var.name == "cse_v1"
     # and it should contain the expression (y+z) that was redundant
     tvm.ir.assert_structural_equal(body.value, y + z)
 
@@ -250,7 +250,7 @@ def test_cse_ifNode_2():
     assert isinstance(body, tvm.tir.LetStmt)
 
     # The let-in introduced by the CSE should appear now, at the toplevel (i.e. before the If)
-    assert body.var.name == "cse_var_1"
+    assert body.var.name == "cse_v1"
     # and it should contain the expression (y+z) that was redundant
     tvm.ir.assert_structural_equal(body.value, y + z)
 
@@ -291,8 +291,8 @@ def test_cse_cascade():
     assert isinstance(body, tvm.tir.LetStmt)
 
     # The second let-in (by order introduced) introduced by the CSE should appear first
-    cse_var_2 = body.var  # Keep the variable accessible for later checking the replacements
-    assert body.var.name == "cse_var_2"
+    cse_v2 = body.var  # Keep the variable accessible for later checking the replacements
+    assert body.var.name == "cse_v2"
     # and it should contain the expression (x+y)
     tvm.ir.assert_structural_equal(body.value, (x + y))
 
@@ -301,10 +301,10 @@ def test_cse_cascade():
     assert isinstance(body, tvm.tir.LetStmt)
 
     # The first let-in (by order introduced) introduced by the CSE should appear now, after the 2nd
-    cse_var_1 = body.var  # Keep the variable accessible for later checking the replacements
-    assert body.var.name == "cse_var_1"
-    # and it should contain the expression cse_var_2+z
-    tvm.ir.assert_structural_equal(body.value, cse_var_2 + z)
+    cse_v1 = body.var  # Keep the variable accessible for later checking the replacements
+    assert body.var.name == "cse_v1"
+    # and it should contain the expression cse_v2+z
+    tvm.ir.assert_structural_equal(body.value, cse_v2 + z)
 
     body = body.body
 
@@ -317,9 +317,9 @@ def test_cse_cascade():
     store2 = body[1]
     store3 = body[2]
 
-    tvm.ir.assert_structural_equal(store1.value, cse_var_1)
-    tvm.ir.assert_structural_equal(store2.value, cse_var_1)
-    tvm.ir.assert_structural_equal(store3.value, cse_var_2)
+    tvm.ir.assert_structural_equal(store1.value, cse_v1)
+    tvm.ir.assert_structural_equal(store2.value, cse_v1)
+    tvm.ir.assert_structural_equal(store3.value, cse_v2)
 
 
 # -----------------------------------------------------------------------------------------
@@ -360,9 +360,9 @@ def func_distributivity(
 def func_distributivity_expected(
     B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
-    with T.LetStmt(x * y + x * z) as cse_var_1:
-        B[i1] = cse_var_1
-        B[i2] = cse_var_1
+    with T.LetStmt((y + z) * x) as cse_v1:
+        B[i1] = cse_v1
+        B[i2] = cse_v1
 
 
 @T.prim_func
@@ -377,9 +377,9 @@ def func_associativity(
 def func_associativity_expected(
     B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
-    with T.LetStmt((x + y) + z) as cse_var_1:
-        B[i1] = cse_var_1
-        B[i2] = cse_var_1
+    with T.LetStmt(x + y + z) as cse_v1:
+        B[i1] = cse_v1
+        B[i2] = cse_v1
 
 
 def _check(original, transformed):
@@ -410,10 +410,10 @@ def test_deterministic_cse():
 
         result = (x + 1) + (x + 2) + (x + 3) + (x + 1) + (x + 2) + (x + 3)
             -->
-        cse_var_3 = (x + 1)
-        cse_var_2 = (x + 2)
-        cse_var_1 = (x + 3)
-        result = cse_var_3 + cse_var_2 + cse_var_1 + cse_var_3 + cse_var_2 + cse_var_1
+        cse_v3 = (x + 1)
+        cse_v2 = (x + 2)
+        cse_v1 = (x + 3)
+        result = cse_v3 + cse_v2 + cse_v1 + cse_v3 + cse_v2 + cse_v1
     """
     NUM_TERMS = 10
     REPEATS = 10
