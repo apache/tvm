@@ -84,7 +84,6 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
   n->ret_type = std::move(ret_type);
   n->buffer_map = std::move(buffer_map);
   n->attrs = std::move(attrs);
-  n->checked_type_ = n->func_type_annotation();
   n->struct_info_ = relax::FuncStructInfo::OpaqueFunc();
   n->span = std::move(span);
   data_ = std::move(n);

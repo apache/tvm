@@ -240,7 +240,7 @@ Pass RemoveUnusedOutputs() {
             const auto& usage_mask = it->second;
             auto new_func = UpdateCallee(func.value(), usage_mask);
 
-            GlobalVar new_gvar(gvar->name_hint, new_func->checked_type_);
+            GlobalVar new_gvar(gvar->name_hint);
             new_gvar->struct_info_ = new_func->struct_info_;
             new_callees->Add(new_gvar, new_func);
 

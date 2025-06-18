@@ -55,7 +55,7 @@
  *           * The cond field of If nodes
  *           * The op or args fields of Call nodes
  *           * Inside the fields of Tuple nodes
- *    13. Expr always has checked_type_ (with the exception of Op).
+ *    13. Expr always has struct_info_ (with the exception of Op).
  *    14. DataflowBlocks may not contain If nodes.
  *    15. DataflowBlocks may not contain calls to impure functions or operators
  *        (only checked if check_struct_info is true).
@@ -147,8 +147,8 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr(const Expr& expr) final {
-    if (!expr.as<OpNode>() && !expr->checked_type_.defined()) {
-      Malformed(Diagnostic::Error(expr) << "The checked_type_ of Expr " << expr << " is nullptr.");
+    if (!expr.as<OpNode>() && !expr->struct_info_.defined()) {
+      Malformed(Diagnostic::Error(expr) << "The struct_info_ of Expr " << expr << " is nullptr.");
     }
     relax::ExprVisitor::VisitExpr(expr);
   }
@@ -162,11 +162,10 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    if (op->checked_type_.defined()) {
-      if ((!op->checked_type_->IsInstance<FuncTypeNode>()) &&
-          (!op->checked_type_->IsInstance<PackedFuncTypeNode>())) {
-        Malformed(Diagnostic::Error(var) << "The checked_type_ of GlobalVar " << GetRef<Expr>(op)
-                                         << " must be either FuncType or PackedFuncType.");
+    if (op->struct_info_.defined()) {
+      if (!op->struct_info_->IsInstance<FuncStructInfoNode>()) {
+        Malformed(Diagnostic::Error(var) << "The struct_info_ of GlobalVar " << GetRef<Expr>(op)
+                                         << " must be either FuncStructInfo.");
       }
     }
 

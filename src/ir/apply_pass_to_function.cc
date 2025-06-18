@@ -88,7 +88,6 @@ Pass ApplyPassToFunction(Pass pass, String func_name_regex,
         keep_original_version.insert(gvar->name_hint);
         func = relax::ExternFunc("dummy_" + name);
         func->struct_info_ = gvar->struct_info_;
-        func->checked_type_ = gvar->checked_type_;
       }
 
       subset->Add(gvar, func);

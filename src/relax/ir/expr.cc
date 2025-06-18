@@ -153,9 +153,6 @@ Tuple::Tuple(tvm::Array<Expr> fields, Span span) {
   ObjectPtr<TupleNode> n = make_object<TupleNode>();
   n->fields = std::move(fields);
   n->span = std::move(span);
-  if (tuple_sinfo) {
-    n->checked_type_ = GetStaticType(tuple_sinfo.value());
-  }
   n->struct_info_ = tuple_sinfo;
   data_ = std::move(n);
 }
@@ -199,7 +196,6 @@ TupleGetItem::TupleGetItem(Expr tuple, int index, Span span) {
         << ", and cannot be accessed with index " << index;
     auto sinfo = tuple_info->fields[index];
     n->struct_info_ = sinfo;
-    n->checked_type_ = GetStaticType(sinfo);
   }
   n->tuple = std::move(tuple);
   n->index = index;
@@ -244,7 +240,6 @@ ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {
     return value;
   });
   n->span = span;
-  n->checked_type_ = ShapeType(values.size());
   n->struct_info_ = ShapeStructInfo(values, span);
   data_ = std::move(n);
 }
@@ -258,9 +253,6 @@ TVM_REGISTER_NODE_TYPE(VarNode);
 Var::Var(Id vid, Optional<StructInfo> struct_info_annotation, Span span) {
   ObjectPtr<VarNode> n = make_object<VarNode>();
   n->vid = std::move(vid);
-  if (struct_info_annotation) {
-    n->checked_type_ = GetStaticType(struct_info_annotation.value());
-  }
   n->struct_info_ = std::move(struct_info_annotation);
   n->span = std::move(span);
   data_ = std::move(n);
@@ -300,9 +292,6 @@ TVM_REGISTER_NODE_TYPE(DataflowVarNode);
 DataflowVar::DataflowVar(Id vid, Optional<StructInfo> struct_info_annotation, Span span) {
   ObjectPtr<DataflowVarNode> n = make_object<DataflowVarNode>();
   n->vid = std::move(vid);
-  if (struct_info_annotation) {
-    n->checked_type_ = GetStaticType(struct_info_annotation.value());
-  }
   n->struct_info_ = std::move(struct_info_annotation);
   n->span = std::move(span);
   n->span = std::move(span);
@@ -332,11 +321,9 @@ Constant::Constant(runtime::NDArray data, Optional<StructInfo> struct_info_annot
   }
   if (struct_info_annotation.defined()) {
     n->struct_info_ = struct_info_annotation.value();
-    n->checked_type_ = GetStaticType(struct_info_annotation.value());
   } else {
     TensorStructInfo tinfo(ShapeExpr(values), n->data.DataType(), VDevice(), span);
     n->struct_info_ = tinfo;
-    n->checked_type_ = TensorType(tinfo->ndim, tinfo->dtype);
   }
 
   data_ = std::move(n);
@@ -353,7 +340,6 @@ TVM_FFI_REGISTER_GLOBAL("relax.Constant")
 
 PrimValue::PrimValue(PrimExpr value, Span span) {
   ObjectPtr<PrimValueNode> n = make_object<PrimValueNode>();
-  n->checked_type_ = PrimType(value.dtype());
   n->struct_info_ = PrimStructInfo(value);
   n->value = std::move(value);
   n->span = std::move(span);
@@ -374,9 +360,6 @@ StringImm::StringImm(String value, Span span) {
   ObjectPtr<StringImmNode> n = make_object<StringImmNode>();
   n->value = std::move(value);
   n->span = std::move(span);
-  // use the base structinfo for now
-  // we can choose to introduce more fine-grained struct info later if necessary.
-  n->checked_type_ = ObjectType();
   n->struct_info_ = ObjectStructInfo();
   data_ = std::move(n);
 }
@@ -391,9 +374,6 @@ DataTypeImm::DataTypeImm(DataType value, Span span) {
   ObjectPtr<DataTypeImmNode> n = make_object<DataTypeImmNode>();
   n->value = std::move(value);
   n->span = std::move(span);
-  // use the base structinfo for now
-  // we can choose to introduce more fine-grained struct info later if necessary.
-  n->checked_type_ = ObjectType();
   n->struct_info_ = ObjectStructInfo();
   data_ = std::move(n);
 }
@@ -619,7 +599,6 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
   n->body = std::move(body);
   n->ret_struct_info = std::move(ret_struct_info.value());
   n->is_pure = is_pure;
-  n->checked_type_ = GetStaticType(func_sinfo);
   n->struct_info_ = std::move(func_sinfo);
   n->attrs = std::move(attrs);
   n->span = std::move(span);
@@ -636,8 +615,8 @@ Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, bo
                                DictAttrs attrs, Span span) {
   Array<StructInfo> param_sinfo;
   for (const Var& param : params) {
-    ICHECK(param->checked_type_.defined())
-        << "relax.Function requires params to contain checked_type_.";
+    ICHECK(param->struct_info_.defined())
+        << "relax.Function requires params to contain struct_info_.";
     param_sinfo.push_back(GetStructInfo(param));
   }
 
@@ -656,7 +635,6 @@ Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, bo
   n->params = std::move(params);
   n->body = std::move(body);
   n->is_pure = is_pure;
-  n->checked_type_ = GetStaticType(finfo);
   n->struct_info_ = std::move(finfo);
   n->ret_struct_info = std::move(ret_struct_info);
   n->attrs = std::move(attrs);
@@ -706,7 +684,6 @@ ExternFunc::ExternFunc(String global_symbol, StructInfo struct_info, Span span) 
   n->global_symbol = std::move(global_symbol);
   n->span = span;
   n->struct_info_ = struct_info;
-  n->checked_type_ = GetStaticType(struct_info);
   data_ = std::move(n);
 }
 

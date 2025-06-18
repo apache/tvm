@@ -194,7 +194,7 @@ Pass RemoveUnusedParameters() {
         if (auto func = base_func.as<Function>()) {
           if (auto callee_res = AnalyzeCallee(func.value())) {
             auto new_func = callee_res->func;
-            GlobalVar new_gvar(gvar->name_hint, new_func->checked_type_);
+            GlobalVar new_gvar(gvar->name_hint);
             new_gvar->struct_info_ = new_func->struct_info_;
             new_callees->Add(new_gvar, new_func);
 

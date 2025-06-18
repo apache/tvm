@@ -62,15 +62,12 @@ GlobalVar DeclFunction(const String& func_name, const BaseFunc& func_signature) 
     return {};
   }();
 
-  GlobalVar gv = GlobalVar(func_name, gvar_type);
+  GlobalVar gv = GlobalVar(func_name);
   gv->struct_info_ = GetGlobalVarStructInfo(func_signature);
   CHECK(frame->functions.find(gv) == frame->functions.end())
       << "ValueError: function " << func_name << " has already been defined.";
   frame->global_var_map.Set(func_name, gv);
   frame->functions.Set(gv, func_signature);
-  ICHECK(func_signature->checked_type_.defined())
-      << "The checked_type_ of function signature must be defined.";
-  gv->checked_type_ = func_signature->checked_type_;
   return gv;
 }
 
@@ -81,11 +78,7 @@ void DefFunction(const String& func_name, const BaseFunc& func) {
       << "ValueError: function " << func_name << " does not exist, please declare it first.";
   const GlobalVar& gv = (*it).second;
   frame->functions.Set(gv, func);
-  CHECK(func->checked_type_.defined())
-      << "The checked_type_ of function must be defined, but it is not defined for function `"
-      << func_name << "`.";
   gv->struct_info_ = GetGlobalVarStructInfo(func);
-  gv->checked_type_ = func->checked_type_;
 }
 
 void ModuleAttrs(Map<String, Any> attrs, bool allow_overwrite) {

@@ -166,7 +166,6 @@ class CallNode : public ExprNode {
     v->Visit("attrs", &attrs);
     v->Visit("sinfo_args", &sinfo_args);
     v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -224,7 +223,6 @@ class TupleNode : public ExprNode {
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("fields", &fields);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("struct_info_", &struct_info_);
     v->Visit("span", &span);
   }
@@ -291,7 +289,6 @@ class TupleGetItemNode : public ExprNode {
     v->Visit("tuple_value", &tuple);
     v->Visit("index", &index);
     v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -362,7 +359,6 @@ class ShapeExprNode : public LeafExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("values", &values);
     v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -399,7 +395,6 @@ class VarNode : public LeafExprNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("vid", &vid);
     v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -440,7 +435,6 @@ class DataflowVarNode : public VarNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("vid", &vid);
     v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -492,7 +486,6 @@ class ConstantNode : public LeafExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("data", &data);
     v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -540,7 +533,6 @@ class PrimValueNode : public LeafExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("value", &value);
     v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -591,7 +583,6 @@ class StringImmNode : public LeafExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("value", &value);
     v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -634,7 +625,6 @@ class DataTypeImmNode : public LeafExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("value", &value);
     v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -824,7 +814,6 @@ class SeqExprNode : public ExprNode {
     v->Visit("blocks", &blocks);
     v->Visit("body", &body);
     v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -889,7 +878,6 @@ class IfNode : public ExprNode {
     v->Visit("cond", &cond);
     v->Visit("true_branch", &true_branch);
     v->Visit("false_branch", &false_branch);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("struct_info_", &struct_info_);
     v->Visit("span", &span);
   }
@@ -966,7 +954,6 @@ class FunctionNode : public BaseFuncNode {
     v->Visit("ret_struct_info", &ret_struct_info);
     v->Visit("attrs", &attrs);
     v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
@@ -1071,7 +1058,6 @@ class ExternFuncNode : public BaseFuncNode {
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("global_symbol", &global_symbol);
     v->Visit("struct_info_", &struct_info_);
-    v->Visit("_checked_type_", &checked_type_);
     v->Visit("span", &span);
   }
 
