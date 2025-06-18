@@ -187,7 +187,14 @@ class Object {
    * \return The usage count of the cell.
    * \note We use stl style naming to be consistent with known API in shared_ptr.
    */
-  int32_t use_count() const { return details::AtomicLoadRelaxed(&(header_.ref_counter)); }
+  int32_t use_count() const {
+    // only need relaxed load of counters
+#ifdef _MSC_VER
+    return (reinterpret_cast<const volatile long*>(&header_.ref_counter))[0];  // NOLINT(*)
+#else
+    return __atomic_load_n(&(header_.ref_counter), __ATOMIC_RELAXED);
+#endif
+  }
 
   // Information about the object
   static constexpr const char* _type_key = "object.Object";
@@ -220,15 +227,35 @@ class Object {
 
  private:
   /*! \brief increase reference count */
-  void IncRef() { details::AtomicIncrementRelaxed(&(header_.ref_counter)); }
+  void IncRef() {
+#ifdef _MSC_VER
+    _InterlockedIncrement(reinterpret_cast<volatile long*>(&header_.ref_counter));  // NOLINT(*)
+#else
+    __atomic_fetch_add(&(header_.ref_counter), 1, __ATOMIC_RELAXED);
+#endif
+  }
 
   /*! \brief decrease reference count and delete the object */
   void DecRef() {
-    if (details::AtomicDecrementRelAcq(&(header_.ref_counter)) == 1) {
+#ifdef _MSC_VER
+    if (_InterlockedDecrement(                                               //
+            reinterpret_cast<volatile long*>(&header_.ref_counter)) == 0) {  // NOLINT(*)
+      // full barrrier is implicit in InterlockedDecrement
       if (header_.deleter != nullptr) {
         header_.deleter(&(this->header_));
       }
     }
+#else
+    // first do a release, note we only need to acquire for deleter
+    if (__atomic_fetch_sub(&(header_.ref_counter), 1, __ATOMIC_RELEASE) == 1) {
+      // only acquire when we need to call deleter
+      // in this case we need to ensure all previous writes are visible
+      __atomic_thread_fence(__ATOMIC_ACQUIRE);
+      if (header_.deleter != nullptr) {
+        header_.deleter(&(this->header_));
+      }
+    }
+#endif
   }
 
   // friend classes
