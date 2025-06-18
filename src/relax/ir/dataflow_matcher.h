@@ -63,7 +63,6 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool VisitDFPattern_(const TupleGetItemPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const TuplePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const StructInfoPatternNode* op, const Expr& expr) override;
-  bool VisitDFPattern_(const TypePatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const WildcardPatternNode* op, const Expr& expr) override;
   bool VisitDFPattern_(const VarPatternNode* op, const Expr& expr) override;
 

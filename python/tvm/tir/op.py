@@ -432,10 +432,10 @@ def call_tir(global_var: tvm.ir.GlobalVar, *args):
     assert isinstance(global_var, tvm.ir.GlobalVar)
 
     dtype = "void"
-    if global_var.checked_type is not None:
-        ret_type = global_var.checked_type.ret_type
-        if hasattr(ret_type, "dtype"):
-            dtype = ret_type.dtype
+    if global_var.struct_info is not None:
+        ret_sinfo = global_var.struct_info.ret
+        if hasattr(ret_sinfo, "dtype"):
+            dtype = ret_sinfo.dtype
 
     return Call(dtype=dtype, op=global_var, args=args)
 

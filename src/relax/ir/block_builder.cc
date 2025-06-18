@@ -95,7 +95,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
         // TODO(relax-team): add fine-grained PrimFunc struct info signature generation.
         finfo = FuncStructInfo::OpaqueFunc(StructInfoFromType(prim_func->ret_type));
       } else {
-        finfo = StructInfoFromType(func->checked_type());
+        TVM_FFI_THROW(RuntimeError) << "Expect struct_info field to be populated";
       }
       UpdateStructInfo(gvar, finfo);
 

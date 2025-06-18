@@ -214,8 +214,6 @@ void UpdateStructInfo(Expr expr, StructInfo struct_info) {
       << "However, expression " << expr << " has struct info " << expr->struct_info_
       << ", which cannot be overwritten with " << struct_info;
   expr->struct_info_ = struct_info;
-  // also set checked type
-  expr->checked_type_ = GetStaticType(struct_info);
 }
 
 TVM_FFI_REGISTER_GLOBAL("relax.UpdateStructInfo")

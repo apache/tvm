@@ -409,8 +409,8 @@ class TorchFXImporter(BaseFXGraphImporter):
             gamma = self.params[module.weight]
             beta = self.params[module.bias]
         else:
-            gamma = relax.const(torch.ones_like(module.num_channels), x.checked_type)
-            beta = relax.const(torch.zeros_like(module.num_channels), x.checked_type)
+            gamma = relax.const(torch.ones_like(module.num_channels), x.struct_info.dtype)
+            beta = relax.const(torch.zeros_like(module.num_channels), x.struct_info.dtype)
         eps = module.eps
 
         dim = len(self.shape_of(x))

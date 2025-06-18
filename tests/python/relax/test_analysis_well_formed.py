@@ -281,7 +281,7 @@ def test_if_non_seq_body():
     ]
     new_func = build_function(new_blocks)
     new_mod = tvm.IRModule.from_expr(new_func)
-    # apply normalization to fill in checked_type_
+    # apply normalization to fill in struct_info_
     normalized = rx.transform.Normalize()(new_mod)
     assert rx.analysis.well_formed(normalized, check_struct_info=True)
 
@@ -320,7 +320,7 @@ def test_if_complex_condition():
     ]
     func = build_function(blocks)
     mod = tvm.IRModule.from_expr(func)
-    # apply normalization to fill in checked_type_
+    # apply normalization to fill in struct_info_
     normalized = rx.transform.Normalize()(mod)
     assert rx.analysis.well_formed(normalized, check_struct_info=True)
 

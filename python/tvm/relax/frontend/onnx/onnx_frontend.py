@@ -913,7 +913,7 @@ class Gemm(OnnxOpConverter):
         A = inputs[0]
         B = inputs[1]
         C = inputs[2]
-        dtype = A.checked_type.dtype
+        dtype = A.struct_info.dtype
 
         # Compute Y = alpha * A X B + beta * C
 
@@ -1083,7 +1083,7 @@ class Mish(OnnxOpConverter):
 
     @classmethod
     def _impl_v18(cls, bb, inputs, attr, params):
-        dtype = inputs[0].checked_type.dtype
+        dtype = inputs[0].struct_info.dtype
         return inputs[0] * relax.op.tanh(
             relax.op.log(relax.const(1.0, dtype) + relax.op.exp(inputs[0]))
         )
@@ -1670,7 +1670,7 @@ class Exp(OnnxOpConverter):
     def _impl_v1(cls, bb, inputs, attr, params):
         data = inputs[0]
         valid_types = ["float", "float32", "double", "float64", "float16"]
-        cls._check_type(data.checked_type.dtype, valid_types)
+        cls._check_type(data.struct_info.dtype, valid_types)
 
         return relax.op.exp(data)
 
@@ -1678,7 +1678,7 @@ class Exp(OnnxOpConverter):
     def _impl_v13(cls, bb, inputs, attr, params):
         data = inputs[0]
         valid_types = ["float", "float32", "double", "float64", "float16", "bfloat16"]
-        cls._check_type(data.checked_type.dtype, valid_types)
+        cls._check_type(data.struct_info.dtype, valid_types)
 
         return relax.op.exp(data)
 
@@ -1723,7 +1723,7 @@ class Split(OnnxOpConverter):
         splits = inputs[1]
         splits_rank = None
         if splits is not None:
-            splits_rank = splits.checked_type.ndim
+            splits_rank = splits.struct_info.ndim
         if splits is not None and splits_rank > 0:
             if isinstance(splits, relax.Constant):
                 splits = splits.data.numpy()
@@ -3508,11 +3508,11 @@ class ONNXGraphImporter:
             if op_name in return_tuple_ops:
                 outputs_num = 1
             elif not isinstance(op, relax.Tuple):
-                if isinstance(op.checked_type, tvm.ir.type.TupleType):
+                if isinstance(op.struct_info, relax.TupleStructInfo):
                     # This is a var bound to a tuple. We need to unpack it and create
                     # a new tuple.
                     tuple_items = []
-                    for i in range(len(op.checked_type.fields)):
+                    for i in range(len(op.struct_info.fields)):
                         tuple_items.append(self.bb.emit(relax.TupleGetItem(op, i)))
                     op = relax.Tuple(tuple_items)
                     outputs_num = len(tuple_items)

@@ -55,7 +55,6 @@ class AndPattern;
 class NotPattern;
 class ShapePattern;
 class StructInfoPattern;
-class TypePattern;
 class DataTypePattern;
 class AttrPattern;
 class SameShapeConstraint;
@@ -116,8 +115,6 @@ class DFPattern : public ObjectRef {
   TVM_DLL AttrPattern HasAttr(const Map<String, Any>& attrs) const;
   /*! \brief Syntatic Sugar for creating a StructInfoPattern */
   TVM_DLL StructInfoPattern HasStructInfo(const StructInfo& struct_info) const;
-  /*! \brief Syntatic Sugar for creating a TypePattern */
-  TVM_DLL TypePattern HasType(const Type& type) const;
   /*! \brief Syntatic Sugar for creating a DataTypePattern with a DataType */
   TVM_DLL DataTypePattern HasDtype(const DataType& dtype) const;
   /*! \brief Syntatic Sugar for creating a DataTypePattern with a data type's name */
@@ -740,34 +737,6 @@ class WildcardPattern : public DFPattern {
   // declared here, to create a valid wildcard instance.
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(WildcardPattern, DFPattern, WildcardPatternNode);
-};
-
-/*!
- * \brief Pattern for matching a certain type.
- * \sa TypePattern
- */
-class TypePatternNode : public DFPatternNode {
- public:
-  DFPattern pattern; /*!< The pattern to match */
-  Type type;         /*!< The type to match */
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("pattern", &pattern);
-    v->Visit("type", &type);
-  }
-
-  static constexpr const char* _type_key = "relax.dpl.TypePattern";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TypePatternNode, DFPatternNode);
-};
-
-/*!
- * \brief Managed reference to TypePatternNode.
- * \sa TypePatternNode
- */
-class TypePattern : public DFPattern {
- public:
-  TVM_DLL TypePattern(DFPattern pattern, Type type);
-  TVM_DEFINE_OBJECT_REF_METHODS(TypePattern, DFPattern, TypePatternNode);
 };
 
 /*!
