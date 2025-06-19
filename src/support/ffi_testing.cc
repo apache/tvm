@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/runtime/module.h>
@@ -34,22 +35,28 @@
 
 namespace tvm {
 // Attrs used to python API
-struct TestAttrs : public AttrsNode<TestAttrs> {
+struct TestAttrs : public AttrsNodeReflAdapter<TestAttrs> {
   int axis;
   String name;
   Array<PrimExpr> padding;
   TypedEnvFunc<int(int)> func;
 
-  TVM_DECLARE_ATTRS(TestAttrs, "attrs.TestAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(10).set_lower_bound(1).set_upper_bound(10).describe(
-        "axis field");
-    TVM_ATTR_FIELD(name).describe("name");
-    TVM_ATTR_FIELD(padding).describe("padding of input").set_default(Array<PrimExpr>({0, 0}));
-    TVM_ATTR_FIELD(func)
-        .describe("some random env function")
-        .set_default(TypedEnvFunc<int(int)>(nullptr));
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TestAttrs>()
+        .def_ro("axis", &TestAttrs::axis, "axis field", refl::DefaultValue(10))
+        .def_ro("name", &TestAttrs::name, "name")
+        .def_ro("padding", &TestAttrs::padding, "padding of input",
+                refl::DefaultValue(Array<PrimExpr>({0, 0})))
+        .def_ro("func", &TestAttrs::func, "some random env function",
+                refl::DefaultValue(TypedEnvFunc<int(int)>(nullptr)));
   }
+
+  static constexpr const char* _type_key = "attrs.TestAttrs";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TestAttrs, BaseAttrsNode);
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ TestAttrs::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(TestAttrs);
 

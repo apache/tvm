@@ -17,6 +17,8 @@
  * under the License.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/node/reflection.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
@@ -104,9 +106,22 @@ void IRDocsifierNode::RemoveVar(const ObjectRef& obj) {
 
 void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
                                       ffi::TypedFunction<bool(ObjectRef)> is_var) {
-  class Visitor : public AttrVisitor {
+  class Visitor : private AttrVisitor {
    public:
-    inline void operator()(ObjectRef obj) { Visit("", &obj); }
+    void operator()(ObjectRef obj) {
+      const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
+      if (tinfo->extra_info != nullptr) {
+        // visit fields with the new reflection
+        ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
+          Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
+          this->RecursiveVisitAny(&field_value);
+        });
+      } else {
+        // NOTE: legacy VisitAttrs mechanism
+        // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
+        this->Visit("", &obj);
+      }
+    }
 
    private:
     void RecursiveVisitAny(ffi::Any* value) {

@@ -24,6 +24,7 @@
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/serialization.h>
@@ -62,7 +63,7 @@ inline std::string Base64Encode(std::string s) {
 }
 
 // indexer to index all the nodes
-class NodeIndexer : public AttrVisitor {
+class NodeIndexer : private AttrVisitor {
  public:
   std::unordered_map<Any, size_t, ffi::AnyHash, ffi::AnyEqual> node_index_{{Any(nullptr), 0}};
   std::vector<Any> node_list_{Any(nullptr)};
@@ -133,8 +134,24 @@ class NodeIndexer : public AttrVisitor {
       Object* n = const_cast<Object*>(opt_object.value());
       // if the node already have repr bytes, no need to visit Attrs.
       if (!reflection_->GetReprBytes(n, nullptr)) {
-        reflection_->VisitAttrs(n, this);
+        this->VisitObjectFields(n);
       }
+    }
+  }
+
+  void VisitObjectFields(Object* obj) {
+    const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
+    if (tinfo->extra_info != nullptr) {
+      ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
+        Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
+        // only make index for ObjectRef
+        if (field_value.as<Object>()) {
+          this->MakeIndex(field_value);
+        }
+      });
+    } else {
+      // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
+      reflection_->VisitAttrs(obj, this);
     }
   }
 };
@@ -211,7 +228,7 @@ struct JSONNode {
 
 // Helper class to populate the json node
 // using the existing index.
-class JSONAttrGetter : public AttrVisitor {
+class JSONAttrGetter : private AttrVisitor {
  public:
   const std::unordered_map<Any, size_t, ffi::AnyHash, ffi::AnyEqual>* node_index_;
   const std::unordered_map<DLTensor*, size_t>* tensor_index_;
@@ -296,7 +313,7 @@ class JSONAttrGetter : public AttrVisitor {
       // do not need to print additional things once we have repr bytes.
       if (!reflection_->GetReprBytes(n, &(node_->repr_bytes))) {
         // recursively index normal object.
-        reflection_->VisitAttrs(n, this);
+        this->VisitObjectFields(n);
       }
     } else {
       // handling primitive types
@@ -327,9 +344,59 @@ class JSONAttrGetter : public AttrVisitor {
       }
     }
   }
+
+  void VisitObjectFields(Object* obj) {
+    // dispatch between new reflection and old reflection
+    const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
+    if (tinfo->extra_info != nullptr) {
+      ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
+        Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
+        String field_name(field_info->name);
+        switch (field_value.type_index()) {
+          case ffi::TypeIndex::kTVMFFINone: {
+            node_->attrs[field_name] = "null";
+            break;
+          }
+          case ffi::TypeIndex::kTVMFFIBool:
+          case ffi::TypeIndex::kTVMFFIInt: {
+            int64_t value = field_value.cast<int64_t>();
+            this->Visit(field_info->name.data, &value);
+            break;
+          }
+          case ffi::TypeIndex::kTVMFFIFloat: {
+            double value = field_value.cast<double>();
+            this->Visit(field_info->name.data, &value);
+            break;
+          }
+          case ffi::TypeIndex::kTVMFFIDataType: {
+            DataType value(field_value.cast<DLDataType>());
+            this->Visit(field_info->name.data, &value);
+            break;
+          }
+          case ffi::TypeIndex::kTVMFFINDArray: {
+            runtime::NDArray value = field_value.cast<runtime::NDArray>();
+            this->Visit(field_info->name.data, &value);
+            break;
+          }
+          default: {
+            if (field_value.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+              ObjectRef obj = field_value.cast<ObjectRef>();
+              this->Visit(field_info->name.data, &obj);
+              break;
+            } else {
+              LOG(FATAL) << "Unsupported type: " << field_value.GetTypeKey();
+            }
+          }
+        }
+      });
+    } else {
+      // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
+      reflection_->VisitAttrs(obj, this);
+    }
+  }
 };
 
-class FieldDependencyFinder : public AttrVisitor {
+class FieldDependencyFinder : private AttrVisitor {
  public:
   JSONNode* jnode_;
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
@@ -385,14 +452,31 @@ class FieldDependencyFinder : public AttrVisitor {
     jnode_ = jnode;
     if (auto opt_object = node.as<const Object*>()) {
       Object* n = const_cast<Object*>(opt_object.value());
-      reflection_->VisitAttrs(n, this);
+      this->VisitObjectFields(n);
+    }
+  }
+
+  void VisitObjectFields(Object* obj) {
+    // dispatch between new reflection and old reflection
+    const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
+    if (tinfo->extra_info != nullptr) {
+      ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
+        Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
+        if (auto opt_object = field_value.as<ObjectRef>()) {
+          ObjectRef obj = *std::move(opt_object);
+          this->Visit(field_info->name.data, &obj);
+        }
+      });
+    } else {
+      // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
+      reflection_->VisitAttrs(obj, this);
     }
   }
 };
 
 // Helper class to set the attributes of a node
 // from given json node.
-class JSONAttrSetter : public AttrVisitor {
+class JSONAttrSetter : private AttrVisitor {
  public:
   const std::vector<Any>* node_list_;
   const std::vector<runtime::NDArray>* tensor_list_;
@@ -543,7 +627,62 @@ class JSONAttrSetter : public AttrVisitor {
       if (jnode->repr_bytes.length() > 0 || reflection_->GetReprBytes(n, nullptr)) {
         return;
       }
-      reflection_->VisitAttrs(n, this);
+      this->SetObjectFields(n);
+    }
+  }
+
+  void SetObjectFields(Object* obj) {
+    // dispatch between new reflection and old reflection
+    const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
+    if (tinfo->extra_info != nullptr) {
+      ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
+        Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
+        this->SetObjectField(obj, field_info);
+      });
+    } else {
+      // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
+      reflection_->VisitAttrs(obj, this);
+    }
+  }
+
+  void SetObjectField(Object* obj, const TVMFFIFieldInfo* field_info) {
+    ffi::reflection::FieldSetter setter(field_info);
+    switch (field_info->field_static_type_index) {
+      case ffi::TypeIndex::kTVMFFIBool:
+      case ffi::TypeIndex::kTVMFFIInt: {
+        Optional<int64_t> value;
+        this->Visit(field_info->name.data, &value);
+        setter(obj, value);
+        break;
+      }
+      case ffi::TypeIndex::kTVMFFIFloat: {
+        Optional<double> value;
+        this->Visit(field_info->name.data, &value);
+        setter(obj, value);
+        break;
+      }
+      case ffi::TypeIndex::kTVMFFIDataType: {
+        DataType value;
+        this->Visit(field_info->name.data, &value);
+        setter(obj, value);
+        break;
+      }
+      case ffi::TypeIndex::kTVMFFINDArray: {
+        runtime::NDArray value;
+        this->Visit(field_info->name.data, &value);
+        setter(obj, value);
+        break;
+      }
+      default: {
+        if (field_info->field_static_type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+          ObjectRef value;
+          this->Visit(field_info->name.data, &value);
+          setter(obj, value);
+          break;
+        } else {
+          LOG(FATAL) << "Unsupported type: " << field_info->field_static_type_index;
+        }
+      }
     }
   }
 };

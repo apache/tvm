@@ -404,6 +404,8 @@ inline Function GetMethod(std::string_view type_key, const char* method_name) {
  */
 template <typename Callback>
 inline void ForEachFieldInfo(const TypeInfo* type_info, Callback callback) {
+  using ResultType = decltype(callback(type_info->fields));
+  static_assert(std::is_same_v<ResultType, void>, "Callback must return void");
   // iterate through acenstors in parent to child order
   // skip the first one since it is always the root object
   for (int i = 1; i < type_info->type_depth; ++i) {
@@ -415,6 +417,34 @@ inline void ForEachFieldInfo(const TypeInfo* type_info, Callback callback) {
   for (int i = 0; i < type_info->num_fields; ++i) {
     callback(type_info->fields + i);
   }
+}
+
+/*!
+ * \brief Visit each field info of the type info and run callback which returns bool for early stop.
+ *
+ * \tparam Callback The callback function type, which returns bool for early stop.
+ *
+ * \param type_info The type info.
+ * \param callback_with_early_stop The callback function.
+ * \return true if any of early stop is triggered.
+ *
+ * \note This function calls both the child and parent type info and can be used for searching.
+ */
+template <typename Callback>
+inline bool ForEachFieldInfoWithEarlyStop(const TypeInfo* type_info,
+                                          Callback callback_with_early_stop) {
+  // iterate through acenstors in parent to child order
+  // skip the first one since it is always the root object
+  for (int i = 1; i < type_info->type_depth; ++i) {
+    const TVMFFITypeInfo* parent_info = type_info->type_acenstors[i];
+    for (int j = 0; j < parent_info->num_fields; ++j) {
+      if (callback_with_early_stop(parent_info->fields + j)) return true;
+    }
+  }
+  for (int i = 0; i < type_info->num_fields; ++i) {
+    if (callback_with_early_stop(type_info->fields + i)) return true;
+  }
+  return false;
 }
 
 }  // namespace reflection
