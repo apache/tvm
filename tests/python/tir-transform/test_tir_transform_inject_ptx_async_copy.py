@@ -329,11 +329,11 @@ __asm__ __volatile__("cp.async.commit_group;");
 __asm__ __volatile__("cp.async.commit_group;");
 
   for (int i = 0; i < 13; ++i) {
-    bool cse_var_1 = (i < 12);
+    bool cse_v1 = (i < 12);
 
   {
     unsigned int addr = cast_smem_ptr_to_int(A_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x)));
-    int pred_guard = (int)cse_var_1;
+    int pred_guard = (int)cse_v1;
     __asm__ __volatile__(
         "{  .reg .pred p;"
         "  setp.ne.b32 p, %0, 0;"
@@ -356,7 +356,7 @@ __asm__ __volatile__("cp.async.wait_group 5;");
 
   {
     unsigned int addr = cast_smem_ptr_to_int(B_shared + ((((i + 3) & 3) * 16) + ((int)threadIdx.x)));
-    int pred_guard = (int)cse_var_1;
+    int pred_guard = (int)cse_v1;
     __asm__ __volatile__(
         "{  .reg .pred p;"
         "  setp.ne.b32 p, %0, 0;"
@@ -954,10 +954,10 @@ class TestMultiplicationNodesAreInligned(tvm.testing.CompareBeforeAfter):
 
         T.attr("default", "async_scope", 1)
         for i in range(16):
-            cse_var_1: T.int64 = T.Cast("int64", i)
-            A_shared[
-                T.Ramp(tx * T.int64(128) + cse_var_1 * T.int64(8), T.int64(1), 8)
-            ] = A_flattened[T.Ramp(tx * T.int64(128) + cse_var_1 * T.int64(8), T.int64(1), 8)]
+            cse_v1: T.int64 = T.Cast("int64", i)
+            A_shared[T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)] = A_flattened[
+                T.Ramp(tx * T.int64(128) + cse_v1 * T.int64(8), T.int64(1), 8)
+            ]
         T.ptx_commit_group()
         T.ptx_wait_group(0)
 
@@ -965,13 +965,13 @@ class TestMultiplicationNodesAreInligned(tvm.testing.CompareBeforeAfter):
         tx = T.launch_thread("threadIdx.x", T.int64(32))
         A_shared = T.decl_buffer((4096,), "float16", scope="shared")
         for i in range(16):
-            cse_var_1: T.int64 = T.Cast("int64", i)
+            cse_v1: T.int64 = T.Cast("int64", i)
             T.ptx_cp_async(
                 "float16",
                 A_shared.data,
-                tx * T.int64(128) + cse_var_1 * T.int64(8),
+                tx * T.int64(128) + cse_v1 * T.int64(8),
                 A.data,
-                tx * T.int64(128) + cse_var_1 * T.int64(8),
+                tx * T.int64(128) + cse_v1 * T.int64(8),
                 16,
             )
         T.ptx_commit_group()
