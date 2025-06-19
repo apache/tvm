@@ -253,8 +253,9 @@ struct TypeTraits<Tuple<Types...>> : public ObjectRefTypeTraitsBase<Tuple<Types.
     }
     if constexpr (sizeof...(Rest) > 0) {
       return TryConvertElements<I + 1, Rest...>(std::move(arr));
+    } else {
+      return true;
     }
-    return true;
   }
 
   static TVM_FFI_INLINE std::string TypeStr() {

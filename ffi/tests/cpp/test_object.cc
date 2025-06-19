@@ -55,8 +55,8 @@ TEST(Object, TypeInfo) {
   EXPECT_TRUE(info != nullptr);
   EXPECT_EQ(info->type_index, TIntObj::RuntimeTypeIndex());
   EXPECT_EQ(info->type_depth, 2);
-  EXPECT_EQ(info->type_acenstors[0], Object::_type_index);
-  EXPECT_EQ(info->type_acenstors[1], TNumberObj::_type_index);
+  EXPECT_EQ(info->type_acenstors[0]->type_index, Object::_type_index);
+  EXPECT_EQ(info->type_acenstors[1]->type_index, TNumberObj::_type_index);
   EXPECT_GE(info->type_index, TypeIndex::kTVMFFIDynObjectBegin);
 }
 

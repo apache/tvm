@@ -437,7 +437,7 @@ typedef struct {
 /*!
  * \brief Runtime type information for object type checking.
  */
-typedef struct {
+typedef struct TVMFFITypeInfo {
   /*!
    *\brief The runtime type index,
    * It can be allocated during runtime if the type is dynamic.
@@ -452,7 +452,7 @@ typedef struct {
    * \note To keep things simple, we do not allow multiple inheritance so the
    *       hieracy stays as a tree
    */
-  const int32_t* type_acenstors;
+  const struct TVMFFITypeInfo** type_acenstors;
   // The following fields are used for reflection
   /*! \brief Cached hash value of the type key, used for consistent structural hashing. */
   uint64_t type_key_hash;

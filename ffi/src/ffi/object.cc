@@ -52,7 +52,7 @@ class TypeTable {
     /*! \brief stored type key */
     String type_key_data;
     /*! \brief acenstor information */
-    std::vector<int32_t> type_acenstors_data;
+    std::vector<const TVMFFITypeInfo*> type_acenstors_data;
     /*! \brief type fields informaton */
     std::vector<TVMFFIFieldInfo> type_fields_data;
     /*! \brief type methods informaton */
@@ -85,7 +85,7 @@ class TypeTable {
           type_acenstors_data[i] = parent->type_acenstors[i];
         }
         // set last type information to be parent
-        type_acenstors_data[parent->type_depth] = parent->type_index;
+        type_acenstors_data[parent->type_depth] = parent;
       }
       // initialize type info: no change to type_key and type_acenstors fields
       // after this line
@@ -234,7 +234,7 @@ class TypeTable {
     for (auto it = type_table_.rbegin(); it != type_table_.rend(); ++it) {
       const Entry* ptr = it->get();
       if (ptr != nullptr && ptr->type_depth != 0) {
-        int parent_index = ptr->type_acenstors[ptr->type_depth - 1];
+        int parent_index = ptr->type_acenstors[ptr->type_depth - 1]->type_index;
         num_children[parent_index] += num_children[ptr->type_index] + 1;
         if (expected_child_slots[ptr->type_index] + 1 < ptr->num_slots) {
           expected_child_slots[ptr->type_index] = ptr->num_slots - 1;
@@ -247,7 +247,7 @@ class TypeTable {
       if (ptr != nullptr && num_children[ptr->type_index] >= min_children_count) {
         std::cerr << '[' << ptr->type_index << "]\t" << ToStringView(ptr->type_key);
         if (ptr->type_depth != 0) {
-          int32_t parent_index = ptr->type_acenstors[ptr->type_depth - 1];
+          int32_t parent_index = ptr->type_acenstors[ptr->type_depth - 1]->type_index;
           std::cerr << "\tparent=" << ToStringView(type_table_[parent_index]->type_key);
         } else {
           std::cerr << "\tparent=root";
@@ -375,9 +375,8 @@ void MakeObjectFromPackedArgs(ffi::PackedArgs args, Any* ret) {
 
   // iterate through acenstors in parent to child order
   // skip the first one since it is always the root object
-  TVM_FFI_ICHECK(type_info->type_acenstors[0] == TypeIndex::kTVMFFIObject);
   for (int i = 1; i < type_info->type_depth; ++i) {
-    update_fields(TVMFFIGetTypeInfo(type_info->type_acenstors[i]));
+    update_fields(type_info->type_acenstors[i]);
   }
   update_fields(type_info);
 
