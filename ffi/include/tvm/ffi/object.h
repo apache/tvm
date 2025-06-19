@@ -693,34 +693,38 @@ template <typename TargetType>
 TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index) {
   static_assert(std::is_base_of_v<Object, TargetType>);
   // Everything is a subclass of object.
-  if constexpr (std::is_same<TargetType, Object>::value) return true;
-
-  if constexpr (TargetType::_type_final) {
+  if constexpr (std::is_same<TargetType, Object>::value) {
+    return true;
+  } else if constexpr (TargetType::_type_final) {
     // if the target type is a final type
     // then we only need to check the equivalence.
     return object_type_index == TargetType::RuntimeTypeIndex();
-  }
-
-  // if target type is a non-leaf type
-  // Check if type index falls into the range of reserved slots.
-  int32_t target_type_index = TargetType::RuntimeTypeIndex();
-  int32_t begin = target_type_index;
-  // The condition will be optimized by constant-folding.
-  if constexpr (TargetType::_type_child_slots != 0) {
-    // total_slots = child_slots + 1 (including self)
-    int32_t end = begin + TargetType::_type_child_slots + 1;
-    if (object_type_index >= begin && object_type_index < end) return true;
   } else {
-    if (object_type_index == begin) return true;
+    // Explicitly enclose in else to eliminate this branch early in compilation.
+    // if target type is a non-leaf type
+    // Check if type index falls into the range of reserved slots.
+    int32_t target_type_index = TargetType::RuntimeTypeIndex();
+    int32_t begin = target_type_index;
+    // The condition will be optimized by constant-folding.
+    if constexpr (TargetType::_type_child_slots != 0) {
+      // total_slots = child_slots + 1 (including self)
+      int32_t end = begin + TargetType::_type_child_slots + 1;
+      if (object_type_index >= begin && object_type_index < end) return true;
+    } else {
+      if (object_type_index == begin) return true;
+    }
+    if constexpr (TargetType::_type_child_slots_can_overflow) {
+      // Invariance: parent index is always smaller than the child.
+      if (object_type_index < target_type_index) return false;
+      // Do a runtime lookup of type information
+      // the function checks that the info exists
+      const TypeInfo* type_info = TVMFFIGetTypeInfo(object_type_index);
+      return (type_info->type_depth > TargetType::_type_depth &&
+              type_info->type_acenstors[TargetType::_type_depth]->type_index == target_type_index);
+    } else {
+      return false;
+    }
   }
-  if (!TargetType::_type_child_slots_can_overflow) return false;
-  // Invariance: parent index is always smaller than the child.
-  if (object_type_index < target_type_index) return false;
-  // Do a runtime lookup of type information
-  // the function checks that the info exists
-  const TypeInfo* type_info = TVMFFIGetTypeInfo(object_type_index);
-  return (type_info->type_depth > TargetType::_type_depth &&
-          type_info->type_acenstors[TargetType::_type_depth] == target_type_index);
 }
 
 /*!

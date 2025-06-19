@@ -22,6 +22,7 @@
 
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
 
 namespace tvm {
@@ -80,6 +81,15 @@ class TFloatObj : public TNumberObj {
   TFloatObj(double value) : value(value) {}
 
   double Add(double other) const { return value + other; }
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TFloatObj>()
+        .def_ro("value", &TFloatObj::value, "float value field", refl::DefaultValue(10.0))
+        .def("sub",
+             [](const TFloatObj* self, double other) -> double { return self->value - other; })
+        .def("add", &TFloatObj::Add, "add method");
+  }
 
   static constexpr const char* _type_key = "test.Float";
   TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TFloatObj, TNumberObj);

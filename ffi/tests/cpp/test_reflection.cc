@@ -18,6 +18,7 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+#include <tvm/ffi/container/map.h>
 #include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
@@ -29,11 +30,20 @@ namespace {
 using namespace tvm::ffi;
 using namespace tvm::ffi::testing;
 
-struct A : public Object {
+struct TestObjA : public Object {
   int64_t x;
   int64_t y;
 
+  static constexpr const char* _type_key = "test.TestObjA";
   static constexpr bool _type_mutable = true;
+  TVM_FFI_DECLARE_BASE_OBJECT_INFO(TestObjA, Object);
+};
+
+struct TestObjADerived : public TestObjA {
+  int64_t z;
+
+  static constexpr const char* _type_key = "test.TestObjADerived";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TestObjADerived, TestObjA);
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({
@@ -56,12 +66,13 @@ TVM_FFI_STATIC_INIT_BLOCK({
         return self->value - other;
       });
 
-  refl::ObjectDef<A>().def_ro("x", &A::x).def_rw("y", &A::y);
+  refl::ObjectDef<TestObjA>().def_ro("x", &TestObjA::x).def_rw("y", &TestObjA::y);
+  refl::ObjectDef<TestObjADerived>().def_ro("z", &TestObjADerived::z);
 });
 
 TEST(Reflection, GetFieldByteOffset) {
-  EXPECT_EQ(reflection::GetFieldByteOffsetToObject(&A::x), sizeof(TVMFFIObject));
-  EXPECT_EQ(reflection::GetFieldByteOffsetToObject(&A::y), 8 + sizeof(TVMFFIObject));
+  EXPECT_EQ(reflection::GetFieldByteOffsetToObject(&TestObjA::x), sizeof(TVMFFIObject));
+  EXPECT_EQ(reflection::GetFieldByteOffsetToObject(&TestObjA::y), 8 + sizeof(TVMFFIObject));
   EXPECT_EQ(reflection::GetFieldByteOffsetToObject(&TIntObj::value), sizeof(TVMFFIObject));
 }
 
@@ -129,6 +140,17 @@ TEST(Reflection, CallMethod) {
 
   Function prim_expr_sub = reflection::GetMethod("test.PrimExpr", "sub");
   EXPECT_EQ(prim_expr_sub(TPrimExpr("float", 1), 2.0).cast<double>(), -1.0);
+}
+
+TEST(Reflection, ForEachFieldInfo) {
+  const TypeInfo* info = TVMFFIGetTypeInfo(TestObjADerived::RuntimeTypeIndex());
+  Map<String, int> field_name_to_offset;
+  reflection::ForEachFieldInfo(info, [&](const TVMFFIFieldInfo* field_info) {
+    field_name_to_offset.Set(String(field_info->name), field_info->offset);
+  });
+  EXPECT_EQ(field_name_to_offset["x"], sizeof(TVMFFIObject));
+  EXPECT_EQ(field_name_to_offset["y"], 8 + sizeof(TVMFFIObject));
+  EXPECT_EQ(field_name_to_offset["z"], 16 + sizeof(TVMFFIObject));
 }
 
 }  // namespace

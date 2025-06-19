@@ -392,6 +392,31 @@ inline Function GetMethod(std::string_view type_key, const char* method_name) {
   return AnyView::CopyFromTVMFFIAny(info->method).cast<Function>();
 }
 
+/*!
+ * \brief Visit each field info of the type info and run callback.
+ *
+ * \tparam Callback The callback function type.
+ *
+ * \param type_info The type info.
+ * \param callback The callback function.
+ *
+ * \note This function calls both the child and parent type info.
+ */
+template <typename Callback>
+inline void ForEachFieldInfo(const TypeInfo* type_info, Callback callback) {
+  // iterate through acenstors in parent to child order
+  // skip the first one since it is always the root object
+  for (int i = 1; i < type_info->type_depth; ++i) {
+    const TVMFFITypeInfo* parent_info = type_info->type_acenstors[i];
+    for (int j = 0; j < parent_info->num_fields; ++j) {
+      callback(parent_info->fields + j);
+    }
+  }
+  for (int i = 0; i < type_info->num_fields; ++i) {
+    callback(type_info->fields + i);
+  }
+}
+
 }  // namespace reflection
 }  // namespace ffi
 }  // namespace tvm
