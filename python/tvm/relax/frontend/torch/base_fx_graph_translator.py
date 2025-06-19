@@ -331,13 +331,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         beta = node.args[1] if len(node.args) > 1 else node.kwargs.get("beta", 1.0)
         threshold = node.args[2] if len(node.args) > 2 else node.kwargs.get("threshold", 20.0)
         return self.block_builder.emit(relax.op.nn.softplus(x, beta, threshold))
-    
+
     def _softsign(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         abs_x = self.block_builder.emit(relax.op.abs(x))
         denom = self.block_builder.emit(relax.op.add(abs_x, relax.const(1.0, dtype="float32")))
         return self.block_builder.emit(relax.op.divide(x, denom))
- 
 
     def _softshrink(self, node: fx.Node) -> relax.Var:
         """

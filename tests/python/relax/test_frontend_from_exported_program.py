@@ -800,6 +800,7 @@ def test_softmax():
     verify_model(Softmax(), example_args, {}, expected1)
     verify_model(Softmax2(), example_args, {}, expected1)
 
+
 def test_softsign():
     class Softsign(Module):
         def __init__(self):
