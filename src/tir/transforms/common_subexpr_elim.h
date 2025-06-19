@@ -83,7 +83,8 @@ class CommonSubexpressionEliminator : public StmtExprMutator {
   static bool ForbiddenComputation(const PrimExpr& expr);
   static bool IsEligibleComputation(const PrimExpr& expr);
   static bool CanContainEligibleComputations(const PrimExpr& expr);
-  static bool OrderOnExprAndFrequency(std::pair<PrimExpr, size_t> a, std::pair<PrimExpr, size_t> b);
+  static bool OrderOnExprAndFrequency(const std::pair<PrimExpr, size_t>& a,
+                                      const std::pair<PrimExpr, size_t>& b);
   Var GenerateNewVar(DataType type_annotation);
 };
 

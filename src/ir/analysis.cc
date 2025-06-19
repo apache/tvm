@@ -31,7 +31,7 @@ namespace ir {
 Map<GlobalVar, Array<GlobalVar>> CollectCallMap(const IRModule& mod) {
   struct CalleeCollectorImpl : CalleeCollector {
     void Mark(GlobalVar gvar) override { gvars.push_back(gvar); }
-    support::OrderedSet<GlobalVar> gvars;
+    support::OrderedSet<GlobalVar, ObjectPtrHash, ObjectPtrEqual> gvars;
   };
 
   Map<GlobalVar, Array<GlobalVar>> call_map;
