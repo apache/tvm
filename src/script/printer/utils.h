@@ -42,18 +42,8 @@ inline void RedirectedReprPrinterMethod(const ObjectRef& obj, ReprPrinter* p) {
   try {
     p->stream << TVMScriptPrinter::Script(obj, std::nullopt);
   } catch (const tvm::Error& e) {
-    if (ReprLegacyPrinter::CanDispatch(obj)) {
-      LOG(WARNING) << "TVMScript printer falls back to the legacy ReprPrinter with the error:\n"
-                   << e.what();
-      try {
-        p->stream << AsLegacyRepr(obj);
-      } catch (const tvm::Error& e) {
-        LOG(WARNING) << "AsLegacyRepr fails. Falling back to the basic address printer";
-      }
-    } else {
-      LOG(WARNING) << "TVMScript printer falls back to the basic address printer with the error:\n"
-                   << e.what();
-    }
+    LOG(WARNING) << "TVMScript printer falls back to the basic address printer with the error:\n"
+                 << e.what();
     p->stream << obj->GetTypeKey() << '(' << obj.get() << ')';
   }
 }
