@@ -39,9 +39,10 @@ namespace relax {
 /* relax.take */
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
-Expr take(Expr x, Expr indices, Optional<int64_t> axis) {
+Expr take(Expr x, Expr indices, Optional<int64_t> axis, String mode) {
   ObjectPtr<TakeAttrs> attrs = make_object<TakeAttrs>();
   attrs->axis = std::move(axis);
+  attrs->mode = std::move(mode);
 
   static const Op& op = Op::Get("relax.take");
   return Call(op, {std::move(x), std::move(indices)}, Attrs(attrs), {});
