@@ -377,6 +377,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "softmax.int": self._softmax,
             "softplus.default": self._softplus,
             "softshrink.default": self._softshrink,
+            "softsign.default": self._softsign,
             "sqrt.default": self._unary_op(relax.op.sqrt),
             "square.default": self._unary_op(relax.op.square),
             "tan.default": self._unary_op(relax.op.tan),
