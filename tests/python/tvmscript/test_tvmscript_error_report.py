@@ -280,13 +280,6 @@ def test_duplicate_block_signature():
                 T.where(1)
                 T.where(0)  # error
 
-    def duplicate_annotations() -> None:
-        for i, j in T.grid(16, 16):
-            with T.block():
-                vi, vj = T.axis.remap("SS", [i, j])
-                T.block_attr({})
-                T.block_attr({})  # error
-
     def duplicate_init() -> None:
         for i, j in T.grid(16, 16):
             with T.block():
@@ -303,12 +296,20 @@ def test_duplicate_block_signature():
                 vi = T.axis.S(i, 16)  # error
                 T.evaluate(1.0)
 
+    def duplicate_block_attrs_with_same_key_diff_value() -> None:
+        for i, j in T.grid(16, 16):
+            with T.block():
+                vi, vj = T.axis.remap("SS", [i, j])
+                T.block_attr({"key1": "block1"})
+                T.block_attr({"key1": "block2"})  # error
+                T.evaluate(1.0)
+
     check_error(duplicate_reads, 7)
     check_error(duplicate_writes, 7)
     check_error(duplicate_predicate, 6)
-    check_error(duplicate_annotations, 6)
     check_error(duplicate_init, 7)
     check_error(duplicate_axes, 5)
+    check_error(duplicate_block_attrs_with_same_key_diff_value, 6)
 
 
 def test_opaque_access_during_complete():
