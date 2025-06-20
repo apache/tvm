@@ -16,4 +16,11 @@
 # under the License.
 # pylint: disable=unused-import
 """Intrinsics for tensorization."""
-from . import arm_cpu, cuda, rocm, x86, hexagon
+import tvm
+
+if hasattr(tvm.target.codegen, "llvm_version_major"):
+    llvm_version = tvm.target.codegen.llvm_version_major(allow_none=True)
+    if llvm_version is not None:
+        from . import arm_cpu, x86, rocm, hexagon
+
+from . import cuda
