@@ -220,10 +220,10 @@ class Diagnostics:
         level : diagnostics.DiagnosticLevel
             The diagnostic level.
         """
-        lineno = node.lineno or 1
-        col_offset = node.col_offset or self.source.start_column
-        end_lineno = node.end_lineno or lineno
-        end_col_offset = node.end_col_offset or col_offset
+        lineno = getattr(node, "lineno", 1)
+        col_offset = getattr(node, "col_offset", self.source.start_column)
+        end_lineno = getattr(node, "end_lineno", lineno)
+        end_col_offset = getattr(node, "end_col_offset", col_offset)
         lineno += self.source.start_line - 1
         end_lineno += self.source.start_line - 1
         col_offset += self.source.start_column + 1

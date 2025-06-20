@@ -479,17 +479,11 @@ def cli_name(s: str) -> str:
 
 
 def typing_get_origin(annotation):
-    if sys.version_info >= (3, 8):
-        return typing.get_origin(annotation)
-    else:
-        return annotation.__origin__
+    return typing.get_origin(annotation)
 
 
 def typing_get_args(annotation):
-    if sys.version_info >= (3, 8):
-        return typing.get_args(annotation)
-    else:
-        return annotation.__args__
+    return typing.get_args(annotation)
 
 
 def is_optional_type(annotation):
