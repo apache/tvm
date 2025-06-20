@@ -588,5 +588,28 @@ def test_block_annotation_merge():
                 T.evaluate(0)
 
 
+def test_alloc_inside_block():
+    @T.prim_func(private=True)
+    def func() -> None:
+        with T.block():
+            A = T.alloc_buffer([10], "float32")
+            for i in T.serial(0, 10):
+                B = T.alloc_buffer([10], "float32")
+                for j in T.serial(0, 10):
+                    B[j] = T.float32(j)
+                    A[i] += B[j]
+
+    @T.prim_func(private=True)
+    def expected() -> None:
+        with T.block():
+            A = T.alloc_buffer([10], "float32")
+            B = T.alloc_buffer([10], "float32")
+            for i, j in T.grid(10, 10):
+                B[j] = T.float32(j)
+                A[i] += B[j]
+
+    tvm.ir.assert_structural_equal(func, expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
