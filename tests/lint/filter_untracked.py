@@ -29,10 +29,7 @@ def check_output(args, **kw):
         sys.stderr.write("exited with code %d: %s\n" % (proc.returncode, " ".join(args)))
         sys.exit(2)
 
-    if sys.version_info[0] == 2:
-        return unicode(out, "utf-8")
-    else:
-        return str(out, "utf-8")
+    return str(out, "utf-8")
 
 
 def main():

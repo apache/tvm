@@ -283,7 +283,7 @@ def visit_aug_assign(self: Parser, node: doc.AugAssign) -> None:
         node.value.end_lineno,
         node.value.end_col_offset,
     )
-    node.target.ctx = doc.Load(*lhs_pos)
+    node.target.ctx = doc.Load()
     with self.var_table.with_frame():
         lhs_name = "__tvm_tmp_value_aug_assign_lhs"
         rhs_name = "__tvm_tmp_value_aug_assign_rhs"
@@ -292,14 +292,14 @@ def visit_aug_assign(self: Parser, node: doc.AugAssign) -> None:
         self.var_table.add(lhs_name, lhs_expr)
         self.var_table.add(rhs_name, rhs_expr)
         op = doc.BinOp(
-            doc.Name(lhs_name, doc.Load(*lhs_pos), *lhs_pos),
+            doc.Name(lhs_name, doc.Load(), *lhs_pos),
             node.op,
-            doc.Name(rhs_name, doc.Load(*rhs_pos), *rhs_pos),
+            doc.Name(rhs_name, doc.Load(), *rhs_pos),
             *lhs_pos,
         )
         rhs = self.eval_expr(op)
     lhs = node.target
-    lhs.ctx = doc.Store(*lhs_pos)
+    lhs.ctx = doc.Store()
     if isinstance(lhs, doc.Subscript):
         if isinstance(lhs.slice, doc.Tuple):
             indices = []

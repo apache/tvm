@@ -148,12 +148,7 @@ class ExprEvaluator:
         col_offset = 0
         return doc.Name(
             id=name,
-            ctx=doc.Load(
-                lineno=lineno,
-                col_offset=col_offset,
-                end_lineno=None,
-                end_col_offset=None,
-            ),
+            ctx=doc.Load(),
             lineno=lineno,
             col_offset=col_offset,
             end_lineno=None,
@@ -230,7 +225,7 @@ class ExprEvaluator:
             ),
         ):
             return node
-        if not isinstance(node, (doc.expr, doc.slice)):
+        if not isinstance(node, (doc.expr, doc.Slice)):
             return node
         if isinstance(node, doc.Lambda):
             return self._eval_lambda(node)

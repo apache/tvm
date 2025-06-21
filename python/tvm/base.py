@@ -26,8 +26,8 @@ from . import libinfo
 # ----------------------------
 # Python3 version.
 # ----------------------------
-if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 8):
-    PY3STATEMENT = "The minimal Python requirement is Python 3.8"
+if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 9):
+    PY3STATEMENT = "The minimal Python requirement is Python 3.9"
     raise Exception(PY3STATEMENT)
 
 # ----------------------------
@@ -38,9 +38,8 @@ if not (sys.version_info[0] >= 3 and sys.version_info[1] >= 8):
 def _load_lib():
     """Load libary by searching possible path."""
     lib_path = libinfo.find_lib_path()
-    # The dll search path need to be added explicitly in
-    # windows after python 3.8
-    if sys.platform.startswith("win32") and sys.version_info >= (3, 8):
+    # The dll search path need to be added explicitly in windows
+    if sys.platform.startswith("win32"):
         for path in libinfo.get_dll_directories():
             os.add_dll_directory(path)
     lib = ctypes.CDLL(lib_path[0], ctypes.RTLD_GLOBAL)
