@@ -2612,6 +2612,29 @@ class ReduceL1(OnnxOpConverter):
         keepdims = attr.get("keepdims", 1)
         return relax.op.sum(relax.op.abs(data), axes, keepdims)
 
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        keepdims = attr.get("keepdims", 1)
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+
+        # Optional axes input
+        axes = None
+        if len(inputs) > 1 and inputs[1] is not None:
+            axes_const = get_constant(inputs[1], params)
+            assert isinstance(axes_const, relax.Constant), "Only constant axes currently supported"
+            axes = axes_const.data.numpy().tolist()
+
+        # If axes is empty and noop_with_empty_axes is 0, reduce all dimensions
+        if not axes and not noop_with_empty_axes:
+            return relax.op.sum(relax.op.abs(data), None, keepdims)
+        # If axes is empty and noop_with_empty_axes is 1, return the input data unchanged.
+        elif not axes and noop_with_empty_axes:
+            return data
+        # If axes is provided, reduce over specified axes
+        else:
+            return relax.op.sum(relax.op.abs(data), axes, keepdims)
+
 
 class ReduceL2(OnnxOpConverter):
     """Converts an onnx ReduceL2 node into an equivalent Relax expression."""
