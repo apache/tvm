@@ -2509,6 +2509,29 @@ class ReduceMax(OnnxOpConverter):
         keepdims = attr.get("keepdims", 1)
         return relax.op.max(data, axes, keepdims)
 
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        keepdims = attr.get("keepdims", 1)
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+
+        # Optional axes input
+        axes = None
+        if len(inputs) > 1 and inputs[1] is not None:
+            axes_const = get_constant(inputs[1], params)
+            assert isinstance(axes_const, relax.Constant), "Only constant axes currently supported"
+            axes = axes_const.data.numpy().tolist()
+
+        # If axes is empty and noop_with_empty_axes is False, reduce all dims
+        if not axes and not noop_with_empty_axes:
+            return relax.op.max(data, None, keepdims)
+        # If axes is empty and noop_with_empty_axes is True, return input unchanged
+        elif not axes and noop_with_empty_axes:
+            return data
+        # Otherwise reduce over specified axes
+        else:
+            return relax.op.max(data, axes, keepdims)
+
 
 class ReduceMin(OnnxOpConverter):
     """Converts an onnx ReduceMin node into an equivalent Relax expression."""
@@ -2519,6 +2542,29 @@ class ReduceMin(OnnxOpConverter):
         axes = attr.get("axes", None)
         keepdims = attr.get("keepdims", 1)
         return relax.op.min(data, axes, keepdims)
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        keepdims = attr.get("keepdims", 1)
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+
+        # Optional axes input
+        axes = None
+        if len(inputs) > 1 and inputs[1] is not None:
+            axes_const = get_constant(inputs[1], params)
+            assert isinstance(axes_const, relax.Constant), "Only constant axes currently supported"
+            axes = axes_const.data.numpy().tolist()
+
+        # If axes is empty and noop_with_empty_axes is False, reduce all dims
+        if not axes and not noop_with_empty_axes:
+            return relax.op.min(data, None, keepdims)
+        # If axes is empty and noop_with_empty_axes is True, return input unchanged
+        elif not axes and noop_with_empty_axes:
+            return data
+        # Otherwise reduce over specified axes
+        else:
+            return relax.op.min(data, axes, keepdims)
 
 
 class ReduceSum(OnnxOpConverter):
@@ -2534,11 +2580,25 @@ class ReduceSum(OnnxOpConverter):
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         data = inputs[0]
-        axes = inputs[1]
         keepdims = attr.get("keepdims", 1)
-        assert isinstance(axes, relax.Constant), "Only constant axes currently supported."
-        axes = axes.data.numpy().tolist()
-        return relax.op.sum(data, axes, keepdims)
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+
+        # Optional axes input
+        axes = None
+        if len(inputs) > 1 and inputs[1] is not None:
+            axes_const = get_constant(inputs[1], params)
+            assert isinstance(axes_const, relax.Constant), "Only constant axes currently supported"
+            axes = axes_const.data.numpy().tolist()
+
+        # If axes is empty and noop_with_empty_axes is 0, reduce all dimensions
+        if not axes and not noop_with_empty_axes:
+            return relax.op.sum(data, None, keepdims)
+        # If axes is empty and noop_with_empty_axes is 1, return the input data unchanged.
+        elif not axes and noop_with_empty_axes:
+            return data
+        # If axes is provided, reduce over the specified axes
+        else:
+            return relax.op.sum(data, axes, keepdims)
 
 
 class ReduceMean(OnnxOpConverter):
@@ -2551,6 +2611,29 @@ class ReduceMean(OnnxOpConverter):
         keepdims = attr.get("keepdims", 1)
         return relax.op.mean(data, axes, keepdims)
 
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        keepdims = attr.get("keepdims", 1)
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+
+        # Optional axes input
+        axes = None
+        if len(inputs) > 1 and inputs[1] is not None:
+            axes_const = get_constant(inputs[1], params)
+            assert isinstance(axes_const, relax.Constant), "Only constant axes currently supported"
+            axes = axes_const.data.numpy().tolist()
+
+        # If axes is empty and noop_with_empty_axes is 0, reduce all dimensions
+        if not axes and not noop_with_empty_axes:
+            return relax.op.mean(data, None, keepdims)
+        # If axes is empty and noop_with_empty_axes is 1, return the input data unchanged.
+        elif not axes and noop_with_empty_axes:
+            return data
+        # If axes is provided, reduce over the specified axes
+        else:
+            return relax.op.mean(data, axes, keepdims)
+
 
 class ReduceProd(OnnxOpConverter):
     """Converts an onnx ReduceProd node into an equivalent Relax expression."""
@@ -2561,6 +2644,29 @@ class ReduceProd(OnnxOpConverter):
         axes = attr.get("axes", None)
         keepdims = attr.get("keepdims", 1)
         return relax.op.prod(data, axes, keepdims)
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        keepdims = attr.get("keepdims", 1)
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+
+        # Optional axes input
+        axes = None
+        if len(inputs) > 1 and inputs[1] is not None:
+            axes_const = get_constant(inputs[1], params)
+            assert isinstance(axes_const, relax.Constant), "Only constant axes currently supported"
+            axes = axes_const.data.numpy().tolist()
+
+        # If axes is empty and noop_with_empty_axes is 0, reduce all dimensions
+        if not axes and not noop_with_empty_axes:
+            return relax.op.prod(data, None, keepdims)
+        # If axes is empty and noop_with_empty_axes is 1, return the input data unchanged.
+        elif not axes and noop_with_empty_axes:
+            return data
+        # If axes is provided, reduce over the specified axes
+        else:
+            return relax.op.prod(data, axes, keepdims)
 
 
 class ReduceLogSumExp(OnnxOpConverter):
@@ -2579,6 +2685,38 @@ class ReduceLogSumExp(OnnxOpConverter):
             out_x = relax.op.squeeze(out_x, axes)
         return out_x
 
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        x = inputs[0]
+        keepdims = attr.get("keepdims", 1)
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+
+        # Optional axes input (second input)
+        axes = None
+        if len(inputs) > 1 and inputs[1] is not None:
+            axes_const = get_constant(inputs[1], params)
+            assert isinstance(axes_const, relax.Constant), "Only constant axes currently supported"
+            axes = axes_const.data.numpy().tolist()
+
+        # Calculate LogSumExp
+        log_sum_exp = lambda axes: (
+            max_x := relax.op.max(x, axes, True),
+            exp_x := relax.op.exp(relax.op.subtract(x, max_x)),
+            sum_x := relax.op.sum(exp_x, axes, True),
+            out_x := relax.op.add(relax.op.log(sum_x), max_x),
+            relax.op.squeeze(out_x, axes) if not keepdims else out_x,
+        )[-1]
+
+        # If axes is empty and noop_with_empty_axes is 0, reduce all dimensions
+        if not axes and not noop_with_empty_axes:
+            return log_sum_exp(None)
+        # If axes is empty and noop_with_empty_axes is 1, return the input data unchanged.
+        elif not axes and noop_with_empty_axes:
+            return x
+        # If axes is provided, reduce over the specified axes
+        else:
+            return log_sum_exp(axes)
+
 
 class ReduceLogSum(OnnxOpConverter):
     """Converts an onnx ReduceLogSum node into an equivalent Relax expression."""
@@ -2590,6 +2728,29 @@ class ReduceLogSum(OnnxOpConverter):
         keepdims = attr.get("keepdims", 1)
         return relax.op.log(relax.op.sum(data, axes, keepdims))
 
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        keepdims = attr.get("keepdims", 1)
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+
+        # Optional axes input
+        axes = None
+        if len(inputs) > 1 and inputs[1] is not None:
+            axes_const = get_constant(inputs[1], params)
+            assert isinstance(axes_const, relax.Constant), "Only constant axes currently supported"
+            axes = axes_const.data.numpy().tolist()
+
+        # If axes is empty and noop_with_empty_axes is 0, reduce all dimensions
+        if not axes and not noop_with_empty_axes:
+            return relax.op.log(relax.op.sum(data, None, keepdims))
+        # If axes is empty and noop_with_empty_axes is 1, return the input data unchanged.
+        elif not axes and noop_with_empty_axes:
+            return data
+        # If axes is provided, reduce over the specified axes
+        else:
+            return relax.op.log(relax.op.sum(data, axes, keepdims))
+
 
 class ReduceSumSquare(OnnxOpConverter):
     """Converts an onnx ReduceSumSquare node into an equivalent Relax expression."""
@@ -2600,6 +2761,29 @@ class ReduceSumSquare(OnnxOpConverter):
         axes = attr.get("axes", None)
         keepdims = attr.get("keepdims", 1)
         return relax.op.sum(relax.op.multiply(data, data), axes, keepdims)
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        keepdims = attr.get("keepdims", 1)
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+
+        # Optional axes input
+        axes = None
+        if len(inputs) > 1 and inputs[1] is not None:
+            axes_const = get_constant(inputs[1], params)
+            assert isinstance(axes_const, relax.Constant), "Only constant axes currently supported"
+            axes = axes_const.data.numpy().tolist()
+
+        # If axes is empty and noop_with_empty_axes is 0, reduce all dimensions
+        if not axes and not noop_with_empty_axes:
+            return relax.op.sum(relax.op.multiply(data, data), None, keepdims)
+        # If axes is empty and noop_with_empty_axes is 1, return the input data unchanged.
+        elif not axes and noop_with_empty_axes:
+            return data
+        # If axes is provided, reduce over the specified axes
+        else:
+            return relax.op.sum(relax.op.multiply(data, data), axes, keepdims)
 
 
 class ReduceL1(OnnxOpConverter):
@@ -2631,7 +2815,7 @@ class ReduceL1(OnnxOpConverter):
         # If axes is empty and noop_with_empty_axes is 1, return the input data unchanged.
         elif not axes and noop_with_empty_axes:
             return data
-        # If axes is provided, reduce over specified axes
+        # If axes is provided, reduce over the specified axes
         else:
             return relax.op.sum(relax.op.abs(data), axes, keepdims)
 
@@ -2645,6 +2829,29 @@ class ReduceL2(OnnxOpConverter):
         axes = attr.get("axes", None)
         keepdims = attr.get("keepdims", 1)
         return relax.op.sqrt(relax.op.sum(relax.op.multiply(data, data), axes, keepdims))
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        keepdims = attr.get("keepdims", 1)
+        noop_with_empty_axes = attr.get("noop_with_empty_axes", 0)
+
+        # Optional axes input
+        axes = None
+        if len(inputs) > 1 and inputs[1] is not None:
+            axes_const = get_constant(inputs[1], params)
+            assert isinstance(axes_const, relax.Constant), "Only constant axes currently supported"
+            axes = axes_const.data.numpy().tolist()
+
+        # If axes is empty and noop_with_empty_axes is 0, reduce all dimensions
+        if not axes and not noop_with_empty_axes:
+            return relax.op.sqrt(relax.op.sum(relax.op.multiply(data, data), None, keepdims))
+        # If axes is empty and noop_with_empty_axes is 1, return the input data unchanged.
+        elif not axes and noop_with_empty_axes:
+            return data
+        # If axes is provided, reduce over the specified axes
+        else:
+            return relax.op.sqrt(relax.op.sum(relax.op.multiply(data, data), axes, keepdims))
 
 
 class ArgMax(OnnxOpConverter):

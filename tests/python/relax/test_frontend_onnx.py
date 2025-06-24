@@ -1580,23 +1580,22 @@ def test_all_reduce_funcs_axes_attr(func, dynamic, opset):
 def create_reduce_test_parameters_axes_input():
     output = []
     for dynamic in [True, False]:
-        # TODO(@vacu9708): Enable the tests after implementing other reduce ops
-        # output.append(("ReduceMax", dynamic, 20))
-        # output.append(("ReduceMean", dynamic, 18))
-        # output.append(("ReduceMin", dynamic, 20))
-        # output.append(("ReduceProd", dynamic, 18))
-        # output.append(("ReduceSum", dynamic, 13))
-        # output.append(("ReduceSumSquare", dynamic, 18))
-        # output.append(("ReduceLogSum", dynamic, 18))
-        # output.append(("ReduceLogSumExp", dynamic, 18))
+        output.append(("ReduceMax", dynamic, 18))
+        output.append(("ReduceMean", dynamic, 18))
+        output.append(("ReduceMin", dynamic, 18))
+        output.append(("ReduceProd", dynamic, 18))
+        output.append(("ReduceSum", dynamic, 13))
+        output.append(("ReduceSumSquare", dynamic, 18))
+        output.append(("ReduceLogSum", dynamic, 18))
+        output.append(("ReduceLogSumExp", dynamic, 18))
         output.append(("ReduceL1", dynamic, 18))
-        # output.append(("ReduceL2", dynamic, 18))
+        output.append(("ReduceL2", dynamic, 18))
     return output
 
 
 @pytest.mark.parametrize("func, dynamic, opset", create_reduce_test_parameters_axes_input())
 def test_all_reduce_funcs_axes_input(func, dynamic, opset):
-    def verify_reduce_func(func, data, axes, keepdims, noop_with_empty_axes):
+    def verify_reduce_func(func, data, axes, keepdims, noop_with_empty_axes=False):
         inshape = data.shape
 
         inputs = ["x"]
@@ -1698,7 +1697,6 @@ def test_all_reduce_funcs_axes_input(func, dynamic, opset):
             np.random.randn(3, 3, 3, 1).astype(np.float32),
             axes=(1, 2),
             keepdims=keepdims,
-            noop_with_empty_axes=True,
         )
 
 
