@@ -50,7 +50,7 @@ void FuncAttrGetter::VisitExpr_(const CallNode* op) {
   if (op->attrs.defined()) {
     Map<String, String> attrs;
     AttrGetter getter(&attrs);
-    const_cast<BaseAttrsNode*>(op->attrs.get())->VisitAttrs(&getter);
+    getter(op->attrs);
     for (const auto& pair : attrs) {
       if (attrs_.count(pair.first)) {
         int cnt = 1;
@@ -350,7 +350,7 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
       attrs = FuncAttrGetter().GetAttrs(call_node->op);
     } else if (call_node->attrs.defined()) {
       AttrGetter getter(&attrs);
-      const_cast<BaseAttrsNode*>(call_node->attrs.get())->VisitAttrs(&getter);
+      getter(call_node->attrs);
     }
   } else if (const auto* const_node = expr.as<ConstantNode>()) {
     if (const_node->is_scalar()) {

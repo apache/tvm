@@ -47,6 +47,7 @@
 #include <dmlc/common.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
@@ -969,6 +970,66 @@ inline void BaseAttrsNode::PrintDocString(std::ostream& os) const {  // NOLINT(*
     }
   }
 }
+
+/*!
+ * \brief Adapter for AttrsNode with the new reflection API.
+ *
+ * We will phaseout the old AttrsNode in future in favor of the new reflection API.
+ * This adapter allows us to gradually migrate to the new reflection API.
+ *
+ * \tparam DerivedType The final attribute type.
+ */
+template <typename DerivedType>
+class AttrsNodeReflAdapter : public BaseAttrsNode {
+ public:
+  void InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) final {
+    LOG(FATAL) << "`" << DerivedType::_type_key << "` uses new reflection mechanism for init";
+  }
+  void VisitNonDefaultAttrs(AttrVisitor* v) final {
+    LOG(FATAL) << "`" << DerivedType::_type_key
+               << "` uses new reflection mechanism for visit non default attrs";
+  }
+  void VisitAttrs(AttrVisitor* v) final {
+    LOG(FATAL) << "`" << DerivedType::_type_key
+               << "` uses new reflection mechanism for visit attrs";
+  }
+
+  bool SEqualReduce(const DerivedType* other, SEqualReducer equal) const {
+    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(DerivedType::RuntimeTypeIndex());
+    bool success = true;
+    ffi::reflection::ForEachFieldInfoWithEarlyStop(
+        type_info, [&](const TVMFFIFieldInfo* field_info) {
+          ffi::reflection::FieldGetter field_getter(field_info);
+          ffi::Any field_value = field_getter(self());
+          ffi::Any other_field_value = field_getter(other);
+          if (!equal.AnyEqual(field_value, other_field_value)) {
+            success = false;
+            return true;
+          }
+          return false;
+        });
+    return success;
+  }
+
+  void SHashReduce(SHashReducer hash_reducer) const {
+    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(DerivedType::RuntimeTypeIndex());
+    ffi::reflection::ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
+      ffi::reflection::FieldGetter field_getter(field_info);
+      ffi::Any field_value = field_getter(self());
+      hash_reducer(field_value);
+    });
+  }
+
+  Array<AttrFieldInfo> ListFieldInfo() const final {
+    // use the new reflection to list field info
+    return Array<AttrFieldInfo>();
+  }
+
+ private:
+  DerivedType* self() const {
+    return const_cast<DerivedType*>(static_cast<const DerivedType*>(this));
+  }
+};
 
 }  // namespace tvm
 #endif  // TVM_IR_ATTRS_H_
