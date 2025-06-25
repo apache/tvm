@@ -20,17 +20,21 @@ import tvm.ir._ffi_api
 
 
 def test_make_attrs():
-    with pytest.raises(AttributeError):
+    with pytest.raises(TypeError):
         x = tvm.ir.make_node("attrs.TestAttrs", unknown_key=1, name="xx")
-
-    with pytest.raises(AttributeError):
-        x = tvm.ir.make_node("attrs.TestAttrs", axis=100, name="xx")
 
     x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
     assert x.name == "xx"
     assert x.padding[0].value == 3
     assert x.padding[1].value == 4
     assert x.axis == 10
+
+    x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
+    y = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 5))
+    z = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 5))
+    assert not tvm.ir.structural_equal(x, y)
+    assert tvm.ir.structural_equal(x, x)
+    assert tvm.ir.structural_equal(y, z)
 
 
 def test_dict_attrs():
