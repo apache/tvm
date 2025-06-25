@@ -27,11 +27,8 @@
 namespace tvm {
 namespace runtime {
 
-inline Device UseDefaultDeviceIfNone(Device device) {
-  if (device.device_type == 0 && device.device_id == 0) {
-    return DiscoWorker::ThreadLocal()->default_device;
-  }
-  return device;
+inline Device UseDefaultDeviceIfNone(Optional<Device> device) {
+  return device.value_or(DiscoWorker::ThreadLocal()->default_device);
 }
 
 /*!

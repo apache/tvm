@@ -46,26 +46,27 @@ class DSOLibraryCache {
   std::mutex mutex_;
 };
 
-Module LoadVMModule(std::string path, Device device) {
+Module LoadVMModule(std::string path, Optional<Device> device) {
   static DSOLibraryCache cache;
   Module dso_mod = cache.Open(path);
-  device = UseDefaultDeviceIfNone(device);
+  Device dev = UseDefaultDeviceIfNone(device);
   ffi::Function vm_load_executable = dso_mod.GetFunction("vm_load_executable");
-  CHECK(vm_load_executable != nullptr)
-      << "ValueError: File `" << path
-      << "` is not built by RelaxVM, because `vm_load_executable` does not exist";
+  if (vm_load_executable == nullptr) {
+    // not built by RelaxVM, return the dso_mod directly
+    return dso_mod;
+  }
   auto mod = vm_load_executable().cast<Module>();
   ffi::Function vm_initialization = mod.GetFunction("vm_initialization");
   CHECK(vm_initialization != nullptr)
       << "ValueError: File `" << path
       << "` is not built by RelaxVM, because `vm_initialization` does not exist";
-  vm_initialization(static_cast<int>(device.device_type), static_cast<int>(device.device_id),
+  vm_initialization(static_cast<int>(dev.device_type), static_cast<int>(dev.device_id),
                     static_cast<int>(AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
                     static_cast<int>(AllocatorType::kPooled));
   return mod;
 }
 
-NDArray DiscoEmptyNDArray(ffi::Shape shape, DataType dtype, Device device) {
+NDArray DiscoEmptyNDArray(ffi::Shape shape, DataType dtype, Optional<Device> device) {
   return NDArray::Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 
@@ -123,7 +124,7 @@ void SyncWorker() {
 TVM_FFI_REGISTER_GLOBAL("runtime.disco.load_vm_module").set_body_typed(LoadVMModule);
 
 TVM_FFI_REGISTER_GLOBAL("runtime.disco.empty")
-    .set_body_typed([](ffi::Shape shape, DataType dtype, Device device, bool worker0_only,
+    .set_body_typed([](ffi::Shape shape, DataType dtype, Optional<Device> device, bool worker0_only,
                        bool in_group) -> Optional<NDArray> {
       int worker_id = WorkerId();
       int group_size =
