@@ -56,6 +56,7 @@ def compile_cuda(code, target_format=None, arch=None, options=None, path_target=
         The bytearray of the cubin
     """
     # Check for NVSHMEM dependency
+    nvshmem_include_path, nvshmem_lib_path = None, None
     use_nvshmem = tvm.get_global_func("runtime.nvshmem.cumodule_init") is not None
     if options and "--use-nvshmem" in options:
         use_nvshmem = True
@@ -285,17 +286,26 @@ def find_nvshmem_paths() -> Tuple[str, str]:
                 if os.path.isfile(os.path.join(lib_path, "libnvshmem.a")):
                     return include_path, lib_path
 
-    error_msg = (
-        "Error: Could not find NVSHMEM installation.\n" "Searched in the following locations:\n"
+    error_message = [
+        "Error: Could not find NVSHMEM installation.",
+        "Searched in the following locations:",
+    ]
+    error_message.extend([f"  - {path}" for path in unique_candidates])
+    error_message.extend(
+        [
+            "",
+            "Please ensure NVSHMEM is installed and try one of the following:",
+            (
+                "  1. Set the 'NVSHMEM_HOME' environment variable "
+                "to your NVSHMEM installation directory."
+            ),
+            (
+                "  2. Ensure your CUDA Toolkit installation includes NVSHMEM and "
+                "'nvcc' is on your PATH."
+            ),
+        ]
     )
-    for path in unique_candidates:
-        error_msg += f"  - {path}\n"
-    error_msg += (
-        "\nPlease ensure NVSHMEM is installed and try one of the following:\n"
-        "  1. Set the 'NVSHMEM_HOME' environment variable to your NVSHMEM installation directory.\n"
-        "  2. Ensure your CUDA Toolkit installation includes NVSHMEM and 'nvcc' is on your PATH."
-    )
-    raise RuntimeError(error_msg)
+    raise RuntimeError("\n".join(error_message))
 
 
 @tvm.ffi.register_func

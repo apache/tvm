@@ -236,8 +236,8 @@ class Session(Object):
         return _ffi_api.SessionSyncWorker(self, worker_id)  # type: ignore # pylint: disable=no-member
 
     def _sync_all(self) -> None:
-        """Synchronize the controller with all workers in the current session, and it will wait until
-        all workers finish executing all the existing instructions."""
+        """Synchronize the controller with all workers in the current session, and it will
+        wait until all workers finish executing all the existing instructions."""
         for i in range(self.num_workers):
             self._sync_worker(i)
 
