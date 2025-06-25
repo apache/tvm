@@ -45,23 +45,29 @@ class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
                 assert isinstance(
                     arg_sinfo, relax.TensorStructInfo
                 ), f"Expected TensorStructInfo but git {type(arg_sinfo)}"
+                call_mem_scope = (
+                    "global" if not arg_sinfo.vdevice else arg_sinfo.vdevice.memory_scope
+                )
                 assert (
-                    arg_sinfo.vdevice.memory_scope
-                    == self.scope_info[call.args[0].name_hint][0][idx]
+                    call_mem_scope == self.scope_info[call.args[0].name_hint][0][idx]
                 ), f"Scope mismatched for argument {idx} in {call.args[0].name_hint}"
             if isinstance(call.sinfo_args[0], relax.TensorStructInfo):
+                call_mem_scope = (
+                    "global"
+                    if not call.sinfo_args[0].vdevice
+                    else call.sinfo_args[0].vdevice.memory_scope
+                )
                 assert (
-                    call.sinfo_args[0].vdevice.memory_scope
-                    == self.scope_info[call.args[0].name_hint][1][0]
+                    call_mem_scope == self.scope_info[call.args[0].name_hint][1][0]
                 ), f"Scope mismatched for return scope: {call.args[0].name_hint}"
             else:
                 assert isinstance(
                     call.sinfo_args[0], relax.TupleStructInfo
                 ), f"Expected TupleStructInfo but git {type(call.sinfo_args[0])}"
                 for idx, sinfo in enumerate(call.sinfo_args[0].fields):
+                    call_mem_scope = "global" if not sinfo.vdevice else sinfo.vdevice.memory_scope
                     assert (
-                        sinfo.vdevice.memory_scope
-                        == self.scope_info[call.args[0].name_hint][1][idx]
+                        call_mem_scope == self.scope_info[call.args[0].name_hint][1][idx]
                     ), f"Scope mismatched for return scope for {idx} in {call.args[0].name_hint}"
 
 
@@ -917,7 +923,7 @@ def test_conv2d_conv2d_fallback_to_buffer_conv2d():
             ["global"],
         ),
         "te_layout_transform4": (["global"], ["global"]),
-        "conv2d_opencl": (["global", "global"], ["global"]),
+        "conv2d": (["global", "global"], ["global"]),
         "te_layout_transform5": (["global"], ["global"]),
         "concatenate": (["global", "global"], ["global"]),
     }

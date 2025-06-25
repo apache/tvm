@@ -38,12 +38,6 @@ namespace relax {
 
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.transform.apply_legalize_ops", Bool);
 
-static Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
-  auto shape = tensor_sinfo->GetShape();
-  ICHECK(shape.defined());
-  return shape.value();
-}
-
 /*!
  * \brief Check if a given Tensor/Shape/TupleStructInfo contains shapes whose
  * values are all known.
@@ -166,63 +160,6 @@ class LegalizeMutator : public ExprMutator {
     return std::nullopt;
   }
 
-  Expr UpdateVDeviceOutStructInfo(Expr expr, const Call& visited_call,
-                                  const StructInfo& infered_sinfo) {
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
-    auto* op_node = visited_call->op.as<OpNode>();
-
-    // Not an OpNode
-    if (op_node == nullptr) {
-      return expr;
-    }
-    auto op = GetRef<Op>(op_node);
-
-    if (!expr->IsInstance<CallNode>()) {
-      return expr;
-    }
-
-    auto call = Downcast<Call>(expr);
-    if (call->op != call_tir_op) {
-      return expr;
-    }
-
-    StructInfo out_sinfo = call->sinfo_args[0];
-
-    if (out_sinfo->IsInstance<TensorStructInfoNode>()) {
-      auto out_tsinfo = Downcast<TensorStructInfo>(out_sinfo);
-      auto infered_tsinfo = Downcast<TensorStructInfo>(infered_sinfo);
-      auto shape_arr = GetShapeFromTensorStructInfo(out_tsinfo);
-      if (infered_tsinfo->vdevice.defined()) {
-        out_sinfo = TensorStructInfo(ShapeExpr(shape_arr), out_tsinfo->dtype,
-                                     infered_tsinfo->vdevice.value());
-      }
-    } else if (out_sinfo->IsInstance<TupleStructInfoNode>()) {
-      const auto& tuple_sinfo = Downcast<TupleStructInfo>(out_sinfo);
-      const auto& infered_tuple_sinfo = Downcast<TupleStructInfo>(infered_sinfo);
-      Array<StructInfo> sinfo_fields;
-      int index = 0;
-      for (const auto& si : tuple_sinfo->fields) {
-        ICHECK(si->IsInstance<TensorStructInfoNode>())
-            << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
-               "output structinfo, but got "
-            << si;
-        auto tsinfo = Downcast<TensorStructInfo>(si);
-        auto shape_arr = GetShapeFromTensorStructInfo(tsinfo);
-        auto infered_tsinfo = Downcast<TensorStructInfo>(infered_tuple_sinfo->fields[index]);
-        if (infered_tsinfo->vdevice.defined()) {
-          sinfo_fields.push_back(TensorStructInfo(ShapeExpr(shape_arr), tsinfo->dtype,
-                                                  infered_tsinfo->vdevice.value()));
-        } else {
-          sinfo_fields.push_back(tsinfo);
-        }
-        ++index;
-      }
-      out_sinfo = TupleStructInfo(sinfo_fields);
-    }
-
-    return Call(call_tir_op, call->args, call->attrs, {out_sinfo});
-  }
-
   Expr BindTarget(Expr expr) {
     if (!expr->IsInstance<CallNode>()) {
       // FLegalize returned something other than a relax::Call.  This
@@ -294,7 +231,6 @@ class LegalizeMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) final {
     Call visited_call = Downcast<Call>(this->VisitExprPostOrder_(call));
-    static const auto& infer_struct_info_map = Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     static const auto& call_packed_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
     static const auto& requires_arg_shapes_map = Op::GetAttrMap<Bool>("RequiresArgumentShapes");
@@ -417,9 +353,6 @@ class LegalizeMutator : public ExprMutator {
       builder_->BeginBindingBlock();
     }
     Expr legalized = legalization_func(builder_, visited_call);
-
-    StructInfo infered_sinfo = infer_struct_info_map[op](GetRef<Call>(call), builder_);
-    legalized = UpdateVDeviceOutStructInfo(legalized, visited_call, infered_sinfo);
 
     // Append the target attribute to any PrimFunc generated in
     // legalization.
