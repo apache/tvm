@@ -31,6 +31,8 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({ MultinomialFromUniformAttrs::RegisterReflection(); });
+
 /* relax.multinomial_from_uniform */
 TVM_REGISTER_NODE_TYPE(MultinomialFromUniformAttrs);
 

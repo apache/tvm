@@ -27,6 +27,14 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  CallTIRWithGradAttrs::RegisterReflection();
+  CallTIRInplaceAttrs::RegisterReflection();
+  CallInplacePackedAttrs::RegisterReflection();
+  ToVDeviceAttrs::RegisterReflection();
+  HintOnDeviceAttrs::RegisterReflection();
+});
+
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
   if (const int64_t* pvalue = tir::as_const_int(lhs)) {
     return pvalue[0] == value;

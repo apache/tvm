@@ -30,6 +30,8 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({ ArgmaxArgminAttrs::RegisterReflection(); });
+
 /* relax.where */
 Expr where(Expr condition, Expr x1, Expr x2) {
   static const Op& op = Op::Get("relax.where");

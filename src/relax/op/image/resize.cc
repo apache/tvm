@@ -29,6 +29,8 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({ Resize2DAttrs::RegisterReflection(); });
+
 /* relax.resize2d */
 TVM_REGISTER_NODE_TYPE(Resize2DAttrs);
 

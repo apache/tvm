@@ -30,6 +30,11 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  StatisticalAttrs::RegisterReflection();
+  ScanopAttrs::RegisterReflection();
+});
+
 StructInfo InferStructInfoStatistical(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<StatisticalAttrs>();

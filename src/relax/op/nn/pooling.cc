@@ -25,6 +25,15 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  Pool1DAttrs::RegisterReflection();
+  Pool2DAttrs::RegisterReflection();
+  Pool3DAttrs::RegisterReflection();
+  AdaptivePool1DAttrs::RegisterReflection();
+  AdaptivePool2DAttrs::RegisterReflection();
+  AdaptivePool3DAttrs::RegisterReflection();
+});
+
 /* relax.nn.max_pool1d */
 TVM_REGISTER_NODE_TYPE(Pool1DAttrs);
 
