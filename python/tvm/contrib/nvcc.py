@@ -21,6 +21,7 @@ from __future__ import absolute_import as _abs
 import os
 import subprocess
 import warnings
+from typing import Tuple
 
 import tvm.ffi
 from tvm.target import Target
@@ -29,7 +30,7 @@ from ..base import py_str
 from . import utils
 
 
-def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target=None):
+def compile_cuda(code, target_format=None, arch=None, options=None, path_target=None):
     """Compile cuda code with NVCC from env.
 
     Parameters
@@ -54,6 +55,15 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
     cubin : bytearray
         The bytearray of the cubin
     """
+    # Check for NVSHMEM dependency
+    nvshmem_include_path, nvshmem_lib_path = None, None
+    use_nvshmem = (
+        tvm.get_global_func("runtime.nvshmem.cumodule_init", allow_missing=True) is not None
+    )
+    if use_nvshmem:
+        target_format = "cubin"
+        nvshmem_include_path, nvshmem_lib_path = find_nvshmem_paths()
+
     if arch is None:
         # If None, then it will use `tvm.target.Target.current().arch`.
         # Target arch could be a str like "sm_xx", or a list, such as
@@ -68,6 +78,8 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
 
     temp = utils.tempdir()
     file_name = "tvm_kernels"
+    if target_format is None and not use_nvshmem:
+        target_format = "ptx"
     if target_format not in ["cubin", "ptx", "fatbin"]:
         raise ValueError("target_format must be in cubin, ptx, fatbin")
     temp_code = temp.relpath(f"{file_name}.cu")
@@ -89,6 +101,9 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
         out_file.write(code)
 
     file_target = path_target if path_target else temp_target
+    if use_nvshmem:
+        file_prefix = file_target.split(".")[0]
+        file_target = f"{file_prefix}.o"  # in the first stage, compile to object file
     cmd = ["nvcc"]
     cmd += [f"--{target_format}", "-O3"]
     if kernels_output_dir is not None:
@@ -107,7 +122,12 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
             raise ValueError("options must be str or list of str")
 
     cmd += ["-o", file_target]
-    cmd += [temp_code]
+    if not use_nvshmem:
+        cmd += [temp_code]
+    else:
+        cmd += ["-c", temp_code]
+        cmd += ["-rdc=true"]
+        cmd += ["-I", nvshmem_include_path]
 
     # NOTE: ccbin option can be used to tell nvcc where to find the c++ compiler
     # just in case it is not in the path. On Windows it is not in the path by default.
@@ -126,6 +146,32 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
         msg += "\nCompilation error:\n"
         msg += py_str(out)
         raise RuntimeError(msg)
+
+    # start second stage of compilation
+    if use_nvshmem:
+        cmd = ["nvlink"]
+        cmd += [f"-arch=sm_{compute_version}"]
+        cmd += [
+            "-L",
+            nvshmem_lib_path,
+        ]
+        cmd += ["-L", os.path.join(find_cuda_path(), "lib64")]
+        cmd += ["-l", "nvshmem_device"]
+        cmd += ["-l", "cudadevrt"]
+        cmd += ["-o", f"{file_prefix}.cubin"]
+        cmd += [file_target]
+
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+
+        (out, _) = proc.communicate()
+
+        if proc.returncode != 0:
+            msg = code
+            msg += "\nCompilation error:\n"
+            msg += py_str(out)
+            raise RuntimeError(msg)
+
+        file_target = f"{file_prefix}.cubin"
 
     with open(file_target, "rb") as f:
         data = bytearray(f.read())
@@ -196,6 +242,70 @@ def get_cuda_version(cuda_path=None):
         version_str = [f[1:] for f in release_fields if f.startswith("V")][0]
         return tuple(int(field) for field in version_str.split("."))
     raise RuntimeError("Cannot read cuda version file")
+
+
+def find_nvshmem_paths() -> Tuple[str, str]:
+    """
+    Searches for the NVSHMEM include and library directories.
+    Returns:
+        A tuple containing the path to the include directory and the library directory.
+        (include_path, lib_path)
+    """
+    candidate_roots = []
+
+    # 1. NVSHMEM_HOME env variable
+    if "NVSHMEM_HOME" in os.environ:
+        candidate_roots.append(os.environ["NVSHMEM_HOME"])
+
+    # 2. CUDA Toolkit
+    try:
+        cuda_home = find_cuda_path()
+        candidate_roots.append(cuda_home)
+    except RuntimeError:
+        pass
+
+    # 3. Other common system installation paths
+    candidate_roots.extend(["/usr/local", "/usr"])
+
+    seen = set()
+    unique_candidates = []
+    for path in candidate_roots:
+        if path and path not in seen:
+            seen.add(path)
+            unique_candidates.append(path)
+
+    for root in unique_candidates:
+        include_path = os.path.join(root, "include")
+        lib_paths_to_check = [
+            os.path.join(root, "lib64"),
+            os.path.join(root, "lib"),
+        ]
+
+        if os.path.isfile(os.path.join(include_path, "nvshmem.h")):
+            for lib_path in lib_paths_to_check:
+                if os.path.isfile(os.path.join(lib_path, "libnvshmem.a")):
+                    return include_path, lib_path
+
+    error_message = [
+        "Error: Could not find NVSHMEM installation.",
+        "Searched in the following locations:",
+    ]
+    error_message.extend([f"  - {path}" for path in unique_candidates])
+    error_message.extend(
+        [
+            "",
+            "Please ensure NVSHMEM is installed and try one of the following:",
+            (
+                "  1. Set the 'NVSHMEM_HOME' environment variable "
+                "to your NVSHMEM installation directory."
+            ),
+            (
+                "  2. Ensure your CUDA Toolkit installation includes NVSHMEM and "
+                "'nvcc' is on your PATH."
+            ),
+        ]
+    )
+    raise RuntimeError("\n".join(error_message))
 
 
 @tvm.ffi.register_func

@@ -108,6 +108,10 @@ class CUDAModuleNode : public runtime::ModuleNode {
     // must recheck under the lock scope
     if (module_[device_id] == nullptr) {
       CUDA_DRIVER_CALL(cuModuleLoadData(&(module_[device_id]), data_.c_str()));
+      static auto nvshmem_init_hook = ffi::Function::GetGlobal("runtime.nvshmem.cumodule_init");
+      if (nvshmem_init_hook.has_value()) {
+        (*nvshmem_init_hook)(static_cast<void*>(module_[device_id]));
+      }
     }
     CUfunction func;
     CUresult result = cuModuleGetFunction(&func, module_[device_id], func_name.c_str());
@@ -124,6 +128,10 @@ class CUDAModuleNode : public runtime::ModuleNode {
     // must recheck under the lock scope
     if (module_[device_id] == nullptr) {
       CUDA_DRIVER_CALL(cuModuleLoadData(&(module_[device_id]), data_.c_str()));
+      static auto nvshmem_init_hook = ffi::Function::GetGlobal("runtime.nvshmem.cumodule_init");
+      if (nvshmem_init_hook.has_value()) {
+        (*nvshmem_init_hook)(static_cast<void*>(module_[device_id]));
+      }
     }
     CUdeviceptr global;
     size_t nbytes;
