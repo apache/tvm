@@ -66,6 +66,7 @@ from .transform import (
     PatternCheckContext,
     RealizeVDevice,
     RemovePurityChecking,
+    RemoveSymbolicExpressionInSubroutine,
     RemoveUnusedOutputs,
     RemoveUnusedParameters,
     ReorderPermuteDimsAfterConcat,
