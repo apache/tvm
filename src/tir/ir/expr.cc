@@ -35,6 +35,42 @@
 namespace tvm {
 namespace tir {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  VarNode::RegisterReflection();
+  SizeVarNode::RegisterReflection();
+  IterVarNode::RegisterReflection();
+  StringImmNode::RegisterReflection();
+  CastNode::RegisterReflection();
+  AddNode::RegisterReflection();
+  SubNode::RegisterReflection();
+  MulNode::RegisterReflection();
+  DivNode::RegisterReflection();
+  ModNode::RegisterReflection();
+  FloorDivNode::RegisterReflection();
+  FloorModNode::RegisterReflection();
+  MinNode::RegisterReflection();
+  MaxNode::RegisterReflection();
+  EQNode::RegisterReflection();
+  NENode::RegisterReflection();
+  LTNode::RegisterReflection();
+  LENode::RegisterReflection();
+  GTNode::RegisterReflection();
+  GENode::RegisterReflection();
+  AndNode::RegisterReflection();
+  OrNode::RegisterReflection();
+  NotNode::RegisterReflection();
+  SelectNode::RegisterReflection();
+  BufferLoadNode::RegisterReflection();
+  ProducerLoadNode::RegisterReflection();
+  RampNode::RegisterReflection();
+  BroadcastNode::RegisterReflection();
+  LetNode::RegisterReflection();
+  CallNode::RegisterReflection();
+  ShuffleNode::RegisterReflection();
+  CommReducerNode::RegisterReflection();
+  ReduceNode::RegisterReflection();
+});
+
 /* \brief Convert an object to a PrimExpr
  *
  * All conversions to a PrimExpr are performed as part of the FFI,

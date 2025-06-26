@@ -38,6 +38,12 @@
 namespace tvm {
 namespace arith {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  IntGroupBoundsNode::RegisterReflection();
+  IntConstraintsNode::RegisterReflection();
+  IntConstraintsTransformNode::RegisterReflection();
+});
+
 Array<PrimExpr> AsConditions(const Array<Var>& variables, const Map<Var, IntGroupBounds>& bounds,
                              const Array<PrimExpr>& relations) {
   Array<PrimExpr> res;

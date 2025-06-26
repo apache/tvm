@@ -38,6 +38,8 @@ namespace arith {
 
 using namespace tir;
 
+TVM_FFI_STATIC_INIT_BLOCK({ ConstIntBoundNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(ConstIntBoundNode);
 
 ConstIntBound::ConstIntBound(int64_t min_value, int64_t max_value) {
