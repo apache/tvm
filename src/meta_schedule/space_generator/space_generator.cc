@@ -18,7 +18,9 @@
  */
 #include <tvm/ffi/reflection/registry.h>
 
+#include "../../runtime/regex.h"
 #include "../../target/parsers/aprofile.h"
+#include "../../target/parsers/cpu.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -43,6 +45,9 @@ String GetRuleKindFromTarget(const Target& target) {
     TargetJSON target_json = target::parsers::aprofile::ParseTarget(target->Export());
     TargetFeatures afeatures = Downcast<TargetFeatures>(target_json.at("features"));
 
+    if (Downcast<Bool>(afeatures.at("has_rvv"))) {
+      return "rvv";
+    }
     if (Downcast<Bool>(afeatures.at("has_dotprod"))) {
       return "dotprod";
     }
@@ -83,6 +88,31 @@ String GetRuleKindFromTarget(const Target& target) {
   throw;
 }
 
+std::string GetRISCVMarchFromTarget(const Target& target) {
+  if (target->kind->name == "c") {
+    if (Optional<String> opt_march = target->GetAttr<String>("march")) {
+      return opt_march.value();
+    }
+  }
+  return "";
+}
+
+int GetRISCVVLENFromCTarget(const Target& target) {
+  auto march = GetRISCVMarchFromTarget(target);
+  int vlen = 0;
+  if (march.find("zvl") != std::string::npos) {
+    vlen = tvm::target::parsers::cpu::extractVLENFromString(march);
+  }
+  return vlen;
+}
+
+int GetRISCVVLENFromLLVMTarget(const Target& target) {
+  TargetJSON target_json = target::parsers::aprofile::ParseTarget(target->Export());
+  TargetFeatures afeatures = Downcast<TargetFeatures>(target_json.at("features"));
+  int vlen = Downcast<Integer>(afeatures.at("rvv_vlen"))->value;
+  return vlen;
+}
+
 void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
   if (context->target.defined() &&  //
       !(sch_rules.defined() &&      //
@@ -116,6 +146,11 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
     } else if (kind == "avx512") {
       default_sch_rules = ScheduleRule::DefaultX86("avx512");
       default_postprocs = Postproc::DefaultCPUTensorization();
+      default_mutator_probs = Mutator::DefaultLLVM();
+    } else if (kind == "rvv") {
+      int vlen = GetRISCVVLENFromLLVMTarget(context->target.value());
+      default_sch_rules = ScheduleRule::DefaultRISCV(vlen);
+      default_postprocs = Postproc::DefaultRISCV();
       default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "asimd") {
       default_sch_rules = ScheduleRule::DefaultARM("neon");
