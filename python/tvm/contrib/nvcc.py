@@ -57,9 +57,9 @@ def compile_cuda(code, target_format=None, arch=None, options=None, path_target=
     """
     # Check for NVSHMEM dependency
     nvshmem_include_path, nvshmem_lib_path = None, None
-    use_nvshmem = tvm.get_global_func("runtime.nvshmem.cumodule_init") is not None
-    if options and "--use-nvshmem" in options:
-        use_nvshmem = True
+    use_nvshmem = (
+        tvm.get_global_func("runtime.nvshmem.cumodule_init", allow_missing=True) is not None
+    )
     if use_nvshmem:
         target_format = "cubin"
         nvshmem_include_path, nvshmem_lib_path = find_nvshmem_paths()
