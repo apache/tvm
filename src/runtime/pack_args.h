@@ -64,12 +64,14 @@ union ArgUnion64 {
  *
  * \param f with signiture (ffi::PackedArgs args, ffi::Any* rv, void* void_args)
  * \param arg_types The arguments type information.
+ * \param arg_is_tensormap mark whether the argument is a tensormap
  * \tparam F the function type
  *
  * \return The wrapped packed function.
  */
 template <typename F>
-inline ffi::Function PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types);
+inline ffi::Function PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types,
+                                      const std::vector<int>& arg_is_tensormap = {});
 /*!
  * \brief Create a packed function that from function only packs buffer arguments.
  *
@@ -130,7 +132,8 @@ enum ArgConvertCode {
   INT64_TO_UINT32,
   FLOAT64_TO_FLOAT32,
   FLOAT64_TO_FLOAT64,
-  HANDLE_TO_HANDLE
+  HANDLE_TO_HANDLE,
+  HANDLE_TO_TENSORMAP
 };
 
 inline ArgConvertCode GetArgConvertCode(DLDataType t) {
@@ -181,6 +184,10 @@ inline ffi::Function PackFuncVoidAddr_(F f, const std::vector<ArgConvertCode>& c
         case FLOAT64_TO_FLOAT32: {
           holder[i].v_float32 = static_cast<float>(raw_args[i].v_float64);
           addr[i] = &(holder[i]);
+          break;
+        }
+        case HANDLE_TO_TENSORMAP: {
+          addr[i] = raw_args[i].v_ptr;
           break;
         }
       }
@@ -297,10 +304,15 @@ inline ffi::Function PackFuncPackedArgAligned_(F f, const std::vector<ArgConvert
 }  // namespace detail
 
 template <typename F>
-inline ffi::Function PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types) {
+inline ffi::Function PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types,
+                                      const std::vector<int>& arg_is_tensormap) {
   std::vector<detail::ArgConvertCode> codes(arg_types.size());
   for (size_t i = 0; i < arg_types.size(); ++i) {
-    codes[i] = detail::GetArgConvertCode(arg_types[i]);
+    if (arg_is_tensormap.size() > i && arg_is_tensormap[i]) {
+      codes[i] = detail::HANDLE_TO_TENSORMAP;
+    } else {
+      codes[i] = detail::GetArgConvertCode(arg_types[i]);
+    }
   }
   size_t num_void_args = arg_types.size();
   // specialization

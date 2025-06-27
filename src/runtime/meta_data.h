@@ -58,6 +58,7 @@ struct FunctionInfo {
   std::string name;
   std::vector<DLDataType> arg_types;
   std::vector<std::string> launch_param_tags;
+  std::vector<int> arg_is_tensormap;
 
   void Save(dmlc::JSONWriter* writer) const;
   void Load(dmlc::JSONReader* reader);

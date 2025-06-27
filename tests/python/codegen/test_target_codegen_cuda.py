@@ -746,5 +746,35 @@ def test_invalid_reinterpret():
         tvm.compile(func, target="cuda")
 
 
+@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(9)
+def test_cuda_tensormap():
+    # fmt: off
+    @T.prim_func
+    def main(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (16, 16), dtype="float32", align=16)
+
+        A_map: T.handle("tensormap") = T.tvm_stack_alloca("tensormap", 1)
+        T.call_packed("runtime.cuTensorMapInit", A_map, "float32", 2, A.data, 16, 16, 64, 16, 16, 1, 1, 0, 0, 0, 0)
+        
+        for blockIdx in T.thread_binding(1, thread="blockIdx.x"):
+            for threadIdx in T.thread_binding(128, thread="threadIdx.x"):
+                if threadIdx == 0:
+                    A[0, 0] = T.reinterpret("float64", A_map)
+    # fmt: on
+
+    mod = tvm.IRModule({"main": main})
+    mod = tvm.compile(mod, target="cuda")
+    assert (
+        """
+extern "C" __global__ void __launch_bounds__(128) main_kernel(float* __restrict__ A, const __grid_constant__ CUtensorMap A_map) {
+  if (((int)threadIdx.x) == 0) {
+    A[0] = ((float)(*(double *)(&(A_map))));
+  }
+}""".strip()
+        in mod.mod.imported_modules[0].get_source()
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()

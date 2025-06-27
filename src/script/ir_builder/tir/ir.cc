@@ -830,6 +830,7 @@ TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float4E2M1FN", Float4E2M1FN
 
 TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Boolean").set_body_typed(Boolean);
 TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Handle").set_body_typed(Handle);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.TensormapHandle").set_body_typed(TensormapHandle);
 TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.Void").set_body_typed(Void);
 
 TVM_FFI_REGISTER_GLOBAL("script.ir_builder.tir.min")

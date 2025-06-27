@@ -312,5 +312,26 @@ class FuncType : public Type {
   TVM_DEFINE_OBJECT_REF_METHODS(FuncType, Type, FuncTypeNode);
 };
 
+class TensorMapTypeNode : public TypeNode {
+ public:
+  void VisitAttrs(AttrVisitor* v) { v->Visit("span", &span); }
+
+  bool SEqualReduce(const TensorMapTypeNode* other, SEqualReducer equal) const {
+    return equal(span, other->span);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(span); }
+
+  static constexpr const char* _type_key = "TensorMapType";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorMapTypeNode, TypeNode);
+};
+
+class TensorMapType : public Type {
+ public:
+  TVM_DLL TensorMapType(Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(TensorMapType, Type, TensorMapTypeNode);
+};
+
 }  // namespace tvm
 #endif  // TVM_IR_TYPE_H_

@@ -266,7 +266,7 @@ ffi::Function CUDAModuleNode::GetFunction(const String& name,
   const FunctionInfo& info = it->second;
   CUDAWrappedFunc f;
   f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
-  return PackFuncVoidAddr(f, info.arg_types);
+  return PackFuncVoidAddr(f, info.arg_types, info.arg_is_tensormap);
 }
 
 Module CUDAModuleCreate(std::string data, std::string fmt,

@@ -540,6 +540,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Type* t_int32_{nullptr};
   llvm::Type* t_int64_{nullptr};
   llvm::Type* t_float64_{nullptr};
+  llvm::ArrayType* t_tvm_tensormap_{nullptr};
   // meta data
   llvm::MDNode* md_very_likely_branch_{nullptr};
   llvm::MDNode* md_tbaa_root_{nullptr};
