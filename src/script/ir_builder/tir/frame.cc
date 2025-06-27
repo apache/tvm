@@ -28,6 +28,26 @@ namespace script {
 namespace ir_builder {
 namespace tir {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  TIRFrameNode::RegisterReflection();
+  PrimFuncFrameNode::RegisterReflection();
+  BlockFrameNode::RegisterReflection();
+  BlockInitFrameNode::RegisterReflection();
+  ForFrameNode::RegisterReflection();
+  AssertFrameNode::RegisterReflection();
+  LetFrameNode::RegisterReflection();
+  LaunchThreadFrameNode::RegisterReflection();
+  RealizeFrameNode::RegisterReflection();
+  AllocateFrameNode::RegisterReflection();
+  AllocateConstFrameNode::RegisterReflection();
+  AttrFrameNode::RegisterReflection();
+  WhileFrameNode::RegisterReflection();
+  IfFrameNode::RegisterReflection();
+  ThenFrameNode::RegisterReflection();
+  ElseFrameNode::RegisterReflection();
+  DeclBufferFrameNode::RegisterReflection();
+});
+
 void PrimFuncFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   // if the prim func is not private and there isn't already a global symbol,

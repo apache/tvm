@@ -32,9 +32,21 @@
 
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  BaseExprNode::RegisterReflection();
+  PrimExprNode::RegisterReflection();
+  RelaxExprNode::RegisterReflection();
+  GlobalVarNode::RegisterReflection();
+  IntImmNode::RegisterReflection();
+  FloatImmNode::RegisterReflection();
+  RangeNode::RegisterReflection();
+});
+
 PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm(DataType::Int(32), value)) {}
 
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(DataType::Float(32), value)) {}
+
+PrimExpr PrimExpr::ConvertFallbackValue(String value) { return tir::StringImm(value); }
 
 IntImm::IntImm(DataType dtype, int64_t value, Span span) {
   ICHECK(dtype.is_scalar()) << "ValueError: IntImm can only take scalar, but " << dtype

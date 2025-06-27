@@ -25,6 +25,8 @@ namespace script {
 namespace ir_builder {
 namespace ir {
 
+TVM_FFI_STATIC_INIT_BLOCK({ IRModuleFrameNode::RegisterReflection(); });
+
 void IRModuleFrameNode::ExitWithScope() {
   Map<GlobalVar, BaseFunc> func_map;
   CHECK_EQ(functions.size(), global_var_map.size())

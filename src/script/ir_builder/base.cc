@@ -24,6 +24,11 @@ namespace tvm {
 namespace script {
 namespace ir_builder {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  IRBuilderFrameNode::RegisterReflection();
+  IRBuilderNode::RegisterReflection();
+});
+
 void IRBuilderFrameNode::EnterWithScope() {
   IRBuilder::Current()->frames.push_back(GetRef<IRBuilderFrame>(this));
 }

@@ -24,6 +24,7 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
@@ -54,6 +55,11 @@ class BaseExprNode : public Object {
    *        Reserved debug information.
    */
   mutable Span span;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()));
+  }
 
   static constexpr const char* _type_key = "BaseExpr";
   static constexpr const bool _type_has_method_visit_attrs = true;
@@ -102,6 +108,13 @@ class PrimExprNode : public BaseExprNode {
    */
   DataType dtype;
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PrimExprNode>().def_ro("dtype", &PrimExprNode::dtype);
+  }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
   static constexpr const char* _type_key = "PrimExpr";
@@ -130,6 +143,12 @@ class PrimExpr : public BaseExpr {
   DataType dtype() const { return static_cast<const PrimExprNode*>(get())->dtype; }
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
+
+  /*!
+   * \brief construct from string to form a StringImm.
+   * \param value The value to be constructed.
+   */
+  TVM_DLL static PrimExpr ConvertFallbackValue(String value);  // NOLINT(*)
 };
 
 /*!
@@ -168,7 +187,9 @@ struct TypeTraits<PrimExpr>
   static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(StrictBool value);
   static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(int64_t value);
   static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(double value);
-  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(String value);
+  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(String value) {
+    return PrimExpr::ConvertFallbackValue(value);
+  }
   static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(PrimExprConvertible value) {
     return value->ToPrimExpr();
   }
@@ -407,6 +428,11 @@ class RelaxExprNode : public BaseExprNode {
    */
   mutable Optional<ObjectRef> struct_info_ = Optional<ObjectRef>();
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RelaxExprNode>().def_ro("struct_info_", &RelaxExprNode::struct_info_);
+  }
+
   static constexpr const char* _type_key = "RelaxExpr";
   static constexpr const uint32_t _type_child_slots = 22;
   TVM_DECLARE_BASE_OBJECT_INFO(RelaxExprNode, BaseExprNode);
@@ -435,10 +461,11 @@ class GlobalVarNode : public RelaxExprNode {
   /*! \brief The name of the variable, this only acts as a hint. */
   String name_hint;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name_hint", &name_hint);
-    v->Visit("span", &span);
-    v->Visit("struct_info_", &struct_info_);
+  static constexpr const bool _type_has_method_visit_attrs = false;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<GlobalVarNode>().def_ro("name_hint", &GlobalVarNode::name_hint);
   }
 
   bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {
@@ -467,8 +494,6 @@ class GlobalVar : public RelaxExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GlobalVarNode);
 };
 
-// PrimExprs that are useful as runtime containers.
-//
 /*!
  * \brief Constant integer literals in the program.
  * \sa IntImm
@@ -478,10 +503,9 @@ class IntImmNode : public PrimExprNode {
   /*! \brief the Internal value. */
   int64_t value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IntImmNode>().def_ro("value", &IntImmNode::value);
   }
 
   bool SEqualReduce(const IntImmNode* other, SEqualReducer equal) const {
@@ -525,10 +549,11 @@ class FloatImmNode : public PrimExprNode {
   /*! \brief The constant value content. */
   double value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-    v->Visit("span", &span);
+  static constexpr const bool _type_has_method_visit_attrs = false;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FloatImmNode>().def_ro("value", &FloatImmNode::value);
   }
 
   bool SEqualReduce(const FloatImmNode* other, SEqualReducer equal) const {
@@ -675,10 +700,13 @@ class RangeNode : public Object {
   RangeNode(PrimExpr min, PrimExpr extent, Span span = Span())
       : min(min), extent(extent), span(span) {}
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("min", &min);
-    v->Visit("extent", &extent);
-    v->Visit("span", &span);
+  static constexpr const bool _type_has_method_visit_attrs = false;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RangeNode>()
+        .def_ro("min", &RangeNode::min)
+        .def_ro("extent", &RangeNode::extent);
   }
 
   bool SEqualReduce(const RangeNode* other, SEqualReducer equal) const {
