@@ -17,6 +17,7 @@
  * under the License.
  */
 #include "../utils.h"
+#include <tvm/ffi/reflection/reflection.h>
 
 namespace tvm {
 namespace tir {
@@ -50,7 +51,13 @@ using tir::Trace;
 /*! \brief Create a Mutator that mutates auto unroll step */
 class MutateUnrollNode : public MutatorNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MutateUnrollNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "meta_schedule.MutateUnroll";
   TVM_DECLARE_FINAL_OBJECT_INFO(MutateUnrollNode, MutatorNode);
 
@@ -136,6 +143,10 @@ Optional<Trace> MutateUnrollNode::Apply(const Trace& trace, TRandState* rand_sta
 }
 
 Mutator Mutator::MutateUnroll() { return Mutator(make_object<MutateUnrollNode>()); }
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  MutateUnrollNode::RegisterReflection();
+});
 
 TVM_REGISTER_NODE_TYPE(MutateUnrollNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateUnroll").set_body_typed(Mutator::MutateUnroll);

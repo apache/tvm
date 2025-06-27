@@ -27,6 +27,7 @@
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
 #include <tvm/target/target.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 #include <string>
 #include <unordered_map>
@@ -59,10 +60,12 @@ class ProfilerNode : public runtime::Object {
   /*! \brief Counter for the total time used */
   ffi::Function total_timer;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `stats_sec` is not visited.
-    // `total_timer` is not visited.
+  static void RegisterReflection() {
+    // `stats_sec` is not registered
+    // `total_timer` is not registered
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.Profiler";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProfilerNode, runtime::Object);

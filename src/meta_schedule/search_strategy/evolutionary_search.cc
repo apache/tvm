@@ -19,6 +19,7 @@
 
 #include "../module_equality.h"
 #include "../utils.h"
+#include <tvm/ffi/reflection/reflection.h>
 
 #define TVM_META_SCHEDULE_CHECK_PROB_RANGE(p, name)                               \
   CHECK(0.0 <= (p) && (p) <= 1.0) << "ValueError: name should be within [0, 1], " \
@@ -378,25 +379,21 @@ class EvolutionarySearchNode : public SearchStrategyNode {
   /*! \brief The ratio of measurements to use randomly sampled states. */
   double eps_greedy;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `context_` is not visited
-    // `rand_state_` is not visited
-    // `state_` is not visited
-
-    /*** Configuration: global ***/
-    v->Visit("population_size", &population_size);
-    v->Visit("num_empty_iters_before_early_stop", &num_empty_iters_before_early_stop);
-    /*** Configuration: the initial population ***/
-    v->Visit("init_measured_ratio", &init_measured_ratio);
-    v->Visit("init_min_unmeasured", &init_min_unmeasured);
-    v->Visit("max_fail_count", &max_fail_count);
-    /*** Configuration: evolution ***/
-    v->Visit("genetic_num_iters", &genetic_num_iters);
-    v->Visit("genetic_mutate_prob", &genetic_mutate_prob);
-    v->Visit("genetic_max_fail_count", &genetic_max_fail_count);
-    /*** Configuration: pick states for measurement ***/
-    v->Visit("eps_greedy", &eps_greedy);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<EvolutionarySearchNode>()
+        .def_ro("population_size", &EvolutionarySearchNode::population_size)
+        .def_ro("num_empty_iters_before_early_stop", &EvolutionarySearchNode::num_empty_iters_before_early_stop)
+        .def_ro("init_measured_ratio", &EvolutionarySearchNode::init_measured_ratio)
+        .def_ro("init_min_unmeasured", &EvolutionarySearchNode::init_min_unmeasured)
+        .def_ro("max_fail_count", &EvolutionarySearchNode::max_fail_count)
+        .def_ro("genetic_num_iters", &EvolutionarySearchNode::genetic_num_iters)
+        .def_ro("genetic_mutate_prob", &EvolutionarySearchNode::genetic_mutate_prob)
+        .def_ro("genetic_max_fail_count", &EvolutionarySearchNode::genetic_max_fail_count)
+        .def_ro("eps_greedy", &EvolutionarySearchNode::eps_greedy);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.EvolutionarySearch";
   TVM_DECLARE_FINAL_OBJECT_INFO(EvolutionarySearchNode, SearchStrategyNode);
@@ -800,6 +797,10 @@ Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch self,
   }
   return result;
 }
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  EvolutionarySearchNode::RegisterReflection();
+});
 
 TVM_REGISTER_NODE_TYPE(EvolutionarySearchNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearch")

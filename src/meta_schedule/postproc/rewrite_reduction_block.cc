@@ -17,6 +17,7 @@
  * under the License.
  */
 #include "../utils.h"
+#include <tvm/ffi/reflection/reflection.h>
 
 namespace tvm {
 namespace tir {
@@ -109,6 +110,12 @@ namespace meta_schedule {
 /*! \brief Rewrite reduction block by moving the init block out */
 class RewriteReductionBlockNode : public PostprocNode {
  public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RewriteReductionBlockNode>();
+  }
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {}
   // Inherited from PostprocNode
@@ -118,8 +125,6 @@ class RewriteReductionBlockNode : public PostprocNode {
     ObjectPtr<RewriteReductionBlockNode> n = make_object<RewriteReductionBlockNode>(*this);
     return Postproc(n);
   }
-
-  void VisitAttrs(tvm::AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "meta_schedule.RewriteReductionBlock";
   TVM_DECLARE_FINAL_OBJECT_INFO(RewriteReductionBlockNode, PostprocNode);
@@ -174,6 +179,10 @@ Postproc Postproc::RewriteReductionBlock() {
 TVM_REGISTER_NODE_TYPE(RewriteReductionBlockNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteReductionBlock")
     .set_body_typed(Postproc::RewriteReductionBlock);
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  RewriteReductionBlockNode::RegisterReflection();
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

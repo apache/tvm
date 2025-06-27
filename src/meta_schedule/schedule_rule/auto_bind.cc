@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/meta_schedule/schedule/cuda/thread_bind.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 #include <algorithm>
 #include <limits>
@@ -55,12 +56,11 @@ class AutoBindNode : public ScheduleRuleNode {
   /*! \brief thread_extents Candidates of thread axis extent. */
   Array<Integer> thread_extents_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `max_threads_per_block_` is not visited
-    // `max_threadblocks_` is not visited
-    // `thread_extents_` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AutoBindNode>();
   }
-
+  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "meta_schedule.AutoBind";
   TVM_DECLARE_FINAL_OBJECT_INFO(AutoBindNode, ScheduleRuleNode);
 };
@@ -80,6 +80,10 @@ ScheduleRule ScheduleRule::AutoBind(int max_threadblocks, Array<Integer> thread_
   n->thread_extents_ = std::move(thread_extents);
   return ScheduleRule(n);
 }
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  AutoBindNode::RegisterReflection();
+});
 
 TVM_REGISTER_NODE_TYPE(AutoBindNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAutoBind")

@@ -30,6 +30,7 @@
 #include <tvm/meta_schedule/tune_context.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -42,7 +43,11 @@ class MeasureCallbackNode : public runtime::Object {
   /*! \brief Virtual destructor. */
   virtual ~MeasureCallbackNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register
+  }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Apply a measure callback rule with given arguments.
@@ -90,10 +95,12 @@ class PyMeasureCallbackNode : public MeasureCallbackNode {
   /*! \brief The packed function to the `AsString` function. */
   FAsString f_as_string;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_apply` is not visited
-    // `f_as_string` is not visited
+  static void RegisterReflection() {
+    // `f_apply` is not registered
+    // `f_as_string` is not registered
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void Apply(const TaskScheduler& task_scheduler,                //
              int task_id,                                        //

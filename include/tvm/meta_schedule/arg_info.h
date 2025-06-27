@@ -26,6 +26,7 @@
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -83,10 +84,14 @@ class TensorInfoNode : public ArgInfoNode {
   /*! \brief The shape of the tensor. */
   ffi::Shape shape;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("shape", &shape);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TensorInfoNode>()
+        .def_ro("dtype", &TensorInfoNode::dtype)
+        .def_ro("shape", &TensorInfoNode::shape);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.TensorInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorInfoNode, ArgInfoNode);

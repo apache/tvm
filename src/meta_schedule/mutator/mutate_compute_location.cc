@@ -17,6 +17,7 @@
  * under the License.
  */
 #include "../utils.h"
+#include <tvm/ffi/reflection/reflection.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -31,7 +32,13 @@ class MutateComputeLocationNode : public MutatorNode {
   /*! \brief JSON representation of the workload */
   std::string json_mod_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MutateComputeLocationNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "meta_schedule.MutateComputeLocation";
   TVM_DECLARE_FINAL_OBJECT_INFO(MutateComputeLocationNode, MutatorNode);
 
@@ -125,6 +132,10 @@ Optional<Trace> MutateComputeLocationNode::Apply(const Trace& trace, TRandState*
 Mutator Mutator::MutateComputeLocation() {
   return Mutator(make_object<MutateComputeLocationNode>());
 }
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  MutateComputeLocationNode::RegisterReflection();
+});
 
 TVM_REGISTER_NODE_TYPE(MutateComputeLocationNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateComputeLocation")

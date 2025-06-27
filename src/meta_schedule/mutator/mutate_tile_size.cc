@@ -20,6 +20,7 @@
 #include <unordered_map>
 
 #include "../utils.h"
+#include <tvm/ffi/reflection/reflection.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -54,7 +55,13 @@ int64_t Product(const std::vector<int64_t>& array) {
 /*! \brief A mutator that mutates the tile size */
 class MutateTileSizeNode : public MutatorNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MutateTileSizeNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "meta_schedule.MutateTileSize";
   TVM_DECLARE_FINAL_OBJECT_INFO(MutateTileSizeNode, MutatorNode);
 
@@ -267,6 +274,10 @@ Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_s
 }
 
 Mutator Mutator::MutateTileSize() { return Mutator(make_object<MutateTileSizeNode>()); }
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  MutateTileSizeNode::RegisterReflection();
+});
 
 TVM_REGISTER_NODE_TYPE(MutateTileSizeNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateTileSize")

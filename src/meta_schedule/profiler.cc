@@ -120,6 +120,10 @@ Optional<Profiler> Profiler::Current() {
   }
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  ProfilerNode::RegisterReflection();
+});
+
 TVM_REGISTER_NODE_TYPE(ProfilerNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.Profiler").set_body_typed([]() -> Profiler {
   return Profiler();

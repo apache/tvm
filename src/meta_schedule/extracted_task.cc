@@ -38,6 +38,10 @@ ExtractedTask::ExtractedTask(String task_name, IRModule mod, Target target,
   data_ = n;
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  ExtractedTaskNode::RegisterReflection();
+});
+
 TVM_REGISTER_NODE_TYPE(ExtractedTaskNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.ExtractedTask")
     .set_body_typed([](String task_name, IRModule mod, Target target, Array<IRModule> dispatched,

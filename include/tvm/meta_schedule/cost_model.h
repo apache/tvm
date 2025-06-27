@@ -29,6 +29,7 @@
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/schedule/schedule.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 #include <vector>
 
@@ -42,8 +43,6 @@ class CostModelNode : public runtime::Object {
  public:
   /*! \brief Virtual destructor. */
   virtual ~CostModelNode() = default;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {}
 
   /*!
    * \brief Load the cost model from given file location.
@@ -75,6 +74,7 @@ class CostModelNode : public runtime::Object {
   virtual std::vector<double> Predict(const TuneContext& context,
                                       const Array<MeasureCandidate>& candidates) = 0;
 
+  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "meta_schedule.CostModel";
   TVM_DECLARE_BASE_OBJECT_INFO(CostModelNode, Object);
 };
@@ -126,13 +126,7 @@ class PyCostModelNode : public CostModelNode {
   /*! \brief The packed function to the `AsString` function. */
   FAsString f_as_string;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_load` is not visited
-    // `f_save` is not visited
-    // `f_update` is not visited
-    // `f_predict` is not visited
-    // `f_as_string` is not visited
-  }
+
 
   void Load(const String& path);
   void Save(const String& path);
@@ -140,6 +134,8 @@ class PyCostModelNode : public CostModelNode {
               const Array<RunnerResult>& results);
   std::vector<double> Predict(const TuneContext& context,
                               const Array<MeasureCandidate>& candidates);
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.PyCostModel";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyCostModelNode, CostModelNode);

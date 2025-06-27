@@ -25,6 +25,7 @@
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
 #include <tvm/target/target.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 namespace tvm {
 namespace tir {
@@ -52,15 +53,18 @@ class ExtractedTaskNode : public runtime::Object {
   /*! \brief Weight of the task */
   int weight;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("task_name", &task_name);
-    v->Visit("mod", &mod);
-    v->Visit("target", &target);
-    v->Visit("dispatched", &dispatched);
-    v->Visit("weight", &weight);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ExtractedTaskNode>()
+        .def_ro("task_name", &ExtractedTaskNode::task_name)
+        .def_ro("mod", &ExtractedTaskNode::mod)
+        .def_ro("target", &ExtractedTaskNode::target)
+        .def_ro("dispatched", &ExtractedTaskNode::dispatched)
+        .def_ro("weight", &ExtractedTaskNode::weight);
   }
 
   static constexpr const char* _type_key = "meta_schedule.ExtractedTask";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(ExtractedTaskNode, runtime::Object);
 };
 
