@@ -95,7 +95,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> Crea
       // out_table.shape = [*batch, table_size]
       auto out_table = matmul(lhs, weights, DataType::Void());
       // new_output.shape = [*batch, outfeatures]
-      auto new_output = take(out_table, indices, matmul_sinfo->ndim - 1);
+      auto new_output = take(out_table, indices, matmul_sinfo->ndim - 1, attrs->mode);
 
       return new_output;
     } else if (lhs_sinfo->ndim == 3 && weights_sinfo->ndim == 3 && indices_sinfo->ndim == 1 &&
@@ -132,7 +132,7 @@ std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> Crea
       // operations.
 
       // duplicated_output.shape = [batch1, batch2, batch1, outfeatures]
-      auto duplicated_output = take(indexed_output, indices, 2);
+      auto duplicated_output = take(indexed_output, indices, 2, attrs->mode);
       // new_output.shape = [batch1, batch2, outfeatures]
       auto new_output = einsum(Tuple({duplicated_output}), "ijik->ijk");
 
