@@ -23,22 +23,6 @@
  *  This module enables declaration of named attributes
  *  which support default value setup and bound checking.
  *
- * \code
- *   struct MyAttrs : public tvm::AttrsNode<MyAttrs> {
- *     float learning_rate;
- *     int num_hidden;
- *     String name;
- *     // declare attribute fields in header file
- *     TVM_DECLARE_ATTRS(MyAttrs, "attrs.MyAttrs") {
- *       TVM_ATTR_FIELD(num_hidden).set_lower_bound(1);
- *       TVM_ATTR_FIELD(learning_rate).set_default(0.01f);
- *       TVM_ATTR_FIELD(name).set_default("hello");
- *     }
- *   };
- *   // register it in cc file
- *   TVM_REGISTER_NODE_TYPE(MyAttrs);
- * \endcode
- *
  * \sa AttrsNode, TVM_DECLARE_ATTRS, TVM_ATTR_FIELD
  */
 #ifndef TVM_IR_ATTRS_H_
@@ -299,19 +283,6 @@ class DictAttrs : public Attrs {
   TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(DictAttrs, Attrs, DictAttrsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
 };
-
-/*!
- * \brief Create an Attr object with all default values.
- * \tparam TAttrNode the type to be created.
- * \return A instance that will represent None.
- */
-template <typename TAttrs>
-inline TAttrs AttrsWithDefaultValues() {
-  static_assert(std::is_base_of<Attrs, TAttrs>::value, "Can only take attr nodes");
-  auto n = make_object<typename TAttrs::ContainerType>();
-  n->InitByPackedArgs(ffi::PackedArgs(nullptr, 0), false);
-  return TAttrs(n);
-}
 
 /*!
  * \brief Copy the DictAttrs, but overrides attributes with the
@@ -1030,6 +1001,29 @@ class AttrsNodeReflAdapter : public BaseAttrsNode {
     return const_cast<DerivedType*>(static_cast<const DerivedType*>(this));
   }
 };
+
+/*!
+ * \brief Create an Attr object with all default values.
+ * \tparam TAttrNode the type to be created.
+ * \return A instance that will represent None.
+ */
+template <typename TAttrs>
+inline TAttrs AttrsWithDefaultValues() {
+  static_assert(std::is_base_of_v<Attrs, TAttrs>, "Can only take attr nodes");
+  using ContainerType = typename TAttrs::ContainerType;
+  if constexpr (std::is_base_of_v<AttrsNodeReflAdapter<ContainerType>, ContainerType>) {
+    static auto finit_object = ffi::Function::GetGlobalRequired("ffi.MakeObjectFromPackedArgs");
+    AnyView packed_args[1];
+    packed_args[0] = ContainerType::RuntimeTypeIndex();
+    ffi::Any rv;
+    finit_object.CallPacked(ffi::PackedArgs(packed_args, 1), &rv);
+    return rv.cast<TAttrs>();
+  } else {
+    auto n = make_object<ContainerType>();
+    n->InitByPackedArgs(ffi::PackedArgs(nullptr, 0), false);
+    return TAttrs(n);
+  }
+}
 
 }  // namespace tvm
 #endif  // TVM_IR_ATTRS_H_
