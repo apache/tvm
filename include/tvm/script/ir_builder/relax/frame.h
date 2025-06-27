@@ -24,6 +24,7 @@
 #include <tvm/script/ir_builder/base.h>
 #include <tvm/script/ir_builder/ir/frame.h>
 #include <tvm/script/ir_builder/ir/ir.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 namespace tvm {
 namespace script {
@@ -33,7 +34,12 @@ namespace relax {
 /*! \brief The base ir_builder frame for the relax dialect. */
 class RelaxFrameNode : public IRBuilderFrameNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) { IRBuilderFrameNode::VisitAttrs(v); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RelaxFrameNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.relax.RelaxFrame";
   TVM_DECLARE_BASE_OBJECT_INFO(RelaxFrameNode, IRBuilderFrameNode);
@@ -57,11 +63,14 @@ class SeqExprFrameNode : public RelaxFrameNode {
   /*! \brief The frame output expr. `std::nullopt` when undefined. */
   Optional<tvm::relax::Expr> output;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    RelaxFrameNode::VisitAttrs(v);
-    v->Visit("binding_blocks", &binding_blocks);
-    v->Visit("output", &output);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SeqExprFrameNode>()
+        .def_ro("binding_blocks", &SeqExprFrameNode::binding_blocks)
+        .def_ro("output", &SeqExprFrameNode::output);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.relax.SeqExprFrame";
   TVM_DECLARE_BASE_OBJECT_INFO(SeqExprFrameNode, RelaxFrameNode);
@@ -106,17 +115,20 @@ class FunctionFrameNode : public SeqExprFrameNode {
   /*! \brief The block builder to create Relax function. */
   tvm::relax::BlockBuilder block_builder;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    SeqExprFrameNode::VisitAttrs(v);
-    v->Visit("name", &name);
-    v->Visit("params", &params);
-    v->Visit("ret_struct_info", &ret_struct_info);
-    v->Visit("is_pure", &is_pure);
-    v->Visit("attrs", &attrs);
-    v->Visit("binding_blocks", &binding_blocks);
-    v->Visit("output", &output);
-    // `block_builder` is not visited.
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FunctionFrameNode>()
+        .def_ro("name", &FunctionFrameNode::name)
+        .def_ro("params", &FunctionFrameNode::params)
+        .def_ro("ret_struct_info", &FunctionFrameNode::ret_struct_info)
+        .def_ro("is_pure", &FunctionFrameNode::is_pure)
+        .def_ro("attrs", &FunctionFrameNode::attrs)
+        .def_ro("binding_blocks", &FunctionFrameNode::binding_blocks)
+        .def_ro("output", &FunctionFrameNode::output);
+    // `block_builder` is not registered as it's not visited.
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.relax.FunctionFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionFrameNode, SeqExprFrameNode);
@@ -150,13 +162,16 @@ class BlockFrameNode : public RelaxFrameNode {
    */
   Array<tvm::relax::Var> output_vars;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    RelaxFrameNode::VisitAttrs(v);
-    v->Visit("is_dataflow", &is_dataflow);
-    v->Visit("emitted_vars", &emitted_vars);
-    v->Visit("output_vars", &output_vars);
-    // `block_ended` is not visited.
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BlockFrameNode>()
+        .def_ro("is_dataflow", &BlockFrameNode::is_dataflow)
+        .def_ro("emitted_vars", &BlockFrameNode::emitted_vars)
+        .def_ro("output_vars", &BlockFrameNode::output_vars);
+    // `block_ended` is not registered as it's not visited.
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.relax.BlockFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(BlockFrameNode, RelaxFrameNode);
@@ -189,14 +204,17 @@ class IfFrameNode : public RelaxFrameNode {
   /*! \brief The binding var name. */
   String var_name;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    RelaxFrameNode::VisitAttrs(v);
-    v->Visit("condition", &condition);
-    v->Visit("then_expr", &then_expr);
-    v->Visit("else_expr", &else_expr);
-    v->Visit("var", &var);
-    v->Visit("var_name", &var_name);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IfFrameNode>()
+        .def_ro("condition", &IfFrameNode::condition)
+        .def_ro("then_expr", &IfFrameNode::then_expr)
+        .def_ro("else_expr", &IfFrameNode::else_expr)
+        .def_ro("var", &IfFrameNode::var)
+        .def_ro("var_name", &IfFrameNode::var_name);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.relax.IfFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(IfFrameNode, RelaxFrameNode);
@@ -231,6 +249,13 @@ class IfFrame : public RelaxFrame {
  */
 class ThenFrameNode : public SeqExprFrameNode {
  public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ThenFrameNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "script.ir_builder.relax.ThenFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(ThenFrameNode, SeqExprFrameNode);
 
@@ -264,6 +289,13 @@ class ThenFrame : public SeqExprFrame {
  */
 class ElseFrameNode : public SeqExprFrameNode {
  public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ElseFrameNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "script.ir_builder.relax.ElseFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(ElseFrameNode, SeqExprFrameNode);
 

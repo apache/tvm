@@ -38,10 +38,12 @@ class TIRFrameNode : public IRBuilderFrameNode {
   /*! \brief The Stmt within in this frame. */
   Array<tvm::tir::Stmt> stmts;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    IRBuilderFrameNode::VisitAttrs(v);
-    v->Visit("stmts", &stmts);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TIRFrameNode>().def_ro("stmts", &TIRFrameNode::stmts);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.TIRFrame";
   TVM_DECLARE_BASE_OBJECT_INFO(TIRFrameNode, IRBuilderFrameNode);
@@ -84,17 +86,20 @@ class PrimFuncFrameNode : public TIRFrameNode {
   /*! \brief The buffer allocated in root block. */
   Array<tvm::tir::Buffer> root_alloc_buffers;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TIRFrameNode::VisitAttrs(v);
-    v->Visit("name", &name);
-    v->Visit("args", &args);
-    v->Visit("is_private", &is_private);
-    v->Visit("ret_type", &ret_type);
-    v->Visit("buffer_map", &buffer_map);
-    v->Visit("attrs", &attrs);
-    v->Visit("env_threads", &env_threads);
-    v->Visit("root_alloc_buffers", &root_alloc_buffers);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PrimFuncFrameNode>()
+        .def_ro("name", &PrimFuncFrameNode::name)
+        .def_ro("args", &PrimFuncFrameNode::args)
+        .def_ro("is_private", &PrimFuncFrameNode::is_private)
+        .def_ro("ret_type", &PrimFuncFrameNode::ret_type)
+        .def_ro("buffer_map", &PrimFuncFrameNode::buffer_map)
+        .def_ro("attrs", &PrimFuncFrameNode::attrs)
+        .def_ro("env_threads", &PrimFuncFrameNode::env_threads)
+        .def_ro("root_alloc_buffers", &PrimFuncFrameNode::root_alloc_buffers);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.PrimFuncFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimFuncFrameNode, TIRFrameNode);
@@ -150,20 +155,23 @@ class BlockFrameNode : public TIRFrameNode {
   /*! \brief The flag whether to construct BlockRealize or Block. */
   bool no_realize;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TIRFrameNode::VisitAttrs(v);
-    v->Visit("name", &name);
-    v->Visit("iter_vars", &iter_vars);
-    v->Visit("reads", &reads);
-    v->Visit("writes", &writes);
-    v->Visit("init", &init);
-    v->Visit("alloc_buffers", &alloc_buffers);
-    v->Visit("match_buffers", &match_buffers);
-    v->Visit("annotations", &annotations);
-    v->Visit("iter_values", &iter_values);
-    v->Visit("predicate", &predicate);
-    v->Visit("no_realize", &no_realize);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BlockFrameNode>()
+        .def_ro("name", &BlockFrameNode::name)
+        .def_ro("iter_vars", &BlockFrameNode::iter_vars)
+        .def_ro("reads", &BlockFrameNode::reads)
+        .def_ro("writes", &BlockFrameNode::writes)
+        .def_ro("init", &BlockFrameNode::init)
+        .def_ro("alloc_buffers", &BlockFrameNode::alloc_buffers)
+        .def_ro("match_buffers", &BlockFrameNode::match_buffers)
+        .def_ro("annotations", &BlockFrameNode::annotations)
+        .def_ro("iter_values", &BlockFrameNode::iter_values)
+        .def_ro("predicate", &BlockFrameNode::predicate)
+        .def_ro("no_realize", &BlockFrameNode::no_realize);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.BlockFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(BlockFrameNode, TIRFrameNode);
@@ -194,7 +202,12 @@ class BlockFrame : public TIRFrame {
  */
 class BlockInitFrameNode : public TIRFrameNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) { TIRFrameNode::VisitAttrs(v); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BlockInitFrameNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.BlockInitFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(BlockInitFrameNode, TIRFrameNode);
@@ -245,12 +258,15 @@ class ForFrameNode : public TIRFrameNode {
   /*! \brief The for loop generating function. */
   FMakeForLoop f_make_for_loop;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TIRFrameNode::VisitAttrs(v);
-    v->Visit("vars", &vars);
-    v->Visit("doms", &doms);
-    // `f_make_for_loop` is not visited.
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ForFrameNode>()
+        .def_ro("vars", &ForFrameNode::vars)
+        .def_ro("doms", &ForFrameNode::doms);
+    // `f_make_for_loop` is not registered as it's not visited.
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.ForFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(ForFrameNode, TIRFrameNode);
@@ -286,11 +302,14 @@ class AssertFrameNode : public TIRFrameNode {
   /*! \brief The output error message when the assertion failed. */
   PrimExpr message;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TIRFrameNode::VisitAttrs(v);
-    v->Visit("condition", &condition);
-    v->Visit("message", &message);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AssertFrameNode>()
+        .def_ro("condition", &AssertFrameNode::condition)
+        .def_ro("message", &AssertFrameNode::message);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.AssertFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(AssertFrameNode, TIRFrameNode);
@@ -325,11 +344,14 @@ class LetFrameNode : public TIRFrameNode {
   /*! \brief The value we bind var to */
   PrimExpr value;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TIRFrameNode::VisitAttrs(v);
-    v->Visit("var", &var);
-    v->Visit("value", &value);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LetFrameNode>()
+        .def_ro("var", &LetFrameNode::var)
+        .def_ro("value", &LetFrameNode::value);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.LetFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(LetFrameNode, TIRFrameNode);
@@ -365,12 +387,15 @@ class LaunchThreadFrameNode : public TIRFrameNode {
   /*! \brief The iteration variable. */
   tvm::tir::IterVar iter_var;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TIRFrameNode::VisitAttrs(v);
-    v->Visit("extent", &extent);
-    v->Visit("attr_key", &attr_key);
-    v->Visit("iter_var", &iter_var);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LaunchThreadFrameNode>()
+        .def_ro("extent", &LaunchThreadFrameNode::extent)
+        .def_ro("attr_key", &LaunchThreadFrameNode::attr_key)
+        .def_ro("iter_var", &LaunchThreadFrameNode::iter_var);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.LaunchThreadFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(LaunchThreadFrameNode, TIRFrameNode);
@@ -408,12 +433,15 @@ class RealizeFrameNode : public TIRFrameNode {
   /*! \brief The condition expression. */
   PrimExpr condition;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TIRFrameNode::VisitAttrs(v);
-    v->Visit("buffer_slice", &buffer_slice);
-    v->Visit("storage_scope", &storage_scope);
-    v->Visit("condition", &condition);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RealizeFrameNode>()
+        .def_ro("buffer_slice", &RealizeFrameNode::buffer_slice)
+        .def_ro("storage_scope", &RealizeFrameNode::storage_scope)
+        .def_ro("condition", &RealizeFrameNode::condition);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.RealizeFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(RealizeFrameNode, TIRFrameNode);
@@ -456,15 +484,18 @@ class AllocateFrameNode : public TIRFrameNode {
   /*! \brief The buffer var. */
   tvm::tir::Var buffer_var;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TIRFrameNode::VisitAttrs(v);
-    v->Visit("extents", &extents);
-    v->Visit("dtype", &dtype);
-    v->Visit("storage_scope", &storage_scope);
-    v->Visit("condition", &condition);
-    v->Visit("annotations", &annotations);
-    v->Visit("buffer_var", &buffer_var);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AllocateFrameNode>()
+        .def_ro("extents", &AllocateFrameNode::extents)
+        .def_ro("dtype", &AllocateFrameNode::dtype)
+        .def_ro("storage_scope", &AllocateFrameNode::storage_scope)
+        .def_ro("condition", &AllocateFrameNode::condition)
+        .def_ro("annotations", &AllocateFrameNode::annotations)
+        .def_ro("buffer_var", &AllocateFrameNode::buffer_var);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.AllocateFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateFrameNode, TIRFrameNode);
@@ -505,14 +536,17 @@ class AllocateConstFrameNode : public TIRFrameNode {
   /*! \brief Additional annotations about the allocation. */
   Map<String, Any> annotations;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TIRFrameNode::VisitAttrs(v);
-    v->Visit("dtype", &dtype);
-    v->Visit("extents", &extents);
-    v->Visit("data", &data);
-    v->Visit("buffer_var", &buffer_var);
-    v->Visit("annotations", &annotations);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AllocateConstFrameNode>()
+        .def_ro("dtype", &AllocateConstFrameNode::dtype)
+        .def_ro("extents", &AllocateConstFrameNode::extents)
+        .def_ro("data", &AllocateConstFrameNode::data)
+        .def_ro("buffer_var", &AllocateConstFrameNode::buffer_var)
+        .def_ro("annotations", &AllocateConstFrameNode::annotations);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.AllocateConstFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateConstFrameNode, TIRFrameNode);
@@ -549,12 +583,15 @@ class AttrFrameNode : public TIRFrameNode {
   /*! \brief The value of the attribute. */
   PrimExpr value;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TIRFrameNode::VisitAttrs(v);
-    v->Visit("node", &node);
-    v->Visit("attr_key", &attr_key);
-    v->Visit("value", &value);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AttrFrameNode>()
+        .def_ro("node", &AttrFrameNode::node)
+        .def_ro("attr_key", &AttrFrameNode::attr_key)
+        .def_ro("value", &AttrFrameNode::value);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.AttrFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrFrameNode, TIRFrameNode);
@@ -587,10 +624,13 @@ class WhileFrameNode : public TIRFrameNode {
   /*! \brief The termination condition of while. */
   PrimExpr condition;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TIRFrameNode::VisitAttrs(v);
-    v->Visit("condition", &condition);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<WhileFrameNode>()
+        .def_ro("condition", &WhileFrameNode::condition);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.WhileFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(WhileFrameNode, TIRFrameNode);
@@ -627,12 +667,15 @@ class IfFrameNode : public TIRFrameNode {
   /*! \brief The stetements in the false branch. */
   Optional<Array<tvm::tir::Stmt>> else_stmts;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TIRFrameNode::VisitAttrs(v);
-    v->Visit("condition", &condition);
-    v->Visit("then_stmts", &then_stmts);
-    v->Visit("else_stmts", &else_stmts);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IfFrameNode>()
+        .def_ro("condition", &IfFrameNode::condition)
+        .def_ro("then_stmts", &IfFrameNode::then_stmts)
+        .def_ro("else_stmts", &IfFrameNode::else_stmts);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.IfFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(IfFrameNode, TIRFrameNode);
@@ -662,6 +705,13 @@ class IfFrame : public TIRFrame {
  */
 class ThenFrameNode : public TIRFrameNode {
  public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ThenFrameNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "script.ir_builder.tir.ThenFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(ThenFrameNode, TIRFrameNode);
 
@@ -695,6 +745,13 @@ class ThenFrame : public TIRFrame {
  */
 class ElseFrameNode : public TIRFrameNode {
  public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ElseFrameNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "script.ir_builder.tir.ElseFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(ElseFrameNode, TIRFrameNode);
 
@@ -728,11 +785,14 @@ class DeclBufferFrameNode : public TIRFrameNode {
   /*! \brief The buffer allocated or not. */
   bool allocated;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TIRFrameNode::VisitAttrs(v);
-    v->Visit("buffer", &buffer);
-    v->Visit("allocated", &allocated);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DeclBufferFrameNode>()
+        .def_ro("buffer", &DeclBufferFrameNode::buffer)
+        .def_ro("allocated", &DeclBufferFrameNode::allocated);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.tir.DeclBufferFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(DeclBufferFrameNode, TIRFrameNode);

@@ -24,6 +24,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/node/node.h>
 #include <tvm/script/ir_builder/base.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 #include <vector>
 
@@ -51,13 +52,16 @@ class IRModuleFrameNode : public IRBuilderFrameNode {
   /*! \brief IRModule's global_infos */
   Map<String, Array<GlobalInfo>> global_infos;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    IRBuilderFrameNode::VisitAttrs(v);
-    v->Visit("global_vars", &global_var_map);
-    v->Visit("functions", &functions);
-    v->Visit("attrs", &attrs);
-    v->Visit("global_infos", &global_infos);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IRModuleFrameNode>()
+        .def_ro("global_vars", &IRModuleFrameNode::global_var_map)
+        .def_ro("functions", &IRModuleFrameNode::functions)
+        .def_ro("attrs", &IRModuleFrameNode::attrs)
+        .def_ro("global_infos", &IRModuleFrameNode::global_infos);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.ir_builder.IRModuleFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(IRModuleFrameNode, IRBuilderFrameNode);
