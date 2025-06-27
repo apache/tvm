@@ -22,6 +22,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/meta_schedule/arg_info.h>
@@ -41,13 +42,16 @@ class RunnerInputNode : public runtime::Object {
   /*! \brief The argument information. */
   Array<ArgInfo> args_info;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("artifact_path", &artifact_path);
-    v->Visit("device_type", &device_type);
-    v->Visit("args_info", &args_info);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RunnerInputNode>()
+        .def_ro("artifact_path", &RunnerInputNode::artifact_path)
+        .def_ro("device_type", &RunnerInputNode::device_type)
+        .def_ro("args_info", &RunnerInputNode::args_info);
   }
 
   static constexpr const char* _type_key = "meta_schedule.RunnerInput";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(RunnerInputNode, runtime::Object);
 };
 
@@ -75,12 +79,15 @@ class RunnerResultNode : public runtime::Object {
   /*! \brief The error message, if any. */
   Optional<String> error_msg;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("run_secs", &run_secs);
-    v->Visit("error_msg", &error_msg);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RunnerResultNode>()
+        .def_ro("run_secs", &RunnerResultNode::run_secs)
+        .def_ro("error_msg", &RunnerResultNode::error_msg);
   }
 
   static constexpr const char* _type_key = "meta_schedule.RunnerResult";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(RunnerResultNode, runtime::Object);
 };
 
@@ -122,10 +129,12 @@ class RunnerFutureNode : public runtime::Object {
   /*! \brief The packed function to fetch runner output if it is ready. */
   FResult f_result;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_done` is not visited
-    // `f_result` is not visited
+  static void RegisterReflection() {
+    // `f_done` is not registered
+    // `f_result` is not registered
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Check whether the runner has finished.
@@ -215,9 +224,11 @@ class PyRunnerNode : public RunnerNode {
   /*! \brief The packed function to run the built artifacts and get runner futures. */
   FRun f_run;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_run` is not visited
+  static void RegisterReflection() {
+    // `f_run` is not registered
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   Array<RunnerFuture> Run(Array<RunnerInput> runner_inputs) final {
     ICHECK(f_run != nullptr) << "PyRunner's Run method not implemented!";

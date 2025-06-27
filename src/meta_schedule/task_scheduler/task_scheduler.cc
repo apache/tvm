@@ -21,6 +21,12 @@
 namespace tvm {
 namespace meta_schedule {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  TaskRecordNode::RegisterReflection();
+  TaskSchedulerNode::RegisterReflection();
+  PyTaskSchedulerNode::RegisterReflection();
+});
+
 TaskRecord::TaskRecord(TuneContext ctx, double task_weight) {
   ObjectPtr<TaskRecordNode> n = ffi::make_object<TaskRecordNode>();
   n->ctx = ctx;

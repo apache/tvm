@@ -22,6 +22,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
 #include <tvm/meta_schedule/measure_candidate.h>
 #include <tvm/node/reflection.h>
@@ -39,7 +40,11 @@ class FeatureExtractorNode : public runtime::Object {
   /*! \brief Virtual destructor. */
   virtual ~FeatureExtractorNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register
+  }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Extract features from the given measure candidate.
@@ -76,10 +81,12 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
   /*! \brief The packed function to the `AsString` function. */
   FAsString f_as_string;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_extract_from` is not visited
-    // `f_as_string` is not visited
+  static void RegisterReflection() {
+    // `f_extract_from` is not registered
+    // `f_as_string` is not registered
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   Array<tvm::runtime::NDArray> ExtractFrom(const TuneContext& context,
                                            const Array<MeasureCandidate>& candidates) final;

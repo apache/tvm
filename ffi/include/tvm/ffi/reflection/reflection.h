@@ -162,8 +162,8 @@ class ObjectDef : public ReflectionDefBase {
    *
    * \return The reflection definition.
    */
-  template <typename T, typename... Extra>
-  TVM_FFI_INLINE ObjectDef& def_ro(const char* name, T Class::*field_ptr, Extra&&... extra) {
+  template <typename T, typename BaseClass, typename... Extra>
+  TVM_FFI_INLINE ObjectDef& def_ro(const char* name, T BaseClass::*field_ptr, Extra&&... extra) {
     RegisterField(name, field_ptr, false, std::forward<Extra>(extra)...);
     return *this;
   }
@@ -181,8 +181,8 @@ class ObjectDef : public ReflectionDefBase {
    *
    * \return The reflection definition.
    */
-  template <typename T, typename... Extra>
-  TVM_FFI_INLINE ObjectDef& def_rw(const char* name, T Class::*field_ptr, Extra&&... extra) {
+  template <typename T, typename BaseClass, typename... Extra>
+  TVM_FFI_INLINE ObjectDef& def_rw(const char* name, T BaseClass::*field_ptr, Extra&&... extra) {
     static_assert(Class::_type_mutable, "Only mutable classes are supported for writable fields");
     RegisterField(name, field_ptr, true, std::forward<Extra>(extra)...);
     return *this;
@@ -239,9 +239,10 @@ class ObjectDef : public ReflectionDefBase {
     TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeRegisterExtraInfo(type_index_, &info));
   }
 
-  template <typename T, typename... ExtraArgs>
-  void RegisterField(const char* name, T Class::*field_ptr, bool writable,
+  template <typename T, typename BaseClass, typename... ExtraArgs>
+  void RegisterField(const char* name, T BaseClass::*field_ptr, bool writable,
                      ExtraArgs&&... extra_args) {
+    static_assert(std::is_base_of_v<BaseClass, Class>, "BaseClass must be a base class of Class");
     TVMFFIFieldInfo info;
     info.name = TVMFFIByteArray{name, std::char_traits<char>::length(name)};
     info.field_static_type_index = TypeToFieldStaticTypeIndex<T>::value;

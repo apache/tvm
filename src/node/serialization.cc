@@ -67,8 +67,6 @@ class NodeIndexer : private AttrVisitor {
  public:
   std::unordered_map<Any, size_t, ffi::AnyHash, ffi::AnyEqual> node_index_{{Any(nullptr), 0}};
   std::vector<Any> node_list_{Any(nullptr)};
-  std::unordered_map<DLTensor*, size_t> tensor_index_;
-  std::vector<DLTensor*> tensor_list_;
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
 
   void Visit(const char* key, double* value) final {}
@@ -80,13 +78,7 @@ class NodeIndexer : private AttrVisitor {
   void Visit(const char* key, void** value) final {}
   void Visit(const char* key, DataType* value) final {}
 
-  void Visit(const char* key, runtime::NDArray* value) final {
-    DLTensor* ptr = const_cast<ffi::NDArrayObj*>((*value).operator->());
-    if (tensor_index_.count(ptr)) return;
-    ICHECK_EQ(tensor_index_.size(), tensor_list_.size());
-    tensor_index_[ptr] = tensor_list_.size();
-    tensor_list_.push_back(ptr);
-  }
+  void Visit(const char* key, runtime::NDArray* value) final { MakeIndex(Any(*value)); }
 
   void Visit(const char* key, Optional<double>* value) final {}
   void Visit(const char* key, Optional<int64_t>* value) final {}
@@ -109,6 +101,7 @@ class NodeIndexer : private AttrVisitor {
     if (node_index_.count(node)) {
       return;
     }
+
     MakeNodeIndex(node);
     if (auto opt_array = node.as<const ffi::ArrayObj*>()) {
       const ffi::ArrayObj* n = opt_array.value();
@@ -231,7 +224,6 @@ struct JSONNode {
 class JSONAttrGetter : private AttrVisitor {
  public:
   const std::unordered_map<Any, size_t, ffi::AnyHash, ffi::AnyEqual>* node_index_;
-  const std::unordered_map<DLTensor*, size_t>* tensor_index_;
   JSONNode* node_;
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
 
@@ -252,8 +244,7 @@ class JSONAttrGetter : private AttrVisitor {
   }
   void Visit(const char* key, DataType* value) final { node_->attrs[key] = Type2String(*value); }
   void Visit(const char* key, runtime::NDArray* value) final {
-    node_->attrs[key] =
-        std::to_string(tensor_index_->at(const_cast<ffi::NDArrayObj*>((*value).operator->())));
+    Visit(key, static_cast<ObjectRef*>(value));
   }
 
   void Visit(const char* key, Optional<int64_t>* value) final {
@@ -273,7 +264,11 @@ class JSONAttrGetter : private AttrVisitor {
   }
 
   void Visit(const char* key, ObjectRef* value) final {
-    node_->attrs[key] = std::to_string(node_index_->at(Any(*value)));
+    if (value->defined()) {
+      node_->attrs[key] = std::to_string(node_index_->at(Any(*value)));
+    } else {
+      node_->attrs[key] = "null";
+    }
   }
 
   // Get the node
@@ -416,6 +411,18 @@ class FieldDependencyFinder : private AttrVisitor {
       LOG(FATAL) << "Wrong value format for field " << key;
     }
   }
+
+  template <typename T>
+  void ParseOptionalValue(const char* key, Optional<T>* value) const {
+    std::string value_str = GetValue(key);
+    if (value_str == "null") {
+      *value = std::nullopt;
+    } else {
+      T temp;
+      ParseValue(key, &temp);
+      *value = temp;
+    }
+  }
   void Visit(const char* key, double* value) final {}
   void Visit(const char* key, int64_t* value) final {}
   void Visit(const char* key, uint64_t* value) final {}
@@ -428,9 +435,11 @@ class FieldDependencyFinder : private AttrVisitor {
   void Visit(const char* key, Optional<int64_t>* value) final {}
   void Visit(const char* key, Optional<double>* value) final {}
   void Visit(const char* key, ObjectRef* value) final {
-    size_t index;
-    ParseValue(key, &index);
-    jnode_->fields.push_back(index);
+    Optional<int64_t> index;
+    ParseOptionalValue(key, &index);
+    if (index.has_value()) {
+      jnode_->fields.push_back(*index);
+    }
   }
   void Find(Any node, JSONNode* jnode) {
     // Skip None
@@ -445,8 +454,9 @@ class FieldDependencyFinder : private AttrVisitor {
         reflection_->GetReprBytes(node.cast<const Object*>(), nullptr)) {
       return;
     }
-    // Skip containers
-    if (jnode->type_key == ffi::ArrayObj::_type_key || jnode->type_key == ffi::MapObj::_type_key) {
+    // Skip special handling containers
+    if (jnode->type_key == ffi::ArrayObj::_type_key || jnode->type_key == ffi::MapObj::_type_key ||
+        jnode->type_key == ffi::NDArrayObj::_type_key) {
       return;
     }
     jnode_ = jnode;
@@ -479,7 +489,6 @@ class FieldDependencyFinder : private AttrVisitor {
 class JSONAttrSetter : private AttrVisitor {
  public:
   const std::vector<Any>* node_list_;
-  const std::vector<runtime::NDArray>* tensor_list_;
   JSONNode* jnode_;
 
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
@@ -550,16 +559,15 @@ class JSONAttrSetter : private AttrVisitor {
     *value = String2Type(stype);
   }
   void Visit(const char* key, runtime::NDArray* value) final {
-    size_t index;
-    ParseValue(key, &index);
-    ICHECK_LE(index, tensor_list_->size());
-    *value = tensor_list_->at(index);
+    Visit(key, static_cast<ObjectRef*>(value));
   }
   void Visit(const char* key, ObjectRef* value) final {
-    size_t index;
-    ParseValue(key, &index);
-    ICHECK_LE(index, node_list_->size());
-    *value = node_list_->at(index).cast<ObjectRef>();
+    Optional<int64_t> index;
+    ParseOptionalValue(key, &index,
+                       [this](const char* key, int64_t* value) { ParseValue(key, value); });
+    if (index.has_value()) {
+      *value = node_list_->at(*index).cast<ObjectRef>();
+    }
   }
 
   static Any CreateInitAny(ReflectionVTable* reflection, JSONNode* jnode) {
@@ -674,13 +682,14 @@ class JSONAttrSetter : private AttrVisitor {
         break;
       }
       default: {
-        if (field_info->field_static_type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-          ObjectRef value;
-          this->Visit(field_info->name.data, &value);
+        Optional<int64_t> index;
+        ParseOptionalValue(field_info->name.data, &index,
+                           [this](const char* key, int64_t* value) { ParseValue(key, value); });
+        if (index.has_value()) {
+          Any value = node_list_->at(*index).cast<ObjectRef>();
           setter(obj, value);
-          break;
         } else {
-          LOG(FATAL) << "Unsupported type: " << field_info->field_static_type_index;
+          setter(obj, Any());
         }
       }
     }
@@ -725,7 +734,6 @@ struct JSONGraph {
     indexer.MakeIndex(root);
     JSONAttrGetter getter;
     getter.node_index_ = &indexer.node_index_;
-    getter.tensor_index_ = &indexer.tensor_index_;
     for (Any n : indexer.node_list_) {
       JSONNode jnode;
       getter.node_ = &jnode;
@@ -733,16 +741,8 @@ struct JSONGraph {
       g.nodes.emplace_back(std::move(jnode));
     }
     g.attrs["tvm_version"] = TVM_VERSION;
+    ICHECK(indexer.node_index_.count(root));
     g.root = indexer.node_index_.at(root);
-    // serialize tensor
-    for (DLTensor* tensor : indexer.tensor_list_) {
-      std::string blob;
-      dmlc::MemoryStringStream mstrm(&blob);
-      support::Base64OutStream b64strm(&mstrm);
-      runtime::SaveDLTensor(&b64strm, tensor);
-      b64strm.Finish();
-      g.b64ndarrays.emplace_back(std::move(blob));
-    }
     return g;
   }
 
@@ -830,7 +830,6 @@ Any LoadJSON(std::string json_str) {
   {
     JSONAttrSetter setter;
     setter.node_list_ = &nodes;
-    setter.tensor_list_ = &tensors;
     for (size_t i : topo_order) {
       setter.SetAttrs(&nodes[i], &jgraph.nodes[i]);
     }

@@ -274,6 +274,46 @@ struct TypeTraits<Int, std::enable_if_t<std::is_integral_v<Int>>> : public TypeT
   static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIInt; }
 };
 
+// Enum Integer POD values
+template <typename IntEnum>
+struct TypeTraits<IntEnum, std::enable_if_t<std::is_enum_v<IntEnum> &&
+                                            std::is_integral_v<std::underlying_type_t<IntEnum>>>>
+    : public TypeTraitsBase {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIInt;
+
+  static TVM_FFI_INLINE void CopyToAnyView(const IntEnum& src, TVMFFIAny* result) {
+    result->type_index = TypeIndex::kTVMFFIInt;
+    result->v_int64 = static_cast<int64_t>(src);
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(IntEnum src, TVMFFIAny* result) {
+    CopyToAnyView(src, result);
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyStrict(const TVMFFIAny* src) {
+    // NOTE: CheckAnyStrict is always strict and should be consistent with MoveToAny
+    return src->type_index == TypeIndex::kTVMFFIInt;
+  }
+
+  static TVM_FFI_INLINE IntEnum CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    return static_cast<IntEnum>(src->v_int64);
+  }
+
+  static TVM_FFI_INLINE IntEnum MoveFromAnyAfterCheck(TVMFFIAny* src) {
+    // POD type, we can just copy the value
+    return CopyFromAnyViewAfterCheck(src);
+  }
+
+  static TVM_FFI_INLINE std::optional<IntEnum> TryCastFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFIInt || src->type_index == TypeIndex::kTVMFFIBool) {
+      return static_cast<IntEnum>(src->v_int64);
+    }
+    return std::nullopt;
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIInt; }
+};
+
 // Float POD values
 template <typename Float>
 struct TypeTraits<Float, std::enable_if_t<std::is_floating_point_v<Float>>>

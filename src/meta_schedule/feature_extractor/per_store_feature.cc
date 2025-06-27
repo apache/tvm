@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/transform.h>
 
 #include <cmath>
@@ -1367,12 +1368,17 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
   bool extract_workload;
   int feature_vector_length;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("buffers_per_store", &buffers_per_store);
-    v->Visit("arith_intensity_curve_num_samples", &arith_intensity_curve_num_samples);
-    v->Visit("cache_line_bytes", &cache_line_bytes);
-    v->Visit("feature_vector_length", &feature_vector_length);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PerStoreFeatureNode>()
+        .def_ro("buffers_per_store", &PerStoreFeatureNode::buffers_per_store)
+        .def_ro("arith_intensity_curve_num_samples",
+                &PerStoreFeatureNode::arith_intensity_curve_num_samples)
+        .def_ro("cache_line_bytes", &PerStoreFeatureNode::cache_line_bytes)
+        .def_ro("extract_workload", &PerStoreFeatureNode::extract_workload)
+        .def_ro("feature_vector_length", &PerStoreFeatureNode::feature_vector_length);
   }
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   void ExtractSingle(IRModule mod, bool is_gpu, std::vector<std::vector<double>>* results) {
     static transform::Sequential passes = tir::transform::PassListForPerStoreFeature();
@@ -1440,6 +1446,8 @@ FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
   }
   return FeatureExtractor(n);
 }
+
+TVM_FFI_STATIC_INIT_BLOCK({ PerStoreFeatureNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(PerStoreFeatureNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.FeatureExtractorPerStoreFeature")

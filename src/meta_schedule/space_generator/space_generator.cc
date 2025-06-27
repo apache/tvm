@@ -187,6 +187,11 @@ SpaceGenerator SpaceGenerator::PySpaceGenerator(
   return SpaceGenerator(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  SpaceGeneratorNode::RegisterReflection();
+  PySpaceGeneratorNode::RegisterReflection();
+});
+
 TVM_REGISTER_OBJECT_TYPE(SpaceGeneratorNode);
 TVM_REGISTER_NODE_TYPE(PySpaceGeneratorNode);
 

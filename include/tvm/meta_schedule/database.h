@@ -21,6 +21,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
@@ -48,12 +49,13 @@ class WorkloadNode : public runtime::Object {
   /*! \brief The workload's structural hash. */
   THashCode shash;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("mod", &mod);
-    // `shash` is not visited because TVM FFI doesn't support uint64_t
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<WorkloadNode>().def_ro("mod", &WorkloadNode::mod);
   }
 
   static constexpr const char* _type_key = "meta_schedule.Workload";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(WorkloadNode, runtime::Object);
 
   /*!
@@ -124,15 +126,18 @@ class TuningRecordNode : public runtime::Object {
   /*! \brief The argument information. */
   Optional<Array<ArgInfo>> args_info;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("trace", &trace);
-    v->Visit("workload", &workload);
-    v->Visit("run_secs", &run_secs);
-    v->Visit("target", &target);
-    v->Visit("args_info", &args_info);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TuningRecordNode>()
+        .def_ro("trace", &TuningRecordNode::trace)
+        .def_ro("workload", &TuningRecordNode::workload)
+        .def_ro("run_secs", &TuningRecordNode::run_secs)
+        .def_ro("target", &TuningRecordNode::target)
+        .def_ro("args_info", &TuningRecordNode::args_info);
   }
 
   static constexpr const char* _type_key = "meta_schedule.TuningRecord";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(TuningRecordNode, runtime::Object);
 
   /*! \brief Construct the measure candidate given the initial IR module and trace
@@ -377,20 +382,22 @@ class PyDatabaseNode : public DatabaseNode {
   /*! \brief The packed function to the `Size` function. */
   FSize f_size;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // ffi::Functions are all not visited, because the reflection system doesn't take care of them,
-    // so it cannot be accessible on the python side. If there is such need from the future,
+  static void RegisterReflection() {
+    // ffi::Functions are all not registered, because the reflection system doesn't take care of
+    // them, so it cannot be accessible on the python side. If there is such need from the future,
     // we can then add corresponding accessor methods to help access on python.
-    // `f_has_workload` is not visited
-    // `f_commit_workload` is not visited
-    // `f_commit_tuning_record` is not visited
-    // `f_get_top_k` is not visited
-    // `f_get_all_tuning_records` is not visited
-    // `f_query_tuning_record` is not visited
-    // `f_query_schedule` is not visited
-    // `f_query_ir_module` is not visited
-    // `f_size` is not visited
+    // `f_has_workload` is not registered
+    // `f_commit_workload` is not registered
+    // `f_commit_tuning_record` is not registered
+    // `f_get_top_k` is not registered
+    // `f_get_all_tuning_records` is not registered
+    // `f_query_tuning_record` is not registered
+    // `f_query_schedule` is not registered
+    // `f_query_ir_module` is not registered
+    // `f_size` is not registered
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   bool HasWorkload(const IRModule& mod) final {
     ICHECK(f_has_workload != nullptr) << "PyDatabase's HasWorkload method not implemented!";

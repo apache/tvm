@@ -19,6 +19,7 @@
 #ifndef TVM_META_SCHEDULE_SCHEDULE_RULE_MULTI_LEVEL_TILING_H_
 #define TVM_META_SCHEDULE_SCHEDULE_RULE_MULTI_LEVEL_TILING_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/tir/schedule/schedule.h>
 
@@ -220,18 +221,15 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   /*! \brief The function to overwrite the default condition for applying MultiLevelTiling. */
   Optional<ffi::Function> filter_fn_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("structure", &structure);
-    v->Visit("tile_binds", &tile_binds);
-    v->Visit("max_innermost_factor", &max_innermost_factor);
-    // `vector_load_lens` is not visited
-    // `reuse_read_` is not visited
-    // `reuse_write_` is not visited
-    // `s_indices_` is not visited
-    // `r_indices_` is not visited
-    // `thread_warp_size_` is not visited
-    // `max_threads_per_block` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MultiLevelTilingNode>()
+        .def_ro("structure", &MultiLevelTilingNode::structure)
+        .def_ro("tile_binds", &MultiLevelTilingNode::tile_binds)
+        .def_ro("max_innermost_factor", &MultiLevelTilingNode::max_innermost_factor);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.MultiLevelTiling";
   TVM_DECLARE_BASE_OBJECT_INFO(MultiLevelTilingNode, ScheduleRuleNode);

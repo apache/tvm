@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -108,13 +110,15 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
   /*! \brief The number of maximum available jobs in CPU. */
   int64_t max_parallel_extent_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("max_jobs_per_core", &max_jobs_per_core);
-    v->Visit("max_vectorize_extent", &max_vectorize_extent);
-    v->Visit("unroll_max_steps", &unroll_max_steps);
-    v->Visit("unroll_explicit", &unroll_explicit);
-    // `max_parallel_extent_` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ParallelizeVectorizeUnrollNode>()
+        .def_ro("max_jobs_per_core", &ParallelizeVectorizeUnrollNode::max_jobs_per_core)
+        .def_ro("max_vectorize_extent", &ParallelizeVectorizeUnrollNode::max_vectorize_extent)
+        .def_ro("unroll_max_steps", &ParallelizeVectorizeUnrollNode::unroll_max_steps)
+        .def_ro("unroll_explicit", &ParallelizeVectorizeUnrollNode::unroll_explicit);
   }
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.ParallelizeVectorizeUnroll";
   TVM_DECLARE_FINAL_OBJECT_INFO(ParallelizeVectorizeUnrollNode, ScheduleRuleNode);
@@ -133,6 +137,7 @@ ScheduleRule ScheduleRule::ParallelizeVectorizeUnroll(int max_jobs_per_core,
   return ScheduleRule(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ ParallelizeVectorizeUnrollNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(ParallelizeVectorizeUnrollNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleParallelizeVectorizeUnroll")
     .set_body_typed(ScheduleRule::ParallelizeVectorizeUnroll);

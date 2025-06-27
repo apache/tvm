@@ -108,20 +108,7 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
                                       ffi::TypedFunction<bool(ObjectRef)> is_var) {
   class Visitor : private AttrVisitor {
    public:
-    void operator()(ObjectRef obj) {
-      const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
-      if (tinfo->extra_info != nullptr) {
-        // visit fields with the new reflection
-        ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
-          Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
-          this->RecursiveVisitAny(&field_value);
-        });
-      } else {
-        // NOTE: legacy VisitAttrs mechanism
-        // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
-        this->Visit("", &obj);
-      }
-    }
+    void operator()(ObjectRef obj) { this->Visit("", &obj); }
 
    private:
     void RecursiveVisitAny(ffi::Any* value) {
@@ -165,7 +152,17 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
           this->RecursiveVisitAny(&kv.second);
         }
       } else {
-        vtable_->VisitAttrs(const_cast<Object*>(obj), this);
+        const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
+        if (tinfo->extra_info != nullptr) {
+          // visit fields with the new reflection
+          ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
+            Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
+            this->RecursiveVisitAny(&field_value);
+          });
+        } else {
+          // legacy VisitAttrs mechanism
+          vtable_->VisitAttrs(const_cast<Object*>(obj), this);
+        }
       }
       if (is_var(GetRef<ObjectRef>(obj))) {
         HandleVar(obj);

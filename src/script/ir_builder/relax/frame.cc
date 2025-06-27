@@ -30,6 +30,16 @@ namespace script {
 namespace ir_builder {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  RelaxFrameNode::RegisterReflection();
+  SeqExprFrameNode::RegisterReflection();
+  FunctionFrameNode::RegisterReflection();
+  BlockFrameNode::RegisterReflection();
+  IfFrameNode::RegisterReflection();
+  ThenFrameNode::RegisterReflection();
+  ElseFrameNode::RegisterReflection();
+});
+
 void SeqExprFrameNode::ExitWithScope() {
   // At this moment, there should be at most one BlockFrame which hasn't ended. In this case, call
   // its `ExitBlockFrame` and check if there is any more unended BlockFrame.
