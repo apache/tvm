@@ -21,6 +21,7 @@
  * \file attrs.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/attrs.h>
 
 #include "attr_functor.h"
@@ -72,6 +73,8 @@ DictAttrs::DictAttrs(Map<String, Any> dict) {
 TVM_REGISTER_NODE_TYPE(DictAttrsNode);
 
 TVM_REGISTER_NODE_TYPE(AttrFieldInfoNode);
+
+TVM_FFI_STATIC_INIT_BLOCK({ tvm::ffi::reflection::ObjectDef<BaseAttrsNode>(); });
 
 TVM_FFI_REGISTER_GLOBAL("ir.DictAttrsGetDict").set_body_typed([](DictAttrs attrs) {
   return attrs->dict;
