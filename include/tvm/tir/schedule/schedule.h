@@ -50,7 +50,12 @@ enum class BufferIndexType : int32_t {
 /*! \brief A random variable that evaluates to a TensorIR block */
 class BlockRVNode : public runtime::Object {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register as they are not visited
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "tir.BlockRV";
   TVM_DECLARE_FINAL_OBJECT_INFO(BlockRVNode, runtime::Object);
 };
@@ -71,7 +76,12 @@ class BlockRV : public runtime::ObjectRef {
 /*! \brief A random variable that evaluates to a TensorIR for loop */
 class LoopRVNode : public runtime::Object {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register as they are not visited
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "tir.LoopRV";
   TVM_DECLARE_FINAL_OBJECT_INFO(LoopRVNode, runtime::Object);
 };

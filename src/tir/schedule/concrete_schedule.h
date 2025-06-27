@@ -50,14 +50,11 @@ class ConcreteScheduleNode : public ScheduleNode {
   support::LinearCongruentialEngine::TRandState rand_state_;
 
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `state_` is not visited
-    // `func_working_on_` is not visited
-    // `error_render_level_` is not visited
-    // `symbol_table_` is not visited
-    // `analyzer_` is not visited
-    // `rand_state_` is not visited
+  static void RegisterReflection() {
+    // No fields to register as they are not visited
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   virtual ~ConcreteScheduleNode() = default;
 

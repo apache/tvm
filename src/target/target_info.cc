@@ -26,6 +26,8 @@
 
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK({ MemoryInfoNode::RegisterReflection(); });
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<MemoryInfoNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const MemoryInfoNode*>(node.get());

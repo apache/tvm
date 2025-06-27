@@ -23,6 +23,7 @@
 #ifndef TVM_TIR_SCHEDULE_STATE_H_
 #define TVM_TIR_SCHEDULE_STATE_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/module.h>
 #include <tvm/tir/block_scope.h>
 #include <tvm/tir/function.h>
@@ -118,13 +119,16 @@ class ScheduleStateNode : public Object {
    */
   bool enable_check;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("mod", &mod);
-    // `block_info` is not visited
-    // `stmt2ref` is not visited
-    v->Visit("debug_mask", &debug_mask);
-    v->Visit("enable_check", &enable_check);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ScheduleStateNode>()
+        .def_ro("mod", &ScheduleStateNode::mod)
+        .def_ro("debug_mask", &ScheduleStateNode::debug_mask)
+        .def_ro("enable_check", &ScheduleStateNode::enable_check);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   /*!
    * \brief Replace the part of the AST, as being pointed to by `src_sref`,
    * with a specific statement `tgt_stmt`, and maintain the sref tree accordingly.

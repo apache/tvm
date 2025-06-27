@@ -27,6 +27,7 @@
  * A follow-up pass named "FuseTIR" will generate a TIR PrimFunc for each grouped function.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
@@ -46,6 +47,11 @@
 
 namespace tvm {
 namespace relax {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  transform::FusionPatternNode::RegisterReflection();
+  transform::PatternCheckContextNode::RegisterReflection();
+});
 
 /*
   Note on Fusing algorithm:

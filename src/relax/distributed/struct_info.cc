@@ -27,6 +27,12 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  DTensorStructInfoNode::RegisterReflection();
+  PlacementNode::RegisterReflection();
+  PlacementSpecNode::RegisterReflection();
+});
+
 PlacementSpec PlacementSpec::Sharding(int axis) {
   ObjectPtr<PlacementSpecNode> n = make_object<PlacementSpecNode>();
   n->axis = axis;

@@ -25,6 +25,7 @@
 #ifndef TVM_RELAX_TIR_PATTERN_H_
 #define TVM_RELAX_TIR_PATTERN_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/function.h>
 
 namespace tvm {
@@ -43,11 +44,17 @@ class MatchResultNode : public Object {
   Array<PrimExpr> symbol_values;
   /*! \brief The matched buffers of input and output. */
   Array<tir::Buffer> matched_buffers;
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("pattern", &pattern);
-    v->Visit("symbol_values", &symbol_values);
-    v->Visit("matched_buffers", &matched_buffers);
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MatchResultNode>()
+        .def_ro("pattern", &MatchResultNode::pattern)
+        .def_ro("symbol_values", &MatchResultNode::symbol_values)
+        .def_ro("matched_buffers", &MatchResultNode::matched_buffers);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "relax.MatchResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(MatchResultNode, Object);
 };

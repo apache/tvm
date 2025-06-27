@@ -43,6 +43,8 @@ using tir::is_zero;
 using tir::make_const;
 using tir::make_zero;
 
+TVM_FFI_STATIC_INIT_BLOCK({ IntervalSetNode::RegisterReflection(); });
+
 PrimExpr SymbolicLimits::pos_inf_ = Var("pos_inf", DataType::Handle());
 PrimExpr SymbolicLimits::neg_inf_ = Var("neg_inf", DataType::Handle());
 

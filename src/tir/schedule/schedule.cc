@@ -16,9 +16,16 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "./utils.h"
 namespace tvm {
 namespace tir {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  BlockRVNode::RegisterReflection();
+  LoopRVNode::RegisterReflection();
+});
 
 /**************** Constructor ****************/
 

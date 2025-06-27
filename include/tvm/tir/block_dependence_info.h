@@ -31,6 +31,7 @@
 #ifndef TVM_TIR_BLOCK_DEPENDENCE_INFO_H_
 #define TVM_TIR_BLOCK_DEPENDENCE_INFO_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/block_scope.h>
 
 #include <unordered_map>
@@ -60,7 +61,12 @@ class BlockDependenceInfoNode : public Object {
   /*! \brief The reverse mapping from block/for-loop to their corresponding srefs */
   std::unordered_map<const StmtNode*, StmtSRef> stmt2ref;
 
-  void VisitAttrs(AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BlockDependenceInfoNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "tir.BlockDependenceInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(BlockDependenceInfoNode, Object);

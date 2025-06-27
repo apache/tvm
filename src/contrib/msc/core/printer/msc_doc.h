@@ -24,6 +24,7 @@
 #ifndef TVM_CONTRIB_MSC_CORE_PRINTER_MSC_DOC_H_
 #define TVM_CONTRIB_MSC_CORE_PRINTER_MSC_DOC_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/script/printer/doc.h>
 
 #include <string>
@@ -50,15 +51,18 @@ class DeclareDocNode : public ExprDocNode {
   /*! \brief Whether to use constructor(otherwise initializer) */
   bool use_constructor{true};
 
-  void VisitAttrs(AttrVisitor* v) {
-    ExprDocNode::VisitAttrs(v);
-    v->Visit("type", &type);
-    v->Visit("variable", &variable);
-    v->Visit("init_args", &init_args);
-    v->Visit("use_constructor", &use_constructor);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DeclareDocNode>()
+        .def_ro("type", &DeclareDocNode::type)
+        .def_ro("variable", &DeclareDocNode::variable)
+        .def_ro("init_args", &DeclareDocNode::init_args)
+        .def_ro("use_constructor", &DeclareDocNode::use_constructor);
   }
 
-  static constexpr const char* _type_key = "script.printer.DeclareDoc";
+  static constexpr bool _type_has_method_visit_attrs = false;
+
+  static constexpr const char* _type_key = "msc.script.printer.DeclareDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(DeclareDocNode, ExprDocNode);
 };
 
@@ -93,13 +97,16 @@ class StrictListDocNode : public ExprDocNode {
   /*! \brief Whether to allow empty */
   bool allow_empty{true};
 
-  void VisitAttrs(AttrVisitor* v) {
-    ExprDocNode::VisitAttrs(v);
-    v->Visit("list", &list);
-    v->Visit("allow_empty", &allow_empty);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<StrictListDocNode>()
+        .def_ro("list", &StrictListDocNode::list)
+        .def_ro("allow_empty", &StrictListDocNode::allow_empty);
   }
 
-  static constexpr const char* _type_key = "script.printer.StrictListDoc";
+  static constexpr bool _type_has_method_visit_attrs = false;
+
+  static constexpr const char* _type_key = "msc.script.printer.StrictListDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(StrictListDocNode, ExprDocNode);
 };
 
@@ -129,12 +136,14 @@ class PointerDocNode : public ExprDocNode {
   /*! \brief The name of the identifier */
   String name;
 
-  void VisitAttrs(AttrVisitor* v) {
-    ExprDocNode::VisitAttrs(v);
-    v->Visit("name", &name);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PointerDocNode>().def_ro("name", &PointerDocNode::name);
   }
 
-  static constexpr const char* _type_key = "script.printer.PointerDoc";
+  static constexpr bool _type_has_method_visit_attrs = false;
+
+  static constexpr const char* _type_key = "msc.script.printer.PointerDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(PointerDocNode, ExprDocNode);
 };
 
@@ -167,14 +176,17 @@ class StructDocNode : public StmtDocNode {
   /*! \brief The body of class. */
   Array<StmtDoc> body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    StmtDocNode::VisitAttrs(v);
-    v->Visit("name", &name);
-    v->Visit("decorators", &decorators);
-    v->Visit("body", &body);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<StructDocNode>()
+        .def_ro("name", &StructDocNode::name)
+        .def_ro("decorators", &StructDocNode::decorators)
+        .def_ro("body", &StructDocNode::body);
   }
 
-  static constexpr const char* _type_key = "script.printer.StructDoc";
+  static constexpr bool _type_has_method_visit_attrs = false;
+
+  static constexpr const char* _type_key = "msc.script.printer.StructDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(StructDocNode, StmtDocNode);
 };
 
@@ -215,14 +227,17 @@ class ConstructorDocNode : public StmtDocNode {
   /*! \brief The body of function. */
   Array<StmtDoc> body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    StmtDocNode::VisitAttrs(v);
-    v->Visit("name", &name);
-    v->Visit("args", &args);
-    v->Visit("body", &body);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ConstructorDocNode>()
+        .def_ro("name", &ConstructorDocNode::name)
+        .def_ro("args", &ConstructorDocNode::args)
+        .def_ro("body", &ConstructorDocNode::body);
   }
 
-  static constexpr const char* _type_key = "script.printer.ConstructorDoc";
+  static constexpr bool _type_has_method_visit_attrs = false;
+
+  static constexpr const char* _type_key = "msc.script.printer.ConstructorDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstructorDocNode, StmtDocNode);
 };
 
@@ -257,14 +272,17 @@ class SwitchDocNode : public StmtDocNode {
   /*! \brief The default_branch of the switch statement. */
   Array<StmtDoc> default_branch;
 
-  void VisitAttrs(AttrVisitor* v) {
-    StmtDocNode::VisitAttrs(v);
-    v->Visit("predicates", &predicates);
-    v->Visit("branchs", &branchs);
-    v->Visit("default_branch", &default_branch);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SwitchDocNode>()
+        .def_ro("predicates", &SwitchDocNode::predicates)
+        .def_ro("branchs", &SwitchDocNode::branchs)
+        .def_ro("default_branch", &SwitchDocNode::default_branch);
   }
 
-  static constexpr const char* _type_key = "script.printer.SwitchDoc";
+  static constexpr bool _type_has_method_visit_attrs = false;
+
+  static constexpr const char* _type_key = "msc.script.printer.SwitchDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(SwitchDocNode, StmtDocNode);
 };
 
@@ -308,15 +326,18 @@ class LambdaDocNode : public StmtDocNode {
   /*! \brief The body of lambda. */
   Array<StmtDoc> body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    StmtDocNode::VisitAttrs(v);
-    v->Visit("name", &name);
-    v->Visit("args", &args);
-    v->Visit("refs", &refs);
-    v->Visit("body", &body);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LambdaDocNode>()
+        .def_ro("name", &LambdaDocNode::name)
+        .def_ro("args", &LambdaDocNode::args)
+        .def_ro("refs", &LambdaDocNode::refs)
+        .def_ro("body", &LambdaDocNode::body);
   }
 
-  static constexpr const char* _type_key = "script.printer.LambdaDoc";
+  static constexpr bool _type_has_method_visit_attrs = false;
+
+  static constexpr const char* _type_key = "msc.script.printer.LambdaDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(LambdaDocNode, StmtDocNode);
 };
 

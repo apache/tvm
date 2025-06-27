@@ -24,6 +24,12 @@
 
 #include <tvm/ir/global_info.h>
 namespace tvm {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  VDeviceNode::RegisterReflection();
+  DummyGlobalInfoNode::RegisterReflection();
+});
+
 TVM_REGISTER_NODE_TYPE(DummyGlobalInfoNode);
 TVM_FFI_REGISTER_GLOBAL("ir.DummyGlobalInfo").set_body_typed([]() {
   auto n = DummyGlobalInfo(make_object<DummyGlobalInfoNode>());

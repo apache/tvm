@@ -217,6 +217,11 @@ class BaseFuncNode : public RelaxExprNode {
       return LinkageType::kInternal;
   }
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BaseFuncNode>().def_ro("attrs", &BaseFuncNode::attrs);
+  }
+
   static constexpr const char* _type_key = "BaseFunc";
   static constexpr const uint32_t _type_child_slots = 2;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseFuncNode, RelaxExprNode);

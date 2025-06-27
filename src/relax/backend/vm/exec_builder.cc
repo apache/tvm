@@ -29,6 +29,8 @@ namespace relax {
 
 using namespace vm;
 
+TVM_FFI_STATIC_INIT_BLOCK({ ExecBuilderNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(ExecBuilderNode);
 
 ExecBuilder ExecBuilderNode::Create() {

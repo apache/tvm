@@ -36,6 +36,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   BaseExprNode::RegisterReflection();
   PrimExprNode::RegisterReflection();
   RelaxExprNode::RegisterReflection();
+  BaseFuncNode::RegisterReflection();
   GlobalVarNode::RegisterReflection();
   IntImmNode::RegisterReflection();
   FloatImmNode::RegisterReflection();

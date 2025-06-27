@@ -25,6 +25,7 @@
 #define TVM_TE_TENSOR_H_
 
 #include <tvm/arith/bound.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
@@ -76,12 +77,7 @@ class TensorNode : public DataProducerNode {
   /*! \brief the output index from source operation */
   int value_index{0};
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("shape", &shape);
-    v->Visit("dtype", &dtype);
-    v->Visit("op", &op);
-    v->Visit("value_index", &value_index);
-  }
+  static void RegisterReflection();
 
   Array<PrimExpr> GetShape() const final { return shape; }
 
@@ -92,6 +88,7 @@ class TensorNode : public DataProducerNode {
   TVM_DLL String GetNameHint() const final;
 
   static constexpr const char* _type_key = "te.Tensor";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, DataProducerNode);
 };
 

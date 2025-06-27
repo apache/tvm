@@ -24,6 +24,8 @@
 #ifndef TVM_TARGET_TARGET_KIND_H_
 #define TVM_TARGET_TARGET_KIND_H_
 
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/node/attr_registry_map.h>
 #include <tvm/node/node.h>
 
@@ -75,13 +77,16 @@ class TargetKindNode : public Object {
   /*! \brief Function used to parse a JSON target during creation */
   FTVMTargetParser target_parser;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("default_device_type", &default_device_type);
-    v->Visit("default_keys", &default_keys);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TargetKindNode>()
+        .def_ro("name", &TargetKindNode::name)
+        .def_ro("default_device_type", &TargetKindNode::default_device_type)
+        .def_ro("default_keys", &TargetKindNode::default_keys);
   }
 
   static constexpr const char* _type_key = "TargetKind";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetKindNode, Object);
 
  private:

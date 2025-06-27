@@ -471,10 +471,13 @@ class FieldDependencyFinder : private AttrVisitor {
     const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
     if (tinfo->extra_info != nullptr) {
       ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
-        Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
-        if (auto opt_object = field_value.as<ObjectRef>()) {
-          ObjectRef obj = *std::move(opt_object);
-          this->Visit(field_info->name.data, &obj);
+        if (field_info->field_static_type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin ||
+            field_info->field_static_type_index == ffi::TypeIndex::kTVMFFIAny) {
+          Optional<int64_t> index;
+          ParseOptionalValue(field_info->name.data, &index);
+          if (index.has_value()) {
+            jnode_->fields.push_back(*index);
+          }
         }
       });
     } else {
@@ -643,10 +646,8 @@ class JSONAttrSetter : private AttrVisitor {
     // dispatch between new reflection and old reflection
     const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
     if (tinfo->extra_info != nullptr) {
-      ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
-        Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
-        this->SetObjectField(obj, field_info);
-      });
+      ffi::reflection::ForEachFieldInfo(
+          tinfo, [&](const TVMFFIFieldInfo* field_info) { this->SetObjectField(obj, field_info); });
     } else {
       // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
       reflection_->VisitAttrs(obj, this);
