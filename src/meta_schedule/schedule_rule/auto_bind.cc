@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/meta_schedule/schedule/cuda/thread_bind.h>
 #include <tvm/ffi/reflection/reflection.h>
+#include <tvm/meta_schedule/schedule/cuda/thread_bind.h>
 
 #include <algorithm>
 #include <limits>
@@ -81,9 +81,7 @@ ScheduleRule ScheduleRule::AutoBind(int max_threadblocks, Array<Integer> thread_
   return ScheduleRule(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  AutoBindNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ AutoBindNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(AutoBindNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAutoBind")

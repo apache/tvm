@@ -19,9 +19,9 @@
 #ifndef TVM_META_SCHEDULE_SCHEDULE_RULE_MULTI_LEVEL_TILING_H_
 #define TVM_META_SCHEDULE_SCHEDULE_RULE_MULTI_LEVEL_TILING_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/tir/schedule/schedule.h>
-#include <tvm/ffi/reflection/reflection.h>
 
 #include <unordered_map>
 #include <utility>

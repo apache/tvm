@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/meta_schedule/schedule/cuda/thread_bind.h>
 #include <tvm/ffi/reflection/reflection.h>
+#include <tvm/meta_schedule/schedule/cuda/thread_bind.h>
 
 #include "../utils.h"
 
@@ -86,7 +86,6 @@ namespace meta_schedule {
 /*! \brief Add thread binding to unbound blocks */
 class RewriteUnboundBlockNode : public PostprocNode {
  public:
-
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {
     CHECK(context->target.defined()) << "ValueError: target is not defined";
@@ -148,9 +147,7 @@ Postproc Postproc::RewriteUnboundBlock(int max_threadblocks) {
   return Postproc(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  RewriteUnboundBlockNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ RewriteUnboundBlockNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(RewriteUnboundBlockNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteUnboundBlock")

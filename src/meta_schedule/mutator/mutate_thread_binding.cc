@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../utils.h"
 #include <tvm/ffi/reflection/reflection.h>
+
+#include "../utils.h"
 
 namespace tvm {
 namespace meta_schedule {
@@ -171,9 +172,7 @@ Optional<Trace> MutateThreadBindingNode::Apply(const Trace& trace, TRandState* r
 
 Mutator Mutator::MutateThreadBinding() { return Mutator(make_object<MutateThreadBindingNode>()); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  MutateThreadBindingNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ MutateThreadBindingNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(MutateThreadBindingNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutateThreadBinding")

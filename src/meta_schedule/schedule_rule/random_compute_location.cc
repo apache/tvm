@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -125,9 +126,7 @@ ScheduleRule ScheduleRule::RandomComputeLocation() {
   return ScheduleRule(make_object<RandomComputeLocationNode>());
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  RandomComputeLocationNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ RandomComputeLocationNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(RandomComputeLocationNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleRandomComputeLocation")

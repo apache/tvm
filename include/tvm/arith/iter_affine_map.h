@@ -49,10 +49,10 @@
 #define TVM_ARITH_ITER_AFFINE_MAP_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/expr.h>
 #include <tvm/tir/var.h>
-#include <tvm/ffi/reflection/reflection.h>
 
 namespace tvm {
 namespace arith {
@@ -102,8 +102,8 @@ class IterMarkNode : public Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IterMarkNode>()
-      .def_ro("source", &IterMarkNode::source)
-      .def_ro("extent", &IterMarkNode::extent);
+        .def_ro("source", &IterMarkNode::source)
+        .def_ro("extent", &IterMarkNode::extent);
   }
 
   static constexpr bool _type_has_method_visit_attrs = false;
@@ -161,10 +161,10 @@ class IterSplitExprNode : public IterMapExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IterSplitExprNode>()
-      .def_ro("source", &IterSplitExprNode::source)
-      .def_ro("lower_factor", &IterSplitExprNode::lower_factor)
-      .def_ro("extent", &IterSplitExprNode::extent)
-      .def_ro("scale", &IterSplitExprNode::scale);
+        .def_ro("source", &IterSplitExprNode::source)
+        .def_ro("lower_factor", &IterSplitExprNode::lower_factor)
+        .def_ro("extent", &IterSplitExprNode::extent)
+        .def_ro("scale", &IterSplitExprNode::scale);
   }
 
   static constexpr bool _type_has_method_visit_attrs = false;
@@ -231,8 +231,8 @@ class IterSumExprNode : public IterMapExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IterSumExprNode>()
-      .def_ro("args", &IterSumExprNode::args)
-      .def_ro("base", &IterSumExprNode::base);
+        .def_ro("args", &IterSumExprNode::args)
+        .def_ro("base", &IterSumExprNode::base);
   }
 
   static constexpr bool _type_has_method_visit_attrs = false;
@@ -302,9 +302,9 @@ class IterMapResultNode : public Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IterMapResultNode>()
-      .def_ro("indices", &IterMapResultNode::indices)
-      .def_ro("errors", &IterMapResultNode::errors)
-      .def_ro("padding_predicate", &IterMapResultNode::padding_predicate);
+        .def_ro("indices", &IterMapResultNode::indices)
+        .def_ro("errors", &IterMapResultNode::errors)
+        .def_ro("padding_predicate", &IterMapResultNode::padding_predicate);
   }
 
   static constexpr bool _type_has_method_visit_attrs = false;

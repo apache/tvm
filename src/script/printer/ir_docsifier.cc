@@ -108,9 +108,7 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
                                       ffi::TypedFunction<bool(ObjectRef)> is_var) {
   class Visitor : private AttrVisitor {
    public:
-    void operator()(ObjectRef obj) {
-      this->Visit("", &obj);
-    }
+    void operator()(ObjectRef obj) { this->Visit("", &obj); }
 
    private:
     void RecursiveVisitAny(ffi::Any* value) {

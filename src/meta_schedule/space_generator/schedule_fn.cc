@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../utils.h"
 #include <tvm/ffi/reflection/reflection.h>
+
+#include "../utils.h"
 
 namespace tvm {
 namespace meta_schedule {
@@ -98,9 +99,7 @@ SpaceGenerator SpaceGenerator::ScheduleFn(ffi::Function schedule_fn,
   return SpaceGenerator(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  ScheduleFnNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ ScheduleFnNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(ScheduleFnNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorScheduleFn")

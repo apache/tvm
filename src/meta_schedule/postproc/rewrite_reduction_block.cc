@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../utils.h"
 #include <tvm/ffi/reflection/reflection.h>
+
+#include "../utils.h"
 
 namespace tvm {
 namespace tir {
@@ -180,9 +181,7 @@ TVM_REGISTER_NODE_TYPE(RewriteReductionBlockNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteReductionBlock")
     .set_body_typed(Postproc::RewriteReductionBlock);
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  RewriteReductionBlockNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ RewriteReductionBlockNode::RegisterReflection(); });
 
 }  // namespace meta_schedule
 }  // namespace tvm

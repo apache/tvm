@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -121,9 +122,7 @@ Array<tir::Schedule> AddRFactorNode::Apply(const tir::Schedule& sch, const tir::
   return res;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  AddRFactorNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ AddRFactorNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(AddRFactorNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAddRFactor")
     .set_body_typed(ScheduleRule::AddRFactor);

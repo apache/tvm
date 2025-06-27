@@ -24,12 +24,12 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/object.h>
-#include <tvm/ffi/reflection/reflection.h>
 
 #include <algorithm>
 #include <functional>
@@ -107,7 +107,6 @@ class PrimExprNode : public BaseExprNode {
    * a more fine-grained Type, and we can get the type by running lazy type inference.
    */
   DataType dtype;
-
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

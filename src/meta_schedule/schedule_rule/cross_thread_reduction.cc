@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -293,9 +294,7 @@ ScheduleRule ScheduleRule::CrossThreadReduction(Array<Integer> thread_extents) {
   return ScheduleRule(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  CrossThreadReductionNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ CrossThreadReductionNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(CrossThreadReductionNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleCrossThreadReduction")
     .set_body_typed(ScheduleRule::CrossThreadReduction);

@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/meta_schedule/postproc.h>
 #include <tvm/ffi/reflection/reflection.h>
+#include <tvm/meta_schedule/postproc.h>
 
 #include <algorithm>
 
@@ -111,9 +111,7 @@ Postproc Postproc::RewriteTensorize(bool vectorize_init_loop) {
   return Postproc(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  RewriteTensorizeNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ RewriteTensorizeNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(RewriteTensorizeNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteTensorize")
     .set_body_typed(Postproc::RewriteTensorize);

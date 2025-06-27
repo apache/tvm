@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -193,9 +194,7 @@ ScheduleRule ScheduleRule::AutoInline(bool into_producer,          //
   return ScheduleRule(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  AutoInlineNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ AutoInlineNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(AutoInlineNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAutoInline")
     .set_body_typed(ScheduleRule::AutoInline);
@@ -243,9 +242,7 @@ ScheduleRule ScheduleRule::InlineConstantScalars() {
   return ScheduleRule(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  InlineConstantScalarsNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ InlineConstantScalarsNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(InlineConstantScalarsNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleInlineConstantScalars")
     .set_body_typed(ScheduleRule::InlineConstantScalars);

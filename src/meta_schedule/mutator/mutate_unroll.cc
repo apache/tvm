@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../utils.h"
 #include <tvm/ffi/reflection/reflection.h>
+
+#include "../utils.h"
 
 namespace tvm {
 namespace tir {
@@ -144,9 +145,7 @@ Optional<Trace> MutateUnrollNode::Apply(const Trace& trace, TRandState* rand_sta
 
 Mutator Mutator::MutateUnroll() { return Mutator(make_object<MutateUnrollNode>()); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  MutateUnrollNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ MutateUnrollNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(MutateUnrollNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateUnroll").set_body_typed(Mutator::MutateUnroll);

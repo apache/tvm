@@ -626,8 +626,7 @@ class WhileFrameNode : public TIRFrameNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<WhileFrameNode>()
-        .def_ro("condition", &WhileFrameNode::condition);
+    refl::ObjectDef<WhileFrameNode>().def_ro("condition", &WhileFrameNode::condition);
   }
 
   static constexpr bool _type_has_method_visit_attrs = false;

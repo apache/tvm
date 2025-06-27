@@ -21,6 +21,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
@@ -30,7 +31,6 @@
 #include <tvm/target/target.h>
 #include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/trace.h>
-#include <tvm/ffi/reflection/reflection.h>
 
 #include <memory>
 
@@ -383,8 +383,8 @@ class PyDatabaseNode : public DatabaseNode {
   FSize f_size;
 
   static void RegisterReflection() {
-    // ffi::Functions are all not registered, because the reflection system doesn't take care of them,
-    // so it cannot be accessible on the python side. If there is such need from the future,
+    // ffi::Functions are all not registered, because the reflection system doesn't take care of
+    // them, so it cannot be accessible on the python side. If there is such need from the future,
     // we can then add corresponding accessor methods to help access on python.
     // `f_has_workload` is not registered
     // `f_commit_workload` is not registered

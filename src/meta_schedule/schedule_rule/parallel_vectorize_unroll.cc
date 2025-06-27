@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../utils.h"
 #include <tvm/ffi/reflection/reflection.h>
+
+#include "../utils.h"
 
 namespace tvm {
 namespace tir {
@@ -136,9 +137,7 @@ ScheduleRule ScheduleRule::ParallelizeVectorizeUnroll(int max_jobs_per_core,
   return ScheduleRule(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  ParallelizeVectorizeUnrollNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ ParallelizeVectorizeUnrollNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(ParallelizeVectorizeUnrollNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleParallelizeVectorizeUnroll")
     .set_body_typed(ScheduleRule::ParallelizeVectorizeUnroll);

@@ -16,11 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include <algorithm>
 #include <unordered_map>
 
 #include "../utils.h"
-#include <tvm/ffi/reflection/reflection.h>
 
 namespace tvm {
 namespace tir {
@@ -172,8 +173,8 @@ class MutateParallelNode : public MutatorNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<MutateParallelNode>()
-      .def_ro("max_jobs_per_core", &MutateParallelNode::max_jobs_per_core);
+    refl::ObjectDef<MutateParallelNode>().def_ro("max_jobs_per_core",
+                                                 &MutateParallelNode::max_jobs_per_core);
   }
   static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "meta_schedule.MutateParallel";
@@ -312,9 +313,7 @@ Mutator Mutator::MutateParallel(int64_t max_jobs_per_core) {
   return Mutator(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  MutateParallelNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ MutateParallelNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(MutateParallelNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateParallel")
     .set_body_typed(Mutator::MutateParallel);

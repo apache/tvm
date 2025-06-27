@@ -139,9 +139,7 @@ class BinaryOpNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<T>()
-        .def_ro("a", &T::a)
-        .def_ro("b", &T::b);
+    refl::ObjectDef<T>().def_ro("a", &T::a).def_ro("b", &T::b);
   }
 
   bool SEqualReduce(const T* other, SEqualReducer equal) const {
@@ -333,9 +331,7 @@ class CmpOpNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<T>()
-        .def_ro("a", &T::a)
-        .def_ro("b", &T::b);
+    refl::ObjectDef<T>().def_ro("a", &T::a).def_ro("b", &T::b);
   }
 
   bool SEqualReduce(const T* other, SEqualReducer equal) const {
@@ -465,9 +461,7 @@ class AndNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<AndNode>()
-        .def_ro("a", &AndNode::a)
-        .def_ro("b", &AndNode::b);
+    refl::ObjectDef<AndNode>().def_ro("a", &AndNode::a).def_ro("b", &AndNode::b);
   }
 
   bool SEqualReduce(const AndNode* other, SEqualReducer equal) const {
@@ -507,9 +501,7 @@ class OrNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<OrNode>()
-        .def_ro("a", &OrNode::a)
-        .def_ro("b", &OrNode::b);
+    refl::ObjectDef<OrNode>().def_ro("a", &OrNode::a).def_ro("b", &OrNode::b);
   }
 
   bool SEqualReduce(const OrNode* other, SEqualReducer equal) const {
@@ -907,9 +899,7 @@ class CallNode : public PrimExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CallNode>()
-        .def_ro("op", &CallNode::op)
-        .def_ro("args", &CallNode::args);
+    refl::ObjectDef<CallNode>().def_ro("op", &CallNode::op).def_ro("args", &CallNode::args);
   }
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {

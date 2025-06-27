@@ -17,9 +17,10 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../module_equality.h"
 #include "../utils.h"
-#include <tvm/ffi/reflection/reflection.h>
 
 #define TVM_META_SCHEDULE_CHECK_PROB_RANGE(p, name)                               \
   CHECK(0.0 <= (p) && (p) <= 1.0) << "ValueError: name should be within [0, 1], " \
@@ -383,7 +384,8 @@ class EvolutionarySearchNode : public SearchStrategyNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<EvolutionarySearchNode>()
         .def_ro("population_size", &EvolutionarySearchNode::population_size)
-        .def_ro("num_empty_iters_before_early_stop", &EvolutionarySearchNode::num_empty_iters_before_early_stop)
+        .def_ro("num_empty_iters_before_early_stop",
+                &EvolutionarySearchNode::num_empty_iters_before_early_stop)
         .def_ro("init_measured_ratio", &EvolutionarySearchNode::init_measured_ratio)
         .def_ro("init_min_unmeasured", &EvolutionarySearchNode::init_min_unmeasured)
         .def_ro("max_fail_count", &EvolutionarySearchNode::max_fail_count)
@@ -798,9 +800,7 @@ Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch self,
   return result;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  EvolutionarySearchNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ EvolutionarySearchNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(EvolutionarySearchNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearch")

@@ -16,11 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include <mutex>
 #include <unordered_map>
 
 #include "../utils.h"
-#include <tvm/ffi/reflection/reflection.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -275,9 +276,7 @@ Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_s
 
 Mutator Mutator::MutateTileSize() { return Mutator(make_object<MutateTileSizeNode>()); }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  MutateTileSizeNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ MutateTileSizeNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(MutateTileSizeNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateTileSize")

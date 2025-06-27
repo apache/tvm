@@ -78,9 +78,7 @@ class NodeIndexer : private AttrVisitor {
   void Visit(const char* key, void** value) final {}
   void Visit(const char* key, DataType* value) final {}
 
-  void Visit(const char* key, runtime::NDArray* value) final {
-    MakeIndex(Any(*value));
-  }
+  void Visit(const char* key, runtime::NDArray* value) final { MakeIndex(Any(*value)); }
 
   void Visit(const char* key, Optional<double>* value) final {}
   void Visit(const char* key, Optional<int64_t>* value) final {}
@@ -565,7 +563,8 @@ class JSONAttrSetter : private AttrVisitor {
   }
   void Visit(const char* key, ObjectRef* value) final {
     Optional<int64_t> index;
-    ParseOptionalValue(key, &index, [this](const char* key, int64_t* value) { ParseValue(key, value); });
+    ParseOptionalValue(key, &index,
+                       [this](const char* key, int64_t* value) { ParseValue(key, value); });
     if (index.has_value()) {
       *value = node_list_->at(*index).cast<ObjectRef>();
     }
@@ -684,11 +683,12 @@ class JSONAttrSetter : private AttrVisitor {
       }
       default: {
         Optional<int64_t> index;
-        ParseOptionalValue(field_info->name.data, &index, [this](const char* key, int64_t* value) { ParseValue(key, value); });
+        ParseOptionalValue(field_info->name.data, &index,
+                           [this](const char* key, int64_t* value) { ParseValue(key, value); });
         if (index.has_value()) {
           Any value = node_list_->at(*index).cast<ObjectRef>();
           setter(obj, value);
-        } else{
+        } else {
           setter(obj, Any());
         }
       }

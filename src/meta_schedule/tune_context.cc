@@ -62,9 +62,7 @@ void TuneContextNode::Initialize() {
   }
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  TuneContextNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ TuneContextNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(TuneContextNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.TuneContext")

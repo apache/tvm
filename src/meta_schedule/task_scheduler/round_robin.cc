@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -30,8 +31,7 @@ class RoundRobinNode final : public TaskSchedulerNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RoundRobinNode>()
-        .def_ro("task_id", &RoundRobinNode::task_id);
+    refl::ObjectDef<RoundRobinNode>().def_ro("task_id", &RoundRobinNode::task_id);
   }
 
   static constexpr bool _type_has_method_visit_attrs = false;
@@ -66,10 +66,7 @@ TaskScheduler TaskScheduler::RoundRobin(ffi::Function logger) {
   return TaskScheduler(n);
 }
 
-
-TVM_FFI_STATIC_INIT_BLOCK({
-  RoundRobinNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ RoundRobinNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(RoundRobinNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerRoundRobin")

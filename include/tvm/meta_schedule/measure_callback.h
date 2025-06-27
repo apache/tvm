@@ -22,6 +22,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
 #include <tvm/meta_schedule/builder.h>
 #include <tvm/meta_schedule/measure_candidate.h>
@@ -30,7 +31,6 @@
 #include <tvm/meta_schedule/tune_context.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
-#include <tvm/ffi/reflection/reflection.h>
 
 namespace tvm {
 namespace meta_schedule {

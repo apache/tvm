@@ -16,13 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include <set>
 #include <thread>
 #include <unordered_map>
 
 #include "../module_equality.h"
 #include "../utils.h"
-#include <tvm/ffi/reflection/reflection.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -215,9 +216,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
   return Database(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  JSONDatabaseNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ JSONDatabaseNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(JSONDatabaseNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseJSONDatabase")
     .set_body_typed(Database::JSONDatabase);

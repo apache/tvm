@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/tir/transform.h>
 #include <tvm/ffi/reflection/reflection.h>
+#include <tvm/tir/transform.h>
 
 #include <cmath>
 #include <memory>
@@ -1372,7 +1372,8 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PerStoreFeatureNode>()
         .def_ro("buffers_per_store", &PerStoreFeatureNode::buffers_per_store)
-        .def_ro("arith_intensity_curve_num_samples", &PerStoreFeatureNode::arith_intensity_curve_num_samples)
+        .def_ro("arith_intensity_curve_num_samples",
+                &PerStoreFeatureNode::arith_intensity_curve_num_samples)
         .def_ro("cache_line_bytes", &PerStoreFeatureNode::cache_line_bytes)
         .def_ro("extract_workload", &PerStoreFeatureNode::extract_workload)
         .def_ro("feature_vector_length", &PerStoreFeatureNode::feature_vector_length);
@@ -1446,9 +1447,7 @@ FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
   return FeatureExtractor(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  PerStoreFeatureNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ PerStoreFeatureNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(PerStoreFeatureNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.FeatureExtractorPerStoreFeature")

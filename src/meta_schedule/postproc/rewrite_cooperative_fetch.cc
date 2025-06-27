@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include "../utils.h"
 #include <tvm/ffi/reflection/reflection.h>
+
+#include "../utils.h"
 
 namespace tvm {
 namespace tir {
@@ -231,9 +232,7 @@ Postproc Postproc::RewriteCooperativeFetch() {
   return Postproc(n);
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
-  RewriteCooperativeFetchNode::RegisterReflection();
-});
+TVM_FFI_STATIC_INIT_BLOCK({ RewriteCooperativeFetchNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(RewriteCooperativeFetchNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteCooperativeFetch")

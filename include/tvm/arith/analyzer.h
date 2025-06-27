@@ -25,9 +25,9 @@
 #define TVM_ARITH_ANALYZER_H_
 
 #include <tvm/arith/int_set.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/expr.h>
 #include <tvm/support/with.h>
-#include <tvm/ffi/reflection/reflection.h>
 
 #include <limits>
 #include <memory>
@@ -90,8 +90,8 @@ class ConstIntBoundNode : public Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ConstIntBoundNode>()
-      .def_ro("min_value", &ConstIntBoundNode::min_value)
-      .def_ro("max_value", &ConstIntBoundNode::max_value);
+        .def_ro("min_value", &ConstIntBoundNode::min_value)
+        .def_ro("max_value", &ConstIntBoundNode::max_value);
   }
 
   static constexpr bool _type_has_method_visit_attrs = false;
