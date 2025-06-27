@@ -220,6 +220,14 @@ class TypeTable {
 
   void RegisterTypeExtraInfo(int32_t type_index, const TVMFFITypeExtraInfo* extra_info) {
     Entry* entry = GetTypeEntry(type_index);
+    if (entry->extra_info != nullptr) {
+      TVM_FFI_LOG_AND_THROW(RuntimeError)
+          << "Overriding " << ToStringView(entry->type_key) << ", possible causes:\n"
+          << "- two ObjectDef<T>() calls for the same T \n"
+          << "- when we forget to assign _type_key to ObjectRef<Y> that inherits from T\n"
+          << "- another type with the same key is already registered\n"
+          << "Cross check the reflection registration.";
+    }
     entry->extra_info_data = *extra_info;
     entry->extra_info_data.doc = this->CopyString(extra_info->doc);
     entry->extra_info = &(entry->extra_info_data);
@@ -275,6 +283,11 @@ class TypeTable {
     this->GetOrAllocTypeIndex(Object::_type_key, Object::_type_index, Object::_type_depth,
                               Object::_type_child_slots, Object::_type_child_slots_can_overflow,
                               -1);
+    TVMFFITypeExtraInfo info;
+    info.total_size = sizeof(Object);
+    info.creator = nullptr;
+    info.doc = TVMFFIByteArray{nullptr, 0};
+    RegisterTypeExtraInfo(Object::_type_index, &info);
     // reserve the static types
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFINone, TypeIndex::kTVMFFINone);
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIInt, TypeIndex::kTVMFFIInt);
@@ -317,19 +330,21 @@ class TypeTable {
 };
 
 void MakeObjectFromPackedArgs(ffi::PackedArgs args, Any* ret) {
-  String type_key = args[0].cast<String>();
-  TVM_FFI_ICHECK(args.size() % 2 == 1);
-
   int32_t type_index;
-  TVMFFIByteArray type_key_array = TVMFFIByteArray{type_key.data(), type_key.size()};
-  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(&type_key_array, &type_index));
-  const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(type_index);
-  if (type_info == nullptr) {
-    TVM_FFI_THROW(RuntimeError) << "Cannot find type `" << type_key << "`";
+  if (auto opt_type_index = args[0].try_cast<int32_t>()) {
+    type_index = *opt_type_index;
+  } else {
+    String type_key = args[0].cast<String>();
+    TVMFFIByteArray type_key_array = TVMFFIByteArray{type_key.data(), type_key.size()};
+    TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(&type_key_array, &type_index));
   }
 
+  TVM_FFI_ICHECK(args.size() % 2 == 1);
+  const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(type_index);
+
   if (type_info->extra_info == nullptr || type_info->extra_info->creator == nullptr) {
-    TVM_FFI_THROW(RuntimeError) << "Type `" << type_key << "` does not support reflection creation";
+    TVM_FFI_THROW(RuntimeError) << "Type `" << TypeIndexToTypeKey(type_index)
+                                << "` does not support reflection creation";
   }
   TVMFFIObjectHandle handle;
   TVM_FFI_CHECK_SAFE_CALL(type_info->extra_info->creator(&handle));
@@ -368,7 +383,7 @@ void MakeObjectFromPackedArgs(ffi::PackedArgs args, Any* ret) {
       } else {
         TVM_FFI_THROW(TypeError) << "Required field `"
                                  << String(field_info->name.data, field_info->name.size)
-                                 << "` not set in type `" << type_key << "`";
+                                 << "` not set in type `" << TypeIndexToTypeKey(type_index) << "`";
       }
     }
   };
@@ -382,8 +397,8 @@ void MakeObjectFromPackedArgs(ffi::PackedArgs args, Any* ret) {
 
   for (size_t i = 0; i < keys.size(); ++i) {
     if (!keys_found[i]) {
-      TVM_FFI_THROW(TypeError) << "Type `" << type_key << "` does not have field `" << keys[i]
-                               << "`";
+      TVM_FFI_THROW(TypeError) << "Type `" << TypeIndexToTypeKey(type_index)
+                               << "` does not have field `" << keys[i] << "`";
     }
   }
   *ret = ObjectRef(ptr);

@@ -145,7 +145,7 @@ def test_pass_config():
     assert cfg.config["tir.UnrollLoop"].explicit_unroll == True
 
     # schema checking for specific config key
-    with pytest.raises(AttributeError):
+    with pytest.raises(TypeError):
         cfg = tvm.transform.PassContext(config={"tir.UnrollLoop": {"invalid": 1}})
 
     # schema check for un-registered config

@@ -29,6 +29,14 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  Conv1DAttrs::RegisterReflection();
+  Conv2DAttrs::RegisterReflection();
+  Conv3DAttrs::RegisterReflection();
+  Conv1DTransposeAttrs::RegisterReflection();
+  Conv2DTransposeAttrs::RegisterReflection();
+});
+
 /* relax.nn.conv1d */
 TVM_REGISTER_NODE_TYPE(Conv1DAttrs);
 

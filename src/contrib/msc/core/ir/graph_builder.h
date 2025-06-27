@@ -150,6 +150,7 @@ class AttrGetter : private AttrVisitor {
       }
       case kTVMFFIDataType: {
         attrs_->Set(key, runtime::DLDataTypeToString(value.cast<DLDataType>()));
+        break;
       }
       case kTVMFFIStr: {
         attrs_->Set(key, value.cast<String>());

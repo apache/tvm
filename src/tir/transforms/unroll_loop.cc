@@ -39,30 +39,33 @@
 namespace tvm {
 namespace tir {
 
-struct UnrollLoopConfigNode : public tvm::AttrsNode<UnrollLoopConfigNode> {
+struct UnrollLoopConfigNode : public AttrsNodeReflAdapter<UnrollLoopConfigNode> {
   int auto_max_step;
   int auto_max_depth;
   int auto_max_extent;
   int explicit_unroll;
   int unroll_local_access;
 
-  TVM_DECLARE_ATTRS(UnrollLoopConfigNode, "tir.transform.UnrollLoopConfig") {
-    TVM_ATTR_FIELD(auto_max_step)
-        .describe("Threshold of number of steps in the loop to be automatically unrolled")
-        .set_default(0);
-    TVM_ATTR_FIELD(auto_max_depth)
-        .describe("The maximum nested level of loops that can be automatically unrolled.")
-        .set_default(8);
-    TVM_ATTR_FIELD(auto_max_extent)
-        .describe("The maximum extent of loop that will be unrolled.")
-        .set_default(0);
-    TVM_ATTR_FIELD(explicit_unroll)
-        .describe("Whether to explicitly unroll the loop instead of setting a pragma")
-        .set_default(true);
-    TVM_ATTR_FIELD(unroll_local_access)
-        .describe("Whether to always unroll local access")
-        .set_default(false);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<UnrollLoopConfigNode>()
+        .def_ro("auto_max_step", &UnrollLoopConfigNode::auto_max_step,
+                "Threshold of number of steps in the loop to be automatically unrolled",
+                refl::DefaultValue(0))
+        .def_ro("auto_max_depth", &UnrollLoopConfigNode::auto_max_depth,
+                "The maximum nested level of loops that can be automatically unrolled.",
+                refl::DefaultValue(8))
+        .def_ro("auto_max_extent", &UnrollLoopConfigNode::auto_max_extent,
+                "The maximum extent` of loop that will be unrolled.", refl::DefaultValue(0))
+        .def_ro("explicit_unroll", &UnrollLoopConfigNode::explicit_unroll,
+                "Whether to explicitly unroll the loop instead of setting a pragma",
+                refl::DefaultValue(true))
+        .def_ro("unroll_local_access", &UnrollLoopConfigNode::unroll_local_access,
+                "Whether to always unroll local access", refl::DefaultValue(false));
   }
+
+  static constexpr const char* _type_key = "tir.transform.UnrollLoopConfig";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(UnrollLoopConfigNode, BaseAttrsNode);
 };
 
 class UnrollLoopConfig : public Attrs {
@@ -70,6 +73,7 @@ class UnrollLoopConfig : public Attrs {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(UnrollLoopConfig, Attrs, UnrollLoopConfigNode);
 };
 
+TVM_FFI_STATIC_INIT_BLOCK({ UnrollLoopConfigNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(UnrollLoopConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.UnrollLoop", UnrollLoopConfig);
 

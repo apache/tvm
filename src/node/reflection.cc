@@ -260,13 +260,31 @@ void InitNodeByPackedArgs(ReflectionVTable* reflection, Object* n, const ffi::Pa
 
 ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
                                          const ffi::PackedArgs& kwargs) {
-  ObjectPtr<Object> n = this->CreateInitObject(type_key);
-  if (n->IsInstance<BaseAttrsNode>()) {
-    static_cast<BaseAttrsNode*>(n.get())->InitByPackedArgs(kwargs);
+  // dispatch between new reflection and old reflection
+  int32_t type_index;
+  TVMFFIByteArray type_key_array = TVMFFIByteArray{type_key.data(), type_key.size()};
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(&type_key_array, &type_index));
+  const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(type_index);
+  if (type_info->extra_info != nullptr) {
+    auto fcreate_object = ffi::Function::GetGlobalRequired("ffi.MakeObjectFromPackedArgs");
+    std::vector<AnyView> packed_args(kwargs.size() + 1);
+    packed_args[0] = type_index;
+    for (int i = 0; i < kwargs.size(); i++) {
+      packed_args[i + 1] = kwargs[i];
+    }
+    ffi::Any rv;
+    fcreate_object.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
+    return rv.cast<ObjectRef>();
   } else {
-    InitNodeByPackedArgs(this, n.get(), kwargs);
+    // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
+    ObjectPtr<Object> n = this->CreateInitObject(type_key);
+    if (n->IsInstance<BaseAttrsNode>()) {
+      static_cast<BaseAttrsNode*>(n.get())->InitByPackedArgs(kwargs);
+    } else {
+      InitNodeByPackedArgs(this, n.get(), kwargs);
+    }
+    return ObjectRef(n);
   }
-  return ObjectRef(n);
 }
 
 ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
@@ -312,20 +330,7 @@ void NodeListAttrNames(ffi::PackedArgs args, ffi::Any* ret) {
 // args format:
 //   key1, value1, ..., key_n, value_n
 void MakeNode(const ffi::PackedArgs& args, ffi::Any* rv) {
-  // dispatch between new reflection and old reflection
-  auto type_key = args[0].cast<std::string>();
-  int32_t type_index;
-  TVMFFIByteArray type_key_array = TVMFFIByteArray{type_key.data(), type_key.size()};
-  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(&type_key_array, &type_index));
-  const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(type_index);
-  if (type_info->extra_info != nullptr) {
-    auto fcreate_object = ffi::Function::GetGlobalRequired("ffi.MakeObjectFromPackedArgs");
-    fcreate_object.CallPacked(args, rv);
-    return;
-  } else {
-    // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
-    *rv = ReflectionVTable::Global()->CreateObject(type_key, args.Slice(1));
-  }
+  *rv = ReflectionVTable::Global()->CreateObject(args[0].cast<std::string>(), args.Slice(1));
 }
 
 TVM_FFI_REGISTER_GLOBAL("node.NodeGetAttr").set_body_packed(NodeGetAttr);

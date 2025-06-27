@@ -33,6 +33,11 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  MatmulAttrs::RegisterReflection();
+  EinsumAttrs::RegisterReflection();
+});
+
 /* relax.matmul */
 TVM_REGISTER_NODE_TYPE(MatmulAttrs);
 

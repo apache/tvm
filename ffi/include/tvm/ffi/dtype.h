@@ -131,11 +131,15 @@ struct TypeTraits<DLDataType> : public TypeTraitsBase {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIDataType;
 
   static TVM_FFI_INLINE void CopyToAnyView(const DLDataType& src, TVMFFIAny* result) {
+    // clear padding part to ensure the equality check can always check the v_uint64 part
+    result->v_uint64 = 0;
     result->type_index = TypeIndex::kTVMFFIDataType;
     result->v_dtype = src;
   }
 
   static TVM_FFI_INLINE void MoveToAny(DLDataType src, TVMFFIAny* result) {
+    // clear padding part to ensure the equality check can always check the v_uint64 part
+    result->v_uint64 = 0;
     result->type_index = TypeIndex::kTVMFFIDataType;
     result->v_dtype = src;
   }

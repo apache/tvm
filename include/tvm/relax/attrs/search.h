@@ -30,16 +30,23 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes for search operators */
-struct ArgmaxArgminAttrs : public tvm::AttrsNode<ArgmaxArgminAttrs> {
+struct ArgmaxArgminAttrs : public AttrsNodeReflAdapter<ArgmaxArgminAttrs> {
   Optional<int64_t> axis;
   bool keepdims;
 
-  TVM_DECLARE_ATTRS(ArgmaxArgminAttrs, "relax.attrs.ArgmaxArgminAttrs") {
-    TVM_ATTR_FIELD(axis).describe("The axis along which to perform the argmin/argmax.");
-    TVM_ATTR_FIELD(keepdims).describe(
-        "If this is set to `True`, the reduced axis is left in the result as dimension with size "
-        "one.");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ArgmaxArgminAttrs>()
+        .def_ro("axis", &ArgmaxArgminAttrs::axis,
+                "The axis along which to perform the argmin/argmax.")
+        .def_ro("keepdims", &ArgmaxArgminAttrs::keepdims,
+                "If this is set to `True`, the reduced axis is left in the result as dimension "
+                "with size "
+                "one.");
   }
+
+  static constexpr const char* _type_key = "relax.attrs.ArgmaxArgminAttrs";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(ArgmaxArgminAttrs, BaseAttrsNode);
 };  // struct ArgmaxArgminAttrs
 
 }  // namespace relax

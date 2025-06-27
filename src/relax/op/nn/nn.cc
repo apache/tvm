@@ -25,6 +25,22 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  SoftmaxAttrs::RegisterReflection();
+  LeakyReluAttrs::RegisterReflection();
+  SoftplusAttrs::RegisterReflection();
+  PReluAttrs::RegisterReflection();
+  BatchNormAttrs::RegisterReflection();
+  LayerNormAttrs::RegisterReflection();
+  GroupNormAttrs::RegisterReflection();
+  InstanceNormAttrs::RegisterReflection();
+  RMSNormAttrs::RegisterReflection();
+  NLLLossAttrs::RegisterReflection();
+  DropoutAttrs::RegisterReflection();
+  PadAttrs::RegisterReflection();
+  PixelShuffleAttrs::RegisterReflection();
+});
+
 /* relax.nn.relu */
 RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(relu, "nn.relu", /*require_float_dtype=*/false);
 

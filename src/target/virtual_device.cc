@@ -28,6 +28,8 @@
 
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK({ VirtualDeviceNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(VirtualDeviceNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

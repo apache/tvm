@@ -35,8 +35,7 @@ class AttrPrinter : private AttrVisitor {
   void operator()(const tvm::Attrs& attrs) {
     // NOTE: reflection dispatch for both new and legacy reflection mechanism
     const TVMFFITypeInfo* attrs_tinfo = TVMFFIGetTypeInfo(attrs->type_index());
-    if (attrs_tinfo->extra_info != nullptr) {
-      LOG(INFO) << "Using new reflection to print attrs" << String(attrs_tinfo->type_key);
+    if (attrs_tinfo->extra_info != nullptr && attrs_tinfo->extra_info->creator != nullptr) {
       // new printing mechanism using the new reflection
       ffi::reflection::ForEachFieldInfo(attrs_tinfo, [&](const TVMFFIFieldInfo* field_info) {
         String field_name = String(field_info->name);

@@ -36,6 +36,11 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  TakeAttrs::RegisterReflection();
+  StridedSliceAttrs::RegisterReflection();
+});
+
 /* relax.take */
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
