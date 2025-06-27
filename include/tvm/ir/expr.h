@@ -58,7 +58,7 @@ class BaseExprNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span);
+    refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()));
   }
 
   static constexpr const char* _type_key = "BaseExpr";
