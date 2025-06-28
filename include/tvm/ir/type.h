@@ -312,6 +312,10 @@ class FuncType : public Type {
   TVM_DEFINE_OBJECT_REF_METHODS(FuncType, Type, FuncTypeNode);
 };
 
+/*!
+ * \brief The type of tensor map.
+ * \sa TensorMapType
+ */
 class TensorMapTypeNode : public TypeNode {
  public:
   void VisitAttrs(AttrVisitor* v) { v->Visit("span", &span); }
@@ -326,6 +330,10 @@ class TensorMapTypeNode : public TypeNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorMapTypeNode, TypeNode);
 };
 
+/*!
+ * \brief Managed reference to TensorMapTypeNode.
+ * \sa TensorMapTypeNode
+ */
 class TensorMapType : public Type {
  public:
   TVM_DLL TensorMapType(Span span = Span());

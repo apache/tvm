@@ -229,7 +229,8 @@ inline ffi::Function PackFuncNonBufferArg_(F f, int base,
           holder[i].v_float32[0] = static_cast<float>(raw_args[base + i].v_float64);
           break;
         }
-        case HANDLE_TO_HANDLE: {
+        case HANDLE_TO_HANDLE:
+        case HANDLE_TO_TENSORMAP: {
           LOG(FATAL) << "not reached";
           break;
         }
@@ -291,6 +292,7 @@ inline ffi::Function PackFuncPackedArgAligned_(F f, const std::vector<ArgConvert
           ++ptr;
           break;
         }
+        case HANDLE_TO_TENSORMAP:
         default: {
           LOG(FATAL) << "not reached";
           break;
