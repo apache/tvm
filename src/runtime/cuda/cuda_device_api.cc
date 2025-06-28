@@ -500,8 +500,8 @@ TVM_FFI_REGISTER_GLOBAL("runtime.cuTensorMapEncodeTiled")
       // sanity checks per cuTensorMapEncodeTiled requirements
       // see
       // https://docs.nvidia.com/cuda/cuda-driver-api/group__CUDA__TENSOR__MEMORY.html#group__CUDA__TENSOR__MEMORY_1ga7c7d2aaac9e49294304e755e6f341d7
-      CHECK((reinterpret_cast<uint64_t>(tensor_ptr) & 0b1111) == 0);    // 16-byte alignment
-      CHECK((reinterpret_cast<uint64_t>(tensor_map) & 0b111111) == 0);  // 64-byte alignment
+      CHECK_EQ((reinterpret_cast<uint64_t>(tensor_ptr) & 0b1111), 0);    // 16-byte alignment
+      CHECK_EQ((reinterpret_cast<uint64_t>(tensor_map) & 0b111111), 0);  // 64-byte alignment
       CHECK_LE(tensor_rank, 5) << "cuTensorMapEncodeTiled only supports up to 5D tensors";
 
       if (swizzle_kind == CU_TENSOR_MAP_SWIZZLE_32B) {
@@ -559,7 +559,7 @@ TVM_FFI_REGISTER_GLOBAL("runtime.cuTensorMapEncodeTiled")
           std::cout << shared_strides[i] << " ";
         }
         std::cout << "\n";
-        CHECK(res == CUDA_SUCCESS) << "Error in cuTensorMapEncodeTiled: " << errstr;
+        CHECK_EQ(res, CUDA_SUCCESS) << "Error in cuTensorMapEncodeTiled: " << errstr;
       }
     });
 
