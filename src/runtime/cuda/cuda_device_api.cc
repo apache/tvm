@@ -357,6 +357,29 @@ TVM_DLL int GetCudaDeviceCount() {
 
 TVM_FFI_REGISTER_GLOBAL("runtime.GetCudaDeviceCount").set_body_typed(GetCudaDeviceCount);
 
+/**
+ * \brief FFI wrapper for cuTensorMapEncodeTiled.
+ *
+ * This function registers a global function `runtime.cuTensorMapEncodeTiled` that can be
+ * called from other parts of the TVM runtime (e.g., Python). It wraps the CUDA Driver API
+ * function `cuTensorMapEncodeTiled`, which initializes a tensor map descriptor (CUtensorMap).
+ *
+ * \param tensor_map (handle): A `void*` pointer to the CUtensorMap object to be initialized.
+ * \param tensor_dtype (DataType): The TVM data type of the tensor.
+ * \param tensor_rank (int): The rank (number of dimensions) of the tensor.
+ * \param tensor_ptr (handle): A `void*` pointer to the start of the tensor in global memory.
+ * \param global_shape (int...): `tensor_rank` integer arguments for the global tensor dimensions.
+ * \param global_strides (int...): `tensor_rank - 1` integer arguments for the global tensor
+ * strides. The stride for the innermost dimension is not provided as it's assumed to be contiguous.
+ * \param shared_shape (int...): `tensor_rank` integer arguments for the shape of the tile (box)
+ * in shared memory.
+ * \param shared_strides (int...): `tensor_rank` integer arguments for the strides of the tile (box)
+ * in shared memory.
+ * \param interleaved_kind (int): An integer corresponding to the CUtensorMapInterleave enum.
+ * \param swizzle_kind (int): An integer corresponding to the CUtensorMapSwizzle enum.
+ * \param l2_promotion_kind (int): An integer corresponding to the CUtensorMapL2promotion enum.
+ * \param oob_fill_kind (int): An integer corresponding to the CUtensorMapFloatOOBfill enum.
+ */
 TVM_FFI_REGISTER_GLOBAL("runtime.cuTensorMapEncodeTiled")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       CHECK_GE(args.size(), 4) << "init_cuTensorMap expects at least 4 arguments";
