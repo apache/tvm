@@ -31,13 +31,11 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   Trace trace_;
 
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `state_` is not visited
-    // `error_render_level_` is not visited
-    // `symbol_table_` is not visited
-    // `analyzer_` is not visitied
-    // `trace_` is not visited
+  static void RegisterReflection() {
+    // No fields to register as they are not visited
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   ~TracedScheduleNode() = default;
 

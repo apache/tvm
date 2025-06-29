@@ -38,6 +38,12 @@ namespace tvm {
 namespace te {
 using namespace tir;
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  OperationNode::RegisterReflection();
+  BaseComputeOpNode::RegisterReflection();
+  ComputeOpNode::RegisterReflection();
+});
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ComputeOpNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const ComputeOpNode*>(node.get());

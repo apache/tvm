@@ -741,11 +741,15 @@ class TensorizeInfoNode : public Object {
    */
   Optional<Array<Integer>> block_iter_paddings;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("loop_map", &loop_map);
-    v->Visit("desc_loop_indexer", &desc_loop_indexer);
-    v->Visit("block_iter_paddings", &block_iter_paddings);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TensorizeInfoNode>()
+        .def_ro("loop_map", &TensorizeInfoNode::loop_map)
+        .def_ro("desc_loop_indexer", &TensorizeInfoNode::desc_loop_indexer)
+        .def_ro("block_iter_paddings", &TensorizeInfoNode::block_iter_paddings);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "tir.schedule.TensorizeInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorizeInfoNode, Object);
@@ -785,13 +789,17 @@ class AutoTensorizeMappingInfoNode : public Object {
   /*! \brief Block iters on RHS */
   Array<IterVar> rhs_iters;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("mappings", &mappings);
-    v->Visit("lhs_buffer_map", &lhs_buffer_map);
-    v->Visit("rhs_buffer_indices", &rhs_buffer_indices);
-    v->Visit("lhs_iters", &lhs_iters);
-    v->Visit("rhs_iters", &rhs_iters);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AutoTensorizeMappingInfoNode>()
+        .def_ro("mappings", &AutoTensorizeMappingInfoNode::mappings)
+        .def_ro("lhs_buffer_map", &AutoTensorizeMappingInfoNode::lhs_buffer_map)
+        .def_ro("rhs_buffer_indices", &AutoTensorizeMappingInfoNode::rhs_buffer_indices)
+        .def_ro("lhs_iters", &AutoTensorizeMappingInfoNode::lhs_iters)
+        .def_ro("rhs_iters", &AutoTensorizeMappingInfoNode::rhs_iters);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "tir.schedule.AutoTensorizeMappingInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(AutoTensorizeMappingInfoNode, Object);

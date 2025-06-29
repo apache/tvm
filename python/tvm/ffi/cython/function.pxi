@@ -297,6 +297,9 @@ def _add_class_attrs_by_reflection(int type_index, object cls):
             else None
         )
         name = py_str(PyBytes_FromStringAndSize(field.name.data, field.name.size))
+        if hasattr(cls, name):
+            # skip already defined attributes
+            continue
         setattr(cls, name, property(getter, setter, doc=doc))
 
     for i in range(num_methods):
@@ -319,6 +322,10 @@ def _add_class_attrs_by_reflection(int type_index, object cls):
         if doc is not None:
             method_pyfunc.__doc__ = doc
             method_pyfunc.__name__ = name
+
+        if hasattr(cls, name):
+            # skip already defined attributes
+            continue
 
         setattr(cls, name, method_pyfunc)
 

@@ -29,6 +29,9 @@
 namespace tvm {
 namespace te {
 using namespace tir;
+
+TVM_FFI_STATIC_INIT_BLOCK({ ExternOpNode::RegisterReflection(); });
+
 // ExternOpNode
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ExternOpNode>([](const ObjectRef& node, ReprPrinter* p) {

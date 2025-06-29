@@ -23,6 +23,8 @@
 namespace tvm {
 namespace tir {
 
+TVM_FFI_STATIC_INIT_BLOCK({ BlockDependenceInfoNode::RegisterReflection(); });
+
 /**
  * @brief A helper class to collect and build Block Dependences using BlockScope class
  */

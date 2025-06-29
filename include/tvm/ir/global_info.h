@@ -25,6 +25,7 @@
 #ifndef TVM_IR_GLOBAL_INFO_H_
 #define TVM_IR_GLOBAL_INFO_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/expr.h>
 #include <tvm/target/target.h>
 
@@ -68,11 +69,16 @@ class VDeviceNode : public GlobalInfoNode {
    */
   int vdevice_id;
   MemoryScope memory_scope;
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("target", &target);
-    v->Visit("vdevice_id", &vdevice_id);
-    v->Visit("memory_scope", &memory_scope);
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<VDeviceNode>()
+        .def_ro("target", &VDeviceNode::target)
+        .def_ro("vdevice_id", &VDeviceNode::vdevice_id)
+        .def_ro("memory_scope", &VDeviceNode::memory_scope);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   TVM_DLL bool SEqualReduce(const VDeviceNode* other, SEqualReducer equal) const {
     return equal(target, other->target) && equal(vdevice_id, other->vdevice_id) &&
@@ -103,7 +109,13 @@ class VDevice : public GlobalInfo {
  */
 class DummyGlobalInfoNode : public GlobalInfoNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DummyGlobalInfoNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "DummyGlobalInfo";
 
   TVM_DLL bool SEqualReduce(const DummyGlobalInfoNode* other, SEqualReducer equal) const {

@@ -348,7 +348,12 @@ class ModulePassNode : public PassNode {
 
   ModulePassNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("pass_info", &pass_info); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ModulePassNode>().def_ro("pass_info", &ModulePassNode::pass_info);
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Run a module pass on given pass context.
@@ -524,6 +529,13 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
         p->stream << "]\n";
       }
     });
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  PassContextNode::RegisterReflection();
+  PassInfoNode::RegisterReflection();
+  SequentialNode::RegisterReflection();
+  ModulePassNode::RegisterReflection();
+});
 
 TVM_REGISTER_NODE_TYPE(ModulePassNode);
 

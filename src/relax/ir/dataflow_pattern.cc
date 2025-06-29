@@ -28,15 +28,39 @@
 #include <stack>
 #include <string>
 
+namespace tvm {
+namespace relax {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  PatternSeqNode::RegisterReflection();
+  ExprPatternNode::RegisterReflection();
+  VarPatternNode::RegisterReflection();
+  DataflowVarPatternNode::RegisterReflection();
+  CallPatternNode::RegisterReflection();
+  PrimArrPatternNode::RegisterReflection();
+  FunctionPatternNode::RegisterReflection();
+  TuplePatternNode::RegisterReflection();
+  UnorderedTuplePatternNode::RegisterReflection();
+  TupleGetItemPatternNode::RegisterReflection();
+  AndPatternNode::RegisterReflection();
+  OrPatternNode::RegisterReflection();
+  NotPatternNode::RegisterReflection();
+  WildcardPatternNode::RegisterReflection();
+  StructInfoPatternNode::RegisterReflection();
+  ShapePatternNode::RegisterReflection();
+  SameShapeConstraintNode::RegisterReflection();
+  DataTypePatternNode::RegisterReflection();
+  AttrPatternNode::RegisterReflection();
+  ExternFuncPatternNode::RegisterReflection();
+  ConstantPatternNode::RegisterReflection();
+});
+
 #define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                 \
   TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)                              \
       .set_dispatch<NODE_TYPE>([](const ObjectRef& ref, ReprPrinter* p) { \
         auto* node = static_cast<const NODE_TYPE*>(ref.get());            \
         REPR_LAMBDA(p, node);                                             \
       })
-
-namespace tvm {
-namespace relax {
 
 TVM_REGISTER_NODE_TYPE(ExternFuncPatternNode);
 ExternFuncPattern::ExternFuncPattern(String global_symbol) {

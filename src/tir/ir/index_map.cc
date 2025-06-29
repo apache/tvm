@@ -24,6 +24,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/tir/index_map.h>
 #include <tvm/tir/op.h>
@@ -33,6 +34,8 @@
 
 namespace tvm {
 namespace tir {
+
+TVM_FFI_STATIC_INIT_BLOCK({ IndexMapNode::RegisterReflection(); });
 
 IndexMap::IndexMap(Array<Var> initial_indices, Array<PrimExpr> final_indices,
                    Optional<IndexMap> inverse_index_map) {

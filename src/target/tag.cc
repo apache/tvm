@@ -31,6 +31,8 @@
 
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK({ TargetTagNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(TargetTagNode);
 
 TVM_FFI_REGISTER_GLOBAL("target.TargetTagListTags").set_body_typed(TargetTag::ListTags);

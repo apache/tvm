@@ -26,6 +26,7 @@
 #ifndef TVM_IR_DIAGNOSTIC_H_
 #define TVM_IR_DIAGNOSTIC_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/module.h>
 
 #include <sstream>
@@ -65,12 +66,15 @@ class DiagnosticNode : public Object {
   /*! \brief The diagnostic message. */
   String message;
 
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("level", &level);
-    v->Visit("span", &span);
-    v->Visit("message", &message);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DiagnosticNode>()
+        .def_ro("level", &DiagnosticNode::level)
+        .def_ro("span", &DiagnosticNode::span)
+        .def_ro("message", &DiagnosticNode::message);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const DiagnosticNode* other, SEqualReducer equal) const {
     return equal(this->level, other->level) && equal(this->span, other->span) &&
@@ -165,8 +169,12 @@ class DiagnosticRendererNode : public Object {
  public:
   ffi::TypedFunction<void(DiagnosticContext ctx)> renderer;
 
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DiagnosticRendererNode>().def_ro("renderer", &DiagnosticRendererNode::renderer);
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "DiagnosticRenderer";
   TVM_DECLARE_FINAL_OBJECT_INFO(DiagnosticRendererNode, Object);
@@ -199,10 +207,14 @@ class DiagnosticContextNode : public Object {
   /*! \brief The renderer set for the context. */
   DiagnosticRenderer renderer;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("module", &module);
-    v->Visit("diagnostics", &diagnostics);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DiagnosticContextNode>()
+        .def_ro("module", &DiagnosticContextNode::module)
+        .def_ro("diagnostics", &DiagnosticContextNode::diagnostics);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const DiagnosticContextNode* other, SEqualReducer equal) const {
     return equal(module, other->module) && equal(diagnostics, other->diagnostics);

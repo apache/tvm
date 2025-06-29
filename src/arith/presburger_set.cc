@@ -44,6 +44,8 @@ namespace arith {
 
 #ifdef TVM_MLIR_VERSION
 #if TVM_MLIR_VERSION >= 150
+
+TVM_FFI_STATIC_INIT_BLOCK({ PresburgerSetNode::RegisterReflection(); });
 using namespace tir;
 
 static void Update(const PrimExpr& constraint, PresburgerSetNode* intset) {

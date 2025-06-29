@@ -305,6 +305,13 @@ const Plugin GetPlugin(const String& name) { return PluginRegistry::Global()->Ge
 
 bool IsPlugin(const String& name) { return PluginRegistry::Global()->Registered(name); }
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  PluginAttrNode::RegisterReflection();
+  PluginTensorNode::RegisterReflection();
+  PluginExternNode::RegisterReflection();
+  PluginNode::RegisterReflection();
+});
+
 TVM_FFI_REGISTER_GLOBAL("msc.core.RegisterPlugin")
     .set_body_typed([](const String& name, const String& json_str) {
       PluginRegistry::Global()->Register(name, json_str);

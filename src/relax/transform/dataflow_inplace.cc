@@ -23,6 +23,7 @@
  *   into in-place versions.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
@@ -524,14 +525,20 @@ class InplaceOpportunityNode : public Object {
   Integer binding_idx;
   Array<Integer> arg_idxs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("binding_idx", &binding_idx);
-    v->Visit("arg_idxs", &arg_idxs);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<InplaceOpportunityNode>()
+        .def_ro("binding_idx", &InplaceOpportunityNode::binding_idx)
+        .def_ro("arg_idxs", &InplaceOpportunityNode::arg_idxs);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "relax.transform.InplaceOpportunity";
   TVM_DECLARE_BASE_OBJECT_INFO(InplaceOpportunityNode, Object);
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ InplaceOpportunityNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(InplaceOpportunityNode);
 

@@ -21,6 +21,7 @@
  * \file src/relax/py_expr_functor.cc
  * \brief The backbone of PyExprVisitor/PyExprMutator.
  */
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/expr_functor.h>
 
 namespace tvm {
@@ -136,7 +137,12 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
   void VisitSpan(const Span& span)
       PY_EXPR_VISITOR_DEFAULT(span, f_visit_span, ExprVisitor::VisitSpan(span));
 
-  void VisitAttrs(AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // PyExprVisitorNode has no fields to register
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "expr_functor.PyExprVisitor";
   TVM_DECLARE_BASE_OBJECT_INFO(PyExprVisitorNode, Object);
 
@@ -393,7 +399,13 @@ class PyExprMutatorNode : public Object, public ExprMutator {
   using ExprMutator::VisitWithNewScope;
   using ExprMutator::WithStructInfo;
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("builder_", &builder_); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PyExprMutatorNode>().def_ro("builder_", &PyExprMutatorNode::builder_);
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "expr_functor.PyExprMutator";
   TVM_DECLARE_BASE_OBJECT_INFO(PyExprMutatorNode, Object);
 
@@ -688,6 +700,11 @@ TVM_FFI_REGISTER_GLOBAL("relax.PyExprMutatorSetVarRemap")
 
 TVM_FFI_REGISTER_GLOBAL("relax.PyExprMutatorGetVarRemap")
     .set_body_typed([](PyExprMutator mutator, Id id) { return mutator->var_remap_[id]; });
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  PyExprVisitorNode::RegisterReflection();
+  PyExprMutatorNode::RegisterReflection();
+});
 
 }  // namespace relax
 }  // namespace tvm

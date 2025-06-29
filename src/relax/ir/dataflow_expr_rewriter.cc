@@ -22,6 +22,7 @@
  * \brief A transform to match a Relax Expr and rewrite
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/transform.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/relax/analysis.h>
@@ -661,7 +662,6 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
   Function func_replacement = [&]() {
     CHECK(mod->ContainGlobalVar("replacement"))
         << "KeyError: "
-
         << "Expected module to contain 'replacement', "
         << "a Relax function defining the replacement to be matched, "
         << "but the module did not contain a 'replacement' function.";
@@ -1074,6 +1074,13 @@ Function RewriteCall(const DFPattern& pat,
 }
 
 TVM_FFI_REGISTER_GLOBAL("relax.dpl.rewrite_call").set_body_typed(RewriteCall);
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  PatternMatchingRewriterNode::RegisterReflection();
+  ExprPatternRewriterNode::RegisterReflection();
+  OrRewriterNode::RegisterReflection();
+  TupleRewriterNode::RegisterReflection();
+});
 
 }  // namespace relax
 }  // namespace tvm
