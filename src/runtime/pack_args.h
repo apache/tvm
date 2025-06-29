@@ -64,14 +64,15 @@ union ArgUnion64 {
  *
  * \param f with signiture (ffi::PackedArgs args, ffi::Any* rv, void* void_args)
  * \param arg_types The arguments type information.
- * \param arg_is_tensormap mark whether the argument is a tensormap
+ * \param arg_extra_tags extra tags for the arguments
  * \tparam F the function type
  *
  * \return The wrapped packed function.
  */
 template <typename F>
-inline ffi::Function PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types,
-                                      const std::vector<int>& arg_is_tensormap = {});
+inline ffi::Function PackFuncVoidAddr(
+    F f, const std::vector<DLDataType>& arg_types,
+    const std::vector<FunctionInfo::ArgExtraTags>& arg_extra_tags = {});
 /*!
  * \brief Create a packed function that from function only packs buffer arguments.
  *
