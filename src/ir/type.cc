@@ -25,6 +25,13 @@
 #include <tvm/ir/type.h>
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  PrimTypeNode::RegisterReflection();
+  PointerTypeNode::RegisterReflection();
+  TupleTypeNode::RegisterReflection();
+  FuncTypeNode::RegisterReflection();
+});
+
 PrimType::PrimType(runtime::DataType dtype, Span span) {
   ObjectPtr<PrimTypeNode> n = make_object<PrimTypeNode>();
   n->dtype = dtype;

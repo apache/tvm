@@ -37,6 +37,8 @@
 namespace tvm {
 namespace tir {
 
+TVM_FFI_STATIC_INIT_BLOCK({ BufferNode::RegisterReflection(); });
+
 using IndexMod = tir::FloorModNode;
 using IndexDiv = tir::FloorDivNode;
 

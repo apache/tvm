@@ -35,6 +35,8 @@
 
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK({ IRModuleNode::RegisterReflection(); });
+
 IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions, SourceMap source_map, DictAttrs attrs,
                    Map<String, Array<GlobalInfo>> global_infos) {
   auto n = make_object<IRModuleNode>();

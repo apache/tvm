@@ -24,8 +24,12 @@
 #ifndef TVM_TARGET_TARGET_H_
 #define TVM_TARGET_TARGET_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/expr.h>
+#include <tvm/ir/function.h>
+#include <tvm/node/attr_registry_map.h>
 #include <tvm/node/node.h>
+#include <tvm/runtime/device_api.h>
 #include <tvm/support/with.h>
 #include <tvm/target/target_kind.h>
 
@@ -89,13 +93,15 @@ class TargetNode : public Object {
    */
   String ToDebugString() const;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("kind", &kind);
-    v->Visit("tag", &tag);
-    v->Visit("keys", &keys);
-    v->Visit("attrs", &attrs);
-    v->Visit("features", &features);
-    v->Visit("host", &host);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TargetNode>()
+        .def_ro("kind", &TargetNode::kind)
+        .def_ro("tag", &TargetNode::tag)
+        .def_ro("keys", &TargetNode::keys)
+        .def_ro("attrs", &TargetNode::attrs)
+        .def_ro("features", &TargetNode::features)
+        .def_ro("host", &TargetNode::host);
   }
 
   /*!
@@ -171,6 +177,7 @@ class TargetNode : public Object {
   void SHashReduce(SHashReducer hash_reduce) const;
 
   static constexpr const char* _type_key = "Target";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetNode, Object);

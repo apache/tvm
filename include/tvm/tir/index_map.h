@@ -151,11 +151,15 @@ class IndexMapNode : public Object {
   String ToPythonString(
       const std::function<Optional<String>(const Var& var)>& f_name_map = nullptr) const;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("initial_indices", &initial_indices);
-    v->Visit("final_indices", &final_indices);
-    v->Visit("inverse_index_map", &inverse_index_map);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IndexMapNode>()
+        .def_ro("initial_indices", &IndexMapNode::initial_indices)
+        .def_ro("final_indices", &IndexMapNode::final_indices)
+        .def_ro("inverse_index_map", &IndexMapNode::inverse_index_map);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const IndexMapNode* other, SEqualReducer equal) const {
     return equal.DefEqual(initial_indices, other->initial_indices) &&

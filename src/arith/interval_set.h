@@ -25,6 +25,7 @@
 #define TVM_ARITH_INTERVAL_SET_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/op.h>
 
 #include <limits>
@@ -49,10 +50,14 @@ class IntervalSetNode : public IntSetNode {
   PrimExpr max_value;
 
   // visitor overload.
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("min_value", &min_value);
-    v->Visit("max_value", &max_value);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IntervalSetNode>()
+        .def_ro("min_value", &IntervalSetNode::min_value)
+        .def_ro("max_value", &IntervalSetNode::max_value);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   /*! \return Whether the interval has upper bound. */
   bool HasUpperBound() const { return !is_pos_inf(max_value) && !IsEmpty(); }
@@ -60,12 +65,11 @@ class IntervalSetNode : public IntSetNode {
   bool HasLowerBound() const { return !is_neg_inf(min_value) && !IsEmpty(); }
   /*! \return Whether the interval is a single point. */
   bool IsSinglePoint() const {
-    if (min_value.same_as(max_value)) {
-      return true;
-    }
-    Analyzer analyzer;
-    return analyzer.CanProveEqual(min_value, max_value);
+    // NOTE: we are only doing cheap check as this is a frequently called routine,
+    // do manual prove of min and max for stronger single point check.
+    return min_value.same_as(max_value);
   }
+
   /*! \return whether interval represent nothing */
   bool IsEmpty() const {
     // during computations, either extreme could occur.

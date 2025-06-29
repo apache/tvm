@@ -22,6 +22,7 @@
  * \brief The function data structure.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
@@ -29,6 +30,12 @@
 
 namespace tvm {
 namespace tir {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  PrimFuncNode::RegisterReflection();
+  TensorIntrinNode::RegisterReflection();
+});
+
 namespace {
 relax::StructInfo InferStructInfo(const PrimFunc& prim_func) {
   Array<relax::StructInfo> params;
