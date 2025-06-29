@@ -25,6 +25,36 @@ namespace tvm {
 namespace script {
 namespace printer {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  DocNode::RegisterReflection();
+  ExprDocNode::RegisterReflection();
+  StmtDocNode::RegisterReflection();
+  StmtBlockDocNode::RegisterReflection();
+  LiteralDocNode::RegisterReflection();
+  IdDocNode::RegisterReflection();
+  AttrAccessDocNode::RegisterReflection();
+  IndexDocNode::RegisterReflection();
+  CallDocNode::RegisterReflection();
+  OperationDocNode::RegisterReflection();
+  LambdaDocNode::RegisterReflection();
+  TupleDocNode::RegisterReflection();
+  ListDocNode::RegisterReflection();
+  DictDocNode::RegisterReflection();
+  SliceDocNode::RegisterReflection();
+  AssignDocNode::RegisterReflection();
+  IfDocNode::RegisterReflection();
+  WhileDocNode::RegisterReflection();
+  ForDocNode::RegisterReflection();
+  ScopeDocNode::RegisterReflection();
+  ExprStmtDocNode::RegisterReflection();
+  AssertDocNode::RegisterReflection();
+  ReturnDocNode::RegisterReflection();
+  FunctionDocNode::RegisterReflection();
+  ClassDocNode::RegisterReflection();
+  CommentDocNode::RegisterReflection();
+  DocStringDocNode::RegisterReflection();
+});
+
 ExprDoc ExprDocNode::Attr(String attr) const { return AttrAccessDoc(GetRef<ExprDoc>(this), attr); }
 
 ExprDoc ExprDocNode::operator[](Array<Doc> indices) const {

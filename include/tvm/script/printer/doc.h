@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_DOC_H_
 #define TVM_SCRIPT_PRINTER_DOC_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
@@ -62,9 +63,13 @@ class DocNode : public Object {
    */
   mutable Array<ObjectPath> source_paths;
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("source_paths", &source_paths); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DocNode>().def_ro("source_paths", &DocNode::source_paths);
+  }
 
   static constexpr const char* _type_key = "script.printer.Doc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_BASE_OBJECT_INFO(DocNode, Object);
 
  public:
@@ -121,9 +126,13 @@ class ExprDocNode : public DocNode {
                Array<String> kwargs_keys,  //
                Array<ExprDoc, void> kwargs_values) const;
 
-  void VisitAttrs(AttrVisitor* v) { DocNode::VisitAttrs(v); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ExprDocNode>();
+  }
 
   static constexpr const char* _type_key = "script.printer.ExprDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_BASE_OBJECT_INFO(ExprDocNode, DocNode);
 };
 
@@ -163,12 +172,13 @@ class StmtDocNode : public DocNode {
    * */
   mutable Optional<String> comment{std::nullopt};
 
-  void VisitAttrs(AttrVisitor* v) {
-    DocNode::VisitAttrs(v);
-    v->Visit("comment", &comment);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<StmtDocNode>().def_ro("comment", &StmtDocNode::comment);
   }
 
   static constexpr const char* _type_key = "script.printer.StmtDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_BASE_OBJECT_INFO(StmtDocNode, DocNode);
 };
 
@@ -196,12 +206,13 @@ class StmtBlockDocNode : public DocNode {
   /*! \brief The list of statements. */
   Array<StmtDoc> stmts;
 
-  void VisitAttrs(AttrVisitor* v) {
-    DocNode::VisitAttrs(v);
-    v->Visit("stmts", &stmts);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<StmtBlockDocNode>().def_ro("stmts", &StmtBlockDocNode::stmts);
   }
 
   static constexpr const char* _type_key = "script.printer.StmtBlockDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(StmtBlockDocNode, DocNode);
 };
 
@@ -237,12 +248,13 @@ class LiteralDocNode : public ExprDocNode {
    */
   ObjectRef value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    ExprDocNode::VisitAttrs(v);
-    v->Visit("value", &value);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LiteralDocNode>().def_ro("value", &LiteralDocNode::value);
   }
 
   static constexpr const char* _type_key = "script.printer.LiteralDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(LiteralDocNode, ExprDocNode);
 };
 
@@ -326,12 +338,13 @@ class IdDocNode : public ExprDocNode {
   /*! \brief The name of the identifier */
   String name;
 
-  void VisitAttrs(AttrVisitor* v) {
-    ExprDocNode::VisitAttrs(v);
-    v->Visit("name", &name);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IdDocNode>().def_ro("name", &IdDocNode::name);
   }
 
   static constexpr const char* _type_key = "script.printer.IdDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(IdDocNode, ExprDocNode);
 };
 
@@ -363,13 +376,15 @@ class AttrAccessDocNode : public ExprDocNode {
   /*! \brief The attribute to be accessed */
   String name;
 
-  void VisitAttrs(AttrVisitor* v) {
-    ExprDocNode::VisitAttrs(v);
-    v->Visit("value", &value);
-    v->Visit("name", &name);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AttrAccessDocNode>()
+        .def_ro("value", &AttrAccessDocNode::value)
+        .def_ro("name", &AttrAccessDocNode::name);
   }
 
   static constexpr const char* _type_key = "script.printer.AttrAccessDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrAccessDocNode, ExprDocNode);
 };
 
@@ -407,13 +422,15 @@ class IndexDocNode : public ExprDocNode {
    */
   Array<Doc> indices;  // Each element is union of: Slice / ExprDoc
 
-  void VisitAttrs(AttrVisitor* v) {
-    ExprDocNode::VisitAttrs(v);
-    v->Visit("value", &value);
-    v->Visit("indices", &indices);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IndexDocNode>()
+        .def_ro("value", &IndexDocNode::value)
+        .def_ro("indices", &IndexDocNode::indices);
   }
 
   static constexpr const char* _type_key = "script.printer.IndexDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(IndexDocNode, ExprDocNode);
 };
 
@@ -454,15 +471,17 @@ class CallDocNode : public ExprDocNode {
    */
   Array<ExprDoc> kwargs_values;
 
-  void VisitAttrs(AttrVisitor* v) {
-    ExprDocNode::VisitAttrs(v);
-    v->Visit("callee", &callee);
-    v->Visit("args", &args);
-    v->Visit("kwargs_keys", &kwargs_keys);
-    v->Visit("kwargs_values", &kwargs_values);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<CallDocNode>()
+        .def_ro("callee", &CallDocNode::callee)
+        .def_ro("args", &CallDocNode::args)
+        .def_ro("kwargs_keys", &CallDocNode::kwargs_keys)
+        .def_ro("kwargs_values", &CallDocNode::kwargs_values);
   }
 
   static constexpr const char* _type_key = "script.printer.CallDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(CallDocNode, ExprDocNode);
 };
 
@@ -538,13 +557,15 @@ class OperationDocNode : public ExprDocNode {
   /*! \brief Operands of this expression */
   Array<ExprDoc> operands;
 
-  void VisitAttrs(AttrVisitor* v) {
-    ExprDocNode::VisitAttrs(v);
-    v->Visit("kind", &kind);
-    v->Visit("operands", &operands);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<OperationDocNode>()
+        .def_ro("kind", &OperationDocNode::kind)
+        .def_ro("operands", &OperationDocNode::operands);
   }
 
   static constexpr const char* _type_key = "script.printer.OperationDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(OperationDocNode, ExprDocNode);
 };
 
@@ -579,13 +600,15 @@ class LambdaDocNode : public ExprDocNode {
   /*! \brief The body of this anonymous function */
   ExprDoc body{nullptr};
 
-  void VisitAttrs(AttrVisitor* v) {
-    ExprDocNode::VisitAttrs(v);
-    v->Visit("args", &args);
-    v->Visit("body", &body);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LambdaDocNode>()
+        .def_ro("args", &LambdaDocNode::args)
+        .def_ro("body", &LambdaDocNode::body);
   }
 
   static constexpr const char* _type_key = "script.printer.LambdaDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(LambdaDocNode, ExprDocNode);
 };
 
@@ -615,12 +638,13 @@ class TupleDocNode : public ExprDocNode {
   /*! \brief Elements of tuple */
   Array<ExprDoc> elements;
 
-  void VisitAttrs(AttrVisitor* v) {
-    ExprDocNode::VisitAttrs(v);
-    v->Visit("elements", &elements);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TupleDocNode>().def_ro("elements", &TupleDocNode::elements);
   }
 
   static constexpr const char* _type_key = "script.printer.TupleDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleDocNode, ExprDocNode);
 };
 
@@ -653,12 +677,13 @@ class ListDocNode : public ExprDocNode {
   /*! \brief Elements of list */
   Array<ExprDoc> elements;
 
-  void VisitAttrs(AttrVisitor* v) {
-    ExprDocNode::VisitAttrs(v);
-    v->Visit("elements", &elements);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ListDocNode>().def_ro("elements", &ListDocNode::elements);
   }
 
   static constexpr const char* _type_key = "script.printer.ListDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(ListDocNode, ExprDocNode);
 };
 
@@ -698,13 +723,15 @@ class DictDocNode : public ExprDocNode {
    */
   Array<ExprDoc> values;
 
-  void VisitAttrs(AttrVisitor* v) {
-    ExprDocNode::VisitAttrs(v);
-    v->Visit("keys", &keys);
-    v->Visit("values", &values);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DictDocNode>()
+        .def_ro("keys", &DictDocNode::keys)
+        .def_ro("values", &DictDocNode::values);
   }
 
   static constexpr const char* _type_key = "script.printer.DictDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(DictDocNode, ExprDocNode);
 };
 
@@ -744,14 +771,16 @@ class SliceDocNode : public DocNode {
   /*! \brief The step of slice */
   Optional<ExprDoc> step;
 
-  void VisitAttrs(AttrVisitor* v) {
-    DocNode::VisitAttrs(v);
-    v->Visit("start", &start);
-    v->Visit("stop", &stop);
-    v->Visit("step", &step);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SliceDocNode>()
+        .def_ro("start", &SliceDocNode::start)
+        .def_ro("stop", &SliceDocNode::stop)
+        .def_ro("step", &SliceDocNode::step);
   }
 
   static constexpr const char* _type_key = "script.printer.SliceDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(SliceDocNode, DocNode);
 };
 
@@ -790,14 +819,16 @@ class AssignDocNode : public StmtDocNode {
   /*! \brief The type annotation of this assignment. */
   Optional<ExprDoc> annotation;
 
-  void VisitAttrs(AttrVisitor* v) {
-    StmtDocNode::VisitAttrs(v);
-    v->Visit("lhs", &lhs);
-    v->Visit("rhs", &rhs);
-    v->Visit("annotation", &annotation);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AssignDocNode>()
+        .def_ro("lhs", &AssignDocNode::lhs)
+        .def_ro("rhs", &AssignDocNode::rhs)
+        .def_ro("annotation", &AssignDocNode::annotation);
   }
 
   static constexpr const char* _type_key = "script.printer.AssignDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(AssignDocNode, StmtDocNode);
 };
 
@@ -832,14 +863,16 @@ class IfDocNode : public StmtDocNode {
   /*! \brief The else branch of the if-then-else statement. */
   Array<StmtDoc> else_branch;
 
-  void VisitAttrs(AttrVisitor* v) {
-    StmtDocNode::VisitAttrs(v);
-    v->Visit("predicate", &predicate);
-    v->Visit("then_branch", &then_branch);
-    v->Visit("else_branch", &else_branch);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IfDocNode>()
+        .def_ro("predicate", &IfDocNode::predicate)
+        .def_ro("then_branch", &IfDocNode::then_branch)
+        .def_ro("else_branch", &IfDocNode::else_branch);
   }
 
   static constexpr const char* _type_key = "script.printer.IfDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(IfDocNode, StmtDocNode);
 };
 
@@ -872,13 +905,15 @@ class WhileDocNode : public StmtDocNode {
   /*! \brief The body of the while statement. */
   Array<StmtDoc> body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    StmtDocNode::VisitAttrs(v);
-    v->Visit("predicate", &predicate);
-    v->Visit("body", &body);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<WhileDocNode>()
+        .def_ro("predicate", &WhileDocNode::predicate)
+        .def_ro("body", &WhileDocNode::body);
   }
 
   static constexpr const char* _type_key = "script.printer.WhileDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(WhileDocNode, StmtDocNode);
 };
 
@@ -916,14 +951,16 @@ class ForDocNode : public StmtDocNode {
   /*! \brief The body of the for statement. */
   Array<StmtDoc> body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    StmtDocNode::VisitAttrs(v);
-    v->Visit("lhs", &lhs);
-    v->Visit("rhs", &rhs);
-    v->Visit("body", &body);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ForDocNode>()
+        .def_ro("lhs", &ForDocNode::lhs)
+        .def_ro("rhs", &ForDocNode::rhs)
+        .def_ro("body", &ForDocNode::body);
   }
 
   static constexpr const char* _type_key = "script.printer.ForDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(ForDocNode, StmtDocNode);
 };
 
@@ -963,14 +1000,16 @@ class ScopeDocNode : public StmtDocNode {
   /*! \brief The body of the scope doc. */
   Array<StmtDoc> body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    StmtDocNode::VisitAttrs(v);
-    v->Visit("lhs", &lhs);
-    v->Visit("rhs", &rhs);
-    v->Visit("body", &body);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ScopeDocNode>()
+        .def_ro("lhs", &ScopeDocNode::lhs)
+        .def_ro("rhs", &ScopeDocNode::rhs)
+        .def_ro("body", &ScopeDocNode::body);
   }
 
   static constexpr const char* _type_key = "script.printer.ScopeDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(ScopeDocNode, StmtDocNode);
 };
 
@@ -1009,12 +1048,13 @@ class ExprStmtDocNode : public StmtDocNode {
   /*! \brief The expression represented by this doc. */
   ExprDoc expr{nullptr};
 
-  void VisitAttrs(AttrVisitor* v) {
-    StmtDocNode::VisitAttrs(v);
-    v->Visit("expr", &expr);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ExprStmtDocNode>().def_ro("expr", &ExprStmtDocNode::expr);
   }
 
   static constexpr const char* _type_key = "script.printer.ExprStmtDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(ExprStmtDocNode, StmtDocNode);
 };
 
@@ -1045,13 +1085,15 @@ class AssertDocNode : public StmtDocNode {
   /*! \brief The optional error message when assertion failed. */
   Optional<ExprDoc> msg{std::nullopt};
 
-  void VisitAttrs(AttrVisitor* v) {
-    StmtDocNode::VisitAttrs(v);
-    v->Visit("test", &test);
-    v->Visit("msg", &msg);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AssertDocNode>()
+        .def_ro("test", &AssertDocNode::test)
+        .def_ro("msg", &AssertDocNode::msg);
   }
 
   static constexpr const char* _type_key = "script.printer.AssertDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(AssertDocNode, StmtDocNode);
 };
 
@@ -1081,12 +1123,13 @@ class ReturnDocNode : public StmtDocNode {
   /*! \brief The value to return. */
   ExprDoc value{nullptr};
 
-  void VisitAttrs(AttrVisitor* v) {
-    StmtDocNode::VisitAttrs(v);
-    v->Visit("value", &value);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ReturnDocNode>().def_ro("value", &ReturnDocNode::value);
   }
 
   static constexpr const char* _type_key = "script.printer.ReturnDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(ReturnDocNode, StmtDocNode);
 };
 
@@ -1129,16 +1172,18 @@ class FunctionDocNode : public StmtDocNode {
   /*! \brief The body of function. */
   Array<StmtDoc> body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    StmtDocNode::VisitAttrs(v);
-    v->Visit("name", &name);
-    v->Visit("args", &args);
-    v->Visit("decorators", &decorators);
-    v->Visit("return_type", &return_type);
-    v->Visit("body", &body);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FunctionDocNode>()
+        .def_ro("name", &FunctionDocNode::name)
+        .def_ro("args", &FunctionDocNode::args)
+        .def_ro("decorators", &FunctionDocNode::decorators)
+        .def_ro("return_type", &FunctionDocNode::return_type)
+        .def_ro("body", &FunctionDocNode::body);
   }
 
   static constexpr const char* _type_key = "script.printer.FunctionDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionDocNode, StmtDocNode);
 };
 
@@ -1176,14 +1221,16 @@ class ClassDocNode : public StmtDocNode {
   /*! \brief The body of class. */
   Array<StmtDoc> body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    StmtDocNode::VisitAttrs(v);
-    v->Visit("name", &name);
-    v->Visit("decorators", &decorators);
-    v->Visit("body", &body);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ClassDocNode>()
+        .def_ro("name", &ClassDocNode::name)
+        .def_ro("decorators", &ClassDocNode::decorators)
+        .def_ro("body", &ClassDocNode::body);
   }
 
   static constexpr const char* _type_key = "script.printer.ClassDoc";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(ClassDocNode, StmtDocNode);
 };
 
@@ -1211,6 +1258,11 @@ class ClassDoc : public StmtDoc {
  */
 class CommentDocNode : public StmtDocNode {
  public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<CommentDocNode>();
+  }
+
   static constexpr const char* _type_key = "script.printer.CommentDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(CommentDocNode, StmtDocNode);
 };
@@ -1233,6 +1285,11 @@ class CommentDoc : public StmtDoc {
  */
 class DocStringDocNode : public StmtDocNode {
  public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DocStringDocNode>();
+  }
+
   static constexpr const char* _type_key = "script.printer.DocStringDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(DocStringDocNode, StmtDocNode);
 };

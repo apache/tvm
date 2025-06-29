@@ -35,6 +35,8 @@
 
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK({ TargetKindNode::RegisterReflection(); });
+
 // helper to get internal dev function in objectref.
 struct TargetKind2ObjectPtr : public ObjectRef {
   static ObjectPtr<Object> Get(const TargetKind& kind) {

@@ -44,6 +44,8 @@ namespace arith {
 
 using namespace tir;
 
+TVM_FFI_STATIC_INIT_BLOCK({ RewriteSimplifierStatsNode::RegisterReflection(); });
+
 // Note: When using matches_one_of or PMatchesOneOf alongside these
 // macros, be careful which patterns are used in the ResExpr.  While
 // the different source expressions may be in terms of different PVar,

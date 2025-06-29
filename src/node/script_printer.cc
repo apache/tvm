@@ -25,6 +25,8 @@
 
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK({ PrinterConfigNode::RegisterReflection(); });
+
 TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
   static FType inst;
   return inst;
