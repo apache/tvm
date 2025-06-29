@@ -306,11 +306,12 @@ inline ffi::Function PackFuncPackedArgAligned_(F f, const std::vector<ArgConvert
 }  // namespace detail
 
 template <typename F>
-inline ffi::Function PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types,
-                                      const std::vector<int>& arg_is_tensormap) {
+inline ffi::Function PackFuncVoidAddr(
+    F f, const std::vector<DLDataType>& arg_types,
+    const std::vector<FunctionInfo::ArgExtraTags>& arg_extra_tags) {
   std::vector<detail::ArgConvertCode> codes(arg_types.size());
   for (size_t i = 0; i < arg_types.size(); ++i) {
-    if (arg_is_tensormap.size() > i && arg_is_tensormap[i]) {
+    if (arg_extra_tags.size() > i && arg_extra_tags[i] == FunctionInfo::ArgExtraTags::kTensorMap) {
       codes[i] = detail::HANDLE_TO_TENSORMAP;
     } else {
       codes[i] = detail::GetArgConvertCode(arg_types[i]);
