@@ -37,19 +37,23 @@ ExprDoc PrintVarCreation(const tir::Var& var, const ObjectPath& var_p, const IRD
   }
 
   if (const auto* ptr_type = type.as<PointerTypeNode>()) {
-    const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
-    ICHECK(prim_type);
-    ExprDoc element_type =
-        LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
-    rhs = TIR(d, "handle");
-    rhs->source_paths.push_back(var_p->Attr("dtype"));
-    if (ptr_type->storage_scope == "") {
-      rhs = rhs->Call({element_type}, kwargs_keys, kwargs_values);
-    } else {
-      rhs = rhs->Call({element_type,
-                       LiteralDoc::Str(ptr_type->storage_scope,  //
-                                       type_p->Attr("storage_scope"))},
-                      kwargs_keys, kwargs_values);
+    if (const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
+      ExprDoc element_type =
+          LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
+      rhs = TIR(d, "handle");
+      rhs->source_paths.push_back(var_p->Attr("dtype"));
+      if (ptr_type->storage_scope == "") {
+        rhs = rhs->Call({element_type}, kwargs_keys, kwargs_values);
+      } else {
+        rhs = rhs->Call({element_type,
+                         LiteralDoc::Str(ptr_type->storage_scope,  //
+                                         type_p->Attr("storage_scope"))},
+                        kwargs_keys, kwargs_values);
+      }
+    } else if (ptr_type->element_type->IsInstance<TensorMapTypeNode>()) {
+      rhs = TIR(d, "handle")
+                ->Call({LiteralDoc::Str("tensormap", type_p->Attr("element_type")->Attr("dtype"))},
+                       {}, {});
     }
   } else {
     rhs = TIR(d, DType2Str(var->dtype));

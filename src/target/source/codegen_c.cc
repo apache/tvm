@@ -93,10 +93,24 @@ void CodeGenC::PrintFunctionSignature(const String& function_name, const PrimFun
       PrintStorageScope(it->second, os);
     }
 
-    PrintType(GetType(v), os);
+    auto is_tensormap_ptr = [&]() -> bool {
+      if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+        return ptr->element_type.as<TensorMapTypeNode>();
+      }
+      return false;
+    };
+    if (is_tensormap_ptr()) {
+      os << "const __grid_constant__ CUtensorMap";
+    } else {
+      PrintType(GetType(v), os);
+    }
 
     bool no_alias = func->HasNonzeroAttr(tir::attr::kNoAlias);
     bool is_handle = v.dtype().is_handle();
+    auto* ptr = v->type_annotation.as<PointerTypeNode>();
+    if (ptr && ptr->element_type.as<TensorMapTypeNode>()) {
+      is_handle = false;
+    }
     if (no_alias && is_handle) {
       PrintRestrict(v, os);
     }

@@ -1566,6 +1566,8 @@ def handle(
     res : PrimExpr
         The new tir.Var with type handle or casted expression with type handle.
     """
+    if dtype == "tensormap":
+        return _ffi_api.TensormapHandle()  # type: ignore[attr-defined] # pylint: disable=no-member
     is_unknown_type = dtype is None
     if dtype is None:
         dtype = "void"
