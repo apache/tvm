@@ -23,6 +23,7 @@ import tvm
 import tvm.testing
 from tvm import te, topi
 from tvm.contrib.nvcc import have_bf16, have_fp16, have_int8
+from tvm.script import ir as I
 from tvm.script import tir as T
 
 
@@ -744,6 +745,29 @@ def test_invalid_reinterpret():
 
     with pytest.raises(tvm.error.TVMError):
         tvm.compile(func, target="cuda")
+
+
+@tvm.testing.requires_cuda
+def test_cuda_device_func_call():
+    @I.ir_module
+    class Module:
+        @T.prim_func(private=True)
+        def add(a: T.float32, b: T.float32) -> T.float32:
+            return a + b
+
+        @T.prim_func
+        def main(
+            A: T.Buffer((1024, 1024), "float32"),
+            B: T.Buffer((1024, 1024), "float32"),
+            C: T.Buffer((1024, 1024), "float32"),
+        ):
+            for bx in T.thread_binding(1024, "blockIdx.x"):
+                for tx in T.thread_binding(1024, "threadIdx.x"):
+                    C[bx, tx] = Module.add(A[bx, tx], B[bx, tx])
+
+    lib = tvm.compile(Module, target="cuda")
+    cuda_code = lib.mod.imported_modules[0].get_source()
+    assert 'extern "C" __device__ float add(float a, float b) {\n  return (a + b);\n}' in cuda_code
 
 
 if __name__ == "__main__":
