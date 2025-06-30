@@ -507,6 +507,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "argmax.default": self._argmax_argmin(relax.op.argmax),
             "argmin.default": self._argmax_argmin(relax.op.argmin),
             "where.self": self._where,
+            "bucketize.Tensor": self._bucketize,
             # tensor manipulation
             "argsort.default": self._argsort,
             "broadcast_to.default": self._broadcast_to,

@@ -20,8 +20,9 @@ import tvm
 from tvm import te
 
 from ..transform import strided_slice, transpose
-from ..utils import ceil_div, swap
+from ..utils import ceil_div, swap, prod
 from ..math import cast, ceil_log2
+from ..searchsorted import binary_search
 
 
 def _get_threads(ib, nthread_tx, nthread_bx, nthread_by):
@@ -937,3 +938,89 @@ def topk_thrust(
         out = out[1]
 
     return out
+
+
+def searchsorted(sorted_sequence, values, right=False, out_dtype="int64"):
+    """Find indices where elements should be inserted to maintain order.
+       If `sorted_sequence` is N-dimensional, the innermost dimension of
+       `values` are searched in the corresponding dimension of `sorted_sequence`.
+
+       This implementation is optimized for GPU execution.
+
+    Parameters
+    ----------
+    sorted_sequence : te.Tensor
+        N-D or 1-D Tensor, containing monotonically increasing sequence
+        on the innermost dimension.
+
+    values : te.Tensor
+        N-D Tensor containing the search values. When `sorted_sequence` is 1-D,
+        the shape of `values` can be arbitrary. Otherwise, ranks of `sorted_sequence`
+        and `values` must be the same, and outer N-1 axes must have the same size.
+
+    right : bool, optional
+        Controls which index is returned if a value lands exactly on one of sorted values. If
+        False (side='left'), the index of the first suitable location found is given. If true
+        (side='right'), return the last such index.
+
+    out_dtype : string, optional
+        The data type of the output indices.
+
+    Returns
+    -------
+    indices : te.Tensor
+        Tensor with same shape as values, representing the indices of
+        elements of `values` if they are inserted in `sorted_sequence`.
+    """
+    if len(sorted_sequence.shape) > 1:
+        for i in range(len(values.shape) - 1):
+            assert (
+                values.shape[i] == sorted_sequence.shape[i]
+            ), "Outer dimensions of sorted_sequence and values must match for N-D searchsorted"
+
+    def ir(sorted_sequence_buf, values_buf, indices_buf):
+        ib = tvm.tir.ir_builder.create()
+        sorted_sequence_shape = sorted_sequence_buf.shape
+        values_shape = values_buf.shape
+        num_search = prod(values_shape)
+        search_range = sorted_sequence_shape[-1]
+
+        sorted_sequence_ptr = ib.buffer_ptr(sorted_sequence_buf)
+        values_ptr = ib.buffer_ptr(values_buf)
+        indices_ptr = ib.buffer_ptr(indices_buf)
+
+        max_threads = int(tvm.target.Target.current(allow_none=False).max_num_threads)
+        nthread_tx = max_threads
+        nthread_bx = ceil_div(num_search, nthread_tx)
+        tx = te.thread_axis("threadIdx.x")
+        bx = te.thread_axis("blockIdx.x")
+        ib.scope_attr(tx, "thread_extent", nthread_tx)
+        ib.scope_attr(bx, "thread_extent", nthread_bx)
+        tid = bx * nthread_tx + tx
+
+        with ib.if_scope(tid < num_search):
+            if len(sorted_sequence_shape) == 1:
+                sequence_offset = 0
+            else:
+                sequence_id = tid // values_shape[-1]
+                sequence_offset = sequence_id * search_range
+
+            indices_ptr[tid] = binary_search(
+                ib,
+                sequence_offset,
+                search_range,
+                sorted_sequence_ptr,
+                values_ptr[tid],
+                right,
+                out_dtype,
+            )
+
+        return ib.get()
+
+    return te.extern(
+        values.shape,
+        [sorted_sequence, values],
+        lambda ins, outs: ir(ins[0], ins[1], outs[0]),
+        name="searchsorted_gpu",
+        dtype=out_dtype,
+    )

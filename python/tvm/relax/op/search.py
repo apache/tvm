@@ -102,3 +102,28 @@ def argmin(x: Expr, axis: Optional[int] = None, keepdims: bool = False) -> Expr:
         The computed result.
     """
     return _ffi_api.argmin(x, axis, keepdims)  # type: ignore
+
+
+def bucketize(input_tensor, boundaries, out_int32=False, right=False):
+    """Returns the indices of the buckets to which each value in the input belongs.
+
+    Parameters
+    ----------
+    input_tensor : relax.Expr
+        N-D tensor containing the search values.
+
+    boundaries : relax.Expr
+        1-D tensor, must contain a strictly increasing sequence, or the return value is undefined.
+
+    out_int32 : Optional[bool]
+        Indicate the output data type. int32 if True, int64 otherwise. Default=False
+
+    right : Optional[bool]
+        Determines the behavior for values in boundaries. Similar to torch.bucketize
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result with same shape as input_tensor.
+    """
+    return _ffi_api.bucketize(input_tensor, boundaries, out_int32, right)

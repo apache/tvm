@@ -5504,6 +5504,31 @@ def test_where():
     verify_model(Where(), (condition, x, y), {}, Expected)
 
 
+def test_bucketize():
+    class Bucketize(Module):
+        def forward(self, input_tensor, boundaries):
+            return torch.bucketize(input_tensor, boundaries)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((20,), dtype="int64"), boundaries: R.Tensor((10,), dtype="int64")
+        ) -> R.Tuple(R.Tensor((20,), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tensor((20,), dtype="int64") = R.bucketize(
+                    input, boundaries, out_int32=False, right=False
+                )
+                gv: R.Tuple(R.Tensor((20,), dtype="int64")) = (lv,)
+                R.output(gv)
+            return gv
+
+    input_tensor = torch.arange(0, 20)
+    boundaries = torch.arange(0, 20, 2)
+
+    verify_model(Bucketize(), (input_tensor, boundaries), {}, Expected)
+
+
 def test_argsort():
     class Argsort(Module):
         def forward(self, x):
