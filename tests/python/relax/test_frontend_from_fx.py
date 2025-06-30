@@ -5874,6 +5874,28 @@ def test_where():
     )
 
 
+def test_bucketize():
+    class Bucketize(Module):
+        def forward(self, input_tensor, boundaries):
+            return torch.bucketize(input_tensor, boundaries)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((5, 3), dtype="float32"), boundaries: R.Tensor((10,), dtype="float32")
+        ) -> R.Tensor((5, 3), dtype="int64"):
+            with R.dataflow():
+                lv: R.Tensor((5, 3), dtype="int64") = R.bucketize(
+                    input, boundaries, out_int32=False, right=False
+                )
+                gv: R.Tensor((5, 3), dtype="int64") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Bucketize(), [([5, 3], "float32"), ([10], "float32")], {}, Expected)
+
+
 def test_argsort():
     class Argsort(Module):
         def forward(self, x):

@@ -49,6 +49,24 @@ struct ArgmaxArgminAttrs : public AttrsNodeReflAdapter<ArgmaxArgminAttrs> {
   TVM_FFI_DECLARE_FINAL_OBJECT_INFO(ArgmaxArgminAttrs, BaseAttrsNode);
 };  // struct ArgmaxArgminAttrs
 
+/*! \brief Attributes for bucketize operator */
+struct BucketizeAttrs : public tvm::AttrsNodeReflAdapter<BucketizeAttrs> {
+  bool out_int32;
+  bool right;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BucketizeAttrs>()
+        .def_ro("out_int32", &BucketizeAttrs::out_int32,
+                "Indicate the output datatype, int32 if True, int64 otherwise.")
+        .def_ro("right", &BucketizeAttrs::right,
+                "Determines the behavior for values in boundaries");
+  }
+
+  static constexpr const char* _type_key = "relax.attrs.BucketizeAttrs";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(BucketizeAttrs, BaseAttrsNode);
+};  // struct BucketizeAttrs
+
 }  // namespace relax
 }  // namespace tvm
 

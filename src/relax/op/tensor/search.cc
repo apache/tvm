@@ -30,7 +30,58 @@
 namespace tvm {
 namespace relax {
 
-TVM_FFI_STATIC_INIT_BLOCK({ ArgmaxArgminAttrs::RegisterReflection(); });
+TVM_FFI_STATIC_INIT_BLOCK({
+  ArgmaxArgminAttrs::RegisterReflection();
+  BucketizeAttrs::RegisterReflection();
+});
+
+/* relax.bucketize */
+TVM_REGISTER_NODE_TYPE(BucketizeAttrs);
+
+Expr bucketize(Expr input_tensor, Expr boundaries, bool out_int32, bool right) {
+  auto attrs = make_object<BucketizeAttrs>();
+  attrs->out_int32 = std::move(out_int32);
+  attrs->right = std::move(right);
+  static const Op& op = Op::Get("relax.bucketize");
+  return Call(op, {std::move(input_tensor), std::move(boundaries)}, Attrs(attrs), {});
+}
+
+TVM_FFI_REGISTER_GLOBAL("relax.op.bucketize").set_body_typed(bucketize);
+
+StructInfo InferStructInfoBucketize(const Call& call, const BlockBuilder& ctx) {
+  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  TensorStructInfo input_tensor_info = input_sinfo[0];
+  TensorStructInfo boundaries_info = input_sinfo[1];
+
+  if (!boundaries_info->IsUnknownNdim() && boundaries_info->ndim != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Bucketize requires boundary to be 1-D array but got "
+                     << boundaries_info->ndim);
+  }
+
+  auto attrs = call->attrs.as<BucketizeAttrs>();
+  DataType out_dtype;
+  out_dtype = DataType::Int(64);
+  if (attrs->out_int32) {
+    out_dtype = DataType::Int(32);
+  }
+
+  const auto* data_shape = input_tensor_info->shape.as<ShapeExprNode>();
+  if (data_shape) {
+    return TensorStructInfo(ShapeExpr(data_shape->values), out_dtype, input_tensor_info->vdevice);
+  }
+  return TensorStructInfo(out_dtype, input_tensor_info->ndim, input_tensor_info->vdevice);
+}
+
+TVM_REGISTER_OP("relax.bucketize")
+    .set_num_inputs(2)
+    .add_argument("input_tensor", "Tensor",
+                  " N-D tensor or a Scalar containing the search value(s).")
+    .add_argument("boundaries", "Tensor",
+                  "1-D tensor, must contain a strictly increasing sequence, or the return value is "
+                  "undefined.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoBucketize)
+    .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.where */
 Expr where(Expr condition, Expr x1, Expr x2) {
