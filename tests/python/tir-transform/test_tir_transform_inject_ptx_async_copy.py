@@ -239,7 +239,8 @@ def test_inject_async_copy_barrier():
         tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
 
-expected_cuda_script = r"""__forceinline__ __device__ unsigned int
+expected_cuda_script = r"""#include <cuda.h>
+__forceinline__ __device__ unsigned int
 cast_smem_ptr_to_int(const void* const smem_ptr)
 {
   unsigned int smem_int;
@@ -469,6 +470,7 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
         tvm.compile(mod, target="cuda")
     generated_code = postproc_if_missing_async_support()
+    print(generated_code)
     assert generated_code == expected_cuda_script
 
 

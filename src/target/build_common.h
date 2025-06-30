@@ -49,6 +49,16 @@ inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(co
     runtime::FunctionInfo info;
     for (size_t i = 0; i < f->params.size(); ++i) {
       info.arg_types.push_back(f->params[i].dtype());
+      auto is_tensormap = [](const tir::Var& var) -> bool {
+        const auto* type = var->type_annotation.as<PointerTypeNode>();
+        if (type == nullptr) {
+          return false;
+        }
+        return type->element_type.as<TensorMapTypeNode>() != nullptr;
+      };
+      info.arg_extra_tags.push_back(is_tensormap(f->params[i])
+                                        ? runtime::FunctionInfo::ArgExtraTags::kTensorMap
+                                        : runtime::FunctionInfo::ArgExtraTags::kNone);
     }
     if (auto opt = f->GetAttr<Array<String>>(tir::attr::kKernelLaunchParams)) {
       for (const auto& tag : opt.value()) {

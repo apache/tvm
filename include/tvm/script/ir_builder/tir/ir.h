@@ -452,6 +452,8 @@ inline Var Handle(runtime::DataType dtype = runtime::DataType::Void(),
   return is_size_var ? tvm::tir::SizeVar("", type_annotation) : tvm::tir::Var("", type_annotation);
 }
 
+inline Var TensormapHandle() { return tvm::tir::Var("", PointerType(TensorMapType())); }
+
 #define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(FuncName, DType)                                     \
   inline PrimExpr FuncName(Optional<PrimExpr> expr = std::nullopt, bool is_size_var = false) { \
     DataType dtype = DType;                                                                    \

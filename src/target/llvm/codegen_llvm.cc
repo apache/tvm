@@ -154,6 +154,8 @@ void CodeGenLLVM::Init(const std::string& module_name, LLVMTarget* llvm_target,
   t_int32_ = llvm::Type::getInt32Ty(*ctx);
   t_int64_ = llvm::Type::getInt64Ty(*ctx);
   t_float64_ = llvm::Type::getDoubleTy(*ctx);
+  // CUTensorMap is a 128 byte struct, so we use a 128 byte array to represent it.
+  t_tvm_tensormap_ = llvm::ArrayType::get(t_char_, 128);
   // meta data
   md_very_likely_branch_ = md_builder_->createBranchWeights(1 << 20, 1);
   md_tbaa_root_ = md_builder_->createTBAARoot("tvm-tbaa");
@@ -620,11 +622,15 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
       if (primtype->dtype.is_void() || primtype->dtype.code() >= DataType::kCustomBegin) {
         return t_void_p_;
       }
+    } else if (ptr->element_type->IsInstance<TensorMapTypeNode>()) {
+      return t_tvm_tensormap_->getPointerTo();
     }
     // TODO(tvm-team) consider put storage scope into the pointer type.
     return llvmGetPointerTo(GetLLVMType(ptr->element_type), GetGlobalAddressSpace());
   } else if (IsVoidType(type)) {
     return t_void_;
+  } else if (type->IsInstance<TensorMapTypeNode>()) {
+    return t_tvm_tensormap_;
   } else {
     LOG(FATAL) << "Type " << type << " does not have a corresponding LLVM Type";
   }
@@ -2292,7 +2298,7 @@ llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir) {
   return GetDebugType(ty_tir, GetLLVMType(ty_tir));
 }
 llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm) {
-  if (ty_llvm == nullptr || ty_llvm == t_void_) {
+  if (ty_llvm == nullptr || ty_llvm == t_void_ || ty_llvm == t_tvm_tensormap_) {
     return nullptr;
 
   } else if (ty_llvm->isPointerTy()) {
