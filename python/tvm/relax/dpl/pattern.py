@@ -119,7 +119,7 @@ class DFPattern(Node):
         result: AttrPattern
             The resulting AttrPattern
         """
-        attrs = make_node("DictAttrs", **attrs)
+        attrs = make_node("ir.DictAttrs", **attrs)
         return AttrPattern(self, attrs)
 
     def has_struct_info(self, struct_info: "StructInfo") -> "StructInfoPattern":

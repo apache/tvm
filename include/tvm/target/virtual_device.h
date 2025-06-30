@@ -258,7 +258,7 @@ class VirtualDeviceNode : public AttrsNodeReflAdapter<VirtualDeviceNode> {
                 refl::DefaultValue(""));
   }
 
-  static constexpr const char* _type_key = "VirtualDevice";
+  static constexpr const char* _type_key = "target.VirtualDevice";
   TVM_FFI_DECLARE_FINAL_OBJECT_INFO(VirtualDeviceNode, BaseAttrsNode);
 
   friend class VirtualDevice;

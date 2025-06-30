@@ -115,7 +115,7 @@ class OpNode : public RelaxExprNode {
     hash_reduce(name);
   }
 
-  static constexpr const char* _type_key = "Op";
+  static constexpr const char* _type_key = "ir.Op";
   TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, RelaxExprNode);
 
  private:

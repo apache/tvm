@@ -81,7 +81,7 @@ def test_ir_builder_tir_primfunc_complete():
         body=tir.Evaluate(0),
         ret_type=tvm.ir.PrimType("int64"),
         buffer_map={c_handle: c_buffer, d_handle: d_buffer, e_handle: e_buffer},
-        attrs=tvm.ir.make_node("DictAttrs", key="value"),
+        attrs=tvm.ir.make_node("ir.DictAttrs", key="value"),
     )
 
     # Check if the generated ir is expected

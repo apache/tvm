@@ -233,7 +233,7 @@ Each ``Object`` subclass will override this to register its members. Here is an 
       hash_reduce(value);
     }
 
-    static constexpr const char* _type_key = "IntImm";
+    static constexpr const char* _type_key = "ir.IntImm";
     TVM_DECLARE_FINAL_OBJECT_INFO(IntImmNode, PrimExprNode);
   };
   // in cc file

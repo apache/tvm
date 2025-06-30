@@ -93,7 +93,7 @@ class FunctionObj : public Object, public TVMFFIFunctionCell {
   }
 
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFIFunction;
-  static constexpr const char* _type_key = "object.Function";
+  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIFunction;
 
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(FunctionObj, Object);
 

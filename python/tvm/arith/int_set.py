@@ -20,6 +20,7 @@ from tvm.runtime import Object
 from . import _ffi_api
 
 
+@tvm.ffi.register_object("ir.IntSet")
 class IntSet(Object):
     """Represent a set of integer in one dimension."""
 

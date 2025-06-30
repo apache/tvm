@@ -40,7 +40,7 @@ __all__ = (
 )
 
 
-@tvm.ffi.register_object("ObjectPath")
+@tvm.ffi.register_object("node.ObjectPath")
 class ObjectPath(Object):
     """
     Path to an object from some root object.
@@ -94,42 +94,42 @@ class ObjectPath(Object):
     __hash__ = Object.__hash__
 
 
-@tvm.ffi.register_object("RootPath")
+@tvm.ffi.register_object("node.RootPath")
 class RootPath(ObjectPath):
     pass
 
 
-@tvm.ffi.register_object("AttributeAccessPath")
+@tvm.ffi.register_object("node.AttributeAccessPath")
 class AttributeAccessPath(ObjectPath):
     pass
 
 
-@tvm.ffi.register_object("UnknownAttributeAccessPath")
+@tvm.ffi.register_object("node.UnknownAttributeAccessPath")
 class UnknownAttributeAccessPath(ObjectPath):
     pass
 
 
-@tvm.ffi.register_object("ArrayIndexPath")
+@tvm.ffi.register_object("node.ArrayIndexPath")
 class ArrayIndexPath(ObjectPath):
     pass
 
 
-@tvm.ffi.register_object("MissingArrayElementPath")
+@tvm.ffi.register_object("node.MissingArrayElementPath")
 class MissingArrayElementPath(ObjectPath):
     pass
 
 
-@tvm.ffi.register_object("MapValuePath")
+@tvm.ffi.register_object("node.MapValuePath")
 class MapValuePath(ObjectPath):
     pass
 
 
-@tvm.ffi.register_object("MissingMapEntryPath")
+@tvm.ffi.register_object("node.MissingMapEntryPath")
 class MissingMapEntryPath(ObjectPath):
     pass
 
 
-@tvm.ffi.register_object("ObjectPathPair")
+@tvm.ffi.register_object("node.ObjectPathPair")
 class ObjectPathPair(Object):
     """
     Pair of ObjectPaths, one for each object being tested for structural equality.

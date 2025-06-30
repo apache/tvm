@@ -85,7 +85,7 @@ class TargetKindNode : public Object {
         .def_ro("default_keys", &TargetKindNode::default_keys);
   }
 
-  static constexpr const char* _type_key = "TargetKind";
+  static constexpr const char* _type_key = "target.TargetKind";
   static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetKindNode, Object);
 

@@ -86,7 +86,7 @@ class GlobalVarSupplyNode : public Object {
   /*! \brief The NameSupply used to generate unique name hints to GlobalVars. */
   NameSupply name_supply_;
 
-  static constexpr const char* _type_key = "GlobalVarSupply";
+  static constexpr const char* _type_key = "ir.GlobalVarSupply";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarSupplyNode, Object);

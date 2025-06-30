@@ -80,7 +80,7 @@ class TypeNode : public Object {
    */
   mutable Span span;
 
-  static constexpr const char* _type_key = "Type";
+  static constexpr const char* _type_key = "ir.Type";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 14;
@@ -124,7 +124,7 @@ class PrimTypeNode : public TypeNode {
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(dtype); }
 
-  static constexpr const char* _type_key = "PrimType";
+  static constexpr const char* _type_key = "ir.PrimType";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimTypeNode, TypeNode);
 };
 
@@ -187,7 +187,7 @@ class PointerTypeNode : public TypeNode {
     hash_reduce(storage_scope.empty() ? "global" : storage_scope);
   }
 
-  static constexpr const char* _type_key = "PointerType";
+  static constexpr const char* _type_key = "ir.PointerType";
   TVM_DECLARE_FINAL_OBJECT_INFO(PointerTypeNode, TypeNode);
 };
 
@@ -233,7 +233,7 @@ class TupleTypeNode : public TypeNode {
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(fields); }
 
-  static constexpr const char* _type_key = "TupleType";
+  static constexpr const char* _type_key = "ir.TupleType";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleTypeNode, TypeNode);
 };
 
@@ -308,7 +308,7 @@ class FuncTypeNode : public TypeNode {
     hash_reduce(ret_type);
   }
 
-  static constexpr const char* _type_key = "FuncType";
+  static constexpr const char* _type_key = "ir.FuncType";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuncTypeNode, TypeNode);
 };
 
@@ -336,7 +336,12 @@ class FuncType : public Type {
  */
 class TensorMapTypeNode : public TypeNode {
  public:
-  void VisitAttrs(AttrVisitor* v) { v->Visit("span", &span); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TensorMapTypeNode>().def_ro("span", &TensorMapTypeNode::span);
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const TensorMapTypeNode* other, SEqualReducer equal) const {
     return equal(span, other->span);
@@ -344,7 +349,7 @@ class TensorMapTypeNode : public TypeNode {
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(span); }
 
-  static constexpr const char* _type_key = "TensorMapType";
+  static constexpr const char* _type_key = "ir.TensorMapType";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorMapTypeNode, TypeNode);
 };
 

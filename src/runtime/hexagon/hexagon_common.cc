@@ -47,7 +47,7 @@ class HexagonTimerNode : public TimerNode {
   virtual int64_t SyncAndGetElapsedNanos() { return (end - start) * 1e3; }
   virtual ~HexagonTimerNode() {}
 
-  static constexpr const char* _type_key = "HexagonTimerNode";
+  static constexpr const char* _type_key = "runtime.hexagon.HexagonTimerNode";
   TVM_DECLARE_FINAL_OBJECT_INFO(HexagonTimerNode, TimerNode);
 
  private:

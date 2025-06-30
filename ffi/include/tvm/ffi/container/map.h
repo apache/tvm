@@ -68,7 +68,7 @@ class MapObj : public Object {
   static_assert(sizeof(KVType) == 32, "sizeof(KVType) incorrect");
 
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIMap;
-  static constexpr const char* _type_key = "object.Map";
+  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIMap;
   static const constexpr bool _type_final = true;
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(MapObj, Object);
 
