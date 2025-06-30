@@ -32,9 +32,22 @@
 
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  BaseExprNode::RegisterReflection();
+  PrimExprNode::RegisterReflection();
+  RelaxExprNode::RegisterReflection();
+  BaseFuncNode::RegisterReflection();
+  GlobalVarNode::RegisterReflection();
+  IntImmNode::RegisterReflection();
+  FloatImmNode::RegisterReflection();
+  RangeNode::RegisterReflection();
+});
+
 PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm(DataType::Int(32), value)) {}
 
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(DataType::Float(32), value)) {}
+
+PrimExpr PrimExpr::ConvertFallbackValue(String value) { return tir::StringImm(value); }
 
 IntImm::IntImm(DataType dtype, int64_t value, Span span) {
   ICHECK(dtype.is_scalar()) << "ValueError: IntImm can only take scalar, but " << dtype
@@ -192,19 +205,16 @@ TVM_FFI_REGISTER_GLOBAL("ir.Range")
 
 TVM_REGISTER_NODE_TYPE(RangeNode);
 
-GlobalVar::GlobalVar(String name_hint, Type type, Span span) {
+GlobalVar::GlobalVar(String name_hint, Span span) {
   ObjectPtr<GlobalVarNode> n = make_object<GlobalVarNode>();
   n->name_hint = std::move(name_hint);
-  n->checked_type_ = std::move(type);
   n->span = std::move(span);
   data_ = std::move(n);
 }
 
 TVM_REGISTER_NODE_TYPE(GlobalVarNode);
 
-TVM_FFI_REGISTER_GLOBAL("ir.GlobalVar").set_body_typed([](String name, Type type) {
-  return GlobalVar(name, type);
-});
+TVM_FFI_REGISTER_GLOBAL("ir.GlobalVar").set_body_typed([](String name) { return GlobalVar(name); });
 
 TVM_FFI_REGISTER_GLOBAL("ir.DebugPrint").set_body_typed([](ObjectRef ref) {
   std::stringstream ss;

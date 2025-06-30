@@ -131,7 +131,7 @@ Pass ExpandTupleArguments() {
         if (auto func = base_func.as<Function>()) {
           if (auto opt = ExpandParams(func.value())) {
             auto new_func = opt.value();
-            GlobalVar new_gvar(gvar->name_hint, new_func->checked_type_);
+            GlobalVar new_gvar(gvar->name_hint);
             new_gvar->struct_info_ = new_func->struct_info_;
             gvar_replacements[gvar] = new_gvar;
             new_callees[new_gvar] = new_func;

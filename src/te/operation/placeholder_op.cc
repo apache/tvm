@@ -28,6 +28,8 @@
 namespace tvm {
 namespace te {
 
+TVM_FFI_STATIC_INIT_BLOCK({ PlaceholderOpNode::RegisterReflection(); });
+
 // PlaceholderOpNode
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<PlaceholderOpNode>([](const ObjectRef& node, ReprPrinter* p) {

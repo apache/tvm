@@ -226,10 +226,6 @@ def test_not_pattern():
     assert not no_shape233.match(rx.Var("x", R.Tensor((2, 3, 3), "float32")))
 
 
-def test_type_pattern():
-    assert wildcard().has_type(rx.TensorType(2, "float32")).match(bindings[0].var)
-
-
 def test_dtype_pattern():
     dtype = "float16"
     pattern = has_dtype(dtype)

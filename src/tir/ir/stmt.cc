@@ -31,6 +31,27 @@
 namespace tvm {
 namespace tir {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  StmtNode::RegisterReflection();
+  LetStmtNode::RegisterReflection();
+  AttrStmtNode::RegisterReflection();
+  AssertStmtNode::RegisterReflection();
+  BufferStoreNode::RegisterReflection();
+  BufferRealizeNode::RegisterReflection();
+  AllocateNode::RegisterReflection();
+  AllocateConstNode::RegisterReflection();
+  DeclBufferNode::RegisterReflection();
+  SeqStmtNode::RegisterReflection();
+  EvaluateNode::RegisterReflection();
+  IfThenElseNode::RegisterReflection();
+  ForNode::RegisterReflection();
+  WhileNode::RegisterReflection();
+  BufferRegionNode::RegisterReflection();
+  MatchBufferRegionNode::RegisterReflection();
+  BlockNode::RegisterReflection();
+  BlockRealizeNode::RegisterReflection();
+});
+
 // LetStmt
 LetStmt::LetStmt(Var var, PrimExpr value, Stmt body, Span span) {
   ICHECK(value.defined());

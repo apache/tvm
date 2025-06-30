@@ -22,6 +22,7 @@
  * \brief TIR specific transformation passes.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/rvalue_ref.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/tir/transform.h>
@@ -62,7 +63,12 @@ class PrimFuncPassNode : public PassNode {
   /*! \brief The pass function called on each. */
   std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("pass_info", &pass_info); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PrimFuncPassNode>().def_ro("pass_info", &PrimFuncPassNode::pass_info);
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Run a function pass on given pass context.
@@ -141,6 +147,8 @@ Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)>
   PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
   return PrimFuncPass(std::move(pass_func), pass_info);
 }
+
+TVM_FFI_STATIC_INIT_BLOCK({ PrimFuncPassNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(PrimFuncPassNode);
 

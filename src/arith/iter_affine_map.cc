@@ -40,6 +40,13 @@ namespace arith {
 
 using namespace tir;
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  IterMarkNode::RegisterReflection();
+  IterSplitExprNode::RegisterReflection();
+  IterSumExprNode::RegisterReflection();
+  IterMapResultNode::RegisterReflection();
+});
+
 IterMark::IterMark(PrimExpr source, PrimExpr extent) {
   auto n = make_object<IterMarkNode>();
   n->source = std::move(source);

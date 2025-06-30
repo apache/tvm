@@ -193,9 +193,13 @@ bool SEqualReducer::AnyEqual(const ffi::Any& lhs, const ffi::Any& rhs,
     if (paths) {
       return operator()(lhs.cast<ObjectRef>(), rhs.cast<ObjectRef>(), paths.value());
     } else {
-      return operator()(lhs.cast<ObjectRef>(), rhs.cast<ObjectRef>());
+      ObjectRef lhs_obj = lhs.cast<ObjectRef>();
+      ObjectRef rhs_obj = rhs.cast<ObjectRef>();
+      bool result = operator()(lhs_obj, rhs_obj);
+      return result;
     }
   }
+
   if (ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(lhs)->v_uint64 ==
       ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(rhs)->v_uint64) {
     return true;

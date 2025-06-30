@@ -634,6 +634,19 @@ def _nn_group_norm(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.nn.instance_norm")
+def _nn_instance_norm(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(
+        topi.nn.instance_norm,
+        data=call.args[0],
+        gamma=call.args[1],
+        beta=call.args[2],
+        channel_axis=call.attrs.channel_axis,
+        axis=call.attrs.axes,
+        epsilon=call.attrs.epsilon,
+    )
+
+
 @register_legalize("relax.nn.rms_norm")
 def _nn_rms_norm(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(

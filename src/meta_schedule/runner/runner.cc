@@ -51,6 +51,13 @@ Runner Runner::PyRunner(Runner::FRun f_run) {
 
 /******** FFI ********/
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  RunnerInputNode::RegisterReflection();
+  RunnerResultNode::RegisterReflection();
+  RunnerFutureNode::RegisterReflection();
+  PyRunnerNode::RegisterReflection();
+});
+
 TVM_REGISTER_NODE_TYPE(RunnerInputNode);
 TVM_REGISTER_NODE_TYPE(RunnerResultNode);
 TVM_REGISTER_NODE_TYPE(RunnerFutureNode);

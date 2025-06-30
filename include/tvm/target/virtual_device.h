@@ -169,7 +169,7 @@ constexpr int kInvalidDeviceType = -1;
  * These operations are needed during device planning.
  */
 
-class VirtualDeviceNode : public AttrsNode<VirtualDeviceNode> {
+class VirtualDeviceNode : public AttrsNodeReflAdapter<VirtualDeviceNode> {
  private:
   /*!
    * \brief The \p DLDeviceType (represented as an int) of the virtual device. If \p target is
@@ -243,20 +243,23 @@ class VirtualDeviceNode : public AttrsNode<VirtualDeviceNode> {
     return device;
   }
 
-  TVM_DECLARE_ATTRS(VirtualDeviceNode, "VirtualDevice") {
-    TVM_ATTR_FIELD(device_type_int)
-        .describe("The type of the virtual device.")
-        .set_default(kInvalidDeviceType);
-    TVM_ATTR_FIELD(virtual_device_id)
-        .describe("The device id of the virtual device.")
-        .set_default(-1);
-    TVM_ATTR_FIELD(target)
-        .describe("The target describing how to compile for the virtual device.")
-        .set_default(Target());
-    TVM_ATTR_FIELD(memory_scope)
-        .describe("The area of memory w.r.t. the virtual device where data is stored.")
-        .set_default("");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<VirtualDeviceNode>()
+        .def_ro("device_type_int", &VirtualDeviceNode::device_type_int,
+                "The type of the virtual device.", refl::DefaultValue(kInvalidDeviceType))
+        .def_ro("virtual_device_id", &VirtualDeviceNode::virtual_device_id,
+                "The device id of the virtual device.", refl::DefaultValue(-1))
+        .def_ro("target", &VirtualDeviceNode::target,
+                "The target describing how to compile for the virtual device.",
+                refl::DefaultValue(Target()))
+        .def_ro("memory_scope", &VirtualDeviceNode::memory_scope,
+                "The area of memory w.r.t. the virtual device where data is stored.",
+                refl::DefaultValue(""));
   }
+
+  static constexpr const char* _type_key = "VirtualDevice";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(VirtualDeviceNode, BaseAttrsNode);
 
   friend class VirtualDevice;
 };

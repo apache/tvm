@@ -130,10 +130,7 @@ class Tuple : public ObjectRef {
 
  private:
   static ObjectPtr<ArrayObj> MakeDefaultTupleNode() {
-    ObjectPtr<ArrayObj> p = make_inplace_array_object<ArrayObj, Any>(sizeof...(Types));
-    p->capacity_ = sizeof...(Types);
-    // immeidate set size to 0, to ensure exception safety
-    p->size_ = 0;
+    ObjectPtr<ArrayObj> p = ArrayObj::Empty(sizeof...(Types));
     Any* itr = p->MutableBegin();
     // increase size after each new to ensure exception safety
     ((new (itr++) Any(Types()), p->size_++), ...);
@@ -142,10 +139,7 @@ class Tuple : public ObjectRef {
 
   template <typename... UTypes>
   static ObjectPtr<ArrayObj> MakeTupleNode(UTypes&&... args) {
-    ObjectPtr<ArrayObj> p = make_inplace_array_object<ArrayObj, Any>(sizeof...(Types));
-    p->capacity_ = sizeof...(Types);
-    // immeidate set size to 0, to ensure exception safety
-    p->size_ = 0;
+    ObjectPtr<ArrayObj> p = ArrayObj::Empty(sizeof...(Types));
     Any* itr = p->MutableBegin();
     // increase size after each new to ensure exception safety
     ((new (itr++) Any(Types(std::forward<UTypes>(args))), p->size_++), ...);
@@ -155,10 +149,7 @@ class Tuple : public ObjectRef {
   /*! \brief Copy on write */
   void CopyIfNotUnique() {
     if (!data_.unique()) {
-      ObjectPtr<ArrayObj> p = make_inplace_array_object<ArrayObj, Any>(sizeof...(Types));
-      p->capacity_ = sizeof...(Types);
-      // immeidate set size to 0, to ensure exception safety
-      p->size_ = 0;
+      ObjectPtr<ArrayObj> p = ArrayObj::Empty(sizeof...(Types));
       Any* itr = p->MutableBegin();
       const Any* read = GetArrayObj()->begin();
       // increase size after each new to ensure exception safety
@@ -262,8 +253,9 @@ struct TypeTraits<Tuple<Types...>> : public ObjectRefTypeTraitsBase<Tuple<Types.
     }
     if constexpr (sizeof...(Rest) > 0) {
       return TryConvertElements<I + 1, Rest...>(std::move(arr));
+    } else {
+      return true;
     }
-    return true;
   }
 
   static TVM_FFI_INLINE std::string TypeStr() {

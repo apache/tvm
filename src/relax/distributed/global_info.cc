@@ -17,11 +17,14 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/distributed/global_info.h>
 
 namespace tvm {
 namespace relax {
 namespace distributed {
+
+TVM_FFI_STATIC_INIT_BLOCK({ DeviceMeshNode::RegisterReflection(); });
 
 DeviceMesh::DeviceMesh(ffi::Shape shape, Array<Integer> device_ids) {
   int prod = 1;

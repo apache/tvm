@@ -75,14 +75,12 @@ class ReplayTraceNode : public SearchStrategyNode {
   /*! \brief The state of the search strategy. */
   std::unique_ptr<State> state_ = nullptr;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("max_fail_count", &max_fail_count);
-    // `rand_state_` is not visited
-    // `mod_` is not visited
-    // `num_threads_` is not visited
-    // `postprocs_` is not visited
-    // `state_` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ReplayTraceNode>().def_ro("max_fail_count", &ReplayTraceNode::max_fail_count);
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.ReplayTrace";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReplayTraceNode, SearchStrategyNode);
@@ -189,6 +187,8 @@ SearchStrategy SearchStrategy::ReplayTrace(int max_fail_count) {
   n->max_fail_count = max_fail_count;
   return SearchStrategy(n);
 }
+
+TVM_FFI_STATIC_INIT_BLOCK({ ReplayTraceNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(ReplayTraceNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyReplayTrace")

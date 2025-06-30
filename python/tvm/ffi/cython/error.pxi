@@ -113,6 +113,7 @@ cdef class Error(Object):
     def traceback(self):
         return bytearray_to_str(&(TVMFFIErrorGetCellPtr(self.chandle).traceback))
 
+
 _register_object_by_index(kTVMFFIError, Error)
 
 

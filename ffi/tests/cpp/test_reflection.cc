@@ -18,6 +18,7 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+#include <tvm/ffi/container/map.h>
 #include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
@@ -25,36 +26,53 @@
 #include "./testing_object.h"
 
 namespace {
+
 using namespace tvm::ffi;
 using namespace tvm::ffi::testing;
 
-TVM_FFI_REFLECTION_DEF(TFloatObj)
-    .def_rw("value", &TFloatObj::value, "float value field", refl::DefaultValue(10.0))
-    .def("sub", [](const TFloatObj* self, double other) -> double { return self->value - other; })
-    .def("add", &TFloatObj::Add, "add method");
-
-TVM_FFI_REFLECTION_DEF(TIntObj)
-    .def_ro("value", &TIntObj::value)
-    .def_static("static_add", &TInt::StaticAdd, "static add method");
-
-TVM_FFI_REFLECTION_DEF(TPrimExprObj)
-    .def_ro("dtype", &TPrimExprObj::dtype, "dtype field", refl::DefaultValue("float"))
-    .def_ro("value", &TPrimExprObj::value, "value field", refl::DefaultValue(0))
-    .def("sub", [](TPrimExprObj* self, double other) -> double {
-      // this is ok because TPrimExprObj is declared asmutable
-      return self->value - other;
-    });
-
-struct A : public Object {
+struct TestObjA : public Object {
   int64_t x;
   int64_t y;
+
+  static constexpr const char* _type_key = "test.TestObjA";
+  static constexpr bool _type_mutable = true;
+  TVM_FFI_DECLARE_BASE_OBJECT_INFO(TestObjA, Object);
 };
 
-TVM_FFI_REFLECTION_DEF(A).def_ro("x", &A::x).def_rw("y", &A::y);
+struct TestObjADerived : public TestObjA {
+  int64_t z;
+
+  static constexpr const char* _type_key = "test.TestObjADerived";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TestObjADerived, TestObjA);
+};
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+
+  refl::ObjectDef<TFloatObj>()
+      .def_ro("value", &TFloatObj::value, "float value field", refl::DefaultValue(10.0))
+      .def("sub", [](const TFloatObj* self, double other) -> double { return self->value - other; })
+      .def("add", &TFloatObj::Add, "add method");
+
+  refl::ObjectDef<TIntObj>()
+      .def_ro("value", &TIntObj::value)
+      .def_static("static_add", &TInt::StaticAdd, "static add method");
+
+  refl::ObjectDef<TPrimExprObj>()
+      .def_rw("dtype", &TPrimExprObj::dtype, "dtype field", refl::DefaultValue("float"))
+      .def_ro("value", &TPrimExprObj::value, "value field", refl::DefaultValue(0))
+      .def("sub", [](TPrimExprObj* self, double other) -> double {
+        // this is ok because TPrimExprObj is declared asmutable
+        return self->value - other;
+      });
+
+  refl::ObjectDef<TestObjA>().def_ro("x", &TestObjA::x).def_rw("y", &TestObjA::y);
+  refl::ObjectDef<TestObjADerived>().def_ro("z", &TestObjADerived::z);
+});
 
 TEST(Reflection, GetFieldByteOffset) {
-  EXPECT_EQ(reflection::GetFieldByteOffsetToObject(&A::x), sizeof(TVMFFIObject));
-  EXPECT_EQ(reflection::GetFieldByteOffsetToObject(&A::y), 8 + sizeof(TVMFFIObject));
+  EXPECT_EQ(reflection::GetFieldByteOffsetToObject(&TestObjA::x), sizeof(TVMFFIObject));
+  EXPECT_EQ(reflection::GetFieldByteOffsetToObject(&TestObjA::y), 8 + sizeof(TVMFFIObject));
   EXPECT_EQ(reflection::GetFieldByteOffsetToObject(&TIntObj::value), sizeof(TVMFFIObject));
 }
 
@@ -77,36 +95,36 @@ TEST(Reflection, FieldSetter) {
 
 TEST(Reflection, FieldInfo) {
   const TVMFFIFieldInfo* info_int = reflection::GetFieldInfo("test.Int", "value");
-  EXPECT_FALSE(info_int->flags & TVMFFIFieldFlagBitMaskHasDefault);
-  EXPECT_FALSE(info_int->flags & TVMFFIFieldFlagBitMaskWritable);
+  EXPECT_FALSE(info_int->flags & kTVMFFIFieldFlagBitMaskHasDefault);
+  EXPECT_FALSE(info_int->flags & kTVMFFIFieldFlagBitMaskWritable);
   EXPECT_EQ(Bytes(info_int->doc).operator std::string(), "");
 
   const TVMFFIFieldInfo* info_float = reflection::GetFieldInfo("test.Float", "value");
   EXPECT_EQ(info_float->default_value.v_float64, 10.0);
-  EXPECT_TRUE(info_float->flags & TVMFFIFieldFlagBitMaskHasDefault);
-  EXPECT_TRUE(info_float->flags & TVMFFIFieldFlagBitMaskWritable);
+  EXPECT_TRUE(info_float->flags & kTVMFFIFieldFlagBitMaskHasDefault);
+  EXPECT_FALSE(info_float->flags & kTVMFFIFieldFlagBitMaskWritable);
   EXPECT_EQ(Bytes(info_float->doc).operator std::string(), "float value field");
 
   const TVMFFIFieldInfo* info_prim_expr_dtype = reflection::GetFieldInfo("test.PrimExpr", "dtype");
   AnyView default_value = AnyView::CopyFromTVMFFIAny(info_prim_expr_dtype->default_value);
   EXPECT_EQ(default_value.cast<String>(), "float");
   EXPECT_EQ(default_value.as<String>().value().use_count(), 2);
-  EXPECT_TRUE(info_prim_expr_dtype->flags & TVMFFIFieldFlagBitMaskHasDefault);
-  EXPECT_FALSE(info_prim_expr_dtype->flags & TVMFFIFieldFlagBitMaskWritable);
+  EXPECT_TRUE(info_prim_expr_dtype->flags & kTVMFFIFieldFlagBitMaskHasDefault);
+  EXPECT_TRUE(info_prim_expr_dtype->flags & kTVMFFIFieldFlagBitMaskWritable);
   EXPECT_EQ(Bytes(info_prim_expr_dtype->doc).operator std::string(), "dtype field");
 }
 
 TEST(Reflection, MethodInfo) {
   const TVMFFIMethodInfo* info_int_static_add = reflection::GetMethodInfo("test.Int", "static_add");
-  EXPECT_TRUE(info_int_static_add->flags & TVMFFIFieldFlagBitMaskIsStaticMethod);
+  EXPECT_TRUE(info_int_static_add->flags & kTVMFFIFieldFlagBitMaskIsStaticMethod);
   EXPECT_EQ(Bytes(info_int_static_add->doc).operator std::string(), "static add method");
 
   const TVMFFIMethodInfo* info_float_add = reflection::GetMethodInfo("test.Float", "add");
-  EXPECT_FALSE(info_float_add->flags & TVMFFIFieldFlagBitMaskIsStaticMethod);
+  EXPECT_FALSE(info_float_add->flags & kTVMFFIFieldFlagBitMaskIsStaticMethod);
   EXPECT_EQ(Bytes(info_float_add->doc).operator std::string(), "add method");
 
   const TVMFFIMethodInfo* info_float_sub = reflection::GetMethodInfo("test.Float", "sub");
-  EXPECT_FALSE(info_float_sub->flags & TVMFFIFieldFlagBitMaskIsStaticMethod);
+  EXPECT_FALSE(info_float_sub->flags & kTVMFFIFieldFlagBitMaskIsStaticMethod);
   EXPECT_EQ(Bytes(info_float_sub->doc).operator std::string(), "");
 }
 
@@ -122,6 +140,17 @@ TEST(Reflection, CallMethod) {
 
   Function prim_expr_sub = reflection::GetMethod("test.PrimExpr", "sub");
   EXPECT_EQ(prim_expr_sub(TPrimExpr("float", 1), 2.0).cast<double>(), -1.0);
+}
+
+TEST(Reflection, ForEachFieldInfo) {
+  const TypeInfo* info = TVMFFIGetTypeInfo(TestObjADerived::RuntimeTypeIndex());
+  Map<String, int> field_name_to_offset;
+  reflection::ForEachFieldInfo(info, [&](const TVMFFIFieldInfo* field_info) {
+    field_name_to_offset.Set(String(field_info->name), field_info->offset);
+  });
+  EXPECT_EQ(field_name_to_offset["x"], sizeof(TVMFFIObject));
+  EXPECT_EQ(field_name_to_offset["y"], 8 + sizeof(TVMFFIObject));
+  EXPECT_EQ(field_name_to_offset["z"], 16 + sizeof(TVMFFIObject));
 }
 
 }  // namespace

@@ -179,5 +179,7 @@ TVM_REGISTER_OP("relax.nn.attention_var_len")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
     .set_attr<Bool>("FPurity", Bool(true));
 
+TVM_FFI_STATIC_INIT_BLOCK({ AttentionAttrs::RegisterReflection(); });
+
 }  // namespace relax
 }  // namespace tvm

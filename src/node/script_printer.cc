@@ -25,6 +25,8 @@
 
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK({ PrinterConfigNode::RegisterReflection(); });
+
 TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
   static FType inst;
   return inst;
@@ -32,7 +34,10 @@ TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
 
 std::string TVMScriptPrinter::Script(const ObjectRef& node, const Optional<PrinterConfig>& cfg) {
   if (!TVMScriptPrinter::vtable().can_dispatch(node)) {
-    return AsLegacyRepr(node);
+    std::ostringstream os;
+    ReprPrinter printer(os);
+    printer.Print(node);
+    return os.str();
   }
   return TVMScriptPrinter::vtable()(node, cfg.value_or(PrinterConfig()));
 }

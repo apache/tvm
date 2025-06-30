@@ -147,7 +147,7 @@ class LCADetector : public StmtExprVisitor {
     auto do_collect_itervar_scope = [this](const IterVar& itervar,
                                            const PrimExpr& binding) -> const ScopeInfo* {
       const ScopeInfo* highest_scope = nullptr;
-      PostOrderVisit(binding, [this, &itervar, &highest_scope](const ObjectRef& obj) {
+      PostOrderVisit(binding, [this, &highest_scope](const ObjectRef& obj) {
         if (const VarNode* loop_var = obj.as<VarNode>()) {
           auto it = loop_scope_map_.find(loop_var);
           if (it == loop_scope_map_.end()) {

@@ -89,6 +89,13 @@
 #define TVM_FFI_FUNC_SIG __func__
 #endif
 
+#define TVM_FFI_STATIC_INIT_BLOCK_VAR_DEF \
+  static inline TVM_FFI_ATTRIBUTE_UNUSED int __##TVMFFIStaticInitReg
+
+/*! \brief helper macro to run code once during initialization */
+#define TVM_FFI_STATIC_INIT_BLOCK(Body) \
+  TVM_FFI_STR_CONCAT(TVM_FFI_STATIC_INIT_BLOCK_VAR_DEF, __COUNTER__) = []() { Body return 0; }()
+
 /*
  * \brief Define the default copy/move constructor and assign operator
  * \param TypeName The class typename.
@@ -131,34 +138,6 @@
 namespace tvm {
 namespace ffi {
 namespace details {
-
-/********** Atomic Operations *********/
-
-TVM_FFI_INLINE int32_t AtomicIncrementRelaxed(int32_t* ptr) {
-#ifdef _MSC_VER
-  return _InterlockedIncrement(reinterpret_cast<volatile long*>(ptr)) - 1;  // NOLINT(*)
-#else
-  return __atomic_fetch_add(ptr, 1, __ATOMIC_RELAXED);
-#endif
-}
-
-TVM_FFI_INLINE int32_t AtomicDecrementRelAcq(int32_t* ptr) {
-#ifdef _MSC_VER
-  return _InterlockedDecrement(reinterpret_cast<volatile long*>(ptr)) + 1;  // NOLINT(*)
-#else
-  return __atomic_fetch_sub(ptr, 1, __ATOMIC_ACQ_REL);
-#endif
-}
-
-TVM_FFI_INLINE int32_t AtomicLoadRelaxed(const int32_t* ptr) {
-  int32_t* raw_ptr = const_cast<int32_t*>(ptr);
-#ifdef _MSC_VER
-  // simply load the variable ptr out
-  return (reinterpret_cast<const volatile long*>(raw_ptr))[0];  // NOLINT(*)
-#else
-  return __atomic_load_n(raw_ptr, __ATOMIC_RELAXED);
-#endif
-}
 
 // for each iterator
 template <bool stop, std::size_t I, typename F>

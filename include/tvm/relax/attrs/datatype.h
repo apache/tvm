@@ -30,21 +30,29 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in astype operator */
-struct AstypeAttrs : public tvm::AttrsNode<AstypeAttrs> {
+struct AstypeAttrs : public AttrsNodeReflAdapter<AstypeAttrs> {
   DataType dtype;
 
-  TVM_DECLARE_ATTRS(AstypeAttrs, "relax.attrs.AstypeAttrs") {
-    TVM_ATTR_FIELD(dtype).describe("Target data type");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AstypeAttrs>().def_ro("dtype", &AstypeAttrs::dtype, "Target data type");
   }
+
+  static constexpr const char* _type_key = "relax.attrs.AstypeAttrs";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(AstypeAttrs, BaseAttrsNode);
 };  // struct AstypeAttrs.
 
 /*! \brief Attributes used in wrap_param operator */
-struct WrapParamAttrs : public tvm::AttrsNode<WrapParamAttrs> {
+struct WrapParamAttrs : public AttrsNodeReflAdapter<WrapParamAttrs> {
   DataType dtype;
 
-  TVM_DECLARE_ATTRS(WrapParamAttrs, "relax.attrs.WrapParamAttrs") {
-    TVM_ATTR_FIELD(dtype).describe("Target data type");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<WrapParamAttrs>().def_ro("dtype", &WrapParamAttrs::dtype, "Target data type");
   }
+
+  static constexpr const char* _type_key = "relax.attrs.WrapParamAttrs";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(WrapParamAttrs, BaseAttrsNode);
 };  // struct WrapParamAttrs.
 
 }  // namespace relax

@@ -82,6 +82,11 @@ SearchStrategy SearchStrategy::PySearchStrategy(
   return SearchStrategy(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  MeasureCandidateNode::RegisterReflection();
+  PySearchStrategyNode::RegisterReflection();
+});
+
 TVM_REGISTER_NODE_TYPE(MeasureCandidateNode);
 TVM_REGISTER_OBJECT_TYPE(SearchStrategyNode);
 TVM_REGISTER_NODE_TYPE(PySearchStrategyNode);

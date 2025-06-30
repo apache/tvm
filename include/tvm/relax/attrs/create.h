@@ -30,22 +30,32 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in full/full_like, ones/ones_like, and zeros/zeros_like operators */
-struct InitAttrs : public tvm::AttrsNode<InitAttrs> {
+struct InitAttrs : public AttrsNodeReflAdapter<InitAttrs> {
   DataType dtype;
 
-  TVM_DECLARE_ATTRS(InitAttrs, "relax.attrs.InitAttrs") {
-    TVM_ATTR_FIELD(dtype).describe("The data type of the created tensor.");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<InitAttrs>().def_ro("dtype", &InitAttrs::dtype,
+                                        "The data type of the created tensor.");
   }
+
+  static constexpr const char* _type_key = "relax.attrs.InitAttrs";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(InitAttrs, BaseAttrsNode);
 };  // struct InitAttrs
 
 /*! \brief Attributes used in tril and triu operator */
-struct TriluAttrs : public tvm::AttrsNode<TriluAttrs> {
+struct TriluAttrs : public AttrsNodeReflAdapter<TriluAttrs> {
   int k;
 
-  TVM_DECLARE_ATTRS(TriluAttrs, "relax.attrs.TriluAttrs") {
-    TVM_ATTR_FIELD(k).describe(
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TriluAttrs>().def_ro(
+        "k", &TriluAttrs::k,
         "The number of diagonals above or below the main diagonal to exclude or include.");
   }
+
+  static constexpr const char* _type_key = "relax.attrs.TriluAttrs";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TriluAttrs, BaseAttrsNode);
 };  // struct TriluAttrs
 
 }  // namespace relax

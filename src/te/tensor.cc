@@ -27,6 +27,17 @@
 namespace tvm {
 namespace te {
 
+void TensorNode::RegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<TensorNode>()
+      .def_ro("shape", &TensorNode::shape)
+      .def_ro("dtype", &TensorNode::dtype)
+      .def_ro("op", &TensorNode::op)
+      .def_ro("value_index", &TensorNode::value_index);
+}
+
+TVM_FFI_STATIC_INIT_BLOCK({ TensorNode::RegisterReflection(); });
+
 IterVar thread_axis(Range dom, std::string tag) {
   return IterVar(dom, Var(tag, dom.defined() ? dom->extent.dtype() : DataType::Int(32)),
                  kThreadIndex, tag);

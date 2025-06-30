@@ -19,6 +19,7 @@
 #ifndef TVM_RELAX_STRUCT_INFO_H_
 #define TVM_RELAX_STRUCT_INFO_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/node/node.h>
@@ -34,7 +35,12 @@ namespace relax {
  */
 class ObjectStructInfoNode : public StructInfoNode {
  public:
-  void VisitAttrs(AttrVisitor* v) { v->Visit("span", &span); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ObjectStructInfoNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const ObjectStructInfoNode* other, SEqualReducer equal) const { return true; }
 
@@ -66,11 +72,14 @@ class PrimStructInfoNode : public StructInfoNode {
   /*! \brief Underlying data type of the primitive value */
   DataType dtype;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("value", &value);
-    v->Visit("dtype", &dtype);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PrimStructInfoNode>()
+        .def_ro("value", &PrimStructInfoNode::value)
+        .def_ro("dtype", &PrimStructInfoNode::dtype);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const PrimStructInfoNode* other, SEqualReducer equal) const {
     return equal(value, other->value) && equal(dtype, other->dtype);
@@ -116,11 +125,14 @@ class ShapeStructInfoNode : public StructInfoNode {
   /*! \return Whether the struct info contains unknown ndim. */
   bool IsUnknownNdim() const { return ndim == kUnknownNDim; }
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("values", &values);
-    v->Visit("ndim", &ndim);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ShapeStructInfoNode>()
+        .def_ro("values", &ShapeStructInfoNode::values)
+        .def_ro("ndim", &ShapeStructInfoNode::ndim);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const ShapeStructInfoNode* other, SEqualReducer equal) const {
     return equal(values, other->values) && equal(ndim, other->ndim);
@@ -192,13 +204,16 @@ class TensorStructInfoNode : public StructInfoNode {
     return shape_sinfo->values;
   }
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("shape", &shape);
-    v->Visit("dtype", &dtype);
-    v->Visit("vdevice", &vdevice);
-    v->Visit("ndim", &ndim);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TensorStructInfoNode>()
+        .def_ro("shape", &TensorStructInfoNode::shape)
+        .def_ro("dtype", &TensorStructInfoNode::dtype)
+        .def_ro("vdevice", &TensorStructInfoNode::vdevice)
+        .def_ro("ndim", &TensorStructInfoNode::ndim);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const TensorStructInfoNode* other, SEqualReducer equal) const {
     return equal(shape, other->shape) && equal(ndim, other->ndim) &&
@@ -255,10 +270,12 @@ class TupleStructInfoNode : public StructInfoNode {
   /*! \brief The struct info of tuple fields. */
   Array<StructInfo> fields;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("fields", &fields);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TupleStructInfoNode>().def_ro("fields", &TupleStructInfoNode::fields);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const TupleStructInfoNode* other, SEqualReducer equal) const {
     return equal(fields, other->fields);
@@ -331,13 +348,16 @@ class FuncStructInfoNode : public StructInfoNode {
    */
   bool IsOpaque() const { return !params.defined(); }
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("params", &params);
-    v->Visit("ret", &ret);
-    v->Visit("derive_func", &derive_func);
-    v->Visit("span", &span);
-    v->Visit("purity", &purity);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FuncStructInfoNode>()
+        .def_ro("params", &FuncStructInfoNode::params)
+        .def_ro("ret", &FuncStructInfoNode::ret)
+        .def_ro("derive_func", &FuncStructInfoNode::derive_func)
+        .def_ro("purity", &FuncStructInfoNode::purity);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const FuncStructInfoNode* other, SEqualReducer equal) const {
     return equal.DefEqual(params, other->params) && equal(ret, other->ret) &&

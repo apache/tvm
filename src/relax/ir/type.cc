@@ -22,10 +22,18 @@
  * \brief Relax type system.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/type.h>
 
 namespace tvm {
 namespace relax {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  ShapeTypeNode::RegisterReflection();
+  TensorTypeNode::RegisterReflection();
+  ObjectTypeNode::RegisterReflection();
+  PackedFuncTypeNode::RegisterReflection();
+});
 
 TVM_REGISTER_NODE_TYPE(ShapeTypeNode);
 

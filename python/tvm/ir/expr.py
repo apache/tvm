@@ -23,7 +23,6 @@ import tvm.ffi
 from ..runtime import Object, Scriptable
 from . import _ffi_api
 from .base import Node, Span
-from .type import Type
 
 
 class BaseExpr(Node):
@@ -44,20 +43,6 @@ class PrimExpr(BaseExpr):
 
 class RelaxExpr(BaseExpr):
     """Base class of all non-primitive expressions."""
-
-    @property
-    def checked_type(self):
-        """Get the checked type of tvm.relax.Expr.
-
-        Returns
-        -------
-        checked_type : tvm.ir.Type
-            The checked type.
-        """
-        ret = self._checked_type_
-        if ret is None:
-            raise ValueError("The type checker has not populated the checked_type for this node")
-        return ret
 
     @property
     def struct_info(self) -> Optional["tvm.relax.StructInfo"]:
@@ -86,8 +71,8 @@ class GlobalVar(RelaxExpr):
 
     name_hint: str
 
-    def __init__(self, name_hint: str, type_annot: Optional[Type] = None):
-        self.__init_handle_by_constructor__(_ffi_api.GlobalVar, name_hint, type_annot)
+    def __init__(self, name_hint: str):
+        self.__init_handle_by_constructor__(_ffi_api.GlobalVar, name_hint)
 
     def __call__(self, *args: RelaxExpr) -> BaseExpr:
         """Call the global variable.

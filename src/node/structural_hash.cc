@@ -699,14 +699,20 @@ TVM_REGISTER_REFLECTION_VTABLE(ffi::MapObj, MapObjTrait)
     .set_creator([](const std::string&) -> ObjectPtr<Object> { return ffi::MapObj::Empty(); });
 
 struct ReportNodeTrait {
-  static void VisitAttrs(runtime::profiling::ReportNode* report, AttrVisitor* attrs) {
-    attrs->Visit("calls", &report->calls);
-    attrs->Visit("device_metrics", &report->device_metrics);
-    attrs->Visit("configuration", &report->configuration);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::ReportNode>()
+        .def_ro("calls", &runtime::profiling::ReportNode::calls)
+        .def_ro("device_metrics", &runtime::profiling::ReportNode::device_metrics)
+        .def_ro("configuration", &runtime::profiling::ReportNode::configuration);
   }
+
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+TVM_FFI_STATIC_INIT_BLOCK({ ReportNodeTrait::RegisterReflection(); });
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::ReportNode, ReportNodeTrait);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -716,51 +722,86 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 struct CountNodeTrait {
-  static void VisitAttrs(runtime::profiling::CountNode* n, AttrVisitor* attrs) {
-    attrs->Visit("value", &n->value);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::CountNode>().def_ro("value",
+                                                            &runtime::profiling::CountNode::value);
   }
+
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ CountNodeTrait::RegisterReflection(); });
+
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::CountNode, CountNodeTrait);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::CountNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::profiling::CountNode*>(node.get());
       p->stream << op->GetTypeKey() << "(" << op->value << ")";
     });
+
 struct DurationNodeTrait {
-  static void VisitAttrs(runtime::profiling::DurationNode* n, AttrVisitor* attrs) {
-    attrs->Visit("microseconds", &n->microseconds);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::DurationNode>().def_ro(
+        "microseconds", &runtime::profiling::DurationNode::microseconds);
   }
+
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ DurationNodeTrait::RegisterReflection(); });
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::DurationNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::profiling::DurationNode*>(node.get());
       p->stream << op->GetTypeKey() << "(" << op->microseconds << ")";
     });
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::DurationNode, DurationNodeTrait);
+
 struct PercentNodeTrait {
-  static void VisitAttrs(runtime::profiling::PercentNode* n, AttrVisitor* attrs) {
-    attrs->Visit("percent", &n->percent);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::PercentNode>().def_ro(
+        "percent", &runtime::profiling::PercentNode::percent);
   }
+
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ PercentNodeTrait::RegisterReflection(); });
+
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::PercentNode, PercentNodeTrait);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::PercentNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::profiling::PercentNode*>(node.get());
       p->stream << op->GetTypeKey() << "(" << op->percent << ")";
     });
+
 struct RatioNodeTrait {
-  static void VisitAttrs(runtime::profiling::RatioNode* n, AttrVisitor* attrs) {
-    attrs->Visit("ratio", &n->ratio);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::RatioNode>().def_ro("ratio",
+                                                            &runtime::profiling::RatioNode::ratio);
   }
+
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ RatioNodeTrait::RegisterReflection(); });
+
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::RatioNode, RatioNodeTrait);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::RatioNode>([](const ObjectRef& node, ReprPrinter* p) {

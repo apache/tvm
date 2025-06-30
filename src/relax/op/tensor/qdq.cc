@@ -32,6 +32,8 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({ QuantizeAttrs::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(QuantizeAttrs);
 
 /* relax.quantize */

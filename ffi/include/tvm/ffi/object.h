@@ -187,7 +187,14 @@ class Object {
    * \return The usage count of the cell.
    * \note We use stl style naming to be consistent with known API in shared_ptr.
    */
-  int32_t use_count() const { return details::AtomicLoadRelaxed(&(header_.ref_counter)); }
+  int32_t use_count() const {
+    // only need relaxed load of counters
+#ifdef _MSC_VER
+    return (reinterpret_cast<const volatile long*>(&header_.ref_counter))[0];  // NOLINT(*)
+#else
+    return __atomic_load_n(&(header_.ref_counter), __ATOMIC_RELAXED);
+#endif
+  }
 
   // Information about the object
   static constexpr const char* _type_key = "object.Object";
@@ -220,15 +227,35 @@ class Object {
 
  private:
   /*! \brief increase reference count */
-  void IncRef() { details::AtomicIncrementRelaxed(&(header_.ref_counter)); }
+  void IncRef() {
+#ifdef _MSC_VER
+    _InterlockedIncrement(reinterpret_cast<volatile long*>(&header_.ref_counter));  // NOLINT(*)
+#else
+    __atomic_fetch_add(&(header_.ref_counter), 1, __ATOMIC_RELAXED);
+#endif
+  }
 
   /*! \brief decrease reference count and delete the object */
   void DecRef() {
-    if (details::AtomicDecrementRelAcq(&(header_.ref_counter)) == 1) {
+#ifdef _MSC_VER
+    if (_InterlockedDecrement(                                               //
+            reinterpret_cast<volatile long*>(&header_.ref_counter)) == 0) {  // NOLINT(*)
+      // full barrrier is implicit in InterlockedDecrement
       if (header_.deleter != nullptr) {
         header_.deleter(&(this->header_));
       }
     }
+#else
+    // first do a release, note we only need to acquire for deleter
+    if (__atomic_fetch_sub(&(header_.ref_counter), 1, __ATOMIC_RELEASE) == 1) {
+      // only acquire when we need to call deleter
+      // in this case we need to ensure all previous writes are visible
+      __atomic_thread_fence(__ATOMIC_ACQUIRE);
+      if (header_.deleter != nullptr) {
+        header_.deleter(&(this->header_));
+      }
+    }
+#endif
   }
 
   // friend classes
@@ -666,34 +693,38 @@ template <typename TargetType>
 TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index) {
   static_assert(std::is_base_of_v<Object, TargetType>);
   // Everything is a subclass of object.
-  if constexpr (std::is_same<TargetType, Object>::value) return true;
-
-  if constexpr (TargetType::_type_final) {
+  if constexpr (std::is_same<TargetType, Object>::value) {
+    return true;
+  } else if constexpr (TargetType::_type_final) {
     // if the target type is a final type
     // then we only need to check the equivalence.
     return object_type_index == TargetType::RuntimeTypeIndex();
-  }
-
-  // if target type is a non-leaf type
-  // Check if type index falls into the range of reserved slots.
-  int32_t target_type_index = TargetType::RuntimeTypeIndex();
-  int32_t begin = target_type_index;
-  // The condition will be optimized by constant-folding.
-  if constexpr (TargetType::_type_child_slots != 0) {
-    // total_slots = child_slots + 1 (including self)
-    int32_t end = begin + TargetType::_type_child_slots + 1;
-    if (object_type_index >= begin && object_type_index < end) return true;
   } else {
-    if (object_type_index == begin) return true;
+    // Explicitly enclose in else to eliminate this branch early in compilation.
+    // if target type is a non-leaf type
+    // Check if type index falls into the range of reserved slots.
+    int32_t target_type_index = TargetType::RuntimeTypeIndex();
+    int32_t begin = target_type_index;
+    // The condition will be optimized by constant-folding.
+    if constexpr (TargetType::_type_child_slots != 0) {
+      // total_slots = child_slots + 1 (including self)
+      int32_t end = begin + TargetType::_type_child_slots + 1;
+      if (object_type_index >= begin && object_type_index < end) return true;
+    } else {
+      if (object_type_index == begin) return true;
+    }
+    if constexpr (TargetType::_type_child_slots_can_overflow) {
+      // Invariance: parent index is always smaller than the child.
+      if (object_type_index < target_type_index) return false;
+      // Do a runtime lookup of type information
+      // the function checks that the info exists
+      const TypeInfo* type_info = TVMFFIGetTypeInfo(object_type_index);
+      return (type_info->type_depth > TargetType::_type_depth &&
+              type_info->type_acenstors[TargetType::_type_depth]->type_index == target_type_index);
+    } else {
+      return false;
+    }
   }
-  if (!TargetType::_type_child_slots_can_overflow) return false;
-  // Invariance: parent index is always smaller than the child.
-  if (object_type_index < target_type_index) return false;
-  // Do a runtime lookup of type information
-  // the function checks that the info exists
-  const TypeInfo* type_info = TVMFFIGetTypeInfo(object_type_index);
-  return (type_info->type_depth > TargetType::_type_depth &&
-          type_info->type_acenstors[TargetType::_type_depth] == target_type_index);
 }
 
 /*!

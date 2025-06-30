@@ -28,6 +28,14 @@
 
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  SourceNameNode::RegisterReflection();
+  SpanNode::RegisterReflection();
+  SequentialSpanNode::RegisterReflection();
+  SourceNode::RegisterReflection();
+  SourceMapObj::RegisterReflection();
+});
+
 ObjectPtr<Object> GetSourceNameNode(const String& name) {
   // always return pointer as the reference can change as map re-allocate.
   // or use another level of indirection by creating a unique_ptr

@@ -87,7 +87,7 @@ class ExecBuilder(Object):
 
     def declare_function(self, func_name: str, kind: VMFuncKind = VMFuncKind.PACKED_FUNC) -> None:
         """Declare a function"""
-        _ffi_api.ExecBuilderDecalreFunction(self, func_name, kind)  # type: ignore
+        _ffi_api.ExecBuilderDeclareFunction(self, func_name, kind)  # type: ignore
 
     def function(
         self, func_name: str, num_inputs: Optional[int] = 0, param_names: List[str] = None

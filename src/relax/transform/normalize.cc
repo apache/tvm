@@ -20,7 +20,7 @@
 /*!
  * \file tvm/relax/transform/normalize.cc
  * \brief Pass for transforming Relax IR to normal form, i.e., the expressions are normalized(no
- * nesting and hence the AST is in ANF), and all checked_type_ and shape_ of expressions are
+ * nesting and hence the AST is in ANF), and all struct_info_ of expressions are
  * available.
  */
 

@@ -25,6 +25,7 @@
 #define TVM_CONTRIB_MSC_CORE_IR_GRAPH_BUILDER_H_
 
 #include <dmlc/json.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/runtime/ndarray.h>
@@ -106,13 +107,65 @@ struct MSCRBuildConfig {
   }
 };
 
-class AttrGetter : public AttrVisitor {
+class AttrGetter : private AttrVisitor {
  public:
   /*!
    * \brief Get the attributes as Map<String, String>
    * \param attrs the attributes.
    */
   explicit AttrGetter(Map<String, String>* attrs) : attrs_(attrs) {}
+
+  void operator()(const Attrs& attrs) {
+    // dispatch between new reflection and old reflection
+    const TVMFFITypeInfo* attrs_tinfo = TVMFFIGetTypeInfo(attrs->type_index());
+    if (attrs_tinfo->extra_info != nullptr) {
+      tvm::ffi::reflection::ForEachFieldInfo(attrs_tinfo, [&](const TVMFFIFieldInfo* field_info) {
+        Any field_value = tvm::ffi::reflection::FieldGetter(field_info)(attrs);
+        this->VisitAny(String(field_info->name), field_value);
+      });
+    } else {
+      // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
+      const_cast<BaseAttrsNode*>(attrs.get())->VisitAttrs(this);
+    }
+  }
+
+ private:
+  void VisitAny(String key, Any value) {
+    switch (value.type_index()) {
+      case kTVMFFINone: {
+        attrs_->Set(key, "");
+        break;
+      }
+      case kTVMFFIBool: {
+        attrs_->Set(key, std::to_string(value.cast<bool>()));
+        break;
+      }
+      case kTVMFFIInt: {
+        attrs_->Set(key, std::to_string(value.cast<int64_t>()));
+        break;
+      }
+      case kTVMFFIFloat: {
+        attrs_->Set(key, std::to_string(value.cast<double>()));
+        break;
+      }
+      case kTVMFFIDataType: {
+        attrs_->Set(key, runtime::DLDataTypeToString(value.cast<DLDataType>()));
+        break;
+      }
+      case kTVMFFIStr: {
+        attrs_->Set(key, value.cast<String>());
+        break;
+      }
+      default: {
+        if (value.type_index() >= kTVMFFIStaticObjectBegin) {
+          attrs_->Set(key, StringUtils::ToString(value.cast<ObjectRef>()));
+        } else {
+          LOG(FATAL) << "Unsupported type: " << value.type_index();
+        }
+        break;
+      }
+    }
+  }
 
   void Visit(const char* key, double* value) final { attrs_->Set(key, std::to_string(*value)); }
 

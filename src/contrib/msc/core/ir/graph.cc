@@ -1419,13 +1419,28 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
     });
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  MSCTensorNode::RegisterReflection();
+  BaseJointNode::RegisterReflection();
+  MSCJointNode::RegisterReflection();
+  MSCPrimNode::RegisterReflection();
+  WeightJointNode::RegisterReflection();
+  BaseGraphNode::RegisterReflection();
+  MSCGraphNode::RegisterReflection();
+  WeightGraphNode::RegisterReflection();
+});
+
 TVM_REGISTER_NODE_TYPE(MSCTensorNode);
+
+TVM_REGISTER_NODE_TYPE(BaseJointNode);
 
 TVM_REGISTER_NODE_TYPE(MSCJointNode);
 
 TVM_REGISTER_NODE_TYPE(MSCPrimNode);
 
 TVM_REGISTER_NODE_TYPE(WeightJointNode);
+
+TVM_REGISTER_NODE_TYPE(BaseGraphNode);
 
 TVM_REGISTER_NODE_TYPE(MSCGraphNode);
 

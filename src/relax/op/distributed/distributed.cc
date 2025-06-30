@@ -36,6 +36,8 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({ DistributionAttrs::RegisterReflection(); });
+
 /* relax.dist.annotate_sharding */
 TVM_REGISTER_NODE_TYPE(DistributionAttrs);
 Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,

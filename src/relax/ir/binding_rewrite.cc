@@ -22,6 +22,7 @@
  * \brief Implementation of binding rewriters.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/binding_rewrite.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
@@ -34,6 +35,8 @@
 
 namespace tvm {
 namespace relax {
+
+TVM_FFI_STATIC_INIT_BLOCK({ DataflowBlockRewriteNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(DataflowBlockRewriteNode);
 
@@ -321,7 +324,8 @@ Expr RemoveAllUnused(Expr expr) {
   auto var_usage = CollectVarUsage(expr);
 
   // For the purpose of
-  support::OrderedSet<Var> externally_exposed(var_usage.outputs.begin(), var_usage.outputs.end());
+  support::OrderedSet<Var, ObjectPtrHash, ObjectPtrEqual> externally_exposed(
+      var_usage.outputs.begin(), var_usage.outputs.end());
   for (const auto& [var, expr] : var_usage.bound_values) {
     if (ContainsImpureCall(expr)) {
       externally_exposed.insert(var);

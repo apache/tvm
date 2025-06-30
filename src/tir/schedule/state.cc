@@ -22,6 +22,8 @@
 namespace tvm {
 namespace tir {
 
+TVM_FFI_STATIC_INIT_BLOCK({ ScheduleStateNode::RegisterReflection(); });
+
 template <class K, class V>
 using SMap = std::unordered_map<K, V, ObjectPtrHash, ObjectPtrEqual>;
 

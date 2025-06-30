@@ -22,12 +22,22 @@
  * \brief Relax struct info.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/struct_info_functor.h>
 
 namespace tvm {
 namespace relax {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  ObjectStructInfoNode::RegisterReflection();
+  PrimStructInfoNode::RegisterReflection();
+  ShapeStructInfoNode::RegisterReflection();
+  TensorStructInfoNode::RegisterReflection();
+  TupleStructInfoNode::RegisterReflection();
+  FuncStructInfoNode::RegisterReflection();
+});
 
 ObjectStructInfo::ObjectStructInfo(Span span) {
   ObjectPtr<ObjectStructInfoNode> n = make_object<ObjectStructInfoNode>();
@@ -214,8 +224,6 @@ void UpdateStructInfo(Expr expr, StructInfo struct_info) {
       << "However, expression " << expr << " has struct info " << expr->struct_info_
       << ", which cannot be overwritten with " << struct_info;
   expr->struct_info_ = struct_info;
-  // also set checked type
-  expr->checked_type_ = GetStaticType(struct_info);
 }
 
 TVM_FFI_REGISTER_GLOBAL("relax.UpdateStructInfo")

@@ -57,6 +57,20 @@ inline size_t aligned(size_t value, size_t alignment = 16) {
 template <typename T>
 struct KernelTraits;
 
+template <>
+struct KernelTraits<cutlass::half_t> {
+  using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecializedCooperative;
+  using TileShape = Shape<_128, _256, _64>;  // Threadblock-level tile size
+  using ClusterShape = Shape<_2, _2, _1>;    // Shape of the threadblocks in a cluster
+};
+
+template <>
+struct KernelTraits<cutlass::bfloat16_t> {
+  using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecializedCooperative;
+  using TileShape = Shape<_128, _256, _64>;  // Threadblock-level tile size
+  using ClusterShape = Shape<_2, _2, _1>;    // Shape of the threadblocks in a cluster
+};
+
 template <typename ElementA, typename ElementB, typename ElementC,
           typename LayoutA = cutlass::layout::RowMajor,
           typename LayoutB = cutlass::layout::ColumnMajor,

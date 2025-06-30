@@ -35,6 +35,27 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  ConcatAttrs::RegisterReflection();
+  ExpandDimsAttrs::RegisterReflection();
+  LayoutTransformAttrs::RegisterReflection();
+  PermuteDimsAttrs::RegisterReflection();
+  SplitAttrs::RegisterReflection();
+  SqueezeAttrs::RegisterReflection();
+  StackAttrs::RegisterReflection();
+  RepeatAttrs::RegisterReflection();
+  TileAttrs::RegisterReflection();
+  FlipAttrs::RegisterReflection();
+  GatherElementsAttrs::RegisterReflection();
+  GatherNDAttrs::RegisterReflection();
+  IndexPutAttrs::RegisterReflection();
+  MeshgridAttrs::RegisterReflection();
+  ScatterElementsAttrs::RegisterReflection();
+  ScatterNDAttrs::RegisterReflection();
+  SliceScatterAttrs::RegisterReflection();
+  OneHotAttrs::RegisterReflection();
+});
+
 /* relax.broadcast_to */
 Expr broadcast_to(Expr x, Expr shape) {
   static const Op& op = Op::Get("relax.broadcast_to");
@@ -539,7 +560,7 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
   bool shape_unknown = !all_index_have_shape_value;
 
   if (all_index_have_shape_value) {
-    // initialise broadcast result with 1’s
+    // initialise broadcast result with 1's
     Array<PrimExpr> out_shape;
     for (int i = 0; i < max_index_ndim; ++i) {
       out_shape.push_back(IntImm(DataType::Int(64), 1));

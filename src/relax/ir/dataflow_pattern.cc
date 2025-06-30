@@ -28,15 +28,39 @@
 #include <stack>
 #include <string>
 
+namespace tvm {
+namespace relax {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  PatternSeqNode::RegisterReflection();
+  ExprPatternNode::RegisterReflection();
+  VarPatternNode::RegisterReflection();
+  DataflowVarPatternNode::RegisterReflection();
+  CallPatternNode::RegisterReflection();
+  PrimArrPatternNode::RegisterReflection();
+  FunctionPatternNode::RegisterReflection();
+  TuplePatternNode::RegisterReflection();
+  UnorderedTuplePatternNode::RegisterReflection();
+  TupleGetItemPatternNode::RegisterReflection();
+  AndPatternNode::RegisterReflection();
+  OrPatternNode::RegisterReflection();
+  NotPatternNode::RegisterReflection();
+  WildcardPatternNode::RegisterReflection();
+  StructInfoPatternNode::RegisterReflection();
+  ShapePatternNode::RegisterReflection();
+  SameShapeConstraintNode::RegisterReflection();
+  DataTypePatternNode::RegisterReflection();
+  AttrPatternNode::RegisterReflection();
+  ExternFuncPatternNode::RegisterReflection();
+  ConstantPatternNode::RegisterReflection();
+});
+
 #define RELAX_PATTERN_PRINTER_DEF(NODE_TYPE, REPR_LAMBDA)                 \
   TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)                              \
       .set_dispatch<NODE_TYPE>([](const ObjectRef& ref, ReprPrinter* p) { \
         auto* node = static_cast<const NODE_TYPE*>(ref.get());            \
         REPR_LAMBDA(p, node);                                             \
       })
-
-namespace tvm {
-namespace relax {
 
 TVM_REGISTER_NODE_TYPE(ExternFuncPatternNode);
 ExternFuncPattern::ExternFuncPattern(String global_symbol) {
@@ -247,20 +271,6 @@ TVM_FFI_REGISTER_GLOBAL("relax.dpl.WildcardPattern").set_body_typed([]() {
 });
 RELAX_PATTERN_PRINTER_DEF(WildcardPatternNode, [](auto p, auto node) { p->stream << "*"; });
 
-TVM_REGISTER_NODE_TYPE(TypePatternNode);
-TypePattern::TypePattern(DFPattern pattern, Type type) {
-  ObjectPtr<TypePatternNode> n = make_object<TypePatternNode>();
-  n->pattern = std::move(pattern);
-  n->type = std::move(type);
-  data_ = std::move(n);
-}
-TVM_FFI_REGISTER_GLOBAL("relax.dpl.TypePattern").set_body_typed([](DFPattern pattern, Type type) {
-  return TypePattern(pattern, type);
-});
-RELAX_PATTERN_PRINTER_DEF(TypePatternNode, [](auto p, auto node) {
-  p->stream << "TypePattern(" << node->pattern << " has type " << node->type << ")";
-});
-
 TVM_REGISTER_NODE_TYPE(StructInfoPatternNode);
 StructInfoPattern::StructInfoPattern(DFPattern pattern, StructInfo struct_info) {
   ObjectPtr<StructInfoPatternNode> n = make_object<StructInfoPatternNode>();
@@ -391,9 +401,7 @@ class DFPatternDuplicator : public DFPatternFunctor<DFPattern(const DFPattern&)>
   DFPattern VisitDFPattern_(const StructInfoPatternNode* op) override {
     return StructInfoPattern(op->pattern, op->struct_info);
   }
-  DFPattern VisitDFPattern_(const TypePatternNode* op) override {
-    return TypePattern(op->pattern, op->type);
-  }
+
   DFPattern VisitDFPattern_(const DataflowVarPatternNode* op) override {
     return DataflowVarPattern(op->name);
   }
@@ -421,7 +429,6 @@ AttrPattern DFPattern::HasAttr(const Map<String, Any>& attrs) const {
 StructInfoPattern DFPattern::HasStructInfo(const StructInfo& struct_info) const {
   return StructInfoPattern(*this, struct_info);
 }
-TypePattern DFPattern::HasType(const Type& type) const { return TypePattern(*this, type); }
 DataTypePattern DFPattern::HasDtype(const DataType& dtype) const {
   return DataTypePattern(*this, dtype);
 }

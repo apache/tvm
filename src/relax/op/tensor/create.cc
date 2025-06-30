@@ -34,6 +34,11 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  InitAttrs::RegisterReflection();
+  TriluAttrs::RegisterReflection();
+});
+
 /* Initialization operators */
 TVM_REGISTER_NODE_TYPE(InitAttrs);
 

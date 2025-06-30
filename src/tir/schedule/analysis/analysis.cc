@@ -16,11 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../ir_comparator.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace tir {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  TensorizeInfoNode::RegisterReflection();
+  AutoTensorizeMappingInfoNode::RegisterReflection();
+});
 
 /******** IR Module ********/
 

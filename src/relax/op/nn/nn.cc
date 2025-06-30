@@ -25,6 +25,22 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  SoftmaxAttrs::RegisterReflection();
+  LeakyReluAttrs::RegisterReflection();
+  SoftplusAttrs::RegisterReflection();
+  PReluAttrs::RegisterReflection();
+  BatchNormAttrs::RegisterReflection();
+  LayerNormAttrs::RegisterReflection();
+  GroupNormAttrs::RegisterReflection();
+  InstanceNormAttrs::RegisterReflection();
+  RMSNormAttrs::RegisterReflection();
+  NLLLossAttrs::RegisterReflection();
+  DropoutAttrs::RegisterReflection();
+  PadAttrs::RegisterReflection();
+  PixelShuffleAttrs::RegisterReflection();
+});
+
 /* relax.nn.relu */
 RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(relu, "nn.relu", /*require_float_dtype=*/false);
 
@@ -415,7 +431,6 @@ InferLayoutOutput InferLayoutBatchNorm(const Call& call,
   }
   const auto* attrs = call->attrs.as<BatchNormAttrs>();
   ICHECK(attrs) << "Invalid Call";
-
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
 
   // While dealing with sub layouts, its adviced to deal with batchnorm
@@ -624,6 +639,106 @@ TVM_REGISTER_OP("relax.nn.group_norm")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.nn.instance_norm */
+TVM_REGISTER_NODE_TYPE(InstanceNormAttrs);
+
+Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, Array<Integer> axes,
+                   double epsilon, bool center, bool scale) {
+  ObjectPtr<InstanceNormAttrs> attrs = make_object<InstanceNormAttrs>();
+  attrs->channel_axis = std::move(channel_axis);
+  attrs->axes = std::move(axes);
+  attrs->epsilon = epsilon;
+  attrs->center = center;
+  attrs->scale = scale;
+
+  static const Op& op = Op::Get("relax.nn.instance_norm");
+  return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
+}
+
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.instance_norm").set_body_typed(instance_norm);
+
+StructInfo InferStructInfoInstanceNorm(const Call& call, const BlockBuilder& ctx) {
+  Op op = Downcast<Op>(call->op);
+  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  const auto* attrs = call->attrs.as<InstanceNormAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+  TensorStructInfo data_sinfo = input_sinfo[0];
+
+  int channel_axis = -1;
+  if (!data_sinfo->IsUnknownNdim()) {
+    channel_axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->channel_axis);
+    std::vector<int> axes = NormalizeAxes(call, ctx, data_sinfo->ndim, attrs->axes);
+    // channel_axis must not be in axes.
+    if (std::find(axes.begin(), axes.end(), channel_axis) != axes.end()) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << op
+                       << " expects that channel_axis must not be in axes, but got channel_axis: "
+                       << channel_axis << ", axes: " << attrs->axes);
+    }
+  }
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  for (int i = 1; i < static_cast<int>(op->arguments.size()); ++i) {
+    if (input_sinfo[i]->dtype != data_sinfo->dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << op << " expects that all inputs must have the same dtype, but got "
+                       << input_sinfo[i]->dtype << " and " << data_sinfo->dtype);
+    } else if (input_sinfo[i]->ndim != 1) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << op << " expects that all inputs must have ndim=1, but got "
+                       << input_sinfo[i]->ndim);
+    }
+    const auto* shape = input_sinfo[i]->shape.as<ShapeExprNode>();
+    if (shape != nullptr && data_shape != nullptr) {
+      PrimExpr channel_size = data_shape->values[channel_axis];
+      PrimExpr input_size = shape->values[0];
+      if (analyzer->CanProve(channel_size != input_size)) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << op << " expects that the size of input " << i
+                         << " must be equal to the size of channel_axis, but got " << input_size
+                         << " and " << channel_size);
+      }
+    }
+  }
+  return data_sinfo;
+}
+
+InferLayoutOutput InferLayoutInstanceNorm(const Call& call,
+                                          const Map<String, Array<String>>& desired_layouts,
+                                          const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+  std::vector<NLayout> initial_layouts;
+  for (size_t i = 0; i < 3; ++i) {
+    const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
+    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+    initial_layouts.push_back(InitialLayoutDecision(tensor_sinfo->ndim));
+  }
+  const auto* attrs = call->attrs.as<InstanceNormAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+
+  LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  ObjectPtr<InstanceNormAttrs> new_attrs = make_object<InstanceNormAttrs>(*attrs);
+  std::vector<Integer> new_axes;
+  for (const auto& axis : attrs->axes) {
+    new_axes.push_back(FindAxis(layout->layout, (axis->value)));
+  }
+  new_attrs->axes = std::move(new_axes);
+  new_attrs->channel_axis = FindAxis(layout->layout, attrs->channel_axis);
+  return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
+                           Attrs(new_attrs));
+}
+
+TVM_REGISTER_OP("relax.nn.instance_norm")
+    .set_attrs_type<InstanceNormAttrs>()
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "Input to which instance_norm will be applied.")
+    .add_argument("gamma", "Tensor", "The gamma scale factor.")
+    .add_argument("beta", "Tensor", "The beta offset factor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInstanceNorm)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutInstanceNorm)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
 /* relax.nn.rms_norm */
 TVM_REGISTER_NODE_TYPE(RMSNormAttrs);
 

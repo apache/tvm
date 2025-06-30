@@ -29,6 +29,8 @@ namespace tvm {
 namespace te {
 using namespace tir;
 
+TVM_FFI_STATIC_INIT_BLOCK({ ScanOpNode::RegisterReflection(); });
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ScanOpNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const ScanOpNode*>(node.get());

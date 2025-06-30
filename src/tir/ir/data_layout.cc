@@ -34,6 +34,11 @@ using tir::IterVar;
 using tir::IterVarNode;
 using tir::Var;
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  LayoutNode::RegisterReflection();
+  BijectiveLayoutNode::RegisterReflection();
+});
+
 TVM_REGISTER_NODE_TYPE(LayoutNode);
 TVM_REGISTER_NODE_TYPE(BijectiveLayoutNode);
 

@@ -385,5 +385,31 @@ def test_buffer_access_with_let_binding():
     tvm.ir.assert_structural_equal(block.writes, ret[1])
 
 
+def test_buffer_access_with_nested_let_binding():
+    @T.prim_func
+    def func(
+        A: T.Buffer((16, 16), "float32"),
+        B: T.Buffer((16, 16), "float32"),
+        C: T.Buffer((16, 16), "float32"),
+    ):
+        for i, s in T.grid(16, 16):
+            with T.block("copy"):
+                vi, vs = T.axis.remap("SS", [i, s])
+                T.reads(A[vi, vs], B[vi, vs])
+                T.writes(C[vi, vs])
+                vi1: T.int32 = vi
+                vi2: T.int32 = vi1
+                vs1: T.int32 = vs
+                vs2: T.int32 = vs1
+                vs3: T.int32 = vs2
+                C[vi, vs1] = A[vi1, vs2] + B[vi2, vs3]
+
+    block = func.body.block.body.body.body.block
+    buffer_var_map = {buf.data: buf for buf in func.buffer_map.values()}
+    ret = tir.analysis.get_block_access_region(block, buffer_var_map)
+    tvm.ir.assert_structural_equal(block.reads, ret[0])
+    tvm.ir.assert_structural_equal(block.writes, ret[1])
+
+
 if __name__ == "__main__":
     tvm.testing.main()

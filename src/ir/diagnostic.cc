@@ -28,6 +28,12 @@
 
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  DiagnosticNode::RegisterReflection();
+  DiagnosticRendererNode::RegisterReflection();
+  DiagnosticContextNode::RegisterReflection();
+});
+
 // failed to check to argument arg0.dims[0] != 0
 
 /* Diagnostic */

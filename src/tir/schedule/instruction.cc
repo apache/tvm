@@ -21,6 +21,11 @@
 namespace tvm {
 namespace tir {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  InstructionKindNode::RegisterReflection();
+  InstructionNode::RegisterReflection();
+});
+
 bool InstructionKindNode::IsPostproc() const {
   static InstructionKind inst_enter_postproc = InstructionKind::Get("EnterPostproc");
   return this == inst_enter_postproc.get();

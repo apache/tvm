@@ -624,7 +624,7 @@ def HoistIfThenElse(variant: Optional[str] = None):
         Default variant supports all hoisting scenarios,i.e., {"Basic" + "Advanced"}
         supported with control with PassContext configs like below:
 
-            config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+            config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
 
     Returns
     -------

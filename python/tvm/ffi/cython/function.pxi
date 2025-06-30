@@ -230,6 +230,108 @@ class Function(Object):
 _register_object_by_index(kTVMFFIFunction, Function)
 
 
+cdef class FieldGetter:
+    cdef TVMFFIFieldGetter getter
+    cdef int64_t offset
+
+    def __call__(self, Object obj):
+        cdef TVMFFIAny result
+        cdef int c_api_ret_code
+        cdef void* field_ptr = (<char*>(<Object>obj).chandle) + self.offset
+        result.type_index = kTVMFFINone
+        result.v_int64 = 0
+        c_api_ret_code = self.getter(field_ptr, &result)
+        CHECK_CALL(c_api_ret_code)
+        return make_ret(result)
+
+
+cdef class FieldSetter:
+    cdef TVMFFIFieldSetter setter
+    cdef int64_t offset
+
+    def __call__(self, Object obj, value):
+        cdef TVMFFIAny[1] packed_args
+        cdef int c_api_ret_code
+        cdef void* field_ptr = (<char*>(<Object>obj).chandle) + self.offset
+        cdef int nargs = 1
+        temp_args = []
+        make_args((value,), &packed_args[0], temp_args)
+        c_api_ret_code = self.setter(field_ptr, &packed_args[0])
+        # NOTE: logic is same as check_call
+        # directly inline here to simplify traceback
+        if c_api_ret_code == 0:
+            return
+        elif c_api_ret_code == -2:
+            raise_existing_error()
+        raise move_from_last_error().py_error()
+
+
+cdef _get_method_from_method_info(const TVMFFIMethodInfo* method):
+    cdef TVMFFIAny result
+    CHECK_CALL(TVMFFIAnyViewToOwnedAny(&(method.method), &result))
+    return make_ret(result)
+
+
+def _add_class_attrs_by_reflection(int type_index, object cls):
+    """Decorate the class attrs by reflection"""
+    cdef const TVMFFITypeInfo* info = TVMFFIGetTypeInfo(type_index)
+    cdef const TVMFFIFieldInfo* field
+    cdef const TVMFFIMethodInfo* method
+    cdef int num_fields = info.num_fields
+    cdef int num_methods = info.num_methods
+
+    for i in range(num_fields):
+        # attach fields to the class
+        field = &(info.fields[i])
+        getter = FieldGetter.__new__(FieldGetter)
+        (<FieldGetter>getter).getter = field.getter
+        (<FieldGetter>getter).offset = field.offset
+        setter = FieldSetter.__new__(FieldSetter)
+        (<FieldSetter>setter).setter = field.setter
+        (<FieldSetter>setter).offset = field.offset
+        if (field.flags & kTVMFFIFieldFlagBitMaskWritable) == 0:
+            setter = None
+        doc = (
+            py_str(PyBytes_FromStringAndSize(field.doc.data, field.doc.size))
+            if field.doc.size != 0
+            else None
+        )
+        name = py_str(PyBytes_FromStringAndSize(field.name.data, field.name.size))
+        if hasattr(cls, name):
+            # skip already defined attributes
+            continue
+        setattr(cls, name, property(getter, setter, doc=doc))
+
+    for i in range(num_methods):
+        # attach methods to the class
+        method = &(info.methods[i])
+        name = py_str(PyBytes_FromStringAndSize(method.name.data, method.name.size))
+        doc = (
+            py_str(PyBytes_FromStringAndSize(method.doc.data, method.doc.size))
+            if method.doc.size != 0
+            else None
+        )
+        method_func = _get_method_from_method_info(method)
+
+        if method.flags & kTVMFFIFieldFlagBitMaskIsStaticMethod:
+            method_pyfunc = staticmethod(method_func)
+        else:
+            def method_pyfunc(self, *args):
+                return method_func(self, *args)
+
+        if doc is not None:
+            method_pyfunc.__doc__ = doc
+            method_pyfunc.__name__ = name
+
+        if hasattr(cls, name):
+            # skip already defined attributes
+            continue
+
+        setattr(cls, name, method_pyfunc)
+
+    return cls
+
+
 def _register_global_func(name, pyfunc, override):
     cdef TVMFFIObjectHandle chandle
     cdef int c_api_ret_code

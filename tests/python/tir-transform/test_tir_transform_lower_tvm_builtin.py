@@ -154,8 +154,8 @@ def test_lower_overflow_int32():
         rxplaceholder_1 = T.Buffer((T.int64(822083584),), data=rxplaceholder.data)
         T_subtract_1 = T.Buffer((T.int64(822083584),), data=T_subtract)
         for ax1, ax2 in T.grid(32, 25690112):
-            cse_var_1: T.int32 = ax1 * 25690112 + ax2
-            T_subtract_1[cse_var_1] = rxplaceholder_1[cse_var_1] - rxplaceholder_red_1[ax1]
+            cse_v1: T.int32 = ax1 * 25690112 + ax2
+            T_subtract_1[cse_v1] = rxplaceholder_1[cse_v1] - rxplaceholder_red_1[ax1]
 
     func = variance4
     tvm.compile(func, target="llvm")  # should not crash

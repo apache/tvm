@@ -41,20 +41,6 @@ struct CutlassGroupGemm<90, ElementA, ElementB, ElementC> {
   }
 };
 
-template <>
-struct KernelTraits<cutlass::half_t> {
-  using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecializedCooperative;
-  using TileShape = Shape<_128, _256, _64>;  // Threadblock-level tile size
-  using ClusterShape = Shape<_2, _2, _1>;    // Shape of the threadblocks in a cluster
-};
-
-template <>
-struct KernelTraits<cutlass::bfloat16_t> {
-  using KernelSchedule = cutlass::gemm::KernelPtrArrayTmaWarpSpecializedCooperative;
-  using TileShape = Shape<_128, _256, _64>;  // Threadblock-level tile size
-  using ClusterShape = Shape<_2, _2, _1>;    // Shape of the threadblocks in a cluster
-};
-
 void tvm_cutlass_group_gemm_sm90(NDArray x, NDArray weight, NDArray indptr, NDArray workspace,
                                  NDArray out) {
   tvm_cutlass_group_gemm_impl<90>(x, weight, indptr, workspace, out);

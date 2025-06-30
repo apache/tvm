@@ -56,6 +56,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << f_as_string();
     });
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  MeasureCallbackNode::RegisterReflection();
+  PyMeasureCallbackNode::RegisterReflection();
+});
+
 TVM_REGISTER_OBJECT_TYPE(MeasureCallbackNode);
 TVM_REGISTER_NODE_TYPE(PyMeasureCallbackNode);
 

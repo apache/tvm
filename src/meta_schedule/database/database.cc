@@ -278,6 +278,12 @@ Database Database::PyDatabase(PyDatabaseNode::FHasWorkload f_has_workload,
 
 /******** FFI ********/
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  WorkloadNode::RegisterReflection();
+  TuningRecordNode::RegisterReflection();
+  PyDatabaseNode::RegisterReflection();
+});
+
 TVM_REGISTER_NODE_TYPE(WorkloadNode);
 TVM_REGISTER_NODE_TYPE(TuningRecordNode);
 TVM_REGISTER_OBJECT_TYPE(DatabaseNode);

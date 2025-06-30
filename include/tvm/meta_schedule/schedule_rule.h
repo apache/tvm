@@ -24,6 +24,7 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/reflection.h>
@@ -42,7 +43,11 @@ class ScheduleRuleNode : public runtime::Object {
   /*! \brief Virtual destructor. */
   virtual ~ScheduleRuleNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register
+  }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Initialize the design space generator with tuning context.
@@ -320,12 +325,14 @@ class PyScheduleRuleNode : public ScheduleRuleNode {
   /*! \brief The packed function to the `Clone` function. */
   FClone f_clone;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_initialize_with_tune_context` is not visited
-    // `f_apply` is not visited
-    // `f_as_string` is not visited
-    // `f_clone` is not visited
+  static void RegisterReflection() {
+    // `f_initialize_with_tune_context` is not registered
+    // `f_apply` is not registered
+    // `f_as_string` is not registered
+    // `f_clone` is not registered
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block) final;

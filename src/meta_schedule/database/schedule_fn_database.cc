@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -27,10 +29,12 @@ class ScheduleFnDatabaseNode : public DatabaseNode {
 
   ffi::TypedFunction<bool(tir::Schedule)> schedule_fn;
 
-  void VisitAttrs(AttrVisitor* v) {
-    // `schedule_fn` is not visited.
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ScheduleFnDatabaseNode>().def_ro("schedule_fn",
+                                                     &ScheduleFnDatabaseNode::schedule_fn);
   }
-
+  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "meta_schedule.ScheduleFnDatabase";
   TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleFnDatabaseNode, DatabaseNode);
 
@@ -101,6 +105,8 @@ Database Database::ScheduleFnDatabase(ffi::TypedFunction<bool(tir::Schedule)> sc
 TVM_REGISTER_NODE_TYPE(ScheduleFnDatabaseNode);
 TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseScheduleFnDatabase")
     .set_body_typed(Database::ScheduleFnDatabase);
+
+TVM_FFI_STATIC_INIT_BLOCK({ ScheduleFnDatabaseNode::RegisterReflection(); });
 
 }  // namespace meta_schedule
 }  // namespace tvm

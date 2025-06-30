@@ -22,6 +22,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/meta_schedule/cost_model.h>
 #include <tvm/meta_schedule/database.h>
@@ -241,14 +242,16 @@ class PySearchStrategyNode : public SearchStrategyNode {
   /*! \brief The packed function to the `Clone` method. */
   FClone f_clone;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_initialize_with_tune_context` is not visited
-    // `f_pre_tuning` is not visited
-    // `f_post_tuning` is not visited
-    // `f_generate_measure_candidates` is not visited
-    // `f_notify_runner_results` is not visited
-    // `f_clone` is not visited
+  static void RegisterReflection() {
+    // `f_initialize_with_tune_context` is not registered
+    // `f_pre_tuning` is not registered
+    // `f_post_tuning` is not registered
+    // `f_generate_measure_candidates` is not registered
+    // `f_notify_runner_results` is not registered
+    // `f_clone` is not registered
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   void PreTuning(int max_trials, int num_trials_per_iter, const Array<tir::Schedule>& design_spaces,

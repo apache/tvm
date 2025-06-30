@@ -26,7 +26,7 @@ from tvm.runtime import const
 
 from . import _ffi_api
 from .buffer import Buffer
-from .expr import Call, CommReducer, IntImm, PrimExprWithOp, Var
+from .expr import BufferLoad, Call, CommReducer, IntImm, PrimExprWithOp, Var
 
 
 def _pack_buffer(buf, span=None):
@@ -432,10 +432,10 @@ def call_tir(global_var: tvm.ir.GlobalVar, *args):
     assert isinstance(global_var, tvm.ir.GlobalVar)
 
     dtype = "void"
-    if global_var.checked_type is not None:
-        ret_type = global_var.checked_type.ret_type
-        if hasattr(ret_type, "dtype"):
-            dtype = ret_type.dtype
+    if global_var.struct_info is not None:
+        ret_sinfo = global_var.struct_info.ret
+        if hasattr(ret_sinfo, "dtype"):
+            dtype = ret_sinfo.dtype
 
     return Call(dtype=dtype, op=global_var, args=args)
 
@@ -553,13 +553,13 @@ def tvm_struct_set(arr, index, field, value):
     return call_intrin("int32", "tir.tvm_struct_set", arr, index, field, value)
 
 
-def address_of(buffer_load, span=None):
+def address_of(obj: Union[Buffer, BufferLoad], span: Optional[Span] = None) -> PrimExpr:
     """Returns the address of an element in the buffer
 
     Parameters
     ----------
-    buffer_load: BufferLoad
-        The buffer load.
+    obj: Union[Buffer, BufferLoad]
+        The buffer or buffer load.
 
     span : Optional[Span]
         The location of this operator in the source code.
@@ -569,7 +569,15 @@ def address_of(buffer_load, span=None):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("handle", "tir.address_of", buffer_load, span=span)
+    if isinstance(obj, Buffer):
+
+        n_dim = len(obj.shape)
+        buffer_load = BufferLoad(obj, [0] * n_dim)
+        return call_intrin("handle", "tir.address_of", buffer_load, span=span)
+    elif isinstance(obj, BufferLoad):
+        return call_intrin("handle", "tir.address_of", obj, span=span)
+    else:
+        raise ValueError(f"Invalid object type: {type(obj)}")
 
 
 def lookup_param(param_name, span=None):

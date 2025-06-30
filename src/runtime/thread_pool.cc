@@ -109,7 +109,7 @@ class ParallelLauncher {
         par_errors_[i] = nullptr;
       }
     }
-    TVMFFIErrorSetRaisedByCStr("RuntimeError", os.str().c_str());
+    TVMFFIErrorSetRaisedFromCStr("RuntimeError", os.str().c_str());
     return -1;
   }
   // Signal that one job has finished.

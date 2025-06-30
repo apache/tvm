@@ -47,6 +47,12 @@ Builder Builder::PyBuilder(BuilderNode::FBuild f_build) {
 
 /******** FFI ********/
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  BuilderInputNode::RegisterReflection();
+  BuilderResultNode::RegisterReflection();
+  PyBuilderNode::RegisterReflection();
+});
+
 TVM_REGISTER_NODE_TYPE(BuilderInputNode);
 TVM_REGISTER_NODE_TYPE(BuilderResultNode);
 TVM_REGISTER_OBJECT_TYPE(BuilderNode);

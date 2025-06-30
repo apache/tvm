@@ -255,6 +255,15 @@ class String : public ObjectRef {
    */
   String(std::string&& other)  // NOLINT(*)
       : ObjectRef(make_object<details::BytesObjStdImpl<StringObj>>(std::move(other))) {}
+
+  /*!
+   * \brief constructor from TVMFFIByteArray
+   *
+   * \param other a TVMFFIByteArray.
+   */
+  explicit String(TVMFFIByteArray other)
+      : ObjectRef(details::MakeInplaceBytes<StringObj>(other.data, other.size)) {}
+
   /*!
    * \brief Swap this String with another string
    * \param other The other string
@@ -304,6 +313,18 @@ class String : public ObjectRef {
    */
   int compare(const char* other) const {
     return Bytes::memncmp(data(), other, size(), std::strlen(other));
+  }
+
+  /*!
+   * \brief Compares this to other
+   *
+   * \param other The TVMFFIByteArray to compare with.
+   *
+   * \return zero if both char sequences compare equal. negative if this appear
+   * before other, positive otherwise.
+   */
+  int compare(const TVMFFIByteArray& other) const {
+    return Bytes::memncmp(data(), other.data, size(), other.size);
   }
 
   /*!

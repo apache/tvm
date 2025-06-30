@@ -45,6 +45,11 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << f_as_string();
     });
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  FeatureExtractorNode::RegisterReflection();
+  PyFeatureExtractorNode::RegisterReflection();
+});
+
 TVM_REGISTER_OBJECT_TYPE(FeatureExtractorNode);
 TVM_REGISTER_NODE_TYPE(PyFeatureExtractorNode);
 
