@@ -89,4 +89,16 @@ TVM_FFI_REGISTER_GLOBAL("ir.TupleType").set_body_typed([](Array<Type> fields) {
   return TupleType(fields);
 });
 
+TVM_FFI_REGISTER_GLOBAL("ir.TensorMapType").set_body_typed([](Span span) {
+  return TensorMapType(span);
+});
+
+TensorMapType::TensorMapType(Span span) {
+  ObjectPtr<TensorMapTypeNode> n = make_object<TensorMapTypeNode>();
+  n->span = std::move(span);
+  data_ = std::move(n);
+}
+
+TVM_REGISTER_NODE_TYPE(TensorMapTypeNode);
+
 }  // namespace tvm

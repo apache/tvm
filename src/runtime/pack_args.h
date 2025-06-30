@@ -64,12 +64,15 @@ union ArgUnion64 {
  *
  * \param f with signiture (ffi::PackedArgs args, ffi::Any* rv, void* void_args)
  * \param arg_types The arguments type information.
+ * \param arg_extra_tags extra tags for the arguments
  * \tparam F the function type
  *
  * \return The wrapped packed function.
  */
 template <typename F>
-inline ffi::Function PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types);
+inline ffi::Function PackFuncVoidAddr(
+    F f, const std::vector<DLDataType>& arg_types,
+    const std::vector<FunctionInfo::ArgExtraTags>& arg_extra_tags = {});
 /*!
  * \brief Create a packed function that from function only packs buffer arguments.
  *
@@ -130,7 +133,8 @@ enum ArgConvertCode {
   INT64_TO_UINT32,
   FLOAT64_TO_FLOAT32,
   FLOAT64_TO_FLOAT64,
-  HANDLE_TO_HANDLE
+  HANDLE_TO_HANDLE,
+  HANDLE_TO_TENSORMAP
 };
 
 inline ArgConvertCode GetArgConvertCode(DLDataType t) {
@@ -183,6 +187,10 @@ inline ffi::Function PackFuncVoidAddr_(F f, const std::vector<ArgConvertCode>& c
           addr[i] = &(holder[i]);
           break;
         }
+        case HANDLE_TO_TENSORMAP: {
+          addr[i] = raw_args[i].v_ptr;
+          break;
+        }
       }
     }
     f(args, ret, addr);
@@ -222,7 +230,8 @@ inline ffi::Function PackFuncNonBufferArg_(F f, int base,
           holder[i].v_float32[0] = static_cast<float>(raw_args[base + i].v_float64);
           break;
         }
-        case HANDLE_TO_HANDLE: {
+        case HANDLE_TO_HANDLE:
+        case HANDLE_TO_TENSORMAP: {
           LOG(FATAL) << "not reached";
           break;
         }
@@ -284,6 +293,7 @@ inline ffi::Function PackFuncPackedArgAligned_(F f, const std::vector<ArgConvert
           ++ptr;
           break;
         }
+        case HANDLE_TO_TENSORMAP:
         default: {
           LOG(FATAL) << "not reached";
           break;
@@ -297,10 +307,16 @@ inline ffi::Function PackFuncPackedArgAligned_(F f, const std::vector<ArgConvert
 }  // namespace detail
 
 template <typename F>
-inline ffi::Function PackFuncVoidAddr(F f, const std::vector<DLDataType>& arg_types) {
+inline ffi::Function PackFuncVoidAddr(
+    F f, const std::vector<DLDataType>& arg_types,
+    const std::vector<FunctionInfo::ArgExtraTags>& arg_extra_tags) {
   std::vector<detail::ArgConvertCode> codes(arg_types.size());
   for (size_t i = 0; i < arg_types.size(); ++i) {
-    codes[i] = detail::GetArgConvertCode(arg_types[i]);
+    if (arg_extra_tags.size() > i && arg_extra_tags[i] == FunctionInfo::ArgExtraTags::kTensorMap) {
+      codes[i] = detail::HANDLE_TO_TENSORMAP;
+    } else {
+      codes[i] = detail::GetArgConvertCode(arg_types[i]);
+    }
   }
   size_t num_void_args = arg_types.size();
   // specialization

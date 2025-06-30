@@ -1037,6 +1037,10 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
         return builder_->CreateAlloca(t_tvm_ffi_any_, num);
       } else if (type == "array") {
         return builder_->CreateAlloca(t_tvm_array_, num);
+      } else if (type == "tensormap") {
+        auto* alloca = builder_->CreateAlloca(t_tvm_tensormap_, num);
+        alloca->setAlignment(llvm::Align(64));
+        return alloca;
       } else {
         LOG(FATAL) << "Unknown stack alloca type " << type;
       }
