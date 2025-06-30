@@ -30,15 +30,20 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  ArgmaxArgminAttrs::RegisterReflection(); 
+  BucketizeAttrs::RegisterReflection();
+});
+
 /* relax.bucketize */
 TVM_REGISTER_NODE_TYPE(BucketizeAttrs);
 
 Expr bucketize(Expr input_tensor, Expr boundaries, bool out_int32, bool right) {
   auto attrs = make_object<BucketizeAttrs>();
-  attrs->out_int32 = out_int32;
-  attrs->right = right;
+  attrs->out_int32 = std::move(out_int32);
+  attrs->right = std::move(right);
   static const Op& op = Op::Get("relax.bucketize");
-  return Call(op, {input_tensor, boundaries}, Attrs(attrs), {});
+  return Call(op, {std::move(input_tensor), std::move(boundaries)}, Attrs(attrs), {});
 }
 
 TVM_FFI_REGISTER_GLOBAL("relax.op.bucketize").set_body_typed(bucketize);
