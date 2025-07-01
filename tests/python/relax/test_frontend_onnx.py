@@ -800,6 +800,7 @@ def test_unsqueeze_v1():
     )
     check_correctness(model, opset=10)
 
+
 # TODO @Cookiee235, fix the precision loss due to the approximation in Erf
 """
 def test_gelu():
@@ -809,6 +810,7 @@ def test_gelu():
 def test_bias_gelu():
     verify_binary("BiasGelu", [32, 32], [32], [32, 32], domain="com.microsoft")
 """
+
 
 def test_where():
     where_node = helper.make_node("Where", ["a", "b", "c"], ["d"])
