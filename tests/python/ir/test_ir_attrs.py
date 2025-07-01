@@ -38,7 +38,7 @@ def test_make_attrs():
 
 
 def test_dict_attrs():
-    dattr = tvm.ir.make_node("DictAttrs", x=1, y=10, name="xyz", padding=(0, 0))
+    dattr = tvm.ir.make_node("ir.DictAttrs", x=1, y=10, name="xyz", padding=(0, 0))
     assert dattr.x == 1
     datrr = tvm.ir.load_json(tvm.ir.save_json(dattr))
     assert dattr.name == "xyz"
@@ -51,9 +51,9 @@ def test_dict_attrs():
 
 
 def test_attrs_equal():
-    dattr0 = tvm.ir.make_node("DictAttrs", x=1, y=[10, 20])
-    dattr1 = tvm.ir.make_node("DictAttrs", y=[10, 20], x=1)
-    dattr2 = tvm.ir.make_node("DictAttrs", x=1, y=None)
+    dattr0 = tvm.ir.make_node("ir.DictAttrs", x=1, y=[10, 20])
+    dattr1 = tvm.ir.make_node("ir.DictAttrs", y=[10, 20], x=1)
+    dattr2 = tvm.ir.make_node("ir.DictAttrs", x=1, y=None)
     tvm.ir.assert_structural_equal(dattr0, dattr1)
     assert not tvm.ir.structural_equal(dattr0, dattr2)
     assert not tvm.ir.structural_equal({"x": 1}, tvm.runtime.convert(1))

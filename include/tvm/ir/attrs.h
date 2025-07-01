@@ -104,7 +104,7 @@ class AttrFieldInfoNode : public Object {
     v->Visit("description", &description);
   }
 
-  static constexpr const char* _type_key = "AttrFieldInfo";
+  static constexpr const char* _type_key = "ir.AttrFieldInfo";
   static constexpr bool _type_has_method_sequal_reduce = false;
   static constexpr bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrFieldInfoNode, Object);
@@ -164,7 +164,7 @@ class BaseAttrsNode : public Object {
 
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  static constexpr const char* _type_key = "Attrs";
+  static constexpr const char* _type_key = "ir.Attrs";
   TVM_DECLARE_BASE_OBJECT_INFO(BaseAttrsNode, Object);
 };
 
@@ -201,7 +201,7 @@ class DictAttrsNode : public BaseAttrsNode {
   Array<AttrFieldInfo> ListFieldInfo() const final;
 
   // type info
-  static constexpr const char* _type_key = "DictAttrs";
+  static constexpr const char* _type_key = "ir.DictAttrs";
   TVM_DECLARE_FINAL_OBJECT_INFO(DictAttrsNode, BaseAttrsNode);
 };
 

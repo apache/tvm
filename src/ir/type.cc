@@ -30,6 +30,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   PointerTypeNode::RegisterReflection();
   TupleTypeNode::RegisterReflection();
   FuncTypeNode::RegisterReflection();
+  TensorMapTypeNode::RegisterReflection();
 });
 
 PrimType::PrimType(runtime::DataType dtype, Span span) {

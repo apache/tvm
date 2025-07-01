@@ -320,7 +320,7 @@ class CUDATimerNode : public TimerNode {
     CUDA_CALL(cudaEventCreate(&stop_));
   }
 
-  static constexpr const char* _type_key = "CUDATimerNode";
+  static constexpr const char* _type_key = "runtime.cuda.CUDATimerNode";
   TVM_DECLARE_FINAL_OBJECT_INFO(CUDATimerNode, TimerNode);
 
  private:

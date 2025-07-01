@@ -61,7 +61,7 @@ class SourceNameNode : public Object {
     return equal(name, other->name);
   }
 
-  static constexpr const char* _type_key = "SourceName";
+  static constexpr const char* _type_key = "ir.SourceName";
   TVM_DECLARE_FINAL_OBJECT_INFO(SourceNameNode, Object);
 };
 
@@ -122,7 +122,7 @@ class SpanNode : public Object {
            equal(end_column, other->end_column);
   }
 
-  static constexpr const char* _type_key = "Span";
+  static constexpr const char* _type_key = "ir.Span";
   TVM_DECLARE_BASE_OBJECT_INFO(SpanNode, Object);
 };
 
@@ -151,7 +151,7 @@ class SequentialSpanNode : public SpanNode {
 
   static constexpr bool _type_has_method_visit_attrs = false;
 
-  static constexpr const char* _type_key = "SequentialSpan";
+  static constexpr const char* _type_key = "ir.SequentialSpan";
   TVM_DECLARE_FINAL_OBJECT_INFO(SequentialSpanNode, SpanNode);
 
   bool SEqualReduce(const SequentialSpanNode* other, SEqualReducer equal) const {
@@ -208,7 +208,7 @@ class SourceNode : public Object {
 
   static constexpr bool _type_has_method_visit_attrs = false;
 
-  static constexpr const char* _type_key = "Source";
+  static constexpr const char* _type_key = "ir.Source";
   TVM_DECLARE_FINAL_OBJECT_INFO(SourceNode, Object);
 };
 
@@ -243,7 +243,7 @@ class SourceMapObj : public Object {
     return equal(source_map, other->source_map);
   }
 
-  static constexpr const char* _type_key = "SourceMap";
+  static constexpr const char* _type_key = "ir.SourceMap";
   TVM_DECLARE_FINAL_OBJECT_INFO(SourceMapObj, Object);
 };
 

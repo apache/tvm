@@ -70,7 +70,7 @@ def from_dlpack(ext_tensor):
     )
 
 
-@tvm.ffi.register_object("object.NDArray")
+@tvm.ffi.register_object("ffi.NDArray")
 class NDArray(tvm.ffi.core.NDArray):
     """Lightweight NDArray class of TVM runtime.
 

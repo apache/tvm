@@ -388,7 +388,7 @@ class MetalTimerNode : public TimerNode {
   }
   virtual int64_t SyncAndGetElapsedNanos() { return stop_gpu_time_ - start_gpu_time_; }
 
-  static constexpr const char* _type_key = "MetalTimerNode";
+  static constexpr const char* _type_key = "runtime.metal.MetalTimerNode";
   TVM_DECLARE_FINAL_OBJECT_INFO(MetalTimerNode, TimerNode);
 
  private:
