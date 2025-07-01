@@ -65,8 +65,6 @@ class ProfilerNode : public runtime::Object {
     // `total_timer` is not registered
   }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "meta_schedule.Profiler";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProfilerNode, runtime::Object);
 

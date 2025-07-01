@@ -47,8 +47,6 @@ class MeasureCallbackNode : public runtime::Object {
     // No fields to register
   }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   /*!
    * \brief Apply a measure callback rule with given arguments.
    * \param task_scheduler The task scheduler.
@@ -99,8 +97,6 @@ class PyMeasureCallbackNode : public MeasureCallbackNode {
     // `f_apply` is not registered
     // `f_as_string` is not registered
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void Apply(const TaskScheduler& task_scheduler,                //
              int task_id,                                        //

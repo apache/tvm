@@ -311,7 +311,7 @@ IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
     ret = node->operator()(std::move(mod), pass_ctx);
   }
   pass_ctx.InstrumentAfterPass(ret, pass_info);
-  return std::move(ret);
+  return ret;
 }
 
 IRModule Pass::AssertImmutableModule(const IRModule& mod, const PassNode* node,
@@ -325,7 +325,7 @@ IRModule Pass::AssertImmutableModule(const IRModule& mod, const PassNode* node,
     // must be very low.
     LOG_FATAL << "Immutable module has been modified in pass: " << node->Info()->name;
   }
-  return std::move(ret);
+  return ret;
 }
 
 /*!

@@ -59,7 +59,7 @@ class FrameNode : public Object {
   }
 
   static constexpr const char* _type_key = "script.printer.Frame";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_BASE_OBJECT_INFO(FrameNode, Object);
 
  public:
@@ -163,7 +163,7 @@ class IRDocsifierNode : public Object {
   }
 
   static constexpr const char* _type_key = "script.printer.IRDocsifier";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(IRDocsifierNode, Object);
 
  public:

@@ -111,47 +111,35 @@ void IRDocsifierNode::RemoveVar(const ObjectRef& obj) {
 
 void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
                                       ffi::TypedFunction<bool(ObjectRef)> is_var) {
-  class Visitor : private AttrVisitor {
+  class Visitor {
    public:
-    void operator()(ObjectRef obj) { this->Visit("", &obj); }
+    void operator()(ObjectRef obj) { this->VisitObjectRef(obj); }
 
    private:
     void RecursiveVisitAny(ffi::Any* value) {
       if (std::optional<ObjectRef> opt = value->as<ObjectRef>()) {
-        this->Visit("", &opt.value());
+        this->VisitObjectRef(*opt);
       }
     }
-    void Visit(const char* key, double* value) final {}
-    void Visit(const char* key, int64_t* value) final {}
-    void Visit(const char* key, uint64_t* value) final {}
-    void Visit(const char* key, int* value) final {}
-    void Visit(const char* key, bool* value) final {}
-    void Visit(const char* key, std::string* value) final {}
-    void Visit(const char* key, void** value) final {}
-    void Visit(const char* key, DataType* value) final {}
-    void Visit(const char* key, runtime::NDArray* value) final {}
-    void Visit(const char* key, Optional<double>* value) final {}
-    void Visit(const char* key, Optional<int64_t>* value) final {}
-    void Visit(const char* key, ObjectRef* value) final {
-      const Object* obj = value->get();
-      if (obj == nullptr) {
+    void VisitObjectRef(ObjectRef obj) {
+      if (!obj.defined()) {
         return;
       }
-      if (visited_.count(obj)) {
-        if (is_var(GetRef<ObjectRef>(obj))) {
-          HandleVar(obj);
+      if (visited_.count(obj.get())) {
+        if (is_var(obj)) {
+          HandleVar(obj.get());
         }
         return;
       }
-      visited_.insert(obj);
-      stack_.push_back(obj);
+      visited_.insert(obj.get());
+      stack_.push_back(obj.get());
       if (obj->IsInstance<ffi::ArrayObj>()) {
-        const ffi::ArrayObj* array = static_cast<const ffi::ArrayObj*>(obj);
+        const ffi::ArrayObj* array = static_cast<const ffi::ArrayObj*>(obj.get());
         for (Any element : *array) {
           this->RecursiveVisitAny(&element);
         }
       } else if (obj->IsInstance<ffi::MapObj>()) {
-        const ffi::MapObj* map = static_cast<const ffi::MapObj*>(obj);
+        const ffi::MapObj* map = static_cast<const ffi::MapObj*>(obj.get());
         for (std::pair<Any, Any> kv : *map) {
           this->RecursiveVisitAny(&kv.first);
           this->RecursiveVisitAny(&kv.second);
@@ -159,18 +147,14 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
       } else {
         const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
         if (tinfo->extra_info != nullptr) {
-          // visit fields with the new reflection
           ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
             Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
             this->RecursiveVisitAny(&field_value);
           });
-        } else {
-          // legacy VisitAttrs mechanism
-          vtable_->VisitAttrs(const_cast<Object*>(obj), this);
         }
       }
-      if (is_var(GetRef<ObjectRef>(obj))) {
-        HandleVar(obj);
+      if (is_var(obj)) {
+        HandleVar(obj.get());
       }
       stack_.pop_back();
     }

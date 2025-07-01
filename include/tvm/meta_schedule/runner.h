@@ -51,7 +51,7 @@ class RunnerInputNode : public runtime::Object {
   }
 
   static constexpr const char* _type_key = "meta_schedule.RunnerInput";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(RunnerInputNode, runtime::Object);
 };
 
@@ -87,7 +87,7 @@ class RunnerResultNode : public runtime::Object {
   }
 
   static constexpr const char* _type_key = "meta_schedule.RunnerResult";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(RunnerResultNode, runtime::Object);
 };
 
@@ -133,8 +133,6 @@ class RunnerFutureNode : public runtime::Object {
     // `f_done` is not registered
     // `f_result` is not registered
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Check whether the runner has finished.
@@ -227,8 +225,6 @@ class PyRunnerNode : public RunnerNode {
   static void RegisterReflection() {
     // `f_run` is not registered
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   Array<RunnerFuture> Run(Array<RunnerInput> runner_inputs) final {
     ICHECK(f_run != nullptr) << "PyRunner's Run method not implemented!";

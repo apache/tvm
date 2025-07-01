@@ -585,7 +585,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const LetStmtNode* op) {
     is_enabled_ = is_condition_ && op->a->dtype.is_int() && op->b->dtype.is_int(); \
     auto result = Parent::VisitExpr_(op);                                          \
     is_enabled_ = is_enabled;                                                      \
-    return std::move(result);                                                      \
+    return result;                                                                 \
   }
 
 TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);

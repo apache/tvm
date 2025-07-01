@@ -45,8 +45,6 @@ class MutatorNode : public runtime::Object {
     // No fields to register
   }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   /*!
    * \brief Initialize the design space generator with tuning context.
    * \param context The tuning context for initialization.
@@ -168,8 +166,6 @@ class PyMutatorNode : public MutatorNode {
     // `f_clone` is not registered
     // `f_as_string` is not registered
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   Optional<tir::Trace> Apply(const tir::Trace& trace,

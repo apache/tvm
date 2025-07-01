@@ -107,7 +107,7 @@ struct MSCRBuildConfig {
   }
 };
 
-class AttrGetter : private AttrVisitor {
+class AttrGetter {
  public:
   /*!
    * \brief Get the attributes as Map<String, String>
@@ -116,16 +116,18 @@ class AttrGetter : private AttrVisitor {
   explicit AttrGetter(Map<String, String>* attrs) : attrs_(attrs) {}
 
   void operator()(const Attrs& attrs) {
-    // dispatch between new reflection and old reflection
-    const TVMFFITypeInfo* attrs_tinfo = TVMFFIGetTypeInfo(attrs->type_index());
-    if (attrs_tinfo->extra_info != nullptr) {
-      tvm::ffi::reflection::ForEachFieldInfo(attrs_tinfo, [&](const TVMFFIFieldInfo* field_info) {
-        Any field_value = tvm::ffi::reflection::FieldGetter(field_info)(attrs);
-        this->VisitAny(String(field_info->name), field_value);
-      });
+    if (const auto* dict_attrs = attrs.as<DictAttrsNode>()) {
+      for (const auto& [key, value] : dict_attrs->dict) {
+        this->VisitAny(key, value);
+      }
     } else {
-      // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
-      const_cast<BaseAttrsNode*>(attrs.get())->VisitAttrs(this);
+      const TVMFFITypeInfo* attrs_tinfo = TVMFFIGetTypeInfo(attrs->type_index());
+      if (attrs_tinfo->extra_info != nullptr) {
+        tvm::ffi::reflection::ForEachFieldInfo(attrs_tinfo, [&](const TVMFFIFieldInfo* field_info) {
+          Any field_value = tvm::ffi::reflection::FieldGetter(field_info)(attrs);
+          this->VisitAny(String(field_info->name), field_value);
+        });
+      }
     }
   }
 
@@ -165,50 +167,6 @@ class AttrGetter : private AttrVisitor {
         break;
       }
     }
-  }
-
-  void Visit(const char* key, double* value) final { attrs_->Set(key, std::to_string(*value)); }
-
-  void Visit(const char* key, int64_t* value) final { attrs_->Set(key, std::to_string(*value)); }
-
-  void Visit(const char* key, uint64_t* value) final { attrs_->Set(key, std::to_string(*value)); }
-
-  void Visit(const char* key, int* value) final { attrs_->Set(key, std::to_string(*value)); }
-
-  void Visit(const char* key, bool* value) final { attrs_->Set(key, std::to_string(*value)); }
-
-  void Visit(const char* key, std::string* value) final { attrs_->Set(key, *value); }
-
-  void Visit(const char* key, Optional<double>* value) final {
-    if (value->has_value()) {
-      attrs_->Set(key, std::to_string(value->value()));
-    } else {
-      attrs_->Set(key, "");
-    }
-  }
-
-  void Visit(const char* key, Optional<int64_t>* value) final {
-    if (value->has_value()) {
-      attrs_->Set(key, std::to_string(value->value()));
-    } else {
-      attrs_->Set(key, "");
-    }
-  }
-
-  void Visit(const char* key, DataType* value) final {
-    attrs_->Set(key, runtime::DLDataTypeToString(*value));
-  }
-
-  void Visit(const char* key, runtime::ObjectRef* value) final {
-    attrs_->Set(key, StringUtils::ToString(*value));
-  }
-
-  void Visit(const char* key, void** value) final {
-    LOG(FATAL) << "TypeError: void is not allowed in Attrs";
-  }
-
-  void Visit(const char* key, runtime::NDArray* value) final {
-    LOG(FATAL) << "TypeError: NDArray is not allowed in Attrs";
   }
 
  private:

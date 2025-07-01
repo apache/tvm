@@ -400,7 +400,7 @@ void SetTIRVarUpperBound(Function func, arith::Analyzer* ana,
   for (ObjectRef var_name : non_negative_var_attr_raw) {
     const auto* key = var_name.as<ffi::StringObj>();
     CHECK(key != nullptr) << "The element of attr `tir_non_negative_var` should be string. However "
-                          << key->GetTypeKey() << " is got.";
+                          << var_name->GetTypeKey() << " is got.";
     non_negative_var_attr.insert(GetRef<String>(key));
   }
   Array<tir::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(func));

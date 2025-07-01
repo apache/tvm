@@ -49,7 +49,7 @@ class TargetTagNode : public Object {
   }
 
   static constexpr const char* _type_key = "target.TargetTag";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetTagNode, Object);
 
  private:

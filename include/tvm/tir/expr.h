@@ -55,8 +55,6 @@ class StringImmNode : public PrimExprNode {
   /*! \brief The constant value content. */
   String value;
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
@@ -91,8 +89,6 @@ class CastNode : public PrimExprNode {
  public:
   /*! \brief Original data type. */
   PrimExpr value;
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -134,8 +130,6 @@ class BinaryOpNode : public PrimExprNode {
   PrimExpr a;
   /*! \brief The right operand. */
   PrimExpr b;
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -327,8 +321,6 @@ class CmpOpNode : public PrimExprNode {
   /*! \brief The right operand. */
   PrimExpr b;
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<T>().def_ro("a", &T::a).def_ro("b", &T::b);
@@ -457,8 +449,6 @@ class AndNode : public PrimExprNode {
   /*! \brief The right operand. */
   PrimExpr b;
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AndNode>().def_ro("a", &AndNode::a).def_ro("b", &AndNode::b);
@@ -497,8 +487,6 @@ class OrNode : public PrimExprNode {
   /*! \brief The right operand. */
   PrimExpr b;
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<OrNode>().def_ro("a", &OrNode::a).def_ro("b", &OrNode::b);
@@ -534,8 +522,6 @@ class NotNode : public PrimExprNode {
  public:
   /*! \brief The input operand. */
   PrimExpr a;
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -581,8 +567,6 @@ class SelectNode : public PrimExprNode {
   PrimExpr true_value;
   /*! \brief value to be returned when condition is false. */
   PrimExpr false_value;
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -1001,8 +985,6 @@ class CommReducerNode : public Object {
    *        Reserved debug information.
    */
   mutable Span span;
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;

@@ -390,7 +390,7 @@ class DecomposePaddingBlockReplacer : public StmtMutator {
       // position to insert pad value filling code
       return std::move(SeqStmt({desc_.const_filling_loop, new_loop}));
     }
-    return std::move(new_loop);
+    return new_loop;
   }
 
  private:

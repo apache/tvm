@@ -62,7 +62,7 @@ class BaseExprNode : public Object {
   }
 
   static constexpr const char* _type_key = "ir.BaseExpr";
-  static constexpr const bool _type_has_method_visit_attrs = true;
+
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 64;
@@ -112,8 +112,6 @@ class PrimExprNode : public BaseExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimExprNode>().def_ro("dtype", &PrimExprNode::dtype);
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
@@ -461,8 +459,6 @@ class GlobalVarNode : public RelaxExprNode {
   /*! \brief The name of the variable, this only acts as a hint. */
   String name_hint;
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<GlobalVarNode>().def_ro("name_hint", &GlobalVarNode::name_hint);
@@ -548,8 +544,6 @@ class FloatImmNode : public PrimExprNode {
  public:
   /*! \brief The constant value content. */
   double value;
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -699,8 +693,6 @@ class RangeNode : public Object {
   RangeNode() {}
   RangeNode(PrimExpr min, PrimExpr extent, Span span = Span())
       : min(min), extent(extent), span(span) {}
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
