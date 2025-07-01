@@ -29,8 +29,8 @@
 #import <Foundation/Foundation.h>
 
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <memory>
 #include <string>

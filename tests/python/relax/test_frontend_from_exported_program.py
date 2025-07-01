@@ -801,6 +801,38 @@ def test_softmax():
     verify_model(Softmax2(), example_args, {}, expected1)
 
 
+def test_softsign():
+    class Softsign(Module):
+        def __init__(self):
+            super().__init__()
+            self.ss = torch.nn.Softsign()
+
+        def forward(self, input):
+            return self.ss(input)
+
+    class Softsign2(Module):
+        def forward(self, input):
+            return torch.nn.functional.softsign(input)
+
+    @tvm.script.ir_module
+    class expected_softsign:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                abs_val = R.abs(input)
+                denom = R.add(abs_val, R.const(1.0, "float32"))
+                result = R.divide(input, denom)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (result,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+    verify_model(Softsign(), example_args, {}, expected_softsign)
+    verify_model(Softsign2(), example_args, {}, expected_softsign)
+
+
 def test_softshrink():
     class Softshrink(Module):
         def __init__(self):
@@ -2577,6 +2609,51 @@ def test_groupnorm():
     verify_model(model, example_args, binding, expected1)
 
 
+def test_instancenorm2d():
+    torch.set_grad_enabled(False)
+    torch.random.manual_seed(0)
+
+    class InstanceNorm2d(Module):
+        def __init__(self):
+            super().__init__()
+            self.gn = torch.nn.InstanceNorm2d(3)
+
+        def forward(self, input):
+            return self.gn(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            w1: R.Tensor((3,), dtype="float32"),
+            w2: R.Tensor((3,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.instance_norm(
+                    input_1,
+                    w1,
+                    w2,
+                    channel_axis=1,
+                    axes=[2, 3],
+                    epsilon=1e-05,
+                    center=True,
+                    scale=True,
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+
+    model = InstanceNorm2d()
+    binding = {
+        "w1": torch.ones(3).detach().numpy(),
+        "w2": torch.zeros(3).detach().numpy(),
+    }
+    verify_model(model, example_args, binding, expected1)
+
+
 def test_layernorm():
     class LayerNorm(Module):
         def __init__(self):
@@ -3108,8 +3185,7 @@ def test_unbind():
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
-                    R.Tensor((0, 3, 10, 10), dtype="float32"),
-                ) = R.split(input_1, indices_or_sections=[1, 2, 3], axis=0)
+                ) = R.split(input_1, indices_or_sections=3, axis=0)
                 lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[0]
                 lv2: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv1, axis=[0])
                 lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[1]
@@ -3152,8 +3228,7 @@ def test_unbind():
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
-                    R.Tensor((3, 0, 10, 10), dtype="float32"),
-                ) = R.split(input_1, indices_or_sections=[1, 2, 3], axis=1)
+                ) = R.split(input_1, indices_or_sections=3, axis=1)
                 lv1: R.Tensor((3, 1, 10, 10), dtype="float32") = lv[0]
                 lv2: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv1, axis=[1])
                 lv3: R.Tensor((3, 1, 10, 10), dtype="float32") = lv[1]
@@ -3925,6 +4000,51 @@ def test_select_slice():
     verify_model(Slice2(), example_args, {}, expected2)
 
 
+def test_slice_scatter():
+    class SliceScatter1(Module):
+        def forward(self, input, src):
+            return torch.slice_scatter(input, src, dim=1, start=1, end=7, step=2)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            a: R.Tensor((8, 8, 10, 10), dtype="float32"),
+            b: R.Tensor((8, 3, 10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((8, 8, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((8, 8, 10, 10), dtype="float32") = R.slice_scatter(
+                    a, b, R.prim_value(1), R.prim_value(7), R.prim_value(2), axis=1
+                )
+                gv: R.Tuple(R.Tensor((8, 8, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class SliceScatter2(Module):
+        def forward(self, input, src):
+            return torch.slice_scatter(input, src, dim=0, start=0, end=6, step=1)
+
+    @I.ir_module
+    class expected2:
+        @R.function
+        def main(
+            a: R.Tensor((8, 16), dtype="float32"), b: R.Tensor((6, 16), dtype="float32")
+        ) -> R.Tuple(R.Tensor((8, 16), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((8, 16), dtype="float32") = R.slice_scatter(
+                    a, b, R.prim_value(0), R.prim_value(6), R.prim_value(1), axis=0
+                )
+                gv: R.Tuple(R.Tensor((8, 16), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(8, 8, 10, 10, dtype=torch.float32), torch.randn(8, 3, 10, 10))
+    verify_model(SliceScatter1(), example_args, {}, expected1)
+
+    example_args = (torch.randn(8, 16, dtype=torch.float32), torch.randn(6, 16))
+    verify_model(SliceScatter2(), example_args, {}, expected2)
+
+
 def test_split():
     class Chunk(Module):
         def forward(self, input):
@@ -3978,8 +4098,7 @@ def test_split():
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
                     R.Tensor((1, 3, 10, 10), dtype="float32"),
-                    R.Tensor((0, 3, 10, 10), dtype="float32"),
-                ) = R.split(input_1, indices_or_sections=[1, 2, 3], axis=0)
+                ) = R.split(input_1, indices_or_sections=3, axis=0)
                 lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[0]
                 lv2: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv1, axis=[0])
                 lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[1]
@@ -4022,8 +4141,7 @@ def test_split():
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
                     R.Tensor((3, 1, 10, 10), dtype="float32"),
-                    R.Tensor((3, 0, 10, 10), dtype="float32"),
-                ) = R.split(input_1, indices_or_sections=[1, 2, 3], axis=1)
+                ) = R.split(input_1, indices_or_sections=3, axis=1)
                 lv1: R.Tensor((3, 1, 10, 10), dtype="float32") = lv[0]
                 lv2: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv1, axis=[1])
                 lv3: R.Tensor((3, 1, 10, 10), dtype="float32") = lv[1]
@@ -4306,6 +4424,33 @@ def test_arange():
 
     example_args = (torch.randn(10, 10, dtype=torch.float32),)
     verify_model(Arange(), example_args, {}, Expected)
+
+
+def test_hamming_window():
+    class HammingWindow(Module):
+        def forward(self, input):
+            return torch.hamming_window(20, True, dtype=torch.float32)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((20,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((20,), dtype="float32") = R.hamming_window(
+                    R.prim_value(20),
+                    R.prim_value(1),
+                    R.prim_value(T.float32(0.54000000000000004)),
+                    R.prim_value(T.float32(0.46000000000000002)),
+                    dtype="float32",
+                )
+                gv: R.Tuple(R.Tensor((20,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(10, 10, dtype=torch.float32),)
+    verify_model(HammingWindow(), example_args, {}, Expected)
 
 
 def test_contiguous():
@@ -5357,6 +5502,31 @@ def test_where():
     y = torch.randn(5, 3, dtype=torch.float32)
 
     verify_model(Where(), (condition, x, y), {}, Expected)
+
+
+def test_bucketize():
+    class Bucketize(Module):
+        def forward(self, input_tensor, boundaries):
+            return torch.bucketize(input_tensor, boundaries)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((20,), dtype="int64"), boundaries: R.Tensor((10,), dtype="int64")
+        ) -> R.Tuple(R.Tensor((20,), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tensor((20,), dtype="int64") = R.bucketize(
+                    input, boundaries, out_int32=False, right=False
+                )
+                gv: R.Tuple(R.Tensor((20,), dtype="int64")) = (lv,)
+                R.output(gv)
+            return gv
+
+    input_tensor = torch.arange(0, 20)
+    boundaries = torch.arange(0, 20, 2)
+
+    verify_model(Bucketize(), (input_tensor, boundaries), {}, Expected)
 
 
 def test_argsort():

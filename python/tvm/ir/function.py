@@ -34,6 +34,7 @@ class CallingConv(IntEnum):
     DEVICE_KERNEL_LAUNCH = 2
 
 
+@tvm.ffi.register_object("ir.BaseFunc")
 class BaseFunc(RelaxExpr):
     """Base class of all functions."""
 

@@ -54,7 +54,7 @@ class SafeCallContext {
 }  // namespace ffi
 }  // namespace tvm
 
-void TVMFFIErrorSetRaisedByCStr(const char* kind, const char* message) {
+void TVMFFIErrorSetRaisedFromCStr(const char* kind, const char* message) {
   // NOTE: run traceback here to simplify the depth of tracekback
   tvm::ffi::SafeCallContext::ThreadLocal()->SetRaisedByCstr(kind, message, TVM_FFI_TRACEBACK_HERE);
 }

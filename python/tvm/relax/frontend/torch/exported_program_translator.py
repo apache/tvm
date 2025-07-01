@@ -284,6 +284,20 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         return self.block_builder.emit(relax.op.one_hot(x, on_value, off_value, num_classes, axis))
 
+    def _hamming_window(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+
+        window_size = args[0]
+        periodic = args[1] if len(args) > 1 else True
+        alpha = args[2] if len(args) > 2 else 0.54
+        beta = args[3] if len(args) > 3 else 0.46
+        dtype = node.kwargs.get("dtype", "float")
+        dtype = self._convert_data_type(dtype)
+
+        return self.block_builder.emit(
+            relax.op.hamming_window(window_size, periodic, alpha, beta, dtype)
+        )
+
     def _zeros(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
@@ -291,6 +305,29 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             node.kwargs.get("dtype", torch.get_default_dtype()), self.env
         )
         return self.block_builder.emit(relax.op.zeros(size, dtype))
+
+    def _instance_norm(self, node: fx.Node):
+        import numpy as np
+
+        x = self.env[node.args[0]]
+        channel = int(self.shape_of(x)[1])
+        dtype = x.struct_info.dtype
+        gamma = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
+        beta = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
+        eps = node.args[4] if node.args[4] else 1e-05
+        channel_axis = 1
+        dim = len(self.shape_of(x))
+
+        return self.block_builder.emit(
+            relax.op.nn.instance_norm(
+                x,
+                gamma,
+                beta,
+                channel_axis=channel_axis,
+                axes=list(range(2, dim)),
+                epsilon=eps,
+            )
+        )
 
     ########## Others ##########
 
@@ -363,6 +400,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "softmax.int": self._softmax,
             "softplus.default": self._softplus,
             "softshrink.default": self._softshrink,
+            "softsign.default": self._softsign,
             "sqrt.default": self._unary_op(relax.op.sqrt),
             "square.default": self._unary_op(relax.op.square),
             "tan.default": self._unary_op(relax.op.tan),
@@ -447,6 +485,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 self.env[node.args[1]], self.env[node.args[0]]
             ),
             "group_norm.default": self._group_norm,
+            "instance_norm.default": self._instance_norm,
             "layer_norm.default": self._layer_norm,
             "linear.default": self._linear,
             "max_pool1d.default": self._max_pool1d,
@@ -468,6 +507,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "argmax.default": self._argmax_argmin(relax.op.argmax),
             "argmin.default": self._argmax_argmin(relax.op.argmin),
             "where.self": self._where,
+            "bucketize.Tensor": self._bucketize,
             # tensor manipulation
             "argsort.default": self._argsort,
             "broadcast_to.default": self._broadcast_to,
@@ -493,6 +533,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "roll.default": self._roll,
             "select.int": self._select,
             "slice.Tensor": self._slice,
+            "slice_scatter.default": self._slice_scatter,
             "sort.default": self._sort,
             "split.Tensor": self._split,
             "split_with_sizes.default": self._split,
@@ -527,6 +568,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "fill_.Scalar": self._inplace_fill,
             "full.default": self._full,
             "full_like.default": self._full_like,
+            "hamming_window.periodic": self._hamming_window,
+            "hamming_window.periodic_alpha": self._hamming_window,
+            "hamming_window.periodic_alpha_beta": self._hamming_window,
+            "hamming_window.default": self._hamming_window,
             "index_select.default": self._index_select,
             "lift_fresh_copy.default": self._to_copy,
             "linspace.default": self._linspace,

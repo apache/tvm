@@ -104,7 +104,7 @@ Pass ExpandMatmulOfSum() {
   return CreateFunctionPass(pass_func, 1, "ExpandMatmulOfSum", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ExpandMatmulOfSum").set_body_typed(ExpandMatmulOfSum);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.ExpandMatmulOfSum").set_body_typed(ExpandMatmulOfSum);
 
 }  // namespace transform
 }  // namespace relax

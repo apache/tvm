@@ -27,6 +27,12 @@ namespace tvm {
 namespace relax {
 namespace distributed {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  DTensorStructInfoNode::RegisterReflection();
+  PlacementNode::RegisterReflection();
+  PlacementSpecNode::RegisterReflection();
+});
+
 PlacementSpec PlacementSpec::Sharding(int axis) {
   ObjectPtr<PlacementSpecNode> n = make_object<PlacementSpecNode>();
   n->axis = axis;
@@ -43,11 +49,11 @@ PlacementSpec PlacementSpec::Replica() {
 
 TVM_REGISTER_NODE_TYPE(PlacementSpecNode);
 
-TVM_REGISTER_GLOBAL("relax.distributed.Sharding").set_body_typed([](int axis) {
+TVM_FFI_REGISTER_GLOBAL("relax.distributed.Sharding").set_body_typed([](int axis) {
   return PlacementSpec::Sharding(axis);
 });
 
-TVM_REGISTER_GLOBAL("relax.distributed.Replica").set_body_typed([]() {
+TVM_FFI_REGISTER_GLOBAL("relax.distributed.Replica").set_body_typed([]() {
   return PlacementSpec::Replica();
 });
 
@@ -106,8 +112,8 @@ Placement Placement::FromText(String text_repr) {
 }
 
 TVM_REGISTER_NODE_TYPE(PlacementNode);
-TVM_REGISTER_GLOBAL("relax.distributed.PlacementFromText").set_body_typed(Placement::FromText);
-TVM_REGISTER_GLOBAL("relax.distributed.Placement")
+TVM_FFI_REGISTER_GLOBAL("relax.distributed.PlacementFromText").set_body_typed(Placement::FromText);
+TVM_FFI_REGISTER_GLOBAL("relax.distributed.Placement")
     .set_body_typed([](Array<PlacementSpec> dim_specs) { return Placement(dim_specs); });
 
 // DTensor
@@ -130,7 +136,7 @@ DTensorStructInfo::DTensorStructInfo(TensorStructInfo tensor_sinfo, DeviceMesh d
 
 TVM_REGISTER_NODE_TYPE(DTensorStructInfoNode);
 
-TVM_REGISTER_GLOBAL("relax.distributed.DTensorStructInfo")
+TVM_FFI_REGISTER_GLOBAL("relax.distributed.DTensorStructInfo")
     .set_body_typed([](TensorStructInfo tensor_sinfo, DeviceMesh device_mesh, Placement placement,
                        Span span) {
       return DTensorStructInfo(tensor_sinfo, device_mesh, placement, span);

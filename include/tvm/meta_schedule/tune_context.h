@@ -21,7 +21,9 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
@@ -31,7 +33,6 @@
 #include <tvm/meta_schedule/space_generator.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/support/random_engine.h>
 #include <tvm/target/target.h>
 
@@ -64,16 +65,21 @@ class TuneContextNode : public runtime::Object {
   /*! \brief The tuning task's logging function. t*/
   ffi::Function logger;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("mod", &mod);
-    v->Visit("target", &target);
-    v->Visit("space_generator", &space_generator);
-    v->Visit("search_strategy", &search_strategy);
-    v->Visit("task_name", &task_name);
-    v->Visit("num_threads", &num_threads);
-    v->Visit("rand_state", &rand_state);
-    // `logger` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TuneContextNode>()
+        .def_ro("mod", &TuneContextNode::mod)
+        .def_ro("target", &TuneContextNode::target)
+        .def_ro("space_generator", &TuneContextNode::space_generator)
+        .def_ro("search_strategy", &TuneContextNode::search_strategy)
+        .def_ro("task_name", &TuneContextNode::task_name)
+        .def_ro("num_threads", &TuneContextNode::num_threads)
+        .def_ro("rand_state", &TuneContextNode::rand_state);
+    // `logger` is not registered
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
+
   /*!
    * \brief Initialize members that needs initialization with tune context.
    */

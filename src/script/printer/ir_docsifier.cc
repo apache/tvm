@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/node/reflection.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
 #include <sstream>
@@ -27,6 +29,11 @@
 namespace tvm {
 namespace script {
 namespace printer {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  FrameNode::RegisterReflection();
+  IRDocsifierNode::RegisterReflection();
+});
 
 IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, const String& name_hint) {
   if (auto it = obj2info.find(obj); it != obj2info.end()) {
@@ -104,9 +111,9 @@ void IRDocsifierNode::RemoveVar(const ObjectRef& obj) {
 
 void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
                                       ffi::TypedFunction<bool(ObjectRef)> is_var) {
-  class Visitor : public AttrVisitor {
+  class Visitor : private AttrVisitor {
    public:
-    inline void operator()(ObjectRef obj) { Visit("", &obj); }
+    void operator()(ObjectRef obj) { this->Visit("", &obj); }
 
    private:
     void RecursiveVisitAny(ffi::Any* value) {
@@ -150,7 +157,17 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
           this->RecursiveVisitAny(&kv.second);
         }
       } else {
-        vtable_->VisitAttrs(const_cast<Object*>(obj), this);
+        const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
+        if (tinfo->extra_info != nullptr) {
+          // visit fields with the new reflection
+          ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
+            Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
+            this->RecursiveVisitAny(&field_value);
+          });
+        } else {
+          // legacy VisitAttrs mechanism
+          vtable_->VisitAttrs(const_cast<Object*>(obj), this);
+        }
       }
       if (is_var(GetRef<ObjectRef>(obj))) {
         HandleVar(obj);

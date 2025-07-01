@@ -43,8 +43,7 @@
 #include <algorithm>  // For the algorithm std::find
 #include <iostream>
 #include <string>
-#include <unordered_map>  // For the hashtable datatype
-#include <utility>        // For std::pair and std::move
+#include <utility>
 #include <vector>
 
 #include "../analysis/check_contains.h"  // For the visitor CheckContains
@@ -131,41 +130,24 @@ bool CommonSubexpressionEliminator::CanContainEligibleComputations(const PrimExp
  *       they appeared in the hashtable was based on some runtime addresses, so it can potentially
  *       change with every execution.
  */
-bool CommonSubexpressionEliminator::OrderOnExprAndFrequency(std::pair<PrimExpr, size_t> a,
-                                                            std::pair<PrimExpr, size_t> b) {
+bool CommonSubexpressionEliminator::OrderOnExprAndFrequency(const std::pair<PrimExpr, size_t>& a,
+                                                            const std::pair<PrimExpr, size_t>& b) {
   size_t a_size = CalculateExprComplexity(a.first);
   size_t b_size = CalculateExprComplexity(b.first);
-
-  // Criteria 1 - Size of the expression comes first
-  // `a` comes before `b` if the size of `a` is bigger
-  if (a_size > b_size) {
-    return true;
-  }
-  // `a` does NOT come before `b` if the size of `b` is bigger
-  if (b_size > a_size) {
-    return false;
-  }
-
-  // Criteria 2 - If they had the same size, use the lexicographic order as a last resort
-  // as we need a deterministic order
-  std::stringstream a_stream;
-  std::stringstream b_stream;
-  a_stream << AsLegacyRepr(a.first);
-  b_stream << AsLegacyRepr(b.first);
-  return (a_stream.str().compare(b_stream.str()) < 0);
+  return a_size > b_size;
 }
 
 /*!
- * \brief Generates a new fresh variable, whose name will be cse_var_i.
+ * \brief Generates a new fresh variable, whose name will be cse_vi.
  * \param type_annotation The type of the new variable to generate
- * \return A new variable of type `type_annotation` called cse_var_i where i is the first available
+ * \return A new variable of type `type_annotation` called cse_vi where i is the first available
             integer.
  */
 Var CommonSubexpressionEliminator::GenerateNewVar(DataType type_annotation) {
   // Increase `num_last_try_` for this new attempt
   num_last_try_++;
-  // Builds the variable name, which is sce_var_i where i will go up from 1
-  std::string prefix = "cse_var_";
+  // Builds the variable name, which is cse_vi where i will go up from 1
+  std::string prefix = "cse_v";
   std::string name = prefix.append(std::to_string(num_last_try_));
   // Builds a String using the std::string
   String string_name(name);
@@ -241,8 +223,8 @@ PrimExpr CommonSubexpressionEliminator::VisitExpr(const PrimExpr& expr) {
       SyntacticToSemanticComputations(table_syntactic_comp_done_by_expr, identify_equiv_terms_);
 
   // Sort the vector of semantic entities by decreasing size
-  std::sort(semantic_comp_done_by_expr.begin(), semantic_comp_done_by_expr.end(),
-            OrderOnExprAndFrequency);
+  std::stable_sort(semantic_comp_done_by_expr.begin(), semantic_comp_done_by_expr.end(),
+                   OrderOnExprAndFrequency);
 
   // For each computation done (considering them from biggest to smallest)
   for (size_t i = 0; i < semantic_comp_done_by_expr.size(); i++) {
@@ -421,8 +403,8 @@ Stmt CommonSubexpressionEliminator::VisitStmt(const Stmt& stmt) {
       SyntacticToSemanticComputations(table_syntactic_comp_done_by_stmt, identify_equiv_terms_);
 
   // Sort the vector of semantic entities by decreasing size
-  std::sort(semantic_comp_done_by_stmt.begin(), semantic_comp_done_by_stmt.end(),
-            OrderOnExprAndFrequency);
+  std::stable_sort(semantic_comp_done_by_stmt.begin(), semantic_comp_done_by_stmt.end(),
+                   OrderOnExprAndFrequency);
 
   // For each computation done (considering them from biggest to smallest)
   for (size_t i = 0; i < semantic_comp_done_by_stmt.size(); i++) {
@@ -655,7 +637,7 @@ Pass CommonSubexprElimTIR(bool enable_cse_tir, bool identify_equiv_terms) {
 }
 
 // The pass can now be invoked via the pass infrastructure, but we also add a Python binding for it
-TVM_REGISTER_GLOBAL("tir.transform.CommonSubexprElimTIR").set_body_typed(CommonSubexprElimTIR);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.CommonSubexprElimTIR").set_body_typed(CommonSubexprElimTIR);
 
 }  // namespace transform
 }  // namespace tir

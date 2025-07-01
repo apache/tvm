@@ -18,9 +18,8 @@
  */
 #include <nvshmem.h>
 #include <nvshmemx.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <thread>
 
@@ -58,20 +57,18 @@ class NVSHMEMAllocator final : public PooledAllocator {
   }
 
   NDArray Empty(ffi::Shape shape, DataType dtype, Device device) {
-    NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, device);
-    container->SetDeleter([](Object* obj) {
-      auto* ptr = static_cast<NDArray::Container*>(obj);
-      ICHECK(ptr->manager_ctx != nullptr);
-      Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
-      NVSHMEMAllocator::Global()->Free(*(buffer));
-      delete buffer;
-      delete ptr;
-    });
-    Buffer* buffer = new Buffer;
-    *buffer = PooledAllocator::Alloc(device, shape, dtype, String("nvshmem"));
-    container->manager_ctx = reinterpret_cast<void*>(buffer);
-    container->dl_tensor.data = buffer->data;
-    return NDArray(GetObjectPtr<Object>(container));
+    class NVSHMEMAlloc {
+     public:
+      explicit NVSHMEMAlloc(Buffer buffer) : buffer_(buffer) {}
+      void AllocData(DLTensor* tensor) { tensor->data = buffer_.data; }
+      void FreeData(DLTensor* tensor) { NVSHMEMAllocator::Global()->Free(buffer_); }
+
+     private:
+      Buffer buffer_;
+    };
+
+    Buffer buffer = PooledAllocator::Alloc(device, shape, dtype, String("nvshmem"));
+    return NDArray::FromNDAlloc(NVSHMEMAlloc(buffer), shape, dtype, device);
   }
 
  private:
@@ -92,14 +89,14 @@ NDArray NVSHMEMEmpty(ffi::Shape shape, DataType dtype, Device device) {
   return NVSHMEMAllocator::Global()->Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.empty").set_body_typed(NVSHMEMEmpty);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.empty").set_body_typed(NVSHMEMEmpty);
 
 void NVSHMEMFinalize() {
   NVSHMEMAllocator::Global()->Clear();
   nvshmem_finalize();
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.finalize_nvshmem").set_body_typed(NVSHMEMFinalize);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.finalize_nvshmem").set_body_typed(NVSHMEMFinalize);
 
 }  // namespace runtime
 }  // namespace tvm

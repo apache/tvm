@@ -29,8 +29,15 @@
 #include <string>
 #include <utility>
 
+#include "tvm/relax/expr.h"
+
 namespace tvm {
 namespace relax {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  InitAttrs::RegisterReflection();
+  TriluAttrs::RegisterReflection();
+});
 
 /* Initialization operators */
 TVM_REGISTER_NODE_TYPE(InitAttrs);
@@ -54,7 +61,7 @@ Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, Optional<DataTy
   return Call(op, {std::move(shape_in_expr), std::move(fill_value)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.full").set_body_typed(full);
+TVM_FFI_REGISTER_GLOBAL("relax.op.full").set_body_typed(full);
 
 StructInfo InferStructInfoFull(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
@@ -96,7 +103,7 @@ Expr full_like(Expr x, Expr fill_value, Optional<DataType> dtype) {
   return Call(op, {std::move(x), std::move(fill_value)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.full_like").set_body_typed(full_like);
+TVM_FFI_REGISTER_GLOBAL("relax.op.full_like").set_body_typed(full_like);
 
 StructInfo InferStructInfoFullLike(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -174,8 +181,8 @@ Expr ones_like(Expr x, Optional<DataType> dtype) {
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.ones").set_body_typed(ones);
-TVM_REGISTER_GLOBAL("relax.op.ones_like").set_body_typed(ones_like);
+TVM_FFI_REGISTER_GLOBAL("relax.op.ones").set_body_typed(ones);
+TVM_FFI_REGISTER_GLOBAL("relax.op.ones_like").set_body_typed(ones_like);
 
 TVM_REGISTER_OP("relax.ones")
     .set_attrs_type<InitAttrs>()
@@ -209,8 +216,8 @@ Expr zeros_like(Expr x, Optional<DataType> dtype) {
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.zeros").set_body_typed(zeros);
-TVM_REGISTER_GLOBAL("relax.op.zeros_like").set_body_typed(zeros_like);
+TVM_FFI_REGISTER_GLOBAL("relax.op.zeros").set_body_typed(zeros);
+TVM_FFI_REGISTER_GLOBAL("relax.op.zeros_like").set_body_typed(zeros_like);
 
 TVM_REGISTER_OP("relax.zeros")
     .set_attrs_type<InitAttrs>()
@@ -242,8 +249,8 @@ Expr eye_like(Expr x, PrimValue k, Optional<DataType> dtype) {
   return Call(op, {std::move(x), std::move(k)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.eye").set_body_typed(eye);
-TVM_REGISTER_GLOBAL("relax.op.eye_like").set_body_typed(eye_like);
+TVM_FFI_REGISTER_GLOBAL("relax.op.eye").set_body_typed(eye);
+TVM_FFI_REGISTER_GLOBAL("relax.op.eye_like").set_body_typed(eye_like);
 
 StructInfo InferStructInfoEye(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
@@ -319,7 +326,7 @@ Expr arange(PrimValue start, PrimValue stop, PrimValue step, DataType dtype) {
   return Call(op, {std::move(start), std::move(stop), std::move(step)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.arange").set_body_typed(arange);
+TVM_FFI_REGISTER_GLOBAL("relax.op.arange").set_body_typed(arange);
 
 StructInfo InferStructInfoArange(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 3) {
@@ -363,6 +370,57 @@ TVM_REGISTER_OP("relax.arange")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.hamming_window */
+Expr hamming_window(PrimValue window_size, PrimValue periodic, PrimValue alpha, PrimValue beta,
+                    DataType dtype) {
+  ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
+  attrs->dtype = dtype;
+  static const Op& op = Op::Get("relax.hamming_window");
+  return Call(op, {std::move(window_size), std::move(periodic), std::move(alpha), std::move(beta)},
+              Attrs(attrs), {});
+}
+
+TVM_FFI_REGISTER_GLOBAL("relax.op.hamming_window").set_body_typed(hamming_window);
+
+StructInfo InferStructInfoHammingWindow(const Call& call, const BlockBuilder& ctx) {
+  DataType dtype = call->attrs.as<InitAttrs>()->dtype;
+  if (dtype.is_int() || dtype.is_uint() || dtype.is_uint()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Hamming Window expects the datatype to be float but got " << dtype);
+  }
+  auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
+    if (!expr->IsInstance<PrimValueNode>()) {
+      ctx->ReportFatal(Diagnostic::Error(expr)
+                       << "Hamming_window expects the `" << key << "` to be a PrimValue, but got "
+                       << expr->GetTypeKey());
+    }
+    return expr.as<PrimValueNode>()->value;
+  };
+  PrimExpr window_size = get_prim_value(call->args[0], "window_size");
+
+  arith::Analyzer analyzer;
+  if (analyzer.CanProveLess(window_size, 1)) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Hamming_window expects the window_size must be greater than zero but got "
+                     << window_size);
+  }
+  window_size = analyzer.Simplify(window_size);
+  return TensorStructInfo(ShapeExpr({window_size}), dtype);
+}
+
+TVM_REGISTER_OP("relax.hamming_window")
+    .set_attrs_type<InitAttrs>()
+    .set_num_inputs(4)
+    .add_argument("window_size", "PrimValue", "The size of the window")
+    .add_argument("periodic", "PrimValue",
+                  "If True, returns a window to be used as periodic function. If False, return a "
+                  "symmetric window")
+    .add_argument("alpha", "PrimValue", "The coefficient alpha")
+    .add_argument("beta", "PrimValue", "The coefficient beta")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoHammingWindow)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.tril & relax.triu */
 TVM_REGISTER_NODE_TYPE(TriluAttrs);
 
@@ -380,8 +438,8 @@ Expr triu(Expr x, Expr k) {
 
 Expr triu(Expr x, int k) { return triu(x, relax::PrimValue::Int64(k)); }
 
-TVM_REGISTER_GLOBAL("relax.op.tril").set_body_typed(static_cast<Expr (*)(Expr, Expr)>(tril));
-TVM_REGISTER_GLOBAL("relax.op.triu").set_body_typed(static_cast<Expr (*)(Expr, Expr)>(triu));
+TVM_FFI_REGISTER_GLOBAL("relax.op.tril").set_body_typed(static_cast<Expr (*)(Expr, Expr)>(tril));
+TVM_FFI_REGISTER_GLOBAL("relax.op.triu").set_body_typed(static_cast<Expr (*)(Expr, Expr)>(triu));
 
 StructInfo InferStructInfoTrilTriu(const Call& call, const BlockBuilder& ctx) {
   auto [data_sinfo, offset] = GetArgStructInfo<TensorStructInfo, PrimStructInfo>(call, ctx);

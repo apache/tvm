@@ -21,10 +21,11 @@
  * Reflection utilities.
  * \file node/reflection.cc
  */
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/node/node.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/registry.h>
 
 namespace tvm {
 
@@ -104,8 +105,22 @@ ffi::Any ReflectionVTable::GetAttr(Object* self, const String& field_name) const
     ret = self->GetTypeKey();
     success = true;
   } else if (!self->IsInstance<DictAttrsNode>()) {
-    VisitAttrs(self, &getter);
-    success = getter.found_ref_object || ret != nullptr;
+    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(self->type_index());
+    success = false;
+    // use new reflection mechanism
+    if (type_info->extra_info != nullptr) {
+      ffi::reflection::ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
+        if (field_name.compare(field_info->name) == 0) {
+          ffi::reflection::FieldGetter field_getter(field_info);
+          ret = field_getter(self);
+          success = true;
+        }
+      });
+    } else {
+      // legacy reflection mechanism, will be phased out in the future
+      VisitAttrs(self, &getter);
+      success = getter.found_ref_object || ret != nullptr;
+    }
   } else {
     // specially handle dict attr
     DictAttrsNode* dnode = static_cast<DictAttrsNode*>(self);
@@ -149,7 +164,16 @@ std::vector<std::string> ReflectionVTable::ListAttrNames(Object* self) const {
   dir.names = &names;
 
   if (!self->IsInstance<DictAttrsNode>()) {
-    VisitAttrs(self, &dir);
+    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(self->type_index());
+    if (type_info->extra_info != nullptr) {
+      // use new reflection mechanism
+      ffi::reflection::ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
+        names.push_back(std::string(field_info->name.data, field_info->name.size));
+      });
+    } else {
+      // legacy reflection mechanism, will be phased out in the future
+      VisitAttrs(self, &dir);
+    }
   } else {
     // specially handle dict attr
     DictAttrsNode* dnode = static_cast<DictAttrsNode*>(self);
@@ -236,13 +260,31 @@ void InitNodeByPackedArgs(ReflectionVTable* reflection, Object* n, const ffi::Pa
 
 ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
                                          const ffi::PackedArgs& kwargs) {
-  ObjectPtr<Object> n = this->CreateInitObject(type_key);
-  if (n->IsInstance<BaseAttrsNode>()) {
-    static_cast<BaseAttrsNode*>(n.get())->InitByPackedArgs(kwargs);
+  // dispatch between new reflection and old reflection
+  int32_t type_index;
+  TVMFFIByteArray type_key_array = TVMFFIByteArray{type_key.data(), type_key.size()};
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(&type_key_array, &type_index));
+  const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(type_index);
+  if (type_info->extra_info != nullptr) {
+    auto fcreate_object = ffi::Function::GetGlobalRequired("ffi.MakeObjectFromPackedArgs");
+    std::vector<AnyView> packed_args(kwargs.size() + 1);
+    packed_args[0] = type_index;
+    for (int i = 0; i < kwargs.size(); i++) {
+      packed_args[i + 1] = kwargs[i];
+    }
+    ffi::Any rv;
+    fcreate_object.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
+    return rv.cast<ObjectRef>();
   } else {
-    InitNodeByPackedArgs(this, n.get(), kwargs);
+    // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
+    ObjectPtr<Object> n = this->CreateInitObject(type_key);
+    if (n->IsInstance<BaseAttrsNode>()) {
+      static_cast<BaseAttrsNode*>(n.get())->InitByPackedArgs(kwargs);
+    } else {
+      InitNodeByPackedArgs(this, n.get(), kwargs);
+    }
+    return ObjectRef(n);
   }
-  return ObjectRef(n);
 }
 
 ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
@@ -288,15 +330,14 @@ void NodeListAttrNames(ffi::PackedArgs args, ffi::Any* ret) {
 // args format:
 //   key1, value1, ..., key_n, value_n
 void MakeNode(const ffi::PackedArgs& args, ffi::Any* rv) {
-  auto type_key = args[0].cast<std::string>();
-  *rv = ReflectionVTable::Global()->CreateObject(type_key, args.Slice(1));
+  *rv = ReflectionVTable::Global()->CreateObject(args[0].cast<std::string>(), args.Slice(1));
 }
 
-TVM_REGISTER_GLOBAL("node.NodeGetAttr").set_body_packed(NodeGetAttr);
+TVM_FFI_REGISTER_GLOBAL("node.NodeGetAttr").set_body_packed(NodeGetAttr);
 
-TVM_REGISTER_GLOBAL("node.NodeListAttrNames").set_body_packed(NodeListAttrNames);
+TVM_FFI_REGISTER_GLOBAL("node.NodeListAttrNames").set_body_packed(NodeListAttrNames);
 
-TVM_REGISTER_GLOBAL("node.MakeNode").set_body_packed(MakeNode);
+TVM_FFI_REGISTER_GLOBAL("node.MakeNode").set_body_packed(MakeNode);
 
 namespace {
 // Attribute visitor class for finding the attribute key by its address
@@ -332,13 +373,31 @@ class GetAttrKeyByAddressVisitor : public AttrVisitor {
 }  // anonymous namespace
 
 Optional<String> GetAttrKeyByAddress(const Object* object, const void* attr_address) {
-  GetAttrKeyByAddressVisitor visitor(attr_address);
-  ReflectionVTable::Global()->VisitAttrs(const_cast<Object*>(object), &visitor);
-  const char* key = visitor.GetKey();
-  if (key == nullptr) {
-    return std::nullopt;
+  // NOTE: reflection dispatch for both new and legacy reflection mechanism
+  const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(object->type_index());
+  if (tinfo->extra_info != nullptr) {
+    Optional<String> result;
+    // visit fields with the new reflection
+    ffi::reflection::ForEachFieldInfoWithEarlyStop(tinfo, [&](const TVMFFIFieldInfo* field_info) {
+      Any field_value = ffi::reflection::FieldGetter(field_info)(object);
+      const void* field_addr = reinterpret_cast<const char*>(object) + field_info->offset;
+      if (field_addr == attr_address) {
+        result = String(field_info->name);
+        return true;
+      }
+      return false;
+    });
+    return result;
   } else {
-    return String(key);
+    // TODO(tvm-team): remove this path once all objects are transitioned to the new reflection
+    GetAttrKeyByAddressVisitor visitor(attr_address);
+    ReflectionVTable::Global()->VisitAttrs(const_cast<Object*>(object), &visitor);
+    const char* key = visitor.GetKey();
+    if (key == nullptr) {
+      return std::nullopt;
+    } else {
+      return String(key);
+    }
   }
 }
 

@@ -26,6 +26,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
@@ -77,7 +78,7 @@ class IRModuleNode : public Object {
    *
    * \return The result
    *
-   * \tparam TOBjectRef the expected object type.
+   * \tparam TObjectRef the expected object type.
    * \throw Error if the key exists but the value does not match TObjectRef
    *
    * \code
@@ -129,13 +130,17 @@ class IRModuleNode : public Object {
 
   IRModuleNode() : source_map() {}
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("functions", &functions);
-    v->Visit("global_var_map_", &global_var_map_);
-    v->Visit("source_map", &source_map);
-    v->Visit("attrs", &attrs);
-    v->Visit("global_infos", &global_infos);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IRModuleNode>()
+        .def_ro("functions", &IRModuleNode::functions)
+        .def_ro("global_var_map_", &IRModuleNode::global_var_map_)
+        .def_ro("source_map", &IRModuleNode::source_map)
+        .def_ro("attrs", &IRModuleNode::attrs)
+        .def_ro("global_infos", &IRModuleNode::global_infos);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
 
@@ -233,7 +238,7 @@ class IRModuleNode : public Object {
 
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
-  static constexpr const char* _type_key = "IRModule";
+  static constexpr const char* _type_key = "ir.IRModule";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IRModuleNode, Object);

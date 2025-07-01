@@ -25,16 +25,6 @@ project(
 )
 
 option(TVM_FFI_BUILD_TESTS "Adding test targets." OFF)
-
-########## NOTE: all options below are related to dynamic registry #####
-option(TVM_FFI_BUILD_REGISTRY
-  "Support for objects with non-static type indices. When turned on, \
-  targets linked against `tvm_ffi` will allow objects that comes with non-pre-defined type indices, \
-  as well as getting full stacktrace during debugging. \
-  so that the object hierarchy could expand without limitation. \
-  This will require the downstream targets to link against target `tvm_ffi` to be effective."
-  OFF
-)
 option(TVM_FFI_USE_LIBBACKTRACE "Enable libbacktrace" ON)
 option(TVM_FFI_BACKTRACE_ON_SEGFAULT "Set signal handler to print traceback on segfault" ON)
 

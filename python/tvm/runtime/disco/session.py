@@ -25,7 +25,7 @@ from typing import Any, Callable, Optional, Sequence, Union
 
 import numpy as np
 
-from ..._ffi import get_global_func, register_func, register_object
+from ...ffi import get_global_func, register_func, register_object
 from ..device import Device
 from ..container import ShapeTuple
 from ..ndarray import NDArray
@@ -150,8 +150,6 @@ class Session(Object):
             The created NDArray.
 
         """
-        if device is None:
-            device = Device(device_type=0, device_id=0)
         func = self._get_cached_method("runtime.disco.empty")
         return func(ShapeTuple(shape), dtype, device, worker0_only, in_group)
 
@@ -237,6 +235,12 @@ class Session(Object):
         """
         return _ffi_api.SessionSyncWorker(self, worker_id)  # type: ignore # pylint: disable=no-member
 
+    def _sync_all(self) -> None:
+        """Synchronize the controller with all workers in the current session, and it will
+        wait until all workers finish executing all the existing instructions."""
+        for i in range(self.num_workers):
+            self._sync_worker(i)
+
     def sync_worker_0(self) -> None:
         """Synchronize the controller with worker-0, and it will wait until the worker-0 finishes
         executing all the existing instructions."""
@@ -302,8 +306,6 @@ class Session(Object):
         module : DModule
             The loaded VM module.
         """
-        if device is None:
-            device = Device(device_type=0, device_id=0)
         func = self._get_cached_method("runtime.disco.load_vm_module")
         return DModule(func(path, device), self)
 

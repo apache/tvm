@@ -64,7 +64,7 @@ def getitem_helper(obj, elem_getter, length, idx):
     return elem_getter(obj, idx)
 
 
-@register_object("object.Array")
+@register_object("ffi.Array")
 class Array(core.Object, collections.abc.Sequence):
     """Array container"""
 
@@ -78,6 +78,9 @@ class Array(core.Object, collections.abc.Sequence):
         return _ffi_api.ArraySize(self)
 
     def __repr__(self):
+        # exception safety handling for chandle=None
+        if self.__chandle__() == 0:
+            return type(self).__name__ + "(chandle=None)"
         return "[" + ", ".join([x.__repr__() for x in self]) + "]"
 
 
@@ -145,7 +148,7 @@ class ItemsView(collections.abc.ItemsView):
                 break
 
 
-@register_object("object.Map")
+@register_object("ffi.Map")
 class Map(core.Object, collections.abc.Mapping):
     """Map container."""
 
@@ -197,4 +200,7 @@ class Map(core.Object, collections.abc.Mapping):
         return self[key] if key in self else default
 
     def __repr__(self):
+        # exception safety handling for chandle=None
+        if self.__chandle__() == 0:
+            return type(self).__name__ + "(chandle=None)"
         return "{" + ", ".join([f"{k.__repr__()}: {v.__repr__()}" for k, v in self.items()]) + "}"

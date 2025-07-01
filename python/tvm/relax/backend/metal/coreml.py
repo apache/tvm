@@ -19,7 +19,7 @@
 
 import os
 import shutil
-import tvm._ffi
+import tvm.ffi
 from tvm.contrib import coreml_runtime
 from tvm.contrib.xcode import compile_coreml
 
@@ -144,7 +144,7 @@ register_patterns(
         *default_unary_patterns(op_name="nn.avg_pool2d"),
         *conv2d_patterns(),
         *clip_patterns(),
-        *matmul_patterns()
+        *matmul_patterns(),
         # TODO(@tvm-team): enable when relax op is implemented
         # ("coreml.nn.batch_flatten", is_op("relax.nn.batch_flatten")(wildcard())),
     ]
@@ -463,7 +463,7 @@ class CodegenCoreML(PyExprVisitor):
         compile_coreml(model, self.model_name, out_dir)
 
 
-@tvm._ffi.register_func("relax.ext.coreml")
+@tvm.ffi.register_func("relax.ext.coreml")
 def coreml_compiler(funcs, options, constant_names):
     """
     Create a CoreML runtime from a Relax module.

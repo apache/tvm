@@ -92,7 +92,7 @@ def test_deep_callback():
 
 @functools.lru_cache()
 def _has_debug_symbols():
-    lib = tvm._ffi.base._LIB
+    lib = tvm.base._LIB
     headers = subprocess.check_output(["objdump", "--section-headers", lib._name], encoding="utf-8")
     return ".debug" in headers
 

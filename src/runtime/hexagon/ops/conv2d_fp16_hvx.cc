@@ -20,7 +20,7 @@
 #include <HAP_compute_res.h>
 #include <hexagon_types.h>
 #include <hvx_hexagon_protos.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 
@@ -44,8 +44,7 @@
 //   4: int stride_h
 //   5: int stride_w
 //   6: DLTensor output (NHWC)
-extern "C" int conv2d_packed_fp16(TVMValue* args, int* type_codes, int num_args, TVMValue* out_val,
-                                  int out_code, void* res_handle);
+extern "C" int conv2d_packed_fp16(void*, TVMFFIAny* args, int num_args, TVMFFIAny* out_val);
 
 namespace tvm {
 namespace runtime {
@@ -403,26 +402,27 @@ void conv_layer_fp16_hvx(DLTensor& cr_out, const DLTensor& cr_act,  // NOLINT(*)
 }  // namespace runtime
 }  // namespace tvm
 
-int conv2d_packed_fp16(TVMValue* args, int* type_codes, int num_args, TVMValue* out_val,
-                       int out_code, void* res_handle) {
+int conv2d_packed_fp16(void*, TVMFFIAny* args, int num_args, TVMFFIAny* out_val) {
   namespace conv_utils = tvm::runtime::hexagon::conv_utils;
   ICHECK_EQ(num_args, 7) << "Unexpected number of arguments";
-  ICHECK_EQ(type_codes[0], kTVMDLTensorHandle)
+  ICHECK_EQ(args[0].type_index, kTVMFFIDLTensorPtr)
       << "First argument is expected to be the input tensor";  // Input activations
-  ICHECK_EQ(type_codes[1], kTVMDLTensorHandle)
+  ICHECK_EQ(args[1].type_index, kTVMFFIDLTensorPtr)
       << "Second argument is expected to be the weights tensor";  // Weights
-  ICHECK_EQ(type_codes[2], kDLInt)
+  ICHECK_EQ(args[2].type_index, kTVMFFIInt)
       << "Third argument is expected to be the pad_top offset";  // pad_top offset
-  ICHECK_EQ(type_codes[3], kDLInt)
+  ICHECK_EQ(args[3].type_index, kTVMFFIInt)
       << "Fourth argument is expected to be the pad_left offset";  // pad_left offset
-  ICHECK_EQ(type_codes[4], kDLInt) << "Fifth argument is expected to be the stride_h";  // stride_h
-  ICHECK_EQ(type_codes[5], kDLInt) << "Sixth argument is expected to be the stride_w";  // stride_w
-  ICHECK_EQ(type_codes[6], kTVMDLTensorHandle)
+  ICHECK_EQ(args[4].type_index, kTVMFFIInt)
+      << "Fifth argument is expected to be the stride_h";  // stride_h
+  ICHECK_EQ(args[5].type_index, kTVMFFIInt)
+      << "Sixth argument is expected to be the stride_w";  // stride_w
+  ICHECK_EQ(args[6].type_index, kTVMFFIDLTensorPtr)
       << "Seventh argument is expected to be the output tensor";  // output
 
-  auto* act_flat = static_cast<DLTensor*>(args[0].v_handle);
-  auto* wgt_flat = static_cast<DLTensor*>(args[1].v_handle);
-  auto* out_flat = static_cast<DLTensor*>(args[6].v_handle);
+  auto* act_flat = static_cast<DLTensor*>(args[0].v_ptr);
+  auto* wgt_flat = static_cast<DLTensor*>(args[1].v_ptr);
+  auto* out_flat = static_cast<DLTensor*>(args[6].v_ptr);
 
   // Temporary assertion until multiple batches are supported
   ICHECK_EQ(act_flat->shape[0], 1) << "Input batch size more than 1 is not supported yet";

@@ -93,7 +93,7 @@ class FunctionObj : public Object, public TVMFFIFunctionCell {
   }
 
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFIFunction;
-  static constexpr const char* _type_key = "object.Function";
+  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIFunction;
 
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(FunctionObj, Object);
 
@@ -408,7 +408,7 @@ class Function : public ObjectRef {
     if (!res.has_value()) {
       TVM_FFI_THROW(ValueError) << "Function " << name << " not found";
     }
-    return res.value();
+    return *res;
   }
 
   static Function GetGlobalRequired(const std::string& name) {
@@ -787,7 +787,7 @@ class Function::Registry {
    * .set_body_typed(multiply); // will have type int(int, int)
    *
    * // will have type int(int, int)
-   * TVM_REGISTER_GLOBAL("sub")
+   * TVM_FFI_REGISTER_GLOBAL("sub")
    * .set_body_typed([](int a, int b) -> int { return a - b; });
    *
    * \endcode
@@ -836,14 +836,14 @@ class Function::Registry {
     if constexpr (std::is_base_of_v<ObjectRef, T>) {
       auto fwrap = [f](T target, Args... params) -> R {
         // call method pointer
-        return (target.*f)(params...);
+        return (target.*f)(std::forward<Args>(params)...);
       };
       return Register(ffi::Function::FromTyped(fwrap, name_));
     }
     if constexpr (std::is_base_of_v<Object, T>) {
       auto fwrap = [f](const T* target, Args... params) -> R {
         // call method pointer
-        return (const_cast<T*>(target)->*f)(params...);
+        return (const_cast<T*>(target)->*f)(std::forward<Args>(params)...);
       };
       return Register(ffi::Function::FromTyped(fwrap, name_));
     }
@@ -857,14 +857,14 @@ class Function::Registry {
     if constexpr (std::is_base_of_v<ObjectRef, T>) {
       auto fwrap = [f](const T target, Args... params) -> R {
         // call method pointer
-        return (target.*f)(params...);
+        return (target.*f)(std::forward<Args>(params)...);
       };
       return Register(ffi::Function::FromTyped(fwrap, name_));
     }
     if constexpr (std::is_base_of_v<Object, T>) {
       auto fwrap = [f](const T* target, Args... params) -> R {
         // call method pointer
-        return (target->*f)(params...);
+        return (target->*f)(std::forward<Args>(params)...);
       };
       return Register(ffi::Function::FromTyped(fwrap, name_));
     }
@@ -910,6 +910,54 @@ inline int32_t TypeKeyToIndex(std::string_view type_key) {
 #define TVM_FFI_REGISTER_GLOBAL(OpName) \
   TVM_FFI_STR_CONCAT(TVM_FFI_FUNC_REG_VAR_DEF, __COUNTER__) = ::tvm::ffi::Function::Registry(OpName)
 
+/*!
+ * \brief Export typed function as a SafeCallType symbol.
+ *
+ * \param ExportName The symbol name to be exported.
+ * \param Function The typed function.
+ * \note ExportName and Function must be different,
+ *       see code examples below.
+ *
+ * \sa ffi::TypedFunction
+ *
+ * \code
+ *
+ * int AddOne_(int x) {
+ *   return x + 1;
+ * }
+ *
+ * // Expose the function as "AddOne"
+ * TVM_FFI_DLL_EXPORT_TYPED_FUNC(AddOne, AddOne_);
+ *
+ * // Expose the function as "SubOne"
+ * TVM_FFI_DLL_EXPORT_TYPED_FUNC(SubOne, [](int x) {
+ *   return x - 1;
+ * });
+ *
+ * // The following code will cause compilation error.
+ * // Because the same Function and ExportName
+ * // TVM_FFI_DLL_EXPORT_TYPED_FUNC(AddOne_, AddOne_);
+ *
+ * // The following code is OK, assuming the macro
+ * // is in a different namespace from xyz
+ * // TVM_FFI_DLL_EXPORT_TYPED_FUNC(AddOne_, xyz::AddOne_);
+ *
+ * \endcode
+ */
+#define TVM_FFI_DLL_EXPORT_TYPED_FUNC(ExportName, Function)                        \
+  extern "C" {                                                                     \
+  TVM_FFI_DLL_EXPORT int ExportName(void* self, TVMFFIAny* args, int32_t num_args, \
+                                    TVMFFIAny* result) {                           \
+    TVM_FFI_SAFE_CALL_BEGIN();                                                     \
+    using FuncInfo = ::tvm::ffi::details::FunctionInfo<decltype(Function)>;        \
+    static std::string name = #ExportName;                                         \
+    ::tvm::ffi::details::unpack_call<typename FuncInfo::RetType>(                  \
+        std::make_index_sequence<FuncInfo::num_args>{}, &name, Function,           \
+        reinterpret_cast<const ::tvm::ffi::AnyView*>(args), num_args,              \
+        reinterpret_cast<::tvm::ffi::Any*>(result));                               \
+    TVM_FFI_SAFE_CALL_END();                                                       \
+  }                                                                                \
+  }
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_FUNCTION_H_

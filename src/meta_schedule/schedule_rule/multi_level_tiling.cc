@@ -54,6 +54,8 @@ using tir::IterVarType;
 using tir::LoopRV;
 using tir::Schedule;
 
+TVM_FFI_STATIC_INIT_BLOCK({ MultiLevelTilingNode::RegisterReflection(); });
+
 TVM_REGISTER_OBJECT_TYPE(StateNode);
 
 State::State(tir::Schedule sch, tir::BlockRV block_rv, Array<Array<tir::LoopRV>> tiles) {
@@ -405,7 +407,7 @@ ScheduleRule ScheduleRule::MultiLevelTiling(String structure, Optional<Array<Str
 }
 
 TVM_REGISTER_NODE_TYPE(MultiLevelTilingNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTiling")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTiling")
     .set_body_typed(ScheduleRule::MultiLevelTiling);
 
 }  // namespace meta_schedule

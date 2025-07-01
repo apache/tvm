@@ -21,8 +21,8 @@
  * \file buffer.cc
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/builtin.h>
@@ -36,6 +36,8 @@
 
 namespace tvm {
 namespace tir {
+
+TVM_FFI_STATIC_INIT_BLOCK({ BufferNode::RegisterReflection(); });
 
 using IndexMod = tir::FloorModNode;
 using IndexDiv = tir::FloorDivNode;
@@ -640,7 +642,7 @@ tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std
 
 TVM_REGISTER_NODE_TYPE(BufferNode);
 
-TVM_REGISTER_GLOBAL("tir.Buffer").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+TVM_FFI_REGISTER_GLOBAL("tir.Buffer").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
   ICHECK_EQ(args.size(), 11);
   auto buffer_type = args[8].cast<String>();
   BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
@@ -658,17 +660,18 @@ TVM_REGISTER_GLOBAL("tir.Buffer").set_body_packed([](ffi::PackedArgs args, ffi::
                 axis_separators, span);
 });
 
-TVM_REGISTER_GLOBAL("tir.BufferAccessPtr").set_body_method(&Buffer::access_ptr);
+TVM_FFI_REGISTER_GLOBAL("tir.BufferAccessPtr").set_body_method(&Buffer::access_ptr);
 
-TVM_REGISTER_GLOBAL("tir.BufferGetFlattenedBuffer").set_body_method(&Buffer::GetFlattenedBuffer);
+TVM_FFI_REGISTER_GLOBAL("tir.BufferGetFlattenedBuffer")
+    .set_body_method(&Buffer::GetFlattenedBuffer);
 
-TVM_REGISTER_GLOBAL("tir.BufferOffsetOf").set_body_method(&Buffer::OffsetOf);
+TVM_FFI_REGISTER_GLOBAL("tir.BufferOffsetOf").set_body_method(&Buffer::OffsetOf);
 
-TVM_REGISTER_GLOBAL("tir.BufferVLoad").set_body_method(&Buffer::vload);
+TVM_FFI_REGISTER_GLOBAL("tir.BufferVLoad").set_body_method(&Buffer::vload);
 
-TVM_REGISTER_GLOBAL("tir.BufferVStore").set_body_method(&Buffer::vstore);
+TVM_FFI_REGISTER_GLOBAL("tir.BufferVStore").set_body_method(&Buffer::vstore);
 
-TVM_REGISTER_GLOBAL("tir.BufferStorageScope").set_body_method(&Buffer::scope);
+TVM_FFI_REGISTER_GLOBAL("tir.BufferStorageScope").set_body_method(&Buffer::scope);
 
 }  // namespace tir
 }  // namespace tvm

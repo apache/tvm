@@ -335,7 +335,7 @@ def test_error_reporting():
         assert False
     except TypeError as e:
         error_message = str(e)
-        assert error_message.find("Unsupported Operation: ScanOp.") != -1
+        assert error_message.find("Unsupported Operation: te.ScanOp.") != -1
         return
     assert False
 
@@ -880,6 +880,14 @@ def test_adaptive_pooling_window():
         return [x, y]
 
     _check_workload(te_workload, tir_workload)
+
+
+def test_global_pool():
+    # fix the issue-17938
+    data = te.placeholder((1, 1, 32, 32), dtype="int8", name="data")
+    op_output = topi.nn.global_pool(data=data, pool_type="avg", layout="NCHW")
+    f = te.create_prim_func([data, op_output])
+    assert f
 
 
 def test_nested_reduce_domain_dependency():

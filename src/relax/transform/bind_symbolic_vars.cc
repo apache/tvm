@@ -148,7 +148,7 @@ IRModule ModuleBindSymbolicVars(IRModule mod, Map<ObjectRef, PrimExpr> binding_m
 }
 }  // namespace
 
-TVM_REGISTER_GLOBAL("relax.FunctionBindSymbolicVars").set_body_typed(FunctionBindSymbolicVars);
+TVM_FFI_REGISTER_GLOBAL("relax.FunctionBindSymbolicVars").set_body_typed(FunctionBindSymbolicVars);
 
 namespace transform {
 
@@ -170,7 +170,7 @@ Pass BindSymbolicVars(Map<ObjectRef, PrimExpr> binding_map, Optional<String> fun
   return tvm::transform::CreateModulePass(pass_func, 1, "relax.BindSymbolicVars", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.BindSymbolicVars").set_body_typed(BindSymbolicVars);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.BindSymbolicVars").set_body_typed(BindSymbolicVars);
 
 }  // namespace transform
 }  // namespace relax

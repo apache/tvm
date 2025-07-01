@@ -24,12 +24,12 @@
 #ifndef TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
 #define TVM_RUNTIME_OPENCL_OPENCL_COMMON_H_
 
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
 
 /* There are many OpenCL platforms that do not yet support OpenCL 2.0,
@@ -588,7 +588,7 @@ class OpenCLTimerNode : public TimerNode {
   OpenCLTimerNode() {}
   explicit OpenCLTimerNode(Device dev) : dev_(dev) {}
 
-  static constexpr const char* _type_key = "OpenCLTimerNode";
+  static constexpr const char* _type_key = "runtime.opencl.OpenCLTimerNode";
   static size_t count_timer_execs;
   static std::vector<size_t> event_start_idxs;
   TVM_DECLARE_FINAL_OBJECT_INFO(OpenCLTimerNode, TimerNode);

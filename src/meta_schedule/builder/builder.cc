@@ -47,26 +47,32 @@ Builder Builder::PyBuilder(BuilderNode::FBuild f_build) {
 
 /******** FFI ********/
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  BuilderInputNode::RegisterReflection();
+  BuilderResultNode::RegisterReflection();
+  PyBuilderNode::RegisterReflection();
+});
+
 TVM_REGISTER_NODE_TYPE(BuilderInputNode);
 TVM_REGISTER_NODE_TYPE(BuilderResultNode);
 TVM_REGISTER_OBJECT_TYPE(BuilderNode);
 TVM_REGISTER_NODE_TYPE(PyBuilderNode);
 
-TVM_REGISTER_GLOBAL("meta_schedule.BuilderInput")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.BuilderInput")
     .set_body_typed([](IRModule mod, Target target,
                        Optional<Map<String, runtime::NDArray>> params) -> BuilderInput {
       return BuilderInput(mod, target, params);
     });
 
-TVM_REGISTER_GLOBAL("meta_schedule.BuilderResult")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.BuilderResult")
     .set_body_typed([](Optional<String> artifact_path,
                        Optional<String> error_msg) -> BuilderResult {
       return BuilderResult(artifact_path, error_msg);
     });
 
-TVM_REGISTER_GLOBAL("meta_schedule.BuilderBuild").set_body_method(&BuilderNode::Build);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.BuilderBuild").set_body_method(&BuilderNode::Build);
 
-TVM_REGISTER_GLOBAL("meta_schedule.BuilderPyBuilder").set_body_typed(Builder::PyBuilder);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.BuilderPyBuilder").set_body_typed(Builder::PyBuilder);
 
 }  // namespace meta_schedule
 }  // namespace tvm

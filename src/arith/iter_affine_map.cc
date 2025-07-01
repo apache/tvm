@@ -40,6 +40,13 @@ namespace arith {
 
 using namespace tir;
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  IterMarkNode::RegisterReflection();
+  IterSplitExprNode::RegisterReflection();
+  IterSumExprNode::RegisterReflection();
+  IterMapResultNode::RegisterReflection();
+});
+
 IterMark::IterMark(PrimExpr source, PrimExpr extent) {
   auto n = make_object<IterMarkNode>();
   n->source = std::move(source);
@@ -47,7 +54,7 @@ IterMark::IterMark(PrimExpr source, PrimExpr extent) {
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("arith.IterMark").set_body_typed([](PrimExpr source, PrimExpr extent) {
+TVM_FFI_REGISTER_GLOBAL("arith.IterMark").set_body_typed([](PrimExpr source, PrimExpr extent) {
   return IterMark(source, extent);
 });
 
@@ -92,7 +99,7 @@ IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr lower_factor, PrimExpr ex
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("arith.IterSplitExpr")
+TVM_FFI_REGISTER_GLOBAL("arith.IterSplitExpr")
     .set_body_typed([](IterMark source, PrimExpr lower_factor, PrimExpr extent, PrimExpr scale) {
       return IterSplitExpr(source, lower_factor, extent, scale);
     });
@@ -114,7 +121,7 @@ IterSumExpr::IterSumExpr(Array<IterSplitExpr> args, PrimExpr base) {
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("arith.IterSumExpr")
+TVM_FFI_REGISTER_GLOBAL("arith.IterSumExpr")
     .set_body_typed([](Array<IterSplitExpr> args, PrimExpr base) {
       return IterSumExpr(args, base);
     });
@@ -1513,7 +1520,7 @@ IterMapResult DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range
   return result;
 }
 
-TVM_REGISTER_GLOBAL("arith.DetectIterMap")
+TVM_FFI_REGISTER_GLOBAL("arith.DetectIterMap")
     .set_body_typed([](const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                        const PrimExpr& input_pred, int check_level,
                        bool simplify_trivial_iterators) {
@@ -1538,7 +1545,7 @@ IterSumExpr NormalizeToIterSum(PrimExpr index, const Map<Var, Range>& input_iter
   return rewriter.RewriteToNormalizedIterSum(index);
 }
 
-TVM_REGISTER_GLOBAL("arith.NormalizeToIterSum")
+TVM_FFI_REGISTER_GLOBAL("arith.NormalizeToIterSum")
     .set_body_typed([](PrimExpr index, const Map<Var, Range>& input_iters) {
       arith::Analyzer ana;
       return NormalizeToIterSum(index, input_iters, &ana);
@@ -2133,7 +2140,7 @@ PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr) {
   return normalizer.Convert(expr);
 }
 
-TVM_REGISTER_GLOBAL("arith.NormalizeIterMapToExpr").set_body_typed(NormalizeIterMapToExpr);
+TVM_FFI_REGISTER_GLOBAL("arith.NormalizeIterMapToExpr").set_body_typed(NormalizeIterMapToExpr);
 
 Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                 const PrimExpr& input_pred, IterMapLevel check_level,
@@ -2162,7 +2169,7 @@ Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, R
   return simplified;
 }
 
-TVM_REGISTER_GLOBAL("arith.IterMapSimplify")
+TVM_FFI_REGISTER_GLOBAL("arith.IterMapSimplify")
     .set_body_typed([](const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                        const PrimExpr& input_pred, int check_level,
                        bool simplify_trivial_iterators) {
@@ -2495,7 +2502,7 @@ Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
   return results;
 }
 
-TVM_REGISTER_GLOBAL("arith.SubspaceDivide")
+TVM_FFI_REGISTER_GLOBAL("arith.SubspaceDivide")
     .set_body_typed([](const Array<PrimExpr>& bindings, const Map<Var, Range>& root_iters,
                        const Array<Var>& sub_iters, const PrimExpr& predicate, int check_level,
                        bool simplify_trivial_iterators) {
@@ -2634,7 +2641,7 @@ Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,
   return InverseAffineIterMapTransformer(&analyzer)(iter_map, outputs);
 }
 
-TVM_REGISTER_GLOBAL("arith.InverseAffineIterMap").set_body_typed(InverseAffineIterMap);
+TVM_FFI_REGISTER_GLOBAL("arith.InverseAffineIterMap").set_body_typed(InverseAffineIterMap);
 
 TVM_REGISTER_NODE_TYPE(IterMapResultNode);
 

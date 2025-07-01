@@ -15,9 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common base structures."""
-import tvm._ffi
+import tvm.ffi
 import tvm.error
-from tvm._ffi import get_global_func, register_object
+from tvm.ffi import get_global_func, register_object
 from tvm.runtime import Object, _ffi_node_api
 
 from . import _ffi_api, json_compact
@@ -27,13 +27,13 @@ class Node(Object):
     """Base class of all IR Nodes."""
 
 
-@register_object("SourceMap")
+@register_object("ir.SourceMap")
 class SourceMap(Object):
     def add(self, name, content):
         return get_global_func("SourceMapAdd")(self, name, content)
 
 
-@register_object("SourceName")
+@register_object("ir.SourceName")
 class SourceName(Object):
     """A identifier for a source location.
 
@@ -47,7 +47,7 @@ class SourceName(Object):
         self.__init_handle_by_constructor__(_ffi_api.SourceName, name)  # type: ignore # pylint: disable=no-member
 
 
-@register_object("Span")
+@register_object("ir.Span")
 class Span(Object):
     """Specifies a location in a source program.
 
@@ -69,7 +69,7 @@ class Span(Object):
         )
 
 
-@register_object("SequentialSpan")
+@register_object("ir.SequentialSpan")
 class SequentialSpan(Object):
     """A sequence of source spans
 
@@ -86,7 +86,7 @@ class SequentialSpan(Object):
         self.__init_handle_by_constructor__(_ffi_api.SequentialSpan, spans)
 
 
-@register_object
+@register_object("ir.EnvFunc")
 class EnvFunc(Object):
     """Environment function.
 

@@ -24,8 +24,9 @@
 #ifndef TVM_IR_ENV_FUNC_H_
 #define TVM_IR_ENV_FUNC_H_
 
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <string>
 #include <utility>
@@ -48,7 +49,12 @@ class EnvFuncNode : public Object {
   /*! \brief constructor */
   EnvFuncNode() {}
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<EnvFuncNode>().def_ro("name", &EnvFuncNode::name);
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const EnvFuncNode* other, SEqualReducer equal) const {
     // name uniquely identifies the env function.
@@ -60,7 +66,7 @@ class EnvFuncNode : public Object {
     hash_reduce(name);
   }
 
-  static constexpr const char* _type_key = "EnvFunc";
+  static constexpr const char* _type_key = "ir.EnvFunc";
   static constexpr bool _type_has_method_sequal_reduce = true;
   static constexpr bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(EnvFuncNode, Object);
@@ -142,8 +148,8 @@ class TypedEnvFunc<R(Args...)> : public ObjectRef {
     if constexpr (std::is_same_v<R, void>) {
       n->func(std::forward<Args>(args)...);
     } else {
-      Any res = n->func(std::forward<Args>(args)...);
-      if constexpr (std::is_same_v<R, Any>) {
+      ffi::Any res = n->func(std::forward<Args>(args)...);
+      if constexpr (std::is_same_v<R, ffi::Any>) {
         return res;
       } else {
         return std::move(res).cast<R>();

@@ -332,6 +332,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         threshold = node.args[2] if len(node.args) > 2 else node.kwargs.get("threshold", 20.0)
         return self.block_builder.emit(relax.op.nn.softplus(x, beta, threshold))
 
+    def _softsign(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        abs_x = self.block_builder.emit(relax.op.abs(x))
+        denom = self.block_builder.emit(relax.op.add(abs_x, relax.const(1.0, dtype="float32")))
+        return self.block_builder.emit(relax.op.divide(x, denom))
+
     def _softshrink(self, node: fx.Node) -> relax.Var:
         """
         Applies the Softshrink activation function in Relax.
@@ -1269,8 +1275,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
         assert isinstance(dim, int), "Expected 2nd argument of unbind as int"
         selections = self.shape_of(x)[dim].value
-        n_section = list(range(1, selections + 1))
-        ret, split = [], self.block_builder.emit(relax.op.split(x, n_section, dim))
+        ret, split = [], self.block_builder.emit(relax.op.split(x, selections, dim))
         for i in range(selections):
             ret.append(self.block_builder.emit(relax.op.squeeze(split[i], axis=dim)))
         return self.block_builder.emit(relax.Tuple(ret))
@@ -1370,6 +1375,18 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[1]]
         y = self.env[node.args[2]]
         return self.block_builder.emit(relax.op.where(condition, x, y))
+
+    def _bucketize(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        input_tensor = args[0]
+        boundaries = args[1]
+
+        right = node.kwargs.get("right", False)
+        out_int32 = node.kwargs.get("out_int32", False)
+
+        return self.block_builder.emit(
+            relax.op.bucketize(input_tensor, boundaries, out_int32, right)
+        )
 
     ########## Manipulation ##########
 
@@ -1518,6 +1535,19 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 raise TypeError(f"Unsupported meshgrid input type at index {i}: {type(item)}")
 
         return self.block_builder.emit(relax.op.meshgrid(new_inputs, indexing=indexing))
+
+    def _slice_scatter(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        input_tensor = args[0]
+        src = args[1]
+        dim = args[2] if len(args) > 2 else node.kwargs.get("dim", 0)
+        start = args[3] if len(args) > 3 else node.kwargs.get("start", 0)
+        end = args[4] if len(args) > 4 else node.kwargs.get("end", self.shape_of(input_tensor)[dim])
+        step = args[5] if len(args) > 5 else node.kwargs.get("step", 1)
+
+        return self.block_builder.emit(
+            relax.op.slice_scatter(input_tensor, src, start, end, step, axis=dim)
+        )
 
     def _permute(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore

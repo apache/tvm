@@ -20,7 +20,7 @@
 /*!
  * \file tvm/relax/transform/normalize.cc
  * \brief Pass for transforming Relax IR to normal form, i.e., the expressions are normalized(no
- * nesting and hence the AST is in ANF), and all checked_type_ and shape_ of expressions are
+ * nesting and hence the AST is in ANF), and all struct_info_ of expressions are
  * available.
  */
 
@@ -279,7 +279,7 @@ Pass Normalize() {
   return CreateFunctionPass(pass_func, 1, "Normalize", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.Normalize").set_body_typed(Normalize);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.Normalize").set_body_typed(Normalize);
 
 Pass NormalizeGlobalVar() {
   auto pass_func = [=](IRModule mod, PassContext pc) {
@@ -290,7 +290,7 @@ Pass NormalizeGlobalVar() {
                           /*pass_name=*/"NormalizeGlobalVar",
                           /*required=*/{});
 }
-TVM_REGISTER_GLOBAL("relax.transform.NormalizeGlobalVar").set_body_typed(NormalizeGlobalVar);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.NormalizeGlobalVar").set_body_typed(NormalizeGlobalVar);
 
 }  // namespace transform
 

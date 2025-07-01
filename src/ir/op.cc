@@ -21,10 +21,10 @@
  * \file src/ir/op.cc
  * \brief Primitive operators and intrinsics.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/tir/op_attr_types.h>
 
 #include <memory>
@@ -32,6 +32,8 @@
 #include "../node/attr_registry.h"
 
 namespace tvm {
+
+TVM_FFI_STATIC_INIT_BLOCK({ OpNode::RegisterReflection(); });
 
 using ffi::Any;
 using ffi::Function;
@@ -75,13 +77,13 @@ void OpRegEntry::UpdateAttr(const String& key, ffi::Any value, int plevel) {
 }
 
 // Frontend APIs
-TVM_REGISTER_GLOBAL("ir.ListOpNames").set_body_typed([]() {
+TVM_FFI_REGISTER_GLOBAL("ir.ListOpNames").set_body_typed([]() {
   return OpRegistry::Global()->ListAllNames();
 });
 
-TVM_REGISTER_GLOBAL("ir.GetOp").set_body_typed([](String name) -> Op { return Op::Get(name); });
+TVM_FFI_REGISTER_GLOBAL("ir.GetOp").set_body_typed([](String name) -> Op { return Op::Get(name); });
 
-TVM_REGISTER_GLOBAL("ir.OpGetAttr").set_body_typed([](Op op, String attr_name) -> ffi::Any {
+TVM_FFI_REGISTER_GLOBAL("ir.OpGetAttr").set_body_typed([](Op op, String attr_name) -> ffi::Any {
   auto op_map = Op::GetAttrMap<ffi::Any>(attr_name);
   ffi::Any rv;
   if (op_map.count(op)) {
@@ -90,50 +92,50 @@ TVM_REGISTER_GLOBAL("ir.OpGetAttr").set_body_typed([](Op op, String attr_name) -
   return rv;
 });
 
-TVM_REGISTER_GLOBAL("ir.OpHasAttr").set_body_typed([](Op op, String attr_name) -> bool {
+TVM_FFI_REGISTER_GLOBAL("ir.OpHasAttr").set_body_typed([](Op op, String attr_name) -> bool {
   return Op::HasAttrMap(attr_name);
 });
 
-TVM_REGISTER_GLOBAL("ir.OpSetAttr")
+TVM_FFI_REGISTER_GLOBAL("ir.OpSetAttr")
     .set_body_typed([](Op op, String attr_name, ffi::AnyView value, int plevel) {
       auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
       reg.set_attr(attr_name, value, plevel);
     });
 
-TVM_REGISTER_GLOBAL("ir.OpResetAttr").set_body_typed([](Op op, String attr_name) {
+TVM_FFI_REGISTER_GLOBAL("ir.OpResetAttr").set_body_typed([](Op op, String attr_name) {
   auto& reg = OpRegistry::Global()->RegisterOrGet(op->name);
   reg.reset_attr(attr_name);
 });
 
-TVM_REGISTER_GLOBAL("ir.RegisterOp").set_body_typed([](String op_name, String descr) {
+TVM_FFI_REGISTER_GLOBAL("ir.RegisterOp").set_body_typed([](String op_name, String descr) {
   const OpRegEntry* reg = OpRegistry::Global()->Get(op_name);
   ICHECK(reg == nullptr) << "AttributeError: Operator " << op_name << " is registered before";
   auto& op = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
   op.describe(descr);
 });
 
-TVM_REGISTER_GLOBAL("ir.OpAddArgument")
+TVM_FFI_REGISTER_GLOBAL("ir.OpAddArgument")
     .set_body_typed([](Op op, String name, String type, String description) {
       auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
       reg.add_argument(name, type, description);
     });
 
-TVM_REGISTER_GLOBAL("ir.OpSetSupportLevel").set_body_typed([](Op op, int level) {
+TVM_FFI_REGISTER_GLOBAL("ir.OpSetSupportLevel").set_body_typed([](Op op, int level) {
   auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
   reg.set_support_level(level);
 });
 
-TVM_REGISTER_GLOBAL("ir.OpSetNumInputs").set_body_typed([](Op op, int n) {
+TVM_FFI_REGISTER_GLOBAL("ir.OpSetNumInputs").set_body_typed([](Op op, int n) {
   auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
   reg.set_num_inputs(n);
 });
 
-TVM_REGISTER_GLOBAL("ir.OpSetAttrsTypeKey").set_body_typed([](Op op, String key) {
+TVM_FFI_REGISTER_GLOBAL("ir.OpSetAttrsTypeKey").set_body_typed([](Op op, String key) {
   auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
   reg.set_attrs_type_key(key);
 });
 
-TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
+TVM_FFI_REGISTER_GLOBAL("ir.RegisterOpAttr")
     .set_body_typed([](String op_name, String attr_key, ffi::AnyView value, int plevel) {
       auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
       // enable resgiteration and override of certain properties
@@ -146,7 +148,7 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
       }
     });
 
-TVM_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
+TVM_FFI_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
     .set_body_typed([](String name, ffi::Function f, String target, int plevel) {
       tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(target + ".FLowerIntrinsic", f,
                                                                      plevel);

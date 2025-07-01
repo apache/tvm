@@ -290,7 +290,7 @@ class RenewDefMutator : public StmtExprMutator {
 
 PrimFunc RenewDefs(const PrimFunc& func) { return RenewDefMutator::Transform(func); }
 
-TVM_REGISTER_GLOBAL("tir.RenewDefs").set_body_typed(RenewDefs);
+TVM_FFI_REGISTER_GLOBAL("tir.RenewDefs").set_body_typed(RenewDefs);
 
 }  // namespace tir
 }  // namespace tvm

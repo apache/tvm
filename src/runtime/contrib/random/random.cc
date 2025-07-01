@@ -21,9 +21,9 @@
  * \file External random functions for tensor.
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 
 #include <algorithm>
@@ -69,7 +69,7 @@ RandomThreadLocalEntry* RandomThreadLocalEntry::ThreadLocal() {
   return RandomThreadLocalStore::Get();
 }
 
-TVM_REGISTER_GLOBAL("tvm.contrib.random.randint")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.random.randint")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       RandomThreadLocalEntry* entry = RandomThreadLocalEntry::ThreadLocal();
       int64_t low = args[0].cast<int64_t>();
@@ -103,7 +103,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.random.randint")
       })
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.random.uniform")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.random.uniform")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       RandomThreadLocalEntry* entry = RandomThreadLocalEntry::ThreadLocal();
       double low = args[0].cast<double>();
@@ -112,7 +112,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.random.uniform")
       entry->random_engine.SampleUniform(out, low, high);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.random.normal")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.random.normal")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       RandomThreadLocalEntry* entry = RandomThreadLocalEntry::ThreadLocal();
       double loc = args[0].cast<double>();
@@ -121,14 +121,14 @@ TVM_REGISTER_GLOBAL("tvm.contrib.random.normal")
       entry->random_engine.SampleNormal(out, loc, scale);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.random.random_fill")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.random.random_fill")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       RandomThreadLocalEntry* entry = RandomThreadLocalEntry::ThreadLocal();
       auto out = args[0].cast<DLTensor*>();
       entry->random_engine.RandomFill(out);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.random.random_fill_for_measure")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.random.random_fill_for_measure")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) -> void {
       const auto curand = tvm::ffi::Function::GetGlobal("runtime.contrib.curand.RandomFill");
       auto out = args[0].cast<DLTensor*>();

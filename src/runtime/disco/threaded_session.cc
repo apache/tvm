@@ -17,7 +17,7 @@
  * under the License.
  */
 #include <dmlc/io.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/object.h>
 
@@ -48,7 +48,7 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
 
   ffi::PackedArgs Recv() {
     DequeueNextPacket();
-    AnyView* packed_args = nullptr;
+    ffi::AnyView* packed_args = nullptr;
     int num_args = 0;
     RPCReference::RecvPackedSeq(reinterpret_cast<TVMFFIAny**>(&packed_args), &num_args, this);
     return ffi::PackedArgs(packed_args, num_args);
@@ -162,7 +162,7 @@ class ThreadedSessionObj final : public BcastSessionObj {
     return this->workers_.at(worker_id).worker->register_file.at(reg_id);
   }
 
-  void DebugSetRegister(int64_t reg_id, AnyView value, int worker_id) {
+  void DebugSetRegister(int64_t reg_id, ffi::AnyView value, int worker_id) {
     this->SyncWorker(worker_id);
     this->workers_.at(worker_id).worker->SetRegister(reg_id, value);
   }

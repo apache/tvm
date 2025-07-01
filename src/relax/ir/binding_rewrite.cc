@@ -22,6 +22,7 @@
  * \brief Implementation of binding rewriters.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/binding_rewrite.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
@@ -34,6 +35,8 @@
 
 namespace tvm {
 namespace relax {
+
+TVM_FFI_STATIC_INIT_BLOCK({ DataflowBlockRewriteNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(DataflowBlockRewriteNode);
 
@@ -51,7 +54,7 @@ DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) 
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("relax.DataflowBlockRewrite")
+TVM_FFI_REGISTER_GLOBAL("relax.DataflowBlockRewrite")
     .set_body_typed([](DataflowBlock dfb, Function root_fn) {
       return DataflowBlockRewrite(dfb, root_fn);
     });
@@ -110,7 +113,7 @@ void DataflowBlockRewriteNode::ReplaceAllUses(Var old_var, Var new_var) {
   }
 }
 
-TVM_REGISTER_GLOBAL("relax.dfb_rewrite_replace_all_uses")
+TVM_FFI_REGISTER_GLOBAL("relax.dfb_rewrite_replace_all_uses")
     .set_body_typed([](DataflowBlockRewrite rwt, Var old_var, Var new_var) {
       rwt->ReplaceAllUses(old_var, new_var);
     });
@@ -178,10 +181,10 @@ void DataflowBlockRewriteNode::Add(Binding binding) {
   }
 }
 
-TVM_REGISTER_GLOBAL("relax.dfb_rewrite_add_binding")
+TVM_FFI_REGISTER_GLOBAL("relax.dfb_rewrite_add_binding")
     .set_body_typed([](DataflowBlockRewrite rwt, Binding vb) { rwt->Add(vb); });
 
-TVM_REGISTER_GLOBAL("relax.dfb_rewrite_add")
+TVM_FFI_REGISTER_GLOBAL("relax.dfb_rewrite_add")
     .set_body_typed([](DataflowBlockRewrite rwt, Expr expr, Optional<String> name, bool is_dfvar) {
       if (name.has_value()) {
         rwt->Add(name.value(), expr, is_dfvar);
@@ -292,7 +295,7 @@ void DataflowBlockRewriteNode::RemoveUnused(Var unused, bool allow_undef) {
   to_users_.erase(unused);  // update use-def chain.
 }
 
-TVM_REGISTER_GLOBAL("relax.dfb_rewrite_remove_unused")
+TVM_FFI_REGISTER_GLOBAL("relax.dfb_rewrite_remove_unused")
     .set_body_typed([](DataflowBlockRewrite rwt, Var unused, bool allow_undef) {
       rwt->RemoveUnused(unused, allow_undef);
     });
@@ -314,14 +317,15 @@ void DataflowBlockRewriteNode::RemoveAllUnused() {
   for (const auto& unused : remover.unused_vars) to_users_.erase(unused);
 }
 
-TVM_REGISTER_GLOBAL("relax.dfb_rewrite_remove_all_unused")
+TVM_FFI_REGISTER_GLOBAL("relax.dfb_rewrite_remove_all_unused")
     .set_body_typed([](DataflowBlockRewrite rwt) { rwt->RemoveAllUnused(); });
 
 Expr RemoveAllUnused(Expr expr) {
   auto var_usage = CollectVarUsage(expr);
 
   // For the purpose of
-  support::OrderedSet<Var> externally_exposed(var_usage.outputs.begin(), var_usage.outputs.end());
+  support::OrderedSet<Var, ObjectPtrHash, ObjectPtrEqual> externally_exposed(
+      var_usage.outputs.begin(), var_usage.outputs.end());
   for (const auto& [var, expr] : var_usage.bound_values) {
     if (ContainsImpureCall(expr)) {
       externally_exposed.insert(var);
@@ -333,7 +337,7 @@ Expr RemoveAllUnused(Expr expr) {
   return remover.VisitExpr(std::move(expr));
 }
 
-TVM_REGISTER_GLOBAL("relax.analysis.remove_all_unused").set_body_typed(RemoveAllUnused);
+TVM_FFI_REGISTER_GLOBAL("relax.analysis.remove_all_unused").set_body_typed(RemoveAllUnused);
 
 IRModule DataflowBlockRewriteNode::MutateIRModule(IRModule irmod) {
   BlockBuilder builder = BlockBuilder::Create(irmod);
@@ -348,7 +352,7 @@ IRModule DataflowBlockRewriteNode::MutateIRModule(IRModule irmod) {
   return builder->GetContextIRModule();
 }
 
-TVM_REGISTER_GLOBAL("relax.dfb_rewrite_mutate_irmodule")
+TVM_FFI_REGISTER_GLOBAL("relax.dfb_rewrite_mutate_irmodule")
     .set_body_typed([](DataflowBlockRewrite rwt, IRModule irmod) {
       return rwt->MutateIRModule(irmod);
     });

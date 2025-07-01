@@ -22,10 +22,10 @@
  * \brief Common utilities to generated C style code.
  */
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/function.h>
@@ -305,7 +305,7 @@ std::string PackImportsToC(const runtime::Module& mod, bool system_lib,
         << "c_symbol_prefix advanced option should be used in conjuction with system-lib";
   }
 
-  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_dev_mblob;
+  std::string mdev_blob_name = c_symbol_prefix + runtime::symbol::tvm_ffi_library_bin;
   std::string blob = PackImportsToBytes(mod);
 
   // translate to C program
@@ -361,14 +361,14 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
       .cast<runtime::Module>();
 }
 
-TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
+TVM_FFI_REGISTER_GLOBAL("target.Build").set_body_typed(Build);
 
 // Export a few auxiliary function to the runtime namespace.
-TVM_REGISTER_GLOBAL("runtime.ModuleImportsBlobName").set_body_typed([]() -> std::string {
-  return runtime::symbol::tvm_dev_mblob;
+TVM_FFI_REGISTER_GLOBAL("runtime.ModuleImportsBlobName").set_body_typed([]() -> std::string {
+  return runtime::symbol::tvm_ffi_library_bin;
 });
 
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")
+TVM_FFI_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")
     .set_body_typed([](const runtime::Module& mod) {
       std::string buffer = PackImportsToBytes(mod);
       ffi::Shape::index_type size = buffer.size();
@@ -384,8 +384,8 @@ TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToNDArray")
       return array;
     });
 
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToC").set_body_typed(PackImportsToC);
-TVM_REGISTER_GLOBAL("runtime.ModulePackImportsToLLVM").set_body_typed(PackImportsToLLVM);
+TVM_FFI_REGISTER_GLOBAL("runtime.ModulePackImportsToC").set_body_typed(PackImportsToC);
+TVM_FFI_REGISTER_GLOBAL("runtime.ModulePackImportsToLLVM").set_body_typed(PackImportsToLLVM);
 
 }  // namespace codegen
 }  // namespace tvm

@@ -96,8 +96,6 @@ void DFPatternVisitor::VisitDFPattern_(const UnorderedTuplePatternNode* op) {
   }
 }
 
-void DFPatternVisitor::VisitDFPattern_(const TypePatternNode* op) { VisitDFPattern(op->pattern); }
-
 void DFPatternVisitor::VisitDFPattern_(const StructInfoPatternNode* op) {
   VisitDFPattern(op->pattern);
 }

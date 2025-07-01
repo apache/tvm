@@ -21,11 +21,10 @@
 #define __STDC_FORMAT_MACROS
 #endif
 #include <picojson.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/disco/builtin.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/relax_vm/ndarray_cache_support.h>
+#include <tvm/runtime/vm/ndarray_cache_support.h>
 
 #include <functional>
 #include <numeric>
@@ -39,7 +38,7 @@
 namespace tvm {
 namespace runtime {
 
-using relax_vm::NDArrayCacheMetadata;
+using vm::NDArrayCacheMetadata;
 using FileRecord = NDArrayCacheMetadata::FileRecord;
 using ParamRecord = NDArrayCacheMetadata::FileRecord::ParamRecord;
 
@@ -218,7 +217,7 @@ NDArray ShardLoaderObj::ApplyShardFunc(const ShardInfo::ShardFunc& shard_func,
   NDArray o = NDArray::Empty(shard_func.output_info.shape, shard_func.output_info.dtype, device);
   ffi::Function f = this->shard_funcs_.at(shard_func.name);
   int n = static_cast<int>(shard_func.params.size());
-  std::vector<AnyView> packed_args(n + 2);
+  std::vector<ffi::AnyView> packed_args(n + 2);
   const DLTensor* w_in = param.operator->();
   const DLTensor* w_out = o.operator->();
   packed_args[0] = const_cast<DLTensor*>(w_in);
@@ -226,7 +225,7 @@ NDArray ShardLoaderObj::ApplyShardFunc(const ShardInfo::ShardFunc& shard_func,
     packed_args[i + 1] = shard_func.params[i];
   }
   packed_args[n + 1] = const_cast<DLTensor*>(w_out);
-  Any rv;
+  ffi::Any rv;
   f.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
   return o;
 }
@@ -406,15 +405,15 @@ Array<NDArray> ShardLoaderObj::LoadAllPresharded() const {
   return params;
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.ShardLoader").set_body_typed(ShardLoaderObj::Create);
-TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoad")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.ShardLoader").set_body_typed(ShardLoaderObj::Create);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoad")
     .set_body_typed([](ObjectRef loader_obj, ffi::Shape weight_index) {
       const auto* loader = loader_obj.as<ShardLoaderObj>();
       CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
                                << loader_obj->GetTypeKey();
       return loader->Load(IntegerFromShape(weight_index));
     });
-TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadPresharded")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadPresharded")
     .set_body_typed([](ObjectRef loader_obj, ffi::Shape weight_index) {
       const auto* loader = loader_obj.as<ShardLoaderObj>();
       CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
@@ -422,14 +421,15 @@ TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadPresharded")
       return loader->LoadPresharded(IntegerFromShape(weight_index));
     });
 
-TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadAll").set_body_typed([](ObjectRef loader_obj) {
-  const auto* loader = loader_obj.as<ShardLoaderObj>();
-  CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
-                           << loader_obj->GetTypeKey();
-  return loader->LoadAll();
-});
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadAll")
+    .set_body_typed([](ObjectRef loader_obj) {
+      const auto* loader = loader_obj.as<ShardLoaderObj>();
+      CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
+                               << loader_obj->GetTypeKey();
+      return loader->LoadAll();
+    });
 
-TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadAllPresharded")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadAllPresharded")
     .set_body_typed([](ObjectRef loader_obj) {
       const auto* loader = loader_obj.as<ShardLoaderObj>();
       CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "
@@ -437,7 +437,7 @@ TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadAllPresharded")
       return loader->LoadAllPresharded();
     });
 
-TVM_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadParamOnWorker0")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.ShardLoaderLoadParamOnWorker0")
     .set_body_typed([](ObjectRef loader_obj, int param_index) {
       const auto* loader = loader_obj.as<ShardLoaderObj>();
       CHECK(loader != nullptr) << "TypeError: Expected ShardLoaderObj, but gets: "

@@ -348,7 +348,7 @@ extern "C" void dnnl_binary_op(float* data, float* weight, float* out, int algo_
 }
 
 // DNNL Conv2d single OP
-TVM_REGISTER_GLOBAL("tvm.contrib.dnnl.conv2d")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.dnnl.conv2d")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto input = args[0].cast<DLTensor*>();
       auto weights = args[1].cast<DLTensor*>();

@@ -35,6 +35,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "rxplaceholder(" << op->name << ", " << op << ")";
     });
 
+TVM_FFI_STATIC_INIT_BLOCK({ RXPlaceholderOpNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(RXPlaceholderOpNode);
 
 te::Tensor TETensor(Expr value, Map<tir::Var, PrimExpr> tir_var_map, std::string name) {
@@ -72,7 +74,7 @@ te::Tensor TETensor(Expr value, Map<tir::Var, PrimExpr> tir_var_map, std::string
   return te::PlaceholderOp(n).output(0);
 }
 
-TVM_REGISTER_GLOBAL("relax.TETensor").set_body_typed(TETensor);
+TVM_FFI_REGISTER_GLOBAL("relax.TETensor").set_body_typed(TETensor);
 
 }  // namespace relax
 }  // namespace tvm

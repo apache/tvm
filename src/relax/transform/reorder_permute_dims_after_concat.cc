@@ -173,7 +173,7 @@ Pass ReorderPermuteDimsAfterConcat() {
   return CreateFunctionPass(pass_func, 1, "ReorderPermuteDimsAfterConcat", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ReorderPermuteDimsAfterConcat")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.ReorderPermuteDimsAfterConcat")
     .set_body_typed(ReorderPermuteDimsAfterConcat);
 
 }  // namespace transform

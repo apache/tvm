@@ -27,6 +27,14 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  CallTIRWithGradAttrs::RegisterReflection();
+  CallTIRInplaceAttrs::RegisterReflection();
+  CallInplacePackedAttrs::RegisterReflection();
+  ToVDeviceAttrs::RegisterReflection();
+  HintOnDeviceAttrs::RegisterReflection();
+});
+
 bool EqualConstInt(const PrimExpr& lhs, int64_t value) {
   if (const int64_t* pvalue = tir::as_const_int(lhs)) {
     return pvalue[0] == value;
@@ -119,7 +127,7 @@ Expr MakeCallPurePacked(const Expr& callee, Array<Expr> args, const Attrs& attrs
   return Call(op, call_args, attrs, sinfo_args);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.call_pure_packed").set_body_typed(MakeCallPurePacked);
+TVM_FFI_REGISTER_GLOBAL("relax.op.call_pure_packed").set_body_typed(MakeCallPurePacked);
 
 // call_inplace_packed
 
@@ -238,7 +246,7 @@ Expr MakeCallInplacePacked(Expr func, Array<Expr> args, Array<Integer> inplace_i
   return Call(op, call_args, Attrs(attrs), sinfo_args);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.call_inplace_packed").set_body_typed(MakeCallInplacePacked);
+TVM_FFI_REGISTER_GLOBAL("relax.op.call_inplace_packed").set_body_typed(MakeCallInplacePacked);
 
 // call_tir
 
@@ -600,7 +608,7 @@ Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
   return call;
 }
 
-TVM_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);
+TVM_FFI_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);
 
 // call_tir_with_grad
 
@@ -652,7 +660,7 @@ Expr MakeCallTIRWithGrad(Expr func, Tuple args, Array<TensorStructInfo> out_sinf
   return call;
 }
 
-TVM_REGISTER_GLOBAL("relax.op.call_tir_with_grad").set_body_typed(MakeCallTIRWithGrad);
+TVM_FFI_REGISTER_GLOBAL("relax.op.call_tir_with_grad").set_body_typed(MakeCallTIRWithGrad);
 
 // call_tir_inplace
 
@@ -793,7 +801,7 @@ Expr MakeCallTIRInplace(Expr func, Tuple args, Array<Integer> inplace_indices,
   return call;
 }
 
-TVM_REGISTER_GLOBAL("relax.op.call_tir_inplace").set_body_typed(MakeCallTIRInplace);
+TVM_FFI_REGISTER_GLOBAL("relax.op.call_tir_inplace").set_body_typed(MakeCallTIRInplace);
 
 // call_dps_packed
 
@@ -834,7 +842,7 @@ Expr MakeCallDPSPacked(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_
   return Call(op, {func, args}, {}, {out_sinfo});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.call_dps_packed").set_body_typed(MakeCallDPSPacked);
+TVM_FFI_REGISTER_GLOBAL("relax.op.call_dps_packed").set_body_typed(MakeCallDPSPacked);
 
 // call builtin
 StructInfo InferStructInfoCallBuiltinWithCtx(const Call& call, const BlockBuilder& ctx) {
@@ -860,7 +868,7 @@ Expr MakeCallBuiltinWithCtx(Expr func, Tuple args, Array<StructInfo> sinfo_args)
   return Call(op, {func, args}, Attrs(), sinfo_args);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.call_builtin_with_ctx").set_body_typed(MakeCallBuiltinWithCtx);
+TVM_FFI_REGISTER_GLOBAL("relax.op.call_builtin_with_ctx").set_body_typed(MakeCallBuiltinWithCtx);
 
 TVM_REGISTER_OP("relax.null_value")
     .set_num_inputs(0)
@@ -872,7 +880,7 @@ Expr MakeCallNullValue() {
   return Call(op, {}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.null_value").set_body_typed(MakeCallNullValue);
+TVM_FFI_REGISTER_GLOBAL("relax.op.null_value").set_body_typed(MakeCallNullValue);
 
 // print
 
@@ -895,7 +903,7 @@ Expr MakePrint(Array<Expr> vals, StringImm format) {
   return Call(op, params);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.print").set_body_typed(MakePrint);
+TVM_FFI_REGISTER_GLOBAL("relax.op.print").set_body_typed(MakePrint);
 
 // assert_op
 
@@ -938,7 +946,7 @@ Expr MakeAssertOp(Expr condition, Array<Expr> vals, StringImm format) {
   return Call(op, args);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.assert_op").set_body_typed(MakeAssertOp);
+TVM_FFI_REGISTER_GLOBAL("relax.op.assert_op").set_body_typed(MakeAssertOp);
 
 // make_closure
 
@@ -954,7 +962,7 @@ Expr MakeClosure(Expr func, Tuple args) {
   return Call(op, {func, args}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.make_closure").set_body_typed(MakeClosure);
+TVM_FFI_REGISTER_GLOBAL("relax.op.make_closure").set_body_typed(MakeClosure);
 
 // invoke_closure
 
@@ -981,7 +989,7 @@ Expr InvokeClosure(Expr closure, Tuple args, Array<StructInfo> sinfo_args) {
   return Call(op, {closure, args}, {}, sinfo_args);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.invoke_closure").set_body_typed(InvokeClosure);
+TVM_FFI_REGISTER_GLOBAL("relax.op.invoke_closure").set_body_typed(InvokeClosure);
 
 // invoke_pure_closure
 
@@ -997,7 +1005,7 @@ Expr InvokePureClosure(Expr closure, Tuple args, Array<StructInfo> sinfo_args) {
   return Call(op, {closure, args}, {}, sinfo_args);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.invoke_pure_closure").set_body_typed(InvokePureClosure);
+TVM_FFI_REGISTER_GLOBAL("relax.op.invoke_pure_closure").set_body_typed(InvokePureClosure);
 
 // shape_of
 
@@ -1012,7 +1020,7 @@ Expr MakeShapeOf(Expr expr) {
   return Call(op, {expr}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.shape_of").set_body_typed(MakeShapeOf);
+TVM_FFI_REGISTER_GLOBAL("relax.op.shape_of").set_body_typed(MakeShapeOf);
 
 // tensor_to_shape
 
@@ -1046,7 +1054,7 @@ Expr MakeTensorToShape(Expr expr) {
   return Call(op, {expr}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.tensor_to_shape").set_body_typed(MakeTensorToShape);
+TVM_FFI_REGISTER_GLOBAL("relax.op.tensor_to_shape").set_body_typed(MakeTensorToShape);
 
 // shape_to_tensor
 StructInfo ReturnShapeToTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
@@ -1070,7 +1078,7 @@ Expr MakeShapeToTensor(Expr expr) {
   return Call(op, {expr}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.shape_to_tensor").set_body_typed(MakeShapeToTensor);
+TVM_FFI_REGISTER_GLOBAL("relax.op.shape_to_tensor").set_body_typed(MakeShapeToTensor);
 
 // alloc_tensor
 
@@ -1107,7 +1115,7 @@ Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_ind
   return Call(op, {shape, dtype, runtime_device_index, storage_scope}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor").set_body_typed(MakeAllocTensor);
+TVM_FFI_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor").set_body_typed(MakeAllocTensor);
 
 // memory planning alloc_storage
 
@@ -1132,7 +1140,7 @@ Expr MakeAllocStorage(Expr size, PrimValue virtual_device_index, StringImm stora
   return Call(op, {size, virtual_device_index, storage_scope, dtype}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.memory.alloc_storage").set_body_typed(MakeAllocStorage);
+TVM_FFI_REGISTER_GLOBAL("relax.op.memory.alloc_storage").set_body_typed(MakeAllocStorage);
 
 // memory planning alloc_tensor
 
@@ -1163,7 +1171,7 @@ Expr MakeMemAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm 
   return Call(op, {storage, offset, shape, dtype}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.memory.alloc_tensor").set_body_typed(MakeMemAllocTensor);
+TVM_FFI_REGISTER_GLOBAL("relax.op.memory.alloc_tensor").set_body_typed(MakeMemAllocTensor);
 
 // memory planning kill_storage
 
@@ -1179,7 +1187,7 @@ Expr MakeMemKillStorage(Expr storage) {
   return Call(op, {storage}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.memory.kill_storage").set_body_typed(MakeMemKillStorage);
+TVM_FFI_REGISTER_GLOBAL("relax.op.memory.kill_storage").set_body_typed(MakeMemKillStorage);
 
 // memory planning kill_tensor
 
@@ -1195,7 +1203,7 @@ Expr MakeMemKillTensor(Expr tensor) {
   return Call(op, {tensor}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.memory.kill_tensor").set_body_typed(MakeMemKillTensor);
+TVM_FFI_REGISTER_GLOBAL("relax.op.memory.kill_tensor").set_body_typed(MakeMemKillTensor);
 
 // vm alloc_storage
 
@@ -1219,7 +1227,7 @@ Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm d
   return Call(op, {size, runtime_device_index, dtype, storage_scope}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.vm.alloc_storage").set_body_typed(MakeVMAllocStorage);
+TVM_FFI_REGISTER_GLOBAL("relax.op.vm.alloc_storage").set_body_typed(MakeVMAllocStorage);
 
 // vm alloc_tensor
 
@@ -1257,7 +1265,7 @@ Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm d
   return Call(op, {storage, offset, shape, dtype}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.vm.alloc_tensor").set_body_typed(MakeVMAllocTensor);
+TVM_FFI_REGISTER_GLOBAL("relax.op.vm.alloc_tensor").set_body_typed(MakeVMAllocTensor);
 
 // vm kill_object
 
@@ -1273,7 +1281,7 @@ Expr MakeVMKillObject(Expr obj) {
   return Call(op, {std::move(obj)}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.vm.kill_object").set_body_typed(MakeVMKillObject);
+TVM_FFI_REGISTER_GLOBAL("relax.op.vm.kill_object").set_body_typed(MakeVMKillObject);
 
 // vm call_tir_dyn
 
@@ -1291,7 +1299,7 @@ Expr MakeCallTIRDyn(Expr func, Tuple args) {
   return Call(op, {func, args}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.vm.call_tir_dyn").set_body_typed(MakeCallTIRDyn);
+TVM_FFI_REGISTER_GLOBAL("relax.op.vm.call_tir_dyn").set_body_typed(MakeCallTIRDyn);
 
 // builtin stop_lift_params
 StructInfo InferStructInfoStopLiftParams(const Call& call, const BlockBuilder& ctx) {
@@ -1309,7 +1317,7 @@ Expr MakeStopLiftParams(Expr x) {
   return Call(op, {x}, Attrs(), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.builtin.stop_lift_params").set_body_typed(MakeStopLiftParams);
+TVM_FFI_REGISTER_GLOBAL("relax.op.builtin.stop_lift_params").set_body_typed(MakeStopLiftParams);
 
 // to_vdevice
 TVM_REGISTER_NODE_TYPE(ToVDeviceAttrs);
@@ -1340,7 +1348,7 @@ Expr MakeToVDevice(Expr data, VDevice dst_vdev) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.to_vdevice").set_body_typed(MakeToVDevice);
+TVM_FFI_REGISTER_GLOBAL("relax.op.to_vdevice").set_body_typed(MakeToVDevice);
 
 // hint_on_device
 TVM_REGISTER_NODE_TYPE(HintOnDeviceAttrs);
@@ -1367,7 +1375,7 @@ Expr MakeHintOnDevice(Expr data, Device device) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.hint_on_device").set_body_typed(MakeHintOnDevice);
+TVM_FFI_REGISTER_GLOBAL("relax.op.hint_on_device").set_body_typed(MakeHintOnDevice);
 
 }  // namespace relax
 }  // namespace tvm

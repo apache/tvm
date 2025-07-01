@@ -165,7 +165,7 @@ Therefore, it is highly recommended to validate Apache TVM installation before u
 
 .. code-block:: bash
 
-    >>> python -c "import tvm; print(tvm._ffi.base._LIB)"
+    >>> python -c "import tvm; print(tvm.base._LIB)"
     <CDLL '/some-path/lib/python3.11/site-packages/tvm/libtvm.dylib', handle 95ada510 at 0x1030e4e50>
 
 **Step 3. Reflect TVM build option.** Sometimes when downstream application fails, it could likely be some mistakes with a wrong TVM commit, or wrong build flags. To find it out, the following commands will be helpful:
@@ -230,8 +230,7 @@ Advanced Build Configuration
 Ccache
 ~~~~~~
 On supported platforms, the `Ccache compiler wrapper <https://ccache.dev/>`_ may be helpful for
-reducing TVM's build time, especially when building with `cutlass <https://github.com/NVIDIA/cutlass>`_
-or `flashinfer <https://github.com/flashinfer-ai/flashinfer>`_.
+reducing TVM's build time, especially when building with `cutlass <https://github.com/NVIDIA/cutlass>`_.
 There are several ways to enable CCache in TVM builds:
 
     - Leave ``USE_CCACHE=AUTO`` in ``build/config.cmake``. CCache will be used if it is found.

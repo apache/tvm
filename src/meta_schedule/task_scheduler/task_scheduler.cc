@@ -21,6 +21,12 @@
 namespace tvm {
 namespace meta_schedule {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  TaskRecordNode::RegisterReflection();
+  TaskSchedulerNode::RegisterReflection();
+  PyTaskSchedulerNode::RegisterReflection();
+});
+
 TaskRecord::TaskRecord(TuneContext ctx, double task_weight) {
   ObjectPtr<TaskRecordNode> n = ffi::make_object<TaskRecordNode>();
   n->ctx = ctx;
@@ -364,18 +370,19 @@ void PyTaskSchedulerNode::Tune(Array<TuneContext> tasks, Array<FloatImm> task_we
 TVM_REGISTER_NODE_TYPE(TaskRecordNode);
 TVM_REGISTER_OBJECT_TYPE(TaskSchedulerNode);
 TVM_REGISTER_NODE_TYPE(PyTaskSchedulerNode);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerPyTaskScheduler")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerPyTaskScheduler")
     .set_body_typed(TaskScheduler::PyTaskScheduler);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTune").set_body_method(&TaskSchedulerNode::Tune);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerJoinRunningTask")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTune")
+    .set_body_method(&TaskSchedulerNode::Tune);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerJoinRunningTask")
     .set_body_method(&TaskSchedulerNode::JoinRunningTask);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerNextTaskId")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerNextTaskId")
     .set_body_method(&TaskSchedulerNode::NextTaskId);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTerminateTask")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTerminateTask")
     .set_body_method(&TaskSchedulerNode::TerminateTask);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTouchTask")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerTouchTask")
     .set_body_method(&TaskSchedulerNode::TouchTask);
-TVM_REGISTER_GLOBAL("meta_schedule.TaskSchedulerPrintTuningStatistics")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerPrintTuningStatistics")
     .set_body_method(&TaskSchedulerNode::PrintTuningStatistics);
 
 }  // namespace meta_schedule

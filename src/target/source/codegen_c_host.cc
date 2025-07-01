@@ -34,7 +34,7 @@
 namespace tvm {
 namespace codegen {
 
-CodeGenCHost::CodeGenCHost() { module_name_ = name_supply_->FreshName("__tvm_module_ctx"); }
+CodeGenCHost::CodeGenCHost() { module_name_ = name_supply_->FreshName("__tvm_ffi_library_ctx"); }
 
 void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_decl,
                         std::string target_str, const std::unordered_set<std::string>& devices) {
@@ -43,7 +43,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
   declared_globals_.clear();
   decl_stream << "// tvm target: " << target_str << "\n";
   decl_stream << "#define TVM_EXPORTS\n";
-  decl_stream << "#include \"tvm/runtime/c_runtime_api.h\"\n";
+  decl_stream << "#include \"tvm/runtime/base.h\"\n";
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "#include \"tvm/ffi/c_api.h\"\n";
   decl_stream << "#include <math.h>\n";
@@ -53,7 +53,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
 }
 
 void CodeGenCHost::InitGlobalContext() {
-  decl_stream << "void* " << tvm::runtime::symbol::tvm_module_ctx << " = NULL;\n";
+  decl_stream << "void* " << tvm::runtime::symbol::tvm_ffi_library_ctx << " = NULL;\n";
 }
 
 void CodeGenCHost::DefineModuleName() { decl_stream << "void* " << module_name_ << " = NULL;\n"; }
@@ -285,24 +285,20 @@ void CodeGenCHost::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
     const std::string& type = op->args[0].as<StringImmNode>()->value;
     const IntImmNode* num = op->args[1].as<IntImmNode>();
     ICHECK(num != nullptr);
-    static_assert(alignof(TVMValue) % alignof(DLTensor) == 0, "invariant");
-    size_t unit = sizeof(TVMValue);
+    static_assert(alignof(TVMFFIAny) % alignof(DLTensor) == 0, "invariant");
+    size_t unit = sizeof(TVMFFIAny);
     size_t size = 0;
     if (type == "shape") {
-      size = (num->value * sizeof(tvm_index_t) + unit - 1) / unit;
-    } else if (type == "arg_value") {
-      size = (num->value * sizeof(TVMValue) + unit - 1) / unit;
+      size = (num->value * sizeof(ffi::Shape::index_type) + unit - 1) / unit;
     } else if (type == "tvm_ffi_any") {
       size = (num->value * sizeof(TVMFFIAny) + unit - 1) / unit;
-    } else if (type == "arg_tcode") {
-      size = (num->value * sizeof(int) + unit - 1) / unit;
     } else if (type == "array") {
       size = (num->value * sizeof(DLTensor) + unit - 1) / unit;
     } else {
       LOG(FATAL) << "Unknown stack alloca type " << type;
     }
     this->PrintIndent();
-    this->stream << "TVMValue " << stack_name << "[" << size << "];\n";
+    this->stream << "TVMFFIAny " << stack_name << "[" << size << "];\n";
     os << stack_name;
   } else if (op->op.same_as(builtin::tvm_call_packed_lowered())) {
     this->PrintCallPacked(op);
@@ -323,7 +319,7 @@ void CodeGenCHost::VisitStmt_(const AssertStmtNode* op) {  // NOLINT(*)
     stream << "if (!(" << cond << ")) {\n";
     int assert_if_scope = this->BeginScope();
     PrintIndent();
-    stream << "TVMFFIErrorSetRaisedByCStr(\"RuntimeError\", \""
+    stream << "TVMFFIErrorSetRaisedFromCStr(\"RuntimeError\", \""
            << op->message.as<StringImmNode>()->value << "\", NULL);\n";
     PrintIndent();
     stream << "return -1;\n";
@@ -408,6 +404,6 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   return CSourceModuleCreate(code, "c", cg.GetFunctionNames());
 }
 
-TVM_REGISTER_GLOBAL("target.build.c").set_body_typed(BuildCHost);
+TVM_FFI_REGISTER_GLOBAL("target.build.c").set_body_typed(BuildCHost);
 }  // namespace codegen
 }  // namespace tvm

@@ -280,6 +280,36 @@ class TorchFXImporter(BaseFXGraphImporter):
 
         return self.block_builder.emit(relax.TupleGetItem(res_tuple, 0))
 
+    def _instance_norm(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+
+        if module.affine:
+            weight = self.params[module.weight]
+            bias = self.params[module.bias]
+        else:
+            import numpy as np
+
+            dtype = x.struct_info.dtype
+            channel = int(self.shape_of(x)[1])
+            weight = relax.const(np.ones(channel), dtype=dtype)
+            bias = relax.const(np.zeros(channel), dtype=dtype)
+
+        eps = module.eps
+        channel_axis = 1
+        dim = len(self.shape_of(x))
+
+        return self.block_builder.emit(
+            relax.op.nn.instance_norm(
+                x,
+                weight,
+                bias,
+                channel_axis=channel_axis,
+                axes=list(range(2, dim)),
+                epsilon=eps,
+            )
+        )
+
     def _conv_transpose1d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -409,8 +439,8 @@ class TorchFXImporter(BaseFXGraphImporter):
             gamma = self.params[module.weight]
             beta = self.params[module.bias]
         else:
-            gamma = relax.const(torch.ones_like(module.num_channels), x.checked_type)
-            beta = relax.const(torch.zeros_like(module.num_channels), x.checked_type)
+            gamma = relax.const(torch.ones_like(module.num_channels), x.struct_info.dtype)
+            beta = relax.const(torch.zeros_like(module.num_channels), x.struct_info.dtype)
         eps = module.eps
 
         dim = len(self.shape_of(x))
@@ -733,6 +763,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.AvgPool2d: self._avg_pool2d_module,
             nn.AvgPool3d: self._avg_pool3d_module,
             nn.BatchNorm2d: self._batch_norm_2d_module,
+            nn.InstanceNorm1d: self._instance_norm,
+            nn.InstanceNorm2d: self._instance_norm,
+            nn.InstanceNorm3d: self._instance_norm,
             nn.Conv1d: self._conv1d_module,
             nn.Conv2d: self._conv2d_module,
             nn.Conv3d: self._conv3d_module,
@@ -884,6 +917,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "argmax": self._argmax_argmin(relax.op.argmax),
             "argmin": self._argmax_argmin(relax.op.argmin),
             "where": self._where,
+            "bucketize": self._bucketize,
             # tensor manipulation
             "argsort": self._argsort,
             "broadcast_to": self._broadcast_to,
@@ -909,6 +943,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "scatter": self._scatter,
             "select": self._select,
             "size": self._size,
+            "slice_scatter": self._slice_scatter,
             "sort": self._sort,
             "split": self._split,
             "squeeze": self._squeeze,

@@ -22,7 +22,7 @@
  * \brief Utility to deduce bound of expression
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 
@@ -402,7 +402,7 @@ IntSet DeduceBound(PrimExpr v, PrimExpr e, const Map<Var, IntSet>& hint_map,
   return DeduceBound(v, e, hmap, rmap);
 }
 
-TVM_REGISTER_GLOBAL("arith.DeduceBound")
+TVM_FFI_REGISTER_GLOBAL("arith.DeduceBound")
     .set_body_typed([](PrimExpr v, PrimExpr cond, const Map<Var, IntSet> hint_map,
                        const Map<Var, IntSet> relax_map) {
       return DeduceBound(v, cond, hint_map, relax_map);

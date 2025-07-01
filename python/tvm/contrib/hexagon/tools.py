@@ -29,7 +29,7 @@ import numpy
 
 import tvm
 import tvm.contrib.cc as cc
-from ..._ffi.registry import register_func
+from ...ffi.registry import register_func
 
 
 # Linking Hexagon shared libraries.

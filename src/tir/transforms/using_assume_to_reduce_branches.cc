@@ -381,7 +381,7 @@ Pass UseAssumeToReduceBranches() {
   return CreatePrimFuncPass(pass_func, 0, "tir.UseAssumeToReduceBranches", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.UseAssumeToReduceBranches")
+TVM_FFI_REGISTER_GLOBAL("tir.transform.UseAssumeToReduceBranches")
     .set_body_typed(UseAssumeToReduceBranches);
 
 }  // namespace transform

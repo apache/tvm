@@ -19,8 +19,9 @@
 import enum
 from typing import Union
 
-import tvm._ffi
-from tvm import tir, ir
+import tvm.ffi
+from tvm import ir, tir
+from tvm.arith import IntSet
 from tvm.runtime import Object
 
 from . import _ffi_api
@@ -46,7 +47,7 @@ class Extension(enum.Flag):
     ComparisonOfProductAndSum = 1 << 3
 
 
-@tvm._ffi.register_object("arith.ModularSet")
+@tvm.ffi.register_object("arith.ModularSet")
 class ModularSet(Object):
     """Represent range of (coeff * x + base) for x in Z"""
 
@@ -54,7 +55,7 @@ class ModularSet(Object):
         self.__init_handle_by_constructor__(_ffi_api.ModularSet, coeff, base)
 
 
-@tvm._ffi.register_object("arith.ConstIntBound")
+@tvm.ffi.register_object("arith.ConstIntBound")
 class ConstIntBound(Object):
     """Represent constant integer bound
 
@@ -109,6 +110,7 @@ class Analyzer:
         _mod = _ffi_api.CreateAnalyzer()
         self._const_int_bound = _mod("const_int_bound")
         self._const_int_bound_update = _mod("const_int_bound_update")
+        self._const_int_bound_is_bound = _mod("const_int_bound_is_bound")
         self._bind = _mod("bind")
         self._modular_set = _mod("modular_set")
         self._simplify = _mod("Simplify")
@@ -123,7 +125,7 @@ class Analyzer:
         self._get_enabled_extensions = _mod("get_enabled_extensions")
         self._set_enabled_extensions = _mod("set_enabled_extensions")
 
-    def const_int_bound(self, expr):
+    def const_int_bound(self, expr: tir.PrimExpr) -> ConstIntBound:
         """Find constant integer bound for expr.
 
         Parameters
@@ -138,7 +140,22 @@ class Analyzer:
         """
         return self._const_int_bound(expr)
 
-    def modular_set(self, expr):
+    def const_int_bound_is_bound(self, var: tir.Var) -> bool:
+        """Check if a variable is bound to a range.
+
+        Parameters
+        ----------
+        var : tvm.tir.Var
+            The variable.
+
+        Returns
+        -------
+        result : bool
+            Whether the variable is bound to a range.
+        """
+        return self._const_int_bound_is_bound(var)
+
+    def modular_set(self, expr: tir.PrimExpr) -> ModularSet:
         """Find a modular set that expr belongs to.
 
         Parameters
@@ -153,7 +170,7 @@ class Analyzer:
         """
         return self._modular_set(expr)
 
-    def simplify(self, expr, steps=2):
+    def simplify(self, expr: tir.PrimExpr, steps: int = 2) -> tir.PrimExpr:
         """Simplify expression via both rewrite and canonicalization.
 
         Parameters
@@ -173,7 +190,7 @@ class Analyzer:
         """
         return self._simplify(expr, steps)
 
-    def rewrite_simplify(self, expr):
+    def rewrite_simplify(self, expr: tir.PrimExpr) -> tir.PrimExpr:
         """Simplify expression via rewriting rules.
 
         Parameters
@@ -195,7 +212,7 @@ class Analyzer:
     def reset_rewrite_simplify_stats(self):
         self._reset_rewrite_simplify_stats()
 
-    def canonical_simplify(self, expr):
+    def canonical_simplify(self, expr: tir.PrimExpr) -> tir.PrimExpr:
         """Simplify expression via canonicalization.
 
         Parameters
@@ -210,7 +227,7 @@ class Analyzer:
         """
         return self._canonical_simplify(expr)
 
-    def int_set(self, expr, dom_map):
+    def int_set(self, expr: tir.PrimExpr, dom_map: dict[tir.Var, IntSet]) -> IntSet:
         """Compute a symbolic IntSet that covers expr for all values in dom_map.
 
         Parameters
@@ -228,7 +245,9 @@ class Analyzer:
         """
         return self._int_set(expr, dom_map)
 
-    def can_prove(self, expr, strength=ProofStrength.DEFAULT):
+    def can_prove(
+        self, expr: tir.PrimExpr, strength: ProofStrength = ProofStrength.DEFAULT
+    ) -> bool:
         """Check whether we can prove expr to be true.
 
         Parameters
@@ -246,7 +265,7 @@ class Analyzer:
         """
         return self._can_prove(expr, strength)
 
-    def bind(self, var: tir.Var, expr: Union[tir.PrimExpr, ir.Range]):
+    def bind(self, var: tir.Var, expr: Union[tir.PrimExpr, ir.Range]) -> None:
         """Bind a variable to the expression.
 
         Parameters
@@ -259,7 +278,7 @@ class Analyzer:
         """
         return self._bind(var, expr)
 
-    def constraint_scope(self, constraint):
+    def constraint_scope(self, constraint: tir.PrimExpr) -> ConstraintScope:
         """Create a constraint scope.
 
         Parameters
@@ -290,7 +309,7 @@ class Analyzer:
 
         return ConstraintScope(_fenter)
 
-    def update(self, var, info, override=False):
+    def update(self, var: tir.Var, info: ConstIntBound, override: bool = False) -> None:
         """Update infomation about var
 
         Parameters
@@ -309,7 +328,7 @@ class Analyzer:
         else:
             raise TypeError("Do not know how to handle type {}".format(type(info)))
 
-    def can_prove_equal(self, lhs: "PrimExpr", rhs: "PrimExpr"):
+    def can_prove_equal(self, lhs: tir.PrimExpr, rhs: tir.PrimExpr) -> bool:
         """Whether we can prove that lhs == rhs
 
         Parameters

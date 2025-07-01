@@ -26,16 +26,14 @@
 
 #include <dmlc/io.h>
 #include <dmlc/json.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
-
-#include "runtime_base.h"
 
 namespace tvm {
 namespace runtime {
@@ -60,6 +58,9 @@ struct FunctionInfo {
   std::string name;
   std::vector<DLDataType> arg_types;
   std::vector<std::string> launch_param_tags;
+
+  enum class ArgExtraTags : int { kNone = 0, kTensorMap = 1 };
+  std::vector<ArgExtraTags> arg_extra_tags;
 
   void Save(dmlc::JSONWriter* writer) const;
   void Load(dmlc::JSONReader* reader);

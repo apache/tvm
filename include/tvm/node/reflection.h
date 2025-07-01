@@ -24,14 +24,14 @@
 #define TVM_NODE_REFLECTION_H_
 
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <string>
 #include <type_traits>
@@ -164,7 +164,7 @@ class ReflectionVTable {
    * \param kwargs The field arguments.
    * \return The created object.
    */
-  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const Map<String, Any>& kwargs);
+  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const Map<String, ffi::Any>& kwargs);
   /*!
    * \brief Get an field object by the attr name.
    * \param self The pointer to the object.

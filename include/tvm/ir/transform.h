@@ -57,6 +57,7 @@
 #define TVM_IR_TRANSFORM_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/instrument.h>
@@ -90,16 +91,7 @@ class PassContextNode : public Object {
 
   /*! \brief A list of pass instrument implementations. */
   Array<instrument::PassInstrument> instruments;
-  // TODO(@sunggg): Fix dependency issue in the header file and correct the types
-  // e.g., relax::trace, relax::database in tvm/relax/tuning_api.h
-  /*! \brief Trace stack for relax pass infra. */
-  mutable Array<ObjectRef> trace_stack;
-  /*! \brief List of passes to be traced. If not defined, make every pass traceable. */
-  Optional<Map<String, Bool>> make_traceable;
-  /*! \brief Number of evaluations conducted in the pass pipeline. */
-  mutable int num_evals{0};
-  /*! \brief Database for tuning API. */
-  Optional<ObjectRef> tuning_api_database;
+
   PassContextNode() = default;
 
   /*!
@@ -131,34 +123,18 @@ class PassContextNode : public Object {
     return GetConfig<TObjectRef>(key, Optional<TObjectRef>(default_value));
   }
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("opt_level", &opt_level);
-    v->Visit("required_pass", &required_pass);
-    v->Visit("disabled_pass", &disabled_pass);
-    v->Visit("instruments", &instruments);
-    v->Visit("config", &config);
-    v->Visit("diag_ctx", &diag_ctx);
-    v->Visit("trace_stack", &trace_stack);
-    v->Visit("make_traceable", &make_traceable);
-    v->Visit("num_evals", &num_evals);
-    v->Visit("tuning_api_daatabase", &tuning_api_database);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PassContextNode>()
+        .def_ro("opt_level", &PassContextNode::opt_level)
+        .def_ro("required_pass", &PassContextNode::required_pass)
+        .def_ro("disabled_pass", &PassContextNode::disabled_pass)
+        .def_ro("instruments", &PassContextNode::instruments)
+        .def_ro("config", &PassContextNode::config)
+        .def_ro("diag_ctx", &PassContextNode::diag_ctx);
   }
 
-  Array<ObjectRef> GetTraceStack() { return trace_stack; }
-  void PushTrace(ObjectRef new_trace) { trace_stack.push_back(new_trace); }
-  void PopTrace() {
-    ICHECK(GetTraceStackSize()) << "Trace stack is currently empty. Please double check.";
-    trace_stack.pop_back();
-  }
-  int GetTraceStackSize() { return trace_stack.size(); }
-  ObjectRef GetCurrentTrace() {
-    ICHECK(GetTraceStackSize()) << "Trace stack is currently empty. Please double check.";
-    return trace_stack.back();
-  }
-  void SetNumEvals(int _num_evals) { num_evals = _num_evals; }
-  void IncNumEvals(int _num_evals) { num_evals += _num_evals; }
-
-  Optional<ObjectRef> GetTuningAPIDatabase() { return tuning_api_database; }
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "transform.PassContext";
   static constexpr bool _type_has_method_sequal_reduce = false;
@@ -340,12 +316,16 @@ class PassInfoNode : public Object {
 
   PassInfoNode() = default;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("opt_level", &opt_level);
-    v->Visit("name", &name);
-    v->Visit("required", &required);
-    v->Visit("traceable", &traceable);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PassInfoNode>()
+        .def_ro("opt_level", &PassInfoNode::opt_level)
+        .def_ro("name", &PassInfoNode::name)
+        .def_ro("required", &PassInfoNode::required)
+        .def_ro("traceable", &PassInfoNode::traceable);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "transform.PassInfo";
   static constexpr bool _type_has_method_sequal_reduce = false;
@@ -403,7 +383,7 @@ class PassNode : public Object {
    */
   virtual IRModule operator()(IRModule mod, const PassContext& pass_ctx) const = 0;
 
-  void VisitAttrs(AttrVisitor* v) {}
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "transform.Pass";
   TVM_DECLARE_BASE_OBJECT_INFO(PassNode, Object);
@@ -461,10 +441,14 @@ class SequentialNode : public PassNode {
   /*! \brief A list of passes that used to compose a sequential pass. */
   tvm::Array<Pass> passes;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("pass_info", &pass_info);
-    v->Visit("passes", &passes);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SequentialNode>()
+        .def_ro("pass_info", &SequentialNode::pass_info)
+        .def_ro("passes", &SequentialNode::passes);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Get the pass information/meta data.

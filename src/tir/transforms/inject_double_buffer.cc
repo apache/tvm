@@ -21,7 +21,7 @@
  * \brief Inject double buffering optimization for data fetch.
  * \file inject_double_buffer.cc
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -31,12 +31,18 @@
 namespace tvm {
 namespace tir {
 
-struct InjectDoubleBufferConfigNode : public tvm::AttrsNode<InjectDoubleBufferConfigNode> {
+struct InjectDoubleBufferConfigNode : public AttrsNodeReflAdapter<InjectDoubleBufferConfigNode> {
   int split_loop;
 
-  TVM_DECLARE_ATTRS(InjectDoubleBufferConfigNode, "tir.transform.InjectDoubleBufferConfig") {
-    TVM_ATTR_FIELD(split_loop).describe("Split loop factors").set_default(1);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<InjectDoubleBufferConfigNode>().def_ro(
+        "split_loop", &InjectDoubleBufferConfigNode::split_loop, "Split loop factors",
+        refl::DefaultValue(1));
   }
+
+  static constexpr const char* _type_key = "tir.transform.InjectDoubleBufferConfig";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(InjectDoubleBufferConfigNode, BaseAttrsNode);
 };
 
 class InjectDoubleBufferConfig : public Attrs {
@@ -44,6 +50,8 @@ class InjectDoubleBufferConfig : public Attrs {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(InjectDoubleBufferConfig, Attrs,
                                             InjectDoubleBufferConfigNode);
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ InjectDoubleBufferConfigNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(InjectDoubleBufferConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.InjectDoubleBuffer", InjectDoubleBufferConfig);
@@ -319,7 +327,7 @@ Pass InjectDoubleBuffer() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectDoubleBuffer", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InjectDoubleBuffer").set_body_typed(InjectDoubleBuffer);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectDoubleBuffer").set_body_typed(InjectDoubleBuffer);
 
 }  // namespace transform
 

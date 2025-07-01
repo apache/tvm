@@ -684,11 +684,12 @@ class FusedTIRConstructor : public ExprVisitor {
     if (it != func_info_.expr2buffers.end()) {
       int begin_buf_idx = 0;
       int end_buf_idx = 0;
-      const TupleType& tuple_type = Downcast<TupleType>(tuple_get_item->tuple->checked_type());
+      const TupleStructInfo& tuple_sinfo =
+          Downcast<TupleStructInfo>(tuple_get_item->tuple->struct_info_);
       for (int i = 0; i < tuple_get_item->index; ++i) {
-        begin_buf_idx += GetTotalTensorSize(tuple_type->fields[i]);
+        begin_buf_idx += GetTotalTensorSize(tuple_sinfo->fields[i]);
       }
-      end_buf_idx = begin_buf_idx + GetTotalTensorSize(tuple_type->fields[tuple_get_item->index]);
+      end_buf_idx = begin_buf_idx + GetTotalTensorSize(tuple_sinfo->fields[tuple_get_item->index]);
       func_info_.expr2buffers.Set(
           GetRef<Expr>(tuple_get_item),
           {(*it).second.begin() + begin_buf_idx, (*it).second.begin() + end_buf_idx});
@@ -972,17 +973,17 @@ class FusedTIRConstructor : public ExprVisitor {
   }
 
   /*! \brief Get DynTensor numbers from recursive Tuples. */
-  static size_t GetTotalTensorSize(const Type& type) {
-    if (type.as<TensorTypeNode>()) {
+  static size_t GetTotalTensorSize(const StructInfo& sinfo) {
+    if (sinfo.as<TensorStructInfoNode>()) {
       return 1;
-    } else if (const auto* tuple_type = type.as<TupleTypeNode>()) {
+    } else if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
       size_t num = 0;
-      for (const Type& type : tuple_type->fields) {
-        num += GetTotalTensorSize(type);
+      for (const StructInfo& sinfo : tuple_sinfo->fields) {
+        num += GetTotalTensorSize(sinfo);
       }
       return num;
     } else {
-      LOG(FATAL) << "TensorType and TupleType are expect, but got: " << type;
+      LOG(FATAL) << "TensorType and TupleType are expect, but got: " << sinfo;
       return 0;
     }
   }
@@ -1262,7 +1263,7 @@ Pass FuseTIR() {
       "FuseTIR");
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.FuseTIR").set_body_typed(FuseTIR);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.FuseTIR").set_body_typed(FuseTIR);
 
 }  // namespace transform
 

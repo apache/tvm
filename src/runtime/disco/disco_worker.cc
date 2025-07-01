@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/builtin.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/disco/session.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../support/process_id.h"
 #include "./protocol.h"
@@ -34,7 +33,7 @@ TVM_DLL DiscoWorker* DiscoWorker::ThreadLocal() {
   return ret;
 }
 
-void DiscoWorker::SetRegister(int reg_id, AnyView value) {
+void DiscoWorker::SetRegister(int reg_id, ffi::AnyView value) {
   ICHECK(0 <= reg_id && reg_id < static_cast<int>(register_file.size()));
   ffi::Any& rv = register_file.at(reg_id);
   if (rv.type_index() == ffi::TypeIndex::kTVMFFINDArray &&
@@ -95,7 +94,7 @@ struct DiscoWorker::Impl {
         }
         case DiscoAction::kDebugSetRegister: {
           int worker_id = args[2].cast<int>();
-          AnyView value = args[3];
+          ffi::AnyView value = args[3];
           DebugSetRegister(self, reg_id, worker_id, value);
           break;
         }
@@ -139,7 +138,7 @@ struct DiscoWorker::Impl {
   static void SyncWorker(DiscoWorker* self, int worker_id) {
     if (worker_id == self->worker_id) {
       ::tvm::runtime::SyncWorker();
-      AnyView packed_args[2];
+      ffi::AnyView packed_args[2];
       ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoAction::kSyncWorker), worker_id);
       self->channel->Reply(ffi::PackedArgs(packed_args, 2));
     }
@@ -151,17 +150,17 @@ struct DiscoWorker::Impl {
       if (rv.as<ObjectRef>()) {
         rv = DiscoDebugObject::Wrap(rv);
       }
-      AnyView packed_args[2];
+      ffi::AnyView packed_args[2];
       ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoAction::kDebugGetFromRemote), rv);
       self->channel->Reply(ffi::PackedArgs(packed_args, 2));
     }
   }
 
-  static void DebugSetRegister(DiscoWorker* self, int reg_id, int worker_id, AnyView value) {
+  static void DebugSetRegister(DiscoWorker* self, int reg_id, int worker_id, ffi::AnyView value) {
     if (worker_id == self->worker_id) {
       ::tvm::runtime::SyncWorker();
       self->SetRegister(reg_id, value);
-      AnyView packed_args[1];
+      ffi::AnyView packed_args[1];
       ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoAction::kDebugSetRegister));
       self->channel->Reply(ffi::PackedArgs(packed_args, 1));
     }
@@ -171,7 +170,7 @@ struct DiscoWorker::Impl {
                          const ffi::PackedArgs& args) {
     // NOTE: this action is not safe unless we know args is not
     // used else where in this case it is oK
-    AnyView* args_vec = const_cast<AnyView*>(args.data());
+    ffi::AnyView* args_vec = const_cast<ffi::AnyView*>(args.data());
     // translate args into remote calling convention
     for (int i = 0; i < args.size(); ++i) {
       if (auto opt_dref = args_vec[i].as<DRef>()) {

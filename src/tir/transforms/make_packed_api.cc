@@ -20,8 +20,9 @@
 /*!
  * \file make_packed_api.cc Lower PrimFunc to use the packed function API.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/runtime/module.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
@@ -335,7 +336,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     }
   }
 
-  // signature: (void* self, TVMFFIAny* packed_args, int num_args, TVMFFIAny* v_result)
+  // signature: (void* handle, TVMFFIAny* packed_args, int num_args, TVMFFIAny* v_result)
   Array<Var> args{v_self_handle, v_packed_args, v_num_packed_args, v_result};
 
   // Arg definitions are defined before buffer binding to avoid the use before
@@ -388,7 +389,6 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                                  << " are used, but are not passed in as API arguments";
 
   func_ptr->buffer_map = Map<Var, Buffer>();
-  func_ptr->checked_type_ = func_ptr->func_type_annotation();
   func_ptr->ret_type = PrimType(DataType::Int(32));
 
   // return the function.
@@ -438,7 +438,9 @@ Pass MakePackedAPI() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.MakePackedAPI", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.MakePackedAPI").set_body_typed([]() { return MakePackedAPI(); });
+TVM_FFI_REGISTER_GLOBAL("tir.transform.MakePackedAPI").set_body_typed([]() {
+  return MakePackedAPI();
+});
 }  // namespace transform
 }  // namespace tir
 }  // namespace tvm

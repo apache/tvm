@@ -22,15 +22,17 @@
  * \brief Infrastructure for instrumentation.
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/transform.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/runtime/registry.h>
 
 #include <stack>
 
 namespace tvm {
 namespace instrument {
+
+TVM_FFI_STATIC_INIT_BLOCK({ PassInstrumentNode::RegisterReflection(); });
 
 /*!
  * \brief Base PassInstrument implementation
@@ -175,7 +177,7 @@ void BasePassInstrumentNode::RunAfterPass(const IRModule& ir_module,
 
 TVM_REGISTER_NODE_TYPE(BasePassInstrumentNode);
 
-TVM_REGISTER_GLOBAL("instrument.PassInstrument")
+TVM_FFI_REGISTER_GLOBAL("instrument.PassInstrument")
     .set_body_typed(
         [](String name, ffi::TypedFunction<void()> enter_pass_ctx,
            ffi::TypedFunction<void()> exit_pass_ctx,
@@ -308,9 +310,9 @@ String RenderPassProfiles() {
   return os.str();
 }
 
-TVM_REGISTER_GLOBAL("instrument.RenderTimePassProfiles").set_body_typed(RenderPassProfiles);
+TVM_FFI_REGISTER_GLOBAL("instrument.RenderTimePassProfiles").set_body_typed(RenderPassProfiles);
 
-TVM_REGISTER_GLOBAL("instrument.MakePassTimingInstrument").set_body_typed([]() {
+TVM_FFI_REGISTER_GLOBAL("instrument.MakePassTimingInstrument").set_body_typed([]() {
   auto run_before_pass = [](const IRModule&, const transform::PassInfo& pass_info) {
     PassProfile::EnterPass(pass_info->name);
     return true;

@@ -60,6 +60,24 @@ TEST(Any, Int) {
   EXPECT_EQ(view0.CopyToTVMFFIAny().v_int64, 2);
 }
 
+TEST(Any, Enum) {
+  enum class ENum : int {
+    A = 1,
+    B = 2,
+  };
+
+  AnyView view0;
+  Optional<ENum> opt_v0 = view0.as<ENum>();
+  EXPECT_TRUE(!opt_v0.has_value());
+
+  AnyView view1 = ENum::A;
+  EXPECT_EQ(view1.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFIInt);
+  EXPECT_EQ(view1.CopyToTVMFFIAny().v_int64, 1);
+
+  ENum v1 = view1.cast<ENum>();
+  EXPECT_EQ(v1, ENum::A);
+}
+
 TEST(Any, bool) {
   AnyView view0;
   Optional<bool> opt_v0 = view0.as<bool>();
@@ -230,6 +248,9 @@ TEST(Any, Object) {
   EXPECT_EQ(v1_ptr->value, 11);
   Any any2 = v1_ptr;
   EXPECT_EQ(v1.use_count(), 3);
+  EXPECT_TRUE(any2.as<TInt>().has_value());
+
+  any2 = const_cast<TIntObj*>(v1_ptr);
   EXPECT_TRUE(any2.as<TInt>().has_value());
 
   // convert to raw opaque ptr

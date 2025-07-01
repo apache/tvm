@@ -421,7 +421,7 @@ Pass MergeCompositeFunctions() {
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.MergeCompositeFunctions")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.MergeCompositeFunctions")
     .set_body_typed(MergeCompositeFunctions);
 
 }  // namespace transform

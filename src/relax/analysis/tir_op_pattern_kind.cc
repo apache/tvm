@@ -537,7 +537,7 @@ bool HasReshapePattern(const PrimFunc& func) {
   return ReshapeDetector::Detect(src_buffer, dst_buffer, func->body);
 }
 
-TVM_REGISTER_GLOBAL("relax.analysis.has_reshape_pattern").set_body_typed(HasReshapePattern);
+TVM_FFI_REGISTER_GLOBAL("relax.analysis.has_reshape_pattern").set_body_typed(HasReshapePattern);
 
 }  // namespace relax
 }  // namespace tvm

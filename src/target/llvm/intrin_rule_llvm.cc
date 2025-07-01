@@ -30,6 +30,8 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/op_attr_types.h>
 
+#include <limits>
+
 #include "../intrin_rule.h"
 
 namespace tvm {
@@ -175,7 +177,15 @@ TVM_REGISTER_OP("tir.asin")
       PrimExpr term7 = term5 * x2 * make_const(x.dtype(), 25) / make_const(x.dtype(), 112);
       PrimExpr term9 = term7 * x2 * make_const(x.dtype(), 1225) / make_const(x.dtype(), 3456);
       PrimExpr term11 = term9 * x2 * make_const(x.dtype(), 3969) / make_const(x.dtype(), 28160);
-      return term1 + term3 + term5 + term7 + term9 + term11;
+      PrimExpr series = term1 + term3 + term5 + term7 + term9 + term11;
+      /* --- domain limit check --- */
+      PrimExpr lower = make_const(x.dtype(), -1.0);
+      PrimExpr upper = make_const(x.dtype(), 1.0);
+      PrimExpr out_range = tir::Or(x<lower, x> upper);
+      // Use a quiet NaN constant
+      PrimExpr nan_const = make_const(x.dtype(), std::numeric_limits<double>::quiet_NaN());
+      // select: if out of [-1,1] → NaN, else → series
+      return tir::Select(out_range, nan_const, series);
     });
 
 TVM_REGISTER_OP("tir.acos")

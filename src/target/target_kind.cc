@@ -21,9 +21,9 @@
  * \file src/target/target_kind.cc
  * \brief Target kind registry
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/target/target_kind.h>
 
@@ -34,6 +34,8 @@
 #include "./parsers/cpu.h"
 
 namespace tvm {
+
+TVM_FFI_STATIC_INIT_BLOCK({ TargetKindNode::RegisterReflection(); });
 
 // helper to get internal dev function in objectref.
 struct TargetKind2ObjectPtr : public ObjectRef {
@@ -446,7 +448,7 @@ TVM_REGISTER_TARGET_KIND("test", kDLCPU)  // line break
 
 /**********  Registry  **********/
 
-TVM_REGISTER_GLOBAL("target.TargetKindGetAttr")
+TVM_FFI_REGISTER_GLOBAL("target.TargetKindGetAttr")
     .set_body_typed([](TargetKind kind, String attr_name) -> ffi::Any {
       auto target_attr_map = TargetKind::GetAttrMap<ffi::Any>(attr_name);
       ffi::Any rv;
@@ -455,10 +457,11 @@ TVM_REGISTER_GLOBAL("target.TargetKindGetAttr")
       }
       return rv;
     });
-TVM_REGISTER_GLOBAL("target.ListTargetKinds").set_body_typed(TargetKindRegEntry::ListTargetKinds);
-TVM_REGISTER_GLOBAL("target.ListTargetKindOptions")
+TVM_FFI_REGISTER_GLOBAL("target.ListTargetKinds")
+    .set_body_typed(TargetKindRegEntry::ListTargetKinds);
+TVM_FFI_REGISTER_GLOBAL("target.ListTargetKindOptions")
     .set_body_typed(TargetKindRegEntry::ListTargetKindOptions);
-TVM_REGISTER_GLOBAL("target.ListTargetKindOptionsFromName")
+TVM_FFI_REGISTER_GLOBAL("target.ListTargetKindOptionsFromName")
     .set_body_typed([](String target_kind_name) {
       TargetKind kind = TargetKind::Get(target_kind_name).value();
       return TargetKindRegEntry::ListTargetKindOptions(kind);

@@ -23,13 +23,14 @@
 #ifndef TVM_RELAX_EXEC_BUILDER_H_
 #define TVM_RELAX_EXEC_BUILDER_H_
 
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/registry.h>
-#include <tvm/runtime/relax_vm/bytecode.h>
-#include <tvm/runtime/relax_vm/executable.h>
+#include <tvm/runtime/vm/bytecode.h>
+#include <tvm/runtime/vm/executable.h>
 
 #include <string>
 #include <unordered_map>
@@ -38,7 +39,7 @@
 namespace tvm {
 namespace relax {
 
-namespace vm = tvm::runtime::relax_vm;
+namespace vm = tvm::runtime::vm;
 
 class ExecBuilder;
 
@@ -137,7 +138,12 @@ class ExecBuilderNode : public Object {
    */
   TVM_DLL static ExecBuilder Create();
 
-  void VisitAttrs(AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ExecBuilderNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "relax.ExecBuilder";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecBuilderNode, Object);

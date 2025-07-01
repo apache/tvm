@@ -25,8 +25,6 @@ from tvm.ir import transform
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 
-# TODO(@sunggg): re-enable Trace when we have a solution for large params
-# from tvm.relax.transform.tuning_api import Trace
 from tvm.script import relax as R
 from tvm.script import tir as T
 
@@ -211,7 +209,6 @@ def test_ms_database_apply_fallback():
     assert isinstance(mod, IRModule)
     with tempfile.TemporaryDirectory() as work_dir:
         """
-        # TODO(@sunggg): Revisit when ready
         with target_cuda, PassContext(trace=Trace(mod), opt_level=0):
             tuning_pass = relax.transform.MetaScheduleTuneTIR(
                 work_dir=work_dir, max_trials_global=0

@@ -259,7 +259,7 @@ Pass LazyGetInput() {
                             /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.LazyGetInput").set_body_typed(LazyGetInput);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.LazyGetInput").set_body_typed(LazyGetInput);
 
 Pass LazySetOutput() {
   auto pass_func = [](Function func, IRModule, PassContext) -> Function {
@@ -274,7 +274,7 @@ Pass LazySetOutput() {
                             /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.LazySetOutput").set_body_typed(LazySetOutput);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.LazySetOutput").set_body_typed(LazySetOutput);
 
 }  // namespace transform
 }  // namespace relax

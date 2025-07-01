@@ -23,7 +23,7 @@
  */
 #include "tvm/ir/name_supply.h"
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <utility>
 
@@ -92,14 +92,15 @@ std::string NameSupplyNode::GetUniqueName(std::string name, bool add_underscore)
 
 TVM_REGISTER_NODE_TYPE(NameSupplyNode);
 
-TVM_REGISTER_GLOBAL("ir.NameSupply").set_body_typed([](String prefix) {
+TVM_FFI_REGISTER_GLOBAL("ir.NameSupply").set_body_typed([](String prefix) {
   return NameSupply(prefix);
 });
 
-TVM_REGISTER_GLOBAL("ir.NameSupply_FreshName").set_body_method(&NameSupplyNode::FreshName);
+TVM_FFI_REGISTER_GLOBAL("ir.NameSupply_FreshName").set_body_method(&NameSupplyNode::FreshName);
 
-TVM_REGISTER_GLOBAL("ir.NameSupply_ReserveName").set_body_method(&NameSupplyNode::ReserveName);
+TVM_FFI_REGISTER_GLOBAL("ir.NameSupply_ReserveName").set_body_method(&NameSupplyNode::ReserveName);
 
-TVM_REGISTER_GLOBAL("ir.NameSupply_ContainsName").set_body_method(&NameSupplyNode::ContainsName);
+TVM_FFI_REGISTER_GLOBAL("ir.NameSupply_ContainsName")
+    .set_body_method(&NameSupplyNode::ContainsName);
 
 }  // namespace tvm

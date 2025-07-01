@@ -49,7 +49,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Target/TargetMachine.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/module.h>
 #include <tvm/tir/analysis.h>
 
@@ -75,12 +75,10 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   CodeGenLLVM::Init(module_name, llvm_target, system_lib_prefix, dynamic_lookup, target_c_runtime);
   system_lib_prefix_ = system_lib_prefix;
   dbg_info_ = CreateDebugInfo(module_.get());
-  static_assert(sizeof(TVMValue) == sizeof(double), "invariant");
   func_handle_map_.clear();
   export_system_symbols_.clear();
 
   // Runtime types.
-
   t_tvm_shape_index_ =
       llvm::Type::getIntNTy(*llvm_target_->GetContext(), DataType::ShapeIndex().bits());
   // Defined in 3rdparty/dlpack/include/dlpack/dlpack.h:
@@ -89,7 +87,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   // Defined in 3rdparty/dlpack/include/dlpack/dlpack.h:
   // typedef struct { uint8_t code; uint8_t bits; uint16_t lanes; } DLDataType;
   t_tvm_type_ = llvm::StructType::create({t_int8_, t_int8_, t_int16_});
-  // Defined in include/tvm/runtime/c_runtime_api.h:
+  // Defined in include/tvm/runtime/base.h:
   // typedef void* TVMFunctionHandle;
   t_tvm_func_handle_ = t_void_p_;
   // Defined in 3rdparty/dlpack/include/dlpack/dlpack.h:
@@ -121,7 +119,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   //                    TVMFFIAny* result);
   ftype_tvm_ffi_func_call_ = ftype_tvm_ffi_c_func_;
   // Defined in include/tvm/ffi/c_api.h:
-  // void TVMFFIErrorSetRaisedByCStr(const char *kind, const char* msg);
+  // void TVMFFIErrorSetRaisedFromCStr(const char *kind, const char* msg);
   ftype_tvm_ffi_error_set_raised_by_c_str_ = llvm::FunctionType::get(
       t_void_, {llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(t_char_, 0)}, false);
   // Defined in include/tvm/runtime/c_backend_api.h:
@@ -160,7 +158,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
                                "TVMFFIFunctionCall", module_.get());
     f_tvm_ffi_set_raised_by_c_str_ = llvm::Function::Create(
         ftype_tvm_ffi_error_set_raised_by_c_str_, llvm::Function::ExternalLinkage,
-        "TVMFFIErrorSetRaisedByCStr", module_.get());
+        "TVMFFIErrorSetRaisedFromCStr", module_.get());
     f_tvm_get_func_from_env_ =
         llvm::Function::Create(ftype_tvm_get_func_from_env_, llvm::Function::ExternalLinkage,
                                "TVMBackendGetFuncFromEnv", module_.get());
@@ -436,7 +434,8 @@ llvm::Value* CodeGenCPU::GetContextPtr(llvm::GlobalVariable* gv) {
 }
 
 void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
-  std::string ctx_symbol = system_lib_prefix_.value_or("") + tvm::runtime::symbol::tvm_module_ctx;
+  std::string ctx_symbol =
+      system_lib_prefix_.value_or("") + tvm::runtime::symbol::tvm_ffi_library_ctx;
   // Module context
   gv_mod_ctx_ = InitContextPtr(t_void_p_, ctx_symbol);
   // Register back the locations.
@@ -450,7 +449,7 @@ void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
                                                  "__TVMBackendGetFuncFromEnv");
       gv_tvm_ffi_set_last_error_c_str_ =
           InitContextPtr(llvmGetPointerTo(ftype_tvm_ffi_error_set_raised_by_c_str_, 0),
-                         "__TVMFFIErrorSetRaisedByCStr");
+                         "__TVMFFIErrorSetRaisedFromCStr");
       gv_tvm_parallel_launch_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_parallel_launch_, 0),
                                                "__TVMBackendParallelLaunch");
       gv_tvm_parallel_barrier_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_parallel_barrier_, 0),
@@ -938,7 +937,7 @@ llvm::Value* CodeGenCPU::RuntimeTVMGetFuncFromEnv() {
   if (f_tvm_get_func_from_env_ != nullptr) return f_tvm_get_func_from_env_;
   return GetContextPtr(gv_tvm_get_func_from_env_);
 }
-llvm::Value* CodeGenCPU::RuntimeTVMFFIErrorSetRaisedByCStr() {
+llvm::Value* CodeGenCPU::RuntimeTVMFFIErrorSetRaisedFromCStr() {
   if (f_tvm_ffi_set_raised_by_c_str_ != nullptr) return f_tvm_ffi_set_raised_by_c_str_;
   return GetContextPtr(gv_tvm_ffi_set_last_error_c_str_);
 }
@@ -1038,6 +1037,10 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
         return builder_->CreateAlloca(t_tvm_ffi_any_, num);
       } else if (type == "array") {
         return builder_->CreateAlloca(t_tvm_array_, num);
+      } else if (type == "tensormap") {
+        auto* alloca = builder_->CreateAlloca(t_tvm_tensormap_, num);
+        alloca->setAlignment(llvm::Align(64));
+        return alloca;
       } else {
         LOG(FATAL) << "Unknown stack alloca type " << type;
       }
@@ -1065,9 +1068,9 @@ void CodeGenCPU::VisitStmt_(const AssertStmtNode* op) {
 
 #if TVM_LLVM_VERSION >= 90
   auto err_callee = llvm::FunctionCallee(ftype_tvm_ffi_error_set_raised_by_c_str_,
-                                         RuntimeTVMFFIErrorSetRaisedByCStr());
+                                         RuntimeTVMFFIErrorSetRaisedFromCStr());
 #else
-  auto err_callee = RuntimeTVMFFIErrorSetRaisedByCStr();
+  auto err_callee = RuntimeTVMFFIErrorSetRaisedFromCStr();
 #endif
   builder_->CreateCall(err_callee, {GetConstString("RuntimeError"), msg});
   builder_->CreateRet(ConstInt32(-1));
@@ -1158,7 +1161,7 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
   }
 }
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_cpu")
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.target_cpu")
     .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
       *rv = static_cast<void*>(new CodeGenCPU());
     });

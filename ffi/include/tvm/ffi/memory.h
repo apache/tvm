@@ -70,7 +70,7 @@ class ObjAllocatorBase {
    * \param args The arguments.
    */
   template <typename T, typename... Args>
-  inline ObjectPtr<T> make_object(Args&&... args) {
+  ObjectPtr<T> make_object(Args&&... args) {
     using Handler = typename Derived::template Handler<T>;
     static_assert(std::is_base_of<Object, T>::value, "make can only be used to create Object");
     T* ptr = Handler::New(static_cast<Derived*>(this), std::forward<Args>(args)...);
@@ -89,7 +89,7 @@ class ObjAllocatorBase {
    * \param args The arguments.
    */
   template <typename ArrayType, typename ElemType, typename... Args>
-  inline ObjectPtr<ArrayType> make_inplace_array(size_t num_elems, Args&&... args) {
+  ObjectPtr<ArrayType> make_inplace_array(size_t num_elems, Args&&... args) {
     using Handler = typename Derived::template ArrayHandler<ArrayType, ElemType>;
     static_assert(std::is_base_of<Object, ArrayType>::value,
                   "make_inplace_array can only be used to create Object");
@@ -109,7 +109,9 @@ class SimpleObjAllocator : public ObjAllocatorBase<SimpleObjAllocator> {
   template <typename T>
   class Handler {
    public:
-    using StorageType = typename std::aligned_storage<sizeof(T), alignof(T)>::type;
+    struct alignas(T) StorageType {
+      char data[sizeof(T)];
+    };
 
     template <typename... Args>
     static T* New(SimpleObjAllocator*, Args&&... args) {

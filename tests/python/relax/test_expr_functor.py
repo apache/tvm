@@ -365,7 +365,7 @@ def basic_check(expr, visitor_str, mutator_str):
 
     # check no overloading case
     basic_mutator = BasicMutator()
-    # skip normalize GlobalVar since it requires context IRModule to get the checked_type_
+    # skip normalize GlobalVar since it requires context IRModule to get the struct_info_
     if isinstance(expr, relax.Expr) and not isinstance(expr, relax.GlobalVar):
         expr = bb.normalize(expr)
         assert_structural_equal(visit(basic_mutator, expr), expr)

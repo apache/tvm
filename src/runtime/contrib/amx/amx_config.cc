@@ -21,8 +21,7 @@
  * \file src/runtime/contrib/amx/amx_config.cc
  * \brief extraction of AMX configuration on x86 platforms
  */
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 namespace tvm {
 namespace runtime {
@@ -76,7 +75,7 @@ void init_tile_config(__tilecfg_u* dst, uint16_t cols, uint8_t rows) {
   _tile_loadconfig(dst->a);
 }
 
-TVM_REGISTER_GLOBAL("runtime.amx_tileconfig")
+TVM_FFI_REGISTER_GLOBAL("runtime.amx_tileconfig")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       int rows = args[0].cast<int>();
       int cols = args[1].cast<int>();
@@ -90,7 +89,7 @@ TVM_REGISTER_GLOBAL("runtime.amx_tileconfig")
     });
 
 // register a global packed function in c++，to init the system for AMX config
-TVM_REGISTER_GLOBAL("runtime.amx_init").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+TVM_FFI_REGISTER_GLOBAL("runtime.amx_init").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
   // -----------Detect and request for AMX control----------------------
   uint64_t bitmask = 0;
   int64_t status = syscall(SYS_arch_prctl, ARCH_GET_XCOMP_PERM, &bitmask);

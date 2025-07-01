@@ -50,7 +50,7 @@ void FuncAttrGetter::VisitExpr_(const CallNode* op) {
   if (op->attrs.defined()) {
     Map<String, String> attrs;
     AttrGetter getter(&attrs);
-    const_cast<BaseAttrsNode*>(op->attrs.get())->VisitAttrs(&getter);
+    getter(op->attrs);
     for (const auto& pair : attrs) {
       if (attrs_.count(pair.first)) {
         int cnt = 1;
@@ -350,7 +350,7 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
       attrs = FuncAttrGetter().GetAttrs(call_node->op);
     } else if (call_node->attrs.defined()) {
       AttrGetter getter(&attrs);
-      const_cast<BaseAttrsNode*>(call_node->attrs.get())->VisitAttrs(&getter);
+      getter(call_node->attrs);
     }
   } else if (const auto* const_node = expr.as<ConstantNode>()) {
     if (const_node->is_scalar()) {
@@ -834,7 +834,7 @@ void WeightsExtractor::VisitExpr_(const CallNode* op) {
   }
 }
 
-TVM_REGISTER_GLOBAL("msc.core.BuildFromRelax")
+TVM_FFI_REGISTER_GLOBAL("msc.core.BuildFromRelax")
     .set_body_typed([](const IRModule& module, const String& entry_name,
                        const String& options) -> MSCGraph {
       auto builder = GraphBuilder(module, entry_name, options);
@@ -844,7 +844,7 @@ TVM_REGISTER_GLOBAL("msc.core.BuildFromRelax")
       return builder.Build(func);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.GetRelaxWeights")
+TVM_FFI_REGISTER_GLOBAL("msc.core.GetRelaxWeights")
     .set_body_typed([](const IRModule& module,
                        const String& entry_name) -> Map<MSCTensor, NDArray> {
       const auto& func = Downcast<Function>(module->Lookup(entry_name));

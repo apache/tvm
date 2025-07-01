@@ -60,7 +60,11 @@ class ReplayFuncNode : public SearchStrategyNode {
   /*! \brief The state of the search strategy. */
   std::unique_ptr<State> state_ = nullptr;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register
+  }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.ReplayFunc";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReplayFuncNode, SearchStrategyNode);
@@ -156,8 +160,10 @@ SearchStrategy SearchStrategy::ReplayFunc() {
   return SearchStrategy(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ ReplayFuncNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(ReplayFuncNode);
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyReplayFunc")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyReplayFunc")
     .set_body_typed(SearchStrategy::ReplayFunc);
 
 }  // namespace meta_schedule

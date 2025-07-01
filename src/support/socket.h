@@ -47,8 +47,9 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #endif
+
+#include <dmlc/io.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 #include <cstring>
 #include <string>

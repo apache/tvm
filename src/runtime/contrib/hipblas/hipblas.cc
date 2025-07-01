@@ -20,9 +20,9 @@
 /*!
  * \file Use external hipblas library call.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../3rdparty/compiler-rt/builtin_fp16.h"
 #include "../cblas/gemm_common.h"
@@ -300,8 +300,8 @@ inline void CallGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t hdl)
       << "leading dimension must divide 4 for int8 gemm";
   ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride(B) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
-  double alpha = args.size() > 5 ? args[5] : 1.0;
-  double beta = args.size() > 6 ? args[6] : 0.0;
+  double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
+  double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
 
   hipblasDatatype_t hip_in_type = GetHipBlasDataType(A->dtype);
   hipblasDatatype_t hip_out_type = GetHipBlasDataType(C->dtype);
@@ -359,8 +359,8 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t
       << "leading dimension must divide 4 for int8 gemm";
   ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride3D(B) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
-  double alpha = args.size() > 5 ? args[5] : 1.0;
-  double beta = args.size() > 6 ? args[6] : 0.0;
+  double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
+  double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
 
   int A_stride = A->shape[1] * A->shape[2];
   int B_stride = B->shape[1] * B->shape[2];
@@ -407,7 +407,7 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t
 }
 
 // matrix multiplication for row major
-TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto C = args[2].cast<DLTensor*>();
@@ -430,7 +430,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul")
       }
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.hipblas.batch_matmul")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.hipblas.batch_matmul")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto A = args[0].cast<DLTensor*>();
       auto C = args[2].cast<DLTensor*>();

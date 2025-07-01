@@ -17,7 +17,7 @@
 """A database for injecting handcrafted schedule functions."""
 from typing import Callable
 
-from tvm._ffi import register_object
+from tvm.ffi import register_object
 from tvm.tir import Schedule
 
 from .. import _ffi_api

@@ -147,7 +147,7 @@ class LCADetector : public StmtExprVisitor {
     auto do_collect_itervar_scope = [this](const IterVar& itervar,
                                            const PrimExpr& binding) -> const ScopeInfo* {
       const ScopeInfo* highest_scope = nullptr;
-      PostOrderVisit(binding, [this, &itervar, &highest_scope](const ObjectRef& obj) {
+      PostOrderVisit(binding, [this, &highest_scope](const ObjectRef& obj) {
         if (const VarNode* loop_var = obj.as<VarNode>()) {
           auto it = loop_scope_map_.find(loop_var);
           if (it == loop_scope_map_.end()) {
@@ -346,6 +346,7 @@ Map<Buffer, Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func) {
   return LCADetector::Detect(func);
 }
 
-TVM_REGISTER_GLOBAL("tir.analysis.detect_buffer_access_lca").set_body_typed(DetectBufferAccessLCA);
+TVM_FFI_REGISTER_GLOBAL("tir.analysis.detect_buffer_access_lca")
+    .set_body_typed(DetectBufferAccessLCA);
 }  // namespace tir
 }  // namespace tvm

@@ -19,9 +19,8 @@
 #include <nvshmem.h>
 #include <nvshmemx.h>
 #include <picojson.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/disco_worker.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../cuda/cuda_common.h"
 
@@ -107,12 +106,26 @@ void InitNVSHMEMWrapper(String args) {
   InitNVSHMEM(uid_64, num_workers, worker_id_start);
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_uid").set_body_typed(InitNVSHMEMUID);
+void NVSHMEMXCumoduleInit(void* cuModule) {
+  CUmodule mod = static_cast<CUmodule>(cuModule);
+  auto status = nvshmemx_init_status();
+  // The NVSHMEM library must have completed device initialization prior to
+  // nvshmemx_cumodule_init. If not, we skip the cumodule initialization.
+  if (status == NVSHMEM_STATUS_IS_INITIALIZED || status == NVSHMEM_STATUS_LIMITED_MPG ||
+      status == NVSHMEM_STATUS_FULL_MPG) {
+    int result = nvshmemx_cumodule_init(mod);
+    ICHECK_EQ(result, 0) << "nvshmemx_cumodule_init failed with error code: " << result;
+  }
+}
 
-TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem").set_body_typed(InitNVSHMEM);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_uid").set_body_typed(InitNVSHMEMUID);
 
-TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_wrapper")
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem").set_body_typed(InitNVSHMEM);
+
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_wrapper")
     .set_body_typed(InitNVSHMEMWrapper);
+
+TVM_FFI_REGISTER_GLOBAL("runtime.nvshmem.cumodule_init").set_body_typed(NVSHMEMXCumoduleInit);
 
 }  // namespace runtime
 }  // namespace tvm

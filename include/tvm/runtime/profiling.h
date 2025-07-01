@@ -26,11 +26,12 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
-#include <tvm/runtime/c_runtime_api.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <stack>
 #include <string>
@@ -74,7 +75,7 @@ class TimerNode : public Object {
 
   virtual ~TimerNode() {}
 
-  static constexpr const char* _type_key = "TimerNode";
+  static constexpr const char* _type_key = "runtime.TimerNode";
   TVM_DECLARE_BASE_OBJECT_INFO(TimerNode, Object);
 };
 
@@ -124,7 +125,7 @@ class Timer : public ObjectRef {
    *    virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
    *    virtual ~CPUTimerNode() {}
    *
-   *    static constexpr const char* _type_key = "CPUTimerNode";
+   *    static constexpr const char* _type_key = "runtime.CPUTimerNode";
    *    TVM_DECLARE_FINAL_OBJECT_INFO(CPUTimerNode, TimerNode);
    *
    *   private:
@@ -133,7 +134,7 @@ class Timer : public ObjectRef {
    *  };
    *  TVM_REGISTER_OBJECT_TYPE(CPUTimerNode);
    *
-   *  TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](Device dev) {
+   *  TVM_FFI_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](Device dev) {
    *    return Timer(make_object<CPUTimerNode>());
    *  });
    * \endcode

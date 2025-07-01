@@ -20,10 +20,11 @@
 #ifndef TVM_META_SCHEDULE_MUTATOR_H_
 #define TVM_META_SCHEDULE_MUTATOR_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/support/random_engine.h>
 #include <tvm/tir/schedule/schedule.h>
 #include <tvm/tir/schedule/trace.h>
@@ -40,7 +41,11 @@ class MutatorNode : public runtime::Object {
   /*! \brief Virtual destructor. */
   virtual ~MutatorNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register
+  }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Initialize the design space generator with tuning context.
@@ -157,12 +162,14 @@ class PyMutatorNode : public MutatorNode {
   /*! \brief The packed function to the `AsString` function. */
   FAsString f_as_string;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_initialize_with_tune_context` is not visited
-    // `f_apply` is not visited
-    // `f_clone` is not visited
-    // `f_as_string` is not visited
+  static void RegisterReflection() {
+    // `f_initialize_with_tune_context` is not registered
+    // `f_apply` is not registered
+    // `f_clone` is not registered
+    // `f_as_string` is not registered
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   Optional<tir::Trace> Apply(const tir::Trace& trace,

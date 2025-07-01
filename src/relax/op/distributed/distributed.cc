@@ -36,6 +36,8 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({ DistributionAttrs::RegisterReflection(); });
+
 /* relax.dist.annotate_sharding */
 TVM_REGISTER_NODE_TYPE(DistributionAttrs);
 Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
@@ -48,7 +50,7 @@ Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
   return Call(op, {std::move(input)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dist.annotate_sharding").set_body_typed(annotate_sharding);
+TVM_FFI_REGISTER_GLOBAL("relax.op.dist.annotate_sharding").set_body_typed(annotate_sharding);
 
 StructInfo InferStructInfoAnnotateSharding(const Call& call, const BlockBuilder& ctx) {
   return GetStructInfo(call->args[0]);
@@ -73,7 +75,7 @@ Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
   return Call(op, {std::move(input)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dist.redistribute").set_body_typed(redistribute);
+TVM_FFI_REGISTER_GLOBAL("relax.op.dist.redistribute").set_body_typed(redistribute);
 
 StructInfo InferDistStructInfoRedistribute(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<DistributionAttrs>();
@@ -139,7 +141,7 @@ Expr MakeCallTIRLocalView(Expr func, Tuple args,
   return call;
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dist.call_tir_local_view").set_body_typed(MakeCallTIRLocalView);
+TVM_FFI_REGISTER_GLOBAL("relax.op.dist.call_tir_local_view").set_body_typed(MakeCallTIRLocalView);
 
 StructInfo InferStructInfoRtoS(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -208,7 +210,7 @@ Expr redistribute_replica_to_shard(Expr input, int num_workers, int axis) {
   return Call(op, {std::move(input)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dist.redistribute_replica_to_shard")
+TVM_FFI_REGISTER_GLOBAL("relax.op.dist.redistribute_replica_to_shard")
     .set_body_typed(redistribute_replica_to_shard);
 
 TVM_REGISTER_OP("relax.dist.redistribute_replica_to_shard")

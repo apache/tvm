@@ -19,13 +19,13 @@
 /*!
  * \file src/node/structural_equal.cc
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
 #include <tvm/node/object_path.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/structural_equal.h>
-#include <tvm/runtime/registry.h>
 
 #include <optional>
 #include <unordered_map>
@@ -36,12 +36,12 @@ namespace tvm {
 
 TVM_REGISTER_OBJECT_TYPE(ObjectPathPairNode);
 
-TVM_REGISTER_GLOBAL("node.ObjectPathPairLhsPath")
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathPairLhsPath")
     .set_body_typed([](const ObjectPathPair& object_path_pair) {
       return object_path_pair->lhs_path;
     });
 
-TVM_REGISTER_GLOBAL("node.ObjectPathPairRhsPath")
+TVM_FFI_REGISTER_GLOBAL("node.ObjectPathPairRhsPath")
     .set_body_typed([](const ObjectPathPair& object_path_pair) {
       return object_path_pair->rhs_path;
     });
@@ -193,9 +193,13 @@ bool SEqualReducer::AnyEqual(const ffi::Any& lhs, const ffi::Any& rhs,
     if (paths) {
       return operator()(lhs.cast<ObjectRef>(), rhs.cast<ObjectRef>(), paths.value());
     } else {
-      return operator()(lhs.cast<ObjectRef>(), rhs.cast<ObjectRef>());
+      ObjectRef lhs_obj = lhs.cast<ObjectRef>();
+      ObjectRef rhs_obj = rhs.cast<ObjectRef>();
+      bool result = operator()(lhs_obj, rhs_obj);
+      return result;
     }
   }
+
   if (ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(lhs)->v_uint64 ==
       ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(rhs)->v_uint64) {
     return true;
@@ -595,7 +599,7 @@ bool SEqualHandlerDefault::DispatchSEqualReduce(const ObjectRef& lhs, const Obje
   return impl->DispatchSEqualReduce(lhs, rhs, map_free_vars, current_paths);
 }
 
-TVM_REGISTER_GLOBAL("node.StructuralEqual")
+TVM_FFI_REGISTER_GLOBAL("node.StructuralEqual")
     .set_body_typed([](const Any& lhs, const Any& rhs, bool assert_mode, bool map_free_vars) {
       // If we are asserting on failure, then the `defer_fails` option
       // should be enabled, to provide better error messages.  For
@@ -608,7 +612,7 @@ TVM_REGISTER_GLOBAL("node.StructuralEqual")
           .Equal(lhs, rhs, map_free_vars);
     });
 
-TVM_REGISTER_GLOBAL("node.GetFirstStructuralMismatch")
+TVM_FFI_REGISTER_GLOBAL("node.GetFirstStructuralMismatch")
     .set_body_typed([](const Any& lhs, const Any& rhs, bool map_free_vars) {
       Optional<ObjectPathPair> first_mismatch;
       bool equal =

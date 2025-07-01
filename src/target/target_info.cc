@@ -20,11 +20,13 @@
 /*!
  * \file target/target_info.cc
  */
+#include <tvm/ffi/function.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/target_info.h>
 
 namespace tvm {
+
+TVM_FFI_STATIC_INIT_BLOCK({ MemoryInfoNode::RegisterReflection(); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<MemoryInfoNode>([](const ObjectRef& node, ReprPrinter* p) {

@@ -15,6 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Operators serving for Collective Communications Library (CCL) operators"""
-import tvm._ffi
+import tvm.ffi
 
-tvm._ffi._init_api("relax.op.ccl", __name__)
+tvm.ffi._init_api("relax.op.ccl", __name__)

@@ -19,8 +19,8 @@
 /*!
  * \file stmt_functor.cc
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
@@ -92,27 +92,6 @@ void StmtVisitor::VisitStmt_(const AssertStmtNode* op) {
   this->VisitExpr(op->condition);
   this->VisitExpr(op->message);
   this->VisitStmt(op->body);
-}
-
-void StmtVisitor::VisitStmt_(const ProducerStoreNode* op) {
-  VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
-  this->VisitExpr(op->value);
-}
-
-void StmtVisitor::VisitStmt_(const ProducerRealizeNode* op) {
-  VisitArray(op->bounds, [this](const Range& r) {
-    this->VisitExpr(r->min);
-    this->VisitExpr(r->extent);
-  });
-  this->VisitStmt(op->body);
-  this->VisitExpr(op->condition);
-}
-
-void StmtVisitor::VisitStmt_(const PrefetchNode* op) {
-  VisitArray(op->bounds, [this](const Range& r) {
-    this->VisitExpr(r->min);
-    this->VisitExpr(r->extent);
-  });
 }
 
 void StmtVisitor::VisitStmt_(const SeqStmtNode* op) {
@@ -391,45 +370,6 @@ Stmt StmtMutator::VisitStmt_(const BufferRealizeNode* op) {
     n->bounds = std::move(bounds);
     n->condition = std::move(condition);
     n->body = std::move(body);
-    return Stmt(n);
-  }
-}
-
-Stmt StmtMutator::VisitStmt_(const ProducerStoreNode* op) {
-  Array<PrimExpr> indices = Internal::Mutate(this, op->indices);
-  PrimExpr value = this->VisitExpr(op->value);
-  if (indices.same_as(op->indices) && value.same_as(op->value)) {
-    return GetRef<Stmt>(op);
-  } else {
-    auto n = CopyOnWrite(op);
-    n->indices = std::move(indices);
-    n->value = std::move(value);
-    return Stmt(n);
-  }
-}
-
-Stmt StmtMutator::VisitStmt_(const ProducerRealizeNode* op) {
-  Region bounds = Internal::Mutate(this, op->bounds);
-  Stmt body = this->VisitStmt(op->body);
-  PrimExpr condition = this->VisitExpr(op->condition);
-  if (bounds.same_as(op->bounds) && body.same_as(op->body) && condition.same_as(op->condition)) {
-    return GetRef<Stmt>(op);
-  } else {
-    auto n = CopyOnWrite(op);
-    n->bounds = std::move(bounds);
-    n->body = std::move(body);
-    n->condition = std::move(condition);
-    return Stmt(n);
-  }
-}
-
-Stmt StmtMutator::VisitStmt_(const PrefetchNode* op) {
-  Region bounds = Internal::Mutate(this, op->bounds);
-  if (bounds.same_as(op->bounds)) {
-    return GetRef<Stmt>(op);
-  } else {
-    auto n = CopyOnWrite(op);
-    n->bounds = std::move(bounds);
     return Stmt(n);
   }
 }
@@ -892,17 +832,17 @@ PrimExpr SubstituteWithDataTypeLegalization(PrimExpr expr,
   return IRSubstituteWithDataTypeLegalization(vmap)(std::move(expr));
 }
 
-TVM_REGISTER_GLOBAL("tir.IRTransform").set_body_typed(IRTransform);
+TVM_FFI_REGISTER_GLOBAL("tir.IRTransform").set_body_typed(IRTransform);
 
-TVM_REGISTER_GLOBAL("tir.PostOrderVisit").set_body_typed([](ObjectRef node, ffi::Function f) {
+TVM_FFI_REGISTER_GLOBAL("tir.PostOrderVisit").set_body_typed([](ObjectRef node, ffi::Function f) {
   tir::PostOrderVisit(node, [f](const ObjectRef& n) { f(n); });
 });
 
-TVM_REGISTER_GLOBAL("tir.PreOrderVisit").set_body_typed([](ObjectRef node, ffi::Function f) {
+TVM_FFI_REGISTER_GLOBAL("tir.PreOrderVisit").set_body_typed([](ObjectRef node, ffi::Function f) {
   tir::PreOrderVisit(node, [f](const ObjectRef& n) { return f(n).cast<bool>(); });
 });
 
-TVM_REGISTER_GLOBAL("tir.Substitute")
+TVM_FFI_REGISTER_GLOBAL("tir.Substitute")
     .set_body_typed([](ObjectRef node, Map<Var, PrimExpr> vmap) -> ObjectRef {
       if (node->IsInstance<StmtNode>()) {
         return Substitute(Downcast<Stmt>(node), vmap);

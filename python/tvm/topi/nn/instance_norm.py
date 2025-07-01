@@ -18,7 +18,7 @@
 from .. import cpp
 
 
-def instance_norm(data, gamma, beta, axis, epsilon=1e-5):
+def instance_norm(data, gamma, beta, channel_axis, axis, epsilon=1e-5):
     """Instance normalization operator.
 
     Parameters
@@ -44,4 +44,4 @@ def instance_norm(data, gamma, beta, axis, epsilon=1e-5):
     result : tvm.te.Tensor
         N-D with shape (d_0, d_1, ..., d_{N-1})
     """
-    return cpp.nn.instance_norm(data, gamma, beta, axis, epsilon)
+    return cpp.nn.instance_norm(data, gamma, beta, channel_axis, axis, epsilon)

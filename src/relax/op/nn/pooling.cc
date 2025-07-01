@@ -25,6 +25,15 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  Pool1DAttrs::RegisterReflection();
+  Pool2DAttrs::RegisterReflection();
+  Pool3DAttrs::RegisterReflection();
+  AdaptivePool1DAttrs::RegisterReflection();
+  AdaptivePool2DAttrs::RegisterReflection();
+  AdaptivePool3DAttrs::RegisterReflection();
+});
+
 /* relax.nn.max_pool1d */
 TVM_REGISTER_NODE_TYPE(Pool1DAttrs);
 
@@ -62,7 +71,7 @@ Expr max_pool1d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array
                     count_include_pad, layout, out_layout);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.max_pool1d").set_body_typed(max_pool1d);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.max_pool1d").set_body_typed(max_pool1d);
 
 StructInfo InferStructInfoPool1D(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -175,7 +184,7 @@ Expr max_pool2d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array
                     count_include_pad, layout, out_layout);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.max_pool2d").set_body_typed(max_pool2d);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.max_pool2d").set_body_typed(max_pool2d);
 
 StructInfo InferStructInfoPool2D(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -314,7 +323,7 @@ Expr max_pool3d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array
                     count_include_pad, layout, out_layout);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.max_pool3d").set_body_typed(max_pool3d);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.max_pool3d").set_body_typed(max_pool3d);
 
 StructInfo InferStructInfoPool3D(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -401,7 +410,7 @@ Expr avg_pool1d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array
                     count_include_pad, layout, out_layout);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.avg_pool1d").set_body_typed(avg_pool1d);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.avg_pool1d").set_body_typed(avg_pool1d);
 
 TVM_REGISTER_OP("relax.nn.avg_pool1d")
     .set_num_inputs(1)
@@ -420,7 +429,7 @@ Expr avg_pool2d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array
                     count_include_pad, layout, out_layout);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.avg_pool2d").set_body_typed(avg_pool2d);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.avg_pool2d").set_body_typed(avg_pool2d);
 
 TVM_REGISTER_OP("relax.nn.avg_pool2d")
     .set_num_inputs(1)
@@ -439,7 +448,7 @@ Expr avg_pool3d(Expr data, Array<IntImm> pool_size, Array<IntImm> strides, Array
                     count_include_pad, layout, out_layout);
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.avg_pool3d").set_body_typed(avg_pool3d);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.avg_pool3d").set_body_typed(avg_pool3d);
 
 TVM_REGISTER_OP("relax.nn.avg_pool3d")
     .set_num_inputs(1)
@@ -470,7 +479,7 @@ Expr adaptive_avg_pool1d(Expr data, Optional<Array<IntImm>> output_size, String 
   return Call(op, {std::move(data)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.adaptive_avg_pool1d").set_body_typed(adaptive_avg_pool1d);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.adaptive_avg_pool1d").set_body_typed(adaptive_avg_pool1d);
 
 StructInfo InferStructInfoAdaptiveAvgPool1D(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -553,7 +562,7 @@ Expr adaptive_avg_pool2d(Expr data, Optional<Array<IntImm>> output_size, String 
   return Call(op, {std::move(data)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.adaptive_avg_pool2d").set_body_typed(adaptive_avg_pool2d);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.adaptive_avg_pool2d").set_body_typed(adaptive_avg_pool2d);
 
 StructInfo InferStructInfoAdaptiveAvgPool2D(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -652,7 +661,7 @@ Expr adaptive_avg_pool3d(Expr data, Optional<Array<IntImm>> output_size, String 
   return Call(op, {std::move(data)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.adaptive_avg_pool3d").set_body_typed(adaptive_avg_pool3d);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.adaptive_avg_pool3d").set_body_typed(adaptive_avg_pool3d);
 
 StructInfo InferStructInfoAdaptiveAvgPool3D(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);

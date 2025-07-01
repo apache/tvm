@@ -56,14 +56,19 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << f_as_string();
     });
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  MeasureCallbackNode::RegisterReflection();
+  PyMeasureCallbackNode::RegisterReflection();
+});
+
 TVM_REGISTER_OBJECT_TYPE(MeasureCallbackNode);
 TVM_REGISTER_NODE_TYPE(PyMeasureCallbackNode);
 
-TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackApply")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MeasureCallbackApply")
     .set_body_method(&MeasureCallbackNode::Apply);
-TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackPyMeasureCallback")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MeasureCallbackPyMeasureCallback")
     .set_body_typed(MeasureCallback::PyMeasureCallback);
-TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackDefault")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MeasureCallbackDefault")
     .set_body_typed(MeasureCallback::Default);
 
 }  // namespace meta_schedule

@@ -62,8 +62,10 @@ void TuneContextNode::Initialize() {
   }
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ TuneContextNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(TuneContextNode);
-TVM_REGISTER_GLOBAL("meta_schedule.TuneContext")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TuneContext")
     .set_body_typed([](Optional<IRModule> mod, Optional<Target> target,
                        Optional<SpaceGenerator> space_generator,
                        Optional<SearchStrategy> search_strategy, Optional<String> task_name,
@@ -72,10 +74,10 @@ TVM_REGISTER_GLOBAL("meta_schedule.TuneContext")
       return TuneContext(mod, target, space_generator, search_strategy, task_name, num_threads,
                          rand_state, logger);
     });
-TVM_REGISTER_GLOBAL("meta_schedule._SHash2Hex").set_body_typed(SHash2Hex);
-TVM_REGISTER_GLOBAL("meta_schedule.TuneContextInitialize")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule._SHash2Hex").set_body_typed(SHash2Hex);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TuneContextInitialize")
     .set_body_method(&TuneContextNode::Initialize);
-TVM_REGISTER_GLOBAL("meta_schedule.TuneContextClone").set_body_method(&TuneContextNode::Clone);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TuneContextClone").set_body_method(&TuneContextNode::Clone);
 
 }  // namespace meta_schedule
 }  // namespace tvm

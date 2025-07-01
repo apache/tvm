@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -27,10 +29,13 @@ class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
   /*! \brief The array of design space generators unioned, could be recursive. */
   Array<SpaceGenerator> space_generators;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    SpaceGeneratorNode::VisitAttrs(v);
-    v->Visit("space_generators", &space_generators);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SpaceGeneratorUnionNode>().def_ro("space_generators",
+                                                      &SpaceGeneratorUnionNode::space_generators);
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final {
     SpaceGeneratorNode::InitializeWithTuneContext(context);
@@ -81,8 +86,10 @@ SpaceGenerator SpaceGenerator::SpaceGeneratorUnion(Array<SpaceGenerator> space_g
   return SpaceGenerator(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ SpaceGeneratorUnionNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(SpaceGeneratorUnionNode);
-TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorSpaceGeneratorUnion")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorSpaceGeneratorUnion")
     .set_body_typed(SpaceGenerator::SpaceGeneratorUnion);
 
 }  // namespace meta_schedule

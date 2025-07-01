@@ -32,6 +32,8 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({ QuantizeAttrs::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(QuantizeAttrs);
 
 /* relax.quantize */
@@ -44,14 +46,13 @@ Expr quantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_dty
   return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
 }
 
-TVM_REGISTER_GLOBAL("relax.op.quantize").set_body_typed(quantize);
+TVM_FFI_REGISTER_GLOBAL("relax.op.quantize").set_body_typed(quantize);
 
 StructInfo InferStructInfoQuantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();
   if (attrs->out_dtype != DataType::Int(8) && attrs->out_dtype != DataType::UInt(8) &&
       attrs->out_dtype != DataType::Int(16) && attrs->out_dtype != DataType::UInt(16) &&
-      attrs->out_dtype != DataType::NVFloat8E4M3() &&
-      attrs->out_dtype != DataType::NVFloat8E5M2()) {
+      attrs->out_dtype != DataType::Float8E4M3FN() && attrs->out_dtype != DataType::Float8E5M2()) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Unsupported output datatype attribute for operation: '"
                      << attrs->out_dtype);
@@ -128,7 +129,7 @@ Expr dequantize(Expr data, Expr scale, Expr zero_point, int axis, DataType out_d
   return Call(op, {std::move(data), std::move(scale), std::move(zero_point)}, Attrs(attrs));
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dequantize").set_body_typed(dequantize);
+TVM_FFI_REGISTER_GLOBAL("relax.op.dequantize").set_body_typed(dequantize);
 
 StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) {
   const auto* attrs = call->attrs.as<QuantizeAttrs>();
@@ -145,8 +146,8 @@ StructInfo InferStructInfoDequantize(const Call& call, const BlockBuilder& ctx) 
   // Check input datatype:
   if (input_sinfo->dtype != DataType::Int(8) && input_sinfo->dtype != DataType::UInt(8) &&
       input_sinfo->dtype != DataType::Int(16) && input_sinfo->dtype != DataType::UInt(16) &&
-      input_sinfo->dtype != DataType::Int(32) && input_sinfo->dtype != DataType::NVFloat8E4M3() &&
-      input_sinfo->dtype != DataType::NVFloat8E5M2() && input_sinfo->dtype != DataType::Float(16) &&
+      input_sinfo->dtype != DataType::Int(32) && input_sinfo->dtype != DataType::Float8E4M3FN() &&
+      input_sinfo->dtype != DataType::Float8E5M2() && input_sinfo->dtype != DataType::Float(16) &&
       input_sinfo->dtype != DataType::Float(32)) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Unsupported input datatype for operation: " << attrs->out_dtype);

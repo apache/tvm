@@ -30,7 +30,7 @@
 #include <llvm/IR/IntrinsicsX86.h>
 #endif
 #include <llvm/Support/Casting.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <string>
 #include <vector>
@@ -132,7 +132,7 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
   return CreateVecSlice(CreateVecConcat(split_results), 0, num_elems);
 }
 
-TVM_REGISTER_GLOBAL("tvm.codegen.llvm.target_x86-64")
+TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.target_x86-64")
     .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
       *rv = static_cast<void*>(new CodeGenX86_64());
     });

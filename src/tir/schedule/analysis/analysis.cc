@@ -16,11 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../ir_comparator.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace tir {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  TensorizeInfoNode::RegisterReflection();
+  AutoTensorizeMappingInfoNode::RegisterReflection();
+});
 
 /******** IR Module ********/
 
@@ -328,7 +335,7 @@ bool IsReductionBlock(const ScheduleState& self, const StmtSRef& block_sref,
   return CheckReductionBlockErrorCode(self, block_sref, scope_root_sref) == 0;
 }
 
-TVM_REGISTER_GLOBAL("tir.schedule.IsReductionBlock")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.IsReductionBlock")
     .set_body_typed([](Schedule sch, BlockRV block_rv, BlockRV scope_block_rv) {
       return IsReductionBlock(sch->state(), sch->GetSRef(block_rv), sch->GetSRef(scope_block_rv));
     });
@@ -864,7 +871,7 @@ BlockRealize GetBlockRealize(const ScheduleState& self, const StmtSRef& block_sr
   }
 }
 
-TVM_REGISTER_GLOBAL("tir.schedule.GetBlockRealize")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.GetBlockRealize")
     .set_body_typed([](Schedule sch, BlockRV block_rv) {
       return GetBlockRealize(sch->state(), sch->GetSRef(block_rv));
     });
@@ -1483,7 +1490,7 @@ bool IsTrivialBinding(const ScheduleState& self, const StmtSRef& block_sref) {
   return true;
 }
 
-TVM_REGISTER_GLOBAL("tir.schedule.IsTrivialBinding")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.IsTrivialBinding")
     .set_body_typed([](Schedule sch, BlockRV block_rv) {
       return IsTrivialBinding(sch->state(), sch->GetSRef(block_rv));
     });
@@ -1891,8 +1898,8 @@ Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
   return TensorizeInfo(ret);
 }
 
-TVM_REGISTER_GLOBAL("tir.schedule.IsSpatialPrimFunc").set_body_typed(IsSpatialPrimFunc);
-TVM_REGISTER_GLOBAL("tir.schedule.GetTensorizeLoopMapping")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.IsSpatialPrimFunc").set_body_typed(IsSpatialPrimFunc);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.GetTensorizeLoopMapping")
     .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func, bool allow_padding) {
       return GetTensorizeLoopMapping(sch->state(), sch->GetSRef(block), desc_func, allow_padding);
     });
@@ -2121,19 +2128,20 @@ Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const tir::Schedu
 
 TVM_REGISTER_NODE_TYPE(AutoTensorizeMappingInfoNode);
 
-TVM_REGISTER_GLOBAL("tir.schedule.GetAutoTensorizeMappingInfo")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.GetAutoTensorizeMappingInfo")
     .set_body_typed([](Schedule sch, BlockRV block, PrimFunc desc_func) {
       return GetAutoTensorizeMappingInfo(sch->state(), sch->GetSRef(block), desc_func);
     });
 
-TVM_REGISTER_GLOBAL("tir.schedule.HasBlock").set_body_typed(HasBlock);
-TVM_REGISTER_GLOBAL("tir.schedule.IsOutputBlock").set_body_typed([](Schedule sch, BlockRV block) {
-  auto state = sch->state();
-  auto block_sref = sch->GetSRef(block);
-  return IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false));
-});
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.HasBlock").set_body_typed(HasBlock);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.IsOutputBlock")
+    .set_body_typed([](Schedule sch, BlockRV block) {
+      auto state = sch->state();
+      auto block_sref = sch->GetSRef(block);
+      return IsOutputBlock(state, block_sref, GetScopeRoot(state, block_sref, false));
+    });
 
-TVM_REGISTER_GLOBAL("tir.schedule.GetLoopIterType")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.GetLoopIterType")
     .set_body_typed([](Schedule sch, LoopRV loop) -> String {
       IterVarType kind = GetLoopIterType(sch->GetSRef(loop));
       if (kind == kDataPar) {

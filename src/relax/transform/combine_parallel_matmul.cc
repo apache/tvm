@@ -387,7 +387,8 @@ Pass CombineParallelMatmul(FCheck check) {
                             /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.CombineParallelMatmul").set_body_typed(CombineParallelMatmul);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.CombineParallelMatmul")
+    .set_body_typed(CombineParallelMatmul);
 
 }  // namespace transform
 

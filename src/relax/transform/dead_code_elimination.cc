@@ -140,7 +140,7 @@ Pass DeadCodeElimination(Array<String> entry_functions) {
   return CreateModulePass(pass_func, 1, "DeadCodeElimination", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.DeadCodeElimination").set_body_typed(DeadCodeElimination);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.DeadCodeElimination").set_body_typed(DeadCodeElimination);
 
 }  // namespace transform
 }  // namespace relax

@@ -56,6 +56,11 @@ class MapObj : public Object {
   using mapped_type = Any;
   /*! \brief Type of value stored in the hash map */
   using KVType = std::pair<Any, Any>;
+  /*! \brief Type of raw storage of the key-value pair in the hash map */
+  struct KVRawStorageType {
+    TVMFFIAny first;
+    TVMFFIAny second;
+  };
   /*! \brief Iterator class */
   class iterator;
 
@@ -63,7 +68,7 @@ class MapObj : public Object {
   static_assert(sizeof(KVType) == 32, "sizeof(KVType) incorrect");
 
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIMap;
-  static constexpr const char* _type_key = "object.Map";
+  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIMap;
   static const constexpr bool _type_final = true;
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(MapObj, Object);
 
@@ -206,17 +211,29 @@ class MapObj : public Object {
    * \return The object created
    */
   static inline ObjectPtr<MapObj> CopyFrom(MapObj* from);
-  /*! \brief number of slots minus 1 */
-  uint64_t slots_;
+  /*!
+   * \brief data pointer to the data region of the map.
+   * \note For immutable inplace small map we do not need data_,
+   *       but we keep it here for future compact with mutable container.
+   */
+  void* data_;
   /*! \brief number of entries in the container */
   uint64_t size_;
+  /*! \brief number of slots  */
+  uint64_t slots_;
+  /*!
+   * \brief Optional data deleter when data is allocated separately
+   *        and its deletion is not managed by MapObj::deleter_.
+   */
+  void (*data_deleter_)(void*) = nullptr;
   // Reference class
   template <typename, typename, typename>
   friend class Map;
 };
 
 /*! \brief A specialization of small-sized hash map */
-class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj, MapObj::KVType> {
+class SmallMapObj : public MapObj,
+                    public details::InplaceArrayBase<SmallMapObj, MapObj::KVRawStorageType> {
  private:
   static constexpr uint64_t kInitSize = 2;
   static constexpr uint64_t kMaxSize = 4;
@@ -225,8 +242,19 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
   using MapObj::iterator;
   using MapObj::KVType;
 
-  /*! \brief Defaults to the destructor of InplaceArrayBase */
-  ~SmallMapObj() = default;
+  ~SmallMapObj() {
+    KVType* begin = static_cast<KVType*>(data_);
+    for (uint64_t index = 0; index < size_; ++index) {
+      // call destructor to destroy the item in `begin + index`
+      // Explicit call Any::~Any() to destroy the Any object
+      // Favor this over ~KVType as MSVC may not support ~KVType (need the original name)
+      (begin + index)->first.Any::~Any();
+      (begin + index)->second.Any::~Any();
+    }
+    if (data_deleter_ != nullptr) {
+      data_deleter_(data_);
+    }
+  }
   /*!
    * \brief Count the number of times a key exists in the SmallMapObj
    * \param key The indexing key
@@ -267,7 +295,7 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
    * \return The iterator of the entry associated with the key, end iterator if not exists
    */
   iterator find(const key_type& key) const {
-    KVType* ptr = static_cast<KVType*>(AddressOf(0));
+    KVType* ptr = static_cast<KVType*>(data_);
     for (uint64_t i = 0; i < size_; ++i, ++ptr) {
       if (AnyEqual()(ptr->first, key)) {
         return iterator(i, this);
@@ -290,7 +318,7 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
     if (index >= size_) {
       return;
     }
-    KVType* begin = static_cast<KVType*>(AddressOf(0));
+    KVType* begin = static_cast<KVType*>(data_);
     // call destructor to destroy the item in `begin + index`
     // Explicit call Any::~Any() to destroy the Any object
     // Favor this over ~KVType as MSVC may not support ~KVType (need the original name)
@@ -314,6 +342,7 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
   static ObjectPtr<SmallMapObj> Empty(uint64_t n = kInitSize) {
     using ::tvm::ffi::make_inplace_array_object;
     ObjectPtr<SmallMapObj> p = make_inplace_array_object<SmallMapObj, KVType>(n);
+    p->data_ = p->AddressOf(0);
     p->size_ = 0;
     p->slots_ = n;
     return p;
@@ -329,7 +358,7 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
   template <typename IterType>
   static ObjectPtr<SmallMapObj> CreateFromRange(uint64_t n, IterType first, IterType last) {
     ObjectPtr<SmallMapObj> p = Empty(n);
-    KVType* ptr = static_cast<KVType*>(p->AddressOf(0));
+    KVType* ptr = static_cast<KVType*>(p->data_);
     for (; first != last; ++first, ++p->size_) {
       new (ptr++) KVType(*first);
     }
@@ -341,7 +370,7 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
    * \return The object created
    */
   static ObjectPtr<SmallMapObj> CopyFrom(SmallMapObj* from) {
-    KVType* first = static_cast<KVType*>(from->AddressOf(0));
+    KVType* first = static_cast<KVType*>(from->data_);
     KVType* last = first + from->size_;
     return CreateFromRange(from->size_, first, last);
   }
@@ -358,7 +387,7 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
       return;
     }
     if (map_node->size_ < map_node->slots_) {
-      KVType* ptr = static_cast<KVType*>(map_node->AddressOf(map_node->size_));
+      KVType* ptr = static_cast<KVType*>(map_node->data_) + map_node->size_;
       new (ptr) KVType(std::move(kv));
       ++map_node->size_;
       return;
@@ -387,7 +416,7 @@ class SmallMapObj : public MapObj, public details::InplaceArrayBase<SmallMapObj,
    * \param index The pointer to be dereferenced
    * \return The result
    */
-  KVType* DeRefItr(uint64_t index) const { return static_cast<KVType*>(AddressOf(index)); }
+  KVType* DeRefItr(uint64_t index) const { return static_cast<KVType*>(data_) + index; }
   /*! \brief A size function used by InplaceArrayBase */
   uint64_t GetSize() const { return size_; }
 
@@ -487,6 +516,12 @@ class DenseMapObj : public MapObj {
   static_assert(sizeof(Block) == kBlockCap * (sizeof(ItemType) + 1), "sizeof(Block) incorrect");
   static_assert(std::is_standard_layout<Block>::value, "Block is not standard layout");
 
+  /*!
+   * \brief Deleter for the Block
+   * \param data The pointer to the Block
+   */
+  static void BlockDeleter(void* data) { delete[] static_cast<Block*>(data); }
+
  public:
   using MapObj::iterator;
 
@@ -533,6 +568,7 @@ class DenseMapObj : public MapObj {
   iterator end() const { return iterator(kInvalidIndex, this); }
 
  private:
+  Block* GetBlock(size_t index) const { return static_cast<Block*>(data_) + index; }
   /*!
    * \brief Unlink the entry from iterator list
    * \param node The node to be unlinked
@@ -783,8 +819,8 @@ class DenseMapObj : public MapObj {
   void Reset() {
     uint64_t n_blocks = CalcNumBlocks(this->slots_);
     for (uint64_t bi = 0; bi < n_blocks; ++bi) {
-      uint8_t* meta_ptr = data_[bi].bytes;
-      ItemType* data_ptr = reinterpret_cast<ItemType*>(data_[bi].bytes + kBlockCap);
+      uint8_t* meta_ptr = GetBlock(bi)->bytes;
+      ItemType* data_ptr = reinterpret_cast<ItemType*>(GetBlock(bi)->bytes + kBlockCap);
       for (int j = 0; j < kBlockCap; ++j, ++meta_ptr, ++data_ptr) {
         uint8_t& meta = *meta_ptr;
         if (meta != uint8_t(kProtectedSlot) && meta != uint8_t(kEmptySlot)) {
@@ -798,8 +834,12 @@ class DenseMapObj : public MapObj {
   /*! \brief Release the memory acquired by the container without deleting its entries stored inside
    */
   void ReleaseMemory() {
-    delete[] data_;
+    if (data_ != nullptr) {
+      TVM_FFI_ICHECK(data_deleter_ != nullptr);
+      data_deleter_(data_);
+    }
     data_ = nullptr;
+    data_deleter_ = nullptr;
     slots_ = 0;
     size_ = 0;
     fib_shift_ = 63;
@@ -813,9 +853,14 @@ class DenseMapObj : public MapObj {
   static ObjectPtr<DenseMapObj> Empty(uint32_t fib_shift, uint64_t n_slots) {
     TVM_FFI_ICHECK_GT(n_slots, uint64_t(SmallMapObj::kMaxSize));
     ObjectPtr<DenseMapObj> p = make_object<DenseMapObj>();
-    uint64_t n_blocks = CalcNumBlocks(n_slots - 1);
-    Block* block = p->data_ = new Block[n_blocks];
-    p->slots_ = n_slots - 1;
+    uint64_t n_blocks = CalcNumBlocks(n_slots);
+    Block* block = new Block[n_blocks];
+    p->data_ = block;
+    // assign block deleter so even if we take re-alloc data
+    // in another shared-lib that may have different malloc/free behavior
+    // it will still be safe.
+    p->data_deleter_ = BlockDeleter;
+    p->slots_ = n_slots;
     p->size_ = 0;
     p->fib_shift_ = fib_shift;
     p->iter_list_head_ = kInvalidIndex;
@@ -834,16 +879,20 @@ class DenseMapObj : public MapObj {
     ObjectPtr<DenseMapObj> p = make_object<DenseMapObj>();
     uint64_t n_blocks = CalcNumBlocks(from->slots_);
     p->data_ = new Block[n_blocks];
+    // assign block deleter so even if we take re-alloc data
+    // in another shared-lib that may have different malloc/free behavior
+    // it will still be safe.
+    p->data_deleter_ = BlockDeleter;
     p->slots_ = from->slots_;
     p->size_ = from->size_;
     p->fib_shift_ = from->fib_shift_;
     p->iter_list_head_ = from->iter_list_head_;
     p->iter_list_tail_ = from->iter_list_tail_;
     for (uint64_t bi = 0; bi < n_blocks; ++bi) {
-      uint8_t* meta_ptr_from = from->data_[bi].bytes;
-      ItemType* data_ptr_from = reinterpret_cast<ItemType*>(from->data_[bi].bytes + kBlockCap);
-      uint8_t* meta_ptr_to = p->data_[bi].bytes;
-      ItemType* data_ptr_to = reinterpret_cast<ItemType*>(p->data_[bi].bytes + kBlockCap);
+      uint8_t* meta_ptr_from = from->GetBlock(bi)->bytes;
+      ItemType* data_ptr_from = reinterpret_cast<ItemType*>(from->GetBlock(bi)->bytes + kBlockCap);
+      uint8_t* meta_ptr_to = p->GetBlock(bi)->bytes;
+      ItemType* data_ptr_to = reinterpret_cast<ItemType*>(p->GetBlock(bi)->bytes + kBlockCap);
       for (int j = 0; j < kBlockCap;
            ++j, ++meta_ptr_from, ++data_ptr_from, ++meta_ptr_to, ++data_ptr_to) {
         uint8_t& meta = *meta_ptr_to = *meta_ptr_from;
@@ -872,7 +921,7 @@ class DenseMapObj : public MapObj {
     }
     TVM_FFI_ICHECK_GT(map_node->slots_, uint64_t(SmallMapObj::kMaxSize));
     // Otherwise, start rehash
-    ObjectPtr<Object> p = Empty(map_node->fib_shift_ - 1, map_node->slots_ * 2 + 2);
+    ObjectPtr<Object> p = Empty(map_node->fib_shift_ - 1, map_node->slots_ * 2);
 
     // need to insert in the same order as the original map
     for (uint64_t index = map_node->iter_list_head_; index != kInvalidIndex;) {
@@ -898,7 +947,7 @@ class DenseMapObj : public MapObj {
    * \brief Check whether the hash table is full
    * \return A boolean indicating whether hash table is full
    */
-  bool IsFull() const { return size_ + 1 > (slots_ + 1) * kMaxLoadFactor; }
+  bool IsFull() const { return size_ + 1 > slots_ * kMaxLoadFactor; }
   /*!
    * \brief Increment the pointer
    * \param index The pointer to be incremented
@@ -942,10 +991,7 @@ class DenseMapObj : public MapObj {
     return node.IsHead() ? node : ListNode();
   }
   /*! \brief Construct the number of blocks in the hash table */
-  static uint64_t CalcNumBlocks(uint64_t n_slots_m1) {
-    uint64_t n_slots = n_slots_m1 > 0 ? n_slots_m1 + 1 : 0;
-    return (n_slots + kBlockCap - 1) / kBlockCap;
-  }
+  static uint64_t CalcNumBlocks(uint64_t n_slots) { return (n_slots + kBlockCap - 1) / kBlockCap; }
   /*!
    * \brief Calculate the power-of-2 table size given the lower-bound of required capacity.
    * \param cap The lower-bound of the required capacity
@@ -985,7 +1031,7 @@ class DenseMapObj : public MapObj {
     ListNode() : index(0), block(nullptr) {}
     /*! \brief Construct from position */
     ListNode(uint64_t index, const DenseMapObj* self)
-        : index(index), block(self->data_ + (index / kBlockCap)) {}
+        : index(index), block(self->GetBlock(index / kBlockCap)) {}
     /*! \brief Metadata on the entry */
     uint8_t& Meta() const { return *(block->bytes + index % kBlockCap); }
     /*! \brief Data on the entry */
@@ -1030,6 +1076,7 @@ class DenseMapObj : public MapObj {
       Meta() = 0b10000000;
       new (&Item()) ItemType(std::move(v));
     }
+
     /*! \brief If the entry has next entry on the linked list */
     bool HasNext() const { return NextProbeLocation(Meta() & 0b01111111) != 0; }
     /*! \brief Move the entry to the next entry on the linked list */
@@ -1037,12 +1084,13 @@ class DenseMapObj : public MapObj {
       uint64_t offset = NextProbeLocation(meta & 0b01111111);
       if (offset == 0) {
         index = 0;
-
         block = nullptr;
         return false;
       }
-      index = (index + offset) & (self->slots_);
-      block = self->data_ + (index / kBlockCap);
+      // the probing will go to next position and round back to stay within the
+      // correct range of the slots
+      index = (index + offset) % self->slots_;
+      block = self->GetBlock(index / kBlockCap);
       return true;
     }
     /*! \brief Move the entry to the next entry on the linked list */
@@ -1060,7 +1108,9 @@ class DenseMapObj : public MapObj {
     /*! \brief Get the next empty jump */
     bool GetNextEmpty(const DenseMapObj* self, uint8_t* jump, ListNode* result) const {
       for (uint8_t idx = 1; idx < kNumJumpDists; ++idx) {
-        ListNode candidate((index + NextProbeLocation(idx)) & (self->slots_), self);
+        // the probing will go to next position and round back to stay within the
+        // correct range of the slots
+        ListNode candidate((index + NextProbeLocation(idx)) % self->slots_, self);
         if (candidate.IsEmpty()) {
           *jump = idx;
           *result = candidate;
@@ -1078,8 +1128,6 @@ class DenseMapObj : public MapObj {
  protected:
   /*! \brief fib shift in Fibonacci Hashing */
   uint32_t fib_shift_;
-  /*! \brief array of data blocks */
-  Block* data_;
   /*! \brief the head of iterator list */
   uint64_t iter_list_head_ = kInvalidIndex;
   /*! \brief the tail of iterator list */
@@ -1118,7 +1166,7 @@ class DenseMapObj : public MapObj {
   friend class MapObj;
 };
 
-#define TVM_DISPATCH_MAP(base, var, body)     \
+#define TVM_FFI_DISPATCH_MAP(base, var, body) \
   {                                           \
     using TSmall = SmallMapObj*;              \
     using TDense = DenseMapObj*;              \
@@ -1132,28 +1180,28 @@ class DenseMapObj : public MapObj {
     }                                         \
   }
 
-#define TVM_DISPATCH_MAP_CONST(base, var, body) \
-  {                                             \
-    using TSmall = const SmallMapObj*;          \
-    using TDense = const DenseMapObj*;          \
-    uint64_t slots = base->slots_;              \
-    if (slots <= SmallMapObj::kMaxSize) {       \
-      TSmall var = static_cast<TSmall>(base);   \
-      body;                                     \
-    } else {                                    \
-      TDense var = static_cast<TDense>(base);   \
-      body;                                     \
-    }                                           \
+#define TVM_FFI_DISPATCH_MAP_CONST(base, var, body) \
+  {                                                 \
+    using TSmall = const SmallMapObj*;              \
+    using TDense = const DenseMapObj*;              \
+    uint64_t slots = base->slots_;                  \
+    if (slots <= SmallMapObj::kMaxSize) {           \
+      TSmall var = static_cast<TSmall>(base);       \
+      body;                                         \
+    } else {                                        \
+      TDense var = static_cast<TDense>(base);       \
+      body;                                         \
+    }                                               \
   }
 
 inline MapObj::iterator::pointer MapObj::iterator::operator->() const {
   TVM_FFI_MAP_FAIL_IF_CHANGED()
-  TVM_DISPATCH_MAP_CONST(self, p, { return p->DeRefItr(index); });
+  TVM_FFI_DISPATCH_MAP_CONST(self, p, { return p->DeRefItr(index); });
 }
 
 inline MapObj::iterator& MapObj::iterator::operator++() {
   TVM_FFI_MAP_FAIL_IF_CHANGED()
-  TVM_DISPATCH_MAP_CONST(self, p, {
+  TVM_FFI_DISPATCH_MAP_CONST(self, p, {
     index = p->IncItr(index);
     return *this;
   });
@@ -1161,42 +1209,42 @@ inline MapObj::iterator& MapObj::iterator::operator++() {
 
 inline MapObj::iterator& MapObj::iterator::operator--() {
   TVM_FFI_MAP_FAIL_IF_CHANGED()
-  TVM_DISPATCH_MAP_CONST(self, p, {
+  TVM_FFI_DISPATCH_MAP_CONST(self, p, {
     index = p->DecItr(index);
     return *this;
   });
 }
 
 inline size_t MapObj::count(const key_type& key) const {
-  TVM_DISPATCH_MAP_CONST(this, p, { return p->count(key); });
+  TVM_FFI_DISPATCH_MAP_CONST(this, p, { return p->count(key); });
 }
 
 inline const MapObj::mapped_type& MapObj::at(const MapObj::key_type& key) const {
-  TVM_DISPATCH_MAP_CONST(this, p, { return p->at(key); });
+  TVM_FFI_DISPATCH_MAP_CONST(this, p, { return p->at(key); });
 }
 
 inline MapObj::mapped_type& MapObj::at(const MapObj::key_type& key) {
-  TVM_DISPATCH_MAP(this, p, { return p->at(key); });
+  TVM_FFI_DISPATCH_MAP(this, p, { return p->at(key); });
 }
 
 inline MapObj::iterator MapObj::begin() const {
-  TVM_DISPATCH_MAP_CONST(this, p, { return p->begin(); });
+  TVM_FFI_DISPATCH_MAP_CONST(this, p, { return p->begin(); });
 }
 
 inline MapObj::iterator MapObj::end() const {
-  TVM_DISPATCH_MAP_CONST(this, p, { return p->end(); });
+  TVM_FFI_DISPATCH_MAP_CONST(this, p, { return p->end(); });
 }
 
 inline MapObj::iterator MapObj::find(const MapObj::key_type& key) const {
-  TVM_DISPATCH_MAP_CONST(this, p, { return p->find(key); });
+  TVM_FFI_DISPATCH_MAP_CONST(this, p, { return p->find(key); });
 }
 
 inline void MapObj::erase(const MapObj::iterator& position) {
-  TVM_DISPATCH_MAP(this, p, { return p->erase(position); });
+  TVM_FFI_DISPATCH_MAP(this, p, { return p->erase(position); });
 }
 
-#undef TVM_DISPATCH_MAP
-#undef TVM_DISPATCH_MAP_CONST
+#undef TVM_FFI_DISPATCH_MAP
+#undef TVM_FFI_DISPATCH_MAP_CONST
 
 inline ObjectPtr<MapObj> MapObj::Empty() { return SmallMapObj::Empty(); }
 

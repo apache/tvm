@@ -867,7 +867,7 @@ Pass LiftTransformParams(Variant<Bool, Array<String>> shared_transform) {
       "LiftTransformParams");
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.LiftTransformParams").set_body_typed(LiftTransformParams);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.LiftTransformParams").set_body_typed(LiftTransformParams);
 
 }  // namespace transform
 }  // namespace relax

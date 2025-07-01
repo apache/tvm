@@ -23,6 +23,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
+#include <tvm/runtime/module.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
@@ -184,9 +185,9 @@ class ConstantFolder : public ExprMutator {
     bool output_not_tuple = call->sinfo_args.size() == 1;
     // Pattern 0: call constant function, const argument with const shape.
     if (func && arr_args && shape && output_not_tuple) {
-      TensorType ret_type = Downcast<TensorType>(call->checked_type());
+      TensorStructInfo ret_sinfo = Downcast<TensorStructInfo>(call->struct_info_);
       // value_or will return value if it is not null, otherwise return or
-      return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(), ret_type->dtype)
+      return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(), ret_sinfo->dtype)
           .value_or({});
     }
     // TODO(hongyi): support const-fold tuple outputs
@@ -326,7 +327,7 @@ Pass FoldConstant() {
   return CreateFunctionPass(pass_func, 0, "FoldConstant", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.FoldConstant").set_body_typed(FoldConstant);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.FoldConstant").set_body_typed(FoldConstant);
 
 }  // namespace transform
 

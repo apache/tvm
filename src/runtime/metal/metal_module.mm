@@ -22,8 +22,8 @@
  */
 #include "metal_module.h"
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/registry.h>
 #include <array>
 #include <mutex>
 #include <string>
@@ -267,7 +267,7 @@ ffi::Function MetalModuleNode::GetFunction(const String& name,
     auto it = fmap_.find(name);
     if (it == fmap_.end()) {
       ret = ffi::Function();
-      return ret;
+      return;
     }
     const FunctionInfo& info = it->second;
     MetalWrappedFunc f;
@@ -287,7 +287,7 @@ Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
   return Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.create_metal_module")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.create_metal_module")
     .set_body_typed([](Map<String, String> smap, std::string fmap_json, std::string fmt,
                        std::string source) {
       std::istringstream stream(fmap_json);
@@ -317,6 +317,6 @@ Module MetalModuleLoadBinary(void* strm) {
   return MetalModuleCreate(smap, fmap, fmt, "");
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_metal").set_body_typed(MetalModuleLoadBinary);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_metal").set_body_typed(MetalModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

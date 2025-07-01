@@ -143,7 +143,7 @@ def layout_transform(
 
     if callable(index_map):
         index_map = IndexMap.from_func(index_map, index_dtype=default_index_dtype)
-    x_dtype = x.checked_type.dtype
+    x_dtype = x.struct_info.dtype
 
     # Explicitly convert python int/float pad_value to the x's type.  If the default behavior
     # is applied, it would be converted to int32/float32, which may not match the x's type.
@@ -784,6 +784,44 @@ def scatter_nd(data: Expr, indices: Expr, updates: Expr, reduction: str = "updat
 
     """
     return _ffi_api.scatter_nd(data, indices, updates, reduction)  # type: ignore
+
+
+def slice_scatter(input_tensor: Expr, src: Expr, start, end, step, axis=0):
+    """Embeds the values of the src tensor into input at the given dimension.
+
+    Parameters
+    ----------
+    input_tensor: relax.Expr
+        The input tensor to be updated.
+
+    src: relax.Expr
+        The tensor to embed into input.
+
+    axis: int
+        The dimension to insert the slice into.
+
+    start:
+        The start index of where to insert the slice.
+
+    end:
+        The end index of where to insert the slice.
+
+    step:
+        The how many elements to skip in.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result tensor with the same shape as `data`.
+
+    """
+    if not isinstance(start, PrimValue):
+        start = PrimValue(start)
+    if not isinstance(end, PrimValue):
+        end = PrimValue(end)
+    if not isinstance(step, PrimValue):
+        step = PrimValue(step)
+    return _ffi_api.slice_scatter(input_tensor, src, axis, start, end, step)
 
 
 def one_hot(

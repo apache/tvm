@@ -71,10 +71,10 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_OBJECT_TYPE(CostModelNode);
 TVM_REGISTER_NODE_TYPE(PyCostModelNode);
 
-TVM_REGISTER_GLOBAL("meta_schedule.CostModelLoad").set_body_method(&CostModelNode::Load);
-TVM_REGISTER_GLOBAL("meta_schedule.CostModelSave").set_body_method(&CostModelNode::Save);
-TVM_REGISTER_GLOBAL("meta_schedule.CostModelUpdate").set_body_method(&CostModelNode::Update);
-TVM_REGISTER_GLOBAL("meta_schedule.CostModelPredict")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.CostModelLoad").set_body_method(&CostModelNode::Load);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.CostModelSave").set_body_method(&CostModelNode::Save);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.CostModelUpdate").set_body_method(&CostModelNode::Update);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.CostModelPredict")
     .set_body_typed([](CostModel model,                     //
                        const TuneContext& context,          //
                        Array<MeasureCandidate> candidates,  //
@@ -82,7 +82,8 @@ TVM_REGISTER_GLOBAL("meta_schedule.CostModelPredict")
       std::vector<double> result = model->Predict(context, candidates);
       std::copy(result.begin(), result.end(), static_cast<double*>(p_addr));
     });
-TVM_REGISTER_GLOBAL("meta_schedule.CostModelPyCostModel").set_body_typed(CostModel::PyCostModel);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.CostModelPyCostModel")
+    .set_body_typed(CostModel::PyCostModel);
 
 }  // namespace meta_schedule
 }  // namespace tvm

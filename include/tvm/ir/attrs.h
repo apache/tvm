@@ -23,22 +23,6 @@
  *  This module enables declaration of named attributes
  *  which support default value setup and bound checking.
  *
- * \code
- *   struct MyAttrs : public tvm::AttrsNode<MyAttrs> {
- *     float learning_rate;
- *     int num_hidden;
- *     String name;
- *     // declare attribute fields in header file
- *     TVM_DECLARE_ATTRS(MyAttrs, "attrs.MyAttrs") {
- *       TVM_ATTR_FIELD(num_hidden).set_lower_bound(1);
- *       TVM_ATTR_FIELD(learning_rate).set_default(0.01f);
- *       TVM_ATTR_FIELD(name).set_default("hello");
- *     }
- *   };
- *   // register it in cc file
- *   TVM_REGISTER_NODE_TYPE(MyAttrs);
- * \endcode
- *
  * \sa AttrsNode, TVM_DECLARE_ATTRS, TVM_ATTR_FIELD
  */
 #ifndef TVM_IR_ATTRS_H_
@@ -46,10 +30,11 @@
 
 #include <dmlc/common.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <functional>
 #include <string>
@@ -119,7 +104,7 @@ class AttrFieldInfoNode : public Object {
     v->Visit("description", &description);
   }
 
-  static constexpr const char* _type_key = "AttrFieldInfo";
+  static constexpr const char* _type_key = "ir.AttrFieldInfo";
   static constexpr bool _type_has_method_sequal_reduce = false;
   static constexpr bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrFieldInfoNode, Object);
@@ -179,7 +164,7 @@ class BaseAttrsNode : public Object {
 
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  static constexpr const char* _type_key = "Attrs";
+  static constexpr const char* _type_key = "ir.Attrs";
   TVM_DECLARE_BASE_OBJECT_INFO(BaseAttrsNode, Object);
 };
 
@@ -216,7 +201,7 @@ class DictAttrsNode : public BaseAttrsNode {
   Array<AttrFieldInfo> ListFieldInfo() const final;
 
   // type info
-  static constexpr const char* _type_key = "DictAttrs";
+  static constexpr const char* _type_key = "ir.DictAttrs";
   TVM_DECLARE_FINAL_OBJECT_INFO(DictAttrsNode, BaseAttrsNode);
 };
 
@@ -298,19 +283,6 @@ class DictAttrs : public Attrs {
   TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(DictAttrs, Attrs, DictAttrsNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(DictAttrsNode);
 };
-
-/*!
- * \brief Create an Attr object with all default values.
- * \tparam TAttrNode the type to be created.
- * \return A instance that will represent None.
- */
-template <typename TAttrs>
-inline TAttrs AttrsWithDefaultValues() {
-  static_assert(std::is_base_of<Attrs, TAttrs>::value, "Can only take attr nodes");
-  auto n = make_object<typename TAttrs::ContainerType>();
-  n->InitByPackedArgs(ffi::PackedArgs(nullptr, 0), false);
-  return TAttrs(n);
-}
 
 /*!
  * \brief Copy the DictAttrs, but overrides attributes with the
@@ -967,6 +939,89 @@ inline void BaseAttrsNode::PrintDocString(std::ostream& os) const {  // NOLINT(*
     if (info->description.length() != 0) {
       os << "    " << info->description << '\n';
     }
+  }
+}
+
+/*!
+ * \brief Adapter for AttrsNode with the new reflection API.
+ *
+ * We will phaseout the old AttrsNode in future in favor of the new reflection API.
+ * This adapter allows us to gradually migrate to the new reflection API.
+ *
+ * \tparam DerivedType The final attribute type.
+ */
+template <typename DerivedType>
+class AttrsNodeReflAdapter : public BaseAttrsNode {
+ public:
+  void InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) final {
+    LOG(FATAL) << "`" << DerivedType::_type_key << "` uses new reflection mechanism for init";
+  }
+  void VisitNonDefaultAttrs(AttrVisitor* v) final {
+    LOG(FATAL) << "`" << DerivedType::_type_key
+               << "` uses new reflection mechanism for visit non default attrs";
+  }
+  void VisitAttrs(AttrVisitor* v) final {
+    LOG(FATAL) << "`" << DerivedType::_type_key
+               << "` uses new reflection mechanism for visit attrs";
+  }
+
+  bool SEqualReduce(const DerivedType* other, SEqualReducer equal) const {
+    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(DerivedType::RuntimeTypeIndex());
+    bool success = true;
+    ffi::reflection::ForEachFieldInfoWithEarlyStop(
+        type_info, [&](const TVMFFIFieldInfo* field_info) {
+          ffi::reflection::FieldGetter field_getter(field_info);
+          ffi::Any field_value = field_getter(self());
+          ffi::Any other_field_value = field_getter(other);
+          if (!equal.AnyEqual(field_value, other_field_value)) {
+            success = false;
+            return true;
+          }
+          return false;
+        });
+    return success;
+  }
+
+  void SHashReduce(SHashReducer hash_reducer) const {
+    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(DerivedType::RuntimeTypeIndex());
+    ffi::reflection::ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
+      ffi::reflection::FieldGetter field_getter(field_info);
+      ffi::Any field_value = field_getter(self());
+      hash_reducer(field_value);
+    });
+  }
+
+  Array<AttrFieldInfo> ListFieldInfo() const final {
+    // use the new reflection to list field info
+    return Array<AttrFieldInfo>();
+  }
+
+ private:
+  DerivedType* self() const {
+    return const_cast<DerivedType*>(static_cast<const DerivedType*>(this));
+  }
+};
+
+/*!
+ * \brief Create an Attr object with all default values.
+ * \tparam TAttrNode the type to be created.
+ * \return A instance that will represent None.
+ */
+template <typename TAttrs>
+inline TAttrs AttrsWithDefaultValues() {
+  static_assert(std::is_base_of_v<Attrs, TAttrs>, "Can only take attr nodes");
+  using ContainerType = typename TAttrs::ContainerType;
+  if constexpr (std::is_base_of_v<AttrsNodeReflAdapter<ContainerType>, ContainerType>) {
+    static auto finit_object = ffi::Function::GetGlobalRequired("ffi.MakeObjectFromPackedArgs");
+    AnyView packed_args[1];
+    packed_args[0] = ContainerType::RuntimeTypeIndex();
+    ffi::Any rv;
+    finit_object.CallPacked(ffi::PackedArgs(packed_args, 1), &rv);
+    return rv.cast<TAttrs>();
+  } else {
+    auto n = make_object<ContainerType>();
+    n->InitByPackedArgs(ffi::PackedArgs(nullptr, 0), false);
+    return TAttrs(n);
   }
 }
 

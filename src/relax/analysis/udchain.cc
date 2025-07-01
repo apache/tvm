@@ -56,8 +56,8 @@ class UDChain : relax::ExprVisitor {
  private:
   Map<Var, Expr> bound_values;
   std::unordered_set<Var> forward_declarations;
-  std::unordered_map<Var, support::OrderedSet<Var>> usage_map;
-  support::OrderedSet<Var> outputs;
+  std::unordered_map<Var, support::OrderedSet<Var, ObjectPtrHash, ObjectPtrEqual>> usage_map;
+  support::OrderedSet<Var, ObjectPtrHash, ObjectPtrEqual> outputs;
 
   Optional<Var> cur_user_;
 
@@ -118,7 +118,7 @@ Map<Var, Array<Var>> DataflowBlockUseDef(const DataflowBlock& dfb) {
   return usage.downstream_usage;
 }
 
-TVM_REGISTER_GLOBAL("relax.analysis.udchain").set_body_typed(DataflowBlockUseDef);
+TVM_FFI_REGISTER_GLOBAL("relax.analysis.udchain").set_body_typed(DataflowBlockUseDef);
 
 VarUsageInfo CollectVarUsage(const Expr& expr) { return UDChain::Collect(expr); }
 

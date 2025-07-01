@@ -25,8 +25,8 @@ from typing import Dict
 import tempfile
 from pathlib import Path
 
-from .._ffi import register_func
-from .._ffi.base import py_str
+from ..ffi import register_func
+from ..base import py_str
 from . import utils as _utils, tar as _tar, cc as _cc
 from .cc import get_target_by_dump_machine
 

@@ -21,7 +21,7 @@
  * \file rpc_server.cc
  * \brief RPC Server implementation.
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #if defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__)
 #include <signal.h>
 #include <sys/select.h>
@@ -398,6 +398,6 @@ void RPCServerCreate(std::string host, int port, int port_end, std::string track
   rpc.Start();
 }
 
-TVM_REGISTER_GLOBAL("rpc.ServerCreate").set_body_typed(RPCServerCreate);
+TVM_FFI_REGISTER_GLOBAL("rpc.ServerCreate").set_body_typed(RPCServerCreate);
 }  // namespace runtime
 }  // namespace tvm

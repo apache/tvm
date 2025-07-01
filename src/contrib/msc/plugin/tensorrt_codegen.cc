@@ -883,7 +883,7 @@ void TensorRTPluginCodeGen::CodegenEnqueue(const Plugin& plugin, bool dynamic) {
   }
 }
 
-TVM_REGISTER_GLOBAL("msc.plugin.GetTensorRTPluginSources")
+TVM_FFI_REGISTER_GLOBAL("msc.plugin.GetTensorRTPluginSources")
     .set_body_typed([](const String& codegen_config, const String& print_config,
                        const String& codegen_type) -> Map<String, String> {
       TensorRTPluginCodeGen codegen = TensorRTPluginCodeGen(codegen_config);

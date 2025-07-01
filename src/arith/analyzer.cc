@@ -21,7 +21,7 @@
  * \file tvm/arith/analyzer.cc
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
@@ -269,7 +269,7 @@ PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
   return res;
 }
 
-TVM_REGISTER_GLOBAL("arith.CreateAnalyzer")
+TVM_FFI_REGISTER_GLOBAL("arith.CreateAnalyzer")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       using ffi::Function;
       using ffi::TypedFunction;
@@ -287,6 +287,10 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer")
           return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
             self->const_int_bound.Update(args[0].cast<Var>(), args[1].cast<ConstIntBound>(),
                                          args[2].cast<bool>());
+          });
+        } else if (name == "const_int_bound_is_bound") {
+          return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {
+            *ret = self->const_int_bound.IsBound(args[0].cast<Var>());
           });
         } else if (name == "Simplify") {
           return ffi::Function([self](ffi::PackedArgs args, ffi::Any* ret) {

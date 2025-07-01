@@ -63,7 +63,7 @@ MeasureCallback MeasureCallback::UpdateCostModel() {
 }
 
 TVM_REGISTER_NODE_TYPE(UpdateCostModelNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MeasureCallbackUpdateCostModel")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MeasureCallbackUpdateCostModel")
     .set_body_typed(MeasureCallback::UpdateCostModel);
 
 }  // namespace meta_schedule

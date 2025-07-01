@@ -151,7 +151,7 @@ const Array<Doc> TorchCodeGen::GetOpCodes(const MSCJoint& node) {
   }
 }
 
-TVM_REGISTER_GLOBAL("msc.framework.torch.GetTorchSources")
+TVM_FFI_REGISTER_GLOBAL("msc.framework.torch.GetTorchSources")
     .set_body_typed([](const MSCGraph& graph, const String& codegen_config,
                        const String& print_config) -> Map<String, String> {
       TorchCodeGen codegen = TorchCodeGen(graph, codegen_config);

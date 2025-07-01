@@ -21,12 +21,13 @@
  * \file src/relax/backend/contrib/cutlass/codegen.cc
  * \brief Implementation of the CUTLASS code generator for Relax.
  */
-
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/type.h>
+#include <tvm/runtime/module.h>
 
 #include <memory>
 #include <string>
@@ -59,7 +60,7 @@ runtime::Module Finalize(const std::string& code, const Array<String>& func_name
       << "Should only create CUTLASS CSourceModule if there is at least one CUTLASS partition";
 
   std::ostringstream default_headers;
-  default_headers << "#include <tvm/runtime/packed_func.h>\n";
+  default_headers << "#include <tvm/ffi/function.h>\n";
   default_headers << "#include <dlpack/dlpack.h>\n";
   default_headers << "#include <cuda_fp16.h>\n";
   default_headers << "#include <cutlass/cutlass.h>\n";
@@ -79,10 +80,15 @@ class CodegenResultNode : public Object {
   String code;
   Array<String> headers;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("code", &code);
-    v->Visit("headers", &headers);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<CodegenResultNode>()
+        .def_ro("code", &CodegenResultNode::code)
+        .def_ro("headers", &CodegenResultNode::headers);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "contrib.cutlass.CodegenResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(CodegenResultNode, Object);
 };
@@ -99,9 +105,11 @@ class CodegenResult : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(CodegenResult, ObjectRef, CodegenResultNode);
 };
 
+TVM_FFI_STATIC_INIT_BLOCK({ CodegenResultNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(CodegenResultNode);
 
-TVM_REGISTER_GLOBAL("contrib.cutlass.CodegenResult")
+TVM_FFI_REGISTER_GLOBAL("contrib.cutlass.CodegenResult")
     .set_body_typed([](String code, Array<String> headers) {
       return CodegenResult(code, headers);
     });
@@ -385,7 +393,7 @@ Array<runtime::Module> CUTLASSCompiler(Array<Function> functions, Map<String, ff
   return {cutlass_mod};
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.cutlass").set_body_typed(CUTLASSCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.cutlass").set_body_typed(CUTLASSCompiler);
 
 }  // namespace contrib
 }  // namespace relax

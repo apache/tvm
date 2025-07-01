@@ -22,7 +22,7 @@ from typing_extensions import Literal
 
 # isort: on
 
-from tvm._ffi import register_object
+from tvm.ffi import register_object
 from tvm.runtime import Object
 from tvm.tir.schedule import Trace
 
@@ -80,7 +80,7 @@ class Mutator(Object):
             "cuda",
             "cuda-tensorcore",
             "hexagon",
-        ]
+        ],
     ) -> Dict["Mutator", float]:
         """Create a list of default mutators.
 

@@ -312,7 +312,7 @@ void PostOrderVisit(const Expr& node, std::function<void(const Expr&)> fvisit);
 /*!
  * \brief A mutator works in unnormalized form.
  *
- * ExprMutatorBase expects input AST to be in the unnormalized form, i.e., checked_type_ and shape_
+ * ExprMutatorBase expects input AST to be in the unnormalized form, i.e., struct_info_
  * of expressions can be nullptr, and the expressions may nest(and as a result the AST is not in
  * ANF).
  */
@@ -414,7 +414,7 @@ class ExprMutatorBase : public ExprFunctor<Expr(const Expr&)> {
  * \brief A mutator works in normal form.
  *
  * ExprMutator expects input AST to be in the normal form, i.e., the expressions are normalized(no
- * nesting and hence the AST is in ANF), and all checked_type_ and shape_ of expressions are
+ * nesting and hence the AST is in ANF), and all struct_info_ of expressions are
  * available.
  */
 class ExprMutator : public ExprMutatorBase {

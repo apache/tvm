@@ -328,13 +328,6 @@ class LambdaLifter : public ExprMutator {
           Function(lifted_func_params, body, ret_struct_info, func_node->is_pure, func_node->attrs);
     }
 
-    for (Var param : lifted_func->params) {
-      CHECK(param->checked_type_.defined())
-          << "relax.Function requires all parameters to contain checked_type_.  "
-          << "However, parameter " << param << " with struct info " << param->struct_info_
-          << " has no checked type";
-    }
-
     ICHECK(lifted_func.defined());
 
     if (is_closure || IsClosure(lifted_func)) {
@@ -344,7 +337,6 @@ class LambdaLifter : public ExprMutator {
     // Add the lifted function to the module.
     lifted_func = CopyWithNewVars(lifted_func);
     gvar_lifted_func->struct_info_ = GetStructInfo(lifted_func);
-    gvar_lifted_func->checked_type_ = lifted_func->checked_type_;
 
     builder_->UpdateFunction(gvar_lifted_func, lifted_func);
 
@@ -503,7 +495,7 @@ Pass LambdaLift() {
   return tvm::transform::CreateModulePass(pass_func, 1, "LambdaLift", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.LambdaLift").set_body_typed(LambdaLift);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.LambdaLift").set_body_typed(LambdaLift);
 
 }  // namespace transform
 }  // namespace relax

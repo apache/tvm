@@ -23,6 +23,7 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
@@ -362,7 +363,7 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const Datafl
   return MatchGraph(ctx, dfb->bindings, AnalyzeVar2Value(dfb));
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.match_dfb")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.match_dfb")
     .set_body_typed([](const PatternContext& ctx, const DataflowBlock& dfb) {
       return MatchGraph(ctx, dfb);
     });
@@ -374,11 +375,14 @@ class PatternContextRewriterNode : public PatternMatchingRewriterNode {
 
   RewriteSpec RewriteBindings(const Array<Binding>& bindings) const override;
 
-  void VisitAttrs(AttrVisitor* visitor) {
-    visitor->Visit("pattern", &pattern);
-    ffi::Function untyped_func = rewriter_func;
-    visitor->Visit("rewriter_func", &untyped_func);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PatternContextRewriterNode>()
+        .def_ro("pattern", &PatternContextRewriterNode::pattern)
+        .def_ro("rewriter_func", &PatternContextRewriterNode::rewriter_func);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "relax.dpl.PatternContextRewriter";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternContextRewriterNode, PatternMatchingRewriterNode);
@@ -447,7 +451,9 @@ Function RewriteBindings(
   return Downcast<Function>(PatternContextRewriter(ctx, rewriter)(func));
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.rewrite_bindings").set_body_typed(RewriteBindings);
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.rewrite_bindings").set_body_typed(RewriteBindings);
+
+TVM_FFI_STATIC_INIT_BLOCK({ PatternContextRewriterNode::RegisterReflection(); });
 
 }  // namespace relax
 }  // namespace tvm

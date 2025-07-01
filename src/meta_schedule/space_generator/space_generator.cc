@@ -187,16 +187,21 @@ SpaceGenerator SpaceGenerator::PySpaceGenerator(
   return SpaceGenerator(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  SpaceGeneratorNode::RegisterReflection();
+  PySpaceGeneratorNode::RegisterReflection();
+});
+
 TVM_REGISTER_OBJECT_TYPE(SpaceGeneratorNode);
 TVM_REGISTER_NODE_TYPE(PySpaceGeneratorNode);
 
-TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorInitializeWithTuneContext")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorInitializeWithTuneContext")
     .set_body_method(&SpaceGeneratorNode::InitializeWithTuneContext);
-TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorGenerateDesignSpace")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorGenerateDesignSpace")
     .set_body_method(&SpaceGeneratorNode::GenerateDesignSpace);
-TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorPySpaceGenerator")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorPySpaceGenerator")
     .set_body_typed(SpaceGenerator::PySpaceGenerator);
-TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorClone")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorClone")
     .set_body_method(&SpaceGeneratorNode::Clone);
 
 }  // namespace meta_schedule

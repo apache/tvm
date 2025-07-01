@@ -20,7 +20,7 @@
 /*!
  * \file inject_virtual_thread.cc
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
@@ -506,8 +506,6 @@ class VirtualThreadInjector : public arith::IRMutatorWithAnalyzer {
       return stmt;
     }
   }
-
-  Stmt VisitStmt_(const ProducerStoreNode* op) final { LOG(FATAL) << "Should not appear in TIR"; }
 };
 
 namespace transform {
@@ -525,7 +523,7 @@ Pass InjectVirtualThread() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectVirtualThread", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.InjectVirtualThread").set_body_typed(InjectVirtualThread);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectVirtualThread").set_body_typed(InjectVirtualThread);
 
 }  // namespace transform
 

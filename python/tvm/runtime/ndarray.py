@@ -70,7 +70,7 @@ def from_dlpack(ext_tensor):
     )
 
 
-@tvm._ffi.register_object("object.NDArray")
+@tvm.ffi.register_object("ffi.NDArray")
 class NDArray(tvm.ffi.core.NDArray):
     """Lightweight NDArray class of TVM runtime.
 
@@ -149,10 +149,9 @@ class NDArray(tvm.ffi.core.NDArray):
             source_array = np.ascontiguousarray(
                 source_array, dtype="uint16" if dtype == "bfloat16" else dtype
             )
-        if self.dtype.startswith("float4_e2m1fn") and self.dtype != "float4_e2m1fn":
-            # float4_e2m1fn in numpy is not packed.
-            # So we need to pack the input data when converting to vectorized float4_e2m1fn type.
-            data_bits = source_array.view(dtype="uint8")
+        if self.dtype.startswith("float4_e2m1fn"):
+            # we need to pack the input data when converting to float4_e2m1fn type,
+            data_bits = source_array.view(dtype="uint8").flatten()
             if data_bits.size % 2:
                 data_bits = np.pad(data_bits, (0, 1), mode="constant", constant_values=0)
             data_bits = data_bits.reshape(-1, 2)
@@ -165,6 +164,9 @@ class NDArray(tvm.ffi.core.NDArray):
         return self
 
     def __repr__(self):
+        # exception safety handling for chandle=None
+        if self.__chandle__() == 0:
+            return type(self).__name__ + "(chandle=None)"
         res = f"<tvm.nd.NDArray shape={self.shape}, {self.device}>\n"
         res += self.numpy().__repr__()
         return res
@@ -189,54 +191,45 @@ class NDArray(tvm.ffi.core.NDArray):
             dtype = str(t)
         if dtype == "int4":
             dtype = "int8"
-        if dtype == "bfloat16":
-            if ml_dtypes is not None:
-                dtype = ml_dtypes.bfloat16
-            else:
+        if dtype in [
+            "bfloat16",
+            "float8_e3m4",
+            "float8_e4m3",
+            "float8_e4m3b11fnuz",
+            "float8_e4m3fn",
+            "float8_e4m3fnuz",
+            "float8_e5m2",
+            "float8_e5m2fnuz",
+            "float8_e8m0fnu",
+            "float6_e2m3fn",
+            "float6_e3m2fn",
+            "float4_e2m1fn",
+        ]:
+            if ml_dtypes is None:
                 raise RuntimeError(
-                    "ml_dtypes is not installed, cannot convert bfloat16 array to numpy."
+                    f"ml_dtypes is not installed, cannot convert {dtype} array to numpy."
                 )
-        if dtype == "float8_e4m3fn":
-            if ml_dtypes is not None:
-                dtype = ml_dtypes.float8_e4m3fn
-            else:
-                raise RuntimeError(
-                    "ml_dtypes is not installed, cannot convert float8_e4m3fn array to numpy."
-                )
-        if dtype == "float8_e5m2":
-            if ml_dtypes is not None:
-                dtype = ml_dtypes.float8_e5m2
-            else:
-                raise RuntimeError(
-                    "ml_dtypes is not installed, cannot convert float8_e5m2 array to numpy."
-                )
-        if dtype == "float4_e2m1fn":
-            if ml_dtypes is not None:
-                dtype = ml_dtypes.float4_e2m1fn
-            else:
-                raise RuntimeError(
-                    "ml_dtypes is not installed, cannot convert float4_e2m1fn array to numpy."
-                )
+            try:
+                dtype = getattr(ml_dtypes, dtype)
+            except AttributeError:
+                raise RuntimeError(f"ml_dtypes has no attribute '{dtype}', cannot convert array.")
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags["C_CONTIGUOUS"]
         data = np_arr.ctypes.data_as(ctypes.c_void_p)
-        if old_dtype.startswith("float4_e2m1fn") and old_dtype != "float4_e2m1fn":
-            nbytes = np_arr.size * np_arr.dtype.itemsize // 2
-        else:
-            nbytes = np_arr.size * np_arr.dtype.itemsize
+        # TODO(kathy): revisit and get a mirrored function of ffi::GetDataSize
+        # in Python to replace line below
+        nbytes = np_arr.size if dtype == "bool" else (np_arr.size * old_dtype.bits + 7) // 8
         _ffi_api.TVMArrayCopyToBytes(self, data, nbytes)
 
-        if old_dtype == "int4" or (
-            old_dtype.startswith("float4_e2m1fn") and old_dtype != "float4_e2m1fn"
-        ):
+        if old_dtype == "int4" or old_dtype.startswith("float4_e2m1fn"):
             length = np_arr.size
             np_arr = np_arr.view("int8")
             np_arr_ret = np.empty((length,), dtype="int8")
             np_arr = np_arr.reshape((length,))
-            old_index = np.bitwise_and(np_arr, 0x0F)
+            odd_index = np.bitwise_and(np_arr, 0x0F)
             even_index = np.bitwise_and(np_arr >> 4, 0x0F)
-            np_arr_ret[1::2] = old_index[0 : length // 2]
-            np_arr_ret[0::2] = even_index[0 : length // 2]
+            np_arr_ret[1::2] = odd_index[0 : length // 2]
+            np_arr_ret[0::2] = even_index[0 : (length + 1) // 2]
             return np_arr_ret.reshape(shape).view(dtype)
 
         return np_arr

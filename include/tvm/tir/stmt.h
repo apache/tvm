@@ -24,12 +24,12 @@
 #ifndef TVM_TIR_STMT_H_
 #define TVM_TIR_STMT_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/expr.h>
 
 #include <string>
 #include <type_traits>
 #include <utility>
-#include <vector>
 
 namespace tvm {
 namespace tir {
@@ -45,6 +45,11 @@ class StmtNode : public Object {
 
   StmtNode() = default;
   explicit StmtNode(Span span) : span(span) {}
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<StmtNode>().def_ro("span", &StmtNode::span);
+  }
 
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
@@ -73,12 +78,15 @@ class LetStmtNode : public StmtNode {
   /*! \brief The body block. */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("var", &var);
-    v->Visit("value", &value);
-    v->Visit("body", &body);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LetStmtNode>()
+        .def_ro("var", &LetStmtNode::var)
+        .def_ro("value", &LetStmtNode::value)
+        .def_ro("body", &LetStmtNode::body);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const LetStmtNode* other, SEqualReducer equal) const {
     return equal.DefEqual(var, other->var) && equal(value, other->value) &&
@@ -128,13 +136,16 @@ class AttrStmtNode : public StmtNode {
   /*! \brief The body statement to be executed */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("node", &node);
-    v->Visit("attr_key", &attr_key);
-    v->Visit("value", &value);
-    v->Visit("body", &body);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AttrStmtNode>()
+        .def_ro("node", &AttrStmtNode::node)
+        .def_ro("attr_key", &AttrStmtNode::attr_key)
+        .def_ro("value", &AttrStmtNode::value)
+        .def_ro("body", &AttrStmtNode::body);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const AttrStmtNode* other, SEqualReducer equal) const {
     return equal(node, other->node) && equal(attr_key, other->attr_key) &&
@@ -179,12 +190,15 @@ class AssertStmtNode : public StmtNode {
    */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("condition", &condition);
-    v->Visit("message", &message);
-    v->Visit("body", &body);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AssertStmtNode>()
+        .def_ro("condition", &AssertStmtNode::condition)
+        .def_ro("message", &AssertStmtNode::message)
+        .def_ro("body", &AssertStmtNode::body);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const AssertStmtNode* other, SEqualReducer equal) const {
     return equal(condition, other->condition) && equal(message, other->message) &&
@@ -234,13 +248,16 @@ class BufferStoreNode : public StmtNode {
   /*! \brief The predicate mask for storing values. */
   Optional<PrimExpr> predicate;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
-    v->Visit("value", &value);
-    v->Visit("indices", &indices);
-    v->Visit("predicate", &predicate);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BufferStoreNode>()
+        .def_ro("buffer", &BufferStoreNode::buffer)
+        .def_ro("value", &BufferStoreNode::value)
+        .def_ro("indices", &BufferStoreNode::indices)
+        .def_ro("predicate", &BufferStoreNode::predicate);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const BufferStoreNode* other, SEqualReducer equal) const {
     return equal(buffer, other->buffer) && equal(value, other->value) &&
@@ -293,13 +310,16 @@ class BufferRealizeNode : public StmtNode {
   /*! \brief The body of realization. */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
-    v->Visit("bounds", &bounds);
-    v->Visit("condition", &condition);
-    v->Visit("body", &body);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BufferRealizeNode>()
+        .def_ro("buffer", &BufferRealizeNode::buffer)
+        .def_ro("bounds", &BufferRealizeNode::bounds)
+        .def_ro("condition", &BufferRealizeNode::condition)
+        .def_ro("body", &BufferRealizeNode::body);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const BufferRealizeNode* other, SEqualReducer equal) const {
     return equal(buffer, other->buffer) && equal(bounds, other->bounds) &&
@@ -336,124 +356,6 @@ class BufferRealize : public Stmt {
 };
 
 /*!
- * \brief Store value into mult-dimensional array that will be read by the consumer
- *        of the producer.
- *
- * \note This node only appears in high-level DSLs that are built on top of the TIR.
- *       It should not appear in a valid TIR PrimFunc. A high-level DSL needs to lower
- *       this node before TIR transformations.
- *
- * \sa DataProducer
- */
-class ProducerStoreNode : public StmtNode {
- public:
-  /*! \brief The producer to store the results into. */
-  DataProducer producer;
-  /*! \brief The value to be stored. */
-  PrimExpr value;
-  /*! \brief The index arguments of the function. */
-  Array<PrimExpr> indices;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("producer", &producer);
-    v->Visit("value", &value);
-    v->Visit("indices", &indices);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const ProducerStoreNode* other, SEqualReducer equal) const {
-    return equal(producer, other->producer) && equal(value, other->value) &&
-           equal(indices, other->indices);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(producer);
-    hash_reduce(value);
-    hash_reduce(indices);
-  }
-
-  static constexpr const char* _type_key = "tir.ProducerStore";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerStoreNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to ProducerStoreNode.
- * \sa ProducerStoreNode
- */
-class ProducerStore : public Stmt {
- public:
-  TVM_DLL ProducerStore(DataProducer producer, PrimExpr value, Array<PrimExpr> indices,
-                        Span span = Span());
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ProducerStore, Stmt, ProducerStoreNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ProducerStoreNode);
-};
-
-/*!
- * \brief Annotate the bounds where the data produced by the producer
- *  need to be written and read in body.
- *  We will need to allocate space for the corresponding regions.
- *
- * \note This node only appears in high-level DSLs that are built on top of the TIR.
- *       It should not appear in a valid TIR PrimFunc. A high-level DSL needs to lower
- *       this node before TIR transformations.
- *
- * \sa DataProducer
- */
-class ProducerRealizeNode : public StmtNode {
- public:
-  /*! \brief The producer that produces the data. */
-  DataProducer producer;
-  /*! \brief Bounds to be realized. */
-  Region bounds;
-  /*! \brief Only realize if condition holds. */
-  PrimExpr condition;
-  /*! \brief The body of realization. */
-  Stmt body;
-  /*! \brief The storage scope associated with this realization. */
-  String storage_scope;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("producer", &producer);
-    v->Visit("bounds", &bounds);
-    v->Visit("condition", &condition);
-    v->Visit("body", &body);
-    v->Visit("storage_scope", &storage_scope);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const ProducerRealizeNode* other, SEqualReducer equal) const {
-    return equal(producer, other->producer) && equal(bounds, other->bounds) &&
-           equal(condition, other->condition) && equal(body, other->body) &&
-           equal(storage_scope, other->storage_scope);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(producer);
-    hash_reduce(bounds);
-    hash_reduce(condition);
-    hash_reduce(body);
-    hash_reduce(storage_scope);
-  }
-
-  static constexpr const char* _type_key = "tir.ProducerRealize";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ProducerRealizeNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to ProducerRealizeNode.
- * \sa ProducerRealizeNode
- */
-class ProducerRealize : public Stmt {
- public:
-  TVM_DLL ProducerRealize(DataProducer producer, Region bounds, PrimExpr condition, Stmt body,
-                          String storage_scope = "", Span span = Span());
-
-  TVM_DEFINE_OBJECT_REF_METHODS(ProducerRealize, Stmt, ProducerRealizeNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(ProducerRealizeNode);
-};
-
-/*!
  * \brief Allocate a buffer that can be used in body.
  */
 class AllocateNode : public StmtNode {
@@ -476,15 +378,18 @@ class AllocateNode : public StmtNode {
    */
   Map<String, ffi::Any> annotations;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer_var", &buffer_var);
-    v->Visit("dtype", &dtype);
-    v->Visit("extents", &extents);
-    v->Visit("condition", &condition);
-    v->Visit("body", &body);
-    v->Visit("annotations", &annotations);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AllocateNode>()
+        .def_ro("buffer_var", &AllocateNode::buffer_var)
+        .def_ro("dtype", &AllocateNode::dtype)
+        .def_ro("extents", &AllocateNode::extents)
+        .def_ro("condition", &AllocateNode::condition)
+        .def_ro("body", &AllocateNode::body)
+        .def_ro("annotations", &AllocateNode::annotations);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const AllocateNode* other, SEqualReducer equal) const {
     return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
@@ -564,16 +469,19 @@ class AllocateConstNode : public StmtNode {
    */
   Map<String, ffi::Any> annotations;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer_var", &buffer_var);
-    v->Visit("data", &data);
-    v->Visit("irmod_storage_idx", &irmod_storage_idx);
-    v->Visit("dtype", &dtype);
-    v->Visit("extents", &extents);
-    v->Visit("body", &body);
-    v->Visit("annotations", &annotations);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AllocateConstNode>()
+        .def_ro("buffer_var", &AllocateConstNode::buffer_var)
+        .def_ro("data", &AllocateConstNode::data)
+        .def_ro("irmod_storage_idx", &AllocateConstNode::irmod_storage_idx)
+        .def_ro("dtype", &AllocateConstNode::dtype)
+        .def_ro("extents", &AllocateConstNode::extents)
+        .def_ro("body", &AllocateConstNode::body)
+        .def_ro("annotations", &AllocateConstNode::annotations);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const AllocateConstNode* other, SEqualReducer equal) const {
     return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
@@ -636,11 +544,14 @@ class DeclBufferNode : public StmtNode {
   /*! \brief The body to be executed */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
-    v->Visit("body", &body);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DeclBufferNode>()
+        .def_ro("buffer", &DeclBufferNode::buffer)
+        .def_ro("body", &DeclBufferNode::body);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const DeclBufferNode* other, SEqualReducer equal) const {
     return equal(buffer, other->buffer) && equal(body, other->body);
@@ -679,10 +590,12 @@ class SeqStmtNode : public StmtNode {
    */
   Stmt operator[](size_t index) const { return seq[index]; }
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("seq", &seq);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SeqStmtNode>().def_ro("seq", &SeqStmtNode::seq);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const SeqStmtNode* other, SEqualReducer equal) const {
     return equal(seq, other->seq);
@@ -705,10 +618,12 @@ class EvaluateNode : public StmtNode {
   /*! \brief The expression to be evaluated. */
   PrimExpr value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("value", &value);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<EvaluateNode>().def_ro("value", &EvaluateNode::value);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const EvaluateNode* other, SEqualReducer equal) const {
     return equal(value, other->value);
@@ -897,12 +812,15 @@ class IfThenElseNode : public StmtNode {
   /*! \brief The branch to be executed when condition is false, can be null. */
   Optional<Stmt> else_case;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("condition", &condition);
-    v->Visit("then_case", &then_case);
-    v->Visit("else_case", &else_case);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IfThenElseNode>()
+        .def_ro("condition", &IfThenElseNode::condition)
+        .def_ro("then_case", &IfThenElseNode::then_case)
+        .def_ro("else_case", &IfThenElseNode::else_case);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const IfThenElseNode* other, SEqualReducer equal) const {
     return equal(condition, other->condition) && equal(then_case, other->then_case) &&
@@ -997,16 +915,19 @@ class ForNode : public StmtNode {
    */
   Map<String, ffi::Any> annotations;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("loop_var", &loop_var);
-    v->Visit("min", &min);
-    v->Visit("extent", &extent);
-    v->Visit("kind", &kind);
-    v->Visit("body", &body);
-    v->Visit("thread_binding", &thread_binding);
-    v->Visit("annotations", &annotations);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ForNode>()
+        .def_ro("loop_var", &ForNode::loop_var)
+        .def_ro("min", &ForNode::min)
+        .def_ro("extent", &ForNode::extent)
+        .def_ro("kind", &ForNode::kind)
+        .def_ro("body", &ForNode::body)
+        .def_ro("thread_binding", &ForNode::thread_binding)
+        .def_ro("annotations", &ForNode::annotations);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const ForNode* other, SEqualReducer equal) const {
     return equal.DefEqual(loop_var, other->loop_var) && equal(min, other->min) &&
@@ -1059,11 +980,14 @@ class WhileNode : public StmtNode {
   /*! \brief The body of the while loop. */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("condition", &condition);
-    v->Visit("body", &body);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<WhileNode>()
+        .def_ro("condition", &WhileNode::condition)
+        .def_ro("body", &WhileNode::body);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const WhileNode* other, SEqualReducer equal) const {
     return equal(condition, other->condition) && equal(body, other->body);
@@ -1091,51 +1015,6 @@ class While : public Stmt {
 };
 
 /*!
- * \brief A prefetch hint for a buffer
- */
-class PrefetchNode : public StmtNode {
- public:
-  /*! \brief The function to be prefetched. */
-  Buffer buffer;
-  /*! \brief Bounds to be prefetched. */
-  Array<Range> bounds;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
-    v->Visit("bounds", &bounds);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const PrefetchNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(bounds, other->bounds);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
-    hash_reduce(bounds);
-  }
-
-  PrefetchNode() = default;
-  PrefetchNode(Buffer buffer, Array<Range> bounds, Span span = Span())
-      : StmtNode(span), buffer(buffer), bounds(bounds) {}
-
-  static constexpr const char* _type_key = "tir.Prefetch";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PrefetchNode, StmtNode);
-};
-
-/*!
- * \brief Managed reference to PrefetchNode.
- * \sa PrefetchNode
- */
-class Prefetch : public Stmt {
- public:
-  TVM_DLL explicit Prefetch(Buffer buffer, Array<Range> bounds, Span span = Span());
-
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Prefetch, Stmt, PrefetchNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(PrefetchNode);
-};
-
-/*!
  * \brief Representing the region of multi-dimensional buffer access.
  */
 class BufferRegionNode : public PrimExprConvertibleNode {
@@ -1145,10 +1024,14 @@ class BufferRegionNode : public PrimExprConvertibleNode {
   /*! \brief The region array of the buffer region. */
   Array<Range> region;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
-    v->Visit("region", &region);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BufferRegionNode>()
+        .def_ro("buffer", &BufferRegionNode::buffer)
+        .def_ro("region", &BufferRegionNode::region);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const BufferRegionNode* other, SEqualReducer equal) const {
     return equal(buffer, other->buffer) && equal(region, other->region);
@@ -1210,10 +1093,14 @@ class MatchBufferRegionNode : public Object {
   /*! \brief The source buffer region. */
   BufferRegion source;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
-    v->Visit("source", &source);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MatchBufferRegionNode>()
+        .def_ro("buffer", &MatchBufferRegionNode::buffer)
+        .def_ro("source", &MatchBufferRegionNode::source);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const MatchBufferRegionNode* other, SEqualReducer equal) const {
     return equal(buffer, other->buffer) && equal(source, other->source);
@@ -1290,17 +1177,21 @@ class BlockNode : public StmtNode {
   /*! \brief The annotation of the block. */
   Map<String, ffi::Any> annotations;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("iter_vars", &iter_vars);
-    v->Visit("reads", &reads);
-    v->Visit("writes", &writes);
-    v->Visit("name_hint", &name_hint);
-    v->Visit("body", &body);
-    v->Visit("init", &init);
-    v->Visit("alloc_buffers", &alloc_buffers);
-    v->Visit("match_buffers", &match_buffers);
-    v->Visit("annotations", &annotations);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BlockNode>()
+        .def_ro("iter_vars", &BlockNode::iter_vars)
+        .def_ro("reads", &BlockNode::reads)
+        .def_ro("writes", &BlockNode::writes)
+        .def_ro("name_hint", &BlockNode::name_hint)
+        .def_ro("body", &BlockNode::body)
+        .def_ro("init", &BlockNode::init)
+        .def_ro("alloc_buffers", &BlockNode::alloc_buffers)
+        .def_ro("match_buffers", &BlockNode::match_buffers)
+        .def_ro("annotations", &BlockNode::annotations);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const BlockNode* other, SEqualReducer equal) const {
     // Need first reduce iter_vars, alloc_buffers and match_buffers to define new vars
@@ -1359,11 +1250,15 @@ class BlockRealizeNode : public StmtNode {
   /*! \brief The block to be realized. */
   Block block;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("iter_values", &iter_values);
-    v->Visit("predicate", &predicate);
-    v->Visit("block", &block);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BlockRealizeNode>()
+        .def_ro("iter_values", &BlockRealizeNode::iter_values)
+        .def_ro("predicate", &BlockRealizeNode::predicate)
+        .def_ro("block", &BlockRealizeNode::block);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const BlockRealizeNode* other, SEqualReducer equal) const {
     return equal(iter_values, other->iter_values) && equal(predicate, other->predicate) &&

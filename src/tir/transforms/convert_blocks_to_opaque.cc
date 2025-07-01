@@ -122,7 +122,8 @@ Pass ConvertBlocksToOpaque() {
   return CreatePrimFuncPass(pass_func, 0, "tir.ConvertBlocksToOpaque", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.ConvertBlocksToOpaque").set_body_typed(ConvertBlocksToOpaque);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.ConvertBlocksToOpaque")
+    .set_body_typed(ConvertBlocksToOpaque);
 }  // namespace transform
 
 }  // namespace tir

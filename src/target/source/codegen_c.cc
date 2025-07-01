@@ -93,10 +93,24 @@ void CodeGenC::PrintFunctionSignature(const String& function_name, const PrimFun
       PrintStorageScope(it->second, os);
     }
 
-    PrintType(GetType(v), os);
+    auto is_tensormap_ptr = [&]() -> bool {
+      if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+        return ptr->element_type.as<TensorMapTypeNode>();
+      }
+      return false;
+    };
+    if (is_tensormap_ptr()) {
+      os << "const __grid_constant__ CUtensorMap";
+    } else {
+      PrintType(GetType(v), os);
+    }
 
     bool no_alias = func->HasNonzeroAttr(tir::attr::kNoAlias);
     bool is_handle = v.dtype().is_handle();
+    auto* ptr = v->type_annotation.as<PointerTypeNode>();
+    if (ptr && ptr->element_type.as<TensorMapTypeNode>()) {
+      is_handle = false;
+    }
     if (no_alias && is_handle) {
       PrintRestrict(v, os);
     }
@@ -338,22 +352,7 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     os << ")";
     return os.str();
   } else {
-    ICHECK_LT(kind, builtin::kTVMValueKindBound_);
-    std::ostringstream os;
-    os << "(((TVMValue*)";
-    this->PrintExpr(buffer, os);
-    os << ")[" << index << "].";
-    if (t.is_handle()) {
-      os << "v_handle";
-    } else if (t.is_float()) {
-      os << "v_float64";
-    } else if (t.is_int()) {
-      os << "v_int64";
-    } else {
-      LOG(FATAL) << "Do not know how to handle type" << t;
-    }
-    os << ")";
-    return os.str();
+    TVM_FFI_THROW(RuntimeError) << "Unsupported type index: " << kind;
   }
 }
 

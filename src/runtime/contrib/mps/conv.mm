@@ -24,7 +24,7 @@ namespace contrib {
 
 using namespace runtime;
 
-TVM_REGISTER_GLOBAL("tvm.contrib.mps.buffer2img")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.mps.buffer2img")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto buf = args[0].cast<DLTensor*>();
       auto img = args[1].cast<DLTensor*>();
@@ -57,7 +57,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.buffer2img")
              imageIndex:0];
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.mps.img2buffer")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.mps.img2buffer")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       auto img = args[0].cast<DLTensor*>();
       auto buf = args[1].cast<DLTensor*>();
@@ -76,7 +76,7 @@ TVM_REGISTER_GLOBAL("tvm.contrib.mps.img2buffer")
                                            buf -> dtype, nullptr);
     });
 
-TVM_REGISTER_GLOBAL("tvm.contrib.mps.conv2d")
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.mps.conv2d")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
       // MPS-NHWC
       auto data = args[0].cast<DLTensor*>();

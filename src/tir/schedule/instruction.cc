@@ -21,6 +21,11 @@
 namespace tvm {
 namespace tir {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  InstructionKindNode::RegisterReflection();
+  InstructionNode::RegisterReflection();
+});
+
 bool InstructionKindNode::IsPostproc() const {
   static InstructionKind inst_enter_postproc = InstructionKind::Get("EnterPostproc");
   return this == inst_enter_postproc.get();
@@ -100,8 +105,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(InstructionNode);
 TVM_REGISTER_NODE_TYPE(InstructionKindNode);
 
-TVM_REGISTER_GLOBAL("tir.schedule.InstructionKindGet").set_body_typed(InstructionKind::Get);
-TVM_REGISTER_GLOBAL("tir.schedule.Instruction")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.InstructionKindGet").set_body_typed(InstructionKind::Get);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.Instruction")
     .set_body_typed([](InstructionKind kind, Array<Any> inputs, Array<Any> attrs,
                        Array<Any> outputs) -> Instruction {
       return Instruction(kind, inputs, attrs, outputs);

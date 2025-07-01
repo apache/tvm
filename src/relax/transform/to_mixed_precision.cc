@@ -618,7 +618,7 @@ Pass ToMixedPrecision(const DataType& out_dtype, Optional<Array<String>> fp16_in
   return CreateFunctionPass(pass_func, 0, "ToMixedPrecision", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ToMixedPrecision").set_body_typed(ToMixedPrecision);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.ToMixedPrecision").set_body_typed(ToMixedPrecision);
 
 }  // namespace transform
 

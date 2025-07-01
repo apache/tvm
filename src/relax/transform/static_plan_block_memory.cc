@@ -983,7 +983,8 @@ Pass StaticPlanBlockMemory() {
   return CreateModulePass(pass_func, /*opt_level=*/0, "StaticPlanBlockMemory", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.StaticPlanBlockMemory").set_body_typed(StaticPlanBlockMemory);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.StaticPlanBlockMemory")
+    .set_body_typed(StaticPlanBlockMemory);
 
 }  // namespace transform
 }  // namespace relax

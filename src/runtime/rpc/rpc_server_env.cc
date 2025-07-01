@@ -21,7 +21,7 @@
  * \file rpc_server_env.cc
  * \brief Server environment of the RPC.
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include "../file_utils.h"
 
@@ -35,14 +35,14 @@ std::string RPCGetPath(const std::string& name) {
   return (*f)(name).cast<std::string>();
 }
 
-TVM_REGISTER_GLOBAL("tvm.rpc.server.upload")
+TVM_FFI_REGISTER_GLOBAL("tvm.rpc.server.upload")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       std::string file_name = RPCGetPath(args[0].cast<std::string>());
       auto data = args[1].cast<std::string>();
       SaveBinaryToFile(file_name, data);
     });
 
-TVM_REGISTER_GLOBAL("tvm.rpc.server.download")
+TVM_FFI_REGISTER_GLOBAL("tvm.rpc.server.download")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       std::string file_name = RPCGetPath(args[0].cast<std::string>());
       std::string data;
@@ -51,7 +51,7 @@ TVM_REGISTER_GLOBAL("tvm.rpc.server.download")
       *rv = ffi::Bytes(data);
     });
 
-TVM_REGISTER_GLOBAL("tvm.rpc.server.remove")
+TVM_FFI_REGISTER_GLOBAL("tvm.rpc.server.remove")
     .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       std::string file_name = RPCGetPath(args[0].cast<std::string>());
       RemoveFile(file_name);

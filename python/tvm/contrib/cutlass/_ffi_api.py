@@ -15,6 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI API for CUTLASS BYOC."""
-import tvm._ffi
+import tvm.ffi
 
-tvm._ffi._init_api("contrib.cutlass", __name__)
+tvm.ffi._init_api("contrib.cutlass", __name__)

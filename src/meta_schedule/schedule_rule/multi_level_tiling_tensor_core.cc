@@ -923,7 +923,7 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
 }
 
 TVM_REGISTER_NODE_TYPE(MultiLevelTilingTensorCoreNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTilingTensorCore")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTilingTensorCore")
     .set_body_typed(ScheduleRule::MultiLevelTilingTensorCore);
 
 }  // namespace meta_schedule

@@ -16,10 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "./utils.h"
 
 namespace tvm {
 namespace tir {
+
+TVM_FFI_STATIC_INIT_BLOCK({ TraceNode::RegisterReflection(); });
 
 /**************** Constructors  ****************/
 
@@ -563,13 +567,13 @@ TVM_REGISTER_INST_KIND_TRAITS(EnterPostprocTraits);
 /**************** FFI ****************/
 
 TVM_REGISTER_NODE_TYPE(TraceNode);
-TVM_REGISTER_GLOBAL("tir.schedule.Trace")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.Trace")
     .set_body_typed([](Optional<Array<Instruction>> insts,
                        Optional<Map<Instruction, Any>> decisions) {
       return Trace(insts.value_or(Array<Instruction>()), decisions.value_or({}));
     });
-TVM_REGISTER_GLOBAL("tir.schedule.TraceGetDecision").set_body_method(&TraceNode::GetDecision);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceAppend")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceGetDecision").set_body_method(&TraceNode::GetDecision);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceAppend")
     .set_body_typed([](Trace self, Instruction inst, Optional<ObjectRef> decision) {
       if (decision.defined()) {
         return self->Append(inst, decision.value());
@@ -577,14 +581,14 @@ TVM_REGISTER_GLOBAL("tir.schedule.TraceAppend")
         return self->Append(inst);
       }
     });
-TVM_REGISTER_GLOBAL("tir.schedule.TracePop").set_body_method(&TraceNode::Pop);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceApplyToSchedule")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TracePop").set_body_method(&TraceNode::Pop);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceApplyToSchedule")
     .set_body_method(&TraceNode::ApplyToSchedule);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceAsJSON").set_body_method(&TraceNode::AsJSON);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceAsPython").set_body_method(&TraceNode::AsPython);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceWithDecision").set_body_method(&TraceNode::WithDecision);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceSimplified").set_body_method(&TraceNode::Simplified);
-TVM_REGISTER_GLOBAL("tir.schedule.TraceApplyJSONToSchedule")
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceAsJSON").set_body_method(&TraceNode::AsJSON);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceAsPython").set_body_method(&TraceNode::AsPython);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceWithDecision").set_body_method(&TraceNode::WithDecision);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceSimplified").set_body_method(&TraceNode::Simplified);
+TVM_FFI_REGISTER_GLOBAL("tir.schedule.TraceApplyJSONToSchedule")
     .set_body_typed(Trace::ApplyJSONToSchedule);
 
 }  // namespace tir

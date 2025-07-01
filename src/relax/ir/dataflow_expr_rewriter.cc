@@ -22,6 +22,7 @@
  * \brief A transform to match a Relax Expr and rewrite
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/transform.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/relax/analysis.h>
@@ -193,17 +194,16 @@ void RewriteSpec::Append(RewriteSpec other) {
 
 TVM_REGISTER_NODE_TYPE(PatternMatchingRewriterNode);
 
-TVM_REGISTER_GLOBAL("relax.dpl.PatternMatchingRewriterFromPattern")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.PatternMatchingRewriterFromPattern")
     .set_body_typed([](DFPattern pattern,
                        ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
       return PatternMatchingRewriter::FromPattern(pattern, func);
     });
 
-TVM_REGISTER_GLOBAL("relax.dpl.PatternMatchingRewriterFromModule").set_body_typed([](IRModule mod) {
-  return PatternMatchingRewriter::FromModule(mod);
-});
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.PatternMatchingRewriterFromModule")
+    .set_body_typed([](IRModule mod) { return PatternMatchingRewriter::FromModule(mod); });
 
-TVM_REGISTER_GLOBAL("relax.dpl.PatternMatchingRewriterApply")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.PatternMatchingRewriterApply")
     .set_body_typed([](PatternMatchingRewriter rewriter,
                        Variant<Expr, IRModule> obj) -> Variant<Expr, IRModule> {
       if (auto expr = obj.as<Expr>()) {
@@ -259,7 +259,7 @@ Optional<Expr> ExprPatternRewriterNode::RewriteExpr(const Expr& expr,
   return std::nullopt;
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.PatternRewriter")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.PatternRewriter")
     .set_body_typed([](DFPattern pattern,
                        ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
       return ExprPatternRewriter(pattern, func);
@@ -308,7 +308,7 @@ RewriteSpec OrRewriterNode::RewriteBindings(const Array<Binding>& bindings) cons
   return lhs_match;
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.OrRewriter")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.OrRewriter")
     .set_body_typed([](PatternMatchingRewriter lhs, PatternMatchingRewriter rhs) {
       return OrRewriter(lhs, rhs);
     });
@@ -603,7 +603,7 @@ std::optional<std::vector<Expr>> TupleRewriterNode::TryMatchByBindingIndex(
   return rewrites;
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.TupleRewriter")
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.TupleRewriter")
     .set_body_typed([](Array<DFPattern> patterns,
                        ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
       return TupleRewriter(patterns, func);
@@ -662,7 +662,6 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
   Function func_replacement = [&]() {
     CHECK(mod->ContainGlobalVar("replacement"))
         << "KeyError: "
-
         << "Expected module to contain 'replacement', "
         << "a Relax function defining the replacement to be matched, "
         << "but the module did not contain a 'replacement' function.";
@@ -796,13 +795,13 @@ Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(DFPattern pattern, Expr expr,
   return matcher.GetMemo();
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.extract_matched_expr").set_body_typed(ExtractMatchedExpr);
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.extract_matched_expr").set_body_typed(ExtractMatchedExpr);
 
 bool MatchExpr(DFPattern pattern, Expr expr, Optional<Map<Var, Expr>> bindings_opt) {
   return static_cast<bool>(ExtractMatchedExpr(pattern, expr, bindings_opt));
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.match_expr").set_body_typed(MatchExpr);
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.match_expr").set_body_typed(MatchExpr);
 
 /*!
  * \brief Apply pattern matching to each expression, replacing
@@ -1074,7 +1073,14 @@ Function RewriteCall(const DFPattern& pat,
   return Downcast<Function>(PatternMatchingRewriter::FromPattern(pat, rewriter)(func));
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.rewrite_call").set_body_typed(RewriteCall);
+TVM_FFI_REGISTER_GLOBAL("relax.dpl.rewrite_call").set_body_typed(RewriteCall);
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  PatternMatchingRewriterNode::RegisterReflection();
+  ExprPatternRewriterNode::RegisterReflection();
+  OrRewriterNode::RegisterReflection();
+  TupleRewriterNode::RegisterReflection();
+});
 
 }  // namespace relax
 }  // namespace tvm

@@ -26,6 +26,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/runtime/module.h>
 
 #include "../../support/ordered_set.h"
 #include "utils.h"
@@ -43,7 +44,7 @@ class CodeGenRunner : ExprMutator {
                Array<String> entry_function_names) {
     IRModule mod = builder_->GetContextIRModule();
 
-    support::OrderedSet<GlobalVar> entry_functions;
+    support::OrderedSet<GlobalVar, ObjectPtrHash, ObjectPtrEqual> entry_functions;
     // Any user-provided functions are treated as entry functions.
     for (const auto& name : entry_function_names) {
       entry_functions.insert(mod->GetGlobalVar(name));
@@ -219,7 +220,7 @@ Pass RunCodegen(Optional<Map<String, Map<String, ffi::Any>>> target_options,
   return CreateModulePass(pass_func, 0, "RunCodegen", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.RunCodegen").set_body_typed(RunCodegen);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.RunCodegen").set_body_typed(RunCodegen);
 
 }  // namespace transform
 }  // namespace tvm

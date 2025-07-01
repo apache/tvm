@@ -24,8 +24,8 @@
 
 #include "./attention.h"
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../../cuda/cuda_common.h"
 #include "../cudnn_utils.h"

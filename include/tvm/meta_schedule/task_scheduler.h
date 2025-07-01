@@ -20,7 +20,9 @@
 #define TVM_META_SCHEDULE_TASK_SCHEDULER_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/meta_schedule/builder.h>
 #include <tvm/meta_schedule/cost_model.h>
 #include <tvm/meta_schedule/measure_callback.h>
@@ -28,7 +30,6 @@
 #include <tvm/meta_schedule/tune_context.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/support/random_engine.h>
 
 #include <string>
@@ -60,18 +61,21 @@ class TaskRecordNode : public runtime::Object {
   /*! \brief Packed functions to fetch the runner results asynchronously. */
   Optional<Array<RunnerFuture>> runner_futures = std::nullopt;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("ctx", &ctx);
-    v->Visit("task_weight", &task_weight);
-    v->Visit("flop", &flop);
-    v->Visit("is_terminated", &is_terminated);
-    v->Visit("build_error_count", &build_error_count);
-    v->Visit("run_error_count", &run_error_count);
-    // `latency_ms` is not visited
-    v->Visit("measure_candidates", &measure_candidates);
-    v->Visit("builder_results", &builder_results);
-    v->Visit("runner_futures", &runner_futures);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TaskRecordNode>()
+        .def_ro("ctx", &TaskRecordNode::ctx)
+        .def_ro("task_weight", &TaskRecordNode::task_weight)
+        .def_ro("flop", &TaskRecordNode::flop)
+        .def_ro("is_terminated", &TaskRecordNode::is_terminated)
+        .def_ro("build_error_count", &TaskRecordNode::build_error_count)
+        .def_ro("run_error_count", &TaskRecordNode::run_error_count)
+        .def_ro("measure_candidates", &TaskRecordNode::measure_candidates)
+        .def_ro("builder_results", &TaskRecordNode::builder_results)
+        .def_ro("runner_futures", &TaskRecordNode::runner_futures);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.TaskRecord";
   TVM_DECLARE_FINAL_OBJECT_INFO(TaskRecordNode, Object);
@@ -143,14 +147,17 @@ class TaskSchedulerNode : public runtime::Object {
   /*! \brief The default destructor. */
   virtual ~TaskSchedulerNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `logger` is not visited
-    v->Visit("tasks_", &tasks_);
-    v->Visit("measure_callbacks_", &measure_callbacks_);
-    v->Visit("database_", &database_);
-    v->Visit("cost_model_", &cost_model_);
-    v->Visit("remaining_tasks_", &remaining_tasks_);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TaskSchedulerNode>()
+        .def_ro("tasks_", &TaskSchedulerNode::tasks_)
+        .def_ro("measure_callbacks_", &TaskSchedulerNode::measure_callbacks_)
+        .def_ro("database_", &TaskSchedulerNode::database_)
+        .def_ro("cost_model_", &TaskSchedulerNode::cost_model_)
+        .def_ro("remaining_tasks_", &TaskSchedulerNode::remaining_tasks_);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Fetch the next task id.
@@ -237,12 +244,12 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
   /*! \brief The packed function to the `Tune` function. */
   FTune f_tune;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TaskSchedulerNode::VisitAttrs(v);
-    // `f_next_task_id` is not visited
-    // `f_join_running_task` is not visited
-    // `f_tune` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PyTaskSchedulerNode>();
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   int NextTaskId() final;
   Array<RunnerResult> JoinRunningTask(int task_id) final;

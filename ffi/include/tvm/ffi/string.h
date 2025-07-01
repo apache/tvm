@@ -255,6 +255,15 @@ class String : public ObjectRef {
    */
   String(std::string&& other)  // NOLINT(*)
       : ObjectRef(make_object<details::BytesObjStdImpl<StringObj>>(std::move(other))) {}
+
+  /*!
+   * \brief constructor from TVMFFIByteArray
+   *
+   * \param other a TVMFFIByteArray.
+   */
+  explicit String(TVMFFIByteArray other)
+      : ObjectRef(details::MakeInplaceBytes<StringObj>(other.data, other.size)) {}
+
   /*!
    * \brief Swap this String with another string
    * \param other The other string
@@ -304,6 +313,18 @@ class String : public ObjectRef {
    */
   int compare(const char* other) const {
     return Bytes::memncmp(data(), other, size(), std::strlen(other));
+  }
+
+  /*!
+   * \brief Compares this to other
+   *
+   * \param other The TVMFFIByteArray to compare with.
+   *
+   * \return zero if both char sequences compare equal. negative if this appear
+   * before other, positive otherwise.
+   */
+  int compare(const TVMFFIByteArray& other) const {
+    return Bytes::memncmp(data(), other.data, size(), other.size);
   }
 
   /*!
@@ -401,7 +422,6 @@ TVM_FFI_INLINE std::string_view ToStringView(TVMFFIByteArray str) {
 template <int N>
 struct TypeTraits<char[N]> : public TypeTraitsBase {
   // NOTE: only enable implicit conversion into AnyView
-  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIRawStr;
   static constexpr bool storage_enabled = false;
 
   static TVM_FFI_INLINE void CopyToAnyView(const char src[N], TVMFFIAny* result) {
@@ -417,7 +437,6 @@ struct TypeTraits<char[N]> : public TypeTraitsBase {
 
 template <>
 struct TypeTraits<const char*> : public TypeTraitsBase {
-  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIRawStr;
   static constexpr bool storage_enabled = false;
 
   static TVM_FFI_INLINE void CopyToAnyView(const char* src, TVMFFIAny* result) {

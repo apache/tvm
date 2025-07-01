@@ -32,8 +32,8 @@
 #include "../../hexagon_common.h"
 #include "../../profiler/prof_utils.h"
 #include "hexagon_sim_proto.h"
+#include "tvm/ffi/function.h"
 #include "tvm/runtime/packed_func.h"
-#include "tvm/runtime/registry.h"
 
 namespace tvm {
 namespace runtime {
@@ -332,14 +332,14 @@ __attribute__((weak)) void _Get_eh_data() {}
 __attribute__((weak)) void _Parse_fde_instr() {}
 }
 
-TVM_REGISTER_GLOBAL("tvm.hexagon.load_module")
+TVM_FFI_REGISTER_GLOBAL("tvm.hexagon.load_module")
     .set_body_packed([](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
       auto soname = args[0].cast<std::string>();
       tvm::ObjectPtr<tvm::runtime::Library> n = tvm::runtime::CreateDSOLibraryObject(soname);
       *rv = CreateModuleFromLibrary(n);
     });
 
-TVM_REGISTER_GLOBAL("tvm.hexagon.get_profile_output")
+TVM_FFI_REGISTER_GLOBAL("tvm.hexagon.get_profile_output")
     .set_body_packed([](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
       auto profiling_mode = args[0].cast<std::string>();
       auto out_file = args[1].cast<std::string>();
@@ -357,7 +357,7 @@ void SaveBinaryToFile(const std::string& file_name, const std::string& data) {
   fs.write(&data[0], data.length());
 }
 
-TVM_REGISTER_GLOBAL("tvm.rpc.server.upload")
+TVM_FFI_REGISTER_GLOBAL("tvm.rpc.server.upload")
     .set_body_packed([](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
       auto file_name = args[0].cast<std::string>();
       auto data = args[1].cast<std::string>();

@@ -21,8 +21,7 @@
 
 #include <gmock/gmock.h>
 #include <gtest/gtest.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <string>
 

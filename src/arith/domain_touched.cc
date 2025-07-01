@@ -21,7 +21,7 @@
  * \file bound_deducer.cc
  * \brief Utility to deduce bound of expression
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
@@ -162,8 +162,8 @@ Map<Buffer, Array<ObjectRef>> DomainTouchedAccessMap(const PrimFunc& func) {
   return ret;
 }
 
-TVM_REGISTER_GLOBAL("arith.DomainTouched").set_body_typed(DomainTouched);
-TVM_REGISTER_GLOBAL("arith.DomainTouchedAccessMap").set_body_typed(DomainTouchedAccessMap);
+TVM_FFI_REGISTER_GLOBAL("arith.DomainTouched").set_body_typed(DomainTouched);
+TVM_FFI_REGISTER_GLOBAL("arith.DomainTouchedAccessMap").set_body_typed(DomainTouchedAccessMap);
 
 }  // namespace arith
 }  // namespace tvm

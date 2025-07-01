@@ -20,13 +20,14 @@
 #define TVM_META_SCHEDULE_SPACE_GENERATOR_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/module.h>
 #include <tvm/meta_schedule/mutator.h>
 #include <tvm/meta_schedule/postproc.h>
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/schedule/schedule.h>
 
@@ -82,11 +83,15 @@ class SpaceGeneratorNode : public runtime::Object {
   /*! \brief The probability of using certain mutator. */
   Optional<Map<Mutator, FloatImm>> mutator_probs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("sch_rules", &sch_rules);
-    v->Visit("postprocs", &postprocs);
-    v->Visit("mutator_probs", &mutator_probs);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SpaceGeneratorNode>()
+        .def_ro("sch_rules", &SpaceGeneratorNode::sch_rules)
+        .def_ro("postprocs", &SpaceGeneratorNode::postprocs)
+        .def_ro("mutator_probs", &SpaceGeneratorNode::mutator_probs);
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   /*! \brief Default destructor */
   virtual ~SpaceGeneratorNode() = default;
@@ -212,12 +217,13 @@ class PySpaceGeneratorNode : public SpaceGeneratorNode {
   /*! \brief The packed function to the `Clone` function. */
   FClone f_clone;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    SpaceGeneratorNode::VisitAttrs(v);
-    // `f_initialize_with_tune_context` is not visited
-    // `f_generate_design_space` is not visited
-    // `f_clone` is not visited
+  static void RegisterReflection() {
+    // `f_initialize_with_tune_context` is not registered
+    // `f_generate_design_space` is not registered
+    // `f_clone` is not registered
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final;

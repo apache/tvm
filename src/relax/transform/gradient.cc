@@ -787,7 +787,7 @@ Pass Gradient(String func_name, Optional<Array<Var>> require_grads, int target_i
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.Gradient").set_body_typed(Gradient);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.Gradient").set_body_typed(Gradient);
 
 }  // namespace transform
 

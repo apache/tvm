@@ -25,6 +25,7 @@
 #ifndef TVM_IR_GLOBAL_INFO_H_
 #define TVM_IR_GLOBAL_INFO_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/expr.h>
 #include <tvm/target/target.h>
 
@@ -41,7 +42,7 @@ using MemoryScope = String;
  */
 class GlobalInfoNode : public Object {
  public:
-  static constexpr const char* _type_key = "GlobalInfo";
+  static constexpr const char* _type_key = "ir.GlobalInfo";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(GlobalInfoNode, Object);
@@ -68,11 +69,16 @@ class VDeviceNode : public GlobalInfoNode {
    */
   int vdevice_id;
   MemoryScope memory_scope;
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("target", &target);
-    v->Visit("vdevice_id", &vdevice_id);
-    v->Visit("memory_scope", &memory_scope);
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<VDeviceNode>()
+        .def_ro("target", &VDeviceNode::target)
+        .def_ro("vdevice_id", &VDeviceNode::vdevice_id)
+        .def_ro("memory_scope", &VDeviceNode::memory_scope);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   TVM_DLL bool SEqualReduce(const VDeviceNode* other, SEqualReducer equal) const {
     return equal(target, other->target) && equal(vdevice_id, other->vdevice_id) &&
@@ -84,7 +90,7 @@ class VDeviceNode : public GlobalInfoNode {
     hash_reduce(vdevice_id);
     hash_reduce(memory_scope);
   }
-  static constexpr const char* _type_key = "VDevice";
+  static constexpr const char* _type_key = "ir.VDevice";
   TVM_DECLARE_FINAL_OBJECT_INFO(VDeviceNode, GlobalInfoNode);
 };
 
@@ -103,8 +109,14 @@ class VDevice : public GlobalInfo {
  */
 class DummyGlobalInfoNode : public GlobalInfoNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {}
-  static constexpr const char* _type_key = "DummyGlobalInfo";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DummyGlobalInfoNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
+  static constexpr const char* _type_key = "ir.DummyGlobalInfo";
 
   TVM_DLL bool SEqualReduce(const DummyGlobalInfoNode* other, SEqualReducer equal) const {
     return true;

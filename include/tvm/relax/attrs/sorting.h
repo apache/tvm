@@ -31,66 +31,82 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in sort operator */
-struct SortAttrs : public tvm::AttrsNode<SortAttrs> {
+struct SortAttrs : public AttrsNodeReflAdapter<SortAttrs> {
   int axis;
   bool descending;
 
-  TVM_DECLARE_ATTRS(SortAttrs, "relax.attrs.SortAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(-1).describe(
-        "Axis along which the sort is computed."
-        "The default the last axis is used.");
-    TVM_ATTR_FIELD(descending)
-        .set_default(false)
-        .describe(
-            "Whether to sort in descending order."
-            "If it is not specified, it defaults to the ascending order.");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SortAttrs>()
+        .def_ro("axis", &SortAttrs::axis,
+                "Axis along which the sort is computed."
+                "The default the last axis is used.",
+                refl::DefaultValue(-1))
+        .def_ro("descending", &SortAttrs::descending,
+                "Whether to sort in descending order."
+                "If it is not specified, it defaults to the ascending order.",
+                refl::DefaultValue(false));
   }
+
+  static constexpr const char* _type_key = "relax.attrs.SortAttrs";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(SortAttrs, BaseAttrsNode);
 };  // struct SortAttrs
 
 /*! \brief Attributes used in argsort operator */
-struct ArgsortAttrs : public tvm::AttrsNode<ArgsortAttrs> {
+struct ArgsortAttrs : public AttrsNodeReflAdapter<ArgsortAttrs> {
   int axis;
   bool descending;
   DataType dtype;
 
-  TVM_DECLARE_ATTRS(ArgsortAttrs, "relax.attrs.ArgsortAttrs") {
-    TVM_ATTR_FIELD(axis).set_default(-1).describe(
-        "Axis along which the argsort is computed."
-        "The default the last axis is used.");
-    TVM_ATTR_FIELD(descending)
-        .set_default(false)
-        .describe(
-            "Whether to argsort in descending order."
-            "If it is not specified, it defaults to the ascending order.");
-    TVM_ATTR_FIELD(dtype)
-        .set_default(NullValue<DataType>())
-        .describe("DType of the output indices.");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ArgsortAttrs>()
+        .def_ro("axis", &ArgsortAttrs::axis,
+                "Axis along which the argsort is computed."
+                "The default the last axis is used.",
+                refl::DefaultValue(-1))
+        .def_ro("descending", &ArgsortAttrs::descending,
+                "Whether to argsort in descending order."
+                "If it is not specified, it defaults to the ascending order.",
+                refl::DefaultValue(false))
+        .def_ro("dtype", &ArgsortAttrs::dtype, "DType of the output indices.",
+                refl::DefaultValue(NullValue<DataType>()));
   }
+
+  static constexpr const char* _type_key = "relax.attrs.ArgsortAttrs";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(ArgsortAttrs, BaseAttrsNode);
 };  // struct ArgsortAttrs
 
 /*! \brief Attributes used in topk operator */
-struct TopKAttrs : public tvm::AttrsNode<TopKAttrs> {
+struct TopKAttrs : public AttrsNodeReflAdapter<TopKAttrs> {
   int k;
   int axis;
   bool largest;
   String ret_type;
   DataType dtype;
 
-  TVM_DECLARE_ATTRS(TopKAttrs, "relax.attrs.TopKAttrs") {
-    TVM_ATTR_FIELD(k).describe("Number of top elements to select");
-    TVM_ATTR_FIELD(axis).set_default(-1).describe("Axis along which to sort the input tensor.");
-    TVM_ATTR_FIELD(ret_type).set_default("both").describe(
-        "The return type [both, values, indices]."
-        "both - return both top k data and indices."
-        "values - return top k data only."
-        "indices - return top k indices only.");
-    TVM_ATTR_FIELD(largest).set_default(true).describe(
-        "Whether to return largest or smallest elements."
-        "By default, return the largest k elements.");
-    TVM_ATTR_FIELD(dtype)
-        .set_default(NullValue<DataType>())
-        .describe("Data type of the output indices.");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TopKAttrs>()
+        .def_ro("k", &TopKAttrs::k, "Number of top elements to select")
+        .def_ro("axis", &TopKAttrs::axis, "Axis along which to sort the input tensor.",
+                refl::DefaultValue(-1))
+        .def_ro("ret_type", &TopKAttrs::ret_type,
+                "The return type [both, values, indices]."
+                "both - return both top k data and indices."
+                "values - return top k data only."
+                "indices - return top k indices only.",
+                refl::DefaultValue("both"))
+        .def_ro("largest", &TopKAttrs::largest,
+                "Whether to return largest or smallest elements."
+                "By default, return the largest k elements.",
+                refl::DefaultValue(true))
+        .def_ro("dtype", &TopKAttrs::dtype, "Data type of the output indices.",
+                refl::DefaultValue(NullValue<DataType>()));
   }
+
+  static constexpr const char* _type_key = "relax.attrs.TopKAttrs";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TopKAttrs, BaseAttrsNode);
 };  // struct TopKAttrs
 
 }  // namespace relax

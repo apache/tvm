@@ -28,6 +28,8 @@
 
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK({ VirtualDeviceNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(VirtualDeviceNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -191,7 +193,7 @@ VirtualDevice VirtualDeviceCache::Unique(const VirtualDevice& virtual_device) {
               virtual_device->target, virtual_device->memory_scope);
 }
 
-TVM_REGISTER_GLOBAL("target.VirtualDevice_ForDeviceTargetAndMemoryScope")
+TVM_FFI_REGISTER_GLOBAL("target.VirtualDevice_ForDeviceTargetAndMemoryScope")
     .set_body_typed(VirtualDevice::ForDeviceTargetAndMemoryScope);
 
 }  // namespace tvm

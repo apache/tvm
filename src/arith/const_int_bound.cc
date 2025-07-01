@@ -21,7 +21,7 @@
  * \file tvm/arith/const_int_bound.cc
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr_functor.h>
 
@@ -38,6 +38,8 @@ namespace arith {
 
 using namespace tir;
 
+TVM_FFI_STATIC_INIT_BLOCK({ ConstIntBoundNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(ConstIntBoundNode);
 
 ConstIntBound::ConstIntBound(int64_t min_value, int64_t max_value) {
@@ -51,7 +53,7 @@ ConstIntBound MakeConstIntBound(int64_t min_value, int64_t max_value) {
   return ConstIntBound(min_value, max_value);
 }
 
-TVM_REGISTER_GLOBAL("arith.ConstIntBound").set_body_typed(MakeConstIntBound);
+TVM_FFI_REGISTER_GLOBAL("arith.ConstIntBound").set_body_typed(MakeConstIntBound);
 
 inline void PrintBoundValue(std::ostream& os, int64_t val) {
   if (val == ConstIntBound::kPosInf) {
@@ -108,6 +110,8 @@ class ConstIntBoundAnalyzer::Impl
     BoundInfo() {}
     BoundInfo(PrimExpr expr, Entry bound) : expr(expr), bound(bound) {}
   };
+
+  bool IsBound(const Var& var) const { return var_map_.find(var) != var_map_.end(); }
 
   void Bind(const Var& var, const Range& range, bool allow_override) {
     Entry a = VisitExpr(range->min);
@@ -792,6 +796,8 @@ void ConstIntBoundAnalyzer::Update(const Var& var, const ConstIntBound& info, bo
 void ConstIntBoundAnalyzer::Bind(const Var& var, const Range& range, bool allow_override) {
   impl_->Bind(var, range, allow_override);
 }
+
+bool ConstIntBoundAnalyzer::IsBound(const Var& var) const { return impl_->IsBound(var); }
 
 std::function<void()> ConstIntBoundAnalyzer::EnterConstraint(const PrimExpr& constraint) {
   return impl_->EnterConstraint(constraint);

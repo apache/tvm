@@ -24,7 +24,7 @@
 
 #include <cuda.h>
 #include <cuda_runtime.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <array>
 #include <mutex>
@@ -108,6 +108,10 @@ class CUDAModuleNode : public runtime::ModuleNode {
     // must recheck under the lock scope
     if (module_[device_id] == nullptr) {
       CUDA_DRIVER_CALL(cuModuleLoadData(&(module_[device_id]), data_.c_str()));
+      static auto nvshmem_init_hook = ffi::Function::GetGlobal("runtime.nvshmem.cumodule_init");
+      if (nvshmem_init_hook.has_value()) {
+        (*nvshmem_init_hook)(static_cast<void*>(module_[device_id]));
+      }
     }
     CUfunction func;
     CUresult result = cuModuleGetFunction(&func, module_[device_id], func_name.c_str());
@@ -124,6 +128,10 @@ class CUDAModuleNode : public runtime::ModuleNode {
     // must recheck under the lock scope
     if (module_[device_id] == nullptr) {
       CUDA_DRIVER_CALL(cuModuleLoadData(&(module_[device_id]), data_.c_str()));
+      static auto nvshmem_init_hook = ffi::Function::GetGlobal("runtime.nvshmem.cumodule_init");
+      if (nvshmem_init_hook.has_value()) {
+        (*nvshmem_init_hook)(static_cast<void*>(module_[device_id]));
+      }
     }
     CUdeviceptr global;
     size_t nbytes;
@@ -258,7 +266,7 @@ ffi::Function CUDAModuleNode::GetFunction(const String& name,
   const FunctionInfo& info = it->second;
   CUDAWrappedFunc f;
   f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
-  return PackFuncVoidAddr(f, info.arg_types);
+  return PackFuncVoidAddr(f, info.arg_types, info.arg_extra_tags);
 }
 
 Module CUDAModuleCreate(std::string data, std::string fmt,
@@ -290,10 +298,10 @@ Module CUDAModuleLoadBinary(void* strm) {
   return CUDAModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_cubin").set_body_typed(CUDAModuleLoadFile);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_cubin").set_body_typed(CUDAModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_ptx").set_body_typed(CUDAModuleLoadFile);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_ptx").set_body_typed(CUDAModuleLoadFile);
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_cuda").set_body_typed(CUDAModuleLoadBinary);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_cuda").set_body_typed(CUDAModuleLoadBinary);
 }  // namespace runtime
 }  // namespace tvm

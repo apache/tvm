@@ -80,10 +80,6 @@ def apply_instrument_well_formed(unit_test_marks):
         required_pass=current.required_pass,
         disabled_pass=current.disabled_pass,
         config=current.config,
-        trace_stack=current.trace_stack,
-        make_traceable=current.make_traceable,
-        num_evals=current.num_evals,
-        tuning_api_database=current.get_tuning_api_database(),
     )
     with override:
         yield
