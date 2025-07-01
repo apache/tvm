@@ -23,7 +23,7 @@ from . import registry
 from . import _ffi_api
 
 
-@registry.register_object("object.Shape")
+@registry.register_object("ffi.Shape")
 class Shape(tuple, core.PyNativeObject):
     """Shape object that is possibly returned by FFI call."""
 

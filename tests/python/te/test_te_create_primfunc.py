@@ -335,7 +335,7 @@ def test_error_reporting():
         assert False
     except TypeError as e:
         error_message = str(e)
-        assert error_message.find("Unsupported Operation: ScanOp.") != -1
+        assert error_message.find("Unsupported Operation: te.ScanOp.") != -1
         return
     assert False
 

@@ -427,11 +427,13 @@ def call_packed(
         sinfo_args = [sinfo_args]
 
     sinfo_args = [
-        sinfo()
-        if callable(sinfo)
-        else sinfo.asobject()
-        if isinstance(sinfo, ObjectGeneric)
-        else sinfo
+        (
+            sinfo()
+            if callable(sinfo)
+            else sinfo.asobject()
+            if isinstance(sinfo, ObjectGeneric)
+            else sinfo
+        )
         for sinfo in sinfo_args
     ]
 
@@ -440,7 +442,7 @@ def call_packed(
         attrs_type_key = kwargs["attrs_type_key"]
         kwargs.pop("attrs_type_key")
     else:
-        attrs_type_key = "DictAttrs"
+        attrs_type_key = "ir.DictAttrs"
         is_default = True
     attrs = None
     if kwargs or not is_default:

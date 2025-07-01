@@ -70,7 +70,7 @@ def test_make_smap():
 
 
 def test_make_node():
-    x = tvm.ir.make_node("IntImm", dtype="int32", value=10, span=None)
+    x = tvm.ir.make_node("ir.IntImm", dtype="int32", value=10, span=None)
     assert isinstance(x, tvm.tir.IntImm)
     assert x.value == 10
     A = te.placeholder((10,), name="A")
@@ -80,7 +80,7 @@ def test_make_node():
     assert AA.op == A.op
     assert AA.value_index == A.value_index
 
-    y = tvm.ir.make_node("IntImm", dtype=tvm.runtime.String("int32"), value=10, span=None)
+    y = tvm.ir.make_node("ir.IntImm", dtype=tvm.runtime.String("int32"), value=10, span=None)
 
 
 def test_make_sum():

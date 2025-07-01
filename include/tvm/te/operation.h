@@ -91,7 +91,7 @@ class TVM_DLL OperationNode : public Object {
         .def_ro("attrs", &OperationNode::attrs);
   }
 
-  static constexpr const char* _type_key = "Operation";
+  static constexpr const char* _type_key = "te.Operation";
   static constexpr const bool _type_has_method_visit_attrs = false;
 
   TVM_DECLARE_BASE_OBJECT_INFO(OperationNode, Object);
@@ -119,7 +119,7 @@ class PlaceholderOpNode : public OperationNode {
         .def_ro("dtype", &PlaceholderOpNode::dtype);
   }
 
-  static constexpr const char* _type_key = "PlaceholderOp";
+  static constexpr const char* _type_key = "te.PlaceholderOp";
   static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_BASE_OBJECT_INFO(PlaceholderOpNode, OperationNode);
 };
@@ -155,7 +155,7 @@ class TVM_DLL BaseComputeOpNode : public OperationNode {
         .def_ro("reduce_axis", &BaseComputeOpNode::reduce_axis);
   }
 
-  static constexpr const char* _type_key = "BaseComputeOp";
+  static constexpr const char* _type_key = "te.BaseComputeOp";
   static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseComputeOpNode, OperationNode);
 };
@@ -179,7 +179,7 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
     refl::ObjectDef<ComputeOpNode>().def_ro("body", &ComputeOpNode::body);
   }
 
-  static constexpr const char* _type_key = "ComputeOp";
+  static constexpr const char* _type_key = "te.ComputeOp";
   static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeOpNode, BaseComputeOpNode);
 };
@@ -244,7 +244,7 @@ class ScanOpNode : public OperationNode {
         .def_ro("spatial_axis_", &ScanOpNode::spatial_axis_);
   }
 
-  static constexpr const char* _type_key = "ScanOp";
+  static constexpr const char* _type_key = "te.ScanOp";
   static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(ScanOpNode, OperationNode);
 };
@@ -293,7 +293,7 @@ class ExternOpNode : public OperationNode {
         .def_ro("body", &ExternOpNode::body);
   }
 
-  static constexpr const char* _type_key = "ExternOp";
+  static constexpr const char* _type_key = "te.ExternOp";
   static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(ExternOpNode, OperationNode);
 };

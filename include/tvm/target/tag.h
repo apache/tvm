@@ -48,7 +48,7 @@ class TargetTagNode : public Object {
         .def_ro("config", &TargetTagNode::config);
   }
 
-  static constexpr const char* _type_key = "TargetTag";
+  static constexpr const char* _type_key = "target.TargetTag";
   static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetTagNode, Object);
 

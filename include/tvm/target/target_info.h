@@ -58,7 +58,7 @@ class MemoryInfoNode : public Object {
         .def_ro("head_address", &MemoryInfoNode::head_address);
   }
 
-  static constexpr const char* _type_key = "MemoryInfo";
+  static constexpr const char* _type_key = "target.MemoryInfo";
   static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(MemoryInfoNode, Object);
 };

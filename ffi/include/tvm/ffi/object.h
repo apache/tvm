@@ -52,10 +52,14 @@ struct StaticTypeKey {
   static constexpr const char* kTVMFFIRawStr = "const char*";
   static constexpr const char* kTVMFFIByteArrayPtr = "TVMFFIByteArray*";
   static constexpr const char* kTVMFFIObjectRValueRef = "ObjectRValueRef";
-  static constexpr const char* kTVMFFIBytes = "object.Bytes";
-  static constexpr const char* kTVMFFIStr = "object.String";
-  static constexpr const char* kTVMFFIShape = "object.Shape";
-  static constexpr const char* kTVMFFINDArray = "object.NDArray";
+  static constexpr const char* kTVMFFIBytes = "ffi.Bytes";
+  static constexpr const char* kTVMFFIStr = "ffi.String";
+  static constexpr const char* kTVMFFIShape = "ffi.Shape";
+  static constexpr const char* kTVMFFINDArray = "ffi.NDArray";
+  static constexpr const char* kTVMFFIObject = "ffi.Object";
+  static constexpr const char* kTVMFFIFunction = "ffi.Function";
+  static constexpr const char* kTVMFFIArray = "ffi.Array";
+  static constexpr const char* kTVMFFIMap = "ffi.Map";
 };
 
 /*!
@@ -197,7 +201,7 @@ class Object {
   }
 
   // Information about the object
-  static constexpr const char* _type_key = "object.Object";
+  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIObject;
 
   // Default object type properties for sub-classes
   static constexpr bool _type_final = false;

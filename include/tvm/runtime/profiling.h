@@ -75,7 +75,7 @@ class TimerNode : public Object {
 
   virtual ~TimerNode() {}
 
-  static constexpr const char* _type_key = "TimerNode";
+  static constexpr const char* _type_key = "runtime.TimerNode";
   TVM_DECLARE_BASE_OBJECT_INFO(TimerNode, Object);
 };
 
@@ -125,7 +125,7 @@ class Timer : public ObjectRef {
    *    virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
    *    virtual ~CPUTimerNode() {}
    *
-   *    static constexpr const char* _type_key = "CPUTimerNode";
+   *    static constexpr const char* _type_key = "runtime.CPUTimerNode";
    *    TVM_DECLARE_FINAL_OBJECT_INFO(CPUTimerNode, TimerNode);
    *
    *   private:

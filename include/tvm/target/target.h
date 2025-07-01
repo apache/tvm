@@ -176,7 +176,7 @@ class TargetNode : public Object {
   bool SEqualReduce(const TargetNode* other, SEqualReducer equal) const;
   void SHashReduce(SHashReducer hash_reduce) const;
 
-  static constexpr const char* _type_key = "Target";
+  static constexpr const char* _type_key = "target.Target";
   static constexpr const bool _type_has_method_visit_attrs = false;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;

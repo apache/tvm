@@ -42,7 +42,7 @@ using MemoryScope = String;
  */
 class GlobalInfoNode : public Object {
  public:
-  static constexpr const char* _type_key = "GlobalInfo";
+  static constexpr const char* _type_key = "ir.GlobalInfo";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(GlobalInfoNode, Object);
@@ -90,7 +90,7 @@ class VDeviceNode : public GlobalInfoNode {
     hash_reduce(vdevice_id);
     hash_reduce(memory_scope);
   }
-  static constexpr const char* _type_key = "VDevice";
+  static constexpr const char* _type_key = "ir.VDevice";
   TVM_DECLARE_FINAL_OBJECT_INFO(VDeviceNode, GlobalInfoNode);
 };
 
@@ -116,7 +116,7 @@ class DummyGlobalInfoNode : public GlobalInfoNode {
 
   static constexpr bool _type_has_method_visit_attrs = false;
 
-  static constexpr const char* _type_key = "DummyGlobalInfo";
+  static constexpr const char* _type_key = "ir.DummyGlobalInfo";
 
   TVM_DLL bool SEqualReduce(const DummyGlobalInfoNode* other, SEqualReducer equal) const {
     return true;

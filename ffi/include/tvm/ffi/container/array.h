@@ -156,7 +156,7 @@ class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, TVMFF
   }
 
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIArray;
-  static constexpr const char* _type_key = "object.Array";
+  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIArray;
   static const constexpr bool _type_final = true;
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ArrayObj, Object);
 

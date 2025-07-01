@@ -56,6 +56,7 @@ class Id(Object):
 
 # NOTE: place base struct info in expr to avoid cyclic dep
 # from expr to struct info.
+@tvm.ffi.register_object("ir.StructInfo")
 class StructInfo(Node, Scriptable):
     """The base class of all StructInfo.
 

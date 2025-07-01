@@ -121,8 +121,8 @@ def test_return_variant_type():
 def test_pass_variant_type():
     func = tvm.get_global_func("testing.AcceptsVariant")
 
-    assert func("string arg") == "object.String"
-    assert func(17) == "IntImm"
+    assert func("string arg") == "ffi.String"
+    assert func(17) == "ir.IntImm"
 
 
 def test_pass_incorrect_variant_type():

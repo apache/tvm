@@ -54,7 +54,7 @@ class DefaultTimerNode : public TimerNode {
   virtual ~DefaultTimerNode() {}
 
   explicit DefaultTimerNode(Device dev) : device_(dev) {}
-  static constexpr const char* _type_key = "DefaultTimerNode";
+  static constexpr const char* _type_key = "runtime.DefaultTimerNode";
   TVM_DECLARE_FINAL_OBJECT_INFO(DefaultTimerNode, TimerNode);
 
  private:
@@ -75,7 +75,7 @@ class CPUTimerNode : public TimerNode {
   virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
   virtual ~CPUTimerNode() {}
 
-  static constexpr const char* _type_key = "CPUTimerNode";
+  static constexpr const char* _type_key = "runtime.CPUTimerNode";
   TVM_DECLARE_FINAL_OBJECT_INFO(CPUTimerNode, TimerNode);
 
  private:
