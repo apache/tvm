@@ -31,7 +31,7 @@ class ThreadExtentChecker : private StmtVisitor {
       ThreadExtentChecker checker(thread_warp_size);
       checker.VisitStmt(stmt);
       return true;
-    } catch (const dmlc::Error& e) {
+    } catch (const std::exception&) {
       return false;
     }
   }
@@ -188,7 +188,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           }
           IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
           lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
-        } catch (const dmlc::Error& e) {
+        } catch (const std::exception&) {
           return false;
         }
         if (!Verify(lowered)) {
