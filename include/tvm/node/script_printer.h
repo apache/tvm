@@ -151,7 +151,7 @@ class PrinterConfigNode : public Object {
 
   Array<String> GetBuiltinKeywords();
 
-  static constexpr const char* _type_key = "node.PrinterConfig";
+  static constexpr const char* _type_key = "script.PrinterConfig";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrinterConfigNode, Object);
 };
 

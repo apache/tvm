@@ -558,7 +558,7 @@ class Reduce(PrimExprWithOp):
         )
 
 
-@tvm.ffi.register_object
+@tvm.ffi.register_object("ir.FloatImm")
 class FloatImm(ConstExpr):
     """Float constant.
 
@@ -585,7 +585,7 @@ class FloatImm(ConstExpr):
         return self.value
 
 
-@tvm.ffi.register_object
+@tvm.ffi.register_object("ir.IntImm")
 class IntImm(ConstExpr):
     """Int constant.
 

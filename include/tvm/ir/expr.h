@@ -61,7 +61,7 @@ class BaseExprNode : public Object {
     refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()));
   }
 
-  static constexpr const char* _type_key = "BaseExpr";
+  static constexpr const char* _type_key = "ir.BaseExpr";
   static constexpr const bool _type_has_method_visit_attrs = true;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
@@ -117,7 +117,7 @@ class PrimExprNode : public BaseExprNode {
 
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
-  static constexpr const char* _type_key = "PrimExpr";
+  static constexpr const char* _type_key = "ir.PrimExpr";
   static constexpr const uint32_t _type_child_slots = 40;
   TVM_DECLARE_BASE_OBJECT_INFO(PrimExprNode, BaseExprNode);
 };
@@ -161,7 +161,7 @@ class PrimExprConvertibleNode : public Object {
   virtual ~PrimExprConvertibleNode() {}
   virtual PrimExpr ToPrimExpr() const = 0;
 
-  static constexpr const char* _type_key = "PrimExprConvertible";
+  static constexpr const char* _type_key = "ir.PrimExprConvertible";
   TVM_DECLARE_BASE_OBJECT_INFO(PrimExprConvertibleNode, Object);
 };
 
@@ -433,7 +433,7 @@ class RelaxExprNode : public BaseExprNode {
     refl::ObjectDef<RelaxExprNode>().def_ro("struct_info_", &RelaxExprNode::struct_info_);
   }
 
-  static constexpr const char* _type_key = "RelaxExpr";
+  static constexpr const char* _type_key = "ir.RelaxExpr";
   static constexpr const uint32_t _type_child_slots = 22;
   TVM_DECLARE_BASE_OBJECT_INFO(RelaxExprNode, BaseExprNode);
 };
@@ -478,7 +478,7 @@ class GlobalVarNode : public RelaxExprNode {
     hash_reduce.FreeVarHashImpl(this);
   }
 
-  static constexpr const char* _type_key = "GlobalVar";
+  static constexpr const char* _type_key = "ir.GlobalVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelaxExprNode);
 };
 
@@ -517,7 +517,7 @@ class IntImmNode : public PrimExprNode {
     hash_reduce(value);
   }
 
-  static constexpr const char* _type_key = "IntImm";
+  static constexpr const char* _type_key = "ir.IntImm";
   TVM_DECLARE_FINAL_OBJECT_INFO(IntImmNode, PrimExprNode);
 };
 
@@ -565,7 +565,7 @@ class FloatImmNode : public PrimExprNode {
     hash_reduce(value);
   }
 
-  static constexpr const char* _type_key = "FloatImm";
+  static constexpr const char* _type_key = "ir.FloatImm";
   TVM_DECLARE_FINAL_OBJECT_INFO(FloatImmNode, PrimExprNode);
 };
 
@@ -718,7 +718,7 @@ class RangeNode : public Object {
     hash_reduce(extent);
   }
 
-  static constexpr const char* _type_key = "Range";
+  static constexpr const char* _type_key = "ir.Range";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);

@@ -283,7 +283,7 @@ class ROCMTimerNode : public TimerNode {
     ROCM_CALL(hipEventCreate(&stop_));
   }
 
-  static constexpr const char* _type_key = "ROCMTimerNode";
+  static constexpr const char* _type_key = "runtime.rocm.ROCMTimerNode";
   TVM_DECLARE_FINAL_OBJECT_INFO(ROCMTimerNode, TimerNode);
 
  private:
