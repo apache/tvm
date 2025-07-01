@@ -357,7 +357,6 @@ TVM_DLL int GetCudaDeviceCount() {
 
 TVM_FFI_REGISTER_GLOBAL("runtime.GetCudaDeviceCount").set_body_typed(GetCudaDeviceCount);
 
-#ifdef __CUDACC__
 #if (CUDA_VERSION >= 12000)
 /**
  * \brief FFI wrapper for cuTensorMapEncodeTiled.
@@ -565,7 +564,6 @@ TVM_FFI_REGISTER_GLOBAL("runtime.cuTensorMapEncodeTiled")
       }
     });
 #endif  // CUDA_VERSION >= 12000
-#endif  // __CUDACC__
 
 }  // namespace runtime
 }  // namespace tvm
