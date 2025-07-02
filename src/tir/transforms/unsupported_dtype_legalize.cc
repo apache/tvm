@@ -257,7 +257,7 @@ class ComputeLegalizer : public StmtExprMutator {
     if (itr != var_remap_.end()) {
       return itr->second;
     } else {
-      return std::move(var);
+      return var;
     }
   }
 
@@ -530,7 +530,7 @@ class StorageLegalizer : public StmtExprMutator {
     if (itr != var_remap_.end()) {
       return itr->second;
     } else {
-      return std::move(var);
+      return var;
     }
   }
 

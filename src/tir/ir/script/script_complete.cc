@@ -95,7 +95,7 @@ class ScriptCompleter : public StmtMutator {
       n->annotations.erase(attr::script_parsing_detect_access);
       return Block(n);
     } else {
-      return std::move(block);
+      return block;
     }
   }
 

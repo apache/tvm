@@ -83,7 +83,7 @@ class SubroutineCallRewriter : public StmtExprMutator {
       }
     }
 
-    return std::move(node);
+    return node;
   }
   const std::unordered_set<const GlobalVarNode*>& external_methods_;
   bool made_change_{false};

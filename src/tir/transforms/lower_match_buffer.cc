@@ -78,7 +78,7 @@ class MatchBufferLower : public StmtExprMutator {
     if (it != var_map_.end()) {
       return (*it).second;
     } else {
-      return std::move(v);
+      return v;
     }
   }
 

@@ -75,7 +75,7 @@ class FunctionInliner : public ExprMutator {
       }
     }
 
-    return std::move(node);
+    return node;
   }
 
  private:

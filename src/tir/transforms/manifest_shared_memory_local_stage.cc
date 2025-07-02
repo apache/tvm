@@ -198,7 +198,7 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
       buffer_local_stage_.Set(target_buffer, local_stage);
       target_buffers_.push_back(target_buffer);
 
-      return std::move(new_block);
+      return new_block;
     }
 
     std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> allocated_buffers(
@@ -255,7 +255,7 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
       new_block_node->alloc_buffers = Concat(new_block_node->alloc_buffers, new_alloc_buffers);
     }
     new_block_node->body = new_seq.size() == 1 ? new_seq[0] : SeqStmt(new_seq);
-    return std::move(new_block);
+    return new_block;
   }
 
   std::vector<Stmt> ancestor_loop_or_blocks_;  // ancestor loops or block realize

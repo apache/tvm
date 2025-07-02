@@ -403,7 +403,7 @@ class CacheIndexRewriter : public StmtExprMutator {
       stmt = Block(n);
     }
     info_->block_reuse.Set(old_stmt, stmt);
-    return std::move(stmt);
+    return stmt;
   }
 
   Stmt VisitStmt_(const BufferStoreNode* store) final {

@@ -120,7 +120,8 @@ class OpaqueBlockLower : public StmtExprMutator {
     Var var = GetRef<Var>(op);
     auto it = unit_loop_vars_.find(var);
     if (it == unit_loop_vars_.end()) {
-      return std::move(var);
+      return var;
+
     } else {
       PrimExpr expr = it->second;
       if (expr.dtype() != var.dtype()) {

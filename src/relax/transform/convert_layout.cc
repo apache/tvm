@@ -157,7 +157,7 @@ class LayoutConvertMutator : public ExprMutator {
       new_args.push_back(arg);
     }
 
-    return std::move(new_args);
+    return new_args;
   }
 
   void VisitBinding(const Binding& binding) final {

@@ -188,7 +188,7 @@ class GlobalVarNormalizer : private ExprMutator {
 
   IRModule RenameModule() {
     if (!NeedRename()) {
-      return module_;
+      return std::move(module_);
     }
 
     // Step 1. Add public functions (functions with global_symbol attributes)
@@ -212,7 +212,7 @@ class GlobalVarNormalizer : private ExprMutator {
     auto module_node = module_.CopyOnWrite();
     module_node->functions = after_module->functions;
     module_node->global_var_map_ = after_module->global_var_map_;
-    return module_;
+    return std::move(module_);
   }
 
   /*! \brief Check if any function needs to be renamed. */

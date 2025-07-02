@@ -53,7 +53,7 @@ class ContextCallCombiner final : public StmtExprMutator {
         ICHECK(ctx.dtype().is_handle());
         Var ctx_var("ctx_cache_", ctx.dtype());
         ctx_map_[ctx] = ctx_var;
-        return std::move(ctx_var);
+        return ctx_var;
       }
     } else {
       return StmtExprMutator::VisitExpr_(op);

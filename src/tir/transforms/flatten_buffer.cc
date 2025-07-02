@@ -149,7 +149,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
       alloc.CopyOnWrite()->extents = new_extents;
     }
 
-    return std::move(alloc);
+    return alloc;
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
@@ -196,9 +196,9 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
           << "Expected int8 backing array for boolean tensor";
       auto writer = store.CopyOnWrite();
       writer->value = tvm::cast(DataType::Int(8), store->value);
-      return std::move(store);
+      return store;
     }
-    return std::move(store);
+    return store;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -214,7 +214,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
       load.CopyOnWrite()->dtype = DataType::Int(8);
       return tvm::cast(DataType::Bool(), load);
     } else {
-      return std::move(load);
+      return load;
     }
   }
 

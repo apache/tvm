@@ -255,9 +255,10 @@ class InThreadReducerMaker : private StmtMutator {
         if (!res->body.defined() || collector.CheckHasReductionBlocks(res)) {
           return res->body;
         }
-        return std::move(res);
+        return res;
+
       } else {
-        return std::move(res);
+        return res;
       }
     } else {
       return Stmt{nullptr};
@@ -788,7 +789,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
         }
       }
     }
-    return std::move(new_block);
+    return new_block;
   }
 
   void MakeCrossThreadReduction(const BlockRealizeNode* realize,

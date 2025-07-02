@@ -299,7 +299,7 @@ class StmtSimplifier : public IRMutatorWithAnalyzer {
         return Evaluate(0);
       }
     }
-    return std::move(store);
+    return store;
   }
 
  private:

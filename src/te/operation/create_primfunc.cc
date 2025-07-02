@@ -173,7 +173,7 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
         n->annotations.erase(attr);
       }
     }
-    return std::move(block);
+    return block;
   }
 
   std::unordered_map<tir::Buffer, int, ObjectPtrHash, ObjectPtrEqual> buffer2index_;

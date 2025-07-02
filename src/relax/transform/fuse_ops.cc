@@ -1300,7 +1300,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
     if (!func_node->GetAttr<String>(attr::kComposite)) {
       // This lambda function doesn't have `attr::kComposite`, so it
       // was not produced by FuseOps.
-      return std::move(f_inner);
+      return f_inner;
     }
 
     f_inner = WithoutAttr(std::move(f_inner), tvm::relax::attr::kPrimitive);

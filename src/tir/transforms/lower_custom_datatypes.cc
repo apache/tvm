@@ -80,7 +80,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     if (itr != var_remap_.end()) {
       return itr->second;
     } else {
-      return std::move(var);
+      return var;
     }
   }
 
@@ -115,11 +115,12 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     // Not needed for BufferStoreNode, so we can't just call
     // LegalizeDtype() in VisitBufferAccess.
     if (node.same_as(modified)) {
-      return std::move(node);
+      return node;
+
     } else {
       auto writer = modified.CopyOnWrite();
       writer->LegalizeDType();
-      return std::move(modified);
+      return modified;
     }
   }
 

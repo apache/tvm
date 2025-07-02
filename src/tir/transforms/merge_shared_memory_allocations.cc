@@ -331,7 +331,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
     if (auto new_buf = GetUpdatedBuffer(node->buffer); !new_buf.same_as(node->buffer)) {
       node.CopyOnWrite()->buffer = new_buf;
     }
-    return std::move(node);
+    return node;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {

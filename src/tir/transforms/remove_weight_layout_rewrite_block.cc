@@ -64,7 +64,7 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
         n->alloc_buffers = std::move(alloc_buffers);
         return Stmt(n);
       } else {
-        return std::move(block);
+        return block;
       }
     }
 

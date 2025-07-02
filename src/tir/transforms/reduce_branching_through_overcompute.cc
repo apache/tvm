@@ -71,7 +71,8 @@ struct ElseBranchFiller : StmtExprMutator {
   Stmt VisitStmt_(const IfThenElseNode* op) override {
     IfThenElse ret = Downcast<IfThenElse>(StmtExprMutator::VisitStmt_(op));
     if (ret->else_case.defined()) {
-      return std::move(ret);
+      return ret;
+
     } else {
       auto new_else_clause = Evaluate(0);
       new_else_clauses.insert(new_else_clause);
@@ -95,7 +96,7 @@ class ElseBranchStripper : public StmtExprMutator {
         as_eval && new_else_clauses_.count(as_eval.value())) {
       return IfThenElse(ret->condition, ret->then_case);
     } else {
-      return std::move(ret);
+      return ret;
     }
   }
 
@@ -137,7 +138,7 @@ class BranchReducer : public arith::IRMutatorWithAnalyzer {
     } else if (is_special_case(!cond->condition, cond->then_case, else_case)) {
       return cond->then_case;
     } else {
-      return std::move(cond);
+      return cond;
     }
   }
 
