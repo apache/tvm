@@ -23,6 +23,7 @@ from tvm.script import tir as T
 import numpy as np
 import ctypes
 import math
+import scipy
 
 
 def test_nearbyint():
@@ -77,6 +78,7 @@ def test_unary_intrin():
         (tvm.tir.asinh, lambda x: np.arcsinh(x)),
         (tvm.tir.acosh, lambda x: np.arccosh(x)),
         (tvm.tir.atanh, lambda x: np.arctanh(x)),
+        (tvm.tir.erf, lambda x: scipy.special.erf(x)),
     ]
 
     def run_test(tvm_intrin, np_func, atol=1e-5, rtol=1e-5):
