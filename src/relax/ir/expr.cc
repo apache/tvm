@@ -45,6 +45,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   MatchCastNode::RegisterReflection();
   VarBindingNode::RegisterReflection();
   BindingBlockNode::RegisterReflection();
+  DataflowBlockNode::RegisterReflection();
   SeqExprNode::RegisterReflection();
   IfNode::RegisterReflection();
   FunctionNode::RegisterReflection();

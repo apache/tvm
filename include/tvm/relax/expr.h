@@ -816,6 +816,11 @@ class BindingBlock : public ObjectRef {
 
 class DataflowBlockNode : public BindingBlockNode {
  public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DataflowBlockNode>();
+  }
+
   bool SEqualReduce(const DataflowBlockNode* other, SEqualReducer equal) const {
     return equal(bindings, other->bindings);
   }
