@@ -264,7 +264,7 @@ void CheckPartialAffineBinding(const ScheduleState& self, Block block,
  * \return The loop domain
  */
 Map<Var, Range> LoopDomainOfSRefTreePath(const StmtSRef& low_inclusive,
-                                         const Optional<StmtSRef>& high_exclusive = NullOpt,
+                                         const Optional<StmtSRef>& high_exclusive = std::nullopt,
                                          const runtime::StorageScope& extra_relax_scope =  //
                                          runtime::StorageScope{runtime::StorageRank::kGlobal, ""});
 
@@ -522,7 +522,7 @@ std::tuple<CommReducer, Array<PrimExpr>, Array<PrimExpr>> GetReducerAndCombinerL
  * \return The list of the registered reducer-getter functions
  * \sa ReducerRegistry
  */
-std::vector<runtime::TypedPackedFunc<Optional<CommReducer>(Array<PrimExpr>)>> GetReducerGetters();
+std::vector<ffi::TypedFunction<Optional<CommReducer>(Array<PrimExpr>)>> GetReducerGetters();
 
 /*!
  * \brief Given the input identities and the combiner BufferStores of a reduction, extract the
@@ -741,11 +741,15 @@ class TensorizeInfoNode : public Object {
    */
   Optional<Array<Integer>> block_iter_paddings;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("loop_map", &loop_map);
-    v->Visit("desc_loop_indexer", &desc_loop_indexer);
-    v->Visit("block_iter_paddings", &block_iter_paddings);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TensorizeInfoNode>()
+        .def_ro("loop_map", &TensorizeInfoNode::loop_map)
+        .def_ro("desc_loop_indexer", &TensorizeInfoNode::desc_loop_indexer)
+        .def_ro("block_iter_paddings", &TensorizeInfoNode::block_iter_paddings);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "tir.schedule.TensorizeInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorizeInfoNode, Object);
@@ -762,7 +766,7 @@ class TensorizeInfo : public ObjectRef {
  * \param block_sref The target block to match against
  * \param desc_func The prim func describing the computation to be tensorized
  * \param allow_padding Whether to allow padding the block iters to match the intrinsic description
- * \return TensorizeInfo structure if a valid mapping is found, NullOpt otherwise
+ * \return TensorizeInfo structure if a valid mapping is found, std::nullopt otherwise
  */
 Optional<TensorizeInfo> GetTensorizeLoopMapping(const tir::ScheduleState& self,
                                                 const tir::StmtSRef& block_sref,
@@ -785,13 +789,17 @@ class AutoTensorizeMappingInfoNode : public Object {
   /*! \brief Block iters on RHS */
   Array<IterVar> rhs_iters;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("mappings", &mappings);
-    v->Visit("lhs_buffer_map", &lhs_buffer_map);
-    v->Visit("rhs_buffer_indices", &rhs_buffer_indices);
-    v->Visit("lhs_iters", &lhs_iters);
-    v->Visit("rhs_iters", &rhs_iters);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AutoTensorizeMappingInfoNode>()
+        .def_ro("mappings", &AutoTensorizeMappingInfoNode::mappings)
+        .def_ro("lhs_buffer_map", &AutoTensorizeMappingInfoNode::lhs_buffer_map)
+        .def_ro("rhs_buffer_indices", &AutoTensorizeMappingInfoNode::rhs_buffer_indices)
+        .def_ro("lhs_iters", &AutoTensorizeMappingInfoNode::lhs_iters)
+        .def_ro("rhs_iters", &AutoTensorizeMappingInfoNode::rhs_iters);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "tir.schedule.AutoTensorizeMappingInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(AutoTensorizeMappingInfoNode, Object);
@@ -809,10 +817,10 @@ class AutoTensorizeMappingInfo : public ObjectRef {
  * \param self The schedule state
  * \param block_sref The compute block for auto tensorization
  * \param desc_func The prim func describing the computation to be tensorized
- * \return AutoTensorizeMappingInfo structure if a potential mapping is found, NullOpt otherwise.
- * \note Returning a valid AutoTensorizeMappingInfo doesn't guarantee the block can be tensorized.
- * We will need to apply the suggested layout transformations and then match against the tensor
- * intrinsics.
+ * \return AutoTensorizeMappingInfo structure if a potential mapping is found, std::nullopt
+ * otherwise. \note Returning a valid AutoTensorizeMappingInfo doesn't guarantee the block can be
+ * tensorized. We will need to apply the suggested layout transformations and then match against the
+ * tensor intrinsics.
  */
 Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const ScheduleState& self,
                                                                const StmtSRef& block_sref,

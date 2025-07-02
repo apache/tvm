@@ -24,11 +24,11 @@
 #ifndef TVM_IR_FUNCTION_H_
 #define TVM_IR_FUNCTION_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/string.h>
 
 #include <string>
 #include <type_traits>
@@ -50,16 +50,16 @@ enum class CallingConv : int {
    */
   kDefault = 0,
   /*!
-   * \brief PackedFunc that exposes a CPackedFunc signature.
+   * \brief ffi::Function that exposes a Cffi::Function signature.
    *
-   * - Calling by PackedFunc calling convention.
-   * - Implementation: Expose a function with the CPackedFunc signature.
+   * - Calling by ffi::Function calling convention.
+   * - Implementation: Expose a function with the Cffi::Function signature.
    */
   kCPackedFunc = 1,
   /*!
    * \brief Device kernel launch
    *
-   * - Call by PackedFunc calling convention.
+   * - Call by ffi::Function calling convention.
    * - Implementation: defined by device runtime(e.g. runtime/cuda)
    */
   kDeviceKernelLaunch = 2,
@@ -131,7 +131,7 @@ constexpr const char* kGlobalSymbol = "global_symbol";
  * \brief Base node of all functions.
  *
  * We support several variants of functions throughout the stack.
- * All of the functions share the same type system(via checked_type)
+ * All of the functions share the same type system
  * to support cross variant calls.
  *
  * \sa BaseFunc
@@ -161,9 +161,8 @@ class BaseFuncNode : public RelaxExprNode {
    * \endcode
    */
   template <typename TObjectRef>
-  Optional<TObjectRef> GetAttr(
-      const std::string& attr_key,
-      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
+  Optional<TObjectRef> GetAttr(const std::string& attr_key,
+                               Optional<TObjectRef> default_value = std::nullopt) const {
     return attrs.GetAttr(attr_key, default_value);
   }
   // variant that uses TObjectRef to enable implicit conversion to default value.
@@ -218,7 +217,12 @@ class BaseFuncNode : public RelaxExprNode {
       return LinkageType::kInternal;
   }
 
-  static constexpr const char* _type_key = "BaseFunc";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BaseFuncNode>().def_ro("attrs", &BaseFuncNode::attrs);
+  }
+
+  static constexpr const char* _type_key = "ir.BaseFunc";
   static constexpr const uint32_t _type_child_slots = 2;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseFuncNode, RelaxExprNode);
 };

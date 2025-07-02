@@ -314,7 +314,7 @@ TVM_DLL tvm::Map<String, tvm::Map<String, Integer>> CalculateAllocatedBytes(cons
  *        The LCA may be a For loop or a Block.
  * \param func The PrimFunc to be detected.
  * \return The Map from buffer to the LCA of all access to it. The lca is function root if the
- *         return stmt is NullOpt.
+ *         return stmt is std::nullopt.
  */
 TVM_DLL Map<Buffer, Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func);
 
@@ -421,7 +421,7 @@ TVM_DLL Pass VerifyGPUCode(Map<String, PrimExpr> constraints);
  * \returns The pass.
  * \sa tvm::tir::CalculateAllocatedBytes
  */
-TVM_DLL Pass VerifyVTCMLimit(Optional<Target> target = NullOpt);
+TVM_DLL Pass VerifyVTCMLimit(Optional<Target> target = std::nullopt);
 
 /*!
  * \brief Statically check TIR code for out of bounds array access.

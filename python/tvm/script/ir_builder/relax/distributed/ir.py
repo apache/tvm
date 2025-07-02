@@ -18,6 +18,7 @@
 
 """IRBuilder for distributed Relax dialect"""
 from typing import Union, List, Tuple, Optional
+from numbers import Number
 
 import numpy as _np  # type: ignore
 import tvm
@@ -27,7 +28,7 @@ from tvm.relax.expr import Expr, ShapeExpr, Call, ExternFunc, Constant
 from tvm.relax.expr import Tuple as RxTuple
 from tvm.relax.distributed import DTensorStructInfo
 from tvm.relax.utils import args_converter
-from tvm._ffi import base as _base
+from tvm import base as _base
 from tvm.runtime import ndarray as _nd
 from tvm.relax.op.distributed import (
     redistribute as _redistribute,
@@ -110,11 +111,11 @@ def const(
     - bool maps to "bool"
     - other using the same default rule as numpy.
     """
-    struct_info = tvm.runtime.convert_to_object(struct_info)
+    struct_info = tvm.runtime.convert(struct_info)
     if not isinstance(struct_info, DTensorStructInfo):
         raise TypeError("struct_info needs to be an instance of DTensorStructInfo. ")
     dtype = str(struct_info.tensor_sinfo.dtype)
-    if isinstance(value, (_base.numeric_types, (bool, list))):
+    if isinstance(value, (Number, (bool, list))):
         value = _np.array(value, dtype=dtype)
 
     if isinstance(value, (_np.ndarray, _np.generic)):

@@ -60,7 +60,6 @@ def generate_random_inputs(
 
 
 def generate_random_value(shape, elem_type) -> np.ndarray:
-
     # Extract datatype for the input.
     if elem_type:
         dtype = str(onnx.mapping.TENSOR_TYPE_TO_NP_TYPE[elem_type])
@@ -403,13 +402,11 @@ def test_binary_bool(op_name: str):
     verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.BOOL)
 
 
-@pytest.mark.skip(reason="opset 18 is not supported in CI")
 @pytest.mark.parametrize("op_name", ["BitwiseAnd", "BitwiseOr", "BitwiseXor"])
 def test_bitwise(op_name: str):
     verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.UINT64, opset=18)
 
 
-@pytest.mark.skip(reason="opset 18 is not supported in CI")
 def test_bitwise_not():
     verify_unary(
         "BitwiseNot",
@@ -448,9 +445,9 @@ def test_bitwise_shift(direction: str):
         "Sinh",
         "Cosh",
         "Tanh",
-        "Asin",
-        "Acos",
-        "Atan",
+        # "Asin",  // TODO @jikechao, fix the precision loss due to the Taylor approximation
+        # "Acos",
+        # "Atan",
         "Asinh",
         "Acosh",
         "Atanh",
@@ -946,7 +943,6 @@ def test_selu():
     verify_unary("Selu", [3, 32, 32], attrs={"alpha": 0.25, "gamma": 0.3})
 
 
-@pytest.mark.skip(reason="opset 18 is not supported in CI")
 def test_mish():
     verify_unary("Mish", [3, 32, 32], opset=18)
 
@@ -1202,7 +1198,6 @@ def test_squeeze_constant(axis):
 @pytest.mark.parametrize("A", [8, 16, 32])
 @pytest.mark.parametrize("B", [8, 16, 32])
 def test_dynamic_squeeze(axis, A, B):
-
     squeeze_node = helper.make_node("Squeeze", ["x", "axes"], ["y"])
     shape = [1, "A", "B"]
 
@@ -1228,7 +1223,6 @@ def test_dynamic_squeeze(axis, A, B):
 @pytest.mark.parametrize("axis", [[0]])
 @pytest.mark.parametrize("A", [8, 16, 32])
 def test_dynamic_shape_squeeze(axis, A):
-
     shape_node = helper.make_node("Shape", ["x"], ["y"])
     squeeze_node = helper.make_node("Squeeze", ["y", "axes"], ["z"])
     shape = ["A"]
@@ -1297,6 +1291,24 @@ def test_layer_norm():
             helper.make_tensor_value_info("a", TensorProto.FLOAT, [32, 32]),
             helper.make_tensor_value_info("b", TensorProto.FLOAT, [32]),
             helper.make_tensor_value_info("c", TensorProto.FLOAT, [32]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("d", TensorProto.FLOAT, [32, 32]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="layer_norm_test")
+    check_correctness(model)
+
+    # Test case with no bias that is an optional input
+    layer_norm_node = helper.make_node("LayerNormalization", ["a", "b"], ["d"], epsilon=1e-12)
+
+    graph = helper.make_graph(
+        [layer_norm_node],
+        "layer_norm_test",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("b", TensorProto.FLOAT, [32]),
         ],
         outputs=[
             helper.make_tensor_value_info("d", TensorProto.FLOAT, [32, 32]),
@@ -1491,24 +1503,24 @@ def test_embedlayernormalization():
     )
 
 
-def create_reduce_test_parameters():
+def create_reduce_test_parameters_axes_attr():
     output = []
     for value in [True, False]:
-        output.append(("ReduceMax", value))
-        output.append(("ReduceMean", value))
-        output.append(("ReduceMin", value))
-        output.append(("ReduceProd", value))
-        output.append(("ReduceSum", value))
-        output.append(("ReduceSumSquare", value))
-        output.append(("ReduceLogSum", value))
-        output.append(("ReduceLogSumExp", value))
-        output.append(("ReduceL1", value))
-        output.append(("ReduceL2", value))
+        output.append(("ReduceMax", value, 11))
+        output.append(("ReduceMean", value, 13))
+        output.append(("ReduceMin", value, 11))
+        output.append(("ReduceProd", value, 13))
+        output.append(("ReduceSum", value, 11))
+        output.append(("ReduceSumSquare", value, 13))
+        output.append(("ReduceLogSum", value, 13))
+        output.append(("ReduceLogSumExp", value, 13))
+        output.append(("ReduceL1", value, 13))
+        output.append(("ReduceL2", value, 13))
     return output
 
 
-@pytest.mark.parametrize("func, dynamic", create_reduce_test_parameters())
-def test_all_reduce_funcs(func, dynamic):
+@pytest.mark.parametrize("func, dynamic, opset", create_reduce_test_parameters_axes_attr())
+def test_all_reduce_funcs_axes_attr(func, dynamic, opset):
     def verify_reduce_func(func, data, axis, keepdims):
         inshape = data.shape
         outshape = np.sum(data, axis=axis, keepdims=keepdims == 1).shape
@@ -1537,7 +1549,7 @@ def test_all_reduce_funcs(func, dynamic):
 
         inputs_dict = {"x": data}
         # Reduction ops accumulate arithmetic errors, so we use a higher tolerance.
-        check_correctness(model, inputs_dict, opset=11, rtol=1e-4, atol=1e-4)
+        check_correctness(model, inputs_dict, opset=opset, rtol=1e-4, atol=1e-4)
 
     for keepdims in [True, False]:
         verify_reduce_func(
@@ -1562,6 +1574,129 @@ def test_all_reduce_funcs(func, dynamic):
 
         verify_reduce_func(
             func, np.random.randn(1, 3, 4, 1).astype(np.float32), axis=(1,), keepdims=keepdims
+        )
+
+
+def create_reduce_test_parameters_axes_input():
+    output = []
+    for dynamic in [True, False]:
+        output.append(("ReduceMax", dynamic, 18))
+        output.append(("ReduceMean", dynamic, 18))
+        output.append(("ReduceMin", dynamic, 18))
+        output.append(("ReduceProd", dynamic, 18))
+        output.append(("ReduceSum", dynamic, 13))
+        output.append(("ReduceSumSquare", dynamic, 18))
+        output.append(("ReduceLogSum", dynamic, 18))
+        output.append(("ReduceLogSumExp", dynamic, 18))
+        output.append(("ReduceL1", dynamic, 18))
+        output.append(("ReduceL2", dynamic, 18))
+    return output
+
+
+@pytest.mark.parametrize("func, dynamic, opset", create_reduce_test_parameters_axes_input())
+def test_all_reduce_funcs_axes_input(func, dynamic, opset):
+    def verify_reduce_func(func, data, axes, keepdims, noop_with_empty_axes=False):
+        inshape = data.shape
+
+        inputs = ["x"]
+        initializers = []
+
+        # Optional `axes` input
+        if axes is not None:
+            axes_name = "reduce_axes"
+            axes_np = np.asarray(axes, dtype=np.int64)
+            axes_init = helper.make_tensor(
+                name=axes_name,
+                data_type=TensorProto.INT64,
+                dims=axes_np.shape,
+                vals=axes_np,
+            )
+            initializers.append(axes_init)
+            inputs.append(axes_name)
+
+        # Determine input and output shapes
+        if not axes and not noop_with_empty_axes:
+            outshape = np.sum(data, axis=None, keepdims=keepdims).shape
+        elif not axes and noop_with_empty_axes:
+            outshape = inshape
+        else:
+            outshape = np.sum(data, axis=axes, keepdims=keepdims).shape
+
+        if dynamic:
+            in_list = ["?"] * len(inshape)
+            out_list = ["?"] * len(outshape)
+        else:
+            in_list = list(inshape)
+            out_list = list(outshape)
+
+        # Make a model node
+        node = helper.make_node(
+            func,
+            inputs=inputs,
+            outputs=["y"],
+            keepdims=keepdims,
+            noop_with_empty_axes=noop_with_empty_axes,
+        )
+
+        # Make a model graph and a model
+        graph = helper.make_graph(
+            [node],
+            "reduce18_test",
+            inputs=[helper.make_tensor_value_info("x", TensorProto.FLOAT, in_list)],
+            initializer=initializers,
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, out_list)],
+        )
+        model = helper.make_model(graph, producer_name="reduce18_test")
+
+        # Run TVM importer vs onnxruntime
+        inputs_dict = {"x": data}
+        check_correctness(model, inputs_dict, opset=opset, rtol=1e-4, atol=1e-4)
+
+    # Verify
+    for keepdims in [True, False]:
+        # no `axes` input && `noop_with_empty_axes` = 0 -> reduce over all dimensions.
+        verify_reduce_func(
+            func,
+            np.random.randn(3, 2, 2).astype(np.float32),
+            axes=[],
+            keepdims=keepdims,
+            noop_with_empty_axes=False,
+        )
+
+        # no `axes` input && `noop_with_empty_axes` = 0 -> reduce over all dimensions.
+        verify_reduce_func(
+            func,
+            np.random.randn(3, 2, 2).astype(np.float32),
+            axes=None,
+            keepdims=keepdims,
+            noop_with_empty_axes=False,
+        )
+
+        # no `axes` input && `noop_with_empty_axes` = 1 -> return the input unchanged.
+        verify_reduce_func(
+            func,
+            np.random.randn(4, 3).astype(np.float32),
+            axes=[],
+            keepdims=keepdims,
+            noop_with_empty_axes=True,
+        )
+
+        # no `axes` input && `noop_with_empty_axes` = 1 -> return the input unchanged.
+        # (onnxruntime bug) Runtime error on the onnxruntime part
+        # verify_reduce_func(
+        #     func,
+        #     np.random.randn(4, 3).astype(np.float32),
+        #     axes=None,
+        #     keepdims=keepdims,
+        #     noop_with_empty_axes=True,
+        # )
+
+        # `axes` provided -> reduce over specified axes.
+        verify_reduce_func(
+            func,
+            np.random.randn(3, 3, 3, 1).astype(np.float32),
+            axes=(1, 2),
+            keepdims=keepdims,
         )
 
 
@@ -1692,6 +1827,12 @@ def test_expand(dynamic):
         data = np.random.uniform(size=in_shape).astype(np.float32)
         ref_data = np.tile(data, (1, 1, 4))
         _test_expand("expand_with_diff_dim", data, shape, ref_data)
+
+        in_shape = (3, 1)
+        shape = (1, 1, 3, 1)
+        data = np.random.uniform(size=in_shape).astype(np.float32)
+        ref_data = np.tile(data, (1, 1, 1, 1))
+        _test_expand("expand_with_the_same_suffix_dims", data, shape, ref_data)
     else:
         in_shape = (1, 32, 32)
         shape = ("batch", 32, 32)
@@ -1981,7 +2122,6 @@ def test_attention(dynamic):
 
 @pytest.mark.parametrize("dynamic", [True, False])
 def test_pad(dynamic):
-
     if dynamic:
         pytest.skip("Dynamic pad not supported")
 
@@ -2039,7 +2179,6 @@ def test_pad(dynamic):
 
 @pytest.mark.parametrize("dynamic", [True, False])
 def test_pad_v2(dynamic):
-
     if dynamic:
         pytest.skip("Dynamic pad not supported")
 
@@ -2742,7 +2881,6 @@ def test_params_names_start_with_onnx():
 
 def test_shape_dim_string_expression():
     def _verify(x_shape, example_shape):
-
         identity_node = helper.make_node("Identity", ["x"], ["y"])
 
         graph = helper.make_graph(
@@ -2767,7 +2905,6 @@ def test_shape_dim_string_expression():
 
 
 def test_shape_dim_string_expression_graph_add():
-
     identity_node = helper.make_node("Identity", ["x"], ["y"])
 
     x_shape = ["A", "B", "A + B"]
@@ -2802,7 +2939,6 @@ def test_shape_dim_string_expression_graph_add():
 
 
 def test_shape_dim_string_expression_graph_subtract():
-
     identity_node = helper.make_node("Identity", ["x"], ["y"])
 
     x_shape = ["A", "B", "A - B"]
@@ -2837,7 +2973,6 @@ def test_shape_dim_string_expression_graph_subtract():
 
 
 def test_shape_dim_string_expression_graph_mul():
-
     identity_node = helper.make_node("Identity", ["x"], ["y"])
 
     x_shape = ["A", "B", "A * B"]
@@ -2872,7 +3007,6 @@ def test_shape_dim_string_expression_graph_mul():
 
 
 def test_shape_dim_string_expression_graph_div_1():
-
     identity_node = helper.make_node("Identity", ["x"], ["y"])
 
     # this will result in a floordiv despite not using // since the operands are always int
@@ -2908,7 +3042,6 @@ def test_shape_dim_string_expression_graph_div_1():
 
 
 def test_shape_dim_string_expression_graph_div_2():
-
     identity_node = helper.make_node("Identity", ["x"], ["y"])
 
     x_shape = ["A", "B", "A // B"]

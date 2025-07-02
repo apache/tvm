@@ -20,7 +20,7 @@
 #define TVM_TIR_TRANSFORMS_MEMHAMMER_REWRITE_RULE_H_
 
 #include <tvm/arith/iter_affine_map.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -56,16 +56,16 @@ struct ConstraintSet {
                          BufferRegion read_region,            //
                          BufferRegion write_region,           //
                          int data_bits,                       //
-                         const Map<String, ObjectRef>& ann)
+                         const Map<String, ffi::Any>& ann)
       : thread_extent(thread_extent),
         outer_loops(outer_loops),
         read_region(read_region),
         write_region(write_region),
         data_bits(data_bits) {
-    if (Optional<ObjectRef> add_local_stage = ann.Get("local_stage")) {
+    if (auto add_local_stage = ann.Get("local_stage")) {
       this->add_local_stage = Downcast<Integer>(add_local_stage.value())->value;
     }
-    if (Optional<ObjectRef> vector_bytes = ann.Get("vector_bytes")) {
+    if (auto vector_bytes = ann.Get("vector_bytes")) {
       this->vector_bytes = Downcast<Integer>(vector_bytes.value())->value;
     }
   }

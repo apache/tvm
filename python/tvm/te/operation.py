@@ -14,18 +14,17 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" Operation class for computation declaration."""
+"""Operation class for computation declaration."""
 import inspect
 
 # pylint: disable=invalid-name
 from numbers import Integral as _Integral
 from typing import List, Optional, Union
 
-import tvm._ffi
+import tvm.ffi
 import tvm.arith._ffi_api
 import tvm.tir
 import tvm.tir._ffi_api
-from tvm._ffi.base import string_types
 from tvm.ir import Array
 from tvm.runtime import convert
 
@@ -516,7 +515,7 @@ def thread_axis(dom=None, tag="", name="", span=None):
     axis : IterVar
         The thread itervar.
     """
-    if isinstance(dom, string_types):
+    if isinstance(dom, str):
         tag, dom = dom, None
     if not tag:
         raise ValueError("tag must be given as Positional or keyword argument")

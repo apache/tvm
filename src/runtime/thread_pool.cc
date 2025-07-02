@@ -22,12 +22,11 @@
  * \brief Threadpool for multi-threading runtime.
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/threading_backend.h>
 #if TVM_THREADPOOL_USE_OPENMP
 #include <omp.h>
@@ -98,23 +97,25 @@ class ParallelLauncher {
   // Wait n jobs to finish
   int WaitForJobs() {
     while (num_pending_.load() != 0) {
-      tvm::runtime::threading::Yield();
+      tvm::runtime::threading::YieldThread();
     }
     if (!has_error_.load()) return 0;
     std::ostringstream os;
     for (size_t i = 0; i < par_errors_.size(); ++i) {
-      if (par_errors_[i].length() != 0) {
-        os << "Task " << i << " error: " << par_errors_[i] << '\n';
-        par_errors_[i].clear();
+      if (par_errors_[i] != nullptr) {
+        if (par_errors_[i]) {
+          os << "Task " << i << " error: " << (*par_errors_[i]).what();
+        }
+        par_errors_[i] = nullptr;
       }
     }
-    TVMAPISetLastError(os.str().c_str());
+    TVMFFIErrorSetRaisedFromCStr("RuntimeError", os.str().c_str());
     return -1;
   }
   // Signal that one job has finished.
   void SignalJobError(int task_id) {
     num_pending_.fetch_sub(1);
-    par_errors_[task_id] = TVMGetLastError();
+    par_errors_[task_id] = tvm::ffi::details::MoveFromSafeCallRaised();
     has_error_.store(true);
   }
   // Signal that one job has finished.
@@ -139,7 +140,7 @@ class ParallelLauncher {
   // The counter page.
   std::atomic<int32_t>* sync_counter_{nullptr};
   // The error message
-  std::vector<std::string> par_errors_;
+  std::vector<Optional<tvm::ffi::Error>> par_errors_;
 };
 
 /*! \brief Lock-free single-producer-single-consumer queue for each thread */
@@ -161,7 +162,7 @@ class SpscTaskQueue {
    */
   void Push(const Task& input) {
     while (!Enqueue(input)) {
-      tvm::runtime::threading::Yield();
+      tvm::runtime::threading::YieldThread();
     }
     if (pending_.fetch_add(1) == -1) {
       std::unique_lock<std::mutex> lock(mutex_);
@@ -180,7 +181,7 @@ class SpscTaskQueue {
     // If a new task comes to the queue quickly, this wait avoid the worker from sleeping.
     // The default spin count is set by following the typical omp convention
     for (uint32_t i = 0; i < spin_count && pending_.load() == 0; ++i) {
-      tvm::runtime::threading::Yield();
+      tvm::runtime::threading::YieldThread();
     }
     if (pending_.fetch_sub(1) == 0) {
       std::unique_lock<std::mutex> lock(mutex_);
@@ -377,22 +378,23 @@ class ThreadPool {
  * \brief args[0] is the AffinityMode, args[1] is the number of threads.
  *  args2 is a list of CPUs which is used to set the CPU affinity.
  */
-TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRetValue* rv) {
-  threading::ThreadGroup::AffinityMode mode =
-      static_cast<threading::ThreadGroup::AffinityMode>(static_cast<int>(args[0]));
-  int nthreads = args[1];
-  std::vector<unsigned int> cpus;
-  if (args.num_args >= 3) {
-    Array<String> cpu_array = args[2];
-    for (auto cpu : cpu_array) {
-      ICHECK(IsNumber(cpu)) << "The CPU core information '" << cpu << "' is not a number.";
-      cpus.push_back(std::stoi(cpu));
-    }
-  }
-  threading::Configure(mode, nthreads, cpus);
-});
+TVM_FFI_REGISTER_GLOBAL("runtime.config_threadpool")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      threading::ThreadGroup::AffinityMode mode =
+          static_cast<threading::ThreadGroup::AffinityMode>(args[0].cast<int>());
+      int nthreads = args[1].cast<int>();
+      std::vector<unsigned int> cpus;
+      if (args.size() >= 3) {
+        auto cpu_array = args[2].cast<Array<String>>();
+        for (auto cpu : cpu_array) {
+          ICHECK(IsNumber(cpu)) << "The CPU core information '" << cpu << "' is not a number.";
+          cpus.push_back(std::stoi(cpu));
+        }
+      }
+      threading::Configure(mode, nthreads, cpus);
+    });
 
-TVM_REGISTER_GLOBAL("runtime.NumThreads").set_body_typed([]() -> int32_t {
+TVM_FFI_REGISTER_GLOBAL("runtime.NumThreads").set_body_typed([]() -> int32_t {
   return threading::NumThreads();
 });
 
@@ -509,7 +511,7 @@ int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv) {
   for (int i = 0; i < num_task; ++i) {
     if (i != task_id) {
       while (sync_counter[i * kSyncStride].load(std::memory_order_relaxed) <= old_counter) {
-        tvm::runtime::threading::Yield();
+        tvm::runtime::threading::YieldThread();
       }
     }
   }

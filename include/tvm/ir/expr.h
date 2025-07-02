@@ -24,10 +24,11 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
+#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
 #include <tvm/node/node.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/object.h>
 
 #include <algorithm>
@@ -38,7 +39,7 @@
 
 namespace tvm {
 
-using tvm::runtime::String;
+using tvm::String;
 
 // Forward-declare VirtualDevice to avoid circular imports.
 class VirtualDevice;
@@ -55,7 +56,13 @@ class BaseExprNode : public Object {
    */
   mutable Span span;
 
-  static constexpr const char* _type_key = "BaseExpr";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()));
+  }
+
+  static constexpr const char* _type_key = "ir.BaseExpr";
+  static constexpr const bool _type_has_method_visit_attrs = true;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 64;
@@ -101,9 +108,16 @@ class PrimExprNode : public BaseExprNode {
    */
   DataType dtype;
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PrimExprNode>().def_ro("dtype", &PrimExprNode::dtype);
+  }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
-  static constexpr const char* _type_key = "PrimExpr";
+  static constexpr const char* _type_key = "ir.PrimExpr";
   static constexpr const uint32_t _type_child_slots = 40;
   TVM_DECLARE_BASE_OBJECT_INFO(PrimExprNode, BaseExprNode);
 };
@@ -130,11 +144,57 @@ class PrimExpr : public BaseExpr {
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
 
- private:
-  // Internal function for conversion.
-  friend struct runtime::PackedFuncValueConverter<PrimExpr>;
-  TVM_DLL static PrimExpr FromObject_(ObjectRef ref);
+  /*!
+   * \brief construct from string to form a StringImm.
+   * \param value The value to be constructed.
+   */
+  TVM_DLL static PrimExpr ConvertFallbackValue(String value);  // NOLINT(*)
 };
+
+/*!
+ * \brief Base class for other IR constructs that can be converted to PrimExpr.
+ * This is useful for the FFI to convert the expressions to PrimExpr.
+ * \sa PrimExpr
+ */
+class PrimExprConvertibleNode : public Object {
+ public:
+  virtual ~PrimExprConvertibleNode() {}
+  virtual PrimExpr ToPrimExpr() const = 0;
+
+  static constexpr const char* _type_key = "ir.PrimExprConvertible";
+  TVM_DECLARE_BASE_OBJECT_INFO(PrimExprConvertibleNode, Object);
+};
+
+/*!
+ * \brief Managed reference to PrimExprConvertibleNode.
+ * \sa PrimExprConvertibleNode
+ */
+class PrimExprConvertible : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(PrimExprConvertible, ObjectRef, PrimExprConvertibleNode);
+};
+
+namespace ffi {
+// define automatic conversion from bool, int64_t, double, String to PrimExpr
+// These functions are declared early to avoid circular dependency
+template <>
+inline constexpr bool use_default_type_traits_v<PrimExpr> = false;
+
+template <>
+struct TypeTraits<PrimExpr>
+    : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double, String,
+                                             PrimExprConvertible> {
+  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(StrictBool value);
+  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(int64_t value);
+  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(double value);
+  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(String value) {
+    return PrimExpr::ConvertFallbackValue(value);
+  }
+  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(PrimExprConvertible value) {
+    return value->ToPrimExpr();
+  }
+};
+}  // namespace ffi
 
 /*!
  * \brief add operator
@@ -362,38 +422,18 @@ TVM_DLL PrimExpr operator~(PrimExpr a);
 class RelaxExprNode : public BaseExprNode {
  public:
   /*!
-   * \brief Stores the result of type inference(type checking).
-   *
-   * \note This can be undefined before type inference.
-   *       This value is discarded during serialization.
-   */
-  mutable Type checked_type_ = Type(nullptr);
-
-  /*!
    * \brief Stores the result of structure information of the
    *        expression that encapsulate both static shape and
    *        runtime information such as shape.
    */
   mutable Optional<ObjectRef> struct_info_ = Optional<ObjectRef>();
 
-  /*!
-   * \return The checked_type
-   */
-  inline const Type& checked_type() const;
-  /*!
-   * \brief Check if the inferred(checked) type of the Expr
-   *  is backed by a TTypeNode and return it.
-   *
-   * \note This function will thrown an error if the node type
-   *       of this Expr is not TTypeNode.
-   *
-   * \return The corresponding TTypeNode pointer.
-   * \tparam The specific TypeNode we look for.
-   */
-  template <typename TTypeNode>
-  inline const TTypeNode* type_as() const;
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RelaxExprNode>().def_ro("struct_info_", &RelaxExprNode::struct_info_);
+  }
 
-  static constexpr const char* _type_key = "RelaxExpr";
+  static constexpr const char* _type_key = "ir.RelaxExpr";
   static constexpr const uint32_t _type_child_slots = 22;
   TVM_DECLARE_BASE_OBJECT_INFO(RelaxExprNode, BaseExprNode);
 };
@@ -421,11 +461,11 @@ class GlobalVarNode : public RelaxExprNode {
   /*! \brief The name of the variable, this only acts as a hint. */
   String name_hint;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name_hint", &name_hint);
-    v->Visit("span", &span);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("struct_info_", &struct_info_);
+  static constexpr const bool _type_has_method_visit_attrs = false;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<GlobalVarNode>().def_ro("name_hint", &GlobalVarNode::name_hint);
   }
 
   bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {
@@ -438,7 +478,7 @@ class GlobalVarNode : public RelaxExprNode {
     hash_reduce.FreeVarHashImpl(this);
   }
 
-  static constexpr const char* _type_key = "GlobalVar";
+  static constexpr const char* _type_key = "ir.GlobalVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelaxExprNode);
 };
 
@@ -448,14 +488,12 @@ class GlobalVarNode : public RelaxExprNode {
  */
 class GlobalVar : public RelaxExpr {
  public:
-  TVM_DLL explicit GlobalVar(String name_hint, Type type = {}, Span span = {});
+  TVM_DLL explicit GlobalVar(String name_hint, Span span = {});
 
   TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelaxExpr, GlobalVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GlobalVarNode);
 };
 
-// PrimExprs that are useful as runtime containers.
-//
 /*!
  * \brief Constant integer literals in the program.
  * \sa IntImm
@@ -465,10 +503,9 @@ class IntImmNode : public PrimExprNode {
   /*! \brief the Internal value. */
   int64_t value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IntImmNode>().def_ro("value", &IntImmNode::value);
   }
 
   bool SEqualReduce(const IntImmNode* other, SEqualReducer equal) const {
@@ -480,7 +517,7 @@ class IntImmNode : public PrimExprNode {
     hash_reduce(value);
   }
 
-  static constexpr const char* _type_key = "IntImm";
+  static constexpr const char* _type_key = "ir.IntImm";
   TVM_DECLARE_FINAL_OBJECT_INFO(IntImmNode, PrimExprNode);
 };
 
@@ -512,10 +549,11 @@ class FloatImmNode : public PrimExprNode {
   /*! \brief The constant value content. */
   double value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-    v->Visit("span", &span);
+  static constexpr const bool _type_has_method_visit_attrs = false;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FloatImmNode>().def_ro("value", &FloatImmNode::value);
   }
 
   bool SEqualReduce(const FloatImmNode* other, SEqualReducer equal) const {
@@ -527,7 +565,7 @@ class FloatImmNode : public PrimExprNode {
     hash_reduce(value);
   }
 
-  static constexpr const char* _type_key = "FloatImm";
+  static constexpr const char* _type_key = "ir.FloatImm";
   TVM_DECLARE_FINAL_OBJECT_INFO(FloatImmNode, PrimExprNode);
 };
 
@@ -622,7 +660,7 @@ class Integer : public IntImm {
    * \param other another expression.
    */
   Integer& operator=(const IntImm& other) {
-    data_ = ObjectRef::GetDataPtr<Object>(other);
+    data_ = ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(other);
     return *this;
   }
   /*!
@@ -662,10 +700,13 @@ class RangeNode : public Object {
   RangeNode(PrimExpr min, PrimExpr extent, Span span = Span())
       : min(min), extent(extent), span(span) {}
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("min", &min);
-    v->Visit("extent", &extent);
-    v->Visit("span", &span);
+  static constexpr const bool _type_has_method_visit_attrs = false;
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RangeNode>()
+        .def_ro("min", &RangeNode::min)
+        .def_ro("extent", &RangeNode::extent);
   }
 
   bool SEqualReduce(const RangeNode* other, SEqualReducer equal) const {
@@ -677,7 +718,7 @@ class RangeNode : public Object {
     hash_reduce(extent);
   }
 
-  static constexpr const char* _type_key = "Range";
+  static constexpr const char* _type_key = "ir.Range";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);
@@ -708,149 +749,63 @@ class Range : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(Range, ObjectRef, RangeNode);
 };
 
-// implementations
-inline const Type& RelaxExprNode::checked_type() const {
-  ICHECK(checked_type_.defined()) << "internal error: the type checker has "
-                                  << "not populated the checked_type "
-                                  << "field for " << GetRef<RelaxExpr>(this);
-  return this->checked_type_;
+namespace ffi {
+// Type traits to enable automatic conversion into IntImm, Integer, and Bool
+// when called through the FFI
+template <>
+inline constexpr bool use_default_type_traits_v<IntImm> = false;
+
+// specialize to enable implicit conversion from const char*
+template <>
+struct TypeTraits<IntImm> : public ObjectRefWithFallbackTraitsBase<IntImm, int64_t> {
+  static TVM_FFI_INLINE IntImm ConvertFallbackValue(int64_t value) {
+    auto dtype =
+        (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min())
+            ? DataType::Int(64)
+            : DataType::Int(32);
+    return IntImm(dtype, value);
+  }
+};
+
+template <>
+inline constexpr bool use_default_type_traits_v<Integer> = false;
+
+template <>
+struct TypeTraits<Integer> : public ObjectRefWithFallbackTraitsBase<Integer, int64_t> {
+  static TVM_FFI_INLINE Integer ConvertFallbackValue(int64_t value) { return Integer(value); }
+};
+
+template <>
+inline constexpr bool use_default_type_traits_v<FloatImm> = false;
+
+template <>
+struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, double> {
+  static TVM_FFI_INLINE FloatImm ConvertFallbackValue(double value) {
+    return FloatImm(runtime::DataType::Float(32), value);
+  }
+};
+
+template <>
+inline constexpr bool use_default_type_traits_v<Bool> = false;
+
+template <>
+struct TypeTraits<Bool> : public ObjectRefWithFallbackTraitsBase<Bool, int64_t> {
+  static TVM_FFI_INLINE Bool ConvertFallbackValue(int64_t value) { return Bool(value != 0); }
+};
+
+// define automatic conversion from bool, int64_t, double to PrimExpr
+TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(StrictBool value) {
+  return IntImm(DataType::Bool(), value, Span());
 }
 
-template <typename TTypeNode>
-inline const TTypeNode* RelaxExprNode::type_as() const {
-  static_assert(std::is_base_of<TypeNode, TTypeNode>::value,
-                "TType must be a special case of type");
-  ICHECK(checked_type_.defined())
-      << "Type inference for this Expr has not completed. Try to call infer_type pass.";
-  const TTypeNode* node = checked_type_.as<TTypeNode>();
-  ICHECK(node != nullptr) << "Expected type to be " << TTypeNode::_type_key << ", but get "
-                          << checked_type_->GetTypeKey();
-  return node;
+TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(int64_t value) {
+  return TypeTraits<IntImm>::ConvertFallbackValue(value);
 }
 
-}  // namespace tvm
-
-namespace tvm {
-namespace runtime {
-
-// Automatic conversion into IntImm, Integer, and Bool, when called
-// through the FFI.  Automatic conversions into PrimExpr are
-// registered in "tvm/tir/expr.h", as it includes conversions to the
-// TIR-only StringImm.
-//
-// While the FFI only requires the From() method, these
-// implementations also define a TryFrom() method to avoid duplicate
-// logic in the PrimExpr conversion.
-
-template <>
-struct PackedFuncValueConverter<tvm::IntImm> {
-  template <typename PODSubclass>
-  static Optional<tvm::IntImm> TryFrom(const PODSubclass& val) {
-    if (auto opt = val.TryAsInt()) {
-      int64_t value = opt.value();
-      auto dtype =
-          (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min())
-              ? DataType::Int(64)
-              : DataType::Int(32);
-      return IntImm(dtype, value);
-    } else if (auto opt = val.TryAsBool()) {
-      return IntImm(DataType::Int(32), opt.value());
-    } else {
-      return NullOpt;
-    }
-  }
-
-  template <typename PODSubclass>
-  static tvm::IntImm From(const PODSubclass& val) {
-    if (auto opt = TryFrom(val)) {
-      return opt.value();
-    } else {
-      return val.template AsObjectRef<tvm::IntImm>();
-    }
-  }
-};
-
-template <>
-struct PackedFuncValueConverter<tvm::Integer> {
-  template <typename PODSubclass>
-  static tvm::Integer From(const PODSubclass& val) {
-    if (auto opt = PackedFuncValueConverter<tvm::IntImm>::TryFrom(val)) {
-      return Integer(opt.value());
-    } else {
-      return val.template AsObjectRef<tvm::Integer>();
-    }
-  }
-};
-
-template <>
-struct PackedFuncValueConverter<tvm::Bool> {
-  template <typename PODSubclass>
-  static Optional<tvm::Bool> TryFrom(const PODSubclass& val) {
-    if (auto opt = val.TryAsBool()) {
-      return tvm::Bool(opt.value());
-    } else if (auto opt = val.TryAsInt()) {
-      int value = opt.value();
-      ICHECK(value == 0 || value == 1)
-          << "ValueError: boolean value can only be 0 or 1, but get " << value;
-      return tvm::Bool(static_cast<bool>(value));
-    } else {
-      return NullOpt;
-    }
-  }
-
-  template <typename PODSubclass>
-  static tvm::Bool From(const PODSubclass& val) {
-    if (auto opt = TryFrom(val)) {
-      return opt.value();
-    } else {
-      return val.template AsObjectRef<tvm::Bool>();
-    }
-  }
-};
-
-template <>
-struct PackedFuncValueConverter<tvm::FloatImm> {
-  static Optional<tvm::FloatImm> TryFrom(const TVMPODValue_& val) {
-    if (auto opt = val.TryAsFloat()) {
-      return FloatImm(runtime::DataType::Float(32), opt.value());
-    } else {
-      return NullOpt;
-    }
-  }
-
-  template <typename PODSubclass>
-  static tvm::FloatImm From(const PODSubclass& val) {
-    if (auto opt = TryFrom(val)) {
-      return opt.value();
-    } else {
-      return val.template AsObjectRef<tvm::FloatImm>();
-    }
-  }
-};
-
-/* \brief Backwards compatibility wrapper for IntImm arguments
- *
- * In previous versions of TVM, IntImm was the default FFI type for
- * integer arguments, instead of runtime::Int.  For backwards
- * compatibility where the callee has been updated to expected a
- * runtime::Int, the caller has not been updated to provide a
- * runtime::Int, and the auto-unboxing of
- * runtime::Int does not apply (e.g. making an `Array<runtime::Int>`),
- * allow the IntImm to be generated.
- */
-template <>
-struct PackedFuncValueConverter<runtime::Int> {
-  template <typename PODSubclass>
-  static runtime::Int From(const PODSubclass& val) {
-    if (val.template IsObjectRef<tvm::IntImm>()) {
-      return runtime::Int(val.template AsObjectRef<tvm::IntImm>()->value);
-    } else {
-      return val.template AsObjectRef<runtime::Int>();
-    }
-  }
-};
-
-}  // namespace runtime
+TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(double value) {
+  return TypeTraits<FloatImm>::ConvertFallbackValue(value);
+}
+}  // namespace ffi
 }  // namespace tvm
 
 /* \brief Allow tvm.GLobalVar as key in STL tables

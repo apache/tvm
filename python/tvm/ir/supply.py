@@ -20,7 +20,7 @@ from tvm import Object, IRModule
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("NameSupply")
+@tvm.ffi.register_object("ir.NameSupply")
 class NameSupply(Object):
     """NameSupply that can be used to generate unique names.
 
@@ -77,7 +77,7 @@ class NameSupply(Object):
         return _ffi_api.NameSupply_ContainsName(self, name, add_prefix)
 
 
-@tvm._ffi.register_object("GlobalVarSupply")
+@tvm.ffi.register_object("ir.GlobalVarSupply")
 class GlobalVarSupply(Object):
     """GlobalVarSupply that holds a mapping between names and GlobalVars.
 

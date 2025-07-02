@@ -102,12 +102,12 @@ def _check_matmul(context: PatternCheckContext) -> bool:
         # cuBLAS FP8 operations require all tensors being aligned to 16 bytes.
         if (
             not isinstance(rhs_shape[-1], (tvm.tir.expr.IntImm, int))
-            or rhs_shape[-1] % (16 // DataType(lhs_dtype).itemsize()) != 0
+            or rhs_shape[-1] % (16 // DataType(lhs_dtype).itemsize) != 0
         ):
             return False
         if (
             not isinstance(rhs_shape[-2], (tvm.tir.expr.IntImm, int))
-            or rhs_shape[-2] % (16 // DataType(out_dtype).itemsize()) != 0
+            or rhs_shape[-2] % (16 // DataType(out_dtype).itemsize) != 0
         ):
             return False
 

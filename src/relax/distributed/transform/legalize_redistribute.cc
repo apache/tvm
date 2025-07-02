@@ -110,11 +110,12 @@ class RedistributeLegalizer : public ExprMutator {
 namespace transform {
 
 Pass LegalizeRedistribute() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return RedistributeLegalizer::LegalizeRedistribute(m); };
+  auto pass_func = [=](IRModule m, PassContext pc) {
+    return RedistributeLegalizer::LegalizeRedistribute(m);
+  };
   return CreateModulePass(pass_func, 1, "LegalizeRedistribute", {});
 }
-TVM_REGISTER_GLOBAL("relax.distributed.transform.LegalizeRedistribute")
+TVM_FFI_REGISTER_GLOBAL("relax.distributed.transform.LegalizeRedistribute")
     .set_body_typed(LegalizeRedistribute);
 }  // namespace transform
 

@@ -16,7 +16,7 @@
 # under the License.
 """Utils to path."""
 import os
-from tvm._ffi import libinfo
+from tvm import libinfo
 from tvm.contrib import cc
 
 

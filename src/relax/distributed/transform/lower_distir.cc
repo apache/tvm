@@ -61,7 +61,7 @@ class DistIRSharder : public ExprMutator {
   }
 
   ShapeExpr ShardShape(ShapeExpr orig_shape, DeviceMesh device_mesh, Placement placement) {
-    ShapeTuple device_mesh_shape = device_mesh->shape;
+    ffi::Shape device_mesh_shape = device_mesh->shape;
     Array<PrimExpr> new_tensor_shape_value = orig_shape->values;
     for (int i = 0; i < static_cast<int>(device_mesh_shape.size()); i++) {
       if (placement->dim_specs[i]->kind == PlacementSpecKind::kSharding) {
@@ -178,7 +178,7 @@ class DistIRSharder : public ExprMutator {
     func_ = func;
     new_params_ = new_params;
     auto new_body = VisitWithNewScope(func->body, new_params);
-    Function new_func(new_params, new_body, NullOpt, func->is_pure, func->attrs);
+    Function new_func(new_params, new_body, std::nullopt, func->is_pure, func->attrs);
     return new_func;
   }
 
@@ -259,11 +259,10 @@ class DistIRSharder : public ExprMutator {
 namespace transform {
 
 Pass LowerDistIR() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return DistIRSharder::LowerDistIR(m); };
+  auto pass_func = [=](IRModule m, PassContext pc) { return DistIRSharder::LowerDistIR(m); };
   return CreateModulePass(pass_func, 1, "LowerDistIR", {});
 }
-TVM_REGISTER_GLOBAL("relax.distributed.transform.LowerDistIR").set_body_typed(LowerDistIR);
+TVM_FFI_REGISTER_GLOBAL("relax.distributed.transform.LowerDistIR").set_body_typed(LowerDistIR);
 }  // namespace transform
 
 }  // namespace distributed

@@ -50,20 +50,17 @@ class ConcreteScheduleNode : public ScheduleNode {
   support::LinearCongruentialEngine::TRandState rand_state_;
 
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `state_` is not visited
-    // `func_working_on_` is not visited
-    // `error_render_level_` is not visited
-    // `symbol_table_` is not visited
-    // `analyzer_` is not visited
-    // `rand_state_` is not visited
+  static void RegisterReflection() {
+    // No fields to register as they are not visited
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   virtual ~ConcreteScheduleNode() = default;
 
  public:
   ScheduleState state() const final { return state_; }
-  Optional<Trace> trace() const override { return NullOpt; }
+  Optional<Trace> trace() const override { return std::nullopt; }
   Optional<GlobalVar> func_working_on() const final { return func_working_on_; }
   void WorkOn(const String& func_name) final;
   Schedule Copy() override;
@@ -87,16 +84,15 @@ class ConcreteScheduleNode : public ScheduleNode {
 
  public:
   /******** Schedule: Sampling ********/
-  ExprRV SampleCategorical(const Array<runtime::Int>& candidates,
-                           const Array<runtime::Float>& probs,
-                           Optional<runtime::Int> decision = NullOpt) override;
+  ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
+                           Optional<Integer> decision = std::nullopt) override;
   Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
-                                  Optional<Array<Integer>> decision = NullOpt) override;
+                                  Optional<Array<Integer>> decision = std::nullopt) override;
   Array<ExprRV> SamplePartitionedTile(const LoopRV& loop_rv, int n, int partition_pos,
                                       int innerpart_factor,
-                                      Optional<Array<Integer>> decision = NullOpt) override;
+                                      Optional<Array<Integer>> decision = std::nullopt) override;
   LoopRV SampleComputeLocation(const BlockRV& block_rv,
-                               Optional<Integer> decision = NullOpt) override;
+                               Optional<Integer> decision = std::nullopt) override;
   /******** Schedule: Get blocks & loops ********/
   BlockRV GetBlock(const String& name, const Optional<String>& func_name) override;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) override;
@@ -163,9 +159,9 @@ class ConcreteScheduleNode : public ScheduleNode {
   void Tensorize(const BlockRV& block_rv, const String& intrin, bool preserve_unit_iters) override;
   void Tensorize(const LoopRV& loop_rv, const String& intrin, bool preserve_unit_iters) override;
   /******** Schedule: Annotation ********/
-  void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
+  void Annotate(const LoopRV& loop_rv, const String& ann_key, const Any& ann_val) override;
   void Unannotate(const LoopRV& loop_rv, const String& ann_key) override;
-  void Annotate(const BlockRV& block_rv, const String& ann_key, const ObjectRef& ann_val) override;
+  void Annotate(const BlockRV& block_rv, const String& ann_key, const Any& ann_val) override;
   void Unannotate(const BlockRV& block_rv, const String& ann_key) override;
   /******** Schedule: Layout transformation ********/
   void TransformLayout(const BlockRV& block_rv, int buffer_index, BufferIndexType buffer_index_type,
@@ -233,7 +229,7 @@ class ConcreteScheduleNode : public ScheduleNode {
    * \param The annotation value.
    * \return The annotation value with random variables substituted with their values.
    */
-  ObjectRef CheckAndGetAnnotationValue(const ObjectRef& ann_val);
+  Any CheckAndGetAnnotationValue(const ffi::Any& ann_val);
 };
 
 // implementations

@@ -116,7 +116,7 @@ class ThreadGroup {
 /*!
  * \brief Platform-agnostic no-op.
  */
-TVM_DLL void Yield();
+TVM_DLL void YieldThread();
 /*!
  * \return the maximum number of effective workers for this system.
  */

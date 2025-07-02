@@ -26,8 +26,8 @@
 #ifndef TVM_NODE_OBJECT_PATH_H_
 #define TVM_NODE_OBJECT_PATH_H_
 
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
 
 #include <string>
@@ -93,12 +93,12 @@ class ObjectPathNode : public Object {
   ObjectPath MissingArrayElement(int32_t index) const;
 
   /*! \brief Extend this path with access to a map value. */
-  ObjectPath MapValue(ObjectRef key) const;
+  ObjectPath MapValue(ffi::Any key) const;
 
   /*! \brief Extend this path with access to a missing map entry. */
   ObjectPath MissingMapEntry() const;
 
-  static constexpr const char* _type_key = "ObjectPath";
+  static constexpr const char* _type_key = "node.ObjectPath";
   TVM_DECLARE_BASE_OBJECT_INFO(ObjectPathNode, Object);
 
  protected:
@@ -122,7 +122,7 @@ class ObjectPathNode : public Object {
 class ObjectPath : public ObjectRef {
  public:
   /*! \brief Create a path that represents the root object itself. */
-  static ObjectPath Root(Optional<String> name = NullOpt);
+  static ObjectPath Root(Optional<String> name = std::nullopt);
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ObjectPath, ObjectRef, ObjectPathNode);
 };
@@ -137,9 +137,9 @@ class RootPathNode final : public ObjectPathNode {
  public:
   Optional<String> name;
 
-  explicit RootPathNode(Optional<String> name = NullOpt);
+  explicit RootPathNode(Optional<String> name = std::nullopt);
 
-  static constexpr const char* _type_key = "RootPath";
+  static constexpr const char* _type_key = "node.RootPath";
   TVM_DECLARE_FINAL_OBJECT_INFO(RootPathNode, ObjectPathNode);
 
  protected:
@@ -161,7 +161,7 @@ class AttributeAccessPathNode final : public ObjectPathNode {
 
   explicit AttributeAccessPathNode(const ObjectPathNode* parent, String attr_key);
 
-  static constexpr const char* _type_key = "AttributeAccessPath";
+  static constexpr const char* _type_key = "node.AttributeAccessPath";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttributeAccessPathNode, ObjectPathNode);
 
  protected:
@@ -181,7 +181,7 @@ class UnknownAttributeAccessPathNode final : public ObjectPathNode {
  public:
   explicit UnknownAttributeAccessPathNode(const ObjectPathNode* parent);
 
-  static constexpr const char* _type_key = "UnknownAttributeAccessPath";
+  static constexpr const char* _type_key = "node.UnknownAttributeAccessPath";
   TVM_DECLARE_FINAL_OBJECT_INFO(UnknownAttributeAccessPathNode, ObjectPathNode);
 
  protected:
@@ -204,7 +204,7 @@ class ArrayIndexPathNode : public ObjectPathNode {
 
   explicit ArrayIndexPathNode(const ObjectPathNode* parent, int32_t index);
 
-  static constexpr const char* _type_key = "ArrayIndexPath";
+  static constexpr const char* _type_key = "node.ArrayIndexPath";
   TVM_DECLARE_FINAL_OBJECT_INFO(ArrayIndexPathNode, ObjectPathNode);
 
  protected:
@@ -226,7 +226,7 @@ class MissingArrayElementPathNode : public ObjectPathNode {
 
   explicit MissingArrayElementPathNode(const ObjectPathNode* parent, int32_t index);
 
-  static constexpr const char* _type_key = "MissingArrayElementPath";
+  static constexpr const char* _type_key = "node.MissingArrayElementPath";
   TVM_DECLARE_FINAL_OBJECT_INFO(MissingArrayElementPathNode, ObjectPathNode);
 
  protected:
@@ -245,11 +245,11 @@ class MissingArrayElementPath : public ObjectPath {
 class MapValuePathNode : public ObjectPathNode {
  public:
   /*! \brief Key of the map entry that is being accessed */
-  ObjectRef key;
+  ffi::Any key;
 
-  explicit MapValuePathNode(const ObjectPathNode* parent, ObjectRef key);
+  explicit MapValuePathNode(const ObjectPathNode* parent, ffi::Any key);
 
-  static constexpr const char* _type_key = "MapValuePath";
+  static constexpr const char* _type_key = "node.MapValuePath";
   TVM_DECLARE_FINAL_OBJECT_INFO(MapValuePathNode, ObjectPathNode);
 
  protected:
@@ -268,7 +268,7 @@ class MissingMapEntryPathNode : public ObjectPathNode {
  public:
   explicit MissingMapEntryPathNode(const ObjectPathNode* parent);
 
-  static constexpr const char* _type_key = "MissingMapEntryPath";
+  static constexpr const char* _type_key = "node.MissingMapEntryPath";
   TVM_DECLARE_FINAL_OBJECT_INFO(MissingMapEntryPathNode, ObjectPathNode);
 
  protected:

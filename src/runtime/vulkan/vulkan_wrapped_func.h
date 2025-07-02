@@ -60,7 +60,7 @@ class VulkanWrappedFunc {
             size_t num_buffer_args, size_t num_pack_args,
             const std::vector<std::string>& launch_param_tags);
 
-  void operator()(TVMArgs args, TVMRetValue* rv, const ArgUnion64* pack_args) const;
+  void operator()(ffi::PackedArgs args, ffi::Any* rv, const ArgUnion64* pack_args) const;
 
  private:
   // internal module
@@ -94,7 +94,7 @@ class VulkanModuleNode final : public runtime::ModuleNode {
     return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
   }
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
 
   std::shared_ptr<VulkanPipeline> GetPipeline(size_t device_id, const std::string& func_name,
                                               size_t num_pack_args);

@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -31,7 +33,13 @@ class MutateThreadBindingNode : public MutatorNode {
   /*! \brief JSON representation of the workload */
   std::string json_mod_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MutateThreadBindingNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "meta_schedule.MutateThreadBinding";
   TVM_DECLARE_FINAL_OBJECT_INFO(MutateThreadBindingNode, MutatorNode);
 
@@ -93,8 +101,8 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
       return false;
     }
     // Only consider cases with 2 factors and the first one is None
-    if (inst->inputs.size() != 3 || inst->inputs[1].defined()) return false;
-    ICHECK(inst->inputs[2].defined());
+    if (inst->inputs.size() != 3 || inst->inputs[1] != nullptr) return false;
+    ICHECK(inst->inputs[2] != nullptr);
 
     return sample_insts.find(Downcast<PrimExpr>(inst->inputs[2]).get()) != sample_insts.end();
   };
@@ -137,7 +145,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
     ICHECK(sample_it != sample_insts.end());
     const InstructionNode* sample_inst = sample_it->second;
 
-    int decision = Downcast<runtime::Int>(trace->decisions[GetRef<Instruction>(sample_inst)]);
+    int decision = Downcast<IntImm>(trace->decisions[GetRef<Instruction>(sample_inst)])->value;
 
     std::vector<double> probs =
         support::AsVector<FloatImm, double>(Downcast<Array<FloatImm>>(sample_inst->attrs[1]));
@@ -150,7 +158,7 @@ std::vector<MutateThreadBindingNode::Candidate> MutateThreadBindingNode::FindCan
 Optional<Trace> MutateThreadBindingNode::Apply(const Trace& trace, TRandState* rand_state) {
   std::vector<Candidate> candidates = FindCandidates(trace, rand_state);
   if (candidates.empty()) {
-    return NullOpt;
+    return std::nullopt;
   }
   Candidate candidate = candidates[tir::SampleInt(rand_state, 0, candidates.size())];
   // Remove the current decision
@@ -164,8 +172,10 @@ Optional<Trace> MutateThreadBindingNode::Apply(const Trace& trace, TRandState* r
 
 Mutator Mutator::MutateThreadBinding() { return Mutator(make_object<MutateThreadBindingNode>()); }
 
+TVM_FFI_STATIC_INIT_BLOCK({ MutateThreadBindingNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(MutateThreadBindingNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MutateThreadBinding")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutateThreadBinding")
     .set_body_typed(Mutator::MutateThreadBinding);
 
 }  // namespace meta_schedule

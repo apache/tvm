@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-02-15T10:12:52.000152
+// Generated at 2025-06-03T18:16:35.797894
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -280,10 +280,13 @@ def cancel_previous_build() {
 }
 
 def is_last_build() {
-  // whether it is last build
-  def job = Jenkins.instance.getItem(env.JOB_NAME)
-  def lastBuild = job.getLastBuild()
-  return lastBuild.getNumber() == env.BUILD_NUMBER
+  // check whether it is last build
+  try {
+    return currentBuild.number == currentBuild.rawBuild.project.getLastBuild().number
+  } catch (Throwable ex) {
+    echo 'Error during check is_last_build ' + ex.toString()
+    return false
+  }
 }
 
 def checkout_trusted_files() {

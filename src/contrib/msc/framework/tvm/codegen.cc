@@ -205,12 +205,12 @@ const Array<Doc> RelaxCodeGen::GetOpCodes(const MSCJoint& node) {
   try {
     return it->second->GetDocs();
   } catch (runtime::InternalError& err) {
-    LOG(WARNING) << "Failed to get docs for " << node << " : " << err.message();
+    LOG(WARNING) << "Failed to get docs for " << node << " : " << err.what();
     throw err;
   }
 }
 
-TVM_REGISTER_GLOBAL("msc.framework.tvm.GetRelaxSources")
+TVM_FFI_REGISTER_GLOBAL("msc.framework.tvm.GetRelaxSources")
     .set_body_typed([](const MSCGraph& graph, const String& codegen_config,
                        const String& print_config) -> Map<String, String> {
       RelaxCodeGen codegen = RelaxCodeGen(graph, codegen_config);

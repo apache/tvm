@@ -72,6 +72,13 @@ class TorchFXImporter(BaseFXGraphImporter):
         alpha = module.negative_slope
         return self.block_builder.emit(relax.op.nn.leakyrelu(x, alpha))
 
+    def _softplus_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        beta = module.beta
+        threshold = module.threshold
+        return self.block_builder.emit(relax.op.nn.softplus(x, beta, threshold))
+
     def _log2(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         return self.block_builder.emit(
@@ -96,6 +103,14 @@ class TorchFXImporter(BaseFXGraphImporter):
         assert dim is not None
         return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
 
+    def _prelu_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        alpha_tensor = module.weight.numpy()
+        alpha = relax.const(alpha_tensor, dtype="float32")
+        axis = 0 if len(x.struct_info.shape) == 1 else 1  # Extract Channel size
+        return self.block_builder.emit(relax.op.nn.prelu(x, alpha, axis))
+
     def _softmax_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -117,15 +132,112 @@ class TorchFXImporter(BaseFXGraphImporter):
 
         return convert
 
+    ########## Binary Ops ##############
+
+    def _binary_op_inplace(self, relax_op: Callable, intrinsic_op: Callable) -> Callable:
+        from torch import fx
+
+        def convert(node: fx.Node) -> relax.Var:
+            def promote_binary_op_args(lhs, rhs):
+                if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
+                    return lhs, rhs
+                elif isinstance(lhs, relax.Expr):
+                    assert isinstance(lhs.struct_info, relax.TensorStructInfo)
+                    return lhs, relax.const(rhs, lhs.struct_info.dtype)
+                elif isinstance(rhs, relax.Expr):
+                    assert isinstance(rhs.struct_info, relax.TensorStructInfo)
+                    return relax.const(lhs, rhs.struct_info.dtype), rhs
+                else:
+                    assert False
+
+            def call_binary_op(op, lhs, rhs):
+                lhs, rhs = promote_binary_op_args(lhs, rhs)
+                return self.block_builder.emit(op(lhs, rhs))
+
+            lhs, rhs = self.retrieve_args(node)
+            if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
+                output = call_binary_op(relax_op, lhs, rhs)
+                self.env[node.args[0]] = output
+                return output
+
+            elif isinstance(lhs, relax.expr.Constant):
+                output = call_binary_op(
+                    relax_op, lhs, relax.const(rhs, dtype=lhs.struct_info.dtype)
+                )
+                self.env[node.args[0]] = output
+                return output
+
+            elif isinstance(rhs, relax.expr.Constant):
+                output = call_binary_op(
+                    relax_op, relax.const(lhs, dtype=rhs.struct_info.dtype), rhs
+                )
+                self.env[node.args[0]] = output
+                return output
+
+            output = intrinsic_op(lhs, rhs)
+            self.env[node.args[0]] = output
+            return output
+
+        return convert
+
     ########## Neural Network ##########
+
+    def _adaptive_avg_pool1d_module(self, node: fx.Node) -> relax.Var:
+        module = self.named_modules[node.target]
+        x = self.env[node.args[0]]
+        output_size = module.output_size
+        # Expand to 3D by adding batch dim if input is 2D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 2:
+            x = relax.op.expand_dims(x, axis=0)
+        result = self.block_builder.emit(
+            relax.op.nn.adaptive_avg_pool1d(x, output_size, layout="NCW")  # (N, C, L)
+        )
+        # Remove added batch dim from result
+        if x_ndim == 2:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
 
     def _adaptive_avg_pool2d_module(self, node: fx.Node) -> relax.Var:
         module = self.named_modules[node.target]
         x = self.env[node.args[0]]
         output_size = module.output_size
-        return self.block_builder.emit(
+        # Expand to 4D by adding batch dim if input is 3D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 3:
+            x = relax.op.expand_dims(x, axis=0)
+        result = self.block_builder.emit(
             relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
         )
+        # Remove added batch dim from result
+        if x_ndim == 3:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _adaptive_avg_pool3d_module(self, node: fx.Node) -> relax.Var:
+        module = self.named_modules[node.target]
+        x = self.env[node.args[0]]
+        output_size = module.output_size
+        # Expand to 5D by adding batch dim if input is 4D
+        x_ndim = x.struct_info.ndim
+        if x_ndim == 4:
+            x = relax.op.expand_dims(x, axis=0)
+        result = self.block_builder.emit(
+            relax.op.nn.adaptive_avg_pool3d(x, output_size, layout="NCDHW")  # (N, C, D, H, W)
+        )
+        # Remove added batch dim from result
+        if x_ndim == 4:
+            result = relax.op.squeeze(result, axis=[0])
+        return result
+
+    def _avg_pool1d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        kernel_size = module.kernel_size
+        stride = module.stride
+        padding = module.padding
+        ceil_mode = module.ceil_mode
+        return self._avg_pool1d_impl(x, kernel_size, stride, padding, ceil_mode)
 
     def _avg_pool2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -135,6 +247,15 @@ class TorchFXImporter(BaseFXGraphImporter):
         padding = module.padding
         ceil_mode = module.ceil_mode
         return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode)
+
+    def _avg_pool3d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        kernel_size = module.kernel_size
+        stride = module.stride
+        padding = module.padding
+        ceil_mode = module.ceil_mode
+        return self._avg_pool3d_impl(x, kernel_size, stride, padding, ceil_mode)
 
     def _batch_norm_2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -159,6 +280,36 @@ class TorchFXImporter(BaseFXGraphImporter):
 
         return self.block_builder.emit(relax.TupleGetItem(res_tuple, 0))
 
+    def _instance_norm(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+
+        if module.affine:
+            weight = self.params[module.weight]
+            bias = self.params[module.bias]
+        else:
+            import numpy as np
+
+            dtype = x.struct_info.dtype
+            channel = int(self.shape_of(x)[1])
+            weight = relax.const(np.ones(channel), dtype=dtype)
+            bias = relax.const(np.zeros(channel), dtype=dtype)
+
+        eps = module.eps
+        channel_axis = 1
+        dim = len(self.shape_of(x))
+
+        return self.block_builder.emit(
+            relax.op.nn.instance_norm(
+                x,
+                weight,
+                bias,
+                channel_axis=channel_axis,
+                axes=list(range(2, dim)),
+                epsilon=eps,
+            )
+        )
+
     def _conv_transpose1d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -173,6 +324,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             padding=module.padding,
             dilation=module.dilation,
             groups=module.groups,
+            output_padding=module.output_padding,
         )
 
     def _conv_transpose2d_module(self, node: fx.Node) -> relax.Var:
@@ -189,6 +341,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             padding=module.padding,
             dilation=module.dilation,
             groups=module.groups,
+            output_padding=module.output_padding,
         )
 
     def _conv1d_module(self, node: fx.Node) -> relax.Var:
@@ -245,12 +398,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         weights = self.env.get(node.kwargs["weight"], None)
         reduction = node.kwargs["reduction"]
         ignore_index = node.kwargs["ignore_index"]
-
-        return self.block_builder.emit(
-            relax.op.nn.nll_loss(
-                relax.op.nn.log_softmax(preds), targets, weights, reduction, ignore_index
-            )
-        )
+        return self._cross_entropy_loss(preds, targets, weights, reduction, ignore_index)
 
     def _cross_entropy_module(self, node: fx.Node) -> relax.Expr:
         preds = self.env[node.args[0]]
@@ -267,10 +415,12 @@ class TorchFXImporter(BaseFXGraphImporter):
         reduction = module.reduction
         ignore_index = module.ignore_index
 
-        return self.block_builder.emit(
-            relax.op.nn.nll_loss(
-                relax.op.nn.log_softmax(preds), targets, weights, reduction, ignore_index
-            )
+        return self._cross_entropy_loss(
+            preds,
+            targets,
+            weights,
+            reduction,
+            ignore_index,
         )
 
     def _embedding_module(self, node: fx.Node) -> relax.Var:
@@ -289,8 +439,8 @@ class TorchFXImporter(BaseFXGraphImporter):
             gamma = self.params[module.weight]
             beta = self.params[module.bias]
         else:
-            gamma = relax.const(torch.ones_like(module.num_channels), x.checked_type)
-            beta = relax.const(torch.zeros_like(module.num_channels), x.checked_type)
+            gamma = relax.const(torch.ones_like(module.num_channels), x.struct_info.dtype)
+            beta = relax.const(torch.zeros_like(module.num_channels), x.struct_info.dtype)
         eps = module.eps
 
         dim = len(self.shape_of(x))
@@ -386,6 +536,17 @@ class TorchFXImporter(BaseFXGraphImporter):
         bias = self.params.get(module.bias, None)
         return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
 
+    def _max_pool1d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        kernel_size = module.kernel_size
+        stride = module.stride
+        padding = module.padding
+        dilation = module.dilation
+        ceil_mode = module.ceil_mode
+
+        return self._max_pool1d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
     def _max_pool2d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -396,6 +557,24 @@ class TorchFXImporter(BaseFXGraphImporter):
         ceil_mode = module.ceil_mode
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
+    def _max_pool3d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        kernel_size = module.kernel_size
+        stride = module.stride
+        padding = module.padding
+        dilation = module.dilation
+        ceil_mode = module.ceil_mode
+
+        return self._max_pool3d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
+    def _pixel_shuffle_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        upscale_factor = module.upscale_factor
+
+        return self.block_builder.emit(relax.op.nn.pixel_shuffle(x, upscale_factor))
 
     ########## Linear Interpolation ##########
 
@@ -422,6 +601,13 @@ class TorchFXImporter(BaseFXGraphImporter):
         end_dim = module.end_dim
         return self._flatten_impl(x, start_dim, end_dim)
 
+    def _narrow(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1]
+        start = node.args[2]
+        length = node.args[3]
+        return self.block_builder.emit(relax.op.strided_slice(x, [dim], [start], [length]))
+
     def _numel(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         shape = self.shape_of(x)
@@ -445,48 +631,10 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Creation ##########
 
-    def _inplace_fill(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        x = args[0]
-        dtype = x.struct_info.dtype
-        value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
-        filled = self.block_builder.emit(relax.op.full(x.struct_info.shape, value, dtype))
-        self.env[node.args[0]] = filled
-        return filled
-
-    def _full(self, node: fx.Node) -> relax.Var:
-        import torch
-
-        args = self.retrieve_args(node)
-        size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
-        dtype = self._convert_data_type(
-            node.kwargs.get("dtype", torch.get_default_dtype()), self.env
-        )
-        value = args[1] if isinstance(args[1], relax.expr.Constant) else relax.const(args[1], dtype)
-        return self.block_builder.emit(
-            relax.op.full(
-                size,
-                value,
-                dtype,
-            )
-        )
-
-    def _inplace_masked_fill(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        mask = self.env[node.args[1]]
-        value = node.args[2]
-        rx_value = relax.const(value)
-        values = self.block_builder.emit(relax.op.full_like(x, rx_value))
-        output = self.block_builder.emit(relax.op.where(mask, values, x))
-        self.env[node.args[0]] = output
-        return output
-
-    def _masked_fill(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        mask = self.env[node.args[1]]
-        rx_value = relax.const(node.args[2])
-        values = self.block_builder.emit(relax.op.full_like(x, rx_value))
-        return self.block_builder.emit(relax.op.where(mask, values, x))
+    def _inplace_copy(self, node: fx.Node) -> relax.Var:
+        src = self.env[node.args[1]]
+        self.env[node.args[0]] = src
+        return src
 
     def _masked_scatter(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -512,22 +660,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         if ndim != len(x.struct_info.shape):
             mask = self.block_builder.emit(relax.op.broadcast_to(mask, x.struct_info.shape))
         return self.block_builder.emit(relax.op.where(mask, gathered_source, x))
-
-    def _ones(self, node: fx.Node) -> relax.Var:
-        import torch
-
-        args = self.retrieve_args(node)
-        size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
-        dtype = self._convert_data_type(
-            node.kwargs.get("dtype", torch.get_default_dtype()), self.env
-        )
-        return self.block_builder.emit(
-            relax.op.full(
-                size,
-                relax.const(1, dtype),
-                dtype,
-            )
-        )
 
     def _one_hot(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -614,19 +746,26 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.Identity: lambda node: self.env[node.args[0]],
             nn.LeakyReLU: self._leakyrelu_module,
             nn.LogSoftmax: self._log_softmax_module,
+            nn.PReLU: self._prelu_module,
             nn.ReLU: self._unary_op(relax.op.nn.relu),
-            nn.ReLU6: lambda node: self.block_builder.emit(
-                relax.op.clip(self.env[node.args[0]], 0, 6)
-            ),
+            nn.ReLU6: self._unary_op(relax.op.nn.relu6),
             nn.Sigmoid: self._unary_op(relax.op.sigmoid),
             nn.SELU: self._unary_op(relax.op.nn.selu),
             nn.SiLU: self._unary_op(relax.op.nn.silu),
             nn.Softmax: self._softmax_module,
+            nn.Softplus: self._softplus_module,
             nn.Tanh: self._unary_op(relax.op.tanh),
             # neural network
+            nn.AdaptiveAvgPool1d: self._adaptive_avg_pool1d_module,
             nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d_module,
+            nn.AdaptiveAvgPool3d: self._adaptive_avg_pool3d_module,
+            nn.AvgPool1d: self._avg_pool1d_module,
             nn.AvgPool2d: self._avg_pool2d_module,
+            nn.AvgPool3d: self._avg_pool3d_module,
             nn.BatchNorm2d: self._batch_norm_2d_module,
+            nn.InstanceNorm1d: self._instance_norm,
+            nn.InstanceNorm2d: self._instance_norm,
+            nn.InstanceNorm3d: self._instance_norm,
             nn.Conv1d: self._conv1d_module,
             nn.Conv2d: self._conv2d_module,
             nn.Conv3d: self._conv3d_module,
@@ -636,8 +775,11 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.GroupNorm: self._group_norm_module,
             nn.LayerNorm: self._layer_norm_module,
             nn.Linear: self._linear_module,
+            nn.MaxPool1d: self._max_pool1d_module,
             nn.MaxPool2d: self._max_pool2d_module,
+            nn.MaxPool3d: self._max_pool3d_module,
             nn.modules.sparse.Embedding: self._embedding_module,
+            nn.PixelShuffle: self._pixel_shuffle_module,
             # tensor manipulation
             nn.Flatten: self._flatten_module,
             ## call_function and call_method
@@ -666,6 +808,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "hardtanh": self._hardtanh,
             "isfinite": self._unary_op(relax.op.isfinite),
             "isinf": self._unary_op(relax.op.isinf),
+            "isin": self._isin,
             "isnan": self._unary_op(relax.op.isnan),
             "leaky_relu": self._leakyrelu,
             "log": self._unary_op(relax.op.log),
@@ -675,8 +818,12 @@ class TorchFXImporter(BaseFXGraphImporter):
             "logical_not": self._unary_op(relax.op.logical_not),
             "log_softmax": self._log_softmax,
             "neg": self._unary_op(relax.op.negative),
+            "pad": self._pad,
+            "pixel_shuffle": self._pixel_shuffle,
+            "prelu": self._prelu,
             "reciprocal": self._reciprocal,
             "relu": self._unary_op(relax.op.nn.relu),
+            "relu6": self._unary_op(relax.op.nn.relu6),
             "round": self._round,
             "rsqrt": self._unary_op(relax.op.rsqrt),
             "selu": self._unary_op(relax.op.nn.selu),
@@ -686,6 +833,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "sin": self._unary_op(relax.op.sin),
             "sinh": self._unary_op(relax.op.sinh),
             "softmax": self._softmax,
+            "softplus": self._softplus,
             "sqrt": self._unary_op(relax.op.sqrt),
             "square": self._unary_op(relax.op.square),
             "tan": self._unary_op(relax.op.tan),
@@ -694,11 +842,16 @@ class TorchFXImporter(BaseFXGraphImporter):
             "tril": self._tril_triu(relax.op.tril),
             "triu_": self._inplace_tril_triu(relax.op.triu),
             "triu": self._tril_triu(relax.op.triu),
+            "trunc": self._unary_op(relax.op.trunc),
             # binary
             "add": self._binary_op(relax.op.add, operator.add),
             "and_": self._binary_op(relax.op.bitwise_and, operator.and_),
+            "bitwise_or_": self._binary_op_inplace(relax.op.bitwise_or, operator.or_),
+            "bitwise_or": self._binary_op(relax.op.bitwise_or, operator.or_),
+            "div": self._div,
             "eq": self._binary_op(relax.op.equal, operator.eq),
             "floordiv": self._binary_op(relax.op.floor_divide, operator.floordiv),
+            "fmod": self._fmod,
             "ge": self._binary_op(relax.op.greater_equal, operator.ge),
             "gt": self._binary_op(relax.op.greater, operator.gt),
             "iadd": self._binary_op(relax.op.add, operator.add),
@@ -710,19 +863,27 @@ class TorchFXImporter(BaseFXGraphImporter):
             ),
             "max": self._binary_op(relax.op.maximum, max),
             "min": self._binary_op(relax.op.minimum, min),
-            "mod": self._binary_op(relax.op.mod, operator.mod),
+            "mod": self._binary_op(relax.op.floor_mod, operator.mod),
             "mul": self._binary_op(relax.op.multiply, operator.mul),
             "ne": self._binary_op(relax.op.not_equal, operator.ne),
+            "outer": lambda node: self.block_builder.emit(
+                relax.op.outer(self.env[node.args[0]], self.env[node.args[1]])
+            ),
             "pow": self._binary_op(relax.op.power, operator.pow),
             "or_": self._binary_op(relax.op.bitwise_or, operator.or_),
             "rshift": self._binary_op(relax.op.right_shift, operator.rshift),
+            "rsub": self._rsub,
             "sub": self._binary_op(relax.op.subtract, operator.sub),
             "truediv": self._binary_op(relax.op.divide, operator.truediv),
             "xor": self._binary_op(relax.op.bitwise_xor, operator.xor),
             # neural network
+            "adaptive_avg_pool1d": self._adaptive_avg_pool1d,
             "adaptive_avg_pool2d": self._adaptive_avg_pool2d,
+            "adaptive_avg_pool3d": self._adaptive_avg_pool3d,
             "addmm": self._addmm,
+            "avg_pool1d": self._avg_pool1d,
             "avg_pool2d": self._avg_pool2d,
+            "avg_pool3d": self._avg_pool3d,
             "baddbmm": self._baddbmm,
             "bmm": self._binary_op(
                 partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
@@ -737,7 +898,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             "interpolate": self._interpolate,
             "layer_norm": self._layer_norm,
             "linear": self._linear,
+            "max_pool1d": self._max_pool1d,
             "max_pool2d": self._max_pool2d,
+            "max_pool3d": self._max_pool3d,
             "scaled_dot_product_attention": self._scaled_dot_product_attention,
             "stochastic_depth": lambda node: self.env[node.args[0]],
             "unbind": self._unbind,
@@ -745,6 +908,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "lerp": self._lerp,
             # statistical
             "mean": self._mean,
+            "norm": self._norm,
             "prod": self._prod,
             "std": self._std,
             "sum": self._sum,
@@ -753,8 +917,10 @@ class TorchFXImporter(BaseFXGraphImporter):
             "argmax": self._argmax_argmin(relax.op.argmax),
             "argmin": self._argmax_argmin(relax.op.argmin),
             "where": self._where,
+            "bucketize": self._bucketize,
             # tensor manipulation
             "argsort": self._argsort,
+            "broadcast_to": self._broadcast_to,
             "cat": self._cat,
             "chunk": self._chunk,
             "concat": self._cat,
@@ -766,13 +932,18 @@ class TorchFXImporter(BaseFXGraphImporter):
             "flatten": self._flatten,
             "flip": self._flip,
             "gather": self._gather,
+            "index_put_": self._index_put,
+            "meshgrid": self._meshgrid,
+            "narrow": self._narrow,
             "numel": self._numel,
             "permute": self._permute,
             "repeat": self._repeat,
+            "roll": self._roll,
             "reshape": self._reshape,
             "scatter": self._scatter,
             "select": self._select,
             "size": self._size,
+            "slice_scatter": self._slice_scatter,
             "sort": self._sort,
             "split": self._split,
             "squeeze": self._squeeze,
@@ -790,16 +961,26 @@ class TorchFXImporter(BaseFXGraphImporter):
             "clone": lambda node: self.env[node.args[0]],
             "empty": self._empty,
             "empty_like": self._empty_like,
+            "eye": self._eye,
+            "fill": self._fill,
             "fill_": self._inplace_fill,
             "full": self._full,
             "index_select": self._index_select,
+            "linspace": self._linspace,
             "masked_fill_": self._inplace_masked_fill,
             "masked_fill": self._masked_fill,
             "masked_scatter": self._masked_scatter,
             "new_ones": self._new_ones,
+            "new_zeros": self._new_zeros,
             "ones": self._ones,
             "one_hot": self._one_hot,
+            "ones_like": lambda node: self.block_builder.emit(
+                relax.op.ones_like(self.env[node.args[0]])
+            ),
             "tensor": self._tensor,
+            "zero_": self._zeros_inplace,
+            "zeros_like": self._zeros_like,
+            "copy_": self._inplace_copy,
             # datatype
             "astype": self._type,
             "float": self._float,
@@ -807,10 +988,12 @@ class TorchFXImporter(BaseFXGraphImporter):
             "is_floating_point": self._is_floating_point,
             "to": self._to,
             "type": self._type,
+            "type_as": self._type_as,
             # other
             "getattr": self._getattr,
             "getitem": self._getitem,
             "sym_size.int": self._sym_size_int,
+            "item": self._item,
         }
 
     def update_convert_map(self, custom_convert_map: dict):
@@ -863,9 +1046,13 @@ class TorchFXImporter(BaseFXGraphImporter):
         else:
             func_attrs = None
 
+        # Find all the missing function types
+        self._check_unsupported_func_type(graph.nodes)
+
         with self.block_builder.function(name=func_name, params=inputs.copy(), attrs=func_attrs):
             output = None
             with self.block_builder.dataflow():
+
                 # Translate model parameters.
                 for _, param in model.named_parameters():
                     shape = param.data.shape
@@ -911,9 +1098,6 @@ class TorchFXImporter(BaseFXGraphImporter):
                         self.env[node] = self.convert_map[type(module)](node)
                     elif node.op == "call_function":
                         func_name = node.target.__name__
-                        assert (
-                            func_name in self.convert_map
-                        ), f"Unsupported function type {func_name}"
                         if func_name in custom_ops:
                             self.env[node] = self.convert_map[func_name](node, self)
                         else:

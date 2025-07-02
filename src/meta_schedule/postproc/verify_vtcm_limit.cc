@@ -69,7 +69,7 @@ Postproc Postproc::VerifyVTCMLimit() {
 }
 
 TVM_REGISTER_NODE_TYPE(VerifyVTCMLimitNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocVerifyVTCMLimit")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocVerifyVTCMLimit")
     .set_body_typed(Postproc::VerifyVTCMLimit);
 
 }  // namespace meta_schedule

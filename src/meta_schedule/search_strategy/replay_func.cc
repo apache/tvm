@@ -54,13 +54,17 @@ class ReplayFuncNode : public SearchStrategyNode {
   /*! \brief The random state. -1 means using random number. */
   TRandState rand_state_ = -1;
   /*! \brief The IRModule to be scheduled from TuneContext. */
-  Optional<IRModule> mod_ = NullOpt;
+  Optional<IRModule> mod_ = std::nullopt;
   /*! \brief The space generator from TuneContext. */
-  Optional<SpaceGenerator> space_generator_ = NullOpt;
+  Optional<SpaceGenerator> space_generator_ = std::nullopt;
   /*! \brief The state of the search strategy. */
   std::unique_ptr<State> state_ = nullptr;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register
+  }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.ReplayFunc";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReplayFuncNode, SearchStrategyNode);
@@ -108,8 +112,8 @@ class ReplayFuncNode : public SearchStrategyNode {
   SearchStrategy Clone() const final {
     ObjectPtr<ReplayFuncNode> n = make_object<ReplayFuncNode>();
     n->rand_state_ = -1;
-    n->mod_ = NullOpt;
-    n->space_generator_ = NullOpt;
+    n->mod_ = std::nullopt;
+    n->space_generator_ = std::nullopt;
     n->state_ = nullptr;
     return SearchStrategy(n);
   }
@@ -117,7 +121,7 @@ class ReplayFuncNode : public SearchStrategyNode {
 
 inline Optional<Array<MeasureCandidate>> ReplayFuncNode::State::GenerateMeasureCandidates() {
   if (st >= max_trials) {
-    return NullOpt;
+    return std::nullopt;
   }
   ed = std::min(ed, max_trials);
   Array<MeasureCandidate> result;
@@ -156,8 +160,10 @@ SearchStrategy SearchStrategy::ReplayFunc() {
   return SearchStrategy(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ ReplayFuncNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(ReplayFuncNode);
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyReplayFunc")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyReplayFunc")
     .set_body_typed(SearchStrategy::ReplayFunc);
 
 }  // namespace meta_schedule

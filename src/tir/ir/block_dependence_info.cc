@@ -23,6 +23,8 @@
 namespace tvm {
 namespace tir {
 
+TVM_FFI_STATIC_INIT_BLOCK({ BlockDependenceInfoNode::RegisterReflection(); });
+
 /**
  * @brief A helper class to collect and build Block Dependences using BlockScope class
  */
@@ -85,14 +87,14 @@ BlockDependenceInfo::BlockDependenceInfo(IRModule mod) {
 }
 
 TVM_REGISTER_NODE_TYPE(BlockDependenceInfoNode);
-TVM_REGISTER_GLOBAL("tir.BlockDependenceInfo")
+TVM_FFI_REGISTER_GLOBAL("tir.BlockDependenceInfo")
     .set_body_typed([](IRModule mod) -> BlockDependenceInfo { return BlockDependenceInfo(mod); });
-TVM_REGISTER_GLOBAL("tir.BlockDependenceInfoGetBlockScope")
-    .set_body_method<BlockDependenceInfo>(&BlockDependenceInfoNode::GetBlockScope);
-TVM_REGISTER_GLOBAL("tir.BlockDependenceInfoGetSRef")
+TVM_FFI_REGISTER_GLOBAL("tir.BlockDependenceInfoGetBlockScope")
+    .set_body_method(&BlockDependenceInfoNode::GetBlockScope);
+TVM_FFI_REGISTER_GLOBAL("tir.BlockDependenceInfoGetSRef")
     .set_body_typed([](BlockDependenceInfo self, Stmt stmt) -> Optional<StmtSRef> {
       auto it = self->stmt2ref.find(stmt.get());
-      return it != self->stmt2ref.end() ? it->second : Optional<StmtSRef>(NullOpt);
+      return it != self->stmt2ref.end() ? it->second : Optional<StmtSRef>(std::nullopt);
     });
 
 }  // namespace tir

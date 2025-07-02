@@ -67,7 +67,7 @@ class ReplayTraceNode : public SearchStrategyNode {
   /*! \brief The random state. -1 means using random number. */
   TRandState rand_state_ = -1;
   /*! \brief The IRModule to be scheduled from TuneContext. */
-  Optional<IRModule> mod_ = NullOpt;
+  Optional<IRModule> mod_ = std::nullopt;
   /*! \brief The number of threads to be used. */
   int num_threads_ = -1;
   /*! \brief The postprocessors. */
@@ -75,14 +75,12 @@ class ReplayTraceNode : public SearchStrategyNode {
   /*! \brief The state of the search strategy. */
   std::unique_ptr<State> state_ = nullptr;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("max_fail_count", &max_fail_count);
-    // `rand_state_` is not visited
-    // `mod_` is not visited
-    // `num_threads_` is not visited
-    // `postprocs_` is not visited
-    // `state_` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ReplayTraceNode>().def_ro("max_fail_count", &ReplayTraceNode::max_fail_count);
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.ReplayTrace";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReplayTraceNode, SearchStrategyNode);
@@ -145,12 +143,12 @@ class ReplayTraceNode : public SearchStrategyNode {
 
 inline Optional<Array<MeasureCandidate>> ReplayTraceNode::State::GenerateMeasureCandidates() {
   if (st >= max_trials) {
-    return NullOpt;
+    return std::nullopt;
   }
   ed = std::min(ed, max_trials);
   ICHECK_LT(st, ed);
   std::vector<TRandState> per_thread_rand_state = ForkSeed(&self->rand_state_, self->num_threads_);
-  Array<MeasureCandidate> per_task_result(ed - st, MeasureCandidate{nullptr});
+  Array<Optional<MeasureCandidate>> per_task_result(ed - st, std::nullopt);
   ThreadedTraceApply pp(self->postprocs_);
   auto f_worker = [this, &per_thread_rand_state, &per_task_result, &pp](int thread_id,
                                                                         int task_id) -> void {
@@ -172,9 +170,9 @@ inline Optional<Array<MeasureCandidate>> ReplayTraceNode::State::GenerateMeasure
   support::parallel_for_dynamic(0, ed - st, self->num_threads_, f_worker);
   Array<MeasureCandidate> filtered;
   filtered.reserve(ed - st);
-  for (MeasureCandidate result : per_task_result)
-    if (result.defined()) {
-      filtered.push_back(result);
+  for (Optional<MeasureCandidate> result : per_task_result)
+    if (result.has_value()) {
+      filtered.push_back(*std::move(result));
     }
   return filtered;
 }
@@ -190,8 +188,10 @@ SearchStrategy SearchStrategy::ReplayTrace(int max_fail_count) {
   return SearchStrategy(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ ReplayTraceNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(ReplayTraceNode);
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyReplayTrace")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyReplayTrace")
     .set_body_typed(SearchStrategy::ReplayTrace);
 
 }  // namespace meta_schedule

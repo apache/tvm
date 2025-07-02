@@ -26,7 +26,7 @@
 
 #ifdef TVM_LLVM_VERSION
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/target/codegen.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>

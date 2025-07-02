@@ -51,7 +51,7 @@ namespace transform {
  * \return The Pass.
  */
 TVM_DLL Pass AppendLoss(String func_name, Function loss_function, int num_backbone_outputs = 1,
-                        Optional<String> new_func_name = NullOpt);
+                        Optional<String> new_func_name = std::nullopt);
 
 }  // namespace transform
 }  // namespace relax

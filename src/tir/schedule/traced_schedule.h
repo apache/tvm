@@ -31,13 +31,11 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   Trace trace_;
 
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `state_` is not visited
-    // `error_render_level_` is not visited
-    // `symbol_table_` is not visited
-    // `analyzer_` is not visitied
-    // `trace_` is not visited
+  static void RegisterReflection() {
+    // No fields to register as they are not visited
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   ~TracedScheduleNode() = default;
 
@@ -47,15 +45,15 @@ class TracedScheduleNode : public ConcreteScheduleNode {
 
  public:
   /******** Schedule: Sampling ********/
-  ExprRV SampleCategorical(const Array<runtime::Int>& candidates,
-                           const Array<runtime::Float>& probs,
-                           Optional<runtime::Int> decision = NullOpt) final;
+  ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
+                           Optional<Integer> decision = std::nullopt) final;
   Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
-                                  Optional<Array<Integer>> decision = NullOpt) final;
+                                  Optional<Array<Integer>> decision = std::nullopt) final;
   Array<ExprRV> SamplePartitionedTile(const LoopRV& loop_rv, int n, int partition_pos,
                                       int innerpart_factor,
-                                      Optional<Array<Integer>> decision = NullOpt) final;
-  LoopRV SampleComputeLocation(const BlockRV& block_rv, Optional<Integer> decision = NullOpt) final;
+                                      Optional<Array<Integer>> decision = std::nullopt) final;
+  LoopRV SampleComputeLocation(const BlockRV& block_rv,
+                               Optional<Integer> decision = std::nullopt) final;
   /******** Schedule: Get blocks & loops ********/
   BlockRV GetBlock(const String& name, const Optional<String>& func_name) final;
   Array<LoopRV> GetLoops(const BlockRV& block_rv) final;
@@ -121,9 +119,9 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void Tensorize(const BlockRV& block_rv, const String& intrin, bool preserve_unit_iters) final;
   void Tensorize(const LoopRV& loop_rv, const String& intrin, bool preserve_unit_iters) final;
   /******** Schedule: Annotation ********/
-  void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) override;
+  void Annotate(const LoopRV& loop_rv, const String& ann_key, const Any& ann_val) override;
   void Unannotate(const LoopRV& loop_rv, const String& ann_key) override;
-  void Annotate(const BlockRV& block_rv, const String& ann_key, const ObjectRef& ann_val) override;
+  void Annotate(const BlockRV& block_rv, const String& ann_key, const Any& ann_val) override;
   void Unannotate(const BlockRV& block_rv, const String& ann_key) override;
   /******** Schedule: Layout transformation ********/
   void TransformLayout(const BlockRV& block_rv, int buffer_index, BufferIndexType buffer_index_type,

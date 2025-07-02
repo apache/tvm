@@ -24,9 +24,9 @@
 #ifndef TVM_RELAX_DATAFLOW_MATCHER_H_
 #define TVM_RELAX_DATAFLOW_MATCHER_H_
 
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/relax/dataflow_pattern.h>
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <memory>
 
@@ -44,11 +44,11 @@ namespace relax {
  * \return true if matched
  * \return false if unmatched
  */
-bool MatchExpr(DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> bindings = NullOpt);
+bool MatchExpr(DFPattern pattern, Expr expr, Optional<Map<Var, Expr>> bindings = std::nullopt);
 
 /* \brief Similar to above, but return pairs of a matching pattern and an expression.  */
-Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(
-    DFPattern pattern, Expr expr, Optional<runtime::Map<Var, Expr>> bindings = NullOpt);
+Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(DFPattern pattern, Expr expr,
+                                                  Optional<Map<Var, Expr>> bindings = std::nullopt);
 
 /**
  * \brief Match a sub-graph in a DataflowBlock with a graph of patterns and return the mapping.
@@ -70,8 +70,7 @@ TVM_DLL Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
  */
 TVM_DLL Function RewriteBindings(
     const PatternContext& ctx,
-    runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter,
-    Function f);
+    ffi::TypedFunction<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter, Function f);
 
 /**
  * \brief Rewrite a function with the given pattern and the rewriter function.
@@ -97,7 +96,7 @@ TVM_DLL Function RewriteBindings(
  * \return The updated function, if any updates were applied.
  */
 TVM_DLL Function RewriteCall(const DFPattern& pattern,
-                             runtime::TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)> rewriter,
+                             ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)> rewriter,
                              Function func);
 
 }  // namespace relax

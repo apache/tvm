@@ -21,12 +21,13 @@
  * \file src/relax/backend/contrib/cutlass/codegen.cc
  * \brief Implementation of the CUTLASS code generator for Relax.
  */
-
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/type.h>
+#include <tvm/runtime/module.h>
 
 #include <memory>
 #include <string>
@@ -59,7 +60,7 @@ runtime::Module Finalize(const std::string& code, const Array<String>& func_name
       << "Should only create CUTLASS CSourceModule if there is at least one CUTLASS partition";
 
   std::ostringstream default_headers;
-  default_headers << "#include <tvm/runtime/packed_func.h>\n";
+  default_headers << "#include <tvm/ffi/function.h>\n";
   default_headers << "#include <dlpack/dlpack.h>\n";
   default_headers << "#include <cuda_fp16.h>\n";
   default_headers << "#include <cutlass/cutlass.h>\n";
@@ -67,10 +68,11 @@ runtime::Module Finalize(const std::string& code, const Array<String>& func_name
   default_headers << "#include <cutlass/tensor_ref.h>\n";
   default_headers << "#include <cutlass/util/host_tensor.h>\n";
 
-  const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
-  ICHECK(pf != nullptr) << "Cannot find CSource module to create the external runtime module";
+  const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.CSourceModuleCreate");
   VLOG(1) << "Generated CUTLASS code:" << std::endl << code;
-  return (*pf)(default_headers.str() + code, "cu", func_names, /*const_vars=*/Array<String>());
+  return pf(default_headers.str() + code, "cu", func_names,
+            /*const_vars=*/Array<String>())
+      .cast<runtime::Module>();
 }
 
 class CodegenResultNode : public Object {
@@ -78,10 +80,15 @@ class CodegenResultNode : public Object {
   String code;
   Array<String> headers;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("code", &code);
-    v->Visit("headers", &headers);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<CodegenResultNode>()
+        .def_ro("code", &CodegenResultNode::code)
+        .def_ro("headers", &CodegenResultNode::headers);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "contrib.cutlass.CodegenResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(CodegenResultNode, Object);
 };
@@ -95,19 +102,21 @@ class CodegenResult : public ObjectRef {
     data_ = std::move(n);
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(CodegenResult, ObjectRef, CodegenResultNode)
+  TVM_DEFINE_OBJECT_REF_METHODS(CodegenResult, ObjectRef, CodegenResultNode);
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ CodegenResultNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(CodegenResultNode);
 
-TVM_REGISTER_GLOBAL("contrib.cutlass.CodegenResult")
+TVM_FFI_REGISTER_GLOBAL("contrib.cutlass.CodegenResult")
     .set_body_typed([](String code, Array<String> headers) {
       return CodegenResult(code, headers);
     });
 
 GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string& ext_func_id,
                                 const std::vector<std::string>& output_types,
-                                const Array<String>& func_args, const Map<String, ObjectRef>& attrs,
+                                const Array<String>& func_args, const Map<String, ffi::Any>& attrs,
                                 int* buf_idx) {
   // Make function call with input buffers when visiting arguements
   ICHECK_GT(func_args.size(), 0);
@@ -128,11 +137,10 @@ GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string&
   }
   decl_stream << ");";
 
-  const auto* instantiate_template_func =
-      runtime::Registry::Get("contrib.cutlass.instantiate_template");
-  ICHECK(instantiate_template_func);
-
-  CodegenResult codegen_res = (*instantiate_template_func)(func_name, attrs, func_args);
+  const auto instantiate_template_func =
+      tvm::ffi::Function::GetGlobalRequired("contrib.cutlass.instantiate_template");
+  CodegenResult codegen_res =
+      instantiate_template_func(func_name, attrs, func_args).cast<CodegenResult>();
   ret.decl = codegen_res->code;
   ret.headers = codegen_res->headers;
 
@@ -204,7 +212,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     const auto* fn_var = call->op.as<VarNode>();
     ICHECK(fn_var);
     const auto func = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
-    const auto pattern_name_opt = func->GetAttr<runtime::String>(attr::kComposite);
+    const auto pattern_name_opt = func->GetAttr<String>(attr::kComposite);
     ICHECK(pattern_name_opt) << "Only composite function is supported for CUTLASS.";
     auto ret = GenerateBody(call, pattern_name_opt.value(), func->attrs->dict);
     ext_func_body_.push_back(ret.decl);
@@ -288,7 +296,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
   }
 
   GenerateBodyOutput GenerateBody(const CallNode* call, const std::string& func_name,
-                                  const Map<String, ObjectRef>& attrs) {
+                                  const Map<String, ffi::Any>& attrs) {
     auto func_args = GetArgumentNames(call);
     auto struct_info = GetStructInfo(GetRef<Call>(call));
 
@@ -332,7 +340,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
 class CutlassModuleCodegen {
  public:
   runtime::Module CreateCSourceModule(Array<Function> functions,
-                                      const Map<String, ObjectRef>& options) {
+                                      const Map<String, ffi::Any>& options) {
     std::string headers = "";
     std::string code = "";
     for (const auto& f : functions) {
@@ -347,7 +355,7 @@ class CutlassModuleCodegen {
 
  private:
   std::pair<std::string, Array<String>> GenCutlassFunc(const Function& function,
-                                                       const Map<String, ObjectRef>& options) {
+                                                       const Map<String, ffi::Any>& options) {
     ICHECK(function.defined()) << "Input error: expect a Relax function.";
 
     auto sid = GetExtSymbol(function);
@@ -367,25 +375,25 @@ class CutlassModuleCodegen {
   Array<String> func_names_;
 };
 
-Array<runtime::Module> CUTLASSCompiler(Array<Function> functions, Map<String, ObjectRef> options,
+Array<runtime::Module> CUTLASSCompiler(Array<Function> functions, Map<String, ffi::Any> options,
                                        Map<Constant, String> /*unused*/) {
-  const auto* tune_func = runtime::Registry::Get("contrib.cutlass.tune_relax_function");
-  ICHECK(tune_func != nullptr)
+  const auto tune_func = tvm::ffi::Function::GetGlobal("contrib.cutlass.tune_relax_function");
+  ICHECK(tune_func.has_value())
       << "The packed function contrib.cutlass.tune_relax_function not found, "
          "please import tvm.contrib.cutlass.build";
 
-  Array<Function> annotated_functions = (*tune_func)(functions, options);
+  auto annotated_functions = (*tune_func)(functions, options).cast<Array<Function>>();
 
   auto source_mod = CutlassModuleCodegen().CreateCSourceModule(annotated_functions, options);
-  const auto* pf = runtime::Registry::Get("contrib.cutlass.compile");
-  ICHECK(pf != nullptr) << "The packed function contrib.cutlass.compile not found, please import "
-                           "tvm.contrib.cutlass.build";
-  runtime::Module cutlass_mod = (*pf)(source_mod, options);
+  const auto pf = tvm::ffi::Function::GetGlobal("contrib.cutlass.compile");
+  ICHECK(pf.has_value()) << "The packed function contrib.cutlass.compile not found, please import "
+                            "tvm.contrib.cutlass.build";
+  runtime::Module cutlass_mod = (*pf)(source_mod, options).cast<runtime::Module>();
 
   return {cutlass_mod};
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.cutlass").set_body_typed(CUTLASSCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.cutlass").set_body_typed(CUTLASSCompiler);
 
 }  // namespace contrib
 }  // namespace relax

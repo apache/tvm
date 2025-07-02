@@ -44,12 +44,13 @@ if [ "$PYTHON_VERSION" == "3.9" ]; then
 
     if [ "$DEVICE" == "cuda" ]; then
         pip3 install \
-            torch==2.6.0 \
-            torchvision==0.21.0
+            torch==2.7.0 \
+            torchvision==0.22.0 \
+            --index-url https://download.pytorch.org/whl/cu118
     else
         pip3 install \
-            torch==2.6.0 \
-            torchvision==0.21.0 \
+            torch==2.7.0 \
+            torchvision==0.22.0 \
             --extra-index-url https://download.pytorch.org/whl/cpu
     fi
 elif [ "$PYTHON_VERSION" == "3.11" ]; then
@@ -60,12 +61,13 @@ elif [ "$PYTHON_VERSION" == "3.11" ]; then
 
     if [ "$DEVICE" == "cuda" ]; then
         pip3 install \
-            torch==2.6.0 \
-            torchvision==0.21.0
+            torch==2.7.0 \
+            torchvision==0.22.0 \
+            --index-url https://download.pytorch.org/whl/cu118
     else
         pip3 install \
-            torch==2.6.0 \
-            torchvision==0.21.0 \
+            torch==2.7.0 \
+            torchvision==0.22.0 \
             --extra-index-url https://download.pytorch.org/whl/cpu
     fi
 else

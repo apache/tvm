@@ -24,14 +24,15 @@
 #ifndef TVM_IR_MODULE_H_
 #define TVM_IR_MODULE_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/global_info.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/string.h>
 
 #include <string>
 #include <unordered_map>
@@ -77,7 +78,7 @@ class IRModuleNode : public Object {
    *
    * \return The result
    *
-   * \tparam TOBjectRef the expected object type.
+   * \tparam TObjectRef the expected object type.
    * \throw Error if the key exists but the value does not match TObjectRef
    *
    * \code
@@ -91,7 +92,7 @@ class IRModuleNode : public Object {
   template <typename TObjectRef>
   Optional<TObjectRef> GetAttr(
       const std::string& attr_key,
-      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
     return attrs.GetAttr(attr_key, default_value);
   }
   // variant that uses TObjectRef to enable implicit conversion to default value.
@@ -129,13 +130,17 @@ class IRModuleNode : public Object {
 
   IRModuleNode() : source_map() {}
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("functions", &functions);
-    v->Visit("global_var_map_", &global_var_map_);
-    v->Visit("source_map", &source_map);
-    v->Visit("attrs", &attrs);
-    v->Visit("global_infos", &global_infos);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IRModuleNode>()
+        .def_ro("functions", &IRModuleNode::functions)
+        .def_ro("global_var_map_", &IRModuleNode::global_var_map_)
+        .def_ro("source_map", &IRModuleNode::source_map)
+        .def_ro("attrs", &IRModuleNode::attrs)
+        .def_ro("global_infos", &IRModuleNode::global_infos);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
 
@@ -233,7 +238,7 @@ class IRModuleNode : public Object {
 
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
-  static constexpr const char* _type_key = "IRModule";
+  static constexpr const char* _type_key = "ir.IRModule";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IRModuleNode, Object);
@@ -290,9 +295,6 @@ class IRModule : public ObjectRef {
   /*! \brief Declare the container type. */
   using ContainerType = IRModuleNode;
 
-  /*! \brief Declare whether Ref is nullable. */
-  static constexpr bool _type_is_nullable = false;
-
   // allow copy on write.
   TVM_DEFINE_OBJECT_REF_COW_METHOD(IRModuleNode);
 };
@@ -305,8 +307,6 @@ namespace attr {
  * \brief Name of the module
  *
  * Type: String
- *
- * \sa tvm::runtime::String
  */
 constexpr const char* kModuleName = "mod_name";
 

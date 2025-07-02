@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -30,15 +32,15 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   /*!
    * \brief Optional block names to target. If not specified all blocks will have spaces generated.
    */
-  runtime::PackedFunc f_block_filter_ = nullptr;
+  ffi::Function f_block_filter_ = nullptr;
   /*! \brief The random state. -1 means using random number. */
   TRandState rand_state_ = -1;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    SpaceGeneratorNode::VisitAttrs(v);
-    // `rand_state_` is not visited
-    // `sch_rules_` is not visited
+  static void RegisterReflection() {
+    // No fields to register
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final {
     SpaceGeneratorNode::InitializeWithTuneContext(context);
@@ -103,7 +105,7 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(PostOrderApplyNode, SpaceGeneratorNode);
 };
 
-SpaceGenerator SpaceGenerator::PostOrderApply(runtime::PackedFunc f_block_filter,
+SpaceGenerator SpaceGenerator::PostOrderApply(ffi::Function f_block_filter,
                                               Optional<Array<ScheduleRule>> sch_rules,
                                               Optional<Array<Postproc>> postprocs,
                                               Optional<Map<Mutator, FloatImm>> mutator_probs) {
@@ -115,8 +117,10 @@ SpaceGenerator SpaceGenerator::PostOrderApply(runtime::PackedFunc f_block_filter
   return SpaceGenerator(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ PostOrderApplyNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(PostOrderApplyNode);
-TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorPostOrderApply")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorPostOrderApply")
     .set_body_typed(SpaceGenerator::PostOrderApply);
 
 }  // namespace meta_schedule

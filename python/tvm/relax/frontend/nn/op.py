@@ -930,6 +930,28 @@ def relu(x: Tensor, name: str = "relu") -> Tensor:
     return wrap_nested(_op.nn.relu(x._expr), name)
 
 
+def relu6(x: Tensor, name: str = "relu6") -> Tensor:
+    r"""ReLU6 activation function.
+
+    .. math::
+        \text{ReLU6}(x) = \min(\max(x, 0), 6)
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.nn.relu6(x._expr), name)
+
+
 def silu(x: Tensor, name: str = "silu") -> Tensor:
     r"""Sigmoid Linear Unit function
 
@@ -1044,6 +1066,60 @@ def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
     The input tensor is required to have float dtype
     """
     return wrap_nested(_op.nn.softmax(x._expr, axis), name)
+
+
+def softplus(x: Tensor, beta: float = 1.0, threshold: float = 20.0, name: str = "softplus"):
+    r"""Softplus activation function.
+
+    .. math::
+        \text{Softplus}(x) = \frac{1}{\beta} \log(1 + e^{\beta x})
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data.
+
+    beta : float, optional
+        Controls the smoothness of the transition. Default is 1.0.
+
+    threshold : float, optional
+        The value beyond which the function is approximated as linear
+        to avoid numerical instability. Default is 20.0.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return wrap_nested(_op.nn.softplus(x._expr, beta=beta, threshold=threshold), name)
+
+
+def prelu(x: Tensor, alpha: Tensor, name: str = "prelu"):
+    r"""Parametric ReLU activation function.
+
+    .. math::
+        \text{PReLU}(x) = \begin{cases}
+            x & \text{if } x \geq 0 \\
+            \alpha \cdot x & \text{if } x < 0
+        \end{cases}
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data.
+
+    alpha : Tensor
+        Slope coefficient for the negative part of the input.
+
+    name : str, optional
+        Optional name for the operation. Default is "prelu".
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.nn.prelu(x._expr, alpha._expr), name)
 
 
 def tanh(x: Tensor, name: str = "tanh") -> Tensor:
@@ -2011,7 +2087,7 @@ def extern(
     out: OutType,
 ) -> OutType:
     """Invoke an extern function during runtime. The extern function must be registered with the "
-    TVM runtime using `TVM_REGISTER_GLOBAL` (C++), or `tvm.register_func` (Python).
+    TVM runtime using `TVM_FFI_REGISTER_GLOBAL` (C++), or `tvm.register_func` (Python).
 
     Parameters
     ----------

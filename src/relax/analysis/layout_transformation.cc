@@ -614,7 +614,7 @@ Map<tir::Block, Map<ObjectRef, tir::IndexMap>> SuggestLayoutTransforms(
   return analyzer.GetSuggestedTransforms();
 }
 
-TVM_REGISTER_GLOBAL(("relax.analysis.suggest_layout_transforms"))
+TVM_FFI_REGISTER_GLOBAL(("relax.analysis.suggest_layout_transforms"))
     .set_body_typed([](PrimFunc fn, Array<tir::IndexMap> write_buffer_transformations) {
       return SuggestLayoutTransforms(fn, write_buffer_transformations);
     });

@@ -114,3 +114,14 @@ def _arange(bb: BlockBuilder, call: Call) -> Expr:
         return const(np.arange(start.value, end.value, step.value, dtype=dtype), dtype=dtype)
     else:
         return bb.call_te(topi.arange, start, end, step, dtype)
+
+
+@register_legalize("relax.hamming_window")
+def _hamming_window(bb: BlockBuilder, call: Call) -> Expr:
+    assert len(call.args) == 4
+    dtype = call.attrs.dtype
+    window_size = call.args[0].value
+    periodic = call.args[1].value
+    alpha = call.args[2].value
+    beta = call.args[3].value
+    return bb.call_te(topi.hamming_window, window_size, periodic, alpha, beta, dtype)

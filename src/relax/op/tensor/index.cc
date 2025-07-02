@@ -36,10 +36,15 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  TakeAttrs::RegisterReflection();
+  StridedSliceAttrs::RegisterReflection();
+});
+
 /* relax.take */
 TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
-Expr take(Expr x, Expr indices, Optional<Integer> axis) {
+Expr take(Expr x, Expr indices, Optional<int64_t> axis) {
   ObjectPtr<TakeAttrs> attrs = make_object<TakeAttrs>();
   attrs->axis = std::move(axis);
 
@@ -47,7 +52,7 @@ Expr take(Expr x, Expr indices, Optional<Integer> axis) {
   return Call(op, {std::move(x), std::move(indices)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.take").set_body_typed(take);
+TVM_FFI_REGISTER_GLOBAL("relax.op.take").set_body_typed(take);
 
 StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   CheckNumArguments(call, ctx);
@@ -85,7 +90,7 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   }
 
   const auto* attrs = call->attrs.as<TakeAttrs>();
-  if (!attrs->axis.defined() && data_sinfo->ndim != 1) {
+  if (!attrs->axis.has_value() && data_sinfo->ndim != 1) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Take op expects the input data to be 1-dimensional tensor when the axis "
                         "is not specified. However, the given data tensor has ndim "
@@ -95,9 +100,8 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
     return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
   }
 
-  int axis = attrs->axis.defined()
-                 ? NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value()->value)
-                 : 0;
+  int axis =
+      attrs->axis.has_value() ? NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis.value()) : 0;
   const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
   const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
   if (data_shape == nullptr || indices_shape == nullptr) {
@@ -170,7 +174,7 @@ Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, Optional<Expr> strid
   return call;
 }
 
-TVM_REGISTER_GLOBAL("relax.op.strided_slice").set_body_typed(strided_slice);
+TVM_FFI_REGISTER_GLOBAL("relax.op.strided_slice").set_body_typed(strided_slice);
 
 /* \brief Helper function to unpack a relax::Tuple
  *
@@ -191,17 +195,17 @@ TVM_REGISTER_GLOBAL("relax.op.strided_slice").set_body_typed(strided_slice);
  * \param sinfo The StructInfo to inspect
  *
  * \returns An array of the `PrimType`, if it can be extracted.
- *     Otherwise, `NullOpt`.
+ *     Otherwise, `std::nullopt`.
  */
 template <typename PrimType = PrimExpr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, PrimType>>>
 Optional<Array<PrimType>> UnpackTupleOfPrimValue(Optional<StructInfo> sinfo) {
-  if (!sinfo) return NullOpt;
+  if (!sinfo) return std::nullopt;
 
   // An ObjectStructInfo may contain a tuple of the desired type, but
   // it isn't yet known whether it does.  Return early, as we cannot
   // provide a known `Array<PrimType>` to the caller.
-  if (sinfo.as<ObjectStructInfoNode>()) return NullOpt;
+  if (sinfo.as<ObjectStructInfoNode>()) return std::nullopt;
 
   auto tuple = sinfo.as<TupleStructInfoNode>();
   CHECK(tuple) << "TypeError: "
@@ -212,7 +216,7 @@ Optional<Array<PrimType>> UnpackTupleOfPrimValue(Optional<StructInfo> sinfo) {
   for (size_t i = 0; i < tuple->fields.size(); i++) {
     auto field = tuple->fields[i];
 
-    if (field.as<ObjectStructInfoNode>()) return NullOpt;
+    if (field.as<ObjectStructInfoNode>()) return std::nullopt;
 
     auto prim_sinfo = field.as<PrimStructInfoNode>();
     CHECK(prim_sinfo) << "TypeError: "
@@ -221,10 +225,10 @@ Optional<Array<PrimType>> UnpackTupleOfPrimValue(Optional<StructInfo> sinfo) {
                       << PrimType::ContainerType::_type_key << ", because element " << i
                       << " has struct info " << field;
 
-    if (!prim_sinfo->value.defined()) return NullOpt;
+    if (!prim_sinfo->value.defined()) return std::nullopt;
 
     Optional<PrimType> element = prim_sinfo->value.as<PrimType>();
-    if (!element) return NullOpt;
+    if (!element) return std::nullopt;
 
     output.push_back(element.value());
   }
@@ -250,7 +254,7 @@ Optional<Array<PrimType>> UnpackTupleOfPrimValue(Optional<StructInfo> sinfo) {
  * \param expr The `relax::Expr` to inspect
  *
  * \returns An array of the `PrimType`, if it can be extracted.
- *     Otherwise, `NullOpt`.
+ *     Otherwise, `std::nullopt`.
  */
 template <typename PrimType = PrimExpr,
           typename = std::enable_if_t<std::is_base_of_v<PrimExpr, PrimType>>>
@@ -258,7 +262,7 @@ Optional<Array<PrimType>> UnpackTupleOfPrimValue(Optional<Expr> expr) {
   if (expr) {
     return UnpackTupleOfPrimValue<PrimType>(GetStructInfo(expr.value()));
   } else {
-    return NullOpt;
+    return std::nullopt;
   }
 }
 
@@ -277,7 +281,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     if (n_args > 4) {
       return call->args[4];
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }();
 
@@ -288,7 +292,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     if (n_args > 4) {
       return GetStructInfo(call->args[4]);
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }();
 
@@ -330,7 +334,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   const auto* data_sinfo = data->struct_info_.as<TensorStructInfoNode>();
 
   DataType dtype = DataType::Void();
-  Optional<VDevice> vdevice = NullOpt;
+  Optional<VDevice> vdevice = std::nullopt;
   int ndim = kUnknownNDim;
   if (data_sinfo) {
     dtype = data_sinfo->dtype;
@@ -339,15 +343,15 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
   }
 
   Optional<Expr> shape = [&]() -> Optional<Expr> {
-    if (!data_sinfo) return NullOpt;
-    if (!data_sinfo->shape) return NullOpt;
+    if (!data_sinfo) return std::nullopt;
+    if (!data_sinfo->shape) return std::nullopt;
 
     auto opt_axes_tuple = UnpackTupleOfPrimValue<Integer>(axes);
-    if (!opt_axes_tuple) return NullOpt;
+    if (!opt_axes_tuple) return std::nullopt;
     auto axes_tuple = opt_axes_tuple.value();
 
     auto opt_begin_tuple = UnpackTupleOfPrimValue(begin);
-    if (!opt_begin_tuple) return NullOpt;
+    if (!opt_begin_tuple) return std::nullopt;
     auto begin_tuple = opt_begin_tuple.value();
 
     CHECK_EQ(axes_tuple.size(), begin_tuple.size())
@@ -357,7 +361,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
         << ") and " << begin_tuple.size() << " 'begin' indices specified (" << begin_tuple << ")";
 
     auto opt_end_tuple = UnpackTupleOfPrimValue(end);
-    if (!opt_end_tuple) return NullOpt;
+    if (!opt_end_tuple) return std::nullopt;
     auto end_tuple = opt_end_tuple.value();
 
     CHECK_EQ(axes_tuple.size(), end_tuple.size())
@@ -369,7 +373,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     Array<PrimExpr> strides_tuple;
     if (strides.defined()) {
       auto opt_strides_tuple = UnpackTupleOfPrimValue(strides);
-      if (!opt_strides_tuple) return NullOpt;
+      if (!opt_strides_tuple) return std::nullopt;
 
       strides_tuple = opt_strides_tuple.value();
     } else {
@@ -388,7 +392,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
     if (axes_tuple.empty() && !opt_data_shape.defined()) {
       return data_sinfo->shape.value();
     } else if (!opt_data_shape.defined()) {
-      return NullOpt;
+      return std::nullopt;
     }
 
     std::vector<int> axes = NormalizeAxes(call, ctx, data_sinfo->ndim, axes_tuple);
@@ -478,7 +482,7 @@ Expr dynamic_strided_slice(Expr x,      //
   return Call(op, {std::move(x), std::move(begin), std::move(end), std::move(strides)}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.dynamic_strided_slice").set_body_typed(dynamic_strided_slice);
+TVM_FFI_REGISTER_GLOBAL("relax.op.dynamic_strided_slice").set_body_typed(dynamic_strided_slice);
 
 StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);

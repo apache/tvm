@@ -41,28 +41,24 @@ def _check_json_roundtrip(x):
 def test_var() -> None:
     v0 = rx.Var("v0")
     assert v0.name_hint == "v0"
-    assert v0._checked_type_ is None
     assert v0.struct_info_ is None
     shape = [54, 96]
     v1 = rx.Var("v1", R.Tensor(shape, "float32"))
     assert v1.name_hint == "v1"
     for s0, s1 in zip(v1.struct_info.shape, shape):
         assert s0 == s1
-    assert v1.checked_type == rx.TensorType(2, "float32")
     tvm.ir.assert_structural_equal(v1.struct_info, rx.TensorStructInfo(shape, "float32"))
 
 
 def test_dataflow_var() -> None:
     v0 = rx.DataflowVar("v0")
     assert v0.name_hint == "v0"
-    assert v0._checked_type_ is None
     assert v0.struct_info_ is None
 
     shape = [54, 96]
     v1 = rx.DataflowVar("v1", R.Tensor(shape, "float16"))
     assert v1.name_hint == "v1"
 
-    assert v1._checked_type_ == rx.TensorType(2, "float16")
     assert isinstance(v1, rx.DataflowVar)
     tvm.ir.assert_structural_equal(v1.struct_info, rx.TensorStructInfo(shape, "float16"))
 
@@ -116,7 +112,6 @@ def test_match_cast() -> None:
     assert b0.pattern[0] == m
     assert b0.pattern[1] == n
     assert b0.var is not None
-    assert b0.var.checked_type == rx.ShapeType()
 
     # var1: R.Tensor((m, n), "float32") =
     #   match_cast(var0: R.Tensor("float32", ndim=-1), R.Tensor((m, n), "float32"))
@@ -128,7 +123,6 @@ def test_match_cast() -> None:
     assert b1.pattern[0] == m
     assert b1.pattern[1] == n
     assert b1.var is not None
-    assert b1.var.checked_type == rx.TensorType(2, "float32")
 
 
 def test_match_cast() -> None:
@@ -234,13 +228,11 @@ def test_shape_expr():
     shape_expr = rx.ShapeExpr([10, 20])
     assert shape_expr.values[0] == 10
     assert shape_expr.values[1] == 20
-    assert shape_expr.checked_type == rx.ShapeType(ndim=2)
     tvm.ir.assert_structural_equal(shape_expr.struct_info, R.Shape((10, 20)))
 
     x = rx.Var("v0", R.Tensor((10, 20), "float32"))
     assert x.struct_info.shape[0] == 10
     assert x.struct_info.shape[1] == 20
-    assert x.struct_info.shape.checked_type == rx.ShapeType(ndim=2)
     tvm.ir.assert_structural_equal(x.struct_info.shape.struct_info, R.Shape((10, 20)))
 
     m = tir.Var("m", "int32")

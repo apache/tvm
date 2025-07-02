@@ -16,9 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/analysis.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/script/ir_builder/ir/ir.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
@@ -62,15 +62,12 @@ GlobalVar DeclFunction(const String& func_name, const BaseFunc& func_signature) 
     return {};
   }();
 
-  GlobalVar gv = GlobalVar(func_name, gvar_type);
+  GlobalVar gv = GlobalVar(func_name);
   gv->struct_info_ = GetGlobalVarStructInfo(func_signature);
   CHECK(frame->functions.find(gv) == frame->functions.end())
       << "ValueError: function " << func_name << " has already been defined.";
   frame->global_var_map.Set(func_name, gv);
   frame->functions.Set(gv, func_signature);
-  ICHECK(func_signature->checked_type_.defined())
-      << "The checked_type_ of function signature must be defined.";
-  gv->checked_type_ = func_signature->checked_type_;
   return gv;
 }
 
@@ -81,14 +78,10 @@ void DefFunction(const String& func_name, const BaseFunc& func) {
       << "ValueError: function " << func_name << " does not exist, please declare it first.";
   const GlobalVar& gv = (*it).second;
   frame->functions.Set(gv, func);
-  CHECK(func->checked_type_.defined())
-      << "The checked_type_ of function must be defined, but it is not defined for function `"
-      << func_name << "`.";
   gv->struct_info_ = GetGlobalVarStructInfo(func);
-  gv->checked_type_ = func->checked_type_;
 }
 
-void ModuleAttrs(Map<String, ObjectRef> attrs, bool allow_overwrite) {
+void ModuleAttrs(Map<String, Any> attrs, bool allow_overwrite) {
   if (IRBuilder::IsInScope()) {
     // TODO(hongyi): add comments to explain why we need to check if the module frame is in scope
     IRModuleFrame frame = FindModuleFrame("I.ModuleAttr");
@@ -103,10 +96,10 @@ Optional<ObjectRef> ModuleGetAttr(const String& key) {
   if (IRBuilder::IsInScope()) {
     IRModuleFrame frame = FindModuleFrame();
     if (frame->attrs.find(key) != frame->attrs.end()) {
-      return frame->attrs[key];
+      return frame->attrs[key].cast<ObjectRef>();
     }
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 void ModuleSetAttr(const String& key, const Optional<ObjectRef>& value, bool allow_override) {
@@ -165,14 +158,14 @@ VDevice LookupVDevice(String target_kind, int device_index) {
   return VDevice();
 }
 
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.DeclFunction").set_body_typed(DeclFunction);
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.DefFunction").set_body_typed(DefFunction);
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleAttrs").set_body_typed(ModuleAttrs);
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGetAttr").set_body_typed(ModuleGetAttr);
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleSetAttr").set_body_typed(ModuleSetAttr);
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGlobalInfos").set_body_typed(ModuleGlobalInfos);
-TVM_REGISTER_GLOBAL("script.ir_builder.ir.LookupVDevice").set_body_typed(LookupVDevice);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.DeclFunction").set_body_typed(DeclFunction);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.DefFunction").set_body_typed(DefFunction);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.ModuleAttrs").set_body_typed(ModuleAttrs);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGetAttr").set_body_typed(ModuleGetAttr);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.ModuleSetAttr").set_body_typed(ModuleSetAttr);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGlobalInfos").set_body_typed(ModuleGlobalInfos);
+TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.LookupVDevice").set_body_typed(LookupVDevice);
 
 }  // namespace ir
 }  // namespace ir_builder

@@ -20,7 +20,7 @@
 # pylint: disable=too-many-statements,too-many-lines,too-many-arguments,invalid-name
 import enum
 import math
-from typing import Any, Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 import tvm
 from tvm import relax as rx
@@ -86,6 +86,7 @@ class AttnKind(enum.IntEnum):
 
     MHA = 0
     MLA = 1
+    MHA_SLIDING = 3
 
 
 class RopeMode(enum.IntEnum):
@@ -301,7 +302,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
 
     def __init__(  # pylint: disable=too-many-locals
         self,
-        attn_kind: Literal["mha", "mla"],
+        attn_kind: Union[Literal["mha", "mla"], List[Literal["mha", "mla", "mha_sliding"]]],
         max_batch_size: tir.Var,
         max_total_seq_len: tir.Var,
         prefill_chunk_size: tir.Var,
@@ -377,8 +378,16 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             dtype_q=dtype,
             dtype_kv=dtype,
             dtype_o=dtype,
-            qk_head_dim=qk_head_dim if attn_kind == "mha" else mla_original_qk_head_dim,
-            v_head_dim=v_head_dim if attn_kind == "mha" else mla_original_v_head_dim,
+            qk_head_dim=(
+                qk_head_dim
+                if (attn_kind == "mha" or isinstance(attn_kind, List))
+                else mla_original_qk_head_dim
+            ),
+            v_head_dim=(
+                v_head_dim
+                if (attn_kind == "mha" or isinstance(attn_kind, List))
+                else mla_original_v_head_dim
+            ),
             target=target,
             enable_inline_rope=rope_mode == RopeMode.INLINE,
         )
@@ -391,7 +400,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
                 v_head_dim=v_head_dim,
                 target=target,
             )
-            if attn_kind == "mha"
+            if (attn_kind == "mha" or isinstance(attn_kind, List))
             else []
         )
         flashinfer_mla_mods = (
@@ -420,7 +429,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
                 rx.Tuple([rx.StringImm("tir"), bb.add_func(tree_attn_with_paged_kv_cache(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask_with_paged_kv_cache")]),
                 rx.Tuple([rx.StringImm("tir"), bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask")]),
             ]
-            if attn_kind == "mha"
+            if (attn_kind == "mha" or isinstance(attn_kind, List))
             else [rx.Tuple([]) for _ in range(6)]
         )
         mla_function = rx.Tuple([rx.StringImm("flashinfer"), rx.ExternFunc("batch_mla_paged_attention_run"), rx.ExternFunc("batch_mla_paged_attention_plan")] if attn_kind == "mla" else [])
@@ -430,6 +439,11 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
         if attn_kind == "mla":
             attn_merge_functions.append(bb.add_func(_merge_state_inplace(num_attention_heads, mla_original_v_head_dim, dtype, target, "tir_attention_merge_state_mla"), "tir_attention_merge_state_mla"))
 
+
+        if isinstance(attn_kind, List):
+            attn_kind = [int(getattr(AttnKind, layer_kind.upper())) for layer_kind in attn_kind]
+        else:
+            attn_kind = [int(getattr(AttnKind, attn_kind.upper())) for _ in range(num_hidden_layers)]
         args = [
             rx.ShapeExpr(
                 [
@@ -482,7 +496,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
 
     def __init__(  # pylint: disable=too-many-locals
         self,
-        attn_kind: Literal["mha", "mla"],
+        attn_kind: Union[Literal["mha", "mla"], List[Literal["mha", "mla", "mha_sliding"]]],
         max_batch_size: tir.Var,
         max_total_seq_len: tir.Var,
         prefill_chunk_size: tir.Var,
@@ -553,7 +567,12 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
         target : Target
             The target to build the model to.
         """
-
+        if isinstance(attn_kind, List):
+            attn_kind = [int(getattr(AttnKind, layer_kind.upper())) for layer_kind in attn_kind]
+        else:
+            attn_kind = [
+                int(getattr(AttnKind, attn_kind.upper())) for _ in range(num_hidden_layers)
+            ]
         bb = rx.BlockBuilder.current()
         args = [
             rx.ShapeExpr(
@@ -570,9 +589,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             rx.PrimValue(num_key_value_heads),
             rx.PrimValue(qk_head_dim),
             rx.PrimValue(v_head_dim),
-            rx.ShapeExpr(
-                [int(getattr(AttnKind, attn_kind.upper())) for _ in range(num_hidden_layers)]
-            ),
+            rx.ShapeExpr(attn_kind),
             rx.PrimValue(enable_disaggregation),
             rx.PrimValue(rope_mode),
             rx.PrimValue(rope_scale),
@@ -614,9 +631,9 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
         else:
             # pylint: disable=line-too-long
             # fmt: off
-            ragged_qk_head_dim = qk_head_dim if attn_kind == "mha" else mla_original_qk_head_dim
-            ragged_v_head_dim = v_head_dim if attn_kind == "mha" else mla_original_v_head_dim
-            args.append(rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_prefill_ragged(num_key_value_heads if attn_kind == "mha" else num_attention_heads, num_attention_heads, ragged_qk_head_dim, ragged_v_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_ragged")]))
+            ragged_qk_head_dim = qk_head_dim if (attn_kind == "mha" or isinstance(attn_kind, List)) else mla_original_qk_head_dim
+            ragged_v_head_dim = v_head_dim if (attn_kind == "mha" or isinstance(attn_kind, List)) else mla_original_v_head_dim
+            args.append(rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_prefill_ragged(num_key_value_heads if (attn_kind == "mha" or isinstance(attn_kind, List)) else num_attention_heads, num_attention_heads, ragged_qk_head_dim, ragged_v_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_ragged")]))
             mha_functions = (
                 [
                     rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_prefill(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, False, rope_scaling, target), "tir_attention_prefill")]),
@@ -626,7 +643,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
                     rx.Tuple([rx.StringImm("tir"), bb.add_func(tree_attn_with_paged_kv_cache(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask_with_paged_kv_cache")]),
                     rx.Tuple([rx.StringImm("tir"), bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, qk_head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask")]),
                 ]
-                if attn_kind == "mha"
+                if (attn_kind == "mha" or isinstance(attn_kind, List))
                 else [rx.Tuple([]) for _ in range(6)]
             )
             mla_function = rx.Tuple([rx.StringImm("tir"), bb.add_func(_attention_prefill_mla(num_attention_heads, v_head_dim, qk_head_dim - v_head_dim, dtype, False, target), "tir_attention_prefill_mla")] if attn_kind == "mla" else [])
@@ -641,7 +658,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
                 [
                     rx.Tuple(attn_merge_functions),
                     bb.add_func(llama_rope_with_position_map(rope_theta, rope_scale, qk_head_dim, num_attention_heads, num_key_value_heads, dtype, rope_scaling, rotary_dim), "tir_split_rotary"),
-                    bb.add_func(_copy_single_page(num_key_value_heads, page_size, qk_head_dim, dtype, target) if attn_kind == "mha" else _copy_single_page_mla(page_size, qk_head_dim, dtype, target), "kv_cache_copy_single_page"),
+                    bb.add_func(_copy_single_page(num_key_value_heads, page_size, qk_head_dim, dtype, target) if (attn_kind == "mha" or isinstance(attn_kind, List)) else _copy_single_page_mla(page_size, qk_head_dim, dtype, target), "kv_cache_copy_single_page"),
                     bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, qk_head_dim, dtype), "kv_cache_debug_get_kv"),
                     bb.add_func(_compact_kv_copy(num_key_value_heads, qk_head_dim, dtype, target), "kv_cache_compact_kv_copy"),
                 ]
@@ -675,7 +692,7 @@ def _kv_cache_transpose_append(num_key_value_heads, head_dim, dtype, page_size: 
         var_v_data: T.handle,
         var_position_map: T.handle,
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         ntoken = T.SizeVar("num_tokens_excluding_cache", "int64")
         num_pages = T.int64()
         pages_elem_offset = T.int64()
@@ -717,7 +734,7 @@ def _kv_cache_transpose_append_mla(d_qk: int, dtype, page_size: int = 16):
         var_kv_data: T.handle,
         var_position_map: T.handle,
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         ntoken = T.SizeVar("num_tokens_excluding_cache", "int64")
         num_pages = T.int64()
         pages_elem_offset = T.int64()
@@ -754,7 +771,7 @@ def _kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dty
         var_v_data: T.handle,
         layer_id: T.int64,
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         seqlen = T.SizeVar("num_tokens_including_cache", "int64")
         page_size = T.SizeVar("page_size", "int64")
         num_pages = T.int64()
@@ -792,7 +809,7 @@ def _kv_cache_debug_get_kv_mla(num_hidden_layers, d_qk, dtype):
         var_compressed_kv_with_k_pe_data: T.handle,
         layer_id: T.int64,
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         seqlen = T.SizeVar("num_tokens_including_cache", "int64")
         page_size = T.SizeVar("page_size", "int64")
         num_pages = T.int64()
@@ -1483,7 +1500,7 @@ def _attention_prefill(
     sch = _schedule_prefill_kernel(
         sch, LOAD_VEC, bdx, num_warps, tile_x, tile_y, tile_z, False, False
     )
-    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+    return sch.mod["main"].with_attr("tir.is_scheduled", True)
 
 
 def _attention_decode_cpu(
@@ -1522,7 +1539,7 @@ def _attention_decode_cpu(
         rope_theta: T.float32,
         sm_scale: T.float32,
     ):
-        T.func_attr({"tir.is_scheduled": 1, "global_symbol": global_symbol})
+        T.func_attr({"tir.is_scheduled": True, "global_symbol": global_symbol})
         B = T.int32(is_size_var=True)
         nnz_pages = T.int32(is_size_var=True)
         max_num_pages = T.int32(is_size_var=True)
@@ -1703,7 +1720,7 @@ def _attention_decode(
         rope_theta: T.float32,
         sm_scale: T.float32,
     ):
-        T.func_attr({"tir.is_scheduled": 1, "global_symbol": global_symbol})
+        T.func_attr({"tir.is_scheduled": True, "global_symbol": global_symbol})
         B = T.int32(is_size_var=True)
         nnz_pages = T.int32(is_size_var=True)
         max_num_pages = T.int32(is_size_var=True)
@@ -1906,7 +1923,7 @@ def _merge_state_inplace_cpu(v_dtype):
         v_other: T.handle,
         s_other: T.handle,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         N = T.int32(is_size_var=True)
         H = T.int32(is_size_var=True)
         D = T.int32(is_size_var=True)
@@ -1959,7 +1976,7 @@ def _merge_state_inplace(
         v_other: T.handle,
         s_other: T.handle,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         N = T.int32(is_size_var=True)
         H = T.int32(is_size_var=True)
         D = T.int32(is_size_var=True)
@@ -2267,7 +2284,7 @@ def _attention_sequence_prefill(
     sch = _schedule_prefill_kernel(
         sch, LOAD_VEC, bdx, num_warps, tile_x, tile_y, tile_z, False, False
     )
-    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+    return sch.mod["main"].with_attr("tir.is_scheduled", True)
 
 
 def _attention_prefill_ragged_cpu(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: Dict[str, Any]):
@@ -2659,7 +2676,7 @@ def _attention_prefill_ragged(
     # pylint: enable=line-too-long,too-many-branches
     sch = tir.Schedule(batch_prefill_ragged_kv)
     sch = _schedule_prefill_kernel(sch, LOAD_VEC, bdx, num_warps, tile_x, d_v, tile_z, True, False)
-    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+    return sch.mod["main"].with_attr("tir.is_scheduled", True)
 
 
 def _attention_prefill_mla(
@@ -2928,7 +2945,7 @@ def _attention_prefill_mla(
     sch = _schedule_prefill_kernel(
         sch, LOAD_VEC, bdx, num_warps, tile_x, d_latent, tile_z, False, True
     )
-    return sch.mod["main"].with_attr("tir.is_scheduled", 1)
+    return sch.mod["main"].with_attr("tir.is_scheduled", True)
 
 
 def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
@@ -2941,7 +2958,7 @@ def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
         tgt_page_id: T.int64,
         copy_length: T.int64,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         num_pages = T.int32()
         pages_elem_offset = T.int64()
         pages = T.match_buffer(
@@ -2988,7 +3005,7 @@ def _copy_single_page_mla(page_size, head_dim, dtype, target: Target):
         tgt_page_id: T.int64,
         copy_length: T.int64,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         num_pages = T.int32()
         pages_elem_offset = T.int64()
         pages = T.match_buffer(
@@ -3016,7 +3033,7 @@ def _copy_single_page_cpu(num_heads, page_size, head_dim, dtype):
         tgt_page_id: T.int64,
         copy_length: T.int64,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         num_pages = T.int32()
         pages = T.match_buffer(var_pages, (num_pages, 2, num_heads, page_size, head_dim), dtype)
 
@@ -3055,7 +3072,7 @@ def _compact_kv_copy(num_heads, head_dim, dtype, target: Target, page_size: int 
         var_copy_src_dst_pos: T.handle,
         batch_size: T.int32,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         num_pages = T.int32()
         total_copy_length = T.int32()
         copy_length_indptr_elem_offset = T.int32()
@@ -3112,7 +3129,7 @@ def _compact_kv_copy_cpu(num_heads, head_dim, dtype, page_size: int = 16):
         var_copy_src_dst_pos: T.handle,
         batch_size: T.int32,
     ):
-        T.func_attr({"tir.is_scheduled": 1})
+        T.func_attr({"tir.is_scheduled": True})
         num_pages = T.int32()
         total_copy_length = T.int32()
         copy_length_indptr_elem_offset = T.int32()

@@ -20,7 +20,7 @@
 /*!
  * \file coreml_runtime.cc
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include "coreml_runtime.h"
 
@@ -128,22 +128,25 @@ void CoreMLRuntime::Init(const std::string& symbol, const std::string& _model_pa
   model_ = std::unique_ptr<CoreMLModel>(new CoreMLModel(url));
 }
 
-PackedFunc CoreMLRuntime::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
+ffi::Function CoreMLRuntime::GetFunction(const String& name,
+                                         const ObjectPtr<Object>& sptr_to_self) {
   // Return member functions during query.
   if (name == "invoke" || name == "run") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { model_->Invoke(); });
+    return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) { model_->Invoke(); });
   } else if (name == "set_input") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+    return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) {
       const auto& input_name = args[0].operator std::string();
       model_->SetInput(input_name, args[1]);
     });
   } else if (name == "get_output") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = model_->GetOutput(args[0]); });
+    return ffi::Function(
+        [this](ffi::PackedArgs args, ffi::Any* rv) { *rv = model_->GetOutput(args[0]); });
   } else if (name == "get_num_outputs") {
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) { *rv = model_->GetNumOutputs(); });
+    return ffi::Function(
+        [this](ffi::PackedArgs args, ffi::Any* rv) { *rv = model_->GetNumOutputs(); });
   } else if (name == symbol_) {
     // Return the packedfunc which executes the subgraph.
-    return PackedFunc([this](TVMArgs args, TVMRetValue* rv) {
+    return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) {
       MLModelDescription* model_desc = [model_->model_ modelDescription];
       NSString* metadata = [model_desc metadata][MLModelDescriptionKey];
       NSData* data = [metadata dataUsingEncoding:NSUTF8StringEncoding];
@@ -179,7 +182,7 @@ PackedFunc CoreMLRuntime::GetFunction(const String& name, const ObjectPtr<Object
       *rv = out;
     });
   } else {
-    return PackedFunc();
+    return ffi::Function();
   }
 }
 
@@ -189,9 +192,10 @@ Module CoreMLRuntimeCreate(const std::string& symbol, const std::string& model_p
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("tvm.coreml_runtime.create").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = CoreMLRuntimeCreate(args[0], args[1]);
-});
+TVM_FFI_REGISTER_GLOBAL("tvm.coreml_runtime.create")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      *rv = CoreMLRuntimeCreate(args[0], args[1]);
+    });
 
 void CoreMLRuntime::SaveToBinary(dmlc::Stream* stream) {
   NSURL* url = model_->url_;
@@ -245,7 +249,8 @@ Module CoreMLRuntimeLoadFromBinary(void* strm) {
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_coreml").set_body_typed(CoreMLRuntimeLoadFromBinary);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_coreml")
+    .set_body_typed(CoreMLRuntimeLoadFromBinary);
 
 }  // namespace runtime
 }  // namespace tvm

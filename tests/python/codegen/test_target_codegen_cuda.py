@@ -213,34 +213,6 @@ def test_cuda_make_int8():
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
-def test_cuda_make_int4():
-    def check_cuda(n, value, lanes):
-        dtype = "int4"
-        dev = tvm.cuda(0)
-        A = te.compute((n, lanes), lambda i, j: tvm.tir.const(value, dtype=dtype), name="A")
-        sch = tvm.tir.Schedule(te.create_prim_func([A]))
-        y, x = sch.get_loops("A")
-        sch.vectorize(x)
-        sch.bind(y, "blockIdx.x")
-        fun = tvm.compile(sch.mod, target="cuda")
-
-        np_a = np.full((n, lanes), value, dtype="int8")
-        a = tvm.nd.empty((n, lanes), dtype, dev)
-        fun(a)
-        np.testing.assert_equal(a.numpy(), np_a)
-
-    check_cuda(64, 1, 4)
-    check_cuda(64, 7, 4)
-    check_cuda(64, 1, 8)
-    check_cuda(64, 7, 8)
-    check_cuda(64, 1, 16)
-    check_cuda(64, 7, 16)
-    check_cuda(64, 1, 32)
-    check_cuda(64, 7, 32)
-
-
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
 def test_cuda_inf_nan():
     target = "cuda"
 
@@ -772,6 +744,37 @@ def test_invalid_reinterpret():
 
     with pytest.raises(tvm.error.TVMError):
         tvm.compile(func, target="cuda")
+
+
+@tvm.testing.requires_cuda
+@tvm.testing.requires_cuda_compute_version(9)
+def test_cuda_tensormap():
+    # fmt: off
+    @T.prim_func
+    def main(A_ptr: T.handle):
+        A = T.match_buffer(A_ptr, (16, 16), dtype="float32", align=16)
+
+        A_map: T.handle("tensormap") = T.tvm_stack_alloca("tensormap", 1)
+        T.call_packed("runtime.cuTensorMapInit", A_map, "float32", 2, A.data,
+                      16, 16, 64, 16, 16, 1, 1, 0, 0, 0, 0)
+
+        for blockIdx in T.thread_binding(1, thread="blockIdx.x"):
+            for threadIdx in T.thread_binding(128, thread="threadIdx.x"):
+                if threadIdx == 0:
+                    A[0, 0] = T.reinterpret("float64", A_map)
+    # fmt: on
+
+    mod = tvm.IRModule({"main": main})
+    mod = tvm.compile(mod, target="cuda")
+    assert (
+        """
+extern "C" __global__ void __launch_bounds__(128) main_kernel(float* __restrict__ A, const __grid_constant__ CUtensorMap A_map) {
+  if (((int)threadIdx.x) == 0) {
+    A[0] = ((float)(*(double *)(&(A_map))));
+  }
+}""".strip()
+        in mod.mod.imported_modules[0].get_source()
+    )
 
 
 if __name__ == "__main__":

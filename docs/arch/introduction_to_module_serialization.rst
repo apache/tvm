@@ -133,7 +133,7 @@ before. The ``import_tree_logic`` is just to write ``import_tree_row_ptr_``
 and ``import_tree_child_indices_`` into stream.
 
 After this step, we will pack it into a symbol
-``runtime::symbol::tvm_dev_mblob`` that can be recovered in the dynamic
+``runtime::symbol::tvm_ffi_library_bin`` that can be recovered in the dynamic
 library.
 
 Now, we complete the serialization part. As you have seen, we could
@@ -152,18 +152,19 @@ according to the function logic, we will call ``module.loadfile_so`` in
 .. code:: c++
 
    // Load the imported modules
-   const char* dev_mblob = reinterpret_cast<const char*>(lib->GetSymbol(runtime::symbol::tvm_dev_mblob));
+   const char* library_bin = reinterpret_cast<const char*>(
+      lib->GetSymbol(runtime::symbol::tvm_ffi_library_bin));
    Module root_mod;
-   if (dev_mblob != nullptr) {
-   root_mod = ProcessModuleBlob(dev_mblob, lib);
+   if (library_bin != nullptr) {
+      root_mod = ProcessLibraryBin(library_bin, lib);
    } else {
-   // Only have one single DSO Module
-   root_mod = Module(n);
+      // Only have one single DSO Module
+      root_mod = Module(n);
    }
 
 As said before, we will pack the blob into the symbol
-``runtime::symbol::tvm_dev_mblob``. During deserialization part, we will
-inspect it. If we have ``runtime::symbol::tvm_dev_mblob``, we will call ``ProcessModuleBlob``,
+``runtime::symbol::tvm_ffi_library_bin``. During deserialization part, we will
+inspect it. If we have ``runtime::symbol::tvm_ffi_library_bin``, we will call ``ProcessLibraryBin``,
 whose logic like this:
 
 .. code:: c++

@@ -22,12 +22,15 @@
  * \brief Relax specific transformation passes.
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/rvalue_ref.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/transform.h>
-#include <tvm/runtime/registry.h>
+
 namespace tvm {
 namespace relax {
 namespace transform {
@@ -55,11 +58,16 @@ class FunctionPassNode : public tvm::transform::PassNode {
    * `pass_func` and let it run on a given IRModule. The same `pass_func` will
    * then be applied on each function in the IRModule.
    */
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func;
+  std::function<Function(Function, IRModule, PassContext)> pass_func;
 
   FunctionPassNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("pass_info", &pass_info); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FunctionPassNode>().def_ro("pass_info", &FunctionPassNode::pass_info);
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Run a function pass on given pass context.
@@ -89,16 +97,14 @@ class FunctionPass : public Pass {
    * \param pass_func The packed function which implements a pass.
    * \param pass_info The pass info.
    */
-  TVM_DLL FunctionPass(
-      runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func,
-      PassInfo pass_info);
+  TVM_DLL FunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
+                       PassInfo pass_info);
 
   TVM_DEFINE_OBJECT_REF_METHODS(FunctionPass, Pass, FunctionPassNode);
 };
 
-FunctionPass::FunctionPass(
-    runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func,
-    PassInfo pass_info) {
+FunctionPass::FunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
+                           PassInfo pass_info) {
   auto n = make_object<FunctionPassNode>();
   n->pass_func = std::move(pass_func);
   n->pass_info = std::move(pass_info);
@@ -155,19 +161,23 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   return updated_mod;
 }
 
-Pass CreateFunctionPass(
-    const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable) {
+Pass CreateFunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
+                        int opt_level, String name, tvm::Array<String> required, bool traceable) {
   PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
-  return FunctionPass(pass_func, pass_info);
+  return FunctionPass(std::move(pass_func), pass_info);
 }
 
 TVM_REGISTER_NODE_TYPE(FunctionPassNode);
 
-TVM_REGISTER_GLOBAL("relax.transform.MakeFunctionPass")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.MakeFunctionPass")
     .set_body_typed(
-        [](runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func,
-           PassInfo pass_info) { return FunctionPass(pass_func, pass_info); });
+        [](ffi::TypedFunction<Function(ffi::RValueRef<Function>, IRModule, PassContext)> pass_func,
+           PassInfo pass_info) {
+          auto wrapped_pass_func = [pass_func](Function func, IRModule mod, PassContext ctx) {
+            return pass_func(ffi::RValueRef<Function>(std::move(func)), mod, ctx);
+          };
+          return FunctionPass(wrapped_pass_func, pass_info);
+        });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<FunctionPassNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -197,11 +207,16 @@ class DataflowBlockPassNode : public tvm::transform::PassNode {
    * `pass_func` and let it run on a given IRModule. The same `pass_func` will
    * then be applied on each DataflowBlock in the IRModule.
    */
-  runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func;
+  std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func;
 
   DataflowBlockPassNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("pass_info", &pass_info); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DataflowBlockPassNode>().def_ro("pass_info", &DataflowBlockPassNode::pass_info);
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
 
@@ -214,9 +229,8 @@ class DataflowBlockPassNode : public tvm::transform::PassNode {
 /*! \brief Helper to apply the passed function to dataflow blocks.*/
 class DataflowBlockMutator : public ExprMutator {
  public:
-  DataflowBlockMutator(
-      runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
-      IRModule mod, PassContext pass_ctx)
+  DataflowBlockMutator(std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
+                       IRModule mod, PassContext pass_ctx)
       : pass_func_(pass_func), mod_(mod), pass_ctx_(pass_ctx) {}
 
   /*!
@@ -292,7 +306,7 @@ class DataflowBlockMutator : public ExprMutator {
     std::unordered_set<const tir::VarNode*> symbolic_vars_;
   };
 
-  runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func_;
+  std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func_;
   IRModule mod_;
   PassContext pass_ctx_;
 };
@@ -305,14 +319,14 @@ class DataflowBlockPass : public Pass {
    * \param pass_info The pass info.
    */
   TVM_DLL DataflowBlockPass(
-      runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
+      std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
       PassInfo pass_info);
 
   TVM_DEFINE_OBJECT_REF_METHODS(DataflowBlockPass, Pass, DataflowBlockPassNode);
 };
 
 DataflowBlockPass::DataflowBlockPass(
-    runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
+    std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
     PassInfo pass_info) {
   auto n = make_object<DataflowBlockPassNode>();
   n->pass_func = std::move(pass_func);
@@ -372,18 +386,24 @@ IRModule DataflowBlockPassNode::operator()(IRModule mod, const PassContext& pass
 }
 
 Pass CreateDataflowBlockPass(
-    const runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable) {
+    std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func, int opt_level,
+    String name, tvm::Array<String> required, bool traceable) {
   PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
-  return DataflowBlockPass(pass_func, pass_info);
+  return DataflowBlockPass(std::move(pass_func), pass_info);
 }
 
 TVM_REGISTER_NODE_TYPE(DataflowBlockPassNode);
 
-TVM_REGISTER_GLOBAL("relax.transform.MakeDataflowBlockPass")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.MakeDataflowBlockPass")
     .set_body_typed(
-        [](runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func,
-           PassInfo pass_info) { return DataflowBlockPass(pass_func, pass_info); });
+        [](ffi::TypedFunction<DataflowBlock(ffi::RValueRef<DataflowBlock>, IRModule, PassContext)>
+               pass_func,
+           PassInfo pass_info) {
+          auto wrapped_pass_func = [pass_func](DataflowBlock func, IRModule mod, PassContext ctx) {
+            return pass_func(ffi::RValueRef<DataflowBlock>(std::move(func)), mod, ctx);
+          };
+          return DataflowBlockPass(wrapped_pass_func, pass_info);
+        });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<DataflowBlockPassNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -392,6 +412,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "Run DataflowBlock pass: " << info->name << " at the optimization level "
                 << info->opt_level;
     });
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  FunctionPassNode::RegisterReflection();
+  DataflowBlockPassNode::RegisterReflection();
+});
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

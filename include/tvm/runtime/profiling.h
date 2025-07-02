@@ -24,12 +24,14 @@
 #ifndef TVM_RUNTIME_PROFILING_H_
 #define TVM_RUNTIME_PROFILING_H_
 
-#include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/container/map.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/function.h>
+#include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
 
 #include <stack>
 #include <string>
@@ -73,7 +75,7 @@ class TimerNode : public Object {
 
   virtual ~TimerNode() {}
 
-  static constexpr const char* _type_key = "TimerNode";
+  static constexpr const char* _type_key = "runtime.TimerNode";
   TVM_DECLARE_BASE_OBJECT_INFO(TimerNode, Object);
 };
 
@@ -123,7 +125,7 @@ class Timer : public ObjectRef {
    *    virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
    *    virtual ~CPUTimerNode() {}
    *
-   *    static constexpr const char* _type_key = "CPUTimerNode";
+   *    static constexpr const char* _type_key = "runtime.CPUTimerNode";
    *    TVM_DECLARE_FINAL_OBJECT_INFO(CPUTimerNode, TimerNode);
    *
    *   private:
@@ -132,7 +134,7 @@ class Timer : public ObjectRef {
    *  };
    *  TVM_REGISTER_OBJECT_TYPE(CPUTimerNode);
    *
-   *  TVM_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](Device dev) {
+   *  TVM_FFI_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](Device dev) {
    *    return Timer(make_object<CPUTimerNode>());
    *  });
    * \endcode
@@ -153,7 +155,7 @@ Timer DefaultTimer(Device dev);
 
 namespace profiling {
 /*! \brief Wrapper for `Device` because `Device` is not passable across the
- * PackedFunc interface.
+ * ffi::Function interface.
  */
 struct DeviceWrapperNode : public Object {
   /*! The device */
@@ -184,7 +186,7 @@ class ReportNode : public Object {
    * and "Duration (us)". Values are one of `String`, `PercentNode`,
    * `DurationNode`, or `CountNode`.
    */
-  Array<Map<String, ObjectRef>> calls;
+  Array<Map<String, ffi::Any>> calls;
   /*! \brief Metrics collected for the entire run of the model on a per-device basis.
    *
    * `device_metrics` is indexed by device name then metric.
@@ -192,12 +194,12 @@ class ReportNode : public Object {
    * These metrics may be larger than the sum of the same metric in `calls`
    * because these metrics include the overhead of the executor.
    */
-  Map<String, Map<String, ObjectRef>> device_metrics;
+  Map<String, Map<String, ffi::Any>> device_metrics;
   /*! Configuration used for this profiling run. Includes number of threads, executor.
    *
    * Values must be an object type that can be used with device_metrics.
    */
-  Map<String, ObjectRef> configuration;
+  Map<String, ffi::Any> configuration;
   /*! \brief Output `calls` in CSV format.
    *
    * Note that this does not include `device_metrics`, it only includes per-call metrics.
@@ -263,9 +265,9 @@ class Report : public ObjectRef {
    * \param device_metrics Per-device metrics for overall execution.
    * \param configuration Configuration data specific to this profiling run.
    */
-  explicit Report(Array<Map<String, ObjectRef>> calls,
-                  Map<String, Map<String, ObjectRef>> device_metrics,
-                  Map<String, ObjectRef> configuration);
+  explicit Report(Array<Map<String, ffi::Any>> calls,
+                  Map<String, Map<String, ffi::Any>> device_metrics,
+                  Map<String, ffi::Any> configuration);
 
   /*! Deserialize a Report from a JSON object. Needed for sending the report over RPC.
    * \param json Serialized json report from `ReportNode::AsJSON`.
@@ -312,7 +314,7 @@ class MetricCollectorNode : public Object {
    * \returns A set of metric names and the associated values. Values must be
    * one of DurationNode, PercentNode, CountNode, or StringObj.
    */
-  virtual Map<String, ObjectRef> Stop(ObjectRef obj) = 0;
+  virtual Map<String, ffi::Any> Stop(ObjectRef obj) = 0;
 
   virtual ~MetricCollectorNode() {}
 
@@ -377,7 +379,7 @@ class Profiler {
    * \param configuration Additional configuration data to add to the outputted profiling report.
    */
   explicit Profiler(std::vector<Device> devs, std::vector<MetricCollector> metric_collectors,
-                    std::unordered_map<String, ObjectRef> configuration = {});
+                    std::unordered_map<String, ffi::Any> configuration = {});
   /*! \brief Start the profiler.
    *
    * This function should only be called once per object.
@@ -422,7 +424,7 @@ class Profiler {
   std::vector<CallFrame> calls_;
   std::stack<CallFrame> in_flight_;
   std::vector<MetricCollector> collectors_;
-  std::unordered_map<String, ObjectRef> configuration_;
+  std::unordered_map<String, ffi::Any> configuration_;
 };
 
 /* \brief A duration in time. */
@@ -514,7 +516,7 @@ String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype);
  * Example usage:
  * \code{.cpp}
  * // Use PAPI to measure the number of floating point operations.
- * PackedFunc profiler = ProfileModule(
+ * ffi::Function profiler = ProfileModule(
  *     mod, "main", kDLCPU, 0, {CreatePAPIMetricCollector({{kDLCPU, 0}, {"PAPI_FP_OPS"}})});
  * Report r = profiler(arg1, arg2, arg);
  * std::cout << r << std::endl;
@@ -530,12 +532,12 @@ String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype);
  *                     than 0 so that cache effects are consistent.
  * \param collectors List of different
  *                   ways to collect metrics. See MetricCollector.
- * \returns A PackedFunc which takes the same arguments as the `mod[func_name]`
- *          and returns performance metrics as a `Map<String, ObjectRef>` where
+ * \returns A ffi::Function which takes the same arguments as the `mod[func_name]`
+ *          and returns performance metrics as a `Map<String, ffi::Any>` where
  *          values can be `CountNode`, `DurationNode`, `PercentNode`.
  */
-PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
-                           int warmup_iters, Array<MetricCollector> collectors);
+ffi::Function ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
+                              int warmup_iters, Array<MetricCollector> collectors);
 
 /*!
  * \brief Wrap a timer function to measure the time cost of a given packed function.
@@ -584,10 +586,10 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
  *        evaluator.
  * \return f_timer A timer function.
  */
-PackedFunc WrapTimeEvaluator(PackedFunc f, Device dev, int number, int repeat, int min_repeat_ms,
-                             int limit_zero_time_iterations, int cooldown_interval_ms,
-                             int repeats_to_cooldown, int cache_flush_bytes = 0,
-                             PackedFunc f_preproc = nullptr);
+ffi::Function WrapTimeEvaluator(ffi::Function f, Device dev, int number, int repeat,
+                                int min_repeat_ms, int limit_zero_time_iterations,
+                                int cooldown_interval_ms, int repeats_to_cooldown,
+                                int cache_flush_bytes = 0, ffi::Function f_preproc = nullptr);
 
 }  // namespace profiling
 }  // namespace runtime

@@ -24,8 +24,8 @@
 #ifndef TVM_RELAX_BACKEND_CONTRIB_CODEGEN_C_CODEGEN_C_H_
 #define TVM_RELAX_BACKEND_CONTRIB_CODEGEN_C_CODEGEN_C_H_
 
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/string.h>
 
 #include <sstream>
 #include <string>
@@ -130,14 +130,14 @@ class CodegenCBase {
    *   return 0;
    * }
    *
-   * TVM_DLL_EXPORT_TYPED_FUNC(foo, foo_wrapper_);
+   * TVM_FFI_DLL_EXPORT_TYPED_FUNC(foo, foo_wrapper_);
    *
    * int foo_init_wrapper_(Array<NDArray> arr) {
    *   foo_consts = arr;
    *   return 0;
    * }
    *
-   * TVM_DLL_EXPORT_TYPED_FUNC(__init_foo, foo_init_wrapper_);
+   * TVM_FFI_DLL_EXPORT_TYPED_FUNC(__init_foo, foo_init_wrapper_);
    *
    * \endcode
    */
@@ -218,19 +218,19 @@ class CodegenCBase {
     if (!const_arr_name.empty()) {
       // If there are constants, insert the __init_ and the wrapper
       // This segment would be generated in C++ because of the usage
-      // of tvm::runtime::Array. This is not ideal, but this to demonstrate
+      // of tvm::Array. This is not ideal, but this to demonstrate
       // constant copying process used packed imports in other external
       // codegen. Moreover, in microTVM we dont expect this part to be generated.
       code_stream_ << "#ifdef __cplusplus\n";
       code_stream_ << "int " << func_name
-                   << "_init_wrapper_(tvm::runtime::Array<tvm::runtime::NDArray> arr) {\n";
+                   << "_init_wrapper_(tvm::Array<tvm::runtime::NDArray> arr) {\n";
       EnterScope();
       PrintIndents();
       code_stream_ << func_name << "_consts = arr;\n";
       code_stream_ << "return 0;\n";
       ExitScope();
       code_stream_ << "}\n\n";
-      code_stream_ << "TVM_DLL_EXPORT_TYPED_FUNC(__init_" << func_name << ", " << func_name
+      code_stream_ << "TVM_FFI_DLL_EXPORT_TYPED_FUNC(__init_" << func_name << ", " << func_name
                    << "_init_wrapper_);\n\n";
       code_stream_ << "#endif\n";
     }
@@ -336,9 +336,9 @@ class CodegenCBase {
    * \return The dtype string.
    */
   std::string GetDtypeString(const Var& var) {
-    auto ttype = var->checked_type().as<TensorTypeNode>();
-    ICHECK(ttype) << "Expect TensorTypeNode";
-    return GetDtypeString(ttype);
+    auto tsinfo = var->struct_info_.as<TensorStructInfoNode>();
+    ICHECK(tsinfo) << "Expect TensorStructInfoNode";
+    return GetDtypeString(tsinfo);
   }
 
   /*!
@@ -348,24 +348,24 @@ class CodegenCBase {
    *
    * \return The dtype string.
    */
-  std::string GetDtypeString(const TensorTypeNode* ttype) {
+  std::string GetDtypeString(const TensorStructInfoNode* tsinfo) {
     std::string dtype;
-    if (runtime::TypeMatch(ttype->dtype, kDLFloat, 32)) {
+    if (runtime::TypeMatch(tsinfo->dtype, kDLFloat, 32)) {
       dtype = "float";
-    } else if (runtime::TypeMatch(ttype->dtype, kDLFloat, 16)) {
+    } else if (runtime::TypeMatch(tsinfo->dtype, kDLFloat, 16)) {
       dtype = "half";
-    } else if (runtime::TypeMatch(ttype->dtype, kDLBfloat, 16)) {
+    } else if (runtime::TypeMatch(tsinfo->dtype, kDLBfloat, 16)) {
       dtype = "bfloat";
-    } else if (runtime::TypeMatch(ttype->dtype, kDLInt, 32)) {
+    } else if (runtime::TypeMatch(tsinfo->dtype, kDLInt, 32)) {
       dtype = "int";
-    } else if (runtime::TypeMatch(ttype->dtype, kDLInt, 64)) {
+    } else if (runtime::TypeMatch(tsinfo->dtype, kDLInt, 64)) {
       dtype = "int64_t";
-    } else if (runtime::TypeMatch(ttype->dtype, kDLInt, 8)) {
+    } else if (runtime::TypeMatch(tsinfo->dtype, kDLInt, 8)) {
       dtype = "int8_t";
-    } else if (runtime::TypeMatch(ttype->dtype, kDLUInt, 8)) {
+    } else if (runtime::TypeMatch(tsinfo->dtype, kDLUInt, 8)) {
       dtype = "uint8_t";
     } else {
-      LOG(FATAL) << "Unsupported dtype " << ttype->dtype;
+      LOG(FATAL) << "Unsupported dtype " << tsinfo->dtype;
     }
 
     return dtype;
@@ -393,7 +393,7 @@ class CodegenCBase {
    * \return The created declaration
    */
   std::string CreateNDArrayPool(const std::string& symbol) const {
-    return "tvm::runtime::Array<tvm::runtime::NDArray> " + symbol + "_consts;";
+    return "tvm::Array<tvm::runtime::NDArray> " + symbol + "_consts;";
   }
 
   /*!

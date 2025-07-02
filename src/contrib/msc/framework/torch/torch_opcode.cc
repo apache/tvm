@@ -209,6 +209,13 @@ class TorchConcatCodeGen : public TorchOpCode {
   void CodeGenForward() final { stack_.op_call().op_inputs_arg().op_arg<int>("axis", "dim"); }
 };
 
+class TorchStackCodeGen : public TorchOpCode {
+  TORCH_OP_CODEGEN_METHODS(TorchStackCodeGen);
+
+ protected:
+  void CodeGenForward() final { stack_.op_call().op_inputs_arg().op_arg<int>("axis", "dim"); }
+};
+
 class TorchConstantCodeGen : public TorchOpCode {
   TORCH_OP_CODEGEN_METHODS(TorchConstantCodeGen);
 
@@ -789,6 +796,7 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
                std::make_shared<TorchScatterElementsCodeGen>("", "torch.scatter"));
   map->emplace("scatter_nd", std::make_shared<TorchScatterNDCodeGen>("", ""));
   map->emplace("split", std::make_shared<TorchSplitCodeGen>("", "torch.split"));
+  map->emplace("stack", std::make_shared<TorchStackCodeGen>("", "torch.stack"));
   map->emplace("strided_slice", std::make_shared<TorchStridedSliceCodeGen>("", ""));
   map->emplace("take", std::make_shared<TorchTakeCodeGen>("", ""));
 

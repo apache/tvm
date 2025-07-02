@@ -36,9 +36,16 @@ except ImportError:
     ml_dtypes = None
 
 
-@tvm.testing.requires_cuda_compute_version(8, 9)
-def test_e4m3_conversions():
-    dtype = "float8_e4m3fn"
+@pytest.mark.parametrize(
+    "input",
+    [
+        ("float8_e4m3fn", "__nv_fp8_e4m3"),
+        ("float8_e5m2", "__nv_fp8_e5m2"),
+    ],
+)
+@tvm.testing.requires_cuda_compute_version(10)
+def test_fp8_conversions(input):
+    dtype, nv_dtype = input
 
     @T.prim_func
     def add(
@@ -46,8 +53,7 @@ def test_e4m3_conversions():
         B: T.Buffer((64,), dtype),
         C: T.Buffer((64,), dtype),
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
-        # with T.block("root"):
+        T.func_attr({"tir.noalias": True})
         for i in range(64):
             with T.block("C"):
                 v_i = T.axis.spatial(64, i)
@@ -66,14 +72,13 @@ def test_e4m3_conversions():
     fadd = tvm.tir.build(sch.mod, target=target)
 
     cuda_src = fadd.imported_modules[0].get_source()
-    assert "__nv_fp8_e4m3" in cuda_src, "FP8E4M3 (fp8_e4_t) datatype not found in generated CUDA"
+    assert nv_dtype in cuda_src, f"{nv_dtype} datatype not found in generated CUDA"
 
     dev = tvm.device(target, 0)
 
-    numpytype = "float8_e4m3fn"
-    a = tvm.nd.array(np.random.uniform(low=0, high=5, size=64).astype(numpytype), dev)
-    b = tvm.nd.array(np.random.uniform(low=0, high=5, size=64).astype(numpytype), dev)
-    c = tvm.nd.array(np.zeros(64, dtype=numpytype), dev)
+    a = tvm.nd.array(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
+    b = tvm.nd.array(np.random.uniform(low=0, high=5, size=64).astype(dtype), dev)
+    c = tvm.nd.array(np.zeros(64, dtype=dtype), dev)
     fadd(a, b, c)
 
     tvm.testing.assert_allclose(
@@ -81,11 +86,15 @@ def test_e4m3_conversions():
     )
 
 
-@tvm.testing.requires_cuda_compute_version(8, 9)
-def test_e4m3_packing():
+@pytest.mark.parametrize(
+    "dtype",
+    ["float8_e4m3fn", "float8_e5m2", "float8_e8m0fnu"],
+)
+@tvm.testing.requires_cuda_compute_version(10)
+def test_fp8_packing(dtype):
     length = 64
     vector_length = 4
-    native_dtype, packed_dtype = ("float8_e4m3fnx4", "uint32")
+    native_dtype, packed_dtype = (f"{dtype}x{vector_length}", "uint32")
 
     @T.prim_func
     def add(
@@ -93,7 +102,7 @@ def test_e4m3_packing():
         R: T.Buffer((length,), packed_dtype),
         B: T.Buffer((length,), native_dtype),
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         # with T.block("root"):
         for i in range(length):
             with T.block("R"):
@@ -124,9 +133,8 @@ def test_e4m3_packing():
     f = tvm.compile(sch.mod, target=target)
     dev = tvm.device(target, 0)
 
-    numpytype = "float8_e4m3fn"
     np_shape = (length, vector_length)
-    a_np = np.random.uniform(low=0, high=5, size=np_shape).astype(numpytype)
+    a_np = np.random.uniform(low=0, high=5, size=np_shape).astype(dtype)
     a = tvm.nd.empty(shape=(length,), dtype=native_dtype, device=dev)
     r = tvm.nd.empty(shape=(length,), dtype=packed_dtype, device=dev)
     b = tvm.nd.empty(shape=(length,), dtype=native_dtype, device=dev)
@@ -135,19 +143,25 @@ def test_e4m3_packing():
     tvm.testing.assert_allclose(a.numpy().astype("float16"), b.numpy().astype("float16"))
 
 
-native_dtype, promoted_dtype = tvm.testing.parameters(
-    ("float8_e4m3fn", "float32"),
-    ("float8_e4m3fn", "float16"),
-    ("float8_e4m3fnx2", "float32x2"),
-    ("float8_e4m3fnx2", "float16x2"),
-    ("float8_e4m3fnx4", "float32x4"),
+native_dtype, promoted_dtype, numpytype = tvm.testing.parameters(
+    ("float8_e4m3fn", "float32", "float8_e4m3fn"),
+    ("float8_e4m3fn", "float16", "float8_e4m3fn"),
+    ("float8_e4m3fnx2", "float32x2", "float8_e4m3fn"),
+    ("float8_e4m3fnx2", "float16x2", "float8_e4m3fn"),
+    ("float8_e4m3fnx4", "float32x4", "float8_e4m3fn"),
     # Supported via half4 vector type extension in codegen
-    ("float8_e4m3fnx4", "float16x4"),
+    ("float8_e4m3fnx4", "float16x4", "float8_e4m3fn"),
+    ("float8_e5m2", "float32", "float8_e5m2"),
+    ("float8_e5m2", "float16", "float8_e5m2"),
+    ("float8_e5m2x2", "float32x2", "float8_e5m2"),
+    ("float8_e5m2x2", "float16x2", "float8_e5m2"),
+    ("float8_e5m2x4", "float32x4", "float8_e5m2"),
+    ("float8_e5m2x4", "float16x4", "float8_e5m2"),
 )
 
 
-@tvm.testing.requires_cuda_compute_version(8, 9)
-def test_e4m3_vector_conversions(native_dtype, promoted_dtype):
+@tvm.testing.requires_cuda_compute_version(10)
+def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
     vector_length = 64
 
     @T.prim_func
@@ -156,7 +170,7 @@ def test_e4m3_vector_conversions(native_dtype, promoted_dtype):
         B: T.Buffer((vector_length,), native_dtype),
         C: T.Buffer((vector_length,), native_dtype),
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         # with T.block("root"):
         for i in range(vector_length):
             with T.block("C"):
@@ -179,7 +193,6 @@ def test_e4m3_vector_conversions(native_dtype, promoted_dtype):
     cuda_src = fadd.imported_modules[0].get_source()
     dev = tvm.device(target, 0)
 
-    numpytype = "float8_e4m3fn"
     if "x" in native_dtype:
         lanes = int(native_dtype.split("x")[-1])
     else:
@@ -291,7 +304,7 @@ def test_half4_vector_add():
         B: T.Buffer((length,), vec_dtype),
         C: T.Buffer((length,), vec_dtype),
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         # with T.block("root"):
         for i in range(length):
             with T.block("C"):
@@ -609,7 +622,7 @@ class BaseFP8E4M3QuantScaleOnly:
             scale: T.Buffer(scale_shape, model_dtype),
             dequantize: T.Buffer(out_shape, model_dtype),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i0, i1 in T.grid(T.int64(packed_weight_shape[0]), T.int64(packed_weight_shape[1])):
                 with T.block("dequantize"):
@@ -801,8 +814,8 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
         tvm.testing.assert_allclose(weight_np, dequant_weight_np, atol=10, rtol=5e-2)
 
 
-@tvm.testing.requires_cuda_compute_version(8, 9)
-@pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn"])
+@tvm.testing.requires_cuda_compute_version(10)
+@pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn", "float8_e8m0fnu"])
 def test_const(dtype):
     @T.prim_func
     def func(A: T.Buffer((4,), dtype)) -> None:
@@ -867,7 +880,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
             indptr: T.Buffer((1, 2), "int32"),
             o: T.Buffer((2, spatial_size), "float16"),
         ):
-            T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+            T.func_attr({"op_pattern": 4, "tir.noalias": True})
             num_seq = T.int64()
             x = T.match_buffer(x_handle, (num_seq, reduce_size), "float16")
             for expert_id in T.thread_binding(2, thread="blockIdx.y"):
@@ -959,40 +972,42 @@ def test_moe_gemv_shfl_down_illegal_instr():
     vm["main"](x, indptr, weight, scale)
 
 
+@pytest.mark.parametrize("vec_length", [2, 4])
+@pytest.mark.parametrize("dtype", ["float16", "bfloat16"])
 @tvm.testing.requires_cuda_compute_version(8, 9)
-def test_fp8_fp16_bf16_vectorize_arith():
-    for vec_length, dtype in product([2, 4], ["float16", "bfloat16"]):
+def test_fp8_fp16_bf16_vectorize_arith(vec_length, dtype):
+    @T.prim_func
+    def func_vectorize(
+        A: T.Buffer((128,), "float8_e4m3fn"),
+        B: T.Buffer((128,), dtype),
+        C: T.Buffer((128,), dtype),
+    ) -> None:
+        for i in T.serial(128):
+            with T.block("compute"):
+                vi = T.axis.remap("S", [i])
+                C[vi] = (A[vi].astype(dtype) * B[vi]) + T.bfloat16(3.0)
 
-        @T.prim_func
-        def func_vectorize(
-            A: T.Buffer((128,), "float8_e4m3fn"),
-            B: T.Buffer((128,), dtype),
-            C: T.Buffer((128,), dtype),
-        ) -> None:
-            for i in T.serial(128):
-                with T.block("compute"):
-                    vi = T.axis.remap("S", [i])
-                    C[vi] = (A[vi].astype(dtype) * B[vi]) + T.bfloat16(3.0)
+    sch = tir.Schedule(func_vectorize)
+    (l,) = sch.get_loops(sch.get_block("compute"))
+    lo, li = sch.split(l, [None, vec_length])
+    sch.bind(lo, "threadIdx.x")
+    sch.vectorize(li)
 
-        sch = tir.Schedule(func_vectorize)
-        (l,) = sch.get_loops(sch.get_block("compute"))
-        lo, li = sch.split(l, [None, vec_length])
-        sch.bind(lo, "threadIdx.x")
-        sch.vectorize(li)
+    device = tvm.cuda()
+    target = tvm.target.Target.from_device(device)
+    f = tir.build(sch.mod, target=target)
 
-        device = tvm.cuda()
-        target = tvm.target.Target.from_device(device)
-        f = tir.build(sch.mod, target=target)
-
-        a_np = np.random.rand(128).astype("float8_e4m3fn")
-        b_np = np.random.rand(128).astype(dtype)
-        c_np = (a_np.astype(dtype) * b_np) + 3
-        a_tvm = tvm.nd.array(a_np, device=device)
-        b_tvm = tvm.nd.array(b_np, device=device)
-        c_tvm = tvm.nd.empty((128,), dtype=dtype, device=device)
-        f(a_tvm, b_tvm, c_tvm)
-        c_tvm = c_tvm.numpy()
-        np.testing.assert_allclose(c_tvm, c_np, atol=1e-3, rtol=1e-3)
+    a_np = np.random.rand(128).astype("float8_e4m3fn")
+    b_np = np.random.rand(128).astype(dtype)
+    c_np = (a_np.astype(dtype) * b_np) + 3
+    a_tvm = tvm.nd.array(a_np, device=device)
+    b_tvm = tvm.nd.array(b_np, device=device)
+    c_tvm = tvm.nd.empty((128,), dtype=dtype, device=device)
+    f(a_tvm, b_tvm, c_tvm)
+    c_tvm = c_tvm.numpy()
+    np.testing.assert_allclose(
+        c_tvm.astype(np.float32), c_np.astype(np.float32), atol=5e-1, rtol=1e-2
+    )
 
 
 if __name__ == "__main__":

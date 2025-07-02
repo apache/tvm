@@ -166,7 +166,7 @@ class LambdaNameCollector : ExprVisitor {
       if (auto it = lifted_with_global_symbol_.find(func); it != lifted_with_global_symbol_.end()) {
         return it->second;
       } else {
-        return NullOpt;
+        return std::nullopt;
       }
     });
 
@@ -181,7 +181,7 @@ class LambdaNameCollector : ExprVisitor {
     // 3. Try concatenating the entire path together.  Don't include
     // paths of length 2, as they would already be attempted earlier.
     attempt_name_generation([&](const FunctionNode*, const auto& location) -> Optional<String> {
-      if (location.size() == 2) return NullOpt;
+      if (location.size() == 2) return std::nullopt;
 
       std::stringstream stream;
       bool is_first = true;
@@ -328,13 +328,6 @@ class LambdaLifter : public ExprMutator {
           Function(lifted_func_params, body, ret_struct_info, func_node->is_pure, func_node->attrs);
     }
 
-    for (Var param : lifted_func->params) {
-      CHECK(param->checked_type_.defined())
-          << "relax.Function requires all parameters to contain checked_type_.  "
-          << "However, parameter " << param << " with struct info " << param->struct_info_
-          << " has no checked type";
-    }
-
     ICHECK(lifted_func.defined());
 
     if (is_closure || IsClosure(lifted_func)) {
@@ -344,7 +337,6 @@ class LambdaLifter : public ExprMutator {
     // Add the lifted function to the module.
     lifted_func = CopyWithNewVars(lifted_func);
     gvar_lifted_func->struct_info_ = GetStructInfo(lifted_func);
-    gvar_lifted_func->checked_type_ = lifted_func->checked_type_;
 
     builder_->UpdateFunction(gvar_lifted_func, lifted_func);
 
@@ -485,7 +477,7 @@ class LambdaLifter : public ExprMutator {
   std::unordered_map<Var, Call> nested_closure_map_;
   std::unordered_map<Var, Expr> rebind_map_;
   std::unordered_set<Variant<GlobalVar, Var>, ObjectPtrHash, ObjectPtrEqual> closures_;
-  Optional<Var> current_lambda_var_ = NullOpt;
+  Optional<Var> current_lambda_var_ = std::nullopt;
   IRModule mod_;
 
   std::unordered_map<const FunctionNode*, String> lifted_names_;
@@ -503,7 +495,7 @@ Pass LambdaLift() {
   return tvm::transform::CreateModulePass(pass_func, 1, "LambdaLift", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.LambdaLift").set_body_typed(LambdaLift);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.LambdaLift").set_body_typed(LambdaLift);
 
 }  // namespace transform
 }  // namespace relax

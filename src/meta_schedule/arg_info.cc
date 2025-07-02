@@ -67,11 +67,11 @@ ArgInfo ArgInfo::FromJSON(const ObjectRef& json_obj) {
   // The JSON object is always an array whose first element is a tag. For example:
   // `['TENSOR', 'float32', [1, 224, 224, 3]]
   // Step 1. Extract the tag
-  String tag{runtime::ObjectPtr<runtime::StringObj>(nullptr)};
+  String tag{ffi::ObjectPtr<ffi::StringObj>(nullptr)};
   try {
-    const ArrayNode* json_array = json_obj.as<ArrayNode>();
+    const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
     CHECK(json_array && json_array->size() >= 1);
-    tag = Downcast<String>(json_array->at(0));
+    tag = json_array->at(0).cast<String>();
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                << "\nThe error is: " << e.what();
@@ -111,7 +111,7 @@ Array<ArgInfo> ArgInfo::FromEntryFunc(const IRModule& mod, bool remove_preproc) 
 
 /******** TensorInfo ********/
 
-TensorInfo::TensorInfo(runtime::DataType dtype, runtime::ShapeTuple shape) {
+TensorInfo::TensorInfo(runtime::DataType dtype, ffi::Shape shape) {
   ObjectPtr<TensorInfoNode> n = make_object<TensorInfoNode>();
   n->dtype = dtype;
   n->shape = shape;
@@ -120,7 +120,7 @@ TensorInfo::TensorInfo(runtime::DataType dtype, runtime::ShapeTuple shape) {
 
 ObjectRef TensorInfoNode::AsJSON() const {
   static String tag = "TENSOR";
-  String dtype = DLDataType2String(this->dtype);
+  String dtype = DLDataTypeToString(this->dtype);
   Array<Integer> shape = support::AsArray(this->shape);
   return Array<ObjectRef>{tag, dtype, shape};
 }
@@ -129,15 +129,15 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
   DLDataType dtype;
   Array<Integer> shape;
   try {
-    const ArrayNode* json_array = json_obj.as<ArrayNode>();
+    const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
     CHECK(json_array && json_array->size() == 3);
     // Load json[1] => dtype
     {
-      String dtype_str = Downcast<String>(json_array->at(1));
-      dtype = runtime::String2DLDataType(dtype_str);
+      String dtype_str = json_array->at(1).cast<String>();
+      dtype = StringToDLDataType(dtype_str);
     }
     // Load json[2] => shape
-    shape = AsIntArray(json_array->at(2));
+    shape = AsIntArray(json_array->at(2).cast<ObjectRef>());
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                << "\nThe error is: " << e.what();
@@ -145,7 +145,7 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
   std::vector<int64_t> s;
   std::transform(shape.begin(), shape.end(), std::back_inserter(s),
                  [](Integer i) { return i.IntValue(); });
-  return TensorInfo(DataType(dtype), ShapeTuple(s.begin(), s.end()));
+  return TensorInfo(DataType(dtype), ffi::Shape(s.begin(), s.end()));
 }
 
 /******** Repr ********/
@@ -158,16 +158,18 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 /******** FFI ********/
+TVM_FFI_STATIC_INIT_BLOCK({ TensorInfoNode::RegisterReflection(); });
 
 TVM_REGISTER_OBJECT_TYPE(ArgInfoNode);
 TVM_REGISTER_NODE_TYPE(TensorInfoNode);
 
-TVM_REGISTER_GLOBAL("meta_schedule.ArgInfoAsJSON").set_body_method<ArgInfo>(&ArgInfoNode::AsJSON);
-TVM_REGISTER_GLOBAL("meta_schedule.ArgInfoFromPrimFunc").set_body_typed(ArgInfo::FromPrimFunc);
-TVM_REGISTER_GLOBAL("meta_schedule.ArgInfoFromEntryFunc").set_body_typed(ArgInfo::FromEntryFunc);
-TVM_REGISTER_GLOBAL("meta_schedule.ArgInfoFromJSON").set_body_typed(ArgInfo::FromJSON);
-TVM_REGISTER_GLOBAL("meta_schedule.TensorInfo")
-    .set_body_typed([](runtime::DataType dtype, runtime::ShapeTuple shape) -> TensorInfo {
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ArgInfoAsJSON").set_body_method(&ArgInfoNode::AsJSON);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ArgInfoFromPrimFunc").set_body_typed(ArgInfo::FromPrimFunc);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ArgInfoFromEntryFunc")
+    .set_body_typed(ArgInfo::FromEntryFunc);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ArgInfoFromJSON").set_body_typed(ArgInfo::FromJSON);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.TensorInfo")
+    .set_body_typed([](runtime::DataType dtype, ffi::Shape shape) -> TensorInfo {
       return TensorInfo(dtype, shape);
     });
 

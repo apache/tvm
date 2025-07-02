@@ -76,7 +76,29 @@ class BaseValueHash {
     return Reinterpret<int64_t, uint64_t>(static_cast<int64_t>(key));
   }
   uint64_t operator()(const std::string& key) const {
-    return runtime::String::StableHashBytes(key.data(), key.length());
+    return tvm::ffi::details::StableHashBytes(key.data(), key.length());
+  }
+  uint64_t operator()(const Optional<int64_t>& key) const {
+    if (key.has_value()) {
+      return Reinterpret<int64_t, uint64_t>(*key);
+    } else {
+      return 0;
+    }
+  }
+  uint64_t operator()(const Optional<double>& key) const {
+    if (key.has_value()) {
+      return Reinterpret<double, uint64_t>(*key);
+    } else {
+      return 0;
+    }
+  }
+  /*!
+   * \brief Compute structural hash value for a POD value in Any.
+   * \param key The Any object.
+   * \return The hash value.
+   */
+  TVM_FFI_INLINE uint64_t HashPODValueInAny(const ffi::Any& key) const {
+    return ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(key)->v_uint64;
   }
 };
 
@@ -100,7 +122,19 @@ class StructuralHash : public BaseValueHash {
    * \param key The left operand.
    * \return The hash value.
    */
-  TVM_DLL uint64_t operator()(const ObjectRef& key) const;
+  TVM_DLL uint64_t operator()(const ffi::ObjectRef& key) const;
+
+  /**
+   * \brief Compute structural hashing value for an Any object.
+   * \param key The Any object.
+   * \return The hash value.
+   */
+  TVM_FFI_INLINE uint64_t operator()(const ffi::Any& key) const {
+    if (key.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+      return operator()(key.cast<ObjectRef>());
+    }
+    return HashPODValueInAny(key);
+  }
 };
 
 /*!
@@ -185,6 +219,17 @@ class SHashReducer {
     // handle normal values.
     handler_->SHashReduceHashedValue(BaseValueHash()(key));
   }
+  /**
+   * \brief Push hash of Any object to the current sequence of hash values.
+   * \param key The Any object.
+   */
+  void operator()(const ffi::Any& key) const {
+    if (key.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+      return operator()(key.cast<ObjectRef>());
+    }
+    // POD value can always use v_int64 to get the hash value
+    handler_->SHashReduceHashedValue(BaseValueHash().HashPODValueInAny(key));
+  }
   /*!
    * \brief Push hash of key to the current sequence of hash values.
    * \param key The key to be hashed.
@@ -240,7 +285,7 @@ class SHashHandlerDefault : public SHashReducer::Handler {
    * \param map_free_vars Whether or not to remap variables if possible.
    * \return The hash result.
    */
-  virtual uint64_t Hash(const ObjectRef& object, bool map_free_vars);
+  virtual uint64_t Hash(const ffi::Any& object, bool map_free_vars);
 
  protected:
   /*!

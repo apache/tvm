@@ -21,8 +21,8 @@
  * \file buffer.cc
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/device_api.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/builtin.h>
@@ -37,6 +37,8 @@
 namespace tvm {
 namespace tir {
 
+TVM_FFI_STATIC_INIT_BLOCK({ BufferNode::RegisterReflection(); });
+
 using IndexMod = tir::FloorModNode;
 using IndexDiv = tir::FloorDivNode;
 
@@ -48,10 +50,11 @@ Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, Array<PrimExpr> array) {
 }
 
 Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name, String storage_scope,
-                   Array<IntImm> axis_separators, Span span) {
+                   Optional<Array<IntImm>> axis_separators, Span span) {
   DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
   return Buffer(Var(name, PointerType(PrimType(storage_dtype), storage_scope), span), dtype, shape,
-                Array<PrimExpr>(), PrimExpr(), name, 0, 0, kDefault, axis_separators, span);
+                Array<PrimExpr>(), PrimExpr(), name, 0, 0, kDefault,
+                axis_separators.value_or(Array<IntImm>()), span);
 }
 
 // Split the given expression w.r.t the add operator
@@ -639,25 +642,36 @@ tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std
 
 TVM_REGISTER_NODE_TYPE(BufferNode);
 
-TVM_REGISTER_GLOBAL("tir.Buffer").set_body([](TVMArgs args, TVMRetValue* ret) {
+TVM_FFI_REGISTER_GLOBAL("tir.Buffer").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
   ICHECK_EQ(args.size(), 11);
-  auto buffer_type = args[8].operator String();
+  auto buffer_type = args[8].cast<String>();
   BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
-  *ret = Buffer(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], type,
-                args[9], args[10]);
+  auto data = args[0].cast<Var>();
+  auto dtype = args[1].cast<DataType>();
+  auto shape = args[2].cast<Array<PrimExpr>>();
+  auto strides = args[3].cast<Array<PrimExpr>>();
+  auto elem_offset = args[4].cast<PrimExpr>();
+  auto name = args[5].cast<String>();
+  auto data_alignment = args[6].cast<int>();
+  auto offset_factor = args[7].cast<int>();
+  auto axis_separators = args[9].cast<Array<IntImm>>();
+  auto span = args[10].cast<Span>();
+  *ret = Buffer(data, dtype, shape, strides, elem_offset, name, data_alignment, offset_factor, type,
+                axis_separators, span);
 });
 
-TVM_REGISTER_GLOBAL("tir.BufferAccessPtr").set_body_method(&Buffer::access_ptr);
+TVM_FFI_REGISTER_GLOBAL("tir.BufferAccessPtr").set_body_method(&Buffer::access_ptr);
 
-TVM_REGISTER_GLOBAL("tir.BufferGetFlattenedBuffer").set_body_method(&Buffer::GetFlattenedBuffer);
+TVM_FFI_REGISTER_GLOBAL("tir.BufferGetFlattenedBuffer")
+    .set_body_method(&Buffer::GetFlattenedBuffer);
 
-TVM_REGISTER_GLOBAL("tir.BufferOffsetOf").set_body_method(&Buffer::OffsetOf);
+TVM_FFI_REGISTER_GLOBAL("tir.BufferOffsetOf").set_body_method(&Buffer::OffsetOf);
 
-TVM_REGISTER_GLOBAL("tir.BufferVLoad").set_body_method(&Buffer::vload);
+TVM_FFI_REGISTER_GLOBAL("tir.BufferVLoad").set_body_method(&Buffer::vload);
 
-TVM_REGISTER_GLOBAL("tir.BufferVStore").set_body_method(&Buffer::vstore);
+TVM_FFI_REGISTER_GLOBAL("tir.BufferVStore").set_body_method(&Buffer::vstore);
 
-TVM_REGISTER_GLOBAL("tir.BufferStorageScope").set_body_method(&Buffer::scope);
+TVM_FFI_REGISTER_GLOBAL("tir.BufferStorageScope").set_body_method(&Buffer::scope);
 
 }  // namespace tir
 }  // namespace tvm

@@ -22,7 +22,7 @@ from . import _ffi_api, ndarray, NDArray
 def _to_ndarray(params):
     transformed = {}
 
-    for (k, v) in params.items():
+    for k, v in params.items():
         if not isinstance(v, NDArray):
             transformed[k] = ndarray.array(v)
         else:

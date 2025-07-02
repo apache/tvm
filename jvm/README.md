@@ -39,7 +39,7 @@ TVM4J contains three modules:
 - core
     * It contains all the Java interfaces.
 - native
-    * The JNI native library is compiled in this module. It does not link TVM runtime library (libtvm\_runtime.so for Linux and libtvm\_runtime.dylib for OSX). Instead, you have to specify `libtvm.so.path` which contains the TVM runtime library as Java system property.
+    * The JNI native library is compiled in this module. Need to expose libtvm_runtime to LD_LIBRARY_PATH
 - assembly
     * It assembles Java interfaces (core), JNI library (native) and TVM runtime library together. The simplest way to integrate tvm4j in your project is to rely on this module. It automatically extracts the native library to a tempfile and load it.
 
@@ -103,7 +103,7 @@ import java.util.Arrays;
 
 public class LoadAddFunc {
   public static void main(String[] args) {
-    String loadingDir = args[0];
+    String loadingDir = args[0].cast<String>();
     Module fadd = Module.load(loadingDir + File.separator + "add_cpu.so");
 
     Device dev = Device.cpu();

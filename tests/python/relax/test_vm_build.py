@@ -541,7 +541,7 @@ def test_vm_relax_symbolic_shape_tuple(exec_mode):
 
     func = vm["main"]
 
-    assert func(ShapeTuple([2, 3])) == [4, 9]
+    assert func(ShapeTuple([2, 3])) == (4, 9)
 
     with pytest.raises(ValueError):
         func(ShapeTuple([2, 3, 4]))
@@ -595,7 +595,7 @@ def test_vm_relax_multiple_symbolic_prim_value(exec_mode):
 
     func = vm["main"]
 
-    assert func(2, ShapeTuple([4, 12]), 6) == [4, 7]
+    assert func(2, ShapeTuple([4, 12]), 6) == (4, 7)
 
     with pytest.raises(RuntimeError):
         func(2, ShapeTuple([4, 12]), 1)
@@ -663,8 +663,10 @@ def test_vm_relax_dyn_tir_shape(exec_mode):
     target = tvm.target.Target("llvm", host="llvm")
     ex = relax.build(mod, target, exec_mode=exec_mode)
 
-    ex.export_library("exec.so")
-    vm = relax.VirtualMachine(tvm.runtime.load_module("exec.so"), tvm.cpu())
+    with utils.tempdir() as temp:
+        ex.export_library(temp.relpath("exec.so"))
+        vm = relax.VirtualMachine(tvm.runtime.load_module(temp.relpath("exec.so")), tvm.cpu())
+
     inp = tvm.nd.array(np.random.rand(2).astype(np.float32))
     inp2 = tvm.nd.array(np.random.rand(3).astype(np.float32))
 
@@ -873,8 +875,8 @@ def test_vm_to_device(exec_mode):
     res_2 = check_saved_func(vm, "foo2", x_inp)
 
     # check the copied tensor's device
-    assert str(res_1.device) == "cuda(0)"
-    assert str(res_2.device) == "cpu(0)"
+    assert res_1.device == tvm.cuda(0)
+    assert res_2.device == tvm.cpu(0)
 
     tvm.testing.assert_allclose(res_1.numpy(), x_inp.numpy())
     tvm.testing.assert_allclose(res_2.numpy(), x_inp.numpy())
@@ -956,7 +958,7 @@ class TestVMSetInput:
     # test returning a tuple
     @R.function
     def test_vm_tuple(
-        x: R.Tensor((), "int32")
+        x: R.Tensor((), "int32"),
     ) -> R.Tuple(R.Tensor((), "int32"), R.Tensor((), "int32")):
         return (x, x)
 

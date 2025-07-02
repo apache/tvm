@@ -82,28 +82,33 @@ SearchStrategy SearchStrategy::PySearchStrategy(
   return SearchStrategy(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  MeasureCandidateNode::RegisterReflection();
+  PySearchStrategyNode::RegisterReflection();
+});
+
 TVM_REGISTER_NODE_TYPE(MeasureCandidateNode);
 TVM_REGISTER_OBJECT_TYPE(SearchStrategyNode);
 TVM_REGISTER_NODE_TYPE(PySearchStrategyNode);
 
-TVM_REGISTER_GLOBAL("meta_schedule.MeasureCandidate")
-    .set_body_typed([](tir::Schedule sch, Array<ArgInfo> args_info) -> MeasureCandidate {
-      return MeasureCandidate(sch, args_info);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MeasureCandidate")
+    .set_body_typed([](tir::Schedule sch, Optional<Array<ArgInfo>> args_info) -> MeasureCandidate {
+      return MeasureCandidate(sch, args_info.value_or({}));
     });
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyPySearchStrategy")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyPySearchStrategy")
     .set_body_typed(SearchStrategy::PySearchStrategy);
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyInitializeWithTuneContext")
-    .set_body_method<SearchStrategy>(&SearchStrategyNode::InitializeWithTuneContext);
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyPreTuning")
-    .set_body_method<SearchStrategy>(&SearchStrategyNode::PreTuning);
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyPostTuning")
-    .set_body_method<SearchStrategy>(&SearchStrategyNode::PostTuning);
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyGenerateMeasureCandidates")
-    .set_body_method<SearchStrategy>(&SearchStrategyNode::GenerateMeasureCandidates);
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyNotifyRunnerResults")
-    .set_body_method<SearchStrategy>(&SearchStrategyNode::NotifyRunnerResults);
-TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyClone")
-    .set_body_method<SearchStrategy>(&SearchStrategyNode::Clone);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyInitializeWithTuneContext")
+    .set_body_method(&SearchStrategyNode::InitializeWithTuneContext);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyPreTuning")
+    .set_body_method(&SearchStrategyNode::PreTuning);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyPostTuning")
+    .set_body_method(&SearchStrategyNode::PostTuning);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyGenerateMeasureCandidates")
+    .set_body_method(&SearchStrategyNode::GenerateMeasureCandidates);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyNotifyRunnerResults")
+    .set_body_method(&SearchStrategyNode::NotifyRunnerResults);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyClone")
+    .set_body_method(&SearchStrategyNode::Clone);
 
 }  // namespace meta_schedule
 }  // namespace tvm

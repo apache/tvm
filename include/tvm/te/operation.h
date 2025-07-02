@@ -25,6 +25,7 @@
 #define TVM_TE_OPERATION_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
@@ -59,7 +60,7 @@ class TVM_DLL OperationNode : public Object {
   /*! \brief optional tag of the operation */
   std::string tag;
   /*! \brief additional attributes of the operation*/
-  Map<String, ObjectRef> attrs;
+  Map<String, ffi::Any> attrs;
   // virtual destructor.
   virtual ~OperationNode() {}
   /*! \return number of outputs */
@@ -82,7 +83,16 @@ class TVM_DLL OperationNode : public Object {
    */
   virtual Array<Tensor> InputTensors() const = 0;
 
-  static constexpr const char* _type_key = "Operation";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<OperationNode>()
+        .def_ro("name", &OperationNode::name)
+        .def_ro("tag", &OperationNode::tag)
+        .def_ro("attrs", &OperationNode::attrs);
+  }
+
+  static constexpr const char* _type_key = "te.Operation";
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   TVM_DECLARE_BASE_OBJECT_INFO(OperationNode, Object);
 };
@@ -102,15 +112,15 @@ class PlaceholderOpNode : public OperationNode {
   Array<PrimExpr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("tag", &tag);
-    v->Visit("attrs", &attrs);
-    v->Visit("shape", &shape);
-    v->Visit("dtype", &dtype);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PlaceholderOpNode>()
+        .def_ro("shape", &PlaceholderOpNode::shape)
+        .def_ro("dtype", &PlaceholderOpNode::dtype);
   }
 
-  static constexpr const char* _type_key = "PlaceholderOp";
+  static constexpr const char* _type_key = "te.PlaceholderOp";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_BASE_OBJECT_INFO(PlaceholderOpNode, OperationNode);
 };
 
@@ -138,7 +148,15 @@ class TVM_DLL BaseComputeOpNode : public OperationNode {
   // override functions
   Array<PrimExpr> output_shape(size_t idx) const final;
 
-  static constexpr const char* _type_key = "BaseComputeOp";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BaseComputeOpNode>()
+        .def_ro("axis", &BaseComputeOpNode::axis)
+        .def_ro("reduce_axis", &BaseComputeOpNode::reduce_axis);
+  }
+
+  static constexpr const char* _type_key = "te.BaseComputeOp";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseComputeOpNode, OperationNode);
 };
 
@@ -156,16 +174,13 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
   DataType output_dtype(size_t i) const final;
   Array<Tensor> InputTensors() const final;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("tag", &tag);
-    v->Visit("attrs", &attrs);
-    v->Visit("axis", &axis);
-    v->Visit("reduce_axis", &reduce_axis);
-    v->Visit("body", &body);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ComputeOpNode>().def_ro("body", &ComputeOpNode::body);
   }
 
-  static constexpr const char* _type_key = "ComputeOp";
+  static constexpr const char* _type_key = "te.ComputeOp";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeOpNode, BaseComputeOpNode);
 };
 
@@ -175,7 +190,7 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
  */
 class ComputeOp : public Operation {
  public:
-  TVM_DLL ComputeOp(std::string name, std::string tag, Map<String, ObjectRef> attrs,
+  TVM_DLL ComputeOp(std::string name, std::string tag, Map<String, ffi::Any> attrs,
                     Array<IterVar> axis, Array<PrimExpr> body);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeOp, Operation, ComputeOpNode);
@@ -218,19 +233,19 @@ class ScanOpNode : public OperationNode {
   Array<PrimExpr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("tag", &tag);
-    v->Visit("attrs", &attrs);
-    v->Visit("scan_axis", &scan_axis);
-    v->Visit("init", &init);
-    v->Visit("update", &update);
-    v->Visit("state_placeholder", &state_placeholder);
-    v->Visit("inputs", &inputs);
-    v->Visit("spatial_axis_", &spatial_axis_);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ScanOpNode>()
+        .def_ro("scan_axis", &ScanOpNode::scan_axis)
+        .def_ro("init", &ScanOpNode::init)
+        .def_ro("update", &ScanOpNode::update)
+        .def_ro("state_placeholder", &ScanOpNode::state_placeholder)
+        .def_ro("inputs", &ScanOpNode::inputs)
+        .def_ro("spatial_axis_", &ScanOpNode::spatial_axis_);
   }
 
-  static constexpr const char* _type_key = "ScanOp";
+  static constexpr const char* _type_key = "te.ScanOp";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(ScanOpNode, OperationNode);
 };
 
@@ -240,9 +255,9 @@ class ScanOpNode : public OperationNode {
  */
 class ScanOp : public Operation {
  public:
-  TVM_DLL ScanOp(std::string name, std::string tag, Map<String, ObjectRef> attrs, IterVar axis,
-                 Array<Tensor> init, Array<Tensor> update, Array<Tensor> state_placeholder,
-                 Array<Tensor> input);
+  TVM_DLL ScanOp(std::string name, std::string tag, Optional<Map<String, ffi::Any>> attrs,
+                 IterVar axis, Array<Tensor> init, Array<Tensor> update,
+                 Array<Tensor> state_placeholder, Array<Tensor> input);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ScanOp, Operation, ScanOpNode);
 };
@@ -269,17 +284,17 @@ class ExternOpNode : public OperationNode {
   Array<PrimExpr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("tag", &tag);
-    v->Visit("attrs", &attrs);
-    v->Visit("inputs", &inputs);
-    v->Visit("input_placeholders", &input_placeholders);
-    v->Visit("output_placeholders", &output_placeholders);
-    v->Visit("body", &body);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ExternOpNode>()
+        .def_ro("inputs", &ExternOpNode::inputs)
+        .def_ro("input_placeholders", &ExternOpNode::input_placeholders)
+        .def_ro("output_placeholders", &ExternOpNode::output_placeholders)
+        .def_ro("body", &ExternOpNode::body);
   }
 
-  static constexpr const char* _type_key = "ExternOp";
+  static constexpr const char* _type_key = "te.ExternOp";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(ExternOpNode, OperationNode);
 };
 
@@ -289,7 +304,7 @@ class ExternOpNode : public OperationNode {
  */
 class ExternOp : public Operation {
  public:
-  TVM_DLL ExternOp(std::string name, std::string tag, Map<String, ObjectRef> attrs,
+  TVM_DLL ExternOp(std::string name, std::string tag, Map<String, ffi::Any> attrs,
                    Array<Tensor> inputs, Array<Buffer> input_placeholders,
                    Array<Buffer> output_placeholders, Stmt body);
 
@@ -344,7 +359,7 @@ TVM_DLL Tensor placeholder(Array<PrimExpr> shape, DataType dtype = DataType::Flo
  * \param attrs Optional additional attributes of the compute.
  */
 TVM_DLL Tensor compute(Array<PrimExpr> shape, FCompute fcompute, std::string name = "tensor",
-                       std::string tag = "", Map<String, ObjectRef> attrs = {});
+                       std::string tag = "", Map<String, ffi::Any> attrs = {});
 
 /*!
  * \brief Construct a new tensor by computing over shape,
@@ -357,7 +372,7 @@ TVM_DLL Tensor compute(Array<PrimExpr> shape, FCompute fcompute, std::string nam
  */
 TVM_DLL Array<Tensor> compute(Array<PrimExpr> shape, FBatchCompute fcompute,
                               std::string name = "tensor", std::string tag = "",
-                              Map<String, ObjectRef> attrs = {});
+                              Map<String, ffi::Any> attrs = {});
 
 /*!
  * \brief Construct new tensors by scan.
@@ -374,30 +389,30 @@ TVM_DLL Array<Tensor> compute(Array<PrimExpr> shape, FBatchCompute fcompute,
 TVM_DLL Array<Tensor> scan(Array<Tensor> init, Array<Tensor> update,
                            Array<Tensor> state_placeholder, Array<Tensor> inputs = Array<Tensor>(),
                            std::string name = "scan", std::string tag = "",
-                           Map<String, ObjectRef> attrs = {});
+                           Map<String, ffi::Any> attrs = {});
 
 // same as compute, specialized for different fcompute function
 inline Tensor compute(Array<PrimExpr> shape, std::function<PrimExpr(Var)> f,
                       std::string name = "tensor", std::string tag = "",
-                      Map<String, ObjectRef> attrs = {}) {
+                      Map<String, ffi::Any> attrs = {}) {
   FCompute fc = [f](const Array<Var>& i) { return f(i[0]); };
   return compute(shape, fc, name, tag, attrs);
 }
 inline Tensor compute(Array<PrimExpr> shape, std::function<PrimExpr(Var, Var)> f,
                       std::string name = "tensor", std::string tag = "",
-                      Map<String, ObjectRef> attrs = {}) {
+                      Map<String, ffi::Any> attrs = {}) {
   FCompute fc = [f](const Array<Var>& i) { return f(i[0], i[1]); };
   return compute(shape, fc, name, tag, attrs);
 }
 inline Tensor compute(Array<PrimExpr> shape, std::function<PrimExpr(Var, Var, Var)> f,
                       std::string name = "tensor", std::string tag = "",
-                      Map<String, ObjectRef> attrs = {}) {
+                      Map<String, ffi::Any> attrs = {}) {
   FCompute fc = [f](const Array<Var>& i) { return f(i[0], i[1], i[2]); };
   return compute(shape, fc, name, tag, attrs);
 }
 inline Tensor compute(Array<PrimExpr> shape, std::function<PrimExpr(Var, Var, Var, Var)> f,
                       std::string name = "tensor", std::string tag = "",
-                      Map<String, ObjectRef> attrs = {}) {
+                      Map<String, ffi::Any> attrs = {}) {
   FCompute fc = [f](const Array<Var>& i) { return f(i[0], i[1], i[2], i[3]); };
   return compute(shape, fc, name, tag, attrs);
 }

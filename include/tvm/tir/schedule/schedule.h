@@ -50,7 +50,12 @@ enum class BufferIndexType : int32_t {
 /*! \brief A random variable that evaluates to a TensorIR block */
 class BlockRVNode : public runtime::Object {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register as they are not visited
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "tir.BlockRV";
   TVM_DECLARE_FINAL_OBJECT_INFO(BlockRVNode, runtime::Object);
 };
@@ -71,7 +76,12 @@ class BlockRV : public runtime::ObjectRef {
 /*! \brief A random variable that evaluates to a TensorIR for loop */
 class LoopRVNode : public runtime::Object {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register as they are not visited
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "tir.LoopRV";
   TVM_DECLARE_FINAL_OBJECT_INFO(LoopRVNode, runtime::Object);
 };
@@ -224,9 +234,8 @@ class ScheduleNode : public runtime::Object {
    * \param decision The sampling decision
    * \return The random variable sampled from candidates
    */
-  virtual ExprRV SampleCategorical(const Array<runtime::Int>& candidates,
-                                   const Array<runtime::Float>& probs,
-                                   Optional<runtime::Int> decision = NullOpt) = 0;
+  virtual ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
+                                   Optional<Integer> decision = std::nullopt) = 0;
   /*!
    * \brief Sample the factors to perfect tile a specific loop
    * \param loop_rv The loop to be tiled
@@ -236,7 +245,7 @@ class ScheduleNode : public runtime::Object {
    * \return A list of length `n`, the random perfect tile sizes sampled
    */
   virtual Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
-                                          Optional<Array<Integer>> decision = NullOpt) = 0;
+                                          Optional<Array<Integer>> decision = std::nullopt) = 0;
   /*!
    * \brief Sample the factors to a partitioned tile for a specific loop
    *
@@ -254,7 +263,7 @@ class ScheduleNode : public runtime::Object {
    */
   virtual Array<ExprRV> SamplePartitionedTile(const LoopRV& loop_rv, int n, int partition_pos,
                                               int innerpart_factor,
-                                              Optional<Array<Integer>> decision = NullOpt) = 0;
+                                              Optional<Array<Integer>> decision = std::nullopt) = 0;
   /*!
    * \brief Sample a compute-at location of the given block
    * \param block_rv The block whose compute-at location is to be sampled
@@ -262,7 +271,7 @@ class ScheduleNode : public runtime::Object {
    * \return The sampled loop where the input block is to be computed at
    */
   virtual LoopRV SampleComputeLocation(const BlockRV& block_rv,
-                                       Optional<Integer> decision = NullOpt) = 0;
+                                       Optional<Integer> decision = std::nullopt) = 0;
 
   /******** Schedule: Get blocks & loops ********/
   /*!
@@ -279,7 +288,8 @@ class ScheduleNode : public runtime::Object {
    *
    * \sa WorkOn
    */
-  virtual BlockRV GetBlock(const String& name, const Optional<String>& func_name = NullOpt) = 0;
+  virtual BlockRV GetBlock(const String& name,
+                           const Optional<String>& func_name = std::nullopt) = 0;
   /*!
    * \brief Get the parent loops of the block in its scope, from outer to inner
    * \param block_rv The query block
@@ -348,14 +358,12 @@ class ScheduleNode : public runtime::Object {
    * 1) The loop can't have annotation or thread binding.
    * 2) The loop must start with 0.
    * \param loop_rv The loop to be split
-   * \param factors The positive tiling factors, and at most one of which is `NullOpt`, which means
-   * that factor is inferred.
-   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings.
-   * \param disable_predication If enabled, don't create a predicate for guarding the
-   * loop. This can be useful when splitting with scalable factors that the schedule writer
-   * knows are divisible by the loop bound.
-   * Warning: enabling this feature may result in incorrect code generation if not used carefully.
-   * \return The new loops after split.
+   * \param factors The positive tiling factors, and at most one of which is `std::nullopt`, which
+   * means that factor is inferred. \param preserve_unit_iters Whether or not to preserve unit
+   * iterators in block bindings. \param disable_predication If enabled, don't create a predicate
+   * for guarding the loop. This can be useful when splitting with scalable factors that the
+   * schedule writer knows are divisible by the loop bound. Warning: enabling this feature may
+   * result in incorrect code generation if not used carefully. \return The new loops after split.
    */
   virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
                               bool preserve_unit_iters = true,
@@ -364,7 +372,7 @@ class ScheduleNode : public runtime::Object {
    * \brief Partition the loops into sequence of multiple loops
    * 1) The loop can't have annotation or thread binding.
    * \param loop_rv The loop to be partition
-   * \param factors The positive integers, and at most one of which is `NullOpt`, which means
+   * \param factors The positive integers, and at most one of which is `std::nullopt`, which means
    * that factor is inferred.
    * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
    * \return The new loops after partition
@@ -707,15 +715,14 @@ class ScheduleNode : public runtime::Object {
    * \param ann_key The annotation key
    * \param ann_val The annotation value, a string or a ExprRV
    */
-  virtual void Annotate(const LoopRV& loop_rv, const String& ann_key, const ObjectRef& ann_val) = 0;
+  virtual void Annotate(const LoopRV& loop_rv, const String& ann_key, const Any& ann_val) = 0;
   /*!
    * \brief Annotate a block with a key value pair
    * \param block_rv The block to be annotated
    * \param ann_key The annotation key
    * \param ann_val The annotation value, a string or a ExprRV
    */
-  virtual void Annotate(const BlockRV& block_rv, const String& ann_key,
-                        const ObjectRef& ann_val) = 0;
+  virtual void Annotate(const BlockRV& block_rv, const String& ann_key, const Any& ann_val) = 0;
   /*!
    * \brief Unannotate a loop's annotation with key ann_key
    * \param loop_rv The loop to be unannotated
@@ -763,7 +770,7 @@ class ScheduleNode : public runtime::Object {
    */
   virtual void TransformLayout(const BlockRV& block_rv, int buffer_index,
                                BufferIndexType buffer_index_type, const IndexMap& index_map,
-                               const Optional<IndexMap>& pad_value = NullOpt,
+                               const Optional<IndexMap>& pad_value = std::nullopt,
                                bool assume_injective_transform = false) = 0;
 
   /*!

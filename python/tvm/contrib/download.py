@@ -109,7 +109,6 @@ def download(url, path, overwrite=False, size_compare=False, retries=3):
         for i_retry in range(retries):
             # pylint: disable=broad-except
             try:
-
                 urllib2.urlretrieve(url, download_loc, reporthook=_download_progress)
                 LOG.debug("")
                 try:

@@ -25,7 +25,7 @@ import struct
 import random
 import logging
 
-from .._ffi.base import py_str
+from ..base import py_str
 
 # Magic header for RPC data plane
 RPC_MAGIC = 0xFF271
@@ -56,6 +56,7 @@ class TrackerCode(object):
 
 
 RPC_SESS_MASK = 128
+
 
 # Use "127.0.0.1" or "::1" if there is a need to force ip4 or ip6
 # connection for "localhost".

@@ -17,13 +17,13 @@
 """Data layout."""
 from typing import Union
 
-import tvm._ffi
+import tvm.ffi
 
 from tvm.runtime import Object
 from . import _ffi_api
 
 
-@tvm._ffi.register_object("tir.Layout")
+@tvm.ffi.register_object("tir.Layout")
 class Layout(Object):
     """Layout is composed of upper cases, lower cases and numbers,
     where upper case indicates a primal axis and
@@ -81,7 +81,7 @@ class Layout(Object):
         return _ffi_api.LayoutFactorOf(self, axis)  # type: ignore
 
 
-@tvm._ffi.register_object("tir.BijectiveLayout")
+@tvm.ffi.register_object("tir.BijectiveLayout")
 class BijectiveLayout(Object):
     """Bijective mapping for two layouts (src-layout and dst-layout).
     It provides shape and index conversion between each other.

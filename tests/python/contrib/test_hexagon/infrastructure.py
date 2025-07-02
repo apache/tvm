@@ -109,7 +109,7 @@ def build_and_run(inputs, func, target: str, target_host: str, *args, **kwargs):
     )
     func(*tensors)
 
-    return tensors[-1].asnumpy()
+    return tensors[-1].numpy()
 
 
 def run_module(mod, inputs):

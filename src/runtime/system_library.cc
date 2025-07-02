@@ -21,9 +21,9 @@
  * \file system_library.cc
  * \brief Create library module that directly get symbol from the system lib.
  */
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/memory.h>
 #include <tvm/runtime/c_backend_api.h>
-#include <tvm/runtime/memory.h>
-#include <tvm/runtime/registry.h>
 
 #include <mutex>
 
@@ -108,17 +108,18 @@ class SystemLibModuleRegistry {
   std::mutex mutex_;
   // we need to make sure each lib map have an unique
   // copy through out the entire lifetime of the process
-  // so the cached PackedFunc in the system do not get out dated.
+  // so the cached ffi::Function in the system do not get out dated.
   std::unordered_map<std::string, runtime::Module> lib_map_;
 };
 
-TVM_REGISTER_GLOBAL("runtime.SystemLib").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::string symbol_prefix = "";
-  if (args.size() != 0) {
-    symbol_prefix = args[0].operator std::string();
-  }
-  *rv = SystemLibModuleRegistry::Global()->GetOrCreateModule(symbol_prefix);
-});
+TVM_FFI_REGISTER_GLOBAL("runtime.SystemLib")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+      std::string symbol_prefix = "";
+      if (args.size() != 0) {
+        symbol_prefix = args[0].cast<std::string>();
+      }
+      *rv = SystemLibModuleRegistry::Global()->GetOrCreateModule(symbol_prefix);
+    });
 }  // namespace runtime
 }  // namespace tvm
 

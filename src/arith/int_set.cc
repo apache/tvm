@@ -23,7 +23,7 @@
  */
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/iter_affine_map.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 
@@ -43,6 +43,8 @@ using tir::is_zero;
 using tir::make_const;
 using tir::make_zero;
 
+TVM_FFI_STATIC_INIT_BLOCK({ IntervalSetNode::RegisterReflection(); });
+
 PrimExpr SymbolicLimits::pos_inf_ = Var("pos_inf", DataType::Handle());
 PrimExpr SymbolicLimits::neg_inf_ = Var("neg_inf", DataType::Handle());
 
@@ -57,7 +59,7 @@ IntervalSet MakeIntervalSet(PrimExpr min_value, PrimExpr max_value) {
   return IntervalSet(min_value, max_value);
 }
 
-TVM_REGISTER_GLOBAL("arith.IntervalSet").set_body_typed(MakeIntervalSet);
+TVM_FFI_REGISTER_GLOBAL("arith.IntervalSet").set_body_typed(MakeIntervalSet);
 
 IntervalSet Intersect(Analyzer* analyzer, IntervalSet a, IntervalSet b) {
   PrimExpr max_value = min(a->max_value, b->max_value);
@@ -1080,7 +1082,7 @@ static Optional<IntSet> EvalIterSum(const IterSumExpr& iter_min, const PrimExpr&
     return IntSet::Nothing();
   }
   if (!analyzer->CanProve(extent >= split->scale)) {
-    return NullOpt;
+    return std::nullopt;
   }
 
   const PrimExpr& base = iter_min->base;
@@ -1110,7 +1112,7 @@ Optional<Array<IntSet>> EstimateRegionStrictBound(const Array<Range>& region,
     for (const Range& range : region) {
       if (!is_const_number(range->extent)) {
         // dynamic extent is not supported yet.
-        return NullOpt;
+        return std::nullopt;
       }
       affine_indices.push_back(range->min);
     }
@@ -1120,7 +1122,7 @@ Optional<Array<IntSet>> EstimateRegionStrictBound(const Array<Range>& region,
     iter_sum_exprs = res->indices;
   }
   if (iter_sum_exprs.empty()) {
-    return NullOpt;
+    return std::nullopt;
   }
   ICHECK_EQ(iter_sum_exprs.size(), ndim);
   Array<IntSet> result;
@@ -1132,7 +1134,7 @@ Optional<Array<IntSet>> EstimateRegionStrictBound(const Array<Range>& region,
     if (int_set.defined()) {
       result.push_back(int_set.value());
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   }
   return result;
@@ -1192,42 +1194,42 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << "[" << op->min_value << ", " << op->max_value << ']';
     });
 
-TVM_REGISTER_GLOBAL("arith.intset_single_point").set_body_typed(IntSet::SinglePoint);
+TVM_FFI_REGISTER_GLOBAL("arith.intset_single_point").set_body_typed(IntSet::SinglePoint);
 
-TVM_REGISTER_GLOBAL("arith.intset_vector").set_body_typed(IntSet::Vector);
+TVM_FFI_REGISTER_GLOBAL("arith.intset_vector").set_body_typed(IntSet::Vector);
 
-TVM_REGISTER_GLOBAL("arith.intset_interval").set_body_typed(IntSet::Interval);
+TVM_FFI_REGISTER_GLOBAL("arith.intset_interval").set_body_typed(IntSet::Interval);
 
-TVM_REGISTER_GLOBAL("arith.IntervalSetGetMin").set_body_method(&IntSet::min);
+TVM_FFI_REGISTER_GLOBAL("arith.IntervalSetGetMin").set_body_method(&IntSet::min);
 
-TVM_REGISTER_GLOBAL("arith.IntervalSetGetMax").set_body_method(&IntSet::max);
+TVM_FFI_REGISTER_GLOBAL("arith.IntervalSetGetMax").set_body_method(&IntSet::max);
 
-TVM_REGISTER_GLOBAL("arith.IntSetIsNothing").set_body_method(&IntSet::IsNothing);
+TVM_FFI_REGISTER_GLOBAL("arith.IntSetIsNothing").set_body_method(&IntSet::IsNothing);
 
-TVM_REGISTER_GLOBAL("arith.IntSetIsEverything").set_body_method(&IntSet::IsEverything);
+TVM_FFI_REGISTER_GLOBAL("arith.IntSetIsEverything").set_body_method(&IntSet::IsEverything);
 
-TVM_REGISTER_GLOBAL("arith.EstimateRegionLowerBound")
+TVM_FFI_REGISTER_GLOBAL("arith.EstimateRegionLowerBound")
     .set_body_typed([](Array<Range> region, Map<Var, Range> var_dom,
                        PrimExpr predicate) -> Optional<Array<IntSet>> {
       Analyzer analyzer;
       return EstimateRegionLowerBound(region, var_dom, predicate, &analyzer);
     });
-TVM_REGISTER_GLOBAL("arith.EstimateRegionStrictBound")
+TVM_FFI_REGISTER_GLOBAL("arith.EstimateRegionStrictBound")
     .set_body_typed([](Array<Range> region, Map<Var, Range> var_dom,
                        PrimExpr predicate) -> Optional<Array<IntSet>> {
       Analyzer analyzer;
       return EstimateRegionStrictBound(region, var_dom, predicate, &analyzer);
     });
-TVM_REGISTER_GLOBAL("arith.EstimateRegionUpperBound")
+TVM_FFI_REGISTER_GLOBAL("arith.EstimateRegionUpperBound")
     .set_body_typed([](Array<Range> region, Map<Var, Range> var_dom,
                        PrimExpr predicate) -> Optional<Array<IntSet>> {
       Analyzer analyzer;
       return EstimateRegionUpperBound(region, var_dom, predicate, &analyzer);
     });
 
-TVM_REGISTER_GLOBAL("arith.PosInf").set_body_typed([]() { return SymbolicLimits::pos_inf_; });
-TVM_REGISTER_GLOBAL("arith.NegInf").set_body_typed([]() { return SymbolicLimits::neg_inf_; });
-TVM_REGISTER_GLOBAL("arith.UnionLowerBound").set_body_typed(UnionLowerBound);
+TVM_FFI_REGISTER_GLOBAL("arith.PosInf").set_body_typed([]() { return SymbolicLimits::pos_inf_; });
+TVM_FFI_REGISTER_GLOBAL("arith.NegInf").set_body_typed([]() { return SymbolicLimits::neg_inf_; });
+TVM_FFI_REGISTER_GLOBAL("arith.UnionLowerBound").set_body_typed(UnionLowerBound);
 
 }  // namespace arith
 }  // namespace tvm

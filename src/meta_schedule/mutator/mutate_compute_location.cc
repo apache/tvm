@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -31,7 +33,13 @@ class MutateComputeLocationNode : public MutatorNode {
   /*! \brief JSON representation of the workload */
   std::string json_mod_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MutateComputeLocationNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "meta_schedule.MutateComputeLocation";
   TVM_DECLARE_FINAL_OBJECT_INFO(MutateComputeLocationNode, MutatorNode);
 
@@ -70,20 +78,20 @@ class MutateComputeLocationNode : public MutatorNode {
  */
 std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::FindCandidates(
     const Trace& trace, TRandState* rand_state) {
-  tir::Schedule sch = tir::Schedule::Traced(                  //
-      /*mod=*/Downcast<IRModule>(LoadJSON(this->json_mod_)),  //
-      /*rand_state=*/ForkSeed(rand_state),                    //
-      /*debug_mode=*/0,                                       //
+  tir::Schedule sch = tir::Schedule::Traced(               //
+      /*mod=*/LoadJSON(this->json_mod_).cast<IRModule>(),  //
+      /*rand_state=*/ForkSeed(rand_state),                 //
+      /*debug_mode=*/0,                                    //
       /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
 
   static InstructionKind inst_sample_compute_location =
       InstructionKind::Get("SampleComputeLocation");
   std::vector<MutateComputeLocationNode::Candidate> candidates;
 
-  auto f_decision_provider = [&](const tir::Instruction& inst,    //
-                                 const Array<ObjectRef>& inputs,  //
-                                 const Array<ObjectRef>& attrs,   //
-                                 const ObjectRef& decision) -> ObjectRef {
+  auto f_decision_provider = [&](const tir::Instruction& inst,  //
+                                 const Array<Any>& inputs,      //
+                                 const Array<Any>& attrs,       //
+                                 const Any& decision) -> Any {
     if (inst->kind.same_as(inst_sample_compute_location)) {
       // Step 1. Extract the instruction input and the old decision.
       ICHECK_EQ(inputs.size(), 1);
@@ -115,7 +123,7 @@ std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::Fin
 Optional<Trace> MutateComputeLocationNode::Apply(const Trace& trace, TRandState* rand_state) {
   std::vector<Candidate> candidates = FindCandidates(trace, rand_state);
   if (candidates.empty()) {
-    return NullOpt;
+    return std::nullopt;
   }
   const Candidate& candidate = candidates[tir::SampleInt(rand_state, 0, candidates.size())];
   int loc = candidate.locs[tir::SampleInt(rand_state, 0, candidate.locs.size())];
@@ -126,8 +134,10 @@ Mutator Mutator::MutateComputeLocation() {
   return Mutator(make_object<MutateComputeLocationNode>());
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ MutateComputeLocationNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(MutateComputeLocationNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorMutateComputeLocation")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateComputeLocation")
     .set_body_typed(Mutator::MutateComputeLocation);
 
 }  // namespace meta_schedule

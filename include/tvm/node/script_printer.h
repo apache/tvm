@@ -23,6 +23,11 @@
 #ifndef TVM_NODE_SCRIPT_PRINTER_H_
 #define TVM_NODE_SCRIPT_PRINTER_H_
 
+#include <tvm/ffi/any.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/string.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/object_path.h>
 #include <tvm/node/reflection.h>
@@ -117,38 +122,42 @@ class PrinterConfigNode : public Object {
   /*! \brief Object to be annotated. */
   Map<ObjectRef, String> obj_to_annotate = Map<ObjectRef, String>();
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("binding_names", &binding_names);
-    v->Visit("show_meta", &show_meta);
-    v->Visit("ir_prefix", &ir_prefix);
-    v->Visit("tir_prefix", &tir_prefix);
-    v->Visit("relax_prefix", &relax_prefix);
-    v->Visit("module_alias", &module_alias);
-    v->Visit("buffer_dtype", &buffer_dtype);
-    v->Visit("int_dtype", &int_dtype);
-    v->Visit("float_dtype", &float_dtype);
-    v->Visit("verbose_expr", &verbose_expr);
-    v->Visit("indent_spaces", &indent_spaces);
-    v->Visit("print_line_numbers", &print_line_numbers);
-    v->Visit("num_context_lines", &num_context_lines);
-    v->Visit("syntax_sugar", &syntax_sugar);
-    v->Visit("show_object_address", &show_object_address);
-    v->Visit("show_all_struct_info", &show_all_struct_info);
-    v->Visit("path_to_underline", &path_to_underline);
-    v->Visit("path_to_annotate", &path_to_annotate);
-    v->Visit("obj_to_underline", &obj_to_underline);
-    v->Visit("obj_to_annotate", &obj_to_annotate);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PrinterConfigNode>()
+        .def_ro("binding_names", &PrinterConfigNode::binding_names)
+        .def_ro("show_meta", &PrinterConfigNode::show_meta)
+        .def_ro("ir_prefix", &PrinterConfigNode::ir_prefix)
+        .def_ro("tir_prefix", &PrinterConfigNode::tir_prefix)
+        .def_ro("relax_prefix", &PrinterConfigNode::relax_prefix)
+        .def_ro("module_alias", &PrinterConfigNode::module_alias)
+        .def_ro("buffer_dtype", &PrinterConfigNode::buffer_dtype)
+        .def_ro("int_dtype", &PrinterConfigNode::int_dtype)
+        .def_ro("float_dtype", &PrinterConfigNode::float_dtype)
+        .def_ro("verbose_expr", &PrinterConfigNode::verbose_expr)
+        .def_ro("indent_spaces", &PrinterConfigNode::indent_spaces)
+        .def_ro("print_line_numbers", &PrinterConfigNode::print_line_numbers)
+        .def_ro("num_context_lines", &PrinterConfigNode::num_context_lines)
+        .def_ro("syntax_sugar", &PrinterConfigNode::syntax_sugar)
+        .def_ro("show_object_address", &PrinterConfigNode::show_object_address)
+        .def_ro("show_all_struct_info", &PrinterConfigNode::show_all_struct_info)
+        .def_ro("path_to_underline", &PrinterConfigNode::path_to_underline)
+        .def_ro("path_to_annotate", &PrinterConfigNode::path_to_annotate)
+        .def_ro("obj_to_underline", &PrinterConfigNode::obj_to_underline)
+        .def_ro("obj_to_annotate", &PrinterConfigNode::obj_to_annotate);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   Array<String> GetBuiltinKeywords();
 
-  static constexpr const char* _type_key = "node.PrinterConfig";
+  static constexpr const char* _type_key = "script.PrinterConfig";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrinterConfigNode, Object);
 };
 
 class PrinterConfig : public ObjectRef {
  public:
-  explicit PrinterConfig(Map<String, ObjectRef> config_dict = Map<String, ObjectRef>());
+  explicit PrinterConfig(Map<String, ffi::Any> config_dict = Map<String, ffi::Any>());
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PrinterConfig, runtime::ObjectRef,
                                                     PrinterConfigNode);
@@ -165,7 +174,7 @@ class TVMScriptPrinter {
 };
 
 #define TVM_OBJECT_ENABLE_SCRIPT_PRINTER()                                                      \
-  std::string Script(const Optional<PrinterConfig>& config = NullOpt) const {                   \
+  std::string Script(const Optional<PrinterConfig>& config = std::nullopt) const {              \
     return TVMScriptPrinter::Script(GetRef<ObjectRef>(this), config.value_or(PrinterConfig())); \
   }
 

@@ -33,23 +33,27 @@ ExprDoc PrintVarCreation(const tir::Var& var, const ObjectPath& var_p, const IRD
 
   if (var->IsInstance<tir::SizeVarNode>()) {
     kwargs_keys.push_back("is_size_var");
-    kwargs_values.push_back(LiteralDoc::Boolean(true, NullOpt));
+    kwargs_values.push_back(LiteralDoc::Boolean(true, std::nullopt));
   }
 
   if (const auto* ptr_type = type.as<PointerTypeNode>()) {
-    const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>();
-    ICHECK(prim_type);
-    ExprDoc element_type =
-        LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
-    rhs = TIR(d, "handle");
-    rhs->source_paths.push_back(var_p->Attr("dtype"));
-    if (ptr_type->storage_scope == "") {
-      rhs = rhs->Call({element_type}, kwargs_keys, kwargs_values);
-    } else {
-      rhs = rhs->Call({element_type,
-                       LiteralDoc::Str(ptr_type->storage_scope,  //
-                                       type_p->Attr("storage_scope"))},
-                      kwargs_keys, kwargs_values);
+    if (const auto* prim_type = ptr_type->element_type.as<PrimTypeNode>()) {
+      ExprDoc element_type =
+          LiteralDoc::DataType(prim_type->dtype, type_p->Attr("element_type")->Attr("dtype"));
+      rhs = TIR(d, "handle");
+      rhs->source_paths.push_back(var_p->Attr("dtype"));
+      if (ptr_type->storage_scope == "") {
+        rhs = rhs->Call({element_type}, kwargs_keys, kwargs_values);
+      } else {
+        rhs = rhs->Call({element_type,
+                         LiteralDoc::Str(ptr_type->storage_scope,  //
+                                         type_p->Attr("storage_scope"))},
+                        kwargs_keys, kwargs_values);
+      }
+    } else if (ptr_type->element_type->IsInstance<TensorMapTypeNode>()) {
+      rhs = TIR(d, "handle")
+                ->Call({LiteralDoc::Str("tensormap", type_p->Attr("element_type")->Attr("dtype"))},
+                       {}, {});
     }
   } else {
     rhs = TIR(d, DType2Str(var->dtype));
@@ -65,7 +69,7 @@ Doc PrintVar(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d)
     if (Optional<Frame> opt_f = FindLowestVarDef(var, d)) {
       ExprDoc lhs = DefineVar(var, opt_f.value(), d);
       ExprDoc rhs = PrintVarCreation(var, var_p, d);
-      opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+      opt_f.value()->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
     } else {
       LOG(WARNING) << "Didn't find variable definition for: " << var->name_hint;
     }
@@ -74,6 +78,7 @@ Doc PrintVar(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d)
     return doc.value();
   }
   LOG(FATAL) << "IndexError: Variable is not defined in the environment: " << var->name_hint;
+  TVM_FFI_UNREACHABLE();
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)  //
@@ -254,7 +259,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           int n_args = call->args.size();
           int64_t id = call->args[0].as<IntImmNode>()->value;
           auto f_llvm_lookup_intrinsic_name =
-              tvm::runtime::Registry::Get("target.llvm_get_intrinsic_name");
+              tvm::ffi::Function::GetGlobal("target.llvm_get_intrinsic_name");
 
           Array<ExprDoc> args;
           args.reserve(n_args + 1);
@@ -264,7 +269,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
           for (int i = 0; i < n_args; ++i) {
             if ((i == 0) && (f_llvm_lookup_intrinsic_name)) {
-              String name = (*f_llvm_lookup_intrinsic_name)(id);
+              String name = (*f_llvm_lookup_intrinsic_name)(id).cast<String>();
               args.push_back(LiteralDoc::Str(name.c_str(), call_p->Attr("args")->ArrayIndex(i)));
             } else {
               args.push_back(d->AsDoc<ExprDoc>(call->args[i], call_p->Attr("args")->ArrayIndex(i)));

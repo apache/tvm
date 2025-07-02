@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/distributed/struct_info.h>
 
@@ -25,12 +26,29 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-class AttrPrinter : public tvm::AttrVisitor {
+class AttrPrinter : private AttrVisitor {
  public:
   explicit AttrPrinter(ObjectPath p, const IRDocsifier& d, Array<String>* keys,
                        Array<ExprDoc>* values)
       : p(std::move(p)), d(d), keys(keys), values(values) {}
 
+  void operator()(const tvm::Attrs& attrs) {
+    // NOTE: reflection dispatch for both new and legacy reflection mechanism
+    const TVMFFITypeInfo* attrs_tinfo = TVMFFIGetTypeInfo(attrs->type_index());
+    if (attrs_tinfo->extra_info != nullptr && attrs_tinfo->extra_info->creator != nullptr) {
+      // new printing mechanism using the new reflection
+      ffi::reflection::ForEachFieldInfo(attrs_tinfo, [&](const TVMFFIFieldInfo* field_info) {
+        String field_name = String(field_info->name);
+        Any field_value = ffi::reflection::FieldGetter(field_info)(attrs);
+        keys->push_back(field_name);
+        values->push_back(d->AsDoc<ExprDoc>(field_value, p->Attr(field_name)));
+      });
+    } else {
+      const_cast<BaseAttrsNode*>(attrs.get())->VisitAttrs(this);
+    }
+  }
+
+ private:
   void Visit(const char* key, double* value) final {
     keys->push_back(key);
     values->push_back(LiteralDoc::Float(*value, p->Attr(key)));
@@ -79,6 +97,24 @@ class AttrPrinter : public tvm::AttrVisitor {
     LOG(FATAL) << "TypeError: NDArray is not allowed in Attrs";
   }
 
+  void Visit(const char* key, Optional<double>* value) final {
+    keys->push_back(key);
+    if (value->has_value()) {
+      values->push_back(LiteralDoc::Float(value->value(), p->Attr(key)));
+    } else {
+      values->push_back(LiteralDoc::None(p->Attr(key)));
+    }
+  }
+
+  void Visit(const char* key, Optional<int64_t>* value) final {
+    keys->push_back(key);
+    if (value->has_value()) {
+      values->push_back(LiteralDoc::Int(value->value(), p->Attr(key)));
+    } else {
+      values->push_back(LiteralDoc::None(p->Attr(key)));
+    }
+  }
+
   ObjectPath p;
   const IRDocsifier& d;
   Array<String>* keys;
@@ -104,7 +140,7 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
   if (!n->op.same_as(call_tir_op) && !n->op.same_as(call_dps_packed_op) &&
       !n->op.same_as(call_tir_with_grad_op) && !n->op.same_as(call_tir_local_view) &&
       !n->op.same_as(call_tir_inplace_op)) {
-    return NullOpt;
+    return std::nullopt;
   }
   ICHECK(n->args.size() == 2 || n->args.size() == 3);
   ICHECK(n->sinfo_args.size() == 1);
@@ -188,7 +224,7 @@ Optional<ExprDoc> PrintCallTIRDPSPacked(const relax::Call& n, const ObjectPath& 
 Optional<ExprDoc> PrintAssertOp(const relax::Call& n, const ObjectPath& n_p, const IRDocsifier& d) {
   static const Op& assert_op = Op::Get("relax.assert_op");
   if (!n->op.same_as(assert_op)) {
-    return NullOpt;
+    return std::nullopt;
   }
   ICHECK(n->args.size() >= 2);
   // special handling: it is important to indicate that the format string (second argument)
@@ -208,7 +244,7 @@ Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const ObjectPath& n_p,
                                     const IRDocsifier& d) {
   static const Op& hint_on_device_op = Op::Get("relax.hint_on_device");
   if (!n->op.same_as(hint_on_device_op)) {
-    return NullOpt;
+    return std::nullopt;
   }
   Array<ExprDoc> args;
 
@@ -217,8 +253,7 @@ Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const ObjectPath& n_p,
   Array<ExprDoc> kwargs_values;
   ICHECK(n->attrs.defined());
   if (n->attrs.as<relax::HintOnDeviceAttrs>()) {
-    AttrPrinter printer(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values);
-    const_cast<BaseAttrsNode*>(n->attrs.get())->VisitAttrs(&printer);
+    AttrPrinter(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values)(n->attrs);
     args.push_back(Relax(d, "device")->Call({}, kwargs_keys, kwargs_values));
   }
   return Relax(d, "hint_on_device")->Call(args);
@@ -228,7 +263,7 @@ Optional<ExprDoc> PrintToVDevice(const relax::Call& n, const ObjectPath& n_p,
                                  const IRDocsifier& d) {
   static const Op& to_vdevice_op = Op::Get("relax.to_vdevice");
   if (!n->op.same_as(to_vdevice_op)) {
-    return NullOpt;
+    return std::nullopt;
   }
   Array<ExprDoc> args;
 
@@ -251,7 +286,7 @@ Optional<ExprDoc> PrintRelaxPrint(const relax::Call& n, const ObjectPath& n_p,
                                   const IRDocsifier& d) {
   static const Op& print_op = Op::Get("relax.print");
   if (!n->op.same_as(print_op)) {
-    return NullOpt;
+    return std::nullopt;
   }
   ICHECK(n->args.size() >= 1);
   // special handling: it is important to indicate that the format string (first argument)
@@ -325,19 +360,19 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
               kwargs_values.push_back(LiteralDoc::Str(n->attrs->GetTypeKey(), n_p->Attr("attrs")));
             }
             if (const auto* attrs = n->attrs.as<tvm::DictAttrsNode>()) {
-              std::vector<std::pair<String, ObjectRef>> sorted;
+              std::vector<std::pair<String, ffi::Any>> sorted;
               for (const auto& kv : attrs->dict) {
                 sorted.push_back(kv);
               }
-              std::sort(sorted.begin(), sorted.end());
+              std::sort(sorted.begin(), sorted.end(),
+                        [](const auto& a, const auto& b) { return a.first < b.first; });
               for (const auto& kv : sorted) {
                 kwargs_keys.push_back(kv.first);
                 kwargs_values.push_back(
                     d->AsDoc<ExprDoc>(kv.second, n_p->Attr("attrs")->Attr(kv.first)));
               }
             } else {
-              AttrPrinter printer(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values);
-              const_cast<BaseAttrsNode*>(n->attrs.get())->VisitAttrs(&printer);
+              AttrPrinter(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values)(n->attrs);
             }
           }
           // Step 4. Print type_args

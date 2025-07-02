@@ -348,6 +348,17 @@ void CodeGenWebGPU::PrintSSAAssign(const std::string& target, const std::string&
   stream << " = " << src << ";\n";
 }
 
+void CodeGenWebGPU::PrintVecElemLoad(const std::string& vec, DataType t, int i,
+                                     std::ostream& os) {  // NOLINT(*)
+  os << vec << "[" << i << "]";
+}
+
+void CodeGenWebGPU::PrintVecElemStore(const std::string& vec, DataType t, int i,
+                                      const std::string& value) {
+  this->PrintIndent();
+  stream << vec << "[" << i << "] = " << value << ";\n";
+}
+
 void CodeGenWebGPU::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
   int lanes = op->dtype.lanes();
@@ -703,9 +714,9 @@ class WebGPUSourceModuleNode final : public runtime::ModuleNode {
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final { return runtime::ModulePropertyMask::kBinarySerializable; }
 
-  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     LOG(FATAL) << "WebGPUSourceModule is not directly runnable, export and run through tvmjs";
-    return PackedFunc(nullptr);
+    return ffi::Function(nullptr);
   }
 
   void SaveToBinary(dmlc::Stream* stream) final {
@@ -768,7 +779,7 @@ runtime::Module BuildWebGPU(IRModule mod, Target target) {
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("target.build.webgpu").set_body_typed([](IRModule mod, Target target) {
+TVM_FFI_REGISTER_GLOBAL("target.build.webgpu").set_body_typed([](IRModule mod, Target target) {
   return BuildWebGPU(mod, target);
 });
 

@@ -20,13 +20,13 @@
  * \file src/node/structural_hash.cc
  */
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/function.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
 #include <tvm/node/object_path.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/profiling.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
 
 #include <algorithm>
@@ -133,7 +133,11 @@ class SHashHandlerDefault::Impl {
     }
   }
 
-  uint64_t Hash(const ObjectRef& object, bool map_free_vars) {
+  uint64_t Hash(const Any& value, bool map_free_vars) {
+    if (value.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+      return BaseValueHash().HashPODValueInAny(value);
+    }
+    ObjectRef object = value.cast<ObjectRef>();
     ICHECK_EQ(task_stack_.size(), 0U);
     ICHECK_EQ(pending_tasks_.size(), 0U);
     ICHECK_EQ(result_stack_.size(), 0U);
@@ -279,7 +283,7 @@ bool SHashHandlerDefault::LookupHashedValue(const ObjectRef& key, uint64_t* hash
 
 void SHashHandlerDefault::MarkGraphNode() { impl->MarkGraphNode(); }
 
-uint64_t SHashHandlerDefault::Hash(const ObjectRef& object, bool map_free_vars) {
+uint64_t SHashHandlerDefault::Hash(const Any& object, bool map_free_vars) {
   return impl->Hash(object, map_free_vars);
 }
 
@@ -287,8 +291,8 @@ void SHashHandlerDefault::DispatchSHash(const ObjectRef& key, bool map_free_vars
   impl->DispatchSHash(key, map_free_vars);
 }
 
-TVM_REGISTER_GLOBAL("node.StructuralHash")
-    .set_body_typed([](const ObjectRef& object, bool map_free_vars) -> int64_t {
+TVM_FFI_REGISTER_GLOBAL("node.StructuralHash")
+    .set_body_typed([](const Any& object, bool map_free_vars) -> int64_t {
       uint64_t hashed_value = SHashHandlerDefault().Hash(object, map_free_vars);
       return static_cast<int64_t>(hashed_value);
     });
@@ -311,11 +315,27 @@ void SHashHandlerIgnoreNDArray::DispatchSHash(const ObjectRef& object, bool map_
 struct StringObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
-  static void SHashReduce(const runtime::StringObj* key, SHashReducer hash_reduce) {
-    hash_reduce->SHashReduceHashedValue(runtime::String::StableHashBytes(key->data, key->size));
+  static void SHashReduce(const ffi::StringObj* key, SHashReducer hash_reduce) {
+    hash_reduce->SHashReduceHashedValue(ffi::details::StableHashBytes(key->data, key->size));
   }
 
-  static bool SEqualReduce(const runtime::StringObj* lhs, const runtime::StringObj* rhs,
+  static bool SEqualReduce(const ffi::StringObj* lhs, const ffi::StringObj* rhs,
+                           SEqualReducer equal) {
+    if (lhs == rhs) return true;
+    if (lhs->size != rhs->size) return false;
+    if (lhs->data == rhs->data) return true;
+    return std::memcmp(lhs->data, rhs->data, lhs->size) == 0;
+  }
+};
+
+struct BytesObjTrait {
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
+  static void SHashReduce(const ffi::BytesObj* key, SHashReducer hash_reduce) {
+    hash_reduce->SHashReduceHashedValue(ffi::details::StableHashBytes(key->data, key->size));
+  }
+
+  static bool SEqualReduce(const ffi::BytesObj* lhs, const ffi::BytesObj* rhs,
                            SEqualReducer equal) {
     if (lhs == rhs) return true;
     if (lhs->size != rhs->size) return false;
@@ -325,23 +345,33 @@ struct StringObjTrait {
 };
 
 struct RefToObjectPtr : public ObjectRef {
-  static ObjectPtr<Object> Get(const ObjectRef& ref) { return GetDataPtr<Object>(ref); }
+  static ObjectPtr<Object> Get(const ObjectRef& ref) {
+    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(ref);
+  }
 };
 
-TVM_REGISTER_REFLECTION_VTABLE(runtime::StringObj, StringObjTrait)
-    .set_creator([](const std::string& bytes) {
-      return RefToObjectPtr::Get(runtime::String(bytes));
-    })
+TVM_REGISTER_REFLECTION_VTABLE(ffi::StringObj, StringObjTrait)
+    .set_creator([](const std::string& bytes) { return RefToObjectPtr::Get(String(bytes)); })
     .set_repr_bytes([](const Object* n) -> std::string {
-      return GetRef<runtime::String>(static_cast<const runtime::StringObj*>(n))
-          .
-          operator std::string();
+      return GetRef<String>(static_cast<const ffi::StringObj*>(n)).operator std::string();
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<runtime::StringObj>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const runtime::StringObj*>(node.get());
+    .set_dispatch<ffi::StringObj>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const ffi::StringObj*>(node.get());
       p->stream << '"' << support::StrEscape(op->data, op->size) << '"';
+    });
+
+TVM_REGISTER_REFLECTION_VTABLE(ffi::BytesObj, BytesObjTrait)
+    .set_creator([](const std::string& bytes) { return RefToObjectPtr::Get(String(bytes)); })
+    .set_repr_bytes([](const Object* n) -> std::string {
+      return GetRef<ffi::Bytes>(static_cast<const ffi::BytesObj*>(n)).operator std::string();
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ffi::BytesObj>([](const ObjectRef& node, ReprPrinter* p) {
+      auto* op = static_cast<const ffi::BytesObj*>(node.get());
+      p->stream << "b\"" << support::StrEscape(op->data, op->size) << '"';
     });
 
 struct ModuleNodeTrait {
@@ -362,17 +392,17 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::ModuleNode, ModuleNodeTrait)
 
 void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_reduce,
                  bool hash_data) {
-  ICHECK_EQ(arr->dl_tensor.device.device_type, kDLCPU) << "can only compare CPU tensor";
-  ICHECK(runtime::IsContiguous(arr->dl_tensor)) << "Can only hash contiguous tensor";
-  (*hash_reduce)(runtime::DataType(arr->dl_tensor.dtype));
-  (*hash_reduce)(arr->dl_tensor.ndim);
-  for (int i = 0; i < arr->dl_tensor.ndim; ++i) {
-    (*hash_reduce)(arr->dl_tensor.shape[i]);
+  ICHECK_EQ(arr->device.device_type, kDLCPU) << "can only compare CPU tensor";
+  ICHECK(runtime::IsContiguous(*arr)) << "Can only hash contiguous tensor";
+  (*hash_reduce)(runtime::DataType(arr->dtype));
+  (*hash_reduce)(arr->ndim);
+  for (int i = 0; i < arr->ndim; ++i) {
+    (*hash_reduce)(arr->shape[i]);
   }
   if (hash_data) {
     (*hash_reduce)
-        ->SHashReduceHashedValue(runtime::String::StableHashBytes(
-            static_cast<const char*>(arr->dl_tensor.data), runtime::GetDataSize(arr->dl_tensor)));
+        ->SHashReduceHashedValue(ffi::details::StableHashBytes(static_cast<const char*>(arr->data),
+                                                               runtime::GetDataSize(*arr)));
   }
 }
 
@@ -395,35 +425,36 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container, NDArrayContainerTrai
       dmlc::MemoryStringStream mstrm(&blob);
       support::Base64OutStream b64strm(&mstrm);
       const auto* ndarray = static_cast<const runtime::NDArray::Container*>(n);
-      runtime::SaveDLTensor(&b64strm, &ndarray->dl_tensor);
+      runtime::SaveDLTensor(&b64strm, ndarray);
       b64strm.Finish();
       return blob;
     });
 
-struct ArrayNodeTrait {
+struct ArrayObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
-  static void SHashReduce(const ArrayNode* key, SHashReducer hash_reduce) {
+  static void SHashReduce(const ffi::ArrayObj* key, SHashReducer hash_reduce) {
     hash_reduce(static_cast<uint64_t>(key->size()));
     for (uint32_t i = 0; i < key->size(); ++i) {
       hash_reduce(key->at(i));
     }
   }
 
-  static bool SEqualReduce(const ArrayNode* lhs, const ArrayNode* rhs, SEqualReducer equal) {
+  static bool SEqualReduce(const ffi::ArrayObj* lhs, const ffi::ArrayObj* rhs,
+                           SEqualReducer equal) {
     if (equal.IsPathTracingEnabled()) {
       return SEqualReduceTraced(lhs, rhs, equal);
     }
 
     if (lhs->size() != rhs->size()) return false;
     for (uint32_t i = 0; i < lhs->size(); ++i) {
-      if (!equal(lhs->at(i), rhs->at(i))) return false;
+      if (!equal.AnyEqual(lhs->at(i), rhs->at(i))) return false;
     }
     return true;
   }
 
  private:
-  static bool SEqualReduceTraced(const ArrayNode* lhs, const ArrayNode* rhs,
+  static bool SEqualReduceTraced(const ffi::ArrayObj* lhs, const ffi::ArrayObj* rhs,
                                  const SEqualReducer& equal) {
     uint32_t min_size = std::min(lhs->size(), rhs->size());
     const ObjectPathPair& array_paths = equal.GetCurrentObjectPaths();
@@ -431,7 +462,7 @@ struct ArrayNodeTrait {
     for (uint32_t index = 0; index < min_size; ++index) {
       ObjectPathPair element_paths = {array_paths->lhs_path->ArrayIndex(index),
                                       array_paths->rhs_path->ArrayIndex(index)};
-      if (!equal(lhs->at(index), rhs->at(index), element_paths)) {
+      if (!equal.AnyEqual(lhs->at(index), rhs->at(index), element_paths)) {
         return false;
       }
     }
@@ -481,22 +512,22 @@ struct ArrayNodeTrait {
     return false;
   }
 };
-TVM_REGISTER_REFLECTION_VTABLE(ArrayNode, ArrayNodeTrait)
+TVM_REGISTER_REFLECTION_VTABLE(ffi::ArrayObj, ArrayObjTrait)
     .set_creator([](const std::string&) -> ObjectPtr<Object> {
-      return ::tvm::runtime::make_object<ArrayNode>();
+      return ffi::make_object<ffi::ArrayObj>();
     });
 
-struct ShapeTupleObjTrait {
+struct ShapeObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
-  static void SHashReduce(const ShapeTupleObj* self, SHashReducer hash_reduce) {
-    hash_reduce(self->size);
+  static void SHashReduce(const ffi::ShapeObj* self, SHashReducer hash_reduce) {
+    hash_reduce(static_cast<uint64_t>(self->size));
     for (uint32_t i = 0; i < self->size; ++i) {
       hash_reduce(self->data[i]);
     }
   }
 
-  static bool SEqualReduce(const ShapeTupleObj* lhs, const ShapeTupleObj* rhs,
+  static bool SEqualReduce(const ffi::ShapeObj* lhs, const ffi::ShapeObj* rhs,
                            SEqualReducer equal) {
     if (lhs->size != rhs->size) return false;
     for (uint32_t i = 0; i < lhs->size; ++i) {
@@ -506,7 +537,7 @@ struct ShapeTupleObjTrait {
   }
 };
 
-TVM_REGISTER_REFLECTION_VTABLE(ShapeTupleObj, ShapeTupleObjTrait)
+TVM_REGISTER_REFLECTION_VTABLE(ffi::ShapeObj, ShapeObjTrait)
     .set_creator([](const std::string& blob) {
       // Store shape tuple in blob to avoid large integer overflow in JSON.
       dmlc::MemoryStringStream mstrm(const_cast<std::string*>(&blob));
@@ -516,35 +547,38 @@ TVM_REGISTER_REFLECTION_VTABLE(ShapeTupleObj, ShapeTupleObjTrait)
       b64strm.Read<uint64_t>(&size);
       std::vector<int64_t> data(size);
       b64strm.ReadArray(data.data(), size);
-      ShapeTuple shape(data);
+      ffi::Shape shape(data);
       return RefToObjectPtr::Get(shape);
     })
     .set_repr_bytes([](const Object* n) -> std::string {
       std::string blob;
       dmlc::MemoryStringStream mstrm(&blob);
       support::Base64OutStream b64strm(&mstrm);
-      const auto* shape = static_cast<const runtime::ShapeTupleObj*>(n);
+      const auto* shape = static_cast<const ffi::ShapeObj*>(n);
       b64strm.Write<uint64_t>(shape->size);
       b64strm.WriteArray(shape->data, shape->size);
       b64strm.Finish();
       return blob;
     });
 
-struct MapNodeTrait {
+struct MapObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
-  static void SHashReduceForOMap(const MapNode* key, SHashReducer hash_reduce) {
+  static void SHashReduceForOMap(const ffi::MapObj* key, SHashReducer hash_reduce) {
     // SHash's var handling depends on the determinism of traversal.
     // NOTE: only book-keep the mapped hash keys.
     // This resolves common use cases where we want to store
     // Map<Var, Value> where Var is defined in the function
     // parameters.
-    using KV = std::pair<uint64_t, ObjectRef>;
+    using KV = std::pair<uint64_t, Any>;
     std::vector<KV> temp;
     for (const auto& kv : *key) {
       uint64_t hashed_value;
-      if (hash_reduce->LookupHashedValue(kv.first, &hashed_value)) {
-        temp.emplace_back(hashed_value, kv.second);
+      // skip non-object keys
+      if (kv.first.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+        if (hash_reduce->LookupHashedValue(kv.first.cast<ObjectRef>(), &hashed_value)) {
+          temp.emplace_back(hashed_value, kv.second);
+        }
       }
     }
     // sort by the hash key of the keys.
@@ -566,15 +600,15 @@ struct MapNodeTrait {
     }
   }
 
-  static void SHashReduceForSMap(const MapNode* key, SHashReducer hash_reduce) {
+  static void SHashReduceForSMap(const ffi::MapObj* key, SHashReducer hash_reduce) {
     // NOTE: only book-keep the mapped hash keys.
     // This resolves common use cases where we want to store
     // Map<Var, Value> where Var is defined in the function
     // parameters.
-    using KV = std::pair<String, ObjectRef>;
+    using KV = std::pair<String, Any>;
     std::vector<KV> temp;
     for (const auto& kv : *key) {
-      temp.push_back(std::make_pair(Downcast<String>(kv.first), kv.second));
+      temp.push_back(std::make_pair(kv.first.cast<String>(), kv.second));
     }
     // sort by the hash key of the keys.
     std::sort(temp.begin(), temp.end(),
@@ -589,9 +623,9 @@ struct MapNodeTrait {
     }
   }
 
-  static void SHashReduce(const MapNode* key, SHashReducer hash_reduce) {
+  static void SHashReduce(const ffi::MapObj* key, SHashReducer hash_reduce) {
     bool is_str_map = std::all_of(key->begin(), key->end(), [](const auto& v) {
-      return v.first->template IsInstance<StringObj>();
+      return v.first.template as<const ffi::StringObj*>();
     });
     if (is_str_map) {
       SHashReduceForSMap(key, hash_reduce);
@@ -600,147 +634,85 @@ struct MapNodeTrait {
     }
   }
 
-  static bool SEqualReduceForOMap(const MapNode* lhs, const MapNode* rhs, SEqualReducer equal) {
-    for (const auto& kv : *lhs) {
-      // Only allow equal checking if the keys are already mapped
-      // This resolves common use cases where we want to store
-      // Map<Var, Value> where Var is defined in the function
-      // parameters.
-      ObjectRef rhs_key = equal->MapLhsToRhs(kv.first);
-      if (!rhs_key.defined()) return false;
-      auto it = rhs->find(rhs_key);
-      if (it == rhs->end()) return false;
-      if (!equal(kv.second, it->second)) return false;
-    }
-    return true;
-  }
-
-  static bool SEqualReduceForSMap(const MapNode* lhs, const MapNode* rhs, SEqualReducer equal) {
-    for (const auto& kv : *lhs) {
-      auto it = rhs->find(kv.first);
-      if (it == rhs->end()) return false;
-      if (!equal(kv.second, it->second)) return false;
-    }
-    return true;
-  }
-
-  static bool IsStringMap(const MapNode* map) {
-    return std::all_of(map->begin(), map->end(),
-                       [](const auto& v) { return v.first->template IsInstance<StringObj>(); });
-  }
-
-  static bool SEqualReduceTracedForOMap(const MapNode* lhs, const MapNode* rhs,
-                                        const SEqualReducer& equal) {
+  static bool SEqualReduceTraced(const ffi::MapObj* lhs, const ffi::MapObj* rhs,
+                                 const SEqualReducer& equal) {
     const ObjectPathPair& map_paths = equal.GetCurrentObjectPaths();
-
-    std::vector<const Object*> seen_rhs_keys;
-
     // First, check that every key from `lhs` is also in `rhs`,
     // and their values are mapped to each other.
     for (const auto& kv : *lhs) {
       ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
-
-      ObjectRef rhs_key = equal->MapLhsToRhs(kv.first);
-      if (!rhs_key.defined()) {
-        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
-        return false;
-      }
-
+      Any rhs_key = equal->MapLhsToRhs(kv.first);
       auto it = rhs->find(rhs_key);
       if (it == rhs->end()) {
         equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
         return false;
       }
 
-      if (!equal(kv.second, it->second, {lhs_path, map_paths->rhs_path->MapValue(it->first)})) {
+      if (!equal.AnyEqual(kv.second, it->second,
+                          ObjectPathPair({lhs_path, map_paths->rhs_path->MapValue(it->first)}))) {
         return false;
       }
-
-      seen_rhs_keys.push_back(it->first.get());
     }
-
-    std::sort(seen_rhs_keys.begin(), seen_rhs_keys.end());
-
+    // fast path, lhs equals rhs
+    if (lhs->size() == rhs->size()) return true;
+    // slow path check what rhs keys are missing in lhs
+    std::unordered_set<Any, ffi::AnyHash, ffi::AnyEqual> seen_rhs_keys;
+    for (const auto& kv : *lhs) {
+      ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
+      Any rhs_key = equal->MapLhsToRhs(kv.first);
+      seen_rhs_keys.insert(rhs_key);
+    }
     // Second, check that we have visited every `rhs` key when iterating over `lhs`.
     for (const auto& kv : *rhs) {
-      if (!std::binary_search(seen_rhs_keys.begin(), seen_rhs_keys.end(), kv.first.get())) {
+      if (!seen_rhs_keys.count(kv.first)) {
         equal.RecordMismatchPaths(
             {map_paths->lhs_path->MissingMapEntry(), map_paths->rhs_path->MapValue(kv.first)});
         return false;
       }
     }
-
-    ICHECK(lhs->size() == rhs->size());
-    return true;
+    LOG(FATAL) << "not reached";
+    TVM_FFI_UNREACHABLE();
   }
 
-  static bool SEqualReduceTracedForSMap(const MapNode* lhs, const MapNode* rhs,
-                                        const SEqualReducer& equal) {
-    const ObjectPathPair& map_paths = equal.GetCurrentObjectPaths();
-
-    // First, check that every key from `lhs` is also in `rhs`, and their values are equal.
-    for (const auto& kv : *lhs) {
-      ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
-      auto it = rhs->find(kv.first);
-      if (it == rhs->end()) {
-        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
-        return false;
-      }
-
-      if (!equal(kv.second, it->second, {lhs_path, map_paths->rhs_path->MapValue(it->first)})) {
-        return false;
-      }
-    }
-
-    // Second, make sure every key from `rhs` is also in `lhs`.
-    for (const auto& kv : *rhs) {
-      ObjectPath rhs_path = map_paths->rhs_path->MapValue(kv.first);
-      if (!lhs->count(kv.first)) {
-        equal.RecordMismatchPaths({map_paths->lhs_path->MissingMapEntry(), rhs_path});
-        return false;
-      }
-    }
-
-    ICHECK(lhs->size() == rhs->size());
-    return true;
-  }
-
-  static bool SEqualReduceTraced(const MapNode* lhs, const MapNode* rhs,
-                                 const SEqualReducer& equal) {
-    if (IsStringMap(lhs)) {
-      return SEqualReduceTracedForSMap(lhs, rhs, equal);
-    } else {
-      return SEqualReduceTracedForOMap(lhs, rhs, equal);
-    }
-  }
-
-  static bool SEqualReduce(const MapNode* lhs, const MapNode* rhs, SEqualReducer equal) {
+  static bool SEqualReduce(const ffi::MapObj* lhs, const ffi::MapObj* rhs, SEqualReducer equal) {
     if (equal.IsPathTracingEnabled()) {
       return SEqualReduceTraced(lhs, rhs, equal);
     }
 
     if (rhs->size() != lhs->size()) return false;
     if (rhs->size() == 0) return true;
-    bool ls = IsStringMap(lhs);
-    bool rs = IsStringMap(rhs);
-    if (ls != rs) {
-      return false;
+
+    for (const auto& kv : *lhs) {
+      // Only allow equal checking if the keys are already mapped
+      // This resolves common use cases where we want to store
+      // Map<Var, Value> where Var is defined in the function
+      // parameters.
+      Any rhs_key = equal->MapLhsToRhs(kv.first);
+      auto it = rhs->find(rhs_key);
+      if (it == rhs->end()) return false;
+      if (!equal.AnyEqual(kv.second, it->second)) return false;
     }
-    return (ls && rs) ? SEqualReduceForSMap(lhs, rhs, equal) : SEqualReduceForOMap(lhs, rhs, equal);
+    return true;
   }
 };
-TVM_REGISTER_REFLECTION_VTABLE(MapNode, MapNodeTrait)
-    .set_creator([](const std::string&) -> ObjectPtr<Object> { return MapNode::Empty(); });
+TVM_REGISTER_REFLECTION_VTABLE(ffi::MapObj, MapObjTrait)
+    .set_creator([](const std::string&) -> ObjectPtr<Object> { return ffi::MapObj::Empty(); });
 
 struct ReportNodeTrait {
-  static void VisitAttrs(runtime::profiling::ReportNode* report, AttrVisitor* attrs) {
-    attrs->Visit("calls", &report->calls);
-    attrs->Visit("device_metrics", &report->device_metrics);
-    attrs->Visit("configuration", &report->configuration);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::ReportNode>()
+        .def_ro("calls", &runtime::profiling::ReportNode::calls)
+        .def_ro("device_metrics", &runtime::profiling::ReportNode::device_metrics)
+        .def_ro("configuration", &runtime::profiling::ReportNode::configuration);
   }
+
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+TVM_FFI_STATIC_INIT_BLOCK({ ReportNodeTrait::RegisterReflection(); });
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::ReportNode, ReportNodeTrait);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -750,51 +722,86 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 struct CountNodeTrait {
-  static void VisitAttrs(runtime::profiling::CountNode* n, AttrVisitor* attrs) {
-    attrs->Visit("value", &n->value);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::CountNode>().def_ro("value",
+                                                            &runtime::profiling::CountNode::value);
   }
+
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ CountNodeTrait::RegisterReflection(); });
+
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::CountNode, CountNodeTrait);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::CountNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::profiling::CountNode*>(node.get());
       p->stream << op->GetTypeKey() << "(" << op->value << ")";
     });
+
 struct DurationNodeTrait {
-  static void VisitAttrs(runtime::profiling::DurationNode* n, AttrVisitor* attrs) {
-    attrs->Visit("microseconds", &n->microseconds);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::DurationNode>().def_ro(
+        "microseconds", &runtime::profiling::DurationNode::microseconds);
   }
+
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ DurationNodeTrait::RegisterReflection(); });
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::DurationNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::profiling::DurationNode*>(node.get());
       p->stream << op->GetTypeKey() << "(" << op->microseconds << ")";
     });
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::DurationNode, DurationNodeTrait);
+
 struct PercentNodeTrait {
-  static void VisitAttrs(runtime::profiling::PercentNode* n, AttrVisitor* attrs) {
-    attrs->Visit("percent", &n->percent);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::PercentNode>().def_ro(
+        "percent", &runtime::profiling::PercentNode::percent);
   }
+
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ PercentNodeTrait::RegisterReflection(); });
+
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::PercentNode, PercentNodeTrait);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::PercentNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::profiling::PercentNode*>(node.get());
       p->stream << op->GetTypeKey() << "(" << op->percent << ")";
     });
+
 struct RatioNodeTrait {
-  static void VisitAttrs(runtime::profiling::RatioNode* n, AttrVisitor* attrs) {
-    attrs->Visit("ratio", &n->ratio);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::RatioNode>().def_ro("ratio",
+                                                            &runtime::profiling::RatioNode::ratio);
   }
+
+  static constexpr const std::nullptr_t VisitAttrs = nullptr;
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ RatioNodeTrait::RegisterReflection(); });
+
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::RatioNode, RatioNodeTrait);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::RatioNode>([](const ObjectRef& node, ReprPrinter* p) {

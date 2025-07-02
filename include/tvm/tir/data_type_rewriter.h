@@ -124,7 +124,7 @@ class IndexDataTypeRewriter : public DataTypeLegalizer {
 
   Buffer VisitBuffer(const Buffer& buffer);
   Buffer GetRemappedBuffer(const Buffer& buffer);
-  Map<String, ObjectRef> VisitBlockAnnotations(const Map<String, ObjectRef>& annotations);
+  Map<String, ffi::Any> VisitBlockAnnotations(const Map<String, ffi::Any>& annotations);
   BufferRegion VisitBufferRegion(const BufferRegion& region);
   IterVar VisitIterVar(const IterVar& iter_var);
   // indicator of index expr to rewrite

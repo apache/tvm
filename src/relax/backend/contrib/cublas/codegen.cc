@@ -108,7 +108,7 @@ class CublasJSONSerializer : public JSONSerializer {
   Map<Var, Expr> bindings_;
 };
 
-Array<runtime::Module> CublasCompiler(Array<Function> functions, Map<String, ObjectRef> /*unused*/,
+Array<runtime::Module> CublasCompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
                                       Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
 
@@ -117,16 +117,15 @@ Array<runtime::Module> CublasCompiler(Array<Function> functions, Map<String, Obj
     serializer.serialize(func);
     auto graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto* pf = runtime::Registry::Get("runtime.CublasJSONRuntimeCreate");
-    ICHECK(pf != nullptr) << "Cannot find CUBLAS runtime module create function.";
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.CublasJSONRuntimeCreate");
     auto func_name = GetExtSymbol(func);
-    compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<runtime::Module>());
   }
 
   return compiled_functions;
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.cublas").set_body_typed(CublasCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.cublas").set_body_typed(CublasCompiler);
 
 }  // namespace contrib
 }  // namespace relax

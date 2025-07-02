@@ -22,7 +22,7 @@ from typing_extensions import Literal
 
 # isort: on
 from tvm import ir, tir
-from tvm._ffi import register_func
+from tvm.ffi import register_func
 from tvm.target import Target
 from tvm.tir.expr import IntImm
 

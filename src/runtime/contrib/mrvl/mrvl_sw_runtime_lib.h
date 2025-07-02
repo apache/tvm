@@ -25,7 +25,7 @@
 #ifndef TVM_RUNTIME_CONTRIB_MRVL_MRVL_SW_RUNTIME_LIB_H_
 #define TVM_RUNTIME_CONTRIB_MRVL_MRVL_SW_RUNTIME_LIB_H_
 
-#include <tvm/runtime/packed_func.h>
+#include <tvm/ffi/function.h>
 
 #include <cstddef>
 #include <string>
@@ -35,7 +35,7 @@ namespace runtime {
 namespace contrib {
 namespace mrvl {
 
-void RunMarvellSimulator(tvm::runtime::TVMArgs args, const std::string& symbol_name,
+void RunMarvellSimulator(tvm::ffi::PackedArgs args, const std::string& symbol_name,
                          const std::string& bin_code, size_t num_inputs, size_t num_outputs);
 }
 }  // namespace contrib

@@ -24,12 +24,14 @@
 #ifndef TVM_IR_NAME_SUPPLY_H_
 #define TVM_IR_NAME_SUPPLY_H_
 
+#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ir/expr.h>
+
 #include <algorithm>
+#include <cctype>
 #include <string>
 #include <unordered_map>
 #include <utility>
-
-#include "tvm/ir/expr.h"
 
 namespace tvm {
 
@@ -79,12 +81,12 @@ class NameSupplyNode : public Object {
    */
   bool ContainsName(const String& name, bool add_prefix = true);
 
-  void VisitAttrs(AttrVisitor* v) {}
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   // Prefix for all GlobalVar names. It can be empty.
   std::string prefix_;
 
-  static constexpr const char* _type_key = "NameSupply";
+  static constexpr const char* _type_key = "ir.NameSupply";
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(NameSupplyNode, Object);

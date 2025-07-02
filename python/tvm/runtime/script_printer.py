@@ -18,14 +18,14 @@
 import os
 from typing import Dict, List, Optional, Sequence
 
-from tvm._ffi import get_global_func, register_object
+from tvm.ffi import get_global_func, register_object
 from tvm.runtime import Object
 
 from . import _ffi_node_api
 from .object_path import ObjectPath
 
 
-@register_object("node.PrinterConfig")
+@register_object("script.PrinterConfig")
 class PrinterConfig(Object):
     """Configuration of TVMScript printer"""
 

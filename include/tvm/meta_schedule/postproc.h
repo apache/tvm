@@ -20,9 +20,10 @@
 #ifndef TVM_META_SCHEDULE_POSTPROC_H_
 #define TVM_META_SCHEDULE_POSTPROC_H_
 
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 #include <tvm/tir/schedule/schedule.h>
 
 namespace tvm {
@@ -39,7 +40,11 @@ class PostprocNode : public runtime::Object {
   /*! \brief Virtual destructor. */
   virtual ~PostprocNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register
+  }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Initialize the design space generator with tuning context.
@@ -75,23 +80,23 @@ class Postproc : public runtime::ObjectRef {
    * \brief The function type of `InitializeWithTuneContext` method.
    * \param context The tuning context for initialization.
    */
-  using FInitializeWithTuneContext = runtime::TypedPackedFunc<void(const TuneContext&)>;
+  using FInitializeWithTuneContext = ffi::TypedFunction<void(const TuneContext&)>;
   /*!
    * \brief Apply a postprocessor to the given schedule.
    * \param sch The schedule to be post processed.
    * \return Whether the postprocessor was successfully applied.
    */
-  using FApply = runtime::TypedPackedFunc<bool(const tir::Schedule&)>;
+  using FApply = ffi::TypedFunction<bool(const tir::Schedule&)>;
   /*!
    * \brief Clone the postprocessor.
    * \return The cloned postprocessor.
    */
-  using FClone = runtime::TypedPackedFunc<Postproc()>;
+  using FClone = ffi::TypedFunction<Postproc()>;
   /*!
    * \brief Get the postprocessor function as string with name.
    * \return The string of the postprocessor function.
    */
-  using FAsString = runtime::TypedPackedFunc<String()>;
+  using FAsString = ffi::TypedFunction<String()>;
   /*!
    * \brief Create a postprocessor with customized methods on the python-side.
    * \param f_initialize_with_tune_context The packed function of `InitializeWithTuneContext`.
@@ -190,12 +195,14 @@ class PyPostprocNode : public PostprocNode {
   /*! \brief The packed function to the `AsString` function. */
   FAsString f_as_string;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_initialize_with_tune_context` is not visited
-    // `f_apply` is not visited
-    // `f_clone` is not visited
-    // `f_as_string` is not visited
+  static void RegisterReflection() {
+    // `f_initialize_with_tune_context` is not registered
+    // `f_apply` is not registered
+    // `f_clone` is not registered
+    // `f_as_string` is not registered
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   bool Apply(const tir::Schedule& sch) final;

@@ -21,11 +21,14 @@
  * \brief Placeholder op.
  * \file placeholder_op.cc
  */
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/container/variant.h>
+#include <tvm/ffi/function.h>
 #include <tvm/te/operation.h>
 
 namespace tvm {
 namespace te {
+
+TVM_FFI_STATIC_INIT_BLOCK({ PlaceholderOpNode::RegisterReflection(); });
 
 // PlaceholderOpNode
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -60,7 +63,7 @@ Tensor placeholder(Array<PrimExpr> shape, DataType dtype, std::string name) {
   return PlaceholderOp(name, shape, dtype).output(0);
 }
 
-TVM_REGISTER_GLOBAL("te.Placeholder")
+TVM_FFI_REGISTER_GLOBAL("te.Placeholder")
     .set_body_typed([](Variant<PrimExpr, Array<PrimExpr>> shape_arg, DataType dtype,
                        std::string name) {
       auto shape = [&]() -> Array<PrimExpr> {

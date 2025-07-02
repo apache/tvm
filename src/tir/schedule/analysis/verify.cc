@@ -68,7 +68,7 @@ class SRefTreeVerifier : public StmtVisitor {
         << GetRef<Stmt>(block) << "\nIts parent is supposed to be:\n"
         << GetRef<Stmt>(ancestors_.back()->stmt) << "\nHowever, its parent is incorrect and is:\n"
         << (sref->parent ? Optional<Stmt>(GetRef<Stmt>(sref->parent->stmt))
-                         : Optional<Stmt>(NullOpt));
+                         : Optional<Stmt>(std::nullopt));
     ancestors_.push_back(sref.operator->());
     if (block->init.defined()) {
       ++init_block_depth_;
@@ -91,13 +91,13 @@ class SRefTreeVerifier : public StmtVisitor {
         << GetRef<Stmt>(loop);
     ++n_sref_visited_;
     const StmtSRef& sref = self_->stmt2ref.at(loop);
-    Optional<Stmt> stmt = NullOpt;
+    Optional<Stmt> stmt = std::nullopt;
     ICHECK(sref->parent == ancestors_.back())
         << "InternalError: Parent information mismatch for ForNode:\n"
         << GetRef<Stmt>(loop) << "\nIts parent is supposed to be:\n"
         << GetRef<Stmt>(ancestors_.back()->stmt) << "\nHowever, its parent is incorrect and is:\n"
         << (sref->parent ? Optional<Stmt>(GetRef<Stmt>(sref->parent->stmt))
-                         : Optional<Stmt>(NullOpt));
+                         : Optional<Stmt>(std::nullopt));
     ancestors_.push_back(sref.operator->());
     StmtVisitor::VisitStmt_(loop);
     ancestors_.pop_back();

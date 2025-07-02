@@ -34,7 +34,7 @@ tir::PrimFunc AnnotateOpPattern(tir::PrimFunc f) {
     return f;
   } else {
     OpPatternKind kind = AnalyzeOpPatternKind(f);
-    return WithAttr(std::move(f), "op_pattern", Integer(static_cast<int>(kind)));
+    return WithAttr(std::move(f), "op_pattern", static_cast<int>(kind));
   }
 }
 
@@ -47,7 +47,8 @@ Pass AnnotateTIROpPattern() {
   return tir::transform::CreatePrimFuncPass(pass_func, 0, "AnnotateTIROpPattern", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.AnnotateTIROpPattern").set_body_typed(AnnotateTIROpPattern);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.AnnotateTIROpPattern")
+    .set_body_typed(AnnotateTIROpPattern);
 
 }  // namespace transform
 

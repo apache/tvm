@@ -19,7 +19,7 @@
 from typing import Type
 
 from tvm import tir
-from tvm._ffi.runtime_ctypes import DataType, DataTypeCode
+from tvm.runtime import DataType, DataTypeCode
 from tvm.tir import IntImm
 from tvm.tir.expr import FloatImm
 
@@ -56,7 +56,6 @@ def _register_expr_op(ty: Type):  # pylint: disable=invalid-name
         return dtype[0:index]
 
     def _auto_broadcast(a, b, op):
-
         if isinstance(a, int):
             if hasattr(b, "dtype"):
                 if (

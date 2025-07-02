@@ -21,7 +21,7 @@
  * \file hexagon_session.cc
  */
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 extern "C" {
 #include <AEEStdDef.h>
@@ -109,14 +109,14 @@ class HexagonTransportChannel : public RPCChannel {
   remote_handle64 _handle = AEE_EUNKNOWN;
 };
 
-TVM_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_FFI_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       ICHECK(args.size() >= 4) << args.size() << " is less than 4";
 
-      std::string session_name = args[0];
-      int remote_stack_size_bytes = args[1];
+      auto session_name = args[0].cast<std::string>();
+      int remote_stack_size_bytes = args[1].cast<int>();
       // For simulator, the third parameter is sim_args, ignore it.
-      int hexagon_rpc_receive_buf_size_bytes = args[3];
+      int hexagon_rpc_receive_buf_size_bytes = args[3].cast<int>();
       HexagonTransportChannel* hexagon_channel =
           new HexagonTransportChannel(hexagon_rpc_URI CDSP_DOMAIN, remote_stack_size_bytes,
                                       static_cast<uint32_t>(hexagon_rpc_receive_buf_size_bytes));

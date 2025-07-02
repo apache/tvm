@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-02-15T19:40:24.687837
+// Generated at 2025-06-03T18:16:35.861918
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -280,10 +280,13 @@ def cancel_previous_build() {
 }
 
 def is_last_build() {
-  // whether it is last build
-  def job = Jenkins.instance.getItem(env.JOB_NAME)
-  def lastBuild = job.getLastBuild()
-  return lastBuild.getNumber() == env.BUILD_NUMBER
+  // check whether it is last build
+  try {
+    return currentBuild.number == currentBuild.rawBuild.project.getLastBuild().number
+  } catch (Throwable ex) {
+    echo 'Error during check is_last_build ' + ex.toString()
+    return false
+  }
 }
 
 def checkout_trusted_files() {
@@ -516,11 +519,6 @@ def run_build(node_type) {
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/cpptest build/build.ninja build/CMakeFiles/rules.ninja",
             label: 'Upload artifacts to S3',
           )
-
-        ci_setup(ci_cpu)
-        // sh "${docker_run} ${ci_cpu} ./tests/scripts/task_golang.sh"
-        // TODO(@jroesch): need to resolve CI issue will turn back on in follow up patch
-        sh (script: "${docker_run} ${ci_cpu} ./tests/scripts/task_rust.sh", label: 'Rust build and test')
           })
         }
       }
@@ -535,17 +533,18 @@ def build() {
     try {
         run_build('CPU-SPOT')
     } catch (Throwable ex) {
-        if (is_last_build()) {
-          // retry if we are currently at last build
-          // mark the current stage as success
-          // and try again via on demand node
-          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-          currentBuild.result = 'SUCCESS'
-          run_build('CPU')
-        } else {
-          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
-          throw ex
-        }
+      echo 'Exception during SPOT run ' + ex.toString()
+      if (is_last_build()) {
+        // retry if we are currently at last build
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Retry on-demand given it is last build'
+        currentBuild.result = 'SUCCESS'
+        run_build('CPU')
+      } else {
+        echo 'Exit since it is not last build'
+        throw ex
+      }
     }
   }
 }
@@ -653,15 +652,16 @@ def test() {
       try {
       shard_run_unittest_CPU_1_of_2('CPU-SMALL-SPOT')
       } catch (Throwable ex) {
+        echo 'Exception during SPOT run ' + ex.toString()
         if (is_last_build()) {
           // retry if at last build
           // mark the current stage as success
           // and try again via on demand node
-          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          echo 'Retry on-demand given it is last build'
           currentBuild.result = 'SUCCESS'
           shard_run_unittest_CPU_1_of_2('CPU-SMALL')
         } else {
-          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          echo 'Exit since it is not last build'
           throw ex
         }
       }
@@ -670,15 +670,16 @@ def test() {
       try {
       shard_run_unittest_CPU_2_of_2('CPU-SMALL-SPOT')
       } catch (Throwable ex) {
+        echo 'Exception during SPOT run ' + ex.toString()
         if (is_last_build()) {
           // retry if at last build
           // mark the current stage as success
           // and try again via on demand node
-          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          echo 'Retry on-demand given it is last build'
           currentBuild.result = 'SUCCESS'
           shard_run_unittest_CPU_2_of_2('CPU-SMALL')
         } else {
-          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          echo 'Exit since it is not last build'
           throw ex
         }
       }

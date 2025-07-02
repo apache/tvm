@@ -19,10 +19,11 @@
 #ifndef TVM_META_SCHEDULE_ARG_INFO_H_
 #define TVM_META_SCHEDULE_ARG_INFO_H_
 
+#include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/node.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/shape_tuple.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/function.h>
@@ -81,12 +82,16 @@ class TensorInfoNode : public ArgInfoNode {
   /*! \brief The data type of the tensor. */
   runtime::DataType dtype;
   /*! \brief The shape of the tensor. */
-  runtime::ShapeTuple shape;
+  ffi::Shape shape;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("shape", &shape);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TensorInfoNode>()
+        .def_ro("dtype", &TensorInfoNode::dtype)
+        .def_ro("shape", &TensorInfoNode::shape);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.TensorInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorInfoNode, ArgInfoNode);
@@ -106,7 +111,7 @@ class TensorInfo : public ArgInfo {
    * \param dtype The data type of the tensor argument.
    * \param shape The shape tuple of the tensor argument.
    */
-  TVM_DLL explicit TensorInfo(runtime::DataType dtype, runtime::ShapeTuple shape);
+  TVM_DLL explicit TensorInfo(runtime::DataType dtype, ffi::Shape shape);
   /*!
    * \brief Parse the argument information from a JSON object.
    * \param json_obj The json object to parse.

@@ -39,7 +39,7 @@ void TVMPluginCodeGen::CodeGenAttrDeclare(const Plugin& plugin) {
   // args to meta_attr
   stack_.comment("convert args to meta attrs method")
       .func_def(attr_name + "_from_args", "const " + attr_name)
-      .func_arg("args", "TVMArgs")
+      .func_arg("args", "ffi::PackedArgs")
       .func_arg("pos", "size_t&");
 }
 
@@ -62,7 +62,7 @@ void TVMPluginCodeGen::CodeGenAttrDefine(const Plugin& plugin) {
   // args to meta_attr
   stack_.comment("convert args to meta attrs method")
       .func_def(attr_name + "_from_args", "const " + attr_name)
-      .func_arg("args", "TVMArgs")
+      .func_arg("args", "ffi::PackedArgs")
       .func_arg("pos", "size_t&")
       .func_start()
       .declare(attr_name, "meta_attr");
@@ -213,12 +213,12 @@ void TVMPluginCodeGen::CodeGenOpDefine(const Plugin& plugin) {
   stack_.func_end("infer_output");
 
   // register funcs
-  stack_.func_call("TVM_REGISTER_GLOBAL")
+  stack_.func_call("TVM_FFI_REGISTER_GLOBAL")
       .call_arg(DocUtils::ToStr("msc.plugin.op.InferStructInfo" + plugin->name))
       .method_call("set_body_typed")
       .call_arg("InferStructInfo" + plugin->name)
       .line()
-      .func_call("TVM_REGISTER_GLOBAL")
+      .func_call("TVM_FFI_REGISTER_GLOBAL")
       .call_arg(DocUtils::ToStr("msc.plugin.op.InferLayout" + plugin->name))
       .method_call("set_body_typed")
       .call_arg("InferLayout" + plugin->name)
@@ -240,7 +240,7 @@ void TVMPluginCodeGen::CodeGenOpRuntime(const Plugin& plugin) {
     device_cond = device_cond + "TVMUtils::OnDevice(" + plugin->inputs[i]->name + ", " +
                   device_type + ")" + (i == plugin->inputs.size() - 1 ? "" : " && ");
   }
-  stack_.func_def(func_name).func_arg("args", "TVMArgs").func_arg("ret", "TVMRetValue*");
+  stack_.func_def(func_name).func_arg("args", "ffi::PackedArgs").func_arg("ret", "ffi::Any*");
   stack_.func_start().comment("define tensors");
   for (size_t i = 0; i < plugin->inputs.size(); i++) {
     stack_.assign(plugin->inputs[i]->name, DocUtils::ToIndex("args", i), "DLTensor*");
@@ -260,7 +260,7 @@ void TVMPluginCodeGen::CodeGenOpRuntime(const Plugin& plugin) {
   CodeGenCompute(plugin, "cpu");
   stack_.cond_end().func_end();
   // register the compute
-  stack_.func_call("TVM_REGISTER_GLOBAL")
+  stack_.func_call("TVM_FFI_REGISTER_GLOBAL")
       .call_arg(DocUtils::ToStr(plugin->name))
       .method_call("set_body")
       .call_arg(func_name)
@@ -393,7 +393,7 @@ void TVMPluginCodeGen::CodeGenCompute(const Plugin& plugin, const String& device
   }
 }
 
-TVM_REGISTER_GLOBAL("msc.plugin.GetTVMPluginSources")
+TVM_FFI_REGISTER_GLOBAL("msc.plugin.GetTVMPluginSources")
     .set_body_typed([](const String& codegen_config, const String& print_config,
                        const String& codegen_type) -> Map<String, String> {
       TVMPluginCodeGen codegen = TVMPluginCodeGen(codegen_config);

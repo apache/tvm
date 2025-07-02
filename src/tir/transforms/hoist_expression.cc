@@ -21,7 +21,7 @@
  * \file hoist_expression.cc
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt_functor.h>
@@ -55,21 +55,23 @@ enum class HoistedLetBindings : int {
   kLetExpr = (1 << 2),
 };
 
-struct HoistExpressionConfigNode : public tvm::AttrsNode<HoistExpressionConfigNode> {
+struct HoistExpressionConfigNode : public AttrsNodeReflAdapter<HoistExpressionConfigNode> {
   int hoisted_conditionals;
   int hoisted_let_bindings;
 
-  TVM_DECLARE_ATTRS(HoistExpressionConfigNode, "tir.transform.HoistExpressionConfig") {
-    TVM_ATTR_FIELD(hoisted_conditionals)
-        .describe("Bitflags for the types of boolean expressions to hoist")
-        .set_default(static_cast<int>(HoistedConditionals::kIfElseStmt) |
-                     static_cast<int>(HoistedConditionals::kIfElseExpr) |
-                     static_cast<int>(HoistedConditionals::kBooleanExpression));
-    TVM_ATTR_FIELD(hoisted_let_bindings)
-        .describe("Bitflags for the types of let bindings to hoist")
-        .set_default(static_cast<int>(HoistedLetBindings::kRequiredByCondition) |
-                     static_cast<int>(HoistedLetBindings::kLetStmt) |
-                     static_cast<int>(HoistedLetBindings::kLetExpr));
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<HoistExpressionConfigNode>()
+        .def_ro("hoisted_conditionals", &HoistExpressionConfigNode::hoisted_conditionals,
+                "Bitflags for the types of boolean expressions to hoist",
+                refl::DefaultValue(static_cast<int>(HoistedConditionals::kIfElseStmt) |
+                                   static_cast<int>(HoistedConditionals::kIfElseExpr) |
+                                   static_cast<int>(HoistedConditionals::kBooleanExpression)))
+        .def_ro("hoisted_let_bindings", &HoistExpressionConfigNode::hoisted_let_bindings,
+                "Bitflags for the types of let bindings to hoist",
+                refl::DefaultValue(static_cast<int>(HoistedLetBindings::kRequiredByCondition) |
+                                   static_cast<int>(HoistedLetBindings::kLetStmt) |
+                                   static_cast<int>(HoistedLetBindings::kLetExpr)));
   }
 
   bool FlagSet(HoistedConditionals flag) const {
@@ -78,6 +80,9 @@ struct HoistExpressionConfigNode : public tvm::AttrsNode<HoistExpressionConfigNo
   bool FlagSet(HoistedLetBindings flag) const {
     return static_cast<int>(flag) & hoisted_let_bindings;
   }
+
+  static constexpr const char* _type_key = "tir.transforms.HoistExpressionConfig";
+  TVM_DECLARE_FINAL_OBJECT_INFO(HoistExpressionConfigNode, Object);
 };
 
 class HoistExpressionConfig : public Attrs {
@@ -92,19 +97,23 @@ class HoistExpressionConfig : public Attrs {
                                             HoistExpressionConfigNode);
 };
 
+TVM_FFI_STATIC_INIT_BLOCK({ HoistExpressionConfigNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(HoistExpressionConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.HoistExpression", HoistExpressionConfig);
 
-struct HoistIfThenElseConfigNode : public tvm::AttrsNode<HoistIfThenElseConfigNode> {
-  // Would like to replace the typo here from "hosting" to "hoisting",
-  // but that may impact user configurations.
-  bool support_block_scope_hosting;
+struct HoistIfThenElseConfigNode : public AttrsNodeReflAdapter<HoistIfThenElseConfigNode> {
+  bool support_block_scope_hoisting;
 
-  TVM_DECLARE_ATTRS(HoistIfThenElseConfigNode, "tir.transform.HoistIfThenElseConfig") {
-    TVM_ATTR_FIELD(support_block_scope_hosting)
-        .describe("Hoist if cond with block scope variables")
-        .set_default(false);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<HoistIfThenElseConfigNode>().def_ro(
+        "support_block_scope_hoisting", &HoistIfThenElseConfigNode::support_block_scope_hoisting,
+        "Hoist if cond with block scope variables", refl::DefaultValue(false));
   }
+
+  static constexpr const char* _type_key = "tir.transforms.HoistIfThenElseConfig";
+  TVM_DECLARE_FINAL_OBJECT_INFO(HoistIfThenElseConfigNode, Object);
 };
 
 class HoistIfThenElseConfig : public Attrs {
@@ -112,6 +121,8 @@ class HoistIfThenElseConfig : public Attrs {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(HoistIfThenElseConfig, Attrs,
                                             HoistIfThenElseConfigNode);
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ HoistIfThenElseConfigNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(HoistIfThenElseConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.HoistIfThenElse", HoistIfThenElseConfig);
@@ -552,7 +563,7 @@ Pass HoistExpression() {
       "tir.HoistExpression");
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.HoistExpression").set_body_typed(HoistExpression);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.HoistExpression").set_body_typed(HoistExpression);
 
 Pass HoistIfThenElse() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
@@ -569,7 +580,7 @@ Pass HoistIfThenElse() {
     if (!cfg.defined()) {
       cfg = AttrsWithDefaultValues<HoistIfThenElseConfig>();
     }
-    int block_var = static_cast<int>(cfg.value()->support_block_scope_hosting
+    int block_var = static_cast<int>(cfg.value()->support_block_scope_hoisting
                                          ? HoistedConditionals::kUsingBlockVar
                                          : HoistedConditionals::kNone);
     HoistExpressionConfig config(block_var | static_cast<int>(HoistedConditionals::kIfElseStmt),
@@ -587,7 +598,7 @@ Pass HoistIfThenElse() {
       "tir.HoistIfThenElse");
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.HoistIfThenElse").set_body_typed(HoistIfThenElse);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.HoistIfThenElse").set_body_typed(HoistIfThenElse);
 
 Pass HoistIfThenElseBasic() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
@@ -607,7 +618,7 @@ Pass HoistIfThenElseBasic() {
       "tir.HoistIfThenElseBasic");
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.HoistIfThenElseBasic").set_body_typed(HoistIfThenElseBasic);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.HoistIfThenElseBasic").set_body_typed(HoistIfThenElseBasic);
 
 }  // namespace transform
 

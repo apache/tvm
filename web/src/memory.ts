@@ -138,16 +138,6 @@ export class Memory {
     return result;
   }
   /**
-   * Load TVMByteArray from ptr.
-   *
-   * @param ptr The address of the header.
-   */
-  loadTVMBytes(ptr: Pointer): Uint8Array {
-    const data = this.loadPointer(ptr);
-    const length = this.loadUSize(ptr + this.sizeofPtr());
-    return this.loadRawBytes(data, length);
-  }
-  /**
    * Load null-terminated C-string from ptr.
    * @param ptr The head address
    */
@@ -178,7 +168,56 @@ export class Memory {
     }
     this.viewU8.set(bytes, ptr);
   }
-
+  // the following functions are related to TVM FFI
+  /**
+   * Load the object type index from the object handle.
+   * @param objectHandle The handle of the object.
+   * @returns The object type index.
+   */
+  loadObjectTypeIndex(objectHandle: Pointer): number {
+    return this.loadI32(objectHandle);
+  }
+  /**
+   * Load the type key from the type info pointer.
+   * @param typeInfoPtr The pointer to the type info.
+   * @returns The type key.
+   */
+  loadTypeInfoTypeKey(typeInfoPtr: Pointer): string {
+    const typeKeyPtr = typeInfoPtr + 2 * SizeOf.I32;
+    return this.loadByteArrayAsString(typeKeyPtr);
+  }
+  /**
+   * Load bytearray as string from ptr.
+   * @param byteArrayPtr The head address of the bytearray.
+   */
+ loadByteArrayAsString(byteArrayPtr: Pointer): string {
+    if (this.buffer != this.memory.buffer) {
+      this.updateViews();
+    }
+    const ptr = this.loadPointer(byteArrayPtr);
+    const length = this.loadUSize(byteArrayPtr + this.sizeofPtr());
+    // NOTE: the views are still valid for read.
+    const ret = [];
+    for (let i = 0; i < length; i++) {
+      ret.push(String.fromCharCode(this.viewU8[ptr + i]));
+    }
+    return ret.join("");
+  }
+  /**
+   * Load bytearray as bytes from ptr.
+   * @param byteArrayPtr The head address of the bytearray.
+   */
+ loadByteArrayAsBytes(byteArrayPtr: Pointer): Uint8Array {
+  if (this.buffer != this.memory.buffer) {
+    this.updateViews();
+  }
+  const ptr = this.loadPointer(byteArrayPtr);
+  const length = this.loadUSize(byteArrayPtr + this.sizeofPtr());
+  const result = new Uint8Array(length);
+  result.set(this.viewU8.slice(ptr, ptr + length));
+  return result;
+}
+  // private functions
   /**
    * Update memory view after the memory growth.
    */
@@ -365,6 +404,21 @@ export class CachedCallStack implements Disposable {
     this.viewU8.set(bytes, offset);
   }
 
+  /**
+   * Allocate a byte array for a string and return the offset of the byte array.
+   * @param data The string to allocate.
+   * @returns The offset of the byte array.
+   */
+  allocByteArrayForString(data: string): PtrOffset {
+    const dataUint8: Uint8Array = StringToUint8Array(data);
+    // Note: size of size_t equals sizeof ptr.
+    const headerOffset = this.allocRawBytes(this.memory.sizeofPtr() * 2);
+    const dataOffset = this.allocRawBytes(dataUint8.length);
+    this.storeUSize(headerOffset + this.memory.sizeofPtr(), data.length);
+    this.storeRawBytes(dataOffset, dataUint8);
+    this.addressToSetTargetValue.push([headerOffset, dataOffset]);
+    return headerOffset;
+  }
   /**
    * Allocate then set C-String pointer to the offset.
    * This function will call into allocBytes to allocate necessary data.

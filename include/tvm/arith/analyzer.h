@@ -25,6 +25,7 @@
 #define TVM_ARITH_ANALYZER_H_
 
 #include <tvm/arith/int_set.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/expr.h>
 #include <tvm/support/with.h>
 
@@ -86,10 +87,14 @@ class ConstIntBoundNode : public Object {
   int64_t min_value;
   int64_t max_value;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("min_value", &min_value);
-    v->Visit("max_value", &max_value);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ConstIntBoundNode>()
+        .def_ro("min_value", &ConstIntBoundNode::min_value)
+        .def_ro("max_value", &ConstIntBoundNode::max_value);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const ConstIntBoundNode* other, SEqualReducer equal) const {
     return equal(min_value, other->min_value) && equal(max_value, other->max_value);
@@ -154,6 +159,7 @@ class ConstIntBoundAnalyzer {
    * \param allow_override whether we allow override of existing information.
    */
   TVM_DLL void Update(const Var& var, const ConstIntBound& info, bool allow_override = false);
+
   /*!
    * \brief Bind variable to a range.
    *
@@ -162,6 +168,13 @@ class ConstIntBoundAnalyzer {
    * \param allow_override Whether we allow overriding an existing var's range.
    */
   TVM_DLL void Bind(const Var& var, const Range& range, bool allow_override = false);
+
+  /*!
+   * \brief Check if a variable is bound to a range.
+   * \param var The variable.
+   * \return Whether the variable is bound to a range.
+   */
+  TVM_DLL bool IsBound(const Var& var) const;
 
  private:
   friend class Analyzer;
@@ -200,10 +213,14 @@ class ModularSetNode : public Object {
   /*! \brief The base */
   int64_t base;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("coeff", &coeff);
-    v->Visit("base", &base);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ModularSetNode>()
+        .def_ro("coeff", &ModularSetNode::coeff)
+        .def_ro("base", &ModularSetNode::base);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const ModularSetNode* other, SEqualReducer equal) const {
     return equal(coeff, other->coeff) && equal(base, other->base);

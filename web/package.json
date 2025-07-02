@@ -3,7 +3,7 @@
   "description": "TVM WASM/WebGPU runtime for JS/TS",
   "license": "Apache-2.0",
   "homepage": "https://github.com/apache/tvm/tree/main/web",
-  "version": "0.20.0-dev0",
+  "version": "0.21.0-dev0",
   "files": [
     "lib"
   ],
@@ -45,5 +45,9 @@
     "typedoc-plugin-missing-exports": "2.0.0",
     "typescript": "^4.9.5",
     "ws": "^7.2.5"
+  },
+  "dependencies": {
+    "audit": "^0.0.6",
+    "fix": "^0.0.6"
   }
 }

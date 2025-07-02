@@ -24,7 +24,7 @@
 #ifndef TVM_RUNTIME_RPC_RPC_CHANNEL_H_
 #define TVM_RUNTIME_RPC_RPC_CHANNEL_H_
 
-#include <tvm/runtime/packed_func.h>
+#include <tvm/ffi/function.h>
 
 #include <utility>
 
@@ -69,7 +69,7 @@ class CallbackChannel final : public RPCChannel {
    * \param frecv The recv function, takes an expected maximum size, and return
    *              a byte array with the actual amount of data received.
    */
-  explicit CallbackChannel(PackedFunc fsend, PackedFunc frecv)
+  explicit CallbackChannel(ffi::Function fsend, ffi::Function frecv)
       : fsend_(std::move(fsend)), frecv_(std::move(frecv)) {}
 
   ~CallbackChannel() {}
@@ -90,8 +90,8 @@ class CallbackChannel final : public RPCChannel {
   size_t Recv(void* data, size_t size) final;
 
  private:
-  PackedFunc fsend_;
-  PackedFunc frecv_;
+  ffi::Function fsend_;
+  ffi::Function frecv_;
 };
 
 }  // namespace runtime

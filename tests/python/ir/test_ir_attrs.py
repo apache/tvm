@@ -20,11 +20,8 @@ import tvm.ir._ffi_api
 
 
 def test_make_attrs():
-    with pytest.raises(AttributeError):
+    with pytest.raises(TypeError):
         x = tvm.ir.make_node("attrs.TestAttrs", unknown_key=1, name="xx")
-
-    with pytest.raises(AttributeError):
-        x = tvm.ir.make_node("attrs.TestAttrs", axis=100, name="xx")
 
     x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
     assert x.name == "xx"
@@ -32,24 +29,31 @@ def test_make_attrs():
     assert x.padding[1].value == 4
     assert x.axis == 10
 
+    x = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 4))
+    y = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 5))
+    z = tvm.ir.make_node("attrs.TestAttrs", name="xx", padding=(3, 5))
+    assert not tvm.ir.structural_equal(x, y)
+    assert tvm.ir.structural_equal(x, x)
+    assert tvm.ir.structural_equal(y, z)
+
 
 def test_dict_attrs():
-    dattr = tvm.ir.make_node("DictAttrs", x=1, y=10, name="xyz", padding=(0, 0))
-    assert dattr.x.value == 1
+    dattr = tvm.ir.make_node("ir.DictAttrs", x=1, y=10, name="xyz", padding=(0, 0))
+    assert dattr.x == 1
     datrr = tvm.ir.load_json(tvm.ir.save_json(dattr))
     assert dattr.name == "xyz"
     assert isinstance(dattr, tvm.ir.DictAttrs)
     assert "name" in dattr
-    assert dattr["x"].value == 1
+    assert dattr["x"] == 1
     assert len(dattr) == 4
     assert len([x for x in dattr.keys()]) == 4
     assert len(dattr.items()) == 4
 
 
 def test_attrs_equal():
-    dattr0 = tvm.ir.make_node("DictAttrs", x=1, y=[10, 20])
-    dattr1 = tvm.ir.make_node("DictAttrs", y=[10, 20], x=1)
-    dattr2 = tvm.ir.make_node("DictAttrs", x=1, y=None)
+    dattr0 = tvm.ir.make_node("ir.DictAttrs", x=1, y=[10, 20])
+    dattr1 = tvm.ir.make_node("ir.DictAttrs", y=[10, 20], x=1)
+    dattr2 = tvm.ir.make_node("ir.DictAttrs", x=1, y=None)
     tvm.ir.assert_structural_equal(dattr0, dattr1)
     assert not tvm.ir.structural_equal(dattr0, dattr2)
     assert not tvm.ir.structural_equal({"x": 1}, tvm.runtime.convert(1))

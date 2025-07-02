@@ -55,17 +55,17 @@ inline Expr MakeConv(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm
 /*! \brief 1D convolution */
 Expr conv1d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
             Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-            Optional<String> out_layout, DataType out_dtype);
+            Optional<String> out_layout, Optional<DataType> out_dtype);
 
 /*! \brief 2D convolution */
 Expr conv2d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
             Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-            Optional<String> out_layout, DataType out_dtype);
+            Optional<String> out_layout, Optional<DataType> out_dtype);
 
 /*! \brief 3D convolution */
 Expr conv3d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
             Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-            Optional<String> out_layout, DataType out_dtype);
+            Optional<String> out_layout, Optional<DataType> out_dtype);
 
 /*!
  * \brief One dimensional transposed convolution operator.
@@ -76,7 +76,7 @@ Expr conv3d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding
 Expr conv1d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
                       Array<IntImm> output_padding, Array<IntImm> dilation, int groups,
                       String data_layout, String kernel_layout, Optional<String> out_layout,
-                      DataType out_dtype);
+                      Optional<DataType> out_dtype);
 
 /*!
  * \brief Two dimensional transposed convolution operator.
@@ -87,7 +87,7 @@ Expr conv1d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntIm
 Expr conv2d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
                       Array<IntImm> output_padding, Array<IntImm> dilation, int groups,
                       String data_layout, String kernel_layout, Optional<String> out_layout,
-                      DataType out_dtype);
+                      Optional<DataType> out_dtype);
 
 }  // namespace relax
 }  // namespace tvm

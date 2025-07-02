@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/meta_schedule/postproc.h>
 
 #include <algorithm>
@@ -62,11 +63,15 @@ void CollectTensorizationJobs(
 
 class RewriteTensorizeNode : public PostprocNode {
  public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RewriteTensorizeNode>();
+  }
+  static constexpr bool _type_has_method_visit_attrs = false;
+
   void InitializeWithTuneContext(const TuneContext& context) final {}
 
   bool Apply(const tir::Schedule& sch) final;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {}
 
   Postproc Clone() const {
     ObjectPtr<RewriteTensorizeNode> n = make_object<RewriteTensorizeNode>(*this);
@@ -106,8 +111,9 @@ Postproc Postproc::RewriteTensorize(bool vectorize_init_loop) {
   return Postproc(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ RewriteTensorizeNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(RewriteTensorizeNode);
-TVM_REGISTER_GLOBAL("meta_schedule.PostprocRewriteTensorize")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteTensorize")
     .set_body_typed(Postproc::RewriteTensorize);
 
 }  // namespace meta_schedule

@@ -20,13 +20,14 @@
 #ifndef TVM_META_SCHEDULE_FEATURE_EXTRACTOR_H_
 #define TVM_META_SCHEDULE_FEATURE_EXTRACTOR_H_
 
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/string.h>
 #include <tvm/meta_schedule/measure_candidate.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
-#include <tvm/runtime/packed_func.h>
 
 namespace tvm {
 namespace meta_schedule {
@@ -39,7 +40,11 @@ class FeatureExtractorNode : public runtime::Object {
   /*! \brief Virtual destructor. */
   virtual ~FeatureExtractorNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register
+  }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Extract features from the given measure candidate.
@@ -63,23 +68,25 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
    * \param candidates The measure candidates to extract features from.
    * \return The feature ndarray extracted.
    */
-  using FExtractFrom = runtime::TypedPackedFunc<Array<tvm::runtime::NDArray>(
+  using FExtractFrom = ffi::TypedFunction<Array<tvm::runtime::NDArray>(
       const TuneContext& context, const Array<MeasureCandidate>& candidates)>;
   /*!
    * \brief Get the feature extractor as string with name.
    * \return The string of the feature extractor.
    */
-  using FAsString = runtime::TypedPackedFunc<String()>;
+  using FAsString = ffi::TypedFunction<String()>;
 
   /*! \brief The packed function to the `ExtractFrom` function. */
   FExtractFrom f_extract_from;
   /*! \brief The packed function to the `AsString` function. */
   FAsString f_as_string;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_extract_from` is not visited
-    // `f_as_string` is not visited
+  static void RegisterReflection() {
+    // `f_extract_from` is not registered
+    // `f_as_string` is not registered
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   Array<tvm::runtime::NDArray> ExtractFrom(const TuneContext& context,
                                            const Array<MeasureCandidate>& candidates) final;

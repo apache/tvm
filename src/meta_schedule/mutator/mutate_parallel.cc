@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include <algorithm>
 #include <unordered_map>
 
@@ -169,12 +171,12 @@ class MutateParallelNode : public MutatorNode {
   /*! \brief JSON representation of the workload */
   std::string json_mod_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("max_jobs_per_core", &max_jobs_per_core);
-    // `max_parallel_extent_` is not visited.
-    // `json_mod` is not visited.
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MutateParallelNode>().def_ro("max_jobs_per_core",
+                                                 &MutateParallelNode::max_jobs_per_core);
   }
-
+  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "meta_schedule.MutateParallel";
   TVM_DECLARE_FINAL_OBJECT_INFO(MutateParallelNode, MutatorNode);
 
@@ -250,12 +252,12 @@ Optional<Trace> MutateParallelNode::Apply(const Trace& trace, TRandState* rand_s
   // Step 1. Find a parallel decision.
   Candidate candidate;
   if (!FindParallelDecision(trace, rand_state, &candidate)) {
-    return NullOpt;
+    return std::nullopt;
   }
   // Step 2. Replay the instructions to recover loop extents
-  tir::Schedule sch = tir::Schedule::Traced(                  //
-      /*mod=*/Downcast<IRModule>(LoadJSON(this->json_mod_)),  //
-      /*rand_state=*/ForkSeed(rand_state),                    //
+  tir::Schedule sch = tir::Schedule::Traced(               //
+      /*mod=*/LoadJSON(this->json_mod_).cast<IRModule>(),  //
+      /*rand_state=*/ForkSeed(rand_state),                 //
       /*debug_mode=*/0,
       /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
   trace->ApplyToSchedule(sch, /*remove_postproc=*/true);
@@ -283,7 +285,7 @@ Optional<Trace> MutateParallelNode::Apply(const Trace& trace, TRandState* rand_s
   // Step 5. Pick a new plan
   int n_plans = plan2limit.size();
   if (n_plans == 0) {
-    return NullOpt;
+    return std::nullopt;
   }
   it = plan2limit.begin();
   for (int i = 0, n = tir::SampleInt(rand_state, 0, n_plans); i < n; ++i) {
@@ -311,8 +313,10 @@ Mutator Mutator::MutateParallel(int64_t max_jobs_per_core) {
   return Mutator(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ MutateParallelNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(MutateParallelNode);
-TVM_REGISTER_GLOBAL("meta_schedule.MutatorMutateParallel").set_body_typed(Mutator::MutateParallel);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateParallel")
+    .set_body_typed(Mutator::MutateParallel);
 
 }  // namespace meta_schedule
 }  // namespace tvm

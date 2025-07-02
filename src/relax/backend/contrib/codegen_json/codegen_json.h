@@ -26,6 +26,7 @@
 
 #include <dmlc/any.h>
 #include <dmlc/json.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/node/reflection.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/tir/op.h>
@@ -56,7 +57,7 @@ using JSONGraphObjectPtr = std::shared_ptr<JSONGraphNode>;
  * \brief Helper class to extract all attributes of a certain op and save them
  * into text format.
  */
-class OpAttrExtractor : public AttrVisitor {
+class OpAttrExtractor : private AttrVisitor {
  public:
   explicit OpAttrExtractor(JSONGraphObjectPtr node) : node_(node) {}
 
@@ -86,27 +87,43 @@ class OpAttrExtractor : public AttrVisitor {
 
   void Visit(const char* key, std::string* value) final { SetNodeAttr(key, {*value}); }
 
+  void Visit(const char* key, Optional<double>* value) final {
+    if (value->has_value()) {
+      SetNodeAttr(key, {Fp2String(value->value())});
+    } else {
+      SetNodeAttr(key, {""});
+    }
+  }
+
+  void Visit(const char* key, Optional<int64_t>* value) final {
+    if (value->has_value()) {
+      SetNodeAttr(key, {std::to_string(value->value())});
+    } else {
+      SetNodeAttr(key, {""});
+    }
+  }
+
   void Visit(const char* key, DataType* value) final {
     if (!value->is_void()) {
-      SetNodeAttr(key, {runtime::DLDataType2String(*value)});
+      SetNodeAttr(key, {runtime::DLDataTypeToString(*value)});
     } else {
       SetNodeAttr(key, {""});
     }
   }
 
   void Visit(const char* key, runtime::ObjectRef* value) final {
-    if (const auto* an = (*value).as<ArrayNode>()) {
+    if (const auto* an = (*value).as<ffi::ArrayObj>()) {
       std::vector<std::string> attr;
       for (size_t i = 0; i < an->size(); ++i) {
         if (const auto* im = (*an)[i].as<IntImmNode>()) {
           attr.push_back(std::to_string(im->value));
         } else if (const auto* fm = (*an)[i].as<FloatImmNode>()) {
           attr.push_back(Fp2String(fm->value));
-        } else if (const auto* str = (*an)[i].as<StringObj>()) {
+        } else if (const auto* str = (*an)[i].as<ffi::StringObj>()) {
           String s = GetRef<String>(str);
           attr.push_back(s);
         } else {
-          LOG(FATAL) << "Not supported type: " << (*an)[i]->GetTypeKey();
+          LOG(FATAL) << "Not supported type: " << (*an)[i].GetTypeKey();
         }
       }
       SetNodeAttr(key, attr);
@@ -116,7 +133,7 @@ class OpAttrExtractor : public AttrVisitor {
       SetNodeAttr(key, std::vector<std::string>{std::to_string(im->value)});
     } else if (const auto* fm = (*value).as<FloatImmNode>()) {
       SetNodeAttr(key, std::vector<std::string>{Fp2String(fm->value)});
-    } else if (const auto* str = (*value).as<StringObj>()) {
+    } else if (const auto* str = (*value).as<ffi::StringObj>()) {
       String s = GetRef<String>(str);
       SetNodeAttr(key, std::vector<std::string>{s});
     } else {
@@ -134,11 +151,58 @@ class OpAttrExtractor : public AttrVisitor {
 
   void Extract(Object* node) {
     if (node) {
-      reflection_->VisitAttrs(node, this);
+      this->VisitObjectFields(node);
     }
   }
 
  private:
+  void VisitObjectFields(Object* obj) {
+    const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
+    if (tinfo->extra_info != nullptr) {
+      ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
+        Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
+        switch (field_value.type_index()) {
+          case ffi::TypeIndex::kTVMFFINone: {
+            SetNodeAttr(field_info->name.data, {""});
+            break;
+          }
+          case ffi::TypeIndex::kTVMFFIBool:
+          case ffi::TypeIndex::kTVMFFIInt: {
+            int64_t value = field_value.cast<int64_t>();
+            this->Visit(field_info->name.data, &value);
+            break;
+          }
+          case ffi::TypeIndex::kTVMFFIFloat: {
+            double value = field_value.cast<double>();
+            this->Visit(field_info->name.data, &value);
+            break;
+          }
+          case ffi::TypeIndex::kTVMFFIDataType: {
+            DataType value(field_value.cast<DLDataType>());
+            this->Visit(field_info->name.data, &value);
+            break;
+          }
+          case ffi::TypeIndex::kTVMFFINDArray: {
+            runtime::NDArray value = field_value.cast<runtime::NDArray>();
+            this->Visit(field_info->name.data, &value);
+            break;
+          }
+          default: {
+            if (field_value.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+              ObjectRef obj = field_value.cast<ObjectRef>();
+              this->Visit(field_info->name.data, &obj);
+              break;
+            }
+            LOG(FATAL) << "Unsupported type: " << field_value.GetTypeKey();
+          }
+        }
+      });
+    } else {
+      // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
+      reflection_->VisitAttrs(obj, this);
+    }
+  }
+
   JSONGraphObjectPtr node_;
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
 };

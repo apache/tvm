@@ -24,8 +24,8 @@
 #include "hexagon_module.h"
 
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/registry.h>
 
 #include <string>
 #include <utility>
@@ -42,8 +42,8 @@ HexagonModuleNode::HexagonModuleNode(std::string data, std::string fmt,
                                      std::string bc_str)
     : data_(data), fmt_(fmt), fmap_(fmap), asm_(asm_str), obj_(obj_str), ir_(ir_str), bc_(bc_str) {}
 
-PackedFunc HexagonModuleNode::GetFunction(const String& name,
-                                          const ObjectPtr<Object>& sptr_to_self) {
+ffi::Function HexagonModuleNode::GetFunction(const String& name,
+                                             const ObjectPtr<Object>& sptr_to_self) {
   LOG(FATAL) << "HexagonModuleNode::GetFunction is not implemented.";
 }
 

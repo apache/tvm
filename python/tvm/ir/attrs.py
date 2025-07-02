@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 """TVM Attribute module, which is mainly used for defining attributes of operators."""
-import tvm._ffi
+import tvm.ffi
 
 from tvm.runtime import Object
 import tvm.runtime._ffi_node_api
 from . import _ffi_api
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object("ir.Attrs")
 class Attrs(Object):
     """Attribute node, which is mainly use for defining attributes of operators.
 
@@ -93,7 +93,7 @@ class Attrs(Object):
         return self.__getattr__(item)
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object("ir.DictAttrs")
 class DictAttrs(Attrs):
     """Dictionary attributes."""
 
@@ -157,7 +157,7 @@ def make_node(type_key, **kwargs):
 
     .. code-block:: python
 
-       x = tvm.ir.make_node("IntImm", dtype="int32", value=10, span=None)
+       x = tvm.ir.make_node("ir.IntImm", dtype="int32", value=10, span=None)
        assert isinstance(x, tvm.tir.IntImm)
        assert x.value == 10
     """

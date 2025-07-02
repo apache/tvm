@@ -56,7 +56,7 @@ enum SignType { kPositive, kNegative, kZero, kUnknown };
  */
 class IntSetNode : public Object {
  public:
-  static constexpr const char* _type_key = "IntSet";
+  static constexpr const char* _type_key = "ir.IntSet";
   static constexpr bool _type_has_method_sequal_reduce = false;
   TVM_DECLARE_BASE_OBJECT_INFO(IntSetNode, Object);
 };
@@ -299,7 +299,8 @@ Map<Var, arith::IntSet> AsIntSet(const Map<Var, Range>& var_dom);
  * \param var_dom The ranges of the variables
  * \param predicate The predicate for the affine map
  * \param analyzer The analyzer used
- * \return NullOpt if the detection fails, or an array of arith::IntSet as the result of analysis
+ * \return std::nullopt if the detection fails, or an array of arith::IntSet as the result of
+ * analysis
  */
 TVM_DLL Optional<Array<IntSet>> EstimateRegionStrictBound(const Array<Range>& region,
                                                           const Map<Var, Range>& var_dom,
@@ -313,7 +314,8 @@ TVM_DLL Optional<Array<IntSet>> EstimateRegionStrictBound(const Array<Range>& re
  * \param var_dom The ranges of the variables
  * \param predicate The predicate for the affine map
  * \param analyzer The analyzer used
- * \return NullOpt if the detection fails, or an array of arith::IntSet as the result of analysis
+ * \return std::nullopt if the detection fails, or an array of arith::IntSet as the result of
+ * analysis
  */
 TVM_DLL Optional<Array<IntSet>> EstimateRegionLowerBound(const Array<Range>& region,
                                                          const Map<Var, Range>& var_dom,

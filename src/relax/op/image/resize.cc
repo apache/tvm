@@ -29,12 +29,14 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({ Resize2DAttrs::RegisterReflection(); });
+
 /* relax.resize2d */
 TVM_REGISTER_NODE_TYPE(Resize2DAttrs);
 
 Expr resize2d(Expr data, Expr size, Array<FloatImm> roi, String layout, String method,
               String coordinate_transformation_mode, String rounding_method, double cubic_alpha,
-              int cubic_exclude, double extrapolation_value, DataType out_dtype) {
+              int cubic_exclude, double extrapolation_value, Optional<DataType> out_dtype) {
   ObjectPtr<Resize2DAttrs> attrs = make_object<Resize2DAttrs>();
   attrs->roi = std::move(roi);
   attrs->layout = std::move(layout);
@@ -44,13 +46,13 @@ Expr resize2d(Expr data, Expr size, Array<FloatImm> roi, String layout, String m
   attrs->cubic_alpha = cubic_alpha;
   attrs->cubic_exclude = cubic_exclude;
   attrs->extrapolation_value = extrapolation_value;
-  attrs->out_dtype = out_dtype;
+  attrs->out_dtype = out_dtype.value_or(DataType::Void());
 
   static const Op& op = Op::Get("relax.image.resize2d");
   return Call(op, {std::move(data), std::move(size)}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.image.resize2d").set_body_typed(resize2d);
+TVM_FFI_REGISTER_GLOBAL("relax.op.image.resize2d").set_body_typed(resize2d);
 
 StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1 && call->args.size() != 2) {

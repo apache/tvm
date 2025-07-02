@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -25,8 +27,11 @@ class UnionDatabaseNode : public DatabaseNode {
  public:
   Array<Database> databases;
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("databases", &databases); }
-
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<UnionDatabaseNode>().def_ro("databases", &UnionDatabaseNode::databases);
+  }
+  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "meta_schedule.UnionDatabase";
   TVM_DECLARE_FINAL_OBJECT_INFO(UnionDatabaseNode, DatabaseNode);
 
@@ -41,7 +46,7 @@ class UnionDatabaseNode : public DatabaseNode {
       }
     }
     std::stable_sort(results.begin(), results.end(), SortTuningRecordByMeanRunSecs());
-    return results.empty() ? Optional<TuningRecord>(NullOpt) : results[0];
+    return results.empty() ? Optional<TuningRecord>(std::nullopt) : results[0];
   }
 
   bool HasWorkload(const IRModule& mod) final {
@@ -82,7 +87,10 @@ Database Database::UnionDatabase(Array<Database> databases) {
 }
 
 TVM_REGISTER_NODE_TYPE(UnionDatabaseNode);
-TVM_REGISTER_GLOBAL("meta_schedule.DatabaseUnionDatabase").set_body_typed(Database::UnionDatabase);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseUnionDatabase")
+    .set_body_typed(Database::UnionDatabase);
+
+TVM_FFI_STATIC_INIT_BLOCK({ UnionDatabaseNode::RegisterReflection(); });
 
 }  // namespace meta_schedule
 }  // namespace tvm

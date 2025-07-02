@@ -26,6 +26,7 @@
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
+#include <tvm/runtime/module.h>
 
 #include "../../support/ordered_set.h"
 #include "utils.h"
@@ -35,7 +36,7 @@ namespace relax {
 
 class CodeGenRunner : ExprMutator {
  public:
-  using OptionMap = Map<String, ObjectRef>;
+  using OptionMap = Map<String, ffi::Any>;
 
   explicit CodeGenRunner(IRModule mod) : ExprMutator(mod) {}
 
@@ -43,7 +44,7 @@ class CodeGenRunner : ExprMutator {
                Array<String> entry_function_names) {
     IRModule mod = builder_->GetContextIRModule();
 
-    support::OrderedSet<GlobalVar> entry_functions;
+    support::OrderedSet<GlobalVar, ObjectPtrHash, ObjectPtrEqual> entry_functions;
     // Any user-provided functions are treated as entry functions.
     for (const auto& name : entry_function_names) {
       entry_functions.insert(mod->GetGlobalVar(name));
@@ -128,11 +129,10 @@ class CodeGenRunner : ExprMutator {
           extern_funcs_[gvar_node] = new_func;
           // Remove the global symbol and codegen attributes from the function so that it can be
           // removed the module.
-          static const runtime::PackedFunc* RemoveFuncAttrFunc =
-              runtime::Registry::Get("ir.BaseFuncWithoutAttr");
-          ICHECK(RemoveFuncAttrFunc);
-          func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol);
-          func = (*RemoveFuncAttrFunc)(func, attr::kCodegen);
+          const auto RemoveFuncAttrFunc = tvm::ffi::Function::GetGlobal("ir.BaseFuncWithoutAttr");
+          ICHECK(RemoveFuncAttrFunc.has_value());
+          func = (*RemoveFuncAttrFunc)(func, tvm::attr::kGlobalSymbol).cast<Function>();
+          func = (*RemoveFuncAttrFunc)(func, attr::kCodegen).cast<Function>();
           builder_->UpdateFunction(gvar, func);
           return create_call_dps_packed(new_func, ret_sinfo);
         }
@@ -188,14 +188,15 @@ class CodeGenRunner : ExprMutator {
     Array<runtime::Module> ext_mods;
 
     for (const auto& [target, functions] : target_functions) {
-      OptionMap options = target_options.Get(target).value_or({});
+      OptionMap options = target_options.Get(target).value_or(OptionMap());
       // Start the codegen process.
       // Get the codegen with its ffi key.
       String codegen_name = "relax.ext." + target;
-      auto codegen = runtime::Registry::Get(codegen_name);
-      ICHECK(codegen) << "Codegen is not found: " << codegen_name << "\n";
+      const auto codegen = tvm::ffi::Function::GetGlobal(codegen_name);
+      ICHECK(codegen.has_value()) << "Codegen is not found: " << codegen_name << "\n";
 
-      Array<runtime::Module> compiled_functions = (*codegen)(functions, options, constant_names);
+      Array<runtime::Module> compiled_functions =
+          (*codegen)(functions, options, constant_names).cast<Array<runtime::Module>>();
       ext_mods.insert(ext_mods.end(), compiled_functions.begin(), compiled_functions.end());
     }
 
@@ -211,16 +212,15 @@ class CodeGenRunner : ExprMutator {
 }  // namespace relax
 
 namespace transform {
-Pass RunCodegen(Optional<Map<String, Map<String, ObjectRef>>> target_options,
+Pass RunCodegen(Optional<Map<String, Map<String, ffi::Any>>> target_options,
                 Array<String> entry_functions) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule m, PassContext pc) {
     return relax::CodeGenRunner(m).Run(target_options, entry_functions);
   };
   return CreateModulePass(pass_func, 0, "RunCodegen", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.RunCodegen").set_body_typed(RunCodegen);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.RunCodegen").set_body_typed(RunCodegen);
 
 }  // namespace transform
 }  // namespace tvm

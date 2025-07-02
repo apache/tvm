@@ -24,17 +24,19 @@
 
 #include "./regex.h"
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 namespace tvm {
 namespace runtime {
 
 bool regex_match(const std::string& match_against, const std::string& regex_pattern) {
-  const auto* regex_match_func = tvm::runtime::Registry::Get("tvm.runtime.regex_match");
-  CHECK(regex_match_func) << "RuntimeError: "
-                          << "The PackedFunc 'tvm.runtime.regex_match' has not been registered.  "
-                          << "This can occur if the TVM Python library has not yet been imported.";
-  return (*regex_match_func)(regex_pattern, match_against);
+  const auto regex_match_func = tvm::ffi::Function::GetGlobal("tvm.runtime.regex_match");
+  if (!regex_match_func.has_value()) {
+    TVM_FFI_THROW(RuntimeError)
+        << "The ffi::Function 'tvm.runtime.regex_match' has not been registered.  "
+        << "This can occur if the TVM Python library has not yet been imported.";
+  }
+  return (*regex_match_func)(regex_pattern, match_against).cast<bool>();
 }
 
 }  // namespace runtime

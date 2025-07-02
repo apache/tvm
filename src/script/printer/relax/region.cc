@@ -88,7 +88,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           Array<ExprDoc> non_dataflow_vars;
           Array<StmtDoc> stmts = PrintBindingBlock(n, n_p, d, &non_dataflow_vars);
           stmts.push_back(ExprStmtDoc(Relax(d, "output")->Call(non_dataflow_vars)));
-          return ScopeDoc(NullOpt, Relax(d, "dataflow")->Call({}), stmts);
+          return ScopeDoc(std::nullopt, Relax(d, "dataflow")->Call({}), stmts);
         });
 
 TVM_SCRIPT_REPR(relax::SeqExprNode, ReprPrintRelax);

@@ -24,12 +24,13 @@
 
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/serializer.h>
 
 #include <fstream>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace tvm {
@@ -38,12 +39,17 @@ namespace runtime {
 void FunctionInfo::Save(dmlc::JSONWriter* writer) const {
   std::vector<std::string> sarg_types(arg_types.size());
   for (size_t i = 0; i < arg_types.size(); ++i) {
-    sarg_types[i] = DLDataType2String(arg_types[i]);
+    sarg_types[i] = DLDataTypeToString(arg_types[i]);
   }
   writer->BeginObject();
   writer->WriteObjectKeyValue("name", name);
   writer->WriteObjectKeyValue("arg_types", sarg_types);
   writer->WriteObjectKeyValue("launch_param_tags", launch_param_tags);
+  std::vector<int> iarg_extra_tags(arg_extra_tags.size());
+  for (size_t i = 0; i < arg_extra_tags.size(); ++i) {
+    iarg_extra_tags[i] = static_cast<int>(arg_extra_tags[i]);
+  }
+  writer->WriteObjectKeyValue("arg_extra_tags", iarg_extra_tags);
   writer->EndObject();
 }
 
@@ -55,10 +61,16 @@ void FunctionInfo::Load(dmlc::JSONReader* reader) {
   helper.DeclareOptionalField("launch_param_tags", &launch_param_tags);
   helper.DeclareOptionalField("thread_axis_tags",
                               &launch_param_tags);  // for backward compatibility
+  std::vector<int> iarg_extra_tags;
+  helper.DeclareOptionalField("arg_extra_tags", &iarg_extra_tags);
+  arg_extra_tags.resize(iarg_extra_tags.size());
+  for (size_t i = 0; i < arg_extra_tags.size(); ++i) {
+    arg_extra_tags[i] = static_cast<ArgExtraTags>(iarg_extra_tags[i]);
+  }
   helper.ReadAllFields(reader);
   arg_types.resize(sarg_types.size());
   for (size_t i = 0; i < arg_types.size(); ++i) {
-    arg_types[i] = String2DLDataType(sarg_types[i]);
+    arg_types[i] = StringToDLDataType(sarg_types[i]);
   }
 }
 
@@ -66,12 +78,14 @@ void FunctionInfo::Save(dmlc::Stream* writer) const {
   writer->Write(name);
   writer->Write(arg_types);
   writer->Write(launch_param_tags);
+  writer->Write(arg_extra_tags);
 }
 
 bool FunctionInfo::Load(dmlc::Stream* reader) {
   if (!reader->Read(&name)) return false;
   if (!reader->Read(&arg_types)) return false;
   if (!reader->Read(&launch_param_tags)) return false;
+  if (!reader->Read(&arg_extra_tags)) return false;
   return true;
 }
 
@@ -236,25 +250,23 @@ std::string SaveParams(const Map<String, NDArray>& params) {
   return bytes;
 }
 
-TVM_REGISTER_GLOBAL("runtime.SaveParams").set_body_typed([](const Map<String, NDArray>& params) {
-  std::string s = ::tvm::runtime::SaveParams(params);
-  // copy return array so it is owned by the ret value
-  TVMRetValue rv;
-  rv = TVMByteArray{s.data(), s.size()};
-  return rv;
-});
+TVM_FFI_REGISTER_GLOBAL("runtime.SaveParams")
+    .set_body_typed([](const Map<String, NDArray>& params) {
+      std::string s = ::tvm::runtime::SaveParams(params);
+      return ffi::Bytes(std::move(s));
+    });
 
-TVM_REGISTER_GLOBAL("runtime.SaveParamsToFile")
+TVM_FFI_REGISTER_GLOBAL("runtime.SaveParamsToFile")
     .set_body_typed([](const Map<String, NDArray>& params, const String& path) {
       tvm::runtime::SimpleBinaryFileStream strm(path, "wb");
       SaveParams(&strm, params);
     });
 
-TVM_REGISTER_GLOBAL("runtime.LoadParams").set_body_typed([](const String& s) {
+TVM_FFI_REGISTER_GLOBAL("runtime.LoadParams").set_body_typed([](const ffi::Bytes& s) {
   return ::tvm::runtime::LoadParams(s);
 });
 
-TVM_REGISTER_GLOBAL("runtime.LoadParamsFromFile").set_body_typed([](const String& path) {
+TVM_FFI_REGISTER_GLOBAL("runtime.LoadParamsFromFile").set_body_typed([](const String& path) {
   tvm::runtime::SimpleBinaryFileStream strm(path, "rb");
   return LoadParams(&strm);
 });

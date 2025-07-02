@@ -335,8 +335,8 @@ def MakePackedAPI():
 
     Prior to this pass, the PrimFunc may have Buffer arguments defined
     in the `PrimFuncNode::buffer_map`.  This pass consumes the
-    `buffer_map`, using it to generate `TVMArgs` and `TVMRetValue*`
-    arguments that implement the `PackedFunc` API.
+    `buffer_map`, using it to generate arguments that implement
+    the packed based TVM FFI API.
 
     For static shapes, the `BufferNode::shape`, `BufferNode::strides`,
     and `BufferNode::elem_offset` member variables are used to
@@ -513,17 +513,6 @@ def LowerTVMBuiltin():
     return _ffi_api.LowerTVMBuiltin()  # type: ignore
 
 
-def LegalizePackedCalls():
-    """Legalize packed calls to have its arguments wrapped in TVMValues
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LegalizePackedCalls()  # type: ignore
-
-
 def LowerIntrin():
     """Lower target specific intrinsic calls.
 
@@ -635,7 +624,7 @@ def HoistIfThenElse(variant: Optional[str] = None):
         Default variant supports all hoisting scenarios,i.e., {"Basic" + "Advanced"}
         supported with control with PassContext configs like below:
 
-            config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
+            config={"tir.HoistIfThenElse": {"support_block_scope_hoisting": True}}
 
     Returns
     -------

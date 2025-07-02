@@ -487,24 +487,24 @@ class TVMUtils {
     }
   }
 
-  static void AttrFromArg(const TVMArgValue& arg, std::string& target) {
-    target = arg.operator std::string();
+  static void AttrFromArg(const ffi::AnyView& arg, std::string& target) {
+    target = arg.cast<std::string>();
   }
 
-  static void AttrFromArg(const TVMArgValue& arg, bool& target) { target = arg; }
+  static void AttrFromArg(const ffi::AnyView& arg, bool& target) { target = arg; }
 
-  static void AttrFromArg(const TVMArgValue& arg, int& target) { target = arg; }
+  static void AttrFromArg(const ffi::AnyView& arg, int& target) { target = arg; }
 
-  static void AttrFromArg(const TVMArgValue& arg, size_t& target) { target = int(arg); }
+  static void AttrFromArg(const ffi::AnyView& arg, size_t& target) { target = int(arg); }
 
-  static void AttrFromArg(const TVMArgValue& arg, long& target) { target = int64_t(arg); }
+  static void AttrFromArg(const ffi::AnyView& arg, long& target) { target = int64_t(arg); }
 
-  static void AttrFromArg(const TVMArgValue& arg, float& target) { target = double(arg); }
+  static void AttrFromArg(const ffi::AnyView& arg, float& target) { target = double(arg); }
 
-  static void AttrFromArg(const TVMArgValue& arg, double& target) { target = arg; }
+  static void AttrFromArg(const ffi::AnyView& arg, double& target) { target = arg; }
 
   template <typename T>
-  static void AttrFromArgs(const TVMArgs& args, size_t start, size_t num, std::vector<T>& target) {
+  static void AttrFromArgs(const ffi::PackedArgs& args, size_t start, size_t num, std::vector<T>& target) {
     for (size_t i = 0; i < num; i++) {
       AttrFromArg(args[start + i], target[i]);
     }

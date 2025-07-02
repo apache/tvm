@@ -173,7 +173,7 @@ class TFV1BatchnormCodeGen : public TFV1OpCode {
     for (size_t i = 0; i < weight_names.size(); i++) {
       const auto& w_doc = DocUtils::ToStr(node()->WeightAt(weight_names[i])->name);
       stack_.inplace_start("tf_v1.constant_initializer", init_names[i] + "_initializer")
-          .inplace_start("asnumpy", NullOpt, DocUtils::ToIndex("weights", w_doc))
+          .inplace_start("asnumpy", std::nullopt, DocUtils::ToIndex("weights", w_doc))
           .inplace_end()
           .inplace_end();
     }

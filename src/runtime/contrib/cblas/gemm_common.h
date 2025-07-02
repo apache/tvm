@@ -25,8 +25,8 @@
 #ifndef TVM_RUNTIME_CONTRIB_CBLAS_GEMM_COMMON_H_
 #define TVM_RUNTIME_CONTRIB_CBLAS_GEMM_COMMON_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/data_type.h>
-#include <tvm/runtime/registry.h>
 
 #include <algorithm>
 #include <string>
@@ -34,8 +34,8 @@
 namespace tvm {
 namespace contrib {
 
-using runtime::TVMArgs;
-using runtime::TVMRetValue;
+using ffi::Any;
+using ffi::PackedArgs;
 using runtime::TypeMatch;
 
 inline int ColumnStride(const DLTensor* tensor) {
@@ -73,12 +73,12 @@ inline int ColumnCount(const DLTensor* tensor, bool trans, int batch_offset = 0)
 // Call a column major blas.  Note that data is stored in tvm as row
 // major, so this we switch the arguments.
 template <typename TGemmOp>
-inline void CallGemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
-  DLTensor* A = args[0];
-  DLTensor* B = args[1];
-  DLTensor* C = args[2];
-  bool transa = args[3];
-  bool transb = args[4];
+inline void CallGemm(ffi::PackedArgs args, ffi::Any* ret, TGemmOp op) {
+  auto A = args[0].cast<DLTensor*>();
+  auto B = args[1].cast<DLTensor*>();
+  auto C = args[2].cast<DLTensor*>();
+  bool transa = args[3].cast<bool>();
+  bool transb = args[4].cast<bool>();
   int bit_depth = sizeof(typename TGemmOp::TDatatype) * 8;
   ICHECK_EQ(A->ndim, 2);
   ICHECK_EQ(B->ndim, 2);
@@ -97,8 +97,8 @@ inline void CallGemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
 
   ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
   ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
-  double alpha = args.size() > 5 ? args[5] : 1.0;
-  double beta = args.size() > 6 ? args[6] : 0.0;
+  double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
+  double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
   op(transb, transa, ColumnCount(B, transb), RowCount(A, transa), ColumnCount(A, transa),
      static_cast<typename TGemmOp::TDatatype>(alpha),
      reinterpret_cast<typename TGemmOp::TDatatype*>(static_cast<char*>(B->data) + B->byte_offset),
@@ -112,12 +112,12 @@ inline void CallGemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
 // Call a column major blas.  Note that data is stored in tvm as row
 // major, so this we switch the arguments.
 template <typename TGemmOp>
-inline void CallU8S8S32Gemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
-  DLTensor* A = args[0];
-  DLTensor* B = args[1];
-  DLTensor* C = args[2];
-  bool transa = args[3];
-  bool transb = args[4];
+inline void CallU8S8S32Gemm(ffi::PackedArgs args, ffi::Any* ret, TGemmOp op) {
+  auto A = args[0].cast<DLTensor*>();
+  auto B = args[1].cast<DLTensor*>();
+  auto C = args[2].cast<DLTensor*>();
+  bool transa = args[3].cast<bool>();
+  bool transb = args[4].cast<bool>();
 
   // Set the sgemm attributes. Currently, support is limited to CblasFixOffset with all offsets
   // equal to 0. This is sufficient for  dense.
@@ -145,8 +145,8 @@ inline void CallU8S8S32Gemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
   ICHECK(TypeMatch(A->dtype, kDLUInt, 8));
   ICHECK(TypeMatch(B->dtype, kDLInt, 8));
   ICHECK(TypeMatch(C->dtype, kDLInt, 32));
-  double alpha = args.size() > 5 ? args[5] : 1.0;
-  double beta = args.size() > 6 ? args[6] : 0.0;
+  double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
+  double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
   op(transb, transa, ColumnCount(B, transb), RowCount(A, transa), ColumnCount(A, transa),
      static_cast<float>(alpha),
      reinterpret_cast<void*>(static_cast<char*>(B->data) + B->byte_offset), ColumnStride(B),
@@ -181,13 +181,13 @@ inline int BatchCount3D(DLTensor* tensor) { return tensor->shape[0]; }
 inline int RowCount3D(DLTensor* tensor, bool trans) { return tensor->shape[trans ? 2 : 1]; }
 inline int ColumnCount3D(DLTensor* tensor, bool trans) { return tensor->shape[trans ? 1 : 2]; }
 template <typename TBatchGemmOp>
-inline void CallBatchGemm(TVMArgs args, TVMRetValue* ret, TBatchGemmOp op) {
+inline void CallBatchGemm(ffi::PackedArgs args, ffi::Any* ret, TBatchGemmOp op) {
   using DType = typename TBatchGemmOp::TDatatype;
-  DLTensor* A = args[0];
-  DLTensor* B = args[1];
-  DLTensor* C = args[2];
-  bool transa = args[3];
-  bool transb = args[4];
+  auto A = args[0].cast<DLTensor*>();
+  auto B = args[1].cast<DLTensor*>();
+  auto C = args[2].cast<DLTensor*>();
+  bool transa = args[3].cast<bool>();
+  bool transb = args[4].cast<bool>();
 
   int bit_depth = sizeof(DType) * 8;
 
@@ -209,8 +209,8 @@ inline void CallBatchGemm(TVMArgs args, TVMRetValue* ret, TBatchGemmOp op) {
   ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
   ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
 
-  double alpha = args.size() > 5 ? args[5] : 1.0;
-  double beta = args.size() > 6 ? args[6] : 0.0;
+  double alpha = args.size() > 5 ? args[5].cast<double>() : 1.0;
+  double beta = args.size() > 6 ? args[6].cast<double>() : 0.0;
 
   int A_stride = A->shape[1] * A->shape[2];
   int B_stride = B->shape[1] * B->shape[2];

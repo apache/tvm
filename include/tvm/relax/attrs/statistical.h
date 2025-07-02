@@ -30,35 +30,46 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes for statistical operators */
-struct StatisticalAttrs : public tvm::AttrsNode<StatisticalAttrs> {
+struct StatisticalAttrs : public AttrsNodeReflAdapter<StatisticalAttrs> {
   Optional<Array<Integer>> axis;
   bool keepdims;
 
-  TVM_DECLARE_ATTRS(StatisticalAttrs, "relax.attrs.StatisticalAttrs") {
-    TVM_ATTR_FIELD(axis).describe("The axis or axes along which to perform the reduction.");
-    TVM_ATTR_FIELD(keepdims).describe(
-        "If this is set to `True`, the reduced axes are left in the result as dimension with size "
-        "one.");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<StatisticalAttrs>()
+        .def_ro("axis", &StatisticalAttrs::axis,
+                "The axis or axes along which to perform the reduction.")
+        .def_ro("keepdims", &StatisticalAttrs::keepdims,
+                "If this is set to `True`, the reduced axes are left in the result as dimension "
+                "with size "
+                "one.");
   }
+
+  static constexpr const char* _type_key = "relax.attrs.StatisticalAttrs";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(StatisticalAttrs, BaseAttrsNode);
 };  // struct StatisticalAttrs
 
 /*! \brief Attributes used in scan operators like cumsum, cumprod */
-struct ScanopAttrs : public tvm::AttrsNode<ScanopAttrs> {
-  Optional<Integer> axis;
+struct ScanopAttrs : public AttrsNodeReflAdapter<ScanopAttrs> {
+  Optional<int64_t> axis;
   DataType dtype;
   Bool exclusive = Bool(false);
 
-  TVM_DECLARE_ATTRS(ScanopAttrs, "relax.attrs.ScanopAttrs") {
-    TVM_ATTR_FIELD(axis).describe(
-        "The axis along which to perform the scan computation."
-        "The default (None) is to compute over the flattened array.");
-    TVM_ATTR_FIELD(dtype).describe(
-        "The output data type."
-        "If dtype is not specified, it defaults to the dtype of input data.");
-    TVM_ATTR_FIELD(exclusive)
-        .describe("The first element is not included")
-        .set_default(Bool(false));
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ScanopAttrs>()
+        .def_ro("axis", &ScanopAttrs::axis,
+                "The axis along which to perform the scan computation."
+                "The default (None) is to compute over the flattened array.")
+        .def_ro("dtype", &ScanopAttrs::dtype,
+                "The output data type."
+                "If dtype is not specified, it defaults to the dtype of input data.")
+        .def_ro("exclusive", &ScanopAttrs::exclusive, "The first element is not included",
+                refl::DefaultValue(Bool(false)));
   }
+
+  static constexpr const char* _type_key = "relax.attrs.ScanopAttrs";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(ScanopAttrs, BaseAttrsNode);
 };  // struct ScanopAttrs
 
 }  // namespace relax

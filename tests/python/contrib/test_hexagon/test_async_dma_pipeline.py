@@ -25,6 +25,7 @@ from tvm.script import tir as T
 VRMPY_SIZE_B = 128
 VRMPY_SIZE_INT32 = 32
 
+
 # pylint: disable=invalid-name
 @T.prim_func
 def conv2d_async_non_contig(
@@ -294,7 +295,7 @@ def evaluate(
 
     time = timer(a_hexagon, b_hexagon, c_hexagon)
     if expected_output is not None:
-        tvm.testing.assert_allclose(c_hexagon.asnumpy(), expected_output)
+        tvm.testing.assert_allclose(c_hexagon.numpy(), expected_output)
     return round(time.mean * 1000, 4)
 
 

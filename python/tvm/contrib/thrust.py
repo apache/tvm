@@ -17,7 +17,7 @@
 """Utilities for thrust"""
 import logging
 
-from tvm._ffi import get_global_func
+from tvm.ffi import get_global_func
 
 
 def maybe_warn(target, func_name):

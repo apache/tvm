@@ -24,7 +24,7 @@
 #ifndef TVM_TARGET_SPIRV_IR_BUILDER_H_
 #define TVM_TARGET_SPIRV_IR_BUILDER_H_
 
-#include <tvm/runtime/packed_func.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/expr.h>
 
 // clang-format off
@@ -222,7 +222,7 @@ class InstrBuilder {
   InstrBuilder& AddSeq(Args&&... args) {
     AddSeqHelper helper;
     helper.builder = this;
-    runtime::detail::for_each(helper, std::forward<Args>(args)...);
+    ffi::details::for_each(helper, std::forward<Args>(args)...);
     return *this;
   }
   /*!

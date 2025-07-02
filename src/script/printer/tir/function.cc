@@ -95,20 +95,20 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             ObjectPath buffer_p = p->Attr("buffer_map")->MapValue(var);
             IdDoc lhs = DefineBuffer(buffer, *f, d);
             ExprDoc annotation = BufferAttn(buffer, buffer_p, *f, d);
-            args.push_back(AssignDoc(lhs, NullOpt, annotation));
+            args.push_back(AssignDoc(lhs, std::nullopt, annotation));
             buffer_inlined.insert(buffer.get());
             continue;
           }
         }
         ExprDoc a = d->AsDoc<ExprDoc>(var->type_annotation, var_p->Attr("type_annotation"));
-        args.push_back(AssignDoc(DefineVar(var, *f, d), NullOpt, a));
+        args.push_back(AssignDoc(DefineVar(var, *f, d), std::nullopt, a));
       }
       // Step 2. Handle `func->attrs`
       if (func->attrs.defined() && !func->attrs->dict.empty()) {
         // for global symbol, don't display it if it matches the func name
         if (func->attrs->dict.count(tvm::attr::kGlobalSymbol) &&
             Downcast<String>(func->attrs->dict.at(tvm::attr::kGlobalSymbol)) == func_name->name) {
-          Map<String, ObjectRef> new_attrs;
+          Map<String, Any> new_attrs;
           for (auto kv : func->attrs->dict) {
             if (kv.first != tvm::attr::kGlobalSymbol) {
               new_attrs.Set(kv.first, kv.second);
@@ -138,7 +138,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ExprDoc lhs = DefineBuffer(buffer, *f, d);
           ExprDoc rhs = BufferDecl(buffer, "match_buffer", {param_doc}, buffer_p, *f, d,
                                    BufferVarDefinition::MatchBuffer);
-          (*f)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+          (*f)->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
         }
       }
       // Step 4. Handle `func->body`
@@ -159,7 +159,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             }
           }
         }
-        return NullOpt;
+        return std::nullopt;
       }();
       if (d->cfg->syntax_sugar && implicit_root_block) {
         tir::Block root_block = implicit_root_block.value();
@@ -172,13 +172,13 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           IdDoc lhs = DefineBuffer(buffer, *f, d);
           ExprDoc rhs = BufferDecl(buffer, "alloc_buffer", {}, buffer_p, *f, d,
                                    BufferVarDefinition::DataPointer);
-          (*f)->stmts.push_back(AssignDoc(lhs, rhs, NullOpt));
+          (*f)->stmts.push_back(AssignDoc(lhs, rhs, std::nullopt));
         }
         AsDocBody(root_block->body, root_block_p->Attr("body"), f->get(), d);
       } else {
         AsDocBody(func->body, p->Attr("body"), f->get(), d);
       }
-      Optional<ExprDoc> ret_type = NullOpt;
+      Optional<ExprDoc> ret_type = std::nullopt;
       if (func->ret_type.defined()) {
         const auto* as_tuple = func->ret_type.as<TupleTypeNode>();
         if (!as_tuple || as_tuple->fields.size()) {

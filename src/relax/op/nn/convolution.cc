@@ -29,12 +29,20 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  Conv1DAttrs::RegisterReflection();
+  Conv2DAttrs::RegisterReflection();
+  Conv3DAttrs::RegisterReflection();
+  Conv1DTransposeAttrs::RegisterReflection();
+  Conv2DTransposeAttrs::RegisterReflection();
+});
+
 /* relax.nn.conv1d */
 TVM_REGISTER_NODE_TYPE(Conv1DAttrs);
 
 Expr conv1d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
             Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-            Optional<String> out_layout, DataType out_dtype) {
+            Optional<String> out_layout, Optional<DataType> out_dtype) {
   padding = GetCompletePadding1D(std::move(padding));
 
   CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
@@ -48,10 +56,10 @@ Expr conv1d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding
   return MakeConv<Conv1DAttrs>(std::move(data), std::move(weight), std::move(strides),
                                std::move(padding), std::move(dilation), groups, data_layout,
                                std::move(kernel_layout), out_layout.value_or(data_layout),
-                               out_dtype, /*op_name=*/"relax.nn.conv1d");
+                               out_dtype.value_or(DataType::Void()), /*op_name=*/"relax.nn.conv1d");
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.conv1d").set_body_typed(conv1d);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.conv1d").set_body_typed(conv1d);
 
 StructInfo InferStructInfoConv1d(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -191,7 +199,7 @@ TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
 Expr conv2d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
             Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-            Optional<String> out_layout, DataType out_dtype) {
+            Optional<String> out_layout, Optional<DataType> out_dtype) {
   padding = GetCompletePadding2D(std::move(padding));
   if (strides.size() == 1) {
     strides.push_back(strides[0]);
@@ -211,10 +219,10 @@ Expr conv2d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding
   return MakeConv<Conv2DAttrs>(std::move(data), std::move(weight), std::move(strides),
                                std::move(padding), std::move(dilation), groups, data_layout,
                                std::move(kernel_layout), out_layout.value_or(data_layout),
-                               out_dtype, /*op_name=*/"relax.nn.conv2d");
+                               out_dtype.value_or(DataType::Void()), /*op_name=*/"relax.nn.conv2d");
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.conv2d").set_body_typed(conv2d);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.conv2d").set_body_typed(conv2d);
 
 StructInfo InferStructInfoConv2d(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -388,7 +396,7 @@ TVM_REGISTER_NODE_TYPE(Conv3DAttrs);
 
 Expr conv3d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
             Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
-            Optional<String> out_layout, DataType out_dtype) {
+            Optional<String> out_layout, Optional<DataType> out_dtype) {
   padding = GetCompletePadding3D(std::move(padding));
   if (strides.size() == 1) {
     strides.push_back(strides[0]);
@@ -410,10 +418,10 @@ Expr conv3d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding
   return MakeConv<Conv3DAttrs>(std::move(data), std::move(weight), std::move(strides),
                                std::move(padding), std::move(dilation), groups, data_layout,
                                std::move(kernel_layout), out_layout.value_or(data_layout),
-                               out_dtype, /*op_name=*/"relax.nn.conv3d");
+                               out_dtype.value_or(DataType::Void()), /*op_name=*/"relax.nn.conv3d");
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.conv3d").set_body_typed(conv3d);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.conv3d").set_body_typed(conv3d);
 
 StructInfo InferStructInfoConv3d(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -564,7 +572,7 @@ TVM_REGISTER_NODE_TYPE(Conv1DTransposeAttrs);
 Expr conv1d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
                       Array<IntImm> output_padding, Array<IntImm> dilation, int groups,
                       String data_layout, String kernel_layout, Optional<String> out_layout,
-                      DataType out_dtype) {
+                      Optional<DataType> out_dtype) {
   padding = GetCompletePadding1D(std::move(padding));
 
   CHECK_GT(groups, 0) << "The number of groups in convolution is expected to be positive. However, "
@@ -588,12 +596,12 @@ Expr conv1d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntIm
   attrs->data_layout = data_layout;
   attrs->kernel_layout = std::move(kernel_layout);
   attrs->out_layout = std::move(out_layout.value_or(data_layout));
-  attrs->out_dtype = std::move(out_dtype);
+  attrs->out_dtype = std::move(out_dtype.value_or(DataType::Void()));
   const Op& op = Op::Get("relax.nn.conv1d_transpose");
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.conv1d_transpose").set_body_typed(conv1d_transpose);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.conv1d_transpose").set_body_typed(conv1d_transpose);
 
 StructInfo InferStructInfoConv1dTranspose(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -692,7 +700,7 @@ TVM_REGISTER_NODE_TYPE(Conv2DTransposeAttrs);
 Expr conv2d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
                       Array<IntImm> output_padding, Array<IntImm> dilation, int groups,
                       String data_layout, String kernel_layout, Optional<String> out_layout,
-                      DataType out_dtype) {
+                      Optional<DataType> out_dtype) {
   padding = GetCompletePadding2D(std::move(padding));
   if (output_padding.size() == 1) {
     output_padding.push_back(output_padding[0]);
@@ -725,12 +733,12 @@ Expr conv2d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntIm
   attrs->data_layout = data_layout;
   attrs->kernel_layout = std::move(kernel_layout);
   attrs->out_layout = std::move(out_layout.value_or(data_layout));
-  attrs->out_dtype = std::move(out_dtype);
+  attrs->out_dtype = std::move(out_dtype.value_or(DataType::Void()));
   const Op& op = Op::Get("relax.nn.conv2d_transpose");
   return Call(op, {data, weight}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.conv2d_transpose").set_body_typed(conv2d_transpose);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.conv2d_transpose").set_body_typed(conv2d_transpose);
 
 StructInfo InferStructInfoConv2dTranspose(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);

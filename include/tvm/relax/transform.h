@@ -24,11 +24,13 @@
 #ifndef TVM_RELAX_TRANSFORM_H_
 #define TVM_RELAX_TRANSFORM_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/index_map.h>
+
 namespace tvm {
 namespace relax {
 namespace transform {
@@ -38,6 +40,7 @@ using PassInfo = tvm::transform::PassInfo;
 using PassContext = tvm::transform::PassContext;
 using Function = tvm::relax::Function;
 using DataflowBlock = tvm::relax::DataflowBlock;
+using tvm::transform::CreateModulePass;
 
 /*!
  * \brief Create a function pass.
@@ -50,9 +53,9 @@ using DataflowBlock = tvm::relax::DataflowBlock;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreateFunctionPass(
-    const runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
+TVM_DLL Pass CreateFunctionPass(std::function<Function(Function, IRModule, PassContext)> pass_func,
+                                int opt_level, String name, tvm::Array<String> required,
+                                bool traceable = false);
 
 /*!
  * \brief Create a dataflowblock pass.
@@ -66,8 +69,8 @@ TVM_DLL Pass CreateFunctionPass(
  * \return The created dataflowblock pass.
  */
 TVM_DLL Pass CreateDataflowBlockPass(
-    const runtime::TypedPackedFunc<DataflowBlock(DataflowBlock, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
+    std::function<DataflowBlock(DataflowBlock, IRModule, PassContext)> pass_func, int opt_level,
+    String name, tvm::Array<String> required, bool traceable = false);
 
 /*!
  * \brief Perform lambda lifting to lift functions from nested into global.
@@ -148,7 +151,7 @@ TVM_DLL Pass AttachGlobalSymbol();
 
 /*!
  * \brief Transform Relax IR to normal form: transform AST to A-normal form, and fill the
- * checked_type_ and shape_ of expressions.
+ * struct_info_ of expressions.
  *
  * \return The Pass.
  */
@@ -205,13 +208,13 @@ TVM_DLL Pass BindParams(String func_name, Map<ObjectRef, ObjectRef> params);
  *      symbolic variable in each function where it is used.
  *
  * \param func_name The name of the function in which to bind shape
- *      values.  If NullOpt, all functions in the module will be
+ *      values.  If std::nullopt, all functions in the module will be
  *      updated.
  *
  * \return The Pass.
  */
 TVM_DLL Pass BindSymbolicVars(Map<ObjectRef, PrimExpr> binding_map,
-                              Optional<String> func_name = NullOpt);
+                              Optional<String> func_name = std::nullopt);
 
 /*!
  * \brief Fold constant expressions within dataflow blocks.
@@ -245,7 +248,7 @@ TVM_DLL Pass FoldConstant();
  * showing up in the database.
  * \return The Pass.
  */
-TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_warning = false);
+TVM_DLL Pass LegalizeOps(Optional<Map<String, ffi::Function>> cmap, bool enable_warning = false);
 
 /*!
  * \brief Propagate virtual device information.
@@ -377,28 +380,32 @@ class FusionPatternNode : public Object {
 
   /*!
    * \brief The function to determine whether the match result is accepted. This can be
-   * NullOpt if check function is not necessary for this pattern.
+   * std::nullopt if check function is not necessary for this pattern.
    *
    * It should have signature
    * bool(const PatternCheckContext& context)
    */
-  Optional<PackedFunc> check;
+  Optional<ffi::Function> check;
 
   /*!
    * \brief The function to get attributes for fused function
    *
    * It should have signature
-   * Map<String, ObjectRef>(const Map<String, Expr>& context)
+   * Map<String, Any>(const Map<String, Expr>& context)
    */
-  Optional<PackedFunc> attrs_getter;
+  Optional<ffi::Function> attrs_getter;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("pattern", &pattern);
-    v->Visit("annotation_patterns", &annotation_patterns);
-    v->Visit("check", &check);
-    v->Visit("attrs_getter", &attrs_getter);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FusionPatternNode>()
+        .def_ro("name", &FusionPatternNode::name)
+        .def_ro("pattern", &FusionPatternNode::pattern)
+        .def_ro("annotation_patterns", &FusionPatternNode::annotation_patterns)
+        .def_ro("check", &FusionPatternNode::check)
+        .def_ro("attrs_getter", &FusionPatternNode::attrs_getter);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "relax.transform.FusionPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(FusionPatternNode, Object);
@@ -407,10 +414,10 @@ class FusionPatternNode : public Object {
 class FusionPattern : public ObjectRef {
  public:
   FusionPattern(String name, DFPattern pattern, Map<String, DFPattern> annotation_patterns,
-                Optional<PackedFunc> check, Optional<PackedFunc> attrs_getter);
+                Optional<ffi::Function> check, Optional<ffi::Function> attrs_getter);
 
   FusionPattern(String name, DFPattern pattern)
-      : FusionPattern(name, pattern, {}, NullOpt, NullOpt) {}
+      : FusionPattern(name, pattern, {}, std::nullopt, std::nullopt) {}
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FusionPattern, ObjectRef, FusionPatternNode);
 };
@@ -449,13 +456,17 @@ class PatternCheckContextNode : public Object {
    */
   Map<Expr, Var> value_to_bound_var;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("matched_expr", &matched_expr);
-    v->Visit("annotated_expr", &annotated_expr);
-    v->Visit("matched_bindings", &matched_bindings);
-    v->Visit("var_usages", &var_usages);
-    v->Visit("value_to_bound_var", &value_to_bound_var);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PatternCheckContextNode>()
+        .def_ro("matched_expr", &PatternCheckContextNode::matched_expr)
+        .def_ro("annotated_expr", &PatternCheckContextNode::annotated_expr)
+        .def_ro("matched_bindings", &PatternCheckContextNode::matched_bindings)
+        .def_ro("var_usages", &PatternCheckContextNode::var_usages)
+        .def_ro("value_to_bound_var", &PatternCheckContextNode::value_to_bound_var);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "relax.transform.PatternCheckContext";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternCheckContextNode, Object);
@@ -496,7 +507,7 @@ class PatternCheckContext : public ObjectRef {
  *
  * \note ConvertToDataflow may need to be called first to provide dataflow blocks.
  */
-TVM_DLL Pass Gradient(String func_name, Optional<Array<Var>> require_grads = NullOpt,
+TVM_DLL Pass Gradient(String func_name, Optional<Array<Var>> require_grads = std::nullopt,
                       int target_index = 0);
 
 /*!
@@ -546,8 +557,8 @@ TVM_DLL Pass FuseTIR();
  * \param entry_functions list of entry functions
  * \return The Pass.
  */
-TVM_DLL Pass RunCodegen(Optional<Map<String, Map<String, ObjectRef>>> target_options,
-                        Array<runtime::String> entry_functions);
+TVM_DLL Pass RunCodegen(Optional<Map<String, Map<String, ffi::Any>>> target_options,
+                        Array<String> entry_functions);
 
 /*!
  * \brief Decompose composite operators during inference. For example, The result of batch norm (a
@@ -585,8 +596,8 @@ TVM_DLL Pass DecomposeOpsForTraining(Optional<String> func_name);
  */
 TVM_DLL Pass AlterOpImpl(const Map<String, tir::PrimFunc>& op_impl_map,
                          const Map<String, Array<tir::IndexMap>>& op_buffer_transforms,
-                         const Map<String, Array<Array<IntImm>>>& axis_separators,
-                         const Map<String, Array<Array<IntImm>>>& input_axis_separators);
+                         const Map<String, Optional<Array<Array<IntImm>>>>& axis_separators,
+                         const Map<String, Optional<Array<Array<IntImm>>>>& input_axis_separators);
 
 /*!
  * \brief Layout conversion pass.
@@ -621,7 +632,7 @@ TVM_DLL Pass ConvertToDataflow(int min_size = 2);
  *
  * \return The Pass.
  */
-TVM_DLL Pass DeadCodeElimination(Array<runtime::String> entry_functions = {});
+TVM_DLL Pass DeadCodeElimination(Array<String> entry_functions = {});
 
 /*!
  * \brief Pass that changes calls to operators that can be done in-place
@@ -645,7 +656,7 @@ TVM_DLL Pass DataflowUseInplaceCalls();
  * \note Mainly operates within dataflow blocks. ConvertToDataflow may need to be called first.
  */
 TVM_DLL Pass ToMixedPrecision(const DataType& out_dtype,
-                              Optional<Array<String>> fp16_input_names = NullOpt);
+                              Optional<Array<String>> fp16_input_names = std::nullopt);
 
 /*!
  * \brief Rewrite a Relax module for executing with CUDA graph. This pass identifies

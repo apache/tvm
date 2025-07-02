@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -27,12 +29,13 @@ class ScheduleFnNode : public SpaceGeneratorNode {
   /*! \brief The random state. -1 means using random number. */
   TRandState rand_state_ = -1;
   /*! \brief The schedule function. */
-  runtime::PackedFunc schedule_fn_;
+  ffi::Function schedule_fn_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    SpaceGeneratorNode::VisitAttrs(v);
-    // `schedule_fn_` is not visited.
+  static void RegisterReflection() {
+    // `schedule_fn_` is not registered.
   }
+
+  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final {
     SpaceGeneratorNode::InitializeWithTuneContext(context);
@@ -45,20 +48,20 @@ class ScheduleFnNode : public SpaceGeneratorNode {
         /*rand_state=*/ForkSeed(&this->rand_state_),
         /*debug_mode=*/0,
         /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
-    runtime::TVMRetValue rv;
+    ffi::Any rv;
     rv = this->schedule_fn_(sch);
-    if (rv.type_code() == kTVMNullptr) {
+    if (rv == nullptr) {
       return {sch};
     }
-    ObjectRef obj = rv;
+    ObjectRef obj = rv.cast<ObjectRef>();
     if (auto sch = obj.as<tir::Schedule>()) {
       return {sch.value()};
     }
-    if (const auto* arr = obj.as<runtime::ArrayNode>()) {
+    if (const auto* arr = obj.as<ffi::ArrayObj>()) {
       Array<tir::Schedule> result;
       result.reserve(arr->size());
-      for (const ObjectRef& obj : *arr) {
-        if (auto sch = obj.as<tir::Schedule>()) {
+      for (Any val : *arr) {
+        if (auto sch = val.as<tir::Schedule>()) {
           result.push_back(sch.value());
         } else {
           LOG(FATAL) << "TypeError: Expect return type of ScheduleFn to be None, Schedule or "
@@ -84,7 +87,7 @@ class ScheduleFnNode : public SpaceGeneratorNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(ScheduleFnNode, SpaceGeneratorNode);
 };
 
-SpaceGenerator SpaceGenerator::ScheduleFn(PackedFunc schedule_fn,
+SpaceGenerator SpaceGenerator::ScheduleFn(ffi::Function schedule_fn,
                                           Optional<Array<ScheduleRule>> sch_rules,
                                           Optional<Array<Postproc>> postprocs,
                                           Optional<Map<Mutator, FloatImm>> mutator_probs) {
@@ -96,8 +99,10 @@ SpaceGenerator SpaceGenerator::ScheduleFn(PackedFunc schedule_fn,
   return SpaceGenerator(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ ScheduleFnNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(ScheduleFnNode);
-TVM_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorScheduleFn")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorScheduleFn")
     .set_body_typed(SpaceGenerator::ScheduleFn);
 
 }  // namespace meta_schedule

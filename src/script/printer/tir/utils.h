@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_TIR_UTILS_H_
 #define TVM_SCRIPT_PRINTER_TIR_UTILS_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/script/printer/ir_docsifier.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
@@ -48,11 +49,14 @@ class TIRFrameNode : public FrameNode {
   /*! \brief Whether or not the frame allows concise scoping */
   bool allow_concise_scoping{false};
 
-  void VisitAttrs(AttrVisitor* v) {
-    FrameNode::VisitAttrs(v);
-    v->Visit("tir", &tir);
-    v->Visit("allow_concise_scoping", &allow_concise_scoping);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TIRFrameNode>()
+        .def_ro("tir", &TIRFrameNode::tir)
+        .def_ro("allow_concise_scoping", &TIRFrameNode::allow_concise_scoping);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.printer.TIRFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(TIRFrameNode, FrameNode);
@@ -139,7 +143,7 @@ inline void AsDocBody(const tir::Stmt& stmt, ObjectPath p, TIRFrameNode* f, cons
  */
 inline Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsifier& d) {
   if (!d->common_prefix.count(var.get())) {
-    return NullOpt;
+    return std::nullopt;
   }
   int n_frames = d->frames.size();
   std::unordered_map<const Object*, const FrameNode*> tir_to_frame;
@@ -163,7 +167,7 @@ inline Optional<Frame> FindLowestVarDef(const ObjectRef& var, const IRDocsifier&
   if (fallback_frame != nullptr) {
     return GetRef<Frame>(fallback_frame);
   }
-  return NullOpt;
+  return std::nullopt;
 }
 
 /*! \brief Redirected method for the ReprPrinter */

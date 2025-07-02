@@ -38,14 +38,18 @@ namespace relax {
 namespace contrib {
 
 /*! \brief Attributes to store the compiler options for OpenCLML. */
-struct OpenCLMLCompilerConfigNode : public tvm::AttrsNode<OpenCLMLCompilerConfigNode> {
+struct OpenCLMLCompilerConfigNode : public AttrsNodeReflAdapter<OpenCLMLCompilerConfigNode> {
   Integer clml_version;
 
-  TVM_DECLARE_ATTRS(OpenCLMLCompilerConfigNode, "relax.ext.attrs.OpenCLMLCompilerConfigNode") {
-    TVM_ATTR_FIELD(clml_version)
-        .describe("OpenCLML version as (major, minor, patch).")
-        .set_default(Integer(3));
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<OpenCLMLCompilerConfigNode>().def_ro(
+        "clml_version", &OpenCLMLCompilerConfigNode::clml_version,
+        "OpenCLML version as (major, minor, patch).", refl::DefaultValue(Integer(3)));
   }
+
+  static constexpr const char* _type_key = "relax.ext.attrs.OpenCLMLCompilerConfig";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(OpenCLMLCompilerConfigNode, BaseAttrsNode);
 };
 
 class OpenCLMLCompilerConfig : public Attrs {
@@ -53,6 +57,8 @@ class OpenCLMLCompilerConfig : public Attrs {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(OpenCLMLCompilerConfig, Attrs,
                                             OpenCLMLCompilerConfigNode);
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ OpenCLMLCompilerConfigNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(OpenCLMLCompilerConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.ext.clml.options", OpenCLMLCompilerConfig);
@@ -305,8 +311,7 @@ void CollectCLMLFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node)
  * \param functions The extern functions to be compiled via OpenCLML
  * \return Runtime modules.
  */
-Array<runtime::Module> OpenCLMLCompiler(Array<Function> functions,
-                                        Map<String, ObjectRef> /*unused*/,
+Array<runtime::Module> OpenCLMLCompiler(Array<Function> functions, Map<String, Any> /*unused*/,
                                         Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
   for (const auto& func : functions) {
@@ -315,16 +320,15 @@ Array<runtime::Module> OpenCLMLCompiler(Array<Function> functions,
     serializer.serialize(func);
     std::string graph_json = serializer.GetJSON();
     auto constant_names = serializer.GetConstantNames();
-    const auto* pf = runtime::Registry::Get("runtime.clml_runtime_create");
-    ICHECK(pf != nullptr) << "Cannot find OpenCLML runtime module create function.";
+    const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.clml_runtime_create");
     std::string func_name = GetExtSymbol(func);
     VLOG(1) << "Creating clml runtime::Module for '" << func_name << "'";
-    compiled_functions.push_back((*pf)(func_name, graph_json, constant_names));
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<runtime::Module>());
   }
   return compiled_functions;
 }
 
-TVM_REGISTER_GLOBAL("relax.ext.openclml").set_body_typed(OpenCLMLCompiler);
+TVM_FFI_REGISTER_GLOBAL("relax.ext.openclml").set_body_typed(OpenCLMLCompiler);
 
 /*!
  * \brief Check whether OpenCLML graph executor is enabled.
@@ -350,8 +354,9 @@ Integer GetOpenCLMLVersion() {
 #endif  // TVM_GRAPH_EXECUTOR_CLML
 }
 
-TVM_REGISTER_GLOBAL("relax.is_openclml_runtime_enabled").set_body_typed(IsOpenCLMLRuntimeEnabled);
-TVM_REGISTER_GLOBAL("relax.get_openclml_version").set_body_typed(GetOpenCLMLVersion);
+TVM_FFI_REGISTER_GLOBAL("relax.is_openclml_runtime_enabled")
+    .set_body_typed(IsOpenCLMLRuntimeEnabled);
+TVM_FFI_REGISTER_GLOBAL("relax.get_openclml_version").set_body_typed(GetOpenCLMLVersion);
 
 }  // namespace contrib
 }  // namespace relax

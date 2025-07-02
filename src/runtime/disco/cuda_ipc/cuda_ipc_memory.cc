@@ -18,9 +18,9 @@
  */
 
 #include <cuda_runtime.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/disco/cuda_ipc_memory.h>
 #include <tvm/runtime/memory/memory_manager.h>
-#include <tvm/runtime/registry.h>
 
 #include "../../../../3rdparty/tensorrt_llm/custom_allreduce_kernels.h"
 #include "../../cuda/cuda_common.h"
@@ -200,8 +200,8 @@ class CUDAIPCMemoryAllocator final : public memory::PooledAllocator {
  * \param dtype_hint The dtype of the storage to allocate.
  * \return The allocated storage object with internal CUDA IPC memory buffer.
  */
-memory::Storage IPCAllocStorage(ShapeTuple buffer_shape, DLDataType dtype_hint) {
-  auto storage_obj = runtime::SimpleObjAllocator().make_object<memory::StorageObj>();
+memory::Storage IPCAllocStorage(ffi::Shape buffer_shape, DLDataType dtype_hint) {
+  auto storage_obj = ffi::SimpleObjAllocator().make_object<memory::StorageObj>();
   nccl::CCLThreadLocalContext* nccl_ctx = nccl::CCLThreadLocalContext::Get();
   Device device{DLDeviceType::kDLCUDA, nccl_ctx->device_id};
   CUDAIPCMemoryAllocator* allocator = CUDAIPCMemoryAllocator::Global();
@@ -212,11 +212,10 @@ memory::Storage IPCAllocStorage(ShapeTuple buffer_shape, DLDataType dtype_hint) 
   return storage;
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.cuda_ipc.alloc_storage").set_body_typed(IPCAllocStorage);
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.cuda_ipc.alloc_storage").set_body_typed(IPCAllocStorage);
 
-TVM_REGISTER_GLOBAL("runtime.disco.cuda_ipc.cuda_ipc_memory_allocator_clear").set_body_typed([]() {
-  CUDAIPCMemoryAllocator::Global()->Clear();
-});
+TVM_FFI_REGISTER_GLOBAL("runtime.disco.cuda_ipc.cuda_ipc_memory_allocator_clear")
+    .set_body_typed([]() { CUDAIPCMemoryAllocator::Global()->Clear(); });
 
 /******************** CUDAIPCMemoryObj ********************/
 

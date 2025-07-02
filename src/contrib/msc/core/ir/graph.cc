@@ -62,7 +62,7 @@ const JsonMSCTensor MSCTensorNode::ToJson() const {
   JsonMSCTensor j_tensor;
   j_tensor.name = name;
   j_tensor.alias = alias;
-  j_tensor.dtype = runtime::DLDataType2String(dtype);
+  j_tensor.dtype = runtime::DLDataTypeToString(dtype);
   if (layout.defined()) {
     j_tensor.layout = layout.name();
   }
@@ -78,7 +78,7 @@ const JsonMSCTensor MSCTensorNode::ToJson() const {
 void MSCTensorNode::FromJson(const JsonMSCTensor& j_tensor) {
   name = j_tensor.name;
   alias = j_tensor.alias;
-  dtype = DataType(runtime::String2DLDataType(j_tensor.dtype));
+  dtype = DataType(ffi::StringToDLDataType(j_tensor.dtype));
   if (j_tensor.layout.size() > 0) {
     layout = tvm::tir::Layout(j_tensor.layout);
   }
@@ -133,7 +133,7 @@ const Integer MSCTensorNode::GetSize() const {
   return size;
 }
 
-const String MSCTensorNode::DTypeName() const { return runtime::DLDataType2String(dtype); }
+const String MSCTensorNode::DTypeName() const { return runtime::DLDataTypeToString(dtype); }
 
 size_t BaseJointNode::AddChild(const BaseJoint& child) const {
   for (size_t i = 0; i < children.size(); i++) {
@@ -766,11 +766,11 @@ void MSCGraphNode::FromJson(const std::string& json_str) {
 
 const String MSCGraphNode::ToPrototxt() const {
   PrototxtPrinter printer;
-  printer.Append(Map<String, ObjectRef>{{"name", name}});
+  printer.Append(Map<String, ffi::Any>{{"name", name}});
   for (const auto& n : node_names) {
     const auto& node = FindNode(n);
     // define layer
-    std::vector<std::pair<String, ObjectRef>> layer;
+    std::vector<std::pair<String, Any>> layer;
     layer.push_back(std::make_pair("name", node->name));
     layer.push_back(std::make_pair("type", StringUtils::Replace(node->optype, ".", "_")));
     layer.push_back(std::make_pair("top", node->name));
@@ -778,7 +778,7 @@ const String MSCGraphNode::ToPrototxt() const {
       layer.push_back(std::make_pair("bottom", Downcast<BaseJoint>(p)->name));
     }
     // define layer param
-    Map<String, ObjectRef> param;
+    Map<String, ffi::Any> param;
     param.Set("idx", Integer(node->index));
     for (size_t i = 0; i < node->inputs.size(); i++) {
       param.Set("input_" + std::to_string(i), node->InputAt(i));
@@ -794,7 +794,7 @@ const String MSCGraphNode::ToPrototxt() const {
     }
     layer.push_back(std::make_pair("layer_param", PrototxtPrinter::ToDictDoc(param)));
     // Append the layer Map
-    printer.Append(Map<String, ObjectRef>{{"layer", PrototxtPrinter::ToDictDoc(layer)}});
+    printer.Append(Map<String, ffi::Any>{{"layer", PrototxtPrinter::ToDictDoc(layer)}});
   }
   return printer.GetString();
 }
@@ -1196,11 +1196,11 @@ void WeightGraphNode::FromJson(const std::string& json_str) {
 
 const String WeightGraphNode::ToPrototxt() const {
   PrototxtPrinter printer;
-  printer.Append(Map<String, ObjectRef>{{"name", name}});
+  printer.Append(Map<String, ffi::Any>{{"name", name}});
   for (const auto& n : node_names) {
     const auto& node = FindNode(n);
     // define layer
-    std::vector<std::pair<String, ObjectRef>> layer;
+    std::vector<std::pair<String, Any>> layer;
     layer.push_back(std::make_pair("name", node->name));
     layer.push_back(std::make_pair("type", node->weight_type));
     layer.push_back(std::make_pair("top", node->name));
@@ -1208,7 +1208,7 @@ const String WeightGraphNode::ToPrototxt() const {
       layer.push_back(std::make_pair("bottom", Downcast<BaseJoint>(p)->name));
     }
     // define layer param
-    Map<String, ObjectRef> param;
+    Map<String, ffi::Any> param;
     param.Set("idx", Integer(node->index));
     param.Set("weight", node->weight);
     for (size_t i = 0; i < node->friends.size(); i++) {
@@ -1219,7 +1219,7 @@ const String WeightGraphNode::ToPrototxt() const {
     }
     layer.push_back(std::make_pair("layer_param", PrototxtPrinter::ToDictDoc(param)));
     // Append the layer Map
-    printer.Append(Map<String, ObjectRef>{{"layer", PrototxtPrinter::ToDictDoc(layer)}});
+    printer.Append(Map<String, ffi::Any>{{"layer", PrototxtPrinter::ToDictDoc(layer)}});
   }
   return printer.GetString();
 }
@@ -1419,7 +1419,20 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
     });
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  MSCTensorNode::RegisterReflection();
+  BaseJointNode::RegisterReflection();
+  MSCJointNode::RegisterReflection();
+  MSCPrimNode::RegisterReflection();
+  WeightJointNode::RegisterReflection();
+  BaseGraphNode::RegisterReflection();
+  MSCGraphNode::RegisterReflection();
+  WeightGraphNode::RegisterReflection();
+});
+
 TVM_REGISTER_NODE_TYPE(MSCTensorNode);
+
+TVM_REGISTER_NODE_TYPE(BaseJointNode);
 
 TVM_REGISTER_NODE_TYPE(MSCJointNode);
 
@@ -1427,18 +1440,20 @@ TVM_REGISTER_NODE_TYPE(MSCPrimNode);
 
 TVM_REGISTER_NODE_TYPE(WeightJointNode);
 
+TVM_REGISTER_NODE_TYPE(BaseGraphNode);
+
 TVM_REGISTER_NODE_TYPE(MSCGraphNode);
 
 TVM_REGISTER_NODE_TYPE(WeightGraphNode);
 
-TVM_REGISTER_GLOBAL("msc.core.MSCTensor")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCTensor")
     .set_body_typed([](const String& name, const DataType& dtype, const String& layout,
                        const Array<Integer>& shape, const String& alias,
                        const Array<String>& prims) -> MSCTensor {
       return MSCTensor(name, dtype, layout, shape, alias, prims);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCTensorToJson")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCTensorToJson")
     .set_body_typed([](const MSCTensor& tensor) -> String {
       const auto& tensor_json = tensor->ToJson();
       std::ostringstream os;
@@ -1447,10 +1462,10 @@ TVM_REGISTER_GLOBAL("msc.core.MSCTensorToJson")
       return os.str();
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCTensorFromJson")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCTensorFromJson")
     .set_body_typed([](const String& tensor_json) -> MSCTensor { return MSCTensor(tensor_json); });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCJoint")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCJoint")
     .set_body_typed([](Integer index, const String& name, const String& shared_ref,
                        const String& optype, const Map<String, String>& attrs,
                        const Array<String>& scope, const Array<MSCJoint>& parents,
@@ -1464,7 +1479,7 @@ TVM_REGISTER_GLOBAL("msc.core.MSCJoint")
                       weights);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCPrim")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCPrim")
     .set_body_typed([](Integer index, const String& name, const String& optype,
                        const Map<String, String>& attrs, const Array<MSCPrim>& parents) -> MSCPrim {
       Array<BaseJoint> b_parents;
@@ -1474,7 +1489,7 @@ TVM_REGISTER_GLOBAL("msc.core.MSCPrim")
       return MSCPrim(index->value, name, optype, b_parents, attrs);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.WeightJoint")
+TVM_FFI_REGISTER_GLOBAL("msc.core.WeightJoint")
     .set_body_typed([](Integer index, const String& name, const String& shared_ref,
                        const String& weight_type, const MSCTensor& weight,
                        const Array<BaseJoint> parents, const Map<String, String>& attrs,
@@ -1490,108 +1505,109 @@ TVM_REGISTER_GLOBAL("msc.core.WeightJoint")
                          b_friends);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.WeightJointSetAttr")
+TVM_FFI_REGISTER_GLOBAL("msc.core.WeightJointSetAttr")
     .set_body_typed([](const WeightJoint& node, const String& key, const String& value) {
       node->attrs.Set(key, value);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraph")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraph")
     .set_body_typed([](const String& name, const Array<MSCJoint>& nodes,
                        const Array<String>& input_names, const Array<String>& output_names,
                        const Array<MSCPrim>& prims) -> MSCGraph {
       return MSCGraph(name, nodes, input_names, output_names, prims);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.WeightGraph")
+TVM_FFI_REGISTER_GLOBAL("msc.core.WeightGraph")
     .set_body_typed([](const MSCGraph& graph, const Map<String, Array<String>>& main_wtypes,
                        const Map<String, String>& relation_wtypes) -> WeightGraph {
       return WeightGraph(graph, main_wtypes, relation_wtypes);
     });
 
 // MSC Graph APIS
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphHasNode")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphHasNode")
     .set_body_typed([](const MSCGraph& graph, const String& name) -> Bool {
       return Bool(graph->HasNode(name));
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphFindNode")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphFindNode")
     .set_body_typed([](const MSCGraph& graph, const String& name) -> MSCJoint {
       return graph->FindNode(name);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphFindPrim")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphFindPrim")
     .set_body_typed([](const MSCGraph& graph, const String& name) -> MSCPrim {
       return graph->FindPrim(name);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphHasTensor")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphHasTensor")
     .set_body_typed([](const MSCGraph& graph, const String& name) -> Bool {
       return Bool(graph->HasTensor(name));
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphFindTensor")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphFindTensor")
     .set_body_typed([](const MSCGraph& graph, const String& name) -> MSCTensor {
       return graph->FindTensor(name);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphSetTensorAlias")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphSetTensorAlias")
     .set_body_typed([](const MSCGraph& graph, const MSCTensor& tensor, const String& alias) {
       tensor->alias = alias;
       graph->tensor_alias.Set(alias, tensor->name);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphFindProducer")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphFindProducer")
     .set_body_typed([](const MSCGraph& graph, const String& name) -> MSCJoint {
       return graph->FindProducer(name);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphFindConsumers")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphFindConsumers")
     .set_body_typed([](const MSCGraph& graph, const String& name) -> Array<MSCJoint> {
       return graph->FindConsumers(name);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphInputAt")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphInputAt")
     .set_body_typed([](const MSCGraph& graph, int index) -> MSCTensor {
       return graph->InputAt(index);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphOutputAt")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphOutputAt")
     .set_body_typed([](const MSCGraph& graph, int index) -> MSCTensor {
       return graph->OutputAt(index);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphGetInputs")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphGetInputs")
     .set_body_typed([](const MSCGraph& graph) -> Array<MSCTensor> { return graph->GetInputs(); });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphGetOutputs")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphGetOutputs")
     .set_body_typed([](const MSCGraph& graph) -> Array<MSCTensor> { return graph->GetOutputs(); });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphToJson").set_body_typed([](const MSCGraph& graph) -> String {
-  const auto& graph_json = graph->ToJson();
-  std::ostringstream os;
-  dmlc::JSONWriter writer(&os);
-  graph_json.Save(&writer);
-  return os.str();
-});
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphToJson")
+    .set_body_typed([](const MSCGraph& graph) -> String {
+      const auto& graph_json = graph->ToJson();
+      std::ostringstream os;
+      dmlc::JSONWriter writer(&os);
+      graph_json.Save(&writer);
+      return os.str();
+    });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphFromJson")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphFromJson")
     .set_body_typed([](const String& graph_json) -> MSCGraph { return MSCGraph(graph_json); });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCGraphToPrototxt")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCGraphToPrototxt")
     .set_body_typed([](const MSCGraph& graph) -> String { return graph->ToPrototxt(); });
 
 // Weight Graph APIS
-TVM_REGISTER_GLOBAL("msc.core.WeightGraphHasNode")
+TVM_FFI_REGISTER_GLOBAL("msc.core.WeightGraphHasNode")
     .set_body_typed([](const WeightGraph& graph, const String& name) -> Bool {
       return Bool(graph->HasNode(name));
     });
 
-TVM_REGISTER_GLOBAL("msc.core.WeightGraphFindNode")
+TVM_FFI_REGISTER_GLOBAL("msc.core.WeightGraphFindNode")
     .set_body_typed([](const WeightGraph& graph, const String& name) -> WeightJoint {
       return graph->FindNode(name);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.WeightGraphToJson")
+TVM_FFI_REGISTER_GLOBAL("msc.core.WeightGraphToJson")
     .set_body_typed([](const WeightGraph& graph) -> String {
       const auto& graph_json = graph->ToJson();
       std::ostringstream os;
@@ -1600,69 +1616,69 @@ TVM_REGISTER_GLOBAL("msc.core.WeightGraphToJson")
       return os.str();
     });
 
-TVM_REGISTER_GLOBAL("msc.core.WeightGraphFromJson")
+TVM_FFI_REGISTER_GLOBAL("msc.core.WeightGraphFromJson")
     .set_body_typed([](const String& graph_json) -> WeightGraph {
       return WeightGraph(graph_json);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.WeightGraphToPrototxt")
+TVM_FFI_REGISTER_GLOBAL("msc.core.WeightGraphToPrototxt")
     .set_body_typed([](const WeightGraph& graph) -> String { return graph->ToPrototxt(); });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCJointInputAt")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCJointInputAt")
     .set_body_typed([](const MSCJoint& node, int index) -> MSCTensor {
       return node->InputAt(index);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCJointOutputAt")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCJointOutputAt")
     .set_body_typed([](const MSCJoint& node, int index) -> MSCTensor {
       return node->OutputAt(index);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCJointWeightAt")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCJointWeightAt")
     .set_body_typed([](const MSCJoint& node, const String& wtype) -> MSCTensor {
       return node->WeightAt(wtype);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCJointGetInputs")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCJointGetInputs")
     .set_body_typed([](const MSCJoint& node) -> Array<MSCTensor> { return node->GetInputs(); });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCJointGetOutputs")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCJointGetOutputs")
     .set_body_typed([](const MSCJoint& node) -> Array<MSCTensor> { return node->GetOutputs(); });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCJointGetWeights")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCJointGetWeights")
     .set_body_typed([](const MSCJoint& node) -> Map<String, MSCTensor> { return node->weights; });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCJointHasAttr")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCJointHasAttr")
     .set_body_typed([](const MSCJoint& node, const String& key) -> Bool {
       return Bool(node->HasAttr(key));
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCJointGetAttrs")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCJointGetAttrs")
     .set_body_typed([](const MSCJoint& node) -> Map<String, String> { return node->attrs; });
 
-TVM_REGISTER_GLOBAL("msc.core.WeightJointHasAttr")
+TVM_FFI_REGISTER_GLOBAL("msc.core.WeightJointHasAttr")
     .set_body_typed([](const WeightJoint& node, const String& key) -> Bool {
       return Bool(node->HasAttr(key));
     });
 
-TVM_REGISTER_GLOBAL("msc.core.WeightJointGetAttrs")
+TVM_FFI_REGISTER_GLOBAL("msc.core.WeightJointGetAttrs")
     .set_body_typed([](const WeightJoint& node) -> Map<String, String> { return node->attrs; });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCTensorDTypeName")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCTensorDTypeName")
     .set_body_typed([](const MSCTensor& tensor) -> String { return tensor->DTypeName(); });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCTensorDimAt")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCTensorDimAt")
     .set_body_typed([](const MSCTensor& tensor, const String& axis) -> Integer {
       return tensor->DimAt(axis);
     });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCTensorGetSize")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCTensorGetSize")
     .set_body_typed([](const MSCTensor& tensor) -> Integer { return tensor->GetSize(); });
 
-TVM_REGISTER_GLOBAL("msc.core.MSCTensorSetAlias")
+TVM_FFI_REGISTER_GLOBAL("msc.core.MSCTensorSetAlias")
     .set_body_typed([](const MSCTensor& tensor, const String& alias) { tensor->alias = alias; });
 
-TVM_REGISTER_GLOBAL("msc.core.PruneWeights")
+TVM_FFI_REGISTER_GLOBAL("msc.core.PruneWeights")
     .set_body_typed([](const MSCGraph& graph,
                        const Map<String, MSCTensor>& pruned_tensors) -> MSCGraph {
       return PruneWeights(graph, pruned_tensors);

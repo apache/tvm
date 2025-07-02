@@ -50,7 +50,7 @@ namespace relax {
     static const Op& op = Op::Get("relax." #OpName);                              \
     return Call(op, {std::move(x)}, Attrs{attrs}, {});                            \
   }                                                                               \
-  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);                \
+  TVM_FFI_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);            \
   TVM_REGISTER_OP("relax." #OpName)                                               \
       .set_num_inputs(1)                                                          \
       .add_argument("x", "Tensor", "The input data tensor")                       \
@@ -61,12 +61,10 @@ namespace relax {
 /*!
  * \brief Computes the maximum value of tensor elements over given axes.
  * \param x The input data tensor
- * \param axis Axis or axes along which a max is performed. Being `NullOpt` means to max all the
- * elements of the input tensor
- * \param keepdims If this is set to True, the axes which are reduced are left in the result as
- * dimensions with size one. With this option, the result will broadcast correctly against the
- * input tensor.
- * \return The result after reduction.
+ * \param axis Axis or axes along which a max is performed. Being `std::nullopt` means to max all
+ * the elements of the input tensor \param keepdims If this is set to True, the axes which are
+ * reduced are left in the result as dimensions with size one. With this option, the result will
+ * broadcast correctly against the input tensor. \return The result after reduction.
  */
 Expr max(Expr x, Optional<Array<Integer>> axis, bool keepdims);
 
@@ -98,8 +96,8 @@ Expr sum(Expr x, Optional<Array<Integer>> axis, bool keepdims);
  * \return The computed
  * result.
  */
-Expr cumprod(Expr data, Optional<Integer> axis = NullOpt, DataType dtype = DataType::Void(),
-             Bool exclusive = Bool(false));
+Expr cumprod(Expr data, Optional<int64_t> axis = std::nullopt,
+             Optional<DataType> dtype = std::nullopt, Bool exclusive = Bool(false));
 
 /*!
  * \brief Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
@@ -113,8 +111,8 @@ Expr cumprod(Expr data, Optional<Integer> axis = NullOpt, DataType dtype = DataT
  * which the first element is not included.
  * \return The computed result.
  */
-Expr cumsum(Expr data, Optional<Integer> axis = NullOpt, DataType dtype = DataType::Void(),
-            Bool exclusive = Bool(false));
+Expr cumsum(Expr data, Optional<int64_t> axis = std::nullopt,
+            Optional<DataType> dtype = std::nullopt, Bool exclusive = Bool(false));
 
 /*! \brief Computes the variance of tensor elements over given axes. */
 Expr variance(Expr x, Optional<Array<Integer>> axis, bool keepdims);

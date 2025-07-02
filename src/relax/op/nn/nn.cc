@@ -25,6 +25,22 @@
 namespace tvm {
 namespace relax {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  SoftmaxAttrs::RegisterReflection();
+  LeakyReluAttrs::RegisterReflection();
+  SoftplusAttrs::RegisterReflection();
+  PReluAttrs::RegisterReflection();
+  BatchNormAttrs::RegisterReflection();
+  LayerNormAttrs::RegisterReflection();
+  GroupNormAttrs::RegisterReflection();
+  InstanceNormAttrs::RegisterReflection();
+  RMSNormAttrs::RegisterReflection();
+  NLLLossAttrs::RegisterReflection();
+  DropoutAttrs::RegisterReflection();
+  PadAttrs::RegisterReflection();
+  PixelShuffleAttrs::RegisterReflection();
+});
+
 /* relax.nn.relu */
 RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(relu, "nn.relu", /*require_float_dtype=*/false);
 
@@ -50,12 +66,54 @@ Expr leakyrelu(Expr data, double alpha) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.leakyrelu").set_body_typed(leakyrelu);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.leakyrelu").set_body_typed(leakyrelu);
 
 TVM_REGISTER_OP("relax.nn.leakyrelu")
     .set_num_inputs(1)
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<LeakyReluAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo",
+                                InferStructInfoUnaryArith</*require_float_dtype=*/true>)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.nn.softplus */
+TVM_REGISTER_NODE_TYPE(SoftplusAttrs);
+
+Expr softplus(Expr data, double beta, double threshold) {
+  auto attrs = make_object<SoftplusAttrs>();
+  attrs->beta = beta;
+  attrs->threshold = threshold;
+  static const Op& op = Op::Get("relax.nn.softplus");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.softplus").set_body_typed(softplus);
+
+TVM_REGISTER_OP("relax.nn.softplus")
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attrs_type<SoftplusAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo",
+                                InferStructInfoUnaryArith</*require_float_dtype=*/true>)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.nn.prelu */
+TVM_REGISTER_NODE_TYPE(PReluAttrs);
+
+Expr prelu(Expr data, Expr alpha, int axis = 1) {
+  auto attrs = make_object<PReluAttrs>();
+  attrs->axis = axis;
+  static const Op& op = Op::Get("relax.nn.prelu");
+  return Call(op, {data, alpha}, Attrs(attrs), {});
+}
+
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.prelu").set_body_typed(prelu);
+
+TVM_REGISTER_OP("relax.nn.prelu")
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("alpha", "Tensor", "The channel-wise learnable slope.")
+    .set_attrs_type<PReluAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo",
                                 InferStructInfoUnaryArith</*require_float_dtype=*/true>)
     .set_attr<Bool>("FPurity", Bool(true));
@@ -70,7 +128,7 @@ Expr softmax(Expr data, int axis) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.softmax").set_body_typed(softmax);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.softmax").set_body_typed(softmax);
 
 StructInfo InferStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -128,7 +186,7 @@ Expr log_softmax(Expr data, int axis) {
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.log_softmax").set_body_typed(log_softmax);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.log_softmax").set_body_typed(log_softmax);
 
 TVM_REGISTER_OP("relax.nn.log_softmax")
     .set_num_inputs(1)
@@ -140,7 +198,7 @@ TVM_REGISTER_OP("relax.nn.log_softmax")
 /* relax.nn.pad */
 TVM_REGISTER_NODE_TYPE(PadAttrs);
 
-Expr pad(Expr data, Array<Integer> pad_width, String pad_mode, runtime::Float pad_value) {
+Expr pad(Expr data, Array<Integer> pad_width, String pad_mode, double pad_value) {
   auto attrs = make_object<PadAttrs>();
   attrs->pad_width = std::move(pad_width);
   attrs->pad_mode = std::move(pad_mode);
@@ -149,7 +207,7 @@ Expr pad(Expr data, Array<Integer> pad_width, String pad_mode, runtime::Float pa
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.pad").set_body_typed(pad);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.pad").set_body_typed(pad);
 
 StructInfo InferStructInfoPad(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -180,6 +238,76 @@ TVM_REGISTER_OP("relax.nn.pad")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attrs_type<PadAttrs>()
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPad)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.nn.pixel_shuffle */
+TVM_REGISTER_NODE_TYPE(PixelShuffleAttrs);
+
+Expr pixel_shuffle(Expr data, int upscale_factor) {
+  auto attrs = make_object<PixelShuffleAttrs>();
+  attrs->upscale_factor = upscale_factor;
+  static const Op& op = Op::Get("relax.nn.pixel_shuffle");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.pixel_shuffle").set_body_typed(pixel_shuffle);
+
+StructInfo InferStructInfoPixelShuffle(const Call& call, const BlockBuilder& ctx) {
+  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  const auto* attrs = call->attrs.as<PixelShuffleAttrs>();
+  int r = attrs->upscale_factor;
+  ICHECK_GT(r, 0) << "Upscale factor must be positive";
+
+  const TensorStructInfo& input = input_sinfo[0];
+  int ndim = input->ndim;
+  ICHECK_GE(ndim, 3) << "PixelShuffle requires at least 3D input tensor";
+
+  if (!input->shape.defined()) {
+    return TensorStructInfo(input->dtype, ndim);
+  }
+
+  const auto* shape = input->shape.as<ShapeExprNode>();
+  Array<PrimExpr> in_shape = shape->values;
+
+  int channel_idx = ndim - 3;
+  int h_idx = ndim - 2;
+  int w_idx = ndim - 1;
+
+  PrimExpr c_in = in_shape[channel_idx];
+  PrimExpr h_in = in_shape[h_idx];
+  PrimExpr w_in = in_shape[w_idx];
+
+  PrimExpr r_expr = IntImm(DataType::Int(32), r);
+  PrimExpr r_squared = r_expr * r_expr;
+
+  const auto* c_in_imm = c_in.as<IntImmNode>();
+  const auto* r2_imm = r_squared.as<IntImmNode>();
+
+  ICHECK_EQ(c_in_imm->value % r2_imm->value, 0)
+      << "Number of input channels must be divisible by the square of the upscale factor";
+
+  // Output shape:
+  Array<PrimExpr> out_shape;
+  for (int i = 0; i < ndim; ++i) {
+    if (i == channel_idx) {
+      out_shape.push_back(c_in / r_squared);
+    } else if (i == h_idx) {
+      out_shape.push_back(h_in * r_expr);
+    } else if (i == w_idx) {
+      out_shape.push_back(w_in * r_expr);
+    } else {
+      out_shape.push_back(in_shape[i]);
+    }
+  }
+
+  return TensorStructInfo(ShapeExpr(out_shape), input->dtype);
+}
+
+TVM_REGISTER_OP("relax.nn.pixel_shuffle")
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attrs_type<PixelShuffleAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPixelShuffle)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.batchnorm */
@@ -271,7 +399,7 @@ Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_
                std::move(moving_var)},
               Attrs{attrs}, {});
 }
-TVM_REGISTER_GLOBAL("relax.op.nn.batch_norm").set_body_typed(batch_norm);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.batch_norm").set_body_typed(batch_norm);
 
 StructInfo InferStructInfoBatchNorm(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -303,7 +431,6 @@ InferLayoutOutput InferLayoutBatchNorm(const Call& call,
   }
   const auto* attrs = call->attrs.as<BatchNormAttrs>();
   ICHECK(attrs) << "Invalid Call";
-
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
 
   // While dealing with sub layouts, its adviced to deal with batchnorm
@@ -349,7 +476,7 @@ Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double ep
   return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.layer_norm").set_body_typed(layer_norm);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.layer_norm").set_body_typed(layer_norm);
 
 StructInfo InferStructInfoLayerNorm(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -417,7 +544,7 @@ Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_ax
   return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.group_norm").set_body_typed(group_norm);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.group_norm").set_body_typed(group_norm);
 
 StructInfo InferStructInfoGroupNorm(const Call& call, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
@@ -512,6 +639,106 @@ TVM_REGISTER_OP("relax.nn.group_norm")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.nn.instance_norm */
+TVM_REGISTER_NODE_TYPE(InstanceNormAttrs);
+
+Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, Array<Integer> axes,
+                   double epsilon, bool center, bool scale) {
+  ObjectPtr<InstanceNormAttrs> attrs = make_object<InstanceNormAttrs>();
+  attrs->channel_axis = std::move(channel_axis);
+  attrs->axes = std::move(axes);
+  attrs->epsilon = epsilon;
+  attrs->center = center;
+  attrs->scale = scale;
+
+  static const Op& op = Op::Get("relax.nn.instance_norm");
+  return Call(op, {std::move(data), std::move(gamma), std::move(beta)}, Attrs{attrs}, {});
+}
+
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.instance_norm").set_body_typed(instance_norm);
+
+StructInfo InferStructInfoInstanceNorm(const Call& call, const BlockBuilder& ctx) {
+  Op op = Downcast<Op>(call->op);
+  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
+  const auto* attrs = call->attrs.as<InstanceNormAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+  TensorStructInfo data_sinfo = input_sinfo[0];
+
+  int channel_axis = -1;
+  if (!data_sinfo->IsUnknownNdim()) {
+    channel_axis = NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->channel_axis);
+    std::vector<int> axes = NormalizeAxes(call, ctx, data_sinfo->ndim, attrs->axes);
+    // channel_axis must not be in axes.
+    if (std::find(axes.begin(), axes.end(), channel_axis) != axes.end()) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << op
+                       << " expects that channel_axis must not be in axes, but got channel_axis: "
+                       << channel_axis << ", axes: " << attrs->axes);
+    }
+  }
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  for (int i = 1; i < static_cast<int>(op->arguments.size()); ++i) {
+    if (input_sinfo[i]->dtype != data_sinfo->dtype) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << op << " expects that all inputs must have the same dtype, but got "
+                       << input_sinfo[i]->dtype << " and " << data_sinfo->dtype);
+    } else if (input_sinfo[i]->ndim != 1) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << op << " expects that all inputs must have ndim=1, but got "
+                       << input_sinfo[i]->ndim);
+    }
+    const auto* shape = input_sinfo[i]->shape.as<ShapeExprNode>();
+    if (shape != nullptr && data_shape != nullptr) {
+      PrimExpr channel_size = data_shape->values[channel_axis];
+      PrimExpr input_size = shape->values[0];
+      if (analyzer->CanProve(channel_size != input_size)) {
+        ctx->ReportFatal(Diagnostic::Error(call)
+                         << op << " expects that the size of input " << i
+                         << " must be equal to the size of channel_axis, but got " << input_size
+                         << " and " << channel_size);
+      }
+    }
+  }
+  return data_sinfo;
+}
+
+InferLayoutOutput InferLayoutInstanceNorm(const Call& call,
+                                          const Map<String, Array<String>>& desired_layouts,
+                                          const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+  std::vector<NLayout> initial_layouts;
+  for (size_t i = 0; i < 3; ++i) {
+    const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
+    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
+    initial_layouts.push_back(InitialLayoutDecision(tensor_sinfo->ndim));
+  }
+  const auto* attrs = call->attrs.as<InstanceNormAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+
+  LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  ObjectPtr<InstanceNormAttrs> new_attrs = make_object<InstanceNormAttrs>(*attrs);
+  std::vector<Integer> new_axes;
+  for (const auto& axis : attrs->axes) {
+    new_axes.push_back(FindAxis(layout->layout, (axis->value)));
+  }
+  new_attrs->axes = std::move(new_axes);
+  new_attrs->channel_axis = FindAxis(layout->layout, attrs->channel_axis);
+  return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
+                           Attrs(new_attrs));
+}
+
+TVM_REGISTER_OP("relax.nn.instance_norm")
+    .set_attrs_type<InstanceNormAttrs>()
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "Input to which instance_norm will be applied.")
+    .add_argument("gamma", "Tensor", "The gamma scale factor.")
+    .add_argument("beta", "Tensor", "The beta offset factor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoInstanceNorm)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutInstanceNorm)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
 /* relax.nn.rms_norm */
 TVM_REGISTER_NODE_TYPE(RMSNormAttrs);
 
@@ -524,7 +751,7 @@ Expr rms_norm(Expr data, Expr weight, Array<Integer> axes, double epsilon) {
   return Call(op, {std::move(data), std::move(weight)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.rms_norm").set_body_typed(rms_norm);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.rms_norm").set_body_typed(rms_norm);
 
 StructInfo InferStructInfoRMSNorm(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -583,7 +810,7 @@ Expr dropout(Expr data, double rate) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.dropout").set_body_typed(dropout);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.dropout").set_body_typed(dropout);
 
 StructInfo InferStructInfoDropout(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -651,7 +878,7 @@ Expr cross_entropy_with_logits(Expr predictions, Expr labels) {
   return Call(op, {std::move(predictions), std::move(labels)}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.cross_entropy_with_logits")
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.cross_entropy_with_logits")
     .set_body_typed(cross_entropy_with_logits);
 
 TVM_REGISTER_OP("relax.nn.cross_entropy_with_logits")
@@ -685,7 +912,7 @@ Expr nll_loss(Expr predictions, Expr targets, Optional<Expr> weights, String red
   }
 }
 
-TVM_REGISTER_GLOBAL("relax.op.nn.nll_loss").set_body_typed(nll_loss);
+TVM_FFI_REGISTER_GLOBAL("relax.op.nn.nll_loss").set_body_typed(nll_loss);
 
 StructInfo InferStructInfoNLLLoss(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() < 2 || call->args.size() > 3) {

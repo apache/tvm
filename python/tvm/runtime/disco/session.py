@@ -25,8 +25,8 @@ from typing import Any, Callable, Optional, Sequence, Union
 
 import numpy as np
 
-from ..._ffi import get_global_func, register_func, register_object
-from ..._ffi.runtime_ctypes import Device
+from ...ffi import get_global_func, register_func, register_object
+from ..device import Device
 from ..container import ShapeTuple
 from ..ndarray import NDArray
 from ..ndarray import array as _as_NDArray
@@ -79,8 +79,7 @@ class DPackedFunc(DRef):
     """A PackedFunc in a Disco session."""
 
     def __init__(self, dref: DRef, session: "Session") -> None:
-        self.handle = dref.handle
-        dref.handle = None
+        self.__move_handle_from__(dref)
         self.session = session
 
     def __call__(self, *args) -> DRef:
@@ -91,8 +90,7 @@ class DModule(DRef):
     """A Module in a Disco session."""
 
     def __init__(self, dref: DRef, session: "Session") -> None:
-        self.handle = dref.handle
-        dref.handle = None
+        self.__move_handle_from__(dref)
         self.session = session
 
     def __getitem__(self, name: str) -> DPackedFunc:
@@ -152,8 +150,6 @@ class Session(Object):
             The created NDArray.
 
         """
-        if device is None:
-            device = Device(device_type=0, device_id=0)
         func = self._get_cached_method("runtime.disco.empty")
         return func(ShapeTuple(shape), dtype, device, worker0_only, in_group)
 
@@ -239,6 +235,12 @@ class Session(Object):
         """
         return _ffi_api.SessionSyncWorker(self, worker_id)  # type: ignore # pylint: disable=no-member
 
+    def _sync_all(self) -> None:
+        """Synchronize the controller with all workers in the current session, and it will
+        wait until all workers finish executing all the existing instructions."""
+        for i in range(self.num_workers):
+            self._sync_worker(i)
+
     def sync_worker_0(self) -> None:
         """Synchronize the controller with worker-0, and it will wait until the worker-0 finishes
         executing all the existing instructions."""
@@ -273,7 +275,7 @@ class Session(Object):
         output_array: DRef
 
             The DRef containing the copied data on worker0, and
-            NullOpt on all other workers.  If `remote_array` was
+            std::nullopt on all other workers.  If `remote_array` was
             provided, this return value is the same as `remote_array`.
             Otherwise, it is the newly allocated space.
 
@@ -304,8 +306,6 @@ class Session(Object):
         module : DModule
             The loaded VM module.
         """
-        if device is None:
-            device = Device(device_type=0, device_id=0)
         func = self._get_cached_method("runtime.disco.load_vm_module")
         return DModule(func(path, device), self)
 

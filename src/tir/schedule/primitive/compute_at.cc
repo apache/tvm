@@ -366,7 +366,7 @@ void RelaxBufferRegions(const Map<Var, PrimExpr>& binding,
   runtime::StorageScope global_scope{runtime::StorageRank::kGlobal, ""};
   // We cache the variable domains
   runtime::StorageRank previous_rank = runtime::StorageRank::kGlobal;
-  Optional<Map<Var, arith::IntSet>> var_dom = NullOpt;
+  Optional<Map<Var, arith::IntSet>> var_dom = std::nullopt;
   // Enumerate every buffer region
   for (const BufferRegion& buffer_region : buffer_regions) {
     const Buffer& buffer = buffer_region->buffer;

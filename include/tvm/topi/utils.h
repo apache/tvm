@@ -24,8 +24,8 @@
 #ifndef TVM_TOPI_UTILS_H_
 #define TVM_TOPI_UTILS_H_
 
+#include <tvm/ffi/function.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/packed_func.h>
 
 namespace tvm {
 namespace topi {
@@ -33,13 +33,16 @@ namespace topi {
 using namespace tvm::runtime;
 
 /*! \brief Canonicalize an argument that may be Array<Expr> or int to Array<Expr> */
-inline Array<Integer> ArrayOrInt(TVMArgValue arg) {
-  if (arg.type_code() == kDLInt || arg.type_code() == kDLUInt) {
+inline Optional<Array<Integer>> ArrayOrInt(AnyView arg) {
+  if (arg == nullptr) {
+    return std::nullopt;
+  }
+  if (auto opt_int = arg.try_cast<int>()) {
     Array<Integer> result;
-    result.push_back(arg.operator int());
+    result.push_back(opt_int.value());
     return result;
   } else {
-    return arg;
+    return arg.cast<Array<Integer>>();
   }
 }
 }  // namespace topi

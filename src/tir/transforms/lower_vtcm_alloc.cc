@@ -72,7 +72,7 @@ Pass LowerVtcmAlloc() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerVtcmAlloc", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.LowerVtcmAlloc").set_body_typed(LowerVtcmAlloc);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerVtcmAlloc").set_body_typed(LowerVtcmAlloc);
 
 }  // namespace transform
 

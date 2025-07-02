@@ -16,9 +16,9 @@
 # under the License.
 """Tensor class for computation declaration."""
 # pylint: disable=invalid-name
-import tvm._ffi
+import tvm.ffi
 
-from tvm.runtime import Object, ObjectGeneric, convert_to_object
+from tvm.runtime import Object, ObjectGeneric
 from tvm.tir import expr as _expr, DataProducer
 
 from . import _ffi_api
@@ -48,7 +48,7 @@ class TensorSlice(ObjectGeneric, _expr.ExprOp):
         return self.tensor.dtype
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object("te.Tensor")
 class Tensor(DataProducer, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
 
@@ -58,7 +58,6 @@ class Tensor(DataProducer, _expr.ExprOp):
             raise ValueError(
                 f"Need to provide {ndim} index in tensor but {len(indices)} was provided"
             )
-        indices = convert_to_object(indices)
         return _expr.ProducerLoad(self, indices)
 
     def __getitem__(self, indices):
@@ -113,6 +112,7 @@ class Tensor(DataProducer, _expr.ExprOp):
         return f"{op.name}.v{self.value_index}"
 
 
+@tvm.ffi.register_object("te.Operation")
 class Operation(Object):
     """Represent an operation that generates a tensor"""
 
@@ -142,12 +142,12 @@ class Operation(Object):
         return _ffi_api.OpInputTensors(self)
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object("te.PlaceholderOp")
 class PlaceholderOp(Operation):
     """Placeholder operation."""
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object("te.BaseComputeOp")
 class BaseComputeOp(Operation):
     """Compute operation."""
 
@@ -162,12 +162,12 @@ class BaseComputeOp(Operation):
         return self.__getattr__("reduce_axis")
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object("te.ComputeOp")
 class ComputeOp(BaseComputeOp):
     """Scalar operation."""
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object("te.ScanOp")
 class ScanOp(Operation):
     """Scan operation."""
 
@@ -177,6 +177,6 @@ class ScanOp(Operation):
         return self.__getattr__("scan_axis")
 
 
-@tvm._ffi.register_object
+@tvm.ffi.register_object("te.ExternOp")
 class ExternOp(Operation):
     """External operation."""

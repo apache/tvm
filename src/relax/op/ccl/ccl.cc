@@ -27,6 +27,12 @@ namespace relax {
 /* relax.ccl.allreduce */
 TVM_REGISTER_NODE_TYPE(AllReduceAttrs);
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  AllReduceAttrs::RegisterReflection();
+  AllGatherAttrs::RegisterReflection();
+  ScatterCollectiveAttrs::RegisterReflection();
+});
+
 Expr allreduce(Expr x, String op_type, bool in_group) {
   ObjectPtr<AllReduceAttrs> attrs = make_object<AllReduceAttrs>();
   attrs->op_type = std::move(op_type);
@@ -36,7 +42,7 @@ Expr allreduce(Expr x, String op_type, bool in_group) {
   return Call(op, {std::move(x)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.ccl.allreduce").set_body_typed(allreduce);
+TVM_FFI_REGISTER_GLOBAL("relax.op.ccl.allreduce").set_body_typed(allreduce);
 
 StructInfo InferStructInfoAllReduce(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -63,7 +69,7 @@ Expr allgather(Expr x, int num_workers, bool in_group) {
   return Call(op, {std::move(x)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.ccl.allgather").set_body_typed(allgather);
+TVM_FFI_REGISTER_GLOBAL("relax.op.ccl.allgather").set_body_typed(allgather);
 
 StructInfo InferStructInfoAllGather(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -94,7 +100,8 @@ Expr broadcast_from_worker0(Expr x) {
   return Call(op, {std::move(x)}, {}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.ccl.broadcast_from_worker0").set_body_typed(broadcast_from_worker0);
+TVM_FFI_REGISTER_GLOBAL("relax.op.ccl.broadcast_from_worker0")
+    .set_body_typed(broadcast_from_worker0);
 
 StructInfo InferStructInfoBroadcastFromZero(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -120,7 +127,7 @@ Expr scatter_from_worker0(Expr data, int num_workers, int axis) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_REGISTER_GLOBAL("relax.op.ccl.scatter_from_worker0").set_body_typed(scatter_from_worker0);
+TVM_FFI_REGISTER_GLOBAL("relax.op.ccl.scatter_from_worker0").set_body_typed(scatter_from_worker0);
 
 StructInfo InferStructInfoScatter(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);

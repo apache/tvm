@@ -24,6 +24,8 @@ namespace tvm {
 namespace script {
 namespace printer {
 
+TVM_FFI_STATIC_INIT_BLOCK({ IRFrameNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(IRFrameNode);
 
 struct SortableFunction {
@@ -100,7 +102,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           (*f)->stmts.push_back(func.value());
         } else if (auto expr = doc.as<ExprDoc>()) {
           ExprDoc lhs = IdDoc(gv->name_hint);
-          AssignDoc assignment(lhs, expr.value(), NullOpt);
+          AssignDoc assignment(lhs, expr.value(), std::nullopt);
           (*f)->stmts.push_back(assignment);
         } else {
           LOG(FATAL) << "TypeError: "
@@ -130,7 +132,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<VDevice>("", [](VDevice vdev, ObjectPath p, IRDocsifier d) -> Doc {
       d->AddGlobalInfo("vdevice", vdev);
-      Map<String, ObjectRef> config = vdev->target->Export();
+      Map<String, ffi::Any> config = vdev->target->Export();
       return IR(d, "vdevice")
           ->Call({d->AsDoc<ExprDoc>(config, p),
                   LiteralDoc::Int(vdev->vdevice_id, p->Attr("vdevice_id")),

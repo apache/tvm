@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -82,16 +84,18 @@ class AutoInlineNode : public ScheduleRuleNode {
   /*! \brief The operators that are disallowed in auto inline */
   Array<Op> disallow_op;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("into_producer", &into_producer);
-    v->Visit("into_consumer", &into_consumer);
-    v->Visit("inline_const_tensor", &inline_const_tensor);
-    v->Visit("disallow_if_then_else", &disallow_if_then_else);
-    v->Visit("require_injective", &require_injective);
-    v->Visit("require_ordered", &require_ordered);
-    v->Visit("disallow_op", &disallow_op);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AutoInlineNode>()
+        .def_ro("into_producer", &AutoInlineNode::into_producer)
+        .def_ro("into_consumer", &AutoInlineNode::into_consumer)
+        .def_ro("inline_const_tensor", &AutoInlineNode::inline_const_tensor)
+        .def_ro("disallow_if_then_else", &AutoInlineNode::disallow_if_then_else)
+        .def_ro("require_injective", &AutoInlineNode::require_injective)
+        .def_ro("require_ordered", &AutoInlineNode::require_ordered)
+        .def_ro("disallow_op", &AutoInlineNode::disallow_op);
   }
-
+  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "meta_schedule.AutoInline";
   TVM_DECLARE_FINAL_OBJECT_INFO(AutoInlineNode, ScheduleRuleNode);
 };
@@ -190,8 +194,9 @@ ScheduleRule ScheduleRule::AutoInline(bool into_producer,          //
   return ScheduleRule(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ AutoInlineNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(AutoInlineNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAutoInline")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAutoInline")
     .set_body_typed(ScheduleRule::AutoInline);
 
 /*! \brief Inline blocks that produce a constant scalar. */
@@ -222,6 +227,12 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
     return ScheduleRule(n);
   }
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<InlineConstantScalarsNode>();
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "meta_schedule.InlineConstantScalars";
   TVM_DECLARE_FINAL_OBJECT_INFO(InlineConstantScalarsNode, ScheduleRuleNode);
 };
@@ -231,8 +242,9 @@ ScheduleRule ScheduleRule::InlineConstantScalars() {
   return ScheduleRule(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ InlineConstantScalarsNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(InlineConstantScalarsNode);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleInlineConstantScalars")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleInlineConstantScalars")
     .set_body_typed(ScheduleRule::InlineConstantScalars);
 }  // namespace meta_schedule
 }  // namespace tvm

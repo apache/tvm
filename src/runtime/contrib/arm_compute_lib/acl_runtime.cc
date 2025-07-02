@@ -22,8 +22,8 @@
  * \brief A simple JSON runtime for Arm Compute Library.
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
@@ -593,8 +593,8 @@ runtime::Module ACLRuntimeCreate(const String& symbol_name, const String& graph_
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.arm_compute_lib_runtime_create").set_body_typed(ACLRuntimeCreate);
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_arm_compute_lib")
+TVM_FFI_REGISTER_GLOBAL("runtime.arm_compute_lib_runtime_create").set_body_typed(ACLRuntimeCreate);
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_arm_compute_lib")
     .set_body_typed(JSONRuntimeBase::LoadFromBinary<ACLRuntime>);
 }  //  namespace contrib
 }  //  namespace runtime

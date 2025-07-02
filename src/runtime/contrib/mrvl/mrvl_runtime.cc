@@ -24,9 +24,9 @@
 
 #include <assert.h>
 #include <ctype.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/registry.h>
 
 #include <cstddef>
 #include <fstream>
@@ -69,20 +69,20 @@ class MarvellSimulatorModuleNode : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The packed function.
    */
-  virtual PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
+  virtual ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
     if (name == "get_symbol") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->symbol_name_; });
+      return ffi::Function(
+          [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->symbol_name_; });
     } else if (name == "get_const_vars") {
-      return PackedFunc(
-          [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = Array<String>{}; });
+      return ffi::Function(
+          [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = Array<String>{}; });
     } else if (this->symbol_name_ == name) {
-      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         Run(args);
         *rv = 0;
       });
     }
-    return PackedFunc(nullptr);
+    return ffi::Function(nullptr);
   }
 
   virtual void SaveToBinary(dmlc::Stream* stream) {
@@ -123,7 +123,7 @@ class MarvellSimulatorModuleNode : public ModuleNode {
   size_t num_inputs_;
   size_t num_outputs_;
 
-  void Run(TVMArgs args) {
+  void Run(ffi::PackedArgs args) {
     ICHECK_EQ(args.size(), num_inputs_ + num_outputs_)
         << "Marvell-Compiler-ERROR-Internal::Mismatch in number of input & number of output args "
            "to subgraph";
@@ -132,7 +132,7 @@ class MarvellSimulatorModuleNode : public ModuleNode {
   }
 
   void set_num_inputs_outputs() {
-    const auto* get_value_from_key = runtime::Registry::Get("tvm.mrvl.find_value_in_KV_pair");
+    const auto get_value_from_key = tvm::ffi::Function::GetGlobal("tvm.mrvl.find_value_in_KV_pair");
 
     std::string value_for_inputs = (*get_value_from_key)(nodes_json_, "num_subgraph_inputs");
     num_inputs_ = std::stoi(value_for_inputs);
@@ -149,9 +149,9 @@ runtime::Module MarvellSimulatorModuleRuntimeCreate(const String& symbol_name,
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.mrvl_runtime_create")
+TVM_FFI_REGISTER_GLOBAL("runtime.mrvl_runtime_create")
     .set_body_typed(MarvellSimulatorModuleRuntimeCreate);
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_mrvl_sim")
+TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_mrvl_sim")
     .set_body_typed(MarvellSimulatorModuleNode::LoadFromBinary);
 }  // namespace contrib
 }  // namespace runtime

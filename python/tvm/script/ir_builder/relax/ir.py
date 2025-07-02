@@ -58,6 +58,7 @@ from tvm.relax.op import (
     bitwise_or,
     bitwise_xor,
     broadcast_to,
+    bucketize,
     builtin,
     call_builtin_with_ctx,
     call_dps_packed,
@@ -99,8 +100,11 @@ from tvm.relax.op import (
     grad,
     greater,
     greater_equal,
+    hamming_window,
     hint_on_device,
+    index_put,
     image,
+    index_tensor,
     invoke_closure,
     invoke_pure_closure,
     isfinite,
@@ -112,6 +116,7 @@ from tvm.relax.op import (
     less_equal,
     linear,
     log,
+    log_add_exp,
     logical_and,
     logical_not,
     logical_or,
@@ -122,6 +127,7 @@ from tvm.relax.op import (
     maximum,
     mean,
     memory,
+    meshgrid,
     min,
     minimum,
     mod,
@@ -134,6 +140,7 @@ from tvm.relax.op import (
     ones,
     ones_like,
     one_hot,
+    outer,
     permute_dims,
     power,
     print,
@@ -152,11 +159,13 @@ from tvm.relax.op import (
     sign,
     sin,
     sinh,
+    slice_scatter,
     sort,
     split,
     sqrt,
     square,
     squeeze,
+    stack,
     std,
     strided_slice,
     subtract,
@@ -169,6 +178,7 @@ from tvm.relax.op import (
     topk,
     tril,
     triu,
+    trunc,
     unique,
     variance,
     vm,
@@ -187,7 +197,6 @@ from tvm.runtime.ndarray import (
     cuda,
     device,
     ext_dev,
-    gpu,
     hexagon,
     metal,
     opencl,
@@ -418,11 +427,13 @@ def call_packed(
         sinfo_args = [sinfo_args]
 
     sinfo_args = [
-        sinfo()
-        if callable(sinfo)
-        else sinfo.asobject()
-        if isinstance(sinfo, ObjectGeneric)
-        else sinfo
+        (
+            sinfo()
+            if callable(sinfo)
+            else sinfo.asobject()
+            if isinstance(sinfo, ObjectGeneric)
+            else sinfo
+        )
         for sinfo in sinfo_args
     ]
 
@@ -431,7 +442,7 @@ def call_packed(
         attrs_type_key = kwargs["attrs_type_key"]
         kwargs.pop("attrs_type_key")
     else:
-        attrs_type_key = "DictAttrs"
+        attrs_type_key = "ir.DictAttrs"
         is_default = True
     attrs = None
     if kwargs or not is_default:
@@ -723,6 +734,7 @@ __all__ = [
     "bitwise_or",
     "bitwise_xor",
     "broadcast_to",
+    "bucketize",
     "builtin",
     "call_inplace_packed",
     "call_packed",
@@ -776,13 +788,15 @@ __all__ = [
     "function",
     "gather_elements",
     "gather_nd",
-    "gpu",
     "grad",
     "greater",
     "greater_equal",
+    "hamming_window",
     "hexagon",
     "hint_on_device",
+    "index_put",
     "image",
+    "index_tensor",
     "invoke_closure",
     "invoke_pure_closure",
     "isfinite",
@@ -794,6 +808,7 @@ __all__ = [
     "less_equal",
     "linear",
     "log",
+    "log_add_exp",
     "logical_and",
     "logical_not",
     "logical_or",
@@ -804,6 +819,7 @@ __all__ = [
     "maximum",
     "mean",
     "memory",
+    "meshgrid",
     "metal",
     "min",
     "minimum",
@@ -818,6 +834,7 @@ __all__ = [
     "one_hot",
     "opencl",
     "output",
+    "outer",
     "permute_dims",
     "power",
     "prim_value",
@@ -844,11 +861,13 @@ __all__ = [
     "sign",
     "sin",
     "sinh",
+    "slice_scatter",
     "sort",
     "split",
     "square",
     "squeeze",
     "sqrt",
+    "stack",
     "stop_lift_params",
     "str",
     "strided_slice",
@@ -862,6 +881,7 @@ __all__ = [
     "to_vdevice",
     "tril",
     "triu",
+    "trunc",
     "tuple",
     "unique",
     "variance",

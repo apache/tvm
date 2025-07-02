@@ -93,7 +93,7 @@ class HexagonUtilsTest : public ::testing::Test {
   void* flat_mem;
   T* flat_mem_data;
   tvm::runtime::DeviceAPI* device_api;
-  tvm::runtime::String vtcm_scope;
+  tvm::ffi::String vtcm_scope;
   DLDataType float16;
   DLDataType int8, uint8;
   int64_t tensor_shape[4];

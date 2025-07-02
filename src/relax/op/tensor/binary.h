@@ -42,7 +42,7 @@ namespace relax {
     static const Op& op = Op::Get("relax." #OpName);                                               \
     return Call(op, {x1, x2}, Attrs(), {});                                                        \
   }                                                                                                \
-  TVM_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);                                 \
+  TVM_FFI_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);                             \
   TVM_REGISTER_OP("relax." #OpName)                                                                \
       .set_num_inputs(2)                                                                           \
       .add_argument("x1", "Tensor", "The first input tensor.")                                     \
@@ -69,6 +69,9 @@ Expr divide(Expr x1, Expr x2);
 
 /*! \brief Floor division with numpy-style broadcasting. */
 Expr floor_divide(Expr x1, Expr x2);
+
+/*! \brief Log Add Exponent with numpy-style broadcasting. */
+Expr log_add_exp(Expr x1, Expr x2);
 
 /*! \brief Multiplication with numpy-style broadcasting. */
 Expr multiply(Expr x1, Expr x2);

@@ -93,10 +93,24 @@ void CodeGenC::PrintFunctionSignature(const String& function_name, const PrimFun
       PrintStorageScope(it->second, os);
     }
 
-    PrintType(GetType(v), os);
+    auto is_tensormap_ptr = [&]() -> bool {
+      if (auto* ptr = v->type_annotation.as<PointerTypeNode>()) {
+        return ptr->element_type.as<TensorMapTypeNode>();
+      }
+      return false;
+    };
+    if (is_tensormap_ptr()) {
+      os << "const __grid_constant__ CUtensorMap";
+    } else {
+      PrintType(GetType(v), os);
+    }
 
     bool no_alias = func->HasNonzeroAttr(tir::attr::kNoAlias);
     bool is_handle = v.dtype().is_handle();
+    auto* ptr = v->type_annotation.as<PointerTypeNode>();
+    if (ptr && ptr->element_type.as<TensorMapTypeNode>()) {
+      is_handle = false;
+    }
     if (no_alias && is_handle) {
       PrintRestrict(v, os);
     }
@@ -315,14 +329,19 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     }
     os << ')';
     return os.str();
-  } else {
-    ICHECK_LT(kind, builtin::kTVMValueKindBound_);
+  } else if (kind == builtin::kTVMFFIAnyTypeIndex) {
     std::ostringstream os;
-    os << "(((TVMValue*)";
+    os << "(((TVMFFIAny*)";
+    this->PrintExpr(buffer, os);
+    os << ")[" << index << "].type_index)";
+    return os.str();
+  } else if (kind == builtin::kTVMFFIAnyUnionValue) {
+    std::ostringstream os;
+    os << "(((TVMFFIAny*)";
     this->PrintExpr(buffer, os);
     os << ")[" << index << "].";
     if (t.is_handle()) {
-      os << "v_handle";
+      os << "v_ptr";
     } else if (t.is_float()) {
       os << "v_float64";
     } else if (t.is_int()) {
@@ -332,6 +351,8 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     }
     os << ")";
     return os.str();
+  } else {
+    TVM_FFI_THROW(RuntimeError) << "Unsupported type index: " << kind;
   }
 }
 
@@ -579,15 +600,7 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
   if (auto opt_call_op = op->op.as<Op>()) {
     auto call_op = opt_call_op.value();
 
-    if (op->op.same_as(builtin::tvm_check_return())) {
-      const CallNode* call = op->args[2].as<CallNode>();
-      os << "if (";
-      VisitExpr_(call, os);
-      os << " != ";
-      PrintExpr(op->args[0], os);
-      os << " ) return ";
-      PrintExpr(op->args[1], os);
-    } else if (op->op.same_as(builtin::ret())) {
+    if (op->op.same_as(builtin::ret())) {
       os << "return ";
       PrintExpr(op->args[0], os);
     } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
@@ -671,6 +684,13 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       os << "(";
       this->PrintExpr(op->args[0], os);
       os << " == NULL)";
+    } else if (op->op.same_as(builtin::handle_add_byte_offset())) {
+      ICHECK_EQ(op->args.size(), 2U);
+      os << "((void*)((char*)";
+      this->PrintExpr(op->args[0], os);
+      os << " + ";
+      this->PrintExpr(op->args[1], os);
+      os << "))";
     } else if (op->op.same_as(builtin::reinterpret())) {
       auto target_dtype = op->dtype;
       auto source_dtype = op->args[0]->dtype;
@@ -1153,9 +1173,20 @@ void CodeGenC::VisitStmt_(const EvaluateNode* op) {
     } else if (call->op.same_as(builtin::tvm_struct_set())) {
       ICHECK_EQ(call->args.size(), 4);
       int kind = call->args[2].as<IntImmNode>()->value;
-      std::string ref = GetStructRef(call->args[3].dtype(), call->args[0], call->args[1], kind);
+      DataType store_dtype = call->args[3].dtype();
+      std::string ref = GetStructRef(store_dtype, call->args[0], call->args[1], kind);
       std::string value = PrintExpr(call->args[3]);
       std::string cast;
+
+      if (kind == builtin::kTVMFFIAnyUnionValue &&
+          (store_dtype.bits() < 64 || store_dtype.is_handle())) {
+        this->PrintIndent();
+        // when we set any union value, we need to be careful to
+        // clear off the union value to zero if the set size is less than 64 bits
+        this->stream << GetStructRef(DataType::Int(64), call->args[0], call->args[1], kind)
+                     << " = 0;\n";
+      }
+
       if (kind == builtin::kArrStrides) {
         // cast void* to int64_t*
         cast = call->args[3]->dtype.is_handle() ? "(int64_t*)" : "";

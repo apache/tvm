@@ -640,7 +640,6 @@ runtime::Module BuildOpenCL(IRModule mod, Target target) {
   }
 #endif
 
-  using tvm::runtime::Registry;
   bool output_ssa = false;
 
   Map<GlobalVar, PrimFunc> functions;
@@ -654,7 +653,7 @@ runtime::Module BuildOpenCL(IRModule mod, Target target) {
   }
 
   std::stringstream code;
-  const auto* fpostproc = Registry::Get("tvm_callback_opencl_postproc");
+  const auto fpostproc = tvm::ffi::Function::GetGlobal("tvm_callback_opencl_postproc");
   for (auto [gvar, prim_func] : functions) {
     code << "// Function: " << gvar->name_hint << std::endl;
     CodeGenOpenCL cg;
@@ -665,7 +664,7 @@ runtime::Module BuildOpenCL(IRModule mod, Target target) {
     cg.AddFunction(gvar, prim_func);
     std::string fsource = cg.Finish();
     if (fpostproc) {
-      fsource = (*fpostproc)(fsource, target).operator std::string();
+      fsource = (*fpostproc)(fsource, target).cast<std::string>();
     }
     code << fsource;
   }
@@ -673,7 +672,7 @@ runtime::Module BuildOpenCL(IRModule mod, Target target) {
   return OpenCLModuleCreate(code.str(), "cl", ExtractFuncInfo(mod), code.str());
 }
 
-TVM_REGISTER_GLOBAL("target.build.opencl").set_body_typed(BuildOpenCL);
+TVM_FFI_REGISTER_GLOBAL("target.build.opencl").set_body_typed(BuildOpenCL);
 
 String DeviceScopeCompatibilityFromTarget(Target target, String memory_scope) {
   auto prototype_keys = target->GetKeys();
@@ -685,7 +684,7 @@ String DeviceScopeCompatibilityFromTarget(Target target, String memory_scope) {
   return memory_scope;
 }
 
-TVM_REGISTER_GLOBAL("DeviceScopeCompatibility.opencl")
+TVM_FFI_REGISTER_GLOBAL("DeviceScopeCompatibility.opencl")
     .set_body_typed(DeviceScopeCompatibilityFromTarget);
 
 }  // namespace codegen

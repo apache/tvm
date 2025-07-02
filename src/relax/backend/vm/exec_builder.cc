@@ -29,6 +29,8 @@ namespace relax {
 
 using namespace vm;
 
+TVM_FFI_STATIC_INIT_BLOCK({ ExecBuilderNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(ExecBuilderNode);
 
 ExecBuilder ExecBuilderNode::Create() {
@@ -45,22 +47,18 @@ ObjectPtr<VMExecutable> ExecBuilderNode::Get() {
   return exec_;
 }
 
-vm::Instruction::Arg ExecBuilderNode::ConvertConstant_(TVMRetValue cvalue) {
+vm::Instruction::Arg ExecBuilderNode::ConvertConstant_(Any cvalue) {
   // emit constant immediate as immediate.
-  if (cvalue.type_code() == kDLInt) {
-    int64_t val = cvalue.operator int64_t();
+  if (auto opt_int = cvalue.as<int64_t>()) {
+    int64_t val = opt_int.value();
     if (val <= vm::Instruction::kValueMaxLimit && val >= vm::Instruction::kValueMinLimit) {
       return vm::Instruction::Arg::Immediate(val);
     }
   }
-  // convert string to object string
-  if (cvalue.type_code() == kTVMStr) {
-    cvalue = cvalue.operator String();
-  }
 
   // run dedup for object with structural equality
-  if (cvalue.IsObjectRef<ObjectRef>()) {
-    ObjectRef obj = cvalue.operator ObjectRef();
+  if (auto opt_obj = cvalue.as<ObjectRef>()) {
+    ObjectRef obj = opt_obj.value();
     auto it = const_dedup_map_.find(obj);
     if (it != const_dedup_map_.end()) {
       return vm::Instruction::Arg::ConstIdx(it->second);
@@ -331,31 +329,31 @@ void ExecBuilderNode::Formalize() {
   }
 }
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderCreate").set_body_typed(ExecBuilderNode::Create);
+TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderCreate").set_body_typed(ExecBuilderNode::Create);
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderConvertConstant")
-    .set_body([](TVMArgs args, TVMRetValue* ret) {
-      ExecBuilder builder = args[0];
-      TVMRetValue rt;
+TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderConvertConstant")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      ExecBuilder builder = args[0].cast<ExecBuilder>();
+      ffi::Any rt;
       rt = args[1];
       *ret = builder->ConvertConstant(rt).data();
     });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitFunction")
+TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderEmitFunction")
     .set_body_typed([](ExecBuilder builder, String func, int64_t num_inputs,
                        Optional<Array<String>> param_names) {
       builder->EmitFunction(func, num_inputs, param_names);
     });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderEndFunction")
-    .set_body_method<ExecBuilder>(&ExecBuilderNode::EndFunction);
+TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderEndFunction")
+    .set_body_method(&ExecBuilderNode::EndFunction);
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderDeclareFunction")
+TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderDeclareFunction")
     .set_body_typed([](ExecBuilder builder, String name, int32_t kind) {
       builder->DeclareFunction(name, static_cast<VMFuncInfo::FuncKind>(kind));
     });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitCall")
+TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderEmitCall")
     .set_body_typed([](ExecBuilder builder, String name, Array<IntImm> args, int64_t dst) {
       std::vector<Instruction::Arg> args_;
       for (size_t i = 0; i < args.size(); ++i) {
@@ -365,36 +363,38 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitCall")
       builder->EmitCall(name, args_, dst_.value());
     });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitRet")
+TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderEmitRet")
     .set_body_typed([](ExecBuilder builder, int64_t data) {
       builder->EmitRet(Instruction::Arg::FromData(data));
     });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitGoto")
-    .set_body_method<ExecBuilder>(&ExecBuilderNode::EmitGoto);
+TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderEmitGoto").set_body_method(&ExecBuilderNode::EmitGoto);
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderEmitIf")
+TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderEmitIf")
     .set_body_typed([](ExecBuilder builder, int64_t data, vm::Index false_offset) {
       builder->EmitIf(Instruction::Arg::FromData(data), false_offset);
     });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderR").set_body_typed([](ExecBuilder builder, int64_t value) {
-  return Instruction::Arg::Register(value).data();
-});
+TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderR")
+    .set_body_typed([](ExecBuilder builder, int64_t value) {
+      return Instruction::Arg::Register(value).data();
+    });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderImm").set_body_typed([](ExecBuilder builder, int64_t value) {
-  return Instruction::Arg::Immediate(value).data();
-});
+TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderImm")
+    .set_body_typed([](ExecBuilder builder, int64_t value) {
+      return Instruction::Arg::Immediate(value).data();
+    });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderC").set_body_typed([](ExecBuilder builder, int64_t value) {
-  return Instruction::Arg::ConstIdx(value).data();
-});
+TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderC")
+    .set_body_typed([](ExecBuilder builder, int64_t value) {
+      return Instruction::Arg::ConstIdx(value).data();
+    });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderF").set_body_typed([](ExecBuilder builder, String value) {
+TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderF").set_body_typed([](ExecBuilder builder, String value) {
   return builder->GetFunction(value).data();
 });
 
-TVM_REGISTER_GLOBAL("relax.ExecBuilderGet").set_body_typed([](ExecBuilder builder) {
+TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderGet").set_body_typed([](ExecBuilder builder) {
   ObjectPtr<VMExecutable> p_exec = builder->Get();
   return runtime::Module(p_exec);
 });

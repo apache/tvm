@@ -45,14 +45,14 @@ def _check(
 def test_simple_func():
     @R.function
     def foo(x: R.Tensor((128, 128), "float32")) -> R.Tensor((128, 128), "float32"):
-        R.func_attr({"Primitive": 1})
+        R.func_attr({"Primitive": True})
         gv0 = R.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32"))
         gv1 = R.call_dps_packed("extern_dps_func", gv0, R.Tensor((128, 128), dtype="float32"))
         return gv1
 
     x = relax.Var("x", R.Tensor((128, 128), "float32"))
     bb = relax.BlockBuilder()
-    with bb.function("foo", (x,), attrs={"Primitive": 1}):
+    with bb.function("foo", (x,), attrs={"Primitive": True}):
         y = bb.emit(relax.call_dps_packed("extern_func", x, R.Tensor((128, 128), dtype="float32")))
         out = bb.emit(
             relax.call_dps_packed("extern_dps_func", y, R.Tensor((128, 128), dtype="float32"))
@@ -306,7 +306,7 @@ def test_module_with_attr_and_global_info():
         bb.emit_func_output(out)
     mod = bb.get()
     mod.update_global_info("dummy", [DummyGlobalInfo(), DummyGlobalInfo()])
-    mod = mod.with_attr("attr", tvm.tir.IntImm("int32", 10))
+    mod = mod.with_attr("attr", 10)
     _check(TestModule, mod)
 
 
@@ -356,7 +356,7 @@ def test_global_info_vdevice():
         bb.emit_func_output(out)
     mod = bb.get()
     mod.update_global_info("vdevice", vdevices)
-    mod = mod.with_attr("attr", tvm.tir.IntImm("int32", 10))
+    mod = mod.with_attr("attr", 10)
     _check(TestModule, mod)
 
 
@@ -535,7 +535,6 @@ def test_tuple_return_2():
     _check(foo, bb.get()["foo"])
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="requires python3.8 or higher")
 def test_tuple_binding():
     @R.function
     def foo(x: R.Tensor("float32", ndim=2)):
@@ -557,7 +556,6 @@ def test_tuple_binding():
     _check(foo, bb.get()["foo"])
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="requires python3.8 or higher")
 def test_tuple_get_item():
     @R.function
     def foo(x: R.Tensor, y: R.Tensor):
@@ -810,7 +808,7 @@ def test_tensor_with_vdevice():
         out = bb.emit(relax.op.add(a, c))
         bb.emit_func_output(out)
     mod = bb.get()
-    mod = mod.with_attr("attr", tvm.tir.IntImm("int32", 10))
+    mod = mod.with_attr("attr", 10)
     mod.update_global_info("vdevice", vdevices)
 
     _check(TestModule, mod)
@@ -1670,7 +1668,6 @@ def test_undefined_symbolic_var_raises_error():
             return z
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="requires python3.8 or higher")
 def test_arith_operators():
     @R.function
     def foo(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):
@@ -1859,7 +1856,7 @@ def test_context_aware_parsing(monkeypatch):
 
         @R.function
         def main(x: R.Tensor((2, 4), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
-            R.func_attr({"relax.force_pure": 1})
+            R.func_attr({"relax.force_pure": True})
             cls = Module
             alloc = R.builtin.alloc_tensor(R.shape([2, 4]), dtype="float32", runtime_device_index=0)
             _: R.Tuple() = cls.add(x, R.const(1, "float32"), alloc)

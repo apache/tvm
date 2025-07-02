@@ -20,8 +20,8 @@
 #include <cuda_fp16.h>
 #include <float.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/function.h>
 
 #include "../cublas/cublas_utils.h"
 #include "gemm_runner.cuh"
@@ -42,8 +42,9 @@ void tvm_cutlass_fp8_gemm(NDArray x, NDArray weight, NDArray workspace, NDArray 
                           NDArray out) {
   // Workspace is used for storing device-side gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
-  auto func = tvm::runtime::Registry::Get("runtime.get_cuda_stream");
-  ICHECK(func != nullptr);
+  static auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+  cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
+
   CHECK_GE(x->ndim, 2);
   CHECK_EQ(weight->ndim, 2);
   CHECK_EQ(workspace->ndim, 1);
@@ -60,7 +61,6 @@ void tvm_cutlass_fp8_gemm(NDArray x, NDArray weight, NDArray workspace, NDArray 
   CHECK_EQ(x->shape[x->ndim - 1], weight->shape[1]) << "Only col-major weight is supported now.";
   int64_t k = x->shape[x->ndim - 1];
   const float* beta = nullptr;
-  cudaStream_t stream = static_cast<cudaStream_t>((*func)().operator void*());
   if (m <= 64) {
     cutlass_gemm<KernelTraitsM64>(
         static_cast<ElementA*>(x->data), static_cast<ElementB*>(weight->data),
@@ -77,15 +77,15 @@ void tvm_cutlass_fp8_gemm(NDArray x, NDArray weight, NDArray workspace, NDArray 
   }
 }
 
-TVM_REGISTER_GLOBAL("cutlass.gemm_e5m2_e5m2_fp16")
+TVM_FFI_REGISTER_GLOBAL("cutlass.gemm_e5m2_e5m2_fp16")
     .set_body_typed(
         tvm_cutlass_fp8_gemm<cutlass::float_e5m2_t, cutlass::float_e5m2_t, cutlass::half_t>);
 
-TVM_REGISTER_GLOBAL("cutlass.gemm_e5m2_e4m3_fp16")
+TVM_FFI_REGISTER_GLOBAL("cutlass.gemm_e5m2_e4m3_fp16")
     .set_body_typed(
         tvm_cutlass_fp8_gemm<cutlass::float_e5m2_t, cutlass::float_e4m3_t, cutlass::half_t>);
 
-TVM_REGISTER_GLOBAL("cutlass.gemm_e4m3_e4m3_fp16")
+TVM_FFI_REGISTER_GLOBAL("cutlass.gemm_e4m3_e4m3_fp16")
     .set_body_typed(
         tvm_cutlass_fp8_gemm<cutlass::float_e4m3_t, cutlass::float_e4m3_t, cutlass::half_t>);
 

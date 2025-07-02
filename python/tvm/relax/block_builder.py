@@ -100,7 +100,7 @@ class TestingScope(object):
         self._bb.end_scope()
 
 
-@tvm._ffi.register_object("relax.BlockBuilder")
+@tvm.ffi.register_object("relax.BlockBuilder")
 class BlockBuilder(Object):
     """A builder to build Relax IR for testing and dev.
 

@@ -40,7 +40,7 @@ namespace tvm {
 namespace relax {
 
 namespace {
-std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns() {
+std::tuple<DFPattern, ffi::TypedFunction<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns() {
   auto pat_lhs = WildcardPattern();
 
   auto pat_weights = WildcardPattern();
@@ -77,8 +77,8 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
     const auto* matmul_sinfo = expr->struct_info_.as<TensorStructInfoNode>();
     if (!matmul_sinfo) return expr;
 
-    if (!attrs->axis.defined()) return expr;
-    auto axis = attrs->axis.value()->value;
+    if (!attrs->axis.has_value()) return expr;
+    auto axis = attrs->axis.value();
 
     if (lhs_sinfo->IsUnknownNdim() || indices_sinfo->IsUnknownNdim() ||
         matmul_sinfo->IsUnknownNdim() || weights_sinfo->IsUnknownNdim())
@@ -95,7 +95,7 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
       // out_table.shape = [*batch, table_size]
       auto out_table = matmul(lhs, weights, DataType::Void());
       // new_output.shape = [*batch, outfeatures]
-      auto new_output = take(out_table, indices, Integer(matmul_sinfo->ndim - 1));
+      auto new_output = take(out_table, indices, matmul_sinfo->ndim - 1);
 
       return new_output;
     } else if (lhs_sinfo->ndim == 3 && weights_sinfo->ndim == 3 && indices_sinfo->ndim == 1 &&
@@ -132,7 +132,7 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
       // operations.
 
       // duplicated_output.shape = [batch1, batch2, batch1, outfeatures]
-      auto duplicated_output = take(indexed_output, indices, Integer(2));
+      auto duplicated_output = take(indexed_output, indices, 2);
       // new_output.shape = [batch1, batch2, outfeatures]
       auto new_output = einsum(Tuple({duplicated_output}), "ijik->ijk");
 
@@ -156,7 +156,7 @@ Pass ReorderTakeAfterMatmul() {
   return CreateFunctionPass(pass_func, 1, "ReorderTakeAfterMatmul", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.ReorderTakeAfterMatmul")
+TVM_FFI_REGISTER_GLOBAL("relax.transform.ReorderTakeAfterMatmul")
     .set_body_typed(ReorderTakeAfterMatmul);
 
 }  // namespace transform

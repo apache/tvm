@@ -18,7 +18,7 @@
 """Operators used in TIR expression."""
 from typing import Any, Optional, Union
 
-import tvm._ffi
+import tvm.ffi
 from tvm import tir
 from tvm.ir import Array, Op, PrimExpr
 from tvm.ir.base import Span
@@ -26,7 +26,7 @@ from tvm.runtime import const
 
 from . import _ffi_api
 from .buffer import Buffer
-from .expr import Call, CommReducer, IntImm, PrimExprWithOp, Var
+from .expr import BufferLoad, Call, CommReducer, IntImm, PrimExprWithOp, Var
 
 
 def _pack_buffer(buf, span=None):
@@ -319,24 +319,6 @@ def call_llvm_pure_intrin(dtype, name, *args, span=None):
     )
 
 
-def tvm_check_return(expected, return_unexpected, nested_call):
-    """Return new on stack dtype[num]
-    Parameters
-    ----------
-    expected : int
-        The expected return code.
-    return_unexpected : int
-        The unexpected return code.
-    nested_call : PrimExpr
-        The call expression to check return.
-    Returns
-    -------
-    call : PrimExpr
-        The call expression.
-    """
-    return call_intrin("int32", "tir.tvm_check_return", expected, return_unexpected, nested_call)
-
-
 def tvm_stack_alloca(dtype_str, num):
     """Return new on stack dtype[num]
 
@@ -401,7 +383,14 @@ def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
         The call expression.
     """
     return call_intrin(
-        "handle", "tir.tvm_stack_make_array", data, shape, strides, ndim, arr_dtype, elem_offset
+        "handle",
+        "tir.tvm_stack_make_array",
+        data,
+        shape,
+        strides,
+        ndim,
+        arr_dtype,
+        elem_offset,
     )
 
 
@@ -443,10 +432,10 @@ def call_tir(global_var: tvm.ir.GlobalVar, *args):
     assert isinstance(global_var, tvm.ir.GlobalVar)
 
     dtype = "void"
-    if global_var.checked_type is not None:
-        ret_type = global_var.checked_type.ret_type
-        if hasattr(ret_type, "dtype"):
-            dtype = ret_type.dtype
+    if global_var.struct_info is not None:
+        ret_sinfo = global_var.struct_info.ret
+        if hasattr(ret_sinfo, "dtype"):
+            dtype = ret_sinfo.dtype
 
     return Call(dtype=dtype, op=global_var, args=args)
 
@@ -493,6 +482,25 @@ def tvm_tuple(*value):
         The call expression.
     """
     return call_intrin("handle", "tir.tvm_tuple", *value)
+
+
+def handle_add_byte_offset(handle, offset):
+    """Add offset to handle
+
+    Parameters
+    ----------
+    handle : Expr
+        The handle.
+
+    offset : int
+        The offset.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.handle_add_byte_offset", handle, offset)
 
 
 def tvm_struct_get(arr, index, field, dtype):
@@ -545,13 +553,13 @@ def tvm_struct_set(arr, index, field, value):
     return call_intrin("int32", "tir.tvm_struct_set", arr, index, field, value)
 
 
-def address_of(buffer_load, span=None):
+def address_of(obj: Union[Buffer, BufferLoad], span: Optional[Span] = None) -> PrimExpr:
     """Returns the address of an element in the buffer
 
     Parameters
     ----------
-    buffer_load: BufferLoad
-        The buffer load.
+    obj: Union[Buffer, BufferLoad]
+        The buffer or buffer load.
 
     span : Optional[Span]
         The location of this operator in the source code.
@@ -561,7 +569,15 @@ def address_of(buffer_load, span=None):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("handle", "tir.address_of", buffer_load, span=span)
+    if isinstance(obj, Buffer):
+
+        n_dim = len(obj.shape)
+        buffer_load = BufferLoad(obj, [0] * n_dim)
+        return call_intrin("handle", "tir.address_of", buffer_load, span=span)
+    elif isinstance(obj, BufferLoad):
+        return call_intrin("handle", "tir.address_of", obj, span=span)
+    else:
+        raise ValueError(f"Invalid object type: {type(obj)}")
 
 
 def lookup_param(param_name, span=None):
@@ -1376,7 +1392,13 @@ def ptx_cp_async(dtype, shared_ptr, shared_offset, global_ptr, global_offset, by
         The call expression.
     """
     return call_intrin(
-        dtype, "tir.ptx_cp_async", shared_ptr, shared_offset, global_ptr, global_offset, bytes
+        dtype,
+        "tir.ptx_cp_async",
+        shared_ptr,
+        shared_offset,
+        global_ptr,
+        global_offset,
+        bytes,
     )
 
 
@@ -1691,7 +1713,15 @@ def simdgroup_store(
         The call expression.
     """
     return call_intrin(
-        "handle", "tir.simdgroup_store", d, index, ptr, stride, col, row, transpose_matrix
+        "handle",
+        "tir.simdgroup_store",
+        d,
+        index,
+        ptr,
+        stride,
+        col,
+        row,
+        transpose_matrix,
     )
 
 
@@ -1905,7 +1935,7 @@ def all(*args, span=None):
     return val
 
 
-@tvm._ffi.register_func("tvm.default_trace_action")
+@tvm.ffi.register_func("tvm.default_trace_action")
 def _tvm_default_trace_action(*args):
     print(list(args))
 
@@ -3221,6 +3251,28 @@ def floordiv(a, b, span=None):
     return _ffi_api._OpFloorDiv(a, b, span)  # type: ignore
 
 
+def logaddexp(a, b, span=None):
+    """Compute the logaddexp of two expressions.
+
+    Parameters
+    ----------
+    a : PrimExpr
+        The left hand operand
+
+    b : PrimExpr
+        The right hand operand
+
+    span : Optional[Span]
+        The location of this operator in the source.
+
+    Returns
+    -------
+    res : PrimExpr
+        The result expression.
+    """
+    return _ffi_api._OpLogAddExp(a, b, span)  # type: ignore
+
+
 def floormod(a, b, span=None):
     """Compute the floormod of two expressions.
 
@@ -3565,7 +3617,7 @@ def get_active_lane_mask(dtype, base, limit):
     return call_intrin(dtype, "tir.get_active_lane_mask", base, limit)
 
 
-def get_vscale_expr(dtype: Union[str, tvm.DataType], min_size: int = 128) -> PrimExpr:
+def get_vscale_expr(dtype: Union[str, tvm.ffi.dtype], min_size: int = 128) -> PrimExpr:
     """
     Create a datatype dependent scalable expression.
 
@@ -3577,7 +3629,7 @@ def get_vscale_expr(dtype: Union[str, tvm.DataType], min_size: int = 128) -> Pri
         The minimum size of the scalable vector in bits.
     """
     if isinstance(dtype, str):
-        dtype = tvm.DataType(dtype)
+        dtype = tvm.ffi.dtype(dtype)
     return min_size // dtype.bits * vscale()
 
 

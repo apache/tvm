@@ -23,7 +23,7 @@
  *  Common operator definitions for ops in tir/op.h
  */
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -201,6 +201,12 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   } else if (ltype.is_float8() && !rtype.is_float8()) {
     // Cast int->float8 for rhs when lhs is a float8
     rhs = cast(ltype, rhs);
+  } else if (!ltype.is_float6() && rtype.is_float6()) {
+    // Cast int->float6 for lhs when rhs is a float6
+    lhs = cast(rtype, lhs);
+  } else if (ltype.is_float6() && !rtype.is_float6()) {
+    // Cast int->float6 for rhs when lhs is a float6
+    rhs = cast(ltype, rhs);
   } else if (!ltype.is_float4() && rtype.is_float4()) {
     // Cast int->float4 for lhs when rhs is a float4
     lhs = cast(rtype, lhs);
@@ -239,7 +245,7 @@ PrimExpr ret(PrimExpr value, Span span) {
   return tir::Call(value.dtype(), tir::builtin::ret(), {value}, span);
 }
 
-TVM_REGISTER_GLOBAL("tir.ret").set_body_typed(ret);
+TVM_FFI_REGISTER_GLOBAL("tir.ret").set_body_typed(ret);
 
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype, Span span) {
@@ -275,8 +281,25 @@ PrimExpr max_value(const DataType& dtype, Span span) {
     // according to https://arxiv.org/pdf/2209.05433.pdf
     if (dtype.code() == DataType::TypeCode::kFloat8_e5m2) {
       return FloatImm(dtype, 57344.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e5m2fnuz) {
+      return FloatImm(dtype, 57344.0, span);
     } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3fn) {
       return FloatImm(dtype, 448.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3fnuz ||
+               dtype.code() == DataType::TypeCode::kFloat8_e4m3) {
+      return FloatImm(dtype, 448.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3b11fnuz) {
+      return FloatImm(dtype, 30.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e3m4) {
+      return FloatImm(dtype, 31.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e8m0fnu) {
+      return FloatImm(dtype, 3.4028236692093846e+38, span);
+    }
+  } else if (dtype.is_float6()) {
+    if (dtype.code() == DataType::TypeCode::kFloat6_e2m3fn) {
+      return FloatImm(dtype, 7.5, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat6_e3m2fn) {
+      return FloatImm(dtype, 28.0, span);
     }
   } else if (dtype.is_float4()) {
     return FloatImm(dtype, 6.0, span);
@@ -293,7 +316,7 @@ PrimExpr min_value(const DataType& dtype, Span span) {
     ICHECK(f) << "No minimum function registered for custom dtype " << (unsigned int)dtype.code();
     // TODO(@hypercubestart) Document this change (and others associated with the overflowing
     // floatimm min bug)
-    return (*f)(dtype.bits());
+    return (*f)(dtype.bits()).cast<PrimExpr>();
   } else if (dtype.is_int()) {
     if (dtype.bits() == 64) {
       return IntImm(dtype, std::numeric_limits<int64_t>::lowest(), span);
@@ -318,8 +341,26 @@ PrimExpr min_value(const DataType& dtype, Span span) {
     // according to https://arxiv.org/pdf/2209.05433.pdf
     if (dtype.code() == DataType::TypeCode::kFloat8_e5m2) {
       return FloatImm(dtype, -57344.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e5m2fnuz) {
+      return FloatImm(dtype, 0.0, span);
     } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3fn) {
       return FloatImm(dtype, -448.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3fnuz) {
+      return FloatImm(dtype, 0.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3) {
+      return FloatImm(dtype, -448.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e4m3b11fnuz) {
+      return FloatImm(dtype, 0.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e3m4) {
+      return FloatImm(dtype, -31.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat8_e8m0fnu) {
+      return FloatImm(dtype, 0.0, span);
+    }
+  } else if (dtype.is_float6()) {
+    if (dtype.code() == DataType::TypeCode::kFloat6_e2m3fn) {
+      return FloatImm(dtype, -7.5, span);
+    } else if (dtype.code() == DataType::TypeCode::kFloat6_e3m2fn) {
+      return FloatImm(dtype, -28.0, span);
     }
   } else if (dtype.is_float4()) {
     return FloatImm(dtype, -6.0, span);
@@ -505,6 +546,15 @@ PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
   if (auto ret = arith::TryConstFold<tir::FloorDiv>(a, b)) return ret.value();
   return tir::FloorDiv(a, b, span);
+}
+
+PrimExpr logaddexp(PrimExpr a, PrimExpr b, Span span) {
+  ICHECK(a.dtype().is_float()) << a;
+  ICHECK(b.dtype().is_float()) << b;
+  BinaryOpMatchTypes(a, b, span);
+  PrimExpr exp_sum = add(exp(a), exp(b));
+  PrimExpr log_exp_sum = log(exp_sum);
+  return log_exp_sum;
 }
 
 PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span) {
@@ -752,7 +802,7 @@ PrimExpr bitwise_neg(PrimExpr a, Span span) {
   return tir::Call(a.dtype(), tir::builtin::bitwise_not(), {a}, span);
 }
 
-TVM_REGISTER_GLOBAL("tir.bitwise_not").set_body_typed([](PrimExpr a, Span span) {
+TVM_FFI_REGISTER_GLOBAL("tir.bitwise_not").set_body_typed([](PrimExpr a, Span span) {
   return bitwise_neg(a, span);
 });
 
@@ -1062,68 +1112,66 @@ TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 // expose basic functions to node namespace
-TVM_REGISTER_GLOBAL("node._const").set_body([](TVMArgs args, TVMRetValue* ret) {
-  if (auto opt = args[0].TryAsInt()) {
-    *ret = tir::make_const(args[1], opt.value(), args[2]);
-  } else if (auto opt = args[0].TryAsBool()) {
-    *ret = tir::make_const(args[1], opt.value(), args[2]);
-  } else if (auto opt = args[0].TryAsFloat()) {
-    *ret = tir::make_const(args[1], opt.value(), args[2]);
+TVM_FFI_REGISTER_GLOBAL("node._const").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+  if (auto opt = args[0].try_cast<int64_t>()) {
+    *ret = tir::make_const(args[1].cast<DataType>(), *opt, args[2].cast<Span>());
+  } else if (auto opt = args[0].try_cast<double>()) {
+    *ret = tir::make_const(args[1].cast<DataType>(), *opt, args[2].cast<Span>());
   } else {
     LOG(FATAL) << "First argument to tvm.tir.const must be int, float, or bool, "
-               << "but instead received argument with type code " << args[0].type_code();  // FIXME
+               << "but instead received argument with type code " << args[0].GetTypeKey();
   }
 });
 
-TVM_REGISTER_GLOBAL("node.LargeUIntImm").set_body_typed(LargeUIntImm);
+TVM_FFI_REGISTER_GLOBAL("node.LargeUIntImm").set_body_typed(LargeUIntImm);
 
-TVM_REGISTER_GLOBAL("tir.min_value").set_body_typed(min_value);
+TVM_FFI_REGISTER_GLOBAL("tir.min_value").set_body_typed(min_value);
 
-TVM_REGISTER_GLOBAL("tir.max_value").set_body_typed(max_value);
+TVM_FFI_REGISTER_GLOBAL("tir.max_value").set_body_typed(max_value);
 
-TVM_REGISTER_GLOBAL("tir.infinity").set_body_typed(infinity);
+TVM_FFI_REGISTER_GLOBAL("tir.infinity").set_body_typed(infinity);
 
-TVM_REGISTER_GLOBAL("tir.abs").set_body_typed(tvm::abs);
+TVM_FFI_REGISTER_GLOBAL("tir.abs").set_body_typed(tvm::abs);
 
-TVM_REGISTER_GLOBAL("tir.likely").set_body_typed(tvm::likely);
+TVM_FFI_REGISTER_GLOBAL("tir.likely").set_body_typed(tvm::likely);
 
-TVM_REGISTER_GLOBAL("tir.isnan").set_body_typed(tvm::isnan);
+TVM_FFI_REGISTER_GLOBAL("tir.isnan").set_body_typed(tvm::isnan);
 
-TVM_REGISTER_GLOBAL("tir.isfinite").set_body_typed(tvm::isfinite);
+TVM_FFI_REGISTER_GLOBAL("tir.isfinite").set_body_typed(tvm::isfinite);
 
-TVM_REGISTER_GLOBAL("tir.isinf").set_body_typed(tvm::isinf);
+TVM_FFI_REGISTER_GLOBAL("tir.isinf").set_body_typed(tvm::isinf);
 
-TVM_REGISTER_GLOBAL("tir.floor").set_body_typed(tvm::floor);
+TVM_FFI_REGISTER_GLOBAL("tir.floor").set_body_typed(tvm::floor);
 
-TVM_REGISTER_GLOBAL("tir.ceil").set_body_typed(tvm::ceil);
+TVM_FFI_REGISTER_GLOBAL("tir.ceil").set_body_typed(tvm::ceil);
 
-TVM_REGISTER_GLOBAL("tir.round").set_body_typed(tvm::round);
+TVM_FFI_REGISTER_GLOBAL("tir.round").set_body_typed(tvm::round);
 
-TVM_REGISTER_GLOBAL("tir.nearbyint").set_body_typed(tvm::nearbyint);
+TVM_FFI_REGISTER_GLOBAL("tir.nearbyint").set_body_typed(tvm::nearbyint);
 
-TVM_REGISTER_GLOBAL("tir.trunc").set_body_typed(tvm::trunc);
+TVM_FFI_REGISTER_GLOBAL("tir.trunc").set_body_typed(tvm::trunc);
 
-TVM_REGISTER_GLOBAL("tir._cast").set_body_typed(tvm::cast);
+TVM_FFI_REGISTER_GLOBAL("tir._cast").set_body_typed(tvm::cast);
 
-TVM_REGISTER_GLOBAL("tir.reinterpret").set_body_typed(tvm::reinterpret);
+TVM_FFI_REGISTER_GLOBAL("tir.reinterpret").set_body_typed(tvm::reinterpret);
 
 // operator overloading, smarter than make
-#define REGISTER_MAKE_BINARY_OP(Node, Func)                                                \
-  TVM_REGISTER_GLOBAL("tir." #Node).set_body_typed([](PrimExpr a, PrimExpr b, Span span) { \
-    return (Func(a, b, span));                                                             \
+#define REGISTER_MAKE_BINARY_OP(Node, Func)                                                    \
+  TVM_FFI_REGISTER_GLOBAL("tir." #Node).set_body_typed([](PrimExpr a, PrimExpr b, Span span) { \
+    return (Func(a, b, span));                                                                 \
   })
 
-#define REGISTER_MAKE_BIT_OP(Node, Func)                                                \
-  TVM_REGISTER_GLOBAL("tir." #Node).set_body([](TVMArgs args, TVMRetValue* ret) {       \
-    bool lhs_is_int = args[0].type_code() == kDLInt;                                    \
-    bool rhs_is_int = args[1].type_code() == kDLInt;                                    \
-    if (lhs_is_int) {                                                                   \
-      *ret = (Func(args[0].operator int(), args[1].operator PrimExpr(), args[2]));      \
-    } else if (rhs_is_int) {                                                            \
-      *ret = (Func(args[0].operator PrimExpr(), args[1].operator int(), args[2]));      \
-    } else {                                                                            \
-      *ret = (Func(args[0].operator PrimExpr(), args[1].operator PrimExpr(), args[2])); \
-    }                                                                                   \
+#define REGISTER_MAKE_BIT_OP(Node, Func)                                                          \
+  TVM_FFI_REGISTER_GLOBAL("tir." #Node).set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) { \
+    bool lhs_is_int = args[0].type_index() == ffi::TypeIndex::kTVMFFIInt;                         \
+    bool rhs_is_int = args[1].type_index() == ffi::TypeIndex::kTVMFFIInt;                         \
+    if (lhs_is_int) {                                                                             \
+      *ret = (Func(args[0].cast<int>(), args[1].cast<PrimExpr>(), args[2].cast<Span>()));         \
+    } else if (rhs_is_int) {                                                                      \
+      *ret = (Func(args[0].cast<PrimExpr>(), args[1].cast<int>(), args[2].cast<Span>()));         \
+    } else {                                                                                      \
+      *ret = (Func(args[0].cast<PrimExpr>(), args[1].cast<PrimExpr>(), args[2].cast<Span>()));    \
+    }                                                                                             \
   })
 
 REGISTER_MAKE_BINARY_OP(_OpAdd, add);
@@ -1134,6 +1182,7 @@ REGISTER_MAKE_BINARY_OP(_OpMod, truncmod);
 REGISTER_MAKE_BINARY_OP(_OpIndexDiv, indexdiv);
 REGISTER_MAKE_BINARY_OP(_OpIndexMod, indexmod);
 REGISTER_MAKE_BINARY_OP(_OpFloorDiv, floordiv);
+REGISTER_MAKE_BINARY_OP(_OpLogAddExp, logaddexp);
 REGISTER_MAKE_BINARY_OP(_OpFloorMod, floormod);
 REGISTER_MAKE_BINARY_OP(_OpTruncDiv, truncdiv);
 REGISTER_MAKE_BINARY_OP(_OpTruncMod, truncmod);
@@ -1155,12 +1204,12 @@ REGISTER_MAKE_BIT_OP(bitwise_xor, bitwise_xor);
 REGISTER_MAKE_BIT_OP(left_shift, left_shift);  // NOLINT(*)
 REGISTER_MAKE_BIT_OP(right_shift, right_shift);
 
-TVM_REGISTER_GLOBAL("tir._OpIfThenElse")
+TVM_FFI_REGISTER_GLOBAL("tir._OpIfThenElse")
     .set_body_typed([](PrimExpr cond, PrimExpr true_value, PrimExpr false_value, Span span) {
       return if_then_else(cond, true_value, false_value, span);
     });
 
-TVM_REGISTER_GLOBAL("tir.const_true").set_body_typed([](DataType t, Span span) {
+TVM_FFI_REGISTER_GLOBAL("tir.const_true").set_body_typed([](DataType t, Span span) {
   return const_true(t.lanes(), span);
 });
 

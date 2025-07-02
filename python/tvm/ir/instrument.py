@@ -19,13 +19,13 @@
 import inspect
 import functools
 
-import tvm._ffi
+import tvm.ffi
 import tvm.runtime
 
 from . import _ffi_instrument_api
 
 
-@tvm._ffi.register_object("instrument.PassInstrument")
+@tvm.ffi.register_object("instrument.PassInstrument")
 class PassInstrument(tvm.runtime.Object):
     """A pass instrument implementation.
 
@@ -40,7 +40,6 @@ class PassInstrument(tvm.runtime.Object):
 
     def __init__(self):
         # initialize handle in case pi_cls creation failed.
-        self.handle = None
         cls = type(self)
 
         # If the child class declared the method, then use it.
@@ -160,7 +159,6 @@ def _wrap_class_pass_instrument(pi_cls):
 
         def __init__(self, *args, **kwargs):
             # initialize handle in case pi_cls creation failed.
-            self.handle = None
             pi_cls.__init__(self, *args, **kwargs)
             PassInstrument.__init__(self)
 
@@ -227,7 +225,7 @@ def pass_instrument(pi_cls=None):
     return create_pass_instrument
 
 
-@tvm._ffi.register_object("instrument.PassInstrument")
+@tvm.ffi.register_object("instrument.PassInstrument")
 class PassTimingInstrument(tvm.runtime.Object):
     """A wrapper to create a passes time instrument that implemented in C++"""
 

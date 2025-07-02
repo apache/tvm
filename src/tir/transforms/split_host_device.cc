@@ -21,9 +21,9 @@
  * \file split_host_device.cc
  * \brief Split device function from host.
  */
+#include <tvm/ffi/function.h>
 #include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/transform.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
@@ -96,8 +96,8 @@ class HostDeviceSplitter : public StmtMutator {
     }
     PrimFunc device_func(params, body, kernel_ret_type);
     device_func = WithAttrs(std::move(device_func), {{tvm::attr::kTarget, device_target},
-                                                     {tir::attr::kNoAlias, Bool(true)},
-                                                     {tir::attr::kIsGlobalFunc, Bool(true)}});
+                                                     {tir::attr::kNoAlias, true},
+                                                     {tir::attr::kIsGlobalFunc, true}});
 
     GlobalVar kernel_symbol_global = var_supply_();
     (*device_mod_)->Add(kernel_symbol_global, device_func);
@@ -168,7 +168,7 @@ Pass SplitHostDevice() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.SplitHostDevice", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.SplitHostDevice").set_body_typed(SplitHostDevice);
+TVM_FFI_REGISTER_GLOBAL("tir.transform.SplitHostDevice").set_body_typed(SplitHostDevice);
 
 }  // namespace transform
 }  // namespace tir

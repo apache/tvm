@@ -45,11 +45,9 @@ class ASTPrinter(ExprFunctor):
         self,
         indent_str="    ",
         include_struct_info_annotations=True,
-        include_type_annotations=False,
         include_call_attrs=True,
     ):
         self.indent_str = indent_str
-        self.include_type_annotations = include_type_annotations
         self.include_struct_info_annotations = include_struct_info_annotations
         self.include_call_attrs = include_call_attrs
 
@@ -88,13 +86,11 @@ class ASTPrinter(ExprFunctor):
     def build_expr(self, node: relax.Expr, nodename: str, force_newline=False, **kwargs: str):
         """
         Renders a Relax expression as a string using `build_ast_node`.
-        Handles whether to include the checked_type_ and struct_info fields.
+        Handles whether to include the struct_info fields.
         """
         fields = kwargs.copy()
         if node.struct_info_ and self.include_struct_info_annotations:
             fields["struct_info"] = self.visit_struct_info_(node.struct_info)
-        if node._checked_type_ and self.include_type_annotations:
-            fields["checked_type_"] = self.visit_type_(node.checked_type)
         return self.build_ast_node(nodename, force_newline=force_newline, **fields)
 
     def build_list(
@@ -136,7 +132,7 @@ class ASTPrinter(ExprFunctor):
 
     def visit_extern_func_(self, op: relax.ExternFunc) -> str:
         # ExternFunc does not inherit from relax.Expr either,
-        # so it doesn't have checked_type_ or struct_info fields and we don't use build_expr
+        # so it doesn't have struct_info fields and we don't use build_expr
         return self.build_ast_node("ExternFunc", global_symbol=wrap_quotes(op.global_symbol))
 
     def visit_global_var_(self, op: relax.GlobalVar) -> str:
@@ -220,8 +216,8 @@ class ASTPrinter(ExprFunctor):
 
     def visit_op_(self, op: tvm.ir.Op) -> str:
         # TODO: List other attributes?
-        # op is not actually a Relax expr and does not have checked_type_
-        # or struct_info fields, so we don't use build_expr here
+        # op is not actually a Relax expr and does not have
+        # struct_info fields, so we don't use build_expr here
         return self.build_ast_node("Op", name=wrap_quotes(op.name))
 
     def visit_prim_expr_(self, prim_expr: PrimExpr) -> str:
@@ -365,7 +361,6 @@ def dump_ast(
     exp: relax.Expr,
     indent_str="    ",
     include_struct_info_annotations=True,
-    include_type_annotations=False,
     include_call_attrs=True,
 ) -> str:
     """
@@ -376,7 +371,6 @@ def dump_ast(
     printer = ASTPrinter(
         indent_str=indent_str,
         include_struct_info_annotations=include_struct_info_annotations,
-        include_type_annotations=include_type_annotations,
         include_call_attrs=include_call_attrs,
     )
     return printer.visit_expr(exp)

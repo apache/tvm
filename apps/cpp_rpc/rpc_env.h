@@ -24,7 +24,7 @@
 #ifndef TVM_APPS_CPP_RPC_ENV_H_
 #define TVM_APPS_CPP_RPC_ENV_H_
 
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <string>
 

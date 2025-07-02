@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-""" Test Meta Schedule SpaceGenerator """
+"""Test Meta Schedule SpaceGenerator"""
 # pylint: disable=missing-function-docstring
 
 import math
@@ -22,7 +22,7 @@ import math
 import pytest
 import tvm
 import tvm.testing
-from tvm._ffi.base import TVMError
+from tvm.base import TVMError
 from tvm.meta_schedule.space_generator import (
     PySpaceGenerator,
     ScheduleFn,

@@ -18,8 +18,8 @@
  */
 #ifndef TVM_SUPPORT_ARRAY_H_
 #define TVM_SUPPORT_ARRAY_H_
+#include <tvm/ffi/container/array.h>
 #include <tvm/ir/expr.h>
-#include <tvm/runtime/container/array.h>
 
 #include <list>
 #include <vector>
@@ -70,7 +70,7 @@ inline bool ArrayWithSameContent(const std::vector<T*>& a, const std::vector<T*>
 }
 
 /*!
- * \brief Convert a tvm::runtime::Array to std::vector
+ * \brief Convert a tvm::Array to std::vector
  * \tparam TSrc The type of elements in the source Array
  * \tparam TDst The type of elements in the result vector
  * \return The result vector
@@ -79,7 +79,7 @@ template <class TSrc, class TDst>
 inline std::vector<TDst> AsVector(const Array<TSrc>& vec);
 
 /*!
- * \brief Convert a std::vector to tvm::runtime::Array
+ * \brief Convert a std::vector to tvm::Array
  * \tparam TSrc The type of elements in the source vector
  * \tparam TDst The type of elements in the result Array
  * \return The result Array
@@ -88,7 +88,7 @@ template <class TSrc, class TDst>
 inline Array<TDst> AsArray(const std::vector<TSrc>& vec);
 
 /*!
- * \brief Convert a tvm::runtime::Array to std::list
+ * \brief Convert a tvm::Array to std::list
  * \tparam T The type of elements in the source array
  * \return The result list
  */
@@ -100,7 +100,7 @@ inline std::list<T> AsList(const Array<T>& array) {
 }
 
 /*!
- * \brief Convert a std::list to tvm::runtime::Array
+ * \brief Convert a std::list to tvm::Array
  * \tparam T The type of elements in the source list
  * \return The result list
  */
@@ -116,10 +116,10 @@ inline Array<T> AsArray(const std::list<T>& list) {
  * \param shape The shape tuple
  * \return An array of the shape tuple
  */
-inline Array<Integer> AsArray(const ShapeTuple& shape) {
+inline Array<Integer> AsArray(const ffi::Shape& shape) {
   Array<Integer> result;
   result.reserve(shape->size);
-  for (ShapeTuple::index_type i : shape) {
+  for (ffi::Shape::index_type i : shape) {
     result.push_back(Integer(i));
   }
   return result;
@@ -165,9 +165,9 @@ struct AsVectorImpl<TSrc, TSrc> {
 template <class TSrcObjectRef>
 struct AsVectorImpl<TSrcObjectRef, int> {
   inline std::vector<int> operator()(const Array<TSrcObjectRef>& array) const {
-    TVMRetValue ret_value;
+    ffi::Any ret_value;
     ret_value = array;
-    Array<runtime::Int> as_int_vec = ret_value;
+    Array<IntImm> as_int_vec = ret_value.cast<Array<IntImm>>();
 
     std::vector<int> results;
     for (const auto& value : as_int_vec) {
@@ -180,9 +180,9 @@ struct AsVectorImpl<TSrcObjectRef, int> {
 template <class TSrcObjectRef>
 struct AsVectorImpl<TSrcObjectRef, int64_t> {
   inline std::vector<int64_t> operator()(const Array<TSrcObjectRef>& array) const {
-    TVMRetValue ret_value;
+    ffi::Any ret_value;
     ret_value = array;
-    Array<runtime::Int> as_int_vec = ret_value;
+    Array<IntImm> as_int_vec = ret_value.cast<Array<IntImm>>();
 
     std::vector<int64_t> results;
     for (const auto& value : as_int_vec) {
@@ -195,9 +195,9 @@ struct AsVectorImpl<TSrcObjectRef, int64_t> {
 template <class TSrcObjectRef>
 struct AsVectorImpl<TSrcObjectRef, double> {
   inline std::vector<double> operator()(const Array<TSrcObjectRef>& array) const {
-    TVMRetValue ret_value;
+    ffi::Any ret_value;
     ret_value = array;
-    Array<runtime::Float> as_int_vec = ret_value;
+    Array<FloatImm> as_int_vec = ret_value.cast<Array<FloatImm>>();
 
     std::vector<double> results;
     for (const auto& value : as_int_vec) {
@@ -228,9 +228,9 @@ struct AsArrayImpl<int, TDstObjectRef> {
     Array<TDstObjectRef> result;
     result.reserve(vec.size());
     for (auto x : vec) {
-      TVMRetValue ret_value;
+      ffi::Any ret_value;
       ret_value = x;
-      result.push_back(ret_value);
+      result.push_back(ret_value.cast<TDstObjectRef>());
     }
     return result;
   }
@@ -242,9 +242,9 @@ struct AsArrayImpl<int64_t, TDstObjectRef> {
     Array<TDstObjectRef> result;
     result.reserve(vec.size());
     for (auto x : vec) {
-      TVMRetValue ret_value;
+      ffi::Any ret_value;
       ret_value = x;
-      result.push_back(ret_value);
+      result.push_back(ret_value.cast<TDstObjectRef>());
     }
     return result;
   }
@@ -256,9 +256,9 @@ struct AsArrayImpl<double, TDstObjectRef> {
     Array<TDstObjectRef> result;
     result.reserve(vec.size());
     for (auto x : vec) {
-      TVMRetValue ret_value;
+      ffi::Any ret_value;
       ret_value = x;
-      result.push_back(ret_value);
+      result.push_back(ret_value.cast<TDstObjectRef>());
     }
     return result;
   }

@@ -61,7 +61,7 @@ class ParamsInliner : public ExprMutator {
             continue;
           }
           if (struct_info->IsInstance<FuncStructInfoNode>()) {
-            const auto& optype_opt = func->GetAttr<runtime::String>(msc_attr::kOptype);
+            const auto& optype_opt = func->GetAttr<String>(msc_attr::kOptype);
             ICHECK(optype_opt.defined())
                 << "Can not find attr " << msc_attr::kOptype << " form extern func";
             extern_types_.Set(p, optype_opt.value());
@@ -87,7 +87,7 @@ class ParamsInliner : public ExprMutator {
           continue;
         }
         const auto& new_func = Downcast<Function>(VisitExpr(func));
-        Map<String, ObjectRef> func_attrs = new_func->attrs->dict;
+        Map<String, ffi::Any> func_attrs = new_func->attrs->dict;
         if (attrs.size() > 0) {
           func_attrs.Set(msc_attr::kOpattrs, attrs);
         }
@@ -180,12 +180,11 @@ IRModule InlineParams(IRModule mod, const String& entry_name) {
 namespace transform {
 
 Pass InlineParams(const String& entry_name) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::InlineParams(m, entry_name); };
+  auto pass_func = [=](IRModule m, PassContext pc) { return relax::InlineParams(m, entry_name); };
   return CreateModulePass(pass_func, 0, "InlineParams", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.InlineParams").set_body_typed(InlineParams);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.InlineParams").set_body_typed(InlineParams);
 
 }  // namespace transform
 }  // namespace relax

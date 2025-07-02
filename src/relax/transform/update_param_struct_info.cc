@@ -39,7 +39,7 @@ namespace relax {
 namespace {
 class ParamStructInfoMutator : public ExprMutator {
  public:
-  explicit ParamStructInfoMutator(TypedPackedFunc<Optional<StructInfo>(Var)> sinfo_func)
+  explicit ParamStructInfoMutator(ffi::TypedFunction<Optional<StructInfo>(Var)> sinfo_func)
       : sinfo_func_(sinfo_func) {}
 
   using ExprMutator::VisitExpr_;
@@ -64,12 +64,12 @@ class ParamStructInfoMutator : public ExprMutator {
     return ExprMutator::VisitExpr_(func.get());
   }
 
-  TypedPackedFunc<Optional<StructInfo>(Var)> sinfo_func_;
+  ffi::TypedFunction<Optional<StructInfo>(Var)> sinfo_func_;
 };
 }  // namespace
 
 namespace transform {
-Pass UpdateParamStructInfo(TypedPackedFunc<Optional<StructInfo>(Var)> sinfo_func) {
+Pass UpdateParamStructInfo(ffi::TypedFunction<Optional<StructInfo>(Var)> sinfo_func) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     ParamStructInfoMutator mutator(sinfo_func);
 
@@ -104,7 +104,8 @@ Pass UpdateParamStructInfo(TypedPackedFunc<Optional<StructInfo>(Var)> sinfo_func
   return tvm::transform::CreateModulePass(pass_func, 1, "UpdateParamStructInfo", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.UpdateParamStructInfo").set_body_typed(UpdateParamStructInfo);
+TVM_FFI_REGISTER_GLOBAL("relax.transform.UpdateParamStructInfo")
+    .set_body_typed(UpdateParamStructInfo);
 
 }  // namespace transform
 }  // namespace relax

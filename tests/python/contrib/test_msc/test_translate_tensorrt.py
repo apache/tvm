@@ -48,8 +48,8 @@ def build_and_run(mod, inputs):
         runnable = tvm.relax.VirtualMachine(rt_mod, tvm.cuda())
     res = runnable["main"](*inputs)
     if isinstance(res, tvm.runtime.NDArray):
-        return [res.asnumpy()]
-    return [e.asnumpy() for e in res]
+        return [res.numpy()]
+    return [e.numpy() for e in res]
 
 
 def check_names(mod):

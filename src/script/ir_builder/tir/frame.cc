@@ -28,6 +28,26 @@ namespace script {
 namespace ir_builder {
 namespace tir {
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  TIRFrameNode::RegisterReflection();
+  PrimFuncFrameNode::RegisterReflection();
+  BlockFrameNode::RegisterReflection();
+  BlockInitFrameNode::RegisterReflection();
+  ForFrameNode::RegisterReflection();
+  AssertFrameNode::RegisterReflection();
+  LetFrameNode::RegisterReflection();
+  LaunchThreadFrameNode::RegisterReflection();
+  RealizeFrameNode::RegisterReflection();
+  AllocateFrameNode::RegisterReflection();
+  AllocateConstFrameNode::RegisterReflection();
+  AttrFrameNode::RegisterReflection();
+  WhileFrameNode::RegisterReflection();
+  IfFrameNode::RegisterReflection();
+  ThenFrameNode::RegisterReflection();
+  ElseFrameNode::RegisterReflection();
+  DeclBufferFrameNode::RegisterReflection();
+});
+
 void PrimFuncFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   // if the prim func is not private and there isn't already a global symbol,
@@ -70,7 +90,7 @@ void BlockFrameNode::ExitWithScope() {
   for (const tvm::tir::Buffer& buffer : alloc_buffers) {
     tir_alloc_buffers.push_back(buffer);
   }
-  Map<String, ObjectRef> attrs = annotations.value_or({});
+  Map<String, Any> attrs = annotations.value_or({});
   if (int detect_access = (!reads.defined()) | (!writes.defined() << 1)) {
     attrs.Set("tir.script_parsing_detect_access", tvm::IntImm(DataType::Int(64), detect_access));
   }

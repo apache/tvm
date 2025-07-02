@@ -16,14 +16,44 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/container/array.h>
+#include <tvm/ffi/container/array.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/script/printer/doc.h>
 
 namespace tvm {
 namespace script {
 namespace printer {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  DocNode::RegisterReflection();
+  ExprDocNode::RegisterReflection();
+  StmtDocNode::RegisterReflection();
+  StmtBlockDocNode::RegisterReflection();
+  LiteralDocNode::RegisterReflection();
+  IdDocNode::RegisterReflection();
+  AttrAccessDocNode::RegisterReflection();
+  IndexDocNode::RegisterReflection();
+  CallDocNode::RegisterReflection();
+  OperationDocNode::RegisterReflection();
+  LambdaDocNode::RegisterReflection();
+  TupleDocNode::RegisterReflection();
+  ListDocNode::RegisterReflection();
+  DictDocNode::RegisterReflection();
+  SliceDocNode::RegisterReflection();
+  AssignDocNode::RegisterReflection();
+  IfDocNode::RegisterReflection();
+  WhileDocNode::RegisterReflection();
+  ForDocNode::RegisterReflection();
+  ScopeDocNode::RegisterReflection();
+  ExprStmtDocNode::RegisterReflection();
+  AssertDocNode::RegisterReflection();
+  ReturnDocNode::RegisterReflection();
+  FunctionDocNode::RegisterReflection();
+  ClassDocNode::RegisterReflection();
+  CommentDocNode::RegisterReflection();
+  DocStringDocNode::RegisterReflection();
+});
 
 ExprDoc ExprDocNode::Attr(String attr) const { return AttrAccessDoc(GetRef<ExprDoc>(this), attr); }
 
@@ -177,7 +207,7 @@ ScopeDoc::ScopeDoc(Optional<ExprDoc> lhs, ExprDoc rhs, Array<StmtDoc> body) {
 
 ScopeDoc::ScopeDoc(ExprDoc rhs, Array<StmtDoc> body) {
   ObjectPtr<ScopeDocNode> n = make_object<ScopeDocNode>();
-  n->lhs = NullOpt;
+  n->lhs = std::nullopt;
   n->rhs = rhs;
   n->body = body;
   this->data_ = std::move(n);
@@ -234,50 +264,50 @@ DocStringDoc::DocStringDoc(String docs) {
 }
 
 TVM_REGISTER_NODE_TYPE(DocNode);
-TVM_REGISTER_GLOBAL("script.printer.DocSetSourcePaths")
+TVM_FFI_REGISTER_GLOBAL("script.printer.DocSetSourcePaths")
     .set_body_typed([](Doc doc, Array<ObjectPath> source_paths) {
       doc->source_paths = source_paths;
     });
 
 TVM_REGISTER_NODE_TYPE(ExprDocNode);
-TVM_REGISTER_GLOBAL("script.printer.ExprDocAttr")
-    .set_body_method<ExprDoc, ExprDocNode, ExprDoc, String>(&ExprDocNode::Attr);
-TVM_REGISTER_GLOBAL("script.printer.ExprDocIndex")
-    .set_body_method<ExprDoc>(&ExprDocNode::operator[]);
-TVM_REGISTER_GLOBAL("script.printer.ExprDocCall")
-    .set_body_method<ExprDoc, ExprDocNode, ExprDoc, Array<ExprDoc>, Array<String>, Array<ExprDoc>>(
+TVM_FFI_REGISTER_GLOBAL("script.printer.ExprDocAttr")
+    .set_body_method<ExprDocNode, ExprDoc, String>(&ExprDocNode::Attr);
+TVM_FFI_REGISTER_GLOBAL("script.printer.ExprDocIndex").set_body_method(&ExprDocNode::operator[]);
+TVM_FFI_REGISTER_GLOBAL("script.printer.ExprDocCall")
+    .set_body_method<ExprDocNode, ExprDoc, Array<ExprDoc>, Array<String>, Array<ExprDoc>>(
         &ExprDocNode::Call);
 
 TVM_REGISTER_NODE_TYPE(StmtDocNode);
-TVM_REGISTER_GLOBAL("script.printer.StmtDocSetComment")
+TVM_FFI_REGISTER_GLOBAL("script.printer.StmtDocSetComment")
     .set_body_typed([](StmtDoc doc, Optional<String> comment) { doc->comment = comment; });
 
 TVM_REGISTER_NODE_TYPE(StmtBlockDocNode);
-TVM_REGISTER_GLOBAL("script.printer.StmtBlockDoc").set_body_typed([](Array<StmtDoc> stmts) {
+TVM_FFI_REGISTER_GLOBAL("script.printer.StmtBlockDoc").set_body_typed([](Array<StmtDoc> stmts) {
   return StmtBlockDoc(stmts);
 });
 
 TVM_REGISTER_NODE_TYPE(LiteralDocNode);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDocNone").set_body_typed(LiteralDoc::None);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDocInt").set_body_typed(LiteralDoc::Int);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDocBoolean").set_body_typed(LiteralDoc::Boolean);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDocFloat").set_body_typed(LiteralDoc::Float);
-TVM_REGISTER_GLOBAL("script.printer.LiteralDocStr").set_body_typed(LiteralDoc::Str);
+TVM_FFI_REGISTER_GLOBAL("script.printer.LiteralDocNone").set_body_typed(LiteralDoc::None);
+TVM_FFI_REGISTER_GLOBAL("script.printer.LiteralDocInt").set_body_typed(LiteralDoc::Int);
+TVM_FFI_REGISTER_GLOBAL("script.printer.LiteralDocBoolean").set_body_typed(LiteralDoc::Boolean);
+TVM_FFI_REGISTER_GLOBAL("script.printer.LiteralDocFloat").set_body_typed(LiteralDoc::Float);
+TVM_FFI_REGISTER_GLOBAL("script.printer.LiteralDocStr").set_body_typed(LiteralDoc::Str);
 
 TVM_REGISTER_NODE_TYPE(IdDocNode);
-TVM_REGISTER_GLOBAL("script.printer.IdDoc").set_body_typed([](String name) { return IdDoc(name); });
-
-TVM_REGISTER_NODE_TYPE(AttrAccessDocNode);
-TVM_REGISTER_GLOBAL("script.printer.AttrAccessDoc").set_body_typed([](ExprDoc value, String attr) {
-  return AttrAccessDoc(value, attr);
+TVM_FFI_REGISTER_GLOBAL("script.printer.IdDoc").set_body_typed([](String name) {
+  return IdDoc(name);
 });
 
+TVM_REGISTER_NODE_TYPE(AttrAccessDocNode);
+TVM_FFI_REGISTER_GLOBAL("script.printer.AttrAccessDoc")
+    .set_body_typed([](ExprDoc value, String attr) { return AttrAccessDoc(value, attr); });
+
 TVM_REGISTER_NODE_TYPE(IndexDocNode);
-TVM_REGISTER_GLOBAL("script.printer.IndexDoc")
+TVM_FFI_REGISTER_GLOBAL("script.printer.IndexDoc")
     .set_body_typed([](ExprDoc value, Array<Doc> indices) { return IndexDoc(value, indices); });
 
 TVM_REGISTER_NODE_TYPE(CallDocNode);
-TVM_REGISTER_GLOBAL("script.printer.CallDoc")
+TVM_FFI_REGISTER_GLOBAL("script.printer.CallDoc")
     .set_body_typed([](ExprDoc callee,             //
                        Array<ExprDoc> args,        //
                        Array<String> kwargs_keys,  //
@@ -286,104 +316,103 @@ TVM_REGISTER_GLOBAL("script.printer.CallDoc")
     });
 
 TVM_REGISTER_NODE_TYPE(OperationDocNode);
-TVM_REGISTER_GLOBAL("script.printer.OperationDoc")
+TVM_FFI_REGISTER_GLOBAL("script.printer.OperationDoc")
     .set_body_typed([](int32_t kind, Array<ExprDoc> operands) {
       return OperationDoc(OperationDocNode::Kind(kind), operands);
     });
 
 TVM_REGISTER_NODE_TYPE(LambdaDocNode);
-TVM_REGISTER_GLOBAL("script.printer.LambdaDoc").set_body_typed([](Array<IdDoc> args, ExprDoc body) {
-  return LambdaDoc(args, body);
-});
+TVM_FFI_REGISTER_GLOBAL("script.printer.LambdaDoc")
+    .set_body_typed([](Array<IdDoc> args, ExprDoc body) { return LambdaDoc(args, body); });
 
 TVM_REGISTER_NODE_TYPE(TupleDocNode);
-TVM_REGISTER_GLOBAL("script.printer.TupleDoc").set_body_typed([](Array<ExprDoc> elements) {
+TVM_FFI_REGISTER_GLOBAL("script.printer.TupleDoc").set_body_typed([](Array<ExprDoc> elements) {
   return TupleDoc(elements);
 });
 
 TVM_REGISTER_NODE_TYPE(ListDocNode);
-TVM_REGISTER_GLOBAL("script.printer.ListDoc").set_body_typed([](Array<ExprDoc> elements) {
+TVM_FFI_REGISTER_GLOBAL("script.printer.ListDoc").set_body_typed([](Array<ExprDoc> elements) {
   return ListDoc(elements);
 });
 
 TVM_REGISTER_NODE_TYPE(DictDocNode);
-TVM_REGISTER_GLOBAL("script.printer.DictDoc")
+TVM_FFI_REGISTER_GLOBAL("script.printer.DictDoc")
     .set_body_typed([](Array<ExprDoc> keys, Array<ExprDoc> values) {
       return DictDoc(keys, values);
     });
 
 TVM_REGISTER_NODE_TYPE(SliceDocNode);
-TVM_REGISTER_GLOBAL("script.printer.SliceDoc")
+TVM_FFI_REGISTER_GLOBAL("script.printer.SliceDoc")
     .set_body_typed([](Optional<ExprDoc> start, Optional<ExprDoc> stop, Optional<ExprDoc> step) {
       return SliceDoc(start, stop, step);
     });
 
 TVM_REGISTER_NODE_TYPE(AssignDocNode);
-TVM_REGISTER_GLOBAL("script.printer.AssignDoc")
+TVM_FFI_REGISTER_GLOBAL("script.printer.AssignDoc")
     .set_body_typed([](ExprDoc lhs, Optional<ExprDoc> rhs, Optional<ExprDoc> annotation) {
       return AssignDoc(lhs, rhs, annotation);
     });
 
 TVM_REGISTER_NODE_TYPE(IfDocNode);
-TVM_REGISTER_GLOBAL("script.printer.IfDoc")
+TVM_FFI_REGISTER_GLOBAL("script.printer.IfDoc")
     .set_body_typed([](ExprDoc predicate, Array<StmtDoc> then_branch, Array<StmtDoc> else_branch) {
       return IfDoc(predicate, then_branch, else_branch);
     });
 
 TVM_REGISTER_NODE_TYPE(WhileDocNode);
-TVM_REGISTER_GLOBAL("script.printer.WhileDoc")
+TVM_FFI_REGISTER_GLOBAL("script.printer.WhileDoc")
     .set_body_typed([](ExprDoc predicate, Array<StmtDoc> body) {
       return WhileDoc(predicate, body);
     });
 
 TVM_REGISTER_NODE_TYPE(ForDocNode);
-TVM_REGISTER_GLOBAL("script.printer.ForDoc")
+TVM_FFI_REGISTER_GLOBAL("script.printer.ForDoc")
     .set_body_typed([](ExprDoc lhs, ExprDoc rhs, Array<StmtDoc> body) {
       return ForDoc(lhs, rhs, body);
     });
 
 TVM_REGISTER_NODE_TYPE(ScopeDocNode);
-TVM_REGISTER_GLOBAL("script.printer.ScopeDoc")
+TVM_FFI_REGISTER_GLOBAL("script.printer.ScopeDoc")
     .set_body_typed([](Optional<ExprDoc> lhs, ExprDoc rhs, Array<StmtDoc> body) {
       return ScopeDoc(lhs, rhs, body);
     });
 
 TVM_REGISTER_NODE_TYPE(ExprStmtDocNode);
-TVM_REGISTER_GLOBAL("script.printer.ExprStmtDoc").set_body_typed([](ExprDoc expr) {
+TVM_FFI_REGISTER_GLOBAL("script.printer.ExprStmtDoc").set_body_typed([](ExprDoc expr) {
   return ExprStmtDoc(expr);
 });
 
 TVM_REGISTER_NODE_TYPE(AssertDocNode);
-TVM_REGISTER_GLOBAL("script.printer.AssertDoc")
-    .set_body_typed([](ExprDoc test, Optional<ExprDoc> msg = NullOpt) {
+TVM_FFI_REGISTER_GLOBAL("script.printer.AssertDoc")
+    .set_body_typed([](ExprDoc test, Optional<ExprDoc> msg = std::nullopt) {
       return AssertDoc(test, msg);
     });
 
 TVM_REGISTER_NODE_TYPE(ReturnDocNode);
-TVM_REGISTER_GLOBAL("script.printer.ReturnDoc").set_body_typed([](ExprDoc value) {
+TVM_FFI_REGISTER_GLOBAL("script.printer.ReturnDoc").set_body_typed([](ExprDoc value) {
   return ReturnDoc(value);
 });
 
 TVM_REGISTER_NODE_TYPE(FunctionDocNode);
-TVM_REGISTER_GLOBAL("script.printer.FunctionDoc")
+TVM_FFI_REGISTER_GLOBAL("script.printer.FunctionDoc")
     .set_body_typed([](IdDoc name, Array<AssignDoc> args, Array<ExprDoc> decorators,
                        Optional<ExprDoc> return_type, Array<StmtDoc> body) {
       return FunctionDoc(name, args, decorators, return_type, body);
     });
 
 TVM_REGISTER_NODE_TYPE(ClassDocNode);
-TVM_REGISTER_GLOBAL("script.printer.ClassDoc")
+TVM_FFI_REGISTER_GLOBAL("script.printer.ClassDoc")
     .set_body_typed([](IdDoc name, Array<ExprDoc> decorators, Array<StmtDoc> body) {
       return ClassDoc(name, decorators, body);
     });
 
 TVM_REGISTER_NODE_TYPE(CommentDocNode);
-TVM_REGISTER_GLOBAL("script.printer.CommentDoc").set_body_typed([](String comment) {
+TVM_FFI_REGISTER_GLOBAL("script.printer.CommentDoc").set_body_typed([](String comment) {
   return CommentDoc(comment);
 });
 
 TVM_REGISTER_NODE_TYPE(DocStringDocNode);
-TVM_REGISTER_GLOBAL("script.printer.DocStringDoc").set_body_typed([](String docs) {
+TVM_FFI_REGISTER_GLOBAL("script.printer.DocStringDoc").set_body_typed([](String docs) {
   return DocStringDoc(docs);
 });
 

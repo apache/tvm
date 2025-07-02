@@ -23,7 +23,7 @@
 #include "cublas_utils.h"
 
 #include <dmlc/thread_local.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include "../../cuda/cuda_common.h"
 

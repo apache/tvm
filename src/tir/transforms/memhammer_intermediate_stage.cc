@@ -395,7 +395,7 @@ std::pair<Stmt, SeqStmt> InsertCacheStage(Stmt stmt, bool is_write_cache, String
     new_loop->loop_var = new_loop_vars[i];
     new_loop->body = generate_body;
     new_loop->kind = ForKind::kSerial;
-    new_loop->thread_binding = NullOpt;
+    new_loop->thread_binding = std::nullopt;
     new_loop->annotations = {};
     generate_body = For(new_loop);
   }

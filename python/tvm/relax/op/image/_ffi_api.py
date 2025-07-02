@@ -15,6 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Constructor APIs"""
-import tvm._ffi
+import tvm.ffi
 
-tvm._ffi._init_api("relax.op.image", __name__)
+tvm.ffi._init_api("relax.op.image", __name__)

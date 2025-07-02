@@ -31,6 +31,7 @@ import static org.junit.Assert.assertEquals;
 public class RPCTest {
   private final Logger logger = LoggerFactory.getLogger(RPCTest.class);
 
+  @Ignore("RPC test is not enabled")
   @Test
   public void test_addone() {
     if (!Module.enabled("rpc")) {
@@ -57,6 +58,7 @@ public class RPCTest {
     }
   }
 
+  @Ignore("RPC test is not enabled")
   @Test
   public void test_strcat() {
     if (!Module.enabled("rpc")) {

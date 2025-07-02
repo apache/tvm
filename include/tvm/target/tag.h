@@ -24,6 +24,7 @@
 #ifndef TVM_TARGET_TAG_H_
 #define TVM_TARGET_TAG_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/node/attr_registry_map.h>
 #include <tvm/node/node.h>
 #include <tvm/target/target.h>
@@ -38,14 +39,17 @@ class TargetTagNode : public Object {
   /*! \brief Name of the target */
   String name;
   /*! \brief Config map to generate the target */
-  Map<String, ObjectRef> config;
+  Map<String, Any> config;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("config", &config);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TargetTagNode>()
+        .def_ro("name", &TargetTagNode::name)
+        .def_ro("config", &TargetTagNode::config);
   }
 
-  static constexpr const char* _type_key = "TargetTag";
+  static constexpr const char* _type_key = "target.TargetTag";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetTagNode, Object);
 
  private:
@@ -87,7 +91,7 @@ class TargetTag : public ObjectRef {
    * \param override Allow overriding existing tags
    * \return Target created with the tag
    */
-  TVM_DLL static Target AddTag(String name, Map<String, ObjectRef> config, bool override);
+  TVM_DLL static Target AddTag(String name, Map<String, Any> config, bool override);
 
   TVM_DEFINE_OBJECT_REF_METHODS(TargetTag, ObjectRef, TargetTagNode);
 
@@ -103,13 +107,13 @@ class TargetTagRegEntry {
    * \brief Set the config dict corresponding to the target tag
    * \param config The config dict for target creation
    */
-  inline TargetTagRegEntry& set_config(Map<String, ObjectRef> config);
+  inline TargetTagRegEntry& set_config(Map<String, Any> config);
   /*!
    * \brief Add a key-value pair to the config dict
    * \param key The attribute name
    * \param value The attribute value
    */
-  inline TargetTagRegEntry& with_config(String key, ObjectRef value);
+  inline TargetTagRegEntry& with_config(String key, Any value);
   /*! \brief Set name of the TargetTag to be the same as registry if it is empty */
   inline TargetTagRegEntry& set_name();
   /*!
@@ -132,12 +136,12 @@ class TargetTagRegEntry {
   friend class TargetTag;
 };
 
-inline TargetTagRegEntry& TargetTagRegEntry::set_config(Map<String, ObjectRef> config) {
+inline TargetTagRegEntry& TargetTagRegEntry::set_config(Map<String, Any> config) {
   tag_->config = std::move(config);
   return *this;
 }
 
-inline TargetTagRegEntry& TargetTagRegEntry::with_config(String key, ObjectRef value) {
+inline TargetTagRegEntry& TargetTagRegEntry::with_config(String key, ffi::Any value) {
   tag_->config.Set(key, value);
   return *this;
 }

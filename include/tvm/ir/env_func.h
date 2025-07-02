@@ -24,8 +24,9 @@
 #ifndef TVM_IR_ENV_FUNC_H_
 #define TVM_IR_ENV_FUNC_H_
 
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/node/reflection.h>
-#include <tvm/runtime/packed_func.h>
 
 #include <string>
 #include <utility>
@@ -34,7 +35,7 @@ namespace tvm {
 /*!
  * \brief A serializable function backed by TVM's global environment.
  *
- * This is a wrapper to enable serializable global PackedFunc.
+ * This is a wrapper to enable serializable global ffi::Function.
  * An EnvFunc is saved by its name in the global registry
  * under the assumption that the same function is registered during load.
  * \sa EnvFunc
@@ -44,11 +45,16 @@ class EnvFuncNode : public Object {
   /*! \brief Unique name of the global function */
   String name;
   /*! \brief The internal packed function */
-  runtime::PackedFunc func;
+  ffi::Function func;
   /*! \brief constructor */
   EnvFuncNode() {}
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<EnvFuncNode>().def_ro("name", &EnvFuncNode::name);
+  }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const EnvFuncNode* other, SEqualReducer equal) const {
     // name uniquely identifies the env function.
@@ -60,7 +66,7 @@ class EnvFuncNode : public Object {
     hash_reduce(name);
   }
 
-  static constexpr const char* _type_key = "EnvFunc";
+  static constexpr const char* _type_key = "ir.EnvFunc";
   static constexpr bool _type_has_method_sequal_reduce = true;
   static constexpr bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(EnvFuncNode, Object);
@@ -82,7 +88,7 @@ class EnvFunc : public ObjectRef {
    * \returns The return value.
    */
   template <typename... Args>
-  runtime::TVMRetValue operator()(Args&&... args) const {
+  ffi::Any operator()(Args&&... args) const {
     const EnvFuncNode* n = operator->();
     ICHECK(n != nullptr);
     return n->func(std::forward<Args>(args)...);
@@ -139,8 +145,16 @@ class TypedEnvFunc<R(Args...)> : public ObjectRef {
   R operator()(Args... args) const {
     const EnvFuncNode* n = operator->();
     ICHECK(n != nullptr);
-    return runtime::detail::typed_packed_call_dispatcher<R>::run(n->func,
-                                                                 std::forward<Args>(args)...);
+    if constexpr (std::is_same_v<R, void>) {
+      n->func(std::forward<Args>(args)...);
+    } else {
+      ffi::Any res = n->func(std::forward<Args>(args)...);
+      if constexpr (std::is_same_v<R, ffi::Any>) {
+        return res;
+      } else {
+        return std::move(res).cast<R>();
+      }
+    }
   }
   /*! \brief specify container node */
   using ContainerType = EnvFuncNode;

@@ -25,13 +25,14 @@
 #ifndef TVM_IR_OP_H_
 #define TVM_IR_OP_H_
 
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/type.h>
 #include <tvm/node/attr_registry_map.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/registry.h>
 
 #include <string>
 #include <utility>
@@ -90,15 +91,19 @@ class OpNode : public RelaxExprNode {
    */
   int32_t support_level = 10;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("op_type", &op_type);
-    v->Visit("description", &description);
-    v->Visit("arguments", &arguments);
-    v->Visit("attrs_type_key", &attrs_type_key);
-    v->Visit("num_inputs", &num_inputs);
-    v->Visit("support_level", &support_level);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<OpNode>()
+        .def_ro("name", &OpNode::name)
+        .def_ro("op_type", &OpNode::op_type)
+        .def_ro("description", &OpNode::description)
+        .def_ro("arguments", &OpNode::arguments)
+        .def_ro("attrs_type_key", &OpNode::attrs_type_key)
+        .def_ro("num_inputs", &OpNode::num_inputs)
+        .def_ro("support_level", &OpNode::support_level);
   }
+
+  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const OpNode* other, SEqualReducer equal) const {
     // pointer equality is fine as there is only one op with the same name.
@@ -110,7 +115,7 @@ class OpNode : public RelaxExprNode {
     hash_reduce(name);
   }
 
-  static constexpr const char* _type_key = "Op";
+  static constexpr const char* _type_key = "ir.Op";
   TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, RelaxExprNode);
 
  private:
@@ -160,7 +165,7 @@ class Op : public RelaxExpr {
    */
   TVM_DLL static const Op& Get(const String& op_name);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Op, RelaxExpr, OpNode)
+  TVM_DEFINE_OBJECT_REF_METHODS(Op, RelaxExpr, OpNode);
 
  private:
   /*!
@@ -269,7 +274,7 @@ class OpRegEntry {
   // return internal pointer to op.
   inline OpNode* get();
   // update the attribute OpAttrMap
-  TVM_DLL void UpdateAttr(const String& key, runtime::TVMRetValue value, int plevel);
+  TVM_DLL void UpdateAttr(const String& key, ffi::Any value, int plevel);
 };
 
 /*!
@@ -359,7 +364,7 @@ inline OpRegEntry& OpRegEntry::set_attrs_type() {  // NOLINT(*)
 
 inline OpRegEntry& OpRegEntry::set_attrs_type_key(const String& key) {  // NOLINT(*)
   get()->attrs_type_key = key;
-  get()->attrs_type_index = Object::TypeKey2Index(key);
+  get()->attrs_type_index = tvm::ffi::TypeKeyToIndex(key.c_str());
   return *this;
 }
 
@@ -372,9 +377,7 @@ template <typename ValueType>
 inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
     const std::string& attr_name, const ValueType& value, int plevel) {
   ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
-  runtime::TVMRetValue rv;
-  rv = value;
-  UpdateAttr(attr_name, rv, plevel);
+  UpdateAttr(attr_name, Any(value), plevel);
   return *this;
 }
 

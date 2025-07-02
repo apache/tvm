@@ -15,6 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """FFI for profiling"""
-from ... import _ffi
+from ...ffi import _init_api
 
-_ffi._init_api("runtime.profiling", __name__)
+_init_api("runtime.profiling", __name__)

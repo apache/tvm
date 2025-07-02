@@ -75,11 +75,11 @@ Profiler::Profiler() {
   data_ = n;
 }
 
-PackedFunc ProfilerTimedScope(String name) {
+ffi::Function ProfilerTimedScope(String name) {
   if (Optional<Profiler> opt_profiler = Profiler::Current()) {
-    return TypedPackedFunc<void()>([profiler = opt_profiler.value(),                  //
-                                    tik = std::chrono::high_resolution_clock::now(),  //
-                                    name = std::move(name)]() {
+    return ffi::TypedFunction<void()>([profiler = opt_profiler.value(),                  //
+                                       tik = std::chrono::high_resolution_clock::now(),  //
+                                       name = std::move(name)]() {
       auto tok = std::chrono::high_resolution_clock::now();
       double duration =
           std::chrono::duration_cast<std::chrono::nanoseconds>(tok - tik).count() / 1e9;
@@ -114,24 +114,26 @@ void Profiler::ExitWithScope() {
 Optional<Profiler> Profiler::Current() {
   std::vector<Profiler>* profilers = ThreadLocalProfilers();
   if (profilers->empty()) {
-    return NullOpt;
+    return std::nullopt;
   } else {
     return profilers->back();
   }
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ ProfilerNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(ProfilerNode);
-TVM_REGISTER_GLOBAL("meta_schedule.Profiler").set_body_typed([]() -> Profiler {
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.Profiler").set_body_typed([]() -> Profiler {
   return Profiler();
 });
-TVM_REGISTER_GLOBAL("meta_schedule.ProfilerEnterWithScope")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ProfilerEnterWithScope")
     .set_body_method(&Profiler::EnterWithScope);
-TVM_REGISTER_GLOBAL("meta_schedule.ProfilerExitWithScope")
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ProfilerExitWithScope")
     .set_body_method(&Profiler::ExitWithScope);
-TVM_REGISTER_GLOBAL("meta_schedule.ProfilerCurrent").set_body_typed(Profiler::Current);
-TVM_REGISTER_GLOBAL("meta_schedule.ProfilerGet").set_body_method<Profiler>(&ProfilerNode::Get);
-TVM_REGISTER_GLOBAL("meta_schedule.ProfilerTable").set_body_method<Profiler>(&ProfilerNode::Table);
-TVM_REGISTER_GLOBAL("meta_schedule.ProfilerTimedScope").set_body_typed(ProfilerTimedScope);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ProfilerCurrent").set_body_typed(Profiler::Current);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ProfilerGet").set_body_method(&ProfilerNode::Get);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ProfilerTable").set_body_method(&ProfilerNode::Table);
+TVM_FFI_REGISTER_GLOBAL("meta_schedule.ProfilerTimedScope").set_body_typed(ProfilerTimedScope);
 
 }  // namespace meta_schedule
 }  // namespace tvm

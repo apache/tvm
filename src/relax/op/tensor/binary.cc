@@ -92,7 +92,7 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
     } else if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
       return tensor->GetShape();
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   };
 
@@ -113,7 +113,7 @@ StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
     if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
       return tensor->shape;
     } else {
-      return NullOpt;
+      return std::nullopt;
     }
   };
 
@@ -193,6 +193,7 @@ InferLayoutOutput InferLayoutBinaryEwise(const Call& call,
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(add);
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(divide);
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(floor_divide);
+RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(log_add_exp);
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(multiply);
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(power);
 RELAX_REGISTER_BINARY_BROADCAST_OP_AND_IMPL(subtract);

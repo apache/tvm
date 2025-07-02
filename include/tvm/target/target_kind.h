@@ -24,6 +24,8 @@
 #ifndef TVM_TARGET_TARGET_KIND_H_
 #define TVM_TARGET_TARGET_KIND_H_
 
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/node/attr_registry_map.h>
 #include <tvm/node/node.h>
 
@@ -39,7 +41,7 @@ class Target;
 /*!
  * \brief Map containing parsed features of a specific Target
  */
-using TargetFeatures = Map<String, ObjectRef>;
+using TargetFeatures = Map<String, ffi::Any>;
 
 /*!
  * \brief TargetParser to apply on instantiation of a given TargetKind
@@ -48,8 +50,8 @@ using TargetFeatures = Map<String, ObjectRef>;
  *
  * \return The transformed Target JSON object.
  */
-using TargetJSON = Map<String, ObjectRef>;
-using FTVMTargetParser = runtime::TypedPackedFunc<TargetJSON(TargetJSON)>;
+using TargetJSON = Map<String, ffi::Any>;
+using FTVMTargetParser = ffi::TypedFunction<TargetJSON(TargetJSON)>;
 
 namespace detail {
 template <typename, typename, typename>
@@ -71,17 +73,20 @@ class TargetKindNode : public Object {
   /*! \brief Default keys of the target */
   Array<String> default_keys;
   /*! \brief Function used to preprocess on target creation */
-  PackedFunc preprocessor;
+  ffi::Function preprocessor;
   /*! \brief Function used to parse a JSON target during creation */
   FTVMTargetParser target_parser;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("default_device_type", &default_device_type);
-    v->Visit("default_keys", &default_keys);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TargetKindNode>()
+        .def_ro("name", &TargetKindNode::name)
+        .def_ro("default_device_type", &TargetKindNode::default_device_type)
+        .def_ro("default_keys", &TargetKindNode::default_keys);
   }
 
-  static constexpr const char* _type_key = "TargetKind";
+  static constexpr const char* _type_key = "target.TargetKind";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetKindNode, Object);
 
  private:
@@ -92,14 +97,14 @@ class TargetKindNode : public Object {
   /*! \brief Stores the required type_key and type_index of a specific attr of a target */
   struct ValueTypeInfo {
     String type_key;
-    uint32_t type_index;
+    int32_t type_index;
     std::unique_ptr<ValueTypeInfo> key;
     std::unique_ptr<ValueTypeInfo> val;
   };
   /*! \brief A hash table that stores the type information of each attr of the target key */
   std::unordered_map<String, ValueTypeInfo> key2vtype_;
   /*! \brief A hash table that stores the default value of each attr of the target key */
-  std::unordered_map<String, ObjectRef> key2default_;
+  std::unordered_map<String, ffi::Any> key2default_;
   /*! \brief Index used for internal lookup of attribute registry */
   uint32_t index_;
 
@@ -218,7 +223,7 @@ class TargetKindRegEntry {
    * \tparam ValueType The value type to be registered
    */
   template <typename ValueType>
-  inline TargetKindRegEntry& add_attr_option(const String& key, ObjectRef default_value);
+  inline TargetKindRegEntry& add_attr_option(const String& key, ffi::Any default_value);
   /*! \brief Set name of the TargetKind to be the same as registry if it is empty */
   inline TargetKindRegEntry& set_name();
   /*!
@@ -253,7 +258,7 @@ class TargetKindRegEntry {
    * \param value The value to be set
    * \param plevel The priority level
    */
-  TVM_DLL void UpdateAttr(const String& key, TVMRetValue value, int plevel);
+  TVM_DLL void UpdateAttr(const String& key, ffi::Any value, int plevel);
   template <typename, typename>
   friend class AttrRegistry;
   friend class TargetKind;
@@ -279,7 +284,7 @@ struct ValueTypeInfoMaker<ValueType, std::false_type, std::false_type> {
   using ValueTypeInfo = TargetKindNode::ValueTypeInfo;
 
   ValueTypeInfo operator()() const {
-    uint32_t tindex = ValueType::ContainerType::_GetOrAllocRuntimeTypeIndex();
+    int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
     ValueTypeInfo info;
     info.type_index = tindex;
     info.type_key = runtime::Object::TypeIndex2Key(tindex);
@@ -332,7 +337,7 @@ template <typename ValueType>
 inline TargetKindRegEntry& TargetKindRegEntry::set_attr(const String& attr_name,
                                                         const ValueType& value, int plevel) {
   ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
-  runtime::TVMRetValue rv;
+  ffi::Any rv;
   rv = value;
   UpdateAttr(attr_name, rv, plevel);
   return *this;
@@ -351,8 +356,7 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_default_keys(std::vector<Stri
 template <typename FLambda>
 inline TargetKindRegEntry& TargetKindRegEntry::set_attrs_preprocessor(FLambda f) {
   LOG(WARNING) << "set_attrs_preprocessor is deprecated please use set_target_parser instead";
-  using FType = typename tvm::runtime::detail::function_signature<FLambda>::FType;
-  kind_->preprocessor = tvm::runtime::TypedPackedFunc<FType>(std::move(f)).packed();
+  kind_->preprocessor = ffi::Function::FromTyped(std::move(f));
   return *this;
 }
 
@@ -371,7 +375,7 @@ inline TargetKindRegEntry& TargetKindRegEntry::add_attr_option(const String& key
 
 template <typename ValueType>
 inline TargetKindRegEntry& TargetKindRegEntry::add_attr_option(const String& key,
-                                                               ObjectRef default_value) {
+                                                               Any default_value) {
   add_attr_option<ValueType>(key);
   kind_->key2default_[key] = default_value;
   return *this;
@@ -415,8 +419,8 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
           .add_attr_option<String>("model")                       \
           .add_attr_option<Array<String>>("libs")                 \
           .add_attr_option<Target>("host")                        \
-          .add_attr_option<runtime::Int>("from_device")           \
-          .add_attr_option<runtime::Int>("target_device_type")
+          .add_attr_option<int64_t>("from_device")                \
+          .add_attr_option<int64_t>("target_device_type")
 
 }  // namespace tvm
 

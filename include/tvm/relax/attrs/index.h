@@ -30,25 +30,34 @@ namespace tvm {
 namespace relax {
 
 /*! \brief Attributes used in take operator */
-struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
-  Optional<Integer> axis;
+struct TakeAttrs : public AttrsNodeReflAdapter<TakeAttrs> {
+  Optional<int64_t> axis;
 
-  TVM_DECLARE_ATTRS(TakeAttrs, "relax.attrs.TakeAttrs") {
-    TVM_ATTR_FIELD(axis).describe("The axis over which to select values.");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TakeAttrs>().def_ro("axis", &TakeAttrs::axis,
+                                        "The axis over which to select values.");
   }
+
+  static constexpr const char* _type_key = "relax.attrs.TakeAttrs";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TakeAttrs, BaseAttrsNode);
 };  // struct TakeAttrs
 
 /*! \brief Attributes used in strided_slice operator */
-struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
+struct StridedSliceAttrs : public AttrsNodeReflAdapter<StridedSliceAttrs> {
   bool assume_inbound;
 
-  TVM_DECLARE_ATTRS(StridedSliceAttrs, "relax.attrs.StridedSliceAttrs") {
-    TVM_ATTR_FIELD(assume_inbound)
-        .set_default(true)
-        .describe(
-            "Whether to assume the indices are in bound. If it is set to false, "
-            "out of bound indices will be clipped to the bound.");
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<StridedSliceAttrs>().def_ro(
+        "assume_inbound", &StridedSliceAttrs::assume_inbound,
+        "Whether to assume the indices are in bound. If it is set to false, "
+        "out of bound indices will be clipped to the bound.",
+        refl::DefaultValue(true));
   }
+
+  static constexpr const char* _type_key = "relax.attrs.StridedSliceAttrs";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(StridedSliceAttrs, BaseAttrsNode);
 };  // struct StridedSliceAttrs
 
 }  // namespace relax

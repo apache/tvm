@@ -20,8 +20,7 @@
 #ifndef TVM_TARGET_DATATYPE_REGISTRY_H_
 #define TVM_TARGET_DATATYPE_REGISTRY_H_
 
-#include <tvm/runtime/packed_func.h>
-#include <tvm/runtime/registry.h>
+#include <tvm/ffi/function.h>
 
 #include <string>
 #include <unordered_map>
@@ -38,7 +37,7 @@ namespace datatype {
  *    directly---see the TVM globals registered in the corresponding .cc file.
  *    Currently, user should manually choose a type name and a type code,
  *    ensuring that neither conflict with existing types.
- * 2. Use TVM_REGISTER_GLOBAL to register the lowering functions needed to
+ * 2. Use TVM_FFI_REGISTER_GLOBAL to register the lowering functions needed to
  *    lower the custom datatype. In general, these will look like:
  *      For Casts: tvm.datatype.lower.<target>.Cast.<type>.<src_type>
  *        Example: tvm.datatype.lower.llvm.Cast.myfloat.float for a Cast from
@@ -118,7 +117,7 @@ uint64_t ConvertConstScalar(uint8_t type_code, double value);
  * \param type_code The datatype
  * \return Function which takes the width of the datatype and returns the min value
  */
-const runtime::PackedFunc* GetMinFunc(uint8_t type_code);
+std::optional<tvm::ffi::Function> GetMinFunc(uint8_t type_code);
 
 /*!
  * \brief Get lowering function for Cast ops
@@ -127,8 +126,8 @@ const runtime::PackedFunc* GetMinFunc(uint8_t type_code);
  * \param src_type_code The datatype being cast from
  * \return Lowering function for Cast ops for the provided target, type, and source type
  */
-const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t type_code,
-                                            uint8_t src_type_code);
+std::optional<tvm::ffi::Function> GetCastLowerFunc(const std::string& target, uint8_t type_code,
+                                                   uint8_t src_type_code);
 
 /*!
  * \brief Get lowering function for FloatImms
@@ -136,7 +135,8 @@ const runtime::PackedFunc* GetCastLowerFunc(const std::string& target, uint8_t t
  * \param type_code The datatype of the FloatImm
  * \return Lowering function for FloatImms for the provided target and type
  */
-const runtime::PackedFunc* GetFloatImmLowerFunc(const std::string& target, uint8_t type_code);
+std::optional<tvm::ffi::Function> GetFloatImmLowerFunc(const std::string& target,
+                                                       uint8_t type_code);
 
 /*!
  * \brief Get lowering function for intrinsic Calls/pure intrinsic Calls
@@ -145,8 +145,8 @@ const runtime::PackedFunc* GetFloatImmLowerFunc(const std::string& target, uint8
  * \param name The intrinsic name
  * \return Lowering function for intrinsic Calls for the provided target and type
  */
-const runtime::PackedFunc* GetIntrinLowerFunc(const std::string& target, const std::string& name,
-                                              uint8_t type_code);
+std::optional<tvm::ffi::Function> GetIntrinLowerFunc(const std::string& target,
+                                                     const std::string& name, uint8_t type_code);
 
 /*!
  * \brief Get lowering function for other ops
@@ -154,11 +154,11 @@ const runtime::PackedFunc* GetIntrinLowerFunc(const std::string& target, const s
  * \param type_code The datatype of the op
  * \return Lowering function for other ops for the provided target and type
  */
-#define DEFINE_GET_LOWER_FUNC_(OP)                                                       \
-  inline const runtime::PackedFunc* Get##OP##LowerFunc(const std::string& target,        \
-                                                       uint8_t type_code) {              \
-    return runtime::Registry::Get("tvm.datatype.lower." + target + "." #OP "." +         \
-                                  datatype::Registry::Global()->GetTypeName(type_code)); \
+#define DEFINE_GET_LOWER_FUNC_(OP)                                                              \
+  inline std::optional<tvm::ffi::Function> Get##OP##LowerFunc(const std::string& target,        \
+                                                              uint8_t type_code) {              \
+    return tvm::ffi::Function::GetGlobal("tvm.datatype.lower." + target + "." #OP "." +         \
+                                         datatype::Registry::Global()->GetTypeName(type_code)); \
   }
 
 DEFINE_GET_LOWER_FUNC_(Add)

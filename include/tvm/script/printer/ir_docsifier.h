@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 #define TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/node.h>
 #include <tvm/script/printer/doc.h>
@@ -52,13 +53,13 @@ class FrameNode : public Object {
   /*! The callbacks that are going to be invoked when the frame exits */
   std::vector<std::function<void()>> callbacks;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("stmts", &stmts);
-    // `d` is not visited
-    // `callbacks` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FrameNode>().def_ro("stmts", &FrameNode::stmts);
   }
 
   static constexpr const char* _type_key = "script.printer.Frame";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_BASE_OBJECT_INFO(FrameNode, Object);
 
  public:
@@ -154,17 +155,15 @@ class IRDocsifierNode : public Object {
   /*! \brief The IR usages for headers printing */
   std::unordered_set<std::string> ir_usage;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("frames", &frames);
-    v->Visit("dispatch_tokens", &dispatch_tokens);
-    // `obj2info` is not visited
-    // `metadata` is not visited
-    // `defined_names` is not visited
-    // `common_prefix` is not visited
-    // `ir_usage` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IRDocsifierNode>()
+        .def_ro("frames", &IRDocsifierNode::frames)
+        .def_ro("dispatch_tokens", &IRDocsifierNode::dispatch_tokens);
   }
 
   static constexpr const char* _type_key = "script.printer.IRDocsifier";
+  static constexpr const bool _type_has_method_visit_attrs = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(IRDocsifierNode, Object);
 
  public:
@@ -203,7 +202,7 @@ class IRDocsifierNode : public Object {
    * \brief Get the doc for variable.
    * \param obj The variable object.
    *
-   * \return The doc for variable, if it exists in the table. Otherwise it returns NullOpt.
+   * \return The doc for variable, if it exists in the table. Otherwise it returns std::nullopt.
    */
   Optional<ExprDoc> GetVarDoc(const ObjectRef& obj) const;
   /*! \brief Add a TVM object to the metadata section*/
@@ -227,7 +226,7 @@ class IRDocsifierNode : public Object {
    * \param root The root of the AST.
    * \param is_var A function that returns true if the given object is considered a variable.
    */
-  void SetCommonPrefix(const ObjectRef& root, runtime::TypedPackedFunc<bool(ObjectRef)> is_var);
+  void SetCommonPrefix(const ObjectRef& root, ffi::TypedFunction<bool(ObjectRef)> is_var);
   /*!
    * \brief Transform the input object into TDoc.
    * \param obj The object to be transformed.
@@ -236,7 +235,7 @@ class IRDocsifierNode : public Object {
    * \return The Doc object.
    */
   template <class TDoc = Doc>
-  inline TDoc AsDoc(const ObjectRef& obj, const ObjectPath& path) const;
+  inline TDoc AsDoc(const Any& obj, const ObjectPath& path) const;
 };
 
 /*!
@@ -310,14 +309,35 @@ inline static void AddDocDecoration(const Doc& d, const ObjectRef& obj, const Ob
 }
 
 template <class TDoc>
-inline TDoc IRDocsifierNode::AsDoc(const ObjectRef& obj, const ObjectPath& path) const {
-  if (obj.defined()) {
-    Doc d = IRDocsifier::vtable()(dispatch_tokens.back(), obj, path, GetRef<IRDocsifier>(this));
-    d->source_paths.push_back(path);
-    AddDocDecoration<TDoc>(d, obj, path, cfg);
-    return Downcast<TDoc>(d);
+inline TDoc IRDocsifierNode::AsDoc(const Any& value, const ObjectPath& path) const {
+  switch (value.type_index()) {
+    case ffi::TypeIndex::kTVMFFINone:
+      return Downcast<TDoc>(LiteralDoc::None(path));
+    case ffi::TypeIndex::kTVMFFIBool:
+      return Downcast<TDoc>(LiteralDoc::Boolean(value.as<bool>().value(), path));
+    case ffi::TypeIndex::kTVMFFIInt:
+      return Downcast<TDoc>(LiteralDoc::Int(value.as<int64_t>().value(), path));
+    case ffi::TypeIndex::kTVMFFIFloat:
+      return Downcast<TDoc>(LiteralDoc::Float(value.as<double>().value(), path));
+    case ffi::TypeIndex::kTVMFFIStr:
+      return Downcast<TDoc>(LiteralDoc::Str(value.as<String>().value(), path));
+    case ffi::TypeIndex::kTVMFFIDataType:
+      return Downcast<TDoc>(LiteralDoc::DataType(value.as<runtime::DataType>().value(), path));
+    case ffi::TypeIndex::kTVMFFIDevice:
+      return Downcast<TDoc>(LiteralDoc::Device(value.as<DLDevice>().value(), path));
+    default: {
+      if (auto opt_obj = value.as<ObjectRef>()) {
+        ObjectRef obj = opt_obj.value();
+        Doc d = IRDocsifier::vtable()(dispatch_tokens.back(), obj, path, GetRef<IRDocsifier>(this));
+        d->source_paths.push_back(path);
+        AddDocDecoration<TDoc>(d, obj, path, cfg);
+        return Downcast<TDoc>(d);
+      } else {
+        LOG(FATAL) << "TypeError: Cannot handle Any type: `" << value.GetTypeKey() << "`";
+        TVM_FFI_UNREACHABLE();
+      }
+    }
   }
-  return Downcast<TDoc>(LiteralDoc::None(path));
 }
 
 inline void FrameNode::AddDispatchToken(const IRDocsifier& d, const String& token) {

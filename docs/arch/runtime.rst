@@ -52,12 +52,12 @@ The following code block provides an example in C++
 
 .. code:: c
 
-    #include <tvm/runtime/packed_func.h>
+    #include <tvm/ffi/function.h>
 
-    void MyAdd(TVMArgs args, TVMRetValue* rv) {
+    void MyAdd(ffi::PackedArgs args, ffi::Any* rv) {
       // automatically convert arguments to desired type.
-      int a = args[0];
-      int b = args[1];
+      int a = args[0].cast<int>();
+      int b = args[1].cast<int>();
       // automatically assign value return to rv
       *rv = a + b;
     }
@@ -71,8 +71,8 @@ The following code block provides an example in C++
 In the above codeblock, we defined a PackedFunc MyAdd. It takes two arguments
 : ``args`` represents input arguments and ``rv`` represents return value.
 The function is type-erased, which means that the function signature does not restrict which input type to pass in or type to return.
-Under the hood, when we call a PackedFunc, it packs the input arguments to TVMArgs on stack,
-and gets the result back via TVMRetValue.
+Under the hood, when we call a PackedFunc, it packs the input arguments to ffi::PackedArgs on stack,
+and gets the result back via ffi::Any.
 
 Thanks to template tricks in C++, we can call a PackedFunc just like a normal function. Because of its type-erased nature, we can call a PackedFunc from dynamic languages like python, without additional glue code for each new type function created.
 The following example registers PackedFunc in C++ and calls from python.
@@ -80,8 +80,8 @@ The following example registers PackedFunc in C++ and calls from python.
 .. code:: c
 
     // register a global packed function in c++
-    TVM_REGISTER_GLOBAL("myadd")
-    .set_body(MyAdd);
+    TVM_FFI_REGISTER_GLOBAL("myadd")
+    .set_body_packed(MyAdd);
 
 .. code:: python
 
@@ -91,7 +91,7 @@ The following example registers PackedFunc in C++ and calls from python.
     # prints 3
     print(myadd(1, 2))
 
-Most of the magic of PackedFunc lies in ``TVMArgs`` and ``TVMRetValue`` structure.
+Most of the magic of PackedFunc lies in ``ffi::PackedArgs`` and ``ffi::Any`` structure.
 We restrict a list of possible types which can be passed.
 Here are the common ones:
 
@@ -110,8 +110,8 @@ we can pass functions from python (as PackedFunc) to C++.
 
 .. code:: c
 
-    TVM_REGISTER_GLOBAL("callhello")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    TVM_FFI_REGISTER_GLOBAL("callhello")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
       PackedFunc f = args[0];
       f("hello world");
     });
@@ -134,7 +134,7 @@ which allows us to embed the PackedFunc into any languages. Besides python, so f
 `java`_ and `javascript`_.
 This philosophy of embedded API is very like Lua, except that we don't have a new language but use C++.
 
-.. _minimum C API: https://github.com/apache/tvm/blob/main/include/tvm/runtime/c_runtime_api.h
+.. _minimum C API: https://github.com/apache/tvm/blob/main/include/tvm/runtime/base.h
 .. _java: https://github.com/apache/tvm/tree/main/jvm
 .. _javascript: https://github.com/apache/tvm/tree/main/web
 
@@ -206,69 +206,51 @@ adding the code back to the central repo. To ease the speed of dispatching, we a
 Since usually one ``Object`` could be referenced in multiple places in the language, we use a shared_ptr to keep
 track of reference. We use ``ObjectRef`` class to represent a reference to the ``Object``.
 We can roughly view ``ObjectRef`` class as shared_ptr to the ``Object`` container.
-We can also define subclass ``ObjectRef`` to hold each subtypes of ``Object``. Each subclass of ``Object`` needs to define the VisitAttr function.
+We can also define subclass ``ObjectRef`` to hold each subtypes of ``Object``. Each subclass of ``Object`` needs to define the
+RegisterReflection function.
+
+
+Each ``Object`` subclass will override this to register its members. Here is an example implementation of IntImmNode.
 
 .. code:: c
 
-    class AttrVisitor {
-    public:
-      virtual void Visit(const char* key, double* value) = 0;
-      virtual void Visit(const char* key, int64_t* value) = 0;
-      virtual void Visit(const char* key, uint64_t* value) = 0;
-      virtual void Visit(const char* key, int* value) = 0;
-      virtual void Visit(const char* key, bool* value) = 0;
-      virtual void Visit(const char* key, std::string* value) = 0;
-      virtual void Visit(const char* key, void** value) = 0;
-      virtual void Visit(const char* key, Type* value) = 0;
-      virtual void Visit(const char* key, ObjectRef* value) = 0;
-      // ...
-    };
+  class IntImmNode : public PrimExprNode {
+  public:
+    /*! \brief the Internal value. */
+    int64_t value;
 
-    class BaseAttrsNode : public Object {
-    public:
-      virtual void VisitAttrs(AttrVisitor* v) {}
-      // ...
-    };
+    static void RegisterReflection() {
+      namespace refl = tvm::ffi::reflection;
+      refl::ObjectDef<IntImmNode>().def_ro("value", &IntImmNode::value);
+    }
 
-Each ``Object`` subclass will override this to visit its members. Here is an example implementation of TensorNode.
+    bool SEqualReduce(const IntImmNode* other, SEqualReducer equal) const {
+      return equal(dtype, other->dtype) && equal(value, other->value);
+    }
 
-.. code:: c
+    void SHashReduce(SHashReducer hash_reduce) const {
+      hash_reduce(dtype);
+      hash_reduce(value);
+    }
 
-    class TensorNode : public Object {
-    public:
-      /*! \brief The shape of the tensor */
-      Array<Expr> shape;
-      /*! \brief data type in the content of the tensor */
-      Type dtype;
-      /*! \brief the source operation, can be None */
-      Operation op;
-      /*! \brief the output index from source operation */
-      int value_index{0};
-      /*! \brief constructor */
-      TensorNode() {}
+    static constexpr const char* _type_key = "ir.IntImm";
+    TVM_DECLARE_FINAL_OBJECT_INFO(IntImmNode, PrimExprNode);
+  };
+  // in cc file
+  TVM_FFI_STATIC_INIT_BLOCK({ IntImmNode::RegisterReflection(); });
 
-      void VisitAttrs(AttrVisitor* v) final {
-        v->Visit("shape", &shape);
-        v->Visit("dtype", &dtype);
-        v->Visit("op", &op);
-        v->Visit("value_index", &value_index);
-      }
-    };
-
-In the above examples, both ``Operation`` and ``Array<Expr>`` are ObjectRef.
-The VisitAttrs gives us a reflection API to visit each member of the object.
+The RegisterReflection gives us a reflection API to register each member of the object.
 We can use this function to visit the node and serialize any language object recursively.
 It also allows us to get members of an object easily in front-end language.
-For example, in the following code, we accessed the op field of the TensorNode.
+For example,  we can access the value field of the IntImmNode.
 
 .. code:: python
 
     import tvm
-    from tvm import te
 
-    x = te.placeholder((3,4), name="x")
-    # access the op field of TensorNode
-    print(x.op.name)
+    x = tvm.tir.IntImm("int32", 1)
+    # access the value field of IntImmNode
+    print(x.value)
 
 New ``Object`` can be added to C++ without changing the front-end runtime, making it easy to make extensions to the compiler stack.
 Note that this is not the fastest way to expose members to front-end language, but might be one of the simplest
@@ -282,7 +264,7 @@ Each argument in PackedFunc contains a union value `TVMValue`_
 and a type code. This design allows the dynamically typed language to convert to the corresponding type directly, and statically typed language to
 do runtime type checking during conversion.
 
-.. _TVMValue: https://github.com/apache/tvm/blob/main/include/tvm/runtime/c_runtime_api.h#L135
+.. _TVMValue: https://github.com/apache/tvm/blob/main/include/tvm/runtime/base.h#L135
 
 The relevant files are
 

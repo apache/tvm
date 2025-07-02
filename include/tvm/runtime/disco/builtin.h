@@ -62,7 +62,7 @@ inline std::string ReduceKind2String(ReduceKind kind) {
  * \param device The default device used to initialize the RelaxVM
  * \return The RelaxVM as a runtime Module
  */
-TVM_DLL Module LoadVMModule(std::string path, Device device);
+TVM_DLL Module LoadVMModule(std::string path, Optional<Device> device);
 /*!
  * \brief Create an uninitialized empty NDArray
  * \param shape The shape of the NDArray
@@ -70,7 +70,7 @@ TVM_DLL Module LoadVMModule(std::string path, Device device);
  * \param device The device the NDArray is created on. If None, use the thread local default device
  * \return The NDArray created
  */
-TVM_DLL NDArray DiscoEmptyNDArray(ShapeTuple shape, DataType dtype, Device device);
+TVM_DLL NDArray DiscoEmptyNDArray(ffi::Shape shape, DataType dtype, Optional<Device> device);
 /*!
  * \brief Perform an allreduce operation using the underlying communication library
  * \param send The array send to perform allreduce on

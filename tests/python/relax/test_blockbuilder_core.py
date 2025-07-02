@@ -206,9 +206,9 @@ def test_binary_shape_type_deduction():
             gv0 = bb.emit_output(lv3)
         bb.emit_func_output(gv0)
 
-        assert isinstance(gv0.checked_type, rx.TensorType)
-        assert gv0.checked_type.ndim == 1
-        assert gv0.checked_type.dtype == "float16"
+        assert isinstance(gv0.struct_info, rx.TensorStructInfo)
+        assert gv0.struct_info.ndim == 1
+        assert gv0.struct_info.dtype == "float16"
 
 
 def test_emit_match_cast():
@@ -301,11 +301,7 @@ def test_normalize():
     # Nested Tuple
     tuple_2 = rx.Tuple([x, rx.Tuple([x, y])])
     bb.normalize(tuple_2)
-    type_anno0 = x.checked_type
-    type_anno1 = y.checked_type
-    assert_structural_equal(
-        tuple_2.checked_type, rx.TupleType([type_anno0, rx.TupleType([type_anno0, type_anno1])])
-    )
+
     assert isinstance(tuple_2.struct_info, rx.TupleStructInfo)
     assert isinstance(tuple_2.struct_info.fields[0], rx.TensorStructInfo)
     assert isinstance(tuple_2.struct_info.fields[1], rx.TupleStructInfo)

@@ -24,7 +24,7 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm._ffi.base import TVMError
+from tvm.base import TVMError
 from tvm.script import ir as I, relax as R, tir as T
 
 exec_mode = tvm.testing.parameter("bytecode", "compiled")

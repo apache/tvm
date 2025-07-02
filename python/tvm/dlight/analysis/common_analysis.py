@@ -20,7 +20,7 @@ from typing import List, Optional, Set, Union
 from typing_extensions import Literal
 
 from tvm import ir, tir
-from tvm._ffi import get_global_func
+from tvm.ffi import get_global_func
 from tvm.target.target import Target
 from tvm.tir import Schedule
 from tvm.tir.schedule import BlockRV

@@ -55,7 +55,7 @@
  *           * The cond field of If nodes
  *           * The op or args fields of Call nodes
  *           * Inside the fields of Tuple nodes
- *    13. Expr always has checked_type_ (with the exception of Op).
+ *    13. Expr always has struct_info_ (with the exception of Op).
  *    14. DataflowBlocks may not contain If nodes.
  *    15. DataflowBlocks may not contain calls to impure functions or operators
  *        (only checked if check_struct_info is true).
@@ -147,8 +147,8 @@ class WellFormedChecker : public relax::ExprVisitor,
   }
 
   void VisitExpr(const Expr& expr) final {
-    if (!expr.as<OpNode>() && !expr->checked_type_.defined()) {
-      Malformed(Diagnostic::Error(expr) << "The checked_type_ of Expr " << expr << " is nullptr.");
+    if (!expr.as<OpNode>() && !expr->struct_info_.defined()) {
+      Malformed(Diagnostic::Error(expr) << "The struct_info_ of Expr " << expr << " is nullptr.");
     }
     relax::ExprVisitor::VisitExpr(expr);
   }
@@ -162,11 +162,10 @@ class WellFormedChecker : public relax::ExprVisitor,
       }
     }
 
-    if (op->checked_type_.defined()) {
-      if ((!op->checked_type_->IsInstance<FuncTypeNode>()) &&
-          (!op->checked_type_->IsInstance<PackedFuncTypeNode>())) {
-        Malformed(Diagnostic::Error(var) << "The checked_type_ of GlobalVar " << GetRef<Expr>(op)
-                                         << " must be either FuncType or PackedFuncType.");
+    if (op->struct_info_.defined()) {
+      if (!op->struct_info_->IsInstance<FuncStructInfoNode>()) {
+        Malformed(Diagnostic::Error(var) << "The struct_info_ of GlobalVar " << GetRef<Expr>(op)
+                                         << " must be either FuncStructInfo.");
       }
     }
 
@@ -242,7 +241,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     });
 
     // ensure the purity attributes are valid
-    if (op->GetAttr<Bool>(relax::attr::kForcePure).value_or(Bool(false))->value && !op->is_pure) {
+    if (op->GetAttr<bool>(relax::attr::kForcePure).value_or(false) && !op->is_pure) {
       Malformed(Diagnostic::Error(op->span)
                 << "Function " << GetRef<Expr>(op) << " has true for " << relax::attr::kForcePure
                 << " but false for is_pure; " << relax::attr::kForcePure
@@ -270,8 +269,8 @@ class WellFormedChecker : public relax::ExprVisitor,
 
     // if we are not forcing purity and the function is annotated as pure, it must not contain an
     // impure call
-    if (check_struct_info_ &&
-        !op->GetAttr<Bool>(relax::attr::kForcePure).value_or(Bool(false))->value && op->is_pure) {
+    if (check_struct_info_ && !op->GetAttr<bool>(relax::attr::kForcePure).value_or(false) &&
+        op->is_pure) {
       if (auto impure = FindImpureCall(op->body)) {
         Malformed(Diagnostic::Error(op)
                   << "Function " << op << " is annotated as pure but contains an impure call: "
@@ -332,7 +331,7 @@ class WellFormedChecker : public relax::ExprVisitor,
     if (auto func_normalize = op_map_normalize_.get(call->op, nullptr); func_normalize != nullptr) {
       auto dummy_builder = tvm::relax::BlockBuilder::Create(mod_);
       Call before_normalize = GetRef<Call>(call);
-      Optional<Expr> after_normalize = NullOpt;
+      Optional<Expr> after_normalize = std::nullopt;
       try {
         after_normalize = func_normalize(dummy_builder, before_normalize);
       } catch (std::exception& err) {
@@ -369,7 +368,7 @@ class WellFormedChecker : public relax::ExprVisitor,
       // an expression that does not yet have `StructInfo`.
       auto dummy_builder = tvm::relax::BlockBuilder::Create(mod_);
       Call copied(call->op, call->args, call->attrs, call->sinfo_args);
-      Optional<Expr> normalized = NullOpt;
+      Optional<Expr> normalized = std::nullopt;
       try {
         normalized = dummy_builder->Normalize(copied);
       } catch (std::exception& err) {
@@ -646,7 +645,7 @@ bool WellFormed(Variant<IRModule, Function> obj, bool check_struct_info) {
   return WellFormedChecker::Check(obj, check_struct_info);
 }
 
-TVM_REGISTER_GLOBAL(("relax.analysis.well_formed")).set_body_typed(WellFormed);
+TVM_FFI_REGISTER_GLOBAL(("relax.analysis.well_formed")).set_body_typed(WellFormed);
 
 }  // namespace relax
 }  // namespace tvm

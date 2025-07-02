@@ -50,6 +50,7 @@ from .binary import (
     divide,
     equal,
     floor_divide,
+    log_add_exp,
     floor_mod,
     greater,
     greater_equal,
@@ -72,6 +73,7 @@ from .create import (
     arange,
     full,
     full_like,
+    hamming_window,
     ones,
     ones_like,
     eye,
@@ -83,7 +85,7 @@ from .create import (
 )
 from .datatype import astype, wrap_param
 from .index import dynamic_strided_slice, strided_slice, take
-from .linear_algebra import einsum, linear, matmul
+from .linear_algebra import einsum, linear, matmul, outer
 from .manipulate import (
     broadcast_to,
     collapse_sum_like,
@@ -94,6 +96,9 @@ from .manipulate import (
     flip,
     gather_elements,
     gather_nd,
+    index_put,
+    index_tensor,
+    meshgrid,
     layout_transform,
     one_hot,
     permute_dims,
@@ -101,14 +106,16 @@ from .manipulate import (
     reshape,
     scatter_elements,
     scatter_nd,
+    slice_scatter,
     split,
     squeeze,
+    stack,
     tile,
 )
 from .mask import masked_fill
 from .qdq import dequantize, quantize
 from .sampling import multinomial_from_uniform
-from .search import argmax, argmin, where
+from .search import argmax, argmin, where, bucketize
 from .set import nonzero, unique
 from .sorting import argsort, sort, topk
 from .statistical import cumprod, cumsum, max, mean, min, prod, std, sum, variance
@@ -145,6 +152,7 @@ from .unary import (
     square,
     tan,
     tanh,
+    trunc,
 )
 
 

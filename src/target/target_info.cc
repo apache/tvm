@@ -20,11 +20,13 @@
 /*!
  * \file target/target_info.cc
  */
+#include <tvm/ffi/function.h>
 #include <tvm/node/repr_printer.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/target/target_info.h>
 
 namespace tvm {
+
+TVM_FFI_STATIC_INIT_BLOCK({ MemoryInfoNode::RegisterReflection(); });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<MemoryInfoNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -40,12 +42,12 @@ TVM_REGISTER_NODE_TYPE(MemoryInfoNode);
 
 MemoryInfo GetMemoryInfo(const std::string& scope) {
   std::string fname = "tvm.info.mem." + scope;
-  const runtime::PackedFunc* f = runtime::Registry::Get(fname);
-  if (f == nullptr) {
+  const auto f = tvm::ffi::Function::GetGlobal(fname);
+  if (!f.has_value()) {
     LOG(WARNING) << "MemoryInfo for scope = " << scope << " is undefined";
     return MemoryInfo();
   } else {
-    return (*f)();
+    return (*f)().cast<MemoryInfo>();
   }
 }
 

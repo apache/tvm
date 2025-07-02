@@ -18,13 +18,13 @@
 from typing import Callable, List
 
 import numpy as np
+
 import tvm
 import tvm.testing
-from tvm import relax
-from tvm import IRModule
-from tvm.relax.training.optimizer import Adam, SGD, MomentumSGD
+from tvm import IRModule, relax
+from tvm.relax.training.optimizer import SGD, Adam, MomentumSGD
+from tvm.runtime.vm import VirtualMachine
 from tvm.script.parser import relax as R
-from tvm.runtime.relax_vm import VirtualMachine
 from tvm.testing import assert_allclose
 
 

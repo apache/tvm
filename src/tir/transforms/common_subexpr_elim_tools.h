@@ -26,7 +26,7 @@
 #ifndef TVM_TIR_TRANSFORMS_COMMON_SUBEXPR_ELIM_TOOLS_H_
 #define TVM_TIR_TRANSFORMS_COMMON_SUBEXPR_ELIM_TOOLS_H_
 
-#include <tvm/runtime/container/string.h>
+#include <tvm/ffi/string.h>
 #include <tvm/tir/analysis.h>  // For the ExprDeepEqual analysis
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
@@ -34,9 +34,11 @@
 #include <tvm/tir/stmt_functor.h>  // For the class StmtExprVisitor
 
 #include <optional>
-#include <unordered_map>  // For the hashtable datatype
-#include <utility>        // For pairs datatype
+#include <unordered_map>
+#include <utility>  // For pairs datatype
 #include <vector>
+
+#include "../../support/ordered_map.h"
 
 namespace tvm {
 namespace tir {
@@ -50,7 +52,7 @@ namespace tir {
           not do variables remapping), so it is compatible with StructuralHash (intended to be used
           with StructuralEqual).
  */
-using ComputationTable = std::unordered_map<PrimExpr, size_t, StructuralHash, ExprDeepEqual>;
+using ComputationTable = support::OrderedMap<PrimExpr, size_t, StructuralHash, ExprDeepEqual>;
 
 /*!
  * \brief A cache of computations is made of a pair of two hashtables, which respectively associate
