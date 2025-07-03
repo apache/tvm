@@ -153,4 +153,15 @@ TEST(Reflection, ForEachFieldInfo) {
   EXPECT_EQ(field_name_to_offset["z"], 16 + sizeof(TVMFFIObject));
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_method("testing.Int_GetValue", &TIntObj::GetValue);
+});
+
+TEST(Reflection, FuncRegister) {
+  Function fget_value = Function::GetGlobalRequired("testing.Int_GetValue");
+  TInt a(12);
+  EXPECT_EQ(fget_value(a).cast<int>(), 12);
+}
+
 }  // namespace
