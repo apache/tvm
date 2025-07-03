@@ -242,6 +242,24 @@ TVM_REGISTER_OP("tir.atanh")
       return (log(one + x) - log(one - x)) * make_const(x.dtype(), 0.5);
     });
 
+TVM_REGISTER_OP("tir.erf").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
+  using tir::make_const;
+  const tir::CallNode* call = e.as<tir::CallNode>();
+  ICHECK(call != nullptr) << "Invalid call node in erf legalization";
+  const PrimExpr& x = call->args[0];
+  PrimExpr abs_x = tvm::abs(x);
+  PrimExpr t = make_const(x.dtype(), 1.0) /
+               (make_const(x.dtype(), 1.0) + make_const(x.dtype(), 0.3275911) * abs_x);
+  PrimExpr a1 = make_const(x.dtype(), 0.254829592);
+  PrimExpr a2 = make_const(x.dtype(), -0.284496736);
+  PrimExpr a3 = make_const(x.dtype(), 1.421413741);
+  PrimExpr a4 = make_const(x.dtype(), -1.453152027);
+  PrimExpr a5 = make_const(x.dtype(), 1.061405429);
+  PrimExpr poly = (((((a5 * t + a4) * t + a3) * t + a2) * t + a1) * t);
+  PrimExpr approx = make_const(x.dtype(), 1.0) - poly * exp(-abs_x * abs_x);
+  return tvm::tir::Select(x < 0, -approx, approx);
+});
+
 TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>("llvm.FLegalize", [](const PrimExpr& e) -> PrimExpr {
   const tir::CallNode* call = e.as<tir::CallNode>();
   ICHECK(call != nullptr);
