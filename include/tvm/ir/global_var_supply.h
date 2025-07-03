@@ -81,8 +81,6 @@ class GlobalVarSupplyNode : public Object {
     refl::ObjectDef<GlobalVarSupplyNode>();
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   /*! \brief The NameSupply used to generate unique name hints to GlobalVars. */
   NameSupply name_supply_;
 

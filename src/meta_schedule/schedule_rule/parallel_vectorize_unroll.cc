@@ -118,7 +118,6 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
         .def_ro("unroll_max_steps", &ParallelizeVectorizeUnrollNode::unroll_max_steps)
         .def_ro("unroll_explicit", &ParallelizeVectorizeUnrollNode::unroll_explicit);
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.ParallelizeVectorizeUnroll";
   TVM_DECLARE_FINAL_OBJECT_INFO(ParallelizeVectorizeUnrollNode, ScheduleRuleNode);

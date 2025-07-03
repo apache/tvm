@@ -35,8 +35,6 @@ class TracedScheduleNode : public ConcreteScheduleNode {
     // No fields to register as they are not visited
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   ~TracedScheduleNode() = default;
 
  public:

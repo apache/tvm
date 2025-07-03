@@ -87,8 +87,6 @@ class CodegenResultNode : public Object {
         .def_ro("headers", &CodegenResultNode::headers);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "contrib.cutlass.CodegenResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(CodegenResultNode, Object);
 };

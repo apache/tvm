@@ -147,8 +147,6 @@ class PrinterConfigNode : public Object {
         .def_ro("obj_to_annotate", &PrinterConfigNode::obj_to_annotate);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   Array<String> GetBuiltinKeywords();
 
   static constexpr const char* _type_key = "script.PrinterConfig";

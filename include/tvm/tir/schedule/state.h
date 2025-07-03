@@ -127,8 +127,6 @@ class ScheduleStateNode : public Object {
         .def_ro("enable_check", &ScheduleStateNode::enable_check);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   /*!
    * \brief Replace the part of the AST, as being pointed to by `src_sref`,
    * with a specific statement `tgt_stmt`, and maintain the sref tree accordingly.

@@ -89,7 +89,6 @@ class JSONDatabaseNode : public DatabaseNode {
         .def_ro("path_workload", &JSONDatabaseNode::path_workload)
         .def_ro("path_tuning_record", &JSONDatabaseNode::path_tuning_record);
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.JSONDatabase";
   TVM_DECLARE_FINAL_OBJECT_INFO(JSONDatabaseNode, DatabaseNode);

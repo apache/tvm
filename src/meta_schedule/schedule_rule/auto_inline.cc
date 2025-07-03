@@ -95,7 +95,7 @@ class AutoInlineNode : public ScheduleRuleNode {
         .def_ro("require_ordered", &AutoInlineNode::require_ordered)
         .def_ro("disallow_op", &AutoInlineNode::disallow_op);
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "meta_schedule.AutoInline";
   TVM_DECLARE_FINAL_OBJECT_INFO(AutoInlineNode, ScheduleRuleNode);
 };
@@ -232,7 +232,6 @@ class InlineConstantScalarsNode : public ScheduleRuleNode {
     refl::ObjectDef<InlineConstantScalarsNode>();
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "meta_schedule.InlineConstantScalars";
   TVM_DECLARE_FINAL_OBJECT_INFO(InlineConstantScalarsNode, ScheduleRuleNode);
 };

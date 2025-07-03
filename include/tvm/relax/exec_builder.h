@@ -143,8 +143,6 @@ class ExecBuilderNode : public Object {
     refl::ObjectDef<ExecBuilderNode>();
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "relax.ExecBuilder";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecBuilderNode, Object);
 

@@ -81,8 +81,6 @@ class NameSupplyNode : public Object {
    */
   bool ContainsName(const String& name, bool add_prefix = true);
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   // Prefix for all GlobalVar names. It can be empty.
   std::string prefix_;
 

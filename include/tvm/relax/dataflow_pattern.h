@@ -221,7 +221,6 @@ class PatternSeqNode final : public Object {
     refl::ObjectDef<PatternSeqNode>().def_ro("patterns", &PatternSeqNode::patterns);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "relax.dpl.PatternSeq";
   TVM_DECLARE_BASE_OBJECT_INFO(PatternSeqNode, Object);
 };
@@ -354,7 +353,6 @@ class ExprPatternNode : public DFPatternNode {
     refl::ObjectDef<ExprPatternNode>().def_ro("expr", &ExprPatternNode::expr);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "relax.dpl.ExprPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExprPatternNode, DFPatternNode);
 };
@@ -384,7 +382,6 @@ class VarPatternNode : public DFPatternNode {
     refl::ObjectDef<VarPatternNode>().def_ro("name", &VarPatternNode::name);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "relax.dpl.VarPattern";
   static constexpr const uint32_t _type_child_slots = 1;
   TVM_DECLARE_BASE_OBJECT_INFO(VarPatternNode, DFPatternNode);
@@ -462,7 +459,6 @@ class ConstantPatternNode : public DFPatternNode {
     refl::ObjectDef<ConstantPatternNode>();
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "relax.dpl.ConstantPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstantPatternNode, DFPatternNode);
 };
@@ -506,8 +502,6 @@ class CallPatternNode : public DFPatternNode {
         .def_ro("args", &CallPatternNode::args);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "relax.dpl.CallPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallPatternNode, DFPatternNode);
 };
@@ -532,7 +526,6 @@ class PrimArrPatternNode : public DFPatternNode {
     refl::ObjectDef<PrimArrPatternNode>().def_ro("fields", &PrimArrPatternNode::fields);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "relax.dpl.PrimArrPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimArrPatternNode, DFPatternNode);
 };
@@ -570,8 +563,6 @@ class FunctionPatternNode : public DFPatternNode {
         .def_ro("body", &FunctionPatternNode::body);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "relax.dpl.FunctionPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionPatternNode, DFPatternNode);
 };
@@ -605,7 +596,6 @@ class TuplePatternNode : public DFPatternNode {
     refl::ObjectDef<TuplePatternNode>().def_ro("fields", &TuplePatternNode::fields);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "relax.dpl.TuplePattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(TuplePatternNode, DFPatternNode);
 };
@@ -634,7 +624,6 @@ class UnorderedTuplePatternNode : public DFPatternNode {
                                                         &UnorderedTuplePatternNode::fields);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "relax.dpl.UnorderedTuplePattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(UnorderedTuplePatternNode, DFPatternNode);
 };
@@ -666,7 +655,6 @@ class TupleGetItemPatternNode : public DFPatternNode {
         .def_ro("index", &TupleGetItemPatternNode::index);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "relax.dpl.TupleGetItemPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleGetItemPatternNode, DFPatternNode);
 };
@@ -696,8 +684,6 @@ class AndPatternNode : public DFPatternNode {
         .def_ro("left", &AndPatternNode::left)
         .def_ro("right", &AndPatternNode::right);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "relax.dpl.AndPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(AndPatternNode, DFPatternNode);
@@ -729,8 +715,6 @@ class OrPatternNode : public DFPatternNode {
         .def_ro("right", &OrPatternNode::right);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "relax.dpl.OrPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(OrPatternNode, DFPatternNode);
 };
@@ -758,8 +742,6 @@ class NotPatternNode : public DFPatternNode {
     refl::ObjectDef<NotPatternNode>().def_ro("reject", &NotPatternNode::reject);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "relax.dpl.NotPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(NotPatternNode, DFPatternNode);
 };
@@ -785,7 +767,6 @@ class WildcardPatternNode : public DFPatternNode {
     refl::ObjectDef<WildcardPatternNode>();
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "relax.dpl.WildcardPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(WildcardPatternNode, DFPatternNode);
 };
@@ -822,8 +803,6 @@ class StructInfoPatternNode : public DFPatternNode {
         .def_ro("struct_info", &StructInfoPatternNode::struct_info);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "relax.dpl.StructInfoPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(StructInfoPatternNode, DFPatternNode);
 };
@@ -849,8 +828,6 @@ class ShapePatternNode : public DFPatternNode {
         .def_ro("pattern", &ShapePatternNode::pattern)
         .def_ro("shape", &ShapePatternNode::shape);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "relax.dpl.ShapePattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(ShapePatternNode, DFPatternNode);
@@ -884,8 +861,6 @@ class SameShapeConstraintNode : public DFConstraintNode {
     refl::ObjectDef<SameShapeConstraintNode>().def_ro("args", &SameShapeConstraintNode::args);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "relax.dpl.SameShapeConstraint";
   TVM_DECLARE_FINAL_OBJECT_INFO(SameShapeConstraintNode, DFConstraintNode);
 };
@@ -916,8 +891,6 @@ class DataTypePatternNode : public DFPatternNode {
         .def_ro("dtype", &DataTypePatternNode::dtype);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "relax.dpl.DataTypePattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(DataTypePatternNode, DFPatternNode);
 };
@@ -947,8 +920,6 @@ class AttrPatternNode : public DFPatternNode {
         .def_ro("pattern", &AttrPatternNode::pattern)
         .def_ro("attrs", &AttrPatternNode::attrs);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "relax.dpl.AttrPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrPatternNode, DFPatternNode);
@@ -981,8 +952,6 @@ class ExternFuncPatternNode : public DFPatternNode {
     refl::ObjectDef<ExternFuncPatternNode>().def_ro("global_symbol",
                                                     &ExternFuncPatternNode::global_symbol_);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "relax.dpl.ExternFuncPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExternFuncPatternNode, DFPatternNode);

@@ -65,8 +65,6 @@ struct RewriteSimplifierStatsNode : Object {
         .def_ro("num_recursive_rewrites", &RewriteSimplifierStatsNode::num_recursive_rewrites);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "arith.RewriteSimplifierStats";
   TVM_DECLARE_FINAL_OBJECT_INFO(RewriteSimplifierStatsNode, Object);
 };

@@ -75,8 +75,6 @@ class DataflowBlockRewriteNode : public Object {
         .def_ro("root_fn", &DataflowBlockRewriteNode::root_fn_);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "relax.DataflowBlockRewrite";
   TVM_DECLARE_FINAL_OBJECT_INFO(DataflowBlockRewriteNode, Object);
 

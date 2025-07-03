@@ -229,8 +229,6 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
         .def_ro("max_innermost_factor", &MultiLevelTilingNode::max_innermost_factor);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "meta_schedule.MultiLevelTiling";
   TVM_DECLARE_BASE_OBJECT_INFO(MultiLevelTilingNode, ScheduleRuleNode);
 };

@@ -53,8 +53,6 @@ class MatchResultNode : public Object {
         .def_ro("matched_buffers", &MatchResultNode::matched_buffers);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "relax.MatchResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(MatchResultNode, Object);
 };

@@ -34,8 +34,6 @@ class RoundRobinNode final : public TaskSchedulerNode {
     refl::ObjectDef<RoundRobinNode>().def_ro("task_id", &RoundRobinNode::task_id);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "meta_schedule.RoundRobin";
   TVM_DECLARE_FINAL_OBJECT_INFO(RoundRobinNode, TaskSchedulerNode);
 

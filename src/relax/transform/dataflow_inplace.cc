@@ -532,8 +532,6 @@ class InplaceOpportunityNode : public Object {
         .def_ro("arg_idxs", &InplaceOpportunityNode::arg_idxs);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "relax.transform.InplaceOpportunity";
   TVM_DECLARE_BASE_OBJECT_INFO(InplaceOpportunityNode, Object);
 };

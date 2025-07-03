@@ -40,8 +40,6 @@ class GradientBasedNode final : public TaskSchedulerNode {
         .def_ro("window_size", &GradientBasedNode::window_size);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "meta_schedule.GradientBased";
   TVM_DECLARE_FINAL_OBJECT_INFO(GradientBasedNode, TaskSchedulerNode);
 

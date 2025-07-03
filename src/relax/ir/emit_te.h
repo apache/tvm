@@ -52,8 +52,6 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
         .def_ro("dtype", &RXPlaceholderOpNode::dtype);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "RXPlaceholderOp";
   TVM_DECLARE_FINAL_OBJECT_INFO(RXPlaceholderOpNode, te::PlaceholderOpNode);
 };

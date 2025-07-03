@@ -54,8 +54,6 @@ class BlockRVNode : public runtime::Object {
     // No fields to register as they are not visited
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "tir.BlockRV";
   TVM_DECLARE_FINAL_OBJECT_INFO(BlockRVNode, runtime::Object);
 };
@@ -79,8 +77,6 @@ class LoopRVNode : public runtime::Object {
   static void RegisterReflection() {
     // No fields to register as they are not visited
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "tir.LoopRV";
   TVM_DECLARE_FINAL_OBJECT_INFO(LoopRVNode, runtime::Object);

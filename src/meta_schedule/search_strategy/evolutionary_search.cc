@@ -395,8 +395,6 @@ class EvolutionarySearchNode : public SearchStrategyNode {
         .def_ro("eps_greedy", &EvolutionarySearchNode::eps_greedy);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "meta_schedule.EvolutionarySearch";
   TVM_DECLARE_FINAL_OBJECT_INFO(EvolutionarySearchNode, SearchStrategyNode);
 

@@ -72,8 +72,6 @@ class StmtSRefNode : public Object {
     refl::ObjectDef<StmtSRefNode>().def_ro("seq_index", &StmtSRefNode::seq_index);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "tir.StmtSRef";
   TVM_DECLARE_FINAL_OBJECT_INFO(StmtSRefNode, Object);
 
@@ -229,8 +227,6 @@ class DependencyNode : public Object {
         .def_ro("kind", &DependencyNode::kind);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "tir.Dependency";
   TVM_DECLARE_FINAL_OBJECT_INFO(DependencyNode, Object);
 };
@@ -275,8 +271,6 @@ class BlockScopeNode : public Object {
   static void RegisterReflection() {
     // No fields to register as they are not visited
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "tir.BlockScope";
   TVM_DECLARE_FINAL_OBJECT_INFO(BlockScopeNode, Object);

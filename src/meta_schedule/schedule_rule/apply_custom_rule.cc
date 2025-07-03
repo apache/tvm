@@ -77,7 +77,7 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ApplyCustomRuleNode>().def_ro("target_", &ApplyCustomRuleNode::target_);
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "meta_schedule.ApplyCustomRule";
   TVM_DECLARE_FINAL_OBJECT_INFO(ApplyCustomRuleNode, ScheduleRuleNode);
 };

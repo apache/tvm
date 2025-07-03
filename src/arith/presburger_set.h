@@ -77,8 +77,6 @@ class PresburgerSetNode : public IntSetNode {
     refl::ObjectDef<PresburgerSetNode>();
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   /*!
    * \brief Do inplace union with given disjunct
    * \param disjunct The given disjunct to be union with
@@ -160,8 +158,6 @@ class PresburgerSetNode : public IntSetNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PresburgerSetNode>();
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "arith.PresburgerSet";
   TVM_DECLARE_FINAL_OBJECT_INFO(PresburgerSetNode, IntSetNode);

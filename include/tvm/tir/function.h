@@ -109,8 +109,6 @@ class PrimFuncNode : public BaseFuncNode {
         .def_ro("buffer_map", &PrimFuncNode::buffer_map);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const PrimFuncNode* other, SEqualReducer equal) const {
     // visit params and buffer_map first as they contains defs.
     return equal.DefEqual(params, other->params) && equal(buffer_map, other->buffer_map) &&
@@ -188,8 +186,6 @@ class TensorIntrinNode : public Object {
         .def_ro("desc", &TensorIntrinNode::desc)
         .def_ro("impl", &TensorIntrinNode::impl);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "tir.TensorIntrin";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorIntrinNode, Object);

@@ -749,8 +749,6 @@ class TensorizeInfoNode : public Object {
         .def_ro("block_iter_paddings", &TensorizeInfoNode::block_iter_paddings);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "tir.schedule.TensorizeInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorizeInfoNode, Object);
 };
@@ -798,8 +796,6 @@ class AutoTensorizeMappingInfoNode : public Object {
         .def_ro("lhs_iters", &AutoTensorizeMappingInfoNode::lhs_iters)
         .def_ro("rhs_iters", &AutoTensorizeMappingInfoNode::rhs_iters);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "tir.schedule.AutoTensorizeMappingInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(AutoTensorizeMappingInfoNode, Object);

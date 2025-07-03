@@ -382,8 +382,6 @@ class PatternContextRewriterNode : public PatternMatchingRewriterNode {
         .def_ro("rewriter_func", &PatternContextRewriterNode::rewriter_func);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "relax.dpl.PatternContextRewriter";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternContextRewriterNode, PatternMatchingRewriterNode);
 

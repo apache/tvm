@@ -37,7 +37,7 @@ class MemoryDatabaseNode : public DatabaseNode {
         .def_ro("records", &MemoryDatabaseNode::records)
         .def_ro("workloads", &MemoryDatabaseNode::workloads);
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "meta_schedule.MemoryDatabase";
   TVM_DECLARE_FINAL_OBJECT_INFO(MemoryDatabaseNode, DatabaseNode);
 
