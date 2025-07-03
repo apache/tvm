@@ -156,7 +156,7 @@ class BufferAllocationLocator : public StmtExprMutator {
       node.CopyOnWrite()->body = InjectOpaqueBlock(node->body, new_block_alloc_bufs);
     }
 
-    return std::move(node);
+    return node;
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {
@@ -220,7 +220,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     n->reads = access[0];
     n->writes = access[1];
     BlockRealize realize({}, Bool(true), Block(n));
-    return std::move(realize);
+    return realize;
   }
 
   Array<BufferRegion> RemoveRedundantBufferRegion(const Array<BufferRegion>& region) const {

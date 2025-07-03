@@ -228,13 +228,13 @@ class IRConvertSSA final : public StmtExprMutator {
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
     auto output = VisitBufferAccess(std::move(node));
-    return std::move(output);
+    return output;
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
     auto output = VisitBufferAccess(std::move(node));
-    return std::move(output);
+    return output;
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
@@ -243,7 +243,7 @@ class IRConvertSSA final : public StmtExprMutator {
     if (!new_buffer.same_as(decl->buffer)) {
       decl.CopyOnWrite()->buffer = std::move(new_buffer);
     }
-    return std::move(decl);
+    return decl;
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {
@@ -669,7 +669,7 @@ Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
   if (!result->relations.empty()) {
     return std::nullopt;
   }
-  return std::move(result);
+  return result;
 }
 
 ConditionalBoundsContext::ConditionalBoundsContext(

@@ -226,7 +226,7 @@ Stmt ReplaceBufferMutator::VisitStmt_(const BlockNode* block) {
     if (block_sref_reuse_ != nullptr) {
       block_sref_reuse_->Set(GetRef<Block>(block), new_block);
     }
-    return std::move(new_block);
+    return new_block;
   }
 }
 
@@ -470,19 +470,19 @@ Stmt BlockBufferAccessSimplifier::VisitStmt_(const BlockNode* op) {
   auto* n = block.CopyOnWrite();
   SimplifyAccessRegion(&n->reads);
   SimplifyAccessRegion(&n->writes);
-  return std::move(block);
+  return block;
 }
 
 Stmt BlockBufferAccessSimplifier::VisitStmt_(const BufferStoreNode* op) {
   BufferStore node = Downcast<BufferStore>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
-  return std::move(node);
+  return node;
 }
 
 PrimExpr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
   BufferLoad node = Downcast<BufferLoad>(arith::IRMutatorWithAnalyzer::VisitExpr_(op));
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
-  return std::move(node);
+  return node;
 }
 
 /******** PrimFunc-level analysis and transformation ********/

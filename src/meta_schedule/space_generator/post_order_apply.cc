@@ -40,8 +40,6 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
     // No fields to register
   }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   void InitializeWithTuneContext(const TuneContext& context) final {
     SpaceGeneratorNode::InitializeWithTuneContext(context);
     this->rand_state_ = ForkSeed(&context->rand_state);

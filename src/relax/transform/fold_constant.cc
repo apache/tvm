@@ -301,7 +301,7 @@ class ConstantFolder : public ExprMutator {
       }
     }
 
-    return std::move(post_call);
+    return post_call;
   }
 
   Expr VisitExpr_(const VarNode* op) final {

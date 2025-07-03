@@ -240,7 +240,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     auto node = Downcast<Call>(Parent::VisitExpr_(op));
 
     auto* gvar = op->op.as<GlobalVarNode>();
-    if (!gvar) return std::move(node);
+    if (!gvar) return node;
 
     auto it = device_info_map_.find(gvar);
     ICHECK(it != device_info_map_.end())
@@ -255,7 +255,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     if (same_target) {
       // Calls within the same target may be handled at codegen time
       // as internal subroutine calls.
-      return std::move(node);
+      return node;
     }
 
     bool same_device_type =

@@ -64,7 +64,7 @@ Stmt UpdatePointerStorageScope::VisitStmt_(const AllocateNode* op) {
   if (auto it = new_var_remap_.find(node->buffer_var.get()); it != new_var_remap_.end()) {
     node.CopyOnWrite()->buffer_var = it->second;
   }
-  return std::move(node);
+  return node;
 }
 
 template <typename Node>

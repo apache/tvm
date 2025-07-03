@@ -45,8 +45,6 @@ class MeasureCandidateNode : public runtime::Object {
         .def_ro("args_info", &MeasureCandidateNode::args_info);
   }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "meta_schedule.MeasureCandidate";
   TVM_DECLARE_FINAL_OBJECT_INFO(MeasureCandidateNode, Object);
 };

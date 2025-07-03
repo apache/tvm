@@ -83,7 +83,8 @@ class ExpressionNarrower : public tir::ExprMutator {
       contains_unknown_expr_ = false;
       return Bool(CurrentContext() == Context::Minimize);
     } else if (a.same_as(t->a) && b.same_as(t->b)) {
-      return std::move(t);
+      return t;
+
     } else {
       return T(a, b);
     }

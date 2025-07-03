@@ -302,14 +302,14 @@ class WarpAccessRewriter : protected StmtExprMutator {
       writer->indices = {local_index};
     }
 
-    return std::move(store);
+    return store;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) override {
     auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
 
     if (load->buffer->data.get() != buffer_) {
-      return std::move(load);
+      return load;
     }
 
     ICHECK_EQ(op->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
@@ -325,7 +325,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     writer->indices = {local_index};
 
     if (analyzer_->CanProveEqual(group, warp_index_)) {
-      return std::move(load);
+      return load;
     }
 
     PrimExpr mask = Call(DataType::UInt(32), builtin::tvm_warp_activemask(), {});

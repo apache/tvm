@@ -44,8 +44,6 @@ class FeatureExtractorNode : public runtime::Object {
     // No fields to register
   }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   /*!
    * \brief Extract features from the given measure candidate.
    * \param context The tuning context for feature extraction.
@@ -85,8 +83,6 @@ class PyFeatureExtractorNode : public FeatureExtractorNode {
     // `f_extract_from` is not registered
     // `f_as_string` is not registered
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   Array<tvm::runtime::NDArray> ExtractFrom(const TuneContext& context,
                                            const Array<MeasureCandidate>& candidates) final;

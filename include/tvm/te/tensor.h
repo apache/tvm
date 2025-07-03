@@ -88,7 +88,7 @@ class TensorNode : public DataProducerNode {
   TVM_DLL String GetNameHint() const final;
 
   static constexpr const char* _type_key = "te.Tensor";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, DataProducerNode);
 };
 

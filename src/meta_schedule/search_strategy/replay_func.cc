@@ -64,8 +64,6 @@ class ReplayFuncNode : public SearchStrategyNode {
     // No fields to register
   }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "meta_schedule.ReplayFunc";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReplayFuncNode, SearchStrategyNode);
 

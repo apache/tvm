@@ -88,7 +88,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         write_ptr->body = AttrStmt(buf->data, attr::volatile_scope, 1, write_ptr->body);
       }
     }
-    return std::move(node);
+    return node;
   }
 
   Optional<Buffer> GetRemappedBuffer(const Buffer& buf) {
@@ -111,7 +111,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     if (auto buf = GetRemappedBuffer(node->buffer)) {
       node.CopyOnWrite()->buffer = buf.value();
     }
-    return std::move(node);
+    return node;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -128,7 +128,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     if (auto opt = GetRemappedBuffer(load->buffer)) {
       load.CopyOnWrite()->buffer = opt.value();
     }
-    return std::move(load);
+    return load;
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -137,7 +137,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     if (auto opt = GetRemappedBuffer(store->buffer)) {
       store.CopyOnWrite()->buffer = opt.value();
     }
-    return std::move(store);
+    return store;
   }
 
  private:

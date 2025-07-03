@@ -28,9 +28,10 @@
 
 namespace tvm {
 
-void DictAttrsNode::VisitAttrs(AttrVisitor* v) { v->Visit("__dict__", &dict); }
-
-void DictAttrsNode::VisitNonDefaultAttrs(AttrVisitor* v) { v->Visit("__dict__", &dict); }
+TVM_FFI_STATIC_INIT_BLOCK({
+  AttrFieldInfoNode::RegisterReflection();
+  DictAttrsNode::RegisterReflection();
+});
 
 DictAttrs WithAttrs(DictAttrs attrs, Map<String, ffi::Any> new_attrs) {
   if (new_attrs.empty()) {
@@ -62,8 +63,6 @@ void DictAttrsNode::InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unk
   }
 }
 
-Array<AttrFieldInfo> DictAttrsNode::ListFieldInfo() const { return {}; }
-
 DictAttrs::DictAttrs(Map<String, Any> dict) {
   ObjectPtr<DictAttrsNode> n = make_object<DictAttrsNode>();
   n->dict = std::move(dict);
@@ -78,10 +77,6 @@ TVM_FFI_STATIC_INIT_BLOCK({ tvm::ffi::reflection::ObjectDef<BaseAttrsNode>(); })
 
 TVM_FFI_REGISTER_GLOBAL("ir.DictAttrsGetDict").set_body_typed([](DictAttrs attrs) {
   return attrs->dict;
-});
-
-TVM_FFI_REGISTER_GLOBAL("ir.AttrsListFieldInfo").set_body_typed([](Attrs attrs) {
-  return attrs->ListFieldInfo();
 });
 
 }  // namespace tvm

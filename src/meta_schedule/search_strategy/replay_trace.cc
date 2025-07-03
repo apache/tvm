@@ -80,8 +80,6 @@ class ReplayTraceNode : public SearchStrategyNode {
     refl::ObjectDef<ReplayTraceNode>().def_ro("max_fail_count", &ReplayTraceNode::max_fail_count);
   }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "meta_schedule.ReplayTrace";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReplayTraceNode, SearchStrategyNode);
 

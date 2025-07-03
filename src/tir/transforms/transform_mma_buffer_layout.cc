@@ -71,7 +71,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
                                         buffer->axis_separators);
         this->buffer_map_.insert({buffer, new_buffer});
         this->buffer_var_map_.insert({buffer->data, new_buffer->data});
-        return std::move(new_buffer);
+        return new_buffer;
+
       } else if (buffer.scope() == "m16n8k8.matrixA") {
         // m16n8k8.matrixA
         // bi = 32, bj = 8
@@ -92,7 +93,8 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
                                         buffer->axis_separators);
         this->buffer_map_.insert({buffer, new_buffer});
         this->buffer_var_map_.insert({buffer->data, new_buffer->data});
-        return std::move(new_buffer);
+        return new_buffer;
+
       } else if (buffer.scope() == "m16n8k8.matrixB") {
         // m16n8k8.matrixB
         // bj = 8, bj = 32
@@ -113,7 +115,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
                                         buffer->axis_separators);
         this->buffer_map_.insert({buffer, new_buffer});
         this->buffer_var_map_.insert({buffer->data, new_buffer->data});
-        return std::move(new_buffer);
+        return new_buffer;
       }
       return buffer;
     };
@@ -138,7 +140,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         n->buffer = buffer_map_[store->buffer];
       }
     }
-    return std::move(store);
+    return store;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) {
@@ -157,7 +159,7 @@ class MmaBufferLayoutTransformer : public StmtExprMutator {
         n->buffer = buffer_map_[load->buffer];
       }
     }
-    return std::move(load);
+    return load;
   }
 
   PrimExpr VisitExpr_(const VarNode* op) {

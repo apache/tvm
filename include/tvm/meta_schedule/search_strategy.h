@@ -251,8 +251,6 @@ class PySearchStrategyNode : public SearchStrategyNode {
     // `f_clone` is not registered
   }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   void InitializeWithTuneContext(const TuneContext& context) final;
   void PreTuning(int max_trials, int num_trials_per_iter, const Array<tir::Schedule>& design_spaces,
                  const Optional<Database>& database, const Optional<CostModel>& cost_model) final;

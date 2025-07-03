@@ -214,7 +214,6 @@ class Object {
   static constexpr int32_t _type_depth = 0;
   // extra fields used by plug-ins for attribute visiting
   // and structural information
-  static constexpr const bool _type_has_method_visit_attrs = true;
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   // The following functions are provided by macro

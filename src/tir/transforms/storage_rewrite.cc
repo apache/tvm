@@ -528,7 +528,7 @@ class StoragePlanRewriter : public StmtExprMutator {
       Buffer buf = RemapBuffer(op->buffer, it->second->alloc_var);
       node.CopyOnWrite()->buffer = buf;
     }
-    return std::move(node);
+    return node;
   }
 
  private:
@@ -1510,14 +1510,15 @@ class VectorTypeRewriter : public StmtExprMutator {
     // Not needed for BufferStoreNode, so we can't just call
     // LegalizeDtype() in VisitBufferAccess.
     if (node.same_as(modified)) {
-      return std::move(node);
+      return node;
+
     } else {
       auto writer = modified.CopyOnWrite();
       writer->LegalizeDType();
       if (shuffle_index >= 0) {
         return Shuffle::ExtractElement(std::move(modified), shuffle_index);
       }
-      return std::move(modified);
+      return modified;
     }
   }
 
@@ -1525,7 +1526,7 @@ class VectorTypeRewriter : public StmtExprMutator {
     auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
     auto [modified, shuffle_index] = VisitBufferAccess(std::move(node));
     ICHECK(shuffle_index < 0);
-    return std::move(modified);
+    return modified;
   }
 
   Stmt VisitStmt_(const LetStmtNode* op) final {

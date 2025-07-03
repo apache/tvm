@@ -30,26 +30,6 @@ class Attrs(Object):
     Attrs is passed as the first argument to these functions.
     """
 
-    def list_field_info(self):
-        """Get fields information
-
-        Returns
-        -------
-        infos: list of AttrFieldInfo
-            List of field information
-        """
-        return _ffi_api.AttrsListFieldInfo(self)
-
-    def keys(self):
-        """Get list of names in the attribute.
-
-        Returns
-        -------
-        keys : list of str
-            List of keys
-        """
-        return [field.name for field in self.list_field_info()]
-
     def get_int_tuple(self, key):
         """Get a python int tuple of a key
 

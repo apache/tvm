@@ -202,7 +202,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       writer->indices = {e.switch_write_var * e.stride + node->indices[0]};
     }
 
-    return std::move(node);
+    return node;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -221,7 +221,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       writer->indices = {e.switch_read_var * e.stride + node->indices[0]};
     }
 
-    return std::move(node);
+    return node;
   }
 
   Buffer GetRemappedBuffer(Buffer buf, PrimExpr stride) {

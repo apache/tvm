@@ -68,7 +68,8 @@ class ThreadBindingUnifier : public StmtExprMutator {
     if (const auto* loop = stmt.as<ForNode>()) {
       For new_loop = GetRef<For>(loop);
       new_loop.CopyOnWrite()->annotations = std::move(annotations);
-      return std::move(new_loop);
+      return new_loop;
+
     } else {
       // Create a new unit loop with the annotation.
       DataType dtype = op->loop_var->dtype;

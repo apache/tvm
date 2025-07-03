@@ -260,14 +260,14 @@ class PipelineBodyRewriter : public StmtExprMutator {
     for (const Buffer& alloc_buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.erase(alloc_buffer->data);
     }
-    return std::move(block);
+    return block;
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
     auto it = buffer_remap_.find(store->buffer);
     if (it == buffer_remap_.end()) {
-      return std::move(store);
+      return store;
     }
     const Buffer& new_buffer = (*it).second;
     auto* n = store.CopyOnWrite();
@@ -275,14 +275,14 @@ class PipelineBodyRewriter : public StmtExprMutator {
     PrimExpr version =
         floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_buffer->shape[0]);
     n->indices.insert(n->indices.begin(), version);
-    return std::move(store);
+    return store;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
     auto it = buffer_remap_.find(load->buffer);
     if (it == buffer_remap_.end()) {
-      return std::move(load);
+      return load;
     }
     const Buffer& new_buffer = (*it).second;
     auto* n = load.CopyOnWrite();
@@ -290,7 +290,7 @@ class PipelineBodyRewriter : public StmtExprMutator {
     PrimExpr version =
         floormod((pipeline_loop_->loop_var - pipeline_loop_->min), new_buffer->shape[0]);
     n->indices.insert(n->indices.begin(), version);
-    return std::move(load);
+    return load;
   }
 
   PrimExpr VisitExpr_(const CallNode* op) final {
@@ -1074,7 +1074,7 @@ class PipelineInjector : private StmtExprMutator {
     // Step 1: Recursively rewrite the children first.
     For for_node = Downcast<For>(StmtExprMutator::VisitStmt_(op));
     if (!HasPipelineAnnotation(op)) {
-      return std::move(for_node);
+      return for_node;
     }
     // Step 2: Find the body and buffer allocations of the pipeline. The body can be direct child of
     // the for-loop. If the for-loop has BlockRealize as its child, the pipeline body will be the
@@ -1215,7 +1215,7 @@ class PipelineInjector : private StmtExprMutator {
     for (const auto& buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.erase(buffer->data);
     }
-    return std::move(block);
+    return block;
   }
 
   bool HasPipelineAnnotation(const ForNode* op) const {

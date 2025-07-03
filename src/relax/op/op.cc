@@ -528,7 +528,7 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
     call.CopyOnWrite()->args = new_args;
   }
 
-  return std::move(call);
+  return call;
 }
 
 void ValidateCallTIR(Call call) {
@@ -750,7 +750,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
     }
   }
 
-  return std::move(call);
+  return call;
 }
 
 TVM_REGISTER_NODE_TYPE(CallTIRInplaceAttrs);

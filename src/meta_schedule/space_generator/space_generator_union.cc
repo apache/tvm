@@ -35,8 +35,6 @@ class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
                                                       &SpaceGeneratorUnionNode::space_generators);
   }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   void InitializeWithTuneContext(const TuneContext& context) final {
     SpaceGeneratorNode::InitializeWithTuneContext(context);
     for (const SpaceGenerator& space_generator : space_generators) {

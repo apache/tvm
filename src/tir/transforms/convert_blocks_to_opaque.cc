@@ -63,7 +63,7 @@ class OpaqueBlockConverter : public StmtExprMutator {
     if (!new_block->iter_vars.empty()) {
       new_block.CopyOnWrite()->iter_vars.clear();
     }
-    return std::move(new_block);
+    return new_block;
   }
 
   Stmt VisitStmt_(const BlockRealizeNode* realize) final {

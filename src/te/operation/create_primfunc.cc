@@ -173,7 +173,7 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
         n->annotations.erase(attr);
       }
     }
-    return std::move(block);
+    return block;
   }
 
   std::unordered_map<tir::Buffer, int, ObjectPtrHash, ObjectPtrEqual> buffer2index_;
@@ -424,7 +424,7 @@ Stmt GenerateBodyStmt(const Array<PrimExpr>& indices, const Array<Buffer>& buffe
     const PrimExpr& compute_body = f_transform_and_remap(expr_body);
     body = BufferStore(buffers[0], analyzer->Simplify(compute_body), indices);
   }
-  return std::move(body);
+  return body;
 }
 
 /*! \brief Record loops, block vars and binding in the single level scope. */

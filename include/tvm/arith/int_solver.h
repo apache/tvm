@@ -83,7 +83,6 @@ class IntGroupBoundsNode : public Object {
     hash_reduce(upper);
   }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const char* _type_key = "arith.IntGroupBounds";
   TVM_DECLARE_FINAL_OBJECT_INFO(IntGroupBoundsNode, Object);
@@ -174,7 +173,6 @@ class IntConstraintsNode : public Object {
     hash_reduce(relations);
   }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const char* _type_key = "arith.IntConstraints";
   TVM_DECLARE_FINAL_OBJECT_INFO(IntConstraintsNode, Object);
@@ -240,7 +238,6 @@ class IntConstraintsTransformNode : public Object {
     hash_reduce(dst_to_src);
   }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const char* _type_key = "arith.IntConstraintsTransform";
   TVM_DECLARE_FINAL_OBJECT_INFO(IntConstraintsTransformNode, Object);

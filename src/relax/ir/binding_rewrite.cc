@@ -265,7 +265,7 @@ class RemoveUnusedVars : public ExprMutator {
       caught_rewrite = Downcast<DataflowBlock>(output);
     }
 
-    return std::move(output);
+    return output;
   }
 
  private:

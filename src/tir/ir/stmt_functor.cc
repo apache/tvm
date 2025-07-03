@@ -602,7 +602,7 @@ class IRSubstitute : public StmtExprMutator {
       }
       return ret.value();
     }
-    return std::move(var);
+    return var;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -754,7 +754,7 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
     if (ret.defined()) {
       return ret.value();
     }
-    return std::move(var);
+    return var;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {

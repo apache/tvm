@@ -313,8 +313,6 @@ void SHashHandlerIgnoreNDArray::DispatchSHash(const ObjectRef& object, bool map_
 
 // SEQualReduce traits for runtime containers.
 struct StringObjTrait {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-
   static void SHashReduce(const ffi::StringObj* key, SHashReducer hash_reduce) {
     hash_reduce->SHashReduceHashedValue(ffi::details::StableHashBytes(key->data, key->size));
   }
@@ -329,8 +327,6 @@ struct StringObjTrait {
 };
 
 struct BytesObjTrait {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-
   static void SHashReduce(const ffi::BytesObj* key, SHashReducer hash_reduce) {
     hash_reduce->SHashReduceHashedValue(ffi::details::StableHashBytes(key->data, key->size));
   }
@@ -375,7 +371,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 struct ModuleNodeTrait {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
   static constexpr const std::nullptr_t SHashReduce = nullptr;
   static constexpr const std::nullptr_t SEqualReduce = nullptr;
 };
@@ -431,8 +426,6 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container, NDArrayContainerTrai
     });
 
 struct ArrayObjTrait {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-
   static void SHashReduce(const ffi::ArrayObj* key, SHashReducer hash_reduce) {
     hash_reduce(static_cast<uint64_t>(key->size()));
     for (uint32_t i = 0; i < key->size(); ++i) {
@@ -518,8 +511,6 @@ TVM_REGISTER_REFLECTION_VTABLE(ffi::ArrayObj, ArrayObjTrait)
     });
 
 struct ShapeObjTrait {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-
   static void SHashReduce(const ffi::ShapeObj* self, SHashReducer hash_reduce) {
     hash_reduce(static_cast<uint64_t>(self->size));
     for (uint32_t i = 0; i < self->size; ++i) {
@@ -562,8 +553,6 @@ TVM_REGISTER_REFLECTION_VTABLE(ffi::ShapeObj, ShapeObjTrait)
     });
 
 struct MapObjTrait {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-
   static void SHashReduceForOMap(const ffi::MapObj* key, SHashReducer hash_reduce) {
     // SHash's var handling depends on the determinism of traversal.
     // NOTE: only book-keep the mapped hash keys.
@@ -707,8 +696,6 @@ struct ReportNodeTrait {
         .def_ro("configuration", &runtime::profiling::ReportNode::configuration);
   }
 
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
@@ -727,8 +714,6 @@ struct CountNodeTrait {
     refl::ObjectDef<runtime::profiling::CountNode>().def_ro("value",
                                                             &runtime::profiling::CountNode::value);
   }
-
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
@@ -750,8 +735,6 @@ struct DurationNodeTrait {
         "microseconds", &runtime::profiling::DurationNode::microseconds);
   }
 
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
@@ -772,8 +755,6 @@ struct PercentNodeTrait {
         "percent", &runtime::profiling::PercentNode::percent);
   }
 
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
@@ -793,8 +774,6 @@ struct RatioNodeTrait {
     refl::ObjectDef<runtime::profiling::RatioNode>().def_ro("ratio",
                                                             &runtime::profiling::RatioNode::ratio);
   }
-
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;

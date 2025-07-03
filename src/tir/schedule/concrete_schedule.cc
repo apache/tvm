@@ -947,7 +947,7 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
     for (size_t i = 0; i < arr->size(); i++) {
       result.push_back(CheckAndGetAnnotationValue(arr->at(i)));
     }
-    return std::move(result);
+    return result;
   }
   if (const auto* dict = ann_val.as<ffi::MapObj>()) {
     Map<String, ffi::Any> result;
@@ -962,7 +962,7 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
         LOG(FATAL) << "TypeError: annotation dict key expect to be String or StringImm";
       }
     }
-    return std::move(result);
+    return result;
   }
   LOG(FATAL)
       << "TypeError: Only strings, integers, floats, ExprRVs and Arrays are supported for now, but "

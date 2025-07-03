@@ -283,7 +283,7 @@ class DataflowBlockMutator : public ExprMutator {
     ICHECK(global_scope_vars.empty() && symbolic_vars.empty())
         << "Error: DataflowBlock Pass should not delete any GlobalScope/Symbolic Var.";
 
-    return std::move(updated_block);
+    return updated_block;
   }
 
  private:

@@ -286,8 +286,6 @@ class IterVarNode : public PrimExprConvertibleNode {
 
   PrimExpr ToPrimExpr() const final { return var; }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IterVarNode>()

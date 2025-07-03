@@ -528,7 +528,7 @@ class VMShapeLowerMutator
         builder_->Emit(call, "_");
       }
     }
-    return std::move(outstanding_todos);
+    return outstanding_todos;
   }
 
   /*!

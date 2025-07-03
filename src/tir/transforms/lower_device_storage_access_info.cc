@@ -68,7 +68,7 @@ class StorageAccessInfoLower : public StmtExprMutator {
         it != storage_info_.end() && !it->second->head_address.defined()) {
       return node->body;
     } else {
-      return std::move(node);
+      return node;
     }
   }
 

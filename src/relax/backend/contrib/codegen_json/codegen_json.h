@@ -57,7 +57,7 @@ using JSONGraphObjectPtr = std::shared_ptr<JSONGraphNode>;
  * \brief Helper class to extract all attributes of a certain op and save them
  * into text format.
  */
-class OpAttrExtractor : private AttrVisitor {
+class OpAttrExtractor {
  public:
   explicit OpAttrExtractor(JSONGraphObjectPtr node) : node_(node) {}
 
@@ -75,19 +75,19 @@ class OpAttrExtractor : private AttrVisitor {
     node_->SetAttr(key, attr);
   }
 
-  void Visit(const char* key, double* value) final { SetNodeAttr(key, {Fp2String(*value)}); }
+  void Visit(const char* key, double* value) { SetNodeAttr(key, {Fp2String(*value)}); }
 
-  void Visit(const char* key, int64_t* value) final { SetNodeAttr(key, {std::to_string(*value)}); }
+  void Visit(const char* key, int64_t* value) { SetNodeAttr(key, {std::to_string(*value)}); }
 
-  void Visit(const char* key, uint64_t* value) final { SetNodeAttr(key, {std::to_string(*value)}); }
+  void Visit(const char* key, uint64_t* value) { SetNodeAttr(key, {std::to_string(*value)}); }
 
-  void Visit(const char* key, int* value) final { SetNodeAttr(key, {std::to_string(*value)}); }
+  void Visit(const char* key, int* value) { SetNodeAttr(key, {std::to_string(*value)}); }
 
-  void Visit(const char* key, bool* value) final { SetNodeAttr(key, {std::to_string(*value)}); }
+  void Visit(const char* key, bool* value) { SetNodeAttr(key, {std::to_string(*value)}); }
 
-  void Visit(const char* key, std::string* value) final { SetNodeAttr(key, {*value}); }
+  void Visit(const char* key, std::string* value) { SetNodeAttr(key, {*value}); }
 
-  void Visit(const char* key, Optional<double>* value) final {
+  void Visit(const char* key, Optional<double>* value) {
     if (value->has_value()) {
       SetNodeAttr(key, {Fp2String(value->value())});
     } else {
@@ -95,7 +95,7 @@ class OpAttrExtractor : private AttrVisitor {
     }
   }
 
-  void Visit(const char* key, Optional<int64_t>* value) final {
+  void Visit(const char* key, Optional<int64_t>* value) {
     if (value->has_value()) {
       SetNodeAttr(key, {std::to_string(value->value())});
     } else {
@@ -103,7 +103,7 @@ class OpAttrExtractor : private AttrVisitor {
     }
   }
 
-  void Visit(const char* key, DataType* value) final {
+  void Visit(const char* key, DataType* value) {
     if (!value->is_void()) {
       SetNodeAttr(key, {runtime::DLDataTypeToString(*value)});
     } else {
@@ -111,7 +111,7 @@ class OpAttrExtractor : private AttrVisitor {
     }
   }
 
-  void Visit(const char* key, runtime::ObjectRef* value) final {
+  void Visit(const char* key, runtime::ObjectRef* value) {
     if (const auto* an = (*value).as<ffi::ArrayObj>()) {
       std::vector<std::string> attr;
       for (size_t i = 0; i < an->size(); ++i) {
@@ -141,14 +141,6 @@ class OpAttrExtractor : private AttrVisitor {
     }
   }
 
-  void Visit(const char* key, runtime::NDArray* value) final {
-    LOG(FATAL) << "NDArray is not allowed in op attribute";
-  }
-
-  void Visit(const char* key, void** value) final {
-    LOG(FATAL) << "void pointer is not allowed in op attribute";
-  }
-
   void Extract(Object* node) {
     if (node) {
       this->VisitObjectFields(node);
@@ -158,49 +150,47 @@ class OpAttrExtractor : private AttrVisitor {
  private:
   void VisitObjectFields(Object* obj) {
     const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
-    if (tinfo->extra_info != nullptr) {
-      ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
-        Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
-        switch (field_value.type_index()) {
-          case ffi::TypeIndex::kTVMFFINone: {
-            SetNodeAttr(field_info->name.data, {""});
-            break;
-          }
-          case ffi::TypeIndex::kTVMFFIBool:
-          case ffi::TypeIndex::kTVMFFIInt: {
-            int64_t value = field_value.cast<int64_t>();
-            this->Visit(field_info->name.data, &value);
-            break;
-          }
-          case ffi::TypeIndex::kTVMFFIFloat: {
-            double value = field_value.cast<double>();
-            this->Visit(field_info->name.data, &value);
-            break;
-          }
-          case ffi::TypeIndex::kTVMFFIDataType: {
-            DataType value(field_value.cast<DLDataType>());
-            this->Visit(field_info->name.data, &value);
-            break;
-          }
-          case ffi::TypeIndex::kTVMFFINDArray: {
-            runtime::NDArray value = field_value.cast<runtime::NDArray>();
-            this->Visit(field_info->name.data, &value);
-            break;
-          }
-          default: {
-            if (field_value.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-              ObjectRef obj = field_value.cast<ObjectRef>();
-              this->Visit(field_info->name.data, &obj);
-              break;
-            }
-            LOG(FATAL) << "Unsupported type: " << field_value.GetTypeKey();
-          }
+    ICHECK(tinfo->extra_info != nullptr)
+        << "Object `" << obj->GetTypeKey()
+        << "` misses reflection registration and do not support serialization";
+    ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
+      Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
+      switch (field_value.type_index()) {
+        case ffi::TypeIndex::kTVMFFINone: {
+          SetNodeAttr(field_info->name.data, {""});
+          break;
         }
-      });
-    } else {
-      // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
-      reflection_->VisitAttrs(obj, this);
-    }
+        case ffi::TypeIndex::kTVMFFIBool:
+        case ffi::TypeIndex::kTVMFFIInt: {
+          int64_t value = field_value.cast<int64_t>();
+          this->Visit(field_info->name.data, &value);
+          break;
+        }
+        case ffi::TypeIndex::kTVMFFIFloat: {
+          double value = field_value.cast<double>();
+          this->Visit(field_info->name.data, &value);
+          break;
+        }
+        case ffi::TypeIndex::kTVMFFIDataType: {
+          DataType value(field_value.cast<DLDataType>());
+          this->Visit(field_info->name.data, &value);
+          break;
+        }
+        case ffi::TypeIndex::kTVMFFINDArray: {
+          runtime::NDArray value = field_value.cast<runtime::NDArray>();
+          this->Visit(field_info->name.data, &value);
+          break;
+        }
+        default: {
+          if (field_value.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+            ObjectRef obj = field_value.cast<ObjectRef>();
+            this->Visit(field_info->name.data, &obj);
+            break;
+          }
+          LOG(FATAL) << "Unsupported type: " << field_value.GetTypeKey();
+        }
+      }
+    });
   }
 
   JSONGraphObjectPtr node_;

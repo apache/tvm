@@ -78,8 +78,6 @@ class TuneContextNode : public runtime::Object {
     // `logger` is not registered
   }
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   /*!
    * \brief Initialize members that needs initialization with tune context.
    */
