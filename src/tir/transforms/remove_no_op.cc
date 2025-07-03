@@ -239,7 +239,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
       }
     }
 
-    return std::move(store);
+    return store;
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
@@ -249,7 +249,8 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     var_use(node->body);
 
     if (var_use.buffer_use_count_.count(node->buffer.get())) {
-      return std::move(node);
+      return node;
+
     } else {
       return node->body;
     }

@@ -1555,7 +1555,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const VarNode* op) {
   auto var = GetRef<Var>(op);
   auto it = var_map_.find(var);
   if (it != var_map_.end()) return it->second;
-  return std::move(var);
+  return var;
 }
 
 PrimExpr IterMapRewriter::VisitExpr_(const AddNode* op) {
@@ -1588,7 +1588,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const AddNode* op) {
   } else {
     AddToLhs(ret.CopyOnWrite(), ToIterSumExpr(b), 1);
   }
-  return std::move(ret);
+  return ret;
 }
 
 PrimExpr IterMapRewriter::VisitExpr_(const SubNode* op) {
@@ -1623,7 +1623,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const SubNode* op) {
   } else {
     AddToLhs(ret.CopyOnWrite(), ToIterSumExpr(b), -1);
   }
-  return std::move(ret);
+  return ret;
 }
 
 PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
@@ -1660,12 +1660,13 @@ PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
   if (a->IsInstance<IterSumExprNode>()) {
     IterSumExpr ret = Downcast<IterSumExpr>(std::move(a));
     MulToLhs(ret.CopyOnWrite(), b);
-    return std::move(ret);
+    return ret;
+
   } else {
     ICHECK(a->IsInstance<IterSplitExprNode>());
     IterSplitExpr ret = Downcast<IterSplitExpr>(std::move(a));
     ret.CopyOnWrite()->scale *= b;
-    return std::move(ret);
+    return ret;
   }
 }
 
@@ -1854,7 +1855,8 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
   if (is_one(rhs)) {
     if (is_zero(base)) {
       // floordiv(x, 1) = x
-      return std::move(lhs);
+      return lhs;
+
     } else {
       // floordiv(x+y, 1) = x+y
       return IterSumExpr({lhs}, base);
@@ -1865,7 +1867,8 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
     if (CanProveDivisible(lhs->scale, rhs) && is_zero(base)) {
       // floordiv(x*c1*c2, c2) = x*c1, c1=scale/rhs
       lhs.CopyOnWrite()->scale = floordiv(lhs->scale, rhs);
-      return std::move(lhs);
+      return lhs;
+
     } else if (CanProveDivisible(lhs->scale, rhs) && CanProveDivisible(base, rhs)) {
       // floordiv(x*c1*c2 + y*c2, c2) = x*c1 + y, c1=scale/rhs
       lhs.CopyOnWrite()->scale = floordiv(lhs->scale, rhs);
@@ -1929,7 +1932,8 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
 
   auto new_base = analyzer_->Simplify(floordiv(base - left_pad, rhs), 6);
   if (is_zero(new_base)) {
-    return std::move(new_split);
+    return new_split;
+
   } else {
     return IterSumExpr({new_split}, new_base);
   }
