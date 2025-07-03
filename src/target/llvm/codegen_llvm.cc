@@ -623,7 +623,7 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
         return t_void_p_;
       }
     } else if (ptr->element_type->IsInstance<TensorMapTypeNode>()) {
-      return t_tvm_tensormap_->getPointerTo();
+      return llvmGetPointerTo(t_tvm_tensormap_, 0);
     }
     // TODO(tvm-team) consider put storage scope into the pointer type.
     return llvmGetPointerTo(GetLLVMType(ptr->element_type), GetGlobalAddressSpace());
@@ -2247,9 +2247,15 @@ void CodeGenLLVM::AddDebugInformation(llvm::Function* f_llvm, const Array<Type>&
 
     auto* store = builder.CreateStore(iter_param, paramAlloca);
     auto* di_loc = llvm::DILocation::get(*ctx, 0, 0, di_subprogram_);
+#if TVM_LLVM_VERSION >= 190
+    dbg_info_->di_builder_->insertDeclare(
+        paramAlloca, param, dbg_info_->di_builder_->createExpression(), llvm::DebugLoc(di_loc),
+        llvm::BasicBlock::iterator(store));
+#else
     dbg_info_->di_builder_->insertDeclare(paramAlloca, param,
                                           dbg_info_->di_builder_->createExpression(),
                                           llvm::DebugLoc(di_loc), store);
+#endif
   }
   dbg_info_->di_builder_->finalizeSubprogram(f_llvm->getSubprogram());
   auto* scope = f_llvm->getSubprogram();
@@ -2283,9 +2289,15 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
   auto* di_loc = llvm::DILocation::get(*llvm_target_->GetContext(), 0, 0, di_subprogram_);
 
   if (insert_before) {
+#if TVM_LLVM_VERSION >= 190
+    dbg_info_->di_builder_->insertDeclare(
+        llvm_value, local_var, dbg_info_->di_builder_->createExpression(), llvm::DebugLoc(di_loc),
+        llvm::BasicBlock::iterator(insert_before));
+#else
     dbg_info_->di_builder_->insertDeclare(llvm_value, local_var,
                                           dbg_info_->di_builder_->createExpression(),
                                           llvm::DebugLoc(di_loc), insert_before);
+#endif
   } else {
     dbg_info_->di_builder_->insertDeclare(llvm_value, local_var,
                                           dbg_info_->di_builder_->createExpression(),

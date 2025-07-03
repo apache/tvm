@@ -110,7 +110,8 @@ class HostDeviceSplitter : public StmtMutator {
                                 StringImm("Error executing compute kernel"), Evaluate(0));
       LetStmt let_check(kernel_error_code, kernel_call, assert_success);
 
-      return std::move(let_check);
+      return let_check;
+
     } else {
       return Evaluate(Call(DataType::Void(), kernel_symbol_global, args));
     }

@@ -464,7 +464,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (it != let_binding_.end()) {
       return it->second;
     } else {
-      return std::move(var);
+      return var;
     }
   }
   // IfThenElse expr
@@ -597,7 +597,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       writer->LegalizeDType();
     }
 
-    return std::move(load);
+    return load;
   }
   // Let
   PrimExpr VisitExpr_(const LetNode* op) final {
@@ -738,7 +738,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       writer->value = BroadcastTo(value, total_lanes, is_last_index_scalable);
     }
 
-    return std::move(store);
+    return store;
   }
   // For
   Stmt VisitStmt_(const ForNode* op) final {

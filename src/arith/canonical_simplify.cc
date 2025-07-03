@@ -752,7 +752,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const AddNode* op) {
   } else {
     ret.CopyOnWrite()->AddToSelf(ToSplitExpr(b), 1);
   }
-  return std::move(ret);
+  return ret;
 }
 
 PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const SubNode* op) {
@@ -776,7 +776,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const SubNode* op) {
   } else {
     ret.CopyOnWrite()->AddToSelf(ToSplitExpr(b), -1);
   }
-  return std::move(ret);
+  return ret;
 }
 
 PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const MulNode* op) {
@@ -798,11 +798,12 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const MulNode* op) {
     if (a.as<SumExprNode>()) {
       SumExpr ret = Downcast<SumExpr>(std::move(a));
       ret.CopyOnWrite()->MulToSelf(bconst->value);
-      return std::move(ret);
+      return ret;
+
     } else {
       SplitExpr ret = ToSplitExpr(std::move(a));
       ret.CopyOnWrite()->MulToSelf(bconst->value);
-      return std::move(ret);
+      return ret;
     }
   }
 
@@ -969,7 +970,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const DivNode* op) {
       // can be divided by cval
       if (extra->IsZero()) {
         lhs.CopyOnWrite()->DivideBy(cval);
-        return std::move(lhs);
+        return lhs;
       }
       // both lhs and extra are non-negative
       if (analyzer_->CanProveGreaterEqual(lhs->Normalize(), 0) &&
@@ -984,7 +985,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const DivNode* op) {
             lhs.CopyOnWrite()->AddToSelf(SplitDivConst(ToSplitExpr(temp), cval, kTruncDiv), 1);
           }
         }
-        return std::move(lhs);
+        return lhs;
       }
     } else {
       // if a >= 0 && a < cval, then result == 0
@@ -1031,7 +1032,7 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
       SeparateDivisibleParts(psum, cval, &lhs, &extra);
       if (extra->IsZero()) {
         lhs.CopyOnWrite()->DivideBy(cval);
-        return std::move(lhs);
+        return lhs;
       }
       // continue simplification.
       lhs.CopyOnWrite()->DivideBy(cval);
@@ -1045,7 +1046,8 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
           lhs.CopyOnWrite()->AddToSelf(SplitDivConst(ToSplitExpr(temp), cval, kFloorDiv), 1);
         }
       }
-      return std::move(lhs);
+      return lhs;
+
     } else {
       // if a >= 0 && a < cval, then result == 0
       auto cbound = analyzer_->const_int_bound(Normalize(a));
@@ -1371,14 +1373,14 @@ PrimExpr CanonicalSimplifier::Impl::VisitExpr_(const CastNode* op) {
     SumExpr se = Downcast<SumExpr>(value);
     if (se->CanPushCastToChildren(op->dtype, analyzer_)) {
       se.CopyOnWrite()->PushCastToChildren(op->dtype);
-      return std::move(se);
+      return se;
     }
   }
   if (value.as<SplitExprNode>()) {
     SplitExpr se = Downcast<SplitExpr>(value);
     if (se->CanPushCastToChildren(op->dtype, analyzer_)) {
       se.CopyOnWrite()->PushCastToChildren(op->dtype);
-      return std::move(se);
+      return se;
     }
   }
   return Rewriter::VisitExpr_(op);
