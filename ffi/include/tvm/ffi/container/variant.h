@@ -189,31 +189,31 @@ inline constexpr bool use_default_type_traits_v<Variant<V...>> = false;
 
 template <typename... V>
 struct TypeTraits<Variant<V...>> : public TypeTraitsBase {
-  static TVM_FFI_INLINE void CopyToAnyView(const Variant<V...>& src, TVMFFIAny* result) {
+  TVM_FFI_INLINE static void CopyToAnyView(const Variant<V...>& src, TVMFFIAny* result) {
     *result = src.ToAnyView().CopyToTVMFFIAny();
   }
 
-  static TVM_FFI_INLINE void MoveToAny(Variant<V...> src, TVMFFIAny* result) {
+  TVM_FFI_INLINE static void MoveToAny(Variant<V...> src, TVMFFIAny* result) {
     *result = details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(src).MoveToAny());
   }
 
-  static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
     return TypeTraitsBase::GetMismatchTypeInfo(src);
   }
 
-  static TVM_FFI_INLINE bool CheckAnyStrict(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
     return (TypeTraits<V>::CheckAnyStrict(src) || ...);
   }
 
-  static TVM_FFI_INLINE Variant<V...> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static Variant<V...> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
     return Variant<V...>(Any(AnyView::CopyFromTVMFFIAny(*src)));
   }
 
-  static TVM_FFI_INLINE Variant<V...> MoveFromAnyAfterCheck(TVMFFIAny* src) {
+  TVM_FFI_INLINE static Variant<V...> MoveFromAnyAfterCheck(TVMFFIAny* src) {
     return Variant<V...>(details::AnyUnsafe::MoveTVMFFIAnyToAny(std::move(*src)));
   }
 
-  static TVM_FFI_INLINE std::optional<Variant<V...>> TryCastFromAnyView(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::optional<Variant<V...>> TryCastFromAnyView(const TVMFFIAny* src) {
     // fast path, storage is already in the right type
     if (CheckAnyStrict(src)) {
       return CopyFromAnyViewAfterCheck(src);
@@ -223,7 +223,7 @@ struct TypeTraits<Variant<V...>> : public TypeTraitsBase {
   }
 
   template <typename VariantType, typename... Rest>
-  static TVM_FFI_INLINE std::optional<Variant<V...>> TryVariantTypes(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::optional<Variant<V...>> TryVariantTypes(const TVMFFIAny* src) {
     if (auto opt_convert = TypeTraits<VariantType>::TryCastFromAnyView(src)) {
       return Variant<V...>(*std::move(opt_convert));
     }
@@ -233,7 +233,7 @@ struct TypeTraits<Variant<V...>> : public TypeTraitsBase {
     return std::nullopt;
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return details::ContainerTypeStr<V...>("Variant"); }
+  TVM_FFI_INLINE static std::string TypeStr() { return details::ContainerTypeStr<V...>("Variant"); }
 };
 
 template <typename... V>

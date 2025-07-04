@@ -92,14 +92,14 @@ template <typename TObjRef>
 struct TypeTraits<RValueRef<TObjRef>> : public TypeTraitsBase {
   static constexpr bool storage_enabled = false;
 
-  static TVM_FFI_INLINE void CopyToAnyView(const RValueRef<TObjRef>& src, TVMFFIAny* result) {
+  TVM_FFI_INLINE static void CopyToAnyView(const RValueRef<TObjRef>& src, TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFIObjectRValueRef;
     // store the address of the ObjectPtr, which allows us to move the value
     // and set the original ObjectPtr to nullptr
     result->v_ptr = &(src.data_);
   }
 
-  static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIObjectRValueRef) {
       ObjectPtr<Object>* rvalue_ref = reinterpret_cast<ObjectPtr<Object>*>(src->v_ptr);
       // object type does not match up, we need to try to convert the object
@@ -114,7 +114,7 @@ struct TypeTraits<RValueRef<TObjRef>> : public TypeTraitsBase {
     }
   }
 
-  static TVM_FFI_INLINE std::optional<RValueRef<TObjRef>> TryCastFromAnyView(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::optional<RValueRef<TObjRef>> TryCastFromAnyView(const TVMFFIAny* src) {
     // first try rvalue conversion
     if (src->type_index == TypeIndex::kTVMFFIObjectRValueRef) {
       ObjectPtr<Object>* rvalue_ref = reinterpret_cast<ObjectPtr<Object>*>(src->v_ptr);
@@ -140,7 +140,7 @@ struct TypeTraits<RValueRef<TObjRef>> : public TypeTraitsBase {
     }
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() {
+  TVM_FFI_INLINE static std::string TypeStr() {
     return "RValueRef<" + TypeTraits<TObjRef>::TypeStr() + ">";
   }
 };

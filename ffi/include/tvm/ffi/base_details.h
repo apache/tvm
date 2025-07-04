@@ -49,9 +49,9 @@
 #endif
 
 #if defined(_MSC_VER)
-#define TVM_FFI_INLINE __forceinline
+#define TVM_FFI_INLINE [[msvc::forceinline]] inline
 #else
-#define TVM_FFI_INLINE inline __attribute__((always_inline))
+#define TVM_FFI_INLINE [[gnu::always_inline]] inline
 #endif
 
 /*!
@@ -60,9 +60,9 @@
  * e.g. some logging functions.
  */
 #if defined(_MSC_VER)
-#define TVM_FFI_NO_INLINE __declspec(noinline)
+#define TVM_FFI_NO_INLINE [[msvc::noinline]]
 #else
-#define TVM_FFI_NO_INLINE __attribute__((noinline))
+#define TVM_FFI_NO_INLINE [[gnu::noinline]]
 #endif
 
 #if defined(_MSC_VER)
@@ -72,11 +72,7 @@
 #endif
 
 /*! \brief helper macro to suppress unused warning */
-#if defined(__GNUC__)
-#define TVM_FFI_ATTRIBUTE_UNUSED __attribute__((unused))
-#else
-#define TVM_FFI_ATTRIBUTE_UNUSED
-#endif
+#define TVM_FFI_ATTRIBUTE_UNUSED [[maybe_unused]]
 
 #define TVM_FFI_STR_CONCAT_(__x, __y) __x##__y
 #define TVM_FFI_STR_CONCAT(__x, __y) TVM_FFI_STR_CONCAT_(__x, __y)
@@ -90,7 +86,7 @@
 #endif
 
 #define TVM_FFI_STATIC_INIT_BLOCK_VAR_DEF \
-  static inline TVM_FFI_ATTRIBUTE_UNUSED int __##TVMFFIStaticInitReg
+  TVM_FFI_ATTRIBUTE_UNUSED static inline int __##TVMFFIStaticInitReg
 
 /*! \brief helper macro to run code once during initialization */
 #define TVM_FFI_STATIC_INIT_BLOCK(Body) \

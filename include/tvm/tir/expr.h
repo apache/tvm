@@ -1117,7 +1117,7 @@ inline constexpr bool use_default_type_traits_v<tvm::tir::StringImm> = false;
 template <>
 struct TypeTraits<tvm::tir::StringImm>
     : public ObjectRefWithFallbackTraitsBase<tvm::tir::StringImm, String> {
-  static TVM_FFI_INLINE tvm::tir::StringImm ConvertFallbackValue(String value) {
+  TVM_FFI_INLINE static tvm::tir::StringImm ConvertFallbackValue(String value) {
     return tvm::tir::StringImm(value);
   }
 };

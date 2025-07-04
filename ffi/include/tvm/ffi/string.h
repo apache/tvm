@@ -424,12 +424,12 @@ struct TypeTraits<char[N]> : public TypeTraitsBase {
   // NOTE: only enable implicit conversion into AnyView
   static constexpr bool storage_enabled = false;
 
-  static TVM_FFI_INLINE void CopyToAnyView(const char src[N], TVMFFIAny* result) {
+  TVM_FFI_INLINE static void CopyToAnyView(const char src[N], TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFIRawStr;
     result->v_c_str = src;
   }
 
-  static TVM_FFI_INLINE void MoveToAny(const char src[N], TVMFFIAny* result) {
+  TVM_FFI_INLINE static void MoveToAny(const char src[N], TVMFFIAny* result) {
     // when we need to move to any, convert to owned object first
     ObjectRefTypeTraitsBase<String>::MoveToAny(String(src), result);
   }
@@ -439,25 +439,25 @@ template <>
 struct TypeTraits<const char*> : public TypeTraitsBase {
   static constexpr bool storage_enabled = false;
 
-  static TVM_FFI_INLINE void CopyToAnyView(const char* src, TVMFFIAny* result) {
+  TVM_FFI_INLINE static void CopyToAnyView(const char* src, TVMFFIAny* result) {
     TVM_FFI_ICHECK_NOTNULL(src);
     result->type_index = TypeIndex::kTVMFFIRawStr;
     result->v_c_str = src;
   }
 
-  static TVM_FFI_INLINE void MoveToAny(const char* src, TVMFFIAny* result) {
+  TVM_FFI_INLINE static void MoveToAny(const char* src, TVMFFIAny* result) {
     // when we need to move to any, convert to owned object first
     ObjectRefTypeTraitsBase<String>::MoveToAny(String(src), result);
   }
   // Do not allow const char* in a container, so we do not need CheckAnyStrict
-  static TVM_FFI_INLINE std::optional<const char*> TryCastFromAnyView(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::optional<const char*> TryCastFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIRawStr) {
       return static_cast<const char*>(src->v_c_str);
     }
     return std::nullopt;
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return "const char*"; }
+  TVM_FFI_INLINE static std::string TypeStr() { return "const char*"; }
 };
 
 // TVMFFIByteArray, requirement: not nullable, do not retain ownership
@@ -466,25 +466,25 @@ struct TypeTraits<TVMFFIByteArray*> : public TypeTraitsBase {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIByteArrayPtr;
   static constexpr bool storage_enabled = false;
 
-  static TVM_FFI_INLINE void CopyToAnyView(TVMFFIByteArray* src, TVMFFIAny* result) {
+  TVM_FFI_INLINE static void CopyToAnyView(TVMFFIByteArray* src, TVMFFIAny* result) {
     TVM_FFI_ICHECK_NOTNULL(src);
     result->type_index = TypeIndex::kTVMFFIByteArrayPtr;
     TVM_FFI_CLEAR_PTR_PADDING_IN_FFI_ANY(result);
     result->v_ptr = src;
   }
 
-  static TVM_FFI_INLINE void MoveToAny(TVMFFIByteArray* src, TVMFFIAny* result) {
+  TVM_FFI_INLINE static void MoveToAny(TVMFFIByteArray* src, TVMFFIAny* result) {
     ObjectRefTypeTraitsBase<Bytes>::MoveToAny(Bytes(*src), result);
   }
 
-  static TVM_FFI_INLINE std::optional<TVMFFIByteArray*> TryCastFromAnyView(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::optional<TVMFFIByteArray*> TryCastFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIByteArrayPtr) {
       return static_cast<TVMFFIByteArray*>(src->v_ptr);
     }
     return std::nullopt;
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIByteArrayPtr; }
+  TVM_FFI_INLINE static std::string TypeStr() { return StaticTypeKey::kTVMFFIByteArrayPtr; }
 };
 
 template <>
@@ -494,7 +494,7 @@ inline constexpr bool use_default_type_traits_v<Bytes> = false;
 template <>
 struct TypeTraits<Bytes> : public ObjectRefWithFallbackTraitsBase<Bytes, TVMFFIByteArray*> {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIBytes;
-  static TVM_FFI_INLINE Bytes ConvertFallbackValue(TVMFFIByteArray* src) { return Bytes(*src); }
+  TVM_FFI_INLINE static Bytes ConvertFallbackValue(TVMFFIByteArray* src) { return Bytes(*src); }
 };
 
 template <>
@@ -504,7 +504,7 @@ inline constexpr bool use_default_type_traits_v<String> = false;
 template <>
 struct TypeTraits<String> : public ObjectRefWithFallbackTraitsBase<String, const char*> {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIStr;
-  static TVM_FFI_INLINE String ConvertFallbackValue(const char* src) { return String(src); }
+  TVM_FFI_INLINE static String ConvertFallbackValue(const char* src) { return String(src); }
 };
 
 template <>
@@ -513,31 +513,31 @@ inline constexpr bool use_default_type_traits_v<std::string> = false;
 template <>
 struct TypeTraits<std::string>
     : public FallbackOnlyTraitsBase<std::string, const char*, TVMFFIByteArray*, Bytes, String> {
-  static TVM_FFI_INLINE void CopyToAnyView(const std::string& src, TVMFFIAny* result) {
+  TVM_FFI_INLINE static void CopyToAnyView(const std::string& src, TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFIRawStr;
     result->v_c_str = src.c_str();
   }
 
-  static TVM_FFI_INLINE void MoveToAny(std::string src, TVMFFIAny* result) {
+  TVM_FFI_INLINE static void MoveToAny(std::string src, TVMFFIAny* result) {
     // when we need to move to any, convert to owned object first
     ObjectRefTypeTraitsBase<String>::MoveToAny(String(std::move(src)), result);
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return "std::string"; }
+  TVM_FFI_INLINE static std::string TypeStr() { return "std::string"; }
 
-  static TVM_FFI_INLINE std::string ConvertFallbackValue(const char* src) {
+  TVM_FFI_INLINE static std::string ConvertFallbackValue(const char* src) {
     return std::string(src);
   }
 
-  static TVM_FFI_INLINE std::string ConvertFallbackValue(TVMFFIByteArray* src) {
+  TVM_FFI_INLINE static std::string ConvertFallbackValue(TVMFFIByteArray* src) {
     return std::string(src->data, src->size);
   }
 
-  static TVM_FFI_INLINE std::string ConvertFallbackValue(Bytes src) {
+  TVM_FFI_INLINE static std::string ConvertFallbackValue(Bytes src) {
     return src.operator std::string();
   }
 
-  static TVM_FFI_INLINE std::string ConvertFallbackValue(String src) {
+  TVM_FFI_INLINE static std::string ConvertFallbackValue(String src) {
     return src.operator std::string();
   }
 };
