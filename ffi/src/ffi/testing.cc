@@ -54,6 +54,12 @@ class TestObjectDerived : public TestObjectBase {
   TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TestObjectDerived, TestObjectBase);
 };
 
+void TestRaiseError(String kind, String msg) {
+  throw ffi::Error(kind, msg, TVM_FFI_TRACEBACK_HERE);
+}
+
+void TestApply(Function f, PackedArgs args, Any* ret) { f.CallPacked(args, ret); }
+
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
 
@@ -66,41 +72,27 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::ObjectDef<TestObjectDerived>()
       .def_ro("v_map", &TestObjectDerived::v_map)
       .def_ro("v_array", &TestObjectDerived::v_array);
-});
 
-void TestRaiseError(String kind, String msg) {
-  throw ffi::Error(kind, msg, TVM_FFI_TRACEBACK_HERE);
-}
-
-TVM_FFI_REGISTER_GLOBAL("testing.test_raise_error").set_body_typed(TestRaiseError);
-
-TVM_FFI_REGISTER_GLOBAL("testing.nop").set_body_packed([](PackedArgs args, Any* ret) {
-  *ret = args[0];
-});
-
-TVM_FFI_REGISTER_GLOBAL("testing.echo").set_body_packed([](PackedArgs args, Any* ret) {
-  *ret = args[0];
-});
-
-void TestApply(Function f, PackedArgs args, Any* ret) { f.CallPacked(args, ret); }
-
-TVM_FFI_REGISTER_GLOBAL("testing.apply").set_body_packed([](PackedArgs args, Any* ret) {
-  auto f = args[0].cast<Function>();
-  TestApply(f, args.Slice(1), ret);
-});
-
-TVM_FFI_REGISTER_GLOBAL("testing.run_check_signal").set_body_typed([](int nsec) {
-  for (int i = 0; i < nsec; ++i) {
-    if (TVMFFIEnvCheckSignals() != 0) {
-      throw ffi::EnvErrorAlreadySet();
-    }
-    std::this_thread::sleep_for(std::chrono::seconds(1));
-  }
-  std::cout << "Function finished without catching signal" << std::endl;
-});
-
-TVM_FFI_REGISTER_GLOBAL("testing.object_use_count").set_body_typed([](const Object* obj) {
-  return obj->use_count();
+  refl::GlobalDef()
+      .def("testing.test_raise_error", TestRaiseError)
+      .def_packed("testing.nop", [](PackedArgs args, Any* ret) { *ret = args[0]; })
+      .def_packed("testing.echo", [](PackedArgs args, Any* ret) { *ret = args[0]; })
+      .def_packed("testing.apply",
+                  [](PackedArgs args, Any* ret) {
+                    auto f = args[0].cast<Function>();
+                    TestApply(f, args.Slice(1), ret);
+                  })
+      .def("testing.run_check_signal",
+           [](int nsec) {
+             for (int i = 0; i < nsec; ++i) {
+               if (TVMFFIEnvCheckSignals() != 0) {
+                 throw ffi::EnvErrorAlreadySet();
+               }
+               std::this_thread::sleep_for(std::chrono::seconds(1));
+             }
+             std::cout << "Function finished without catching signal" << std::endl;
+           })
+      .def("testing.object_use_count", [](const Object* obj) { return obj->use_count(); });
 });
 
 }  // namespace ffi

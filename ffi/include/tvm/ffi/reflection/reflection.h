@@ -118,25 +118,142 @@ class ReflectionDefBase {
       info->doc = TVMFFIByteArray{value, std::char_traits<char>::length(value)};
     }
   }
+
   template <typename Class, typename R, typename... Args>
   static TVM_FFI_INLINE Function GetMethod(std::string name, R (Class::*func)(Args...)) {
-    auto fwrap = [func](const Class* target, Args... params) -> R {
-      return (const_cast<Class*>(target)->*func)(std::forward<Args>(params)...);
-    };
-    return ffi::Function::FromTyped(fwrap, name);
+    static_assert(std::is_base_of_v<ObjectRef, Class> || std::is_base_of_v<Object, Class>,
+                  "Class must be derived from ObjectRef or Object");
+    if constexpr (std::is_base_of_v<ObjectRef, Class>) {
+      auto fwrap = [func](Class target, Args... params) -> R {
+        // call method pointer
+        return (target.*func)(std::forward<Args>(params)...);
+      };
+      return ffi::Function::FromTyped(fwrap, name);
+    }
+
+    if constexpr (std::is_base_of_v<Object, Class>) {
+      auto fwrap = [func](const Class* target, Args... params) -> R {
+        // call method pointer
+        return (const_cast<Class*>(target)->*func)(std::forward<Args>(params)...);
+      };
+      return ffi::Function::FromTyped(fwrap, name);
+    }
   }
 
   template <typename Class, typename R, typename... Args>
   static TVM_FFI_INLINE Function GetMethod(std::string name, R (Class::*func)(Args...) const) {
-    auto fwrap = [func](const Class* target, Args... params) -> R {
-      return (target->*func)(std::forward<Args>(params)...);
-    };
-    return ffi::Function::FromTyped(fwrap, name);
+    static_assert(std::is_base_of_v<ObjectRef, Class> || std::is_base_of_v<Object, Class>,
+                  "Class must be derived from ObjectRef or Object");
+    if constexpr (std::is_base_of_v<ObjectRef, Class>) {
+      auto fwrap = [func](const Class target, Args... params) -> R {
+        // call method pointer
+        return (target.*func)(std::forward<Args>(params)...);
+      };
+      return ffi::Function::FromTyped(fwrap, name);
+    }
+
+    if constexpr (std::is_base_of_v<Object, Class>) {
+      auto fwrap = [func](const Class* target, Args... params) -> R {
+        // call method pointer
+        return (target->*func)(std::forward<Args>(params)...);
+      };
+      return ffi::Function::FromTyped(fwrap, name);
+    }
   }
 
   template <typename Class, typename Func>
   static TVM_FFI_INLINE Function GetMethod(std::string name, Func&& func) {
     return ffi::Function::FromTyped(std::forward<Func>(func), name);
+  }
+};
+
+class GlobalDef : public ReflectionDefBase {
+ public:
+  /*
+   * \brief Define a global function.
+   *
+   * \tparam Func The function type.
+   * \tparam Extra The extra arguments.
+   *
+   * \param name The name of the function.
+   * \param func The function to be registered.
+   * \param extra The extra arguments that can be docstring.
+   *
+   * \return The reflection definition.
+   */
+  template <typename Func, typename... Extra>
+  GlobalDef& def(const char* name, Func&& func, Extra&&... extra) {
+    RegisterFunc(name, ffi::Function::FromTyped(std::forward<Func>(func), std::string(name)),
+                 std::forward<Extra>(extra)...);
+    return *this;
+  }
+
+  /*
+   * \brief Define a global function in ffi::PackedArgs format.
+   *
+   * \tparam Func The function type.
+   * \tparam Extra The extra arguments.
+   *
+   * \param name The name of the function.
+   * \param func The function to be registered.
+   * \param extra The extra arguments that can be docstring.
+   *
+   * \return The reflection definition.
+   */
+  template <typename Func, typename... Extra>
+  GlobalDef& def_packed(const char* name, Func func, Extra&&... extra) {
+    RegisterFunc(name, ffi::Function::FromPacked(func), std::forward<Extra>(extra)...);
+    return *this;
+  }
+
+  /*
+   * \brief Expose a class method as a global function.
+   *
+   * An argument will be added to the first position if the function is not static.
+   *
+   * \tparam Class The class type.
+   * \tparam Func The function type.
+   *
+   * \param name The name of the method.
+   * \param func The function to be registered.
+   *
+   * \return The reflection definition.
+   */
+  template <typename Func, typename... Extra>
+  GlobalDef& def_method(const char* name, Func&& func, Extra&&... extra) {
+    RegisterFunc(name, GetMethod_(std::string(name), std::forward<Func>(func)),
+                 std::forward<Extra>(extra)...);
+    return *this;
+  }
+
+ private:
+  template <typename Func>
+  static TVM_FFI_INLINE Function GetMethod_(std::string name, Func&& func) {
+    return ffi::Function::FromTyped(std::forward<Func>(func), name);
+  }
+
+  template <typename Class, typename R, typename... Args>
+  static TVM_FFI_INLINE Function GetMethod_(std::string name, R (Class::*func)(Args...) const) {
+    return GetMethod<Class>(std::string(name), func);
+  }
+
+  template <typename Class, typename R, typename... Args>
+  static TVM_FFI_INLINE Function GetMethod_(std::string name, R (Class::*func)(Args...)) {
+    return GetMethod<Class>(std::string(name), func);
+  }
+
+  template <typename... Extra>
+  void RegisterFunc(const char* name, ffi::Function func, Extra&&... extra) {
+    TVMFFIMethodInfo info;
+    info.name = TVMFFIByteArray{name, std::char_traits<char>::length(name)};
+    info.doc = TVMFFIByteArray{nullptr, 0};
+    info.type_schema = TVMFFIByteArray{nullptr, 0};
+    info.flags = 0;
+    // obtain the method function
+    info.method = AnyView(func).CopyToTVMFFIAny();
+    // apply method info traits
+    ((ApplyMethodInfoTrait(&info, std::forward<Extra>(extra)), ...));
+    TVM_FFI_CHECK_SAFE_CALL(TVMFFIFunctionSetGlobalFromMethodInfo(&info, 0));
   }
 };
 
