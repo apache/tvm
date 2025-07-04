@@ -128,8 +128,6 @@ class BufferNode : public Object {
         .def_ro("span", &BufferNode::span);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const BufferNode* other, SEqualReducer equal) const {
     // Use DefEqual as buffer can define variables in its semantics,
     // skip name as name is not important.

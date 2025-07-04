@@ -140,8 +140,6 @@ class IRModuleNode : public Object {
         .def_ro("global_infos", &IRModuleNode::global_infos);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
 
   TVM_DLL void SHashReduce(SHashReducer hash_reduce) const;

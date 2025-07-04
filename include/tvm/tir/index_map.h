@@ -159,8 +159,6 @@ class IndexMapNode : public Object {
         .def_ro("inverse_index_map", &IndexMapNode::inverse_index_map);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const IndexMapNode* other, SEqualReducer equal) const {
     return equal.DefEqual(initial_indices, other->initial_indices) &&
            equal(final_indices, other->final_indices);
