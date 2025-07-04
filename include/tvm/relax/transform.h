@@ -405,8 +405,6 @@ class FusionPatternNode : public Object {
         .def_ro("attrs_getter", &FusionPatternNode::attrs_getter);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "relax.transform.FusionPattern";
   TVM_DECLARE_FINAL_OBJECT_INFO(FusionPatternNode, Object);
 };
@@ -465,8 +463,6 @@ class PatternCheckContextNode : public Object {
         .def_ro("var_usages", &PatternCheckContextNode::var_usages)
         .def_ro("value_to_bound_var", &PatternCheckContextNode::value_to_bound_var);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "relax.transform.PatternCheckContext";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternCheckContextNode, Object);

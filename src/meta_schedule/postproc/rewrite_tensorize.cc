@@ -67,7 +67,6 @@ class RewriteTensorizeNode : public PostprocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RewriteTensorizeNode>();
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final {}
 

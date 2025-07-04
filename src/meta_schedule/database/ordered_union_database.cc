@@ -32,7 +32,7 @@ class OrderedUnionDatabaseNode : public DatabaseNode {
     refl::ObjectDef<OrderedUnionDatabaseNode>().def_ro("databases",
                                                        &OrderedUnionDatabaseNode::databases);
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "meta_schedule.OrderedUnionDatabase";
   TVM_DECLARE_FINAL_OBJECT_INFO(OrderedUnionDatabaseNode, DatabaseNode);
 

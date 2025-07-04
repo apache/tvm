@@ -141,8 +141,6 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
     // PyExprVisitorNode has no fields to register
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "expr_functor.PyExprVisitor";
   TVM_DECLARE_BASE_OBJECT_INFO(PyExprVisitorNode, Object);
 
@@ -403,8 +401,6 @@ class PyExprMutatorNode : public Object, public ExprMutator {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PyExprMutatorNode>().def_ro("builder_", &PyExprMutatorNode::builder_);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "expr_functor.PyExprMutator";
   TVM_DECLARE_BASE_OBJECT_INFO(PyExprMutatorNode, Object);

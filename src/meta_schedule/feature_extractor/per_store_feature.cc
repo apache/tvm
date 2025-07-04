@@ -1378,7 +1378,6 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
         .def_ro("extract_workload", &PerStoreFeatureNode::extract_workload)
         .def_ro("feature_vector_length", &PerStoreFeatureNode::feature_vector_length);
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   void ExtractSingle(IRModule mod, bool is_gpu, std::vector<std::vector<double>>* results) {
     static transform::Sequential passes = tir::transform::PassListForPerStoreFeature();

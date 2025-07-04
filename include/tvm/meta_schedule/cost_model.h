@@ -74,7 +74,6 @@ class CostModelNode : public runtime::Object {
   virtual std::vector<double> Predict(const TuneContext& context,
                                       const Array<MeasureCandidate>& candidates) = 0;
 
-  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "meta_schedule.CostModel";
   TVM_DECLARE_BASE_OBJECT_INFO(CostModelNode, Object);
 };
@@ -132,8 +131,6 @@ class PyCostModelNode : public CostModelNode {
               const Array<RunnerResult>& results);
   std::vector<double> Predict(const TuneContext& context,
                               const Array<MeasureCandidate>& candidates);
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.PyCostModel";
   TVM_DECLARE_FINAL_OBJECT_INFO(PyCostModelNode, CostModelNode);

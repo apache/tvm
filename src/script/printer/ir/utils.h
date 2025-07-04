@@ -44,8 +44,6 @@ class IRFrameNode : public FrameNode {
     // global infos is not exposed
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "script.printer.IRFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(IRFrameNode, FrameNode);
 };

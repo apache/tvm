@@ -67,8 +67,6 @@ class FunctionPassNode : public tvm::transform::PassNode {
     refl::ObjectDef<FunctionPassNode>().def_ro("pass_info", &FunctionPassNode::pass_info);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   /*!
    * \brief Run a function pass on given pass context.
    *
@@ -215,8 +213,6 @@ class DataflowBlockPassNode : public tvm::transform::PassNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DataflowBlockPassNode>().def_ro("pass_info", &DataflowBlockPassNode::pass_info);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   IRModule operator()(IRModule mod, const PassContext& pass_ctx) const final;
 

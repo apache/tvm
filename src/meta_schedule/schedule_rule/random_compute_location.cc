@@ -117,7 +117,7 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RandomComputeLocationNode>();
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "meta_schedule.RandomComputeLocation";
   TVM_DECLARE_FINAL_OBJECT_INFO(RandomComputeLocationNode, ScheduleRuleNode);
 };

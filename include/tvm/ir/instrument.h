@@ -142,8 +142,6 @@ class PassInstrumentNode : public Object {
     refl::ObjectDef<PassInstrumentNode>().def_ro("name", &PassInstrumentNode::name);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "instrument.PassInstrument";
   TVM_DECLARE_BASE_OBJECT_INFO(PassInstrumentNode, Object);
 };

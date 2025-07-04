@@ -116,8 +116,6 @@ class PrimTypeNode : public TypeNode {
     refl::ObjectDef<PrimTypeNode>().def_ro("dtype", &PrimTypeNode::dtype);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const PrimTypeNode* other, SEqualReducer equal) const {
     return equal(dtype, other->dtype);
   }
@@ -172,8 +170,6 @@ class PointerTypeNode : public TypeNode {
         .def_ro("storage_scope", &PointerTypeNode::storage_scope);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const PointerTypeNode* other, SEqualReducer equal) const {
     // Make "global" equal to ""
     String lhs_scope = storage_scope.empty() ? "global" : storage_scope;
@@ -224,8 +220,6 @@ class TupleTypeNode : public TypeNode {
         .def_ro("fields", &TupleTypeNode::fields)
         .def_ro("span", &TupleTypeNode::span);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const TupleTypeNode* other, SEqualReducer equal) const {
     return equal(fields, other->fields);
@@ -296,8 +290,6 @@ class FuncTypeNode : public TypeNode {
         .def_ro("span", &FuncTypeNode::span);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const FuncTypeNode* other, SEqualReducer equal) const {
     // type params first as they defines type vars.
     return equal(arg_types, other->arg_types) && equal(ret_type, other->ret_type);
@@ -340,8 +332,6 @@ class TensorMapTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TensorMapTypeNode>().def_ro("span", &TensorMapTypeNode::span);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const TensorMapTypeNode* other, SEqualReducer equal) const {
     return equal(span, other->span);

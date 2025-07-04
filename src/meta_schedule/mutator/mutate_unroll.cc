@@ -57,8 +57,6 @@ class MutateUnrollNode : public MutatorNode {
     refl::ObjectDef<MutateUnrollNode>();
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "meta_schedule.MutateUnroll";
   TVM_DECLARE_FINAL_OBJECT_INFO(MutateUnrollNode, MutatorNode);
 

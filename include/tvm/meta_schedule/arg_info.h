@@ -91,8 +91,6 @@ class TensorInfoNode : public ArgInfoNode {
         .def_ro("shape", &TensorInfoNode::shape);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "meta_schedule.TensorInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorInfoNode, ArgInfoNode);
 

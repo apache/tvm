@@ -64,7 +64,6 @@ class AddRFactorNode : public ScheduleRuleNode {
         .def_ro("max_jobs_per_core", &AddRFactorNode::max_jobs_per_core)
         .def_ro("max_innermost_factor", &AddRFactorNode::max_innermost_factor);
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.AddRFactor";
   TVM_DECLARE_FINAL_OBJECT_INFO(AddRFactorNode, ScheduleRuleNode);

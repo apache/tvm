@@ -40,8 +40,6 @@ class ObjectStructInfoNode : public StructInfoNode {
     refl::ObjectDef<ObjectStructInfoNode>();
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const ObjectStructInfoNode* other, SEqualReducer equal) const { return true; }
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
@@ -78,8 +76,6 @@ class PrimStructInfoNode : public StructInfoNode {
         .def_ro("value", &PrimStructInfoNode::value)
         .def_ro("dtype", &PrimStructInfoNode::dtype);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const PrimStructInfoNode* other, SEqualReducer equal) const {
     return equal(value, other->value) && equal(dtype, other->dtype);
@@ -131,8 +127,6 @@ class ShapeStructInfoNode : public StructInfoNode {
         .def_ro("values", &ShapeStructInfoNode::values)
         .def_ro("ndim", &ShapeStructInfoNode::ndim);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const ShapeStructInfoNode* other, SEqualReducer equal) const {
     return equal(values, other->values) && equal(ndim, other->ndim);
@@ -213,8 +207,6 @@ class TensorStructInfoNode : public StructInfoNode {
         .def_ro("ndim", &TensorStructInfoNode::ndim);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const TensorStructInfoNode* other, SEqualReducer equal) const {
     return equal(shape, other->shape) && equal(ndim, other->ndim) &&
            equal(vdevice, other->vdevice) && equal(dtype, other->dtype);
@@ -274,8 +266,6 @@ class TupleStructInfoNode : public StructInfoNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TupleStructInfoNode>().def_ro("fields", &TupleStructInfoNode::fields);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const TupleStructInfoNode* other, SEqualReducer equal) const {
     return equal(fields, other->fields);
@@ -356,8 +346,6 @@ class FuncStructInfoNode : public StructInfoNode {
         .def_ro("derive_func", &FuncStructInfoNode::derive_func)
         .def_ro("purity", &FuncStructInfoNode::purity);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const FuncStructInfoNode* other, SEqualReducer equal) const {
     return equal.DefEqual(params, other->params) && equal(ret, other->ret) &&

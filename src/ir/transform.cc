@@ -353,8 +353,6 @@ class ModulePassNode : public PassNode {
     refl::ObjectDef<ModulePassNode>().def_ro("pass_info", &ModulePassNode::pass_info);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   /*!
    * \brief Run a module pass on given pass context.
    *

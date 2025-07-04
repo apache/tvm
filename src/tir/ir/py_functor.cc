@@ -218,8 +218,6 @@ class PyStmtExprVisitorNode : public Object, public StmtExprVisitor {
     // No fields to register as they are not visited
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "tir.PyStmtExprVisitor";
   TVM_DECLARE_BASE_OBJECT_INFO(PyStmtExprVisitorNode, Object);
 
@@ -582,8 +580,6 @@ class PyStmtExprMutatorNode : public Object, public StmtExprMutator {
   static void RegisterReflection() {
     // No fields to register as they are not visited
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "tir.PyStmtExprMutator";
   TVM_DECLARE_BASE_OBJECT_INFO(PyStmtExprMutatorNode, Object);

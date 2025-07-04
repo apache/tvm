@@ -121,7 +121,6 @@ class RewriteCooperativeFetchNode : public PostprocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RewriteCooperativeFetchNode>();
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   // Inherited from PostprocNode
   void InitializeWithTuneContext(const TuneContext& context) final {

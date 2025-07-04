@@ -61,8 +61,6 @@ class MutateTileSizeNode : public MutatorNode {
     refl::ObjectDef<MutateTileSizeNode>();
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "meta_schedule.MutateTileSize";
   TVM_DECLARE_FINAL_OBJECT_INFO(MutateTileSizeNode, MutatorNode);
 

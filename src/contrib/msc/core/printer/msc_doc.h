@@ -60,8 +60,6 @@ class DeclareDocNode : public ExprDocNode {
         .def_ro("use_constructor", &DeclareDocNode::use_constructor);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "msc.script.printer.DeclareDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(DeclareDocNode, ExprDocNode);
 };
@@ -104,8 +102,6 @@ class StrictListDocNode : public ExprDocNode {
         .def_ro("allow_empty", &StrictListDocNode::allow_empty);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "msc.script.printer.StrictListDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(StrictListDocNode, ExprDocNode);
 };
@@ -140,8 +136,6 @@ class PointerDocNode : public ExprDocNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PointerDocNode>().def_ro("name", &PointerDocNode::name);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "msc.script.printer.PointerDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(PointerDocNode, ExprDocNode);
@@ -183,8 +177,6 @@ class StructDocNode : public StmtDocNode {
         .def_ro("decorators", &StructDocNode::decorators)
         .def_ro("body", &StructDocNode::body);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "msc.script.printer.StructDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(StructDocNode, StmtDocNode);
@@ -235,8 +227,6 @@ class ConstructorDocNode : public StmtDocNode {
         .def_ro("body", &ConstructorDocNode::body);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "msc.script.printer.ConstructorDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstructorDocNode, StmtDocNode);
 };
@@ -279,8 +269,6 @@ class SwitchDocNode : public StmtDocNode {
         .def_ro("branchs", &SwitchDocNode::branchs)
         .def_ro("default_branch", &SwitchDocNode::default_branch);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "msc.script.printer.SwitchDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(SwitchDocNode, StmtDocNode);
@@ -334,8 +322,6 @@ class LambdaDocNode : public StmtDocNode {
         .def_ro("refs", &LambdaDocNode::refs)
         .def_ro("body", &LambdaDocNode::body);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "msc.script.printer.LambdaDoc";
   TVM_DECLARE_FINAL_OBJECT_INFO(LambdaDocNode, StmtDocNode);

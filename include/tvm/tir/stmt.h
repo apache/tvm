@@ -86,8 +86,6 @@ class LetStmtNode : public StmtNode {
         .def_ro("body", &LetStmtNode::body);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const LetStmtNode* other, SEqualReducer equal) const {
     return equal.DefEqual(var, other->var) && equal(value, other->value) &&
            equal(body, other->body);
@@ -145,8 +143,6 @@ class AttrStmtNode : public StmtNode {
         .def_ro("body", &AttrStmtNode::body);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const AttrStmtNode* other, SEqualReducer equal) const {
     return equal(node, other->node) && equal(attr_key, other->attr_key) &&
            equal(value, other->value) && equal(body, other->body);
@@ -197,8 +193,6 @@ class AssertStmtNode : public StmtNode {
         .def_ro("message", &AssertStmtNode::message)
         .def_ro("body", &AssertStmtNode::body);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const AssertStmtNode* other, SEqualReducer equal) const {
     return equal(condition, other->condition) && equal(message, other->message) &&
@@ -256,8 +250,6 @@ class BufferStoreNode : public StmtNode {
         .def_ro("indices", &BufferStoreNode::indices)
         .def_ro("predicate", &BufferStoreNode::predicate);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const BufferStoreNode* other, SEqualReducer equal) const {
     return equal(buffer, other->buffer) && equal(value, other->value) &&
@@ -318,8 +310,6 @@ class BufferRealizeNode : public StmtNode {
         .def_ro("condition", &BufferRealizeNode::condition)
         .def_ro("body", &BufferRealizeNode::body);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const BufferRealizeNode* other, SEqualReducer equal) const {
     return equal(buffer, other->buffer) && equal(bounds, other->bounds) &&
@@ -388,8 +378,6 @@ class AllocateNode : public StmtNode {
         .def_ro("body", &AllocateNode::body)
         .def_ro("annotations", &AllocateNode::annotations);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const AllocateNode* other, SEqualReducer equal) const {
     return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
@@ -481,8 +469,6 @@ class AllocateConstNode : public StmtNode {
         .def_ro("annotations", &AllocateConstNode::annotations);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const AllocateConstNode* other, SEqualReducer equal) const {
     return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
            equal(extents, other->extents) && equal(data, other->data) && equal(body, other->body) &&
@@ -551,8 +537,6 @@ class DeclBufferNode : public StmtNode {
         .def_ro("body", &DeclBufferNode::body);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const DeclBufferNode* other, SEqualReducer equal) const {
     return equal(buffer, other->buffer) && equal(body, other->body);
   }
@@ -595,8 +579,6 @@ class SeqStmtNode : public StmtNode {
     refl::ObjectDef<SeqStmtNode>().def_ro("seq", &SeqStmtNode::seq);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const SeqStmtNode* other, SEqualReducer equal) const {
     return equal(seq, other->seq);
   }
@@ -622,8 +604,6 @@ class EvaluateNode : public StmtNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<EvaluateNode>().def_ro("value", &EvaluateNode::value);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const EvaluateNode* other, SEqualReducer equal) const {
     return equal(value, other->value);
@@ -820,8 +800,6 @@ class IfThenElseNode : public StmtNode {
         .def_ro("else_case", &IfThenElseNode::else_case);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const IfThenElseNode* other, SEqualReducer equal) const {
     return equal(condition, other->condition) && equal(then_case, other->then_case) &&
            equal(else_case, other->else_case);
@@ -927,8 +905,6 @@ class ForNode : public StmtNode {
         .def_ro("annotations", &ForNode::annotations);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const ForNode* other, SEqualReducer equal) const {
     return equal.DefEqual(loop_var, other->loop_var) && equal(min, other->min) &&
            equal(extent, other->extent) && equal(kind, other->kind) && equal(body, other->body) &&
@@ -987,8 +963,6 @@ class WhileNode : public StmtNode {
         .def_ro("body", &WhileNode::body);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const WhileNode* other, SEqualReducer equal) const {
     return equal(condition, other->condition) && equal(body, other->body);
   }
@@ -1030,8 +1004,6 @@ class BufferRegionNode : public PrimExprConvertibleNode {
         .def_ro("buffer", &BufferRegionNode::buffer)
         .def_ro("region", &BufferRegionNode::region);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const BufferRegionNode* other, SEqualReducer equal) const {
     return equal(buffer, other->buffer) && equal(region, other->region);
@@ -1099,8 +1071,6 @@ class MatchBufferRegionNode : public Object {
         .def_ro("buffer", &MatchBufferRegionNode::buffer)
         .def_ro("source", &MatchBufferRegionNode::source);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const MatchBufferRegionNode* other, SEqualReducer equal) const {
     return equal(buffer, other->buffer) && equal(source, other->source);
@@ -1191,8 +1161,6 @@ class BlockNode : public StmtNode {
         .def_ro("annotations", &BlockNode::annotations);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const BlockNode* other, SEqualReducer equal) const {
     // Need first reduce iter_vars, alloc_buffers and match_buffers to define new vars
     return equal.DefEqual(iter_vars, other->iter_vars) &&
@@ -1257,8 +1225,6 @@ class BlockRealizeNode : public StmtNode {
         .def_ro("predicate", &BlockRealizeNode::predicate)
         .def_ro("block", &BlockRealizeNode::block);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const BlockRealizeNode* other, SEqualReducer equal) const {
     return equal(iter_values, other->iter_values) && equal(predicate, other->predicate) &&

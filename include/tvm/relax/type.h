@@ -49,8 +49,6 @@ class ShapeTypeNode : public TypeNode {
     refl::ObjectDef<ShapeTypeNode>().def_ro("ndim", &ShapeTypeNode::ndim);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const ShapeTypeNode* other, SEqualReducer equal) const {
     return equal(ndim, other->ndim);
   }
@@ -90,8 +88,6 @@ class TensorTypeNode : public TypeNode {
         .def_ro("ndim", &TensorTypeNode::ndim)
         .def_ro("dtype", &TensorTypeNode::dtype);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const TensorTypeNode* other, SEqualReducer equal) const {
     return equal(ndim, other->ndim) && equal(dtype, other->dtype);
@@ -142,8 +138,6 @@ class ObjectTypeNode : public TypeNode {
     refl::ObjectDef<ObjectTypeNode>();
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const ObjectTypeNode* other, SEqualReducer equal) const { return true; }
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
@@ -165,8 +159,6 @@ class PackedFuncTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PackedFuncTypeNode>();
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const PackedFuncTypeNode* other, SEqualReducer equal) const { return true; }
 

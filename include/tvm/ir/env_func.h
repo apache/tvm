@@ -54,8 +54,6 @@ class EnvFuncNode : public Object {
     refl::ObjectDef<EnvFuncNode>().def_ro("name", &EnvFuncNode::name);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const EnvFuncNode* other, SEqualReducer equal) const {
     // name uniquely identifies the env function.
     return name == other->name;

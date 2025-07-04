@@ -103,8 +103,6 @@ class OpNode : public RelaxExprNode {
         .def_ro("support_level", &OpNode::support_level);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const OpNode* other, SEqualReducer equal) const {
     // pointer equality is fine as there is only one op with the same name.
     return this == other;

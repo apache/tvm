@@ -56,8 +56,6 @@ class TIRFrameNode : public FrameNode {
         .def_ro("allow_concise_scoping", &TIRFrameNode::allow_concise_scoping);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "script.printer.TIRFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(TIRFrameNode, FrameNode);
 };
