@@ -457,6 +457,8 @@ class JSONAttrSetter {
       *value = std::numeric_limits<double>::infinity();
     } else if (is.str() == "-inf") {
       *value = -std::numeric_limits<double>::infinity();
+    } else if (is.str() == "nan") {
+      *value = std::numeric_limits<double>::quiet_NaN();
     } else {
       is >> *value;
       if (is.fail()) {
