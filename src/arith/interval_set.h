@@ -57,8 +57,6 @@ class IntervalSetNode : public IntSetNode {
         .def_ro("max_value", &IntervalSetNode::max_value);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   /*! \return Whether the interval has upper bound. */
   bool HasUpperBound() const { return !is_pos_inf(max_value) && !IsEmpty(); }
   /*! \return Whether the interval has lower bound. */

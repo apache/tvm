@@ -68,8 +68,6 @@ class PrimFuncPassNode : public PassNode {
     refl::ObjectDef<PrimFuncPassNode>().def_ro("pass_info", &PrimFuncPassNode::pass_info);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   /*!
    * \brief Run a function pass on given pass context.
    *

@@ -61,8 +61,6 @@ class IRModuleFrameNode : public IRBuilderFrameNode {
         .def_ro("global_infos", &IRModuleFrameNode::global_infos);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "script.ir_builder.IRModuleFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(IRModuleFrameNode, IRBuilderFrameNode);
 
