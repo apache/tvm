@@ -96,7 +96,7 @@ class ReflectionDefBase {
   }
 
   template <typename T>
-  static TVM_FFI_INLINE void ApplyFieldInfoTrait(TVMFFIFieldInfo* info, const T& value) {
+  TVM_FFI_INLINE static void ApplyFieldInfoTrait(TVMFFIFieldInfo* info, const T& value) {
     if constexpr (std::is_base_of_v<FieldInfoTrait, std::decay_t<T>>) {
       value.Apply(info);
     }
@@ -106,21 +106,21 @@ class ReflectionDefBase {
   }
 
   template <typename T>
-  static TVM_FFI_INLINE void ApplyMethodInfoTrait(TVMFFIMethodInfo* info, const T& value) {
+  TVM_FFI_INLINE static void ApplyMethodInfoTrait(TVMFFIMethodInfo* info, const T& value) {
     if constexpr (std::is_same_v<std::decay_t<T>, char*>) {
       info->doc = TVMFFIByteArray{value, std::char_traits<char>::length(value)};
     }
   }
 
   template <typename T>
-  static TVM_FFI_INLINE void ApplyExtraInfoTrait(TVMFFITypeExtraInfo* info, const T& value) {
+  TVM_FFI_INLINE static void ApplyExtraInfoTrait(TVMFFITypeExtraInfo* info, const T& value) {
     if constexpr (std::is_same_v<std::decay_t<T>, char*>) {
       info->doc = TVMFFIByteArray{value, std::char_traits<char>::length(value)};
     }
   }
 
   template <typename Class, typename R, typename... Args>
-  static TVM_FFI_INLINE Function GetMethod(std::string name, R (Class::*func)(Args...)) {
+  TVM_FFI_INLINE static Function GetMethod(std::string name, R (Class::*func)(Args...)) {
     static_assert(std::is_base_of_v<ObjectRef, Class> || std::is_base_of_v<Object, Class>,
                   "Class must be derived from ObjectRef or Object");
     if constexpr (std::is_base_of_v<ObjectRef, Class>) {
@@ -141,7 +141,7 @@ class ReflectionDefBase {
   }
 
   template <typename Class, typename R, typename... Args>
-  static TVM_FFI_INLINE Function GetMethod(std::string name, R (Class::*func)(Args...) const) {
+  TVM_FFI_INLINE static Function GetMethod(std::string name, R (Class::*func)(Args...) const) {
     static_assert(std::is_base_of_v<ObjectRef, Class> || std::is_base_of_v<Object, Class>,
                   "Class must be derived from ObjectRef or Object");
     if constexpr (std::is_base_of_v<ObjectRef, Class>) {
@@ -162,7 +162,7 @@ class ReflectionDefBase {
   }
 
   template <typename Class, typename Func>
-  static TVM_FFI_INLINE Function GetMethod(std::string name, Func&& func) {
+  TVM_FFI_INLINE static Function GetMethod(std::string name, Func&& func) {
     return ffi::Function::FromTyped(std::forward<Func>(func), name);
   }
 };
@@ -228,17 +228,17 @@ class GlobalDef : public ReflectionDefBase {
 
  private:
   template <typename Func>
-  static TVM_FFI_INLINE Function GetMethod_(std::string name, Func&& func) {
+  TVM_FFI_INLINE static Function GetMethod_(std::string name, Func&& func) {
     return ffi::Function::FromTyped(std::forward<Func>(func), name);
   }
 
   template <typename Class, typename R, typename... Args>
-  static TVM_FFI_INLINE Function GetMethod_(std::string name, R (Class::*func)(Args...) const) {
+  TVM_FFI_INLINE static Function GetMethod_(std::string name, R (Class::*func)(Args...) const) {
     return GetMethod<Class>(std::string(name), func);
   }
 
   template <typename Class, typename R, typename... Args>
-  static TVM_FFI_INLINE Function GetMethod_(std::string name, R (Class::*func)(Args...)) {
+  TVM_FFI_INLINE static Function GetMethod_(std::string name, R (Class::*func)(Args...)) {
     return GetMethod<Class>(std::string(name), func);
   }
 

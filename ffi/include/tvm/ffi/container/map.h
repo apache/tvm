@@ -1563,7 +1563,7 @@ struct TypeTraits<Map<K, V>> : public ObjectRefTypeTraitsBase<Map<K, V>> {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIMap;
   using ObjectRefTypeTraitsBase<Map<K, V>>::CopyFromAnyViewAfterCheck;
 
-  static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIMap) {
       return TypeTraitsBase::GetMismatchTypeInfo(src);
     }
@@ -1590,7 +1590,7 @@ struct TypeTraits<Map<K, V>> : public ObjectRefTypeTraitsBase<Map<K, V>> {
     TVM_FFI_UNREACHABLE();
   }
 
-  static TVM_FFI_INLINE bool CheckAnyStrict(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIMap) return false;
     if constexpr (std::is_same_v<K, Any> && std::is_same_v<V, Any>) {
       return true;
@@ -1608,7 +1608,7 @@ struct TypeTraits<Map<K, V>> : public ObjectRefTypeTraitsBase<Map<K, V>> {
     }
   }
 
-  static TVM_FFI_INLINE std::optional<Map<K, V>> TryCastFromAnyView(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::optional<Map<K, V>> TryCastFromAnyView(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIMap) return std::nullopt;
     if constexpr (!std::is_same_v<K, Any> || !std::is_same_v<V, Any>) {
       const MapObj* n = reinterpret_cast<const MapObj*>(src->v_obj);
@@ -1639,7 +1639,7 @@ struct TypeTraits<Map<K, V>> : public ObjectRefTypeTraitsBase<Map<K, V>> {
     }
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() {
+  TVM_FFI_INLINE static std::string TypeStr() {
     return "Map<" + details::Type2Str<K>::v() + ", " + details::Type2Str<V>::v() + ">";
   }
 };

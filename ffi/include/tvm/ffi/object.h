@@ -737,18 +737,18 @@ TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index) {
  */
 struct ObjectUnsafe {
   // NOTE: get ffi header from an object
-  static TVM_FFI_INLINE TVMFFIObject* GetHeader(const Object* src) {
+  TVM_FFI_INLINE static TVMFFIObject* GetHeader(const Object* src) {
     return const_cast<TVMFFIObject*>(&(src->header_));
   }
 
   template <typename Class>
-  static TVM_FFI_INLINE int64_t GetObjectOffsetToSubclass() {
+  TVM_FFI_INLINE static int64_t GetObjectOffsetToSubclass() {
     return (reinterpret_cast<int64_t>(&(static_cast<Class*>(nullptr)->header_)) -
             reinterpret_cast<int64_t>(&(static_cast<Object*>(nullptr)->header_)));
   }
 
   template <typename T>
-  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromObjectRef(const ObjectRef& ref) {
+  TVM_FFI_INLINE static ObjectPtr<T> ObjectPtrFromObjectRef(const ObjectRef& ref) {
     if constexpr (std::is_same_v<T, Object>) {
       return ref.data_;
     } else {
@@ -757,7 +757,7 @@ struct ObjectUnsafe {
   }
 
   template <typename T>
-  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromObjectRef(ObjectRef&& ref) {
+  TVM_FFI_INLINE static ObjectPtr<T> ObjectPtrFromObjectRef(ObjectRef&& ref) {
     if constexpr (std::is_same_v<T, Object>) {
       return std::move(ref.data_);
     } else {
@@ -766,19 +766,19 @@ struct ObjectUnsafe {
   }
 
   template <typename T>
-  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromOwned(Object* raw_ptr) {
+  TVM_FFI_INLINE static ObjectPtr<T> ObjectPtrFromOwned(Object* raw_ptr) {
     tvm::ffi::ObjectPtr<T> ptr;
     ptr.data_ = raw_ptr;
     return ptr;
   }
 
   template <typename T>
-  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromOwned(TVMFFIObject* obj_ptr) {
+  TVM_FFI_INLINE static ObjectPtr<T> ObjectPtrFromOwned(TVMFFIObject* obj_ptr) {
     return ObjectPtrFromOwned<T>(reinterpret_cast<Object*>(obj_ptr));
   }
 
   template <typename T>
-  static TVM_FFI_INLINE T* RawObjectPtrFromUnowned(TVMFFIObject* obj_ptr) {
+  TVM_FFI_INLINE static T* RawObjectPtrFromUnowned(TVMFFIObject* obj_ptr) {
     // NOTE: this is important to first cast to Object*
     // then cast back to T* because objptr and tptr may not be the same
     // depending on how sub-class allocates the space.
@@ -787,44 +787,44 @@ struct ObjectUnsafe {
 
   // Create ObjectPtr from unowned ptr
   template <typename T>
-  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromUnowned(Object* raw_ptr) {
+  TVM_FFI_INLINE static ObjectPtr<T> ObjectPtrFromUnowned(Object* raw_ptr) {
     return tvm::ffi::ObjectPtr<T>(raw_ptr);
   }
 
   template <typename T>
-  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromUnowned(TVMFFIObject* obj_ptr) {
+  TVM_FFI_INLINE static ObjectPtr<T> ObjectPtrFromUnowned(TVMFFIObject* obj_ptr) {
     return tvm::ffi::ObjectPtr<T>(reinterpret_cast<Object*>(obj_ptr));
   }
 
-  static TVM_FFI_INLINE void DecRefObjectHandle(TVMFFIObjectHandle handle) {
+  TVM_FFI_INLINE static void DecRefObjectHandle(TVMFFIObjectHandle handle) {
     reinterpret_cast<Object*>(handle)->DecRef();
   }
 
-  static TVM_FFI_INLINE void IncRefObjectHandle(TVMFFIObjectHandle handle) {
+  TVM_FFI_INLINE static void IncRefObjectHandle(TVMFFIObjectHandle handle) {
     reinterpret_cast<Object*>(handle)->IncRef();
   }
 
-  static TVM_FFI_INLINE Object* RawObjectPtrFromObjectRef(const ObjectRef& src) {
+  TVM_FFI_INLINE static Object* RawObjectPtrFromObjectRef(const ObjectRef& src) {
     return src.data_.data_;
   }
 
-  static TVM_FFI_INLINE TVMFFIObject* TVMFFIObjectPtrFromObjectRef(const ObjectRef& src) {
+  TVM_FFI_INLINE static TVMFFIObject* TVMFFIObjectPtrFromObjectRef(const ObjectRef& src) {
     return GetHeader(src.data_.data_);
   }
 
   template <typename T>
-  static TVM_FFI_INLINE TVMFFIObject* TVMFFIObjectPtrFromObjectPtr(const ObjectPtr<T>& src) {
+  TVM_FFI_INLINE static TVMFFIObject* TVMFFIObjectPtrFromObjectPtr(const ObjectPtr<T>& src) {
     return GetHeader(src.data_);
   }
 
   template <typename T>
-  static TVM_FFI_INLINE TVMFFIObject* MoveObjectPtrToTVMFFIObjectPtr(ObjectPtr<T>&& src) {
+  TVM_FFI_INLINE static TVMFFIObject* MoveObjectPtrToTVMFFIObjectPtr(ObjectPtr<T>&& src) {
     Object* obj_ptr = src.data_;
     src.data_ = nullptr;
     return GetHeader(obj_ptr);
   }
 
-  static TVM_FFI_INLINE TVMFFIObject* MoveObjectRefToTVMFFIObjectPtr(ObjectRef&& src) {
+  TVM_FFI_INLINE static TVMFFIObject* MoveObjectRefToTVMFFIObjectPtr(ObjectRef&& src) {
     Object* obj_ptr = src.data_.data_;
     src.data_.data_ = nullptr;
     return GetHeader(obj_ptr);
