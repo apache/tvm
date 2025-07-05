@@ -29,6 +29,7 @@
 #include <tvm/ffi/endian.h>
 
 #include <cstddef>
+#include <type_traits>
 #include <utility>
 
 #if defined(_MSC_VER)
@@ -135,14 +136,32 @@ namespace tvm {
 namespace ffi {
 namespace details {
 
+// a dependent-name version of false, for static_assert
+template <typename>
+inline constexpr bool always_false = false;
+
 // for each iterator
 struct for_each_dispatcher {
   template <typename F, typename... Args, size_t... I>
   static void run(std::index_sequence<I...>, const F& f, Args&&... args) {  // NOLINT(*)
-    (f(I, std::forward<Args>(args)), ...);
+    if constexpr (std::conjunction_v<
+                      std::is_invocable<F, std::integral_constant<size_t, I>, Args>...>) {
+      (f(std::integral_constant<size_t, I>{}, std::forward<Args>(args)), ...);
+    } else if constexpr (std::conjunction_v<std::is_invocable<F, size_t, Args>...>) {
+      (f(I, std::forward<Args>(args)), ...);
+    } else if constexpr (std::conjunction_v<std::is_invocable<F, Args>...>) {
+      (f(std::forward<Args>(args)), ...);
+    } else {
+      static_assert(always_false<F>, "The function is not invocable with the provided arguments");
+    }
   }
 };
 
+// Three kinds of function F are acceptable in `for_each`:
+// 1. F(size_t, Arg): argument with its index
+// 2. F(Arg): just the argument
+// 3. F(std::integral_constant<size_t, I>, Arg): argument with its constexpr index
+// The third one can make the index available in template arguments and `if constexpr`.
 template <typename F, typename... Args>
 void for_each(const F& f, Args&&... args) {  // NOLINT(*)
   for_each_dispatcher::run(std::index_sequence_for<Args...>{}, f, std::forward<Args>(args)...);
