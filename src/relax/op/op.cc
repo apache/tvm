@@ -1367,15 +1367,24 @@ TVM_REGISTER_OP("relax.hint_on_device")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferHintOnDeviceStructInfo)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeHintOnDevice(Expr data, Device device) {
+Expr MakeHintOnDevice(Expr data, Device device, String memory_scope = "global") {
   static const Op& op = Op::Get("relax.hint_on_device");
   ObjectPtr<HintOnDeviceAttrs> attrs = make_object<HintOnDeviceAttrs>();
   attrs->dev_type = static_cast<int32_t>(device.device_type);
   attrs->dev_id = device.device_id;
+  attrs->memory_scope = memory_scope;
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.hint_on_device").set_body_typed(MakeHintOnDevice);
+TVM_FFI_REGISTER_GLOBAL("relax.op.hint_on_device")
+    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+      if (args.size() == 3) {
+        *ret =
+            MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>(), args[2].cast<String>());
+      } else {
+        *ret = MakeHintOnDevice(args[0].cast<Expr>(), args[1].cast<Device>());
+      }
+    });
 
 }  // namespace relax
 }  // namespace tvm
