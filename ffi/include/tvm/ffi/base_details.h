@@ -136,23 +136,16 @@ namespace ffi {
 namespace details {
 
 // for each iterator
-template <bool stop, std::size_t I, typename F>
 struct for_each_dispatcher {
-  template <typename T, typename... Args>
-  static void run(const F& f, T&& value, Args&&... args) {  // NOLINT(*)
-    f(I, std::forward<T>(value));
-    for_each_dispatcher<sizeof...(Args) == 0, (I + 1), F>::run(f, std::forward<Args>(args)...);
+  template <typename F, typename... Args, size_t... I>
+  static void run(std::index_sequence<I...>, const F& f, Args&&... args) {  // NOLINT(*)
+    (f(I, std::forward<Args>(args)), ...);
   }
-};
-
-template <std::size_t I, typename F>
-struct for_each_dispatcher<true, I, F> {
-  static void run(const F&) {}  // NOLINT(*)
 };
 
 template <typename F, typename... Args>
 void for_each(const F& f, Args&&... args) {  // NOLINT(*)
-  for_each_dispatcher<sizeof...(Args) == 0, 0, F>::run(f, std::forward<Args>(args)...);
+  for_each_dispatcher::run(std::index_sequence_for<Args...>{}, f, std::forward<Args>(args)...);
 }
 
 /*!
