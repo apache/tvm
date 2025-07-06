@@ -124,18 +124,28 @@ Optional<Array<PrimExpr>> InferBinaryBroadcastShape(const Call& call, const Bloc
     const auto* int_dim0 = dim0.as<IntImmNode>();
     const auto* int_dim1 = dim1.as<IntImmNode>();
     if (int_dim0 != nullptr && int_dim0->value == 1) {
+      // static dim(1)
       output_shape.push_back(dim1);
     } else if (int_dim1 != nullptr && int_dim1->value == 1) {
+      // static dim(1)
       output_shape.push_back(dim0);
     } else if (analyzer->CanProveEqual(dim0, dim1)) {
+      // equal static dims or equal symbolic dims
       output_shape.push_back(dim0);
     } else if (int_dim0 && int_dim1 && int_dim0->value != int_dim1->value) {
+      // different static dims
       ctx->ReportFatal(Diagnostic::Error(call)
                        << "In " << call->op << ", the first input shape at dim " << x1_ndim - i
                        << " is " << dim0 << " and the second input shape at dim " << x2_ndim - i
                        << " is " << dim1 << ", which are not broadcastable.");
+    } else if (int_dim0 == nullptr && int_dim1) {
+      // symbolic dim and static dim
+      output_shape.push_back(dim1);
+    } else if (int_dim0 && int_dim1 == nullptr) {
+      // static dim and symbolic dim
+      output_shape.push_back(dim0);
     } else {
-      // Use simple fallback when shape mismatch.
+      // Use simple fallback when shapes mismatch.
       return std::nullopt;
     }
   }
