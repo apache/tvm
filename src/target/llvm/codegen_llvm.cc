@@ -2247,7 +2247,7 @@ void CodeGenLLVM::AddDebugInformation(llvm::Function* f_llvm, const Array<Type>&
 
     auto* store = builder.CreateStore(iter_param, paramAlloca);
     auto* di_loc = llvm::DILocation::get(*ctx, 0, 0, di_subprogram_);
-#if TVM_LLVM_VERSION >= 190
+#if TVM_LLVM_VERSION >= 200
     dbg_info_->di_builder_->insertDeclare(
         paramAlloca, param, dbg_info_->di_builder_->createExpression(), llvm::DebugLoc(di_loc),
         llvm::BasicBlock::iterator(store));
@@ -2289,7 +2289,7 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
   auto* di_loc = llvm::DILocation::get(*llvm_target_->GetContext(), 0, 0, di_subprogram_);
 
   if (insert_before) {
-#if TVM_LLVM_VERSION >= 190
+#if TVM_LLVM_VERSION >= 200
     dbg_info_->di_builder_->insertDeclare(
         llvm_value, local_var, dbg_info_->di_builder_->createExpression(), llvm::DebugLoc(di_loc),
         llvm::BasicBlock::iterator(insert_before));
