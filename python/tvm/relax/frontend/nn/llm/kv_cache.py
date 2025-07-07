@@ -381,12 +381,8 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             dtype_q=dtype,
             dtype_kv=dtype,
             dtype_o=dtype,
-            qk_head_dim=(
-                qk_head_dim if attn_kind_single == "mha" else mla_original_qk_head_dim
-            ),
-            v_head_dim=(
-                v_head_dim if attn_kind_single == "mha" else mla_original_v_head_dim
-            ),
+            qk_head_dim=(qk_head_dim if attn_kind_single == "mha" else mla_original_qk_head_dim),
+            v_head_dim=(v_head_dim if attn_kind_single == "mha" else mla_original_v_head_dim),
             target=target,
             enable_inline_rope=rope_mode == RopeMode.INLINE,
         )
