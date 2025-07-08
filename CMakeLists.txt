@@ -699,7 +699,7 @@ if(NOT DEFINED ENV{CONDA_BUILD})
   message(STATUS ${CMAKE_CURRENT_BINARY_DIR})
   add_custom_target(
     tvm_cython ALL
-    ${Python_EXECUTABLE} setup.py build_ext --inplace
+    ${Python_EXECUTABLE} -I setup.py build_ext --inplace
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/python
   )
   add_dependencies(tvm_cython tvm)
