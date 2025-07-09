@@ -78,7 +78,6 @@ cdef class Device:
 
     DEVICE_NAME_TO_TYPE = {
         "llvm": kDLCPU,
-        "stackvm": kDLCPU,
         "cpu": kDLCPU,
         "c": kDLCPU,
         "test": kDLCPU,
