@@ -20,6 +20,7 @@ import os
 import pathlib
 import shutil
 import sys
+import sys
 
 from setuptools import find_packages
 from setuptools.dist import Distribution
