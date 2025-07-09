@@ -150,7 +150,7 @@ def build(
         target = Target.canon_target(target)
 
     # Step 2: Determine the host target
-    target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
+    target_host = "llvm" if tvm.runtime.enabled("llvm") else "c"
     if target is not None:
         if target.host is not None:
             target_host = target.host
