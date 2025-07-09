@@ -192,7 +192,7 @@ def build(
         to setup the dimensions and parameters correctly.
         host is used to specify the host side codegen target.
         By default, llvm is used if it is enabled,
-        otherwise a stackvm interpreter is used.
+        otherwise a c backend is used.
 
     params: Optional[Dict[str, list]]
         Parameters for the input IRModule that will be bound.
