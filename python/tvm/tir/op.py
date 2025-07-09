@@ -573,7 +573,7 @@ def address_of(obj: Union[Buffer, BufferLoad], span: Optional[Span] = None) -> P
         n_dim = len(obj.shape)
         buffer_load = BufferLoad(obj, [0] * n_dim)
         return call_intrin("handle", "tir.address_of", buffer_load, span=span)
-    elif isinstance(obj, BufferLoad):
+    elif isinstance(obj, (BufferLoad, Var)):
         return call_intrin("handle", "tir.address_of", obj, span=span)
     else:
         raise ValueError(f"Invalid object type: {type(obj)}")
