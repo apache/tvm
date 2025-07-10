@@ -37,7 +37,7 @@ Overall Flow
 In this guide, we will study an example compilation flow in the compiler. The figure below shows the flow. At a high-level, it contains several steps:
 
 - **Model Creation**: Create the IRModule to be optimized and compiled, which contains a collection of functions that internally represent the model.
-  Users can manually construct IRModule via NNModule, TVMScript, or import a pre-trained model from from Relax frontend.
+  Users can manually construct IRModule via NNModule, TVMScript, or import a pre-trained model from Relax frontend.
 - **Transformation**: The compiler transforms an IRModule to another functionally equivalent or approximately
   equivalent(e.g. in the case of quantization) IRModule. Many of the transformations are target (backend) independent.
   We also allow target to affect the configuration of the transformation pipeline.
@@ -103,8 +103,8 @@ cross-level transformations
 Apache TVM brings a unity strategy to optimize the end-to-end models. As the IRModule includes both relax and tir functions, the cross-level transformations are designed to mutate
 the IRModule by applying different transformations to these two types of functions.
 
-For example, ``relax.LegalizeOps`` pass mutates the IRModule by lowering relax operators, add corresponding TIR PrimFunc into the IRModule, and replace the relax operators
-with calls to the lowered TIR PrimFunc. Another example is operator fusion pipeline in relax (including ``relax.FuseOps`` and ``relax.FuseTIR``), which fuse multiple consecutive tensor operations
+For example, ``relax.LegalizeOps`` pass mutates the IRModule by lowering relax operators, adding corresponding TIR PrimFunc into the IRModule, and replacing the relax operators
+with calls to the lowered TIR PrimFunc. Another example is operator fusion pipeline in relax (including ``relax.FuseOps`` and ``relax.FuseTIR``), which fuses multiple consecutive tensor operations
 into one. Different from the previous implementations, relax fusion pipeline analyzes the pattern of TIR functions and detects the best fusion rules automatically rather
 than human-defined operator fusion patterns.
 
@@ -175,7 +175,7 @@ In summary, the key data structures in the compilation flows are:
 
 Most parts of the compilation are transformations among the key data structures.
 
-- relax/transform and tir/transform are determinstic rule-based transformations
+- relax/transform and tir/transform are deterministic rule-based transformations
 - meta-schedule contains the search-based transformations
 
 Finally, the compilation flow example is only a typical use-case of the TVM stack.
@@ -246,7 +246,7 @@ The ability to save/store, and inspect an IR node provides a foundation for maki
 
 tvm/ir
 ------
-The `tvm/ir` folder contains the unified data structure and interfaces across for all IR function variants.
+The `tvm/ir` folder contains the unified data structure and interfaces across all IR function variants.
 The components in `tvm/ir` are shared by `tvm/relax` and `tvm/tir`, notable ones include
 
 - IRModule
@@ -299,7 +299,7 @@ tvm/relax
 ---------
 
 Relax is the high-level IR used to represent the computational graph of a model. Various optimizations are defined in ``relax.transform``.
-Note that Relax usually works closely the the TensorIR IRModule, most of the transformations are applied on the both Relax and TensorIR functions
+Note that Relax usually works closely with the TensorIR IRModule, most of the transformations are applied on both Relax and TensorIR functions
 in the IRModule. Please refer to the :ref:`Relax Deep Dive <relax-deep-dive>` for more details.
 
 tvm/tir
@@ -329,7 +329,7 @@ TE stands for Tensor Expression. TE is a domain-specific language (DSL) for desc
 itself is not a self-contained function that can be stored into IRModule. We can use ``te.create_prim_func`` to convert a tensor expression to a ``tir::PrimFunc``
 and then integrate it into the IRModule.
 
-While possible to construct operators directly via TIR or tensor expressions (TE) for each use case it is tedious to do so.
+While possible to construct operators directly via TIR or tensor expressions (TE) for each use case, it is tedious to do so.
 `topi` (Tensor operator inventory) provides a set of pre-defined operators defined by numpy and found in common deep learning workloads.
 
 tvm/meta_schedule
