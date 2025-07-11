@@ -190,8 +190,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       // mark private if there is no global symbol
       if (!func->attrs.defined() || !func->attrs->dict.count(tvm::attr::kGlobalSymbol)) {
         Array<ExprDoc> pos_args;
-        decorator = std::move(decorator->Call(pos_args, {"private"},
-                                              {LiteralDoc::Boolean(true, Optional<ObjectPath>())}));
+        decorator = decorator->Call(pos_args, {"private"},
+                                    {LiteralDoc::Boolean(true, Optional<ObjectPath>())});
       }
 
       return HeaderWrapper(d, FunctionDoc(
