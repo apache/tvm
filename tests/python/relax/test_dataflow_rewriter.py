@@ -1144,9 +1144,11 @@ def test_rewrite_of_implicit_tuple_with_three_elements():
             "rotary_embedding", [k], sinfo_args=R.Tensor([4096], "float32")
         )
 
+        tuple = (q_embed, k_embed, v)
+
         attention = R.call_pure_packed(
             "compute_self_attention",
-            [q_embed, k_embed, v, kv_cache],
+            [tuple[0], tuple[1], tuple[2], kv_cache],
             sinfo_args=R.Tensor([4096]),
         )
 
@@ -1169,9 +1171,9 @@ def test_rewrite_of_implicit_tuple_with_three_elements():
             ],
         )
 
-        v = embedded_qkv_tuple[2]
         q_embed = embedded_qkv_tuple[0]
         k_embed = embedded_qkv_tuple[1]
+        v = embedded_qkv_tuple[2]
 
         attention = R.call_pure_packed(
             "compute_self_attention",
