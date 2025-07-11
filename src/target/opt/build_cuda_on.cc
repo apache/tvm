@@ -134,9 +134,12 @@ runtime::Module BuildCUDA(IRModule mod, Target target) {
   for (auto [gvar, base_func] : mod->functions) {
     ICHECK(base_func->IsInstance<PrimFuncNode>()) << "CodeGenCUDA: Can only take PrimFunc";
     auto prim_func = Downcast<PrimFunc>(base_func);
-    auto calling_conv = prim_func->GetAttr<Integer>(tvm::attr::kCallingConv);
-    ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
-        << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
+    auto calling_conv =
+        prim_func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(tvm::CallingConv::kDefault));
+    ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch ||
+           calling_conv == CallingConv::kDefault)
+        << "CodeGenCUDA: expect calling_conv equals CallingConv::kDeviceKernelLaunch or "
+           "CallingConv::kDefault";
     functions.Set(gvar, prim_func);
   }
 
