@@ -378,8 +378,8 @@ class BaseInliner : public StmtExprMutator {
     if (!is_scope_root && (std::any_of(reads.begin(), reads.end(), f_access_inline_buffer) ||
                            std::any_of(writes.begin(), writes.end(), f_access_inline_buffer))) {
       Array<Array<BufferRegion>> inspected = GetBlockReadWriteRegion(block, buffer_var_map_);
-      reads = std::move(inspected[0]);
-      writes = std::move(inspected[1]);
+      reads = inspected[0];
+      writes = inspected[1];
     }
     // Step 3. Assemble the result
     BlockNode* n = block.CopyOnWrite();

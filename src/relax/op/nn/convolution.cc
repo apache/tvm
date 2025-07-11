@@ -595,7 +595,7 @@ Expr conv1d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntIm
   attrs->groups = groups;
   attrs->data_layout = data_layout;
   attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout.value_or(data_layout));
+  attrs->out_layout = out_layout.value_or(data_layout);
   attrs->out_dtype = std::move(out_dtype.value_or(DataType::Void()));
   const Op& op = Op::Get("relax.nn.conv1d_transpose");
   return Call(op, {data, weight}, Attrs(attrs), {});
@@ -732,7 +732,7 @@ Expr conv2d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntIm
   attrs->groups = groups;
   attrs->data_layout = data_layout;
   attrs->kernel_layout = std::move(kernel_layout);
-  attrs->out_layout = std::move(out_layout.value_or(data_layout));
+  attrs->out_layout = out_layout.value_or(data_layout);
   attrs->out_dtype = std::move(out_dtype.value_or(DataType::Void()));
   const Op& op = Op::Get("relax.nn.conv2d_transpose");
   return Call(op, {data, weight}, Attrs(attrs), {});

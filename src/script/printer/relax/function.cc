@@ -50,9 +50,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       // if we are binding a local definition, then calling d->Define
       // will result in a repeated definition and an incorrect displayed name
       if (Optional<String> name = GetBindingName(d)) {
-        func_name = std::move(IdDoc(name.value()));
+        func_name = IdDoc(name.value());
       } else {
-        func_name = std::move(IdDoc(FindFunctionName(d, n).value_or("main")));
+        func_name = IdDoc(FindFunctionName(d, n).value_or("main"));
       }
       (*f)->AddDispatchToken(d, "relax");
       (*f)->is_func = true;
@@ -118,7 +118,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         dec_values.push_back(LiteralDoc::Boolean(true, Optional<ObjectPath>()));
       }
       if (dec_keys.size()) {
-        decorator = std::move(decorator->Call(pos_args, dec_keys, dec_values));
+        decorator = decorator->Call(pos_args, dec_keys, dec_values);
       }
 
       // Step 6. Print body

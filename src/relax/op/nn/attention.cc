@@ -20,7 +20,6 @@
 #include "attention.h"
 
 #include <utility>
-#include <vector>
 
 namespace tvm {
 namespace relax {
@@ -37,8 +36,8 @@ Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<F
 
   if (bias) {
     return Call(Op::Get("relax.nn.attention_bias"),
-                {std::move(query), std::move(key), std::move(value), std::move(bias.value())},
-                Attrs(attrs), {});
+                {std::move(query), std::move(key), std::move(value), bias.value()}, Attrs(attrs),
+                {});
   }
   return Call(Op::Get("relax.nn.attention"), {std::move(query), std::move(key), std::move(value)},
               Attrs(attrs), {});

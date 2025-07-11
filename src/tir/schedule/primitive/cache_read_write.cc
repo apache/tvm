@@ -986,7 +986,7 @@ class CacheReadRewriter : public StmtExprMutator {
       ObjectPtr<BufferLoadNode> n = make_object<BufferLoadNode>(*load);
       n->buffer = info_->write_buffer;
       if (!cache_full_region_) {
-        n->indices = std::move(RewriteIndices(load->indices));
+        n->indices = RewriteIndices(load->indices);
       }
       return PrimExpr(n);
     }
@@ -1257,7 +1257,7 @@ class CacheWriteRewriter : public StmtExprMutator {
       auto n = CopyOnWrite(stmt.get());
       n->buffer = info_->read_buffer;
       if (!cache_full_region_) {
-        n->indices = std::move(RewriteIndices(n->indices));
+        n->indices = RewriteIndices(n->indices);
       }
       return Stmt(n);
     } else {
@@ -1270,7 +1270,7 @@ class CacheWriteRewriter : public StmtExprMutator {
       ObjectPtr<BufferLoadNode> n = make_object<BufferLoadNode>(*load);
       n->buffer = info_->read_buffer;
       if (!cache_full_region_) {
-        n->indices = std::move(RewriteIndices(n->indices));
+        n->indices = RewriteIndices(n->indices);
       }
       return PrimExpr(n);
     }

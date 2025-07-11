@@ -160,7 +160,7 @@ class InstrumentIntrin : public StmtMutator {
 
   void GetLoopInfo(PrimFuncNode* op) {
     LoopAnalyzer analzer;
-    loops_ = std::move(analzer.Analyze(op->body));
+    loops_ = analzer.Analyze(op->body);
   }
 
   Stmt VisitStmt_(const SeqStmtNode* op) final {

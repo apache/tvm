@@ -127,7 +127,7 @@ class LayoutConvertMutator : public ExprMutator {
         ObjectPtr<LayoutTransformAttrs> attrs = make_object<LayoutTransformAttrs>();
         Array<IntImm> axis_separator;
         Array<IntImm> input_axis_separator;
-        attrs->index_map = std::move(Downcast<IndexMap>(LoadJSON(SaveJSON(index_map))));
+        attrs->index_map = Downcast<IndexMap>(LoadJSON(SaveJSON(index_map)));
         attrs->axis_separators = std::move(axis_separator);
         attrs->input_axis_separators = std::move(input_axis_separator);
         const Op& layout_transform_op_ = Op::Get("relax.layout_transform");
