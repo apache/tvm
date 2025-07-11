@@ -63,7 +63,7 @@ class LegalizeMutator : public ExprMutator {
                            bool enable_warning)
       : ExprMutator(mod), mod_(std::move(mod)), enable_warning_(enable_warning) {
     if (cmap) {
-      cmap_ = std::move(cmap.value());
+      cmap_ = cmap.value();
     }
   }
 

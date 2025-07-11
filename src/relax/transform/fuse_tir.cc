@@ -846,7 +846,7 @@ class FusedTIRConstructor : public ExprVisitor {
     if (is_inplace) {
       const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
       CHECK(attrs) << "Must have CallTIRInplaceAttrs for an in-place call";
-      output_idxs = std::move(GetInplaceOutputIndices(attrs->inplace_indices, num_inputs));
+      output_idxs = GetInplaceOutputIndices(attrs->inplace_indices, num_inputs);
     } else {
       for (size_t i = 0; i < output_size; i++) {
         output_idxs.push_back(num_inputs + i);

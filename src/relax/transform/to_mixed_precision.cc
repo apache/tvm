@@ -532,7 +532,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       return;
     }
     ObjectPtr<TupleNode> new_tuple = make_object<TupleNode>(*tuple_node);
-    new_tuple->fields = std::move(RemapArgs(tuple_node->fields));
+    new_tuple->fields = RemapArgs(tuple_node->fields);
     new_tuple->struct_info_ = std::nullopt;
     Expr new_value = builder_->Normalize(Tuple(new_tuple));
     if (!binding->var->IsInstance<DataflowVarNode>()) {
@@ -600,7 +600,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
 
 Expr ToMixedPrecision(const Function& f, const DataType& out_dtype,
                       Optional<Array<String>> fp16_input_names) {
-  VarDTypeMap only_fp16_map = std::move(DTypeDecisionCollector::Collect(f, out_dtype));
+  VarDTypeMap only_fp16_map = DTypeDecisionCollector::Collect(f, out_dtype);
   std::unordered_set<std::string> fp16_input_names_set;
   if (fp16_input_names) {
     fp16_input_names_set.insert(fp16_input_names.value().begin(), fp16_input_names.value().end());

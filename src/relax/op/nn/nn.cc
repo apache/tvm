@@ -905,8 +905,8 @@ Expr nll_loss(Expr predictions, Expr targets, Optional<Expr> weights, String red
 
   static const Op& op = Op::Get("relax.nn.nll_loss");
   if (weights.defined()) {
-    return Call(op, {std::move(predictions), std::move(targets), std::move(weights.value())},
-                Attrs{attrs}, {});
+    return Call(op, {std::move(predictions), std::move(targets), weights.value()}, Attrs{attrs},
+                {});
   } else {
     return Call(op, {std::move(predictions), std::move(targets)}, Attrs{attrs}, {});
   }

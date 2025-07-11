@@ -621,7 +621,7 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->params = std::move(params);
   n->body = std::move(body);
-  n->ret_struct_info = std::move(ret_struct_info.value());
+  n->ret_struct_info = ret_struct_info.value();
   n->is_pure = is_pure;
   n->struct_info_ = std::move(func_sinfo);
   n->attrs = std::move(attrs);

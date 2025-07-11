@@ -101,10 +101,9 @@ Expr nll_loss_backward(Expr output_grad, Expr predictions, Expr targets, Optiona
 
   static const Op& op = Op::Get("relax.grad.nll_loss_backward");
   if (weights.defined()) {
-    return Call(op,
-                {std::move(output_grad), std::move(predictions), std::move(targets),
-                 std::move(weights.value())},
-                Attrs{attrs}, {});
+    return Call(
+        op, {std::move(output_grad), std::move(predictions), std::move(targets), weights.value()},
+        Attrs{attrs}, {});
   } else {
     return Call(op, {std::move(output_grad), std::move(predictions), std::move(targets)},
                 Attrs{attrs}, {});

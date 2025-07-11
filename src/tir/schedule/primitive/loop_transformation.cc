@@ -616,7 +616,7 @@ class BlockMutator : public StmtExprMutator {
 
     if (!op->loop_var.same_as(new_var)) {
       // If the partioned loop contains nested for loop, then create new iteration variable instance
-      res.CopyOnWrite()->body = std::move(tir::Substitute(res->body, {{op->loop_var, new_var}}));
+      res.CopyOnWrite()->body = tir::Substitute(res->body, {{op->loop_var, new_var}});
       res.CopyOnWrite()->loop_var = new_var;
     }
     return res;
