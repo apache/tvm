@@ -32,11 +32,7 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include <unordered_map>
-
-#include "../../runtime/thread_storage_scope.h"
 #include "../analysis/var_use_def_analysis.h"
-#include "ir_utils.h"
 
 namespace tvm {
 namespace tir {
