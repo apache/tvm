@@ -17,8 +17,7 @@
 
 # pylint: disable=invalid-name
 """The build utils in python."""
-from typing import Union, Optional, Dict
-import enum
+from typing import Union, Optional, Dict, Tuple
 
 import tvm
 from tvm import ir
@@ -28,44 +27,95 @@ from tvm.ir.module import IRModule
 from tvm.target import Target
 
 
-def split_host_device_mods(mod):
+def split_host_device_mods(mod: IRModule) -> Tuple[IRModule, Dict[Target, IRModule]]:
     """Split an IRModule into host and device modules.
+
+    This function takes an IRModule containing functions with different target attributes
+    and separates them into host (CPU) and device (GPU/accelerator) modules. Functions
+    are categorized based on their target attribute in func_attr.
 
     Parameters
     ----------
     mod : tvm.IRModule
-        The input module to split
+        The input module to split.
+        The module should contain functions with target attributes in their func_attr.
+        Functions with "cpu" in their target string are considered host functions,
+        while others are considered device functions.
 
     Returns
     -------
     host_mod : tvm.IRModule
-        The module containing host functions
+        The module containing host functions (CPU-targeted functions)
     device_mod_dict : Dict[Target, tvm.IRModule]
-        A dict mapping targets to device modules
+        A dict mapping targets to device modules. Each device module contains
+        functions targeting the same device (e.g., CUDA GPU, OpenCL, etc.)
+
+        Examples
+    --------
+    Given an IRModule with the following functions:
+
+    .. code-block:: python
+
+        @I.ir_module
+        class Module:
+            @T.prim_func(private=True)
+            def add(a: T.int32, b: T.int32) -> T.int32:
+                T.func_attr({"target": T.target({"arch": "sm_90", "keys": ["cuda", "gpu"],
+                                                "kind": "cuda", "max_num_threads": 1024}))
+                return a + b
+
+            @T.prim_func(private=True)
+            def add_host(a: T.int32, b: T.int32) -> T.int32:
+                T.func_attr({"target": T.target({"keys": ["cpu"], "kind": "c"}))
+                return a + b
+
+            @T.prim_func
+            def main_kernel(A: T.handle, B: T.handle, C: T.handle, length: T.int32):
+                T.func_attr({"target": T.target({"arch": "sm_90", "keys": ["cuda", "gpu"],
+                                                "kind": "cuda"}),
+                            "calling_conv": 2,  # kDeviceKernelLaunch for device kernels
+                            "tir.is_global_func": True})
+                # ... kernel implementation
+
+            @T.prim_func
+            def main(self_handle: T.handle, args: T.handle, num_args: T.int32, result: T.handle):
+                T.func_attr({"target": T.target({"keys": ["cpu"], "kind": "c"}),
+                            "calling_conv": 1,  # kCPackedFunc for entry functions
+                            "tir.is_entry_func": True})
+                # ... main function implementation
+
+    The function will return:
+    - host_mod: Contains `add_host` and `main` functions (CPU targets)
+    - device_mod_dict: Contains a CUDA module with `add` and `main_kernel` functions
+
+    Notes
+    -----
+    - Functions are categorized based on string matching of their target attribute
+    - Functions with "cpu" in the target string are considered host functions
+    - Device functions are grouped by their target to create separate modules
+    - The function uses string-based target matching due to target hash limitations
+    - All functions must have a `calling_conv` attribute in their func_attr:
+        - Private helper functions (private=True): use `calling_conv: 0` (kDefault, by default)
+        - Public entry functions: use `calling_conv: 1` (kCPackedFunc)
+        - Device kernel functions: use `calling_conv: 2` (kDeviceKernelLaunch)
     """
 
-    class CallConv(enum.IntEnum):
-        """Enum representing different calling conventions.
-        Corresponds to the C++ tvm::ir::CallingConv enum.
-        """
-
-        kDefault = 0
-        kCPackedFunc = 1
-        kDeviceKernelLaunch = 2
-
-    host_mod = tvm.tir.transform.Filter(
-        lambda f: int(f.attrs.get("calling_conv", CallConv.kDefault))
-        != int(CallConv.kDeviceKernelLaunch)
-    )(mod)
-    device_mod = tvm.tir.transform.Filter(
-        lambda f: int(f.attrs.get("calling_conv", CallConv.kDefault))
-        == int(CallConv.kDeviceKernelLaunch)
-    )(mod)
-    device_mod_dict = {}
+    host_mod = tvm.tir.transform.Filter(lambda f: "cpu" in str(f.attrs.get("target", "cpu")))(mod)
+    device_mod = tvm.tir.transform.Filter(lambda f: "cpu" not in str(f.attrs.get("target", "cpu")))(
+        mod
+    )
+    # TODO(syfeng): Here we use str as key since target hash is not correct
+    target_str2target = {}
+    device_func_dict = {}
+    device_mod_dict: Dict[Target, IRModule] = {}
     for gv, func in device_mod.functions.items():
-        device_mod_dict.setdefault(func.attrs.get("target", None), dict()).update({gv: func})
-    for target, funcs in device_mod_dict.items():
-        device_mod_dict[target] = tvm.IRModule(funcs, attrs=device_mod.attrs)
+        target = func.attrs.get("target", None)
+        target_str = str(target) if target is not None else ""
+        target_str2target[target_str] = target  # This might be overridden by the last one
+        device_func_dict.setdefault(target_str, dict()).update({gv: func})
+    for target_str in target_str2target.keys():
+        target = target_str2target[target_str]
+        device_mod_dict[target] = tvm.IRModule(device_func_dict[target_str], attrs=device_mod.attrs)
     return host_mod, device_mod_dict
 
 
@@ -162,7 +212,7 @@ def build(
     # Step 3: Bind the target to the input module
     mod = tvm.tir.transform.BindTarget(target_to_bind)(mod)
 
-    # Step 4: Apply the tir  pipeline
+    # Step 4: Apply the tir pipeline
     if pipeline is not None:
         # custom pipeline
         if isinstance(pipeline, str):
