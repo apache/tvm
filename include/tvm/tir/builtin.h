@@ -46,6 +46,10 @@ namespace builtin {
  */
 TVM_DLL const Op& ret();
 /*!
+ * \brief Return from a GPU thread.
+ */
+TVM_DLL const Op& thread_return();
+/*!
  * \brief Reinterpret the value using the target type.
  */
 TVM_DLL const Op& reinterpret();

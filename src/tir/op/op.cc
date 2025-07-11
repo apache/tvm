@@ -247,6 +247,12 @@ PrimExpr ret(PrimExpr value, Span span) {
 
 TVM_FFI_REGISTER_GLOBAL("tir.ret").set_body_typed(ret);
 
+PrimExpr thread_return(Span span) {
+  return tir::Call(DataType::Void(), tir::builtin::thread_return(), {}, span);
+}
+
+TVM_FFI_REGISTER_GLOBAL("tir.thread_return").set_body_typed(thread_return);
+
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype, Span span) {
   using namespace tir;
