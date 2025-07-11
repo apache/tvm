@@ -557,7 +557,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
       auto old_thread_binding = op->thread_binding.value();
       auto* ptr = old_thread_binding.CopyOnWrite();
       ptr->var = old_thread_binding->var.copy_with_dtype(new_loop_var.dtype());
-      n->thread_binding = std::move(Optional<IterVar>(std::move(old_thread_binding)));
+      n->thread_binding = Optional<IterVar>(std::move(old_thread_binding));
     }
     n->body = new_body;
     return new_for;
