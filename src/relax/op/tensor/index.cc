@@ -24,6 +24,7 @@
 
 #include "index.h"
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/topi/transform.h>
 
@@ -53,7 +54,10 @@ Expr take(Expr x, Expr indices, Optional<int64_t> axis, String mode) {
   return Call(op, {std::move(x), std::move(indices)}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.take").set_body_typed(take);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.take", take);
+});
 
 StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
   CheckNumArguments(call, ctx);
@@ -177,7 +181,10 @@ Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, Optional<Expr> strid
   return call;
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.strided_slice").set_body_typed(strided_slice);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.strided_slice", strided_slice);
+});
 
 /* \brief Helper function to unpack a relax::Tuple
  *
@@ -485,7 +492,10 @@ Expr dynamic_strided_slice(Expr x,      //
   return Call(op, {std::move(x), std::move(begin), std::move(end), std::move(strides)}, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.dynamic_strided_slice").set_body_typed(dynamic_strided_slice);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.dynamic_strided_slice", dynamic_strided_slice);
+});
 
 StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& ctx) {
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);

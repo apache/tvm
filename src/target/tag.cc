@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/expr.h>
 #include <tvm/target/tag.h>
 #include <tvm/target/target.h>
@@ -35,8 +36,12 @@ TVM_FFI_STATIC_INIT_BLOCK({ TargetTagNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(TargetTagNode);
 
-TVM_FFI_REGISTER_GLOBAL("target.TargetTagListTags").set_body_typed(TargetTag::ListTags);
-TVM_FFI_REGISTER_GLOBAL("target.TargetTagAddTag").set_body_typed(TargetTag::AddTag);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("target.TargetTagListTags", TargetTag::ListTags)
+      .def("target.TargetTagAddTag", TargetTag::AddTag);
+});
 
 /**********  Registry-related code  **********/
 

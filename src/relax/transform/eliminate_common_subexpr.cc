@@ -24,6 +24,7 @@
  *
  * Currently it removes common subexpressions within a Function.
  */
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -221,8 +222,10 @@ Pass EliminateCommonSubexpr(bool call_only) {
   return CreateFunctionPass(pass_func, 1, "EliminateCommonSubexpr", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.EliminateCommonSubexpr")
-    .set_body_typed(EliminateCommonSubexpr);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.EliminateCommonSubexpr", EliminateCommonSubexpr);
+});
 
 }  // namespace transform
 

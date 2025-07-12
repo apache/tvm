@@ -19,6 +19,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 #include <algorithm>
 #include <cassert>
@@ -130,8 +131,10 @@ __global__ void copy_blocks_kernel(int64_t* key_cache_ptrs, int64_t* value_cache
 namespace tvm {
 namespace runtime {
 
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.reshape_and_cache")
-    .set_body_typed([](NDArray key, NDArray value, NDArray key_cache, NDArray value_cache,
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+    .def("tvm.contrib.vllm.reshape_and_cache", [](NDArray key, NDArray value, NDArray key_cache, NDArray value_cache,
                        NDArray slot_mapping) {
       int num_tokens = key->shape[0];
       int num_heads = key->shape[1];
@@ -153,10 +156,8 @@ TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.reshape_and_cache")
           head_size, block_size, vec_size);
 
       return Array{key_cache, value_cache};
-    });
-
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.reconstruct_from_cache")
-    .set_body_typed([](NDArray key_cache, NDArray value_cache, NDArray slot_mapping) {
+    })
+    .def("tvm.contrib.vllm.reconstruct_from_cache", [](NDArray key_cache, NDArray value_cache, NDArray slot_mapping) {
       int num_tokens = slot_mapping->shape[0];
       int num_heads = value_cache->shape[1];
       int head_size = value_cache->shape[2];
@@ -182,10 +183,8 @@ TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.reconstruct_from_cache")
                             key_stride, value_stride, num_heads, head_size, block_size, vec_size);
 
       return Array{key, value};
-    });
-
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.copy_blocks")
-    .set_body_typed([](Array<NDArray> key_value_caches, NDArray block_mapping) {
+    })
+    .def("tvm.contrib.vllm.copy_blocks", [](Array<NDArray> key_value_caches, NDArray block_mapping) {
       auto num_layers = key_value_caches.size() / 2;
       auto num_pairs = block_mapping->shape[0] / 2;
 
@@ -229,6 +228,7 @@ TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.copy_blocks")
                             static_cast<int64_t*>(value_cache_ptrs_gpu->data),
                             static_cast<int64_t*>(block_mapping_gpu->data), numel_per_block);
     });
+});
 
 }  // namespace runtime
 }  // namespace tvm

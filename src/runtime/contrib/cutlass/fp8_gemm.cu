@@ -22,6 +22,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 #include "../cublas/cublas_utils.h"
 #include "gemm_runner.cuh"
@@ -77,17 +78,13 @@ void tvm_cutlass_fp8_gemm(NDArray x, NDArray weight, NDArray workspace, NDArray 
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("cutlass.gemm_e5m2_e5m2_fp16")
-    .set_body_typed(
-        tvm_cutlass_fp8_gemm<cutlass::float_e5m2_t, cutlass::float_e5m2_t, cutlass::half_t>);
-
-TVM_FFI_REGISTER_GLOBAL("cutlass.gemm_e5m2_e4m3_fp16")
-    .set_body_typed(
-        tvm_cutlass_fp8_gemm<cutlass::float_e5m2_t, cutlass::float_e4m3_t, cutlass::half_t>);
-
-TVM_FFI_REGISTER_GLOBAL("cutlass.gemm_e4m3_e4m3_fp16")
-    .set_body_typed(
-        tvm_cutlass_fp8_gemm<cutlass::float_e4m3_t, cutlass::float_e4m3_t, cutlass::half_t>);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+    .def("cutlass.gemm_e5m2_e5m2_fp16", tvm_cutlass_fp8_gemm<cutlass::float_e5m2_t, cutlass::float_e5m2_t, cutlass::half_t>)
+    .def("cutlass.gemm_e5m2_e4m3_fp16", tvm_cutlass_fp8_gemm<cutlass::float_e5m2_t, cutlass::float_e4m3_t, cutlass::half_t>)
+    .def("cutlass.gemm_e4m3_e4m3_fp16", tvm_cutlass_fp8_gemm<cutlass::float_e4m3_t, cutlass::float_e4m3_t, cutlass::half_t>);
+});
 
 }  // namespace runtime
 }  // namespace tvm

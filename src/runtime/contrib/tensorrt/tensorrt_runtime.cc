@@ -24,6 +24,7 @@
 
 #include <dmlc/parameter.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/ndarray.h>
 
 #include <fstream>
@@ -524,10 +525,12 @@ runtime::Module TensorRTRuntimeCreate(const String& symbol_name, const String& g
   return runtime::Module(n);
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.tensorrt_runtime_create").set_body_typed(TensorRTRuntimeCreate);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_tensorrt")
-    .set_body_typed(JSONRuntimeBase::LoadFromBinary<TensorRTRuntime>);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.tensorrt_runtime_create", TensorRTRuntimeCreate)
+      .def("runtime.module.loadbinary_tensorrt", JSONRuntimeBase::LoadFromBinary<TensorRTRuntime>);
+});
 
 }  // namespace contrib
 }  // namespace runtime

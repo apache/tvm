@@ -21,6 +21,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 #include <algorithm>
 #include <type_traits>
@@ -735,8 +736,10 @@ void single_query_cached_kv_attention_v2(
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention")
-    .set_body_typed([](const DLTensor* query, const DLTensor* key_cache,
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+    .def("tvm.contrib.vllm.single_query_cached_kv_attention", [](const DLTensor* query, const DLTensor* key_cache,
                        const DLTensor* value_cache, const DLTensor* block_tables,
                        const DLTensor* context_lens, int block_size,
                        const DLTensor* max_context_len_tensor,  // TODO(masahi): pass integer
@@ -757,13 +760,15 @@ TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention")
                                             exp_sums, max_logits, tmp_out, out);
       }
     });
+});
 
 // Expose for testing
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention_v1")
-    .set_body_typed(single_query_cached_kv_attention_v1);
-
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.vllm.single_query_cached_kv_attention_v2")
-    .set_body_typed(single_query_cached_kv_attention_v2);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+    .def("tvm.contrib.vllm.single_query_cached_kv_attention_v1", single_query_cached_kv_attention_v1)
+    .def("tvm.contrib.vllm.single_query_cached_kv_attention_v2", single_query_cached_kv_attention_v2);
+});
 
 }  // namespace runtime
 }  // namespace tvm

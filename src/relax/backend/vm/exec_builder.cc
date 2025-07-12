@@ -20,6 +20,7 @@
 /*!
  * \file src/relax/backend/vm/exec_builder.cc
  */
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/exec_builder.h>
 
 #include <sstream>
@@ -329,74 +330,63 @@ void ExecBuilderNode::Formalize() {
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderCreate").set_body_typed(ExecBuilderNode::Create);
-
-TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderConvertConstant")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      ExecBuilder builder = args[0].cast<ExecBuilder>();
-      ffi::Any rt;
-      rt = args[1];
-      *ret = builder->ConvertConstant(rt).data();
-    });
-
-TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderEmitFunction")
-    .set_body_typed([](ExecBuilder builder, String func, int64_t num_inputs,
-                       Optional<Array<String>> param_names) {
-      builder->EmitFunction(func, num_inputs, param_names);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderEndFunction")
-    .set_body_method(&ExecBuilderNode::EndFunction);
-
-TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderDeclareFunction")
-    .set_body_typed([](ExecBuilder builder, String name, int32_t kind) {
-      builder->DeclareFunction(name, static_cast<VMFuncInfo::FuncKind>(kind));
-    });
-
-TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderEmitCall")
-    .set_body_typed([](ExecBuilder builder, String name, Array<IntImm> args, int64_t dst) {
-      std::vector<Instruction::Arg> args_;
-      for (size_t i = 0; i < args.size(); ++i) {
-        args_.push_back(Instruction::Arg::FromData(args[i]->value));
-      }
-      auto dst_ = Instruction::Arg::Register(dst);
-      builder->EmitCall(name, args_, dst_.value());
-    });
-
-TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderEmitRet")
-    .set_body_typed([](ExecBuilder builder, int64_t data) {
-      builder->EmitRet(Instruction::Arg::FromData(data));
-    });
-
-TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderEmitGoto").set_body_method(&ExecBuilderNode::EmitGoto);
-
-TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderEmitIf")
-    .set_body_typed([](ExecBuilder builder, int64_t data, vm::Index false_offset) {
-      builder->EmitIf(Instruction::Arg::FromData(data), false_offset);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderR")
-    .set_body_typed([](ExecBuilder builder, int64_t value) {
-      return Instruction::Arg::Register(value).data();
-    });
-
-TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderImm")
-    .set_body_typed([](ExecBuilder builder, int64_t value) {
-      return Instruction::Arg::Immediate(value).data();
-    });
-
-TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderC")
-    .set_body_typed([](ExecBuilder builder, int64_t value) {
-      return Instruction::Arg::ConstIdx(value).data();
-    });
-
-TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderF").set_body_typed([](ExecBuilder builder, String value) {
-  return builder->GetFunction(value).data();
-});
-
-TVM_FFI_REGISTER_GLOBAL("relax.ExecBuilderGet").set_body_typed([](ExecBuilder builder) {
-  ObjectPtr<VMExecutable> p_exec = builder->Get();
-  return runtime::Module(p_exec);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("relax.ExecBuilderCreate", ExecBuilderNode::Create)
+      .def_packed("relax.ExecBuilderConvertConstant",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    ExecBuilder builder = args[0].cast<ExecBuilder>();
+                    ffi::Any rt;
+                    rt = args[1];
+                    *ret = builder->ConvertConstant(rt).data();
+                  })
+      .def("relax.ExecBuilderEmitFunction",
+           [](ExecBuilder builder, String func, int64_t num_inputs,
+              Optional<Array<String>> param_names) {
+             builder->EmitFunction(func, num_inputs, param_names);
+           })
+      .def_method("relax.ExecBuilderEndFunction", &ExecBuilderNode::EndFunction)
+      .def("relax.ExecBuilderDeclareFunction",
+           [](ExecBuilder builder, String name, int32_t kind) {
+             builder->DeclareFunction(name, static_cast<VMFuncInfo::FuncKind>(kind));
+           })
+      .def("relax.ExecBuilderEmitCall",
+           [](ExecBuilder builder, String name, Array<IntImm> args, int64_t dst) {
+             std::vector<Instruction::Arg> args_;
+             for (size_t i = 0; i < args.size(); ++i) {
+               args_.push_back(Instruction::Arg::FromData(args[i]->value));
+             }
+             auto dst_ = Instruction::Arg::Register(dst);
+             builder->EmitCall(name, args_, dst_.value());
+           })
+      .def("relax.ExecBuilderEmitRet",
+           [](ExecBuilder builder, int64_t data) {
+             builder->EmitRet(Instruction::Arg::FromData(data));
+           })
+      .def_method("relax.ExecBuilderEmitGoto", &ExecBuilderNode::EmitGoto)
+      .def("relax.ExecBuilderEmitIf",
+           [](ExecBuilder builder, int64_t data, vm::Index false_offset) {
+             builder->EmitIf(Instruction::Arg::FromData(data), false_offset);
+           })
+      .def("relax.ExecBuilderR",
+           [](ExecBuilder builder, int64_t value) {
+             return Instruction::Arg::Register(value).data();
+           })
+      .def("relax.ExecBuilderImm",
+           [](ExecBuilder builder, int64_t value) {
+             return Instruction::Arg::Immediate(value).data();
+           })
+      .def("relax.ExecBuilderC",
+           [](ExecBuilder builder, int64_t value) {
+             return Instruction::Arg::ConstIdx(value).data();
+           })
+      .def("relax.ExecBuilderF",
+           [](ExecBuilder builder, String value) { return builder->GetFunction(value).data(); })
+      .def("relax.ExecBuilderGet", [](ExecBuilder builder) {
+        ObjectPtr<VMExecutable> p_exec = builder->Get();
+        return runtime::Module(p_exec);
+      });
 });
 
 }  // namespace relax

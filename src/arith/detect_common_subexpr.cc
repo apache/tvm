@@ -21,6 +21,7 @@
  * \file detect_common_subexpr.cc
  * \brief Utility to detect common sub expressions.
  */
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/expr.h>
 
 #include <limits>
@@ -69,6 +70,9 @@ Map<PrimExpr, Integer> DetectCommonSubExpr(const PrimExpr& e, int thresh) {
   return results;
 }
 
-TVM_FFI_REGISTER_GLOBAL("arith.DetectCommonSubExpr").set_body_typed(DetectCommonSubExpr);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("arith.DetectCommonSubExpr", DetectCommonSubExpr);
+});
 }  // namespace arith
 }  // namespace tvm

@@ -64,6 +64,7 @@
  *    17. If the kForcePure attribute is set for a function,
  *        that function's is_pure field must be true.
  */
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -645,7 +646,10 @@ bool WellFormed(Variant<IRModule, Function> obj, bool check_struct_info) {
   return WellFormedChecker::Check(obj, check_struct_info);
 }
 
-TVM_FFI_REGISTER_GLOBAL(("relax.analysis.well_formed")).set_body_typed(WellFormed);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.analysis.well_formed", WellFormed);
+});
 
 }  // namespace relax
 }  // namespace tvm

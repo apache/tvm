@@ -21,6 +21,7 @@
  * \file Use external hipblas library call.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 
@@ -407,51 +408,54 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, hipblasHandle_t
 }
 
 // matrix multiplication for row major
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.hipblas.matmul")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      auto A = args[0].cast<DLTensor*>();
-      auto C = args[2].cast<DLTensor*>();
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("tvm.contrib.hipblas.matmul",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    auto A = args[0].cast<DLTensor*>();
+                    auto C = args[2].cast<DLTensor*>();
 
-      HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal();
+                    HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal();
 
-      if (TypeEqual(A->dtype, C->dtype)) {
-        ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
-               TypeMatch(A->dtype, kDLFloat, 64));
+                    if (TypeEqual(A->dtype, C->dtype)) {
+                      ICHECK(TypeMatch(A->dtype, kDLFloat, 16) ||
+                             TypeMatch(A->dtype, kDLFloat, 32) ||
+                             TypeMatch(A->dtype, kDLFloat, 64));
 
-        if (TypeMatch(A->dtype, kDLFloat, 16)) {
-          CallGemm(args, ret, HipblasHgemmOp(entry_ptr->handle));
-        } else if (TypeMatch(A->dtype, kDLFloat, 32)) {
-          CallGemm(args, ret, HipblasSgemmOp(entry_ptr->handle));
+                      if (TypeMatch(A->dtype, kDLFloat, 16)) {
+                        CallGemm(args, ret, HipblasHgemmOp(entry_ptr->handle));
+                      } else if (TypeMatch(A->dtype, kDLFloat, 32)) {
+                        CallGemm(args, ret, HipblasSgemmOp(entry_ptr->handle));
+                      } else {
+                        CallGemm(args, ret, HipblasDgemmOp(entry_ptr->handle));
+                      }
+                    } else {
+                      CallGemmEx(args, ret, entry_ptr->handle);
+                    }
+                  })
+      .def_packed("tvm.contrib.hipblas.batch_matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
+        auto A = args[0].cast<DLTensor*>();
+        auto C = args[2].cast<DLTensor*>();
+
+        HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal();
+
+        if (TypeEqual(A->dtype, C->dtype)) {
+          ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
+                 TypeMatch(A->dtype, kDLFloat, 64));
+
+          if (TypeMatch(A->dtype, kDLFloat, 16)) {
+            CallBatchGemm(args, ret, HipblasHgemmBatchOp(entry_ptr->handle));
+          } else if (TypeMatch(A->dtype, kDLFloat, 32)) {
+            CallBatchGemm(args, ret, HipblasSgemmBatchOp(entry_ptr->handle));
+          } else {
+            CallBatchGemm(args, ret, HipblasDgemmBatchOp(entry_ptr->handle));
+          }
         } else {
-          CallGemm(args, ret, HipblasDgemmOp(entry_ptr->handle));
+          CallBatchGemmEx(args, ret, entry_ptr->handle);
         }
-      } else {
-        CallGemmEx(args, ret, entry_ptr->handle);
-      }
-    });
-
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.hipblas.batch_matmul")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      auto A = args[0].cast<DLTensor*>();
-      auto C = args[2].cast<DLTensor*>();
-
-      HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal();
-
-      if (TypeEqual(A->dtype, C->dtype)) {
-        ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
-               TypeMatch(A->dtype, kDLFloat, 64));
-
-        if (TypeMatch(A->dtype, kDLFloat, 16)) {
-          CallBatchGemm(args, ret, HipblasHgemmBatchOp(entry_ptr->handle));
-        } else if (TypeMatch(A->dtype, kDLFloat, 32)) {
-          CallBatchGemm(args, ret, HipblasSgemmBatchOp(entry_ptr->handle));
-        } else {
-          CallBatchGemm(args, ret, HipblasDgemmBatchOp(entry_ptr->handle));
-        }
-      } else {
-        CallBatchGemmEx(args, ret, entry_ptr->handle);
-      }
-    });
+      });
+});
 
 }  // namespace contrib
 }  // namespace tvm

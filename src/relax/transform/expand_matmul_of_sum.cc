@@ -22,6 +22,7 @@
  * \brief Expand `matmul(x, A+B)` to `matmul(x, A) + matmul(x,B)`
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>
@@ -104,7 +105,10 @@ Pass ExpandMatmulOfSum() {
   return CreateFunctionPass(pass_func, 1, "ExpandMatmulOfSum", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.ExpandMatmulOfSum").set_body_typed(ExpandMatmulOfSum);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.ExpandMatmulOfSum", ExpandMatmulOfSum);
+});
 
 }  // namespace transform
 }  // namespace relax

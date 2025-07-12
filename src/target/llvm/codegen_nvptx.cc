@@ -30,6 +30,7 @@
 #include <llvm/IR/InlineAsm.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
+#include <tvm/ffi/reflection/reflection.h>
 #if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsNVPTX.h>
 #endif
@@ -368,12 +369,14 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
   return CUDAModuleCreate(ptx, "ptx", ExtractFuncInfo(mod), ll);
 }
 
-TVM_FFI_REGISTER_GLOBAL("target.build.nvptx").set_body_typed(BuildNVPTX);
-
-TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.target_nvptx")
-    .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
-      *rv = static_cast<void*>(new CodeGenNVPTX());
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("target.build.nvptx", BuildNVPTX)
+      .def_packed("tvm.codegen.llvm.target_nvptx", [](const ffi::PackedArgs& targs, ffi::Any* rv) {
+        *rv = static_cast<void*>(new CodeGenNVPTX());
+      });
+});
 
 }  // namespace codegen
 }  // namespace tvm

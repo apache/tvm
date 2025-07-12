@@ -22,6 +22,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 #include "../cublas/cublas_utils.h"
 #include "fp8_groupwise_scaled_gemm.cuh"
@@ -66,10 +67,12 @@ void tvm_cutlass_fp8_groupwise_scaled_bmm_sm90(NDArray a, NDArray b, NDArray sca
       a, b, scales_a, scales_b, workspace, block_size_0, block_size_1, out);
 }
 
-TVM_FFI_REGISTER_GLOBAL("cutlass.groupwise_scaled_gemm_e4m3fn_e4m3fn")
-    .set_body_typed(tvm_cutlass_fp8_groupwise_scaled_gemm_sm90);
-TVM_FFI_REGISTER_GLOBAL("cutlass.groupwise_scaled_bmm_e4m3fn_e4m3fn")
-    .set_body_typed(tvm_cutlass_fp8_groupwise_scaled_bmm_sm90);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+    .def("cutlass.groupwise_scaled_gemm_e4m3fn_e4m3fn", tvm_cutlass_fp8_groupwise_scaled_gemm_sm90)
+    .def("cutlass.groupwise_scaled_bmm_e4m3fn_e4m3fn", tvm_cutlass_fp8_groupwise_scaled_bmm_sm90);
+});
 
 }  // namespace runtime
 }  // namespace tvm

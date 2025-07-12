@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -117,17 +119,19 @@ TVM_FFI_STATIC_INIT_BLOCK({
 TVM_REGISTER_OBJECT_TYPE(PostprocNode);
 TVM_REGISTER_NODE_TYPE(PyPostprocNode);
 
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocInitializeWithTuneContext")
-    .set_body_method(&PostprocNode::InitializeWithTuneContext);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocApply").set_body_method(&PostprocNode::Apply);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocClone").set_body_method(&PostprocNode::Clone);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocPyPostproc").set_body_typed(Postproc::PyPostproc);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocDefaultLLVM").set_body_typed(Postproc::DefaultLLVM);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocDefaultCUDA").set_body_typed(Postproc::DefaultCUDA);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocDefaultCUDATensorCore")
-    .set_body_typed(Postproc::DefaultCUDATensorCore);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocDefaultHexagon")
-    .set_body_typed(Postproc::DefaultHexagon);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_method("meta_schedule.PostprocInitializeWithTuneContext",
+                  &PostprocNode::InitializeWithTuneContext)
+      .def_method("meta_schedule.PostprocApply", &PostprocNode::Apply)
+      .def_method("meta_schedule.PostprocClone", &PostprocNode::Clone)
+      .def("meta_schedule.PostprocPyPostproc", Postproc::PyPostproc)
+      .def("meta_schedule.PostprocDefaultLLVM", Postproc::DefaultLLVM)
+      .def("meta_schedule.PostprocDefaultCUDA", Postproc::DefaultCUDA)
+      .def("meta_schedule.PostprocDefaultCUDATensorCore", Postproc::DefaultCUDATensorCore)
+      .def("meta_schedule.PostprocDefaultHexagon", Postproc::DefaultHexagon);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

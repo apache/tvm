@@ -33,6 +33,7 @@
 #include <thrust/sort.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 #include <algorithm>
 #include <functional>
@@ -233,8 +234,10 @@ void thrust_sort_common(DLTensor* input, DLTensor* values_out, DLTensor* indices
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.thrust.sort")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+    .def_packed("tvm.contrib.thrust.sort", [](ffi::PackedArgs args, ffi::Any* ret) {
       ICHECK_GE(args.size(), 4);
       auto input = args[0].cast<DLTensor*>();
       auto values_out = args[1].cast<DLTensor*>();
@@ -252,6 +255,7 @@ TVM_FFI_REGISTER_GLOBAL("tvm.contrib.thrust.sort")
       thrust_sort_common(input, values_out, indices_out, is_ascend, n_values, data_dtype, out_dtype,
                          workspace);
     });
+});
 
 template <typename KeyType, typename ValueType>
 void thrust_stable_sort_by_key(DLTensor* keys_in, DLTensor* values_in, DLTensor* keys_out,
@@ -280,8 +284,10 @@ void thrust_stable_sort_by_key(DLTensor* keys_in, DLTensor* values_in, DLTensor*
   thrust::stable_sort_by_key(policy, keys_out_ptr, keys_out_ptr + size, values_out_ptr);
 }
 
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+    .def_packed("tvm.contrib.thrust.stable_sort_by_key", [](ffi::PackedArgs args, ffi::Any* ret) {
       ICHECK_GE(args.size(), 5);
       auto keys_in = args[0].cast<DLTensor*>();
       auto values_in = args[1].cast<DLTensor*>();
@@ -339,6 +345,7 @@ TVM_FFI_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
         LOG(FATAL) << "Unsupported key dtype: " << key_dtype;
       }
     });
+});
 
 template <typename InType, typename OutType>
 void thrust_scan(DLTensor* data, DLTensor* output, bool exclusive, DLTensor* workspace) {
@@ -395,8 +402,10 @@ void thrust_scan(DLTensor* data, DLTensor* output, bool exclusive, DLTensor* wor
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+    .def_packed("tvm.contrib.thrust.sum_scan", [](ffi::PackedArgs args, ffi::Any* ret) {
       ICHECK(args.size() == 2 || args.size() == 3 || args.size() == 4);
       auto data = args[0].cast<DLTensor*>();
       auto output = args[1].cast<DLTensor*>();
@@ -472,6 +481,7 @@ TVM_FFI_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan")
                    << ". Supported input dtypes are bool, int32, int64, float32, and float64";
       }
     });
+});
 
 }  // namespace contrib
 }  // namespace tvm

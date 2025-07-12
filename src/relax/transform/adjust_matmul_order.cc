@@ -22,6 +22,7 @@
  * \brief Re-order `matmul(matmul(A,B), x)` to `matmul(A, matmul(B,x))`
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>
@@ -213,7 +214,10 @@ Pass AdjustMatmulOrder() {
   return CreateFunctionPass(pass_func, 1, "AdjustMatmulOrder", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.AdjustMatmulOrder").set_body_typed(AdjustMatmulOrder);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.AdjustMatmulOrder", AdjustMatmulOrder);
+});
 
 }  // namespace transform
 }  // namespace relax

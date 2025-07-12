@@ -21,6 +21,8 @@
  * \brief Runtime RNN state object for space state models.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
+
 #include <cstdint>
 #include <vector>
 
@@ -464,36 +466,37 @@ TVM_REGISTER_OBJECT_TYPE(RNNStateImpObj);
 //  Register runtime functions
 //-------------------------------------------------
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.rnn_state_create")
-    .set_body_typed([](int64_t num_layers,           //
-                       int64_t reserved_num_seqs,    //
-                       int64_t max_history,          //
-                       Array<ffi::Function> f_gets,  //
-                       Array<ffi::Function> f_sets,  //
-                       Array<NDArray> init_layer_value) {
-      CHECK_GT(num_layers, 0) << "The number of layers should be greater than 0.";
-      CHECK_GT(reserved_num_seqs, 0)
-          << "The number of reserved sequences should be greater than 0.";
-      CHECK_GE(max_history, 0) << "The maximum history length should be greater or equal than 0.";
-      CHECK_GT(init_layer_value.size(), 0)
-          << "The number of states per layer should be greater than 0.";
-      Device device = init_layer_value[0]->device;
-      for (const NDArray& state : init_layer_value) {
-        CHECK(state->device.device_type == device.device_type &&
-              state->device.device_id == device.device_id)
-            << "The device type of all states should be the same.";
-      }
-      CHECK_EQ(f_gets.size(), init_layer_value.size())
-          << "The number of state getters should be the same as the number of states per layer, "
-          << "but got " << f_gets.size() << " and " << init_layer_value.size() << " respectively.";
-      CHECK_EQ(f_sets.size(), init_layer_value.size())
-          << "The number of state setters should be the same as the number of states per layer, "
-          << "but got " << f_sets.size() << " and " << init_layer_value.size() << " respectively.";
-      ObjectPtr<RNNStateImpObj> n =
-          make_object<RNNStateImpObj>(num_layers, reserved_num_seqs, max_history, device,
-                                      std::move(f_gets), std::move(f_sets), init_layer_value);
-      return RNNState(std::move(n));
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("vm.builtin.rnn_state_create", [](int64_t num_layers,           //
+                                                          int64_t reserved_num_seqs,    //
+                                                          int64_t max_history,          //
+                                                          Array<ffi::Function> f_gets,  //
+                                                          Array<ffi::Function> f_sets,  //
+                                                          Array<NDArray> init_layer_value) {
+    CHECK_GT(num_layers, 0) << "The number of layers should be greater than 0.";
+    CHECK_GT(reserved_num_seqs, 0) << "The number of reserved sequences should be greater than 0.";
+    CHECK_GE(max_history, 0) << "The maximum history length should be greater or equal than 0.";
+    CHECK_GT(init_layer_value.size(), 0)
+        << "The number of states per layer should be greater than 0.";
+    Device device = init_layer_value[0]->device;
+    for (const NDArray& state : init_layer_value) {
+      CHECK(state->device.device_type == device.device_type &&
+            state->device.device_id == device.device_id)
+          << "The device type of all states should be the same.";
+    }
+    CHECK_EQ(f_gets.size(), init_layer_value.size())
+        << "The number of state getters should be the same as the number of states per layer, "
+        << "but got " << f_gets.size() << " and " << init_layer_value.size() << " respectively.";
+    CHECK_EQ(f_sets.size(), init_layer_value.size())
+        << "The number of state setters should be the same as the number of states per layer, "
+        << "but got " << f_sets.size() << " and " << init_layer_value.size() << " respectively.";
+    ObjectPtr<RNNStateImpObj> n =
+        make_object<RNNStateImpObj>(num_layers, reserved_num_seqs, max_history, device,
+                                    std::move(f_gets), std::move(f_sets), init_layer_value);
+    return RNNState(std::move(n));
+  });
+});
 
 }  // namespace vm
 }  // namespace runtime

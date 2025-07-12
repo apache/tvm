@@ -23,6 +23,7 @@
  * with corresponding low-level TIR PrimFuncs.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
@@ -404,7 +405,10 @@ Pass LegalizeOps(Optional<Map<String, ffi::Function>> cmap, bool enable_warning)
                           /*required=*/{});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.LegalizeOps").set_body_typed(LegalizeOps);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.LegalizeOps", LegalizeOps);
+});
 
 }  // namespace transform
 

@@ -25,6 +25,7 @@
 
 #include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/data_type.h>
 
 #include <string>
@@ -265,8 +266,10 @@ SoftmaxEntry::SoftmaxEntry() { CUDNN_CALL(cudnnCreateTensorDescriptor(&shape_des
 
 SoftmaxEntry::~SoftmaxEntry() { CUDNN_CALL(cudnnDestroyTensorDescriptor(shape_desc)); }
 
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cudnn.exists").set_body_typed([]() -> bool {
-  return CuDNNThreadEntry::ThreadLocal(false)->exists();
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tvm.contrib.cudnn.exists",
+                        []() -> bool { return CuDNNThreadEntry::ThreadLocal(false)->exists(); });
 });
 
 }  // namespace contrib

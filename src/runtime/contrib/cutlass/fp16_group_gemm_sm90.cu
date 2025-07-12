@@ -22,6 +22,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 #include "fp16_group_gemm.cuh"
 #include "fp16_group_gemm_runner_sm90.cuh"
@@ -46,7 +47,11 @@ void tvm_cutlass_group_gemm_sm90(NDArray x, NDArray weight, NDArray indptr, NDAr
   tvm_cutlass_group_gemm_impl<90>(x, weight, indptr, workspace, out);
 }
 
-TVM_FFI_REGISTER_GLOBAL("cutlass.group_gemm").set_body_typed(tvm_cutlass_group_gemm_sm90);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+    .def("cutlass.group_gemm", tvm_cutlass_group_gemm_sm90);
+});
 
 #endif  // CUTLASS_ARCH_MMA_MODIFIABLE_TMA_SM90_SUPPORTED
 

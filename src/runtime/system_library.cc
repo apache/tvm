@@ -23,6 +23,7 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/c_backend_api.h>
 
 #include <mutex>
@@ -112,14 +113,16 @@ class SystemLibModuleRegistry {
   std::unordered_map<std::string, runtime::Module> lib_map_;
 };
 
-TVM_FFI_REGISTER_GLOBAL("runtime.SystemLib")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      std::string symbol_prefix = "";
-      if (args.size() != 0) {
-        symbol_prefix = args[0].cast<std::string>();
-      }
-      *rv = SystemLibModuleRegistry::Global()->GetOrCreateModule(symbol_prefix);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("runtime.SystemLib", [](ffi::PackedArgs args, ffi::Any* rv) {
+    std::string symbol_prefix = "";
+    if (args.size() != 0) {
+      symbol_prefix = args[0].cast<std::string>();
+    }
+    *rv = SystemLibModuleRegistry::Global()->GetOrCreateModule(symbol_prefix);
+  });
+});
 }  // namespace runtime
 }  // namespace tvm
 

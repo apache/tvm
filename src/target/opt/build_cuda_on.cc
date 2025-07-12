@@ -25,6 +25,7 @@
  */
 #if defined(__linux__)
 #include <sys/stat.h>
+#include <tvm/ffi/reflection/reflection.h>
 #endif
 #include <cuda_runtime.h>
 #include <nvrtc.h>
@@ -172,7 +173,10 @@ runtime::Module BuildCUDA(IRModule mod, Target target) {
   return CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code);
 }
 
-TVM_FFI_REGISTER_GLOBAL("target.build.cuda").set_body_typed(BuildCUDA);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("target.build.cuda", BuildCUDA);
+});
 TVM_REGISTER_PASS_CONFIG_OPTION("cuda.kernels_output_dir", String);
 }  // namespace codegen
 }  // namespace tvm

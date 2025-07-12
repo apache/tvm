@@ -22,6 +22,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
@@ -642,36 +643,34 @@ tir::Buffer BufferWithOffsetAlignment(Array<PrimExpr> shape, DataType dtype, std
 
 TVM_REGISTER_NODE_TYPE(BufferNode);
 
-TVM_FFI_REGISTER_GLOBAL("tir.Buffer").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-  ICHECK_EQ(args.size(), 11);
-  auto buffer_type = args[8].cast<String>();
-  BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
-  auto data = args[0].cast<Var>();
-  auto dtype = args[1].cast<DataType>();
-  auto shape = args[2].cast<Array<PrimExpr>>();
-  auto strides = args[3].cast<Array<PrimExpr>>();
-  auto elem_offset = args[4].cast<PrimExpr>();
-  auto name = args[5].cast<String>();
-  auto data_alignment = args[6].cast<int>();
-  auto offset_factor = args[7].cast<int>();
-  auto axis_separators = args[9].cast<Array<IntImm>>();
-  auto span = args[10].cast<Span>();
-  *ret = Buffer(data, dtype, shape, strides, elem_offset, name, data_alignment, offset_factor, type,
-                axis_separators, span);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("tir.Buffer",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    ICHECK_EQ(args.size(), 11);
+                    auto buffer_type = args[8].cast<String>();
+                    BufferType type = (buffer_type == "auto_broadcast") ? kAutoBroadcast : kDefault;
+                    auto data = args[0].cast<Var>();
+                    auto dtype = args[1].cast<DataType>();
+                    auto shape = args[2].cast<Array<PrimExpr>>();
+                    auto strides = args[3].cast<Array<PrimExpr>>();
+                    auto elem_offset = args[4].cast<PrimExpr>();
+                    auto name = args[5].cast<String>();
+                    auto data_alignment = args[6].cast<int>();
+                    auto offset_factor = args[7].cast<int>();
+                    auto axis_separators = args[9].cast<Array<IntImm>>();
+                    auto span = args[10].cast<Span>();
+                    *ret = Buffer(data, dtype, shape, strides, elem_offset, name, data_alignment,
+                                  offset_factor, type, axis_separators, span);
+                  })
+      .def_method("tir.BufferAccessPtr", &Buffer::access_ptr)
+      .def_method("tir.BufferGetFlattenedBuffer", &Buffer::GetFlattenedBuffer)
+      .def_method("tir.BufferOffsetOf", &Buffer::OffsetOf)
+      .def_method("tir.BufferVLoad", &Buffer::vload)
+      .def_method("tir.BufferVStore", &Buffer::vstore)
+      .def_method("tir.BufferStorageScope", &Buffer::scope);
 });
-
-TVM_FFI_REGISTER_GLOBAL("tir.BufferAccessPtr").set_body_method(&Buffer::access_ptr);
-
-TVM_FFI_REGISTER_GLOBAL("tir.BufferGetFlattenedBuffer")
-    .set_body_method(&Buffer::GetFlattenedBuffer);
-
-TVM_FFI_REGISTER_GLOBAL("tir.BufferOffsetOf").set_body_method(&Buffer::OffsetOf);
-
-TVM_FFI_REGISTER_GLOBAL("tir.BufferVLoad").set_body_method(&Buffer::vload);
-
-TVM_FFI_REGISTER_GLOBAL("tir.BufferVStore").set_body_method(&Buffer::vstore);
-
-TVM_FFI_REGISTER_GLOBAL("tir.BufferStorageScope").set_body_method(&Buffer::scope);
 
 }  // namespace tir
 }  // namespace tvm

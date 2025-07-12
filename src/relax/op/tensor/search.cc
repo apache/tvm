@@ -24,6 +24,8 @@
 
 #include "search.h"
 
+#include <tvm/ffi/reflection/reflection.h>
+
 #include <algorithm>
 #include <utility>
 
@@ -46,7 +48,10 @@ Expr bucketize(Expr input_tensor, Expr boundaries, bool out_int32, bool right) {
   return Call(op, {std::move(input_tensor), std::move(boundaries)}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.bucketize").set_body_typed(bucketize);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.bucketize", bucketize);
+});
 
 StructInfo InferStructInfoBucketize(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -89,7 +94,10 @@ Expr where(Expr condition, Expr x1, Expr x2) {
   return Call(op, {std::move(condition), std::move(x1), std::move(x2)}, Attrs(), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.where").set_body_typed(where);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.where", where);
+});
 
 StructInfo InferStructInfoWhere(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
