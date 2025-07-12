@@ -20,9 +20,9 @@
 #include <cuda_fp16.h>
 #include <float.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
-#include <tvm/ffi/reflection/reflection.h>
 
 #include "fp16_group_gemm.cuh"
 #include "fp16_group_gemm_runner_sm100.cuh"
@@ -49,8 +49,7 @@ void tvm_cutlass_group_gemm_sm100(NDArray x, NDArray weight, NDArray indptr, NDA
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-    .def("cutlass.group_gemm", tvm_cutlass_group_gemm_sm100);
+  refl::GlobalDef().def("cutlass.group_gemm", tvm_cutlass_group_gemm_sm100);
 });
 
 }  // namespace runtime

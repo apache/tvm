@@ -16,10 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/runtime/ndarray.h>
-#include <tvm/ffi/function.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/reflection.h>
+#include <tvm/runtime/ndarray.h>
 
 #include <algorithm>
 #include <cassert>
@@ -134,100 +133,103 @@ namespace runtime {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-    .def("tvm.contrib.vllm.reshape_and_cache", [](NDArray key, NDArray value, NDArray key_cache, NDArray value_cache,
-                       NDArray slot_mapping) {
-      int num_tokens = key->shape[0];
-      int num_heads = key->shape[1];
-      int head_size = key->shape[2];
-      int block_size = key_cache->shape[3];
-      int vec_size = key_cache->shape[4];
+      .def("tvm.contrib.vllm.reshape_and_cache",
+           [](NDArray key, NDArray value, NDArray key_cache, NDArray value_cache,
+              NDArray slot_mapping) {
+             int num_tokens = key->shape[0];
+             int num_heads = key->shape[1];
+             int head_size = key->shape[2];
+             int block_size = key_cache->shape[3];
+             int vec_size = key_cache->shape[4];
 
-      int key_stride = key->shape[1] * key->shape[2];
-      int value_stride = value->shape[1] * value->shape[2];
+             int key_stride = key->shape[1] * key->shape[2];
+             int value_stride = value->shape[1] * value->shape[2];
 
-      dim3 grid(num_tokens);
-      dim3 block(std::min(num_heads * head_size, 512));
+             dim3 grid(num_tokens);
+             dim3 block(std::min(num_heads * head_size, 512));
 
-      using scalar_t = uint16_t;
-      vllm::reshape_and_cache_kernel<scalar_t><<<grid, block>>>(
-          static_cast<const scalar_t*>(key->data), static_cast<const scalar_t*>(value->data),
-          static_cast<scalar_t*>(key_cache->data), static_cast<scalar_t*>(value_cache->data),
-          static_cast<const int*>(slot_mapping->data), key_stride, value_stride, num_heads,
-          head_size, block_size, vec_size);
+             using scalar_t = uint16_t;
+             vllm::reshape_and_cache_kernel<scalar_t><<<grid, block>>>(
+                 static_cast<const scalar_t*>(key->data), static_cast<const scalar_t*>(value->data),
+                 static_cast<scalar_t*>(key_cache->data), static_cast<scalar_t*>(value_cache->data),
+                 static_cast<const int*>(slot_mapping->data), key_stride, value_stride, num_heads,
+                 head_size, block_size, vec_size);
 
-      return Array{key_cache, value_cache};
-    })
-    .def("tvm.contrib.vllm.reconstruct_from_cache", [](NDArray key_cache, NDArray value_cache, NDArray slot_mapping) {
-      int num_tokens = slot_mapping->shape[0];
-      int num_heads = value_cache->shape[1];
-      int head_size = value_cache->shape[2];
-      int block_size = value_cache->shape[3];
-      int vec_size = key_cache->shape[4];
+             return Array{key_cache, value_cache};
+           })
+      .def("tvm.contrib.vllm.reconstruct_from_cache",
+           [](NDArray key_cache, NDArray value_cache, NDArray slot_mapping) {
+             int num_tokens = slot_mapping->shape[0];
+             int num_heads = value_cache->shape[1];
+             int head_size = value_cache->shape[2];
+             int block_size = value_cache->shape[3];
+             int vec_size = key_cache->shape[4];
 
-      DLDevice dev = key_cache->device;
-      auto key = NDArray::Empty({num_tokens, num_heads, head_size}, key_cache->dtype, dev);
-      auto value = NDArray::Empty({num_tokens, num_heads, head_size}, key_cache->dtype, dev);
+             DLDevice dev = key_cache->device;
+             auto key = NDArray::Empty({num_tokens, num_heads, head_size}, key_cache->dtype, dev);
+             auto value = NDArray::Empty({num_tokens, num_heads, head_size}, key_cache->dtype, dev);
 
-      int key_stride = key->shape[1] * key->shape[2];
-      int value_stride = value->shape[1] * value->shape[2];
+             int key_stride = key->shape[1] * key->shape[2];
+             int value_stride = value->shape[1] * value->shape[2];
 
-      dim3 grid(num_tokens);
-      dim3 block(std::min(num_heads * head_size, 512));
+             dim3 grid(num_tokens);
+             dim3 block(std::min(num_heads * head_size, 512));
 
-      using scalar_t = uint16_t;
-      vllm::reconstruct_from_cache_kernel<scalar_t>
-          <<<grid, block>>>(static_cast<const scalar_t*>(key_cache->data),
-                            static_cast<const scalar_t*>(value_cache->data),
-                            static_cast<const int*>(slot_mapping->data),
-                            static_cast<scalar_t*>(key->data), static_cast<scalar_t*>(value->data),
-                            key_stride, value_stride, num_heads, head_size, block_size, vec_size);
+             using scalar_t = uint16_t;
+             vllm::reconstruct_from_cache_kernel<scalar_t><<<grid, block>>>(
+                 static_cast<const scalar_t*>(key_cache->data),
+                 static_cast<const scalar_t*>(value_cache->data),
+                 static_cast<const int*>(slot_mapping->data), static_cast<scalar_t*>(key->data),
+                 static_cast<scalar_t*>(value->data), key_stride, value_stride, num_heads,
+                 head_size, block_size, vec_size);
 
-      return Array{key, value};
-    })
-    .def("tvm.contrib.vllm.copy_blocks", [](Array<NDArray> key_value_caches, NDArray block_mapping) {
-      auto num_layers = key_value_caches.size() / 2;
-      auto num_pairs = block_mapping->shape[0] / 2;
+             return Array{key, value};
+           })
+      .def("tvm.contrib.vllm.copy_blocks", [](Array<NDArray> key_value_caches,
+                                              NDArray block_mapping) {
+        auto num_layers = key_value_caches.size() / 2;
+        auto num_pairs = block_mapping->shape[0] / 2;
 
-      if (num_layers == 0) {
-        return;
-      }
+        if (num_layers == 0) {
+          return;
+        }
 
-      std::vector<int64_t> key_cache_ptrs(num_layers);
-      std::vector<int64_t> value_cache_ptrs(num_layers);
-      for (size_t layer_idx = 0; layer_idx < num_layers; ++layer_idx) {
-        key_cache_ptrs[layer_idx] =
-            reinterpret_cast<int64_t>(key_value_caches[2 * layer_idx]->data);
-        value_cache_ptrs[layer_idx] =
-            reinterpret_cast<int64_t>(key_value_caches[2 * layer_idx + 1]->data);
-      }
+        std::vector<int64_t> key_cache_ptrs(num_layers);
+        std::vector<int64_t> value_cache_ptrs(num_layers);
+        for (size_t layer_idx = 0; layer_idx < num_layers; ++layer_idx) {
+          key_cache_ptrs[layer_idx] =
+              reinterpret_cast<int64_t>(key_value_caches[2 * layer_idx]->data);
+          value_cache_ptrs[layer_idx] =
+              reinterpret_cast<int64_t>(key_value_caches[2 * layer_idx + 1]->data);
+        }
 
-      NDArray key_cache = key_value_caches[1];  // [num_blocks, num_heads, head_size, block_size]
-      DLDevice dev = key_cache->device;
+        NDArray key_cache = key_value_caches[1];  // [num_blocks, num_heads, head_size, block_size]
+        DLDevice dev = key_cache->device;
 
-      NDArray key_cache_ptrs_gpu =
-          NDArray::Empty({static_cast<int>(num_layers)}, runtime::DataType::Int(64), dev);
-      NDArray value_cache_ptrs_gpu =
-          NDArray::Empty({static_cast<int>(num_layers)}, runtime::DataType::Int(64), dev);
-      key_cache_ptrs_gpu.CopyFromBytes(key_cache_ptrs.data(),
-                                       sizeof(int64_t) * key_cache_ptrs.size());
-      value_cache_ptrs_gpu.CopyFromBytes(value_cache_ptrs.data(),
-                                         sizeof(int64_t) * value_cache_ptrs.size());
+        NDArray key_cache_ptrs_gpu =
+            NDArray::Empty({static_cast<int>(num_layers)}, runtime::DataType::Int(64), dev);
+        NDArray value_cache_ptrs_gpu =
+            NDArray::Empty({static_cast<int>(num_layers)}, runtime::DataType::Int(64), dev);
+        key_cache_ptrs_gpu.CopyFromBytes(key_cache_ptrs.data(),
+                                         sizeof(int64_t) * key_cache_ptrs.size());
+        value_cache_ptrs_gpu.CopyFromBytes(value_cache_ptrs.data(),
+                                           sizeof(int64_t) * value_cache_ptrs.size());
 
-      NDArray block_mapping_gpu =
-          NDArray::Empty(block_mapping.Shape(), runtime::DataType::Int(64), dev);
-      block_mapping_gpu.CopyFromBytes(block_mapping->data,
-                                      sizeof(int64_t) * block_mapping->shape[0]);
+        NDArray block_mapping_gpu =
+            NDArray::Empty(block_mapping.Shape(), runtime::DataType::Int(64), dev);
+        block_mapping_gpu.CopyFromBytes(block_mapping->data,
+                                        sizeof(int64_t) * block_mapping->shape[0]);
 
-      const int numel_per_block = key_cache->shape[1] * key_cache->shape[2] * key_cache->shape[3];
-      dim3 grid(num_layers, num_pairs);
-      dim3 block(std::min(1024, numel_per_block));
+        const int numel_per_block = key_cache->shape[1] * key_cache->shape[2] * key_cache->shape[3];
+        dim3 grid(num_layers, num_pairs);
+        dim3 block(std::min(1024, numel_per_block));
 
-      using scalar_t = uint16_t;
-      vllm::copy_blocks_kernel<scalar_t>
-          <<<grid, block>>>(static_cast<int64_t*>(key_cache_ptrs_gpu->data),
-                            static_cast<int64_t*>(value_cache_ptrs_gpu->data),
-                            static_cast<int64_t*>(block_mapping_gpu->data), numel_per_block);
-    });
+        using scalar_t = uint16_t;
+        vllm::copy_blocks_kernel<scalar_t>
+            <<<grid, block>>>(static_cast<int64_t*>(key_cache_ptrs_gpu->data),
+                              static_cast<int64_t*>(value_cache_ptrs_gpu->data),
+                              static_cast<int64_t*>(block_mapping_gpu->data), numel_per_block);
+      });
 });
 
 }  // namespace runtime
