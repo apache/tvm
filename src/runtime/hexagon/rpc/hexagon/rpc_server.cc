@@ -23,12 +23,12 @@ extern "C" {
 #include <HAP_farf.h>
 #include <HAP_perf.h>
 #include <qurt_error.h>
-#include <tvm/ffi/reflection/reflection.h>
 }
 
 #include <dlfcn.h>
 #include <stdlib.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/object.h>
 
 #include <algorithm>
