@@ -104,6 +104,10 @@ def resize2d(
         roi = (0.0, 0.0, 0.0, 0.0)  # type: ignore
     elif isinstance(roi, float):
         roi = (roi, roi, roi, roi)  # type: ignore
+    elif isinstance(roi, (tuple, list)):
+        roi = tuple(val if isinstance(val, float) else float(val) for val in roi)
+    else:
+        raise NotImplementedError(f"Unsupported roi type {type(roi)}")
 
     if isinstance(size, (int, PrimExpr)):
         size = (size, size)

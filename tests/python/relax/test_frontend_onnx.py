@@ -2359,8 +2359,11 @@ def test_tile(dynamic):
     verify_tile(x.shape, repeats, z_array.shape)
 
 
-def test_resize():
-    resize_node = helper.make_node("Resize", ["X", "", "scales"], ["Y"], mode="cubic")
+@pytest.mark.parametrize("with_roi", [True, False])
+def test_resize(with_roi):
+    resize_node = helper.make_node(
+        "Resize", ["X", "roi" if with_roi else "", "scales"], ["Y"], mode="cubic"
+    )
 
     graph = helper.make_graph(
         [resize_node],
@@ -2370,6 +2373,11 @@ def test_resize():
         ],
         initializer=[
             helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.0, 2.0]),
+            *(
+                [helper.make_tensor("roi", TensorProto.FLOAT, [4], [0.0, 0.0, 0.0, 0.0])]
+                if with_roi
+                else []
+            ),
         ],
         outputs=[
             helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 3, 64, 64]),
