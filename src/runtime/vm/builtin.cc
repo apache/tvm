@@ -24,6 +24,7 @@
 #include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
@@ -63,7 +64,10 @@ NDArray AllocShapeHeap(void* ctx_ptr, int64_t size) {
   return alloc->Empty({size}, DLDataType{kDLInt, 64, 1}, vm->devices[host_device_index]);
 }
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.alloc_shape_heap").set_body_typed(AllocShapeHeap);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("vm.builtin.alloc_shape_heap", AllocShapeHeap);
+});
 
 /*!
  * \brief Builtin match R.Prim function.
@@ -103,7 +107,10 @@ void MatchPrimValue(int64_t input_value, DLTensor* heap, int code_value, int64_t
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.match_prim_value").set_body_typed(MatchPrimValue);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("vm.builtin.match_prim_value", MatchPrimValue);
+});
 
 /*!
  * \brief Builtin match shape function.
@@ -154,7 +161,10 @@ void MatchShape(ffi::PackedArgs args, ffi::Any* rv) {
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.match_shape").set_body_packed(MatchShape);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("vm.builtin.match_shape", MatchShape);
+});
 
 /*!
  * \brief Builtin make prim value function.
@@ -178,7 +188,10 @@ int64_t MakePrimValue(DLTensor* heap, int shape_code, int64_t reg) {
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.make_prim_value").set_body_typed(MakePrimValue);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("vm.builtin.make_prim_value", MakePrimValue);
+});
 
 /*!
  * \brief Builtin make shape function.
@@ -209,7 +222,10 @@ void MakeShape(ffi::PackedArgs args, ffi::Any* rv) {
   *rv = ffi::Shape(std::move(shape));
 }
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.make_shape").set_body_packed(MakeShape);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("vm.builtin.make_shape", MakeShape);
+});
 
 /*!
  * \brief Builtin function to check if arg is Tensor(dtype, ndim)
@@ -249,7 +265,10 @@ void CheckTensorInfo(ffi::PackedArgs args, ffi::Any* rv) {
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.check_tensor_info").set_body_packed(CheckTensorInfo);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("vm.builtin.check_tensor_info", CheckTensorInfo);
+});
 
 /*!
  * \brief Builtin function to check if arg is Shape(ndim)
@@ -269,7 +288,10 @@ void CheckShapeInfo(ObjectRef arg, int ndim, Optional<String> err_ctx) {
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.check_shape_info").set_body_typed(CheckShapeInfo);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("vm.builtin.check_shape_info", CheckShapeInfo);
+});
 
 /*!
  * \brief Builtin function to check if arg is PrimValue(dtype)
@@ -296,7 +318,10 @@ void CheckPrimValueInfo(ffi::AnyView arg, DataType dtype, Optional<String> err_c
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.check_prim_value_info").set_body_typed(CheckPrimValueInfo);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("vm.builtin.check_prim_value_info", CheckPrimValueInfo);
+});
 
 /*!
  * \brief Builtin function to check if arg is Tuple with size elements.
@@ -314,7 +339,10 @@ void CheckTupleInfo(ObjectRef arg, int64_t size, Optional<String> err_ctx) {
       << " but get a Tuple with " << ptr->size() << " elements.";
 }
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.check_tuple_info").set_body_typed(CheckTupleInfo);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("vm.builtin.check_tuple_info", CheckTupleInfo);
+});
 
 /*!
  * \brief Builtin function to check if arg is a callable function.
@@ -328,7 +356,10 @@ void CheckFuncInfo(ObjectRef arg, Optional<String> err_ctx) {
                  << arg->GetTypeKey();
 }
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.check_func_info").set_body_typed(CheckFuncInfo);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("vm.builtin.check_func_info", CheckFuncInfo);
+});
 
 //-------------------------------------------------
 //  Storage management.
@@ -353,69 +384,70 @@ Storage VMAllocStorage(void* ctx_ptr, ffi::Shape buffer_shape, Index device_inde
   return Storage(buffer, alloc);
 }
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.alloc_storage").set_body_typed(VMAllocStorage);
-
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.alloc_tensor").set_body_method(&StorageObj::AllocNDArray);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("vm.builtin.alloc_storage", VMAllocStorage)
+      .def_method("vm.builtin.alloc_tensor", &StorageObj::AllocNDArray);
+});
 
 //-------------------------------------------------
 //  Closure function handling, calling convention
 //-------------------------------------------------
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.make_closure")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      VMClosure clo = args[0].cast<VMClosure>();
-      std::vector<ffi::Any> saved_args;
-      saved_args.resize(args.size() - 1);
-      for (size_t i = 0; i < saved_args.size(); ++i) {
-        saved_args[i] = args[i + 1];
-      }
-      auto impl = VMClosure::BindLastArgs(clo->impl, saved_args);
-      *rv = VMClosure(clo->func_name, impl);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("vm.builtin.make_closure",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    VMClosure clo = args[0].cast<VMClosure>();
+                    std::vector<ffi::Any> saved_args;
+                    saved_args.resize(args.size() - 1);
+                    for (size_t i = 0; i < saved_args.size(); ++i) {
+                      saved_args[i] = args[i + 1];
+                    }
+                    auto impl = VMClosure::BindLastArgs(clo->impl, saved_args);
+                    *rv = VMClosure(clo->func_name, impl);
+                  })
+      .def_packed("vm.builtin.invoke_closure",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    // args[0]: vm; args[1]: closure; args[2, 3, ...]: function arguments
+                    VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
+                    ObjectRef vm_closure = args[1].cast<ObjectRef>();
+                    vm->InvokeClosurePacked(vm_closure, args.Slice(2), rv);
+                  })
+      .def_packed("vm.builtin.call_tir_dyn", [](ffi::PackedArgs args, ffi::Any* rv) {
+        ffi::Function func = args[0].cast<ffi::Function>();
+        ffi::Shape to_unpack = args[args.size() - 1].cast<ffi::Shape>();
+        size_t num_tensor_args = args.size() - 2;
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.invoke_closure")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      // args[0]: vm; args[1]: closure; args[2, 3, ...]: function arguments
-      VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
-      ObjectRef vm_closure = args[1].cast<ObjectRef>();
-      vm->InvokeClosurePacked(vm_closure, args.Slice(2), rv);
-    });
+        std::vector<ffi::AnyView> packed_args(num_tensor_args + to_unpack.size());
+        std::copy(args.data() + 1, args.data() + args.size() - 1, packed_args.data());
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.call_tir_dyn")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      ffi::Function func = args[0].cast<ffi::Function>();
-      ffi::Shape to_unpack = args[args.size() - 1].cast<ffi::Shape>();
-      size_t num_tensor_args = args.size() - 2;
-
-      std::vector<ffi::AnyView> packed_args(num_tensor_args + to_unpack.size());
-      std::copy(args.data() + 1, args.data() + args.size() - 1, packed_args.data());
-
-      for (size_t i = 0; i < to_unpack.size(); ++i) {
-        packed_args[i + num_tensor_args] = to_unpack[i];
-      }
-      func.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), rv);
-    });
+        for (size_t i = 0; i < to_unpack.size(); ++i) {
+          packed_args[i + num_tensor_args] = to_unpack[i];
+        }
+        func.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), rv);
+      });
+});
 
 //-------------------------------------
 //  Builtin runtime operators.
 //-------------------------------------
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.shape_of").set_body_method(&NDArray::Shape);
-
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.copy").set_body_typed([](ffi::Any a) -> ffi::Any { return a; });
-
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.reshape")
-    .set_body_typed([](NDArray data, ffi::Shape new_shape) {
-      return data.CreateView(new_shape, data->dtype);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.null_value").set_body_typed([]() -> std::nullptr_t {
-  return nullptr;
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_method("vm.builtin.shape_of", &NDArray::Shape)
+      .def("vm.builtin.copy", [](ffi::Any a) -> ffi::Any { return a; })
+      .def("vm.builtin.reshape",
+           [](NDArray data, ffi::Shape new_shape) {
+             return data.CreateView(new_shape, data->dtype);
+           })
+      .def("vm.builtin.null_value", []() -> std::nullptr_t { return nullptr; })
+      .def("vm.builtin.to_device", [](NDArray data, int dev_type, int dev_id) {
+        Device dst_device = {(DLDeviceType)dev_type, dev_id};
+        return data.CopyTo(dst_device);
+      });
 });
-
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.to_device")
-    .set_body_typed([](NDArray data, int dev_type, int dev_id) {
-      Device dst_device = {(DLDeviceType)dev_type, dev_id};
-      return data.CopyTo(dst_device);
-    });
 
 /*!
  * \brief Load the scalar value in cond and return the result value.
@@ -460,106 +492,113 @@ bool ReadIfCond(ffi::AnyView cond) {
   return result != 0;
 }
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.read_if_cond").set_body_typed(ReadIfCond);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("vm.builtin.read_if_cond", ReadIfCond);
+});
 
 //-------------------------------------
 //  Debugging API
 //-------------------------------------
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.invoke_debug_func")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) -> void {
-      ICHECK_GE(args.size(), 3);
-      int num_args = args.size() - 3;
-      ObjectRef io_effect = args[0].cast<ObjectRef>();
-      ICHECK(!io_effect.defined()) << "ValueError: IOEffect is expected to be lowered to None.";
-      String debug_func_name = args[1].cast<String>();
-      const auto debug_func = tvm::ffi::Function::GetGlobal(debug_func_name);
-      CHECK(debug_func.has_value()) << "ValueError: " << debug_func_name << " is not found. "
-                                    << "Use the decorator `@tvm.register_func(\"" << debug_func_name
-                                    << "\")` to register it.";
-      String line_info = args[2].cast<String>();
-      std::vector<ffi::AnyView> call_args(num_args + 1);
-      {
-        call_args[0] = line_info;
-        for (int i = 0; i < num_args; ++i) {
-          call_args[i + 1] = args[i + 3];
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed(
+      "vm.builtin.invoke_debug_func", [](ffi::PackedArgs args, ffi::Any* rv) -> void {
+        ICHECK_GE(args.size(), 3);
+        int num_args = args.size() - 3;
+        ObjectRef io_effect = args[0].cast<ObjectRef>();
+        ICHECK(!io_effect.defined()) << "ValueError: IOEffect is expected to be lowered to None.";
+        String debug_func_name = args[1].cast<String>();
+        const auto debug_func = tvm::ffi::Function::GetGlobal(debug_func_name);
+        CHECK(debug_func.has_value()) << "ValueError: " << debug_func_name << " is not found. "
+                                      << "Use the decorator `@tvm.register_func(\""
+                                      << debug_func_name << "\")` to register it.";
+        String line_info = args[2].cast<String>();
+        std::vector<ffi::AnyView> call_args(num_args + 1);
+        {
+          call_args[0] = line_info;
+          for (int i = 0; i < num_args; ++i) {
+            call_args[i + 1] = args[i + 3];
+          }
         }
-      }
-      debug_func->CallPacked(ffi::PackedArgs(call_args.data(), call_args.size()), rv);
-      *rv = io_effect;
-    });
+        debug_func->CallPacked(ffi::PackedArgs(call_args.data(), call_args.size()), rv);
+        *rv = io_effect;
+      });
+});
 
 //-------------------------------------
 //  Data structure API
 //-------------------------------------
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.tuple_getitem")
-    .set_body_typed([](Array<ffi::Any> arr, int64_t index) { return arr[index]; });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("vm.builtin.tuple_getitem",
+           [](Array<ffi::Any> arr, int64_t index) { return arr[index]; })
+      .def("vm.builtin.tuple_reset_item",
+           [](const ffi::ArrayObj* arr, int64_t index) {
+             const_cast<ffi::ArrayObj*>(arr)->SetItem(index, nullptr);
+           })
+      .def_packed("vm.builtin.make_tuple",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    Array<ffi::Any> arr;
+                    for (int i = 0; i < args.size(); ++i) {
+                      arr.push_back(args[i]);
+                    }
+                    *rv = arr;
+                  })
+      .def("vm.builtin.tensor_to_shape",
+           [](NDArray data) {
+             NDArray arr = data;
+             if (data->device.device_type != kDLCPU) {
+               arr = data.CopyTo(DLDevice{kDLCPU, 0});
+             }
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.tuple_reset_item")
-    .set_body_typed([](const ffi::ArrayObj* arr, int64_t index) {
-      const_cast<ffi::ArrayObj*>(arr)->SetItem(index, nullptr);
-    });
+             ICHECK_EQ(arr->ndim, 1);
+             ICHECK_EQ(arr->dtype.code, kDLInt);
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.make_tuple")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      Array<ffi::Any> arr;
-      for (int i = 0; i < args.size(); ++i) {
-        arr.push_back(args[i]);
-      }
-      *rv = arr;
-    });
-
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.tensor_to_shape").set_body_typed([](NDArray data) {
-  NDArray arr = data;
-  if (data->device.device_type != kDLCPU) {
-    arr = data.CopyTo(DLDevice{kDLCPU, 0});
-  }
-
-  ICHECK_EQ(arr->ndim, 1);
-  ICHECK_EQ(arr->dtype.code, kDLInt);
-
-  std::vector<int64_t> out_shape;
-  for (int i = 0; i < arr.Shape()[0]; ++i) {
-    int64_t result;
-    switch (arr->dtype.bits) {
-      case 16: {
-        result = reinterpret_cast<int16_t*>(arr->data)[i];
-        break;
-      }
-      case 32: {
-        result = reinterpret_cast<int32_t*>(arr->data)[i];
-        break;
-      }
-      case 64: {
-        result = reinterpret_cast<int64_t*>(arr->data)[i];
-        break;
-      }
-      default:
-        LOG(FATAL) << "Unknown scalar int type: " << DLDataTypeToString(arr->dtype);
-        throw;
-    }
-    out_shape.push_back(result);
-  }
-  return ffi::Shape(out_shape);
-});
-
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.ensure_zero_offset").set_body_typed([](NDArray data) {
-  if (data->byte_offset == 0) {
-    return data;
-  }
-  auto* device_api = DeviceAPI::Get(data->device);
-  if (device_api->SupportsDevicePointerArithmeticsOnHost() &&
-      data->byte_offset % tvm::runtime::kAllocAlignment == 0) {
-    DLManagedTensor* dl_tensor = data.ToDLPack();
-    dl_tensor->dl_tensor.data =
-        reinterpret_cast<char*>(dl_tensor->dl_tensor.data) + dl_tensor->dl_tensor.byte_offset;
-    dl_tensor->dl_tensor.byte_offset = 0;
-    return NDArray::FromDLPack(dl_tensor);
-  } else {
-    auto new_array = NDArray::Empty(data.Shape(), data->dtype, data->device);
-    new_array.CopyFrom(data);
-    return new_array;
-  }
+             std::vector<int64_t> out_shape;
+             for (int i = 0; i < arr.Shape()[0]; ++i) {
+               int64_t result;
+               switch (arr->dtype.bits) {
+                 case 16: {
+                   result = reinterpret_cast<int16_t*>(arr->data)[i];
+                   break;
+                 }
+                 case 32: {
+                   result = reinterpret_cast<int32_t*>(arr->data)[i];
+                   break;
+                 }
+                 case 64: {
+                   result = reinterpret_cast<int64_t*>(arr->data)[i];
+                   break;
+                 }
+                 default:
+                   LOG(FATAL) << "Unknown scalar int type: " << DLDataTypeToString(arr->dtype);
+                   throw;
+               }
+               out_shape.push_back(result);
+             }
+             return ffi::Shape(out_shape);
+           })
+      .def("vm.builtin.ensure_zero_offset", [](NDArray data) {
+        if (data->byte_offset == 0) {
+          return data;
+        }
+        auto* device_api = DeviceAPI::Get(data->device);
+        if (device_api->SupportsDevicePointerArithmeticsOnHost() &&
+            data->byte_offset % tvm::runtime::kAllocAlignment == 0) {
+          DLManagedTensor* dl_tensor = data.ToDLPack();
+          dl_tensor->dl_tensor.data =
+              reinterpret_cast<char*>(dl_tensor->dl_tensor.data) + dl_tensor->dl_tensor.byte_offset;
+          dl_tensor->dl_tensor.byte_offset = 0;
+          return NDArray::FromDLPack(dl_tensor);
+        } else {
+          auto new_array = NDArray::Empty(data.Shape(), data->dtype, data->device);
+          new_array.CopyFrom(data);
+          return new_array;
+        }
+      });
 });
 
 }  // namespace vm

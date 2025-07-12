@@ -22,6 +22,7 @@
  * \brief Split device function from host.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/builtin.h>
@@ -369,8 +370,10 @@ Pass LowerDeviceKernelLaunch() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.LowerDeviceKernelLaunch", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerDeviceKernelLaunch")
-    .set_body_typed(LowerDeviceKernelLaunch);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerDeviceKernelLaunch", LowerDeviceKernelLaunch);
+});
 
 }  // namespace transform
 }  // namespace tir

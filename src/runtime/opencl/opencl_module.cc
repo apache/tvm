@@ -24,6 +24,7 @@
 
 #include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 #include <string>
 #include <unordered_map>
@@ -389,10 +390,12 @@ Module OpenCLModuleLoadBinary(void* strm) {
   return OpenCLModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_cl").set_body_typed(OpenCLModuleLoadFile);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_clbin").set_body_typed(OpenCLModuleLoadFile);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_opencl").set_body_typed(OpenCLModuleLoadBinary);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.module.loadfile_cl", OpenCLModuleLoadFile)
+      .def("runtime.module.loadfile_clbin", OpenCLModuleLoadFile)
+      .def("runtime.module.loadbinary_opencl", OpenCLModuleLoadBinary);
+});
 }  // namespace runtime
 }  // namespace tvm

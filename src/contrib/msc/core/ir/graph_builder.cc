@@ -23,6 +23,8 @@
 
 #include "graph_builder.h"
 
+#include <tvm/ffi/reflection/reflection.h>
+
 #include <algorithm>
 #include <set>
 
@@ -834,22 +836,24 @@ void WeightsExtractor::VisitExpr_(const CallNode* op) {
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("msc.core.BuildFromRelax")
-    .set_body_typed([](const IRModule& module, const String& entry_name,
-                       const String& options) -> MSCGraph {
-      auto builder = GraphBuilder(module, entry_name, options);
-      const auto& func_name =
-          builder.config().byoc_entry.size() > 0 ? String(builder.config().byoc_entry) : entry_name;
-      const auto& func = Downcast<Function>(module->Lookup(func_name));
-      return builder.Build(func);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("msc.core.GetRelaxWeights")
-    .set_body_typed([](const IRModule& module,
-                       const String& entry_name) -> Map<MSCTensor, NDArray> {
-      const auto& func = Downcast<Function>(module->Lookup(entry_name));
-      return WeightsExtractor(module).GetWeights(func);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("msc.core.BuildFromRelax",
+           [](const IRModule& module, const String& entry_name, const String& options) -> MSCGraph {
+             auto builder = GraphBuilder(module, entry_name, options);
+             const auto& func_name = builder.config().byoc_entry.size() > 0
+                                         ? String(builder.config().byoc_entry)
+                                         : entry_name;
+             const auto& func = Downcast<Function>(module->Lookup(func_name));
+             return builder.Build(func);
+           })
+      .def("msc.core.GetRelaxWeights",
+           [](const IRModule& module, const String& entry_name) -> Map<MSCTensor, NDArray> {
+             const auto& func = Downcast<Function>(module->Lookup(entry_name));
+             return WeightsExtractor(module).GetWeights(func);
+           });
+});
 
 }  // namespace msc
 }  // namespace contrib

@@ -101,8 +101,10 @@ Database Database::MemoryDatabase(String mod_eq_name) {
 }
 
 TVM_REGISTER_NODE_TYPE(MemoryDatabaseNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseMemoryDatabase")
-    .set_body_typed(Database::MemoryDatabase);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.DatabaseMemoryDatabase", Database::MemoryDatabase);
+});
 
 TVM_FFI_STATIC_INIT_BLOCK({ MemoryDatabaseNode::RegisterReflection(); });
 

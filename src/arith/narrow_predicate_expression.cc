@@ -23,6 +23,7 @@
  */
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -213,8 +214,10 @@ PrimExpr NarrowPredicateExpression(PrimExpr expr, Map<Var, Range> free_parameter
   return ExpressionNarrower::Apply(std::move(expr), std::move(free_parameters));
 }
 
-TVM_FFI_REGISTER_GLOBAL("arith.NarrowPredicateExpression")
-    .set_body_typed(NarrowPredicateExpression);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("arith.NarrowPredicateExpression", NarrowPredicateExpression);
+});
 
 }  // namespace arith
 }  // namespace tvm

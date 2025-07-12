@@ -22,6 +22,7 @@
  * \file node/repr_printer.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/device_api.h>
 
@@ -101,9 +102,12 @@ void Dump(const runtime::ObjectRef& n) { std::cerr << n << "\n"; }
 
 void Dump(const runtime::Object* n) { Dump(runtime::GetRef<runtime::ObjectRef>(n)); }
 
-TVM_FFI_REGISTER_GLOBAL("node.AsRepr").set_body_typed([](ffi::Any obj) {
-  std::ostringstream os;
-  os << obj;
-  return os.str();
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("node.AsRepr", [](ffi::Any obj) {
+    std::ostringstream os;
+    os << obj;
+    return os.str();
+  });
 });
 }  // namespace tvm

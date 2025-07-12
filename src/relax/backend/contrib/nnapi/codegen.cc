@@ -18,6 +18,7 @@
  */
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/type.h>
@@ -264,7 +265,10 @@ Array<runtime::Module> NNAPICompiler(Array<Function> functions, Map<String, ffi:
   return compiled_functions;
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.ext.nnapi").set_body_typed(NNAPICompiler);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.ext.nnapi", NNAPICompiler);
+});
 
 }  // namespace contrib
 }  // namespace relax

@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../../meta_schedule/utils.h"
 
 namespace tvm {
@@ -162,7 +164,10 @@ Pass DefaultGPUSchedule() {
                           /*required=*/{});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.DefaultGPUSchedule").set_body_typed(DefaultGPUSchedule);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.DefaultGPUSchedule", DefaultGPUSchedule);
+});
 
 }  // namespace transform
 

@@ -19,9 +19,10 @@
 #include <cuda_fp16.h>
 #include <dlpack/dlpack.h>
 #include <nvshmem.h>
+#include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/ffi/function.h>
 
 template <int dim>
 __device__ int64_t calc_flattened_index(int shape[dim], int index[dim]) {
@@ -329,5 +330,9 @@ int _KVTransferPageToPage(DLTensor* remote_pages, DLTensor* local_pages,
   return 0;
 }
 
-TVM_FFI_REGISTER_GLOBAL("nvshmem.KVTransfer").set_body_typed(_KVTransfer);
-TVM_FFI_REGISTER_GLOBAL("nvshmem.KVTransferPageToPage").set_body_typed(_KVTransferPageToPage);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("nvshmem.KVTransfer", _KVTransfer)
+      .def("nvshmem.KVTransferPageToPage", _KVTransferPageToPage);
+});

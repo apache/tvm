@@ -21,6 +21,7 @@
  * \brief Automatic layout conversion pass, especially for axis swapping.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/node/serialization.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
@@ -350,7 +351,10 @@ Pass ConvertLayout(Map<String, Array<String>> desired_layouts) {
   return CreateDataflowBlockPass(pass_func, 0, "ConvertLayout", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.ConvertLayout").set_body_typed(ConvertLayout);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.ConvertLayout", ConvertLayout);
+});
 
 }  // namespace transform
 }  // namespace relax

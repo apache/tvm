@@ -24,6 +24,7 @@
 
 #include "sampling.h"
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 
 #include <utility>
@@ -45,8 +46,10 @@ Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indice
               Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.multinomial_from_uniform")
-    .set_body_typed(multinomial_from_uniform);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.multinomial_from_uniform", multinomial_from_uniform);
+});
 
 StructInfo InferStructInfoMultinomialFromUniform(const Call& call, const BlockBuilder& ctx) {
   CheckNumArguments(call, ctx);

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/transform.h>
 
 #include "../utils.h"
@@ -215,8 +216,10 @@ Postproc Postproc::VerifyGPUCode() {
 }
 
 TVM_REGISTER_NODE_TYPE(VerifyGPUCodeNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocVerifyGPUCode")
-    .set_body_typed(Postproc::VerifyGPUCode);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.PostprocVerifyGPUCode", Postproc::VerifyGPUCode);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

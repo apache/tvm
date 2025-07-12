@@ -22,6 +22,7 @@
  * \file broadcast.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/topi/broadcast.h>
 #include <tvm/topi/utils.h>
 
@@ -72,10 +73,12 @@ TOPI_REGISTER_BCAST_OP("topi.not_equal", topi::not_equal);
 TOPI_REGISTER_BCAST_OP("topi.greater_equal", topi::greater_equal);
 TOPI_REGISTER_BCAST_OP("topi.less_equal", topi::less_equal);
 
-TVM_FFI_REGISTER_GLOBAL("topi.broadcast_to")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      *rv = broadcast_to(args[0].cast<te::Tensor>(), args[1].cast<Array<PrimExpr>>());
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("topi.broadcast_to", [](ffi::PackedArgs args, ffi::Any* rv) {
+    *rv = broadcast_to(args[0].cast<te::Tensor>(), args[1].cast<Array<PrimExpr>>());
+  });
+});
 
 }  // namespace topi
 }  // namespace tvm

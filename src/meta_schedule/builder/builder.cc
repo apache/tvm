@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -58,21 +60,19 @@ TVM_REGISTER_NODE_TYPE(BuilderResultNode);
 TVM_REGISTER_OBJECT_TYPE(BuilderNode);
 TVM_REGISTER_NODE_TYPE(PyBuilderNode);
 
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.BuilderInput")
-    .set_body_typed([](IRModule mod, Target target,
-                       Optional<Map<String, runtime::NDArray>> params) -> BuilderInput {
-      return BuilderInput(mod, target, params);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.BuilderResult")
-    .set_body_typed([](Optional<String> artifact_path,
-                       Optional<String> error_msg) -> BuilderResult {
-      return BuilderResult(artifact_path, error_msg);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.BuilderBuild").set_body_method(&BuilderNode::Build);
-
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.BuilderPyBuilder").set_body_typed(Builder::PyBuilder);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("meta_schedule.BuilderInput",
+           [](IRModule mod, Target target, Optional<Map<String, runtime::NDArray>> params)
+               -> BuilderInput { return BuilderInput(mod, target, params); })
+      .def("meta_schedule.BuilderResult",
+           [](Optional<String> artifact_path, Optional<String> error_msg) -> BuilderResult {
+             return BuilderResult(artifact_path, error_msg);
+           })
+      .def_method("meta_schedule.BuilderBuild", &BuilderNode::Build)
+      .def("meta_schedule.BuilderPyBuilder", Builder::PyBuilder);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

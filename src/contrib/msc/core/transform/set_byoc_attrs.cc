@@ -22,6 +22,7 @@
  * \brief Pass for fuse ShapeExpr.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -101,7 +102,10 @@ Pass SetBYOCAttrs(const String& target, const String& entry_name) {
   return CreateModulePass(pass_func, 0, "SetBYOCAttrs", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.SetBYOCAttrs").set_body_typed(SetBYOCAttrs);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.SetBYOCAttrs", SetBYOCAttrs);
+});
 
 }  // namespace transform
 }  // namespace relax

@@ -19,6 +19,8 @@
 
 #include "attention.h"
 
+#include <tvm/ffi/reflection/reflection.h>
+
 #include <utility>
 
 namespace tvm {
@@ -56,8 +58,12 @@ Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr s
               {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.nn.attention").set_body_typed(attention);
-TVM_FFI_REGISTER_GLOBAL("relax.op.nn.attention_var_len").set_body_typed(attention_var_len);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("relax.op.nn.attention", attention)
+      .def("relax.op.nn.attention_var_len", attention_var_len);
+});
 
 StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);

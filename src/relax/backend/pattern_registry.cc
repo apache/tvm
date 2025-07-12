@@ -19,6 +19,8 @@
 
 #include "./pattern_registry.h"
 
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../../support/utils.h"
 
 namespace tvm {
@@ -67,11 +69,14 @@ Optional<FusionPattern> GetPattern(const String& pattern_name) {
   return std::nullopt;
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.backend.RegisterPatterns").set_body_typed(RegisterPatterns);
-TVM_FFI_REGISTER_GLOBAL("relax.backend.RemovePatterns").set_body_typed(RemovePatterns);
-TVM_FFI_REGISTER_GLOBAL("relax.backend.GetPatternsWithPrefix")
-    .set_body_typed(GetPatternsWithPrefix);
-TVM_FFI_REGISTER_GLOBAL("relax.backend.GetPattern").set_body_typed(GetPattern);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("relax.backend.RegisterPatterns", RegisterPatterns)
+      .def("relax.backend.RemovePatterns", RemovePatterns)
+      .def("relax.backend.GetPatternsWithPrefix", GetPatternsWithPrefix)
+      .def("relax.backend.GetPattern", GetPattern);
+});
 
 }  // namespace backend
 }  // namespace relax

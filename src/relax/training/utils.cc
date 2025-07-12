@@ -24,6 +24,7 @@
 
 #include "utils.h"
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -215,7 +216,10 @@ Pass AppendLoss(String func_name, Function loss_function, int num_backbone_outpu
                           /*required=*/{});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.training.AppendLoss").set_body_typed(AppendLoss);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.training.AppendLoss", AppendLoss);
+});
 
 }  // namespace transform
 

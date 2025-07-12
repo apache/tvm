@@ -20,6 +20,7 @@
 #include <nvshmemx.h>
 #include <picojson.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/disco/disco_worker.h>
 
 #include "../../cuda/cuda_common.h"
@@ -118,14 +119,14 @@ void NVSHMEMXCumoduleInit(void* cuModule) {
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_uid").set_body_typed(InitNVSHMEMUID);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem").set_body_typed(InitNVSHMEM);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_wrapper")
-    .set_body_typed(InitNVSHMEMWrapper);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.nvshmem.cumodule_init").set_body_typed(NVSHMEMXCumoduleInit);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.disco.nvshmem.init_nvshmem_uid", InitNVSHMEMUID)
+      .def("runtime.disco.nvshmem.init_nvshmem", InitNVSHMEM)
+      .def("runtime.disco.nvshmem.init_nvshmem_wrapper", InitNVSHMEMWrapper)
+      .def("runtime.nvshmem.cumodule_init", NVSHMEMXCumoduleInit);
+});
 
 }  // namespace runtime
 }  // namespace tvm

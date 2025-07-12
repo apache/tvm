@@ -24,6 +24,7 @@
  * allocation.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -695,8 +696,10 @@ Pass MergeSharedMemoryAllocations() {
   return CreatePrimFuncPass(pass_func, 0, "tir.MergeSharedMemoryAllocations", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.MergeSharedMemoryAllocations")
-    .set_body_typed(MergeSharedMemoryAllocations);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.MergeSharedMemoryAllocations", MergeSharedMemoryAllocations);
+});
 
 }  // namespace transform
 }  // namespace tir

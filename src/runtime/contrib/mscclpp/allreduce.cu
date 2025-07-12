@@ -17,9 +17,8 @@
  * under the License.
  */
 
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
-#include <tvm/ffi/function.h>
-#include <tvm/ffi/function.h>
 
 #include "msccl.cuh"
 

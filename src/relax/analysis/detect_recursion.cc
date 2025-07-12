@@ -24,6 +24,7 @@
  * \brief Analysis to detect global recursive or mutually recursive functions.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/tir/expr_functor.h>
@@ -392,7 +393,10 @@ tvm::Array<tvm::Array<GlobalVar>> DetectRecursion(const IRModule& m) {
   return ret;
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.analysis.detect_recursion").set_body_typed(DetectRecursion);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.analysis.detect_recursion", DetectRecursion);
+});
 
 }  // namespace relax
 }  // namespace tvm

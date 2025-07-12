@@ -22,6 +22,7 @@
  * \brief Convert all for loops to serial for lesser memory consumption
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
@@ -66,8 +67,10 @@ Pass ConvertForLoopsToSerial() {
   return CreatePrimFuncPass(pass_func, 0, "tir.ConvertForLoopsToSerial", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.ConvertForLoopsToSerial")
-    .set_body_typed(ConvertForLoopsToSerial);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.ConvertForLoopsToSerial", ConvertForLoopsToSerial);
+});
 
 }  // namespace transform
 

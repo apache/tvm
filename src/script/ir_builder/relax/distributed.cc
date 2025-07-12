@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/distributed/struct_info.h>
@@ -54,8 +55,10 @@ Expr MakeCallTIRDist(Expr func, Tuple args, Array<distributed::DTensorStructInfo
   return call;
 }
 
-TVM_FFI_REGISTER_GLOBAL("script.ir_builder.relax.distributed.call_tir_dist")
-    .set_body_typed(MakeCallTIRDist);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.ir_builder.relax.distributed.call_tir_dist", MakeCallTIRDist);
+});
 
 }  // namespace relax
 }  // namespace tvm

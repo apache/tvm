@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -464,8 +466,11 @@ Postproc Postproc::RewriteParallelVectorizeUnroll() {
 }
 
 TVM_REGISTER_NODE_TYPE(RewriteParallelVectorizeUnrollNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteParallelVectorizeUnroll")
-    .set_body_typed(Postproc::RewriteParallelVectorizeUnroll);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.PostprocRewriteParallelVectorizeUnroll",
+                        Postproc::RewriteParallelVectorizeUnroll);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

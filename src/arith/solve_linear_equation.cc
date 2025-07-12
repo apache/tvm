@@ -25,6 +25,7 @@
 #include <tvm/arith/int_solver.h>
 #include <tvm/arith/pattern.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -454,21 +455,24 @@ IntConstraintsTransform SolveLinearEquations(const IntConstraints& system_to_sol
   return transform;
 }
 
-TVM_FFI_REGISTER_GLOBAL("arith.SolveLinearEquations")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      if (args.size() == 1) {
-        *ret = SolveLinearEquations(args[0].cast<IntConstraints>());
-      } else if (args.size() == 3) {
-        auto opt_vars = args[0].cast<Optional<Array<Var>>>();
-        auto opt_map = args[1].cast<Optional<Map<Var, Range>>>();
-        auto opt_relations = args[2].cast<Optional<Array<PrimExpr>>>();
-        IntConstraints problem(opt_vars.value_or({}), opt_map.value_or({}),
-                               opt_relations.value_or({}));
-        *ret = SolveLinearEquations(problem);
-      } else {
-        LOG(FATAL) << "arith.SolveLinearEquations expects 1 or 3 arguments, gets " << args.size();
-      }
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed(
+      "arith.SolveLinearEquations", [](ffi::PackedArgs args, ffi::Any* ret) {
+        if (args.size() == 1) {
+          *ret = SolveLinearEquations(args[0].cast<IntConstraints>());
+        } else if (args.size() == 3) {
+          auto opt_vars = args[0].cast<Optional<Array<Var>>>();
+          auto opt_map = args[1].cast<Optional<Map<Var, Range>>>();
+          auto opt_relations = args[2].cast<Optional<Array<PrimExpr>>>();
+          IntConstraints problem(opt_vars.value_or({}), opt_map.value_or({}),
+                                 opt_relations.value_or({}));
+          *ret = SolveLinearEquations(problem);
+        } else {
+          LOG(FATAL) << "arith.SolveLinearEquations expects 1 or 3 arguments, gets " << args.size();
+        }
+      });
+});
 
 }  // namespace arith
 }  // namespace tvm

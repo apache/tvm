@@ -23,6 +23,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -809,7 +810,10 @@ Pass LowerThreadAllreduce() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerThreadAllreduce", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerThreadAllreduce").set_body_typed(LowerThreadAllreduce);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerThreadAllreduce", LowerThreadAllreduce);
+});
 
 }  // namespace transform
 }  // namespace tir

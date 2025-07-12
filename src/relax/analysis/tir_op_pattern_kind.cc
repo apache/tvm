@@ -18,6 +18,7 @@
  */
 
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/tir/analysis.h>
@@ -537,7 +538,10 @@ bool HasReshapePattern(const PrimFunc& func) {
   return ReshapeDetector::Detect(src_buffer, dst_buffer, func->body);
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.analysis.has_reshape_pattern").set_body_typed(HasReshapePattern);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.analysis.has_reshape_pattern", HasReshapePattern);
+});
 
 }  // namespace relax
 }  // namespace tvm

@@ -24,6 +24,7 @@
  */
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -245,7 +246,10 @@ PrimExpr ret(PrimExpr value, Span span) {
   return tir::Call(value.dtype(), tir::builtin::ret(), {value}, span);
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.ret").set_body_typed(ret);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.ret", ret);
+});
 
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype, Span span) {
@@ -802,8 +806,10 @@ PrimExpr bitwise_neg(PrimExpr a, Span span) {
   return tir::Call(a.dtype(), tir::builtin::bitwise_not(), {a}, span);
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.bitwise_not").set_body_typed([](PrimExpr a, Span span) {
-  return bitwise_neg(a, span);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.bitwise_not",
+                        [](PrimExpr a, Span span) { return bitwise_neg(a, span); });
 });
 
 // pow
@@ -1112,48 +1118,38 @@ TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 // expose basic functions to node namespace
-TVM_FFI_REGISTER_GLOBAL("node._const").set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-  if (auto opt = args[0].try_cast<int64_t>()) {
-    *ret = tir::make_const(args[1].cast<DataType>(), *opt, args[2].cast<Span>());
-  } else if (auto opt = args[0].try_cast<double>()) {
-    *ret = tir::make_const(args[1].cast<DataType>(), *opt, args[2].cast<Span>());
-  } else {
-    LOG(FATAL) << "First argument to tvm.tir.const must be int, float, or bool, "
-               << "but instead received argument with type code " << args[0].GetTypeKey();
-  }
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("node._const",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    if (auto opt = args[0].try_cast<int64_t>()) {
+                      *ret = tir::make_const(args[1].cast<DataType>(), *opt, args[2].cast<Span>());
+                    } else if (auto opt = args[0].try_cast<double>()) {
+                      *ret = tir::make_const(args[1].cast<DataType>(), *opt, args[2].cast<Span>());
+                    } else {
+                      LOG(FATAL) << "First argument to tvm.tir.const must be int, float, or bool, "
+                                 << "but instead received argument with type code "
+                                 << args[0].GetTypeKey();
+                    }
+                  })
+      .def("node.LargeUIntImm", LargeUIntImm)
+      .def("tir.min_value", min_value)
+      .def("tir.max_value", max_value)
+      .def("tir.infinity", infinity)
+      .def("tir.abs", tvm::abs)
+      .def("tir.likely", tvm::likely)
+      .def("tir.isnan", tvm::isnan)
+      .def("tir.isfinite", tvm::isfinite)
+      .def("tir.isinf", tvm::isinf)
+      .def("tir.floor", tvm::floor)
+      .def("tir.ceil", tvm::ceil)
+      .def("tir.round", tvm::round)
+      .def("tir.nearbyint", tvm::nearbyint)
+      .def("tir.trunc", tvm::trunc)
+      .def("tir._cast", tvm::cast)
+      .def("tir.reinterpret", tvm::reinterpret);
 });
-
-TVM_FFI_REGISTER_GLOBAL("node.LargeUIntImm").set_body_typed(LargeUIntImm);
-
-TVM_FFI_REGISTER_GLOBAL("tir.min_value").set_body_typed(min_value);
-
-TVM_FFI_REGISTER_GLOBAL("tir.max_value").set_body_typed(max_value);
-
-TVM_FFI_REGISTER_GLOBAL("tir.infinity").set_body_typed(infinity);
-
-TVM_FFI_REGISTER_GLOBAL("tir.abs").set_body_typed(tvm::abs);
-
-TVM_FFI_REGISTER_GLOBAL("tir.likely").set_body_typed(tvm::likely);
-
-TVM_FFI_REGISTER_GLOBAL("tir.isnan").set_body_typed(tvm::isnan);
-
-TVM_FFI_REGISTER_GLOBAL("tir.isfinite").set_body_typed(tvm::isfinite);
-
-TVM_FFI_REGISTER_GLOBAL("tir.isinf").set_body_typed(tvm::isinf);
-
-TVM_FFI_REGISTER_GLOBAL("tir.floor").set_body_typed(tvm::floor);
-
-TVM_FFI_REGISTER_GLOBAL("tir.ceil").set_body_typed(tvm::ceil);
-
-TVM_FFI_REGISTER_GLOBAL("tir.round").set_body_typed(tvm::round);
-
-TVM_FFI_REGISTER_GLOBAL("tir.nearbyint").set_body_typed(tvm::nearbyint);
-
-TVM_FFI_REGISTER_GLOBAL("tir.trunc").set_body_typed(tvm::trunc);
-
-TVM_FFI_REGISTER_GLOBAL("tir._cast").set_body_typed(tvm::cast);
-
-TVM_FFI_REGISTER_GLOBAL("tir.reinterpret").set_body_typed(tvm::reinterpret);
 
 // operator overloading, smarter than make
 #define REGISTER_MAKE_BINARY_OP(Node, Func)                                                    \
@@ -1204,13 +1200,14 @@ REGISTER_MAKE_BIT_OP(bitwise_xor, bitwise_xor);
 REGISTER_MAKE_BIT_OP(left_shift, left_shift);  // NOLINT(*)
 REGISTER_MAKE_BIT_OP(right_shift, right_shift);
 
-TVM_FFI_REGISTER_GLOBAL("tir._OpIfThenElse")
-    .set_body_typed([](PrimExpr cond, PrimExpr true_value, PrimExpr false_value, Span span) {
-      return if_then_else(cond, true_value, false_value, span);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("tir.const_true").set_body_typed([](DataType t, Span span) {
-  return const_true(t.lanes(), span);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("tir._OpIfThenElse",
+           [](PrimExpr cond, PrimExpr true_value, PrimExpr false_value, Span span) {
+             return if_then_else(cond, true_value, false_value, span);
+           })
+      .def("tir.const_true", [](DataType t, Span span) { return const_true(t.lanes(), span); });
 });
 
 PrimExpr fast_erf_float_expr(PrimExpr arg, int bits) {

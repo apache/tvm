@@ -23,6 +23,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
@@ -333,7 +334,10 @@ Pass RemoveNoOp() {
   return CreatePrimFuncPass(pass_func, 0, "tir.RemoveNoOp", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.RemoveNoOp").set_body_typed(RemoveNoOp);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.RemoveNoOp", RemoveNoOp);
+});
 
 }  // namespace transform
 

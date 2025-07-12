@@ -146,7 +146,10 @@ Mutator Mutator::MutateUnroll() { return Mutator(make_object<MutateUnrollNode>()
 TVM_FFI_STATIC_INIT_BLOCK({ MutateUnrollNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(MutateUnrollNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateUnroll").set_body_typed(Mutator::MutateUnroll);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.MutatorMutateUnroll", Mutator::MutateUnroll);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

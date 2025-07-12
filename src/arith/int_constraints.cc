@@ -24,6 +24,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/op.h>
@@ -201,25 +202,24 @@ Range IntGroupBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
 
 TVM_REGISTER_NODE_TYPE(IntGroupBoundsNode);
 
-TVM_FFI_REGISTER_GLOBAL("arith.IntGroupBounds")
-    .set_body_typed([](PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal,
-                       Array<PrimExpr> upper) {
-      return IntGroupBounds(coef, lower, equal, upper);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("arith.IntGroupBounds_from_range")
-    .set_body_typed(IntGroupBounds::FromRange);
-
-TVM_FFI_REGISTER_GLOBAL("arith.IntGroupBounds_FindBestRange")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      ICHECK(args.size() == 1 || args.size() == 2);
-      auto bounds = args[0].cast<IntGroupBounds>();
-      if (args.size() == 1) {
-        *ret = bounds.FindBestRange();
-      } else if (args.size() == 2) {
-        *ret = bounds.FindBestRange(args[1].cast<Map<Var, Range>>());
-      }
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("arith.IntGroupBounds",
+           [](PrimExpr coef, Array<PrimExpr> lower, Array<PrimExpr> equal, Array<PrimExpr> upper) {
+             return IntGroupBounds(coef, lower, equal, upper);
+           })
+      .def("arith.IntGroupBounds_from_range", IntGroupBounds::FromRange)
+      .def_packed("arith.IntGroupBounds_FindBestRange", [](ffi::PackedArgs args, ffi::Any* ret) {
+        ICHECK(args.size() == 1 || args.size() == 2);
+        auto bounds = args[0].cast<IntGroupBounds>();
+        if (args.size() == 1) {
+          *ret = bounds.FindBestRange();
+        } else if (args.size() == 2) {
+          *ret = bounds.FindBestRange(args[1].cast<Map<Var, Range>>());
+        }
+      });
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IntGroupBoundsNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -250,10 +250,13 @@ IntConstraints::IntConstraints(Array<Var> variables, Map<Var, Range> ranges,
 
 TVM_REGISTER_NODE_TYPE(IntConstraintsNode);
 
-TVM_FFI_REGISTER_GLOBAL("arith.IntConstraints")
-    .set_body_typed([](Array<Var> variables, Map<Var, Range> ranges, Array<PrimExpr> relations) {
-      return IntConstraints(variables, ranges, relations);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("arith.IntConstraints", [](Array<Var> variables, Map<Var, Range> ranges,
+                                                   Array<PrimExpr> relations) {
+    return IntConstraints(variables, ranges, relations);
+  });
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IntConstraintsNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -295,11 +298,14 @@ IntConstraintsTransform IntConstraintsTransform::operator+(
 
 TVM_REGISTER_NODE_TYPE(IntConstraintsTransformNode);
 
-TVM_FFI_REGISTER_GLOBAL("arith.IntConstraintsTransform")
-    .set_body_typed([](IntConstraints src, IntConstraints dst, Map<Var, PrimExpr> src_to_dst,
-                       Map<Var, PrimExpr> dst_to_src) {
-      return IntConstraintsTransform(src, dst, src_to_dst, dst_to_src);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("arith.IntConstraintsTransform",
+                        [](IntConstraints src, IntConstraints dst, Map<Var, PrimExpr> src_to_dst,
+                           Map<Var, PrimExpr> dst_to_src) {
+                          return IntConstraintsTransform(src, dst, src_to_dst, dst_to_src);
+                        });
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IntConstraintsTransformNode>([](const ObjectRef& node, ReprPrinter* p) {

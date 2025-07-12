@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/disco/session.h>
 
@@ -31,27 +32,25 @@ struct SessionObj::FFI {
 
 TVM_REGISTER_OBJECT_TYPE(DRefObj);
 TVM_REGISTER_OBJECT_TYPE(SessionObj);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.SessionThreaded").set_body_typed(Session::ThreadedSession);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.DRefDebugGetFromRemote")
-    .set_body_method(&DRefObj::DebugGetFromRemote);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.DRefDebugCopyFrom").set_body_method(&DRefObj::DebugCopyFrom);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.SessionGetNumWorkers")
-    .set_body_method(&SessionObj::GetNumWorkers);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.SessionGetGlobalFunc")
-    .set_body_method(&SessionObj::GetGlobalFunc);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.SessionCopyFromWorker0")
-    .set_body_method(&SessionObj::CopyFromWorker0);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.SessionCopyToWorker0")
-    .set_body_method(&SessionObj::CopyToWorker0);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.SessionSyncWorker").set_body_method(&SessionObj::SyncWorker);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.SessionInitCCL")  //
-    .set_body_method(&SessionObj::InitCCL);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.SessionCallPacked")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      Session self = args[0].cast<Session>();
-      *rv = SessionObj::FFI::CallWithPacked(self, args.Slice(1));
-    });
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.SessionShutdown").set_body_method(&SessionObj::Shutdown);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.disco.SessionThreaded", Session::ThreadedSession)
+      .def_method("runtime.disco.DRefDebugGetFromRemote", &DRefObj::DebugGetFromRemote)
+      .def_method("runtime.disco.DRefDebugCopyFrom", &DRefObj::DebugCopyFrom)
+      .def_method("runtime.disco.SessionGetNumWorkers", &SessionObj::GetNumWorkers)
+      .def_method("runtime.disco.SessionGetGlobalFunc", &SessionObj::GetGlobalFunc)
+      .def_method("runtime.disco.SessionCopyFromWorker0", &SessionObj::CopyFromWorker0)
+      .def_method("runtime.disco.SessionCopyToWorker0", &SessionObj::CopyToWorker0)
+      .def_method("runtime.disco.SessionSyncWorker", &SessionObj::SyncWorker)
+      .def_method("runtime.disco.SessionInitCCL", &SessionObj::InitCCL)
+      .def_packed("runtime.disco.SessionCallPacked",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    Session self = args[0].cast<Session>();
+                    *rv = SessionObj::FFI::CallWithPacked(self, args.Slice(1));
+                  })
+      .def_method("runtime.disco.SessionShutdown", &SessionObj::Shutdown);
+});
 
 }  // namespace runtime
 }  // namespace tvm

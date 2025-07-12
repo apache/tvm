@@ -21,6 +21,7 @@
  * \file coreml_runtime.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 #include "coreml_runtime.h"
 
@@ -192,10 +193,12 @@ Module CoreMLRuntimeCreate(const std::string& symbol, const std::string& model_p
   return Module(exec);
 }
 
-TVM_FFI_REGISTER_GLOBAL("tvm.coreml_runtime.create")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      *rv = CoreMLRuntimeCreate(args[0], args[1]);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("tvm.coreml_runtime.create", [](ffi::PackedArgs args, ffi::Any* rv) {
+    *rv = CoreMLRuntimeCreate(args[0], args[1]);
+  });
+});
 
 void CoreMLRuntime::SaveToBinary(dmlc::Stream* stream) {
   NSURL* url = model_->url_;
@@ -249,8 +252,10 @@ Module CoreMLRuntimeLoadFromBinary(void* strm) {
   return Module(exec);
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_coreml")
-    .set_body_typed(CoreMLRuntimeLoadFromBinary);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("runtime.module.loadbinary_coreml", CoreMLRuntimeLoadFromBinary);
+});
 
 }  // namespace runtime
 }  // namespace tvm

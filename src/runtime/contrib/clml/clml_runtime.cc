@@ -23,6 +23,8 @@
  */
 #include "clml_runtime.h"
 
+#include <tvm/ffi/reflection/reflection.h>
+
 #include <unordered_map>
 
 #ifdef TVM_GRAPH_EXECUTOR_CLML
@@ -1830,9 +1832,12 @@ runtime::Module CLMLRuntimeCreate(const String& symbol_name, const String& graph
   return runtime::Module(n);
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.clml_runtime_create").set_body_typed(CLMLRuntimeCreate);
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_clml")
-    .set_body_typed(JSONRuntimeBase::LoadFromBinary<CLMLRuntime>);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.clml_runtime_create", CLMLRuntimeCreate)
+      .def("runtime.module.loadbinary_clml", JSONRuntimeBase::LoadFromBinary<CLMLRuntime>);
+});
 }  //  namespace contrib
 }  //  namespace runtime
 }  //  namespace tvm

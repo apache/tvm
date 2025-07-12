@@ -23,6 +23,7 @@
 #include "metal_module.h"
 #include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/module.h>
 #include <array>
 #include <mutex>
@@ -287,18 +288,21 @@ Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
   return Module(n);
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.module.create_metal_module")
-    .set_body_typed([](Map<String, String> smap, std::string fmap_json, std::string fmt,
-                       std::string source) {
-      std::istringstream stream(fmap_json);
-      std::unordered_map<std::string, FunctionInfo> fmap;
-      dmlc::JSONReader reader(&stream);
-      reader.Read(&fmap);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "runtime.module.create_metal_module",
+      [](Map<String, String> smap, std::string fmap_json, std::string fmt, std::string source) {
+        std::istringstream stream(fmap_json);
+        std::unordered_map<std::string, FunctionInfo> fmap;
+        dmlc::JSONReader reader(&stream);
+        reader.Read(&fmap);
 
-      return MetalModuleCreate(
-          std::unordered_map<std::string, std::string>(smap.begin(), smap.end()), fmap, fmt,
-          source);
-    });
+        return MetalModuleCreate(
+            std::unordered_map<std::string, std::string>(smap.begin(), smap.end()), fmap, fmt,
+            source);
+      });
+});
 
 Module MetalModuleLoadBinary(void* strm) {
   dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
@@ -317,6 +321,9 @@ Module MetalModuleLoadBinary(void* strm) {
   return MetalModuleCreate(smap, fmap, fmt, "");
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_metal").set_body_typed(MetalModuleLoadBinary);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("runtime.module.loadbinary_metal", MetalModuleLoadBinary);
+});
 }  // namespace runtime
 }  // namespace tvm

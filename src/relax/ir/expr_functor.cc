@@ -24,6 +24,7 @@
  * ExprMutator uses memoization and self return in order to amortize
  * the cost of using functional updates.
  */
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
@@ -326,10 +327,12 @@ void PostOrderVisit(const Expr& e, std::function<void(const Expr&)> fvisit) {
   ExprApplyVisit(fvisit).VisitExpr(e);
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.analysis.post_order_visit")
-    .set_body_typed([](Expr expr, ffi::Function f) {
-      PostOrderVisit(expr, [f](const Expr& n) { f(n); });
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.analysis.post_order_visit", [](Expr expr, ffi::Function f) {
+    PostOrderVisit(expr, [f](const Expr& n) { f(n); });
+  });
+});
 
 // ==================
 // ExprMutatorBase

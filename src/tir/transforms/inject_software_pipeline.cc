@@ -21,6 +21,7 @@
  * \file inject_software_pipeline.cc
  * \brief Transform annotated loops into pipelined one that parallelize producers and consumers
  */
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/transform.h>
@@ -1259,8 +1260,10 @@ Pass InjectSoftwarePipeline() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectSoftwarePipeline", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectSoftwarePipeline")
-    .set_body_typed(InjectSoftwarePipeline);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.InjectSoftwarePipeline", InjectSoftwarePipeline);
+});
 
 }  // namespace transform
 

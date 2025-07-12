@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
 
@@ -365,6 +366,9 @@ TVM_DLL ffi::Map<ffi::String, ffi::String> GetLibInfo() {
   return result;
 }
 
-TVM_FFI_REGISTER_GLOBAL("support.GetLibInfo").set_body_typed(GetLibInfo);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("support.GetLibInfo", GetLibInfo);
+});
 
 }  // namespace tvm

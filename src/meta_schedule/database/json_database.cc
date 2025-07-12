@@ -217,8 +217,10 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
 
 TVM_FFI_STATIC_INIT_BLOCK({ JSONDatabaseNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(JSONDatabaseNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseJSONDatabase")
-    .set_body_typed(Database::JSONDatabase);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.DatabaseJSONDatabase", Database::JSONDatabase);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -21,6 +21,7 @@
  * \file lower_opaque_block.cc
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -214,7 +215,10 @@ Pass LowerOpaqueBlock() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerOpaqueBlock", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerOpaqueBlock").set_body_typed(LowerOpaqueBlock);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerOpaqueBlock", LowerOpaqueBlock);
+});
 }  // namespace transform
 
 }  // namespace tir

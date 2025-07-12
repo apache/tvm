@@ -27,6 +27,7 @@
  * of requiring buffer access to be contiguous in each dimension.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -275,8 +276,11 @@ Pass ManifestSharedMemoryLocalStage() {
   return CreatePrimFuncPass(pass_func, 0, "tir.ManifestSharedMemoryLocalStage", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.ManifestSharedMemoryLocalStage")
-    .set_body_typed(ManifestSharedMemoryLocalStage);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.ManifestSharedMemoryLocalStage",
+                        ManifestSharedMemoryLocalStage);
+});
 
 }  // namespace transform
 }  // namespace tir

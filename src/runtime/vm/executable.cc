@@ -22,6 +22,7 @@
  */
 
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/vm/executable.h>
 #include <tvm/runtime/vm/vm.h>
@@ -210,8 +211,11 @@ Module VMExecutable::LoadFromBinary(void* stream) {
   return Module(exec);
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_relax.VMExecutable")
-    .set_body_typed(VMExecutable::LoadFromBinary);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("runtime.module.loadbinary_relax.VMExecutable",
+                        VMExecutable::LoadFromBinary);
+});
 
 Module VMExecutable::LoadFromFile(const String& file_name) {
   std::string data;
@@ -221,8 +225,10 @@ Module VMExecutable::LoadFromFile(const String& file_name) {
   return VMExecutable::LoadFromBinary(reinterpret_cast<void*>(strm));
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_relax.VMExecutable")
-    .set_body_typed(VMExecutable::LoadFromFile);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("runtime.module.loadfile_relax.VMExecutable", VMExecutable::LoadFromFile);
+});
 
 void VMFuncInfo::Save(dmlc::Stream* strm) const {
   int32_t temp_kind = static_cast<int32_t>(kind);
@@ -557,7 +563,10 @@ String VMExecutable::AsPython() const {
   return String(os.str());
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.ExecutableLoadFromFile").set_body_typed(VMExecutable::LoadFromFile);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.ExecutableLoadFromFile", VMExecutable::LoadFromFile);
+});
 
 }  // namespace vm
 }  // namespace runtime

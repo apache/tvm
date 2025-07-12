@@ -24,6 +24,8 @@
 
 #include "datatype.h"
 
+#include <tvm/ffi/reflection/reflection.h>
+
 #include <utility>
 
 namespace tvm {
@@ -45,7 +47,10 @@ Expr astype(Expr x, DataType dtype) {
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.astype").set_body_typed(astype);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.astype", astype);
+});
 
 StructInfo InferStructInfoAstype(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -75,7 +80,10 @@ Expr MakeWrapParam(Expr data, DataType dtype) {
   return Call(op, {std::move(data)}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.wrap_param").set_body_typed(MakeWrapParam);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.wrap_param", MakeWrapParam);
+});
 
 StructInfo InferStructInfoWrapParam(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo sinfo = GetUnaryInputTensorStructInfo(call, ctx);

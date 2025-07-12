@@ -24,6 +24,7 @@
 
 #include "linear_algebra.h"
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/topi/einsum.h>
 
 #include <algorithm>
@@ -49,7 +50,10 @@ Expr matmul(Expr x1, Expr x2, Optional<DataType> out_dtype) {
   return Call(op, {std::move(x1), std::move(x2)}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.matmul").set_body_typed(matmul);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.matmul", matmul);
+});
 
 StructInfo InferStructInfoMatmul(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -181,7 +185,10 @@ Expr einsum(Expr operands, String subscripts) {
   return Call(op, {std::move(operands)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.einsum").set_body_typed(einsum);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.einsum", einsum);
+});
 
 StructInfo InferStructInfoEinsum(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
@@ -263,7 +270,10 @@ Expr outer(Expr x1, Expr x2) {
   return Call(op, {std::move(x1), std::move(x2)}, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.outer").set_body_typed(outer);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.outer", outer);
+});
 
 StructInfo InferStructInfoOuter(const Call& call, const BlockBuilder& ctx) {
   auto input_sinfo = GetInputTensorStructInfo(call, ctx);

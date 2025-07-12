@@ -24,6 +24,7 @@
  * available.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
@@ -279,7 +280,10 @@ Pass Normalize() {
   return CreateFunctionPass(pass_func, 1, "Normalize", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.Normalize").set_body_typed(Normalize);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.Normalize", Normalize);
+});
 
 Pass NormalizeGlobalVar() {
   auto pass_func = [=](IRModule mod, PassContext pc) {
@@ -290,7 +294,10 @@ Pass NormalizeGlobalVar() {
                           /*pass_name=*/"NormalizeGlobalVar",
                           /*required=*/{});
 }
-TVM_FFI_REGISTER_GLOBAL("relax.transform.NormalizeGlobalVar").set_body_typed(NormalizeGlobalVar);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.NormalizeGlobalVar", NormalizeGlobalVar);
+});
 
 }  // namespace transform
 

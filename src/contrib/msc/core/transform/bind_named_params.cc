@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/function.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -154,7 +155,10 @@ Pass BindNamedParams(String func_name, Map<ObjectRef, ObjectRef> params) {
   return CreateModulePass(pass_func, 0, "BindNamedParams", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.BindNamedParams").set_body_typed(BindNamedParams);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.BindNamedParams", BindNamedParams);
+});
 
 }  // namespace transform
 
