@@ -2351,7 +2351,7 @@ llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm)
   return nullptr;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+static void CodegenLLVMRegisterReflection() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("tvm.codegen.llvm.GetDefaultTargetTriple",
@@ -2385,7 +2385,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
         LOG(WARNING) << "Current version of LLVM does not support feature detection on your CPU";
         return {};
       });
-});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK({ CodegenLLVMRegisterReflection(); });
 
 }  // namespace codegen
 }  // namespace tvm

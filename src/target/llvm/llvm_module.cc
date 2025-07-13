@@ -621,7 +621,7 @@ void* LLVMModuleNode::GetFunctionAddr(const std::string& name,
   return nullptr;
 }
 
-TVM_FFI_STATIC_INIT_BLOCK({
+static void LLVMReflectionRegister() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("target.build.llvm",
@@ -787,7 +787,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
              n->SetJITEngine(llvm_target->GetJITEngine());
              return runtime::Module(n);
            });
-});
+}
+
+TVM_FFI_STATIC_INIT_BLOCK({ LLVMReflectionRegister(); });
 
 }  // namespace codegen
 }  // namespace tvm

@@ -100,6 +100,7 @@ def test_catch_exception_with_full_stack_trace(exec_mode, target, dev):
     )
     vm = tvm.relax.VirtualMachine(ex, dev)
 
+    # custom callback that raises an error in python
     def custom_callback():
         local_var = 42
         raise RuntimeError("Error thrown from callback")
