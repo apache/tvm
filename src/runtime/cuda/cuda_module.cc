@@ -25,6 +25,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 #include <array>
 #include <mutex>
@@ -298,10 +299,12 @@ Module CUDAModuleLoadBinary(void* strm) {
   return CUDAModuleCreate(data, fmt, fmap, std::string());
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_cubin").set_body_typed(CUDAModuleLoadFile);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_ptx").set_body_typed(CUDAModuleLoadFile);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_cuda").set_body_typed(CUDAModuleLoadBinary);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.module.loadfile_cubin", CUDAModuleLoadFile)
+      .def("runtime.module.loadfile_ptx", CUDAModuleLoadFile)
+      .def("runtime.module.loadbinary_cuda", CUDAModuleLoadBinary);
+});
 }  // namespace runtime
 }  // namespace tvm

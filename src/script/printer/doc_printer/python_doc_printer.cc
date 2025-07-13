@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/script/printer/doc.h>
 
@@ -727,7 +728,10 @@ String DocToPythonScript(Doc doc, const PrinterConfig& cfg) {
   return result.substr(0, last_space);
 }
 
-TVM_FFI_REGISTER_GLOBAL("script.printer.DocToPythonScript").set_body_typed(DocToPythonScript);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.DocToPythonScript", DocToPythonScript);
+});
 
 }  // namespace printer
 }  // namespace script

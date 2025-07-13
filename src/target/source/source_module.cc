@@ -24,6 +24,7 @@
 
 #include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 
@@ -174,8 +175,10 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
   return runtime::Module(n);
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_c")
-    .set_body_typed(CSourceModuleNode::LoadFromBinary);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("runtime.module.loadbinary_c", CSourceModuleNode::LoadFromBinary);
+});
 
 /*!
  * \brief A concrete class to get access to base methods of CodegenSourceBase.
@@ -248,13 +251,16 @@ runtime::Module DeviceSourceModuleCreate(
   return runtime::Module(n);
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.SourceModuleCreate").set_body_typed(SourceModuleCreate);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.CSourceModuleCreate")
-    .set_body_typed([](String code, String fmt, Optional<Array<String>> func_names,
-                       Optional<Array<String>> const_vars) {
-      return CSourceModuleCreate(code, fmt, func_names.value_or({}), const_vars.value_or({}));
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.SourceModuleCreate", SourceModuleCreate)
+      .def("runtime.CSourceModuleCreate", [](String code, String fmt,
+                                             Optional<Array<String>> func_names,
+                                             Optional<Array<String>> const_vars) {
+        return CSourceModuleCreate(code, fmt, func_names.value_or({}), const_vars.value_or({}));
+      });
+});
 
 }  // namespace codegen
 }  // namespace tvm

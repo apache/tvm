@@ -24,6 +24,7 @@
 
 #include <hip/hip_runtime_api.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 #include <array>
 #include <mutex>
@@ -231,12 +232,13 @@ Module ROCMModuleLoadBinary(void* strm) {
   return ROCMModuleCreate(data, fmt, fmap, std::string(), std::string());
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_hsaco").set_body_typed(ROCMModuleLoadBinary);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_hip").set_body_typed(ROCMModuleLoadBinary);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_hsaco").set_body_typed(ROCMModuleLoadFile);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_hip").set_body_typed(ROCMModuleLoadFile);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.module.loadbinary_hsaco", ROCMModuleLoadBinary)
+      .def("runtime.module.loadbinary_hip", ROCMModuleLoadBinary)
+      .def("runtime.module.loadfile_hsaco", ROCMModuleLoadFile)
+      .def("runtime.module.loadfile_hip", ROCMModuleLoadFile);
+});
 }  // namespace runtime
 }  // namespace tvm
