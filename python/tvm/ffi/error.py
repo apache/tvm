@@ -17,6 +17,9 @@
 # pylint: disable=invalid-name
 """Error handling."""
 import re
+import types
+import sys
+import ast
 from . import core
 
 
@@ -48,11 +51,75 @@ def _parse_traceback(traceback):
     return result
 
 
+class TracebackManager:
+    """
+    Helper to manage traceback generation
+    """
+
+    def __init__(self):
+        self._code_cache = {}
+
+    def _get_cached_code_object(self, filename, lineno, func):
+        # Hack to create a code object that points to the correct
+        # line number and function name
+        key = (filename, lineno, func)
+        # cache the code object to avoid re-creating it
+        if key in self._code_cache:
+            return self._code_cache[key]
+        # Parse to AST and zero out column info
+        # since column info are not accurate in original trace
+        tree = ast.parse("_getframe()", filename=filename, mode="eval")
+        for node in ast.walk(tree):
+            if hasattr(node, "col_offset"):
+                node.col_offset = 0
+            if hasattr(node, "end_col_offset"):
+                node.end_col_offset = 0
+        # call into get frame, bt changes the context
+        code_object = compile(tree, filename, "eval")
+        # replace the function name and line number
+        code_object = code_object.replace(co_name=func, co_firstlineno=lineno)
+        self._code_cache[key] = code_object
+        return code_object
+
+    def _create_frame(self, filename, lineno, func):
+        """Create a frame object from the filename, lineno, and func"""
+        code_object = self._get_cached_code_object(filename, lineno, func)
+        # call into get frame, but changes the context so the code
+        # points to the correct frame
+        context = {"_getframe": sys._getframe}
+        return eval(code_object, context, context)
+
+    def append_traceback(self, tb, filename, lineno, func):
+        """Append a traceback to the given traceback
+
+        Parameters
+        ----------
+        tb : types.TracebackType
+            The traceback to append to.
+        filename : str
+            The filename of the traceback
+        lineno : int
+            The line number of the traceback
+        func : str
+            The function name of the traceback
+
+        Returns
+        -------
+        new_tb : types.TracebackType
+            The new traceback with the appended frame.
+        """
+        frame = self._create_frame(filename, lineno, func)
+        return types.TracebackType(tb, frame, frame.f_lasti, lineno)
+
+
+_TRACEBACK_MANAGER = TracebackManager()
+
+
 def _with_append_traceback(py_error, traceback):
     """Append the traceback to the py_error and return it"""
     tb = py_error.__traceback__
     for filename, lineno, func in reversed(_parse_traceback(traceback)):
-        tb = core._append_traceback_frame(tb, filename, lineno, func)
+        tb = _TRACEBACK_MANAGER.append_traceback(tb, filename, lineno, func)
     return py_error.with_traceback(tb)
 
 
