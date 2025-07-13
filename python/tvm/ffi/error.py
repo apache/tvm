@@ -87,6 +87,7 @@ class TracebackManager:
         # call into get frame, but changes the context so the code
         # points to the correct frame
         context = {"_getframe": sys._getframe}
+        # pylint: disable=eval-used
         return eval(code_object, context, context)
 
     def append_traceback(self, tb, filename, lineno, func):
