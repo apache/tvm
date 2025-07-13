@@ -313,16 +313,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
   });
 });
 
-// Sort implemented C library sort.
-// Return  sorted tensor.
-// By default, the last axis will be used to sort.
-// sort_num specify the number of elements to be sorted.
-// If input tensor has dimension (d0, d1, ..., d(k-1), dk, d(k+1), ..., d(n-1))
-// and sort axis is dk. sort_num should have dimension of
-// (d1, d2, ..., d(k-1), d(k+1), ..., dn).
-TVM_FFI_STATIC_INIT_BLOCK({
-  namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("tvm.contrib.sort.sort", [](ffi::PackedArgs args, ffi::Any* ret) {
+
+void SortPacked(ffi::PackedArgs args, ffi::Any* ret) {
     auto input = args[0].cast<DLTensor*>();
     auto output = args[1].cast<DLTensor*>();
     int32_t axis = args[2].cast<int32_t>();
@@ -356,7 +348,17 @@ TVM_FFI_STATIC_INIT_BLOCK({
     } else {
       LOG(FATAL) << "Unsupported input dtype: " << data_dtype;
     }
-  });
+}
+// Sort implemented C library sort.
+// Return  sorted tensor.
+// By default, the last axis will be used to sort.
+// sort_num specify the number of elements to be sorted.
+// If input tensor has dimension (d0, d1, ..., d(k-1), dk, d(k+1), ..., d(n-1))
+// and sort axis is dk. sort_num should have dimension of
+// (d1, d2, ..., d(k-1), d(k+1), ..., dn).
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("tvm.contrib.sort.sort", SortPacked);
 });
 
 template <typename DataType, typename IndicesType>
