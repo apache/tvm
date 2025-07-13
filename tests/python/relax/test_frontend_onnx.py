@@ -1325,11 +1325,7 @@ def test_layer_norm():
 
 def test_layer_norm_with_nd_gamma_beta():
     layer_norm_node = helper.make_node(
-        "LayerNormalization",
-        ["input", "scale", "bias"],
-        ["Y"],
-        axis=1,
-        epsilon=1e-12
+        "LayerNormalization", ["input", "scale", "bias"], ["Y"], axis=1, epsilon=1e-12
     )
 
     graph = helper.make_graph(
@@ -1350,11 +1346,7 @@ def test_layer_norm_with_nd_gamma_beta():
 
     # Test case with no bias that is an optional input
     layer_norm_node = helper.make_node(
-        "LayerNormalization",
-        ["input", "scale"],
-        ["Y"],
-        axis=1,
-        epsilon=1e-12
+        "LayerNormalization", ["input", "scale"], ["Y"], axis=1, epsilon=1e-12
     )
 
     graph = helper.make_graph(
