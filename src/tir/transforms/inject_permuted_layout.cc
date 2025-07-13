@@ -22,6 +22,7 @@
  * \brief The pass injects permuted layout for shared memory buffers to avoid bank conflicts.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -295,7 +296,10 @@ Pass InjectPermutedLayout() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectPermutedLayout", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectPermutedLayout").set_body_typed(InjectPermutedLayout);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.InjectPermutedLayout", InjectPermutedLayout);
+});
 
 }  // namespace transform
 

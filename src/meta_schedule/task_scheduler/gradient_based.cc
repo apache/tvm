@@ -147,8 +147,10 @@ TaskScheduler TaskScheduler::GradientBased(ffi::Function logger, double alpha, i
 TVM_FFI_STATIC_INIT_BLOCK({ GradientBasedNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(GradientBasedNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerGradientBased")
-    .set_body_typed(TaskScheduler::GradientBased);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.TaskSchedulerGradientBased", TaskScheduler::GradientBased);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -19,6 +19,7 @@
 
 /*! \file src/relax/transform/decompose_ops.cc */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/struct_info.h>
@@ -250,11 +251,12 @@ Pass DecomposeOpsForTraining(Optional<String> func_name) {
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.DecomposeOpsForInference")
-    .set_body_typed(DecomposeOpsForInference);
-
-TVM_FFI_REGISTER_GLOBAL("relax.transform.DecomposeOpsForTraining")
-    .set_body_typed(DecomposeOpsForTraining);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("relax.transform.DecomposeOpsForInference", DecomposeOpsForInference)
+      .def("relax.transform.DecomposeOpsForTraining", DecomposeOpsForTraining);
+});
 
 }  // namespace transform
 }  // namespace relax

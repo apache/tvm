@@ -785,7 +785,8 @@ Any LoadJSON(std::string json_str) {
   return nodes.at(jgraph.root);
 }
 
-TVM_FFI_REGISTER_GLOBAL("node.SaveJSON").set_body_typed(SaveJSON);
-
-TVM_FFI_REGISTER_GLOBAL("node.LoadJSON").set_body_typed(LoadJSON);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("node.SaveJSON", SaveJSON).def("node.LoadJSON", LoadJSON);
+});
 }  // namespace tvm

@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
+
 #include <cstring>
 #include <mutex>
 #include <sstream>
@@ -325,8 +327,10 @@ void SyncWorker() {
   StreamSynchronize(stream);
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.compiled_ccl").set_body_typed([]() -> String {
-  return TVM_DISCO_CCL_NAME;
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("runtime.disco.compiled_ccl",
+                        []() -> String { return TVM_DISCO_CCL_NAME; });
 });
 TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl").set_body_typed(InitCCL);
 TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker")

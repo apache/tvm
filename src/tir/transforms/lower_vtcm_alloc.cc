@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/transform.h>
@@ -72,7 +73,10 @@ Pass LowerVtcmAlloc() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerVtcmAlloc", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerVtcmAlloc").set_body_typed(LowerVtcmAlloc);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerVtcmAlloc", LowerVtcmAlloc);
+});
 
 }  // namespace transform
 

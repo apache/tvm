@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/ndarray.h>
 
 #include <cstddef>
@@ -153,10 +154,13 @@ runtime::Module CublasJSONRuntimeCreate(String symbol_name, String graph_json,
   return runtime::Module(n);
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.CublasJSONRuntimeCreate").set_body_typed(CublasJSONRuntimeCreate);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_cublas_json")
-    .set_body_typed(JSONRuntimeBase::LoadFromBinary<CublasJSONRuntime>);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.CublasJSONRuntimeCreate", CublasJSONRuntimeCreate)
+      .def("runtime.module.loadbinary_cublas_json",
+           JSONRuntimeBase::LoadFromBinary<CublasJSONRuntime>);
+});
 
 }  // namespace contrib
 }  // namespace runtime

@@ -23,6 +23,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
@@ -290,11 +291,12 @@ Array<PrimExpr> DetectClipBound(const PrimExpr& e, const Array<Var>& vars) {
   return ret;
 }
 
-TVM_FFI_REGISTER_GLOBAL("arith.DetectLinearEquation").set_body_typed(DetectLinearEquation);
-
-TVM_FFI_REGISTER_GLOBAL("arith.DetectClipBound")
-    .set_body_typed([](const PrimExpr& e, const Array<Var>& vars) {
-      return DetectClipBound(e, vars);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("arith.DetectLinearEquation", DetectLinearEquation)
+      .def("arith.DetectClipBound",
+           [](const PrimExpr& e, const Array<Var>& vars) { return DetectClipBound(e, vars); });
+});
 }  // namespace arith
 }  // namespace tvm

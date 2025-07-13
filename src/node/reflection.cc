@@ -175,11 +175,13 @@ void MakeNode(const ffi::PackedArgs& args, ffi::Any* rv) {
   *rv = ReflectionVTable::Global()->CreateObject(args[0].cast<std::string>(), args.Slice(1));
 }
 
-TVM_FFI_REGISTER_GLOBAL("node.NodeGetAttr").set_body_packed(NodeGetAttr);
-
-TVM_FFI_REGISTER_GLOBAL("node.NodeListAttrNames").set_body_packed(NodeListAttrNames);
-
-TVM_FFI_REGISTER_GLOBAL("node.MakeNode").set_body_packed(MakeNode);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("node.NodeGetAttr", NodeGetAttr)
+      .def_packed("node.NodeListAttrNames", NodeListAttrNames)
+      .def_packed("node.MakeNode", MakeNode);
+});
 
 Optional<String> GetAttrKeyByAddress(const Object* object, const void* attr_address) {
   const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(object->type_index());

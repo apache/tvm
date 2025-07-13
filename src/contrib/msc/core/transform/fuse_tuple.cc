@@ -22,6 +22,7 @@
  * \brief Pass for fuse ShapeExpr.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -231,7 +232,10 @@ Pass FuseTuple(const String& target, const String& entry_name) {
   return CreateModulePass(pass_func, 0, "FuseTuple", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.FuseTuple").set_body_typed(FuseTuple);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.FuseTuple", FuseTuple);
+});
 
 }  // namespace transform
 }  // namespace relax

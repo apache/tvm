@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
@@ -1267,7 +1268,10 @@ Pass FuseTIR() {
       "FuseTIR");
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.FuseTIR").set_body_typed(FuseTIR);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.FuseTIR", FuseTIR);
+});
 
 }  // namespace transform
 

@@ -54,6 +54,7 @@
  * is important since the dependency relation is transitive.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
@@ -421,8 +422,10 @@ Pass MergeCompositeFunctions() {
                           /*required=*/{});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.MergeCompositeFunctions")
-    .set_body_typed(MergeCompositeFunctions);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.MergeCompositeFunctions", MergeCompositeFunctions);
+});
 
 }  // namespace transform
 

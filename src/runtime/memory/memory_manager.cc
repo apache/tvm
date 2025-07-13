@@ -22,6 +22,7 @@
  * \brief Allocate and manage memory for the runtime.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/memory/memory_manager.h>
 
 #include <memory>
@@ -264,7 +265,10 @@ void Allocator::Clear() {
   // Pooled allocator will override this method.
 }
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.memory_manager.clear").set_body_typed(MemoryManager::Clear);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("vm.builtin.memory_manager.clear", MemoryManager::Clear);
+});
 
 }  // namespace memory
 }  // namespace runtime

@@ -22,6 +22,8 @@
  */
 #include "torch_codegen.h"
 
+#include <tvm/ffi/reflection/reflection.h>
+
 namespace tvm {
 namespace contrib {
 namespace msc {
@@ -492,18 +494,21 @@ void TorchPluginCodeGen::CodeGenCompute(const Plugin& plugin, const String& devi
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("msc.plugin.GetTorchPluginSources")
-    .set_body_typed([](const String& codegen_config, const String& print_config,
-                       const String& codegen_type) -> Map<String, String> {
-      TorchPluginCodeGen codegen = TorchPluginCodeGen(codegen_config);
-      if (codegen_type == "build") {
-        return codegen.GetBuildSources(print_config);
-      }
-      if (codegen_type == "manager") {
-        return codegen.GetManagerSources(print_config);
-      }
-      return Map<String, String>();
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("msc.plugin.GetTorchPluginSources",
+                        [](const String& codegen_config, const String& print_config,
+                           const String& codegen_type) -> Map<String, String> {
+                          TorchPluginCodeGen codegen = TorchPluginCodeGen(codegen_config);
+                          if (codegen_type == "build") {
+                            return codegen.GetBuildSources(print_config);
+                          }
+                          if (codegen_type == "manager") {
+                            return codegen.GetManagerSources(print_config);
+                          }
+                          return Map<String, String>();
+                        });
+});
 
 }  // namespace msc
 }  // namespace contrib

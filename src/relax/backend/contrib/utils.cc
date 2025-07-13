@@ -18,6 +18,7 @@
  */
 #include "utils.h"
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>
@@ -75,7 +76,10 @@ bool EndsWithPattern(const std::string& str, const std::string& pattern) {
   return str.compare(str.length() - pattern.length(), pattern.length(), pattern) == 0;
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.contrib.extract_arg_idx").set_body_typed(ExtractArgIdx);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.contrib.extract_arg_idx", ExtractArgIdx);
+});
 
 }  // namespace backend
 }  // namespace relax

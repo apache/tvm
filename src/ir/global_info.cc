@@ -22,6 +22,7 @@
  * \brief Module global info.
  */
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/global_info.h>
 namespace tvm {
 
@@ -31,9 +32,12 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 TVM_REGISTER_NODE_TYPE(DummyGlobalInfoNode);
-TVM_FFI_REGISTER_GLOBAL("ir.DummyGlobalInfo").set_body_typed([]() {
-  auto n = DummyGlobalInfo(make_object<DummyGlobalInfoNode>());
-  return n;
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("ir.DummyGlobalInfo", []() {
+    auto n = DummyGlobalInfo(make_object<DummyGlobalInfoNode>());
+    return n;
+  });
 });
 
 VDevice::VDevice(Target tgt, int dev_id, MemoryScope mem_scope) {
@@ -45,8 +49,10 @@ VDevice::VDevice(Target tgt, int dev_id, MemoryScope mem_scope) {
 }
 
 TVM_REGISTER_NODE_TYPE(VDeviceNode);
-TVM_FFI_REGISTER_GLOBAL("ir.VDevice")
-    .set_body_typed([](Target tgt, int dev_id, MemoryScope mem_scope) {
-      return VDevice(tgt, dev_id, mem_scope);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("ir.VDevice", [](Target tgt, int dev_id, MemoryScope mem_scope) {
+    return VDevice(tgt, dev_id, mem_scope);
+  });
+});
 }  // namespace tvm

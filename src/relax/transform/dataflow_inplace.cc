@@ -1021,23 +1021,26 @@ Array<Array<InplaceOpportunity>> DataflowInplaceAnalysis(const DataflowBlock& bl
 }
 
 // these are exposed only for testing
-TVM_FFI_REGISTER_GLOBAL("relax.testing.transform.DataflowLivenessAnalysis")
-    .set_body_typed(DataflowLivenessAnalysis);
-TVM_FFI_REGISTER_GLOBAL("relax.testing.transform.DataflowAliasAnalysis")
-    .set_body_typed(DataflowAliasAnalysis);
-TVM_FFI_REGISTER_GLOBAL("relax.testing.transform.DataflowInplaceAnalysis")
-    .set_body_typed(DataflowInplaceAnalysis);
-TVM_FFI_REGISTER_GLOBAL("relax.testing.transform.SingleInplaceCall")
-    .set_body_typed([](const IRModule& mod, const Call& call,
-                       const Array<Integer>& inplace_indices) -> Array<ObjectRef> {
-      ModuleInplaceTransformer transformer(mod);
-      auto ret_call = transformer.CreateInplaceCall(call, inplace_indices);
-      return Array<ObjectRef>{ret_call, transformer.CurrentMod()};
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("relax.testing.transform.DataflowLivenessAnalysis", DataflowLivenessAnalysis)
+      .def("relax.testing.transform.DataflowAliasAnalysis", DataflowAliasAnalysis)
+      .def("relax.testing.transform.DataflowInplaceAnalysis", DataflowInplaceAnalysis)
+      .def("relax.testing.transform.SingleInplaceCall",
+           [](const IRModule& mod, const Call& call,
+              const Array<Integer>& inplace_indices) -> Array<ObjectRef> {
+             ModuleInplaceTransformer transformer(mod);
+             auto ret_call = transformer.CreateInplaceCall(call, inplace_indices);
+             return Array<ObjectRef>{ret_call, transformer.CurrentMod()};
+           });
+});
 
 // actually exposed
-TVM_FFI_REGISTER_GLOBAL("relax.transform.DataflowUseInplaceCalls")
-    .set_body_typed(DataflowUseInplaceCalls);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.DataflowUseInplaceCalls", DataflowUseInplaceCalls);
+});
 
 }  // namespace transform
 }  // namespace relax

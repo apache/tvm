@@ -60,13 +60,17 @@ DeviceMesh::DeviceMesh(ffi::Shape shape, Range device_range) {
 }
 
 TVM_REGISTER_NODE_TYPE(DeviceMeshNode);
-TVM_FFI_REGISTER_GLOBAL("relax.distributed.DeviceMesh")
-    .set_body_typed([](ffi::Shape shape, Array<Integer> device_ids, Optional<Range> device_range) {
-      if (device_range.defined())
-        return DeviceMesh(shape, device_range.value());
-      else
-        return DeviceMesh(shape, device_ids);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "relax.distributed.DeviceMesh",
+      [](ffi::Shape shape, Array<Integer> device_ids, Optional<Range> device_range) {
+        if (device_range.defined())
+          return DeviceMesh(shape, device_range.value());
+        else
+          return DeviceMesh(shape, device_ids);
+      });
+});
 
 }  // namespace distributed
 }  // namespace relax

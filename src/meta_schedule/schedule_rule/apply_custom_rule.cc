@@ -93,8 +93,10 @@ bool ScheduleRule::IsApplyCustomRule(const ScheduleRule& rule) {
 
 TVM_FFI_STATIC_INIT_BLOCK({ ApplyCustomRuleNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(ApplyCustomRuleNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleApplyCustomRule")
-    .set_body_typed(ScheduleRule::ApplyCustomRule);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.ScheduleRuleApplyCustomRule", ScheduleRule::ApplyCustomRule);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

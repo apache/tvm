@@ -173,8 +173,10 @@ Mutator Mutator::MutateThreadBinding() { return Mutator(make_object<MutateThread
 TVM_FFI_STATIC_INIT_BLOCK({ MutateThreadBindingNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(MutateThreadBindingNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutateThreadBinding")
-    .set_body_typed(Mutator::MutateThreadBinding);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.MutateThreadBinding", Mutator::MutateThreadBinding);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

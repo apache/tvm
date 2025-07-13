@@ -18,6 +18,7 @@
  */
 #include "trace_apply.h"
 
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -254,8 +255,10 @@ void ScheduleUsingAnchorTrace(Schedule sch, const Trace& anchor_trace, const tvm
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleUsingAnchorTrace")
-    .set_body_typed(ScheduleUsingAnchorTrace);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.ScheduleUsingAnchorTrace", ScheduleUsingAnchorTrace);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

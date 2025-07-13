@@ -24,6 +24,8 @@
 
 #include "resize.h"
 
+#include <tvm/ffi/reflection/reflection.h>
+
 #include <utility>
 
 namespace tvm {
@@ -52,7 +54,10 @@ Expr resize2d(Expr data, Expr size, Array<FloatImm> roi, String layout, String m
   return Call(op, {std::move(data), std::move(size)}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.image.resize2d").set_body_typed(resize2d);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.image.resize2d", resize2d);
+});
 
 StructInfo InferStructInfoResize2D(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1 && call->args.size() != 2) {

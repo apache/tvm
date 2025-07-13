@@ -23,6 +23,7 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -267,7 +268,10 @@ Pass LowerMatchBuffer() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerMatchBuffer", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerMatchBuffer").set_body_typed(LowerMatchBuffer);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerMatchBuffer", LowerMatchBuffer);
+});
 
 }  // namespace transform
 

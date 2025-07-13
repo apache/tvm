@@ -24,6 +24,7 @@
  * true.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/node/serialization.h>
 #include <tvm/relax/analysis.h>
@@ -438,7 +439,10 @@ Pass AlterOpImpl(const Map<String, tir::PrimFunc>& op_impl_map,
                           /*required=*/{});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.AlterOpImpl").set_body_typed(AlterOpImpl);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.AlterOpImpl", AlterOpImpl);
+});
 
 }  // namespace transform
 }  // namespace relax

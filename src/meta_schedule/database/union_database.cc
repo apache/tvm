@@ -87,8 +87,10 @@ Database Database::UnionDatabase(Array<Database> databases) {
 }
 
 TVM_REGISTER_NODE_TYPE(UnionDatabaseNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseUnionDatabase")
-    .set_body_typed(Database::UnionDatabase);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.DatabaseUnionDatabase", Database::UnionDatabase);
+});
 
 TVM_FFI_STATIC_INIT_BLOCK({ UnionDatabaseNode::RegisterReflection(); });
 

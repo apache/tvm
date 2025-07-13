@@ -27,6 +27,7 @@
 #include <tensorflow/lite/kernels/register.h>
 #include <tensorflow/lite/model.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 
 namespace tvm {
 namespace runtime {
@@ -68,9 +69,11 @@ Module EdgeTPURuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
   return Module(exec);
 }
 
-TVM_FFI_REGISTER_GLOBAL("tvm.edgetpu_runtime.create")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      *rv = EdgeTPURuntimeCreate(args[0], args[1]);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed(
+      "tvm.edgetpu_runtime.create",
+      [](ffi::PackedArgs args, ffi::Any* rv) { *rv = EdgeTPURuntimeCreate(args[0], args[1]); });
+});
 }  // namespace runtime
 }  // namespace tvm

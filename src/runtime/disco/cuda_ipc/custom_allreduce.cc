@@ -19,6 +19,7 @@
 
 #include <cuda_runtime.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/disco/cuda_ipc_memory.h>
 #include <tvm/runtime/memory/memory_manager.h>
 
@@ -112,7 +113,10 @@ void CustomAllReduce(DLTensor* send, int strategy, DLTensor* recv) {
                                 ctx->GetDefaultStream());
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.cuda_ipc.custom_allreduce").set_body_typed(CustomAllReduce);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("runtime.disco.cuda_ipc.custom_allreduce", CustomAllReduce);
+});
 
 }  // namespace cuda_ipc
 }  // namespace nccl

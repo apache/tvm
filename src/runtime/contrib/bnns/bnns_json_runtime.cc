@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/ndarray.h>
 
@@ -562,10 +563,12 @@ runtime::Module BNNSJSONRuntimeCreate(String symbol_name, String graph_json,
   return runtime::Module(n);
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.BNNSJSONRuntimeCreate").set_body_typed(BNNSJSONRuntimeCreate);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_bnns_json")
-    .set_body_typed(BNNSJSONRuntime::LoadFromBinary<BNNSJSONRuntime>);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.BNNSJSONRuntimeCreate", BNNSJSONRuntimeCreate)
+      .def("runtime.module.loadbinary_bnns_json", BNNSJSONRuntime::LoadFromBinary<BNNSJSONRuntime>);
+});
 
 }  // namespace contrib
 }  // namespace runtime
