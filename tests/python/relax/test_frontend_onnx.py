@@ -1099,7 +1099,7 @@ def test_pow():
     verify_binary("Pow", [32, 32], [32, 32], [32, 32])
 
 
-@pytest.mark.parametrize("reverse", [False])
+@pytest.mark.parametrize("reverse", [True, False])
 @pytest.mark.parametrize("exclusive", [False])
 def test_cumsum(reverse, exclusive):
     cumsum_node = helper.make_node(
