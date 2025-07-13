@@ -22,6 +22,7 @@
  * \brief Primitive operators and intrinsics.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/reflection.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
 #include <tvm/runtime/module.h>
@@ -77,82 +78,78 @@ void OpRegEntry::UpdateAttr(const String& key, ffi::Any value, int plevel) {
 }
 
 // Frontend APIs
-TVM_FFI_REGISTER_GLOBAL("ir.ListOpNames").set_body_typed([]() {
-  return OpRegistry::Global()->ListAllNames();
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("ir.ListOpNames", []() { return OpRegistry::Global()->ListAllNames(); })
+      .def("ir.GetOp", [](String name) -> Op { return Op::Get(name); })
+      .def("ir.OpGetAttr",
+           [](Op op, String attr_name) -> ffi::Any {
+             auto op_map = Op::GetAttrMap<ffi::Any>(attr_name);
+             ffi::Any rv;
+             if (op_map.count(op)) {
+               rv = op_map[op];
+             }
+             return rv;
+           })
+      .def("ir.OpHasAttr",
+           [](Op op, String attr_name) -> bool { return Op::HasAttrMap(attr_name); })
+      .def("ir.OpSetAttr",
+           [](Op op, String attr_name, ffi::AnyView value, int plevel) {
+             auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+             reg.set_attr(attr_name, value, plevel);
+           })
+      .def("ir.OpResetAttr",
+           [](Op op, String attr_name) {
+             auto& reg = OpRegistry::Global()->RegisterOrGet(op->name);
+             reg.reset_attr(attr_name);
+           })
+      .def("ir.RegisterOp",
+           [](String op_name, String descr) {
+             const OpRegEntry* reg = OpRegistry::Global()->Get(op_name);
+             ICHECK(reg == nullptr)
+                 << "AttributeError: Operator " << op_name << " is registered before";
+             auto& op = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
+             op.describe(descr);
+           })
+      .def("ir.OpAddArgument",
+           [](Op op, String name, String type, String description) {
+             auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+             reg.add_argument(name, type, description);
+           })
+      .def("ir.OpSetSupportLevel",
+           [](Op op, int level) {
+             auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+             reg.set_support_level(level);
+           })
+      .def("ir.OpSetNumInputs",
+           [](Op op, int n) {
+             auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+             reg.set_num_inputs(n);
+           })
+      .def("ir.OpSetAttrsTypeKey",
+           [](Op op, String key) {
+             auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
+             reg.set_attrs_type_key(key);
+           })
+      .def("ir.RegisterOpAttr",
+           [](String op_name, String attr_key, ffi::AnyView value, int plevel) {
+             auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
+             // enable resgiteration and override of certain properties
+             if (attr_key == "num_inputs" && plevel > 128) {
+               reg.set_num_inputs(value.cast<int>());
+             } else if (attr_key == "attrs_type_key" && plevel > 128) {
+               LOG(FATAL) << "attrs type key no longer supported";
+             } else {
+               reg.set_attr(attr_key, value, plevel);
+             }
+           })
+      .def("ir.RegisterOpLowerIntrinsic",
+           [](String name, ffi::Function f, String target, int plevel) {
+             tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(
+                 target + ".FLowerIntrinsic", f, plevel);
+           });
 });
-
-TVM_FFI_REGISTER_GLOBAL("ir.GetOp").set_body_typed([](String name) -> Op { return Op::Get(name); });
-
-TVM_FFI_REGISTER_GLOBAL("ir.OpGetAttr").set_body_typed([](Op op, String attr_name) -> ffi::Any {
-  auto op_map = Op::GetAttrMap<ffi::Any>(attr_name);
-  ffi::Any rv;
-  if (op_map.count(op)) {
-    rv = op_map[op];
-  }
-  return rv;
-});
-
-TVM_FFI_REGISTER_GLOBAL("ir.OpHasAttr").set_body_typed([](Op op, String attr_name) -> bool {
-  return Op::HasAttrMap(attr_name);
-});
-
-TVM_FFI_REGISTER_GLOBAL("ir.OpSetAttr")
-    .set_body_typed([](Op op, String attr_name, ffi::AnyView value, int plevel) {
-      auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
-      reg.set_attr(attr_name, value, plevel);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("ir.OpResetAttr").set_body_typed([](Op op, String attr_name) {
-  auto& reg = OpRegistry::Global()->RegisterOrGet(op->name);
-  reg.reset_attr(attr_name);
-});
-
-TVM_FFI_REGISTER_GLOBAL("ir.RegisterOp").set_body_typed([](String op_name, String descr) {
-  const OpRegEntry* reg = OpRegistry::Global()->Get(op_name);
-  ICHECK(reg == nullptr) << "AttributeError: Operator " << op_name << " is registered before";
-  auto& op = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
-  op.describe(descr);
-});
-
-TVM_FFI_REGISTER_GLOBAL("ir.OpAddArgument")
-    .set_body_typed([](Op op, String name, String type, String description) {
-      auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
-      reg.add_argument(name, type, description);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("ir.OpSetSupportLevel").set_body_typed([](Op op, int level) {
-  auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
-  reg.set_support_level(level);
-});
-
-TVM_FFI_REGISTER_GLOBAL("ir.OpSetNumInputs").set_body_typed([](Op op, int n) {
-  auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
-  reg.set_num_inputs(n);
-});
-
-TVM_FFI_REGISTER_GLOBAL("ir.OpSetAttrsTypeKey").set_body_typed([](Op op, String key) {
-  auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
-  reg.set_attrs_type_key(key);
-});
-
-TVM_FFI_REGISTER_GLOBAL("ir.RegisterOpAttr")
-    .set_body_typed([](String op_name, String attr_key, ffi::AnyView value, int plevel) {
-      auto& reg = OpRegistry::Global()->RegisterOrGet(op_name).set_name();
-      // enable resgiteration and override of certain properties
-      if (attr_key == "num_inputs" && plevel > 128) {
-        reg.set_num_inputs(value.cast<int>());
-      } else if (attr_key == "attrs_type_key" && plevel > 128) {
-        LOG(FATAL) << "attrs type key no longer supported";
-      } else {
-        reg.set_attr(attr_key, value, plevel);
-      }
-    });
-
-TVM_FFI_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
-    .set_body_typed([](String name, ffi::Function f, String target, int plevel) {
-      tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(target + ".FLowerIntrinsic", f,
-                                                                     plevel);
-    });
 
 ObjectPtr<Object> CreateOp(const std::string& name) {
   // Hack use ffi::Any as exchange
