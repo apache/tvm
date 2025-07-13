@@ -48,6 +48,7 @@ from tvm import TVMError, relax, tir, topi
 from tvm.ir import IRModule
 from tvm.ir.supply import NameSupply
 from tvm.tir.generic import cast
+from tvm.topi.utils import get_const_tuple
 
 from ..common import autopad
 
@@ -2488,9 +2489,19 @@ class LayerNormalization(OnnxOpConverter):
         axis = attr.get("axis", -1)
         epsilon = attr.get("epsilon", 1e-05)
 
+        gamma_shape = get_const_tuple(scale.struct_info.shape)
+
         if bias is None:
             seq_len = data.struct_info.shape[1].value
             bias = relax.const([0.0] * seq_len, dtype="float32")
+        else:
+            beta_shape = get_const_tuple(bias.struct_info.shape)
+            if gamma_shape != beta_shape:
+                raise ValueError("gamma and beta shapes do not match")
+
+        axis = list(axis) if isinstance(axis, (list, tuple)) else [axis]
+        if len(axis) < len(gamma_shape):
+            axis.extend(range(axis[-1] + 1, axis[-1] + 1 + len(gamma_shape) - len(axis)))
 
         output = relax.op.nn.layer_norm(data, scale, bias, axis, epsilon)
         # Onnx layernorm has 3 outputs but only the first is used.
