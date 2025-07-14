@@ -1282,18 +1282,20 @@ def test_mean_variance_norm():
 
 
 def test_layer_norm():
-    layer_norm_node = helper.make_node("LayerNormalization", ["a", "b", "c"], ["d"], epsilon=1e-12)
+    layer_norm_node = helper.make_node(
+        "LayerNormalization", ["input", "scale", "bias"], ["Y"], epsilon=1e-12
+    )
 
     graph = helper.make_graph(
         [layer_norm_node],
         "layer_norm_test",
         inputs=[
-            helper.make_tensor_value_info("a", TensorProto.FLOAT, [32, 32]),
-            helper.make_tensor_value_info("b", TensorProto.FLOAT, [32]),
-            helper.make_tensor_value_info("c", TensorProto.FLOAT, [32]),
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [32]),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, [32]),
         ],
         outputs=[
-            helper.make_tensor_value_info("d", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [32, 32]),
         ],
     )
 
@@ -1301,21 +1303,65 @@ def test_layer_norm():
     check_correctness(model)
 
     # Test case with no bias that is an optional input
-    layer_norm_node = helper.make_node("LayerNormalization", ["a", "b"], ["d"], epsilon=1e-12)
+    layer_norm_node = helper.make_node(
+        "LayerNormalization", ["input", "scale"], ["Y"], epsilon=1e-12
+    )
 
     graph = helper.make_graph(
         [layer_norm_node],
         "layer_norm_test",
         inputs=[
-            helper.make_tensor_value_info("a", TensorProto.FLOAT, [32, 32]),
-            helper.make_tensor_value_info("b", TensorProto.FLOAT, [32]),
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [32]),
         ],
         outputs=[
-            helper.make_tensor_value_info("d", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [32, 32]),
         ],
     )
 
     model = helper.make_model(graph, producer_name="layer_norm_test")
+    check_correctness(model)
+
+
+def test_layer_norm_with_nd_gamma_beta():
+    layer_norm_node = helper.make_node(
+        "LayerNormalization", ["input", "scale", "bias"], ["Y"], axis=1, epsilon=1e-12
+    )
+
+    graph = helper.make_graph(
+        [layer_norm_node],
+        "layer_norm_with_nd_gamma_beta_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [1, 3, 4, 4]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [3, 4, 4]),
+            helper.make_tensor_value_info("bias", TensorProto.FLOAT, [3, 4, 4]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 3, 4, 4]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="layer_norm_with_nd_gamma_beta_test")
+    check_correctness(model)
+
+    # Test case with no bias that is an optional input
+    layer_norm_node = helper.make_node(
+        "LayerNormalization", ["input", "scale"], ["Y"], axis=1, epsilon=1e-12
+    )
+
+    graph = helper.make_graph(
+        [layer_norm_node],
+        "layer_norm_with_nd_gamma_beta_test",
+        inputs=[
+            helper.make_tensor_value_info("input", TensorProto.FLOAT, [32, 32]),
+            helper.make_tensor_value_info("scale", TensorProto.FLOAT, [32]),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("Y", TensorProto.FLOAT, [32, 32]),
+        ],
+    )
+
+    model = helper.make_model(graph, producer_name="layer_norm_with_nd_gamma_beta_test")
     check_correctness(model)
 
 
