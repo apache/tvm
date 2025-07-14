@@ -272,7 +272,7 @@ def test_mean():
             ) -> R.Tensor((1, 10, 1), "float32"):
                 n = T.int64()
                 with R.dataflow():
-                    t0: R.Tensor((1, 10, 15), "float32") = R.mean(i0, axis=[-1], keepdims=True)
+                    t0: R.Tensor((1, 10, 1), "float32") = R.mean(i0, axis=[-1], keepdims=True)
                     R.output(t0)
                 return t0
 

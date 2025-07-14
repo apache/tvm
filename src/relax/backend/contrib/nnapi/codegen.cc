@@ -259,7 +259,9 @@ Array<runtime::Module> NNAPICompiler(Array<Function> functions, Map<String, ffi:
     auto constant_names = serializer.GetConstantNames();
     const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.nnapi_runtime_create");
     auto func_name = GetExtSymbol(func);
-    compiled_functions.push_back(pf(func_name, graph_json, constant_names));
+    auto result = pf(func_name, graph_json, constant_names);
+    tvm::runtime::Module mod = result.cast<tvm::runtime::Module>();
+    compiled_functions.push_back(mod);
   }
 
   return compiled_functions;
