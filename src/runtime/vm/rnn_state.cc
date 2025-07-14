@@ -21,7 +21,7 @@
  * \brief Runtime RNN state object for space state models.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <cstdint>
 #include <vector>

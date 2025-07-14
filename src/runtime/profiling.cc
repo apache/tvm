@@ -24,7 +24,7 @@
 
 #include <dmlc/json.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/profiling.h>

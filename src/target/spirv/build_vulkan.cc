@@ -22,7 +22,7 @@
  * \brief Build SPIRV block
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "../../runtime/spirv/spirv_shader.h"
 #include "../../runtime/vulkan/vulkan_module.h"

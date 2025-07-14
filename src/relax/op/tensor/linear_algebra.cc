@@ -24,7 +24,7 @@
 
 #include "linear_algebra.h"
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/topi/einsum.h>
 
 #include <algorithm>

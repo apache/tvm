@@ -20,7 +20,7 @@
  * \file src/relax/transform/to_non_dataflow.cc
  * \brief Transform all dataflow structure to non-dataflow version.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>

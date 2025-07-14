@@ -22,7 +22,7 @@
  * \brief Convert the blocks to opaque blocks which do not have block vars.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 

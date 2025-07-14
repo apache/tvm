@@ -25,7 +25,7 @@
 #define TVM_TARGET_TARGET_KIND_H_
 
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/attr_registry_map.h>
 #include <tvm/node/node.h>
 

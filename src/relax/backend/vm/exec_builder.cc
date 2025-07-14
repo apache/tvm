@@ -20,7 +20,7 @@
 /*!
  * \file src/relax/backend/vm/exec_builder.cc
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/exec_builder.h>
 
 #include <sstream>

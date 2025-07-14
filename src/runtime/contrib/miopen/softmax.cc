@@ -22,7 +22,7 @@
  * \brief Use external miopen softmax function
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
 
 #include "miopen_utils.h"

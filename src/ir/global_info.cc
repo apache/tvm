@@ -22,7 +22,7 @@
  * \brief Module global info.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/global_info.h>
 namespace tvm {
 

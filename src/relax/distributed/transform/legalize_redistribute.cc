@@ -22,7 +22,7 @@
  * \brief Pass for legalizing redistribute op to ccl op.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/ccl.h>
 #include <tvm/relax/attrs/distributed.h>
 #include <tvm/relax/distributed/axis_group_graph.h>

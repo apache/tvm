@@ -27,7 +27,7 @@
 #ifndef TVM_RELAX_TRANSFORM_INFER_LAYOUT_UTILS_H_
 #define TVM_RELAX_TRANSFORM_INFER_LAYOUT_UTILS_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/create.h>
 #include <tvm/relax/attrs/datatype.h>
 #include <tvm/relax/attrs/image.h>

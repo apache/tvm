@@ -22,7 +22,7 @@
  */
 #include "codegen_opencl.h"
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <cmath>
 #include <string>

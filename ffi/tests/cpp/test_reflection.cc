@@ -20,7 +20,8 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/object.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/accessor.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 
 #include "./testing_object.h"

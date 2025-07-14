@@ -21,7 +21,7 @@
 #define TVM_META_SCHEDULE_MEASURE_CANDIDATE_H_
 
 #include <tvm/ffi/container/array.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>

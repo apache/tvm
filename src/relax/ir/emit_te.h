@@ -24,7 +24,7 @@
 #ifndef TVM_RELAX_IR_EMIT_TE_H_
 #define TVM_RELAX_IR_EMIT_TE_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/te/operation.h>
 

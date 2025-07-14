@@ -22,7 +22,7 @@
  * \brief Relax dtensor struct info.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/distributed/struct_info.h>
 namespace tvm {
 namespace relax {

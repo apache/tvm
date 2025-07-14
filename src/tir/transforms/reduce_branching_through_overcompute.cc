@@ -24,7 +24,7 @@
  * extra computations that do not impact the final results.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
 

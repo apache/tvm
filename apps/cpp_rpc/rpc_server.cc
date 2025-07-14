@@ -22,7 +22,7 @@
  * \brief RPC Server implementation.
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #if defined(__linux__) || defined(__ANDROID__) || defined(__APPLE__)
 #include <signal.h>
 #include <sys/select.h>

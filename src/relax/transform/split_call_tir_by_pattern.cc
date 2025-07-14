@@ -21,7 +21,7 @@
  * \brief Transform all dataflow structure to non-dataflow version.
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/tir_pattern.h>

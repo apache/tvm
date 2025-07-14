@@ -22,7 +22,7 @@
  * \brief Renew the definition nodes for a TIR, including Var, Buffer and IterVar.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 

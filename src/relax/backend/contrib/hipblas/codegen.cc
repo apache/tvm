@@ -21,7 +21,7 @@
  * \file src/relax/backend/contrib/hipblas/codegen.cc
  * \brief Implementation of the HIPBLAS JSON serializer.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 
 #include <string>

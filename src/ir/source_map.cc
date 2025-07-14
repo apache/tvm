@@ -21,7 +21,7 @@
  * \brief The implementation of the source map data structure.
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/transform.h>
 

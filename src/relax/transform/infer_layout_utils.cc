@@ -18,7 +18,7 @@
  */
 #include "infer_layout_utils.h"
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "utils.h"
 

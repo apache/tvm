@@ -26,7 +26,7 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "../../arith/scalable_expression.h"
 #include "codegen_cpu.h"

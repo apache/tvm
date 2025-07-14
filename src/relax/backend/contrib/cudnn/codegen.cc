@@ -21,7 +21,7 @@
  * \file src/relax/backend/contrib/cudnn/codegen.cc
  * \brief Implementation of the cuDNN JSON serializer.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 
 #include <string>

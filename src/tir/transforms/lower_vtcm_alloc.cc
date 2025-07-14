@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/transform.h>

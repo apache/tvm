@@ -17,7 +17,7 @@
  * under the License.
  */
 #include <papi.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/contrib/papi.h>
 
 #include <string>

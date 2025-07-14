@@ -19,7 +19,7 @@
 
 /*! \file src/relax/transform/decompose_ops.cc */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/struct_info.h>

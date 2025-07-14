@@ -30,7 +30,7 @@
 #include "common_subexpr_elim.h"
 
 #include <tvm/ffi/container/array.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/transform.h>  // For the class Pass and the class PassContext
 #include <tvm/tir/analysis.h>  // For the analysis which gives the size of an expr

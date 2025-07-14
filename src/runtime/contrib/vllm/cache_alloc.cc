@@ -18,7 +18,7 @@
  */
 #include <cuda_runtime.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/ndarray.h>
 
 namespace tvm {

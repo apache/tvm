@@ -21,7 +21,7 @@
  * \brief Attach global_symbol to Relax functions and TIR Primfuncs for codegen.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/replace_global_vars.h>
 #include <tvm/relax/struct_info.h>

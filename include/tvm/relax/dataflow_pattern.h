@@ -26,7 +26,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/type.h>

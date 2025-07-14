@@ -25,7 +25,7 @@
 #include <assert.h>
 #include <ctype.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 

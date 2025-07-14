@@ -25,7 +25,7 @@
 #define TVM_TE_OPERATION_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>

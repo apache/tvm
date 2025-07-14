@@ -22,7 +22,7 @@
  * \file nn.cc
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/topi/nn.h>
 #include <tvm/topi/nn/bias_add.h>
 #include <tvm/topi/nn/bnn.h>

@@ -22,7 +22,7 @@
  * \brief Reorder concat(permute_dims(A), permute_dims(B)) into permute_dims(concat(A,B))
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>

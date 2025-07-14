@@ -22,7 +22,7 @@
  * \brief Utility transformation that applies an inner pass to a subset of an IRModule
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/expr.h>
 #include <tvm/tir/function.h>

@@ -24,13 +24,13 @@
 #ifndef TVM_IR_GLOBAL_VAR_SUPPLY_H_
 #define TVM_IR_GLOBAL_VAR_SUPPLY_H_
 
+#include <tvm/ffi/reflection/registry.h>
+#include <tvm/ir/expr.h>
+#include <tvm/ir/module.h>
+#include <tvm/ir/name_supply.h>
+
 #include <string>
 #include <unordered_map>
-
-#include "tvm/ffi/reflection/reflection.h"
-#include "tvm/ir/expr.h"
-#include "tvm/ir/module.h"
-#include "tvm/ir/name_supply.h"
 
 namespace tvm {
 

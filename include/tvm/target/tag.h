@@ -24,7 +24,7 @@
 #ifndef TVM_TARGET_TAG_H_
 #define TVM_TARGET_TAG_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/attr_registry_map.h>
 #include <tvm/node/node.h>
 #include <tvm/target/target.h>

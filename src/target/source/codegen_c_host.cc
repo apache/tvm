@@ -22,7 +22,7 @@
  */
 #include "codegen_c_host.h"
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 

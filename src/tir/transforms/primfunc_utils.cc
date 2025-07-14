@@ -22,7 +22,7 @@
  * \brief Passes that serve as helper functions.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/transform.h>
 
 namespace tvm {

@@ -25,7 +25,7 @@
  */
 #if defined(__linux__)
 #include <sys/stat.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #endif
 #include <cuda_runtime.h>
 #include <nvrtc.h>

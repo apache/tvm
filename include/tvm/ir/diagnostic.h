@@ -26,7 +26,7 @@
 #ifndef TVM_IR_DIAGNOSTIC_H_
 #define TVM_IR_DIAGNOSTIC_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 
 #include <sstream>

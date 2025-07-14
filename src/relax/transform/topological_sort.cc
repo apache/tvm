@@ -20,7 +20,7 @@
  * \file src/relax/transform/topological_sort.cc
  * \brief Perform a topological sort of Dataflow blocks
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>

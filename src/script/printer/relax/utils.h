@@ -19,7 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_RELAX_UTILS_H_
 #define TVM_SCRIPT_PRINTER_RELAX_UTILS_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>

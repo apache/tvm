@@ -21,7 +21,7 @@
  * \file src/ir/analysis.cc
  * \brief Analysis functions that must span multiple IR types
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/analysis.h>
 
 #include "../support/ordered_set.h"
