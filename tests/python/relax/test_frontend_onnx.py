@@ -2442,11 +2442,7 @@ def test_resize(with_roi, roi_list):
         ],
         initializer=[
             helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.0, 2.0]),
-            *(
-                [helper.make_tensor("roi", TensorProto.FLOAT, [4], [0.0, 0.0, 0.0, 0.0])]
-                if with_roi
-                else []
-            ),
+            *([helper.make_tensor("roi", TensorProto.FLOAT, [4], roi_list)] if with_roi else []),
         ],
         outputs=[
             helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 3, 64, 64]),
