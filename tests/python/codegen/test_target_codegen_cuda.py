@@ -839,5 +839,22 @@ def test_device_host_call_same_func():
     tvm.testing.assert_allclose(c_tvm.numpy(), a_np + b_np)
 
 
+@tvm.testing.requires_cuda
+def test_thread_return():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(A: T.Buffer((16, 16), "float32"), B: T.Buffer((16, 16), "float32")):
+            for bx in T.thread_binding(32, "blockIdx.x"):
+                for tx in T.thread_binding(32, "threadIdx.x"):
+                    if bx >= 16 or tx >= 16:
+                        T.thread_return()
+                    B[bx, tx] = A[bx, tx]
+
+    lib = tvm.compile(Module, target="cuda")
+    cuda_code = lib.mod.imported_modules[0].get_source()
+    assert "return;" in cuda_code
+
+
 if __name__ == "__main__":
     tvm.testing.main()
