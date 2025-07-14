@@ -2359,8 +2359,34 @@ def test_tile(dynamic):
     verify_tile(x.shape, repeats, z_array.shape)
 
 
-def test_resize():
-    resize_node = helper.make_node("Resize", ["X", "", "scales"], ["Y"], mode="cubic")
+def _generate_roi_cases():
+    # Base case when with_roi is False
+    roi_list = [
+        pytest.param(False, None, id="no_roi"),
+    ]
+
+    # Valid when with_roi is True
+    roi_cases = [
+        [0.0, 0.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0, 1.0],
+        [0.1, 0.1, 0.9, 0.9],
+        [0.2, 0.2, 0.8, 0.8],
+        [0.3, 0.3, 0.7, 0.7],
+        [0.4, 0.4, 0.6, 0.6],
+        [0.5, 0.5, 0.5, 0.5],
+        [0.1, 0.2, 0.9, 0.8],
+    ]
+    for roi in roi_cases:
+        roi_list.append(pytest.param(True, roi, id=f"roi_{'_'.join(str(x) for x in roi)}"))
+
+    return roi_list
+
+
+@pytest.mark.parametrize("with_roi, roi_list", _generate_roi_cases())
+def test_resize(with_roi, roi_list):
+    resize_node = helper.make_node(
+        "Resize", ["X", "roi" if with_roi else "", "scales"], ["Y"], mode="cubic"
+    )
 
     graph = helper.make_graph(
         [resize_node],
@@ -2370,6 +2396,11 @@ def test_resize():
         ],
         initializer=[
             helper.make_tensor("scales", TensorProto.FLOAT, [4], [1.0, 1.0, 2.0, 2.0]),
+            *(
+                [helper.make_tensor("roi", TensorProto.FLOAT, [4], [0.0, 0.0, 0.0, 0.0])]
+                if with_roi
+                else []
+            ),
         ],
         outputs=[
             helper.make_tensor_value_info("Y", TensorProto.FLOAT, [1, 3, 64, 64]),

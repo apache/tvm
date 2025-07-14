@@ -2126,13 +2126,18 @@ class Resize(OnnxOpConverter):
 
         # Define relax implementation.
         if roi is not None:
-            roi = relax.op.concat(
-                [
-                    relax.op.strided_slice(roi, axes=[0], begin=[2], end=[ndims]),
-                    relax.op.strided_slice(roi, axes=[0], begin=[ndims + 2], end=[2 * ndims]),
-                ],
-                axis=0,
-            )
+            if isinstance(roi, relax.Constant):
+                roi = roi.data.numpy().tolist()
+            else:
+                roi = relax.op.concat(
+                    [
+                        relax.op.strided_slice(roi, axes=[0], begin=[2], end=[ndims]),
+                        relax.op.strided_slice(roi, axes=[0], begin=[ndims + 2], end=[2 * ndims]),
+                    ],
+                    axis=0,
+                )
+                # TODO The backend C++ func resize2d does not support dynamic ROI for now.
+                raise NotImplementedError("Dynamic ROI is not supported in resize2d for now.")
         else:
             roi = [0.0] * 4
 
