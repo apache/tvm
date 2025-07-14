@@ -37,7 +37,7 @@ namespace datatype {
  *    directly---see the TVM globals registered in the corresponding .cc file.
  *    Currently, user should manually choose a type name and a type code,
  *    ensuring that neither conflict with existing types.
- * 2. Use TVM_FFI_REGISTER_GLOBAL to register the lowering functions needed to
+ * 2. Register the lowering functions needed to
  *    lower the custom datatype. In general, these will look like:
  *      For Casts: tvm.datatype.lower.<target>.Cast.<type>.<src_type>
  *        Example: tvm.datatype.lower.llvm.Cast.myfloat.float for a Cast from

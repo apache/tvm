@@ -194,18 +194,16 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 // set device api
-TVM_FFI_REGISTER_GLOBAL(tvm::runtime::symbol::tvm_set_device)
-    .set_body_packed([](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
-      DLDevice dev;
-      dev.device_type = static_cast<DLDeviceType>(args[0].cast<int>());
-      dev.device_id = args[1].cast<int>();
-      DeviceAPIManager::Get(dev)->SetDevice(dev);
-    });
-
-// set device api
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
+      .def_packed(tvm::runtime::symbol::tvm_set_device,
+                  [](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
+                    DLDevice dev;
+                    dev.device_type = static_cast<DLDeviceType>(args[0].cast<int>());
+                    dev.device_id = args[1].cast<int>();
+                    DeviceAPIManager::Get(dev)->SetDevice(dev);
+                  })
       .def_packed("runtime.GetDeviceAttr",
                   [](tvm::ffi::PackedArgs args, tvm::ffi::Any* ret) {
                     DLDevice dev;

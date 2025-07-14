@@ -255,7 +255,10 @@ PrimExpr thread_return(Span span) {
   return tir::Call(DataType::Void(), tir::builtin::thread_return(), {}, span);
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.thread_return").set_body_typed(thread_return);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.thread_return", thread_return);
+});
 
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype, Span span) {
@@ -1158,53 +1161,21 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 // operator overloading, smarter than make
-#define REGISTER_MAKE_BINARY_OP(Node, Func)                                                    \
-  TVM_FFI_REGISTER_GLOBAL("tir." #Node).set_body_typed([](PrimExpr a, PrimExpr b, Span span) { \
-    return (Func(a, b, span));                                                                 \
-  })
+#define DEF_MAKE_BINARY_OP(Node, Func) \
+  def("tir." #Node, [](PrimExpr a, PrimExpr b, Span span) { return (Func(a, b, span)); })
 
-#define REGISTER_MAKE_BIT_OP(Node, Func)                                                          \
-  TVM_FFI_REGISTER_GLOBAL("tir." #Node).set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) { \
-    bool lhs_is_int = args[0].type_index() == ffi::TypeIndex::kTVMFFIInt;                         \
-    bool rhs_is_int = args[1].type_index() == ffi::TypeIndex::kTVMFFIInt;                         \
-    if (lhs_is_int) {                                                                             \
-      *ret = (Func(args[0].cast<int>(), args[1].cast<PrimExpr>(), args[2].cast<Span>()));         \
-    } else if (rhs_is_int) {                                                                      \
-      *ret = (Func(args[0].cast<PrimExpr>(), args[1].cast<int>(), args[2].cast<Span>()));         \
-    } else {                                                                                      \
-      *ret = (Func(args[0].cast<PrimExpr>(), args[1].cast<PrimExpr>(), args[2].cast<Span>()));    \
-    }                                                                                             \
+#define DEF_MAKE_BIT_OP(Node, Func)                                                            \
+  def_packed("tir." #Node, [](ffi::PackedArgs args, ffi::Any* ret) {                           \
+    bool lhs_is_int = args[0].type_index() == ffi::TypeIndex::kTVMFFIInt;                      \
+    bool rhs_is_int = args[1].type_index() == ffi::TypeIndex::kTVMFFIInt;                      \
+    if (lhs_is_int) {                                                                          \
+      *ret = (Func(args[0].cast<int>(), args[1].cast<PrimExpr>(), args[2].cast<Span>()));      \
+    } else if (rhs_is_int) {                                                                   \
+      *ret = (Func(args[0].cast<PrimExpr>(), args[1].cast<int>(), args[2].cast<Span>()));      \
+    } else {                                                                                   \
+      *ret = (Func(args[0].cast<PrimExpr>(), args[1].cast<PrimExpr>(), args[2].cast<Span>())); \
+    }                                                                                          \
   })
-
-REGISTER_MAKE_BINARY_OP(_OpAdd, add);
-REGISTER_MAKE_BINARY_OP(_OpSub, sub);
-REGISTER_MAKE_BINARY_OP(_OpMul, mul);
-REGISTER_MAKE_BINARY_OP(_OpDiv, div);
-REGISTER_MAKE_BINARY_OP(_OpMod, truncmod);
-REGISTER_MAKE_BINARY_OP(_OpIndexDiv, indexdiv);
-REGISTER_MAKE_BINARY_OP(_OpIndexMod, indexmod);
-REGISTER_MAKE_BINARY_OP(_OpFloorDiv, floordiv);
-REGISTER_MAKE_BINARY_OP(_OpLogAddExp, logaddexp);
-REGISTER_MAKE_BINARY_OP(_OpFloorMod, floormod);
-REGISTER_MAKE_BINARY_OP(_OpTruncDiv, truncdiv);
-REGISTER_MAKE_BINARY_OP(_OpTruncMod, truncmod);
-REGISTER_MAKE_BINARY_OP(_OpCeilDiv, ceildiv);
-REGISTER_MAKE_BINARY_OP(_OpPow, pow);
-REGISTER_MAKE_BINARY_OP(_OpMin, min);
-REGISTER_MAKE_BINARY_OP(_OpMax, max);
-REGISTER_MAKE_BINARY_OP(_OpEQ, equal);
-REGISTER_MAKE_BINARY_OP(_OpNE, not_equal);
-REGISTER_MAKE_BINARY_OP(_OpLT, less);        // NOLINT(*)
-REGISTER_MAKE_BINARY_OP(_OpLE, less_equal);  // NOLINT(*)
-REGISTER_MAKE_BINARY_OP(_OpGT, greater);     // NOLINT(*)
-REGISTER_MAKE_BINARY_OP(_OpGE, greater_equal);
-REGISTER_MAKE_BINARY_OP(_OpAnd, logical_and);
-REGISTER_MAKE_BINARY_OP(_OpOr, logical_or);
-REGISTER_MAKE_BIT_OP(bitwise_and, bitwise_and);
-REGISTER_MAKE_BIT_OP(bitwise_or, bitwise_or);
-REGISTER_MAKE_BIT_OP(bitwise_xor, bitwise_xor);
-REGISTER_MAKE_BIT_OP(left_shift, left_shift);  // NOLINT(*)
-REGISTER_MAKE_BIT_OP(right_shift, right_shift);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
@@ -1213,7 +1184,36 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](PrimExpr cond, PrimExpr true_value, PrimExpr false_value, Span span) {
              return if_then_else(cond, true_value, false_value, span);
            })
-      .def("tir.const_true", [](DataType t, Span span) { return const_true(t.lanes(), span); });
+      .def("tir.const_true", [](DataType t, Span span) { return const_true(t.lanes(), span); })
+      .DEF_MAKE_BINARY_OP(_OpAdd, add)
+      .DEF_MAKE_BINARY_OP(_OpSub, sub)
+      .DEF_MAKE_BINARY_OP(_OpMul, mul)
+      .DEF_MAKE_BINARY_OP(_OpDiv, div)
+      .DEF_MAKE_BINARY_OP(_OpMod, truncmod)
+      .DEF_MAKE_BINARY_OP(_OpIndexDiv, indexdiv)
+      .DEF_MAKE_BINARY_OP(_OpIndexMod, indexmod)
+      .DEF_MAKE_BINARY_OP(_OpFloorDiv, floordiv)
+      .DEF_MAKE_BINARY_OP(_OpLogAddExp, logaddexp)
+      .DEF_MAKE_BINARY_OP(_OpFloorMod, floormod)
+      .DEF_MAKE_BINARY_OP(_OpTruncDiv, truncdiv)
+      .DEF_MAKE_BINARY_OP(_OpTruncMod, truncmod)
+      .DEF_MAKE_BINARY_OP(_OpCeilDiv, ceildiv)
+      .DEF_MAKE_BINARY_OP(_OpPow, pow)
+      .DEF_MAKE_BINARY_OP(_OpMin, min)
+      .DEF_MAKE_BINARY_OP(_OpMax, max)
+      .DEF_MAKE_BINARY_OP(_OpEQ, equal)
+      .DEF_MAKE_BINARY_OP(_OpNE, not_equal)
+      .DEF_MAKE_BINARY_OP(_OpLT, less)        // NOLINT(*)
+      .DEF_MAKE_BINARY_OP(_OpLE, less_equal)  // NOLINT(*)
+      .DEF_MAKE_BINARY_OP(_OpGT, greater)     // NOLINT(*)
+      .DEF_MAKE_BINARY_OP(_OpGE, greater_equal)
+      .DEF_MAKE_BINARY_OP(_OpAnd, logical_and)
+      .DEF_MAKE_BINARY_OP(_OpOr, logical_or)
+      .DEF_MAKE_BIT_OP(bitwise_and, bitwise_and)
+      .DEF_MAKE_BIT_OP(bitwise_or, bitwise_or)
+      .DEF_MAKE_BIT_OP(bitwise_xor, bitwise_xor)
+      .DEF_MAKE_BIT_OP(left_shift, left_shift)  // NOLINT(*)
+      .DEF_MAKE_BIT_OP(right_shift, right_shift);
 });
 
 PrimExpr fast_erf_float_expr(PrimExpr arg, int bits) {
