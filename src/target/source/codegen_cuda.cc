@@ -1334,6 +1334,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       LOG(FATAL) << "Invalid number of lanes for float4_e2m1fn reinterpret: " << lanes;
     }
     EndScope(ssa_scope);
+  } else if (op->op.same_as(builtin::thread_return())) {
+    os << "return";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }

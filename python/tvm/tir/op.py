@@ -1882,6 +1882,23 @@ def ret(val, span=None):
     return _ffi_api.ret(val, span)
 
 
+def thread_return(span=None):
+    """Return from a GPU thread.
+
+    Parameters
+    ----------
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    ret : PrimExpr
+        The return expression
+    """
+
+    return _ffi_api.thread_return(span)
+
+
 def any(*args, span=None):
     """Create a new experssion of the union of all conditions in the arguments
 
