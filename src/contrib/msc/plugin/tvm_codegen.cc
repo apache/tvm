@@ -215,14 +215,12 @@ void TVMPluginCodeGen::CodeGenOpDefine(const Plugin& plugin) {
   stack_.func_end("infer_output");
 
   // register funcs
-  stack_.func_call("TVM_FFI_REGISTER_GLOBAL")
+  stack_.func_call("TVM_MSC_PLUGIN_REGISTER_GLOBAL_DEF")
       .call_arg(DocUtils::ToStr("msc.plugin.op.InferStructInfo" + plugin->name))
-      .method_call("set_body_typed")
       .call_arg("InferStructInfo" + plugin->name)
       .line()
-      .func_call("TVM_FFI_REGISTER_GLOBAL")
+      .func_call("TVM_MSC_PLUGIN_REGISTER_GLOBAL_DEF")
       .call_arg(DocUtils::ToStr("msc.plugin.op.InferLayout" + plugin->name))
-      .method_call("set_body_typed")
       .call_arg("InferLayout" + plugin->name)
       .line();
 }
@@ -262,9 +260,8 @@ void TVMPluginCodeGen::CodeGenOpRuntime(const Plugin& plugin) {
   CodeGenCompute(plugin, "cpu");
   stack_.cond_end().func_end();
   // register the compute
-  stack_.func_call("TVM_FFI_REGISTER_GLOBAL")
+  stack_.func_call("TVM_MSC_PLUGIN_REGISTER_GLOBAL_DEF_PACKED")
       .call_arg(DocUtils::ToStr(plugin->name))
-      .method_call("set_body")
       .call_arg(func_name)
       .line();
 }

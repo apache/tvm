@@ -80,12 +80,15 @@ Which eventually jumps to the following line in C++, which creates a RPC client 
 [https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L123-L129](https://github.com/apache/tvm/blob/2cca934aad1635e3a83b712958ea83ff65704316/src/runtime/rpc/rpc_socket_impl.cc#L123-L129)
 
 ```cpp
-TVM_FFI_REGISTER_GLOBAL("rpc.Connect").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  auto url = args[0].cast<std::string>();
-  int port = args[1].cast<int>();
-  auto key = args[2].cast<std::string>();
-  *rv = RPCClientConnect(url, port, key,
-                         ffi::PackedArgs(args.values + 3, args.type_codes + 3, args.size() - 3));
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("rpc.Connect", [](ffi::PackedArgs args, ffi::Any* rv) {
+    auto url = args[0].cast<std::string>();
+    int port = args[1].cast<int>();
+    auto key = args[2].cast<std::string>();
+    *rv = RPCClientConnect(url, port, key,
+                          ffi::PackedArgs(args.values + 3, args.type_codes + 3, args.size() - 3));
+  });
 });
 ```
 
@@ -94,8 +97,11 @@ TVM_FFI_REGISTER_GLOBAL("rpc.Connect").set_body_packed([](ffi::PackedArgs args, 
 [https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/src/runtime/hexagon/rpc/android/session.cc#L106](https://github.com/apache/tvm/blob/cd2fa69677516048e165e84a88c774dfb0ee65d1/src/runtime/hexagon/rpc/android/session.cc#L106)
 
 ```cpp
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed(
+      "tvm.contrib.hexagon.create_hexagon_session", [](ffi::PackedArgs args, ffi::Any* rv) {
       auto session_name = args[0].cast<std::string>();
       int remote_stack_size_bytes = args[1].cast<int>();
       HexagonTransportChannel* hexagon_channel =
@@ -105,6 +111,7 @@ TVM_FFI_REGISTER_GLOBAL("tvm.contrib.hexagon.create_hexagon_session")
       auto sess = CreateClientSession(ep);
       *rv = CreateRPCSessionModule(sess);
     });
+});
 ```
 
 `HexagonTransportChannel` is the one that actually knows how to talk to Hexagon. It uses functions such as `hexagon_rpc_send`, `hexagon_rpc_receive` defined in

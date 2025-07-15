@@ -80,8 +80,10 @@ The following example registers PackedFunc in C++ and calls from python.
 .. code:: c
 
     // register a global packed function in c++
-    TVM_FFI_REGISTER_GLOBAL("myadd")
-    .set_body_packed(MyAdd);
+    TVM_FFI_STATIC_INIT_BLOCK({
+      namespace refl = tvm::ffi::reflection;
+      refl::GlobalDef().def_packed("myadd", MyAdd);
+    });
 
 .. code:: python
 
@@ -110,10 +112,12 @@ we can pass functions from python (as PackedFunc) to C++.
 
 .. code:: c
 
-    TVM_FFI_REGISTER_GLOBAL("callhello")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      PackedFunc f = args[0];
-      f("hello world");
+    TVM_FFI_STATIC_INIT_BLOCK({
+      namespace refl = tvm::ffi::reflection;
+      refl::GlobalDef().def_packed("callhello", [](ffi::PackedArgs args, ffi::Any* rv) {
+        ffi::Function f = args[0].cast<ffi::Function>();
+        f("hello world");
+      });
     });
 
 .. code:: python
