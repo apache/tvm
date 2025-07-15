@@ -25,7 +25,7 @@
 #include <hip/hip_runtime_api.h>
 #include <hsa/hsa.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/profiling.h>

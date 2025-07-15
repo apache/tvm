@@ -20,7 +20,7 @@
  * \file stmt_functor.cc
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/function.h>

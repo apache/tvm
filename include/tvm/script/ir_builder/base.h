@@ -19,7 +19,7 @@
 #ifndef TVM_SCRIPT_IR_BUILDER_BASE_H_
 #define TVM_SCRIPT_IR_BUILDER_BASE_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/node/node.h>
