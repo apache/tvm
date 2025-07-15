@@ -760,107 +760,117 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 #define TVM_TMP_STR(x) #x
 
-#define TVM_FFI_REGISTER_GLOBAL_SIZE(Prefix, DType)                          \
-  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(8)).set_body_typed(DType##8);   \
-  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(16)).set_body_typed(DType##16); \
-  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(32)).set_body_typed(DType##32); \
-  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(64)).set_body_typed(DType##64);
+#define TVM_FFI_REFL_DEF_GLOBAL_SIZE(Prefix, DType) \
+  def(Prefix TVM_TMP_STR(8), DType##8)              \
+      .def(Prefix TVM_TMP_STR(16), DType##16)       \
+      .def(Prefix TVM_TMP_STR(32), DType##32)       \
+      .def(Prefix TVM_TMP_STR(64), DType##64)
 
-TVM_FFI_REGISTER_GLOBAL_SIZE("script.ir_builder.tir.Float", Float);
-TVM_FFI_REGISTER_GLOBAL_SIZE("script.ir_builder.tir.UInt", UInt);
-TVM_FFI_REGISTER_GLOBAL_SIZE("script.ir_builder.tir.Int", Int);
+#define TVM_FFI_REFL_DEF_GLOBAL_LANES(Prefix, Func) \
+  def(Prefix TVM_TMP_STR(x4), Func##x4)             \
+      .def(Prefix TVM_TMP_STR(x8), Func##x8)        \
+      .def(Prefix TVM_TMP_STR(x16), Func##x16)      \
+      .def(Prefix TVM_TMP_STR(x32), Func##x32)      \
+      .def(Prefix TVM_TMP_STR(x64), Func##x64)
 
-#define TVM_FFI_REGISTER_GLOBAL_LANES(Prefix, Func)                           \
-  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x4)).set_body_typed(Func##x4);   \
-  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x8)).set_body_typed(Func##x8);   \
-  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x16)).set_body_typed(Func##x16); \
-  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x32)).set_body_typed(Func##x32); \
-  TVM_FFI_REGISTER_GLOBAL(Prefix TVM_TMP_STR(x64)).set_body_typed(Func##x64);
-
-#define TVM_FFI_REGISTER_GLOBAL_SIZES_LANES(Prefix, DType)          \
-  TVM_FFI_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(8), DType##8);   \
-  TVM_FFI_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(16), DType##16); \
-  TVM_FFI_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(32), DType##32); \
-  TVM_FFI_REGISTER_GLOBAL_LANES(Prefix TVM_TMP_STR(64), DType##64);
-
-TVM_FFI_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.Float", Float);
-TVM_FFI_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.UInt", UInt);
-TVM_FFI_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.Int", Int);
+#define TVM_FFI_REFL_DEF_GLOBAL_SIZES_LANES(Prefix, DType)              \
+  TVM_FFI_REFL_DEF_GLOBAL_LANES(Prefix TVM_TMP_STR(8), DType##8)        \
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES(Prefix TVM_TMP_STR(16), DType##16) \
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES(Prefix TVM_TMP_STR(32), DType##32) \
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES(Prefix TVM_TMP_STR(64), DType##64)
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.ir_builder.tir.BFloat16", BFloat16);
+  refl::GlobalDef()
+      .def("script.ir_builder.tir.BFloat16", BFloat16)
+      .TVM_FFI_REFL_DEF_GLOBAL_SIZE("script.ir_builder.tir.Float", Float)
+      .TVM_FFI_REFL_DEF_GLOBAL_SIZE("script.ir_builder.tir.UInt", UInt)
+      .TVM_FFI_REFL_DEF_GLOBAL_SIZE("script.ir_builder.tir.Int", Int)
+      .TVM_FFI_REFL_DEF_GLOBAL_SIZES_LANES("script.ir_builder.tir.Float", Float)
+      .TVM_FFI_REFL_DEF_GLOBAL_SIZES_LANES("script.ir_builder.tir.UInt", UInt)
+      .TVM_FFI_REFL_DEF_GLOBAL_SIZES_LANES("script.ir_builder.tir.Int", Int)
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tir.BFloat16", BFloat16);
 });
-TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.BFloat16", BFloat16);
 
 // Float8 variants
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.ir_builder.tir.Float8E3M4", Float8E3M4);
+  refl::GlobalDef()
+      .def("script.ir_builder.tir.Float8E3M4", Float8E3M4)
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tir.Float8E3M4", Float8E3M4);
 });
-TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float8E3M4", Float8E3M4);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.ir_builder.tir.Float8E4M3", Float8E4M3);
+  refl::GlobalDef()
+      .def("script.ir_builder.tir.Float8E4M3", Float8E4M3)
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tir.Float8E4M3", Float8E4M3);
 });
-TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float8E4M3", Float8E4M3);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.ir_builder.tir.Float8E4M3B11FNUZ", Float8E4M3B11FNUZ);
+  refl::GlobalDef()
+      .def("script.ir_builder.tir.Float8E4M3B11FNUZ", Float8E4M3B11FNUZ)
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tir.Float8E4M3B11FNUZ", Float8E4M3B11FNUZ);
 });
-TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float8E4M3B11FNUZ", Float8E4M3B11FNUZ);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.ir_builder.tir.Float8E4M3FN", Float8E4M3FN);
+  refl::GlobalDef()
+      .def("script.ir_builder.tir.Float8E4M3FN", Float8E4M3FN)
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tir.Float8E4M3FN", Float8E4M3FN);
 });
-TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float8E4M3FN", Float8E4M3FN);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.ir_builder.tir.Float8E4M3FNUZ", Float8E4M3FNUZ);
+  refl::GlobalDef()
+      .def("script.ir_builder.tir.Float8E4M3FNUZ", Float8E4M3FNUZ)
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tir.Float8E4M3FNUZ", Float8E4M3FNUZ);
 });
-TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float8E4M3FNUZ", Float8E4M3FNUZ);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.ir_builder.tir.Float8E5M2", Float8E5M2);
+  refl::GlobalDef()
+      .def("script.ir_builder.tir.Float8E5M2", Float8E5M2)
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tir.Float8E5M2", Float8E5M2);
 });
-TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float8E5M2", Float8E5M2);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.ir_builder.tir.Float8E5M2FNUZ", Float8E5M2FNUZ);
+  refl::GlobalDef()
+      .def("script.ir_builder.tir.Float8E5M2FNUZ", Float8E5M2FNUZ)
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tir.Float8E5M2FNUZ", Float8E5M2FNUZ);
 });
-TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float8E5M2FNUZ", Float8E5M2FNUZ);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.ir_builder.tir.Float8E8M0FNU", Float8E8M0FNU);
+  refl::GlobalDef()
+      .def("script.ir_builder.tir.Float8E8M0FNU", Float8E8M0FNU)
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tir.Float8E8M0FNU", Float8E8M0FNU);
 });
-TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float8E8M0FNU", Float8E8M0FNU);
 
 // Float6 variants
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.ir_builder.tir.Float6E2M3FN", Float6E2M3FN);
+  refl::GlobalDef()
+      .def("script.ir_builder.tir.Float6E2M3FN", Float6E2M3FN)
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tir.Float6E2M3FN", Float6E2M3FN);
 });
-TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float6E2M3FN", Float6E2M3FN);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.ir_builder.tir.Float6E3M2FN", Float6E3M2FN);
+  refl::GlobalDef()
+      .def("script.ir_builder.tir.Float6E3M2FN", Float6E3M2FN)
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tir.Float6E3M2FN", Float6E3M2FN);
 });
-TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float6E3M2FN", Float6E3M2FN);
 
 // Float4 variant
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("script.ir_builder.tir.Float4E2M1FN", Float4E2M1FN);
+  refl::GlobalDef()
+      .def("script.ir_builder.tir.Float4E2M1FN", Float4E2M1FN)
+      .TVM_FFI_REFL_DEF_GLOBAL_LANES("script.ir_builder.tir.Float4E2M1FN", Float4E2M1FN);
 });
-TVM_FFI_REGISTER_GLOBAL_LANES("script.ir_builder.tir.Float4E2M1FN", Float4E2M1FN);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
