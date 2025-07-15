@@ -24,7 +24,7 @@
  * \brief Analysis to detect global recursive or mutually recursive functions.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/tir/expr_functor.h>

@@ -24,7 +24,7 @@
 
 #include "sorting.h"
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <vector>
 

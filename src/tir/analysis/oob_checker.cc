@@ -21,7 +21,7 @@
  *  Out of bounds array access static analyzer.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/transform.h>
 
 #include "../../arith/ir_visitor_with_analyzer.h"

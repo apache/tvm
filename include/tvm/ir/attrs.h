@@ -31,7 +31,8 @@
 #include <dmlc/common.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/accessor.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>

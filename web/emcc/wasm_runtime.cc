@@ -30,7 +30,7 @@
 #define TVM_FFI_ALWAYS_LOG_BEFORE_THROW 1
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 
 #include "src/runtime/contrib/sort/sort.cc"

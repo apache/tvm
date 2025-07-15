@@ -25,7 +25,7 @@
 #include <tvm/arith/bound.h>
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/stmt.h>

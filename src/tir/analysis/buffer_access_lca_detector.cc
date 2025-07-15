@@ -22,7 +22,7 @@
  * \brief Detect the lowest common ancestor(LCA) of buffer access
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 

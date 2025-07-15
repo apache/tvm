@@ -24,7 +24,7 @@
 
 #include "index.h"
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/topi/transform.h>
 

@@ -24,7 +24,7 @@
 
 #ifndef TVM_RELAX_BINDING_REWRITE_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>

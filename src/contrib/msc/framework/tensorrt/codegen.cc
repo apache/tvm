@@ -24,7 +24,7 @@
 
 #include "codegen.h"
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 

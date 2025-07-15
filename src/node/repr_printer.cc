@@ -22,7 +22,7 @@
  * \file node/repr_printer.cc
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/device_api.h>
 

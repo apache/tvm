@@ -20,7 +20,7 @@
 #define TVM_META_SCHEDULE_EXTRACTED_TASK_H_
 
 #include <tvm/ffi/container/array.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/reflection.h>

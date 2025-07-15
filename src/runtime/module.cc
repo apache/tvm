@@ -22,7 +22,7 @@
  * \brief TVM module system
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/module.h>
 
 #include <cstring>

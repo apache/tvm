@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/distributed/global_info.h>
 
 namespace tvm {

@@ -19,7 +19,7 @@
 #ifndef TVM_RELAX_STRUCT_INFO_H_
 #define TVM_RELAX_STRUCT_INFO_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/node/node.h>

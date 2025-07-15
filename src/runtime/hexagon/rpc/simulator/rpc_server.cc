@@ -19,7 +19,7 @@
 
 #include <HAP_farf.h>
 #include <dlfcn.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <algorithm>
 #include <cassert>

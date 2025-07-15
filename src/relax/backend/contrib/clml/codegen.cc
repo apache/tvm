@@ -21,7 +21,7 @@
  * \file src/relax/backend/contrib/clml/codegen.cc
  * \brief Implementation of the OpenCLML JSON serializer.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/type.h>

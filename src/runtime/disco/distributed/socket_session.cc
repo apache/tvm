@@ -17,7 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <numeric>
 

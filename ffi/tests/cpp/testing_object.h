@@ -22,7 +22,7 @@
 
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 
 namespace tvm {

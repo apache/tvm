@@ -22,7 +22,7 @@
  * \brief Convert all for loops to serial for lesser memory consumption
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>

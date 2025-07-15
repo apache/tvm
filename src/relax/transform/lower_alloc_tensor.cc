@@ -20,7 +20,7 @@
  * \file src/relax/transform/lower_alloc_tensor.cc
  * \brief Lower any relax.builtin.alloc_tensor remaining after static planning
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
 

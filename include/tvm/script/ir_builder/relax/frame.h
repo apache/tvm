@@ -19,7 +19,7 @@
 #ifndef TVM_SCRIPT_IR_BUILDER_RELAX_FRAME_H_
 #define TVM_SCRIPT_IR_BUILDER_RELAX_FRAME_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr.h>
 #include <tvm/script/ir_builder/base.h>

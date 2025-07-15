@@ -21,7 +21,7 @@
  * \file make_unpacked_api.cc Lower PrimFunc to a standard C function API.
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>

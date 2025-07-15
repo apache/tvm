@@ -25,7 +25,7 @@
 #define TVM_CONTRIB_MSC_CORE_IR_GRAPH_BUILDER_H_
 
 #include <dmlc/json.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/runtime/ndarray.h>

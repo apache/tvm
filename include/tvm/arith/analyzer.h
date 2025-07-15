@@ -25,7 +25,7 @@
 #define TVM_ARITH_ANALYZER_H_
 
 #include <tvm/arith/int_set.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/support/with.h>
 

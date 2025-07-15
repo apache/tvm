@@ -24,7 +24,7 @@
 
 #include "statistical.h"
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <string>
 #include <vector>

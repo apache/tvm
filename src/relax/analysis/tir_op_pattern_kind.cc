@@ -18,7 +18,7 @@
  */
 
 #include <tvm/arith/iter_affine_map.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/tir/analysis.h>

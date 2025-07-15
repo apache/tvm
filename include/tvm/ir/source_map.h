@@ -24,7 +24,7 @@
 #define TVM_IR_SOURCE_MAP_H_
 
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/object.h>
 

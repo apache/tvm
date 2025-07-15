@@ -22,7 +22,7 @@
  * \brief Relax struct info.
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/struct_info_functor.h>

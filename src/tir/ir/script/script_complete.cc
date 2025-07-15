@@ -25,7 +25,7 @@
 #include "./script_complete.h"
 
 #include <tvm/arith/int_set.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 
 #include <utility>

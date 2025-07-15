@@ -19,7 +19,7 @@
 
 #include <cuda_runtime.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/disco/cuda_ipc_memory.h>
 #include <tvm/runtime/memory/memory_manager.h>
 

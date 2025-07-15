@@ -35,7 +35,7 @@
  *    4. This pass currently works for op_pattern kElemWise and kBroadcast.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/tir/builtin.h>

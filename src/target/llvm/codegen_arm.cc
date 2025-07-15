@@ -25,7 +25,7 @@
 
 #include <llvm/IR/Intrinsics.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsARM.h>
 #endif

@@ -24,7 +24,7 @@
 // these instruction can be replaced with a call to a target specific handler
 // and can be used to capture profiling information such as processor cycles.
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>

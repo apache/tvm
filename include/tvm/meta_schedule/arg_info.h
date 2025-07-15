@@ -20,7 +20,7 @@
 #define TVM_META_SCHEDULE_ARG_INFO_H_
 
 #include <tvm/ffi/container/shape.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/node.h>
 #include <tvm/node/reflection.h>

@@ -21,7 +21,7 @@
  * \file src/relax/backend/vm/codegen_tir.cc
  * \brief A codegen to generate VMTIR function(that can be compiled) from executable.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>

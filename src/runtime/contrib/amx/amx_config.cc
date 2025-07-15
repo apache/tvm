@@ -22,7 +22,7 @@
  * \brief extraction of AMX configuration on x86 platforms
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 namespace tvm {
 namespace runtime {

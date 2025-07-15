@@ -18,7 +18,7 @@
  */
 #include "./multi_level_tiling.h"
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/schedule_rule.h>
 
 #include <algorithm>

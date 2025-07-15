@@ -21,7 +21,7 @@
  * \file src/relax/transform/split_tir_layout_rewrite.cc
  * \brief Use for rewriting the TIRs after meta_schedule layout rewrite post process.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>

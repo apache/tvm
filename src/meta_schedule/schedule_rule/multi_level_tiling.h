@@ -19,7 +19,7 @@
 #ifndef TVM_META_SCHEDULE_SCHEDULE_RULE_MULTI_LEVEL_TILING_H_
 #define TVM_META_SCHEDULE_SCHEDULE_RULE_MULTI_LEVEL_TILING_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/tir/schedule/schedule.h>
 

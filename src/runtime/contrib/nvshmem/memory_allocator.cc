@@ -19,7 +19,7 @@
 #include <nvshmem.h>
 #include <nvshmemx.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/memory/memory_manager.h>
 
 #include <thread>

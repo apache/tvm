@@ -22,7 +22,7 @@
  */
 #include "tvm_codegen.h"
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 namespace tvm {
 namespace contrib {

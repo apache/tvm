@@ -21,7 +21,7 @@
  * \file src/relax/backend/contrib/cublas/codegen.cc
  * \brief Implementation of the CUBLAS JSON serializer.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/builtin_fp16.h>
 

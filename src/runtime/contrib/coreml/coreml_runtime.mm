@@ -21,7 +21,7 @@
  * \file coreml_runtime.cc
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "coreml_runtime.h"
 

@@ -21,7 +21,7 @@
  * \file topi/einsum.cc
  * \brief Einstein summation op
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/topi/broadcast.h>
 #include <tvm/topi/einsum.h>
 

@@ -23,7 +23,7 @@
  *
  * \note Update this file when you added a new StructInfo.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info_functor.h>

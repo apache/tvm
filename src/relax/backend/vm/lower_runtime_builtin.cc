@@ -20,7 +20,7 @@
  * \file src/relax/backend/vm/lower_runtime_builtin.cc
  * \brief Lowers most builtin functions and packed calls.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/backend.h>

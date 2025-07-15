@@ -21,7 +21,7 @@
  * Lower block init stmt into branch stmt
  * \file lower_reduction.cc
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>

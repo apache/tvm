@@ -22,7 +22,7 @@
  * \brief A transform to match a Relax Expr and rewrite
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/relax/analysis.h>

@@ -34,7 +34,7 @@
  * with appropriate targets and updates call sites accordingly.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/global_var_supply.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>

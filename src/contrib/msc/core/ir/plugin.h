@@ -25,7 +25,7 @@
 #define TVM_CONTRIB_MSC_CORE_IR_PLUGIN_H_
 
 #include <dmlc/json.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/data_layout.h>
 
 #include <string>

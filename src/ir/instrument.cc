@@ -23,7 +23,7 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/instrument.h>
 #include <tvm/ir/transform.h>
 #include <tvm/node/repr_printer.h>

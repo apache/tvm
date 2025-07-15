@@ -21,7 +21,7 @@
  * \file detect_common_subexpr.cc
  * \brief Utility to detect common sub expressions.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/expr.h>
 
 #include <limits>

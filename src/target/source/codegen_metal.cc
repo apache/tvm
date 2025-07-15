@@ -22,7 +22,7 @@
  */
 #include "codegen_metal.h"
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/transform.h>
 
 #include <algorithm>

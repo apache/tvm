@@ -22,7 +22,7 @@
  * \brief Server environment of the RPC.
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "../file_utils.h"
 

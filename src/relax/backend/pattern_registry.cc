@@ -19,7 +19,7 @@
 
 #include "./pattern_registry.h"
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "../../support/utils.h"
 

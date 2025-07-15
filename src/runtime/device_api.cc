@@ -24,7 +24,7 @@
 #include <tvm/ffi/container/ndarray.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/base.h>

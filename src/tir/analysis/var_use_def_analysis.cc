@@ -23,7 +23,7 @@
  */
 #include "var_use_def_analysis.h"
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 namespace tvm {
 namespace tir {
 

@@ -33,7 +33,7 @@
 #endif
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 
 #include <limits>

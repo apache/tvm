@@ -25,7 +25,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <algorithm>
 #include <iostream>

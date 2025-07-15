@@ -31,7 +31,7 @@
 #ifndef TVM_TIR_BLOCK_DEPENDENCE_INFO_H_
 #define TVM_TIR_BLOCK_DEPENDENCE_INFO_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/block_scope.h>
 
 #include <unordered_map>
