@@ -22,7 +22,7 @@
  */
 #include <tvm/ffi/container/variant.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/rvalue_ref.h>
 #include <tvm/ir/global_var_supply.h>
 #include <tvm/ir/module.h>

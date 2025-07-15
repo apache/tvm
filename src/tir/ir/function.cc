@@ -22,7 +22,7 @@
  * \brief The function data structure.
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>

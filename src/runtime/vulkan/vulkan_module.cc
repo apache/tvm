@@ -21,7 +21,7 @@
 
 #include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "../file_utils.h"
 #include "vulkan_wrapped_func.h"

@@ -22,7 +22,7 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/profiling.h>
 #include "metal_common.h"
 

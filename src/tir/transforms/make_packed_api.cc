@@ -21,7 +21,7 @@
  * \file make_packed_api.cc Lower PrimFunc to use the packed function API.
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/target.h>

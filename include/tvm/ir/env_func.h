@@ -25,7 +25,7 @@
 #define TVM_IR_ENV_FUNC_H_
 
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/reflection.h>
 
 #include <string>

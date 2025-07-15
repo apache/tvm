@@ -21,7 +21,7 @@
  * \file env_func.cc
  */
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/tir/expr.h>
 

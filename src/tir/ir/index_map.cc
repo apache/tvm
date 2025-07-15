@@ -24,7 +24,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/iter_affine_map.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/tir/index_map.h>
 #include <tvm/tir/op.h>
