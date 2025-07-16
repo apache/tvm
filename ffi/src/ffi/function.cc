@@ -92,7 +92,10 @@ class GlobalFunctionTable {
     String name(method_info->name.data, method_info->name.size);
     if (table_.count(name)) {
       if (!can_override) {
-        TVM_FFI_THROW(RuntimeError) << "Global Function `" << name << "` is already registered";
+        TVM_FFI_LOG_AND_THROW(RuntimeError)
+            << "Global Function `" << name << "` is already registered, possible causes:\n"
+            << "- Two GlobalDef().def registrations for the same function \n"
+            << "Please remove the duplicate registration.";
       }
     }
     table_.Set(name, ObjectRef(make_object<Entry>(method_info)));
