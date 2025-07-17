@@ -25,7 +25,7 @@
 #define TVM_TE_TENSOR_H_
 
 #include <tvm/arith/bound.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
@@ -88,7 +88,7 @@ class TensorNode : public DataProducerNode {
   TVM_DLL String GetNameHint() const final;
 
   static constexpr const char* _type_key = "te.Tensor";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, DataProducerNode);
 };
 

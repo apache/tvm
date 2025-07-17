@@ -51,8 +51,6 @@ class PlacementSpecNode : public Object {
         .def_ro("kind", &PlacementSpecNode::kind);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const PlacementSpecNode* other, SEqualReducer equal) const {
     return equal(axis, other->axis) && equal(kind, other->kind);
   }
@@ -91,8 +89,6 @@ class ShardingNode : public PlacementSpecNode {
     refl::ObjectDef<ShardingNode>().def_ro("sharding_dim", &ShardingNode::sharding_dim);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const ShardingNode* other, SEqualReducer equal) const {
     return equal(sharding_dim, other->sharding_dim);
   }
@@ -114,8 +110,6 @@ class PlacementNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PlacementNode>().def_ro("dim_specs", &PlacementNode::dim_specs);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const PlacementNode* other, SEqualReducer equal) const {
     return equal(dim_specs, other->dim_specs);
@@ -166,8 +160,6 @@ class DTensorStructInfoNode : public StructInfoNode {
         .def_ro("placement", &DTensorStructInfoNode::placement)
         .def_ro("tensor_sinfo", &DTensorStructInfoNode::tensor_sinfo);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const DTensorStructInfoNode* other, SEqualReducer equal) const {
     return equal(tensor_sinfo, other->tensor_sinfo) && equal(device_mesh, other->device_mesh) &&

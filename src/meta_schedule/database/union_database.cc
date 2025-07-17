@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "../utils.h"
 
@@ -31,7 +31,7 @@ class UnionDatabaseNode : public DatabaseNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<UnionDatabaseNode>().def_ro("databases", &UnionDatabaseNode::databases);
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "meta_schedule.UnionDatabase";
   TVM_DECLARE_FINAL_OBJECT_INFO(UnionDatabaseNode, DatabaseNode);
 
@@ -87,8 +87,10 @@ Database Database::UnionDatabase(Array<Database> databases) {
 }
 
 TVM_REGISTER_NODE_TYPE(UnionDatabaseNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseUnionDatabase")
-    .set_body_typed(Database::UnionDatabase);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.DatabaseUnionDatabase", Database::UnionDatabase);
+});
 
 TVM_FFI_STATIC_INIT_BLOCK({ UnionDatabaseNode::RegisterReflection(); });
 

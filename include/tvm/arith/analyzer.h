@@ -25,7 +25,7 @@
 #define TVM_ARITH_ANALYZER_H_
 
 #include <tvm/arith/int_set.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/support/with.h>
 
@@ -93,8 +93,6 @@ class ConstIntBoundNode : public Object {
         .def_ro("min_value", &ConstIntBoundNode::min_value)
         .def_ro("max_value", &ConstIntBoundNode::max_value);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const ConstIntBoundNode* other, SEqualReducer equal) const {
     return equal(min_value, other->min_value) && equal(max_value, other->max_value);
@@ -219,8 +217,6 @@ class ModularSetNode : public Object {
         .def_ro("coeff", &ModularSetNode::coeff)
         .def_ro("base", &ModularSetNode::base);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const ModularSetNode* other, SEqualReducer equal) const {
     return equal(coeff, other->coeff) && equal(base, other->base);

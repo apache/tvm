@@ -22,6 +22,7 @@
  * \brief extraction of AMX configuration on x86 platforms
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 namespace tvm {
 namespace runtime {
@@ -75,59 +76,64 @@ void init_tile_config(__tilecfg_u* dst, uint16_t cols, uint8_t rows) {
   _tile_loadconfig(dst->a);
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.amx_tileconfig")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      int rows = args[0].cast<int>();
-      int cols = args[1].cast<int>();
-      LOG(INFO) << "rows: " << rows << ", cols:" << cols;
-      // -----------Config for AMX tile resgister----------------------
-      __tilecfg_u cfg;
-      init_tile_config(&cfg, cols, rows);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("runtime.amx_tileconfig", [](ffi::PackedArgs args, ffi::Any* rv) {
+    int rows = args[0].cast<int>();
+    int cols = args[1].cast<int>();
+    LOG(INFO) << "rows: " << rows << ", cols:" << cols;
+    // -----------Config for AMX tile resgister----------------------
+    __tilecfg_u cfg;
+    init_tile_config(&cfg, cols, rows);
 
-      *rv = 1;
-      return;
-    });
-
-// register a global packed function in c++，to init the system for AMX config
-TVM_FFI_REGISTER_GLOBAL("runtime.amx_init").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  // -----------Detect and request for AMX control----------------------
-  uint64_t bitmask = 0;
-  int64_t status = syscall(SYS_arch_prctl, ARCH_GET_XCOMP_PERM, &bitmask);
-  if (0 != status) {
-    *rv = 0;
-    LOG(FATAL) << "errno:" << errno << ", " << strerror(errno);
-    LOG(FATAL) << "status[0]: " << status << ", bitmask: " << bitmask
-               << ", XFEATURE_XTILEDATA setup is failed, TMUL feature is not allowed.";
-    return;
-  }
-  if (bitmask & XFEATURE_MASK_XTILEDATA) {
     *rv = 1;
     return;
-  }  // TILE_DATA feature was not detected
+  });
+});
 
-  status = syscall(SYS_arch_prctl, ARCH_REQ_XCOMP_PERM, XFEATURE_XTILEDATA);
-  // if XFEATURE_XTILEDATA setup is failed, TMUL usage is not allowed
-  if (0 != status) {
-    *rv = 0;
-    LOG(FATAL) << "errno:" << errno << ", " << strerror(errno);
-    LOG(FATAL) << "status[1]: " << status << ", bitmask: " << bitmask
-               << ", XFEATURE_XTILEDATA setup is failed, TMUL usage is not allowed.";
+// register a global packed function in c++，to init the system for AMX config
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("runtime.amx_init", [](ffi::PackedArgs args, ffi::Any* rv) {
+    // -----------Detect and request for AMX control----------------------
+    uint64_t bitmask = 0;
+    int64_t status = syscall(SYS_arch_prctl, ARCH_GET_XCOMP_PERM, &bitmask);
+    if (0 != status) {
+      *rv = 0;
+      LOG(FATAL) << "errno:" << errno << ", " << strerror(errno);
+      LOG(FATAL) << "status[0]: " << status << ", bitmask: " << bitmask
+                 << ", XFEATURE_XTILEDATA setup is failed, TMUL feature is not allowed.";
+      return;
+    }
+    if (bitmask & XFEATURE_MASK_XTILEDATA) {
+      *rv = 1;
+      return;
+    }  // TILE_DATA feature was not detected
+
+    status = syscall(SYS_arch_prctl, ARCH_REQ_XCOMP_PERM, XFEATURE_XTILEDATA);
+    // if XFEATURE_XTILEDATA setup is failed, TMUL usage is not allowed
+    if (0 != status) {
+      *rv = 0;
+      LOG(FATAL) << "errno:" << errno << ", " << strerror(errno);
+      LOG(FATAL) << "status[1]: " << status << ", bitmask: " << bitmask
+                 << ", XFEATURE_XTILEDATA setup is failed, TMUL usage is not allowed.";
+      return;
+    }
+
+    status = syscall(SYS_arch_prctl, ARCH_GET_XCOMP_PERM, &bitmask);
+    // if XFEATURE_XTILEDATA setup is failed, can't use TMUL
+    if (0 != status || !(bitmask & XFEATURE_MASK_XTILEDATA)) {
+      *rv = 0;
+      LOG(FATAL) << "errno:" << errno << ", " << strerror(errno);
+      LOG(FATAL) << "status[2]: " << status << ", bitmask: " << bitmask
+                 << ", XFEATURE_XTILEDATA setup is failed, can't use TMUL.";
+      return;
+    }
+
+    // XFEATURE_XTILEDATA set successfully, TMUL usage is allowed
+    *rv = 1;
     return;
-  }
-
-  status = syscall(SYS_arch_prctl, ARCH_GET_XCOMP_PERM, &bitmask);
-  // if XFEATURE_XTILEDATA setup is failed, can't use TMUL
-  if (0 != status || !(bitmask & XFEATURE_MASK_XTILEDATA)) {
-    *rv = 0;
-    LOG(FATAL) << "errno:" << errno << ", " << strerror(errno);
-    LOG(FATAL) << "status[2]: " << status << ", bitmask: " << bitmask
-               << ", XFEATURE_XTILEDATA setup is failed, can't use TMUL.";
-    return;
-  }
-
-  // XFEATURE_XTILEDATA set successfully, TMUL usage is allowed
-  *rv = 1;
-  return;
+  });
 });
 
 #endif

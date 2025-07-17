@@ -19,8 +19,9 @@
 
 #include "attention.h"
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include <utility>
-#include <vector>
 
 namespace tvm {
 namespace relax {
@@ -37,8 +38,8 @@ Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<F
 
   if (bias) {
     return Call(Op::Get("relax.nn.attention_bias"),
-                {std::move(query), std::move(key), std::move(value), std::move(bias.value())},
-                Attrs(attrs), {});
+                {std::move(query), std::move(key), std::move(value), bias.value()}, Attrs(attrs),
+                {});
   }
   return Call(Op::Get("relax.nn.attention"), {std::move(query), std::move(key), std::move(value)},
               Attrs(attrs), {});
@@ -57,8 +58,12 @@ Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr s
               {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.nn.attention").set_body_typed(attention);
-TVM_FFI_REGISTER_GLOBAL("relax.op.nn.attention_var_len").set_body_typed(attention_var_len);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("relax.op.nn.attention", attention)
+      .def("relax.op.nn.attention_var_len", attention_var_len);
+});
 
 StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);

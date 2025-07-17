@@ -21,6 +21,7 @@
  * \file tensor.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/te/tensor.h>
 
@@ -109,10 +110,13 @@ Tensor::Tensor(Array<PrimExpr> shape, DataType dtype, Operation op, int value_in
   data_ = std::move(n);
 }
 
-TVM_FFI_REGISTER_GLOBAL("te.Tensor")
-    .set_body_typed([](Array<PrimExpr> shape, DataType dtype, Operation op, int value_index) {
-      return Tensor(shape, dtype, op, value_index);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("te.Tensor",
+                        [](Array<PrimExpr> shape, DataType dtype, Operation op, int value_index) {
+                          return Tensor(shape, dtype, op, value_index);
+                        });
+});
 
 TVM_REGISTER_NODE_TYPE(TensorNode);
 
@@ -123,19 +127,19 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 // Other tensor ops.
-TVM_FFI_REGISTER_GLOBAL("te.TensorEqual").set_body_method(&Tensor::operator==);
-
-TVM_FFI_REGISTER_GLOBAL("te.TensorHash").set_body_typed([](Tensor tensor) -> int64_t {
-  return static_cast<int64_t>(std::hash<Tensor>()(tensor));
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_method("te.TensorEqual", &Tensor::operator==)
+      .def("te.TensorHash",
+           [](Tensor tensor) -> int64_t {
+             return static_cast<int64_t>(std::hash<Tensor>()(tensor));
+           })
+      .def("te.OpGetOutput",
+           [](Operation op, int64_t output) { return op.output(static_cast<size_t>(output)); })
+      .def_method("te.OpNumOutputs", &OperationNode::num_outputs)
+      .def_method("te.OpInputTensors", &OperationNode::InputTensors);
 });
-
-TVM_FFI_REGISTER_GLOBAL("te.OpGetOutput").set_body_typed([](Operation op, int64_t output) {
-  return op.output(static_cast<size_t>(output));
-});
-
-TVM_FFI_REGISTER_GLOBAL("te.OpNumOutputs").set_body_method(&OperationNode::num_outputs);
-
-TVM_FFI_REGISTER_GLOBAL("te.OpInputTensors").set_body_method(&OperationNode::InputTensors);
 
 }  // namespace te
 }  // namespace tvm

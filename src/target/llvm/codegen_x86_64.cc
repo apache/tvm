@@ -26,6 +26,7 @@
 #include <llvm/IR/DerivedTypes.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Intrinsics.h>
+#include <tvm/ffi/reflection/registry.h>
 #if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsX86.h>
 #endif
@@ -132,10 +133,13 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
   return CreateVecSlice(CreateVecConcat(split_results), 0, num_elems);
 }
 
-TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.target_x86-64")
-    .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
-      *rv = static_cast<void*>(new CodeGenX86_64());
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("tvm.codegen.llvm.target_x86-64",
+                               [](const ffi::PackedArgs& targs, ffi::Any* rv) {
+                                 *rv = static_cast<void*>(new CodeGenX86_64());
+                               });
+});
 
 }  // namespace codegen
 }  // namespace tvm

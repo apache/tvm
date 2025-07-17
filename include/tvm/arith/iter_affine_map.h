@@ -49,7 +49,7 @@
 #define TVM_ARITH_ITER_AFFINE_MAP_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/expr.h>
 #include <tvm/tir/var.h>
@@ -66,7 +66,6 @@ namespace arith {
  */
 class IterMapExprNode : public PrimExprNode {
  public:
-  static constexpr bool _type_has_method_visit_attrs = false;
   static constexpr const char* _type_key = "arith.IterMapExpr";
   static constexpr const uint32_t _type_child_slots = 2;
   TVM_DECLARE_BASE_OBJECT_INFO(IterMapExprNode, PrimExprNode);
@@ -105,8 +104,6 @@ class IterMarkNode : public Object {
         .def_ro("source", &IterMarkNode::source)
         .def_ro("extent", &IterMarkNode::extent);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const IterMarkNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
@@ -166,8 +163,6 @@ class IterSplitExprNode : public IterMapExprNode {
         .def_ro("extent", &IterSplitExprNode::extent)
         .def_ro("scale", &IterSplitExprNode::scale);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const IterSplitExprNode* other, SEqualReducer equal) const {
     return equal(source, other->source) && equal(lower_factor, other->lower_factor) &&
@@ -234,8 +229,6 @@ class IterSumExprNode : public IterMapExprNode {
         .def_ro("args", &IterSumExprNode::args)
         .def_ro("base", &IterSumExprNode::base);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const IterSumExprNode* other, SEqualReducer equal) const {
     return equal(args, other->args) && equal(base, other->base);
@@ -306,8 +299,6 @@ class IterMapResultNode : public Object {
         .def_ro("errors", &IterMapResultNode::errors)
         .def_ro("padding_predicate", &IterMapResultNode::padding_predicate);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "arith.IterMapResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(IterMapResultNode, Object);

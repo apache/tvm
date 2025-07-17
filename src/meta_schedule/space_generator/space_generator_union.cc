@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "../utils.h"
 
@@ -34,8 +34,6 @@ class SpaceGeneratorUnionNode : public SpaceGeneratorNode {
     refl::ObjectDef<SpaceGeneratorUnionNode>().def_ro("space_generators",
                                                       &SpaceGeneratorUnionNode::space_generators);
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final {
     SpaceGeneratorNode::InitializeWithTuneContext(context);
@@ -89,8 +87,11 @@ SpaceGenerator SpaceGenerator::SpaceGeneratorUnion(Array<SpaceGenerator> space_g
 TVM_FFI_STATIC_INIT_BLOCK({ SpaceGeneratorUnionNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(SpaceGeneratorUnionNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorSpaceGeneratorUnion")
-    .set_body_typed(SpaceGenerator::SpaceGeneratorUnion);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.SpaceGeneratorSpaceGeneratorUnion",
+                        SpaceGenerator::SpaceGeneratorUnion);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

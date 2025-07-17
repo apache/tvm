@@ -21,7 +21,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
@@ -55,7 +55,7 @@ class WorkloadNode : public runtime::Object {
   }
 
   static constexpr const char* _type_key = "meta_schedule.Workload";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(WorkloadNode, runtime::Object);
 
   /*!
@@ -137,7 +137,7 @@ class TuningRecordNode : public runtime::Object {
   }
 
   static constexpr const char* _type_key = "meta_schedule.TuningRecord";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(TuningRecordNode, runtime::Object);
 
   /*! \brief Construct the measure candidate given the initial IR module and trace
@@ -396,8 +396,6 @@ class PyDatabaseNode : public DatabaseNode {
     // `f_query_ir_module` is not registered
     // `f_size` is not registered
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   bool HasWorkload(const IRModule& mod) final {
     ICHECK(f_has_workload != nullptr) << "PyDatabase's HasWorkload method not implemented!";

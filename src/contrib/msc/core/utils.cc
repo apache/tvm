@@ -23,6 +23,8 @@
 
 #include "utils.h"
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include <algorithm>
 #include <string>
 namespace tvm {
@@ -523,28 +525,26 @@ const DataType ExprUtils::GetDataType(const Expr& expr) {
   return Downcast<TensorStructInfo>(GetStructInfo(expr))->dtype;
 }
 
-TVM_FFI_REGISTER_GLOBAL("msc.core.SpanGetAttr").set_body_typed(SpanUtils::GetAttr);
-
-TVM_FFI_REGISTER_GLOBAL("msc.core.SpanGetAttrs").set_body_typed(SpanUtils::GetAttrs);
-
-TVM_FFI_REGISTER_GLOBAL("msc.core.SpanCreateWithAttr")
-    .set_body_typed([](const String& key, const String& value) -> Span {
-      return SpanUtils::CreateWithAttr(key, value);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("msc.core.SpanSetAttr")
-    .set_body_typed([](const Span& span, const String& key, const String& value) -> Span {
-      return SpanUtils::SetAttr(span, key, value);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("msc.core.CompareVersion")
-    .set_body_typed([](const Array<Integer>& given_version,
-                       const Array<Integer>& target_version) -> Integer {
-      return Integer(CommonUtils::CompareVersion(given_version, target_version));
-    });
-
-TVM_FFI_REGISTER_GLOBAL("msc.core.ToAttrKey").set_body_typed([](const String& key) -> String {
-  return CommonUtils::ToAttrKey(key);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("msc.core.SpanGetAttr", SpanUtils::GetAttr)
+      .def("msc.core.SpanGetAttrs", SpanUtils::GetAttrs)
+      .def("msc.core.SpanCreateWithAttr",
+           [](const String& key, const String& value) -> Span {
+             return SpanUtils::CreateWithAttr(key, value);
+           })
+      .def("msc.core.SpanSetAttr",
+           [](const Span& span, const String& key, const String& value) -> Span {
+             return SpanUtils::SetAttr(span, key, value);
+           })
+      .def(
+          "msc.core.CompareVersion",
+          [](const Array<Integer>& given_version, const Array<Integer>& target_version) -> Integer {
+            return Integer(CommonUtils::CompareVersion(given_version, target_version));
+          })
+      .def("msc.core.ToAttrKey",
+           [](const String& key) -> String { return CommonUtils::ToAttrKey(key); });
 });
 
 }  // namespace msc

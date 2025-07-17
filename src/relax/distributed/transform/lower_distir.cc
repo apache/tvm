@@ -25,6 +25,7 @@
  *  inserting necessary broadcast and scatter for inputs.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/ccl.h>
 #include <tvm/relax/distributed/axis_group_graph.h>
 #include <tvm/relax/distributed/transform.h>
@@ -262,7 +263,10 @@ Pass LowerDistIR() {
   auto pass_func = [=](IRModule m, PassContext pc) { return DistIRSharder::LowerDistIR(m); };
   return CreateModulePass(pass_func, 1, "LowerDistIR", {});
 }
-TVM_FFI_REGISTER_GLOBAL("relax.distributed.transform.LowerDistIR").set_body_typed(LowerDistIR);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.distributed.transform.LowerDistIR", LowerDistIR);
+});
 }  // namespace transform
 
 }  // namespace distributed

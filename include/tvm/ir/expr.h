@@ -24,7 +24,7 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
@@ -62,7 +62,7 @@ class BaseExprNode : public Object {
   }
 
   static constexpr const char* _type_key = "ir.BaseExpr";
-  static constexpr const bool _type_has_method_visit_attrs = true;
+
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 64;
@@ -112,8 +112,6 @@ class PrimExprNode : public BaseExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimExprNode>().def_ro("dtype", &PrimExprNode::dtype);
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
@@ -184,13 +182,13 @@ template <>
 struct TypeTraits<PrimExpr>
     : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double, String,
                                              PrimExprConvertible> {
-  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(StrictBool value);
-  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(int64_t value);
-  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(double value);
-  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(String value) {
+  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(StrictBool value);
+  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(int64_t value);
+  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(double value);
+  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(String value) {
     return PrimExpr::ConvertFallbackValue(value);
   }
-  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(PrimExprConvertible value) {
+  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(PrimExprConvertible value) {
     return value->ToPrimExpr();
   }
 };
@@ -461,8 +459,6 @@ class GlobalVarNode : public RelaxExprNode {
   /*! \brief The name of the variable, this only acts as a hint. */
   String name_hint;
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<GlobalVarNode>().def_ro("name_hint", &GlobalVarNode::name_hint);
@@ -548,8 +544,6 @@ class FloatImmNode : public PrimExprNode {
  public:
   /*! \brief The constant value content. */
   double value;
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -700,8 +694,6 @@ class RangeNode : public Object {
   RangeNode(PrimExpr min, PrimExpr extent, Span span = Span())
       : min(min), extent(extent), span(span) {}
 
-  static constexpr const bool _type_has_method_visit_attrs = false;
-
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RangeNode>()
@@ -758,7 +750,7 @@ inline constexpr bool use_default_type_traits_v<IntImm> = false;
 // specialize to enable implicit conversion from const char*
 template <>
 struct TypeTraits<IntImm> : public ObjectRefWithFallbackTraitsBase<IntImm, int64_t> {
-  static TVM_FFI_INLINE IntImm ConvertFallbackValue(int64_t value) {
+  TVM_FFI_INLINE static IntImm ConvertFallbackValue(int64_t value) {
     auto dtype =
         (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min())
             ? DataType::Int(64)
@@ -772,7 +764,7 @@ inline constexpr bool use_default_type_traits_v<Integer> = false;
 
 template <>
 struct TypeTraits<Integer> : public ObjectRefWithFallbackTraitsBase<Integer, int64_t> {
-  static TVM_FFI_INLINE Integer ConvertFallbackValue(int64_t value) { return Integer(value); }
+  TVM_FFI_INLINE static Integer ConvertFallbackValue(int64_t value) { return Integer(value); }
 };
 
 template <>
@@ -780,7 +772,7 @@ inline constexpr bool use_default_type_traits_v<FloatImm> = false;
 
 template <>
 struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, double> {
-  static TVM_FFI_INLINE FloatImm ConvertFallbackValue(double value) {
+  TVM_FFI_INLINE static FloatImm ConvertFallbackValue(double value) {
     return FloatImm(runtime::DataType::Float(32), value);
   }
 };
@@ -790,7 +782,7 @@ inline constexpr bool use_default_type_traits_v<Bool> = false;
 
 template <>
 struct TypeTraits<Bool> : public ObjectRefWithFallbackTraitsBase<Bool, int64_t> {
-  static TVM_FFI_INLINE Bool ConvertFallbackValue(int64_t value) { return Bool(value != 0); }
+  TVM_FFI_INLINE static Bool ConvertFallbackValue(int64_t value) { return Bool(value != 0); }
 };
 
 // define automatic conversion from bool, int64_t, double to PrimExpr

@@ -21,6 +21,7 @@
  * \file tvm/relax/transform/realize_vdevice.cc
  * \brief Propagate virtual device information.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
@@ -415,7 +416,10 @@ Pass RealizeVDevice() {
                           /*required=*/{});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.RealizeVDevice").set_body_typed(RealizeVDevice);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.RealizeVDevice", RealizeVDevice);
+});
 
 }  // namespace transform
 }  // namespace relax

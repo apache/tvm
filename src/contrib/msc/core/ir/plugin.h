@@ -25,7 +25,7 @@
 #define TVM_CONTRIB_MSC_CORE_IR_PLUGIN_H_
 
 #include <dmlc/json.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/data_layout.h>
 
 #include <string>
@@ -278,8 +278,6 @@ class PluginAttrNode : public Object {
         .def_ro("describe", &PluginAttrNode::describe);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const PluginAttrNode* other, SEqualReducer equal) const {
     return equal(name, other->name) && equal(type, other->type) &&
            equal(default_value, other->default_value) && equal(describe, other->describe);
@@ -359,8 +357,6 @@ class PluginTensorNode : public Object {
         .def_ro("device", &PluginTensorNode::device)
         .def_ro("describe", &PluginTensorNode::describe);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const PluginTensorNode* other, SEqualReducer equal) const {
     return equal(name, other->name) && equal(dtype, other->dtype) && equal(ndim, other->ndim) &&
@@ -443,8 +439,6 @@ class PluginExternNode : public Object {
         .def_ro("lib", &PluginExternNode::lib)
         .def_ro("describe", &PluginExternNode::describe);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const PluginExternNode* other, SEqualReducer equal) const {
     return equal(name, other->name) && equal(header, other->header) &&
@@ -548,8 +542,6 @@ class PluginNode : public Object {
         .def_ro("support_dtypes", &PluginNode::support_dtypes)
         .def_ro("options", &PluginNode::options);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const PluginNode* other, SEqualReducer equal) const {
     return equal(name, other->name) && equal(version, other->version) &&

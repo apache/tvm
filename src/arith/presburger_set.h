@@ -33,7 +33,7 @@
 #endif
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 
 #include <limits>
@@ -76,8 +76,6 @@ class PresburgerSetNode : public IntSetNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PresburgerSetNode>();
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Do inplace union with given disjunct
@@ -160,8 +158,6 @@ class PresburgerSetNode : public IntSetNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PresburgerSetNode>();
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "arith.PresburgerSet";
   TVM_DECLARE_FINAL_OBJECT_INFO(PresburgerSetNode, IntSetNode);

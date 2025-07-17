@@ -23,7 +23,7 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/reflection.h>
@@ -51,8 +51,6 @@ class BuilderInputNode : public runtime::Object {
         .def_ro("target", &BuilderInputNode::target)
         .def_ro("params", &BuilderInputNode::params);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.BuilderInput";
   TVM_DECLARE_FINAL_OBJECT_INFO(BuilderInputNode, runtime::Object);
@@ -89,8 +87,6 @@ class BuilderResultNode : public runtime::Object {
         .def_ro("artifact_path", &BuilderResultNode::artifact_path)
         .def_ro("error_msg", &BuilderResultNode::error_msg);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.BuilderResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(BuilderResultNode, runtime::Object);
@@ -158,8 +154,6 @@ class PyBuilderNode : public BuilderNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PyBuilderNode>().def_ro("f_build", &PyBuilderNode::f_build);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   Array<BuilderResult> Build(const Array<BuilderInput>& build_inputs) final {
     ICHECK(f_build != nullptr) << "PyBuilder's Build method not implemented!";

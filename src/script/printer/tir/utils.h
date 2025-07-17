@@ -19,7 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_TIR_UTILS_H_
 #define TVM_SCRIPT_PRINTER_TIR_UTILS_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/script/printer/ir_docsifier.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
@@ -55,8 +55,6 @@ class TIRFrameNode : public FrameNode {
         .def_ro("tir", &TIRFrameNode::tir)
         .def_ro("allow_concise_scoping", &TIRFrameNode::allow_concise_scoping);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.printer.TIRFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(TIRFrameNode, FrameNode);

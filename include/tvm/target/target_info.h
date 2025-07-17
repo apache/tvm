@@ -24,7 +24,7 @@
 #ifndef TVM_TARGET_TARGET_INFO_H_
 #define TVM_TARGET_TARGET_INFO_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 
 #include <string>
@@ -59,7 +59,7 @@ class MemoryInfoNode : public Object {
   }
 
   static constexpr const char* _type_key = "target.MemoryInfo";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(MemoryInfoNode, Object);
 };
 

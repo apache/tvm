@@ -25,7 +25,7 @@
 #define TVM_TIR_BUFFER_H_
 
 #include <tvm/ffi/container/array.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/script_printer.h>
@@ -127,8 +127,6 @@ class BufferNode : public Object {
         .def_ro("buffer_type", &BufferNode::buffer_type)
         .def_ro("span", &BufferNode::span);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const BufferNode* other, SEqualReducer equal) const {
     // Use DefEqual as buffer can define variables in its semantics,

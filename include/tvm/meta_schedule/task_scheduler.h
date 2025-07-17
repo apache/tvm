@@ -22,7 +22,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/builder.h>
 #include <tvm/meta_schedule/cost_model.h>
 #include <tvm/meta_schedule/measure_callback.h>
@@ -74,8 +74,6 @@ class TaskRecordNode : public runtime::Object {
         .def_ro("builder_results", &TaskRecordNode::builder_results)
         .def_ro("runner_futures", &TaskRecordNode::runner_futures);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.TaskRecord";
   TVM_DECLARE_FINAL_OBJECT_INFO(TaskRecordNode, Object);
@@ -156,8 +154,6 @@ class TaskSchedulerNode : public runtime::Object {
         .def_ro("cost_model_", &TaskSchedulerNode::cost_model_)
         .def_ro("remaining_tasks_", &TaskSchedulerNode::remaining_tasks_);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Fetch the next task id.
@@ -248,8 +244,6 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PyTaskSchedulerNode>();
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   int NextTaskId() final;
   Array<RunnerResult> JoinRunningTask(int task_id) final;

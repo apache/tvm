@@ -26,7 +26,7 @@
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/object_path.h>
@@ -146,8 +146,6 @@ class PrinterConfigNode : public Object {
         .def_ro("obj_to_underline", &PrinterConfigNode::obj_to_underline)
         .def_ro("obj_to_annotate", &PrinterConfigNode::obj_to_annotate);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   Array<String> GetBuiltinKeywords();
 

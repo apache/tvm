@@ -286,7 +286,7 @@ size_t GraphPartitioner::CountFusedArgs(const IndexedForwardGraph& graph,
 }
 
 void GraphPartitioner::InitGroups(const IndexedForwardGraph& graph) {
-  auto args_counter = [this](const tvm::Object* obj) {
+  auto args_counter = [](const tvm::Object* obj) {
     size_t args_num = 0;
     if (auto call_node = GetRef<ObjectRef>(obj).as<CallNode>()) {
       for (auto& it : call_node->args) {

@@ -57,7 +57,7 @@
 #define TVM_IR_TRANSFORM_H_
 
 #include <tvm/ffi/container/array.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/instrument.h>
@@ -133,8 +133,6 @@ class PassContextNode : public Object {
         .def_ro("config", &PassContextNode::config)
         .def_ro("diag_ctx", &PassContextNode::diag_ctx);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "transform.PassContext";
   static constexpr bool _type_has_method_sequal_reduce = false;
@@ -325,8 +323,6 @@ class PassInfoNode : public Object {
         .def_ro("traceable", &PassInfoNode::traceable);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "transform.PassInfo";
   static constexpr bool _type_has_method_sequal_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(PassInfoNode, Object);
@@ -382,8 +378,6 @@ class PassNode : public Object {
    * \return The transformed module.
    */
   virtual IRModule operator()(IRModule mod, const PassContext& pass_ctx) const = 0;
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "transform.Pass";
   TVM_DECLARE_BASE_OBJECT_INFO(PassNode, Object);
@@ -447,8 +441,6 @@ class SequentialNode : public PassNode {
         .def_ro("pass_info", &SequentialNode::pass_info)
         .def_ro("passes", &SequentialNode::passes);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Get the pass information/meta data.

@@ -21,6 +21,7 @@
 
 #include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "../file_utils.h"
 #include "vulkan_wrapped_func.h"
@@ -64,9 +65,12 @@ Module VulkanModuleLoadBinary(void* strm) {
   return VulkanModuleCreate(smap, fmap, "");
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadfile_vulkan").set_body_typed(VulkanModuleLoadFile);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_vulkan").set_body_typed(VulkanModuleLoadBinary);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.module.loadfile_vulkan", VulkanModuleLoadFile)
+      .def("runtime.module.loadbinary_vulkan", VulkanModuleLoadBinary);
+});
 
 }  // namespace vulkan
 }  // namespace runtime

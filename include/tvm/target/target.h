@@ -24,7 +24,7 @@
 #ifndef TVM_TARGET_TARGET_H_
 #define TVM_TARGET_TARGET_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/node/attr_registry_map.h>
@@ -177,7 +177,7 @@ class TargetNode : public Object {
   void SHashReduce(SHashReducer hash_reduce) const;
 
   static constexpr const char* _type_key = "target.Target";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetNode, Object);

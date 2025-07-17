@@ -22,6 +22,7 @@
  * \brief Convert the blocks to opaque blocks which do not have block vars.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -183,7 +184,10 @@ Pass LiftThreadBinding() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LiftThreadBinding", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.LiftThreadBinding").set_body_typed(LiftThreadBinding);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LiftThreadBinding", LiftThreadBinding);
+});
 }  // namespace transform
 
 }  // namespace tir

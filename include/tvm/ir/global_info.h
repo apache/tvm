@@ -25,7 +25,7 @@
 #ifndef TVM_IR_GLOBAL_INFO_H_
 #define TVM_IR_GLOBAL_INFO_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/target/target.h>
 
@@ -78,8 +78,6 @@ class VDeviceNode : public GlobalInfoNode {
         .def_ro("memory_scope", &VDeviceNode::memory_scope);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   TVM_DLL bool SEqualReduce(const VDeviceNode* other, SEqualReducer equal) const {
     return equal(target, other->target) && equal(vdevice_id, other->vdevice_id) &&
            equal(memory_scope, other->memory_scope);
@@ -113,8 +111,6 @@ class DummyGlobalInfoNode : public GlobalInfoNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DummyGlobalInfoNode>();
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "ir.DummyGlobalInfo";
 

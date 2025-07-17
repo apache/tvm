@@ -134,8 +134,11 @@ class Timer : public ObjectRef {
    *  };
    *  TVM_REGISTER_OBJECT_TYPE(CPUTimerNode);
    *
-   *  TVM_FFI_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](Device dev) {
-   *    return Timer(make_object<CPUTimerNode>());
+   *  TVM_FFI_STATIC_INIT_BLOCK({
+   *    namespace refl = tvm::ffi::reflection;
+   *    refl::GlobalDef().def("profiling.timer.cpu", [](Device dev) {
+   *      return Timer(make_object<CPUTimerNode>());
+   *    });
    *  });
    * \endcode
    */

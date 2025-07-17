@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "../utils.h"
 
@@ -37,8 +37,6 @@ class MutateThreadBindingNode : public MutatorNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MutateThreadBindingNode>();
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.MutateThreadBinding";
   TVM_DECLARE_FINAL_OBJECT_INFO(MutateThreadBindingNode, MutatorNode);
@@ -175,8 +173,10 @@ Mutator Mutator::MutateThreadBinding() { return Mutator(make_object<MutateThread
 TVM_FFI_STATIC_INIT_BLOCK({ MutateThreadBindingNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(MutateThreadBindingNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutateThreadBinding")
-    .set_body_typed(Mutator::MutateThreadBinding);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.MutateThreadBinding", Mutator::MutateThreadBinding);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -32,11 +32,14 @@ namespace relax {
 /*! \brief Attributes used in take operator */
 struct TakeAttrs : public AttrsNodeReflAdapter<TakeAttrs> {
   Optional<int64_t> axis;
+  String mode;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TakeAttrs>().def_ro("axis", &TakeAttrs::axis,
-                                        "The axis over which to select values.");
+    refl::ObjectDef<TakeAttrs>()
+        .def_ro("axis", &TakeAttrs::axis, "The axis over which to select values.")
+        .def_ro("mode", &TakeAttrs::mode, "The mode for handling out-of-bounds indices.",
+                refl::DefaultValue("fast"));
   }
 
   static constexpr const char* _type_key = "relax.attrs.TakeAttrs";

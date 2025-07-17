@@ -25,7 +25,7 @@
 #define TVM_ARITH_INTERVAL_SET_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 
 #include <limits>
@@ -56,8 +56,6 @@ class IntervalSetNode : public IntSetNode {
         .def_ro("min_value", &IntervalSetNode::min_value)
         .def_ro("max_value", &IntervalSetNode::max_value);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   /*! \return Whether the interval has upper bound. */
   bool HasUpperBound() const { return !is_pos_inf(max_value) && !IsEmpty(); }

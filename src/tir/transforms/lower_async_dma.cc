@@ -24,6 +24,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/bound.h>
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/stmt.h>
@@ -175,7 +176,10 @@ Pass LowerAsyncDMA() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerAsyncDMA", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerAsyncDMA").set_body_typed(LowerAsyncDMA);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerAsyncDMA", LowerAsyncDMA);
+});
 }  // namespace transform
 
 }  // namespace tir

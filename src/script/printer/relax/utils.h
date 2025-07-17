@@ -19,7 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_RELAX_UTILS_H_
 #define TVM_SCRIPT_PRINTER_RELAX_UTILS_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
@@ -50,8 +50,6 @@ class RelaxFrameNode : public FrameNode {
         .def_ro("is_func", &RelaxFrameNode::is_func)
         .def_ro("module_alias_printed", &RelaxFrameNode::module_alias_printed);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.printer.RelaxFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(RelaxFrameNode, FrameNode);

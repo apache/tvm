@@ -22,6 +22,7 @@
  */
 #include "codegen_metal.h"
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
@@ -466,6 +467,9 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
   return MetalModuleCreate(smap, ExtractFuncInfo(mod), fmt, source_maker.str());
 }
 
-TVM_FFI_REGISTER_GLOBAL("target.build.metal").set_body_typed(BuildMetal);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("target.build.metal", BuildMetal);
+});
 }  // namespace codegen
 }  // namespace tvm

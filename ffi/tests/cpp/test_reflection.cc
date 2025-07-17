@@ -20,7 +20,8 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/object.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/accessor.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 
 #include "./testing_object.h"
@@ -151,6 +152,17 @@ TEST(Reflection, ForEachFieldInfo) {
   EXPECT_EQ(field_name_to_offset["x"], sizeof(TVMFFIObject));
   EXPECT_EQ(field_name_to_offset["y"], 8 + sizeof(TVMFFIObject));
   EXPECT_EQ(field_name_to_offset["z"], 16 + sizeof(TVMFFIObject));
+}
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_method("testing.Int_GetValue", &TIntObj::GetValue);
+});
+
+TEST(Reflection, FuncRegister) {
+  Function fget_value = Function::GetGlobalRequired("testing.Int_GetValue");
+  TInt a(12);
+  EXPECT_EQ(fget_value(a).cast<int>(), 12);
 }
 
 }  // namespace

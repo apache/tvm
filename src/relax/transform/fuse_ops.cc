@@ -27,7 +27,7 @@
  * A follow-up pass named "FuseTIR" will generate a TIR PrimFunc for each grouped function.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
@@ -1300,7 +1300,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
     if (!func_node->GetAttr<String>(attr::kComposite)) {
       // This lambda function doesn't have `attr::kComposite`, so it
       // was not produced by FuseOps.
-      return std::move(f_inner);
+      return f_inner;
     }
 
     f_inner = WithoutAttr(std::move(f_inner), tvm::relax::attr::kPrimitive);
@@ -1401,11 +1401,15 @@ FusionPattern::FusionPattern(String name, DFPattern pattern,
 }
 
 TVM_REGISTER_NODE_TYPE(FusionPatternNode);
-TVM_FFI_REGISTER_GLOBAL("relax.transform.FusionPattern")
-    .set_body_typed([](String name, DFPattern pattern, Map<String, DFPattern> annotation_patterns,
-                       Optional<ffi::Function> check, Optional<ffi::Function> attrs_getter) {
-      return FusionPattern(name, pattern, annotation_patterns, check, attrs_getter);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "relax.transform.FusionPattern",
+      [](String name, DFPattern pattern, Map<String, DFPattern> annotation_patterns,
+         Optional<ffi::Function> check, Optional<ffi::Function> attrs_getter) {
+        return FusionPattern(name, pattern, annotation_patterns, check, attrs_getter);
+      });
+});
 
 PatternCheckContext::PatternCheckContext(Expr matched_expr, Map<String, Expr> annotated_expr,
                                          Map<Var, Expr> matched_bindings,
@@ -1435,7 +1439,10 @@ Pass FuseOps(int fuse_opt_level) {
                           /*required=*/{});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.FuseOps").set_body_typed(FuseOps);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.FuseOps", FuseOps);
+});
 
 Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_constants,
                       bool annotate_codegen, const Array<String>& entry_function_names) {
@@ -1450,7 +1457,10 @@ Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_const
                           /*required=*/{});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.FuseOpsByPattern").set_body_typed(FuseOpsByPattern);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.FuseOpsByPattern", FuseOpsByPattern);
+});
 
 }  // namespace transform
 

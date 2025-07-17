@@ -69,8 +69,6 @@ class TraceNode : public runtime::Object {
         .def_ro("decisions", &TraceNode::decisions);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "tir.Trace";
   TVM_DECLARE_FINAL_OBJECT_INFO(TraceNode, runtime::Object);
 

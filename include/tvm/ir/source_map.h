@@ -24,7 +24,7 @@
 #define TVM_IR_SOURCE_MAP_H_
 
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/object.h>
 
@@ -52,8 +52,6 @@ class SourceNameNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SourceNameNode>().def_ro("name", &SourceNameNode::name);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr bool _type_has_method_sequal_reduce = true;
 
@@ -112,8 +110,6 @@ class SpanNode : public Object {
         .def_ro("end_column", &SpanNode::end_column);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr bool _type_has_method_sequal_reduce = true;
 
   bool SEqualReduce(const SpanNode* other, SEqualReducer equal) const {
@@ -148,8 +144,6 @@ class SequentialSpanNode : public SpanNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SequentialSpanNode>().def_ro("spans", &SequentialSpanNode::spans);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "ir.SequentialSpan";
   TVM_DECLARE_FINAL_OBJECT_INFO(SequentialSpanNode, SpanNode);
@@ -206,8 +200,6 @@ class SourceNode : public Object {
         .def_ro("source", &SourceNode::source);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "ir.Source";
   TVM_DECLARE_FINAL_OBJECT_INFO(SourceNode, Object);
 };
@@ -236,8 +228,6 @@ class SourceMapObj : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<SourceMapObj>().def_ro("source_map", &SourceMapObj::source_map);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const SourceMapObj* other, SEqualReducer equal) const {
     return equal(source_map, other->source_map);

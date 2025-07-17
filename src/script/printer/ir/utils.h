@@ -19,7 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_IR_UTILS_H_
 #define TVM_SCRIPT_PRINTER_IR_UTILS_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
@@ -43,8 +43,6 @@ class IRFrameNode : public FrameNode {
     namespace refl = tvm::ffi::reflection;
     // global infos is not exposed
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "script.printer.IRFrame";
   TVM_DECLARE_FINAL_OBJECT_INFO(IRFrameNode, FrameNode);

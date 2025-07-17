@@ -49,6 +49,7 @@
  * 2. Lift the regions identified in step 1 to a separate function and rewrite the original function
  * with `CUDAGraphRewriter`.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
@@ -897,7 +898,10 @@ Pass RewriteCUDAGraph() {
   return CreateModulePass(pass_func, 0, "RewriteCUDAGraph", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.RewriteCUDAGraph").set_body_typed(RewriteCUDAGraph);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.RewriteCUDAGraph", RewriteCUDAGraph);
+});
 
 }  // namespace transform
 

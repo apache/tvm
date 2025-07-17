@@ -279,7 +279,7 @@ class PackedArgs {
    *       destroyed after calling Fill.
    */
   template <typename... Args>
-  static void TVM_FFI_INLINE Fill(AnyView* data, Args&&... args) {
+  TVM_FFI_INLINE static void Fill(AnyView* data, Args&&... args) {
     details::for_each(details::PackedArgsSetter(data), std::forward<Args>(args)...);
   }
 
@@ -727,23 +727,23 @@ template <typename FType>
 struct TypeTraits<TypedFunction<FType>> : public TypeTraitsBase {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIFunction;
 
-  static TVM_FFI_INLINE void CopyToAnyView(const TypedFunction<FType>& src, TVMFFIAny* result) {
+  TVM_FFI_INLINE static void CopyToAnyView(const TypedFunction<FType>& src, TVMFFIAny* result) {
     TypeTraits<Function>::CopyToAnyView(src.packed(), result);
   }
 
-  static TVM_FFI_INLINE void MoveToAny(TypedFunction<FType> src, TVMFFIAny* result) {
+  TVM_FFI_INLINE static void MoveToAny(TypedFunction<FType> src, TVMFFIAny* result) {
     TypeTraits<Function>::MoveToAny(std::move(src.packed()), result);
   }
 
-  static TVM_FFI_INLINE bool CheckAnyStrict(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
     return src->type_index == TypeIndex::kTVMFFIFunction;
   }
 
-  static TVM_FFI_INLINE TypedFunction<FType> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static TypedFunction<FType> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
     return TypedFunction<FType>(TypeTraits<Function>::CopyFromAnyViewAfterCheck(src));
   }
 
-  static TVM_FFI_INLINE std::optional<TypedFunction<FType>> TryCastFromAnyView(
+  TVM_FFI_INLINE static std::optional<TypedFunction<FType>> TryCastFromAnyView(
       const TVMFFIAny* src) {
     std::optional<Function> opt = TypeTraits<Function>::TryCastFromAnyView(src);
     if (opt.has_value()) {
@@ -753,136 +753,7 @@ struct TypeTraits<TypedFunction<FType>> : public TypeTraitsBase {
     }
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return details::FunctionInfo<FType>::Sig(); }
-};
-
-/*! \brief Registry for global function */
-class Function::Registry {
- public:
-  /*! \brief constructor */
-  explicit Registry(const char* name) : name_(name) {}
-
-  /*!
-   * \brief Set body to be to use the packed convention.
-   *
-   * \tparam FLambda The signature of the function.
-   * \param f The body of the function.
-   */
-  template <typename FLambda>
-  Registry& set_body_packed(FLambda f) {
-    return Register(ffi::Function::FromPacked(f));
-  }
-  /*!
-   * \brief set the body of the function to the given function.
-   *        Note that this will ignore default arg values and always require all arguments to be
-   * provided.
-   *
-   * \code
-   *
-   * int multiply(int x, int y) {
-   *   return x * y;
-   * }
-   *
-   * TVM_FFI_REGISTER_GLOBAL("multiply")
-   * .set_body_typed(multiply); // will have type int(int, int)
-   *
-   * // will have type int(int, int)
-   * TVM_FFI_REGISTER_GLOBAL("sub")
-   * .set_body_typed([](int a, int b) -> int { return a - b; });
-   *
-   * \endcode
-   *
-   * \param f The function to forward to.
-   * \tparam FLambda The signature of the function.
-   */
-  template <typename FLambda>
-  Registry& set_body_typed(FLambda f) {
-    return Register(Function::FromTyped(f, name_));
-  }
-
-  /*!
-   * \brief set the body of the function to be the passed method pointer.
-   *        Note that this will ignore default arg values and always require all arguments to be
-   * provided.
-   *
-   * \code
-   *
-   * // objectRef subclass:
-   * struct Example : ObjectRef {
-   *    int DoThing(int x);
-   * }
-   * TVM_FFI_REGISTER_GLOBAL("Example_DoThing")
-   * .set_body_method(&Example::DoThing); // will have type int(self, int)
-   *
-   * // Object subclass:
-   * struct Example : Object {
-   *    int DoThing(int x);
-   * }
-   *
-   * TVM_FFI_REGISTER_GLOBAL("Example_DoThing")
-   * .set_body_method(&Example::DoThing); // will have type int(self, int)
-   *
-   * \endcode
-   *
-   * \param f the method pointer to forward to.
-   * \tparam T the type containing the method (inferred).
-   * \tparam R the return type of the function (inferred).
-   * \tparam Args the argument types of the function (inferred).
-   */
-  template <typename T, typename R, typename... Args>
-  Registry& set_body_method(R (T::*f)(Args...)) {
-    static_assert(std::is_base_of_v<ObjectRef, T> || std::is_base_of_v<Object, T>,
-                  "T must be derived from ObjectRef or Object");
-    if constexpr (std::is_base_of_v<ObjectRef, T>) {
-      auto fwrap = [f](T target, Args... params) -> R {
-        // call method pointer
-        return (target.*f)(std::forward<Args>(params)...);
-      };
-      return Register(ffi::Function::FromTyped(fwrap, name_));
-    }
-    if constexpr (std::is_base_of_v<Object, T>) {
-      auto fwrap = [f](const T* target, Args... params) -> R {
-        // call method pointer
-        return (const_cast<T*>(target)->*f)(std::forward<Args>(params)...);
-      };
-      return Register(ffi::Function::FromTyped(fwrap, name_));
-    }
-    return *this;
-  }
-
-  template <typename T, typename R, typename... Args>
-  Registry& set_body_method(R (T::*f)(Args...) const) {
-    static_assert(std::is_base_of_v<ObjectRef, T> || std::is_base_of_v<Object, T>,
-                  "T must be derived from ObjectRef or Object");
-    if constexpr (std::is_base_of_v<ObjectRef, T>) {
-      auto fwrap = [f](const T target, Args... params) -> R {
-        // call method pointer
-        return (target.*f)(std::forward<Args>(params)...);
-      };
-      return Register(ffi::Function::FromTyped(fwrap, name_));
-    }
-    if constexpr (std::is_base_of_v<Object, T>) {
-      auto fwrap = [f](const T* target, Args... params) -> R {
-        // call method pointer
-        return (target->*f)(std::forward<Args>(params)...);
-      };
-      return Register(ffi::Function::FromTyped(fwrap, name_));
-    }
-    return *this;
-  }
-
- protected:
-  /*!
-   * \brief set the body of the function to be f
-   * \param f The body of the function.
-   */
-  Registry& Register(Function f) {
-    Function::SetGlobal(name_, f);
-    return *this;
-  }
-
-  /*! \brief name of the function */
-  const char* name_;
+  TVM_FFI_INLINE static std::string TypeStr() { return details::FunctionInfo<FType>::Sig(); }
 };
 
 /*!
@@ -894,21 +765,6 @@ inline int32_t TypeKeyToIndex(std::string_view type_key) {
   TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(&type_key_array, &type_index));
   return type_index;
 }
-
-#define TVM_FFI_FUNC_REG_VAR_DEF \
-  static inline TVM_FFI_ATTRIBUTE_UNUSED ::tvm::ffi::Function::Registry& __##TVMFFIFuncReg
-
-/*!
- * \brief Register a function globally.
- * \code
- *   TVM_FFI_REGISTER_GLOBAL("MyAdd")
- *   .set_body_typed([](int a, int b) {
- *      return a + b;
- *   });
- * \endcode
- */
-#define TVM_FFI_REGISTER_GLOBAL(OpName) \
-  TVM_FFI_STR_CONCAT(TVM_FFI_FUNC_REG_VAR_DEF, __COUNTER__) = ::tvm::ffi::Function::Registry(OpName)
 
 /*!
  * \brief Export typed function as a SafeCallType symbol.

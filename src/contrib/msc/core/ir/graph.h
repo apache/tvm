@@ -25,7 +25,7 @@
 #define TVM_CONTRIB_MSC_CORE_IR_GRAPH_H_
 
 #include <dmlc/json.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/data_layout.h>
 
 #include <string>
@@ -387,8 +387,6 @@ class MSCTensorNode : public Object {
         .def_ro("prims", &MSCTensorNode::prims);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const MSCTensorNode* other, SEqualReducer equal) const {
     return equal(name, other->name) && equal(dtype, other->dtype) && equal(shape, other->shape) &&
            equal(layout, other->layout) && equal(prims, other->prims);
@@ -502,8 +500,6 @@ class BaseJointNode : public Object {
         .def_ro("children", &BaseJointNode::children);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const BaseJointNode* other, SEqualReducer equal) const {
     return equal(name, other->name) && equal(shared_ref, other->shared_ref) &&
            equal(attrs, other->attrs) && equal(parents, other->parents) &&
@@ -589,8 +585,6 @@ class MSCJointNode : public BaseJointNode {
         .def_ro("weights", &MSCJointNode::weights);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const MSCJointNode* other, SEqualReducer equal) const {
     return BaseJointNode::SEqualReduce(other, equal) && equal(optype, other->optype) &&
            equal(scope, other->scope) && equal(inputs, other->inputs) &&
@@ -675,8 +669,6 @@ class MSCPrimNode : public BaseJointNode {
     refl::ObjectDef<MSCPrimNode>().def_ro("optype", &MSCPrimNode::optype);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const MSCPrimNode* other, SEqualReducer equal) const {
     return BaseJointNode::SEqualReduce(other, equal) && equal(optype, other->optype);
   }
@@ -754,8 +746,6 @@ class WeightJointNode : public BaseJointNode {
         .def_ro("friends", &WeightJointNode::friends);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const WeightJointNode* other, SEqualReducer equal) const {
     return BaseJointNode::SEqualReduce(other, equal) && equal(weight_type, other->weight_type) &&
            equal(weight, other->weight) && equal(friends, other->friends);
@@ -831,8 +821,6 @@ class BaseGraphNode : public Object {
         .def_ro("nodes", &BaseGraphNode::nodes)
         .def_ro("node_names", &BaseGraphNode::node_names);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const BaseGraphNode* other, SEqualReducer equal) const {
     return equal(name, other->name) && equal(nodes, other->nodes) &&
@@ -937,8 +925,6 @@ class MSCGraphNode : public BaseGraphNode {
         .def_ro("weight_holders", &MSCGraphNode::weight_holders);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const MSCGraphNode* other, SEqualReducer equal) const {
     return BaseGraphNode::SEqualReduce(other, equal) && equal(prims, other->prims) &&
            equal(prim_names, other->prim_names) && equal(input_names, other->input_names) &&
@@ -1014,8 +1000,6 @@ class WeightGraphNode : public BaseGraphNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<WeightGraphNode>();
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const WeightGraphNode* other, SEqualReducer equal) const {
     return BaseGraphNode::SEqualReduce(other, equal);

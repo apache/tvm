@@ -21,7 +21,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/meta_schedule/mutator.h>
 #include <tvm/meta_schedule/postproc.h>
@@ -90,8 +90,6 @@ class SpaceGeneratorNode : public runtime::Object {
         .def_ro("postprocs", &SpaceGeneratorNode::postprocs)
         .def_ro("mutator_probs", &SpaceGeneratorNode::mutator_probs);
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   /*! \brief Default destructor */
   virtual ~SpaceGeneratorNode() = default;
@@ -222,8 +220,6 @@ class PySpaceGeneratorNode : public SpaceGeneratorNode {
     // `f_generate_design_space` is not registered
     // `f_clone` is not registered
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   Array<tir::Schedule> GenerateDesignSpace(const IRModule& mod) final;

@@ -401,7 +401,7 @@ Stmt Substitute(const Stmt& stmt, const Map<Var, PrimExpr>& sub,
       if (!src.same_as(tgt)) {
         block_sref_reuse_->Set(src, tgt);
       }
-      return std::move(tgt);
+      return tgt;
     }
 
     const Map<Var, PrimExpr>& sub_;

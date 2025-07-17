@@ -21,7 +21,7 @@
 #define TVM_META_SCHEDULE_POSTPROC_H_
 
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/schedule/schedule.h>
@@ -43,8 +43,6 @@ class PostprocNode : public runtime::Object {
   static void RegisterReflection() {
     // No fields to register
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Initialize the design space generator with tuning context.
@@ -201,8 +199,6 @@ class PyPostprocNode : public PostprocNode {
     // `f_clone` is not registered
     // `f_as_string` is not registered
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   bool Apply(const tir::Schedule& sch) final;

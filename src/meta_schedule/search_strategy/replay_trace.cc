@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -79,8 +81,6 @@ class ReplayTraceNode : public SearchStrategyNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ReplayTraceNode>().def_ro("max_fail_count", &ReplayTraceNode::max_fail_count);
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.ReplayTrace";
   TVM_DECLARE_FINAL_OBJECT_INFO(ReplayTraceNode, SearchStrategyNode);
@@ -191,8 +191,10 @@ SearchStrategy SearchStrategy::ReplayTrace(int max_fail_count) {
 TVM_FFI_STATIC_INIT_BLOCK({ ReplayTraceNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(ReplayTraceNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyReplayTrace")
-    .set_body_typed(SearchStrategy::ReplayTrace);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.SearchStrategyReplayTrace", SearchStrategy::ReplayTrace);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

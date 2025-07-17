@@ -22,7 +22,7 @@
  * \brief A transform to match a Relax Expr and rewrite
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/relax/analysis.h>
@@ -194,26 +194,28 @@ void RewriteSpec::Append(RewriteSpec other) {
 
 TVM_REGISTER_NODE_TYPE(PatternMatchingRewriterNode);
 
-TVM_FFI_REGISTER_GLOBAL("relax.dpl.PatternMatchingRewriterFromPattern")
-    .set_body_typed([](DFPattern pattern,
-                       ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
-      return PatternMatchingRewriter::FromPattern(pattern, func);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("relax.dpl.PatternMatchingRewriterFromModule")
-    .set_body_typed([](IRModule mod) { return PatternMatchingRewriter::FromModule(mod); });
-
-TVM_FFI_REGISTER_GLOBAL("relax.dpl.PatternMatchingRewriterApply")
-    .set_body_typed([](PatternMatchingRewriter rewriter,
-                       Variant<Expr, IRModule> obj) -> Variant<Expr, IRModule> {
-      if (auto expr = obj.as<Expr>()) {
-        return rewriter(expr.value());
-      } else if (auto mod = obj.as<IRModule>()) {
-        return rewriter(mod.value());
-      } else {
-        LOG(FATAL) << "Unreachable: object does not contain either variant type";
-      }
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("relax.dpl.PatternMatchingRewriterFromPattern",
+           [](DFPattern pattern,
+              ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
+             return PatternMatchingRewriter::FromPattern(pattern, func);
+           })
+      .def("relax.dpl.PatternMatchingRewriterFromModule",
+           [](IRModule mod) { return PatternMatchingRewriter::FromModule(mod); })
+      .def("relax.dpl.PatternMatchingRewriterApply",
+           [](PatternMatchingRewriter rewriter,
+              Variant<Expr, IRModule> obj) -> Variant<Expr, IRModule> {
+             if (auto expr = obj.as<Expr>()) {
+               return rewriter(expr.value());
+             } else if (auto mod = obj.as<IRModule>()) {
+               return rewriter(mod.value());
+             } else {
+               LOG(FATAL) << "Unreachable: object does not contain either variant type";
+             }
+           });
+});
 
 TVM_REGISTER_NODE_TYPE(ExprPatternRewriterNode);
 
@@ -259,11 +261,14 @@ Optional<Expr> ExprPatternRewriterNode::RewriteExpr(const Expr& expr,
   return std::nullopt;
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.dpl.PatternRewriter")
-    .set_body_typed([](DFPattern pattern,
-                       ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
-      return ExprPatternRewriter(pattern, func);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "relax.dpl.PatternRewriter",
+      [](DFPattern pattern, ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
+        return ExprPatternRewriter(pattern, func);
+      });
+});
 
 ExprPatternRewriter::ExprPatternRewriter(
     DFPattern pattern, ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
@@ -308,10 +313,13 @@ RewriteSpec OrRewriterNode::RewriteBindings(const Array<Binding>& bindings) cons
   return lhs_match;
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.dpl.OrRewriter")
-    .set_body_typed([](PatternMatchingRewriter lhs, PatternMatchingRewriter rhs) {
-      return OrRewriter(lhs, rhs);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.dpl.OrRewriter",
+                        [](PatternMatchingRewriter lhs, PatternMatchingRewriter rhs) {
+                          return OrRewriter(lhs, rhs);
+                        });
+});
 
 OrRewriter::OrRewriter(PatternMatchingRewriter lhs, PatternMatchingRewriter rhs) {
   auto node = make_object<OrRewriterNode>();
@@ -603,11 +611,14 @@ std::optional<std::vector<Expr>> TupleRewriterNode::TryMatchByBindingIndex(
   return rewrites;
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.dpl.TupleRewriter")
-    .set_body_typed([](Array<DFPattern> patterns,
-                       ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
-      return TupleRewriter(patterns, func);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.dpl.TupleRewriter",
+                        [](Array<DFPattern> patterns,
+                           ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
+                          return TupleRewriter(patterns, func);
+                        });
+});
 
 TupleRewriter::TupleRewriter(Array<DFPattern> patterns,
                              ffi::TypedFunction<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
@@ -795,13 +806,19 @@ Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(DFPattern pattern, Expr expr,
   return matcher.GetMemo();
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.dpl.extract_matched_expr").set_body_typed(ExtractMatchedExpr);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.dpl.extract_matched_expr", ExtractMatchedExpr);
+});
 
 bool MatchExpr(DFPattern pattern, Expr expr, Optional<Map<Var, Expr>> bindings_opt) {
   return static_cast<bool>(ExtractMatchedExpr(pattern, expr, bindings_opt));
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.dpl.match_expr").set_body_typed(MatchExpr);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.dpl.match_expr", MatchExpr);
+});
 
 /*!
  * \brief Apply pattern matching to each expression, replacing
@@ -1073,7 +1090,10 @@ Function RewriteCall(const DFPattern& pat,
   return Downcast<Function>(PatternMatchingRewriter::FromPattern(pat, rewriter)(func));
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.dpl.rewrite_call").set_body_typed(RewriteCall);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.dpl.rewrite_call", RewriteCall);
+});
 
 TVM_FFI_STATIC_INIT_BLOCK({
   PatternMatchingRewriterNode::RegisterReflection();

@@ -24,7 +24,7 @@
 
 #ifndef TVM_RELAX_BINDING_REWRITE_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -74,8 +74,6 @@ class DataflowBlockRewriteNode : public Object {
         .def_ro("dfb", &DataflowBlockRewriteNode::dfb_)
         .def_ro("root_fn", &DataflowBlockRewriteNode::root_fn_);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "relax.DataflowBlockRewrite";
   TVM_DECLARE_FINAL_OBJECT_INFO(DataflowBlockRewriteNode, Object);

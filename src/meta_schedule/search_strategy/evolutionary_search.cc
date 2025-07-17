@@ -17,7 +17,7 @@
  * under the License.
  */
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "../module_equality.h"
 #include "../utils.h"
@@ -394,8 +394,6 @@ class EvolutionarySearchNode : public SearchStrategyNode {
         .def_ro("genetic_max_fail_count", &EvolutionarySearchNode::genetic_max_fail_count)
         .def_ro("eps_greedy", &EvolutionarySearchNode::eps_greedy);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.EvolutionarySearch";
   TVM_DECLARE_FINAL_OBJECT_INFO(EvolutionarySearchNode, SearchStrategyNode);
@@ -803,12 +801,15 @@ Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch self,
 TVM_FFI_STATIC_INIT_BLOCK({ EvolutionarySearchNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(EvolutionarySearchNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearch")
-    .set_body_typed(SearchStrategy::EvolutionarySearch);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearchSampleInitPopulation")
-    .set_body_typed(EvolutionarySearchSampleInitPopulation);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel")
-    .set_body_typed(EvolutionarySearchEvolveWithCostModel);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("meta_schedule.SearchStrategyEvolutionarySearch", SearchStrategy::EvolutionarySearch)
+      .def("meta_schedule.SearchStrategyEvolutionarySearchSampleInitPopulation",
+           EvolutionarySearchSampleInitPopulation)
+      .def("meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel",
+           EvolutionarySearchEvolveWithCostModel);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

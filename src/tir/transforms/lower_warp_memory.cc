@@ -28,6 +28,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/pattern.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
@@ -302,14 +303,14 @@ class WarpAccessRewriter : protected StmtExprMutator {
       writer->indices = {local_index};
     }
 
-    return std::move(store);
+    return store;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) override {
     auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
 
     if (load->buffer->data.get() != buffer_) {
-      return std::move(load);
+      return load;
     }
 
     ICHECK_EQ(op->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
@@ -325,7 +326,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     writer->indices = {local_index};
 
     if (analyzer_->CanProveEqual(group, warp_index_)) {
-      return std::move(load);
+      return load;
     }
 
     PrimExpr mask = Call(DataType::UInt(32), builtin::tvm_warp_activemask(), {});
@@ -461,7 +462,10 @@ Pass LowerWarpMemory() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerWarpMemory", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerWarpMemory").set_body_typed(LowerWarpMemory);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerWarpMemory", LowerWarpMemory);
+});
 
 }  // namespace transform
 

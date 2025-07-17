@@ -24,7 +24,7 @@
 #ifndef TVM_TARGET_TAG_H_
 #define TVM_TARGET_TAG_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/attr_registry_map.h>
 #include <tvm/node/node.h>
 #include <tvm/target/target.h>
@@ -49,7 +49,7 @@ class TargetTagNode : public Object {
   }
 
   static constexpr const char* _type_key = "target.TargetTag";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetTagNode, Object);
 
  private:

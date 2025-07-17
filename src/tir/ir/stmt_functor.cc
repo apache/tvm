@@ -20,6 +20,7 @@
  * \file stmt_functor.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/tir/data_type_rewriter.h>
 #include <tvm/tir/function.h>
@@ -602,7 +603,7 @@ class IRSubstitute : public StmtExprMutator {
       }
       return ret.value();
     }
-    return std::move(var);
+    return var;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -754,7 +755,7 @@ class IRSubstituteWithDataTypeLegalization : public DataTypeLegalizer {
     if (ret.defined()) {
       return ret.value();
     }
-    return std::move(var);
+    return var;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -832,24 +833,26 @@ PrimExpr SubstituteWithDataTypeLegalization(PrimExpr expr,
   return IRSubstituteWithDataTypeLegalization(vmap)(std::move(expr));
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.IRTransform").set_body_typed(IRTransform);
-
-TVM_FFI_REGISTER_GLOBAL("tir.PostOrderVisit").set_body_typed([](ObjectRef node, ffi::Function f) {
-  tir::PostOrderVisit(node, [f](const ObjectRef& n) { f(n); });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("tir.IRTransform", IRTransform)
+      .def("tir.PostOrderVisit",
+           [](ObjectRef node, ffi::Function f) {
+             tir::PostOrderVisit(node, [f](const ObjectRef& n) { f(n); });
+           })
+      .def("tir.PreOrderVisit",
+           [](ObjectRef node, ffi::Function f) {
+             tir::PreOrderVisit(node, [f](const ObjectRef& n) { return f(n).cast<bool>(); });
+           })
+      .def("tir.Substitute", [](ObjectRef node, Map<Var, PrimExpr> vmap) -> ObjectRef {
+        if (node->IsInstance<StmtNode>()) {
+          return Substitute(Downcast<Stmt>(node), vmap);
+        } else {
+          return Substitute(Downcast<PrimExpr>(node), vmap);
+        }
+      });
 });
-
-TVM_FFI_REGISTER_GLOBAL("tir.PreOrderVisit").set_body_typed([](ObjectRef node, ffi::Function f) {
-  tir::PreOrderVisit(node, [f](const ObjectRef& n) { return f(n).cast<bool>(); });
-});
-
-TVM_FFI_REGISTER_GLOBAL("tir.Substitute")
-    .set_body_typed([](ObjectRef node, Map<Var, PrimExpr> vmap) -> ObjectRef {
-      if (node->IsInstance<StmtNode>()) {
-        return Substitute(Downcast<Stmt>(node), vmap);
-      } else {
-        return Substitute(Downcast<PrimExpr>(node), vmap);
-      }
-    });
 
 }  // namespace tir
 }  // namespace tvm

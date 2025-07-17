@@ -25,7 +25,7 @@
 #define TVM_IR_ENV_FUNC_H_
 
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/reflection.h>
 
 #include <string>
@@ -53,8 +53,6 @@ class EnvFuncNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<EnvFuncNode>().def_ro("name", &EnvFuncNode::name);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const EnvFuncNode* other, SEqualReducer equal) const {
     // name uniquely identifies the env function.

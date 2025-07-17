@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "../utils.h"
 
@@ -118,7 +118,6 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
         .def_ro("unroll_max_steps", &ParallelizeVectorizeUnrollNode::unroll_max_steps)
         .def_ro("unroll_explicit", &ParallelizeVectorizeUnrollNode::unroll_explicit);
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.ParallelizeVectorizeUnroll";
   TVM_DECLARE_FINAL_OBJECT_INFO(ParallelizeVectorizeUnrollNode, ScheduleRuleNode);
@@ -139,8 +138,11 @@ ScheduleRule ScheduleRule::ParallelizeVectorizeUnroll(int max_jobs_per_core,
 
 TVM_FFI_STATIC_INIT_BLOCK({ ParallelizeVectorizeUnrollNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(ParallelizeVectorizeUnrollNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleParallelizeVectorizeUnroll")
-    .set_body_typed(ScheduleRule::ParallelizeVectorizeUnroll);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.ScheduleRuleParallelizeVectorizeUnroll",
+                        ScheduleRule::ParallelizeVectorizeUnroll);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

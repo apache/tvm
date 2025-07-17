@@ -23,6 +23,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
@@ -239,7 +240,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
       }
     }
 
-    return std::move(store);
+    return store;
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
@@ -249,7 +250,8 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     var_use(node->body);
 
     if (var_use.buffer_use_count_.count(node->buffer.get())) {
-      return std::move(node);
+      return node;
+
     } else {
       return node->body;
     }
@@ -332,7 +334,10 @@ Pass RemoveNoOp() {
   return CreatePrimFuncPass(pass_func, 0, "tir.RemoveNoOp", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.RemoveNoOp").set_body_typed(RemoveNoOp);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.RemoveNoOp", RemoveNoOp);
+});
 
 }  // namespace transform
 

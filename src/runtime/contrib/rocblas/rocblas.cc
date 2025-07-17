@@ -24,6 +24,7 @@
 
 #include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 
@@ -65,78 +66,85 @@ struct RocBlasThreadEntry {
 typedef dmlc::ThreadLocalStore<RocBlasThreadEntry> RocBlasThreadStore;
 
 // matrix multiplication for row major
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.rocblas.matmul")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      auto A = args[0].cast<DLTensor*>();
-      auto B = args[1].cast<DLTensor*>();
-      auto C = args[2].cast<DLTensor*>();
-      bool transa = args[3].cast<bool>();
-      bool transb = args[4].cast<bool>();
-      // call gemm for simple compact code.
-      ICHECK_EQ(A->ndim, 2);
-      ICHECK_EQ(B->ndim, 2);
-      ICHECK_EQ(C->ndim, 2);
-      ICHECK(C->strides == nullptr);
-      ICHECK(B->strides == nullptr);
-      ICHECK(A->strides == nullptr);
-      ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
-      ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
-      ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed(
+          "tvm.contrib.rocblas.matmul",
+          [](ffi::PackedArgs args, ffi::Any* ret) {
+            auto A = args[0].cast<DLTensor*>();
+            auto B = args[1].cast<DLTensor*>();
+            auto C = args[2].cast<DLTensor*>();
+            bool transa = args[3].cast<bool>();
+            bool transb = args[4].cast<bool>();
+            // call gemm for simple compact code.
+            ICHECK_EQ(A->ndim, 2);
+            ICHECK_EQ(B->ndim, 2);
+            ICHECK_EQ(C->ndim, 2);
+            ICHECK(C->strides == nullptr);
+            ICHECK(B->strides == nullptr);
+            ICHECK(A->strides == nullptr);
+            ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
+            ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
+            ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
 
-      float alpha = 1.0;
-      float beta = 0.0;
-      float* A_ptr = reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset);
-      float* B_ptr = reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset);
-      float* C_ptr = reinterpret_cast<float*>(static_cast<char*>(C->data) + C->byte_offset);
+            float alpha = 1.0;
+            float beta = 0.0;
+            float* A_ptr = reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset);
+            float* B_ptr = reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset);
+            float* C_ptr = reinterpret_cast<float*>(static_cast<char*>(C->data) + C->byte_offset);
 
-      rocblas_operation roc_trans_A = transa ? rocblas_operation_transpose : rocblas_operation_none;
-      rocblas_operation roc_trans_B = transb ? rocblas_operation_transpose : rocblas_operation_none;
-      size_t N = transb ? B->shape[0] : B->shape[1];
-      size_t M = transa ? A->shape[1] : A->shape[0];
-      size_t K = transb ? B->shape[1] : B->shape[0];
-      size_t lda = transa ? M : K;
-      size_t ldb = transb ? K : N;
-      size_t ldc = N;
+            rocblas_operation roc_trans_A =
+                transa ? rocblas_operation_transpose : rocblas_operation_none;
+            rocblas_operation roc_trans_B =
+                transb ? rocblas_operation_transpose : rocblas_operation_none;
+            size_t N = transb ? B->shape[0] : B->shape[1];
+            size_t M = transa ? A->shape[1] : A->shape[0];
+            size_t K = transb ? B->shape[1] : B->shape[0];
+            size_t lda = transa ? M : K;
+            size_t ldb = transb ? K : N;
+            size_t ldc = N;
 
-      CHECK_ROCBLAS_ERROR(rocblas_sgemm(RocBlasThreadStore::Get()->handle, roc_trans_B, roc_trans_A,
-                                        N, M, K, &alpha, B_ptr, ldb, A_ptr, lda, &beta, C_ptr,
-                                        ldc));
-    });
+            CHECK_ROCBLAS_ERROR(rocblas_sgemm(RocBlasThreadStore::Get()->handle, roc_trans_B,
+                                              roc_trans_A, N, M, K, &alpha, B_ptr, ldb, A_ptr, lda,
+                                              &beta, C_ptr, ldc));
+          })
+      .def_packed("tvm.contrib.rocblas.batch_matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
+        auto A = args[0].cast<DLTensor*>();
+        auto B = args[1].cast<DLTensor*>();
+        auto C = args[2].cast<DLTensor*>();
+        bool transa = args[3].cast<bool>();
+        bool transb = args[4].cast<bool>();
+        // call gemm for simple compact code.
+        ICHECK_EQ(A->ndim, 3);
+        ICHECK_EQ(B->ndim, 3);
+        ICHECK_EQ(C->ndim, 3);
+        ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
+        ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
+        ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
 
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.rocblas.batch_matmul")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      auto A = args[0].cast<DLTensor*>();
-      auto B = args[1].cast<DLTensor*>();
-      auto C = args[2].cast<DLTensor*>();
-      bool transa = args[3].cast<bool>();
-      bool transb = args[4].cast<bool>();
-      // call gemm for simple compact code.
-      ICHECK_EQ(A->ndim, 3);
-      ICHECK_EQ(B->ndim, 3);
-      ICHECK_EQ(C->ndim, 3);
-      ICHECK(TypeMatch(A->dtype, kDLFloat, 32));
-      ICHECK(TypeMatch(B->dtype, kDLFloat, 32));
-      ICHECK(TypeMatch(C->dtype, kDLFloat, 32));
+        float alpha = 1.0;
+        float beta = 0.0;
+        float* A_ptr = reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset);
+        float* B_ptr = reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset);
+        float* C_ptr = reinterpret_cast<float*>(static_cast<char*>(C->data) + C->byte_offset);
 
-      float alpha = 1.0;
-      float beta = 0.0;
-      float* A_ptr = reinterpret_cast<float*>(static_cast<char*>(A->data) + A->byte_offset);
-      float* B_ptr = reinterpret_cast<float*>(static_cast<char*>(B->data) + B->byte_offset);
-      float* C_ptr = reinterpret_cast<float*>(static_cast<char*>(C->data) + C->byte_offset);
+        rocblas_operation roc_trans_A =
+            transa ? rocblas_operation_transpose : rocblas_operation_none;
+        rocblas_operation roc_trans_B =
+            transb ? rocblas_operation_transpose : rocblas_operation_none;
+        size_t batch_size = C->shape[0];
+        size_t N = transb ? B->shape[1] : B->shape[2];
+        size_t M = transa ? A->shape[2] : A->shape[1];
+        size_t K = transb ? B->shape[2] : B->shape[1];
+        size_t lda = transa ? M : K;
+        size_t ldb = transb ? K : N;
+        size_t ldc = N;
 
-      rocblas_operation roc_trans_A = transa ? rocblas_operation_transpose : rocblas_operation_none;
-      rocblas_operation roc_trans_B = transb ? rocblas_operation_transpose : rocblas_operation_none;
-      size_t batch_size = C->shape[0];
-      size_t N = transb ? B->shape[1] : B->shape[2];
-      size_t M = transa ? A->shape[2] : A->shape[1];
-      size_t K = transb ? B->shape[2] : B->shape[1];
-      size_t lda = transa ? M : K;
-      size_t ldb = transb ? K : N;
-      size_t ldc = N;
-
-      CHECK_ROCBLAS_ERROR(rocblas_sgemm_strided_batched(
-          RocBlasThreadStore::Get()->handle, roc_trans_B, roc_trans_A, N, M, K, &alpha, B_ptr, ldb,
-          K * N, A_ptr, lda, M * K, &beta, C_ptr, ldc, M * N, batch_size));
-    });
+        CHECK_ROCBLAS_ERROR(rocblas_sgemm_strided_batched(
+            RocBlasThreadStore::Get()->handle, roc_trans_B, roc_trans_A, N, M, K, &alpha, B_ptr,
+            ldb, K * N, A_ptr, lda, M * K, &beta, C_ptr, ldc, M * N, batch_size));
+      });
+});
 }  // namespace contrib
 }  // namespace tvm

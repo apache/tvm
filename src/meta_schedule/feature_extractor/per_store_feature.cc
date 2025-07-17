@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/transform.h>
 
 #include <cmath>
@@ -1378,7 +1378,6 @@ class PerStoreFeatureNode : public FeatureExtractorNode {
         .def_ro("extract_workload", &PerStoreFeatureNode::extract_workload)
         .def_ro("feature_vector_length", &PerStoreFeatureNode::feature_vector_length);
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   void ExtractSingle(IRModule mod, bool is_gpu, std::vector<std::vector<double>>* results) {
     static transform::Sequential passes = tir::transform::PassListForPerStoreFeature();
@@ -1450,8 +1449,11 @@ FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
 TVM_FFI_STATIC_INIT_BLOCK({ PerStoreFeatureNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(PerStoreFeatureNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.FeatureExtractorPerStoreFeature")
-    .set_body_typed(FeatureExtractor::PerStoreFeature);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.FeatureExtractorPerStoreFeature",
+                        FeatureExtractor::PerStoreFeature);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -63,8 +65,11 @@ MeasureCallback MeasureCallback::UpdateCostModel() {
 }
 
 TVM_REGISTER_NODE_TYPE(UpdateCostModelNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.MeasureCallbackUpdateCostModel")
-    .set_body_typed(MeasureCallback::UpdateCostModel);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.MeasureCallbackUpdateCostModel",
+                        MeasureCallback::UpdateCostModel);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "../utils.h"
 
@@ -280,7 +280,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
         .def_ro("warp_size", &CrossThreadReductionNode::warp_size)
         .def_ro("thread_extents", &CrossThreadReductionNode::thread_extents);
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
+
   static constexpr const char* _type_key = "meta_schedule.CrossThreadReduction";
   TVM_DECLARE_FINAL_OBJECT_INFO(CrossThreadReductionNode, ScheduleRuleNode);
 };
@@ -296,8 +296,11 @@ ScheduleRule ScheduleRule::CrossThreadReduction(Array<Integer> thread_extents) {
 
 TVM_FFI_STATIC_INIT_BLOCK({ CrossThreadReductionNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(CrossThreadReductionNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleCrossThreadReduction")
-    .set_body_typed(ScheduleRule::CrossThreadReduction);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.ScheduleRuleCrossThreadReduction",
+                        ScheduleRule::CrossThreadReduction);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -39,7 +39,7 @@ namespace details {
 template <typename ArgType>
 struct Arg2Str {
   template <size_t i>
-  static TVM_FFI_INLINE void Apply(std::ostream& os) {
+  TVM_FFI_INLINE static void Apply(std::ostream& os) {
     using Arg = std::tuple_element_t<i, ArgType>;
     if constexpr (i != 0) {
       os << ", ";
@@ -47,7 +47,7 @@ struct Arg2Str {
     os << i << ": " << Type2Str<Arg>::v();
   }
   template <size_t... I>
-  static TVM_FFI_INLINE void Run(std::ostream& os, std::index_sequence<I...>) {
+  TVM_FFI_INLINE static void Run(std::ostream& os, std::index_sequence<I...>) {
     using TExpander = int[];
     (void)TExpander{0, (Apply<I>(os), 0)...};
   }
@@ -77,7 +77,7 @@ struct FuncFunctorImpl {
   static constexpr bool unpacked_supported = (ArgSupported<Args> && ...) && (RetSupported<R>);
 #endif
 
-  static TVM_FFI_INLINE std::string Sig() {
+  TVM_FFI_INLINE static std::string Sig() {
     using IdxSeq = std::make_index_sequence<sizeof...(Args)>;
     std::ostringstream ss;
     ss << "(";

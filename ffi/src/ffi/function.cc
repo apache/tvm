@@ -28,6 +28,7 @@
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 
 namespace tvm {
@@ -91,7 +92,10 @@ class GlobalFunctionTable {
     String name(method_info->name.data, method_info->name.size);
     if (table_.count(name)) {
       if (!can_override) {
-        TVM_FFI_THROW(RuntimeError) << "Global Function `" << name << "` is already registered";
+        TVM_FFI_LOG_AND_THROW(RuntimeError)
+            << "Global Function `" << name << "` is already registered, possible causes:\n"
+            << "- Two GlobalDef().def registrations for the same function \n"
+            << "Please remove the duplicate registration.";
       }
     }
     table_.Set(name, ObjectRef(make_object<Entry>(method_info)));
@@ -307,31 +311,30 @@ int TVMFFIEnvRegisterCAPI(const TVMFFIByteArray* name, void* symbol) {
   TVM_FFI_SAFE_CALL_END();
 }
 
-TVM_FFI_REGISTER_GLOBAL("ffi.FunctionRemoveGlobal")
-    .set_body_typed([](const tvm::ffi::String& name) -> bool {
-      return tvm::ffi::GlobalFunctionTable::Global()->Remove(name);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("ffi.FunctionListGlobalNamesFunctor").set_body_typed([]() {
-  // NOTE: we return functor instead of array
-  // so list global function names do not need to depend on array
-  // this is because list global function names usually is a core api that happens
-  // before array ffi functions are available.
-  tvm::ffi::Array<tvm::ffi::String> names = tvm::ffi::GlobalFunctionTable::Global()->ListNames();
-  auto return_functor = [names](int64_t i) -> tvm::ffi::Any {
-    if (i < 0) {
-      return names.size();
-    } else {
-      return names[i];
-    }
-  };
-  return tvm::ffi::Function::FromTyped(return_functor);
-});
-
-TVM_FFI_REGISTER_GLOBAL("ffi.String").set_body_typed([](tvm::ffi::String val) -> tvm::ffi::String {
-  return val;
-});
-
-TVM_FFI_REGISTER_GLOBAL("ffi.Bytes").set_body_typed([](tvm::ffi::Bytes val) -> tvm::ffi::Bytes {
-  return val;
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("ffi.FunctionRemoveGlobal",
+           [](const tvm::ffi::String& name) -> bool {
+             return tvm::ffi::GlobalFunctionTable::Global()->Remove(name);
+           })
+      .def("ffi.FunctionListGlobalNamesFunctor",
+           []() {
+             // NOTE: we return functor instead of array
+             // so list global function names do not need to depend on array
+             // this is because list global function names usually is a core api that happens
+             // before array ffi functions are available.
+             tvm::ffi::Array<tvm::ffi::String> names =
+                 tvm::ffi::GlobalFunctionTable::Global()->ListNames();
+             auto return_functor = [names](int64_t i) -> tvm::ffi::Any {
+               if (i < 0) {
+                 return names.size();
+               } else {
+                 return names[i];
+               }
+             };
+             return tvm::ffi::Function::FromTyped(return_functor);
+           })
+      .def("ffi.String", [](tvm::ffi::String val) -> tvm::ffi::String { return val; })
+      .def("ffi.Bytes", [](tvm::ffi::Bytes val) -> tvm::ffi::Bytes { return val; });
 });

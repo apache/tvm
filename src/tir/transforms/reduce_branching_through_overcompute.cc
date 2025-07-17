@@ -24,6 +24,7 @@
  * extra computations that do not impact the final results.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
 
@@ -71,7 +72,8 @@ struct ElseBranchFiller : StmtExprMutator {
   Stmt VisitStmt_(const IfThenElseNode* op) override {
     IfThenElse ret = Downcast<IfThenElse>(StmtExprMutator::VisitStmt_(op));
     if (ret->else_case.defined()) {
-      return std::move(ret);
+      return ret;
+
     } else {
       auto new_else_clause = Evaluate(0);
       new_else_clauses.insert(new_else_clause);
@@ -95,7 +97,7 @@ class ElseBranchStripper : public StmtExprMutator {
         as_eval && new_else_clauses_.count(as_eval.value())) {
       return IfThenElse(ret->condition, ret->then_case);
     } else {
-      return std::move(ret);
+      return ret;
     }
   }
 
@@ -137,7 +139,7 @@ class BranchReducer : public arith::IRMutatorWithAnalyzer {
     } else if (is_special_case(!cond->condition, cond->then_case, else_case)) {
       return cond->then_case;
     } else {
-      return std::move(cond);
+      return cond;
     }
   }
 
@@ -175,8 +177,11 @@ Pass ReduceBranchingThroughOvercompute() {
   return CreatePrimFuncPass(pass_func, 0, "tir.ReduceBranchingThroughOvercompute", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.ReduceBranchingThroughOvercompute")
-    .set_body_typed(ReduceBranchingThroughOvercompute);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.ReduceBranchingThroughOvercompute",
+                        ReduceBranchingThroughOvercompute);
+});
 
 }  // namespace transform
 

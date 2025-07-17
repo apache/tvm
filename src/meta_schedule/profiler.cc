@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include <algorithm>
 #include <chrono>
 
@@ -123,17 +125,17 @@ Optional<Profiler> Profiler::Current() {
 TVM_FFI_STATIC_INIT_BLOCK({ ProfilerNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(ProfilerNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.Profiler").set_body_typed([]() -> Profiler {
-  return Profiler();
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("meta_schedule.Profiler", []() -> Profiler { return Profiler(); })
+      .def_method("meta_schedule.ProfilerEnterWithScope", &Profiler::EnterWithScope)
+      .def_method("meta_schedule.ProfilerExitWithScope", &Profiler::ExitWithScope)
+      .def("meta_schedule.ProfilerCurrent", Profiler::Current)
+      .def_method("meta_schedule.ProfilerGet", &ProfilerNode::Get)
+      .def_method("meta_schedule.ProfilerTable", &ProfilerNode::Table)
+      .def("meta_schedule.ProfilerTimedScope", ProfilerTimedScope);
 });
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ProfilerEnterWithScope")
-    .set_body_method(&Profiler::EnterWithScope);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ProfilerExitWithScope")
-    .set_body_method(&Profiler::ExitWithScope);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ProfilerCurrent").set_body_typed(Profiler::Current);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ProfilerGet").set_body_method(&ProfilerNode::Get);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ProfilerTable").set_body_method(&ProfilerNode::Table);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ProfilerTimedScope").set_body_typed(ProfilerTimedScope);
 
 }  // namespace meta_schedule
 }  // namespace tvm

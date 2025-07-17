@@ -21,6 +21,7 @@
  * \file src/relax/backend/contrib/tensorrt/codegen.cc
  * \brief Implementation of the TensorRT JSON serializer.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
 // TODO(sunggg): add operator attribute when it's ready
@@ -243,7 +244,10 @@ Array<runtime::Module> TensorRTCompiler(Array<Function> functions, Map<String, f
   return compiled_functions;
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.ext.tensorrt").set_body_typed(TensorRTCompiler);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.ext.tensorrt", TensorRTCompiler);
+});
 
 /*!
  * \brief Check whether TensorRT graph executor is enabled.
@@ -270,9 +274,12 @@ Array<Integer> GetTensorRTVersion() {
 #endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.is_tensorrt_runtime_enabled")
-    .set_body_typed(IsTensorRTRuntimeEnabled);
-TVM_FFI_REGISTER_GLOBAL("relax.get_tensorrt_version").set_body_typed(GetTensorRTVersion);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("relax.is_tensorrt_runtime_enabled", IsTensorRTRuntimeEnabled)
+      .def("relax.get_tensorrt_version", GetTensorRTVersion);
+});
 
 }  // namespace contrib
 }  // namespace relax

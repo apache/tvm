@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <mutex>
 #include <unordered_map>
@@ -60,8 +60,6 @@ class MutateTileSizeNode : public MutatorNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<MutateTileSizeNode>();
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.MutateTileSize";
   TVM_DECLARE_FINAL_OBJECT_INFO(MutateTileSizeNode, MutatorNode);
@@ -279,8 +277,10 @@ Mutator Mutator::MutateTileSize() { return Mutator(make_object<MutateTileSizeNod
 TVM_FFI_STATIC_INIT_BLOCK({ MutateTileSizeNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(MutateTileSizeNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateTileSize")
-    .set_body_typed(Mutator::MutateTileSize);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.MutatorMutateTileSize", Mutator::MutateTileSize);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

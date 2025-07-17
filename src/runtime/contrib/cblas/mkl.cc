@@ -21,6 +21,7 @@
  * \file Use external mkl library call.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 
@@ -154,49 +155,53 @@ struct MKLDgemmBatchIterativeOp {
 };
 
 // matrix multiplication for row major
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.mkl.matmul")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      auto A = args[0].cast<DLTensor*>();
-      ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("tvm.contrib.mkl.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
+    auto A = args[0].cast<DLTensor*>();
+    ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
 
-      if (TypeMatch(A->dtype, kDLFloat, 32))
-        CallGemm(args, ret, MKLSgemmOp());
-      else
-        CallGemm(args, ret, MKLDgemmOp());
-    });
+    if (TypeMatch(A->dtype, kDLFloat, 32))
+      CallGemm(args, ret, MKLSgemmOp());
+    else
+      CallGemm(args, ret, MKLDgemmOp());
+  });
+});
 
 // integer matrix multiplication for row major
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.mkl.matmul_u8s8s32")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      auto A = args[0].cast<DLTensor*>();
-      auto B = args[1].cast<DLTensor*>();
-      auto C = args[2].cast<DLTensor*>();
-      ICHECK(TypeMatch(A->dtype, kDLUInt, 8) && TypeMatch(B->dtype, kDLInt, 8) &&
-             TypeMatch(C->dtype, kDLInt, 32));
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("tvm.contrib.mkl.matmul_u8s8s32",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    auto A = args[0].cast<DLTensor*>();
+                    auto B = args[1].cast<DLTensor*>();
+                    auto C = args[2].cast<DLTensor*>();
+                    ICHECK(TypeMatch(A->dtype, kDLUInt, 8) && TypeMatch(B->dtype, kDLInt, 8) &&
+                           TypeMatch(C->dtype, kDLInt, 32));
 
-      CallU8S8S32Gemm(args, ret, MKLGemmU8S8S32Op());
-    });
-
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.mkl.batch_matmul")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      auto A = args[0].cast<DLTensor*>();
-      ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
-      if (TypeMatch(A->dtype, kDLFloat, 32)) {
-        CallBatchGemm(args, ret, MKLSgemmBatchOp());
-      } else {
-        CallBatchGemm(args, ret, MKLDgemmBatchOp());
-      }
-    });
-
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.mkl.batch_matmul_iterative")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      auto A = args[0].cast<DLTensor*>();
-      ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
-      if (TypeMatch(A->dtype, kDLFloat, 32)) {
-        CallBatchGemm(args, ret, MKLSgemmBatchIterativeOp());
-      } else {
-        CallBatchGemm(args, ret, MKLDgemmBatchIterativeOp());
-      }
-    });
+                    CallU8S8S32Gemm(args, ret, MKLGemmU8S8S32Op());
+                  })
+      .def_packed("tvm.contrib.mkl.batch_matmul",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    auto A = args[0].cast<DLTensor*>();
+                    ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
+                    if (TypeMatch(A->dtype, kDLFloat, 32)) {
+                      CallBatchGemm(args, ret, MKLSgemmBatchOp());
+                    } else {
+                      CallBatchGemm(args, ret, MKLDgemmBatchOp());
+                    }
+                  })
+      .def_packed("tvm.contrib.mkl.batch_matmul_iterative",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    auto A = args[0].cast<DLTensor*>();
+                    ICHECK(TypeMatch(A->dtype, kDLFloat, 32) || TypeMatch(A->dtype, kDLFloat, 64));
+                    if (TypeMatch(A->dtype, kDLFloat, 32)) {
+                      CallBatchGemm(args, ret, MKLSgemmBatchIterativeOp());
+                    } else {
+                      CallBatchGemm(args, ret, MKLDgemmBatchIterativeOp());
+                    }
+                  });
+});
 }  // namespace contrib
 }  // namespace tvm

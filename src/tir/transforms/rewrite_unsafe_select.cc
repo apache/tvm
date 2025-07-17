@@ -22,6 +22,7 @@
  * \brief Rewrite uinsafe select expression.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op_attr_types.h>
@@ -139,7 +140,10 @@ Pass RewriteUnsafeSelect() {
   return CreatePrimFuncPass(pass_func, 0, "tir.RewriteUnsafeSelect", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.RewriteUnsafeSelect").set_body_typed(RewriteUnsafeSelect);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.RewriteUnsafeSelect", RewriteUnsafeSelect);
+});
 
 }  // namespace transform
 

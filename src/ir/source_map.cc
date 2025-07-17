@@ -21,6 +21,7 @@
  * \brief The implementation of the source map data structure.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/transform.h>
 
@@ -58,7 +59,10 @@ ObjectPtr<Object> GetSourceNameNodeByStr(const std::string& name) {
 
 SourceName SourceName::Get(const String& name) { return SourceName(GetSourceNameNode(name)); }
 
-TVM_FFI_REGISTER_GLOBAL("ir.SourceName").set_body_typed(SourceName::Get);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("ir.SourceName", SourceName::Get);
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<SourceNameNode>([](const ObjectRef& ref, ReprPrinter* p) {
@@ -137,13 +141,14 @@ SequentialSpan::SequentialSpan(std::initializer_list<Span> init) {
 
 TVM_REGISTER_NODE_TYPE(SequentialSpanNode);
 
-TVM_FFI_REGISTER_GLOBAL("ir.Span").set_body_typed([](SourceName source_name, int line, int end_line,
-                                                     int column, int end_column) {
-  return Span(source_name, line, end_line, column, end_column);
-});
-
-TVM_FFI_REGISTER_GLOBAL("ir.SequentialSpan").set_body_typed([](tvm::Array<Span> spans) {
-  return SequentialSpan(spans);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("ir.Span",
+           [](SourceName source_name, int line, int end_line, int column, int end_column) {
+             return Span(source_name, line, end_line, column, end_column);
+           })
+      .def("ir.SequentialSpan", [](tvm::Array<Span> spans) { return SequentialSpan(spans); });
 });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -226,12 +231,14 @@ SourceMap::SourceMap(Map<SourceName, Source> source_map) {
 
 void SourceMap::Add(const Source& source) { (*this)->source_map.Set(source->source_name, source); }
 
-TVM_FFI_REGISTER_GLOBAL("SourceMapAdd")
-    .set_body_typed([](SourceMap map, String name, String content) {
-      auto src_name = SourceName::Get(name);
-      Source source(src_name, content);
-      map.Add(source);
-      return src_name;
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("SourceMapAdd", [](SourceMap map, String name, String content) {
+    auto src_name = SourceName::Get(name);
+    Source source(src_name, content);
+    map.Add(source);
+    return src_name;
+  });
+});
 
 }  // namespace tvm

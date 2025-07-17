@@ -30,6 +30,7 @@
 #include <llvm/IR/GlobalValue.h>
 #include <llvm/IR/Instructions.h>
 #include <llvm/IR/Intrinsics.h>
+#include <tvm/ffi/reflection/registry.h>
 #if TVM_LLVM_VERSION >= 100
 #include <llvm/IR/IntrinsicsAMDGPU.h>
 #endif
@@ -356,12 +357,14 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(mod), ll, assembly);
 }
 
-TVM_FFI_REGISTER_GLOBAL("target.build.rocm").set_body_typed(BuildAMDGPU);
-
-TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.target_rocm")
-    .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
-      *rv = static_cast<void*>(new CodeGenAMDGPU());
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("target.build.rocm", BuildAMDGPU)
+      .def_packed("tvm.codegen.llvm.target_rocm", [](const ffi::PackedArgs& targs, ffi::Any* rv) {
+        *rv = static_cast<void*>(new CodeGenAMDGPU());
+      });
+});
 
 }  // namespace codegen
 }  // namespace tvm

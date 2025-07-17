@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/block_dependence_info.h>
 #include <tvm/tir/utils.h>
 
@@ -87,15 +88,18 @@ BlockDependenceInfo::BlockDependenceInfo(IRModule mod) {
 }
 
 TVM_REGISTER_NODE_TYPE(BlockDependenceInfoNode);
-TVM_FFI_REGISTER_GLOBAL("tir.BlockDependenceInfo")
-    .set_body_typed([](IRModule mod) -> BlockDependenceInfo { return BlockDependenceInfo(mod); });
-TVM_FFI_REGISTER_GLOBAL("tir.BlockDependenceInfoGetBlockScope")
-    .set_body_method(&BlockDependenceInfoNode::GetBlockScope);
-TVM_FFI_REGISTER_GLOBAL("tir.BlockDependenceInfoGetSRef")
-    .set_body_typed([](BlockDependenceInfo self, Stmt stmt) -> Optional<StmtSRef> {
-      auto it = self->stmt2ref.find(stmt.get());
-      return it != self->stmt2ref.end() ? it->second : Optional<StmtSRef>(std::nullopt);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("tir.BlockDependenceInfo",
+           [](IRModule mod) -> BlockDependenceInfo { return BlockDependenceInfo(mod); })
+      .def_method("tir.BlockDependenceInfoGetBlockScope", &BlockDependenceInfoNode::GetBlockScope)
+      .def("tir.BlockDependenceInfoGetSRef",
+           [](BlockDependenceInfo self, Stmt stmt) -> Optional<StmtSRef> {
+             auto it = self->stmt2ref.find(stmt.get());
+             return it != self->stmt2ref.end() ? it->second : Optional<StmtSRef>(std::nullopt);
+           });
+});
 
 }  // namespace tir
 }  // namespace tvm

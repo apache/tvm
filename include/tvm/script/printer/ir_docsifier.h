@@ -19,7 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 #define TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/node.h>
 #include <tvm/script/printer/doc.h>
@@ -59,7 +59,7 @@ class FrameNode : public Object {
   }
 
   static constexpr const char* _type_key = "script.printer.Frame";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_BASE_OBJECT_INFO(FrameNode, Object);
 
  public:
@@ -163,7 +163,7 @@ class IRDocsifierNode : public Object {
   }
 
   static constexpr const char* _type_key = "script.printer.IRDocsifier";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(IRDocsifierNode, Object);
 
  public:

@@ -23,7 +23,7 @@
 #ifndef TVM_TIR_SCHEDULE_STATE_H_
 #define TVM_TIR_SCHEDULE_STATE_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/tir/block_scope.h>
 #include <tvm/tir/function.h>
@@ -126,8 +126,6 @@ class ScheduleStateNode : public Object {
         .def_ro("debug_mask", &ScheduleStateNode::debug_mask)
         .def_ro("enable_check", &ScheduleStateNode::enable_check);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Replace the part of the AST, as being pointed to by `src_sref`,

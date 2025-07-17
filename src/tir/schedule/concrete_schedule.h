@@ -54,8 +54,6 @@ class ConcreteScheduleNode : public ScheduleNode {
     // No fields to register as they are not visited
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   virtual ~ConcreteScheduleNode() = default;
 
  public:
@@ -352,13 +350,13 @@ template <class T>
 inline T ConcreteScheduleNode::CreateRV(const StmtSRef& sref) {
   T rv;
   this->symbol_table_.Set(rv, sref);
-  return std::move(rv);
+  return rv;
 }
 
 inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
   Var rv("v" + std::to_string(this->symbol_table_.size() + 1), DataType::Int(32));
   this->symbol_table_.Set(rv, Integer(static_cast<int32_t>(value)));
-  return std::move(rv);
+  return rv;
 }
 
 inline Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64_t>& value,

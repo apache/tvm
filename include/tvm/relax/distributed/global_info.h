@@ -53,8 +53,6 @@ class DeviceMeshNode : public GlobalInfoNode {
         .def_ro("device_range", &DeviceMeshNode::device_range);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   static constexpr const char* _type_key = "relax.distributed.DeviceMesh";
 
   bool SEqualReduce(const DeviceMeshNode* other, SEqualReducer equal) const {

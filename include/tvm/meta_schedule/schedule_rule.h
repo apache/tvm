@@ -24,7 +24,7 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/reflection.h>
@@ -46,8 +46,6 @@ class ScheduleRuleNode : public runtime::Object {
   static void RegisterReflection() {
     // No fields to register
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Initialize the design space generator with tuning context.
@@ -331,8 +329,6 @@ class PyScheduleRuleNode : public ScheduleRuleNode {
     // `f_as_string` is not registered
     // `f_clone` is not registered
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block) final;

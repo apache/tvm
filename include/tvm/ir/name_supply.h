@@ -24,7 +24,7 @@
 #ifndef TVM_IR_NAME_SUPPLY_H_
 #define TVM_IR_NAME_SUPPLY_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 
 #include <algorithm>
@@ -80,8 +80,6 @@ class NameSupplyNode : public Object {
    * otherwise.
    */
   bool ContainsName(const String& name, bool add_prefix = true);
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   // Prefix for all GlobalVar names. It can be empty.
   std::string prefix_;

@@ -26,7 +26,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
@@ -139,8 +139,6 @@ class IRModuleNode : public Object {
         .def_ro("attrs", &IRModuleNode::attrs)
         .def_ro("global_infos", &IRModuleNode::global_infos);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
 

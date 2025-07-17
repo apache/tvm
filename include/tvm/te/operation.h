@@ -25,7 +25,7 @@
 #define TVM_TE_OPERATION_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
@@ -92,7 +92,6 @@ class TVM_DLL OperationNode : public Object {
   }
 
   static constexpr const char* _type_key = "te.Operation";
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   TVM_DECLARE_BASE_OBJECT_INFO(OperationNode, Object);
 };
@@ -120,7 +119,7 @@ class PlaceholderOpNode : public OperationNode {
   }
 
   static constexpr const char* _type_key = "te.PlaceholderOp";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_BASE_OBJECT_INFO(PlaceholderOpNode, OperationNode);
 };
 
@@ -156,7 +155,7 @@ class TVM_DLL BaseComputeOpNode : public OperationNode {
   }
 
   static constexpr const char* _type_key = "te.BaseComputeOp";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_BASE_OBJECT_INFO(BaseComputeOpNode, OperationNode);
 };
 
@@ -180,7 +179,7 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
   }
 
   static constexpr const char* _type_key = "te.ComputeOp";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(ComputeOpNode, BaseComputeOpNode);
 };
 
@@ -245,7 +244,7 @@ class ScanOpNode : public OperationNode {
   }
 
   static constexpr const char* _type_key = "te.ScanOp";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(ScanOpNode, OperationNode);
 };
 
@@ -294,7 +293,7 @@ class ExternOpNode : public OperationNode {
   }
 
   static constexpr const char* _type_key = "te.ExternOp";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(ExternOpNode, OperationNode);
 };
 

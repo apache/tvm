@@ -22,7 +22,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/meta_schedule/cost_model.h>
 #include <tvm/meta_schedule/database.h>
@@ -250,8 +250,6 @@ class PySearchStrategyNode : public SearchStrategyNode {
     // `f_notify_runner_results` is not registered
     // `f_clone` is not registered
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void InitializeWithTuneContext(const TuneContext& context) final;
   void PreTuning(int max_trials, int num_trials_per_iter, const Array<tir::Schedule>& design_spaces,

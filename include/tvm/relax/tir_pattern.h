@@ -25,7 +25,7 @@
 #ifndef TVM_RELAX_TIR_PATTERN_H_
 #define TVM_RELAX_TIR_PATTERN_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/function.h>
 
 namespace tvm {
@@ -52,8 +52,6 @@ class MatchResultNode : public Object {
         .def_ro("symbol_values", &MatchResultNode::symbol_values)
         .def_ro("matched_buffers", &MatchResultNode::matched_buffers);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "relax.MatchResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(MatchResultNode, Object);

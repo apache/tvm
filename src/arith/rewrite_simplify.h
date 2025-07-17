@@ -25,7 +25,7 @@
 #define TVM_ARITH_REWRITE_SIMPLIFY_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 
 #include <algorithm>
@@ -64,8 +64,6 @@ struct RewriteSimplifierStatsNode : Object {
         .def_ro("max_recursive_depth", &RewriteSimplifierStatsNode::max_recursive_depth)
         .def_ro("num_recursive_rewrites", &RewriteSimplifierStatsNode::num_recursive_rewrites);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "arith.RewriteSimplifierStats";
   TVM_DECLARE_FINAL_OBJECT_INFO(RewriteSimplifierStatsNode, Object);

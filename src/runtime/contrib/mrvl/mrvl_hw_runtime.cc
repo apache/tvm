@@ -24,6 +24,7 @@
 
 #include <dlfcn.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 
@@ -476,10 +477,12 @@ bool MarvellHardwareModuleNode::use_dpdk_cb = false;
 ml_tvmc_cb MarvellHardwareModuleNode::tvmc_cb_ = {};
 ml_dpdk_cb MarvellHardwareModuleNode::dpdk_cb_ = {};
 
-TVM_FFI_REGISTER_GLOBAL("runtime.mrvl_hw_runtime_create")
-    .set_body_typed(MarvellHardwareModuleRuntimeCreate);
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_mrvl_hw")
-    .set_body_typed(MarvellHardwareModuleNode::LoadFromBinary);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.mrvl_hw_runtime_create", MarvellHardwareModuleRuntimeCreate)
+      .def("runtime.module.loadbinary_mrvl_hw", MarvellHardwareModuleNode::LoadFromBinary);
+});
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm

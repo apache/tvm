@@ -27,6 +27,7 @@
 #include <llvm/ADT/ArrayRef.h>
 #include <llvm/ADT/SmallVector.h>
 #include <llvm/ADT/StringRef.h>
+#include <tvm/ffi/reflection/registry.h>
 #if LLVM_VERSION_MAJOR >= 17
 #include <llvm/TargetParser/Triple.h>
 #else
@@ -623,7 +624,7 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
         return t_void_p_;
       }
     } else if (ptr->element_type->IsInstance<TensorMapTypeNode>()) {
-      return t_tvm_tensormap_->getPointerTo();
+      return llvmGetPointerTo(t_tvm_tensormap_, 0);
     }
     // TODO(tvm-team) consider put storage scope into the pointer type.
     return llvmGetPointerTo(GetLLVMType(ptr->element_type), GetGlobalAddressSpace());
@@ -2247,9 +2248,15 @@ void CodeGenLLVM::AddDebugInformation(llvm::Function* f_llvm, const Array<Type>&
 
     auto* store = builder.CreateStore(iter_param, paramAlloca);
     auto* di_loc = llvm::DILocation::get(*ctx, 0, 0, di_subprogram_);
+#if TVM_LLVM_VERSION >= 200
+    dbg_info_->di_builder_->insertDeclare(
+        paramAlloca, param, dbg_info_->di_builder_->createExpression(), llvm::DebugLoc(di_loc),
+        llvm::BasicBlock::iterator(store));
+#else
     dbg_info_->di_builder_->insertDeclare(paramAlloca, param,
                                           dbg_info_->di_builder_->createExpression(),
                                           llvm::DebugLoc(di_loc), store);
+#endif
   }
   dbg_info_->di_builder_->finalizeSubprogram(f_llvm->getSubprogram());
   auto* scope = f_llvm->getSubprogram();
@@ -2283,9 +2290,15 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
   auto* di_loc = llvm::DILocation::get(*llvm_target_->GetContext(), 0, 0, di_subprogram_);
 
   if (insert_before) {
+#if TVM_LLVM_VERSION >= 200
+    dbg_info_->di_builder_->insertDeclare(
+        llvm_value, local_var, dbg_info_->di_builder_->createExpression(), llvm::DebugLoc(di_loc),
+        llvm::BasicBlock::iterator(insert_before));
+#else
     dbg_info_->di_builder_->insertDeclare(llvm_value, local_var,
                                           dbg_info_->di_builder_->createExpression(),
                                           llvm::DebugLoc(di_loc), insert_before);
+#endif
   } else {
     dbg_info_->di_builder_->insertDeclare(llvm_value, local_var,
                                           dbg_info_->di_builder_->createExpression(),
@@ -2338,28 +2351,25 @@ llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm)
   return nullptr;
 }
 
-TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.GetDefaultTargetTriple")
-    .set_body_typed([]() -> std::string { return llvm::sys::getDefaultTargetTriple(); });
-
-TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.GetProcessTriple").set_body_typed([]() -> std::string {
-  return llvm::sys::getProcessTriple();
-});
-
-TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUName").set_body_typed([]() -> std::string {
-  return llvm::sys::getHostCPUName().str();
-});
-
-TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUFeatures")
-    .set_body_typed([]() -> Map<String, IntImm> {
+static void CodegenLLVMRegisterReflection() {
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("tvm.codegen.llvm.GetDefaultTargetTriple",
+           []() -> std::string { return llvm::sys::getDefaultTargetTriple(); })
+      .def("tvm.codegen.llvm.GetProcessTriple",
+           []() -> std::string { return llvm::sys::getProcessTriple(); })
+      .def("tvm.codegen.llvm.GetHostCPUName",
+           []() -> std::string { return llvm::sys::getHostCPUName().str(); })
+      .def("tvm.codegen.llvm.GetHostCPUFeatures", []() -> Map<String, IntImm> {
 #if TVM_LLVM_VERSION >= 190
-      Map<String, IntImm> ret;
-      auto features = llvm::sys::getHostCPUFeatures();
-      for (auto it = features.begin(); it != features.end(); ++it) {
-        std::string name = it->getKey().str();
-        bool value = it->getValue();
-        ret.Set(name, IntImm(DataType::Bool(), value));
-      }
-      return ret;
+        Map<String, IntImm> ret;
+        auto features = llvm::sys::getHostCPUFeatures();
+        for (auto it = features.begin(); it != features.end(); ++it) {
+          std::string name = it->getKey().str();
+          bool value = it->getValue();
+          ret.Set(name, IntImm(DataType::Bool(), value));
+        }
+        return ret;
 #else
       llvm::StringMap<bool> features;
       if (llvm::sys::getHostCPUFeatures(features)) {
@@ -2372,9 +2382,12 @@ TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUFeatures")
         return ret;
       }
 #endif
-      LOG(WARNING) << "Current version of LLVM does not support feature detection on your CPU";
-      return {};
-    });
+        LOG(WARNING) << "Current version of LLVM does not support feature detection on your CPU";
+        return {};
+      });
+}
+
+TVM_FFI_STATIC_INIT_BLOCK({ CodegenLLVMRegisterReflection(); });
 
 }  // namespace codegen
 }  // namespace tvm

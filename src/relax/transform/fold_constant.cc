@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
@@ -301,7 +302,7 @@ class ConstantFolder : public ExprMutator {
       }
     }
 
-    return std::move(post_call);
+    return post_call;
   }
 
   Expr VisitExpr_(const VarNode* op) final {
@@ -327,7 +328,10 @@ Pass FoldConstant() {
   return CreateFunctionPass(pass_func, 0, "FoldConstant", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.FoldConstant").set_body_typed(FoldConstant);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.FoldConstant", FoldConstant);
+});
 
 }  // namespace transform
 

@@ -22,6 +22,7 @@
  * \file inject_double_buffer.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -202,7 +203,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       writer->indices = {e.switch_write_var * e.stride + node->indices[0]};
     }
 
-    return std::move(node);
+    return node;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -221,7 +222,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       writer->indices = {e.switch_read_var * e.stride + node->indices[0]};
     }
 
-    return std::move(node);
+    return node;
   }
 
   Buffer GetRemappedBuffer(Buffer buf, PrimExpr stride) {
@@ -327,7 +328,10 @@ Pass InjectDoubleBuffer() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectDoubleBuffer", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectDoubleBuffer").set_body_typed(InjectDoubleBuffer);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.InjectDoubleBuffer", InjectDoubleBuffer);
+});
 
 }  // namespace transform
 

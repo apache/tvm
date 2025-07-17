@@ -24,6 +24,8 @@
 
 #include "manipulate.h"
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include <algorithm>
 #include <numeric>
 #include <string>
@@ -62,7 +64,10 @@ Expr broadcast_to(Expr x, Expr shape) {
   return Call(op, {std::move(x), std::move(shape)}, Attrs(), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.broadcast_to").set_body_typed(broadcast_to);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.broadcast_to", broadcast_to);
+});
 
 StructInfo InferStructInfoBroadcastTo(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
@@ -145,7 +150,10 @@ Expr concat(Expr tensors, Optional<int64_t> axis) {
   return Call(op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.concat").set_body_typed(concat);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.concat", concat);
+});
 
 Optional<Array<PrimExpr>> CheckConcatOutputShape(const Call& call, const BlockBuilder& ctx,
                                                  const std::vector<Array<PrimExpr>>& shape_values,
@@ -361,7 +369,10 @@ Expr expand_dims(Expr x, Array<Integer> axis) {
   return Call(op, {std::move(x)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.expand_dims").set_body_typed(expand_dims);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.expand_dims", expand_dims);
+});
 
 StructInfo InferStructInfoExpandDims(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -467,7 +478,10 @@ Expr flatten(Expr x) {
   return Call(op, {std::move(x)}, {}, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.flatten").set_body_typed(flatten);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.flatten", flatten);
+});
 
 StructInfo InferStructInfoFlatten(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -502,7 +516,10 @@ Expr index_tensor(Expr first, Expr tensors) {
   return Call(op, {std::move(first), std::move(tensors)}, Attrs(), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.index_tensor").set_body_typed(index_tensor);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.index_tensor", index_tensor);
+});
 
 StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
@@ -656,7 +673,10 @@ Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_v
   return Call(op, {std::move(x)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.layout_transform").set_body_typed(layout_transform);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.layout_transform", layout_transform);
+});
 
 StructInfo InferStructInfoLayoutTransform(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -723,7 +743,10 @@ Expr permute_dims(Expr x, Optional<Array<Integer>> axes) {
   return Call(op, {std::move(x)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.permute_dims").set_body_typed(permute_dims);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.permute_dims", permute_dims);
+});
 
 bool IsIdentityPermutation(const std::vector<int>& permutation) {
   for (int i = 0; i < static_cast<int>(permutation.size()); ++i) {
@@ -931,7 +954,10 @@ Expr reshape(Expr x, Variant<Expr, Array<PrimExpr>> shape) {
   return Call(op, {std::move(x), std::move(shape_in_expr)}, Attrs(), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.reshape").set_body_typed(reshape);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.reshape", reshape);
+});
 
 StructInfo InferStructInfoReshape(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
@@ -1018,7 +1044,10 @@ Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis)
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.split").set_body_typed(split);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.split", split);
+});
 
 StructInfo InferStructInfoSplit(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -1171,7 +1200,10 @@ Expr squeeze(Expr x, Optional<Array<Integer>> axis) {
   return Call(op, {std::move(x)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.squeeze").set_body_typed(squeeze);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.squeeze", squeeze);
+});
 
 StructInfo InferStructInfoSqueeze(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -1371,7 +1403,10 @@ Expr stack(Expr tensors, Optional<Integer> axis) {
   return Call(op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.stack").set_body_typed(stack);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.stack", stack);
+});
 
 Optional<Array<PrimExpr>> CheckStackOutputShape(const Call& call, const BlockBuilder& ctx,
                                                 const std::vector<Array<PrimExpr>>& shape_values,
@@ -1575,7 +1610,10 @@ Expr collapse_sum_like(Expr data, Expr collapse_target) {
   return Call(op, {std::move(data), std::move(collapse_target)}, Attrs(), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.collapse_sum_like").set_body_typed(collapse_sum_like);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.collapse_sum_like", collapse_sum_like);
+});
 
 StructInfo InferStructInfoCollapseSumLike(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
@@ -1621,7 +1659,10 @@ Expr collapse_sum_to(Expr data, Expr shape) {
   return Call(op, {std::move(data), std::move(shape)}, Attrs(), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.collapse_sum_to").set_body_typed(collapse_sum_to);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.collapse_sum_to", collapse_sum_to);
+});
 
 StructInfo InferStructInfoCollapseSumTo(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 2) {
@@ -1676,7 +1717,10 @@ Expr repeat(Expr data, int repeats, Optional<int64_t> axis) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.repeat").set_body_typed(repeat);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.repeat", repeat);
+});
 
 StructInfo InferStructInfoRepeat(const Call& call, const BlockBuilder& ctx) {
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
@@ -1741,7 +1785,10 @@ Expr tile(Expr data, Array<Integer> repeats) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.tile").set_body_typed(tile);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.tile", tile);
+});
 
 StructInfo InferStructInfoTile(const Call& call, const BlockBuilder& ctx) {
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
@@ -1804,7 +1851,10 @@ Expr flip(Expr data, Integer axis) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.flip").set_body_typed(flip);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.flip", flip);
+});
 
 StructInfo InferStructInfoFlip(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
@@ -1841,7 +1891,10 @@ Expr gather_elements(Expr data, Expr indices, int axis) {
   return Call(op, {data, indices}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.gather_elements").set_body_typed(gather_elements);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.gather_elements", gather_elements);
+});
 
 StructInfo InferStructInfoGatherElements(const Call& call, const BlockBuilder& ctx) {
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
@@ -1910,7 +1963,10 @@ Expr gather_nd(Expr data, Expr indices, int batch_dims) {
   return Call(op, {data, indices}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.gather_nd").set_body_typed(gather_nd);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.gather_nd", gather_nd);
+});
 
 StructInfo InferStructInfoGatherND(const Call& call, const BlockBuilder& ctx) {
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
@@ -2004,7 +2060,10 @@ Expr index_put(Expr data, Expr indices, Expr values, bool accumulate) {
   return Call(op, {data, indices, values}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.index_put").set_body_typed(index_put);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.index_put", index_put);
+});
 
 StructInfo InferStructInfoIndexPut(const Call& call, const BlockBuilder& ctx) {
   const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
@@ -2127,7 +2186,10 @@ Expr meshgrid(Expr tensors, Optional<String> indexing) {
   return Call(op, {std::move(tensors)}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.meshgrid").set_body_typed(meshgrid);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.meshgrid", meshgrid);
+});
 
 StructInfo InferStructInfoMeshgrid(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
@@ -2231,7 +2293,10 @@ Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, String re
   return Call(op, {data, indices, updates}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.scatter_elements").set_body_typed(scatter_elements);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.scatter_elements", scatter_elements);
+});
 
 StructInfo InferStructInfoScatterElements(const Call& call, const BlockBuilder& ctx) {
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
@@ -2345,7 +2410,10 @@ Expr scatter_nd(Expr data, Expr indices, Expr updates, String reduction) {
   return Call(op, {data, indices, updates}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.scatter_nd").set_body_typed(scatter_nd);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.scatter_nd", scatter_nd);
+});
 
 StructInfo InferStructInfoScatterND(const Call& call, const BlockBuilder& ctx) {
   // `call->args` contains: [data, indices, updates]
@@ -2479,7 +2547,10 @@ Expr slice_scatter(Expr input, Expr src, int axis, PrimValue start, PrimValue en
   return Call(op, {input, src, start, end, step}, Attrs(attrs), {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.slice_scatter").set_body_typed(slice_scatter);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.slice_scatter", slice_scatter);
+});
 
 StructInfo InferStructInfoSliceScatter(const Call& call, const BlockBuilder& ctx) {
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
@@ -2643,7 +2714,10 @@ Expr one_hot(Expr indices, PrimValue on_value, PrimValue off_value, int depth, i
   return Call(op, {indices, on_value, off_value}, Attrs(attrs), {});
 }  // namespace relax
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.one_hot").set_body_typed(one_hot);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.one_hot", one_hot);
+});
 
 StructInfo InferStructInfoOneHot(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo indices_sinfo = GetInputTensorStructInfo(call, 0, ctx);

@@ -1001,7 +1001,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIArray;
   using ObjectRefTypeTraitsBase<Array<T>>::CopyFromAnyViewAfterCheck;
 
-  static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIArray) {
       return TypeTraitsBase::GetMismatchTypeInfo(src);
     }
@@ -1022,7 +1022,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
     TVM_FFI_UNREACHABLE();
   }
 
-  static TVM_FFI_INLINE bool CheckAnyStrict(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIArray) return false;
     if constexpr (std::is_same_v<T, Any>) {
       return true;
@@ -1036,7 +1036,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
     }
   }
 
-  static TVM_FFI_INLINE std::optional<Array<T>> TryCastFromAnyView(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::optional<Array<T>> TryCastFromAnyView(const TVMFFIAny* src) {
     // try to run conversion.
     if (src->type_index != TypeIndex::kTVMFFIArray) return std::nullopt;
     if constexpr (!std::is_same_v<T, Any>) {
@@ -1069,7 +1069,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
     }
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return "Array<" + details::Type2Str<T>::v() + ">"; }
+  TVM_FFI_INLINE static std::string TypeStr() { return "Array<" + details::Type2Str<T>::v() + ">"; }
 };
 
 namespace details {

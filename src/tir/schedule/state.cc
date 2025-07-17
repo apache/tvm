@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/arith/int_set.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include "./utils.h"
 namespace tvm {
@@ -1014,20 +1015,22 @@ TVM_DLL Array<Bool> GetCachedFlags(const ScheduleState& self, const StmtSRef& bl
 /**************** FFI ****************/
 
 TVM_REGISTER_NODE_TYPE(ScheduleStateNode);
-TVM_FFI_REGISTER_GLOBAL("tir.schedule.ScheduleState")
-    .set_body_typed([](IRModule mod, int debug_mask, bool enable_check) -> ScheduleState {
-      return ScheduleState(mod, debug_mask, enable_check);
-    });
-TVM_FFI_REGISTER_GLOBAL("tir.schedule.ScheduleStateGetBlockScope")
-    .set_body_method(&ScheduleStateNode::GetBlockScope);
-TVM_FFI_REGISTER_GLOBAL("tir.schedule.ScheduleStateReplace")
-    .set_body_method(&ScheduleStateNode::Replace);
-TVM_FFI_REGISTER_GLOBAL("tir.schedule.ScheduleStateGetSRef")
-    .set_body_typed([](ScheduleState self, Stmt stmt) -> Optional<StmtSRef> {
-      auto it = self->stmt2ref.find(stmt.get());
-      return it != self->stmt2ref.end() ? it->second : Optional<StmtSRef>(std::nullopt);
-    });
-TVM_FFI_REGISTER_GLOBAL("tir.schedule.ScheduleStateGetCachedFlags").set_body_typed(GetCachedFlags);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("tir.schedule.ScheduleState",
+           [](IRModule mod, int debug_mask, bool enable_check) -> ScheduleState {
+             return ScheduleState(mod, debug_mask, enable_check);
+           })
+      .def_method("tir.schedule.ScheduleStateGetBlockScope", &ScheduleStateNode::GetBlockScope)
+      .def_method("tir.schedule.ScheduleStateReplace", &ScheduleStateNode::Replace)
+      .def("tir.schedule.ScheduleStateGetSRef",
+           [](ScheduleState self, Stmt stmt) -> Optional<StmtSRef> {
+             auto it = self->stmt2ref.find(stmt.get());
+             return it != self->stmt2ref.end() ? it->second : Optional<StmtSRef>(std::nullopt);
+           })
+      .def("tir.schedule.ScheduleStateGetCachedFlags", GetCachedFlags);
+});
 
 }  // namespace tir
 }  // namespace tvm

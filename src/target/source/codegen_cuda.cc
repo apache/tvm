@@ -140,7 +140,19 @@ void CodeGenCUDA::Init(bool output_ssa) {
   ICHECK_EQ(vid_global_barrier_state_, runtime::symbol::tvm_global_barrier_state);
 }
 
-void CodeGenCUDA::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" __global__ "; }
+void CodeGenCUDA::PrintFunctionSignature(const String& function_name, const PrimFunc& func,
+                                         std::ostream& os) {
+  auto calling_conv =
+      func->GetAttr<Integer>(tvm::attr::kCallingConv, Integer(tvm::CallingConv::kDefault));
+  if (calling_conv == CallingConv::kDeviceKernelLaunch) {
+    os << "extern \"C\" __global__ ";
+  } else if (calling_conv == CallingConv::kDefault) {
+    os << "extern \"C\" __device__ ";
+  } else {
+    LOG(FATAL) << "Unsupported calling convention for cuda codegen: " << calling_conv;
+  }
+  CodeGenC::PrintFunctionSignature(function_name, func, os);
+}
 
 class ThreadIdxExtractor : public tir::StmtVisitor {
  private:
@@ -1322,6 +1334,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       LOG(FATAL) << "Invalid number of lanes for float4_e2m1fn reinterpret: " << lanes;
     }
     EndScope(ssa_scope);
+  } else if (op->op.same_as(builtin::thread_return())) {
+    os << "return";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }

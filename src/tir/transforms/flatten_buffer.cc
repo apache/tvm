@@ -22,6 +22,7 @@
  */
 
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -149,7 +150,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
       alloc.CopyOnWrite()->extents = new_extents;
     }
 
-    return std::move(alloc);
+    return alloc;
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
@@ -196,9 +197,9 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
           << "Expected int8 backing array for boolean tensor";
       auto writer = store.CopyOnWrite();
       writer->value = tvm::cast(DataType::Int(8), store->value);
-      return std::move(store);
+      return store;
     }
-    return std::move(store);
+    return store;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
@@ -214,7 +215,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
       load.CopyOnWrite()->dtype = DataType::Int(8);
       return tvm::cast(DataType::Bool(), load);
     } else {
-      return std::move(load);
+      return load;
     }
   }
 
@@ -279,7 +280,10 @@ Pass FlattenBuffer() {
   return CreatePrimFuncPass(pass_func, 0, "tir.FlattenBuffer", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.FlattenBuffer").set_body_typed(FlattenBuffer);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.FlattenBuffer", FlattenBuffer);
+});
 }  // namespace transform
 
 }  // namespace tir

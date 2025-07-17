@@ -23,7 +23,7 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/module.h>
@@ -77,8 +77,6 @@ class TuneContextNode : public runtime::Object {
         .def_ro("rand_state", &TuneContextNode::rand_state);
     // `logger` is not registered
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Initialize members that needs initialization with tune context.

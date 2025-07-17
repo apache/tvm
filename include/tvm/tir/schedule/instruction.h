@@ -19,7 +19,7 @@
 #ifndef TVM_TIR_SCHEDULE_INSTRUCTION_H_
 #define TVM_TIR_SCHEDULE_INSTRUCTION_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/reflection.h>
 
 #include <utility>
@@ -119,8 +119,6 @@ class InstructionKindNode : public runtime::Object {
         .def_ro("_is_pure", &InstructionKindNode::is_pure);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   /*! \brief Checks if the instruction kind is EnterPostproc */
   bool IsPostproc() const;
 
@@ -182,8 +180,6 @@ class InstructionNode : public runtime::Object {
         .def_ro("attrs", &InstructionNode::attrs)
         .def_ro("outputs", &InstructionNode::outputs);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "tir.Instruction";
   TVM_DECLARE_FINAL_OBJECT_INFO(InstructionNode, runtime::Object);

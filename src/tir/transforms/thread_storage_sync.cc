@@ -21,6 +21,7 @@
  * \file thread_storage_sync.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -471,7 +472,10 @@ Pass ThreadSync(String storage_scope) {
   return CreatePrimFuncPass(pass_func, 0, "tir.ThreadSync", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.ThreadSync").set_body_typed(ThreadSync);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.ThreadSync", ThreadSync);
+});
 
 }  // namespace transform
 }  // namespace tir

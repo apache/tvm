@@ -21,6 +21,7 @@
  * \brief Runtime paged KV cache object for language models.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/logging.h>
@@ -2435,108 +2436,111 @@ TVM_REGISTER_OBJECT_TYPE(PagedAttentionKVCacheObj);
 //  Register runtime functions
 //-------------------------------------------------
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      // Todo: cuda graph arg
-      CHECK(args.size() == 28 || args.size() == 29)
-          << "Invalid number of KV cache constructor args: " << args.size();
-      ffi::Shape cache_config = args[0].cast<ffi::Shape>();
-      ffi::Shape layer_indptr_tuple = args[1].cast<ffi::Shape>();
-      int num_groups = 1;
-      int group_id = 0;
-      if (DiscoWorker* disco_worker = ThreadLocalDiscoWorker::Get()->worker) {
-        // In the Disco worker thread
-        num_groups = disco_worker->num_groups;
-        group_id = disco_worker->worker_id / (disco_worker->num_workers / num_groups);
-      }
-      CHECK_EQ(layer_indptr_tuple.size(), num_groups + 1);
-      int64_t num_layers = layer_indptr_tuple[group_id + 1] - layer_indptr_tuple[group_id];
-      int64_t layer_id_begin_offset = layer_indptr_tuple[group_id];
-      int64_t layer_id_end_offset = layer_indptr_tuple[group_id + 1];
-      int64_t num_qo_heads = args[2].cast<int64_t>();
-      int64_t num_kv_heads = args[3].cast<int64_t>();
-      int64_t qk_head_dim = args[4].cast<int64_t>();
-      int64_t v_head_dim = args[5].cast<int64_t>();
-      ffi::Shape attn_kinds = args[6].cast<ffi::Shape>();
-      bool enable_kv_transfer = args[7].cast<bool>();
-      int rope_mode = args[8].cast<int>();
-      double rotary_scale = args[9].cast<double>();
-      double rotary_theta = args[10].cast<double>();
-      Optional<NDArray> rope_ext_factors = std::nullopt;  // args[11]
-      NDArray init = args[12].cast<NDArray>();
-      Optional<ffi::Function> f_transpose_append_mha = std::nullopt;  // args[13]
-      Optional<ffi::Function> f_transpose_append_mla = std::nullopt;  // args[14]
-      std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged =
-          ConvertRaggedPrefillFunc(args[15].cast<Array<ObjectRef>>(), AttnKind::kMHA);
-      std::unique_ptr<PagedPrefillFunc> f_attention_prefill =
-          ConvertPagedPrefillFunc(args[16].cast<Array<ObjectRef>>(), AttnKind::kMHA);
-      std::unique_ptr<PagedDecodeFunc> f_attention_decode =
-          ConvertPagedDecodeFunc(args[17].cast<Array<ObjectRef>>(), AttnKind::kMHA);
-      std::unique_ptr<PagedPrefillFunc> f_attention_prefill_sliding_window =
-          ConvertPagedPrefillFunc(args[18].cast<Array<ObjectRef>>(), AttnKind::kMHA);
-      std::unique_ptr<PagedDecodeFunc> f_attention_decode_sliding_window =
-          ConvertPagedDecodeFunc(args[19].cast<Array<ObjectRef>>(), AttnKind::kMHA);
-      std::unique_ptr<PagedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_paged_kv =
-          ConvertPagedPrefillTreeMaskFunc(args[20].cast<Array<ObjectRef>>(), AttnKind::kMHA);
-      std::unique_ptr<RaggedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask =
-          ConvertRaggedPrefillTreeMaskFunc(args[21].cast<Array<ObjectRef>>(), AttnKind::kMHA);
-      std::unique_ptr<PagedPrefillFunc> f_mla_prefill =
-          ConvertPagedPrefillFunc(args[22].cast<Array<ObjectRef>>(), AttnKind::kMLA);
-      Array<ffi::Function> f_merge_inplace = args[23].cast<Array<ffi::Function>>();
-      ffi::Function f_split_rotary = args[24].cast<ffi::Function>();
-      ffi::Function f_copy_single_page = args[25].cast<ffi::Function>();
-      ffi::Function f_debug_get_kv = args[26].cast<ffi::Function>();
-      ffi::Function f_compact_copy = args[27].cast<ffi::Function>();
-
-      if (auto opt_nd = args[11].as<NDArray>()) {
-        rope_ext_factors = opt_nd.value();
-      }
-      auto f_convert_optional_packed_func = [&args](int arg_idx) -> Optional<ffi::Function> {
-        if (auto opt_func = args[arg_idx].as<ffi::Function>()) {
-          return opt_func.value();
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed(
+      "vm.builtin.paged_attention_kv_cache_create", [](ffi::PackedArgs args, ffi::Any* rv) {
+        // Todo: cuda graph arg
+        CHECK(args.size() == 28 || args.size() == 29)
+            << "Invalid number of KV cache constructor args: " << args.size();
+        ffi::Shape cache_config = args[0].cast<ffi::Shape>();
+        ffi::Shape layer_indptr_tuple = args[1].cast<ffi::Shape>();
+        int num_groups = 1;
+        int group_id = 0;
+        if (DiscoWorker* disco_worker = ThreadLocalDiscoWorker::Get()->worker) {
+          // In the Disco worker thread
+          num_groups = disco_worker->num_groups;
+          group_id = disco_worker->worker_id / (disco_worker->num_workers / num_groups);
         }
-        return std::nullopt;
-      };
-      f_transpose_append_mha = f_convert_optional_packed_func(13);
-      f_transpose_append_mla = f_convert_optional_packed_func(14);
-      CHECK(!f_merge_inplace.empty()) << "Merge inplace function is not defined.";
+        CHECK_EQ(layer_indptr_tuple.size(), num_groups + 1);
+        int64_t num_layers = layer_indptr_tuple[group_id + 1] - layer_indptr_tuple[group_id];
+        int64_t layer_id_begin_offset = layer_indptr_tuple[group_id];
+        int64_t layer_id_end_offset = layer_indptr_tuple[group_id + 1];
+        int64_t num_qo_heads = args[2].cast<int64_t>();
+        int64_t num_kv_heads = args[3].cast<int64_t>();
+        int64_t qk_head_dim = args[4].cast<int64_t>();
+        int64_t v_head_dim = args[5].cast<int64_t>();
+        ffi::Shape attn_kinds = args[6].cast<ffi::Shape>();
+        bool enable_kv_transfer = args[7].cast<bool>();
+        int rope_mode = args[8].cast<int>();
+        double rotary_scale = args[9].cast<double>();
+        double rotary_theta = args[10].cast<double>();
+        Optional<NDArray> rope_ext_factors = std::nullopt;  // args[11]
+        NDArray init = args[12].cast<NDArray>();
+        Optional<ffi::Function> f_transpose_append_mha = std::nullopt;  // args[13]
+        Optional<ffi::Function> f_transpose_append_mla = std::nullopt;  // args[14]
+        std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged =
+            ConvertRaggedPrefillFunc(args[15].cast<Array<ObjectRef>>(), AttnKind::kMHA);
+        std::unique_ptr<PagedPrefillFunc> f_attention_prefill =
+            ConvertPagedPrefillFunc(args[16].cast<Array<ObjectRef>>(), AttnKind::kMHA);
+        std::unique_ptr<PagedDecodeFunc> f_attention_decode =
+            ConvertPagedDecodeFunc(args[17].cast<Array<ObjectRef>>(), AttnKind::kMHA);
+        std::unique_ptr<PagedPrefillFunc> f_attention_prefill_sliding_window =
+            ConvertPagedPrefillFunc(args[18].cast<Array<ObjectRef>>(), AttnKind::kMHA);
+        std::unique_ptr<PagedDecodeFunc> f_attention_decode_sliding_window =
+            ConvertPagedDecodeFunc(args[19].cast<Array<ObjectRef>>(), AttnKind::kMHA);
+        std::unique_ptr<PagedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_paged_kv =
+            ConvertPagedPrefillTreeMaskFunc(args[20].cast<Array<ObjectRef>>(), AttnKind::kMHA);
+        std::unique_ptr<RaggedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask =
+            ConvertRaggedPrefillTreeMaskFunc(args[21].cast<Array<ObjectRef>>(), AttnKind::kMHA);
+        std::unique_ptr<PagedPrefillFunc> f_mla_prefill =
+            ConvertPagedPrefillFunc(args[22].cast<Array<ObjectRef>>(), AttnKind::kMLA);
+        Array<ffi::Function> f_merge_inplace = args[23].cast<Array<ffi::Function>>();
+        ffi::Function f_split_rotary = args[24].cast<ffi::Function>();
+        ffi::Function f_copy_single_page = args[25].cast<ffi::Function>();
+        ffi::Function f_debug_get_kv = args[26].cast<ffi::Function>();
+        ffi::Function f_compact_copy = args[27].cast<ffi::Function>();
 
-      std::vector<AttnKind> attn_kinds_vec;
-      attn_kinds_vec.reserve(attn_kinds.size());
-      for (int64_t attn_kind : attn_kinds) {
-        attn_kinds_vec.push_back(static_cast<AttnKind>(attn_kind));
-      }
+        if (auto opt_nd = args[11].as<NDArray>()) {
+          rope_ext_factors = opt_nd.value();
+        }
+        auto f_convert_optional_packed_func = [&args](int arg_idx) -> Optional<ffi::Function> {
+          if (auto opt_func = args[arg_idx].as<ffi::Function>()) {
+            return opt_func.value();
+          }
+          return std::nullopt;
+        };
+        f_transpose_append_mha = f_convert_optional_packed_func(13);
+        f_transpose_append_mla = f_convert_optional_packed_func(14);
+        CHECK(!f_merge_inplace.empty()) << "Merge inplace function is not defined.";
 
-      CHECK_EQ(cache_config.size(), 5);
-      int64_t reserved_num_seqs = cache_config[0];
-      int64_t total_token_capacity = cache_config[1];
-      int64_t prefill_chunk_size = cache_config[2];
-      int64_t page_size = cache_config[3];
-      bool support_sliding_window = cache_config[4];
-      int64_t num_total_pages = (total_token_capacity + page_size - 1) / page_size + 1;
-      if (support_sliding_window) {
-        // When sliding window is enabled, each sequence may use two more pages at most.
-        num_total_pages += reserved_num_seqs * 2;
-      }
-      // NOTE: We will remove this legacy construction after finishing the transition phase.
-      // Some `ffi::Function()` here are placeholders that will be filled.
-      ObjectPtr<PagedAttentionKVCacheObj> n = make_object<PagedAttentionKVCacheObj>(
-          page_size, num_layers, layer_id_begin_offset, layer_id_end_offset, num_qo_heads,
-          num_kv_heads, qk_head_dim, v_head_dim, attn_kinds_vec, reserved_num_seqs, num_total_pages,
-          prefill_chunk_size, support_sliding_window, RoPEMode(rope_mode), rotary_scale,
-          rotary_theta, std::move(rope_ext_factors), enable_kv_transfer,  //
-          init->dtype, init->device,                                      //
-          std::move(f_transpose_append_mha), std::move(f_transpose_append_mla),
-          std::move(f_compact_copy), std::move(f_attention_prefill_ragged),
-          std::move(f_attention_prefill), std::move(f_attention_decode),
-          std::move(f_attention_prefill_sliding_window),
-          std::move(f_attention_decode_sliding_window),
-          std::move(f_attention_prefill_with_tree_mask_paged_kv),  //
-          std::move(f_attention_prefill_with_tree_mask),           //
-          std::move(f_mla_prefill), std::move(f_merge_inplace), std::move(f_split_rotary),
-          std::move(f_copy_single_page), std::move(f_debug_get_kv));
-      *rv = AttentionKVCache(std::move(n));
-    });
+        std::vector<AttnKind> attn_kinds_vec;
+        attn_kinds_vec.reserve(attn_kinds.size());
+        for (int64_t attn_kind : attn_kinds) {
+          attn_kinds_vec.push_back(static_cast<AttnKind>(attn_kind));
+        }
+
+        CHECK_EQ(cache_config.size(), 5);
+        int64_t reserved_num_seqs = cache_config[0];
+        int64_t total_token_capacity = cache_config[1];
+        int64_t prefill_chunk_size = cache_config[2];
+        int64_t page_size = cache_config[3];
+        bool support_sliding_window = cache_config[4];
+        int64_t num_total_pages = (total_token_capacity + page_size - 1) / page_size + 1;
+        if (support_sliding_window) {
+          // When sliding window is enabled, each sequence may use two more pages at most.
+          num_total_pages += reserved_num_seqs * 2;
+        }
+        // NOTE: We will remove this legacy construction after finishing the transition phase.
+        // Some `ffi::Function()` here are placeholders that will be filled.
+        ObjectPtr<PagedAttentionKVCacheObj> n = make_object<PagedAttentionKVCacheObj>(
+            page_size, num_layers, layer_id_begin_offset, layer_id_end_offset, num_qo_heads,
+            num_kv_heads, qk_head_dim, v_head_dim, attn_kinds_vec, reserved_num_seqs,
+            num_total_pages, prefill_chunk_size, support_sliding_window, RoPEMode(rope_mode),
+            rotary_scale, rotary_theta, std::move(rope_ext_factors), enable_kv_transfer,  //
+            init->dtype, init->device,                                                    //
+            std::move(f_transpose_append_mha), std::move(f_transpose_append_mla),
+            std::move(f_compact_copy), std::move(f_attention_prefill_ragged),
+            std::move(f_attention_prefill), std::move(f_attention_decode),
+            std::move(f_attention_prefill_sliding_window),
+            std::move(f_attention_decode_sliding_window),
+            std::move(f_attention_prefill_with_tree_mask_paged_kv),  //
+            std::move(f_attention_prefill_with_tree_mask),           //
+            std::move(f_mla_prefill), std::move(f_merge_inplace), std::move(f_split_rotary),
+            std::move(f_copy_single_page), std::move(f_debug_get_kv));
+        *rv = AttentionKVCache(std::move(n));
+      });
+});
 
 }  // namespace vm
 }  // namespace runtime

@@ -23,7 +23,7 @@
  */
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
@@ -363,10 +363,12 @@ Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx, const Datafl
   return MatchGraph(ctx, dfb->bindings, AnalyzeVar2Value(dfb));
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.dpl.match_dfb")
-    .set_body_typed([](const PatternContext& ctx, const DataflowBlock& dfb) {
-      return MatchGraph(ctx, dfb);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "relax.dpl.match_dfb",
+      [](const PatternContext& ctx, const DataflowBlock& dfb) { return MatchGraph(ctx, dfb); });
+});
 
 class PatternContextRewriterNode : public PatternMatchingRewriterNode {
  public:
@@ -381,8 +383,6 @@ class PatternContextRewriterNode : public PatternMatchingRewriterNode {
         .def_ro("pattern", &PatternContextRewriterNode::pattern)
         .def_ro("rewriter_func", &PatternContextRewriterNode::rewriter_func);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "relax.dpl.PatternContextRewriter";
   TVM_DECLARE_FINAL_OBJECT_INFO(PatternContextRewriterNode, PatternMatchingRewriterNode);
@@ -451,7 +451,10 @@ Function RewriteBindings(
   return Downcast<Function>(PatternContextRewriter(ctx, rewriter)(func));
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.dpl.rewrite_bindings").set_body_typed(RewriteBindings);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.dpl.rewrite_bindings", RewriteBindings);
+});
 
 TVM_FFI_STATIC_INIT_BLOCK({ PatternContextRewriterNode::RegisterReflection(); });
 

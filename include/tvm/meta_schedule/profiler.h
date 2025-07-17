@@ -22,7 +22,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/reflection.h>
@@ -64,8 +64,6 @@ class ProfilerNode : public runtime::Object {
     // `stats_sec` is not registered
     // `total_timer` is not registered
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.Profiler";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProfilerNode, runtime::Object);

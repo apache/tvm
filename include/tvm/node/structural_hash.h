@@ -302,7 +302,6 @@ class SHashHandlerDefault : public SHashReducer::Handler {
 
 class SEqualReducer;
 struct NDArrayContainerTrait {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
   static void SHashReduce(const runtime::NDArray::Container* key, SHashReducer hash_reduce);
   static bool SEqualReduce(const runtime::NDArray::Container* lhs,
                            const runtime::NDArray::Container* rhs, SEqualReducer equal);

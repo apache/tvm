@@ -22,7 +22,7 @@
 
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 
 namespace tvm {
@@ -132,19 +132,19 @@ template <>
 struct TypeTraits<testing::TPrimExpr>
     : public ObjectRefWithFallbackTraitsBase<testing::TPrimExpr, StrictBool, int64_t, double,
                                              String> {
-  static TVM_FFI_INLINE testing::TPrimExpr ConvertFallbackValue(StrictBool value) {
+  TVM_FFI_INLINE static testing::TPrimExpr ConvertFallbackValue(StrictBool value) {
     return testing::TPrimExpr("bool", static_cast<double>(value));
   }
 
-  static TVM_FFI_INLINE testing::TPrimExpr ConvertFallbackValue(int64_t value) {
+  TVM_FFI_INLINE static testing::TPrimExpr ConvertFallbackValue(int64_t value) {
     return testing::TPrimExpr("int64", static_cast<double>(value));
   }
 
-  static TVM_FFI_INLINE testing::TPrimExpr ConvertFallbackValue(double value) {
+  TVM_FFI_INLINE static testing::TPrimExpr ConvertFallbackValue(double value) {
     return testing::TPrimExpr("float32", static_cast<double>(value));
   }
   // hack into the dtype to store string
-  static TVM_FFI_INLINE testing::TPrimExpr ConvertFallbackValue(String value) {
+  TVM_FFI_INLINE static testing::TPrimExpr ConvertFallbackValue(String value) {
     return testing::TPrimExpr(value, 0);
   }
 };

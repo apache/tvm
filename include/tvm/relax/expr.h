@@ -21,7 +21,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/source_map.h>
@@ -59,8 +59,6 @@ class IdNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IdNode>().def_ro("name_hint", &IdNode::name_hint);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const IdNode* other, SEqualReducer equal) const {
     return equal.FreeVarEqualImpl(this, other);
@@ -175,8 +173,6 @@ class CallNode : public ExprNode {
         .def_ro("sinfo_args", &CallNode::sinfo_args);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
     // skip sinfo_args check for primitive ops.
     return equal(op, other->op) && equal(args, other->args) && equal(attrs, other->attrs) &&
@@ -233,8 +229,6 @@ class TupleNode : public ExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TupleNode>().def_ro("fields", &TupleNode::fields);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const TupleNode* other, SEqualReducer equal) const {
     // struct info can be deterministically derived from fields.
@@ -300,8 +294,6 @@ class TupleGetItemNode : public ExprNode {
         .def_ro("tuple_value", &TupleGetItemNode::tuple)
         .def_ro("index", &TupleGetItemNode::index);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const TupleGetItemNode* other, SEqualReducer equal) const {
     // struct info can be deterministically tuple and index.
@@ -372,8 +364,6 @@ class ShapeExprNode : public LeafExprNode {
     refl::ObjectDef<ShapeExprNode>().def_ro("values", &ShapeExprNode::values);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const ShapeExprNode* other, SEqualReducer equal) const {
     // struct info can be deterministically derived from values.
     return equal(values, other->values);
@@ -408,8 +398,6 @@ class VarNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<VarNode>().def_ro("vid", &VarNode::vid);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
@@ -449,8 +437,6 @@ class DataflowVarNode : public VarNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DataflowVarNode>();
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const DataflowVarNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
@@ -502,8 +488,6 @@ class ConstantNode : public LeafExprNode {
     refl::ObjectDef<ConstantNode>().def_ro("data", &ConstantNode::data);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {
     // struct info can be deterministically derived from data.
     return equal(data, other->data) && equal(struct_info_, other->struct_info_);
@@ -549,8 +533,6 @@ class PrimValueNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimValueNode>().def_ro("value", &PrimValueNode::value);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const PrimValueNode* other, SEqualReducer equal) const {
     // struct info can be deterministically derived from data.
@@ -601,8 +583,6 @@ class StringImmNode : public LeafExprNode {
     refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const StringImmNode* other, SEqualReducer equal) const {
     // struct info can be deterministically derived from data.
     return equal(value, other->value);
@@ -643,8 +623,6 @@ class DataTypeImmNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DataTypeImmNode>().def_ro("value", &DataTypeImmNode::value);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const DataTypeImmNode* other, SEqualReducer equal) const {
     // struct info can be deterministically derived from data.
@@ -687,7 +665,6 @@ class BindingNode : public Object {
         .def_ro("var", &BindingNode::var)
         .def_ro("span", &BindingNode::span);
   }
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "relax.expr.Binding";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -729,8 +706,6 @@ class MatchCastNode : public BindingNode {
         .def_ro("struct_info", &MatchCastNode::struct_info);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const MatchCastNode* other, SEqualReducer equal) const;
   void SHashReduce(SHashReducer hash_reduce) const;
 
@@ -764,8 +739,6 @@ class VarBindingNode : public BindingNode {
         .def_ro("value", &VarBindingNode::value);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const VarBindingNode* other, SEqualReducer equal) const;
   void SHashReduce(SHashReducer hash_reduce) const;
 
@@ -792,8 +765,6 @@ class BindingBlockNode : public Object {
     refl::ObjectDef<BindingBlockNode>().def_ro("bindings", &BindingBlockNode::bindings);
   }
 
-  static constexpr bool _type_has_method_visit_attrs = false;
-
   bool SEqualReduce(const BindingBlockNode* other, SEqualReducer equal) const {
     return equal(bindings, other->bindings);
   }
@@ -816,6 +787,11 @@ class BindingBlock : public ObjectRef {
 
 class DataflowBlockNode : public BindingBlockNode {
  public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DataflowBlockNode>();
+  }
+
   bool SEqualReduce(const DataflowBlockNode* other, SEqualReducer equal) const {
     return equal(bindings, other->bindings);
   }
@@ -850,8 +826,6 @@ class SeqExprNode : public ExprNode {
         .def_ro("blocks", &SeqExprNode::blocks)
         .def_ro("body", &SeqExprNode::body);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const SeqExprNode* other, SEqualReducer equal) const {
     return equal(blocks, other->blocks) && equal(body, other->body) &&
@@ -917,8 +891,6 @@ class IfNode : public ExprNode {
         .def_ro("true_branch", &IfNode::true_branch)
         .def_ro("false_branch", &IfNode::false_branch);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
@@ -993,8 +965,6 @@ class FunctionNode : public BaseFuncNode {
         .def_ro("ret_struct_info", &FunctionNode::ret_struct_info)
         .def_ro("is_pure", &FunctionNode::is_pure);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
     equal->MarkGraphNode();
@@ -1098,8 +1068,6 @@ class ExternFuncNode : public BaseFuncNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ExternFuncNode>().def_ro("global_symbol", &ExternFuncNode::global_symbol);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   bool SEqualReduce(const ExternFuncNode* other, SEqualReducer equal) const {
     return equal(global_symbol, other->global_symbol) && equal(struct_info_, other->struct_info_);

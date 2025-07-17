@@ -22,6 +22,7 @@
  */
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -80,7 +81,7 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     if (itr != var_remap_.end()) {
       return itr->second;
     } else {
-      return std::move(var);
+      return var;
     }
   }
 
@@ -115,11 +116,12 @@ class CustomDatatypesLowerer : public StmtExprMutator {
     // Not needed for BufferStoreNode, so we can't just call
     // LegalizeDtype() in VisitBufferAccess.
     if (node.same_as(modified)) {
-      return std::move(node);
+      return node;
+
     } else {
       auto writer = modified.CopyOnWrite();
       writer->LegalizeDType();
-      return std::move(modified);
+      return modified;
     }
   }
 
@@ -249,7 +251,10 @@ Pass LowerCustomDatatypes() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerCustomDatatypes", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerCustomDatatypes").set_body_typed(LowerCustomDatatypes);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerCustomDatatypes", LowerCustomDatatypes);
+});
 
 }  // namespace transform
 

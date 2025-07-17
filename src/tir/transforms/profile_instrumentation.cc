@@ -24,6 +24,7 @@
 // these instruction can be replaced with a call to a target specific handler
 // and can be used to capture profiling information such as processor cycles.
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
@@ -160,7 +161,7 @@ class InstrumentIntrin : public StmtMutator {
 
   void GetLoopInfo(PrimFuncNode* op) {
     LoopAnalyzer analzer;
-    loops_ = std::move(analzer.Analyze(op->body));
+    loops_ = analzer.Analyze(op->body);
   }
 
   Stmt VisitStmt_(const SeqStmtNode* op) final {
@@ -283,8 +284,10 @@ Pass InstrumentProfileIntrinsics() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.InstrumentProfileIntrinsics", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.InstrumentProfileIntrinsics")
-    .set_body_typed(InstrumentProfileIntrinsics);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.InstrumentProfileIntrinsics", InstrumentProfileIntrinsics);
+});
 
 }  // namespace transform
 

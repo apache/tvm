@@ -22,6 +22,7 @@
  * \brief Remove weight layout rewrite block before benchmark
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/index_map.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -64,7 +65,7 @@ class RemoveLayoutRewriteBlock : public StmtMutator {
         n->alloc_buffers = std::move(alloc_buffers);
         return Stmt(n);
       } else {
-        return std::move(block);
+        return block;
       }
     }
 
@@ -285,8 +286,11 @@ Pass RemoveWeightLayoutRewriteBlock(bool skip_ndarray_rewrite) {
   return CreatePrimFuncPass(pass_func, 0, "tir.RemoveWeightLayoutRewriteBlock", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.RemoveWeightLayoutRewriteBlock")
-    .set_body_typed(RemoveWeightLayoutRewriteBlock);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.RemoveWeightLayoutRewriteBlock",
+                        RemoveWeightLayoutRewriteBlock);
+});
 
 }  // namespace transform
 

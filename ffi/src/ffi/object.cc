@@ -24,6 +24,7 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 
 #include <memory>
@@ -404,7 +405,10 @@ void MakeObjectFromPackedArgs(ffi::PackedArgs args, Any* ret) {
   *ret = ObjectRef(ptr);
 }
 
-TVM_FFI_REGISTER_GLOBAL("ffi.MakeObjectFromPackedArgs").set_body_packed(MakeObjectFromPackedArgs);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("ffi.MakeObjectFromPackedArgs", MakeObjectFromPackedArgs);
+});
 
 }  // namespace ffi
 }  // namespace tvm

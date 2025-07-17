@@ -21,7 +21,7 @@
 #define TVM_META_SCHEDULE_MEASURE_CANDIDATE_H_
 
 #include <tvm/ffi/container/array.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
@@ -44,8 +44,6 @@ class MeasureCandidateNode : public runtime::Object {
         .def_ro("sch", &MeasureCandidateNode::sch)
         .def_ro("args_info", &MeasureCandidateNode::args_info);
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.MeasureCandidate";
   TVM_DECLARE_FINAL_OBJECT_INFO(MeasureCandidateNode, Object);

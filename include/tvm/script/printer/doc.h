@@ -19,7 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_DOC_H_
 #define TVM_SCRIPT_PRINTER_DOC_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
@@ -69,7 +69,7 @@ class DocNode : public Object {
   }
 
   static constexpr const char* _type_key = "script.printer.Doc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_BASE_OBJECT_INFO(DocNode, Object);
 
  public:
@@ -132,7 +132,7 @@ class ExprDocNode : public DocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.ExprDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_BASE_OBJECT_INFO(ExprDocNode, DocNode);
 };
 
@@ -178,7 +178,7 @@ class StmtDocNode : public DocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.StmtDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_BASE_OBJECT_INFO(StmtDocNode, DocNode);
 };
 
@@ -212,7 +212,7 @@ class StmtBlockDocNode : public DocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.StmtBlockDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(StmtBlockDocNode, DocNode);
 };
 
@@ -254,7 +254,7 @@ class LiteralDocNode : public ExprDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.LiteralDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(LiteralDocNode, ExprDocNode);
 };
 
@@ -344,7 +344,7 @@ class IdDocNode : public ExprDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.IdDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(IdDocNode, ExprDocNode);
 };
 
@@ -384,7 +384,7 @@ class AttrAccessDocNode : public ExprDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.AttrAccessDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrAccessDocNode, ExprDocNode);
 };
 
@@ -430,7 +430,7 @@ class IndexDocNode : public ExprDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.IndexDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(IndexDocNode, ExprDocNode);
 };
 
@@ -481,7 +481,7 @@ class CallDocNode : public ExprDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.CallDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(CallDocNode, ExprDocNode);
 };
 
@@ -565,7 +565,7 @@ class OperationDocNode : public ExprDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.OperationDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(OperationDocNode, ExprDocNode);
 };
 
@@ -608,7 +608,7 @@ class LambdaDocNode : public ExprDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.LambdaDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(LambdaDocNode, ExprDocNode);
 };
 
@@ -644,7 +644,7 @@ class TupleDocNode : public ExprDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.TupleDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleDocNode, ExprDocNode);
 };
 
@@ -683,7 +683,7 @@ class ListDocNode : public ExprDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.ListDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(ListDocNode, ExprDocNode);
 };
 
@@ -731,7 +731,7 @@ class DictDocNode : public ExprDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.DictDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(DictDocNode, ExprDocNode);
 };
 
@@ -780,7 +780,7 @@ class SliceDocNode : public DocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.SliceDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(SliceDocNode, DocNode);
 };
 
@@ -828,7 +828,7 @@ class AssignDocNode : public StmtDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.AssignDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(AssignDocNode, StmtDocNode);
 };
 
@@ -872,7 +872,7 @@ class IfDocNode : public StmtDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.IfDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(IfDocNode, StmtDocNode);
 };
 
@@ -913,7 +913,7 @@ class WhileDocNode : public StmtDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.WhileDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(WhileDocNode, StmtDocNode);
 };
 
@@ -960,7 +960,7 @@ class ForDocNode : public StmtDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.ForDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(ForDocNode, StmtDocNode);
 };
 
@@ -1009,7 +1009,7 @@ class ScopeDocNode : public StmtDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.ScopeDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(ScopeDocNode, StmtDocNode);
 };
 
@@ -1054,7 +1054,7 @@ class ExprStmtDocNode : public StmtDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.ExprStmtDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(ExprStmtDocNode, StmtDocNode);
 };
 
@@ -1093,7 +1093,7 @@ class AssertDocNode : public StmtDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.AssertDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(AssertDocNode, StmtDocNode);
 };
 
@@ -1129,7 +1129,7 @@ class ReturnDocNode : public StmtDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.ReturnDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(ReturnDocNode, StmtDocNode);
 };
 
@@ -1183,7 +1183,7 @@ class FunctionDocNode : public StmtDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.FunctionDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionDocNode, StmtDocNode);
 };
 
@@ -1230,7 +1230,7 @@ class ClassDocNode : public StmtDocNode {
   }
 
   static constexpr const char* _type_key = "script.printer.ClassDoc";
-  static constexpr const bool _type_has_method_visit_attrs = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(ClassDocNode, StmtDocNode);
 };
 

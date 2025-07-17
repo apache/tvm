@@ -22,7 +22,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/meta_schedule/builder.h>
 #include <tvm/meta_schedule/measure_candidate.h>
@@ -46,8 +46,6 @@ class MeasureCallbackNode : public runtime::Object {
   static void RegisterReflection() {
     // No fields to register
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   /*!
    * \brief Apply a measure callback rule with given arguments.
@@ -99,8 +97,6 @@ class PyMeasureCallbackNode : public MeasureCallbackNode {
     // `f_apply` is not registered
     // `f_as_string` is not registered
   }
-
-  static constexpr const bool _type_has_method_visit_attrs = false;
 
   void Apply(const TaskScheduler& task_scheduler,                //
              int task_id,                                        //

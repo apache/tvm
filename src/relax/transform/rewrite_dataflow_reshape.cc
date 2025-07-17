@@ -21,6 +21,7 @@
  * \brief Transform all reshape within dataflow block to a relax.reshape operator
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -165,8 +166,10 @@ Pass RewriteDataflowReshape() {
   return CreateFunctionPass(pass_func, 0, "RewriteDataflowReshape", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.RewriteDataflowReshape")
-    .set_body_typed(RewriteDataflowReshape);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.RewriteDataflowReshape", RewriteDataflowReshape);
+});
 
 }  // namespace transform
 

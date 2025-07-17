@@ -24,6 +24,8 @@
 
 #include "sorting.h"
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include <vector>
 
 namespace tvm {
@@ -47,7 +49,10 @@ Expr sort(Expr data, int axis, bool descending) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.sort").set_body_typed(sort);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.sort", sort);
+});
 
 StructInfo InferStructInfoSort(const Call& call, const BlockBuilder& ctx) {
   return GetUnaryInputTensorStructInfo(call, ctx);
@@ -73,7 +78,10 @@ Expr argsort(Expr data, int axis, bool descending, DataType dtype) {
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.argsort").set_body_typed(argsort);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.argsort", argsort);
+});
 
 StructInfo InferStructInfoArgsort(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
@@ -107,7 +115,10 @@ Expr topk(Expr data, int k, int axis, String ret_type, bool largest, DataType dt
   return Call(op, {std::move(data)}, Attrs{attrs}, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.op.topk").set_body_typed(topk);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.op.topk", topk);
+});
 
 StructInfo InferStructInfoTopK(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);

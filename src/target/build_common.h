@@ -66,7 +66,9 @@ inline std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(co
       }
     }
     auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    fmap[static_cast<std::string>(global_symbol.value())] = info;
+    if (global_symbol) {
+      fmap[static_cast<std::string>(global_symbol.value())] = info;
+    }
   }
   return fmap;
 }

@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -139,12 +140,15 @@ const BlockNode* FindAnchorBlock(const IRModule& mod) {
   return nullptr;
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.analysis.find_anchor_block").set_body_typed([](const IRModule& mod) {
-  auto ret = FindAnchorBlock(mod);
-  if (ret) {
-    return Optional<Block>(GetRef<Block>(ret));
-  }
-  return Optional<Block>(std::nullopt);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.analysis.find_anchor_block", [](const IRModule& mod) {
+    auto ret = FindAnchorBlock(mod);
+    if (ret) {
+      return Optional<Block>(GetRef<Block>(ret));
+    }
+    return Optional<Block>(std::nullopt);
+  });
 });
 
 }  // namespace tir

@@ -50,7 +50,8 @@ namespace relax {
     static const Op& op = Op::Get("relax." #OpName);                              \
     return Call(op, {std::move(x)}, Attrs{attrs}, {});                            \
   }                                                                               \
-  TVM_FFI_REGISTER_GLOBAL("relax.op." #OpName).set_body_typed(OpName);            \
+  TVM_FFI_STATIC_INIT_BLOCK(                                                      \
+      { tvm::ffi::reflection::GlobalDef().def("relax.op." #OpName, OpName); });   \
   TVM_REGISTER_OP("relax." #OpName)                                               \
       .set_num_inputs(1)                                                          \
       .add_argument("x", "Tensor", "The input data tensor")                       \

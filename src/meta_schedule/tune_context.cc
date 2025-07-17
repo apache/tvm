@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include <utility>
 
 #include "./utils.h"
@@ -65,19 +67,21 @@ void TuneContextNode::Initialize() {
 TVM_FFI_STATIC_INIT_BLOCK({ TuneContextNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(TuneContextNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.TuneContext")
-    .set_body_typed([](Optional<IRModule> mod, Optional<Target> target,
-                       Optional<SpaceGenerator> space_generator,
-                       Optional<SearchStrategy> search_strategy, Optional<String> task_name,
-                       int num_threads, TRandState rand_state,
-                       ffi::Function logger) -> TuneContext {
-      return TuneContext(mod, target, space_generator, search_strategy, task_name, num_threads,
-                         rand_state, logger);
-    });
-TVM_FFI_REGISTER_GLOBAL("meta_schedule._SHash2Hex").set_body_typed(SHash2Hex);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.TuneContextInitialize")
-    .set_body_method(&TuneContextNode::Initialize);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.TuneContextClone").set_body_method(&TuneContextNode::Clone);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("meta_schedule.TuneContext",
+           [](Optional<IRModule> mod, Optional<Target> target,
+              Optional<SpaceGenerator> space_generator, Optional<SearchStrategy> search_strategy,
+              Optional<String> task_name, int num_threads, TRandState rand_state,
+              ffi::Function logger) -> TuneContext {
+             return TuneContext(mod, target, space_generator, search_strategy, task_name,
+                                num_threads, rand_state, logger);
+           })
+      .def("meta_schedule._SHash2Hex", SHash2Hex)
+      .def_method("meta_schedule.TuneContextInitialize", &TuneContextNode::Initialize)
+      .def_method("meta_schedule.TuneContextClone", &TuneContextNode::Clone);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

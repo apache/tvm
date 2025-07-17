@@ -24,6 +24,7 @@
 
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/int_solver.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -552,14 +553,14 @@ class BufferCompactor : public StmtExprMutator {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_op));
     BufferStoreNode* op = store.CopyOnWrite();
     RewriteBufferAccess(&op->buffer, &op->indices);
-    return std::move(store);
+    return store;
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* _op) final {
     BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_op));
     BufferLoadNode* op = load.CopyOnWrite();
     RewriteBufferAccess(&op->buffer, &op->indices);
-    return std::move(load);
+    return load;
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {
@@ -576,7 +577,7 @@ class BufferCompactor : public StmtExprMutator {
     RewriteBufferRegions(&n->writes);
     RewriteMatchBuffers(&n->match_buffers);
     n->alloc_buffers = std::move(alloc_buffers);
-    return std::move(block);
+    return block;
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
@@ -591,20 +592,20 @@ class BufferCompactor : public StmtExprMutator {
     Allocate allocate = Downcast<Allocate>(StmtExprMutator::VisitStmt_(op));
     auto it = buffer_info_.find(allocate->buffer_var);
     if (it == buffer_info_.end()) {
-      return std::move(allocate);
+      return allocate;
     }
     // Rewrite allocation shape if the corresponding buffer is in the buffer_info_
     // dict and the dtype is consistent, which denotes there are no buffer aliasing
     // and the compaction is safe.
     const Buffer& new_buffer = it->second.new_buffer;
     if (op->dtype != new_buffer->dtype) {
-      return std::move(allocate);
+      return allocate;
     }
     Array<PrimExpr> new_shape = GetBufferAllocationShape(new_buffer);
     auto n = allocate.CopyOnWrite();
     ICHECK(n->buffer_var.same_as(new_buffer->data));
     n->extents = new_shape;
-    return std::move(allocate);
+    return allocate;
   }
 
   Buffer RewriteAllocBuffer(const Buffer& buffer) {
@@ -756,8 +757,10 @@ Pass CompactBufferAllocation(bool is_strict) {
   return CreatePrimFuncPass(pass_func, 0, "tir.CompactBufferAllocation", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.CompactBufferAllocation")
-    .set_body_typed(CompactBufferAllocation);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.CompactBufferAllocation", CompactBufferAllocation);
+});
 }  // namespace transform
 
 }  // namespace tir

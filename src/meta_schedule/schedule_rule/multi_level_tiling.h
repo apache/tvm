@@ -19,7 +19,7 @@
 #ifndef TVM_META_SCHEDULE_SCHEDULE_RULE_MULTI_LEVEL_TILING_H_
 #define TVM_META_SCHEDULE_SCHEDULE_RULE_MULTI_LEVEL_TILING_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/schedule_rule.h>
 #include <tvm/tir/schedule/schedule.h>
 
@@ -228,8 +228,6 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
         .def_ro("tile_binds", &MultiLevelTilingNode::tile_binds)
         .def_ro("max_innermost_factor", &MultiLevelTilingNode::max_innermost_factor);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "meta_schedule.MultiLevelTiling";
   TVM_DECLARE_BASE_OBJECT_INFO(MultiLevelTilingNode, ScheduleRuleNode);

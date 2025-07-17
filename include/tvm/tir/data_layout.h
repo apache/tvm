@@ -25,7 +25,7 @@
 #ifndef TVM_TIR_DATA_LAYOUT_H_
 #define TVM_TIR_DATA_LAYOUT_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
@@ -114,8 +114,6 @@ class LayoutNode : public Object {
         .def_ro("name", &LayoutNode::name)
         .def_ro("axes", &LayoutNode::axes);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "tir.Layout";
   TVM_DECLARE_FINAL_OBJECT_INFO(LayoutNode, Object);
@@ -325,8 +323,6 @@ class BijectiveLayoutNode : public Object {
         .def_ro("shape_forward_rule", &BijectiveLayoutNode::shape_forward_rule)
         .def_ro("shape_backward_rule", &BijectiveLayoutNode::shape_backward_rule);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   static constexpr const char* _type_key = "tir.BijectiveLayout";
   TVM_DECLARE_FINAL_OBJECT_INFO(BijectiveLayoutNode, Object);

@@ -22,6 +22,8 @@
  * \brief Build SPIRV block
  */
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../../runtime/spirv/spirv_shader.h"
 #include "../../runtime/vulkan/vulkan_module.h"
 #include "../build_common.h"
@@ -35,8 +37,10 @@ runtime::Module BuildSPIRV(IRModule mod, Target target) {
   return runtime::VulkanModuleCreate(smap, ExtractFuncInfo(mod), spirv_text);
 }
 
-TVM_FFI_REGISTER_GLOBAL("target.build.vulkan").set_body_typed([](IRModule mod, Target target) {
-  return BuildSPIRV(mod, target);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("target.build.vulkan",
+                        [](IRModule mod, Target target) { return BuildSPIRV(mod, target); });
 });
 
 }  // namespace codegen

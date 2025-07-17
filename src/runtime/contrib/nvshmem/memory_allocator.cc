@@ -19,6 +19,7 @@
 #include <nvshmem.h>
 #include <nvshmemx.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/memory/memory_manager.h>
 
 #include <thread>
@@ -89,14 +90,20 @@ NDArray NVSHMEMEmpty(ffi::Shape shape, DataType dtype, Device device) {
   return NVSHMEMAllocator::Global()->Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.empty").set_body_typed(NVSHMEMEmpty);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("runtime.disco.nvshmem.empty", NVSHMEMEmpty);
+});
 
 void NVSHMEMFinalize() {
   NVSHMEMAllocator::Global()->Clear();
   nvshmem_finalize();
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.nvshmem.finalize_nvshmem").set_body_typed(NVSHMEMFinalize);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("runtime.disco.nvshmem.finalize_nvshmem", NVSHMEMFinalize);
+});
 
 }  // namespace runtime
 }  // namespace tvm

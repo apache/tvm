@@ -22,6 +22,7 @@
  * \brief Split device function from host.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/builtin.h>
@@ -240,7 +241,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     auto node = Downcast<Call>(Parent::VisitExpr_(op));
 
     auto* gvar = op->op.as<GlobalVarNode>();
-    if (!gvar) return std::move(node);
+    if (!gvar) return node;
 
     auto it = device_info_map_.find(gvar);
     ICHECK(it != device_info_map_.end())
@@ -255,7 +256,7 @@ class DeviceKernelMutator : public StmtExprMutator {
     if (same_target) {
       // Calls within the same target may be handled at codegen time
       // as internal subroutine calls.
-      return std::move(node);
+      return node;
     }
 
     bool same_device_type =
@@ -369,8 +370,10 @@ Pass LowerDeviceKernelLaunch() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.LowerDeviceKernelLaunch", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerDeviceKernelLaunch")
-    .set_body_typed(LowerDeviceKernelLaunch);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerDeviceKernelLaunch", LowerDeviceKernelLaunch);
+});
 
 }  // namespace transform
 }  // namespace tir

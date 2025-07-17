@@ -27,7 +27,7 @@
 #ifndef TVM_RELAX_TRANSFORM_INFER_LAYOUT_UTILS_H_
 #define TVM_RELAX_TRANSFORM_INFER_LAYOUT_UTILS_H_
 
-#include <tvm/ffi/reflection/reflection.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/create.h>
 #include <tvm/relax/attrs/datatype.h>
 #include <tvm/relax/attrs/image.h>
@@ -68,8 +68,6 @@ class LayoutDecisionNode : public Object {
         .def_ro("layout", &LayoutDecisionNode::layout)
         .def_ro("is_unknown_dim", &LayoutDecisionNode::is_unknown_dim);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   TVM_DECLARE_BASE_OBJECT_INFO(LayoutDecisionNode, Object);
 
@@ -120,8 +118,6 @@ class InferLayoutOutputNode : public Object {
         .def_ro("new_attrs", &InferLayoutOutputNode::new_attrs)
         .def_ro("new_args", &InferLayoutOutputNode::new_args);
   }
-
-  static constexpr bool _type_has_method_visit_attrs = false;
 
   TVM_DECLARE_BASE_OBJECT_INFO(InferLayoutOutputNode, Object);
 
