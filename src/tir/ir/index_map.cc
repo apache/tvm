@@ -218,7 +218,7 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer
     }
   }
   auto output_dtype = [&]() {
-    int max_bits = 0;
+    int max_bits = ranges.empty() ? 32 : 0;
     for (const auto& range : ranges) {
       max_bits = std::max(max_bits, range->extent.dtype().bits());
     }
