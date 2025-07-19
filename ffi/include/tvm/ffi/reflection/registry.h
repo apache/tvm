@@ -55,6 +55,39 @@ class DefaultValue : public FieldInfoTrait {
   Any value_;
 };
 
+/*
+ * \brief Trait that can be used to attach field flag
+ */
+class AttachFieldFlag : public FieldInfoTrait {
+ public:
+  /*!
+   * \brief Attach a field flag to the field
+   *
+   * \param flag The flag to be set
+   *
+   * \return The trait object.
+   */
+  explicit AttachFieldFlag(int32_t flag) : flag_(flag) {}
+
+  /*!
+   * \brief Attach kTVMFFIFieldFlagBitMaskSEqHashDef
+   */
+  TVM_FFI_INLINE static AttachFieldFlag SEqHashDef() {
+    return AttachFieldFlag(kTVMFFIFieldFlagBitMaskSEqHashDef);
+  }
+  /*!
+   * \brief Attach kTVMFFIFieldFlagBitMaskSEqHashIgnore
+   */
+  TVM_FFI_INLINE static AttachFieldFlag SEqHashIgnore() {
+    return AttachFieldFlag(kTVMFFIFieldFlagBitMaskSEqHashIgnore);
+  }
+
+  TVM_FFI_INLINE void Apply(TVMFFIFieldInfo* info) const { info->flags |= flag_; }
+
+ private:
+  int32_t flag_;
+};
+
 /*!
  * \brief Get the byte offset of a class member field.
  *
@@ -83,7 +116,11 @@ class ReflectionDefBase {
   template <typename T>
   static int FieldSetter(void* field, const TVMFFIAny* value) {
     TVM_FFI_SAFE_CALL_BEGIN();
-    *reinterpret_cast<T*>(field) = AnyView::CopyFromTVMFFIAny(*value).cast<T>();
+    if constexpr (std::is_same_v<T, Any>) {
+      *reinterpret_cast<T*>(field) = AnyView::CopyFromTVMFFIAny(*value);
+    } else {
+      *reinterpret_cast<T*>(field) = AnyView::CopyFromTVMFFIAny(*value).cast<T>();
+    }
     TVM_FFI_SAFE_CALL_END();
   }
 
@@ -346,6 +383,7 @@ class ObjectDef : public ReflectionDefBase {
   void RegisterExtraInfo(ExtraArgs&&... extra_args) {
     TVMFFITypeExtraInfo info;
     info.total_size = sizeof(Class);
+    info.structural_eq_hash_kind = Class::_type_s_eq_hash_kind;
     info.creator = nullptr;
     info.doc = TVMFFIByteArray{nullptr, 0};
     if constexpr (std::is_default_constructible_v<Class>) {
