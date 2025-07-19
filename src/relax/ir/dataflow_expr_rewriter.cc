@@ -387,8 +387,9 @@ Map<Var, Expr> TupleRewriterNode::GenerateVariableRewrites(const Array<Binding>&
         for (size_t j_rev = 1; j_rev < info_vec.size(); j_rev++) {
           size_t j = info_vec.size() - j_rev - 1;
           if (info_vec[j].matches[i] && !info_vec[j].used &&
-              std::all_of(indices.begin() + (j + 1), indices.end(),
-                          [j](size_t prev_binding_index) { return j != prev_binding_index; })) {
+              (j + 1 >= indices.size() ||
+               std::all_of(indices.begin() + (j + 1), indices.end(),
+                           [j](size_t prev_binding_index) { return j != prev_binding_index; }))) {
             return j;
           }
         }
