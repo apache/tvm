@@ -41,7 +41,7 @@ class AttrPrinter {
       }
     } else {
       const TVMFFITypeInfo* attrs_tinfo = TVMFFIGetTypeInfo(attrs->type_index());
-      ICHECK(attrs_tinfo->extra_info != nullptr)
+      ICHECK(attrs_tinfo->metadata != nullptr)
           << "Object `" << attrs->GetTypeKey()
           << "` misses reflection registration and do not support serialization";
       // new printing mechanism using the new reflection

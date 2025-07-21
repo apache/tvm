@@ -82,11 +82,11 @@ class StructuralHashHandler {
   uint64_t HashObject(ObjectRef obj) {
     // NOTE: invariant: lhs and rhs are already the same type
     const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(obj->type_index());
-    if (type_info->extra_info == nullptr) {
+    if (type_info->metadata == nullptr) {
       // Fallback to pointer hash
       return std::hash<const Object*>()(obj.get());
     }
-    auto structural_eq_hash_kind = type_info->extra_info->structural_eq_hash_kind;
+    auto structural_eq_hash_kind = type_info->metadata->structural_eq_hash_kind;
     if (structural_eq_hash_kind == kTVMFFISEqHashKindUnsupported) {
       // Fallback to pointer hash
       return std::hash<const Object*>()(obj.get());

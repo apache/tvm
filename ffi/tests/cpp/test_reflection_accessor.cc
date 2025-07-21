@@ -143,6 +143,11 @@ TEST(Reflection, ForEachFieldInfo) {
   EXPECT_EQ(field_name_to_offset["z"], 16 + sizeof(TVMFFIObject));
 }
 
+TEST(Reflection, TypeAttrColumn) {
+  reflection::TypeAttrColumn size_attr("test.size");
+  EXPECT_EQ(size_attr[TIntObj::_type_index].cast<int>(), sizeof(TIntObj));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_method("testing.Int_GetValue", &TIntObj::GetValue);

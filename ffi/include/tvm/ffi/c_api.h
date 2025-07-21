@@ -534,7 +534,22 @@ typedef struct {
    * \brief Optional meta-data for structural eq/hash.
    */
   TVMFFISEqHashKind structural_eq_hash_kind;
-} TVMFFITypeExtraInfo;
+} TVMFFITypeMetadata;
+
+/*
+ * \brief Column array that stores extra attributes about types
+ *
+ * The attributes stored in column arrays that can be looked up by type index.
+ *
+ * \note
+ * \sa TVMFFIRegisterTypeAttr
+ */
+typedef struct {
+  /*! \brief The data of the column. */
+  const TVMFFIAny* data;
+  /*! \brief The size of the column. */
+  size_t size;
+} TVMFFITypeAttrColumn;
 
 /*!
  * \brief Runtime type information for object type checking.
@@ -567,7 +582,7 @@ typedef struct TVMFFITypeInfo {
   /*! \brief The reflection method. */
   const TVMFFIMethodInfo* methods;
   /*! \brief The extra information of the type. */
-  const TVMFFITypeExtraInfo* extra_info;
+  const TVMFFITypeMetadata* metadata;
 } TVMFFITypeInfo;
 
 //------------------------------------------------------------
@@ -738,11 +753,27 @@ TVM_FFI_DLL int TVMFFITypeRegisterMethod(int32_t type_index, const TVMFFIMethodI
 /*!
  * \brief Register type creator information for runtime reflection.
  * \param type_index The type index
- * \param extra_info The extra information to be registered.
+ * \param metadata The extra information to be registered.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFITypeRegisterExtraInfo(int32_t type_index,
-                                            const TVMFFITypeExtraInfo* extra_info);
+TVM_FFI_DLL int TVMFFITypeRegisterMetadata(int32_t type_index, const TVMFFITypeMetadata* metadata);
+
+/*!
+ * \brief Register extra type attributes that can be looked up during runtime.
+ * \param type_index The type index
+ * \param attr_value The attribute value to be registered.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFITypeRegisterAttr(int32_t type_index, const TVMFFIByteArray* attr_name,
+                                       const TVMFFIAny* attr_value);
+
+/*!
+ * \brief Get the type attribute column by name.
+ * \param attr_name The name of the attribute.
+ * \return The pointer to the type attribute column.
+ * \return NULL if the attribute was not registered in the system
+ */
+TVM_FFI_DLL const TVMFFITypeAttrColumn* TVMFFIGetTypeAttrColumn(const TVMFFIByteArray* attr_name);
 
 //------------------------------------------------------------
 // Section: DLPack support APIs

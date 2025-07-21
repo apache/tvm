@@ -44,7 +44,7 @@ ffi::Any ReflectionVTable::GetAttr(Object* self, const String& field_name) const
     const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(self->type_index());
     success = false;
     // use new reflection mechanism
-    if (type_info->extra_info != nullptr) {
+    if (type_info->metadata != nullptr) {
       ffi::reflection::ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
         if (field_name.compare(field_info->name) == 0) {
           ffi::reflection::FieldGetter field_getter(field_info);
@@ -76,7 +76,7 @@ std::vector<std::string> ReflectionVTable::ListAttrNames(Object* self) const {
 
   if (!self->IsInstance<DictAttrsNode>()) {
     const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(self->type_index());
-    if (type_info->extra_info != nullptr) {
+    if (type_info->metadata != nullptr) {
       // use new reflection mechanism
       ffi::reflection::ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
         names.push_back(std::string(field_info->name.data, field_info->name.size));
@@ -186,7 +186,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 Optional<String> GetAttrKeyByAddress(const Object* object, const void* attr_address) {
   const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(object->type_index());
-  if (tinfo->extra_info != nullptr) {
+  if (tinfo->metadata != nullptr) {
     Optional<String> result;
     // visit fields with the new reflection
     ffi::reflection::ForEachFieldInfoWithEarlyStop(tinfo, [&](const TVMFFIFieldInfo* field_info) {
