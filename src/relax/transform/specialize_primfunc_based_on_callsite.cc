@@ -164,9 +164,11 @@ Pass SpecializePrimFuncBasedOnCallSite() {
                           /*required=*/{});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.SpecializePrimFuncBasedOnCallSite")
-    .set_body_typed(SpecializePrimFuncBasedOnCallSite);
-
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.SpecializePrimFuncBasedOnCallSite",
+                        SpecializePrimFuncBasedOnCallSite);
+});
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

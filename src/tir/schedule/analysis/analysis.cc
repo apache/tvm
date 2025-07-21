@@ -2169,6 +2169,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         return HasIfThenElse(stmt);
       });
 }
+>>>>>>> f1d68472e (Rebase after reflection changes.)
 
 }  // namespace tir
 }  // namespace tvm

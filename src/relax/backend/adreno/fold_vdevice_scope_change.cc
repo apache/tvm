@@ -179,8 +179,11 @@ Pass FoldVDeviceScopeChange() {
   };
   return CreateFunctionPass(pass_func, 1, "FoldVDeviceScopeChange", {});
 }
-TVM_FFI_REGISTER_GLOBAL("relax.backend.adreno.transform.FoldVDeviceScopeChange")
-    .set_body_typed(FoldVDeviceScopeChange);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.backend.adreno.transform.FoldVDeviceScopeChange",
+                        FoldVDeviceScopeChange);
+});
 }  // namespace transform
 }  // namespace adreno
 }  // namespace backend
