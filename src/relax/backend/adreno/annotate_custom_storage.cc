@@ -358,13 +358,13 @@ class CollectConsumerScopeInfo : public ExprVisitor {
         op_attrs = val.value();
       }
     }
-    return std::move(op_attrs);
+    return op_attrs;
   }
 
   template <typename T>
   Optional<Integer> ExtractPattern(const T& func) {
     Optional<Integer> op_pat = func->template GetAttr<Integer>("op_pattern");
-    return std::move(op_pat);
+    return op_pat;
   }
 
   bool SupportsTexture(const Array<Attrs>& op_attrs, Integer op_pattern) {
@@ -705,7 +705,7 @@ class DefineVDevice : ExprMutator {
 
     Expr new_arg = Call(hint_on_device_op_, {arg}, Attrs{std::move(attrs)}, {});
 
-    return std::move(new_arg);
+    return new_arg;
   }
 
   Optional<Target> GetTarget(const StructInfo& sinfo) {
@@ -741,9 +741,11 @@ Pass AnnotateCustomMemoryScope(Target target) {
                           /*required=*/{});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.backend.adreno.transform.AnnotateCustomMemoryScope")
-    .set_body_typed(AnnotateCustomMemoryScope);
-
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.backend.adreno.transform.AnnotateCustomMemoryScope",
+                        AnnotateCustomMemoryScope);
+});
 }  // namespace transform
 }  // namespace adreno
 }  // namespace backend
