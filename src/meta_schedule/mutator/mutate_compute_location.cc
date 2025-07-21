@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -31,7 +33,11 @@ class MutateComputeLocationNode : public MutatorNode {
   /*! \brief JSON representation of the workload */
   std::string json_mod_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MutateComputeLocationNode>();
+  }
+
   static constexpr const char* _type_key = "meta_schedule.MutateComputeLocation";
   TVM_DECLARE_FINAL_OBJECT_INFO(MutateComputeLocationNode, MutatorNode);
 
@@ -126,9 +132,14 @@ Mutator Mutator::MutateComputeLocation() {
   return Mutator(make_object<MutateComputeLocationNode>());
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ MutateComputeLocationNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(MutateComputeLocationNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateComputeLocation")
-    .set_body_typed(Mutator::MutateComputeLocation);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.MutatorMutateComputeLocation",
+                        Mutator::MutateComputeLocation);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

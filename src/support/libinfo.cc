@@ -18,6 +18,7 @@
  */
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
 
@@ -343,7 +344,6 @@ TVM_DLL ffi::Map<ffi::String, ffi::String> GetLibInfo() {
       {"USE_RUST_EXT", TVM_INFO_USE_RUST_EXT},
       {"USE_SORT", TVM_INFO_USE_SORT},
       {"USE_SPIRV_KHR_INTEGER_DOT_PRODUCT", TVM_INFO_USE_SPIRV_KHR_INTEGER_DOT_PRODUCT},
-      {"USE_STACKVM_RUNTIME", TVM_INFO_USE_STACKVM_RUNTIME},
       {"USE_TENSORFLOW_PATH", TVM_INFO_USE_TENSORFLOW_PATH},
       {"USE_TENSORRT_CODEGEN", TVM_INFO_USE_TENSORRT_CODEGEN},
       {"USE_TENSORRT_RUNTIME", TVM_INFO_USE_TENSORRT_RUNTIME},
@@ -366,6 +366,9 @@ TVM_DLL ffi::Map<ffi::String, ffi::String> GetLibInfo() {
   return result;
 }
 
-TVM_FFI_REGISTER_GLOBAL("support.GetLibInfo").set_body_typed(GetLibInfo);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("support.GetLibInfo", GetLibInfo);
+});
 
 }  // namespace tvm

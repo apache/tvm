@@ -59,6 +59,9 @@ struct FunctionInfo {
   std::vector<DLDataType> arg_types;
   std::vector<std::string> launch_param_tags;
 
+  enum class ArgExtraTags : int { kNone = 0, kTensorMap = 1 };
+  std::vector<ArgExtraTags> arg_extra_tags;
+
   void Save(dmlc::JSONWriter* writer) const;
   void Load(dmlc::JSONReader* reader);
   void Save(dmlc::Stream* writer) const;

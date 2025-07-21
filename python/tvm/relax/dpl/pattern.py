@@ -119,27 +119,11 @@ class DFPattern(Node):
         result: AttrPattern
             The resulting AttrPattern
         """
-        attrs = make_node("DictAttrs", **attrs)
+        attrs = make_node("ir.DictAttrs", **attrs)
         return AttrPattern(self, attrs)
 
     def has_struct_info(self, struct_info: "StructInfo") -> "StructInfoPattern":
         return StructInfoPattern(self, struct_info)
-
-    def has_type(self, ttype: tvm.ir.type.Type) -> "TypePattern":
-        """
-        Add a type constraint to this pattern
-
-        Parameters
-        ----------
-        ttype: tvm.ir.type.Type
-            The type to match
-
-        Returns
-        -------
-        result: TypePattern
-            The resulting TypePattern
-        """
-        return TypePattern(self, ttype)
 
     def has_dtype(self, dtype: str) -> "DataTypePattern":
         """
@@ -596,23 +580,6 @@ class StructInfoPattern(DFPattern):
             pattern,
             struct_info,
         )  # type: ignore
-
-
-@register_df_node
-class TypePattern(DFPattern):
-    """A pattern that matches another pattern with a certain type annotation.
-
-    Parameters
-    ----------
-    pattern: tvm.relax.dpl.DFPattern
-        The input pattern that needs type annotation.
-
-    ttype: tvm.ir.type.Type
-        The type to match.
-    """
-
-    def __init__(self, pattern: "DFPattern", ttype: tvm.ir.type.Type):
-        self.__init_handle_by_constructor__(ffi.TypePattern, pattern, ttype)  # type: ignore
 
 
 @register_df_node

@@ -42,8 +42,18 @@ namespace tvm {
 namespace ffi {
 
 /*! \brief array node content in array */
-class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, Any> {
+class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, TVMFFIAny> {
  public:
+  ~ArrayObj() {
+    Any* begin = MutableBegin();
+    for (int64_t i = 0; i < size_; ++i) {
+      (begin + i)->Any::~Any();
+    }
+    if (data_deleter_ != nullptr) {
+      data_deleter_(data_);
+    }
+  }
+
   /*! \return The size of the array */
   size_t size() const { return this->size_; }
 
@@ -52,10 +62,22 @@ class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, Any> 
    * \param i The index
    * \return the i-th element.
    */
-  const Any at(int64_t i) const { return this->operator[](i); }
+  const Any& at(int64_t i) const { return this->operator[](i); }
+
+  /*!
+   * \brief Read i-th element from array.
+   * \param i The index
+   * \return the i-th element.
+   */
+  const Any& operator[](int64_t i) const {
+    if (i >= size_) {
+      TVM_FFI_THROW(IndexError) << "Index " << i << " out of bounds " << size_;
+    }
+    return static_cast<Any*>(data_)[i];
+  }
 
   /*! \return begin constant iterator */
-  const Any* begin() const { return static_cast<Any*>(InplaceArrayBase::AddressOf(0)); }
+  const Any* begin() const { return static_cast<Any*>(data_); }
 
   /*! \return end constant iterator */
   const Any* end() const { return begin() + size_; }
@@ -68,7 +90,12 @@ class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, Any> 
    * \param i The index
    * \param item The value to be set
    */
-  void SetItem(int64_t i, Any item) { this->operator[](i) = std::move(item); }
+  void SetItem(int64_t i, Any item) {
+    if (i >= size_) {
+      TVM_FFI_THROW(IndexError) << "Index " << i << " out of bounds " << size_;
+    }
+    static_cast<Any*>(data_)[i] = std::move(item);
+  }
 
   /*!
    * \brief Constructs a container and copy from another
@@ -129,7 +156,7 @@ class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, Any> 
   }
 
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIArray;
-  static constexpr const char* _type_key = "object.Array";
+  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIArray;
   static const constexpr bool _type_final = true;
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ArrayObj, Object);
 
@@ -138,10 +165,20 @@ class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, Any> 
   size_t GetSize() const { return this->size_; }
 
   /*! \return begin mutable iterator */
-  Any* MutableBegin() const { return static_cast<Any*>(InplaceArrayBase::AddressOf(0)); }
+  Any* MutableBegin() const { return static_cast<Any*>(this->data_); }
 
   /*! \return end mutable iterator */
   Any* MutableEnd() const { return MutableBegin() + size_; }
+
+  /*!
+   * \brief Emplace a new element at the back of the array
+   * \param args The arguments to construct the new element
+   */
+  template <typename... Args>
+  void EmplaceInit(size_t idx, Args&&... args) {
+    Any* itr = MutableBegin() + idx;
+    new (itr) Any(std::forward<Args>(args)...);
+  }
 
   /*!
    * \brief Create an ArrayObj with the given capacity.
@@ -149,10 +186,10 @@ class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, Any> 
    * \return Ref-counted ArrayObj requested
    */
   static ObjectPtr<ArrayObj> Empty(int64_t n = kInitSize) {
-    TVM_FFI_ICHECK_GE(n, 0);
     ObjectPtr<ArrayObj> p = make_inplace_array_object<ArrayObj, Any>(n);
     p->capacity_ = n;
     p->size_ = 0;
+    p->data_ = p->AddressOf(0);
     return p;
   }
 
@@ -235,11 +272,17 @@ class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, Any> 
     return this;
   }
 
+  /*! \brief Data pointer to the first element of the array */
+  void* data_;
   /*! \brief Number of elements used */
   int64_t size_;
-
   /*! \brief Number of elements allocated */
   int64_t capacity_;
+  /*!
+   * \brief Optional data deleter when data is allocated separately
+   *        and its deletion is not managed by ArrayObj::deleter_.
+   */
+  void (*data_deleter_)(void*) = nullptr;
 
   /*! \brief Initial size of ArrayObj */
   static constexpr int64_t kInitSize = 4;
@@ -470,6 +513,12 @@ class Array : public ObjectRef {
   void push_back(const T& item) {
     ArrayObj* p = CopyOnWrite(1);
     p->EmplaceInit(p->size_++, item);
+  }
+
+  template <typename... Args>
+  void emplace_back(Args&&... args) {
+    ArrayObj* p = CopyOnWrite(1);
+    p->EmplaceInit(p->size_++, std::forward<Args>(args)...);
   }
 
   /*!
@@ -952,7 +1001,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIArray;
   using ObjectRefTypeTraitsBase<Array<T>>::CopyFromAnyViewAfterCheck;
 
-  static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIArray) {
       return TypeTraitsBase::GetMismatchTypeInfo(src);
     }
@@ -973,7 +1022,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
     TVM_FFI_UNREACHABLE();
   }
 
-  static TVM_FFI_INLINE bool CheckAnyStrict(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIArray) return false;
     if constexpr (std::is_same_v<T, Any>) {
       return true;
@@ -987,7 +1036,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
     }
   }
 
-  static TVM_FFI_INLINE std::optional<Array<T>> TryCastFromAnyView(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::optional<Array<T>> TryCastFromAnyView(const TVMFFIAny* src) {
     // try to run conversion.
     if (src->type_index != TypeIndex::kTVMFFIArray) return std::nullopt;
     if constexpr (!std::is_same_v<T, Any>) {
@@ -1020,7 +1069,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
     }
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return "Array<" + details::Type2Str<T>::v() + ">"; }
+  TVM_FFI_INLINE static std::string TypeStr() { return "Array<" + details::Type2Str<T>::v() + ">"; }
 };
 
 namespace details {

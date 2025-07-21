@@ -19,6 +19,7 @@
 #include "registry.h"
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
 
 namespace tvm {
@@ -27,26 +28,26 @@ namespace datatype {
 using ffi::Any;
 using ffi::PackedArgs;
 
-TVM_FFI_REGISTER_GLOBAL("dtype.register_custom_type")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      datatype::Registry::Global()->Register(args[0].cast<std::string>(),
-                                             static_cast<uint8_t>(args[1].cast<int>()));
-    });
-
-TVM_FFI_REGISTER_GLOBAL("dtype.get_custom_type_code")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      *ret = datatype::Registry::Global()->GetTypeCode(args[0].cast<std::string>());
-    });
-
-TVM_FFI_REGISTER_GLOBAL("dtype.get_custom_type_name")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      *ret = Registry::Global()->GetTypeName(args[0].cast<int>());
-    });
-
-TVM_FFI_REGISTER_GLOBAL("runtime._datatype_get_type_registered")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      *ret = Registry::Global()->GetTypeRegistered(args[0].cast<int>());
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("dtype.register_custom_type",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    datatype::Registry::Global()->Register(
+                        args[0].cast<std::string>(), static_cast<uint8_t>(args[1].cast<int>()));
+                  })
+      .def_packed("dtype.get_custom_type_code",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    *ret = datatype::Registry::Global()->GetTypeCode(args[0].cast<std::string>());
+                  })
+      .def_packed("dtype.get_custom_type_name",
+                  [](ffi::PackedArgs args, ffi::Any* ret) {
+                    *ret = Registry::Global()->GetTypeName(args[0].cast<int>());
+                  })
+      .def_packed("runtime._datatype_get_type_registered", [](ffi::PackedArgs args, ffi::Any* ret) {
+        *ret = Registry::Global()->GetTypeRegistered(args[0].cast<int>());
+      });
+});
 
 Registry* Registry::Global() {
   static Registry inst;

@@ -27,6 +27,7 @@
 #ifndef TVM_RELAX_TRANSFORM_INFER_LAYOUT_UTILS_H_
 #define TVM_RELAX_TRANSFORM_INFER_LAYOUT_UTILS_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/create.h>
 #include <tvm/relax/attrs/datatype.h>
 #include <tvm/relax/attrs/image.h>
@@ -61,7 +62,12 @@ class LayoutDecisionNode : public Object {
   /*! \brief Whether the dim of tensor is unknown. */
   bool is_unknown_dim = false;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("layout", &layout); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LayoutDecisionNode>()
+        .def_ro("layout", &LayoutDecisionNode::layout)
+        .def_ro("is_unknown_dim", &LayoutDecisionNode::is_unknown_dim);
+  }
 
   TVM_DECLARE_BASE_OBJECT_INFO(LayoutDecisionNode, Object);
 
@@ -104,10 +110,13 @@ class InferLayoutOutputNode : public Object {
   Attrs new_attrs;
   Map<Integer, Expr> new_args;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("input_layouts", &input_layouts);
-    v->Visit("output_layouts", &output_layouts);
-    v->Visit("new_attrs", &new_attrs);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<InferLayoutOutputNode>()
+        .def_ro("input_layouts", &InferLayoutOutputNode::input_layouts)
+        .def_ro("output_layouts", &InferLayoutOutputNode::output_layouts)
+        .def_ro("new_attrs", &InferLayoutOutputNode::new_attrs)
+        .def_ro("new_args", &InferLayoutOutputNode::new_args);
   }
 
   TVM_DECLARE_BASE_OBJECT_INFO(InferLayoutOutputNode, Object);

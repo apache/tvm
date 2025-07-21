@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/transform.h>
 
 #include "../utils.h"
@@ -31,7 +32,7 @@ class ThreadExtentChecker : private StmtVisitor {
       ThreadExtentChecker checker(thread_warp_size);
       checker.VisitStmt(stmt);
       return true;
-    } catch (const dmlc::Error& e) {
+    } catch (const std::exception&) {
       return false;
     }
   }
@@ -188,7 +189,7 @@ class VerifyGPUCodeNode : public PostprocNode {
           }
           IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
           lowered = tvm::transform::Sequential(pass_list)(std::move(mod));
-        } catch (const dmlc::Error& e) {
+        } catch (const std::exception&) {
           return false;
         }
         if (!Verify(lowered)) {
@@ -215,8 +216,10 @@ Postproc Postproc::VerifyGPUCode() {
 }
 
 TVM_REGISTER_NODE_TYPE(VerifyGPUCodeNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocVerifyGPUCode")
-    .set_body_typed(Postproc::VerifyGPUCode);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.PostprocVerifyGPUCode", Postproc::VerifyGPUCode);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

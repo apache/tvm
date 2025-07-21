@@ -61,11 +61,11 @@ class VarNode : public PrimExprNode {
    */
   Type type_annotation;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("name", &name_hint);
-    v->Visit("type_annotation", &type_annotation);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<VarNode>()
+        .def_ro("name", &VarNode::name_hint)
+        .def_ro("type_annotation", &VarNode::type_annotation);
   }
 
   bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
@@ -143,6 +143,10 @@ class Var : public PrimExpr {
  */
 class SizeVarNode : public VarNode {
  public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SizeVarNode>();
+  }
   static constexpr const char* _type_key = "tir.SizeVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(SizeVarNode, VarNode);
 };
@@ -282,12 +286,13 @@ class IterVarNode : public PrimExprConvertibleNode {
 
   PrimExpr ToPrimExpr() const final { return var; }
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dom", &dom);
-    v->Visit("var", &var);
-    v->Visit("iter_type", &iter_type);
-    v->Visit("thread_tag", &thread_tag);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IterVarNode>()
+        .def_ro("dom", &IterVarNode::dom)
+        .def_ro("var", &IterVarNode::var)
+        .def_ro("iter_type", &IterVarNode::iter_type)
+        .def_ro("thread_tag", &IterVarNode::thread_tag);
   }
 
   bool SEqualReduce(const IterVarNode* other, SEqualReducer equal) const {

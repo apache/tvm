@@ -21,6 +21,7 @@
  * \file src/relax/backend/vm/codegen_vm.cc
  * \brief A codegen to generate VM executable from a Relax IRModule.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/exec_builder.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
@@ -425,7 +426,10 @@ IRModule VMCodeGen(ExecBuilder exec_builder, IRModule mod) {
   return CodeGenVM::Run(exec_builder, mod);
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.VMCodeGen").set_body_typed(VMCodeGen);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.VMCodeGen", VMCodeGen);
+});
 
 /*!
  * \brief Link the modules together, possibly create a constant module.
@@ -490,7 +494,10 @@ Module VMLink(ExecBuilder builder, Target target, Optional<Module> lib, Array<Mo
   return Module(executable);
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.VMLink").set_body_typed(VMLink);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.VMLink", VMLink);
+});
 
 }  // namespace codegen_vm
 }  // namespace relax

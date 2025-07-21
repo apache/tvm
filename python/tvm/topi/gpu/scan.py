@@ -40,6 +40,7 @@ def _can_use_scan_thrust(binop):
     target = tvm.target.Target.current()
     if target is None:
         return False
+    # pylint: disable=comparison-with-callable
     return binop == tvm.tir.generic.add and any(
         [
             can_use_thrust(target, "tvm.contrib.thrust.sum_scan"),

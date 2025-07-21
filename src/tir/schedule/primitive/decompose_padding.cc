@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../../transforms/ir_utils.h"
 #include "../utils.h"
 
@@ -390,7 +392,7 @@ class DecomposePaddingBlockReplacer : public StmtMutator {
       // position to insert pad value filling code
       return std::move(SeqStmt({desc_.const_filling_loop, new_loop}));
     }
-    return std::move(new_loop);
+    return new_loop;
   }
 
  private:
@@ -531,10 +533,13 @@ bool CanDecomposePadding(ScheduleState self, const StmtSRef& block_sref,
 
 /******** FFI ********/
 
-TVM_FFI_REGISTER_GLOBAL("tir.schedule.CanDecomposePadding")
-    .set_body_typed([](Schedule self, BlockRV block_rv, LoopRV loop_rv) {
-      return CanDecomposePadding(self->state(), self->GetSRef(block_rv), self->GetSRef(loop_rv));
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "tir.schedule.CanDecomposePadding", [](Schedule self, BlockRV block_rv, LoopRV loop_rv) {
+        return CanDecomposePadding(self->state(), self->GetSRef(block_rv), self->GetSRef(loop_rv));
+      });
+});
 
 /******** InstructionKind Registration ********/
 

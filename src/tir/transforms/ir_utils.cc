@@ -25,6 +25,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_solver.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
@@ -228,13 +229,13 @@ class IRConvertSSA final : public StmtExprMutator {
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     auto node = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
     auto output = VisitBufferAccess(std::move(node));
-    return std::move(output);
+    return output;
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     auto node = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
     auto output = VisitBufferAccess(std::move(node));
-    return std::move(output);
+    return output;
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
@@ -243,7 +244,7 @@ class IRConvertSSA final : public StmtExprMutator {
     if (!new_buffer.same_as(decl->buffer)) {
       decl.CopyOnWrite()->buffer = std::move(new_buffer);
     }
-    return std::move(decl);
+    return decl;
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {
@@ -669,7 +670,7 @@ Optional<arith::IntConstraints> ConditionalBoundsContext::TrySolveCondition() {
   if (!result->relations.empty()) {
     return std::nullopt;
   }
-  return std::move(result);
+  return result;
 }
 
 ConditionalBoundsContext::ConditionalBoundsContext(
@@ -850,7 +851,10 @@ Pass ConvertSSA() {
   return tvm::transform::CreateModulePass(pass_func, 0, "tir.ConvertSSA", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.ConvertSSA").set_body_typed(ConvertSSA);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.ConvertSSA", ConvertSSA);
+});
 
 }  // namespace transform
 }  // namespace tir

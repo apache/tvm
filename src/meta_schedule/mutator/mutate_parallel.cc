@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include <algorithm>
 #include <unordered_map>
 
@@ -169,10 +171,10 @@ class MutateParallelNode : public MutatorNode {
   /*! \brief JSON representation of the workload */
   std::string json_mod_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("max_jobs_per_core", &max_jobs_per_core);
-    // `max_parallel_extent_` is not visited.
-    // `json_mod` is not visited.
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MutateParallelNode>().def_ro("max_jobs_per_core",
+                                                 &MutateParallelNode::max_jobs_per_core);
   }
 
   static constexpr const char* _type_key = "meta_schedule.MutateParallel";
@@ -311,9 +313,12 @@ Mutator Mutator::MutateParallel(int64_t max_jobs_per_core) {
   return Mutator(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ MutateParallelNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(MutateParallelNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateParallel")
-    .set_body_typed(Mutator::MutateParallel);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.MutatorMutateParallel", Mutator::MutateParallel);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

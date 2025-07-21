@@ -21,6 +21,7 @@
  * \file lower_cross_thread_reduction.cc
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -255,9 +256,10 @@ class InThreadReducerMaker : private StmtMutator {
         if (!res->body.defined() || collector.CheckHasReductionBlocks(res)) {
           return res->body;
         }
-        return std::move(res);
+        return res;
+
       } else {
-        return std::move(res);
+        return res;
       }
     } else {
       return Stmt{nullptr};
@@ -788,7 +790,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
         }
       }
     }
-    return std::move(new_block);
+    return new_block;
   }
 
   void MakeCrossThreadReduction(const BlockRealizeNode* realize,
@@ -934,8 +936,10 @@ Pass LowerCrossThreadReduction() {
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerCrossThreadReduction", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.LowerCrossThreadReduction")
-    .set_body_typed(LowerCrossThreadReduction);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.LowerCrossThreadReduction", LowerCrossThreadReduction);
+});
 
 }  // namespace transform
 

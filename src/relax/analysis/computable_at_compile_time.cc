@@ -23,6 +23,7 @@
  * \brief Utilities for identifying potentially compile-time variables
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 
@@ -83,7 +84,7 @@ class CompileTimeCollector : ExprVisitor {
     }
   }
 
-  support::OrderedSet<Var> known_relax_vars_;
+  support::OrderedSet<Var, ObjectPtrHash, ObjectPtrEqual> known_relax_vars_;
   std::unordered_set<tir::Var> known_tir_vars_;
 };
 }  // namespace
@@ -92,8 +93,10 @@ Array<Var> ComputableAtCompileTime(const Function& func) {
   return CompileTimeCollector::Collect(func);
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.analysis.computable_at_compile_time")
-    .set_body_typed(ComputableAtCompileTime);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.analysis.computable_at_compile_time", ComputableAtCompileTime);
+});
 
 }  // namespace relax
 }  // namespace tvm

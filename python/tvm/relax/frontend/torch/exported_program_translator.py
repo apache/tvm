@@ -306,6 +306,29 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
         return self.block_builder.emit(relax.op.zeros(size, dtype))
 
+    def _instance_norm(self, node: fx.Node):
+        import numpy as np
+
+        x = self.env[node.args[0]]
+        channel = int(self.shape_of(x)[1])
+        dtype = x.struct_info.dtype
+        gamma = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
+        beta = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
+        eps = node.args[4] if node.args[4] else 1e-05
+        channel_axis = 1
+        dim = len(self.shape_of(x))
+
+        return self.block_builder.emit(
+            relax.op.nn.instance_norm(
+                x,
+                gamma,
+                beta,
+                channel_axis=channel_axis,
+                axes=list(range(2, dim)),
+                epsilon=eps,
+            )
+        )
+
     ########## Others ##########
 
     def create_convert_map(
@@ -377,6 +400,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "softmax.int": self._softmax,
             "softplus.default": self._softplus,
             "softshrink.default": self._softshrink,
+            "softsign.default": self._softsign,
             "sqrt.default": self._unary_op(relax.op.sqrt),
             "square.default": self._unary_op(relax.op.square),
             "tan.default": self._unary_op(relax.op.tan),
@@ -461,6 +485,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 self.env[node.args[1]], self.env[node.args[0]]
             ),
             "group_norm.default": self._group_norm,
+            "instance_norm.default": self._instance_norm,
             "layer_norm.default": self._layer_norm,
             "linear.default": self._linear,
             "max_pool1d.default": self._max_pool1d,
@@ -482,6 +507,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "argmax.default": self._argmax_argmin(relax.op.argmax),
             "argmin.default": self._argmax_argmin(relax.op.argmin),
             "where.self": self._where,
+            "bucketize.Tensor": self._bucketize,
             # tensor manipulation
             "argsort.default": self._argsort,
             "broadcast_to.default": self._broadcast_to,

@@ -57,6 +57,7 @@
 #define TVM_IR_TRANSFORM_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/diagnostic.h>
 #include <tvm/ir/instrument.h>
@@ -122,13 +123,15 @@ class PassContextNode : public Object {
     return GetConfig<TObjectRef>(key, Optional<TObjectRef>(default_value));
   }
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("opt_level", &opt_level);
-    v->Visit("required_pass", &required_pass);
-    v->Visit("disabled_pass", &disabled_pass);
-    v->Visit("instruments", &instruments);
-    v->Visit("config", &config);
-    v->Visit("diag_ctx", &diag_ctx);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PassContextNode>()
+        .def_ro("opt_level", &PassContextNode::opt_level)
+        .def_ro("required_pass", &PassContextNode::required_pass)
+        .def_ro("disabled_pass", &PassContextNode::disabled_pass)
+        .def_ro("instruments", &PassContextNode::instruments)
+        .def_ro("config", &PassContextNode::config)
+        .def_ro("diag_ctx", &PassContextNode::diag_ctx);
   }
 
   static constexpr const char* _type_key = "transform.PassContext";
@@ -311,11 +314,13 @@ class PassInfoNode : public Object {
 
   PassInfoNode() = default;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("opt_level", &opt_level);
-    v->Visit("name", &name);
-    v->Visit("required", &required);
-    v->Visit("traceable", &traceable);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PassInfoNode>()
+        .def_ro("opt_level", &PassInfoNode::opt_level)
+        .def_ro("name", &PassInfoNode::name)
+        .def_ro("required", &PassInfoNode::required)
+        .def_ro("traceable", &PassInfoNode::traceable);
   }
 
   static constexpr const char* _type_key = "transform.PassInfo";
@@ -374,8 +379,6 @@ class PassNode : public Object {
    */
   virtual IRModule operator()(IRModule mod, const PassContext& pass_ctx) const = 0;
 
-  void VisitAttrs(AttrVisitor* v) {}
-
   static constexpr const char* _type_key = "transform.Pass";
   TVM_DECLARE_BASE_OBJECT_INFO(PassNode, Object);
 };
@@ -432,9 +435,11 @@ class SequentialNode : public PassNode {
   /*! \brief A list of passes that used to compose a sequential pass. */
   tvm::Array<Pass> passes;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("pass_info", &pass_info);
-    v->Visit("passes", &passes);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SequentialNode>()
+        .def_ro("pass_info", &SequentialNode::pass_info)
+        .def_ro("passes", &SequentialNode::passes);
   }
 
   /*!

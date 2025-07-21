@@ -383,7 +383,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
         }
       }
 
-      return std::move(realize);
+      return realize;
     }
 
     Stmt VisitStmt_(const BlockNode* op) final {
@@ -391,7 +391,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       Block mutated = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
 
       RecordReplacement(orig, mutated);
-      return std::move(mutated);
+      return mutated;
     }
 
     PrimExpr VisitExpr_(const VarNode* op) final {
@@ -399,7 +399,7 @@ class TransformLayoutPlanner : private StmtExprVisitor {
       if (auto opt = var_remap.Get(var)) {
         return opt.value();
       } else {
-        return std::move(var);
+        return var;
       }
     }
 
@@ -841,7 +841,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
       auto* n = buffer_load.CopyOnWrite();
       RewriteBufferAccess(&n->buffer, &n->indices);
     }
-    return std::move(buffer_load);
+    return buffer_load;
   }
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
@@ -850,7 +850,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
       auto* n = buffer_store.CopyOnWrite();
       RewriteBufferAccess(&n->buffer, &n->indices);
     }
-    return std::move(buffer_store);
+    return buffer_store;
   }
 
   void RewriteAccessRegion(Array<BufferRegion>* old_access_regions,
@@ -893,7 +893,7 @@ class TransformLayoutRewriter : private arith::IRMutatorWithAnalyzer {
     });
 
     RecordReplacement(orig, block);
-    return std::move(block);
+    return block;
   }
 
   void RecordReplacement(Block before, Block after) {
@@ -1598,7 +1598,7 @@ struct TransformLayoutTraits : public UnpackedInstTraits<TransformLayoutTraits> 
       attrs_record.push_back(attrs[2]);
     }
     attrs_record.push_back(attrs[3]);
-    return std::move(attrs_record);
+    return attrs_record;
   }
 
   static Array<Any> AttrsFromJSON(const ObjectRef& attrs_record_) {
@@ -1644,7 +1644,7 @@ struct TransformBlockLayoutTraits : public UnpackedInstTraits<TransformBlockLayo
     Array<Any> attrs_record;
     attrs_record.reserve(kNumAttrs);
     attrs_record.push_back(String(::tvm::SaveJSON(attrs[0])));
-    return std::move(attrs_record);
+    return attrs_record;
   }
 
   static Array<Any> AttrsFromJSON(const ObjectRef& attrs_record_) {

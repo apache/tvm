@@ -22,6 +22,7 @@
  * \brief Pass for setting layout for expr and constant.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -1359,7 +1360,10 @@ Pass SetExprLayout(bool allow_missing, const String& entry_name) {
   return CreateModulePass(pass_func, 0, "SetExprLayout", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.SetExprLayout").set_body_typed(SetExprLayout);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.SetExprLayout", SetExprLayout);
+});
 
 }  // namespace transform
 }  // namespace relax

@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/script_printer.h>
@@ -25,6 +26,8 @@
 
 namespace tvm {
 
+TVM_FFI_STATIC_INIT_BLOCK({ PrinterConfigNode::RegisterReflection(); });
+
 TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
   static FType inst;
   return inst;
@@ -32,7 +35,10 @@ TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
 
 std::string TVMScriptPrinter::Script(const ObjectRef& node, const Optional<PrinterConfig>& cfg) {
   if (!TVMScriptPrinter::vtable().can_dispatch(node)) {
-    return AsLegacyRepr(node);
+    std::ostringstream os;
+    ReprPrinter printer(os);
+    printer.Print(node);
+    return os.str();
   }
   return TVMScriptPrinter::vtable()(node, cfg.value_or(PrinterConfig()));
 }
@@ -135,9 +141,12 @@ Array<String> PrinterConfigNode::GetBuiltinKeywords() {
 }
 
 TVM_REGISTER_NODE_TYPE(PrinterConfigNode);
-TVM_FFI_REGISTER_GLOBAL("node.PrinterConfig").set_body_typed([](Map<String, Any> config_dict) {
-  return PrinterConfig(config_dict);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("node.PrinterConfig",
+           [](Map<String, Any> config_dict) { return PrinterConfig(config_dict); })
+      .def("node.TVMScriptPrinterScript", TVMScriptPrinter::Script);
 });
-TVM_FFI_REGISTER_GLOBAL("node.TVMScriptPrinterScript").set_body_typed(TVMScriptPrinter::Script);
 
 }  // namespace tvm

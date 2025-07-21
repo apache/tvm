@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_IR_UTILS_H_
 #define TVM_SCRIPT_PRINTER_IR_UTILS_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/ir/op.h>
@@ -37,9 +38,10 @@ namespace printer {
 class IRFrameNode : public FrameNode {
  public:
   Map<String, Array<GlobalInfo>>* global_infos = nullptr;
-  void VisitAttrs(AttrVisitor* v) {
-    FrameNode::VisitAttrs(v);
-    // `global_infos` is not visited
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    // global infos is not exposed
   }
 
   static constexpr const char* _type_key = "script.printer.IRFrame";

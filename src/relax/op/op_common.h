@@ -181,7 +181,8 @@ std::tuple<ArgTypes...> GetArgStructInfo(const Call& call, const BlockBuilder& c
     static const Op& op = Op::Get("relax." OpRegName); \
     return Call(op, {std::move(x)}, Attrs(), {});      \
   }                                                    \
-  TVM_FFI_REGISTER_GLOBAL("relax.op." OpRegName).set_body_typed(OpName)
+  TVM_FFI_STATIC_INIT_BLOCK(                           \
+      { tvm::ffi::reflection::GlobalDef().def("relax.op." OpRegName, OpName); })
 
 /************ Utilities ************/
 

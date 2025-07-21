@@ -175,7 +175,7 @@ class AnyView {
    * \return Create an AnyView from TVMFFIAny
    * \param data the underlying ffi data.
    */
-  static TVM_FFI_INLINE AnyView CopyFromTVMFFIAny(TVMFFIAny data) {
+  TVM_FFI_INLINE static AnyView CopyFromTVMFFIAny(TVMFFIAny data) {
     AnyView view;
     view.data_ = data;
     return view;
@@ -482,14 +482,14 @@ struct Type2Str<void> {
 // Extra unsafe method to help any manipulation
 struct AnyUnsafe : public ObjectUnsafe {
   // FFI related operations
-  static TVM_FFI_INLINE TVMFFIAny MoveAnyToTVMFFIAny(Any&& any) {
+  TVM_FFI_INLINE static TVMFFIAny MoveAnyToTVMFFIAny(Any&& any) {
     TVMFFIAny result = any.data_;
     any.data_.type_index = TypeIndex::kTVMFFINone;
     any.data_.v_int64 = 0;
     return result;
   }
 
-  static TVM_FFI_INLINE Any MoveTVMFFIAnyToAny(TVMFFIAny&& data) {
+  TVM_FFI_INLINE static Any MoveTVMFFIAnyToAny(TVMFFIAny&& data) {
     Any any;
     any.data_ = data;
     data.type_index = TypeIndex::kTVMFFINone;
@@ -498,12 +498,12 @@ struct AnyUnsafe : public ObjectUnsafe {
   }
 
   template <typename T>
-  static TVM_FFI_INLINE bool CheckAnyStrict(const Any& ref) {
+  TVM_FFI_INLINE static bool CheckAnyStrict(const Any& ref) {
     return TypeTraits<T>::CheckAnyStrict(&(ref.data_));
   }
 
   template <typename T>
-  static TVM_FFI_INLINE T CopyFromAnyViewAfterCheck(const Any& ref) {
+  TVM_FFI_INLINE static T CopyFromAnyViewAfterCheck(const Any& ref) {
     if constexpr (!std::is_same_v<T, Any>) {
       return TypeTraits<T>::CopyFromAnyViewAfterCheck(&(ref.data_));
     } else {
@@ -512,7 +512,7 @@ struct AnyUnsafe : public ObjectUnsafe {
   }
 
   template <typename T>
-  static TVM_FFI_INLINE T MoveFromAnyAfterCheck(Any&& ref) {
+  TVM_FFI_INLINE static T MoveFromAnyAfterCheck(Any&& ref) {
     if constexpr (!std::is_same_v<T, Any>) {
       return TypeTraits<T>::MoveFromAnyAfterCheck(&(ref.data_));
     } else {
@@ -520,16 +520,16 @@ struct AnyUnsafe : public ObjectUnsafe {
     }
   }
 
-  static TVM_FFI_INLINE Object* ObjectPtrFromAnyAfterCheck(const Any& ref) {
+  TVM_FFI_INLINE static Object* ObjectPtrFromAnyAfterCheck(const Any& ref) {
     return reinterpret_cast<Object*>(ref.data_.v_obj);
   }
 
-  static TVM_FFI_INLINE const TVMFFIAny* TVMFFIAnyPtrFromAny(const Any& ref) {
+  TVM_FFI_INLINE static const TVMFFIAny* TVMFFIAnyPtrFromAny(const Any& ref) {
     return &(ref.data_);
   }
 
   template <typename T>
-  static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const Any& ref) {
+  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const Any& ref) {
     return TypeTraits<T>::GetMismatchTypeInfo(&(ref.data_));
   }
 };

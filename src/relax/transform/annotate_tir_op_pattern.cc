@@ -22,6 +22,7 @@
  * \brief Annotate Op Pattern for TIR functions. It is a pass works on TIR PrimFuncs,
  *        but they are needed for relax fusion. So we put them in the relax namespace.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tir/transform.h>
@@ -47,8 +48,10 @@ Pass AnnotateTIROpPattern() {
   return tir::transform::CreatePrimFuncPass(pass_func, 0, "AnnotateTIROpPattern", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.AnnotateTIROpPattern")
-    .set_body_typed(AnnotateTIROpPattern);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.AnnotateTIROpPattern", AnnotateTIROpPattern);
+});
 
 }  // namespace transform
 

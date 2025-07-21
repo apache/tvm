@@ -86,6 +86,24 @@ LambdaDoc::LambdaDoc(IdDoc name, Array<AssignDoc> args, Array<ExprDoc> refs, Arr
   this->data_ = std::move(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  DeclareDocNode::RegisterReflection();
+  StrictListDocNode::RegisterReflection();
+  PointerDocNode::RegisterReflection();
+  StructDocNode::RegisterReflection();
+  ConstructorDocNode::RegisterReflection();
+  SwitchDocNode::RegisterReflection();
+  LambdaDocNode::RegisterReflection();
+});
+
+TVM_REGISTER_NODE_TYPE(DeclareDocNode);
+TVM_REGISTER_NODE_TYPE(StrictListDocNode);
+TVM_REGISTER_NODE_TYPE(PointerDocNode);
+TVM_REGISTER_NODE_TYPE(StructDocNode);
+TVM_REGISTER_NODE_TYPE(ConstructorDocNode);
+TVM_REGISTER_NODE_TYPE(SwitchDocNode);
+TVM_REGISTER_NODE_TYPE(LambdaDocNode);
+
 }  // namespace msc
 }  // namespace contrib
 }  // namespace tvm

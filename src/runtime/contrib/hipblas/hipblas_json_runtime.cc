@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/ndarray.h>
 
 #include <cstddef>
@@ -139,11 +140,13 @@ runtime::Module HipblasJSONRuntimeCreate(String symbol_name, String graph_json,
   return runtime::Module(n);
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.HipblasJSONRuntimeCreate")
-    .set_body_typed(HipblasJSONRuntimeCreate);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_hipblas_json")
-    .set_body_typed(JSONRuntimeBase::LoadFromBinary<HipblasJSONRuntime>);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.HipblasJSONRuntimeCreate", HipblasJSONRuntimeCreate)
+      .def("runtime.module.loadbinary_hipblas_json",
+           JSONRuntimeBase::LoadFromBinary<HipblasJSONRuntime>);
+});
 
 }  // namespace contrib
 }  // namespace runtime

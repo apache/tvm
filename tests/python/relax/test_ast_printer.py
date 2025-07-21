@@ -29,7 +29,7 @@ from tvm.script import relax as R
 from tvm.script import tir as T
 
 # Overload dump_ast to test both struct info and type annotations
-dump_ast = partial(dump_ast, include_struct_info_annotations=True, include_type_annotations=True)
+dump_ast = partial(dump_ast, include_struct_info_annotations=True)
 
 
 def strip_whitespace(text: str) -> str:
@@ -41,7 +41,7 @@ def strip_whitespace(text: str) -> str:
 
 def normalize(func: rx.Function) -> rx.Function:
     """
-    Normalize the expr to fill in the checked_type_ and struct_info fields everywhere
+    Normalize the expr to fill in the struct_info fields everywhere
     """
 
     # using a default mutator to use the BlockBuilder's normalizer,
@@ -79,15 +79,12 @@ def test_var() -> None:
     assert v0_str == 'Var(name_hint="v0")'
 
     v1 = rx.Var("v1", R.Tensor([54, 96], "float32"))
-    v1_no_annos = dump_ast(
-        v1, include_struct_info_annotations=False, include_type_annotations=False
-    )
+    v1_no_annos = dump_ast(v1, include_struct_info_annotations=False)
     assert v1_no_annos == 'Var(name_hint="v1")'
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
     assert "PrimExpr" in v1_annos
     assert "struct_info" in v1_annos
-    assert "checked_type_" in v1_annos
 
 
 def test_dataflow_var() -> None:
@@ -96,15 +93,12 @@ def test_dataflow_var() -> None:
     assert v0_str == 'DataflowVar(name_hint="v0")'
 
     v1 = rx.DataflowVar("v1", R.Tensor([54, 96], "float16"))
-    v1_no_annos = dump_ast(
-        v1, include_struct_info_annotations=False, include_type_annotations=False
-    )
+    v1_no_annos = dump_ast(v1, include_struct_info_annotations=False)
     assert v1_no_annos == 'DataflowVar(name_hint="v1")'
     v1_annos = dump_ast(v1)
     assert v1_annos != v1_no_annos
     assert "PrimExpr" in v1_annos
     assert "struct_info" in v1_annos
-    assert "checked_type_" in v1_annos
 
 
 def test_match_cast() -> None:
@@ -121,7 +115,6 @@ def test_match_cast() -> None:
     assert "PrimExpr(value=`n" in b0_str
     assert "16" in b0_str
     assert "8" in b0_str
-    assert b0_str != dump_ast(b0, include_type_annotations=False)
 
     # var1: Tensor((m, n), "float32") =
     #   match_cast(var0: R.Tensor("float32"), [m, n])
@@ -132,16 +125,14 @@ def test_match_cast() -> None:
     assert b1_str.startswith("MatchCast(")
     assert "PrimExpr(value=`m" in b1_str
     assert "PrimExpr(value=`n" in b1_str
-    assert b1_str != dump_ast(
-        b1, include_type_annotations=False, include_struct_info_annotations=False
-    )
+    assert b1_str != dump_ast(b1, include_struct_info_annotations=False)
 
 
 def test_var_binding() -> None:
     v0 = rx.Var("v0")
     val = rx.const(np.random.rand(24, 56))
     b0 = rx.VarBinding(v0, val)
-    b0_str = dump_ast(b0, include_type_annotations=False, include_struct_info_annotations=False)
+    b0_str = dump_ast(b0, include_struct_info_annotations=False)
     assert b0_str.startswith("VarBinding(")
     assert 'var=Var(name_hint="v0")' in b0_str
     assert "value=" in b0_str
@@ -232,7 +223,6 @@ def test_func():
     assert "SeqExpr(" in func_str
     assert "blocks=" in func_str
     assert "VarBinding(" in func_str
-    assert func_str != dump_ast(func, include_type_annotations=False)
 
 
 def test_shape_of():
@@ -290,7 +280,7 @@ def test_types():
 
 
 def test_struct_info():
-    printer = ASTPrinter(include_type_annotations=True)
+    printer = ASTPrinter()
 
     assert printer.visit_struct_info_(rx.ObjectStructInfo()) == "ObjectStructInfo()"
 
@@ -330,8 +320,7 @@ def test_struct_info():
             dtype=int32,
             shape=Var(
                 name_hint="x",
-                struct_info=ShapeStructInfo(ndim=0, values=[]),
-                checked_type_=ShapeType(ndim=0)
+                struct_info=ShapeStructInfo(ndim=0, values=[])
             )
         )
         """
@@ -379,7 +368,6 @@ def test_call_packed():
     f_str = strip_whitespace(
         dump_ast(
             f,
-            include_type_annotations=False,
             include_struct_info_annotations=False,
             include_call_attrs=True,
         )
@@ -394,7 +382,6 @@ def test_call_packed():
     extern_call = f.body.blocks[0].bindings[-1].value
     extern_call_text = dump_ast(
         extern_call,
-        include_type_annotations=False,
         include_struct_info_annotations=False,
         include_call_attrs=True,
     )
@@ -414,7 +401,6 @@ def test_call_packed():
     op_call = f.body.blocks[0].bindings[0].value
     op_call_text = dump_ast(
         op_call,
-        include_type_annotations=False,
         include_struct_info_annotations=False,
         include_call_attrs=True,
     )
@@ -459,7 +445,6 @@ def test_call_tir():
     foo_str = strip_whitespace(
         dump_ast(
             foo,
-            include_type_annotations=False,
             include_struct_info_annotations=False,
             include_call_attrs=False,
         )
@@ -471,7 +456,6 @@ def test_call_tir():
     tir_call = foo.body.blocks[0].bindings[0].value
     tir_call_text = dump_ast(
         tir_call,
-        include_type_annotations=False,
         include_struct_info_annotations=False,
         include_call_attrs=False,
     )
@@ -510,7 +494,6 @@ def test_call_dps_packed():
     foo_str = strip_whitespace(
         dump_ast(
             foo,
-            include_type_annotations=False,
             include_struct_info_annotations=False,
             include_call_attrs=False,
         )
@@ -522,7 +505,6 @@ def test_call_dps_packed():
     tir_call = foo.body.blocks[0].bindings[0].value
     tir_call_text = dump_ast(
         tir_call,
-        include_type_annotations=False,
         include_struct_info_annotations=False,
         include_call_attrs=False,
     )
@@ -559,7 +541,6 @@ def test_operators():
     foo_str = strip_whitespace(
         dump_ast(
             foo,
-            include_type_annotations=False,
             include_struct_info_annotations=False,
         )
     )
@@ -576,7 +557,6 @@ def test_operators():
     bar_str = strip_whitespace(
         dump_ast(
             bar,
-            include_type_annotations=False,
             include_struct_info_annotations=False,
         )
     )
@@ -601,8 +581,7 @@ def test_print_struct_info_annotation_non_var():
                 struct_info=ShapeStructInfo(
                     ndim=1,
                     values=[PrimExpr(value=`T.int64(2)`)]
-                ),
-                checked_type_=ShapeType(ndim=1)
+                )
             )
         )
         """
@@ -619,15 +598,6 @@ def test_print_type_annotation_non_var():
     assert isinstance(body, rx.SeqExpr)
     call = body.blocks[-1].bindings[-1].value
     assert isinstance(call, rx.Call)
-    arg = call.args[0]
-    arg_str = strip_whitespace(dump_ast(arg))
-    # the constant should have a tensor type
-    assert "checked_type_=TensorType(ndim=0" in arg_str
-
-    call_str = strip_whitespace(dump_ast(call))
-    # we expect the shape_of call to have a checked_type_ of ShapeType
-    type_str = "checked_type_=ShapeType(ndim=0)"
-    assert type_str in call_str
 
 
 def test_if():
@@ -669,8 +639,7 @@ def test_prim_value():
         """
         PrimValue(
             value=PrimExpr(value=`T.int64(1)`),
-            struct_info=PrimStructInfo(dtype=int64),
-            checked_type_=PrimType(dtype=int64)
+            struct_info=PrimStructInfo(dtype=int64)
         )
     """
     )
@@ -683,8 +652,7 @@ def test_string_imm():
         """
         StringImm(
             value="test",
-            struct_info=ObjectStructInfo(),
-            checked_type_=ObjectType()
+            struct_info=ObjectStructInfo()
         )
     """
     )
@@ -697,8 +665,7 @@ def test_datatype_imm():
         """
         DataTypeImm(
             value=int32,
-            struct_info=ObjectStructInfo(),
-            checked_type_=ObjectType()
+            struct_info=ObjectStructInfo()
         )
     """
     )

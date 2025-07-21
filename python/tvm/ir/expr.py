@@ -23,15 +23,16 @@ import tvm.ffi
 from ..runtime import Object, Scriptable
 from . import _ffi_api
 from .base import Node, Span
-from .type import Type
 
 
+@tvm.ffi.register_object("ir.BaseExpr")
 class BaseExpr(Node):
     """Base class of all the expressions."""
 
     span: Optional[Span]
 
 
+@tvm.ffi.register_object("ir.PrimExpr")
 class PrimExpr(BaseExpr):
     """Base class of all primitive expressions.
 
@@ -42,22 +43,9 @@ class PrimExpr(BaseExpr):
     dtype: str
 
 
+@tvm.ffi.register_object("ir.RelaxExpr")
 class RelaxExpr(BaseExpr):
     """Base class of all non-primitive expressions."""
-
-    @property
-    def checked_type(self):
-        """Get the checked type of tvm.relax.Expr.
-
-        Returns
-        -------
-        checked_type : tvm.ir.Type
-            The checked type.
-        """
-        ret = self._checked_type_
-        if ret is None:
-            raise ValueError("The type checker has not populated the checked_type for this node")
-        return ret
 
     @property
     def struct_info(self) -> Optional["tvm.relax.StructInfo"]:
@@ -71,7 +59,7 @@ class RelaxExpr(BaseExpr):
         return _ffi_api.ExprStructInfo(self)
 
 
-@tvm.ffi.register_object("GlobalVar")
+@tvm.ffi.register_object("ir.GlobalVar")
 class GlobalVar(RelaxExpr):
     """A global variable in the IR.
 
@@ -86,8 +74,8 @@ class GlobalVar(RelaxExpr):
 
     name_hint: str
 
-    def __init__(self, name_hint: str, type_annot: Optional[Type] = None):
-        self.__init_handle_by_constructor__(_ffi_api.GlobalVar, name_hint, type_annot)
+    def __init__(self, name_hint: str):
+        self.__init_handle_by_constructor__(_ffi_api.GlobalVar, name_hint)
 
     def __call__(self, *args: RelaxExpr) -> BaseExpr:
         """Call the global variable.
@@ -117,7 +105,7 @@ class GlobalVar(RelaxExpr):
         raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")
 
 
-@tvm.ffi.register_object
+@tvm.ffi.register_object("ir.Range")
 class Range(Node, Scriptable):
     """Represent a range in TVM.
 
@@ -182,42 +170,3 @@ class Range(Node, Scriptable):
 
     def __ne__(self, other: Object) -> bool:
         return not self.__eq__(other)
-
-
-# TODO(@relax-team): remove when we have a RelaxExpr base class
-def is_relax_expr(expr: RelaxExpr) -> bool:
-    """check if a RelaxExpr is a Relax expresssion.
-
-    Parameters
-    ----------
-    expr : RelaxExpr
-        The expression to check.
-
-    Returns
-    -------
-    res : bool
-        If the expression is Relax expression, return True; otherwise return False.
-    """
-    from tvm import relax  # pylint: disable=import-outside-toplevel
-
-    if isinstance(
-        expr,
-        (
-            relax.Call,
-            relax.Constant,
-            relax.Tuple,
-            relax.TupleGetItem,
-            relax.If,
-            relax.Var,
-            relax.DataflowVar,
-            relax.ShapeExpr,
-            relax.SeqExpr,
-            relax.Function,
-            relax.ExternFunc,
-            relax.PrimValue,
-            relax.StringImm,
-            relax.DataTypeImm,
-        ),
-    ):
-        return True
-    return False

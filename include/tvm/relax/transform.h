@@ -24,11 +24,13 @@
 #ifndef TVM_RELAX_TRANSFORM_H_
 #define TVM_RELAX_TRANSFORM_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/expr.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/index_map.h>
+
 namespace tvm {
 namespace relax {
 namespace transform {
@@ -149,7 +151,7 @@ TVM_DLL Pass AttachGlobalSymbol();
 
 /*!
  * \brief Transform Relax IR to normal form: transform AST to A-normal form, and fill the
- * checked_type_ and shape_ of expressions.
+ * struct_info_ of expressions.
  *
  * \return The Pass.
  */
@@ -393,12 +395,14 @@ class FusionPatternNode : public Object {
    */
   Optional<ffi::Function> attrs_getter;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("pattern", &pattern);
-    v->Visit("annotation_patterns", &annotation_patterns);
-    v->Visit("check", &check);
-    v->Visit("attrs_getter", &attrs_getter);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FusionPatternNode>()
+        .def_ro("name", &FusionPatternNode::name)
+        .def_ro("pattern", &FusionPatternNode::pattern)
+        .def_ro("annotation_patterns", &FusionPatternNode::annotation_patterns)
+        .def_ro("check", &FusionPatternNode::check)
+        .def_ro("attrs_getter", &FusionPatternNode::attrs_getter);
   }
 
   static constexpr const char* _type_key = "relax.transform.FusionPattern";
@@ -450,12 +454,14 @@ class PatternCheckContextNode : public Object {
    */
   Map<Expr, Var> value_to_bound_var;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("matched_expr", &matched_expr);
-    v->Visit("annotated_expr", &annotated_expr);
-    v->Visit("matched_bindings", &matched_bindings);
-    v->Visit("var_usages", &var_usages);
-    v->Visit("value_to_bound_var", &value_to_bound_var);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PatternCheckContextNode>()
+        .def_ro("matched_expr", &PatternCheckContextNode::matched_expr)
+        .def_ro("annotated_expr", &PatternCheckContextNode::annotated_expr)
+        .def_ro("matched_bindings", &PatternCheckContextNode::matched_bindings)
+        .def_ro("var_usages", &PatternCheckContextNode::var_usages)
+        .def_ro("value_to_bound_var", &PatternCheckContextNode::value_to_bound_var);
   }
 
   static constexpr const char* _type_key = "relax.transform.PatternCheckContext";

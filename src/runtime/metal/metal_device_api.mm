@@ -22,6 +22,7 @@
  */
 #include <dmlc/thread_local.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/profiling.h>
 #include "metal_common.h"
 
@@ -362,13 +363,16 @@ typedef dmlc::ThreadLocalStore<MetalThreadEntry> MetalThreadStore;
 
 MetalThreadEntry* MetalThreadEntry::ThreadLocal() { return MetalThreadStore::Get(); }
 
-TVM_FFI_REGISTER_GLOBAL("device_api.metal").set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-  DeviceAPI* ptr = MetalWorkspace::Global();
-  *rv = static_cast<void*>(ptr);
-});
-
-TVM_FFI_REGISTER_GLOBAL("metal.ResetGlobalState").set_body_typed([]() {
-  MetalWorkspace::Global()->ReinitializeDefaultStreams();
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("device_api.metal",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    DeviceAPI* ptr = MetalWorkspace::Global();
+                    *rv = static_cast<void*>(ptr);
+                  })
+      .def("metal.ResetGlobalState",
+           []() { MetalWorkspace::Global()->ReinitializeDefaultStreams(); });
 });
 
 class MetalTimerNode : public TimerNode {
@@ -388,7 +392,7 @@ class MetalTimerNode : public TimerNode {
   }
   virtual int64_t SyncAndGetElapsedNanos() { return stop_gpu_time_ - start_gpu_time_; }
 
-  static constexpr const char* _type_key = "MetalTimerNode";
+  static constexpr const char* _type_key = "runtime.metal.MetalTimerNode";
   TVM_DECLARE_FINAL_OBJECT_INFO(MetalTimerNode, TimerNode);
 
  private:
@@ -403,8 +407,10 @@ class MetalTimerNode : public TimerNode {
 
 TVM_REGISTER_OBJECT_TYPE(MetalTimerNode);
 
-TVM_FFI_REGISTER_GLOBAL("profiling.timer.metal").set_body_typed([](Device dev) {
-  return Timer(make_object<MetalTimerNode>(dev));
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("profiling.timer.metal",
+                        [](Device dev) { return Timer(make_object<MetalTimerNode>(dev)); });
 });
 
 }  // namespace metal

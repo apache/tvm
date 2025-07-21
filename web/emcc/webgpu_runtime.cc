@@ -30,6 +30,7 @@
 #define DMLC_USE_LOGGING_LIBRARY <tvm/runtime/logging.h>
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
 
 #include <iostream>
@@ -242,13 +243,15 @@ Module WebGPUModuleLoadBinary(void* strm) {
 }
 
 // for now webgpu is hosted via a vulkan module.
-TVM_FFI_REGISTER_GLOBAL("runtime.module.loadbinary_webgpu").set_body_typed(WebGPUModuleLoadBinary);
-
-TVM_FFI_REGISTER_GLOBAL("device_api.webgpu")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      DeviceAPI* ptr = WebGPUDeviceAPI::Global();
-      *rv = static_cast<void*>(ptr);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.module.loadbinary_webgpu", WebGPUModuleLoadBinary)
+      .def_packed("device_api.webgpu", [](ffi::PackedArgs args, ffi::Any* rv) {
+        DeviceAPI* ptr = WebGPUDeviceAPI::Global();
+        *rv = static_cast<void*>(ptr);
+      });
+});
 
 }  // namespace runtime
 }  // namespace tvm

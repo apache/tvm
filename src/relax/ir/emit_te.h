@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_IR_EMIT_TE_H_
 #define TVM_RELAX_IR_EMIT_TE_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/te/operation.h>
 
@@ -40,13 +41,15 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
   /*! \brief The relax expression. */
   Expr value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("tag", &tag);
-    v->Visit("attrs", &attrs);
-    v->Visit("value", &value);
-    v->Visit("shape", &shape);
-    v->Visit("dtype", &dtype);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RXPlaceholderOpNode>()
+        .def_ro("name", &RXPlaceholderOpNode::name)
+        .def_ro("tag", &RXPlaceholderOpNode::tag)
+        .def_ro("attrs", &RXPlaceholderOpNode::attrs)
+        .def_ro("value", &RXPlaceholderOpNode::value)
+        .def_ro("shape", &RXPlaceholderOpNode::shape)
+        .def_ro("dtype", &RXPlaceholderOpNode::dtype);
   }
 
   static constexpr const char* _type_key = "RXPlaceholderOp";

@@ -20,6 +20,7 @@
  * \file src/relax/transform/topological_sort.cc
  * \brief Perform a topological sort of Dataflow blocks
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
@@ -342,34 +343,37 @@ Pass TopologicalSort(TraversalOrder order, StartingLocation starting_location) {
   return relax::transform::CreateFunctionPass(pass_func, 0, "TopologicalSort", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.TopologicalSort")
-    .set_body_typed([](String order_str, String direction_str) -> Pass {
-      TraversalOrder order = [&]() {
-        if (order_str == "depth-first") {
-          return TraversalOrder::DepthFirst;
-        } else if (order_str == "breadth-first") {
-          return TraversalOrder::BreadthFirst;
-        } else {
-          LOG(FATAL) << "ValueError: "
-                     << "Invalid value for traversal order: \"" << order_str << "\".  "
-                     << "Allowed values are \"depth-first\" or \"breadth-first\"";
-        }
-      }();
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "relax.transform.TopologicalSort", [](String order_str, String direction_str) -> Pass {
+        TraversalOrder order = [&]() {
+          if (order_str == "depth-first") {
+            return TraversalOrder::DepthFirst;
+          } else if (order_str == "breadth-first") {
+            return TraversalOrder::BreadthFirst;
+          } else {
+            LOG(FATAL) << "ValueError: "
+                       << "Invalid value for traversal order: \"" << order_str << "\".  "
+                       << "Allowed values are \"depth-first\" or \"breadth-first\"";
+          }
+        }();
 
-      StartingLocation starting_location = [&]() {
-        if (direction_str == "from-inputs") {
-          return StartingLocation::FromInputs;
-        } else if (direction_str == "from-outputs") {
-          return StartingLocation::FromOutputs;
-        } else {
-          LOG(FATAL) << "ValueError: "
-                     << "Invalid value for starting location: \"" << direction_str << "\".  "
-                     << "Allowed values are \"from-inputs\" or \"from-outputs\"";
-        }
-      }();
+        StartingLocation starting_location = [&]() {
+          if (direction_str == "from-inputs") {
+            return StartingLocation::FromInputs;
+          } else if (direction_str == "from-outputs") {
+            return StartingLocation::FromOutputs;
+          } else {
+            LOG(FATAL) << "ValueError: "
+                       << "Invalid value for starting location: \"" << direction_str << "\".  "
+                       << "Allowed values are \"from-inputs\" or \"from-outputs\"";
+          }
+        }();
 
-      return TopologicalSort(order, starting_location);
-    });
+        return TopologicalSort(order, starting_location);
+      });
+});
 
 }  // namespace transform
 

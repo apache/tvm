@@ -44,10 +44,13 @@ class PlacementSpecNode : public Object {
   /*! \brief The kind of placement spec. Possible values: kSharding and kReplica. */
   PlacementSpecKind kind;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("axis", &axis);
-    v->Visit("kind", &kind);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PlacementSpecNode>()
+        .def_ro("axis", &PlacementSpecNode::axis)
+        .def_ro("kind", &PlacementSpecNode::kind);
   }
+
   bool SEqualReduce(const PlacementSpecNode* other, SEqualReducer equal) const {
     return equal(axis, other->axis) && equal(kind, other->kind);
   }
@@ -81,7 +84,10 @@ class ShardingNode : public PlacementSpecNode {
   /*! \brief The dimension of tensor we shard*/
   Integer sharding_dim;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("sharding_dim", &sharding_dim); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ShardingNode>().def_ro("sharding_dim", &ShardingNode::sharding_dim);
+  }
 
   bool SEqualReduce(const ShardingNode* other, SEqualReducer equal) const {
     return equal(sharding_dim, other->sharding_dim);
@@ -100,7 +106,10 @@ class PlacementNode : public Object {
 
   String ToString() const;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("dim_specs", &dim_specs); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PlacementNode>().def_ro("dim_specs", &PlacementNode::dim_specs);
+  }
 
   bool SEqualReduce(const PlacementNode* other, SEqualReducer equal) const {
     return equal(dim_specs, other->dim_specs);
@@ -144,11 +153,12 @@ class DTensorStructInfoNode : public StructInfoNode {
    */
   Placement placement;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("device_mesh", &device_mesh);
-    v->Visit("placement", &placement);
-    v->Visit("tensor_sinfo", &tensor_sinfo);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DTensorStructInfoNode>()
+        .def_ro("device_mesh", &DTensorStructInfoNode::device_mesh)
+        .def_ro("placement", &DTensorStructInfoNode::placement)
+        .def_ro("tensor_sinfo", &DTensorStructInfoNode::tensor_sinfo);
   }
 
   bool SEqualReduce(const DTensorStructInfoNode* other, SEqualReducer equal) const {

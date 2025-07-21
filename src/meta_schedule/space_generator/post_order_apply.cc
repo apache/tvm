@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -34,10 +36,8 @@ class PostOrderApplyNode : public SpaceGeneratorNode {
   /*! \brief The random state. -1 means using random number. */
   TRandState rand_state_ = -1;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    SpaceGeneratorNode::VisitAttrs(v);
-    // `rand_state_` is not visited
-    // `sch_rules_` is not visited
+  static void RegisterReflection() {
+    // No fields to register
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final {
@@ -115,9 +115,14 @@ SpaceGenerator SpaceGenerator::PostOrderApply(ffi::Function f_block_filter,
   return SpaceGenerator(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ PostOrderApplyNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(PostOrderApplyNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorPostOrderApply")
-    .set_body_typed(SpaceGenerator::PostOrderApply);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.SpaceGeneratorPostOrderApply",
+                        SpaceGenerator::PostOrderApply);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

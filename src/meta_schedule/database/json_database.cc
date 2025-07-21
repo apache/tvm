@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include <set>
 #include <thread>
 #include <unordered_map>
@@ -81,11 +83,11 @@ class JSONDatabaseNode : public DatabaseNode {
   /*! \brief All the tuning records in the database */
   std::multiset<TuningRecord, SortTuningRecordByMeanRunSecs> tuning_records_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("path_workload", &path_workload);
-    v->Visit("path_tuning_record", &path_tuning_record);
-    // `workloads2idx_` is not visited
-    // `tuning_records_` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<JSONDatabaseNode>()
+        .def_ro("path_workload", &JSONDatabaseNode::path_workload)
+        .def_ro("path_tuning_record", &JSONDatabaseNode::path_tuning_record);
   }
 
   static constexpr const char* _type_key = "meta_schedule.JSONDatabase";
@@ -213,9 +215,12 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
   return Database(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ JSONDatabaseNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(JSONDatabaseNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseJSONDatabase")
-    .set_body_typed(Database::JSONDatabase);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.DatabaseJSONDatabase", Database::JSONDatabase);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

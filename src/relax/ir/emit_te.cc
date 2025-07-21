@@ -22,6 +22,7 @@
  */
 #include "./emit_te.h"
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -34,6 +35,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       auto* op = static_cast<const RXPlaceholderOpNode*>(node.get());
       p->stream << "rxplaceholder(" << op->name << ", " << op << ")";
     });
+
+TVM_FFI_STATIC_INIT_BLOCK({ RXPlaceholderOpNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(RXPlaceholderOpNode);
 
@@ -72,7 +75,10 @@ te::Tensor TETensor(Expr value, Map<tir::Var, PrimExpr> tir_var_map, std::string
   return te::PlaceholderOp(n).output(0);
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.TETensor").set_body_typed(TETensor);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.TETensor", TETensor);
+});
 
 }  // namespace relax
 }  // namespace tvm

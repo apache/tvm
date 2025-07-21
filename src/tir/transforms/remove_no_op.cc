@@ -23,6 +23,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
@@ -41,29 +42,34 @@
 namespace tvm {
 namespace tir {
 
-struct RemoveNoOpConfigNode : public tvm::AttrsNode<RemoveNoOpConfigNode> {
+struct RemoveNoOpConfigNode : public AttrsNodeReflAdapter<RemoveNoOpConfigNode> {
   bool use_dataflow_analysis;
   int64_t max_simplification_steps;
 
-  TVM_DECLARE_ATTRS(RemoveNoOpConfigNode, "tir.transform.RemoveNoOpConfig") {
-    TVM_ATTR_FIELD(use_dataflow_analysis)
-        .describe(
-            "If true, known buffer values are propagated and used "
-            "to statically prove statements as no-ops.")
-        .set_default(false);
-    TVM_ATTR_FIELD(max_simplification_steps)
-        .describe(
-            "If non-zero, RewriteSimplifier will throw an error "
-            "after the number of steps specified.  "
-            "For use in debug and testing purposes.")
-        .set_default(0);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RemoveNoOpConfigNode>()
+        .def_ro("use_dataflow_analysis", &RemoveNoOpConfigNode::use_dataflow_analysis,
+                "If true, known buffer values are propagated and used "
+                "to statically prove statements as no-ops.",
+                refl::DefaultValue(false))
+        .def_ro("max_simplification_steps", &RemoveNoOpConfigNode::max_simplification_steps,
+                "If non-zero, RewriteSimplifier will throw an error "
+                "after the number of steps specified.  "
+                "For use in debug and testing purposes.",
+                refl::DefaultValue(0));
   }
+
+  static constexpr const char* _type_key = "tir.transform.RemoveNoOpConfig";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(RemoveNoOpConfigNode, BaseAttrsNode);
 };
 
 class RemoveNoOpConfig : public Attrs {
  public:
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(RemoveNoOpConfig, Attrs, RemoveNoOpConfigNode);
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ RemoveNoOpConfigNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(RemoveNoOpConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.RemoveNoOp", RemoveNoOpConfig);
@@ -234,7 +240,7 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
       }
     }
 
-    return std::move(store);
+    return store;
   }
 
   Stmt VisitStmt_(const DeclBufferNode* op) final {
@@ -244,7 +250,8 @@ class NoOpRemover : public arith::IRMutatorWithAnalyzer {
     var_use(node->body);
 
     if (var_use.buffer_use_count_.count(node->buffer.get())) {
-      return std::move(node);
+      return node;
+
     } else {
       return node->body;
     }
@@ -327,7 +334,10 @@ Pass RemoveNoOp() {
   return CreatePrimFuncPass(pass_func, 0, "tir.RemoveNoOp", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.RemoveNoOp").set_body_typed(RemoveNoOp);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.RemoveNoOp", RemoveNoOp);
+});
 
 }  // namespace transform
 

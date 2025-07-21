@@ -49,9 +49,9 @@
 #endif
 
 #if defined(_MSC_VER)
-#define TVM_FFI_INLINE __forceinline
+#define TVM_FFI_INLINE [[msvc::forceinline]] inline
 #else
-#define TVM_FFI_INLINE inline __attribute__((always_inline))
+#define TVM_FFI_INLINE [[gnu::always_inline]] inline
 #endif
 
 /*!
@@ -60,9 +60,9 @@
  * e.g. some logging functions.
  */
 #if defined(_MSC_VER)
-#define TVM_FFI_NO_INLINE __declspec(noinline)
+#define TVM_FFI_NO_INLINE [[msvc::noinline]]
 #else
-#define TVM_FFI_NO_INLINE __attribute__((noinline))
+#define TVM_FFI_NO_INLINE [[gnu::noinline]]
 #endif
 
 #if defined(_MSC_VER)
@@ -72,11 +72,7 @@
 #endif
 
 /*! \brief helper macro to suppress unused warning */
-#if defined(__GNUC__)
-#define TVM_FFI_ATTRIBUTE_UNUSED __attribute__((unused))
-#else
-#define TVM_FFI_ATTRIBUTE_UNUSED
-#endif
+#define TVM_FFI_ATTRIBUTE_UNUSED [[maybe_unused]]
 
 #define TVM_FFI_STR_CONCAT_(__x, __y) __x##__y
 #define TVM_FFI_STR_CONCAT(__x, __y) TVM_FFI_STR_CONCAT_(__x, __y)
@@ -88,6 +84,13 @@
 #else
 #define TVM_FFI_FUNC_SIG __func__
 #endif
+
+#define TVM_FFI_STATIC_INIT_BLOCK_VAR_DEF \
+  TVM_FFI_ATTRIBUTE_UNUSED static inline int __##TVMFFIStaticInitReg
+
+/*! \brief helper macro to run code once during initialization */
+#define TVM_FFI_STATIC_INIT_BLOCK(Body) \
+  TVM_FFI_STR_CONCAT(TVM_FFI_STATIC_INIT_BLOCK_VAR_DEF, __COUNTER__) = []() { Body return 0; }()
 
 /*
  * \brief Define the default copy/move constructor and assign operator
@@ -132,52 +135,17 @@ namespace tvm {
 namespace ffi {
 namespace details {
 
-/********** Atomic Operations *********/
-
-TVM_FFI_INLINE int32_t AtomicIncrementRelaxed(int32_t* ptr) {
-#ifdef _MSC_VER
-  return _InterlockedIncrement(reinterpret_cast<volatile long*>(ptr)) - 1;  // NOLINT(*)
-#else
-  return __atomic_fetch_add(ptr, 1, __ATOMIC_RELAXED);
-#endif
-}
-
-TVM_FFI_INLINE int32_t AtomicDecrementRelAcq(int32_t* ptr) {
-#ifdef _MSC_VER
-  return _InterlockedDecrement(reinterpret_cast<volatile long*>(ptr)) + 1;  // NOLINT(*)
-#else
-  return __atomic_fetch_sub(ptr, 1, __ATOMIC_ACQ_REL);
-#endif
-}
-
-TVM_FFI_INLINE int32_t AtomicLoadRelaxed(const int32_t* ptr) {
-  int32_t* raw_ptr = const_cast<int32_t*>(ptr);
-#ifdef _MSC_VER
-  // simply load the variable ptr out
-  return (reinterpret_cast<const volatile long*>(raw_ptr))[0];  // NOLINT(*)
-#else
-  return __atomic_load_n(raw_ptr, __ATOMIC_RELAXED);
-#endif
-}
-
 // for each iterator
-template <bool stop, std::size_t I, typename F>
 struct for_each_dispatcher {
-  template <typename T, typename... Args>
-  static void run(const F& f, T&& value, Args&&... args) {  // NOLINT(*)
-    f(I, std::forward<T>(value));
-    for_each_dispatcher<sizeof...(Args) == 0, (I + 1), F>::run(f, std::forward<Args>(args)...);
+  template <typename F, typename... Args, size_t... I>
+  static void run(std::index_sequence<I...>, const F& f, Args&&... args) {  // NOLINT(*)
+    (f(I, std::forward<Args>(args)), ...);
   }
-};
-
-template <std::size_t I, typename F>
-struct for_each_dispatcher<true, I, F> {
-  static void run(const F&) {}  // NOLINT(*)
 };
 
 template <typename F, typename... Args>
 void for_each(const F& f, Args&&... args) {  // NOLINT(*)
-  for_each_dispatcher<sizeof...(Args) == 0, 0, F>::run(f, std::forward<Args>(args)...);
+  for_each_dispatcher::run(std::index_sequence_for<Args...>{}, f, std::forward<Args>(args)...);
 }
 
 /*!

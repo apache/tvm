@@ -24,6 +24,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
@@ -37,6 +38,12 @@
 namespace tvm {
 namespace te {
 using namespace tir;
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  OperationNode::RegisterReflection();
+  BaseComputeOpNode::RegisterReflection();
+  ComputeOpNode::RegisterReflection();
+});
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<ComputeOpNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -148,11 +155,14 @@ ComputeOp::ComputeOp(std::string name, std::string tag, Map<String, ffi::Any> at
   data_ = std::move(n);
 }
 
-TVM_FFI_REGISTER_GLOBAL("te.ComputeOp")
-    .set_body_typed([](std::string name, std::string tag, Optional<Map<String, ffi::Any>> attrs,
-                       Array<IterVar> axis, Array<PrimExpr> body) {
-      return ComputeOp(name, tag, attrs.value_or({}), axis, body);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("te.ComputeOp",
+                        [](std::string name, std::string tag, Optional<Map<String, ffi::Any>> attrs,
+                           Array<IterVar> axis, Array<PrimExpr> body) {
+                          return ComputeOp(name, tag, attrs.value_or({}), axis, body);
+                        });
+});
 
 // The schedule related logics
 Array<Tensor> ComputeOpNode::InputTensors() const {

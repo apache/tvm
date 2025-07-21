@@ -24,12 +24,16 @@
 #include "tvm/ir/global_var_supply.h"
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 
 #include <utility>
 
 #include "tvm/ir/expr.h"
 
 namespace tvm {
+
+TVM_FFI_STATIC_INIT_BLOCK({ GlobalVarSupplyNode::RegisterReflection(); });
+
 GlobalVarSupply::GlobalVarSupply(const NameSupply& name_supply,
                                  std::unordered_map<std::string, GlobalVar> name_to_var_map) {
   auto n = make_object<GlobalVarSupplyNode>(name_supply, name_to_var_map);
@@ -92,23 +96,18 @@ GlobalVar GlobalVarSupplyNode::FreshGlobal(String name, bool add_prefix) {
 
 TVM_REGISTER_NODE_TYPE(GlobalVarSupplyNode);
 
-TVM_FFI_REGISTER_GLOBAL("ir.GlobalVarSupply_NameSupply")
-    .set_body_typed([](const NameSupply& name_supply) { return GlobalVarSupply(name_supply); });
-
-TVM_FFI_REGISTER_GLOBAL("ir.GlobalVarSupply_IRModule").set_body_typed([](IRModule mod) {
-  return GlobalVarSupply(std::move(mod));
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("ir.GlobalVarSupply_NameSupply",
+           [](const NameSupply& name_supply) { return GlobalVarSupply(name_supply); })
+      .def("ir.GlobalVarSupply_IRModule",
+           [](IRModule mod) { return GlobalVarSupply(std::move(mod)); })
+      .def("ir.GlobalVarSupply_IRModules",
+           [](const Array<IRModule>& mods) { return GlobalVarSupply(mods); })
+      .def_method("ir.GlobalVarSupply_FreshGlobal", &GlobalVarSupplyNode::FreshGlobal)
+      .def_method("ir.GlobalVarSupply_UniqueGlobalFor", &GlobalVarSupplyNode::UniqueGlobalFor)
+      .def_method("ir.GlobalVarSupply_ReserveGlobalVar", &GlobalVarSupplyNode::ReserveGlobalVar);
 });
-
-TVM_FFI_REGISTER_GLOBAL("ir.GlobalVarSupply_IRModules")
-    .set_body_typed([](const Array<IRModule>& mods) { return GlobalVarSupply(mods); });
-
-TVM_FFI_REGISTER_GLOBAL("ir.GlobalVarSupply_FreshGlobal")
-    .set_body_method(&GlobalVarSupplyNode::FreshGlobal);
-
-TVM_FFI_REGISTER_GLOBAL("ir.GlobalVarSupply_UniqueGlobalFor")
-    .set_body_method(&GlobalVarSupplyNode::UniqueGlobalFor);
-
-TVM_FFI_REGISTER_GLOBAL("ir.GlobalVarSupply_ReserveGlobalVar")
-    .set_body_method(&GlobalVarSupplyNode::ReserveGlobalVar);
 
 }  // namespace tvm

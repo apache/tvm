@@ -16,11 +16,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/block_scope.h>
 #include <tvm/tir/utils.h>
 
 namespace tvm {
 namespace tir {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  StmtSRefNode::RegisterReflection();
+  DependencyNode::RegisterReflection();
+  BlockScopeNode::RegisterReflection();
+});
 
 /******** Utility functions ********/
 
@@ -190,21 +197,20 @@ TVM_REGISTER_NODE_TYPE(StmtSRefNode);
 TVM_REGISTER_NODE_TYPE(DependencyNode);
 TVM_REGISTER_NODE_TYPE(BlockScopeNode);
 
-TVM_FFI_REGISTER_GLOBAL("tir.StmtSRefStmt").set_body_typed([](StmtSRef sref) -> Optional<Stmt> {
-  return GetRef<Optional<Stmt>>(sref->stmt);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("tir.StmtSRefStmt",
+           [](StmtSRef sref) -> Optional<Stmt> { return GetRef<Optional<Stmt>>(sref->stmt); })
+      .def("tir.StmtSRefParent",
+           [](StmtSRef sref) -> Optional<StmtSRef> {
+             return GetRef<Optional<StmtSRef>>(sref->parent);
+           })
+      .def("tir.StmtSRefRootMark", StmtSRef::RootMark)
+      .def("tir.StmtSRefInlineMark", StmtSRef::InlineMark)
+      .def_method("tir.BlockScopeGetDepsBySrc", &BlockScopeNode::GetDepsBySrc)
+      .def_method("tir.BlockScopeGetDepsByDst", &BlockScopeNode::GetDepsByDst);
 });
-TVM_FFI_REGISTER_GLOBAL("tir.StmtSRefParent")
-    .set_body_typed([](StmtSRef sref) -> Optional<StmtSRef> {
-      return GetRef<Optional<StmtSRef>>(sref->parent);
-    });
-TVM_FFI_REGISTER_GLOBAL("tir.StmtSRefRootMark")  //
-    .set_body_typed(StmtSRef::RootMark);
-TVM_FFI_REGISTER_GLOBAL("tir.StmtSRefInlineMark")  //
-    .set_body_typed(StmtSRef::InlineMark);
-TVM_FFI_REGISTER_GLOBAL("tir.BlockScopeGetDepsBySrc")
-    .set_body_method(&BlockScopeNode::GetDepsBySrc);
-TVM_FFI_REGISTER_GLOBAL("tir.BlockScopeGetDepsByDst")
-    .set_body_method(&BlockScopeNode::GetDepsByDst);
 
 }  // namespace tir
 }  // namespace tvm

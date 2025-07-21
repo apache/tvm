@@ -32,6 +32,7 @@
  * Any binding blocks that are left empty will be removed by the normalizer.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/analysis.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -140,7 +141,10 @@ Pass DeadCodeElimination(Array<String> entry_functions) {
   return CreateModulePass(pass_func, 1, "DeadCodeElimination", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.DeadCodeElimination").set_body_typed(DeadCodeElimination);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.DeadCodeElimination", DeadCodeElimination);
+});
 
 }  // namespace transform
 }  // namespace relax

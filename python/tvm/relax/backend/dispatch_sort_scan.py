@@ -75,6 +75,18 @@ class SortScanDispatcher(BackendDispatcher):
         if not isinstance(call.op, Op):
             return super().visit_call_(call)
 
+        if call.op.name == "relax.bucketize":
+            input_tensor = call.args[0]
+            boundaries = call.args[1]
+            right = call.attrs.right
+            tgt = self._get_target(call.struct_info)
+            te_func = topi.searchsorted
+            with tgt:
+                if self.is_gpu_target(tgt):
+                    te_func = topi.gpu.searchsorted
+            return self.builder_.call_te(
+                te_func, boundaries, input_tensor, right, input_tensor.struct_info.dtype
+            )
         if call.op.name == "relax.sort":
             tgt = self._get_target(call.struct_info)
             te_func = topi.sort

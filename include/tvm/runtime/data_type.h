@@ -462,17 +462,21 @@ template <>
 struct TypeTraits<runtime::DataType> : public TypeTraitsBase {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIDataType;
 
-  static TVM_FFI_INLINE void CopyToAnyView(const runtime::DataType& src, TVMFFIAny* result) {
+  TVM_FFI_INLINE static void CopyToAnyView(const runtime::DataType& src, TVMFFIAny* result) {
+    // clear padding part to ensure the equality check can always check the v_uint64 part
+    result->v_uint64 = 0;
     result->type_index = TypeIndex::kTVMFFIDataType;
     result->v_dtype = src;
   }
 
-  static TVM_FFI_INLINE void MoveToAny(runtime::DataType src, TVMFFIAny* result) {
+  TVM_FFI_INLINE static void MoveToAny(runtime::DataType src, TVMFFIAny* result) {
+    // clear padding part to ensure the equality check can always check the v_uint64 part
+    result->v_uint64 = 0;
     result->type_index = TypeIndex::kTVMFFIDataType;
     result->v_dtype = src;
   }
 
-  static TVM_FFI_INLINE std::optional<runtime::DataType> TryCastFromAnyView(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::optional<runtime::DataType> TryCastFromAnyView(const TVMFFIAny* src) {
     auto opt_dtype = TypeTraits<DLDataType>::TryCastFromAnyView(src);
     if (opt_dtype) {
       return runtime::DataType(opt_dtype.value());
@@ -480,15 +484,15 @@ struct TypeTraits<runtime::DataType> : public TypeTraitsBase {
     return std::nullopt;
   }
 
-  static TVM_FFI_INLINE bool CheckAnyStrict(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
     return TypeTraits<DLDataType>::CheckAnyStrict(src);
   }
 
-  static TVM_FFI_INLINE runtime::DataType CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static runtime::DataType CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
     return runtime::DataType(TypeTraits<DLDataType>::CopyFromAnyViewAfterCheck(src));
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return ffi::StaticTypeKey::kTVMFFIDataType; }
+  TVM_FFI_INLINE static std::string TypeStr() { return ffi::StaticTypeKey::kTVMFFIDataType; }
 };
 
 }  // namespace ffi

@@ -131,7 +131,7 @@ TEST(Func, FromTyped) {
           EXPECT_EQ(error.kind(), "TypeError");
           EXPECT_EQ(error.message(),
                     "Mismatched number of arguments when calling: "
-                    "`fpass_and_return(0: test.Int, 1: int, 2: AnyView) -> object.Function`. "
+                    "`fpass_and_return(0: test.Int, 1: int, 2: AnyView) -> ffi.Function`. "
                     "Expected 3 but got 0 arguments");
           throw;
         }
@@ -236,11 +236,4 @@ TEST(Func, ObjectRefWithFallbackTraits) {
       ::tvm::ffi::Error);
 }
 
-TVM_FFI_REGISTER_GLOBAL("testing.Int_GetValue").set_body_method(&TIntObj::GetValue);
-
-TEST(Func, Register) {
-  Function fget_value = Function::GetGlobalRequired("testing.Int_GetValue");
-  TInt a(12);
-  EXPECT_EQ(fget_value(a).cast<int>(), 12);
-}
 }  // namespace

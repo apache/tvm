@@ -64,7 +64,7 @@ def getitem_helper(obj, elem_getter, length, idx):
     return elem_getter(obj, idx)
 
 
-@register_object("object.Array")
+@register_object("ffi.Array")
 class Array(core.Object, collections.abc.Sequence):
     """Array container"""
 
@@ -148,7 +148,7 @@ class ItemsView(collections.abc.ItemsView):
                 break
 
 
-@register_object("object.Map")
+@register_object("ffi.Map")
 class Map(core.Object, collections.abc.Mapping):
     """Map container."""
 

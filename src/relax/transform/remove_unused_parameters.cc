@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -194,7 +195,7 @@ Pass RemoveUnusedParameters() {
         if (auto func = base_func.as<Function>()) {
           if (auto callee_res = AnalyzeCallee(func.value())) {
             auto new_func = callee_res->func;
-            GlobalVar new_gvar(gvar->name_hint, new_func->checked_type_);
+            GlobalVar new_gvar(gvar->name_hint);
             new_gvar->struct_info_ = new_func->struct_info_;
             new_callees->Add(new_gvar, new_func);
 
@@ -250,8 +251,10 @@ Pass RemoveUnusedParameters() {
   return CreateModulePass(pass_func, 0, "RemoveUnusedParameters", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.RemoveUnusedParameters")
-    .set_body_typed(RemoveUnusedParameters);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.RemoveUnusedParameters", RemoveUnusedParameters);
+});
 
 }  // namespace transform
 

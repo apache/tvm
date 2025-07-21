@@ -22,6 +22,7 @@
  * \brief Expand `matmul(x, A+B)` to `matmul(x, A) + matmul(x,B)`
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>
@@ -156,8 +157,10 @@ Pass ReorderTakeAfterMatmul() {
   return CreateFunctionPass(pass_func, 1, "ReorderTakeAfterMatmul", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.ReorderTakeAfterMatmul")
-    .set_body_typed(ReorderTakeAfterMatmul);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.ReorderTakeAfterMatmul", ReorderTakeAfterMatmul);
+});
 
 }  // namespace transform
 }  // namespace relax

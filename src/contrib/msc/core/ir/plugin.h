@@ -25,6 +25,7 @@
 #define TVM_CONTRIB_MSC_CORE_IR_PLUGIN_H_
 
 #include <dmlc/json.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/data_layout.h>
 
 #include <string>
@@ -268,11 +269,13 @@ class PluginAttrNode : public Object {
   /*! \brief Load attribute from json string. */
   void FromJson(const std::string& json_str);
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("type", &type);
-    v->Visit("default_value", &default_value);
-    v->Visit("describe", &describe);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PluginAttrNode>()
+        .def_ro("name", &PluginAttrNode::name)
+        .def_ro("type", &PluginAttrNode::type)
+        .def_ro("default_value", &PluginAttrNode::default_value)
+        .def_ro("describe", &PluginAttrNode::describe);
   }
 
   bool SEqualReduce(const PluginAttrNode* other, SEqualReducer equal) const {
@@ -345,12 +348,14 @@ class PluginTensorNode : public Object {
   /*! \brief Load tensor from json string. */
   void FromJson(const std::string& json_str);
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("dtype", &dtype);
-    v->Visit("ndim", &ndim);
-    v->Visit("device", &device);
-    v->Visit("describe", &describe);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PluginTensorNode>()
+        .def_ro("name", &PluginTensorNode::name)
+        .def_ro("dtype", &PluginTensorNode::dtype)
+        .def_ro("ndim", &PluginTensorNode::ndim)
+        .def_ro("device", &PluginTensorNode::device)
+        .def_ro("describe", &PluginTensorNode::describe);
   }
 
   bool SEqualReduce(const PluginTensorNode* other, SEqualReducer equal) const {
@@ -425,12 +430,14 @@ class PluginExternNode : public Object {
   /*! \brief Load extern from json string. */
   void FromJson(const std::string& json_str);
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("header", &header);
-    v->Visit("source", &source);
-    v->Visit("lib", &lib);
-    v->Visit("describe", &describe);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PluginExternNode>()
+        .def_ro("name", &PluginExternNode::name)
+        .def_ro("header", &PluginExternNode::header)
+        .def_ro("source", &PluginExternNode::source)
+        .def_ro("lib", &PluginExternNode::lib)
+        .def_ro("describe", &PluginExternNode::describe);
   }
 
   bool SEqualReduce(const PluginExternNode* other, SEqualReducer equal) const {
@@ -521,17 +528,19 @@ class PluginNode : public Object {
   /*! \brief Find input ref index for device. */
   int FindDeviceRefIdx(const PluginTensor& tensor) const;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("version", &version);
-    v->Visit("describe", &describe);
-    v->Visit("attrs", &attrs);
-    v->Visit("inputs", &inputs);
-    v->Visit("outputs", &outputs);
-    v->Visit("buffers", &buffers);
-    v->Visit("externs", &externs);
-    v->Visit("support_dtypes", &support_dtypes);
-    v->Visit("options", &options);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PluginNode>()
+        .def_ro("name", &PluginNode::name)
+        .def_ro("version", &PluginNode::version)
+        .def_ro("describe", &PluginNode::describe)
+        .def_ro("attrs", &PluginNode::attrs)
+        .def_ro("inputs", &PluginNode::inputs)
+        .def_ro("outputs", &PluginNode::outputs)
+        .def_ro("buffers", &PluginNode::buffers)
+        .def_ro("externs", &PluginNode::externs)
+        .def_ro("support_dtypes", &PluginNode::support_dtypes)
+        .def_ro("options", &PluginNode::options);
   }
 
   bool SEqualReduce(const PluginNode* other, SEqualReducer equal) const {

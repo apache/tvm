@@ -23,6 +23,7 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -153,8 +154,12 @@ void BlockReadWriteDetector::VisitExpr_(const VarNode* op) { UpdateOpaque(GetRef
 
 void BlockReadWriteDetector::VisitExpr_(const BufferLoadNode* op) {
   std::vector<arith::IntSet> relaxed_region;
-  for (const PrimExpr& index : op->indices) {
+  for (PrimExpr index : op->indices) {
     PrimExpr remapped_index = Substitute(index, let_bindings_);
+    while (!remapped_index.same_as(index)) {
+      index = remapped_index;
+      remapped_index = Substitute(index, let_bindings_);
+    }
     relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(remapped_index), dom_map_));
   }
   Update(&read_buffers_, &read_regions_, op->buffer, relaxed_region);
@@ -236,8 +241,12 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
 
 void BlockReadWriteDetector::VisitStmt_(const BufferStoreNode* op) {
   std::vector<arith::IntSet> relaxed_region;
-  for (const PrimExpr& index : op->indices) {
+  for (PrimExpr index : op->indices) {
     PrimExpr remapped_index = Substitute(index, let_bindings_);
+    while (!remapped_index.same_as(index)) {
+      index = remapped_index;
+      remapped_index = Substitute(index, let_bindings_);
+    }
     relaxed_region.push_back(arith::EvalSet(arith::IntSet::Vector(remapped_index), dom_map_));
   }
   Update(&writes_buffers_, &write_regions_, op->buffer, relaxed_region);
@@ -402,9 +411,12 @@ Array<Array<BufferRegion>> GetBlockReadWriteRegion(const Block& block,
   return {reads, writes};
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.analysis.GetBlockAccessRegion").set_body_typed(GetBlockAccessRegion);
-TVM_FFI_REGISTER_GLOBAL("tir.analysis.GetBlockReadWriteRegion")
-    .set_body_typed(GetBlockReadWriteRegion);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("tir.analysis.GetBlockAccessRegion", GetBlockAccessRegion)
+      .def("tir.analysis.GetBlockReadWriteRegion", GetBlockReadWriteRegion);
+});
 
 }  // namespace tir
 }  // namespace tvm

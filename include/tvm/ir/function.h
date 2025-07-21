@@ -131,7 +131,7 @@ constexpr const char* kGlobalSymbol = "global_symbol";
  * \brief Base node of all functions.
  *
  * We support several variants of functions throughout the stack.
- * All of the functions share the same type system(via checked_type)
+ * All of the functions share the same type system
  * to support cross variant calls.
  *
  * \sa BaseFunc
@@ -217,7 +217,12 @@ class BaseFuncNode : public RelaxExprNode {
       return LinkageType::kInternal;
   }
 
-  static constexpr const char* _type_key = "BaseFunc";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BaseFuncNode>().def_ro("attrs", &BaseFuncNode::attrs);
+  }
+
+  static constexpr const char* _type_key = "ir.BaseFunc";
   static constexpr const uint32_t _type_child_slots = 2;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseFuncNode, RelaxExprNode);
 };

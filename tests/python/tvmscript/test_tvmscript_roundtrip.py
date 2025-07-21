@@ -3679,6 +3679,7 @@ def merge_shape_var_def():
     # uninitialized vars
     @T.prim_func(check_well_formed=False)
     def main(A: T.handle, B: T.handle):
+        # fmt: off
         T.func_attr({"global_symbol": "main", "tir.noalias": True})
         m, n = T.int32(), T.int32()
         A_1 = T.match_buffer(A, (m, n), strides=("A_1_s0", "A_1_s1"), buffer_type="auto")
@@ -3687,8 +3688,8 @@ def merge_shape_var_def():
             if T.likely(i_outer * 10 + i_inner < m):
                 for j_inner in range(5):
                     if T.likely(j_outer * 5 + j_inner < n):
-                        cse_var_2: T.int32 = j_outer * 5 + j_inner
-                        cse_var_1: T.int32 = i_outer * 10 + i_inner
+                        cse_v2: T.int32 = j_outer * 5 + j_inner
+                        cse_v1: T.int32 = i_outer * 10 + i_inner
                         B_2 = T.Buffer(
                             (B_1.strides[0] * m,),
                             data=B_1.data,
@@ -3701,9 +3702,10 @@ def merge_shape_var_def():
                             strides=("A_2_s0",),
                             buffer_type="auto",
                         )
-                        B_2[cse_var_1 * B_1.strides[0] + cse_var_2 * B_1.strides[1]] = A_2[
-                            cse_var_1 * A_1.strides[0] + cse_var_2 * A_1.strides[1]
+                        B_2[cse_v1 * B_1.strides[0] + cse_v2 * B_1.strides[1]] = A_2[
+                            cse_v1 * A_1.strides[0] + cse_v2 * A_1.strides[1]
                         ]
+        # fmt: on
 
     return main
 
@@ -4264,6 +4266,15 @@ def test_return_none_no_trailing_type():
     func = return_none()
     script = func.script()
     assert "-> None" not in script
+
+
+def test_address_of_buffer():
+    @T.prim_func
+    def func(a: T.handle):
+        A = T.match_buffer(a, (128, 128), "float32")
+        T.evaluate(T.address_of(A))
+
+    assert "T.address_of(A[0, 0])" in func.script()
 
 
 if __name__ == "__main__":

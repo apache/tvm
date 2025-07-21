@@ -23,6 +23,7 @@
  * \file combine_context_call.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/tir/builtin.h>
@@ -53,7 +54,7 @@ class ContextCallCombiner final : public StmtExprMutator {
         ICHECK(ctx.dtype().is_handle());
         Var ctx_var("ctx_cache_", ctx.dtype());
         ctx_map_[ctx] = ctx_var;
-        return std::move(ctx_var);
+        return ctx_var;
       }
     } else {
       return StmtExprMutator::VisitExpr_(op);
@@ -112,7 +113,10 @@ Pass CombineContextCall() {
   return CreatePrimFuncPass(pass_func, 0, "tir.CombineContextCall", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.CombineContextCall").set_body_typed(CombineContextCall);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.CombineContextCall", CombineContextCall);
+});
 
 }  // namespace transform
 }  // namespace tir

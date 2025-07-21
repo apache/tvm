@@ -19,6 +19,7 @@
 #ifndef TVM_TIR_SCHEDULE_INSTRUCTION_H_
 #define TVM_TIR_SCHEDULE_INSTRUCTION_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/reflection.h>
 
 #include <utility>
@@ -111,13 +112,11 @@ class InstructionKindNode : public runtime::Object {
    */
   FInstructionAttrsFromJSON f_attrs_from_json{nullptr};
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("_is_pure", &is_pure);
-    // not visited: f_apply_to_schedule
-    // not visited: f_as_python
-    // not visited: f_attrs_as_json
-    // not visited: f_attrs_from_json
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<InstructionKindNode>()
+        .def_ro("name", &InstructionKindNode::name)
+        .def_ro("_is_pure", &InstructionKindNode::is_pure);
   }
 
   /*! \brief Checks if the instruction kind is EnterPostproc */
@@ -173,11 +172,13 @@ class InstructionNode : public runtime::Object {
    */
   Array<Any> outputs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("kind", &kind);
-    v->Visit("inputs", &inputs);
-    v->Visit("attrs", &attrs);
-    v->Visit("outputs", &outputs);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<InstructionNode>()
+        .def_ro("kind", &InstructionNode::kind)
+        .def_ro("inputs", &InstructionNode::inputs)
+        .def_ro("attrs", &InstructionNode::attrs)
+        .def_ro("outputs", &InstructionNode::outputs);
   }
 
   static constexpr const char* _type_key = "tir.Instruction";

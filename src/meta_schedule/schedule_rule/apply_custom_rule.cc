@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -71,7 +73,10 @@ class ApplyCustomRuleNode : public ScheduleRuleNode {
  public:
   Optional<Target> target_ = std::nullopt;
 
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("target_", &target_); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ApplyCustomRuleNode>().def_ro("target_", &ApplyCustomRuleNode::target_);
+  }
 
   static constexpr const char* _type_key = "meta_schedule.ApplyCustomRule";
   TVM_DECLARE_FINAL_OBJECT_INFO(ApplyCustomRuleNode, ScheduleRuleNode);
@@ -86,9 +91,12 @@ bool ScheduleRule::IsApplyCustomRule(const ScheduleRule& rule) {
   return rule->IsInstance<ApplyCustomRuleNode>();
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ ApplyCustomRuleNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(ApplyCustomRuleNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleApplyCustomRule")
-    .set_body_typed(ScheduleRule::ApplyCustomRule);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.ScheduleRuleApplyCustomRule", ScheduleRule::ApplyCustomRule);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

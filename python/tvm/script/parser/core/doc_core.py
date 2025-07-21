@@ -17,7 +17,48 @@
 # pylint: disable=redefined-outer-name,missing-docstring,invalid-name
 # pylint: disable=useless-super-delegation,redefined-builtin
 # pylint: disable=too-few-public-methods,too-many-arguments
+
+
+# minimal python version is 3.9
 class AST:
+    _FIELDS = []
+
+    def __init__(self):
+        super().__init__()
+
+
+class mod(AST):
+    _FIELDS = []
+
+    def __init__(self):
+        super().__init__()
+
+
+class Module(mod):
+    _FIELDS = ["body"]
+
+    def __init__(self, body):
+        super().__init__()
+        self.body = body
+
+
+class Interactive(mod):
+    _FIELDS = ["body"]
+
+    def __init__(self, body):
+        super().__init__()
+        self.body = body
+
+
+class Expression(mod):
+    _FIELDS = ["body"]
+
+    def __init__(self, body):
+        super().__init__()
+        self.body = body
+
+
+class stmt(AST):
     _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
 
     def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
@@ -26,44 +67,6 @@ class AST:
         self.col_offset = col_offset
         self.end_lineno = end_lineno
         self.end_col_offset = end_col_offset
-
-
-class mod(AST):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
-
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
-
-
-class Module(mod):
-    _FIELDS = ["body", "lineno", "col_offset", "end_lineno", "end_col_offset"]
-
-    def __init__(self, body, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
-        self.body = body
-
-
-class Interactive(mod):
-    _FIELDS = ["body", "lineno", "col_offset", "end_lineno", "end_col_offset"]
-
-    def __init__(self, body, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
-        self.body = body
-
-
-class Expression(mod):
-    _FIELDS = ["body", "lineno", "col_offset", "end_lineno", "end_col_offset"]
-
-    def __init__(self, body, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
-        self.body = body
-
-
-class stmt(AST):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
-
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
 
 
 class FunctionDef(stmt):
@@ -345,7 +348,11 @@ class expr(AST):
     _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
 
     def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+        super().__init__()
+        self.lineno = lineno
+        self.col_offset = col_offset
+        self.end_lineno = end_lineno
+        self.end_col_offset = end_col_offset
 
 
 class BoolOp(expr):
@@ -514,14 +521,12 @@ class JoinedStr(expr):
 
 
 class Constant(expr):
-    _FIELDS = ["value", "kind", "s", "n", "lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = ["value", "kind", "lineno", "col_offset", "end_lineno", "end_col_offset"]
 
-    def __init__(self, value, kind, s, n, lineno, col_offset, end_lineno, end_col_offset):
+    def __init__(self, value, kind, lineno, col_offset, end_lineno, end_col_offset):
         super().__init__(lineno, col_offset, end_lineno, end_col_offset)
         self.value = value
         self.kind = kind
-        self.s = s
-        self.n = n
 
 
 class NamedExpr(expr):
@@ -541,39 +546,6 @@ class Attribute(expr):
         self.value = value
         self.attr = attr
         self.ctx = ctx
-
-
-class slice(AST):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
-
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
-
-
-class Slice(slice):
-    _FIELDS = ["lower", "upper", "step", "lineno", "col_offset", "end_lineno", "end_col_offset"]
-
-    def __init__(self, lower, upper, step, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
-        self.lower = lower
-        self.upper = upper
-        self.step = step
-
-
-class ExtSlice(slice):
-    _FIELDS = ["dims", "lineno", "col_offset", "end_lineno", "end_col_offset"]
-
-    def __init__(self, dims, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
-        self.dims = dims
-
-
-class Index(slice):
-    _FIELDS = ["value", "lineno", "col_offset", "end_lineno", "end_col_offset"]
-
-    def __init__(self, value, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
-        self.value = value
 
 
 class Subscript(expr):
@@ -622,308 +594,280 @@ class Tuple(expr):
         self.ctx = ctx
 
 
+class Slice(AST):
+    _FIELDS = ["lower", "upper", "step"]
+
+    def __init__(self, lower, upper, step):
+        super().__init__()
+        self.lower = lower
+        self.upper = upper
+        self.step = step
+
+
 class expr_context(AST):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
-
-
-class AugLoad(expr_context):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
-
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
-
-
-class AugStore(expr_context):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
-
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
-
-
-class Param(expr_context):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
-
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
-
-
-class Suite(mod):
-    _FIELDS = ["body", "lineno", "col_offset", "end_lineno", "end_col_offset"]
-
-    def __init__(self, body, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
-        self.body = body
+    def __init__(self):
+        super().__init__()
 
 
 class Del(expr_context):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Load(expr_context):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Store(expr_context):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class boolop(AST):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class And(boolop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Or(boolop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class operator(AST):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Add(operator):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class BitAnd(operator):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class BitOr(operator):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class BitXor(operator):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Div(operator):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class FloorDiv(operator):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class LShift(operator):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Mod(operator):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Mult(operator):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class MatMult(operator):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Pow(operator):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class RShift(operator):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Sub(operator):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class unaryop(AST):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Invert(unaryop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Not(unaryop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class UAdd(unaryop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class USub(unaryop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class cmpop(AST):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Eq(cmpop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Gt(cmpop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class GtE(cmpop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class In(cmpop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Is(cmpop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class IsNot(cmpop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class Lt(cmpop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class LtE(cmpop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class NotEq(cmpop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class NotIn(cmpop):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class comprehension(AST):
-    _FIELDS = [
-        "target",
-        "iter",
-        "ifs",
-        "is_async",
-        "lineno",
-        "col_offset",
-        "end_lineno",
-        "end_col_offset",
-    ]
+    _FIELDS = ["target", "iter", "ifs", "is_async"]
 
-    def __init__(self, target, iter, ifs, is_async, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self, target, iter, ifs, is_async):
+        super().__init__()
         self.target = target
         self.iter = iter
         self.ifs = ifs
@@ -931,36 +875,24 @@ class comprehension(AST):
 
 
 class excepthandler(AST):
-    _FIELDS = ["lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = []
 
-    def __init__(self, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self):
+        super().__init__()
 
 
 class ExceptHandler(excepthandler):
-    _FIELDS = ["type", "name", "body", "lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = ["type", "name", "body"]
 
-    def __init__(self, type, name, body, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self, type, name, body):
+        super().__init__()
         self.type = type
         self.name = name
         self.body = body
 
 
 class arguments(AST):
-    _FIELDS = [
-        "args",
-        "vararg",
-        "kwonlyargs",
-        "kw_defaults",
-        "kwarg",
-        "defaults",
-        "posonlyargs",
-        "lineno",
-        "col_offset",
-        "end_lineno",
-        "end_col_offset",
-    ]
+    _FIELDS = ["args", "vararg", "kwonlyargs", "kw_defaults", "kwarg", "defaults", "posonlyargs"]
 
     def __init__(
         self,
@@ -971,12 +903,8 @@ class arguments(AST):
         kwarg,
         defaults,
         posonlyargs,
-        lineno,
-        col_offset,
-        end_lineno,
-        end_col_offset,
     ):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+        super().__init__()
         self.args = args
         self.vararg = vararg
         self.kwonlyargs = kwonlyargs
@@ -987,44 +915,37 @@ class arguments(AST):
 
 
 class arg(AST):
-    _FIELDS = ["arg", "annotation", "lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = ["arg", "annotation"]
 
-    def __init__(self, arg, annotation, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self, arg, annotation):
+        super().__init__()
         self.arg = arg
         self.annotation = annotation
 
 
 class keyword(AST):
-    _FIELDS = ["arg", "value", "lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = ["arg", "value"]
 
-    def __init__(self, arg, value, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self, arg, value):
+        super().__init__()
         self.arg = arg
         self.value = value
 
 
 class alias(AST):
-    _FIELDS = ["name", "asname", "lineno", "col_offset", "end_lineno", "end_col_offset"]
+    _FIELDS = ["name", "asname"]
 
-    def __init__(self, name, asname, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self, name, asname):
+        super().__init__()
         self.name = name
         self.asname = asname
 
 
 class withitem(AST):
-    _FIELDS = [
-        "context_expr",
-        "optional_vars",
-        "lineno",
-        "col_offset",
-        "end_lineno",
-        "end_col_offset",
-    ]
+    _FIELDS = ["context_expr", "optional_vars"]
 
-    def __init__(self, context_expr, optional_vars, lineno, col_offset, end_lineno, end_col_offset):
-        super().__init__(lineno, col_offset, end_lineno, end_col_offset)
+    def __init__(self, context_expr, optional_vars):
+        super().__init__()
         self.context_expr = context_expr
         self.optional_vars = optional_vars
 
@@ -1079,20 +1000,13 @@ __all__ = [
     "Constant",
     "NamedExpr",
     "Attribute",
-    "slice",
     "Slice",
-    "ExtSlice",
-    "Index",
     "Subscript",
     "Starred",
     "Name",
     "List",
     "Tuple",
     "expr_context",
-    "AugLoad",
-    "AugStore",
-    "Param",
-    "Suite",
     "Del",
     "Load",
     "Store",

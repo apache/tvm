@@ -35,6 +35,7 @@
  *    4. This pass currently works for op_pattern kElemWise and kBroadcast.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/tir/builtin.h>
@@ -381,8 +382,10 @@ Pass UseAssumeToReduceBranches() {
   return CreatePrimFuncPass(pass_func, 0, "tir.UseAssumeToReduceBranches", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.UseAssumeToReduceBranches")
-    .set_body_typed(UseAssumeToReduceBranches);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.UseAssumeToReduceBranches", UseAssumeToReduceBranches);
+});
 
 }  // namespace transform
 

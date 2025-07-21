@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../../target/parsers/aprofile.h"
 #include "../utils.h"
 
@@ -187,17 +189,24 @@ SpaceGenerator SpaceGenerator::PySpaceGenerator(
   return SpaceGenerator(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  SpaceGeneratorNode::RegisterReflection();
+  PySpaceGeneratorNode::RegisterReflection();
+});
+
 TVM_REGISTER_OBJECT_TYPE(SpaceGeneratorNode);
 TVM_REGISTER_NODE_TYPE(PySpaceGeneratorNode);
 
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorInitializeWithTuneContext")
-    .set_body_method(&SpaceGeneratorNode::InitializeWithTuneContext);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorGenerateDesignSpace")
-    .set_body_method(&SpaceGeneratorNode::GenerateDesignSpace);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorPySpaceGenerator")
-    .set_body_typed(SpaceGenerator::PySpaceGenerator);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorClone")
-    .set_body_method(&SpaceGeneratorNode::Clone);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_method("meta_schedule.SpaceGeneratorInitializeWithTuneContext",
+                  &SpaceGeneratorNode::InitializeWithTuneContext)
+      .def_method("meta_schedule.SpaceGeneratorGenerateDesignSpace",
+                  &SpaceGeneratorNode::GenerateDesignSpace)
+      .def("meta_schedule.SpaceGeneratorPySpaceGenerator", SpaceGenerator::PySpaceGenerator)
+      .def_method("meta_schedule.SpaceGeneratorClone", &SpaceGeneratorNode::Clone);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

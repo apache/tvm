@@ -23,7 +23,6 @@ _CLASS_NDARRAY = None
 def _set_class_ndarray(cls):
     global _CLASS_NDARRAY
     _CLASS_NDARRAY = cls
-    _register_object_by_index(kTVMFFINDArray, cls)
 
 
 cdef const char* _c_str_dltensor = "dltensor"
@@ -268,6 +267,7 @@ cdef class NDArray(Object):
 
 
 _set_class_ndarray(NDArray)
+_register_object_by_index(kTVMFFINDArray, NDArray)
 
 
 cdef inline object make_ret_dltensor(TVMFFIAny result):

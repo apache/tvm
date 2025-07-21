@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../module_equality.h"
 #include "../utils.h"
 
@@ -29,9 +31,11 @@ class MemoryDatabaseNode : public DatabaseNode {
   Array<TuningRecord> records;
   Array<Workload> workloads;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("records", &records);
-    v->Visit("workloads", &workloads);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MemoryDatabaseNode>()
+        .def_ro("records", &MemoryDatabaseNode::records)
+        .def_ro("workloads", &MemoryDatabaseNode::workloads);
   }
 
   static constexpr const char* _type_key = "meta_schedule.MemoryDatabase";
@@ -97,8 +101,12 @@ Database Database::MemoryDatabase(String mod_eq_name) {
 }
 
 TVM_REGISTER_NODE_TYPE(MemoryDatabaseNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseMemoryDatabase")
-    .set_body_typed(Database::MemoryDatabase);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.DatabaseMemoryDatabase", Database::MemoryDatabase);
+});
+
+TVM_FFI_STATIC_INIT_BLOCK({ MemoryDatabaseNode::RegisterReflection(); });
 
 }  // namespace meta_schedule
 }  // namespace tvm

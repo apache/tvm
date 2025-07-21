@@ -22,42 +22,12 @@
  * \brief Passes that serve as helper functions.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/transform.h>
 
 namespace tvm {
 namespace tir {
 namespace transform {
-transform::Pass BindTarget(Target target) {
-  Target without_host = target.WithoutHost();
-  Target target_host = Downcast<Target>(target->host.value_or(Target("llvm")));
-
-  auto fpass = [target, target_host, without_host](tir::PrimFunc func, IRModule m,
-                                                   transform::PassContext ctx) {
-    bool is_externally_exposed = func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
-
-    if (auto func_target = func->GetAttr<Target>(tvm::attr::kTarget)) {
-      auto func_target_host = func_target.value()->GetHost();
-      auto target_host = target->GetHost();
-
-      if (target_host && !func_target_host && is_externally_exposed) {
-        auto new_target = Target::WithHost(func_target.value(), target_host.value());
-        func = WithAttr(std::move(func), tvm::attr::kTarget, new_target);
-      }
-    } else if (func->HasNonzeroAttr(tvm::tir::attr::kIsHostFunc)) {
-      func =
-          WithAttr(std::move(func), tvm::attr::kTarget, Target::WithHost(target_host, target_host));
-    } else if (is_externally_exposed) {
-      func = WithAttr(std::move(func), tvm::attr::kTarget, target);
-    } else {
-      func = WithAttr(std::move(func), tvm::attr::kTarget, without_host);
-    }
-
-    func = WithoutAttr(std::move(func), tvm::tir::attr::kIsHostFunc);
-
-    return func;
-  };
-  return tir::transform::CreatePrimFuncPass(fpass, 0, "tir.BindTarget", {});
-}
 
 transform::Pass AnnotateEntryFunc() {
   auto fpass = [](IRModule mod, transform::PassContext ctx) -> IRModule {
@@ -109,9 +79,12 @@ transform::Pass Filter(ffi::TypedFunction<bool(PrimFunc)> fcond) {
   return tir::transform::CreatePrimFuncPass(fpass, 0, "tir.Filter", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.BindTarget").set_body_typed(BindTarget);
-TVM_FFI_REGISTER_GLOBAL("tir.transform.AnnotateEntryFunc").set_body_typed(AnnotateEntryFunc);
-TVM_FFI_REGISTER_GLOBAL("tir.transform.Filter").set_body_typed(Filter);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("tir.transform.AnnotateEntryFunc", AnnotateEntryFunc)
+      .def("tir.transform.Filter", Filter);
+});
 
 }  // namespace transform
 }  // namespace tir

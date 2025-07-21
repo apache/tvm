@@ -22,6 +22,7 @@
  * \brief Utility transformation that applies an inner pass to a subset of an IRModule
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
 #include <tvm/relax/expr.h>
 #include <tvm/tir/function.h>
@@ -88,7 +89,6 @@ Pass ApplyPassToFunction(Pass pass, String func_name_regex,
         keep_original_version.insert(gvar->name_hint);
         func = relax::ExternFunc("dummy_" + name);
         func->struct_info_ = gvar->struct_info_;
-        func->checked_type_ = gvar->checked_type_;
       }
 
       subset->Add(gvar, func);
@@ -130,7 +130,10 @@ Pass ApplyPassToFunction(Pass pass, String func_name_regex,
   return CreateModulePass(pass_func, 0, pass_name, {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("transform.ApplyPassToFunction").set_body_typed(ApplyPassToFunction);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("transform.ApplyPassToFunction", ApplyPassToFunction);
+});
 
 }  // namespace transform
 }  // namespace tvm

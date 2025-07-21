@@ -535,7 +535,6 @@ def test_tuple_return_2():
     _check(foo, bb.get()["foo"])
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="requires python3.8 or higher")
 def test_tuple_binding():
     @R.function
     def foo(x: R.Tensor("float32", ndim=2)):
@@ -557,7 +556,6 @@ def test_tuple_binding():
     _check(foo, bb.get()["foo"])
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="requires python3.8 or higher")
 def test_tuple_get_item():
     @R.function
     def foo(x: R.Tensor, y: R.Tensor):
@@ -1670,7 +1668,6 @@ def test_undefined_symbolic_var_raises_error():
             return z
 
 
-@pytest.mark.skipif(sys.version_info < (3, 8), reason="requires python3.8 or higher")
 def test_arith_operators():
     @R.function
     def foo(x: R.Tensor(("m", "n"), "float32"), y: R.Tensor(("m", "n"), "float32")):

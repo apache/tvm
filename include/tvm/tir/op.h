@@ -92,6 +92,14 @@ TVM_DLL runtime::DataType GetRuntimeDataType(const Type& type);
 TVM_DLL PrimExpr ret(PrimExpr value, Span span = Span());
 
 /*!
+ * \brief Return from a thread.
+ *
+ * \param span The location of this operation in the source.
+ * \return The return expression.
+ */
+TVM_DLL PrimExpr thread_return(Span span = Span());
+
+/*!
  * Query the maximum possible value of dtype.
  * \param dtype The data type.
  * \param span The location of this operation in the source.

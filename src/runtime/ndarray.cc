@@ -22,6 +22,7 @@
  * \brief NDArray container infratructure.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/base.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
@@ -215,19 +216,16 @@ void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle str
 
 using namespace tvm::runtime;
 
-TVM_FFI_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body_typed(NDArray::Empty);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.TVMArrayCreateView").set_body_method(&NDArray::CreateView);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.TVMArrayCopyFromBytes")
-    .set_body_typed([](DLTensor* arr, void* data, size_t nbytes) {
-      ArrayCopyFromBytes(arr, data, nbytes);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("runtime.TVMArrayCopyToBytes")
-    .set_body_typed([](DLTensor* arr, void* data, size_t nbytes) {
-      NDArray::CopyToBytes(arr, data, nbytes);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("runtime.TVMArrayCopyFromTo")
-    .set_body_typed([](DLTensor* from, DLTensor* to) { NDArray::CopyFromTo(from, to); });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.TVMArrayAllocWithScope", NDArray::Empty)
+      .def_method("runtime.TVMArrayCreateView", &NDArray::CreateView)
+      .def("runtime.TVMArrayCopyFromBytes",
+           [](DLTensor* arr, void* data, size_t nbytes) { ArrayCopyFromBytes(arr, data, nbytes); })
+      .def(
+          "runtime.TVMArrayCopyToBytes",
+          [](DLTensor* arr, void* data, size_t nbytes) { NDArray::CopyToBytes(arr, data, nbytes); })
+      .def("runtime.TVMArrayCopyFromTo",
+           [](DLTensor* from, DLTensor* to) { NDArray::CopyFromTo(from, to); });
+});

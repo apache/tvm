@@ -23,6 +23,7 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/reflection.h>
@@ -43,10 +44,12 @@ class BuilderInputNode : public runtime::Object {
   /*! \brief Parameters for Relax build module. */
   Optional<Map<String, runtime::NDArray>> params;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("mod", &mod);
-    v->Visit("target", &target);
-    v->Visit("params", &params);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BuilderInputNode>()
+        .def_ro("mod", &BuilderInputNode::mod)
+        .def_ro("target", &BuilderInputNode::target)
+        .def_ro("params", &BuilderInputNode::params);
   }
 
   static constexpr const char* _type_key = "meta_schedule.BuilderInput";
@@ -78,9 +81,11 @@ class BuilderResultNode : public runtime::Object {
   /*! \brief The error message if any. */
   Optional<String> error_msg;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("artifact_path", &artifact_path);
-    v->Visit("error_msg", &error_msg);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BuilderResultNode>()
+        .def_ro("artifact_path", &BuilderResultNode::artifact_path)
+        .def_ro("error_msg", &BuilderResultNode::error_msg);
   }
 
   static constexpr const char* _type_key = "meta_schedule.BuilderResult";
@@ -145,8 +150,9 @@ class PyBuilderNode : public BuilderNode {
   /*! \brief The packed function to the `Build` function. */
   FBuild f_build;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_build` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PyBuilderNode>().def_ro("f_build", &PyBuilderNode::f_build);
   }
 
   Array<BuilderResult> Build(const Array<BuilderInput>& build_inputs) final {

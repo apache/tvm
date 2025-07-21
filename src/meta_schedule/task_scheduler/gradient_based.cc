@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -31,13 +33,11 @@ class GradientBasedNode final : public TaskSchedulerNode {
   int round_robin_rounds_;
   std::vector<std::vector<double>> best_latency_history_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TaskSchedulerNode::VisitAttrs(v);
-    v->Visit("alpha", &alpha);
-    v->Visit("window_size", &window_size);
-    // `rand_state` is not visited.
-    // `num_rounds_already_` is not visited.
-    // `best_latency_history_` is not visited.
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<GradientBasedNode>()
+        .def_ro("alpha", &GradientBasedNode::alpha)
+        .def_ro("window_size", &GradientBasedNode::window_size);
   }
 
   static constexpr const char* _type_key = "meta_schedule.GradientBased";
@@ -144,9 +144,13 @@ TaskScheduler TaskScheduler::GradientBased(ffi::Function logger, double alpha, i
   return TaskScheduler(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ GradientBasedNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(GradientBasedNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerGradientBased")
-    .set_body_typed(TaskScheduler::GradientBased);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.TaskSchedulerGradientBased", TaskScheduler::GradientBased);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

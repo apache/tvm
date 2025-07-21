@@ -44,39 +44,6 @@ using runtime::ObjectPtr;
 using runtime::ObjectRef;
 
 /*!
- * \brief Visitor class to get the attributes of an AST/IR node.
- *  The content is going to be called for each field.
- *
- *  Each objects that wants reflection will need to implement
- *  a VisitAttrs function and call visitor->Visit on each of its field.
- */
-class AttrVisitor {
- public:
-  //! \cond Doxygen_Suppress
-  TVM_DLL virtual ~AttrVisitor() = default;
-  TVM_DLL virtual void Visit(const char* key, double* value) = 0;
-  TVM_DLL virtual void Visit(const char* key, int64_t* value) = 0;
-  TVM_DLL virtual void Visit(const char* key, uint64_t* value) = 0;
-  TVM_DLL virtual void Visit(const char* key, int* value) = 0;
-  TVM_DLL virtual void Visit(const char* key, bool* value) = 0;
-  TVM_DLL virtual void Visit(const char* key, std::string* value) = 0;
-  TVM_DLL virtual void Visit(const char* key, void** value) = 0;
-  TVM_DLL virtual void Visit(const char* key, DataType* value) = 0;
-  TVM_DLL virtual void Visit(const char* key, runtime::NDArray* value) = 0;
-  TVM_DLL virtual void Visit(const char* key, ffi::ObjectRef* value) = 0;
-  TVM_DLL virtual void Visit(const char* key, Optional<double>* value) = 0;
-  TVM_DLL virtual void Visit(const char* key, Optional<int64_t>* value) = 0;
-
-  template <typename ENum, typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
-  void Visit(const char* key, ENum* ptr) {
-    static_assert(std::is_same<int, typename std::underlying_type<ENum>::type>::value,
-                  "declare enum to be enum int to use visitor");
-    this->Visit(key, reinterpret_cast<int*>(ptr));
-  }
-  //! \endcond
-};
-
-/*!
  * \brief Virtual function table to support IR/AST node reflection.
  *
  * Functions are stored in columnar manner.
@@ -84,13 +51,6 @@ class AttrVisitor {
  */
 class ReflectionVTable {
  public:
-  /*!
-   * \brief Visitor function.
-   * \note We use function pointer, instead of std::function
-   *       to reduce the dispatch overhead as field visit
-   *       does not need as much customization.
-   */
-  typedef void (*FVisitAttrs)(Object* self, AttrVisitor* visitor);
   /*!
    * \brief Equality comparison function.
    */
@@ -112,12 +72,6 @@ class ReflectionVTable {
    * \return bytes The bytes that can be used to recover the object.
    */
   typedef std::string (*FReprBytes)(const Object* self);
-  /*!
-   * \brief Dispatch the VisitAttrs function.
-   * \param self The pointer to the object.
-   * \param visitor The attribute visitor.
-   */
-  inline void VisitAttrs(Object* self, AttrVisitor* visitor) const;
   /*!
    * \brief Get repr bytes if any.
    * \param self The pointer to the object.
@@ -188,8 +142,6 @@ class ReflectionVTable {
   inline Registry Register();
 
  private:
-  /*! \brief Attribute visitor. */
-  std::vector<FVisitAttrs> fvisit_attrs_;
   /*! \brief Structural equal function. */
   std::vector<FSEqualReduce> fsequal_reduce_;
   /*! \brief Structural hash function. */
@@ -237,14 +189,14 @@ class ReflectionVTable::Registry {
 /*!
  * \brief Directly register reflection VTable.
  * \param TypeName The name of the type.
- * \param TraitName A trait class that implements functions like VisitAttrs and SEqualReduce.
+ * \param TraitName A trait class that implements functions like SEqualReduce.
  *
  * \code
  *
  *  // Example SEQualReduce traits for runtime StringObj.
  *
  *  struct StringObjTrait {
- *    static constexpr const std::nullptr_t VisitAttrs = nullptr;
+ *
  *
  *    static void SHashReduce(const StringObj* key, SHashReducer hash_reduce) {
  *      hash_reduce->SHashReduceHashedValue(String::StableHashBytes(key->data, key->size));
@@ -286,16 +238,6 @@ class ReflectionVTable::Registry {
 // Implementation details
 namespace detail {
 
-template <typename T, bool = T::_type_has_method_visit_attrs>
-struct ImplVisitAttrs {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-};
-
-template <typename T>
-struct ImplVisitAttrs<T, true> {
-  static void VisitAttrs(T* self, AttrVisitor* v) { self->VisitAttrs(v); }
-};
-
 template <typename T, bool = T::_type_has_method_sequal_reduce>
 struct ImplSEqualReduce {
   static constexpr const std::nullptr_t SEqualReduce = nullptr;
@@ -321,22 +263,7 @@ struct ImplSHashReduce<T, true> {
 };
 
 template <typename T>
-struct ReflectionTrait : public ImplVisitAttrs<T>,
-                         public ImplSEqualReduce<T>,
-                         public ImplSHashReduce<T> {};
-
-template <typename T, typename TraitName,
-          bool = std::is_null_pointer<decltype(TraitName::VisitAttrs)>::value>
-struct SelectVisitAttrs {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-};
-
-template <typename T, typename TraitName>
-struct SelectVisitAttrs<T, TraitName, false> {
-  static void VisitAttrs(Object* self, AttrVisitor* v) {
-    TraitName::VisitAttrs(static_cast<T*>(self), v);
-  }
-};
+struct ReflectionTrait : public ImplSEqualReduce<T>, public ImplSHashReduce<T> {};
 
 template <typename T, typename TraitName,
           bool = std::is_null_pointer<decltype(TraitName::SEqualReduce)>::value>
@@ -370,29 +297,18 @@ struct SelectSHashReduce<T, TraitName, false> {
 template <typename T, typename TraitName>
 inline ReflectionVTable::Registry ReflectionVTable::Register() {
   uint32_t tindex = T::RuntimeTypeIndex();
-  if (tindex >= fvisit_attrs_.size()) {
-    fvisit_attrs_.resize(tindex + 1, nullptr);
+  if (tindex >= fcreate_.size()) {
     fcreate_.resize(tindex + 1, nullptr);
     frepr_bytes_.resize(tindex + 1, nullptr);
     fsequal_reduce_.resize(tindex + 1, nullptr);
     fshash_reduce_.resize(tindex + 1, nullptr);
   }
   // functor that implements the redirection.
-  fvisit_attrs_[tindex] = ::tvm::detail::SelectVisitAttrs<T, TraitName>::VisitAttrs;
-
   fsequal_reduce_[tindex] = ::tvm::detail::SelectSEqualReduce<T, TraitName>::SEqualReduce;
 
   fshash_reduce_[tindex] = ::tvm::detail::SelectSHashReduce<T, TraitName>::SHashReduce;
 
   return Registry(this, tindex);
-}
-
-inline void ReflectionVTable::VisitAttrs(Object* self, AttrVisitor* visitor) const {
-  uint32_t tindex = self->type_index();
-  if (tindex >= fvisit_attrs_.size() || fvisit_attrs_[tindex] == nullptr) {
-    return;
-  }
-  fvisit_attrs_[tindex](self, visitor);
 }
 
 inline bool ReflectionVTable::GetReprBytes(const Object* self, std::string* repr_bytes) const {

@@ -21,6 +21,7 @@
  * \brief Replace copy from global to shared with async copy
  * \file inject_ptx_async_copy.cc
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -199,7 +200,10 @@ Pass InjectPTXAsyncCopy() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InjectPTXAsyncCopy", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.InjectPTXAsyncCopy").set_body_typed(InjectPTXAsyncCopy);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.InjectPTXAsyncCopy", InjectPTXAsyncCopy);
+});
 
 }  // namespace transform
 

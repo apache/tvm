@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -111,7 +113,10 @@ class RandomComputeLocationNode : public ScheduleRuleNode {
   }
 
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RandomComputeLocationNode>();
+  }
 
   static constexpr const char* _type_key = "meta_schedule.RandomComputeLocation";
   TVM_DECLARE_FINAL_OBJECT_INFO(RandomComputeLocationNode, ScheduleRuleNode);
@@ -121,8 +126,13 @@ ScheduleRule ScheduleRule::RandomComputeLocation() {
   return ScheduleRule(make_object<RandomComputeLocationNode>());
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ RandomComputeLocationNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(RandomComputeLocationNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleRandomComputeLocation")
-    .set_body_typed(ScheduleRule::RandomComputeLocation);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.ScheduleRuleRandomComputeLocation",
+                        ScheduleRule::RandomComputeLocation);
+});
 }  // namespace meta_schedule
 }  // namespace tvm

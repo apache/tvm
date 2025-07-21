@@ -1896,7 +1896,7 @@ export class Instance implements Disposable {
 
   /** Register all object factory */
   private registerObjectFactoryFuncs(): void {
-    this.registerObjectConstructor("object.Array",
+    this.registerObjectConstructor("ffi.Array",
       (handle: number, lib: FFILibrary, ctx: RuntimeContext) => {
         return new TVMArray(handle, lib, ctx);
       });
@@ -2139,7 +2139,7 @@ export class Instance implements Disposable {
         const errMsgOffset = stack.allocRawBytes(errMsg.length + 1);
         stack.storeRawBytes(errMsgOffset, StringToUint8Array(errMsg));
         stack.commitToWasmMemory();
-        (this.lib.exports.FTVMFFIErrorSetRaisedByCStr as ctypes.FTVMFFIErrorSetRaisedByCStr)(
+        (this.lib.exports.FTVMFFIErrorSetRaisedFromCStr as ctypes.FTVMFFIErrorSetRaisedFromCStr)(
           stack.ptrFromOffset(errKindOffset),
           stack.ptrFromOffset(errMsgOffset)
         );

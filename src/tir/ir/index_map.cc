@@ -24,6 +24,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/int_set.h>
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/tir/index_map.h>
 #include <tvm/tir/op.h>
@@ -33,6 +34,8 @@
 
 namespace tvm {
 namespace tir {
+
+TVM_FFI_STATIC_INIT_BLOCK({ IndexMapNode::RegisterReflection(); });
 
 IndexMap::IndexMap(Array<Var> initial_indices, Array<PrimExpr> final_indices,
                    Optional<IndexMap> inverse_index_map) {
@@ -419,39 +422,37 @@ IndexMap Substitute(const IndexMap& index_map,
 
 TVM_REGISTER_NODE_TYPE(IndexMapNode);
 
-TVM_FFI_REGISTER_GLOBAL("tir.IndexMap")
-    .set_body_typed([](Array<Var> initial_indices, Array<PrimExpr> final_indices,
-                       Optional<IndexMap> inverse_index_map) {
-      return IndexMap(initial_indices, final_indices, inverse_index_map);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("tir.IndexMapMapIndices")
-    .set_body_typed([](IndexMap map, Array<PrimExpr> indices) {
-      arith::Analyzer analyzer;
-      return map->MapIndices(indices, &analyzer);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("tir.IndexMapMapShape")
-    .set_body_typed([](IndexMap map, Array<PrimExpr> shape) {
-      arith::Analyzer analyzer;
-      return map->MapShape(shape, &analyzer);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("tir.IndexMapInverse")
-    .set_body_typed([](IndexMap map, Array<Range> initial_ranges) {
-      arith::Analyzer analyzer;
-      return map.Inverse(initial_ranges, &analyzer);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("tir.IndexMapMapNDArray")
-    .set_body_typed([](IndexMap map, runtime::NDArray arr) { return map->MapNDArray(arr); });
-
-TVM_FFI_REGISTER_GLOBAL("tir.IndexMapNonSurjectiveInverse")
-    .set_body_typed([](IndexMap forward, Array<Range> initial_ranges) {
-      arith::Analyzer analyzer;
-      auto result = forward.NonSurjectiveInverse(initial_ranges, &analyzer);
-      return Array<ObjectRef>{result.first, result.second};
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("tir.IndexMap",
+           [](Array<Var> initial_indices, Array<PrimExpr> final_indices,
+              Optional<IndexMap> inverse_index_map) {
+             return IndexMap(initial_indices, final_indices, inverse_index_map);
+           })
+      .def("tir.IndexMapMapIndices",
+           [](IndexMap map, Array<PrimExpr> indices) {
+             arith::Analyzer analyzer;
+             return map->MapIndices(indices, &analyzer);
+           })
+      .def("tir.IndexMapMapShape",
+           [](IndexMap map, Array<PrimExpr> shape) {
+             arith::Analyzer analyzer;
+             return map->MapShape(shape, &analyzer);
+           })
+      .def("tir.IndexMapInverse",
+           [](IndexMap map, Array<Range> initial_ranges) {
+             arith::Analyzer analyzer;
+             return map.Inverse(initial_ranges, &analyzer);
+           })
+      .def("tir.IndexMapMapNDArray",
+           [](IndexMap map, runtime::NDArray arr) { return map->MapNDArray(arr); })
+      .def("tir.IndexMapNonSurjectiveInverse", [](IndexMap forward, Array<Range> initial_ranges) {
+        arith::Analyzer analyzer;
+        auto result = forward.NonSurjectiveInverse(initial_ranges, &analyzer);
+        return Array<ObjectRef>{result.first, result.second};
+      });
+});
 
 }  // namespace tir
 }  // namespace tvm

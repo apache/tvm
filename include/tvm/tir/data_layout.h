@@ -25,6 +25,7 @@
 #ifndef TVM_TIR_DATA_LAYOUT_H_
 #define TVM_TIR_DATA_LAYOUT_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
@@ -107,9 +108,11 @@ class LayoutNode : public Object {
    */
   Array<tir::IterVar> axes;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("axes", &axes);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LayoutNode>()
+        .def_ro("name", &LayoutNode::name)
+        .def_ro("axes", &LayoutNode::axes);
   }
 
   static constexpr const char* _type_key = "tir.Layout";
@@ -310,13 +313,15 @@ class BijectiveLayoutNode : public Object {
   /*! \brief The destination layout */
   Layout dst_layout;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("src_layout", &src_layout);
-    v->Visit("dst_layout", &dst_layout);
-    v->Visit("index_forward_rule", &index_forward_rule);
-    v->Visit("index_backward_rule", &index_backward_rule);
-    v->Visit("shape_forward_rule", &shape_forward_rule);
-    v->Visit("shape_backward_rule", &shape_backward_rule);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BijectiveLayoutNode>()
+        .def_ro("src_layout", &BijectiveLayoutNode::src_layout)
+        .def_ro("dst_layout", &BijectiveLayoutNode::dst_layout)
+        .def_ro("index_forward_rule", &BijectiveLayoutNode::index_forward_rule)
+        .def_ro("index_backward_rule", &BijectiveLayoutNode::index_backward_rule)
+        .def_ro("shape_forward_rule", &BijectiveLayoutNode::shape_forward_rule)
+        .def_ro("shape_backward_rule", &BijectiveLayoutNode::shape_backward_rule);
   }
 
   static constexpr const char* _type_key = "tir.BijectiveLayout";

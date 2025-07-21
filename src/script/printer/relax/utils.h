@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_RELAX_UTILS_H_
 #define TVM_SCRIPT_PRINTER_RELAX_UTILS_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
@@ -43,10 +44,11 @@ class RelaxFrameNode : public FrameNode {
   bool module_alias_printed = false;
   std::unordered_set<const tir::VarNode*>* func_vars = nullptr;
 
-  void VisitAttrs(AttrVisitor* v) {
-    FrameNode::VisitAttrs(v);
-    v->Visit("is_global_func", &is_func);
-    // `func_var_to_define` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RelaxFrameNode>()
+        .def_ro("is_func", &RelaxFrameNode::is_func)
+        .def_ro("module_alias_printed", &RelaxFrameNode::module_alias_printed);
   }
 
   static constexpr const char* _type_key = "script.printer.RelaxFrame";

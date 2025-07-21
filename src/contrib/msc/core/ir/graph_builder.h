@@ -25,6 +25,7 @@
 #define TVM_CONTRIB_MSC_CORE_IR_GRAPH_BUILDER_H_
 
 #include <dmlc/json.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/runtime/ndarray.h>
@@ -106,7 +107,7 @@ struct MSCRBuildConfig {
   }
 };
 
-class AttrGetter : public AttrVisitor {
+class AttrGetter {
  public:
   /*!
    * \brief Get the attributes as Map<String, String>
@@ -114,48 +115,58 @@ class AttrGetter : public AttrVisitor {
    */
   explicit AttrGetter(Map<String, String>* attrs) : attrs_(attrs) {}
 
-  void Visit(const char* key, double* value) final { attrs_->Set(key, std::to_string(*value)); }
-
-  void Visit(const char* key, int64_t* value) final { attrs_->Set(key, std::to_string(*value)); }
-
-  void Visit(const char* key, uint64_t* value) final { attrs_->Set(key, std::to_string(*value)); }
-
-  void Visit(const char* key, int* value) final { attrs_->Set(key, std::to_string(*value)); }
-
-  void Visit(const char* key, bool* value) final { attrs_->Set(key, std::to_string(*value)); }
-
-  void Visit(const char* key, std::string* value) final { attrs_->Set(key, *value); }
-
-  void Visit(const char* key, Optional<double>* value) final {
-    if (value->has_value()) {
-      attrs_->Set(key, std::to_string(value->value()));
+  void operator()(const Attrs& attrs) {
+    if (const auto* dict_attrs = attrs.as<DictAttrsNode>()) {
+      for (const auto& [key, value] : dict_attrs->dict) {
+        this->VisitAny(key, value);
+      }
     } else {
-      attrs_->Set(key, "");
+      const TVMFFITypeInfo* attrs_tinfo = TVMFFIGetTypeInfo(attrs->type_index());
+      if (attrs_tinfo->extra_info != nullptr) {
+        tvm::ffi::reflection::ForEachFieldInfo(attrs_tinfo, [&](const TVMFFIFieldInfo* field_info) {
+          Any field_value = tvm::ffi::reflection::FieldGetter(field_info)(attrs);
+          this->VisitAny(String(field_info->name), field_value);
+        });
+      }
     }
   }
 
-  void Visit(const char* key, Optional<int64_t>* value) final {
-    if (value->has_value()) {
-      attrs_->Set(key, std::to_string(value->value()));
-    } else {
-      attrs_->Set(key, "");
+ private:
+  void VisitAny(String key, Any value) {
+    switch (value.type_index()) {
+      case kTVMFFINone: {
+        attrs_->Set(key, "");
+        break;
+      }
+      case kTVMFFIBool: {
+        attrs_->Set(key, std::to_string(value.cast<bool>()));
+        break;
+      }
+      case kTVMFFIInt: {
+        attrs_->Set(key, std::to_string(value.cast<int64_t>()));
+        break;
+      }
+      case kTVMFFIFloat: {
+        attrs_->Set(key, std::to_string(value.cast<double>()));
+        break;
+      }
+      case kTVMFFIDataType: {
+        attrs_->Set(key, runtime::DLDataTypeToString(value.cast<DLDataType>()));
+        break;
+      }
+      case kTVMFFIStr: {
+        attrs_->Set(key, value.cast<String>());
+        break;
+      }
+      default: {
+        if (value.type_index() >= kTVMFFIStaticObjectBegin) {
+          attrs_->Set(key, StringUtils::ToString(value.cast<ObjectRef>()));
+        } else {
+          LOG(FATAL) << "Unsupported type: " << value.type_index();
+        }
+        break;
+      }
     }
-  }
-
-  void Visit(const char* key, DataType* value) final {
-    attrs_->Set(key, runtime::DLDataTypeToString(*value));
-  }
-
-  void Visit(const char* key, runtime::ObjectRef* value) final {
-    attrs_->Set(key, StringUtils::ToString(*value));
-  }
-
-  void Visit(const char* key, void** value) final {
-    LOG(FATAL) << "TypeError: void is not allowed in Attrs";
-  }
-
-  void Visit(const char* key, runtime::NDArray* value) final {
-    LOG(FATAL) << "TypeError: NDArray is not allowed in Attrs";
   }
 
  private:

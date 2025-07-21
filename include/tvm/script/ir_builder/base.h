@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_IR_BUILDER_BASE_H_
 #define TVM_SCRIPT_IR_BUILDER_BASE_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/function.h>
 #include <tvm/node/node.h>
@@ -66,8 +67,10 @@ class IRBuilderFrameNode : public runtime::Object {
   /*! \brief A list of callbacks used when exiting the frame. */
   std::vector<ffi::TypedFunction<void()>> callbacks;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `callbacks` is not visited.
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IRBuilderFrameNode>();
+    // `callbacks` is not registered as it's not visited.
   }
 
   static constexpr const char* _type_key = "script.ir_builder.IRBuilderFrame";
@@ -158,9 +161,11 @@ class IRBuilderNode : public runtime::Object {
   /*! \brief The outcome of IR construction */
   Optional<ObjectRef> result;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("frames", &frames);
-    v->Visit("result", &result);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IRBuilderNode>()
+        .def_ro("frames", &IRBuilderNode::frames)
+        .def_ro("result", &IRBuilderNode::result);
   }
 
   static constexpr const char* _type_key = "script.ir_builder.IRBuilder";

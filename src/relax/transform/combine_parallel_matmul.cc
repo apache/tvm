@@ -18,6 +18,7 @@
  */
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/dataflow_pattern.h>
@@ -387,8 +388,10 @@ Pass CombineParallelMatmul(FCheck check) {
                             /*required=*/{});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.CombineParallelMatmul")
-    .set_body_typed(CombineParallelMatmul);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.CombineParallelMatmul", CombineParallelMatmul);
+});
 
 }  // namespace transform
 

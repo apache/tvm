@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/transform.h>
@@ -240,7 +241,7 @@ Pass RemoveUnusedOutputs() {
             const auto& usage_mask = it->second;
             auto new_func = UpdateCallee(func.value(), usage_mask);
 
-            GlobalVar new_gvar(gvar->name_hint, new_func->checked_type_);
+            GlobalVar new_gvar(gvar->name_hint);
             new_gvar->struct_info_ = new_func->struct_info_;
             new_callees->Add(new_gvar, new_func);
 
@@ -336,7 +337,10 @@ Pass RemoveUnusedOutputs() {
       "RemoveUnusedOutputs");
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.RemoveUnusedOutputs").set_body_typed(RemoveUnusedOutputs);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.RemoveUnusedOutputs", RemoveUnusedOutputs);
+});
 
 }  // namespace transform
 

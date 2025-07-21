@@ -24,6 +24,7 @@
 #define TVM_RELAX_EXEC_BUILDER_H_
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
@@ -137,7 +138,10 @@ class ExecBuilderNode : public Object {
    */
   TVM_DLL static ExecBuilder Create();
 
-  void VisitAttrs(AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ExecBuilderNode>();
+  }
 
   static constexpr const char* _type_key = "relax.ExecBuilder";
   TVM_DECLARE_FINAL_OBJECT_INFO(ExecBuilderNode, Object);

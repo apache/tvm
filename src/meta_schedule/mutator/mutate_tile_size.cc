@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include <mutex>
 #include <unordered_map>
 
@@ -54,7 +56,11 @@ int64_t Product(const std::vector<int64_t>& array) {
 /*! \brief A mutator that mutates the tile size */
 class MutateTileSizeNode : public MutatorNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MutateTileSizeNode>();
+  }
+
   static constexpr const char* _type_key = "meta_schedule.MutateTileSize";
   TVM_DECLARE_FINAL_OBJECT_INFO(MutateTileSizeNode, MutatorNode);
 
@@ -268,9 +274,13 @@ Optional<Trace> MutateTileSizeNode::Apply(const Trace& trace, TRandState* rand_s
 
 Mutator Mutator::MutateTileSize() { return Mutator(make_object<MutateTileSizeNode>()); }
 
+TVM_FFI_STATIC_INIT_BLOCK({ MutateTileSizeNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(MutateTileSizeNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.MutatorMutateTileSize")
-    .set_body_typed(Mutator::MutateTileSize);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.MutatorMutateTileSize", Mutator::MutateTileSize);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

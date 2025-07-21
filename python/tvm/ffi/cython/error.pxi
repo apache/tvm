@@ -26,43 +26,6 @@ _WITH_APPEND_TRACEBACK = None
 _TRACEBACK_TO_STR = None
 
 
-cdef inline int _raise_not_implemented_with_extra_frame(
-    const char* func_name,
-    int lineno,
-    const char* file_path
-) except -1:
-    """Helper util, raise internal """
-    PyErr_SetNone(NotImplementedError)
-    __Pyx_AddTraceback_(func_name, 0, lineno, file_path)
-    return -1
-
-
-def _append_traceback_frame(tb, filename, lineno, func):
-    """Append tracebacks to frame.
-
-    Parameters
-    ----------
-    tb : types.TracebackType
-        The traceback to append to.
-
-    filename : str
-        The filename of the traceback
-    lineno : int
-        The line number of the traceback
-    func : str
-        The function name of the traceback
-    """
-    try:
-        _raise_not_implemented_with_extra_frame(
-            c_str(func), lineno, c_str(filename)
-        )
-    except NotImplementedError as e:
-        dummy_tb = e.__traceback__
-    # skip the first frame which is the dummy frame
-    new_frame = dummy_tb.tb_next
-    return types.TracebackType(tb, new_frame.tb_frame, new_frame.tb_lasti, new_frame.tb_lineno)
-
-
 cdef class Error(Object):
     """Base class for all FFI errors, usually they are attached to errors
 
@@ -112,6 +75,7 @@ cdef class Error(Object):
     @property
     def traceback(self):
         return bytearray_to_str(&(TVMFFIErrorGetCellPtr(self.chandle).traceback))
+
 
 _register_object_by_index(kTVMFFIError, Error)
 

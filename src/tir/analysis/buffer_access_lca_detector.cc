@@ -22,6 +22,7 @@
  * \brief Detect the lowest common ancestor(LCA) of buffer access
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -147,7 +148,7 @@ class LCADetector : public StmtExprVisitor {
     auto do_collect_itervar_scope = [this](const IterVar& itervar,
                                            const PrimExpr& binding) -> const ScopeInfo* {
       const ScopeInfo* highest_scope = nullptr;
-      PostOrderVisit(binding, [this, &itervar, &highest_scope](const ObjectRef& obj) {
+      PostOrderVisit(binding, [this, &highest_scope](const ObjectRef& obj) {
         if (const VarNode* loop_var = obj.as<VarNode>()) {
           auto it = loop_scope_map_.find(loop_var);
           if (it == loop_scope_map_.end()) {
@@ -346,7 +347,9 @@ Map<Buffer, Optional<Stmt>> DetectBufferAccessLCA(const PrimFunc& func) {
   return LCADetector::Detect(func);
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.analysis.detect_buffer_access_lca")
-    .set_body_typed(DetectBufferAccessLCA);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.analysis.detect_buffer_access_lca", DetectBufferAccessLCA);
+});
 }  // namespace tir
 }  // namespace tvm

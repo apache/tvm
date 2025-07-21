@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -75,7 +76,7 @@ class FunctionInliner : public ExprMutator {
       }
     }
 
-    return std::move(node);
+    return node;
   }
 
  private:
@@ -138,7 +139,7 @@ class FunctionInliner : public ExprMutator {
   }
 
   const Map<Variant<String, GlobalVar>, Function>& replacements_;
-  support::OrderedSet<GlobalVar> inline_stack_;
+  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> inline_stack_;
 };
 }  // namespace
 
@@ -164,7 +165,10 @@ Function FunctionInlineFunctions(Function func,
   return Downcast<Function>(mutator(std::move(func)));
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.FunctionInlineFunctions").set_body_typed(FunctionInlineFunctions);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.FunctionInlineFunctions", FunctionInlineFunctions);
+});
 
 namespace transform {
 
@@ -219,8 +223,10 @@ Pass InlinePrivateFunctions() {
   return tvm::transform::CreateModulePass(pass_func, 0, "InlinePrivateFunctions", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.InlinePrivateFunctions")
-    .set_body_typed(InlinePrivateFunctions);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.InlinePrivateFunctions", InlinePrivateFunctions);
+});
 
 }  // namespace transform
 

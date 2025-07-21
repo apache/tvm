@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/expr_functor.h>
@@ -202,7 +203,8 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     BufferLoad load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(_op));
     const Buffer& buffer = SubstituteBuffer(load->buffer);
     if (buffer.same_as(load->buffer)) {
-      return std::move(load);
+      return load;
+
     } else {
       auto n = make_object<BufferLoadNode>(*load.get());
       n->buffer = buffer;
@@ -214,7 +216,8 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
     BufferStore store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(_op));
     const Buffer& buffer = SubstituteBuffer(store->buffer);
     if (buffer.same_as(store->buffer)) {
-      return std::move(store);
+      return store;
+
     } else {
       auto n = make_object<BufferStoreNode>(*store.get());
       n->buffer = buffer;
@@ -271,7 +274,8 @@ class FuseTIRBufferSubstitutor : private StmtExprMutator {
         writes.same_as(block->writes) &&  //
         match_buffers.same_as(block->match_buffers) &&
         alloc_buffers.same_as(block->alloc_buffers)) {
-      return std::move(block);
+      return block;
+
     } else {
       auto n = CopyOnWrite(block.get());
       n->reads = std::move(reads);
@@ -342,7 +346,8 @@ class BlockNameDeduplicator : public tir::StmtMutator {
     String name = GetUniqueName(block->name_hint);
 
     if (name == block->name_hint) {
-      return std::move(block);
+      return block;
+
     } else {
       ObjectPtr<BlockNode> n = CopyOnWrite(block.get());
       n->name_hint = std::move(name);
@@ -684,11 +689,12 @@ class FusedTIRConstructor : public ExprVisitor {
     if (it != func_info_.expr2buffers.end()) {
       int begin_buf_idx = 0;
       int end_buf_idx = 0;
-      const TupleType& tuple_type = Downcast<TupleType>(tuple_get_item->tuple->checked_type());
+      const TupleStructInfo& tuple_sinfo =
+          Downcast<TupleStructInfo>(tuple_get_item->tuple->struct_info_);
       for (int i = 0; i < tuple_get_item->index; ++i) {
-        begin_buf_idx += GetTotalTensorSize(tuple_type->fields[i]);
+        begin_buf_idx += GetTotalTensorSize(tuple_sinfo->fields[i]);
       }
-      end_buf_idx = begin_buf_idx + GetTotalTensorSize(tuple_type->fields[tuple_get_item->index]);
+      end_buf_idx = begin_buf_idx + GetTotalTensorSize(tuple_sinfo->fields[tuple_get_item->index]);
       func_info_.expr2buffers.Set(
           GetRef<Expr>(tuple_get_item),
           {(*it).second.begin() + begin_buf_idx, (*it).second.begin() + end_buf_idx});
@@ -841,7 +847,7 @@ class FusedTIRConstructor : public ExprVisitor {
     if (is_inplace) {
       const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
       CHECK(attrs) << "Must have CallTIRInplaceAttrs for an in-place call";
-      output_idxs = std::move(GetInplaceOutputIndices(attrs->inplace_indices, num_inputs));
+      output_idxs = GetInplaceOutputIndices(attrs->inplace_indices, num_inputs);
     } else {
       for (size_t i = 0; i < output_size; i++) {
         output_idxs.push_back(num_inputs + i);
@@ -972,17 +978,17 @@ class FusedTIRConstructor : public ExprVisitor {
   }
 
   /*! \brief Get DynTensor numbers from recursive Tuples. */
-  static size_t GetTotalTensorSize(const Type& type) {
-    if (type.as<TensorTypeNode>()) {
+  static size_t GetTotalTensorSize(const StructInfo& sinfo) {
+    if (sinfo.as<TensorStructInfoNode>()) {
       return 1;
-    } else if (const auto* tuple_type = type.as<TupleTypeNode>()) {
+    } else if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
       size_t num = 0;
-      for (const Type& type : tuple_type->fields) {
-        num += GetTotalTensorSize(type);
+      for (const StructInfo& sinfo : tuple_sinfo->fields) {
+        num += GetTotalTensorSize(sinfo);
       }
       return num;
     } else {
-      LOG(FATAL) << "TensorType and TupleType are expect, but got: " << type;
+      LOG(FATAL) << "TensorType and TupleType are expect, but got: " << sinfo;
       return 0;
     }
   }
@@ -1262,7 +1268,10 @@ Pass FuseTIR() {
       "FuseTIR");
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.FuseTIR").set_body_typed(FuseTIR);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.FuseTIR", FuseTIR);
+});
 
 }  // namespace transform
 

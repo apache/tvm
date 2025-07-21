@@ -447,12 +447,6 @@ PrimExpr DFPatternMatcher::SimplifyCondition(PrimExpr condition) {
   return analyzer_.Simplify(sorted_condition);
 }
 
-bool DFPatternMatcher::VisitDFPattern_(const TypePatternNode* op, const Expr& expr0) {
-  auto expr = UnwrapBindings(expr0, var2val_);
-  auto expr_type = expr.as<ExprNode>()->checked_type();
-  return (StructuralEqual()(op->type, expr_type)) && VisitDFPattern(op->pattern, expr);
-}
-
 static bool ShapeEqual(Analyzer* analyzer, const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
   if (lhs.size() != rhs.size()) return false;
   for (size_t i = 0; i < lhs.size(); ++i)
@@ -543,9 +537,9 @@ bool DFPatternMatcher::VisitDFPattern_(const PrimArrPatternNode* op, const Expr&
 
 bool DFPatternMatcher::VisitDFPattern_(const DataTypePatternNode* op, const Expr& expr) {
   // no need to jump, as var.dtype == value.dtype
-  auto expr_type = expr.as<ExprNode>()->checked_type();
-  if (const TensorTypeNode* tensor_type = expr_type.as<TensorTypeNode>()) {
-    return (StructuralEqual()(op->dtype, tensor_type->dtype)) && VisitDFPattern(op->pattern, expr);
+  auto expr_sinfo = expr.as<ExprNode>()->struct_info_;
+  if (const TensorStructInfoNode* tensor_sinfo = expr_sinfo.as<TensorStructInfoNode>()) {
+    return (StructuralEqual()(op->dtype, tensor_sinfo->dtype)) && VisitDFPattern(op->pattern, expr);
   }
   return false;
 }

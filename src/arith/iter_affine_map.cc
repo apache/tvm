@@ -22,6 +22,7 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/arith/iter_affine_map.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/expr_functor.h>
@@ -40,6 +41,13 @@ namespace arith {
 
 using namespace tir;
 
+TVM_FFI_STATIC_INIT_BLOCK({
+  IterMarkNode::RegisterReflection();
+  IterSplitExprNode::RegisterReflection();
+  IterSumExprNode::RegisterReflection();
+  IterMapResultNode::RegisterReflection();
+});
+
 IterMark::IterMark(PrimExpr source, PrimExpr extent) {
   auto n = make_object<IterMarkNode>();
   n->source = std::move(source);
@@ -47,8 +55,10 @@ IterMark::IterMark(PrimExpr source, PrimExpr extent) {
   data_ = std::move(n);
 }
 
-TVM_FFI_REGISTER_GLOBAL("arith.IterMark").set_body_typed([](PrimExpr source, PrimExpr extent) {
-  return IterMark(source, extent);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("arith.IterMark",
+                        [](PrimExpr source, PrimExpr extent) { return IterMark(source, extent); });
 });
 
 TVM_REGISTER_NODE_TYPE(IterMarkNode);
@@ -92,10 +102,13 @@ IterSplitExpr::IterSplitExpr(IterMark source, PrimExpr lower_factor, PrimExpr ex
   data_ = std::move(n);
 }
 
-TVM_FFI_REGISTER_GLOBAL("arith.IterSplitExpr")
-    .set_body_typed([](IterMark source, PrimExpr lower_factor, PrimExpr extent, PrimExpr scale) {
-      return IterSplitExpr(source, lower_factor, extent, scale);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("arith.IterSplitExpr", [](IterMark source, PrimExpr lower_factor,
+                                                  PrimExpr extent, PrimExpr scale) {
+    return IterSplitExpr(source, lower_factor, extent, scale);
+  });
+});
 
 TVM_REGISTER_NODE_TYPE(IterSplitExprNode);
 
@@ -114,10 +127,12 @@ IterSumExpr::IterSumExpr(Array<IterSplitExpr> args, PrimExpr base) {
   data_ = std::move(n);
 }
 
-TVM_FFI_REGISTER_GLOBAL("arith.IterSumExpr")
-    .set_body_typed([](Array<IterSplitExpr> args, PrimExpr base) {
-      return IterSumExpr(args, base);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("arith.IterSumExpr", [](Array<IterSplitExpr> args, PrimExpr base) {
+    return IterSumExpr(args, base);
+  });
+});
 
 TVM_REGISTER_NODE_TYPE(IterSumExprNode);
 
@@ -1513,14 +1528,17 @@ IterMapResult DetectIterMap(const Array<PrimExpr>& indices, const Map<Var, Range
   return result;
 }
 
-TVM_FFI_REGISTER_GLOBAL("arith.DetectIterMap")
-    .set_body_typed([](const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
-                       const PrimExpr& input_pred, int check_level,
-                       bool simplify_trivial_iterators) {
-      arith::Analyzer ana;
-      return DetectIterMap(indices, input_iters, input_pred, IterMapLevel(check_level), &ana,
-                           simplify_trivial_iterators);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "arith.DetectIterMap",
+      [](const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
+         const PrimExpr& input_pred, int check_level, bool simplify_trivial_iterators) {
+        arith::Analyzer ana;
+        return DetectIterMap(indices, input_iters, input_pred, IterMapLevel(check_level), &ana,
+                             simplify_trivial_iterators);
+      });
+});
 
 IterSumExpr NormalizeToIterSum(PrimExpr index, const Map<Var, Range>& input_iters,
                                arith::Analyzer* analyzer) {
@@ -1538,17 +1556,20 @@ IterSumExpr NormalizeToIterSum(PrimExpr index, const Map<Var, Range>& input_iter
   return rewriter.RewriteToNormalizedIterSum(index);
 }
 
-TVM_FFI_REGISTER_GLOBAL("arith.NormalizeToIterSum")
-    .set_body_typed([](PrimExpr index, const Map<Var, Range>& input_iters) {
-      arith::Analyzer ana;
-      return NormalizeToIterSum(index, input_iters, &ana);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("arith.NormalizeToIterSum",
+                        [](PrimExpr index, const Map<Var, Range>& input_iters) {
+                          arith::Analyzer ana;
+                          return NormalizeToIterSum(index, input_iters, &ana);
+                        });
+});
 
 PrimExpr IterMapRewriter::VisitExpr_(const VarNode* op) {
   auto var = GetRef<Var>(op);
   auto it = var_map_.find(var);
   if (it != var_map_.end()) return it->second;
-  return std::move(var);
+  return var;
 }
 
 PrimExpr IterMapRewriter::VisitExpr_(const AddNode* op) {
@@ -1581,7 +1602,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const AddNode* op) {
   } else {
     AddToLhs(ret.CopyOnWrite(), ToIterSumExpr(b), 1);
   }
-  return std::move(ret);
+  return ret;
 }
 
 PrimExpr IterMapRewriter::VisitExpr_(const SubNode* op) {
@@ -1616,7 +1637,7 @@ PrimExpr IterMapRewriter::VisitExpr_(const SubNode* op) {
   } else {
     AddToLhs(ret.CopyOnWrite(), ToIterSumExpr(b), -1);
   }
-  return std::move(ret);
+  return ret;
 }
 
 PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
@@ -1653,12 +1674,13 @@ PrimExpr IterMapRewriter::VisitExpr_(const MulNode* op) {
   if (a->IsInstance<IterSumExprNode>()) {
     IterSumExpr ret = Downcast<IterSumExpr>(std::move(a));
     MulToLhs(ret.CopyOnWrite(), b);
-    return std::move(ret);
+    return ret;
+
   } else {
     ICHECK(a->IsInstance<IterSplitExprNode>());
     IterSplitExpr ret = Downcast<IterSplitExpr>(std::move(a));
     ret.CopyOnWrite()->scale *= b;
-    return std::move(ret);
+    return ret;
   }
 }
 
@@ -1847,7 +1869,8 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
   if (is_one(rhs)) {
     if (is_zero(base)) {
       // floordiv(x, 1) = x
-      return std::move(lhs);
+      return lhs;
+
     } else {
       // floordiv(x+y, 1) = x+y
       return IterSumExpr({lhs}, base);
@@ -1858,7 +1881,8 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
     if (CanProveDivisible(lhs->scale, rhs) && is_zero(base)) {
       // floordiv(x*c1*c2, c2) = x*c1, c1=scale/rhs
       lhs.CopyOnWrite()->scale = floordiv(lhs->scale, rhs);
-      return std::move(lhs);
+      return lhs;
+
     } else if (CanProveDivisible(lhs->scale, rhs) && CanProveDivisible(base, rhs)) {
       // floordiv(x*c1*c2 + y*c2, c2) = x*c1 + y, c1=scale/rhs
       lhs.CopyOnWrite()->scale = floordiv(lhs->scale, rhs);
@@ -1922,7 +1946,8 @@ PrimExpr IterMapRewriter::SplitFloorDivConst(IterSplitExpr lhs, PrimExpr base, P
 
   auto new_base = analyzer_->Simplify(floordiv(base - left_pad, rhs), 6);
   if (is_zero(new_base)) {
-    return std::move(new_split);
+    return new_split;
+
   } else {
     return IterSumExpr({new_split}, new_base);
   }
@@ -2133,7 +2158,10 @@ PrimExpr NormalizeIterMapToExpr(const PrimExpr& expr) {
   return normalizer.Convert(expr);
 }
 
-TVM_FFI_REGISTER_GLOBAL("arith.NormalizeIterMapToExpr").set_body_typed(NormalizeIterMapToExpr);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("arith.NormalizeIterMapToExpr", NormalizeIterMapToExpr);
+});
 
 Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
                                 const PrimExpr& input_pred, IterMapLevel check_level,
@@ -2162,14 +2190,17 @@ Array<PrimExpr> IterMapSimplify(const Array<PrimExpr>& indices, const Map<Var, R
   return simplified;
 }
 
-TVM_FFI_REGISTER_GLOBAL("arith.IterMapSimplify")
-    .set_body_typed([](const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
-                       const PrimExpr& input_pred, int check_level,
-                       bool simplify_trivial_iterators) {
-      arith::Analyzer ana;
-      return IterMapSimplify(indices, input_iters, input_pred, IterMapLevel(check_level), &ana,
-                             simplify_trivial_iterators);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "arith.IterMapSimplify",
+      [](const Array<PrimExpr>& indices, const Map<Var, Range>& input_iters,
+         const PrimExpr& input_pred, int check_level, bool simplify_trivial_iterators) {
+        arith::Analyzer ana;
+        return IterMapSimplify(indices, input_iters, input_pred, IterMapLevel(check_level), &ana,
+                               simplify_trivial_iterators);
+      });
+});
 
 /*!
  * \brief Divider to divide the bindings into two sets of bindings(outer and inner)
@@ -2495,14 +2526,17 @@ Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
   return results;
 }
 
-TVM_FFI_REGISTER_GLOBAL("arith.SubspaceDivide")
-    .set_body_typed([](const Array<PrimExpr>& bindings, const Map<Var, Range>& root_iters,
-                       const Array<Var>& sub_iters, const PrimExpr& predicate, int check_level,
-                       bool simplify_trivial_iterators) {
-      arith::Analyzer ana;
-      return SubspaceDivide(bindings, root_iters, sub_iters, predicate, IterMapLevel(check_level),
-                            &ana, simplify_trivial_iterators);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "arith.SubspaceDivide", [](const Array<PrimExpr>& bindings, const Map<Var, Range>& root_iters,
+                                 const Array<Var>& sub_iters, const PrimExpr& predicate,
+                                 int check_level, bool simplify_trivial_iterators) {
+        arith::Analyzer ana;
+        return SubspaceDivide(bindings, root_iters, sub_iters, predicate, IterMapLevel(check_level),
+                              &ana, simplify_trivial_iterators);
+      });
+});
 
 class InverseAffineIterMapTransformer {
  public:
@@ -2634,7 +2668,10 @@ Map<Var, PrimExpr> InverseAffineIterMap(const Array<IterSumExpr>& iter_map,
   return InverseAffineIterMapTransformer(&analyzer)(iter_map, outputs);
 }
 
-TVM_FFI_REGISTER_GLOBAL("arith.InverseAffineIterMap").set_body_typed(InverseAffineIterMap);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("arith.InverseAffineIterMap", InverseAffineIterMap);
+});
 
 TVM_REGISTER_NODE_TYPE(IterMapResultNode);
 

@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../transforms/ir_utils.h"
 #include "./utils.h"
 
@@ -226,7 +228,7 @@ Stmt ReplaceBufferMutator::VisitStmt_(const BlockNode* block) {
     if (block_sref_reuse_ != nullptr) {
       block_sref_reuse_->Set(GetRef<Block>(block), new_block);
     }
-    return std::move(new_block);
+    return new_block;
   }
 }
 
@@ -439,7 +441,10 @@ Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::Block
   return reorder_suffix[0];
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.schedule.TileWithTensorIntrin").set_body_typed(TileWithTensorIntrin);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.schedule.TileWithTensorIntrin", TileWithTensorIntrin);
+});
 
 /******** BlockBufferAccessSimplifier ********/
 void BlockBufferAccessSimplifier::SimplifyAccessRegion(Array<BufferRegion>* old_access_regions) {
@@ -470,19 +475,19 @@ Stmt BlockBufferAccessSimplifier::VisitStmt_(const BlockNode* op) {
   auto* n = block.CopyOnWrite();
   SimplifyAccessRegion(&n->reads);
   SimplifyAccessRegion(&n->writes);
-  return std::move(block);
+  return block;
 }
 
 Stmt BlockBufferAccessSimplifier::VisitStmt_(const BufferStoreNode* op) {
   BufferStore node = Downcast<BufferStore>(arith::IRMutatorWithAnalyzer::VisitStmt_(op));
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
-  return std::move(node);
+  return node;
 }
 
 PrimExpr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
   BufferLoad node = Downcast<BufferLoad>(arith::IRMutatorWithAnalyzer::VisitExpr_(op));
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
-  return std::move(node);
+  return node;
 }
 
 /******** PrimFunc-level analysis and transformation ********/
@@ -557,7 +562,10 @@ Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
   return Array<ObjectRef>{leaf_blocks, block_loops, block_iters, block_is_reduction};
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.schedule.NormalizePrimFunc").set_body_typed(NormalizePrimFunc);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.schedule.NormalizePrimFunc", NormalizePrimFunc);
+});
 
 }  // namespace tir
 }  // namespace tvm

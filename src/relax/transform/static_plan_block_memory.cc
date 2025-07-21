@@ -66,6 +66,7 @@
  * during memory planning.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
@@ -400,7 +401,7 @@ void SetTIRVarUpperBound(Function func, arith::Analyzer* ana,
   for (ObjectRef var_name : non_negative_var_attr_raw) {
     const auto* key = var_name.as<ffi::StringObj>();
     CHECK(key != nullptr) << "The element of attr `tir_non_negative_var` should be string. However "
-                          << key->GetTypeKey() << " is got.";
+                          << var_name->GetTypeKey() << " is got.";
     non_negative_var_attr.insert(GetRef<String>(key));
   }
   Array<tir::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(func));
@@ -983,8 +984,10 @@ Pass StaticPlanBlockMemory() {
   return CreateModulePass(pass_func, /*opt_level=*/0, "StaticPlanBlockMemory", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.StaticPlanBlockMemory")
-    .set_body_typed(StaticPlanBlockMemory);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.StaticPlanBlockMemory", StaticPlanBlockMemory);
+});
 
 }  // namespace transform
 }  // namespace relax

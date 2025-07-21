@@ -52,10 +52,14 @@ struct StaticTypeKey {
   static constexpr const char* kTVMFFIRawStr = "const char*";
   static constexpr const char* kTVMFFIByteArrayPtr = "TVMFFIByteArray*";
   static constexpr const char* kTVMFFIObjectRValueRef = "ObjectRValueRef";
-  static constexpr const char* kTVMFFIBytes = "object.Bytes";
-  static constexpr const char* kTVMFFIStr = "object.String";
-  static constexpr const char* kTVMFFIShape = "object.Shape";
-  static constexpr const char* kTVMFFINDArray = "object.NDArray";
+  static constexpr const char* kTVMFFIBytes = "ffi.Bytes";
+  static constexpr const char* kTVMFFIStr = "ffi.String";
+  static constexpr const char* kTVMFFIShape = "ffi.Shape";
+  static constexpr const char* kTVMFFINDArray = "ffi.NDArray";
+  static constexpr const char* kTVMFFIObject = "ffi.Object";
+  static constexpr const char* kTVMFFIFunction = "ffi.Function";
+  static constexpr const char* kTVMFFIArray = "ffi.Array";
+  static constexpr const char* kTVMFFIMap = "ffi.Map";
 };
 
 /*!
@@ -187,10 +191,17 @@ class Object {
    * \return The usage count of the cell.
    * \note We use stl style naming to be consistent with known API in shared_ptr.
    */
-  int32_t use_count() const { return details::AtomicLoadRelaxed(&(header_.ref_counter)); }
+  int32_t use_count() const {
+    // only need relaxed load of counters
+#ifdef _MSC_VER
+    return (reinterpret_cast<const volatile long*>(&header_.ref_counter))[0];  // NOLINT(*)
+#else
+    return __atomic_load_n(&(header_.ref_counter), __ATOMIC_RELAXED);
+#endif
+  }
 
   // Information about the object
-  static constexpr const char* _type_key = "object.Object";
+  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIObject;
 
   // Default object type properties for sub-classes
   static constexpr bool _type_final = false;
@@ -201,9 +212,10 @@ class Object {
   static constexpr int32_t _type_index = TypeIndex::kTVMFFIObject;
   // the static type depth of the class
   static constexpr int32_t _type_depth = 0;
+  // the structural equality and hash kind of the type
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUnsupported;
   // extra fields used by plug-ins for attribute visiting
   // and structural information
-  static constexpr const bool _type_has_method_visit_attrs = true;
   static constexpr const bool _type_has_method_sequal_reduce = false;
   static constexpr const bool _type_has_method_shash_reduce = false;
   // The following functions are provided by macro
@@ -220,15 +232,35 @@ class Object {
 
  private:
   /*! \brief increase reference count */
-  void IncRef() { details::AtomicIncrementRelaxed(&(header_.ref_counter)); }
+  void IncRef() {
+#ifdef _MSC_VER
+    _InterlockedIncrement(reinterpret_cast<volatile long*>(&header_.ref_counter));  // NOLINT(*)
+#else
+    __atomic_fetch_add(&(header_.ref_counter), 1, __ATOMIC_RELAXED);
+#endif
+  }
 
   /*! \brief decrease reference count and delete the object */
   void DecRef() {
-    if (details::AtomicDecrementRelAcq(&(header_.ref_counter)) == 1) {
+#ifdef _MSC_VER
+    if (_InterlockedDecrement(                                               //
+            reinterpret_cast<volatile long*>(&header_.ref_counter)) == 0) {  // NOLINT(*)
+      // full barrrier is implicit in InterlockedDecrement
       if (header_.deleter != nullptr) {
         header_.deleter(&(this->header_));
       }
     }
+#else
+    // first do a release, note we only need to acquire for deleter
+    if (__atomic_fetch_sub(&(header_.ref_counter), 1, __ATOMIC_RELEASE) == 1) {
+      // only acquire when we need to call deleter
+      // in this case we need to ensure all previous writes are visible
+      __atomic_thread_fence(__ATOMIC_ACQUIRE);
+      if (header_.deleter != nullptr) {
+        header_.deleter(&(this->header_));
+      }
+    }
+#endif
   }
 
   // friend classes
@@ -666,34 +698,38 @@ template <typename TargetType>
 TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index) {
   static_assert(std::is_base_of_v<Object, TargetType>);
   // Everything is a subclass of object.
-  if constexpr (std::is_same<TargetType, Object>::value) return true;
-
-  if constexpr (TargetType::_type_final) {
+  if constexpr (std::is_same<TargetType, Object>::value) {
+    return true;
+  } else if constexpr (TargetType::_type_final) {
     // if the target type is a final type
     // then we only need to check the equivalence.
     return object_type_index == TargetType::RuntimeTypeIndex();
-  }
-
-  // if target type is a non-leaf type
-  // Check if type index falls into the range of reserved slots.
-  int32_t target_type_index = TargetType::RuntimeTypeIndex();
-  int32_t begin = target_type_index;
-  // The condition will be optimized by constant-folding.
-  if constexpr (TargetType::_type_child_slots != 0) {
-    // total_slots = child_slots + 1 (including self)
-    int32_t end = begin + TargetType::_type_child_slots + 1;
-    if (object_type_index >= begin && object_type_index < end) return true;
   } else {
-    if (object_type_index == begin) return true;
+    // Explicitly enclose in else to eliminate this branch early in compilation.
+    // if target type is a non-leaf type
+    // Check if type index falls into the range of reserved slots.
+    int32_t target_type_index = TargetType::RuntimeTypeIndex();
+    int32_t begin = target_type_index;
+    // The condition will be optimized by constant-folding.
+    if constexpr (TargetType::_type_child_slots != 0) {
+      // total_slots = child_slots + 1 (including self)
+      int32_t end = begin + TargetType::_type_child_slots + 1;
+      if (object_type_index >= begin && object_type_index < end) return true;
+    } else {
+      if (object_type_index == begin) return true;
+    }
+    if constexpr (TargetType::_type_child_slots_can_overflow) {
+      // Invariance: parent index is always smaller than the child.
+      if (object_type_index < target_type_index) return false;
+      // Do a runtime lookup of type information
+      // the function checks that the info exists
+      const TypeInfo* type_info = TVMFFIGetTypeInfo(object_type_index);
+      return (type_info->type_depth > TargetType::_type_depth &&
+              type_info->type_acenstors[TargetType::_type_depth]->type_index == target_type_index);
+    } else {
+      return false;
+    }
   }
-  if (!TargetType::_type_child_slots_can_overflow) return false;
-  // Invariance: parent index is always smaller than the child.
-  if (object_type_index < target_type_index) return false;
-  // Do a runtime lookup of type information
-  // the function checks that the info exists
-  const TypeInfo* type_info = TVMFFIGetTypeInfo(object_type_index);
-  return (type_info->type_depth > TargetType::_type_depth &&
-          type_info->type_acenstors[TargetType::_type_depth] == target_type_index);
 }
 
 /*!
@@ -703,18 +739,18 @@ TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index) {
  */
 struct ObjectUnsafe {
   // NOTE: get ffi header from an object
-  static TVM_FFI_INLINE TVMFFIObject* GetHeader(const Object* src) {
+  TVM_FFI_INLINE static TVMFFIObject* GetHeader(const Object* src) {
     return const_cast<TVMFFIObject*>(&(src->header_));
   }
 
   template <typename Class>
-  static TVM_FFI_INLINE int64_t GetObjectOffsetToSubclass() {
+  TVM_FFI_INLINE static int64_t GetObjectOffsetToSubclass() {
     return (reinterpret_cast<int64_t>(&(static_cast<Class*>(nullptr)->header_)) -
             reinterpret_cast<int64_t>(&(static_cast<Object*>(nullptr)->header_)));
   }
 
   template <typename T>
-  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromObjectRef(const ObjectRef& ref) {
+  TVM_FFI_INLINE static ObjectPtr<T> ObjectPtrFromObjectRef(const ObjectRef& ref) {
     if constexpr (std::is_same_v<T, Object>) {
       return ref.data_;
     } else {
@@ -723,7 +759,7 @@ struct ObjectUnsafe {
   }
 
   template <typename T>
-  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromObjectRef(ObjectRef&& ref) {
+  TVM_FFI_INLINE static ObjectPtr<T> ObjectPtrFromObjectRef(ObjectRef&& ref) {
     if constexpr (std::is_same_v<T, Object>) {
       return std::move(ref.data_);
     } else {
@@ -732,19 +768,19 @@ struct ObjectUnsafe {
   }
 
   template <typename T>
-  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromOwned(Object* raw_ptr) {
+  TVM_FFI_INLINE static ObjectPtr<T> ObjectPtrFromOwned(Object* raw_ptr) {
     tvm::ffi::ObjectPtr<T> ptr;
     ptr.data_ = raw_ptr;
     return ptr;
   }
 
   template <typename T>
-  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromOwned(TVMFFIObject* obj_ptr) {
+  TVM_FFI_INLINE static ObjectPtr<T> ObjectPtrFromOwned(TVMFFIObject* obj_ptr) {
     return ObjectPtrFromOwned<T>(reinterpret_cast<Object*>(obj_ptr));
   }
 
   template <typename T>
-  static TVM_FFI_INLINE T* RawObjectPtrFromUnowned(TVMFFIObject* obj_ptr) {
+  TVM_FFI_INLINE static T* RawObjectPtrFromUnowned(TVMFFIObject* obj_ptr) {
     // NOTE: this is important to first cast to Object*
     // then cast back to T* because objptr and tptr may not be the same
     // depending on how sub-class allocates the space.
@@ -753,44 +789,44 @@ struct ObjectUnsafe {
 
   // Create ObjectPtr from unowned ptr
   template <typename T>
-  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromUnowned(Object* raw_ptr) {
+  TVM_FFI_INLINE static ObjectPtr<T> ObjectPtrFromUnowned(Object* raw_ptr) {
     return tvm::ffi::ObjectPtr<T>(raw_ptr);
   }
 
   template <typename T>
-  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromUnowned(TVMFFIObject* obj_ptr) {
+  TVM_FFI_INLINE static ObjectPtr<T> ObjectPtrFromUnowned(TVMFFIObject* obj_ptr) {
     return tvm::ffi::ObjectPtr<T>(reinterpret_cast<Object*>(obj_ptr));
   }
 
-  static TVM_FFI_INLINE void DecRefObjectHandle(TVMFFIObjectHandle handle) {
+  TVM_FFI_INLINE static void DecRefObjectHandle(TVMFFIObjectHandle handle) {
     reinterpret_cast<Object*>(handle)->DecRef();
   }
 
-  static TVM_FFI_INLINE void IncRefObjectHandle(TVMFFIObjectHandle handle) {
+  TVM_FFI_INLINE static void IncRefObjectHandle(TVMFFIObjectHandle handle) {
     reinterpret_cast<Object*>(handle)->IncRef();
   }
 
-  static TVM_FFI_INLINE Object* RawObjectPtrFromObjectRef(const ObjectRef& src) {
+  TVM_FFI_INLINE static Object* RawObjectPtrFromObjectRef(const ObjectRef& src) {
     return src.data_.data_;
   }
 
-  static TVM_FFI_INLINE TVMFFIObject* TVMFFIObjectPtrFromObjectRef(const ObjectRef& src) {
+  TVM_FFI_INLINE static TVMFFIObject* TVMFFIObjectPtrFromObjectRef(const ObjectRef& src) {
     return GetHeader(src.data_.data_);
   }
 
   template <typename T>
-  static TVM_FFI_INLINE TVMFFIObject* TVMFFIObjectPtrFromObjectPtr(const ObjectPtr<T>& src) {
+  TVM_FFI_INLINE static TVMFFIObject* TVMFFIObjectPtrFromObjectPtr(const ObjectPtr<T>& src) {
     return GetHeader(src.data_);
   }
 
   template <typename T>
-  static TVM_FFI_INLINE TVMFFIObject* MoveObjectPtrToTVMFFIObjectPtr(ObjectPtr<T>&& src) {
+  TVM_FFI_INLINE static TVMFFIObject* MoveObjectPtrToTVMFFIObjectPtr(ObjectPtr<T>&& src) {
     Object* obj_ptr = src.data_;
     src.data_ = nullptr;
     return GetHeader(obj_ptr);
   }
 
-  static TVM_FFI_INLINE TVMFFIObject* MoveObjectRefToTVMFFIObjectPtr(ObjectRef&& src) {
+  TVM_FFI_INLINE static TVMFFIObject* MoveObjectRefToTVMFFIObjectPtr(ObjectRef&& src) {
     Object* obj_ptr = src.data_.data_;
     src.data_.data_ = nullptr;
     return GetHeader(obj_ptr);

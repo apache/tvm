@@ -21,6 +21,7 @@
 #define TVM_META_SCHEDULE_POSTPROC_H_
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/schedule/schedule.h>
@@ -39,7 +40,9 @@ class PostprocNode : public runtime::Object {
   /*! \brief Virtual destructor. */
   virtual ~PostprocNode() = default;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register
+  }
 
   /*!
    * \brief Initialize the design space generator with tuning context.
@@ -190,11 +193,11 @@ class PyPostprocNode : public PostprocNode {
   /*! \brief The packed function to the `AsString` function. */
   FAsString f_as_string;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_initialize_with_tune_context` is not visited
-    // `f_apply` is not visited
-    // `f_clone` is not visited
-    // `f_as_string` is not visited
+  static void RegisterReflection() {
+    // `f_initialize_with_tune_context` is not registered
+    // `f_apply` is not registered
+    // `f_clone` is not registered
+    // `f_as_string` is not registered
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;

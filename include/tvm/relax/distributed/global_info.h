@@ -45,11 +45,14 @@ class DeviceMeshNode : public GlobalInfoNode {
   /*! \brief Optionally use range to represent device_ids*/
   Optional<Range> device_range;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("shape", &shape);
-    v->Visit("device_ids", &device_ids);
-    v->Visit("device_range", &device_range);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DeviceMeshNode>()
+        .def_ro("shape", &DeviceMeshNode::shape)
+        .def_ro("device_ids", &DeviceMeshNode::device_ids)
+        .def_ro("device_range", &DeviceMeshNode::device_range);
   }
+
   static constexpr const char* _type_key = "relax.distributed.DeviceMesh";
 
   bool SEqualReduce(const DeviceMeshNode* other, SEqualReducer equal) const {

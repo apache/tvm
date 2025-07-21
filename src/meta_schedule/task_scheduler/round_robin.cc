@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -27,9 +29,9 @@ class RoundRobinNode final : public TaskSchedulerNode {
   /*! \brief The current task id processed. */
   int task_id = -1;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    TaskSchedulerNode::VisitAttrs(v);
-    v->Visit("task_id", &task_id);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RoundRobinNode>().def_ro("task_id", &RoundRobinNode::task_id);
   }
 
   static constexpr const char* _type_key = "meta_schedule.RoundRobin";
@@ -62,9 +64,13 @@ TaskScheduler TaskScheduler::RoundRobin(ffi::Function logger) {
   return TaskScheduler(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ RoundRobinNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(RoundRobinNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.TaskSchedulerRoundRobin")
-    .set_body_typed(TaskScheduler::RoundRobin);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.TaskSchedulerRoundRobin", TaskScheduler::RoundRobin);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm
