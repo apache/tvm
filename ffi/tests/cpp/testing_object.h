@@ -83,6 +83,10 @@ inline void TIntObj::RegisterReflection() {
   refl::ObjectDef<TIntObj>()
       .def_ro("value", &TIntObj::value)
       .def_static("static_add", &TInt::StaticAdd, "static add method");
+  // define extra type attributes
+  refl::TypeAttrDef<TIntObj>()
+      .def("test.GetValue", &TIntObj::GetValue)
+      .attr("test.size", sizeof(TIntObj));
 }
 
 class TFloatObj : public TNumberObj {

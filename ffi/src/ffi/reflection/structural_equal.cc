@@ -89,10 +89,10 @@ class StructEqualHandler {
   bool CompareObject(ObjectRef lhs, ObjectRef rhs) {
     // NOTE: invariant: lhs and rhs are already the same type
     const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(lhs->type_index());
-    if (type_info->extra_info == nullptr) {
+    if (type_info->metadata == nullptr) {
       return lhs.same_as(rhs);
     }
-    auto structural_eq_hash_kind = type_info->extra_info->structural_eq_hash_kind;
+    auto structural_eq_hash_kind = type_info->metadata->structural_eq_hash_kind;
 
     if (structural_eq_hash_kind == kTVMFFISEqHashKindUnsupported ||
         structural_eq_hash_kind == kTVMFFISEqHashKindUniqueInstance) {
