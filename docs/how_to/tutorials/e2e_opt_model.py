@@ -95,13 +95,32 @@ if not IS_IN_CI:
 # leverage MetaSchedule to tune the model and store the tuning logs to the database. We also
 # apply the database to the model to get the best performance.
 #
+# The ResNet18 model will be divided into 20 independent tuning tasks during compilation.
+# To ensure each task receives adequate tuning resources in one iteration while providing
+# early feedback:
+#
+# - To quickly observe tuning progress, each task is allocated a maximum of 16 trials per
+#   iteration (controlled by ``max_trials_per_task=16``). Setting ``total_trials`` to at least
+#   ``320 (20 tasks * 16 trials)`` ensures every task receives one full iteration of tuning.
+# - If ``max_trials_per_task`` is unspecified, the system defaults to ``min(max_trials_per_iter=64,
+#   total_trials)`` trials per task per iteration. This may lead to undersubscribed tuning when
+#   ``total_trials`` is insufficient (e.g., ``64 < total_trials < 20 * 64``), potentially skipping
+#   some tasks entirely, leaving critical operators unoptimized or missing thread binding for
+#   untuned tasks. Explicitly setting both parameters avoids this issue and provides deterministic
+#   resource allocation across all tasks.
 
-TOTAL_TRIALS = 8000  # Change to 20000 for better performance if needed
+TOTAL_TRIALS = 320  # Change to 20000 for better performance if needed
 target = tvm.target.Target("nvidia/geforce-rtx-3090-ti")  # Change to your target device
 work_dir = "tuning_logs"
 
 if not IS_IN_CI:
-    mod = relax.get_pipeline("static_shape_tuning", target=target, total_trials=TOTAL_TRIALS)(mod)
+    mod = relax.get_pipeline(
+        "static_shape_tuning",
+        target=target,
+        work_dir=work_dir,
+        total_trials=TOTAL_TRIALS,
+        max_trials_per_task=16,
+    )(mod)
 
     # Only show the main function
     mod["main"].show()
@@ -119,6 +138,7 @@ if not IS_IN_CI:
     # Need to allocate data and params on GPU device
     gpu_data = tvm.nd.array(np.random.rand(1, 3, 224, 224).astype("float32"), dev)
     gpu_params = [tvm.nd.array(p, dev) for p in params["main"]]
-    gpu_out = vm["main"](gpu_data, *gpu_params).numpy()
+    gpu_out = vm["main"](gpu_data, *gpu_params)
 
+    gpu_out = np.array([gpu_out[0].numpy()[0][j] for j in range(1000)])
     print(gpu_out.shape)
