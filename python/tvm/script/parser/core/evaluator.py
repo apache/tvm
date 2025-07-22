@@ -180,11 +180,9 @@ class ExprEvaluator:
                 args = [node.operand]
             elif isinstance(node, doc.Compare):
                 args = [node.left, *node.comparators]
-            else:
-                if isinstance(node, doc.Call):
-                    args = node.args
-                elif isinstance(node, doc.BoolOp):
-                    args = node.values
+            elif isinstance(node, doc.BoolOp):
+                args = node.values
+
         for arg in args:
             if isinstance(arg, doc.Subscript) and isinstance(arg.slice, (doc.Slice, doc.Tuple)):
                 if isinstance(arg.slice, doc.Slice):
