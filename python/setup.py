@@ -158,7 +158,13 @@ def config_cython():
         ret = []
         extra_compile_args = ["-std=c++17", "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>"]
         if os.name == "nt":
-            library_dirs = ["tvm", "../build/Release", "../build"]
+            library_dirs = [
+                "tvm",
+                "../build/Release",
+                "../build/RelWithDebInfo",
+                "../build/Debug",
+                "../build",
+            ]
             libraries = ["tvm"]
             extra_compile_args = [
                 "/std:c++17",
