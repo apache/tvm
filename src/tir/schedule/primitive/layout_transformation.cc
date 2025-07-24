@@ -1464,6 +1464,10 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   }
 
   // Step 6: Do the actual replacement
+  if (scope_sref->StmtAs<BlockNode>()) {
+    ICHECK(new_loop_vars.empty()) << "Invalid block to loop replacement due to layout transform "
+                                  << index_map;
+  }
   self->Replace(scope_sref, body, {{block, new_block}});
 }
 
