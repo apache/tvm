@@ -62,9 +62,11 @@ class TraceNode : public runtime::Object {
   /*! \brief The random decisions made upon those instructions */
   Map<Instruction, Any> decisions;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("insts", &insts);
-    v->Visit("decisions", &decisions);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TraceNode>()
+        .def_ro("insts", &TraceNode::insts)
+        .def_ro("decisions", &TraceNode::decisions);
   }
 
   static constexpr const char* _type_key = "tir.Trace";

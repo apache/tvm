@@ -934,7 +934,7 @@ class CacheReadRewriter : public StmtExprMutator {
     // We don't mutate the block which generates info->read_buffer.
     if (block != scope_sref_->stmt &&
         GetBufferRegionFromBuffer(block->writes, info_->read_buffer).defined()) {
-      return std::move(old_stmt);
+      return old_stmt;
     }
     // Mutate the body
     Block stmt = Downcast<Block>(StmtMutator::VisitStmt_(block));
@@ -970,7 +970,7 @@ class CacheReadRewriter : public StmtExprMutator {
       }
     }
     info_->block_reuse.Set(old_stmt, stmt);
-    return std::move(stmt);
+    return stmt;
   }
 
   Array<PrimExpr> RewriteIndices(const Array<PrimExpr>& indices) {
@@ -986,7 +986,7 @@ class CacheReadRewriter : public StmtExprMutator {
       ObjectPtr<BufferLoadNode> n = make_object<BufferLoadNode>(*load);
       n->buffer = info_->write_buffer;
       if (!cache_full_region_) {
-        n->indices = std::move(RewriteIndices(load->indices));
+        n->indices = RewriteIndices(load->indices);
       }
       return PrimExpr(n);
     }
@@ -1194,15 +1194,15 @@ class CacheWriteRewriter : public StmtExprMutator {
           n->body = VisitStmt(block->body);
           Block new_consumer = Block(n);
           info_->block_reuse.Set(old_stmt, new_consumer);
-          return std::move(new_consumer);
+          return new_consumer;
         }
-        return std::move(old_stmt);
+        return old_stmt;
       }
     }
 
     // We only mutate the block which generates info->write_buffer
     if (block != writer_block_sref_->stmt && block != scope_sref_->stmt && !under_writer_block_) {
-      return std::move(old_stmt);
+      return old_stmt;
     }
 
     // Mutate the body
@@ -1240,7 +1240,7 @@ class CacheWriteRewriter : public StmtExprMutator {
       }
     }
     info_->block_reuse.Set(old_stmt, stmt);
-    return std::move(stmt);
+    return stmt;
   }
 
   Array<PrimExpr> RewriteIndices(const Array<PrimExpr>& indices) {
@@ -1257,11 +1257,11 @@ class CacheWriteRewriter : public StmtExprMutator {
       auto n = CopyOnWrite(stmt.get());
       n->buffer = info_->read_buffer;
       if (!cache_full_region_) {
-        n->indices = std::move(RewriteIndices(n->indices));
+        n->indices = RewriteIndices(n->indices);
       }
       return Stmt(n);
     } else {
-      return std::move(stmt);
+      return stmt;
     }
   }
 
@@ -1270,7 +1270,7 @@ class CacheWriteRewriter : public StmtExprMutator {
       ObjectPtr<BufferLoadNode> n = make_object<BufferLoadNode>(*load);
       n->buffer = info_->read_buffer;
       if (!cache_full_region_) {
-        n->indices = std::move(RewriteIndices(n->indices));
+        n->indices = RewriteIndices(n->indices);
       }
       return PrimExpr(n);
     }
@@ -1371,7 +1371,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
       n->indices = new_indices_;
       return Stmt(n);
     } else {
-      return std::move(stmt);
+      return stmt;
     }
   }
 
@@ -1565,7 +1565,7 @@ class ReIndexRewriter : public StmtExprMutator {
       n->alloc_buffers.push_back(info_->alloc.value());
       stmt = Block(n);
       info_->block_reuse.Set(old_stmt, stmt);
-      return std::move(stmt);
+      return stmt;
     }
 
     // Visiting the blokc being reindexed
@@ -1594,9 +1594,9 @@ class ReIndexRewriter : public StmtExprMutator {
         stmt = Block(n);
       }
       info_->block_reuse.Set(old_stmt, stmt);
-      return std::move(stmt);
+      return stmt;
     }
-    return std::move(old_stmt);
+    return old_stmt;
   }
 
   template <typename Node>

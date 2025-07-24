@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -29,9 +31,8 @@ class ScheduleFnNode : public SpaceGeneratorNode {
   /*! \brief The schedule function. */
   ffi::Function schedule_fn_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    SpaceGeneratorNode::VisitAttrs(v);
-    // `schedule_fn_` is not visited.
+  static void RegisterReflection() {
+    // `schedule_fn_` is not registered.
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final {
@@ -96,9 +97,13 @@ SpaceGenerator SpaceGenerator::ScheduleFn(ffi::Function schedule_fn,
   return SpaceGenerator(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ ScheduleFnNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(ScheduleFnNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.SpaceGeneratorScheduleFn")
-    .set_body_typed(SpaceGenerator::ScheduleFn);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.SpaceGeneratorScheduleFn", SpaceGenerator::ScheduleFn);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

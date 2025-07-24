@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/script/ir_builder/ir/ir.h>
@@ -158,14 +159,18 @@ VDevice LookupVDevice(String target_kind, int device_index) {
   return VDevice();
 }
 
-TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);
-TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.DeclFunction").set_body_typed(DeclFunction);
-TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.DefFunction").set_body_typed(DefFunction);
-TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.ModuleAttrs").set_body_typed(ModuleAttrs);
-TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGetAttr").set_body_typed(ModuleGetAttr);
-TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.ModuleSetAttr").set_body_typed(ModuleSetAttr);
-TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGlobalInfos").set_body_typed(ModuleGlobalInfos);
-TVM_FFI_REGISTER_GLOBAL("script.ir_builder.ir.LookupVDevice").set_body_typed(LookupVDevice);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("script.ir_builder.ir.IRModule", IRModule)
+      .def("script.ir_builder.ir.DeclFunction", DeclFunction)
+      .def("script.ir_builder.ir.DefFunction", DefFunction)
+      .def("script.ir_builder.ir.ModuleAttrs", ModuleAttrs)
+      .def("script.ir_builder.ir.ModuleGetAttr", ModuleGetAttr)
+      .def("script.ir_builder.ir.ModuleSetAttr", ModuleSetAttr)
+      .def("script.ir_builder.ir.ModuleGlobalInfos", ModuleGlobalInfos)
+      .def("script.ir_builder.ir.LookupVDevice", LookupVDevice);
+});
 
 }  // namespace ir
 }  // namespace ir_builder

@@ -23,6 +23,7 @@
 // Loop vectorizer as in Halide pipeline.
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -464,7 +465,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     if (it != let_binding_.end()) {
       return it->second;
     } else {
-      return std::move(var);
+      return var;
     }
   }
   // IfThenElse expr
@@ -597,7 +598,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       writer->LegalizeDType();
     }
 
-    return std::move(load);
+    return load;
   }
   // Let
   PrimExpr VisitExpr_(const LetNode* op) final {
@@ -738,7 +739,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       writer->value = BroadcastTo(value, total_lanes, is_last_index_scalable);
     }
 
-    return std::move(store);
+    return store;
   }
   // For
   Stmt VisitStmt_(const ForNode* op) final {
@@ -1024,7 +1025,10 @@ Pass VectorizeLoop(bool enable_vectorize) {
   return CreatePrimFuncPass(pass_func, 0, "tir.VectorizeLoop", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.VectorizeLoop").set_body_typed(VectorizeLoop);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.VectorizeLoop", VectorizeLoop);
+});
 
 }  // namespace transform
 

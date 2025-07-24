@@ -84,7 +84,7 @@ class ObjectPathPairNode : public Object {
 
   ObjectPathPairNode(ObjectPath lhs_path, ObjectPath rhs_path);
 
-  static constexpr const char* _type_key = "ObjectPathPair";
+  static constexpr const char* _type_key = "node.ObjectPathPair";
   TVM_DECLARE_FINAL_OBJECT_INFO(ObjectPathPairNode, Object);
 };
 

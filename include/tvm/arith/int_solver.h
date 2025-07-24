@@ -62,11 +62,13 @@ class IntGroupBoundsNode : public Object {
   Array<PrimExpr> equal;
   Array<PrimExpr> upper;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("coef", &coef);
-    v->Visit("lower", &lower);
-    v->Visit("equal", &equal);
-    v->Visit("upper", &upper);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IntGroupBoundsNode>()
+        .def_ro("coef", &IntGroupBoundsNode::coef)
+        .def_ro("lower", &IntGroupBoundsNode::lower)
+        .def_ro("equal", &IntGroupBoundsNode::equal)
+        .def_ro("upper", &IntGroupBoundsNode::upper);
   }
 
   bool SEqualReduce(const IntGroupBoundsNode* other, SEqualReducer eq) const {
@@ -152,10 +154,12 @@ class IntConstraintsNode : public Object {
   // e.g., A \alpha = \beta or A \alpha <= \beta
   Array<PrimExpr> relations;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("variables", &variables);
-    v->Visit("ranges", &ranges);
-    v->Visit("relations", &relations);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IntConstraintsNode>()
+        .def_ro("variables", &IntConstraintsNode::variables)
+        .def_ro("ranges", &IntConstraintsNode::ranges)
+        .def_ro("relations", &IntConstraintsNode::relations);
   }
 
   bool SEqualReduce(const IntConstraintsNode* other, SEqualReducer equal) const {
@@ -213,11 +217,13 @@ class IntConstraintsTransformNode : public Object {
   Map<Var, PrimExpr> src_to_dst;
   Map<Var, PrimExpr> dst_to_src;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("src", &src);
-    v->Visit("dst", &dst);
-    v->Visit("src_to_dst", &src_to_dst);
-    v->Visit("dst_to_src", &dst_to_src);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IntConstraintsTransformNode>()
+        .def_ro("src", &IntConstraintsTransformNode::src)
+        .def_ro("dst", &IntConstraintsTransformNode::dst)
+        .def_ro("src_to_dst", &IntConstraintsTransformNode::src_to_dst)
+        .def_ro("dst_to_src", &IntConstraintsTransformNode::dst_to_src);
   }
 
   bool SEqualReduce(const IntConstraintsTransformNode* other, SEqualReducer equal) const {

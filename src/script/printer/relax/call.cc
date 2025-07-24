@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/accessor.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/distributed/struct_info.h>
 
@@ -25,75 +27,30 @@ namespace tvm {
 namespace script {
 namespace printer {
 
-class AttrPrinter : public tvm::AttrVisitor {
+class AttrPrinter {
  public:
   explicit AttrPrinter(ObjectPath p, const IRDocsifier& d, Array<String>* keys,
                        Array<ExprDoc>* values)
       : p(std::move(p)), d(d), keys(keys), values(values) {}
 
-  void Visit(const char* key, double* value) final {
-    keys->push_back(key);
-    values->push_back(LiteralDoc::Float(*value, p->Attr(key)));
-  }
-
-  void Visit(const char* key, int64_t* value) final {
-    keys->push_back(key);
-    values->push_back(LiteralDoc::Int(*value, p->Attr(key)));
-  }
-
-  void Visit(const char* key, uint64_t* value) final {
-    keys->push_back(key);
-    values->push_back(LiteralDoc::Int(*value, p->Attr(key)));
-  }
-
-  void Visit(const char* key, int* value) final {
-    keys->push_back(key);
-    values->push_back(LiteralDoc::Int(*value, p->Attr(key)));
-  }
-
-  void Visit(const char* key, bool* value) final {
-    keys->push_back(key);
-    values->push_back(LiteralDoc::Boolean(*value, p->Attr(key)));
-  }
-
-  void Visit(const char* key, std::string* value) final {
-    keys->push_back(key);
-    values->push_back(LiteralDoc::Str(*value, p->Attr(key)));
-  }
-
-  void Visit(const char* key, DataType* value) final {
-    keys->push_back(key);
-    values->push_back(LiteralDoc::DataType(*value, p->Attr(key)));
-  }
-
-  void Visit(const char* key, runtime::ObjectRef* value) final {
-    keys->push_back(key);
-    values->push_back(d->AsDoc<ExprDoc>(*value, p->Attr(key)));
-  }
-
-  void Visit(const char* key, void** value) final {
-    LOG(FATAL) << "TypeError: void is not allowed in Attrs";
-  }
-
-  void Visit(const char* key, runtime::NDArray* value) final {
-    LOG(FATAL) << "TypeError: NDArray is not allowed in Attrs";
-  }
-
-  void Visit(const char* key, Optional<double>* value) final {
-    keys->push_back(key);
-    if (value->has_value()) {
-      values->push_back(LiteralDoc::Float(value->value(), p->Attr(key)));
+  void operator()(const tvm::Attrs& attrs) {
+    if (const auto* dict_attrs = attrs.as<DictAttrsNode>()) {
+      for (const auto& [key, value] : dict_attrs->dict) {
+        keys->push_back(key);
+        values->push_back(d->AsDoc<ExprDoc>(value, p->Attr(key)));
+      }
     } else {
-      values->push_back(LiteralDoc::None(p->Attr(key)));
-    }
-  }
-
-  void Visit(const char* key, Optional<int64_t>* value) final {
-    keys->push_back(key);
-    if (value->has_value()) {
-      values->push_back(LiteralDoc::Int(value->value(), p->Attr(key)));
-    } else {
-      values->push_back(LiteralDoc::None(p->Attr(key)));
+      const TVMFFITypeInfo* attrs_tinfo = TVMFFIGetTypeInfo(attrs->type_index());
+      ICHECK(attrs_tinfo->metadata != nullptr)
+          << "Object `" << attrs->GetTypeKey()
+          << "` misses reflection registration and do not support serialization";
+      // new printing mechanism using the new reflection
+      ffi::reflection::ForEachFieldInfo(attrs_tinfo, [&](const TVMFFIFieldInfo* field_info) {
+        String field_name = String(field_info->name);
+        Any field_value = ffi::reflection::FieldGetter(field_info)(attrs);
+        keys->push_back(field_name);
+        values->push_back(d->AsDoc<ExprDoc>(field_value, p->Attr(field_name)));
+      });
     }
   }
 
@@ -235,8 +192,7 @@ Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const ObjectPath& n_p,
   Array<ExprDoc> kwargs_values;
   ICHECK(n->attrs.defined());
   if (n->attrs.as<relax::HintOnDeviceAttrs>()) {
-    AttrPrinter printer(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values);
-    const_cast<BaseAttrsNode*>(n->attrs.get())->VisitAttrs(&printer);
+    AttrPrinter(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values)(n->attrs);
     args.push_back(Relax(d, "device")->Call({}, kwargs_keys, kwargs_values));
   }
   return Relax(d, "hint_on_device")->Call(args);
@@ -355,8 +311,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
                     d->AsDoc<ExprDoc>(kv.second, n_p->Attr("attrs")->Attr(kv.first)));
               }
             } else {
-              AttrPrinter printer(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values);
-              const_cast<BaseAttrsNode*>(n->attrs.get())->VisitAttrs(&printer);
+              AttrPrinter(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values)(n->attrs);
             }
           }
           // Step 4. Print type_args

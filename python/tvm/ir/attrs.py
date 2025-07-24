@@ -22,33 +22,13 @@ import tvm.runtime._ffi_node_api
 from . import _ffi_api
 
 
-@tvm.ffi.register_object
+@tvm.ffi.register_object("ir.Attrs")
 class Attrs(Object):
     """Attribute node, which is mainly use for defining attributes of operators.
 
     Used by function registered in python side, such as compute, schedule and alter_layout.
     Attrs is passed as the first argument to these functions.
     """
-
-    def list_field_info(self):
-        """Get fields information
-
-        Returns
-        -------
-        infos: list of AttrFieldInfo
-            List of field information
-        """
-        return _ffi_api.AttrsListFieldInfo(self)
-
-    def keys(self):
-        """Get list of names in the attribute.
-
-        Returns
-        -------
-        keys : list of str
-            List of keys
-        """
-        return [field.name for field in self.list_field_info()]
 
     def get_int_tuple(self, key):
         """Get a python int tuple of a key
@@ -93,7 +73,7 @@ class Attrs(Object):
         return self.__getattr__(item)
 
 
-@tvm.ffi.register_object
+@tvm.ffi.register_object("ir.DictAttrs")
 class DictAttrs(Attrs):
     """Dictionary attributes."""
 
@@ -157,7 +137,7 @@ def make_node(type_key, **kwargs):
 
     .. code-block:: python
 
-       x = tvm.ir.make_node("IntImm", dtype="int32", value=10, span=None)
+       x = tvm.ir.make_node("ir.IntImm", dtype="int32", value=10, span=None)
        assert isinstance(x, tvm.tir.IntImm)
        assert x.value == 10
     """

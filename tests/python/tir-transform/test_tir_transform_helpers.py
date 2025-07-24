@@ -209,6 +209,62 @@ class TestBindTargetMultipleFunctions(tvm.testing.CompareBeforeAfter):
         return mod
 
 
+class TestBindTargetWithDeviceHostCallSameFunc(tvm.testing.CompareBeforeAfter):
+    """BindTarget should bind the device target to the function if it is called from device"""
+
+    transform = tvm.tir.transform.BindTarget(tvm.target.Target("cuda", host="llvm -opt-level=0"))
+
+    def before(self):
+        @I.ir_module
+        class Module:
+            @T.prim_func(private=True)
+            def add(a: T.int32, b: T.int32) -> T.int32:
+                return a + b
+
+            @T.prim_func
+            def main(
+                A: T.Buffer((128, 128), "int32"),
+                B: T.Buffer((128, 128), "int32"),
+                C: T.Buffer((128, 128), "int32"),
+            ):
+                T.func_attr({"global_symbol": "main"})
+                length: T.int32 = Module.add(64, 64)  # Call from host
+                for bx in T.thread_binding(length, "blockIdx.x"):
+                    for tx in T.thread_binding(length, "threadIdx.x"):
+                        C[bx, tx] = Module.add(A[bx, tx], B[bx, tx])  # Call from device
+
+        return Module
+
+    def expected(self):
+        @I.ir_module
+        class Module:
+            @T.prim_func(private=True)
+            def add(a: T.int32, b: T.int32) -> T.int32:
+                T.func_attr({"target": T.target("cuda")})
+                return a + b
+
+            @T.prim_func(private=True)
+            def add_host(a: T.int32, b: T.int32) -> T.int32:
+                T.func_attr({"target": T.target("llvm -opt-level=0")})
+                return a + b
+
+            @T.prim_func
+            def main(
+                A: T.Buffer((128, 128), "int32"),
+                B: T.Buffer((128, 128), "int32"),
+                C: T.Buffer((128, 128), "int32"),
+            ):
+                T.func_attr(
+                    {"global_symbol": "main", "target": T.target("cuda", host="llvm -opt-level=0")}
+                )
+                length: T.int32 = Module.add_host(64, 64)  # Call from host
+                for bx in T.thread_binding(length, "blockIdx.x"):
+                    for tx in T.thread_binding(length, "threadIdx.x"):
+                        C[bx, tx] = Module.add(A[bx, tx], B[bx, tx])  # Call from device
+
+        return Module
+
+
 def test_filter_primfunc():
     mod = MockModule
     assert mod

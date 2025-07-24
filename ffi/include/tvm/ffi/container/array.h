@@ -156,7 +156,7 @@ class ArrayObj : public Object, public details::InplaceArrayBase<ArrayObj, TVMFF
   }
 
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIArray;
-  static constexpr const char* _type_key = "object.Array";
+  static constexpr const char* _type_key = StaticTypeKey::kTVMFFIArray;
   static const constexpr bool _type_final = true;
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ArrayObj, Object);
 
@@ -1001,7 +1001,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIArray;
   using ObjectRefTypeTraitsBase<Array<T>>::CopyFromAnyViewAfterCheck;
 
-  static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIArray) {
       return TypeTraitsBase::GetMismatchTypeInfo(src);
     }
@@ -1022,7 +1022,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
     TVM_FFI_UNREACHABLE();
   }
 
-  static TVM_FFI_INLINE bool CheckAnyStrict(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static bool CheckAnyStrict(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIArray) return false;
     if constexpr (std::is_same_v<T, Any>) {
       return true;
@@ -1036,7 +1036,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
     }
   }
 
-  static TVM_FFI_INLINE std::optional<Array<T>> TryCastFromAnyView(const TVMFFIAny* src) {
+  TVM_FFI_INLINE static std::optional<Array<T>> TryCastFromAnyView(const TVMFFIAny* src) {
     // try to run conversion.
     if (src->type_index != TypeIndex::kTVMFFIArray) return std::nullopt;
     if constexpr (!std::is_same_v<T, Any>) {
@@ -1069,7 +1069,7 @@ struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
     }
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return "Array<" + details::Type2Str<T>::v() + ">"; }
+  TVM_FFI_INLINE static std::string TypeStr() { return "Array<" + details::Type2Str<T>::v() + ">"; }
 };
 
 namespace details {

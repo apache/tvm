@@ -56,7 +56,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
     if (Optional<PrimExpr> ret = vmap_(var)) {
       return tvm::cast(var.dtype(), ret.value());
     } else {
-      return std::move(var);
+      return var;
     }
   }
 
@@ -65,7 +65,7 @@ class SubstituteVarAndCollectOpaqueBlock : public StmtExprMutator {
     if (realize->block->iter_vars.empty()) {
       opaque_blocks_->Set(op->block, realize->block);
     }
-    return std::move(realize);
+    return realize;
   }
 
   /*! \brief The substitute function */
@@ -113,7 +113,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
           break;
         }
       }
-      return std::move(realize);
+      return realize;
     }
     Array<PrimExpr> v =
         arith::IterMapSimplify(/*indices=*/op->iter_values,
@@ -537,7 +537,7 @@ class BlockMutator : public StmtExprMutator {
     if (new_block->iter_vars.size() == 0 || inner_iter_var_index == -1) {
       new_block.CopyOnWrite()->name_hint =
           new_block.CopyOnWrite()->name_hint + "_" + new_loop_var_->name_hint;
-      return std::move(new_block);
+      return new_block;
     }
 
     Var iter_var_ = new_block->iter_vars[inner_iter_var_index]->var;
@@ -594,7 +594,7 @@ class BlockMutator : public StmtExprMutator {
 
     // Update all instances of old iter_vars in the block with new iter_vars
     auto block_stmt = tir::Substitute(new_block, var_map);
-    return std::move(block_stmt);
+    return block_stmt;
   }
 
   Stmt VisitStmt_(const BlockRealizeNode* realize) final {
@@ -607,7 +607,7 @@ class BlockMutator : public StmtExprMutator {
       }
     }
     BlockRealize stmt = Downcast<BlockRealize>(StmtExprMutator::VisitStmt_(realize));
-    return std::move(stmt);
+    return stmt;
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
@@ -616,7 +616,7 @@ class BlockMutator : public StmtExprMutator {
 
     if (!op->loop_var.same_as(new_var)) {
       // If the partioned loop contains nested for loop, then create new iteration variable instance
-      res.CopyOnWrite()->body = std::move(tir::Substitute(res->body, {{op->loop_var, new_var}}));
+      res.CopyOnWrite()->body = tir::Substitute(res->body, {{op->loop_var, new_var}});
       res.CopyOnWrite()->loop_var = new_var;
     }
     return res;
@@ -776,7 +776,7 @@ class LoopReconstructor : private StmtMutator {
     } else if (ret->size() == 1) {
       return ret->seq[0];
     } else {
-      return std::move(ret);
+      return ret;
     }
   }
 

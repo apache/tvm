@@ -24,6 +24,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
@@ -255,8 +256,10 @@ Pass InstrumentBoundCheckers() {
   return CreatePrimFuncPass(pass_func, 0, "tir.InstrumentBoundCheckers", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.InstrumentBoundCheckers")
-    .set_body_typed(InstrumentBoundCheckers);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.InstrumentBoundCheckers", InstrumentBoundCheckers);
+});
 
 }  // namespace transform
 

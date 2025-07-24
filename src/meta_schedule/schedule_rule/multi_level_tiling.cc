@@ -18,6 +18,7 @@
  */
 #include "./multi_level_tiling.h"
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/schedule_rule.h>
 
 #include <algorithm>
@@ -53,6 +54,8 @@ using tir::BlockRV;
 using tir::IterVarType;
 using tir::LoopRV;
 using tir::Schedule;
+
+TVM_FFI_STATIC_INIT_BLOCK({ MultiLevelTilingNode::RegisterReflection(); });
 
 TVM_REGISTER_OBJECT_TYPE(StateNode);
 
@@ -405,8 +408,11 @@ ScheduleRule ScheduleRule::MultiLevelTiling(String structure, Optional<Array<Str
 }
 
 TVM_REGISTER_NODE_TYPE(MultiLevelTilingNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTiling")
-    .set_body_typed(ScheduleRule::MultiLevelTiling);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTiling",
+                        ScheduleRule::MultiLevelTiling);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

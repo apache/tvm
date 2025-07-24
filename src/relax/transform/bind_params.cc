@@ -17,6 +17,7 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/function.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -196,7 +197,10 @@ IRModule BindParam(IRModule m, String func_name, Map<ObjectRef, ObjectRef> bind_
   return GetRef<IRModule>(new_module);
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.FunctionBindParams").set_body_typed(FunctionBindParams);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.FunctionBindParams", FunctionBindParams);
+});
 
 namespace transform {
 
@@ -207,7 +211,10 @@ Pass BindParams(String func_name, Map<ObjectRef, ObjectRef> params) {
   return CreateModulePass(pass_func, 0, "BindParams", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.BindParams").set_body_typed(BindParams);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.BindParams", BindParams);
+});
 
 }  // namespace transform
 

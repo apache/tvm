@@ -1008,7 +1008,7 @@ inline Array<Tensor> split_n_sections(const Tensor& x, int num_sections, int axi
  * \return A Tensor whose op member is the take operation
  */
 inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims,
-                   std::string mode = "clip", std::string name = "T_take",
+                   std::string mode = "fast", std::string name = "T_take",
                    std::string tag = kInjective) {
   Array<PrimExpr> a_shape = a->shape;
   Array<PrimExpr> out_shape = indices->shape;
@@ -1031,6 +1031,16 @@ inline Tensor take(const Tensor& a, const Tensor& indices, int batch_dims,
     return compute(
         out_shape,
         [&](const Array<Var>& out_index) { return a(UnravelIndex(indices(out_index), a_shape)); },
+        name, tag);
+  } else if (mode == "nan") {
+    return compute(
+        out_shape,
+        [&](const Array<Var>& out_index) {
+          auto idx = tvm::if_then_else(
+              indices(out_index) < 0 || indices(out_index) >= a_size,
+              tvm::FloatImm(a->dtype, std::numeric_limits<float>::quiet_NaN()), indices(out_index));
+          return a(UnravelIndex(idx, a_shape));
+        },
         name, tag);
   } else {  // mode == "wrap"
     return compute(
@@ -1094,7 +1104,7 @@ inline Tensor sequence_mask(const Tensor& data, const Tensor& valid_length, doub
  * \return A Tensor whose op member is the take operation
  */
 inline Tensor take(const Tensor& a, Variant<Tensor, PrimExpr> indices, int batch_dims, int axis,
-                   std::string mode = "clip", std::string name = "T_take",
+                   std::string mode = "fast", std::string name = "T_take",
                    std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(a->shape.size());
@@ -1206,6 +1216,8 @@ inline Tensor take(const Tensor& a, Variant<Tensor, PrimExpr> indices, int batch
           name, tag);
     }
   } else if (mode == "fast") {
+    LOG(WARNING) << "Fast mode segfaults when there are out-of-bounds indices. "
+                    "Make sure input indices are in bound";
     return compute(
         out_shape,
         [&](const Array<Var>& out_index) {
@@ -1222,6 +1234,29 @@ inline Tensor take(const Tensor& a, Variant<Tensor, PrimExpr> indices, int batch
             real_indices.push_back(out_index[j]);
           }
           return a(real_indices);
+        },
+        name, tag);
+  } else if (mode == "nan") {
+    return compute(
+        out_shape,
+        [&](const Array<Var>& out_index) {
+          Array<PrimExpr> indices_position;
+          for (size_t j = axis; j < static_cast<size_t>(axis + indices_len); ++j) {
+            indices_position.push_back(out_index[j]);
+          }
+          Array<PrimExpr> real_indices;
+          for (size_t j = 0; j < static_cast<size_t>(axis); ++j) {
+            real_indices.push_back(out_index[j]);
+          }
+          PrimExpr idx = get_index(indices_position);
+          real_indices.push_back(idx);
+          for (size_t j = axis + indices_len; j < out_index.size(); ++j) {
+            real_indices.push_back(out_index[j]);
+          }
+          PrimExpr in_bounds = idx >= 0 && idx < axis_dim;
+          return tvm::if_then_else(
+              in_bounds, a(real_indices),
+              tvm::tir::make_const(a->dtype, std::numeric_limits<float>::quiet_NaN()));
         },
         name, tag);
   } else {  // mode == "wrap"

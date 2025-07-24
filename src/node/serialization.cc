@@ -24,6 +24,8 @@
 #include <dmlc/json.h>
 #include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/accessor.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/node/reflection.h>
 #include <tvm/node/serialization.h>
@@ -62,35 +64,11 @@ inline std::string Base64Encode(std::string s) {
 }
 
 // indexer to index all the nodes
-class NodeIndexer : public AttrVisitor {
+class NodeIndexer {
  public:
   std::unordered_map<Any, size_t, ffi::AnyHash, ffi::AnyEqual> node_index_{{Any(nullptr), 0}};
   std::vector<Any> node_list_{Any(nullptr)};
-  std::unordered_map<DLTensor*, size_t> tensor_index_;
-  std::vector<DLTensor*> tensor_list_;
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
-
-  void Visit(const char* key, double* value) final {}
-  void Visit(const char* key, int64_t* value) final {}
-  void Visit(const char* key, uint64_t* value) final {}
-  void Visit(const char* key, int* value) final {}
-  void Visit(const char* key, bool* value) final {}
-  void Visit(const char* key, std::string* value) final {}
-  void Visit(const char* key, void** value) final {}
-  void Visit(const char* key, DataType* value) final {}
-
-  void Visit(const char* key, runtime::NDArray* value) final {
-    DLTensor* ptr = const_cast<ffi::NDArrayObj*>((*value).operator->());
-    if (tensor_index_.count(ptr)) return;
-    ICHECK_EQ(tensor_index_.size(), tensor_list_.size());
-    tensor_index_[ptr] = tensor_list_.size();
-    tensor_list_.push_back(ptr);
-  }
-
-  void Visit(const char* key, Optional<double>* value) final {}
-  void Visit(const char* key, Optional<int64_t>* value) final {}
-
-  void Visit(const char* key, ObjectRef* value) final { MakeIndex(Any(*value)); }
 
   void MakeNodeIndex(Any node) {
     if (node == nullptr) return;
@@ -108,6 +86,7 @@ class NodeIndexer : public AttrVisitor {
     if (node_index_.count(node)) {
       return;
     }
+
     MakeNodeIndex(node);
     if (auto opt_array = node.as<const ffi::ArrayObj*>()) {
       const ffi::ArrayObj* n = opt_array.value();
@@ -133,9 +112,23 @@ class NodeIndexer : public AttrVisitor {
       Object* n = const_cast<Object*>(opt_object.value());
       // if the node already have repr bytes, no need to visit Attrs.
       if (!reflection_->GetReprBytes(n, nullptr)) {
-        reflection_->VisitAttrs(n, this);
+        this->VisitObjectFields(n);
       }
     }
+  }
+
+  void VisitObjectFields(Object* obj) {
+    const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
+    ICHECK(tinfo->metadata != nullptr)
+        << "Object `" << obj->GetTypeKey()
+        << "` misses reflection registration and do not support serialization";
+    ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
+      Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
+      // only make index for ObjectRef
+      if (field_value.as<Object>()) {
+        this->MakeIndex(field_value);
+      }
+    });
   }
 };
 
@@ -211,52 +204,40 @@ struct JSONNode {
 
 // Helper class to populate the json node
 // using the existing index.
-class JSONAttrGetter : public AttrVisitor {
+class JSONAttrGetter {
  public:
   const std::unordered_map<Any, size_t, ffi::AnyHash, ffi::AnyEqual>* node_index_;
-  const std::unordered_map<DLTensor*, size_t>* tensor_index_;
   JSONNode* node_;
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
 
-  void Visit(const char* key, double* value) final {
+  void Visit(const char* key, double* value) {
     std::ostringstream s;
     // Save 17 decimal digits for type <double> to avoid precision loss during loading JSON
     s.precision(17);
     s << (*value);
     node_->attrs[key] = s.str();
   }
-  void Visit(const char* key, int64_t* value) final { node_->attrs[key] = std::to_string(*value); }
-  void Visit(const char* key, uint64_t* value) final { node_->attrs[key] = std::to_string(*value); }
-  void Visit(const char* key, int* value) final { node_->attrs[key] = std::to_string(*value); }
-  void Visit(const char* key, bool* value) final { node_->attrs[key] = std::to_string(*value); }
-  void Visit(const char* key, std::string* value) final { node_->attrs[key] = *value; }
-  void Visit(const char* key, void** value) final {
-    LOG(FATAL) << "not allowed to serialize a pointer";
-  }
-  void Visit(const char* key, DataType* value) final { node_->attrs[key] = Type2String(*value); }
-  void Visit(const char* key, runtime::NDArray* value) final {
-    node_->attrs[key] =
-        std::to_string(tensor_index_->at(const_cast<ffi::NDArrayObj*>((*value).operator->())));
-  }
-
-  void Visit(const char* key, Optional<int64_t>* value) final {
+  void Visit(const char* key, int64_t* value) { node_->attrs[key] = std::to_string(*value); }
+  void Visit(const char* key, uint64_t* value) { node_->attrs[key] = std::to_string(*value); }
+  void Visit(const char* key, int* value) { node_->attrs[key] = std::to_string(*value); }
+  void Visit(const char* key, bool* value) { node_->attrs[key] = std::to_string(*value); }
+  void Visit(const char* key, std::string* value) { node_->attrs[key] = *value; }
+  void Visit(const char* key, void** value) { LOG(FATAL) << "not allowed to serialize a pointer"; }
+  void Visit(const char* key, DataType* value) { node_->attrs[key] = Type2String(*value); }
+  void Visit(const char* key, Optional<int64_t>* value) {
     if (value->has_value()) {
       node_->attrs[key] = std::to_string(value->value());
     } else {
       node_->attrs[key] = "null";
     }
   }
-  void Visit(const char* key, Optional<double>* value) final {
-    if (value->has_value()) {
-      double val = **value;
-      Visit(key, &val);
+
+  void Visit(const char* key, ObjectRef* value) {
+    if (value->defined()) {
+      node_->attrs[key] = std::to_string(node_index_->at(Any(*value)));
     } else {
       node_->attrs[key] = "null";
     }
-  }
-
-  void Visit(const char* key, ObjectRef* value) final {
-    node_->attrs[key] = std::to_string(node_index_->at(Any(*value)));
   }
 
   // Get the node
@@ -296,7 +277,7 @@ class JSONAttrGetter : public AttrVisitor {
       // do not need to print additional things once we have repr bytes.
       if (!reflection_->GetReprBytes(n, &(node_->repr_bytes))) {
         // recursively index normal object.
-        reflection_->VisitAttrs(n, this);
+        this->VisitObjectFields(n);
       }
     } else {
       // handling primitive types
@@ -327,9 +308,57 @@ class JSONAttrGetter : public AttrVisitor {
       }
     }
   }
+
+  void VisitObjectFields(Object* obj) {
+    // dispatch between new reflection and old reflection
+    const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
+    ICHECK(tinfo->metadata != nullptr)
+        << "Object `" << obj->GetTypeKey()
+        << "` misses reflection registration and do not support serialization";
+    ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
+      Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
+      String field_name(field_info->name);
+      switch (field_value.type_index()) {
+        case ffi::TypeIndex::kTVMFFINone: {
+          node_->attrs[field_name] = "null";
+          break;
+        }
+        case ffi::TypeIndex::kTVMFFIBool:
+        case ffi::TypeIndex::kTVMFFIInt: {
+          int64_t value = field_value.cast<int64_t>();
+          this->Visit(field_info->name.data, &value);
+          break;
+        }
+        case ffi::TypeIndex::kTVMFFIFloat: {
+          double value = field_value.cast<double>();
+          this->Visit(field_info->name.data, &value);
+          break;
+        }
+        case ffi::TypeIndex::kTVMFFIDataType: {
+          DataType value(field_value.cast<DLDataType>());
+          this->Visit(field_info->name.data, &value);
+          break;
+        }
+        case ffi::TypeIndex::kTVMFFINDArray: {
+          runtime::NDArray value = field_value.cast<runtime::NDArray>();
+          this->Visit(field_info->name.data, &value);
+          break;
+        }
+        default: {
+          if (field_value.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+            ObjectRef obj = field_value.cast<ObjectRef>();
+            this->Visit(field_info->name.data, &obj);
+            break;
+          } else {
+            LOG(FATAL) << "Unsupported type: " << field_value.GetTypeKey();
+          }
+        }
+      }
+    });
+  }
 };
 
-class FieldDependencyFinder : public AttrVisitor {
+class FieldDependencyFinder {
  public:
   JSONNode* jnode_;
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
@@ -349,22 +378,19 @@ class FieldDependencyFinder : public AttrVisitor {
       LOG(FATAL) << "Wrong value format for field " << key;
     }
   }
-  void Visit(const char* key, double* value) final {}
-  void Visit(const char* key, int64_t* value) final {}
-  void Visit(const char* key, uint64_t* value) final {}
-  void Visit(const char* key, int* value) final {}
-  void Visit(const char* key, bool* value) final {}
-  void Visit(const char* key, std::string* value) final {}
-  void Visit(const char* key, void** value) final {}
-  void Visit(const char* key, DataType* value) final {}
-  void Visit(const char* key, runtime::NDArray* value) final {}
-  void Visit(const char* key, Optional<int64_t>* value) final {}
-  void Visit(const char* key, Optional<double>* value) final {}
-  void Visit(const char* key, ObjectRef* value) final {
-    size_t index;
-    ParseValue(key, &index);
-    jnode_->fields.push_back(index);
+
+  template <typename T>
+  void ParseOptionalValue(const char* key, Optional<T>* value) const {
+    std::string value_str = GetValue(key);
+    if (value_str == "null") {
+      *value = std::nullopt;
+    } else {
+      T temp;
+      ParseValue(key, &temp);
+      *value = temp;
+    }
   }
+
   void Find(Any node, JSONNode* jnode) {
     // Skip None
     if (node == nullptr) {
@@ -378,24 +404,42 @@ class FieldDependencyFinder : public AttrVisitor {
         reflection_->GetReprBytes(node.cast<const Object*>(), nullptr)) {
       return;
     }
-    // Skip containers
-    if (jnode->type_key == ffi::ArrayObj::_type_key || jnode->type_key == ffi::MapObj::_type_key) {
+    // Skip special handling containers
+    if (jnode->type_key == ffi::ArrayObj::_type_key || jnode->type_key == ffi::MapObj::_type_key ||
+        jnode->type_key == ffi::NDArrayObj::_type_key) {
       return;
     }
     jnode_ = jnode;
     if (auto opt_object = node.as<const Object*>()) {
       Object* n = const_cast<Object*>(opt_object.value());
-      reflection_->VisitAttrs(n, this);
+      this->VisitObjectFields(n);
     }
+  }
+
+  void VisitObjectFields(Object* obj) {
+    // dispatch between new reflection and old reflection
+    const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
+    ICHECK(tinfo->metadata != nullptr)
+        << "Object `" << obj->GetTypeKey()
+        << "` misses reflection registration and do not support serialization";
+    ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
+      if (field_info->field_static_type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin ||
+          field_info->field_static_type_index == ffi::TypeIndex::kTVMFFIAny) {
+        Optional<int64_t> index;
+        ParseOptionalValue(field_info->name.data, &index);
+        if (index.has_value()) {
+          jnode_->fields.push_back(*index);
+        }
+      }
+    });
   }
 };
 
 // Helper class to set the attributes of a node
 // from given json node.
-class JSONAttrSetter : public AttrVisitor {
+class JSONAttrSetter {
  public:
   const std::vector<Any>* node_list_;
-  const std::vector<runtime::NDArray>* tensor_list_;
   JSONNode* jnode_;
 
   ReflectionVTable* reflection_ = ReflectionVTable::Global();
@@ -414,6 +458,8 @@ class JSONAttrSetter : public AttrVisitor {
       *value = std::numeric_limits<double>::infinity();
     } else if (is.str() == "-inf") {
       *value = -std::numeric_limits<double>::infinity();
+    } else if (is.str() == "nan") {
+      *value = std::numeric_limits<double>::quiet_NaN();
     } else {
       is >> *value;
       if (is.fail()) {
@@ -442,40 +488,39 @@ class JSONAttrSetter : public AttrVisitor {
     }
   }
 
-  void Visit(const char* key, double* value) final { ParseDouble(key, value); }
-  void Visit(const char* key, int64_t* value) final { ParseValue(key, value); }
-  void Visit(const char* key, uint64_t* value) final { ParseValue(key, value); }
-  void Visit(const char* key, int* value) final { ParseValue(key, value); }
-  void Visit(const char* key, bool* value) final { ParseValue(key, value); }
-  void Visit(const char* key, std::string* value) final { *value = GetValue(key); }
+  void Visit(const char* key, double* value) { ParseDouble(key, value); }
+  void Visit(const char* key, int64_t* value) { ParseValue(key, value); }
+  void Visit(const char* key, uint64_t* value) { ParseValue(key, value); }
+  void Visit(const char* key, int* value) { ParseValue(key, value); }
+  void Visit(const char* key, bool* value) { ParseValue(key, value); }
+  void Visit(const char* key, std::string* value) { *value = GetValue(key); }
 
-  void Visit(const char* key, Optional<double>* value) final {
+  void Visit(const char* key, Optional<double>* value) {
     ParseOptionalValue<double>(key, value,
                                [this](const char* key, double* value) { ParseDouble(key, value); });
   }
-  void Visit(const char* key, Optional<int64_t>* value) final {
+  void Visit(const char* key, Optional<int64_t>* value) {
     ParseOptionalValue<int64_t>(
         key, value, [this](const char* key, int64_t* value) { ParseValue(key, value); });
   }
 
-  void Visit(const char* key, void** value) final {
+  void Visit(const char* key, void** value) {
     LOG(FATAL) << "not allowed to deserialize a pointer";
   }
-  void Visit(const char* key, DataType* value) final {
+  void Visit(const char* key, DataType* value) {
     std::string stype = GetValue(key);
     *value = String2Type(stype);
   }
-  void Visit(const char* key, runtime::NDArray* value) final {
-    size_t index;
-    ParseValue(key, &index);
-    ICHECK_LE(index, tensor_list_->size());
-    *value = tensor_list_->at(index);
+  void Visit(const char* key, runtime::NDArray* value) {
+    Visit(key, static_cast<ObjectRef*>(value));
   }
-  void Visit(const char* key, ObjectRef* value) final {
-    size_t index;
-    ParseValue(key, &index);
-    ICHECK_LE(index, node_list_->size());
-    *value = node_list_->at(index).cast<ObjectRef>();
+  void Visit(const char* key, ObjectRef* value) {
+    Optional<int64_t> index;
+    ParseOptionalValue(key, &index,
+                       [this](const char* key, int64_t* value) { ParseValue(key, value); });
+    if (index.has_value()) {
+      *value = node_list_->at(*index).cast<ObjectRef>();
+    }
   }
 
   static Any CreateInitAny(ReflectionVTable* reflection, JSONNode* jnode) {
@@ -543,7 +588,59 @@ class JSONAttrSetter : public AttrVisitor {
       if (jnode->repr_bytes.length() > 0 || reflection_->GetReprBytes(n, nullptr)) {
         return;
       }
-      reflection_->VisitAttrs(n, this);
+      this->SetObjectFields(n);
+    }
+  }
+
+  void SetObjectFields(Object* obj) {
+    // dispatch between new reflection and old reflection
+    const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
+    ICHECK(tinfo->metadata != nullptr)
+        << "Object `" << obj->GetTypeKey()
+        << "` misses reflection registration and do not support serialization";
+    ffi::reflection::ForEachFieldInfo(
+        tinfo, [&](const TVMFFIFieldInfo* field_info) { this->SetObjectField(obj, field_info); });
+  }
+
+  void SetObjectField(Object* obj, const TVMFFIFieldInfo* field_info) {
+    ffi::reflection::FieldSetter setter(field_info);
+    switch (field_info->field_static_type_index) {
+      case ffi::TypeIndex::kTVMFFIBool:
+      case ffi::TypeIndex::kTVMFFIInt: {
+        Optional<int64_t> value;
+        this->Visit(field_info->name.data, &value);
+        setter(obj, value);
+        break;
+      }
+      case ffi::TypeIndex::kTVMFFIFloat: {
+        Optional<double> value;
+        this->Visit(field_info->name.data, &value);
+        setter(obj, value);
+        break;
+      }
+      case ffi::TypeIndex::kTVMFFIDataType: {
+        DataType value;
+        this->Visit(field_info->name.data, &value);
+        setter(obj, value);
+        break;
+      }
+      case ffi::TypeIndex::kTVMFFINDArray: {
+        runtime::NDArray value;
+        this->Visit(field_info->name.data, &value);
+        setter(obj, value);
+        break;
+      }
+      default: {
+        Optional<int64_t> index;
+        ParseOptionalValue(field_info->name.data, &index,
+                           [this](const char* key, int64_t* value) { ParseValue(key, value); });
+        if (index.has_value()) {
+          Any value = node_list_->at(*index).cast<ObjectRef>();
+          setter(obj, value);
+        } else {
+          setter(obj, Any());
+        }
+      }
     }
   }
 };
@@ -586,7 +683,6 @@ struct JSONGraph {
     indexer.MakeIndex(root);
     JSONAttrGetter getter;
     getter.node_index_ = &indexer.node_index_;
-    getter.tensor_index_ = &indexer.tensor_index_;
     for (Any n : indexer.node_list_) {
       JSONNode jnode;
       getter.node_ = &jnode;
@@ -594,16 +690,8 @@ struct JSONGraph {
       g.nodes.emplace_back(std::move(jnode));
     }
     g.attrs["tvm_version"] = TVM_VERSION;
+    ICHECK(indexer.node_index_.count(root));
     g.root = indexer.node_index_.at(root);
-    // serialize tensor
-    for (DLTensor* tensor : indexer.tensor_list_) {
-      std::string blob;
-      dmlc::MemoryStringStream mstrm(&blob);
-      support::Base64OutStream b64strm(&mstrm);
-      runtime::SaveDLTensor(&b64strm, tensor);
-      b64strm.Finish();
-      g.b64ndarrays.emplace_back(std::move(blob));
-    }
     return g;
   }
 
@@ -691,7 +779,6 @@ Any LoadJSON(std::string json_str) {
   {
     JSONAttrSetter setter;
     setter.node_list_ = &nodes;
-    setter.tensor_list_ = &tensors;
     for (size_t i : topo_order) {
       setter.SetAttrs(&nodes[i], &jgraph.nodes[i]);
     }
@@ -699,7 +786,8 @@ Any LoadJSON(std::string json_str) {
   return nodes.at(jgraph.root);
 }
 
-TVM_FFI_REGISTER_GLOBAL("node.SaveJSON").set_body_typed(SaveJSON);
-
-TVM_FFI_REGISTER_GLOBAL("node.LoadJSON").set_body_typed(LoadJSON);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("node.SaveJSON", SaveJSON).def("node.LoadJSON", LoadJSON);
+});
 }  // namespace tvm

@@ -24,6 +24,7 @@
  * extra computations that do not impact the final results.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/transform.h>
 
@@ -38,17 +39,21 @@ namespace tvm {
 namespace tir {
 
 struct ReduceBranchingThroughOvercomputeConfigNode
-    : public tvm::AttrsNode<ReduceBranchingThroughOvercomputeConfigNode> {
+    : public AttrsNodeReflAdapter<ReduceBranchingThroughOvercomputeConfigNode> {
   bool use_dataflow_analysis;
 
-  TVM_DECLARE_ATTRS(ReduceBranchingThroughOvercomputeConfigNode,
-                    "tir.transform.ReduceBranchingThroughOvercomputeConfig") {
-    TVM_ATTR_FIELD(use_dataflow_analysis)
-        .describe(
-            "If true, known buffer values are propagated and used "
-            "to statically prove that overcompute is valid.")
-        .set_default(false);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ReduceBranchingThroughOvercomputeConfigNode>().def_ro(
+        "use_dataflow_analysis",
+        &ReduceBranchingThroughOvercomputeConfigNode::use_dataflow_analysis,
+        "If true, known buffer values are propagated and used "
+        "to statically prove that overcompute is valid.",
+        refl::DefaultValue(false));
   }
+
+  static constexpr const char* _type_key = "tir.transform.ReduceBranchingThroughOvercomputeConfig";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(ReduceBranchingThroughOvercomputeConfigNode, BaseAttrsNode);
 };
 
 class ReduceBranchingThroughOvercomputeConfig : public Attrs {
@@ -56,6 +61,8 @@ class ReduceBranchingThroughOvercomputeConfig : public Attrs {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ReduceBranchingThroughOvercomputeConfig, Attrs,
                                             ReduceBranchingThroughOvercomputeConfigNode);
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ ReduceBranchingThroughOvercomputeConfigNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(ReduceBranchingThroughOvercomputeConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.ReduceBranchingThroughOvercompute",
@@ -65,7 +72,8 @@ struct ElseBranchFiller : StmtExprMutator {
   Stmt VisitStmt_(const IfThenElseNode* op) override {
     IfThenElse ret = Downcast<IfThenElse>(StmtExprMutator::VisitStmt_(op));
     if (ret->else_case.defined()) {
-      return std::move(ret);
+      return ret;
+
     } else {
       auto new_else_clause = Evaluate(0);
       new_else_clauses.insert(new_else_clause);
@@ -89,7 +97,7 @@ class ElseBranchStripper : public StmtExprMutator {
         as_eval && new_else_clauses_.count(as_eval.value())) {
       return IfThenElse(ret->condition, ret->then_case);
     } else {
-      return std::move(ret);
+      return ret;
     }
   }
 
@@ -131,7 +139,7 @@ class BranchReducer : public arith::IRMutatorWithAnalyzer {
     } else if (is_special_case(!cond->condition, cond->then_case, else_case)) {
       return cond->then_case;
     } else {
-      return std::move(cond);
+      return cond;
     }
   }
 
@@ -169,8 +177,11 @@ Pass ReduceBranchingThroughOvercompute() {
   return CreatePrimFuncPass(pass_func, 0, "tir.ReduceBranchingThroughOvercompute", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.ReduceBranchingThroughOvercompute")
-    .set_body_typed(ReduceBranchingThroughOvercompute);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.ReduceBranchingThroughOvercompute",
+                        ReduceBranchingThroughOvercompute);
+});
 
 }  // namespace transform
 

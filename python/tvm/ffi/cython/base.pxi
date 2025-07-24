@@ -24,18 +24,6 @@ from cpython cimport PyErr_CheckSignals, PyGILState_Ensure, PyGILState_Release, 
 from cpython cimport pycapsule, PyCapsule_Destructor
 from cpython cimport PyErr_SetNone
 
-# Cython internal for custom traceback creation
-cdef extern from *:
-    """
-    static void __Pyx_AddTraceback(const char *funcname, int c_line, int py_line, const char *filename);
-    static void __Pyx_AddTraceback_(const char *funcname, int c_line, int py_line, const char *filename) {
-      __Pyx_AddTraceback(funcname, c_line, py_line, filename);
-    }
-    """
-    # __Pyx_AddTraceback is a Cython internal function to add custom traceback to exception
-    # We declare __Pyx_AddTraceback_ and redirect to it to avoid mixed C/C++ calling
-    # This is a nice hack to enable us to create customized traceback refers to c++ code
-    void __Pyx_AddTraceback_(const char *funcname, int c_line, int py_line, const char *filename)
 
 # Cython binding for TVM FFI C API
 cdef extern from "tvm/ffi/c_api.h":
@@ -163,7 +151,7 @@ cdef extern from "tvm/ffi/c_api.h":
         int64_t flags
         TVMFFIAny method
 
-    ctypedef struct TVMFFITypeExtraInfo:
+    ctypedef struct TVMFFITypeMetadata:
         TVMFFIByteArray doc
         TVMFFIObjectCreator creator
         int64_t total_size
@@ -178,7 +166,7 @@ cdef extern from "tvm/ffi/c_api.h":
         int32_t num_methods
         const TVMFFIFieldInfo* fields
         const TVMFFIMethodInfo* methods
-        const TVMFFITypeExtraInfo* extra_info
+        const TVMFFITypeMetadata* metadata
 
     int TVMFFIObjectFree(TVMFFIObjectHandle obj) nogil
     int TVMFFIObjectGetTypeIndex(TVMFFIObjectHandle obj) nogil

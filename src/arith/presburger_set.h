@@ -33,6 +33,7 @@
 #endif
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 
 #include <limits>
@@ -71,7 +72,10 @@ class PresburgerSetNode : public IntSetNode {
   PresburgerSpace space;
 
   // visitor overload.
-  void VisitAttrs(tvm::AttrVisitor* v) {}
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PresburgerSetNode>();
+  }
 
   /*!
    * \brief Do inplace union with given disjunct
@@ -150,7 +154,10 @@ class PresburgerSet : public IntSet {
 class PresburgerSetNode : public IntSetNode {
  public:
   // dummy visitor overload.
-  void VisitAttrs(tvm::AttrVisitor* v) { LOG(FATAL) << "MLIR is not enabled!"; }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PresburgerSetNode>();
+  }
 
   static constexpr const char* _type_key = "arith.PresburgerSet";
   TVM_DECLARE_FINAL_OBJECT_INFO(PresburgerSetNode, IntSetNode);

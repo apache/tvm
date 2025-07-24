@@ -26,6 +26,7 @@
 #define TVM_IR_OP_H_
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/expr.h>
@@ -90,14 +91,16 @@ class OpNode : public RelaxExprNode {
    */
   int32_t support_level = 10;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("op_type", &op_type);
-    v->Visit("description", &description);
-    v->Visit("arguments", &arguments);
-    v->Visit("attrs_type_key", &attrs_type_key);
-    v->Visit("num_inputs", &num_inputs);
-    v->Visit("support_level", &support_level);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<OpNode>()
+        .def_ro("name", &OpNode::name)
+        .def_ro("op_type", &OpNode::op_type)
+        .def_ro("description", &OpNode::description)
+        .def_ro("arguments", &OpNode::arguments)
+        .def_ro("attrs_type_key", &OpNode::attrs_type_key)
+        .def_ro("num_inputs", &OpNode::num_inputs)
+        .def_ro("support_level", &OpNode::support_level);
   }
 
   bool SEqualReduce(const OpNode* other, SEqualReducer equal) const {
@@ -110,7 +113,7 @@ class OpNode : public RelaxExprNode {
     hash_reduce(name);
   }
 
-  static constexpr const char* _type_key = "Op";
+  static constexpr const char* _type_key = "ir.Op";
   TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, RelaxExprNode);
 
  private:

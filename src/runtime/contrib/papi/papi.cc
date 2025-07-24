@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <papi.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/contrib/papi.h>
 
 #include <string>
@@ -290,10 +291,12 @@ MetricCollector CreatePAPIMetricCollector(Map<DeviceWrapper, Array<String>> metr
 TVM_REGISTER_OBJECT_TYPE(PAPIEventSetNode);
 TVM_REGISTER_OBJECT_TYPE(PAPIMetricCollectorNode);
 
-TVM_FFI_REGISTER_GLOBAL("runtime.profiling.PAPIMetricCollector")
-    .set_body_typed([](Map<DeviceWrapper, Array<String>> metrics) {
-      return PAPIMetricCollector(metrics);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "runtime.profiling.PAPIMetricCollector",
+      [](Map<DeviceWrapper, Array<String>> metrics) { return PAPIMetricCollector(metrics); });
+});
 
 }  // namespace profiling
 }  // namespace runtime

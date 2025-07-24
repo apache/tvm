@@ -239,7 +239,8 @@ def test_inject_async_copy_barrier():
         tvm.testing.assert_allclose(B_nd.numpy(), A_np)
 
 
-expected_cuda_script = r"""__forceinline__ __device__ unsigned int
+expected_cuda_script = r"""#include <cuda.h>
+__forceinline__ __device__ unsigned int
 cast_smem_ptr_to_int(const void* const smem_ptr)
 {
   unsigned int smem_int;
@@ -254,20 +255,10 @@ cast_smem_ptr_to_int(const void* const smem_ptr)
 #else
 #define TVM_ENABLE_L2_PREFETCH 0
 #endif
-
-#ifdef _WIN32
-  using uint = unsigned int;
-  using uchar = unsigned char;
-  using ushort = unsigned short;
-  using int64_t = long long;
-  using uint64_t = unsigned long long;
-#else
-  #define uint unsigned int
-  #define uchar unsigned char
-  #define ushort unsigned short
-  #define int64_t long long
-  #define uint64_t unsigned long long
-#endif
+#include <cstdint>
+using uint = unsigned int;
+using uchar = unsigned char;
+using ushort = unsigned short;
 extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C);
 extern "C" __global__ void __launch_bounds__(16) main_kernel(float* __restrict__ A, float* __restrict__ B, float* __restrict__ C) {
   __shared__ float A_shared[64];
@@ -479,6 +470,7 @@ def test_cp_async_in_if_then_else(postproc_if_missing_async_support):
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
         tvm.compile(mod, target="cuda")
     generated_code = postproc_if_missing_async_support()
+    print(generated_code)
     assert generated_code == expected_cuda_script
 
 

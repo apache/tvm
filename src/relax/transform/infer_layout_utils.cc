@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 #include "infer_layout_utils.h"
+
+#include <tvm/ffi/reflection/registry.h>
 
 #include "utils.h"
 
@@ -154,6 +155,11 @@ LayoutDecision FollowDecision(const LayoutDecision& src, int dst_ndim) {
     return LayoutDecision(Layout(layout));
   }
 }
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  LayoutDecisionNode::RegisterReflection();
+  InferLayoutOutputNode::RegisterReflection();
+});
 
 }  // namespace relax
 }  // namespace tvm

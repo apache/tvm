@@ -22,6 +22,7 @@
  * \brief Reorder concat(permute_dims(A), permute_dims(B)) into permute_dims(concat(A,B))
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr.h>
@@ -173,8 +174,11 @@ Pass ReorderPermuteDimsAfterConcat() {
   return CreateFunctionPass(pass_func, 1, "ReorderPermuteDimsAfterConcat", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.ReorderPermuteDimsAfterConcat")
-    .set_body_typed(ReorderPermuteDimsAfterConcat);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.ReorderPermuteDimsAfterConcat",
+                        ReorderPermuteDimsAfterConcat);
+});
 
 }  // namespace transform
 }  // namespace relax

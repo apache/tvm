@@ -25,6 +25,7 @@
 #define TVM_TIR_BUFFER_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/script_printer.h>
@@ -111,18 +112,20 @@ class BufferNode : public Object {
   /*! \brief constructor */
   BufferNode() {}
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("data", &data);
-    v->Visit("dtype", &dtype);
-    v->Visit("shape", &shape);
-    v->Visit("strides", &strides);
-    v->Visit("axis_separators", &axis_separators);
-    v->Visit("elem_offset", &elem_offset);
-    v->Visit("name", &name);
-    v->Visit("data_alignment", &data_alignment);
-    v->Visit("offset_factor", &offset_factor);
-    v->Visit("buffer_type", &buffer_type);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BufferNode>()
+        .def_ro("data", &BufferNode::data)
+        .def_ro("dtype", &BufferNode::dtype)
+        .def_ro("shape", &BufferNode::shape)
+        .def_ro("strides", &BufferNode::strides)
+        .def_ro("axis_separators", &BufferNode::axis_separators)
+        .def_ro("elem_offset", &BufferNode::elem_offset)
+        .def_ro("name", &BufferNode::name)
+        .def_ro("data_alignment", &BufferNode::data_alignment)
+        .def_ro("offset_factor", &BufferNode::offset_factor)
+        .def_ro("buffer_type", &BufferNode::buffer_type)
+        .def_ro("span", &BufferNode::span);
   }
 
   bool SEqualReduce(const BufferNode* other, SEqualReducer equal) const {

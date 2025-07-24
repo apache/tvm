@@ -22,6 +22,7 @@
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/reflection.h>
@@ -59,9 +60,9 @@ class ProfilerNode : public runtime::Object {
   /*! \brief Counter for the total time used */
   ffi::Function total_timer;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `stats_sec` is not visited.
-    // `total_timer` is not visited.
+  static void RegisterReflection() {
+    // `stats_sec` is not registered
+    // `total_timer` is not registered
   }
 
   static constexpr const char* _type_key = "meta_schedule.Profiler";

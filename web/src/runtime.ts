@@ -1896,7 +1896,7 @@ export class Instance implements Disposable {
 
   /** Register all object factory */
   private registerObjectFactoryFuncs(): void {
-    this.registerObjectConstructor("object.Array",
+    this.registerObjectConstructor("ffi.Array",
       (handle: number, lib: FFILibrary, ctx: RuntimeContext) => {
         return new TVMArray(handle, lib, ctx);
       });

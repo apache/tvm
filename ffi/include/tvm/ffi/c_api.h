@@ -56,6 +56,27 @@
 #define TVM_FFI_DLL_EXPORT __attribute__((visibility("default")))
 #endif
 
+/*!
+ * \brief Marks the API as extra c++ api that is defined in cc files.
+ *
+ * These APIs are extra features that depend on, but are not required to
+ * support essential core functionality, such as function calling and object
+ * access.
+ *
+ * They are implemented in cc files to reduce compile-time overhead.
+ * The input/output only uses POD/Any/ObjectRef for ABI stability.
+ * However, these extra APIs may have an issue across MSVC/Itanium ABI,
+ *
+ * Related features are also available through reflection based function
+ * that is fully based on C API
+ *
+ * The project aims to minimize the number of extra C++ APIs and only
+ * restrict the use to non-core functionalities.
+ */
+#ifndef TVM_FFI_EXTRA_CXX_API
+#define TVM_FFI_EXTRA_CXX_API TVM_FFI_DLL
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -326,10 +347,87 @@ typedef enum {
   kTVMFFIFieldFlagBitMaskHasDefault = 1 << 1,
   /*! \brief The field is a static method. */
   kTVMFFIFieldFlagBitMaskIsStaticMethod = 1 << 2,
+  /*!
+   * \brief The field should be ignored when performing structural eq/hash
+   *
+   * This is an optional meta-data for structural eq/hash.
+   */
+  kTVMFFIFieldFlagBitMaskSEqHashIgnore = 1 << 3,
+  /*!
+   * \brief The field enters a def region where var can be defined/matched.
+   *
+   * This is an optional meta-data for structural eq/hash.
+   */
+  kTVMFFIFieldFlagBitMaskSEqHashDef = 1 << 4,
 #ifdef __cplusplus
 };
 #else
 } TVMFFIFieldFlagBitMask;
+#endif
+
+/*!
+ * \brief Optional meta-data for structural eq/hash.
+ *
+ * This meta-data is only useful when we want to leverage the information
+ * to perform richer semantics aware structural comparison and hash.
+ * It can be safely ignored if such information is not needed.
+ *
+ * The meta-data record comparison method in tree node and DAG node.
+ *
+ * \code
+ * x = VarNode()
+ * v0 = AddNode(x, 1)
+ * v1 = AddNode(x, 1)
+ * v2 = AddNode(v0, v0)
+ * v3 = AddNode(v1, v0)
+ * \endcode
+ *
+ * Consider the construct sequence of AddNode below,
+ * if AddNode is treated as a tree node, then v2 and v3
+ * structural equals to each other, but if AddNode is
+ * treated as a DAG node, then v2 and v3 does not
+ * structural equals to each other.
+ */
+#ifdef __cplusplus
+enum TVMFFISEqHashKind : int32_t {
+#else
+typedef enum {
+#endif
+  /*! \brief Do not support structural eq/hash. */
+  kTVMFFISEqHashKindUnsupported = 0,
+  /*!
+   * \brief The object be compared as a tree node.
+   */
+  kTVMFFISEqHashKindTreeNode = 1,
+  /*!
+   * \brief The object is treated as a free variable that can be mapped
+   *        to another free variable in the definition region.
+   */
+  kTVMFFISEqHashKindFreeVar = 2,
+  /*!
+   * \brief The field should be compared as a DAG node.
+   */
+  kTVMFFISEqHashKindDAGNode = 3,
+  /*!
+   * \brief The object is treated as a constant tree node.
+   *
+   * Same as tree node, but the object does not contain free var
+   * as any of its nested children.
+   *
+   * That means we can use pointer equality for equality.
+   */
+  kTVMFFISEqHashKindConstTreeNode = 4,
+  /*!
+   * \brief One can simply use pointer equality for equality.
+   *
+   * This is useful for "singleton"-style object that can
+   * is only an unique copy of each value.
+   */
+  kTVMFFISEqHashKindUniqueInstance = 5,
+#ifdef __cplusplus
+};
+#else
+} TVMFFISEqHashKind;
 #endif
 
 /*!
@@ -431,8 +529,27 @@ typedef struct {
    *
    * This field is set optional and set to 0 if not registered.
    */
-  int64_t total_size;
-} TVMFFITypeExtraInfo;
+  int32_t total_size;
+  /*!
+   * \brief Optional meta-data for structural eq/hash.
+   */
+  TVMFFISEqHashKind structural_eq_hash_kind;
+} TVMFFITypeMetadata;
+
+/*
+ * \brief Column array that stores extra attributes about types
+ *
+ * The attributes stored in column arrays that can be looked up by type index.
+ *
+ * \note
+ * \sa TVMFFIRegisterTypeAttr
+ */
+typedef struct {
+  /*! \brief The data of the column. */
+  const TVMFFIAny* data;
+  /*! \brief The size of the column. */
+  size_t size;
+} TVMFFITypeAttrColumn;
 
 /*!
  * \brief Runtime type information for object type checking.
@@ -465,7 +582,7 @@ typedef struct TVMFFITypeInfo {
   /*! \brief The reflection method. */
   const TVMFFIMethodInfo* methods;
   /*! \brief The extra information of the type. */
-  const TVMFFITypeExtraInfo* extra_info;
+  const TVMFFITypeMetadata* metadata;
 } TVMFFITypeInfo;
 
 //------------------------------------------------------------
@@ -636,11 +753,27 @@ TVM_FFI_DLL int TVMFFITypeRegisterMethod(int32_t type_index, const TVMFFIMethodI
 /*!
  * \brief Register type creator information for runtime reflection.
  * \param type_index The type index
- * \param extra_info The extra information to be registered.
+ * \param metadata The extra information to be registered.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFITypeRegisterExtraInfo(int32_t type_index,
-                                            const TVMFFITypeExtraInfo* extra_info);
+TVM_FFI_DLL int TVMFFITypeRegisterMetadata(int32_t type_index, const TVMFFITypeMetadata* metadata);
+
+/*!
+ * \brief Register extra type attributes that can be looked up during runtime.
+ * \param type_index The type index
+ * \param attr_value The attribute value to be registered.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFITypeRegisterAttr(int32_t type_index, const TVMFFIByteArray* attr_name,
+                                       const TVMFFIAny* attr_value);
+
+/*!
+ * \brief Get the type attribute column by name.
+ * \param attr_name The name of the attribute.
+ * \return The pointer to the type attribute column.
+ * \return NULL if the attribute was not registered in the system
+ */
+TVM_FFI_DLL const TVMFFITypeAttrColumn* TVMFFIGetTypeAttrColumn(const TVMFFIByteArray* attr_name);
 
 //------------------------------------------------------------
 // Section: DLPack support APIs

@@ -55,10 +55,9 @@ class StringImmNode : public PrimExprNode {
   /*! \brief The constant value content. */
   String value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
   }
 
   bool SEqualReduce(const StringImmNode* other, SEqualReducer equal) const {
@@ -91,10 +90,9 @@ class CastNode : public PrimExprNode {
   /*! \brief Original data type. */
   PrimExpr value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<CastNode>().def_ro("value", &CastNode::value);
   }
 
   bool SEqualReduce(const CastNode* other, SEqualReducer equal) const {
@@ -133,11 +131,9 @@ class BinaryOpNode : public PrimExprNode {
   /*! \brief The right operand. */
   PrimExpr b;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &(this->dtype));
-    v->Visit("a", &a);
-    v->Visit("b", &b);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<T>().def_ro("a", &T::a).def_ro("b", &T::b);
   }
 
   bool SEqualReduce(const T* other, SEqualReducer equal) const {
@@ -325,11 +321,9 @@ class CmpOpNode : public PrimExprNode {
   /*! \brief The right operand. */
   PrimExpr b;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &(this->dtype));
-    v->Visit("a", &a);
-    v->Visit("b", &b);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<T>().def_ro("a", &T::a).def_ro("b", &T::b);
   }
 
   bool SEqualReduce(const T* other, SEqualReducer equal) const {
@@ -455,11 +449,9 @@ class AndNode : public PrimExprNode {
   /*! \brief The right operand. */
   PrimExpr b;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &(this->dtype));
-    v->Visit("a", &a);
-    v->Visit("b", &b);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AndNode>().def_ro("a", &AndNode::a).def_ro("b", &AndNode::b);
   }
 
   bool SEqualReduce(const AndNode* other, SEqualReducer equal) const {
@@ -495,11 +487,9 @@ class OrNode : public PrimExprNode {
   /*! \brief The right operand. */
   PrimExpr b;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("a", &a);
-    v->Visit("b", &b);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<OrNode>().def_ro("a", &OrNode::a).def_ro("b", &OrNode::b);
   }
 
   bool SEqualReduce(const OrNode* other, SEqualReducer equal) const {
@@ -533,10 +523,9 @@ class NotNode : public PrimExprNode {
   /*! \brief The input operand. */
   PrimExpr a;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("a", &a);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<NotNode>().def_ro("a", &NotNode::a);
   }
 
   bool SEqualReduce(const NotNode* other, SEqualReducer equal) const {
@@ -579,12 +568,12 @@ class SelectNode : public PrimExprNode {
   /*! \brief value to be returned when condition is false. */
   PrimExpr false_value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("condition", &condition);
-    v->Visit("true_value", &true_value);
-    v->Visit("false_value", &false_value);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SelectNode>()
+        .def_ro("condition", &SelectNode::condition)
+        .def_ro("true_value", &SelectNode::true_value)
+        .def_ro("false_value", &SelectNode::false_value);
   }
 
   bool SEqualReduce(const SelectNode* other, SEqualReducer equal) const {
@@ -634,12 +623,12 @@ class BufferLoadNode : public PrimExprNode {
   /*! \brief The predicate mask for loading values. */
   Optional<PrimExpr> predicate;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &(this->dtype));
-    v->Visit("buffer", &buffer);
-    v->Visit("indices", &indices);
-    v->Visit("predicate", &predicate);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BufferLoadNode>()
+        .def_ro("buffer", &BufferLoadNode::buffer)
+        .def_ro("indices", &BufferLoadNode::indices)
+        .def_ro("predicate", &BufferLoadNode::predicate);
   }
 
   bool SEqualReduce(const BufferLoadNode* other, SEqualReducer equal) const {
@@ -702,11 +691,11 @@ class ProducerLoadNode : public PrimExprNode {
   /*! \brief The location arguments. */
   Array<PrimExpr> indices;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &(this->dtype));
-    v->Visit("producer", &producer);
-    v->Visit("indices", &indices);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ProducerLoadNode>()
+        .def_ro("producer", &ProducerLoadNode::producer)
+        .def_ro("indices", &ProducerLoadNode::indices);
   }
 
   bool SEqualReduce(const ProducerLoadNode* other, SEqualReducer equal) const {
@@ -754,12 +743,12 @@ class RampNode : public PrimExprNode {
   /*! \brief Total number of lanes. */
   PrimExpr lanes;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("base", &base);
-    v->Visit("stride", &stride);
-    v->Visit("lanes", &lanes);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RampNode>()
+        .def_ro("base", &RampNode::base)
+        .def_ro("stride", &RampNode::stride)
+        .def_ro("lanes", &RampNode::lanes);
   }
 
   bool SEqualReduce(const RampNode* other, SEqualReducer equal) const {
@@ -797,11 +786,11 @@ class BroadcastNode : public PrimExprNode {
   /*! \brief The number of lanes. */
   PrimExpr lanes;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-    v->Visit("lanes", &lanes);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BroadcastNode>()
+        .def_ro("value", &BroadcastNode::value)
+        .def_ro("lanes", &BroadcastNode::lanes);
   }
 
   bool SEqualReduce(const BroadcastNode* other, SEqualReducer equal) const {
@@ -841,12 +830,12 @@ class LetNode : public PrimExprNode {
   /*! \brief The result expression. */
   PrimExpr body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("var", &var);
-    v->Visit("value", &value);
-    v->Visit("body", &body);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LetNode>()
+        .def_ro("var", &LetNode::var)
+        .def_ro("value", &LetNode::value)
+        .def_ro("body", &LetNode::body);
   }
 
   bool SEqualReduce(const LetNode* other, SEqualReducer equal) const {
@@ -891,11 +880,10 @@ class CallNode : public PrimExprNode {
 
   /*! \brief The arguments. */
   Array<PrimExpr> args;
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("op", &op);
-    v->Visit("args", &args);
-    v->Visit("span", &span);
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<CallNode>().def_ro("op", &CallNode::op).def_ro("args", &CallNode::args);
   }
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
@@ -935,11 +923,11 @@ class ShuffleNode : public PrimExprNode {
   /*! \brief The indices of each element. */
   Array<PrimExpr> indices;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("vectors", &vectors);
-    v->Visit("indices", &indices);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ShuffleNode>()
+        .def_ro("vectors", &ShuffleNode::vectors)
+        .def_ro("indices", &ShuffleNode::indices);
   }
 
   bool SEqualReduce(const ShuffleNode* other, SEqualReducer equal) const {
@@ -998,12 +986,14 @@ class CommReducerNode : public Object {
    */
   mutable Span span;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("lhs", &lhs);
-    v->Visit("rhs", &rhs);
-    v->Visit("result", &result);
-    v->Visit("identity_element", &identity_element);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<CommReducerNode>()
+        .def_ro("lhs", &CommReducerNode::lhs)
+        .def_ro("rhs", &CommReducerNode::rhs)
+        .def_ro("result", &CommReducerNode::result)
+        .def_ro("identity_element", &CommReducerNode::identity_element)
+        .def_ro("span", &CommReducerNode::span);
   }
 
   bool SEqualReduce(const CommReducerNode* other, SEqualReducer equal) const {
@@ -1055,15 +1045,15 @@ class ReduceNode : public PrimExprNode {
   /*! \brief the index of this reduce node */
   int value_index;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("combiner", &combiner);
-    v->Visit("source", &source);
-    v->Visit("init", &init);
-    v->Visit("axis", &axis);
-    v->Visit("condition", &condition);
-    v->Visit("value_index", &value_index);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ReduceNode>()
+        .def_ro("combiner", &ReduceNode::combiner)
+        .def_ro("source", &ReduceNode::source)
+        .def_ro("init", &ReduceNode::init)
+        .def_ro("axis", &ReduceNode::axis)
+        .def_ro("condition", &ReduceNode::condition)
+        .def_ro("value_index", &ReduceNode::value_index);
   }
 
   bool SEqualReduce(const ReduceNode* other, SEqualReducer equal) const {
@@ -1127,15 +1117,10 @@ inline constexpr bool use_default_type_traits_v<tvm::tir::StringImm> = false;
 template <>
 struct TypeTraits<tvm::tir::StringImm>
     : public ObjectRefWithFallbackTraitsBase<tvm::tir::StringImm, String> {
-  static TVM_FFI_INLINE tvm::tir::StringImm ConvertFallbackValue(String value) {
+  TVM_FFI_INLINE static tvm::tir::StringImm ConvertFallbackValue(String value) {
     return tvm::tir::StringImm(value);
   }
 };
-
-// auto convert String to PrimExpr
-TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(String value) {
-  return TypeTraits<tvm::tir::StringImm>::ConvertFallbackValue(value);
-}
 }  // namespace ffi
 }  // namespace tvm
 

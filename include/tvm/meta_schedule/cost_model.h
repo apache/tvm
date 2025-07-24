@@ -22,6 +22,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/meta_schedule/arg_info.h>
 #include <tvm/meta_schedule/measure_candidate.h>
@@ -42,8 +43,6 @@ class CostModelNode : public runtime::Object {
  public:
   /*! \brief Virtual destructor. */
   virtual ~CostModelNode() = default;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {}
 
   /*!
    * \brief Load the cost model from given file location.
@@ -125,14 +124,6 @@ class PyCostModelNode : public CostModelNode {
   FPredict f_predict;
   /*! \brief The packed function to the `AsString` function. */
   FAsString f_as_string;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `f_load` is not visited
-    // `f_save` is not visited
-    // `f_update` is not visited
-    // `f_predict` is not visited
-    // `f_as_string` is not visited
-  }
 
   void Load(const String& path);
   void Save(const String& path);

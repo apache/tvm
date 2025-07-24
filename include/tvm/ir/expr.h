@@ -24,6 +24,7 @@
 #ifndef TVM_IR_EXPR_H_
 #define TVM_IR_EXPR_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/ir/type.h>
@@ -55,8 +56,13 @@ class BaseExprNode : public Object {
    */
   mutable Span span;
 
-  static constexpr const char* _type_key = "BaseExpr";
-  static constexpr const bool _type_has_method_visit_attrs = true;
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()));
+  }
+
+  static constexpr const char* _type_key = "ir.BaseExpr";
+
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 64;
@@ -102,9 +108,14 @@ class PrimExprNode : public BaseExprNode {
    */
   DataType dtype;
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PrimExprNode>().def_ro("dtype", &PrimExprNode::dtype);
+  }
+
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
-  static constexpr const char* _type_key = "PrimExpr";
+  static constexpr const char* _type_key = "ir.PrimExpr";
   static constexpr const uint32_t _type_child_slots = 40;
   TVM_DECLARE_BASE_OBJECT_INFO(PrimExprNode, BaseExprNode);
 };
@@ -130,6 +141,12 @@ class PrimExpr : public BaseExpr {
   DataType dtype() const { return static_cast<const PrimExprNode*>(get())->dtype; }
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
+
+  /*!
+   * \brief construct from string to form a StringImm.
+   * \param value The value to be constructed.
+   */
+  TVM_DLL static PrimExpr ConvertFallbackValue(String value);  // NOLINT(*)
 };
 
 /*!
@@ -142,7 +159,7 @@ class PrimExprConvertibleNode : public Object {
   virtual ~PrimExprConvertibleNode() {}
   virtual PrimExpr ToPrimExpr() const = 0;
 
-  static constexpr const char* _type_key = "PrimExprConvertible";
+  static constexpr const char* _type_key = "ir.PrimExprConvertible";
   TVM_DECLARE_BASE_OBJECT_INFO(PrimExprConvertibleNode, Object);
 };
 
@@ -165,11 +182,13 @@ template <>
 struct TypeTraits<PrimExpr>
     : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double, String,
                                              PrimExprConvertible> {
-  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(StrictBool value);
-  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(int64_t value);
-  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(double value);
-  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(String value);
-  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(PrimExprConvertible value) {
+  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(StrictBool value);
+  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(int64_t value);
+  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(double value);
+  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(String value) {
+    return PrimExpr::ConvertFallbackValue(value);
+  }
+  TVM_FFI_INLINE static PrimExpr ConvertFallbackValue(PrimExprConvertible value) {
     return value->ToPrimExpr();
   }
 };
@@ -407,7 +426,12 @@ class RelaxExprNode : public BaseExprNode {
    */
   mutable Optional<ObjectRef> struct_info_ = Optional<ObjectRef>();
 
-  static constexpr const char* _type_key = "RelaxExpr";
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RelaxExprNode>().def_ro("struct_info_", &RelaxExprNode::struct_info_);
+  }
+
+  static constexpr const char* _type_key = "ir.RelaxExpr";
   static constexpr const uint32_t _type_child_slots = 22;
   TVM_DECLARE_BASE_OBJECT_INFO(RelaxExprNode, BaseExprNode);
 };
@@ -435,10 +459,9 @@ class GlobalVarNode : public RelaxExprNode {
   /*! \brief The name of the variable, this only acts as a hint. */
   String name_hint;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name_hint", &name_hint);
-    v->Visit("span", &span);
-    v->Visit("struct_info_", &struct_info_);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<GlobalVarNode>().def_ro("name_hint", &GlobalVarNode::name_hint);
   }
 
   bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {
@@ -451,7 +474,7 @@ class GlobalVarNode : public RelaxExprNode {
     hash_reduce.FreeVarHashImpl(this);
   }
 
-  static constexpr const char* _type_key = "GlobalVar";
+  static constexpr const char* _type_key = "ir.GlobalVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelaxExprNode);
 };
 
@@ -467,8 +490,6 @@ class GlobalVar : public RelaxExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GlobalVarNode);
 };
 
-// PrimExprs that are useful as runtime containers.
-//
 /*!
  * \brief Constant integer literals in the program.
  * \sa IntImm
@@ -478,10 +499,9 @@ class IntImmNode : public PrimExprNode {
   /*! \brief the Internal value. */
   int64_t value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IntImmNode>().def_ro("value", &IntImmNode::value);
   }
 
   bool SEqualReduce(const IntImmNode* other, SEqualReducer equal) const {
@@ -493,7 +513,7 @@ class IntImmNode : public PrimExprNode {
     hash_reduce(value);
   }
 
-  static constexpr const char* _type_key = "IntImm";
+  static constexpr const char* _type_key = "ir.IntImm";
   TVM_DECLARE_FINAL_OBJECT_INFO(IntImmNode, PrimExprNode);
 };
 
@@ -525,10 +545,9 @@ class FloatImmNode : public PrimExprNode {
   /*! \brief The constant value content. */
   double value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("value", &value);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FloatImmNode>().def_ro("value", &FloatImmNode::value);
   }
 
   bool SEqualReduce(const FloatImmNode* other, SEqualReducer equal) const {
@@ -540,7 +559,7 @@ class FloatImmNode : public PrimExprNode {
     hash_reduce(value);
   }
 
-  static constexpr const char* _type_key = "FloatImm";
+  static constexpr const char* _type_key = "ir.FloatImm";
   TVM_DECLARE_FINAL_OBJECT_INFO(FloatImmNode, PrimExprNode);
 };
 
@@ -675,10 +694,11 @@ class RangeNode : public Object {
   RangeNode(PrimExpr min, PrimExpr extent, Span span = Span())
       : min(min), extent(extent), span(span) {}
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("min", &min);
-    v->Visit("extent", &extent);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RangeNode>()
+        .def_ro("min", &RangeNode::min)
+        .def_ro("extent", &RangeNode::extent);
   }
 
   bool SEqualReduce(const RangeNode* other, SEqualReducer equal) const {
@@ -690,7 +710,7 @@ class RangeNode : public Object {
     hash_reduce(extent);
   }
 
-  static constexpr const char* _type_key = "Range";
+  static constexpr const char* _type_key = "ir.Range";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);
@@ -730,7 +750,7 @@ inline constexpr bool use_default_type_traits_v<IntImm> = false;
 // specialize to enable implicit conversion from const char*
 template <>
 struct TypeTraits<IntImm> : public ObjectRefWithFallbackTraitsBase<IntImm, int64_t> {
-  static TVM_FFI_INLINE IntImm ConvertFallbackValue(int64_t value) {
+  TVM_FFI_INLINE static IntImm ConvertFallbackValue(int64_t value) {
     auto dtype =
         (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min())
             ? DataType::Int(64)
@@ -744,7 +764,7 @@ inline constexpr bool use_default_type_traits_v<Integer> = false;
 
 template <>
 struct TypeTraits<Integer> : public ObjectRefWithFallbackTraitsBase<Integer, int64_t> {
-  static TVM_FFI_INLINE Integer ConvertFallbackValue(int64_t value) { return Integer(value); }
+  TVM_FFI_INLINE static Integer ConvertFallbackValue(int64_t value) { return Integer(value); }
 };
 
 template <>
@@ -752,7 +772,7 @@ inline constexpr bool use_default_type_traits_v<FloatImm> = false;
 
 template <>
 struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, double> {
-  static TVM_FFI_INLINE FloatImm ConvertFallbackValue(double value) {
+  TVM_FFI_INLINE static FloatImm ConvertFallbackValue(double value) {
     return FloatImm(runtime::DataType::Float(32), value);
   }
 };
@@ -762,7 +782,7 @@ inline constexpr bool use_default_type_traits_v<Bool> = false;
 
 template <>
 struct TypeTraits<Bool> : public ObjectRefWithFallbackTraitsBase<Bool, int64_t> {
-  static TVM_FFI_INLINE Bool ConvertFallbackValue(int64_t value) { return Bool(value != 0); }
+  TVM_FFI_INLINE static Bool ConvertFallbackValue(int64_t value) { return Bool(value != 0); }
 };
 
 // define automatic conversion from bool, int64_t, double to PrimExpr

@@ -50,13 +50,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   support::LinearCongruentialEngine::TRandState rand_state_;
 
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `state_` is not visited
-    // `func_working_on_` is not visited
-    // `error_render_level_` is not visited
-    // `symbol_table_` is not visited
-    // `analyzer_` is not visited
-    // `rand_state_` is not visited
+  static void RegisterReflection() {
+    // No fields to register as they are not visited
   }
 
   virtual ~ConcreteScheduleNode() = default;
@@ -355,13 +350,13 @@ template <class T>
 inline T ConcreteScheduleNode::CreateRV(const StmtSRef& sref) {
   T rv;
   this->symbol_table_.Set(rv, sref);
-  return std::move(rv);
+  return rv;
 }
 
 inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
   Var rv("v" + std::to_string(this->symbol_table_.size() + 1), DataType::Int(32));
   this->symbol_table_.Set(rv, Integer(static_cast<int32_t>(value)));
-  return std::move(rv);
+  return rv;
 }
 
 inline Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64_t>& value,

@@ -24,6 +24,7 @@
 #ifndef TVM_RELAX_IR_DATAFLOW_REWRITER_H_
 #define TVM_RELAX_IR_DATAFLOW_REWRITER_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/ir/transform.h>
 #include <tvm/node/reflection.h>
@@ -54,7 +55,9 @@ class PatternMatchingRewriterNode : public tvm::transform::PassNode {
     return RewriteSpec();
   }
 
-  void VisitAttrs(AttrVisitor* visitor) {}
+  static void RegisterReflection() {
+    // PatternMatchingRewriterNode has no fields to register
+  }
 
   IRModule operator()(IRModule mod, const tvm::transform::PassContext& pass_ctx) const override;
   tvm::transform::PassInfo Info() const override;
@@ -89,10 +92,11 @@ class ExprPatternRewriterNode : public PatternMatchingRewriterNode {
 
   Optional<Expr> RewriteExpr(const Expr& expr, const Map<Var, Expr>& bindings) const;
 
-  void VisitAttrs(AttrVisitor* visitor) {
-    visitor->Visit("pattern", &pattern);
-    ffi::Function untyped_func = func;
-    visitor->Visit("func", &untyped_func);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ExprPatternRewriterNode>()
+        .def_ro("pattern", &ExprPatternRewriterNode::pattern)
+        .def_ro("func", &ExprPatternRewriterNode::func);
   }
 
   static constexpr const char* _type_key = "relax.dpl.ExprPatternRewriter";
@@ -117,9 +121,11 @@ class OrRewriterNode : public PatternMatchingRewriterNode {
 
   RewriteSpec RewriteBindings(const Array<Binding>& bindings) const override;
 
-  void VisitAttrs(AttrVisitor* visitor) {
-    visitor->Visit("lhs", &lhs);
-    visitor->Visit("rhs", &rhs);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<OrRewriterNode>()
+        .def_ro("lhs", &OrRewriterNode::lhs)
+        .def_ro("rhs", &OrRewriterNode::rhs);
   }
 
   static constexpr const char* _type_key = "relax.dpl.OrRewriter";
@@ -142,10 +148,11 @@ class TupleRewriterNode : public PatternMatchingRewriterNode {
 
   RewriteSpec RewriteBindings(const Array<Binding>& bindings) const override;
 
-  void VisitAttrs(AttrVisitor* visitor) {
-    visitor->Visit("patterns", &patterns);
-    ffi::Function untyped_func = func;
-    visitor->Visit("func", &untyped_func);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TupleRewriterNode>()
+        .def_ro("patterns", &TupleRewriterNode::patterns)
+        .def_ro("func", &TupleRewriterNode::func);
   }
 
   static constexpr const char* _type_key = "relax.dpl.TupleRewriter";

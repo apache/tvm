@@ -21,6 +21,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/te/operation.h>
 #include <tvm/tir/analysis.h>
@@ -173,7 +174,7 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
         n->annotations.erase(attr);
       }
     }
-    return std::move(block);
+    return block;
   }
 
   std::unordered_map<tir::Buffer, int, ObjectPtrHash, ObjectPtrEqual> buffer2index_;
@@ -424,7 +425,7 @@ Stmt GenerateBodyStmt(const Array<PrimExpr>& indices, const Array<Buffer>& buffe
     const PrimExpr& compute_body = f_transform_and_remap(expr_body);
     body = BufferStore(buffers[0], analyzer->Simplify(compute_body), indices);
   }
-  return std::move(body);
+  return body;
 }
 
 /*! \brief Record loops, block vars and binding in the single level scope. */
@@ -784,16 +785,18 @@ PrimFunc CreatePrimFunc(const Array<te::Tensor>& arg_list,
   return CreatePrimFuncWithConstants(arg_list, {}, index_dtype_override);
 }
 
-TVM_FFI_REGISTER_GLOBAL("te.CreatePrimFunc")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      Array<ObjectRef> arg_list = args[0].cast<Array<ObjectRef>>();
-      std::optional<DataType> index_dtype_override{std::nullopt};
-      // Add conversion to make std::optional compatible with FFI.
-      if (args[1] != nullptr) {
-        index_dtype_override = args[1].cast<DataType>();
-      }
-      *ret = CreatePrimFunc(arg_list, index_dtype_override);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("te.CreatePrimFunc", [](ffi::PackedArgs args, ffi::Any* ret) {
+    Array<ObjectRef> arg_list = args[0].cast<Array<ObjectRef>>();
+    std::optional<DataType> index_dtype_override{std::nullopt};
+    // Add conversion to make std::optional compatible with FFI.
+    if (args[1] != nullptr) {
+      index_dtype_override = args[1].cast<DataType>();
+    }
+    *ret = CreatePrimFunc(arg_list, index_dtype_override);
+  });
+});
 
 // Relax version impl
 PrimFunc GenerateAndCompletePrimFunc(const Array<ObjectRef>& arg_tir_var_list,

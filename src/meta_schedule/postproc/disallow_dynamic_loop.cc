@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -83,8 +85,10 @@ Postproc Postproc::DisallowDynamicLoop() {
 }
 
 TVM_REGISTER_NODE_TYPE(DisallowDynamicLoopNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocDisallowDynamicLoop")
-    .set_body_typed(Postproc::DisallowDynamicLoop);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.PostprocDisallowDynamicLoop", Postproc::DisallowDynamicLoop);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

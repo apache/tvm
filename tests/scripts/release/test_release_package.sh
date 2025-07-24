@@ -79,7 +79,7 @@ echo "[6/9] Unzip ..."
 tar -zxf apache-tvm-src-${version_rc}.tar.gz
 
 echo "[7/9] Checking whether binary in source code ..."
-output=`find apache-tvm-src-${version_rc} -type f -exec file {} + | grep -w "ELF\|shared object"`
+output=`find apache-tvm-src-${version} -type f -exec file {} + | grep -w "ELF\|shared object"`
 if [[ -n "$output" ]]; then
     echo "Error: ELF or shared object files found:"
     echo "$output"
@@ -87,7 +87,7 @@ if [[ -n "$output" ]]; then
 fi
 
 echo "[8/9] Compile and Python Import on Linux ..."
-cd apache-tvm-src-${version_rc}
+cd apache-tvm-src-${version}
 mkdir build
 cd build
 cp ../cmake/config.cmake .

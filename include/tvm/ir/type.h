@@ -50,6 +50,7 @@
 #define TVM_IR_TYPE_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/data_type.h>
@@ -79,7 +80,7 @@ class TypeNode : public Object {
    */
   mutable Span span;
 
-  static constexpr const char* _type_key = "Type";
+  static constexpr const char* _type_key = "ir.Type";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 14;
@@ -110,7 +111,10 @@ class PrimTypeNode : public TypeNode {
    */
   runtime::DataType dtype;
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("dtype", &dtype); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PrimTypeNode>().def_ro("dtype", &PrimTypeNode::dtype);
+  }
 
   bool SEqualReduce(const PrimTypeNode* other, SEqualReducer equal) const {
     return equal(dtype, other->dtype);
@@ -118,7 +122,7 @@ class PrimTypeNode : public TypeNode {
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(dtype); }
 
-  static constexpr const char* _type_key = "PrimType";
+  static constexpr const char* _type_key = "ir.PrimType";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimTypeNode, TypeNode);
 };
 
@@ -159,9 +163,11 @@ class PointerTypeNode : public TypeNode {
    */
   String storage_scope;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("element_type", &element_type);
-    v->Visit("storage_scope", &storage_scope);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PointerTypeNode>()
+        .def_ro("element_type", &PointerTypeNode::element_type)
+        .def_ro("storage_scope", &PointerTypeNode::storage_scope);
   }
 
   bool SEqualReduce(const PointerTypeNode* other, SEqualReducer equal) const {
@@ -177,7 +183,7 @@ class PointerTypeNode : public TypeNode {
     hash_reduce(storage_scope.empty() ? "global" : storage_scope);
   }
 
-  static constexpr const char* _type_key = "PointerType";
+  static constexpr const char* _type_key = "ir.PointerType";
   TVM_DECLARE_FINAL_OBJECT_INFO(PointerTypeNode, TypeNode);
 };
 
@@ -208,9 +214,11 @@ class TupleTypeNode : public TypeNode {
 
   TupleTypeNode() {}
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("fields", &fields);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TupleTypeNode>()
+        .def_ro("fields", &TupleTypeNode::fields)
+        .def_ro("span", &TupleTypeNode::span);
   }
 
   bool SEqualReduce(const TupleTypeNode* other, SEqualReducer equal) const {
@@ -219,7 +227,7 @@ class TupleTypeNode : public TypeNode {
 
   void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(fields); }
 
-  static constexpr const char* _type_key = "TupleType";
+  static constexpr const char* _type_key = "ir.TupleType";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleTypeNode, TypeNode);
 };
 
@@ -274,10 +282,12 @@ class FuncTypeNode : public TypeNode {
   /*! \brief The type of return value. */
   Type ret_type;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("arg_types", &arg_types);
-    v->Visit("ret_type", &ret_type);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FuncTypeNode>()
+        .def_ro("arg_types", &FuncTypeNode::arg_types)
+        .def_ro("ret_type", &FuncTypeNode::ret_type)
+        .def_ro("span", &FuncTypeNode::span);
   }
 
   bool SEqualReduce(const FuncTypeNode* other, SEqualReducer equal) const {
@@ -290,7 +300,7 @@ class FuncTypeNode : public TypeNode {
     hash_reduce(ret_type);
   }
 
-  static constexpr const char* _type_key = "FuncType";
+  static constexpr const char* _type_key = "ir.FuncType";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuncTypeNode, TypeNode);
 };
 
@@ -310,6 +320,38 @@ class FuncType : public Type {
   TVM_DLL FuncType(Array<Type> arg_types, Type ret_type, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(FuncType, Type, FuncTypeNode);
+};
+
+/*!
+ * \brief The type of tensor map.
+ * \sa TensorMapType
+ */
+class TensorMapTypeNode : public TypeNode {
+ public:
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TensorMapTypeNode>().def_ro("span", &TensorMapTypeNode::span);
+  }
+
+  bool SEqualReduce(const TensorMapTypeNode* other, SEqualReducer equal) const {
+    return equal(span, other->span);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(span); }
+
+  static constexpr const char* _type_key = "ir.TensorMapType";
+  TVM_DECLARE_FINAL_OBJECT_INFO(TensorMapTypeNode, TypeNode);
+};
+
+/*!
+ * \brief Managed reference to TensorMapTypeNode.
+ * \sa TensorMapTypeNode
+ */
+class TensorMapType : public Type {
+ public:
+  TVM_DLL TensorMapType(Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(TensorMapType, Type, TensorMapTypeNode);
 };
 
 }  // namespace tvm

@@ -25,6 +25,7 @@
 #define TVM_RELAX_TYPE_H_
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/type.h>
@@ -43,9 +44,9 @@ class ShapeTypeNode : public TypeNode {
   /*! \brief size of the shape. */
   int ndim;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("ndim", &ndim);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ShapeTypeNode>().def_ro("ndim", &ShapeTypeNode::ndim);
   }
 
   bool SEqualReduce(const ShapeTypeNode* other, SEqualReducer equal) const {
@@ -81,10 +82,11 @@ class TensorTypeNode : public TypeNode {
   /*! \brief The content data type, use void to denote the dtype is unknown. */
   DataType dtype;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("ndim", &ndim);
-    v->Visit("dtype", &dtype);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TensorTypeNode>()
+        .def_ro("ndim", &TensorTypeNode::ndim)
+        .def_ro("dtype", &TensorTypeNode::dtype);
   }
 
   bool SEqualReduce(const TensorTypeNode* other, SEqualReducer equal) const {
@@ -131,7 +133,10 @@ using TensorType = TensorType;
 
 class ObjectTypeNode : public TypeNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("span", &span); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ObjectTypeNode>();
+  }
 
   bool SEqualReduce(const ObjectTypeNode* other, SEqualReducer equal) const { return true; }
 
@@ -150,7 +155,10 @@ class ObjectType : public Type {
 
 class PackedFuncTypeNode : public TypeNode {
  public:
-  void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("span", &span); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PackedFuncTypeNode>();
+  }
 
   bool SEqualReduce(const PackedFuncTypeNode* other, SEqualReducer equal) const { return true; }
 

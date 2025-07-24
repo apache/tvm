@@ -22,6 +22,8 @@
  * \file node/reflection.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/accessor.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/attrs.h>
 #include <tvm/node/node.h>
 #include <tvm/node/reflection.h>
@@ -32,84 +34,29 @@ using ffi::Any;
 using ffi::Function;
 using ffi::PackedArgs;
 
-// Attr getter.
-class AttrGetter : public AttrVisitor {
- public:
-  const String& skey;
-  ffi::Any* ret;
-
-  AttrGetter(const String& skey, ffi::Any* ret) : skey(skey), ret(ret) {}
-
-  bool found_ref_object{false};
-
-  void Visit(const char* key, double* value) final {
-    if (skey == key) *ret = value[0];
-  }
-  void Visit(const char* key, int64_t* value) final {
-    if (skey == key) *ret = value[0];
-  }
-  void Visit(const char* key, uint64_t* value) final {
-    ICHECK_LE(value[0], static_cast<uint64_t>(std::numeric_limits<int64_t>::max()))
-        << "cannot return too big constant";
-    if (skey == key) *ret = static_cast<int64_t>(value[0]);
-  }
-  void Visit(const char* key, int* value) final {
-    if (skey == key) *ret = static_cast<int64_t>(value[0]);
-  }
-  void Visit(const char* key, bool* value) final {
-    if (skey == key) *ret = static_cast<int64_t>(value[0]);
-  }
-  void Visit(const char* key, void** value) final {
-    if (skey == key) *ret = static_cast<void*>(value[0]);
-  }
-  void Visit(const char* key, DataType* value) final {
-    if (skey == key) *ret = value[0];
-  }
-  void Visit(const char* key, std::string* value) final {
-    if (skey == key) *ret = value[0];
-  }
-  void Visit(const char* key, Optional<double>* value) final {
-    if (skey == key) {
-      *ret = value[0];
-      found_ref_object = true;
-    }
-  }
-  void Visit(const char* key, Optional<int64_t>* value) final {
-    if (skey == key) {
-      *ret = value[0];
-      found_ref_object = true;
-    }
-  }
-
-  void Visit(const char* key, runtime::NDArray* value) final {
-    if (skey == key) {
-      *ret = value[0];
-      found_ref_object = true;
-    }
-  }
-  void Visit(const char* key, runtime::ObjectRef* value) final {
-    if (skey == key) {
-      *ret = value[0];
-      found_ref_object = true;
-    }
-  }
-};
-
 ffi::Any ReflectionVTable::GetAttr(Object* self, const String& field_name) const {
   ffi::Any ret;
-  AttrGetter getter(field_name, &ret);
-
   bool success;
-  if (getter.skey == "type_key") {
+  if (field_name == "type_key") {
     ret = self->GetTypeKey();
     success = true;
   } else if (!self->IsInstance<DictAttrsNode>()) {
-    VisitAttrs(self, &getter);
-    success = getter.found_ref_object || ret != nullptr;
+    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(self->type_index());
+    success = false;
+    // use new reflection mechanism
+    if (type_info->metadata != nullptr) {
+      ffi::reflection::ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
+        if (field_name.compare(field_info->name) == 0) {
+          ffi::reflection::FieldGetter field_getter(field_info);
+          ret = field_getter(self);
+          success = true;
+        }
+      });
+    }
   } else {
     // specially handle dict attr
     DictAttrsNode* dnode = static_cast<DictAttrsNode*>(self);
-    auto it = dnode->dict.find(getter.skey);
+    auto it = dnode->dict.find(field_name);
     if (it != dnode->dict.end()) {
       success = true;
       ret = (*it).second;
@@ -119,37 +66,22 @@ ffi::Any ReflectionVTable::GetAttr(Object* self, const String& field_name) const
   }
   if (!success) {
     LOG(FATAL) << "AttributeError: " << self->GetTypeKey() << " object has no attributed "
-               << getter.skey;
+               << field_name;
   }
   return ret;
 }
 
-// List names;
-class AttrDir : public AttrVisitor {
- public:
-  std::vector<std::string>* names;
-
-  void Visit(const char* key, double* value) final { names->push_back(key); }
-  void Visit(const char* key, int64_t* value) final { names->push_back(key); }
-  void Visit(const char* key, uint64_t* value) final { names->push_back(key); }
-  void Visit(const char* key, bool* value) final { names->push_back(key); }
-  void Visit(const char* key, int* value) final { names->push_back(key); }
-  void Visit(const char* key, void** value) final { names->push_back(key); }
-  void Visit(const char* key, DataType* value) final { names->push_back(key); }
-  void Visit(const char* key, std::string* value) final { names->push_back(key); }
-  void Visit(const char* key, runtime::NDArray* value) final { names->push_back(key); }
-  void Visit(const char* key, runtime::ObjectRef* value) final { names->push_back(key); }
-  void Visit(const char* key, Optional<double>* value) final { names->push_back(key); }
-  void Visit(const char* key, Optional<int64_t>* value) final { names->push_back(key); }
-};
-
 std::vector<std::string> ReflectionVTable::ListAttrNames(Object* self) const {
   std::vector<std::string> names;
-  AttrDir dir;
-  dir.names = &names;
 
   if (!self->IsInstance<DictAttrsNode>()) {
-    VisitAttrs(self, &dir);
+    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(self->type_index());
+    if (type_info->metadata != nullptr) {
+      // use new reflection mechanism
+      ffi::reflection::ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
+        names.push_back(std::string(field_info->name.data, field_info->name.size));
+      });
+    }
   } else {
     // specially handle dict attr
     DictAttrsNode* dnode = static_cast<DictAttrsNode*>(self);
@@ -176,73 +108,26 @@ ObjectPtr<Object> ReflectionVTable::CreateInitObject(const std::string& type_key
   return fcreate_[tindex](repr_bytes);
 }
 
-class NodeAttrSetter : public AttrVisitor {
- public:
-  std::string type_key;
-  std::unordered_map<std::string, ffi::AnyView> attrs;
-
-  void Visit(const char* key, double* value) final { *value = GetAttr(key).cast<double>(); }
-  void Visit(const char* key, int64_t* value) final { *value = GetAttr(key).cast<int64_t>(); }
-  void Visit(const char* key, uint64_t* value) final { *value = GetAttr(key).cast<uint64_t>(); }
-  void Visit(const char* key, int* value) final { *value = GetAttr(key).cast<int>(); }
-  void Visit(const char* key, bool* value) final { *value = GetAttr(key).cast<bool>(); }
-  void Visit(const char* key, std::string* value) final {
-    *value = GetAttr(key).cast<std::string>();
-  }
-  void Visit(const char* key, void** value) final { *value = GetAttr(key).cast<void*>(); }
-  void Visit(const char* key, DataType* value) final { *value = GetAttr(key).cast<DataType>(); }
-  void Visit(const char* key, runtime::NDArray* value) final {
-    *value = GetAttr(key).cast<runtime::NDArray>();
-  }
-  void Visit(const char* key, ObjectRef* value) final { *value = GetAttr(key).cast<ObjectRef>(); }
-
-  void Visit(const char* key, Optional<double>* value) final {
-    *value = GetAttr(key).cast<Optional<double>>();
-  }
-  void Visit(const char* key, Optional<int64_t>* value) final {
-    *value = GetAttr(key).cast<Optional<int64_t>>();
-  }
-
- private:
-  ffi::AnyView GetAttr(const char* key) {
-    auto it = attrs.find(key);
-    if (it == attrs.end()) {
-      LOG(FATAL) << type_key << ": require field " << key;
-    }
-    ffi::AnyView v = it->second;
-    attrs.erase(it);
-    return v;
-  }
-};
-
-void InitNodeByPackedArgs(ReflectionVTable* reflection, Object* n, const ffi::PackedArgs& args) {
-  NodeAttrSetter setter;
-  setter.type_key = n->GetTypeKey();
-  ICHECK_EQ(args.size() % 2, 0);
-  for (int i = 0; i < args.size(); i += 2) {
-    setter.attrs.emplace(args[i].cast<std::string>(), args[i + 1]);
-  }
-  reflection->VisitAttrs(n, &setter);
-
-  if (setter.attrs.size() != 0) {
-    std::ostringstream os;
-    os << setter.type_key << " does not contain field ";
-    for (const auto& kv : setter.attrs) {
-      os << " " << kv.first;
-    }
-    LOG(FATAL) << os.str();
-  }
-}
-
 ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
                                          const ffi::PackedArgs& kwargs) {
-  ObjectPtr<Object> n = this->CreateInitObject(type_key);
-  if (n->IsInstance<BaseAttrsNode>()) {
+  int32_t type_index;
+  TVMFFIByteArray type_key_array = TVMFFIByteArray{type_key.data(), type_key.size()};
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKeyToIndex(&type_key_array, &type_index));
+  if (type_index == DictAttrsNode::RuntimeTypeIndex()) {
+    ObjectPtr<Object> n = this->CreateInitObject(type_key);
     static_cast<BaseAttrsNode*>(n.get())->InitByPackedArgs(kwargs);
-  } else {
-    InitNodeByPackedArgs(this, n.get(), kwargs);
+    return ObjectRef(n);
   }
-  return ObjectRef(n);
+  // TODO(tvm-team): remove this once all objects are transitioned to the new reflection
+  auto fcreate_object = ffi::Function::GetGlobalRequired("ffi.MakeObjectFromPackedArgs");
+  std::vector<AnyView> packed_args(kwargs.size() + 1);
+  packed_args[0] = type_index;
+  for (int i = 0; i < kwargs.size(); i++) {
+    packed_args[i + 1] = kwargs[i];
+  }
+  ffi::Any rv;
+  fcreate_object.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
+  return rv.cast<ObjectRef>();
 }
 
 ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
@@ -288,58 +173,34 @@ void NodeListAttrNames(ffi::PackedArgs args, ffi::Any* ret) {
 // args format:
 //   key1, value1, ..., key_n, value_n
 void MakeNode(const ffi::PackedArgs& args, ffi::Any* rv) {
-  auto type_key = args[0].cast<std::string>();
-  *rv = ReflectionVTable::Global()->CreateObject(type_key, args.Slice(1));
+  *rv = ReflectionVTable::Global()->CreateObject(args[0].cast<std::string>(), args.Slice(1));
 }
 
-TVM_FFI_REGISTER_GLOBAL("node.NodeGetAttr").set_body_packed(NodeGetAttr);
-
-TVM_FFI_REGISTER_GLOBAL("node.NodeListAttrNames").set_body_packed(NodeListAttrNames);
-
-TVM_FFI_REGISTER_GLOBAL("node.MakeNode").set_body_packed(MakeNode);
-
-namespace {
-// Attribute visitor class for finding the attribute key by its address
-class GetAttrKeyByAddressVisitor : public AttrVisitor {
- public:
-  explicit GetAttrKeyByAddressVisitor(const void* attr_address)
-      : attr_address_(attr_address), key_(nullptr) {}
-
-  void Visit(const char* key, double* value) final { DoVisit(key, value); }
-  void Visit(const char* key, int64_t* value) final { DoVisit(key, value); }
-  void Visit(const char* key, uint64_t* value) final { DoVisit(key, value); }
-  void Visit(const char* key, int* value) final { DoVisit(key, value); }
-  void Visit(const char* key, bool* value) final { DoVisit(key, value); }
-  void Visit(const char* key, std::string* value) final { DoVisit(key, value); }
-  void Visit(const char* key, void** value) final { DoVisit(key, value); }
-  void Visit(const char* key, DataType* value) final { DoVisit(key, value); }
-  void Visit(const char* key, runtime::NDArray* value) final { DoVisit(key, value); }
-  void Visit(const char* key, runtime::ObjectRef* value) final { DoVisit(key, value); }
-  void Visit(const char* key, Optional<double>* value) final { DoVisit(key, value); }
-  void Visit(const char* key, Optional<int64_t>* value) final { DoVisit(key, value); }
-  const char* GetKey() const { return key_; }
-
- private:
-  const void* attr_address_;
-  const char* key_;
-
-  void DoVisit(const char* key, const void* candidate) {
-    if (attr_address_ == candidate) {
-      key_ = key;
-    }
-  }
-};
-}  // anonymous namespace
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_packed("node.NodeGetAttr", NodeGetAttr)
+      .def_packed("node.NodeListAttrNames", NodeListAttrNames)
+      .def_packed("node.MakeNode", MakeNode);
+});
 
 Optional<String> GetAttrKeyByAddress(const Object* object, const void* attr_address) {
-  GetAttrKeyByAddressVisitor visitor(attr_address);
-  ReflectionVTable::Global()->VisitAttrs(const_cast<Object*>(object), &visitor);
-  const char* key = visitor.GetKey();
-  if (key == nullptr) {
-    return std::nullopt;
-  } else {
-    return String(key);
+  const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(object->type_index());
+  if (tinfo->metadata != nullptr) {
+    Optional<String> result;
+    // visit fields with the new reflection
+    ffi::reflection::ForEachFieldInfoWithEarlyStop(tinfo, [&](const TVMFFIFieldInfo* field_info) {
+      Any field_value = ffi::reflection::FieldGetter(field_info)(object);
+      const void* field_addr = reinterpret_cast<const char*>(object) + field_info->offset;
+      if (field_addr == attr_address) {
+        result = String(field_info->name);
+        return true;
+      }
+      return false;
+    });
+    return result;
   }
+  return std::nullopt;
 }
 
 }  // namespace tvm

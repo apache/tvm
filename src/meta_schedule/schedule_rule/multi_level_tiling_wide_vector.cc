@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../../tir/schedule/analysis.h"
 #include "../../tir/schedule/transform.h"
 #include "../utils.h"
@@ -124,8 +126,11 @@ ScheduleRule ScheduleRule::MultiLevelTilingWideVector(String structure,
 }
 
 TVM_REGISTER_NODE_TYPE(MultiLevelTilingWideVectorNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTilingWideVector")
-    .set_body_typed(ScheduleRule::MultiLevelTilingWideVector);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTilingWideVector",
+                        ScheduleRule::MultiLevelTilingWideVector);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

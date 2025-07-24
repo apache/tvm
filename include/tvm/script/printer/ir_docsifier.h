@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 #define TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/node.h>
 #include <tvm/script/printer/doc.h>
@@ -52,13 +53,13 @@ class FrameNode : public Object {
   /*! The callbacks that are going to be invoked when the frame exits */
   std::vector<std::function<void()>> callbacks;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("stmts", &stmts);
-    // `d` is not visited
-    // `callbacks` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<FrameNode>().def_ro("stmts", &FrameNode::stmts);
   }
 
   static constexpr const char* _type_key = "script.printer.Frame";
+
   TVM_DECLARE_BASE_OBJECT_INFO(FrameNode, Object);
 
  public:
@@ -154,17 +155,15 @@ class IRDocsifierNode : public Object {
   /*! \brief The IR usages for headers printing */
   std::unordered_set<std::string> ir_usage;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("frames", &frames);
-    v->Visit("dispatch_tokens", &dispatch_tokens);
-    // `obj2info` is not visited
-    // `metadata` is not visited
-    // `defined_names` is not visited
-    // `common_prefix` is not visited
-    // `ir_usage` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IRDocsifierNode>()
+        .def_ro("frames", &IRDocsifierNode::frames)
+        .def_ro("dispatch_tokens", &IRDocsifierNode::dispatch_tokens);
   }
 
   static constexpr const char* _type_key = "script.printer.IRDocsifier";
+
   TVM_DECLARE_FINAL_OBJECT_INFO(IRDocsifierNode, Object);
 
  public:

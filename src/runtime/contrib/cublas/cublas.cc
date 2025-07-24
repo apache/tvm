@@ -21,6 +21,7 @@
  * \file Use external cblas library call.
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
 
@@ -514,71 +515,80 @@ inline void CallBatchGemmEx(ffi::PackedArgs args, ffi::Any* ret, cublasHandle_t 
 }
 
 // matrix multiplication for row major
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cublas.matmul")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      auto A = args[0].cast<DLTensor*>();
-      auto C = args[2].cast<DLTensor*>();
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed(
+      "tvm.contrib.cublas.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
+        auto A = args[0].cast<DLTensor*>();
+        auto C = args[2].cast<DLTensor*>();
 
-      CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
 
-      CUBLASTryEnableTensorCore(entry_ptr->handle);
+        CUBLASTryEnableTensorCore(entry_ptr->handle);
 
-      if (TypeEqual(A->dtype, C->dtype)) {
-        ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
-               TypeMatch(A->dtype, kDLFloat, 64));
+        if (TypeEqual(A->dtype, C->dtype)) {
+          ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
+                 TypeMatch(A->dtype, kDLFloat, 64));
 
-        if (TypeMatch(A->dtype, kDLFloat, 16))
-          CallGemm(args, ret, CublasHgemmOp(entry_ptr->handle));
-        else if (TypeMatch(A->dtype, kDLFloat, 32))
-          CallGemm(args, ret, CublasSgemmOp(entry_ptr->handle));
-        else
-          CallGemm(args, ret, CublasDgemmOp(entry_ptr->handle));
-      } else {
-        CallGemmEx(args, ret, entry_ptr->handle);
-      }
-    });
+          if (TypeMatch(A->dtype, kDLFloat, 16))
+            CallGemm(args, ret, CublasHgemmOp(entry_ptr->handle));
+          else if (TypeMatch(A->dtype, kDLFloat, 32))
+            CallGemm(args, ret, CublasSgemmOp(entry_ptr->handle));
+          else
+            CallGemm(args, ret, CublasDgemmOp(entry_ptr->handle));
+        } else {
+          CallGemmEx(args, ret, entry_ptr->handle);
+        }
+      });
+});
 
 #if CUDART_VERSION >= 10010
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cublaslt.matmul")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      auto A = args[0].cast<DLTensor*>();
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed(
+      "tvm.contrib.cublaslt.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
+        auto A = args[0].cast<DLTensor*>();
 
-      CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
 
-      CUBLASTryEnableTensorCore(entry_ptr->handle);
+        CUBLASTryEnableTensorCore(entry_ptr->handle);
 
-      ICHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
-      cublasLtHandle_t ltHandle;
-      CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
-      auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-      cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
-      CallLtIgemm(args, ret, ltHandle, stream);
-      CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
-    });
+        ICHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
+        cublasLtHandle_t ltHandle;
+        CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
+        auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
+        cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
+        CallLtIgemm(args, ret, ltHandle, stream);
+        CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
+      });
+});
 #endif  // CUDART_VERSION >= 10010
 
-TVM_FFI_REGISTER_GLOBAL("tvm.contrib.cublas.batch_matmul")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* ret) {
-      auto A = args[0].cast<DLTensor*>();
-      auto C = args[2].cast<DLTensor*>();
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed(
+      "tvm.contrib.cublas.batch_matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
+        auto A = args[0].cast<DLTensor*>();
+        auto C = args[2].cast<DLTensor*>();
 
-      CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
 
-      CUBLASTryEnableTensorCore(entry_ptr->handle);
-      if (TypeEqual(A->dtype, C->dtype)) {
-        ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
-               TypeMatch(A->dtype, kDLFloat, 64));
+        CUBLASTryEnableTensorCore(entry_ptr->handle);
+        if (TypeEqual(A->dtype, C->dtype)) {
+          ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||
+                 TypeMatch(A->dtype, kDLFloat, 64));
 
-        if (TypeMatch(A->dtype, kDLFloat, 16))
-          CallBatchGemm(args, ret, CublasHgemmBatchOp(entry_ptr->handle));
-        else if (TypeMatch(A->dtype, kDLFloat, 32))
-          CallBatchGemm(args, ret, CublasSgemmBatchOp(entry_ptr->handle));
-        else
-          CallBatchGemm(args, ret, CublasDgemmBatchOp(entry_ptr->handle));
-      } else {
-        CallBatchGemmEx(args, ret, entry_ptr->handle);
-      }
-    });
+          if (TypeMatch(A->dtype, kDLFloat, 16))
+            CallBatchGemm(args, ret, CublasHgemmBatchOp(entry_ptr->handle));
+          else if (TypeMatch(A->dtype, kDLFloat, 32))
+            CallBatchGemm(args, ret, CublasSgemmBatchOp(entry_ptr->handle));
+          else
+            CallBatchGemm(args, ret, CublasDgemmBatchOp(entry_ptr->handle));
+        } else {
+          CallBatchGemmEx(args, ret, entry_ptr->handle);
+        }
+      });
+});
 
 }  // namespace contrib
 }  // namespace tvm

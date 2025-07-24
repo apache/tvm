@@ -27,6 +27,7 @@
  * of requiring buffer access to be contiguous in each dimension.
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
@@ -198,7 +199,7 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
       buffer_local_stage_.Set(target_buffer, local_stage);
       target_buffers_.push_back(target_buffer);
 
-      return std::move(new_block);
+      return new_block;
     }
 
     std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> allocated_buffers(
@@ -255,7 +256,7 @@ class SharedMemoryLocalStageInserter : public StmtMutator {
       new_block_node->alloc_buffers = Concat(new_block_node->alloc_buffers, new_alloc_buffers);
     }
     new_block_node->body = new_seq.size() == 1 ? new_seq[0] : SeqStmt(new_seq);
-    return std::move(new_block);
+    return new_block;
   }
 
   std::vector<Stmt> ancestor_loop_or_blocks_;  // ancestor loops or block realize
@@ -275,8 +276,11 @@ Pass ManifestSharedMemoryLocalStage() {
   return CreatePrimFuncPass(pass_func, 0, "tir.ManifestSharedMemoryLocalStage", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.ManifestSharedMemoryLocalStage")
-    .set_body_typed(ManifestSharedMemoryLocalStage);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.ManifestSharedMemoryLocalStage",
+                        ManifestSharedMemoryLocalStage);
+});
 
 }  // namespace transform
 }  // namespace tir

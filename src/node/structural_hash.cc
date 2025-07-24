@@ -21,6 +21,7 @@
  */
 #include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
 #include <tvm/node/object_path.h>
@@ -291,11 +292,14 @@ void SHashHandlerDefault::DispatchSHash(const ObjectRef& key, bool map_free_vars
   impl->DispatchSHash(key, map_free_vars);
 }
 
-TVM_FFI_REGISTER_GLOBAL("node.StructuralHash")
-    .set_body_typed([](const Any& object, bool map_free_vars) -> int64_t {
-      uint64_t hashed_value = SHashHandlerDefault().Hash(object, map_free_vars);
-      return static_cast<int64_t>(hashed_value);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("node.StructuralHash",
+                        [](const Any& object, bool map_free_vars) -> int64_t {
+                          uint64_t hashed_value = SHashHandlerDefault().Hash(object, map_free_vars);
+                          return static_cast<int64_t>(hashed_value);
+                        });
+});
 
 uint64_t StructuralHash::operator()(const ObjectRef& object) const {
   return SHashHandlerDefault().Hash(object, false);
@@ -313,8 +317,6 @@ void SHashHandlerIgnoreNDArray::DispatchSHash(const ObjectRef& object, bool map_
 
 // SEQualReduce traits for runtime containers.
 struct StringObjTrait {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-
   static void SHashReduce(const ffi::StringObj* key, SHashReducer hash_reduce) {
     hash_reduce->SHashReduceHashedValue(ffi::details::StableHashBytes(key->data, key->size));
   }
@@ -329,8 +331,6 @@ struct StringObjTrait {
 };
 
 struct BytesObjTrait {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-
   static void SHashReduce(const ffi::BytesObj* key, SHashReducer hash_reduce) {
     hash_reduce->SHashReduceHashedValue(ffi::details::StableHashBytes(key->data, key->size));
   }
@@ -375,7 +375,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 struct ModuleNodeTrait {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
   static constexpr const std::nullptr_t SHashReduce = nullptr;
   static constexpr const std::nullptr_t SEqualReduce = nullptr;
 };
@@ -431,8 +430,6 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::NDArray::Container, NDArrayContainerTrai
     });
 
 struct ArrayObjTrait {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-
   static void SHashReduce(const ffi::ArrayObj* key, SHashReducer hash_reduce) {
     hash_reduce(static_cast<uint64_t>(key->size()));
     for (uint32_t i = 0; i < key->size(); ++i) {
@@ -518,8 +515,6 @@ TVM_REGISTER_REFLECTION_VTABLE(ffi::ArrayObj, ArrayObjTrait)
     });
 
 struct ShapeObjTrait {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-
   static void SHashReduce(const ffi::ShapeObj* self, SHashReducer hash_reduce) {
     hash_reduce(static_cast<uint64_t>(self->size));
     for (uint32_t i = 0; i < self->size; ++i) {
@@ -562,8 +557,6 @@ TVM_REGISTER_REFLECTION_VTABLE(ffi::ShapeObj, ShapeObjTrait)
     });
 
 struct MapObjTrait {
-  static constexpr const std::nullptr_t VisitAttrs = nullptr;
-
   static void SHashReduceForOMap(const ffi::MapObj* key, SHashReducer hash_reduce) {
     // SHash's var handling depends on the determinism of traversal.
     // NOTE: only book-keep the mapped hash keys.
@@ -699,14 +692,18 @@ TVM_REGISTER_REFLECTION_VTABLE(ffi::MapObj, MapObjTrait)
     .set_creator([](const std::string&) -> ObjectPtr<Object> { return ffi::MapObj::Empty(); });
 
 struct ReportNodeTrait {
-  static void VisitAttrs(runtime::profiling::ReportNode* report, AttrVisitor* attrs) {
-    attrs->Visit("calls", &report->calls);
-    attrs->Visit("device_metrics", &report->device_metrics);
-    attrs->Visit("configuration", &report->configuration);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::ReportNode>()
+        .def_ro("calls", &runtime::profiling::ReportNode::calls)
+        .def_ro("device_metrics", &runtime::profiling::ReportNode::device_metrics)
+        .def_ro("configuration", &runtime::profiling::ReportNode::configuration);
   }
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+TVM_FFI_STATIC_INIT_BLOCK({ ReportNodeTrait::RegisterReflection(); });
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::ReportNode, ReportNodeTrait);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
@@ -716,51 +713,78 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 struct CountNodeTrait {
-  static void VisitAttrs(runtime::profiling::CountNode* n, AttrVisitor* attrs) {
-    attrs->Visit("value", &n->value);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::CountNode>().def_ro("value",
+                                                            &runtime::profiling::CountNode::value);
   }
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ CountNodeTrait::RegisterReflection(); });
+
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::CountNode, CountNodeTrait);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::CountNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::profiling::CountNode*>(node.get());
       p->stream << op->GetTypeKey() << "(" << op->value << ")";
     });
+
 struct DurationNodeTrait {
-  static void VisitAttrs(runtime::profiling::DurationNode* n, AttrVisitor* attrs) {
-    attrs->Visit("microseconds", &n->microseconds);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::DurationNode>().def_ro(
+        "microseconds", &runtime::profiling::DurationNode::microseconds);
   }
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ DurationNodeTrait::RegisterReflection(); });
+
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::DurationNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::profiling::DurationNode*>(node.get());
       p->stream << op->GetTypeKey() << "(" << op->microseconds << ")";
     });
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::DurationNode, DurationNodeTrait);
+
 struct PercentNodeTrait {
-  static void VisitAttrs(runtime::profiling::PercentNode* n, AttrVisitor* attrs) {
-    attrs->Visit("percent", &n->percent);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::PercentNode>().def_ro(
+        "percent", &runtime::profiling::PercentNode::percent);
   }
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ PercentNodeTrait::RegisterReflection(); });
+
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::PercentNode, PercentNodeTrait);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::PercentNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::profiling::PercentNode*>(node.get());
       p->stream << op->GetTypeKey() << "(" << op->percent << ")";
     });
+
 struct RatioNodeTrait {
-  static void VisitAttrs(runtime::profiling::RatioNode* n, AttrVisitor* attrs) {
-    attrs->Visit("ratio", &n->ratio);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<runtime::profiling::RatioNode>().def_ro("ratio",
+                                                            &runtime::profiling::RatioNode::ratio);
   }
+
   static constexpr std::nullptr_t SEqualReduce = nullptr;
   static constexpr std::nullptr_t SHashReduce = nullptr;
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ RatioNodeTrait::RegisterReflection(); });
+
 TVM_REGISTER_REFLECTION_VTABLE(runtime::profiling::RatioNode, RatioNodeTrait);
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::profiling::RatioNode>([](const ObjectRef& node, ReprPrinter* p) {

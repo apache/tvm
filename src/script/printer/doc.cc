@@ -18,12 +18,43 @@
  */
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/script/printer/doc.h>
 
 namespace tvm {
 namespace script {
 namespace printer {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  DocNode::RegisterReflection();
+  ExprDocNode::RegisterReflection();
+  StmtDocNode::RegisterReflection();
+  StmtBlockDocNode::RegisterReflection();
+  LiteralDocNode::RegisterReflection();
+  IdDocNode::RegisterReflection();
+  AttrAccessDocNode::RegisterReflection();
+  IndexDocNode::RegisterReflection();
+  CallDocNode::RegisterReflection();
+  OperationDocNode::RegisterReflection();
+  LambdaDocNode::RegisterReflection();
+  TupleDocNode::RegisterReflection();
+  ListDocNode::RegisterReflection();
+  DictDocNode::RegisterReflection();
+  SliceDocNode::RegisterReflection();
+  AssignDocNode::RegisterReflection();
+  IfDocNode::RegisterReflection();
+  WhileDocNode::RegisterReflection();
+  ForDocNode::RegisterReflection();
+  ScopeDocNode::RegisterReflection();
+  ExprStmtDocNode::RegisterReflection();
+  AssertDocNode::RegisterReflection();
+  ReturnDocNode::RegisterReflection();
+  FunctionDocNode::RegisterReflection();
+  ClassDocNode::RegisterReflection();
+  CommentDocNode::RegisterReflection();
+  DocStringDocNode::RegisterReflection();
+});
 
 ExprDoc ExprDocNode::Attr(String attr) const { return AttrAccessDoc(GetRef<ExprDoc>(this), attr); }
 
@@ -234,156 +265,221 @@ DocStringDoc::DocStringDoc(String docs) {
 }
 
 TVM_REGISTER_NODE_TYPE(DocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.DocSetSourcePaths")
-    .set_body_typed([](Doc doc, Array<ObjectPath> source_paths) {
-      doc->source_paths = source_paths;
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "script.printer.DocSetSourcePaths",
+      [](Doc doc, Array<ObjectPath> source_paths) { doc->source_paths = source_paths; });
+});
 
 TVM_REGISTER_NODE_TYPE(ExprDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.ExprDocAttr")
-    .set_body_method<ExprDocNode, ExprDoc, String>(&ExprDocNode::Attr);
-TVM_FFI_REGISTER_GLOBAL("script.printer.ExprDocIndex").set_body_method(&ExprDocNode::operator[]);
-TVM_FFI_REGISTER_GLOBAL("script.printer.ExprDocCall")
-    .set_body_method<ExprDocNode, ExprDoc, Array<ExprDoc>, Array<String>, Array<ExprDoc>>(
-        &ExprDocNode::Call);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_method("script.printer.ExprDocAttr", &ExprDocNode::Attr)
+      .def_method("script.printer.ExprDocIndex", &ExprDocNode::operator[])
+      .def_method(
+          "script.printer.ExprDocCall",
+          [](ExprDoc doc, Array<ExprDoc> args, Array<String> kwargs_keys,
+             Array<ExprDoc> kwargs_values) { return doc->Call(args, kwargs_keys, kwargs_values); });
+});
 
 TVM_REGISTER_NODE_TYPE(StmtDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.StmtDocSetComment")
-    .set_body_typed([](StmtDoc doc, Optional<String> comment) { doc->comment = comment; });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.StmtDocSetComment",
+                        [](StmtDoc doc, Optional<String> comment) { doc->comment = comment; });
+});
 
 TVM_REGISTER_NODE_TYPE(StmtBlockDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.StmtBlockDoc").set_body_typed([](Array<StmtDoc> stmts) {
-  return StmtBlockDoc(stmts);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.StmtBlockDoc",
+                        [](Array<StmtDoc> stmts) { return StmtBlockDoc(stmts); });
 });
 
 TVM_REGISTER_NODE_TYPE(LiteralDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.LiteralDocNone").set_body_typed(LiteralDoc::None);
-TVM_FFI_REGISTER_GLOBAL("script.printer.LiteralDocInt").set_body_typed(LiteralDoc::Int);
-TVM_FFI_REGISTER_GLOBAL("script.printer.LiteralDocBoolean").set_body_typed(LiteralDoc::Boolean);
-TVM_FFI_REGISTER_GLOBAL("script.printer.LiteralDocFloat").set_body_typed(LiteralDoc::Float);
-TVM_FFI_REGISTER_GLOBAL("script.printer.LiteralDocStr").set_body_typed(LiteralDoc::Str);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("script.printer.LiteralDocNone", LiteralDoc::None)
+      .def("script.printer.LiteralDocInt", LiteralDoc::Int)
+      .def("script.printer.LiteralDocBoolean", LiteralDoc::Boolean)
+      .def("script.printer.LiteralDocFloat", LiteralDoc::Float)
+      .def("script.printer.LiteralDocStr", LiteralDoc::Str);
+});
 
 TVM_REGISTER_NODE_TYPE(IdDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.IdDoc").set_body_typed([](String name) {
-  return IdDoc(name);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.IdDoc", [](String name) { return IdDoc(name); });
 });
 
 TVM_REGISTER_NODE_TYPE(AttrAccessDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.AttrAccessDoc")
-    .set_body_typed([](ExprDoc value, String attr) { return AttrAccessDoc(value, attr); });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.AttrAccessDoc",
+                        [](ExprDoc value, String attr) { return AttrAccessDoc(value, attr); });
+});
 
 TVM_REGISTER_NODE_TYPE(IndexDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.IndexDoc")
-    .set_body_typed([](ExprDoc value, Array<Doc> indices) { return IndexDoc(value, indices); });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.IndexDoc",
+                        [](ExprDoc value, Array<Doc> indices) { return IndexDoc(value, indices); });
+});
 
 TVM_REGISTER_NODE_TYPE(CallDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.CallDoc")
-    .set_body_typed([](ExprDoc callee,             //
-                       Array<ExprDoc> args,        //
-                       Array<String> kwargs_keys,  //
-                       Array<ExprDoc> kwargs_values) {
-      return CallDoc(callee, args, kwargs_keys, kwargs_values);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.CallDoc", [](ExprDoc callee,             //
+                                                     Array<ExprDoc> args,        //
+                                                     Array<String> kwargs_keys,  //
+                                                     Array<ExprDoc> kwargs_values) {
+    return CallDoc(callee, args, kwargs_keys, kwargs_values);
+  });
+});
 
 TVM_REGISTER_NODE_TYPE(OperationDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.OperationDoc")
-    .set_body_typed([](int32_t kind, Array<ExprDoc> operands) {
-      return OperationDoc(OperationDocNode::Kind(kind), operands);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.OperationDoc", [](int32_t kind, Array<ExprDoc> operands) {
+    return OperationDoc(OperationDocNode::Kind(kind), operands);
+  });
+});
 
 TVM_REGISTER_NODE_TYPE(LambdaDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.LambdaDoc")
-    .set_body_typed([](Array<IdDoc> args, ExprDoc body) { return LambdaDoc(args, body); });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.LambdaDoc",
+                        [](Array<IdDoc> args, ExprDoc body) { return LambdaDoc(args, body); });
+});
 
 TVM_REGISTER_NODE_TYPE(TupleDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.TupleDoc").set_body_typed([](Array<ExprDoc> elements) {
-  return TupleDoc(elements);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.TupleDoc",
+                        [](Array<ExprDoc> elements) { return TupleDoc(elements); });
 });
 
 TVM_REGISTER_NODE_TYPE(ListDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.ListDoc").set_body_typed([](Array<ExprDoc> elements) {
-  return ListDoc(elements);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.ListDoc",
+                        [](Array<ExprDoc> elements) { return ListDoc(elements); });
 });
 
 TVM_REGISTER_NODE_TYPE(DictDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.DictDoc")
-    .set_body_typed([](Array<ExprDoc> keys, Array<ExprDoc> values) {
-      return DictDoc(keys, values);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.DictDoc", [](Array<ExprDoc> keys, Array<ExprDoc> values) {
+    return DictDoc(keys, values);
+  });
+});
 
 TVM_REGISTER_NODE_TYPE(SliceDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.SliceDoc")
-    .set_body_typed([](Optional<ExprDoc> start, Optional<ExprDoc> stop, Optional<ExprDoc> step) {
-      return SliceDoc(start, stop, step);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.SliceDoc",
+                        [](Optional<ExprDoc> start, Optional<ExprDoc> stop,
+                           Optional<ExprDoc> step) { return SliceDoc(start, stop, step); });
+});
 
 TVM_REGISTER_NODE_TYPE(AssignDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.AssignDoc")
-    .set_body_typed([](ExprDoc lhs, Optional<ExprDoc> rhs, Optional<ExprDoc> annotation) {
-      return AssignDoc(lhs, rhs, annotation);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.AssignDoc",
+                        [](ExprDoc lhs, Optional<ExprDoc> rhs, Optional<ExprDoc> annotation) {
+                          return AssignDoc(lhs, rhs, annotation);
+                        });
+});
 
 TVM_REGISTER_NODE_TYPE(IfDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.IfDoc")
-    .set_body_typed([](ExprDoc predicate, Array<StmtDoc> then_branch, Array<StmtDoc> else_branch) {
-      return IfDoc(predicate, then_branch, else_branch);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.IfDoc", [](ExprDoc predicate, Array<StmtDoc> then_branch,
+                                                   Array<StmtDoc> else_branch) {
+    return IfDoc(predicate, then_branch, else_branch);
+  });
+});
 
 TVM_REGISTER_NODE_TYPE(WhileDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.WhileDoc")
-    .set_body_typed([](ExprDoc predicate, Array<StmtDoc> body) {
-      return WhileDoc(predicate, body);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.WhileDoc", [](ExprDoc predicate, Array<StmtDoc> body) {
+    return WhileDoc(predicate, body);
+  });
+});
 
 TVM_REGISTER_NODE_TYPE(ForDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.ForDoc")
-    .set_body_typed([](ExprDoc lhs, ExprDoc rhs, Array<StmtDoc> body) {
-      return ForDoc(lhs, rhs, body);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.ForDoc", [](ExprDoc lhs, ExprDoc rhs, Array<StmtDoc> body) {
+    return ForDoc(lhs, rhs, body);
+  });
+});
 
 TVM_REGISTER_NODE_TYPE(ScopeDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.ScopeDoc")
-    .set_body_typed([](Optional<ExprDoc> lhs, ExprDoc rhs, Array<StmtDoc> body) {
-      return ScopeDoc(lhs, rhs, body);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.ScopeDoc",
+                        [](Optional<ExprDoc> lhs, ExprDoc rhs, Array<StmtDoc> body) {
+                          return ScopeDoc(lhs, rhs, body);
+                        });
+});
 
 TVM_REGISTER_NODE_TYPE(ExprStmtDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.ExprStmtDoc").set_body_typed([](ExprDoc expr) {
-  return ExprStmtDoc(expr);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.ExprStmtDoc",
+                        [](ExprDoc expr) { return ExprStmtDoc(expr); });
 });
 
 TVM_REGISTER_NODE_TYPE(AssertDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.AssertDoc")
-    .set_body_typed([](ExprDoc test, Optional<ExprDoc> msg = std::nullopt) {
-      return AssertDoc(test, msg);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def(
+      "script.printer.AssertDoc",
+      [](ExprDoc test, Optional<ExprDoc> msg = std::nullopt) { return AssertDoc(test, msg); });
+});
 
 TVM_REGISTER_NODE_TYPE(ReturnDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.ReturnDoc").set_body_typed([](ExprDoc value) {
-  return ReturnDoc(value);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.ReturnDoc", [](ExprDoc value) { return ReturnDoc(value); });
 });
 
 TVM_REGISTER_NODE_TYPE(FunctionDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.FunctionDoc")
-    .set_body_typed([](IdDoc name, Array<AssignDoc> args, Array<ExprDoc> decorators,
-                       Optional<ExprDoc> return_type, Array<StmtDoc> body) {
-      return FunctionDoc(name, args, decorators, return_type, body);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.FunctionDoc",
+                        [](IdDoc name, Array<AssignDoc> args, Array<ExprDoc> decorators,
+                           Optional<ExprDoc> return_type, Array<StmtDoc> body) {
+                          return FunctionDoc(name, args, decorators, return_type, body);
+                        });
+});
 
 TVM_REGISTER_NODE_TYPE(ClassDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.ClassDoc")
-    .set_body_typed([](IdDoc name, Array<ExprDoc> decorators, Array<StmtDoc> body) {
-      return ClassDoc(name, decorators, body);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.ClassDoc",
+                        [](IdDoc name, Array<ExprDoc> decorators, Array<StmtDoc> body) {
+                          return ClassDoc(name, decorators, body);
+                        });
+});
 
 TVM_REGISTER_NODE_TYPE(CommentDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.CommentDoc").set_body_typed([](String comment) {
-  return CommentDoc(comment);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.CommentDoc",
+                        [](String comment) { return CommentDoc(comment); });
 });
 
 TVM_REGISTER_NODE_TYPE(DocStringDocNode);
-TVM_FFI_REGISTER_GLOBAL("script.printer.DocStringDoc").set_body_typed([](String docs) {
-  return DocStringDoc(docs);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("script.printer.DocStringDoc",
+                        [](String docs) { return DocStringDoc(docs); });
 });
 
 }  // namespace printer

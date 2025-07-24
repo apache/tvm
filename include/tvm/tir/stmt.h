@@ -24,6 +24,7 @@
 #ifndef TVM_TIR_STMT_H_
 #define TVM_TIR_STMT_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/expr.h>
 
 #include <string>
@@ -44,6 +45,11 @@ class StmtNode : public Object {
 
   StmtNode() = default;
   explicit StmtNode(Span span) : span(span) {}
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<StmtNode>().def_ro("span", &StmtNode::span);
+  }
 
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
@@ -72,11 +78,12 @@ class LetStmtNode : public StmtNode {
   /*! \brief The body block. */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("var", &var);
-    v->Visit("value", &value);
-    v->Visit("body", &body);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<LetStmtNode>()
+        .def_ro("var", &LetStmtNode::var)
+        .def_ro("value", &LetStmtNode::value)
+        .def_ro("body", &LetStmtNode::body);
   }
 
   bool SEqualReduce(const LetStmtNode* other, SEqualReducer equal) const {
@@ -127,12 +134,13 @@ class AttrStmtNode : public StmtNode {
   /*! \brief The body statement to be executed */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("node", &node);
-    v->Visit("attr_key", &attr_key);
-    v->Visit("value", &value);
-    v->Visit("body", &body);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AttrStmtNode>()
+        .def_ro("node", &AttrStmtNode::node)
+        .def_ro("attr_key", &AttrStmtNode::attr_key)
+        .def_ro("value", &AttrStmtNode::value)
+        .def_ro("body", &AttrStmtNode::body);
   }
 
   bool SEqualReduce(const AttrStmtNode* other, SEqualReducer equal) const {
@@ -178,11 +186,12 @@ class AssertStmtNode : public StmtNode {
    */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("condition", &condition);
-    v->Visit("message", &message);
-    v->Visit("body", &body);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AssertStmtNode>()
+        .def_ro("condition", &AssertStmtNode::condition)
+        .def_ro("message", &AssertStmtNode::message)
+        .def_ro("body", &AssertStmtNode::body);
   }
 
   bool SEqualReduce(const AssertStmtNode* other, SEqualReducer equal) const {
@@ -233,12 +242,13 @@ class BufferStoreNode : public StmtNode {
   /*! \brief The predicate mask for storing values. */
   Optional<PrimExpr> predicate;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
-    v->Visit("value", &value);
-    v->Visit("indices", &indices);
-    v->Visit("predicate", &predicate);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BufferStoreNode>()
+        .def_ro("buffer", &BufferStoreNode::buffer)
+        .def_ro("value", &BufferStoreNode::value)
+        .def_ro("indices", &BufferStoreNode::indices)
+        .def_ro("predicate", &BufferStoreNode::predicate);
   }
 
   bool SEqualReduce(const BufferStoreNode* other, SEqualReducer equal) const {
@@ -292,12 +302,13 @@ class BufferRealizeNode : public StmtNode {
   /*! \brief The body of realization. */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
-    v->Visit("bounds", &bounds);
-    v->Visit("condition", &condition);
-    v->Visit("body", &body);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BufferRealizeNode>()
+        .def_ro("buffer", &BufferRealizeNode::buffer)
+        .def_ro("bounds", &BufferRealizeNode::bounds)
+        .def_ro("condition", &BufferRealizeNode::condition)
+        .def_ro("body", &BufferRealizeNode::body);
   }
 
   bool SEqualReduce(const BufferRealizeNode* other, SEqualReducer equal) const {
@@ -357,14 +368,15 @@ class AllocateNode : public StmtNode {
    */
   Map<String, ffi::Any> annotations;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer_var", &buffer_var);
-    v->Visit("dtype", &dtype);
-    v->Visit("extents", &extents);
-    v->Visit("condition", &condition);
-    v->Visit("body", &body);
-    v->Visit("annotations", &annotations);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AllocateNode>()
+        .def_ro("buffer_var", &AllocateNode::buffer_var)
+        .def_ro("dtype", &AllocateNode::dtype)
+        .def_ro("extents", &AllocateNode::extents)
+        .def_ro("condition", &AllocateNode::condition)
+        .def_ro("body", &AllocateNode::body)
+        .def_ro("annotations", &AllocateNode::annotations);
   }
 
   bool SEqualReduce(const AllocateNode* other, SEqualReducer equal) const {
@@ -445,15 +457,16 @@ class AllocateConstNode : public StmtNode {
    */
   Map<String, ffi::Any> annotations;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer_var", &buffer_var);
-    v->Visit("data", &data);
-    v->Visit("irmod_storage_idx", &irmod_storage_idx);
-    v->Visit("dtype", &dtype);
-    v->Visit("extents", &extents);
-    v->Visit("body", &body);
-    v->Visit("annotations", &annotations);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AllocateConstNode>()
+        .def_ro("buffer_var", &AllocateConstNode::buffer_var)
+        .def_ro("data", &AllocateConstNode::data)
+        .def_ro("irmod_storage_idx", &AllocateConstNode::irmod_storage_idx)
+        .def_ro("dtype", &AllocateConstNode::dtype)
+        .def_ro("extents", &AllocateConstNode::extents)
+        .def_ro("body", &AllocateConstNode::body)
+        .def_ro("annotations", &AllocateConstNode::annotations);
   }
 
   bool SEqualReduce(const AllocateConstNode* other, SEqualReducer equal) const {
@@ -517,10 +530,11 @@ class DeclBufferNode : public StmtNode {
   /*! \brief The body to be executed */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
-    v->Visit("body", &body);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DeclBufferNode>()
+        .def_ro("buffer", &DeclBufferNode::buffer)
+        .def_ro("body", &DeclBufferNode::body);
   }
 
   bool SEqualReduce(const DeclBufferNode* other, SEqualReducer equal) const {
@@ -560,9 +574,9 @@ class SeqStmtNode : public StmtNode {
    */
   Stmt operator[](size_t index) const { return seq[index]; }
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("seq", &seq);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SeqStmtNode>().def_ro("seq", &SeqStmtNode::seq);
   }
 
   bool SEqualReduce(const SeqStmtNode* other, SEqualReducer equal) const {
@@ -586,9 +600,9 @@ class EvaluateNode : public StmtNode {
   /*! \brief The expression to be evaluated. */
   PrimExpr value;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("value", &value);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<EvaluateNode>().def_ro("value", &EvaluateNode::value);
   }
 
   bool SEqualReduce(const EvaluateNode* other, SEqualReducer equal) const {
@@ -778,11 +792,12 @@ class IfThenElseNode : public StmtNode {
   /*! \brief The branch to be executed when condition is false, can be null. */
   Optional<Stmt> else_case;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("condition", &condition);
-    v->Visit("then_case", &then_case);
-    v->Visit("else_case", &else_case);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IfThenElseNode>()
+        .def_ro("condition", &IfThenElseNode::condition)
+        .def_ro("then_case", &IfThenElseNode::then_case)
+        .def_ro("else_case", &IfThenElseNode::else_case);
   }
 
   bool SEqualReduce(const IfThenElseNode* other, SEqualReducer equal) const {
@@ -878,15 +893,16 @@ class ForNode : public StmtNode {
    */
   Map<String, ffi::Any> annotations;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("loop_var", &loop_var);
-    v->Visit("min", &min);
-    v->Visit("extent", &extent);
-    v->Visit("kind", &kind);
-    v->Visit("body", &body);
-    v->Visit("thread_binding", &thread_binding);
-    v->Visit("annotations", &annotations);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<ForNode>()
+        .def_ro("loop_var", &ForNode::loop_var)
+        .def_ro("min", &ForNode::min)
+        .def_ro("extent", &ForNode::extent)
+        .def_ro("kind", &ForNode::kind)
+        .def_ro("body", &ForNode::body)
+        .def_ro("thread_binding", &ForNode::thread_binding)
+        .def_ro("annotations", &ForNode::annotations);
   }
 
   bool SEqualReduce(const ForNode* other, SEqualReducer equal) const {
@@ -940,10 +956,11 @@ class WhileNode : public StmtNode {
   /*! \brief The body of the while loop. */
   Stmt body;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("condition", &condition);
-    v->Visit("body", &body);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<WhileNode>()
+        .def_ro("condition", &WhileNode::condition)
+        .def_ro("body", &WhileNode::body);
   }
 
   bool SEqualReduce(const WhileNode* other, SEqualReducer equal) const {
@@ -981,9 +998,11 @@ class BufferRegionNode : public PrimExprConvertibleNode {
   /*! \brief The region array of the buffer region. */
   Array<Range> region;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
-    v->Visit("region", &region);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BufferRegionNode>()
+        .def_ro("buffer", &BufferRegionNode::buffer)
+        .def_ro("region", &BufferRegionNode::region);
   }
 
   bool SEqualReduce(const BufferRegionNode* other, SEqualReducer equal) const {
@@ -1046,9 +1065,11 @@ class MatchBufferRegionNode : public Object {
   /*! \brief The source buffer region. */
   BufferRegion source;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("buffer", &buffer);
-    v->Visit("source", &source);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<MatchBufferRegionNode>()
+        .def_ro("buffer", &MatchBufferRegionNode::buffer)
+        .def_ro("source", &MatchBufferRegionNode::source);
   }
 
   bool SEqualReduce(const MatchBufferRegionNode* other, SEqualReducer equal) const {
@@ -1126,16 +1147,18 @@ class BlockNode : public StmtNode {
   /*! \brief The annotation of the block. */
   Map<String, ffi::Any> annotations;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("iter_vars", &iter_vars);
-    v->Visit("reads", &reads);
-    v->Visit("writes", &writes);
-    v->Visit("name_hint", &name_hint);
-    v->Visit("body", &body);
-    v->Visit("init", &init);
-    v->Visit("alloc_buffers", &alloc_buffers);
-    v->Visit("match_buffers", &match_buffers);
-    v->Visit("annotations", &annotations);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BlockNode>()
+        .def_ro("iter_vars", &BlockNode::iter_vars)
+        .def_ro("reads", &BlockNode::reads)
+        .def_ro("writes", &BlockNode::writes)
+        .def_ro("name_hint", &BlockNode::name_hint)
+        .def_ro("body", &BlockNode::body)
+        .def_ro("init", &BlockNode::init)
+        .def_ro("alloc_buffers", &BlockNode::alloc_buffers)
+        .def_ro("match_buffers", &BlockNode::match_buffers)
+        .def_ro("annotations", &BlockNode::annotations);
   }
 
   bool SEqualReduce(const BlockNode* other, SEqualReducer equal) const {
@@ -1195,10 +1218,12 @@ class BlockRealizeNode : public StmtNode {
   /*! \brief The block to be realized. */
   Block block;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("iter_values", &iter_values);
-    v->Visit("predicate", &predicate);
-    v->Visit("block", &block);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<BlockRealizeNode>()
+        .def_ro("iter_values", &BlockRealizeNode::iter_values)
+        .def_ro("predicate", &BlockRealizeNode::predicate)
+        .def_ro("block", &BlockRealizeNode::block);
   }
 
   bool SEqualReduce(const BlockRealizeNode* other, SEqualReducer equal) const {

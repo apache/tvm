@@ -24,6 +24,7 @@
 #define TVM_IR_SOURCE_MAP_H_
 
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/node.h>
 #include <tvm/runtime/object.h>
 
@@ -46,8 +47,11 @@ class SourceNameNode : public Object {
  public:
   /*! \brief The source name. */
   String name;
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SourceNameNode>().def_ro("name", &SourceNameNode::name);
+  }
 
   static constexpr bool _type_has_method_sequal_reduce = true;
 
@@ -55,7 +59,7 @@ class SourceNameNode : public Object {
     return equal(name, other->name);
   }
 
-  static constexpr const char* _type_key = "SourceName";
+  static constexpr const char* _type_key = "ir.SourceName";
   TVM_DECLARE_FINAL_OBJECT_INFO(SourceNameNode, Object);
 };
 
@@ -96,14 +100,16 @@ class SpanNode : public Object {
   /*! \brief The end column number. */
   int end_column;
 
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("source_name", &source_name);
-    v->Visit("line", &line);
-    v->Visit("column", &column);
-    v->Visit("end_line", &end_line);
-    v->Visit("end_column", &end_column);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SpanNode>()
+        .def_ro("source_name", &SpanNode::source_name)
+        .def_ro("line", &SpanNode::line)
+        .def_ro("column", &SpanNode::column)
+        .def_ro("end_line", &SpanNode::end_line)
+        .def_ro("end_column", &SpanNode::end_column);
   }
+
   static constexpr bool _type_has_method_sequal_reduce = true;
 
   bool SEqualReduce(const SpanNode* other, SEqualReducer equal) const {
@@ -112,7 +118,7 @@ class SpanNode : public Object {
            equal(end_column, other->end_column);
   }
 
-  static constexpr const char* _type_key = "Span";
+  static constexpr const char* _type_key = "ir.Span";
   TVM_DECLARE_BASE_OBJECT_INFO(SpanNode, Object);
 };
 
@@ -134,13 +140,12 @@ class SequentialSpanNode : public SpanNode {
   /*! \brief The original source list of spans to construct a sequential span. */
   Array<Span> spans;
 
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) {
-    SpanNode::VisitAttrs(v);
-    v->Visit("spans", &spans);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SequentialSpanNode>().def_ro("spans", &SequentialSpanNode::spans);
   }
 
-  static constexpr const char* _type_key = "SequentialSpan";
+  static constexpr const char* _type_key = "ir.SequentialSpan";
   TVM_DECLARE_FINAL_OBJECT_INFO(SequentialSpanNode, SpanNode);
 
   bool SEqualReduce(const SequentialSpanNode* other, SEqualReducer equal) const {
@@ -188,13 +193,14 @@ class SourceNode : public Object {
   /*! \brief A mapping of line breaks into the raw source. */
   std::vector<std::pair<int, int>> line_map;
 
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("source_name", &source_name);
-    v->Visit("source", &source);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SourceNode>()
+        .def_ro("source_name", &SourceNode::source_name)
+        .def_ro("source", &SourceNode::source);
   }
 
-  static constexpr const char* _type_key = "Source";
+  static constexpr const char* _type_key = "ir.Source";
   TVM_DECLARE_FINAL_OBJECT_INFO(SourceNode, Object);
 };
 
@@ -218,14 +224,16 @@ class SourceMapObj : public Object {
   /*! \brief The source mapping. */
   Map<SourceName, Source> source_map;
 
-  // override attr visitor
-  void VisitAttrs(AttrVisitor* v) { v->Visit("source_map", &source_map); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SourceMapObj>().def_ro("source_map", &SourceMapObj::source_map);
+  }
 
   bool SEqualReduce(const SourceMapObj* other, SEqualReducer equal) const {
     return equal(source_map, other->source_map);
   }
 
-  static constexpr const char* _type_key = "SourceMap";
+  static constexpr const char* _type_key = "ir.SourceMap";
   TVM_DECLARE_FINAL_OBJECT_INFO(SourceMapObj, Object);
 };
 

@@ -23,6 +23,8 @@
 
 #include "plugin.h"
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include <algorithm>
 #include <map>
 #include <queue>
@@ -305,21 +307,23 @@ const Plugin GetPlugin(const String& name) { return PluginRegistry::Global()->Ge
 
 bool IsPlugin(const String& name) { return PluginRegistry::Global()->Registered(name); }
 
-TVM_FFI_REGISTER_GLOBAL("msc.core.RegisterPlugin")
-    .set_body_typed([](const String& name, const String& json_str) {
-      PluginRegistry::Global()->Register(name, json_str);
-    });
-
-TVM_FFI_REGISTER_GLOBAL("msc.core.ListPluginNames").set_body_typed([]() -> Array<String> {
-  return ListPluginNames();
+TVM_FFI_STATIC_INIT_BLOCK({
+  PluginAttrNode::RegisterReflection();
+  PluginTensorNode::RegisterReflection();
+  PluginExternNode::RegisterReflection();
+  PluginNode::RegisterReflection();
 });
 
-TVM_FFI_REGISTER_GLOBAL("msc.core.GetPlugin").set_body_typed([](const String& name) -> Plugin {
-  return GetPlugin(name);
-});
-
-TVM_FFI_REGISTER_GLOBAL("msc.core.IsPlugin").set_body_typed([](const String& name) -> Bool {
-  return Bool(IsPlugin(name));
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("msc.core.RegisterPlugin",
+           [](const String& name, const String& json_str) {
+             PluginRegistry::Global()->Register(name, json_str);
+           })
+      .def("msc.core.ListPluginNames", []() -> Array<String> { return ListPluginNames(); })
+      .def("msc.core.GetPlugin", [](const String& name) -> Plugin { return GetPlugin(name); })
+      .def("msc.core.IsPlugin", [](const String& name) -> Bool { return Bool(IsPlugin(name)); });
 });
 
 }  // namespace msc

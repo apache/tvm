@@ -22,6 +22,7 @@
  * \file plan_update_buffer_allocation_location.cc
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -156,7 +157,7 @@ class BufferAllocationLocator : public StmtExprMutator {
       node.CopyOnWrite()->body = InjectOpaqueBlock(node->body, new_block_alloc_bufs);
     }
 
-    return std::move(node);
+    return node;
   }
 
   Stmt VisitStmt_(const BlockNode* op) final {
@@ -220,7 +221,7 @@ class BufferAllocationLocator : public StmtExprMutator {
     n->reads = access[0];
     n->writes = access[1];
     BlockRealize realize({}, Bool(true), Block(n));
-    return std::move(realize);
+    return realize;
   }
 
   Array<BufferRegion> RemoveRedundantBufferRegion(const Array<BufferRegion>& region) const {
@@ -257,8 +258,11 @@ Pass PlanAndUpdateBufferAllocationLocation() {
   return CreatePrimFuncPass(pass_func, 0, "tir.PlanAndUpdateBufferAllocationLocation", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("tir.transform.PlanAndUpdateBufferAllocationLocation")
-    .set_body_typed(PlanAndUpdateBufferAllocationLocation);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("tir.transform.PlanAndUpdateBufferAllocationLocation",
+                        PlanAndUpdateBufferAllocationLocation);
+});
 
 }  // namespace transform
 

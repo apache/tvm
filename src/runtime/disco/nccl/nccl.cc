@@ -17,6 +17,8 @@
  * under the License.
  */
 
+#include <tvm/ffi/reflection/registry.h>
+
 #include <cstring>
 #include <mutex>
 #include <sstream>
@@ -325,66 +327,53 @@ void SyncWorker() {
   StreamSynchronize(stream);
 }
 
-TVM_FFI_REGISTER_GLOBAL("runtime.disco.compiled_ccl").set_body_typed([]() -> String {
-  return TVM_DISCO_CCL_NAME;
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("runtime.disco.compiled_ccl", []() -> String { return TVM_DISCO_CCL_NAME; })
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl", InitCCL)
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker", InitCCLPerWorker)
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".allreduce",
+           [](NDArray send, int kind, bool in_group, NDArray recv) {
+             CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
+             nccl::AllReduce(send, static_cast<ReduceKind>(kind), in_group, recv);
+           })
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".allgather",
+           [](NDArray send, bool in_group, NDArray recv) { nccl::AllGather(send, in_group, recv); })
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".broadcast_from_worker0", BroadcastFromWorker0)
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".scatter_from_worker0", ScatterFromWorker0)
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".gather_to_worker0", GatherToWorker0)
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker0", RecvFromWorker0)
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".send_to_next_group", SendToNextGroup)
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_prev_group", RecvFromPrevGroup)
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".send_to_worker", SendToWorker)
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker", RecvFromWorker)
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".sync_worker", SyncWorker)
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".test_send_to_next_group_recv_from_prev_group",
+           [](NDArray buffer) {
+             CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+             CHECK_EQ(ctx->worker->num_workers, 4) << "The test requires the world size to be 4.";
+             CHECK_EQ(ctx->worker->num_groups, 2) << "The test requires the group size to be 2.";
+             int group_size = ctx->worker->num_workers / ctx->worker->num_groups;
+             int group_id = ctx->worker->worker_id / group_size;
+             if (group_id == 0) {
+               tvm::runtime::nccl::SendToNextGroup(buffer);
+             } else {
+               tvm::runtime::nccl::RecvFromPrevGroup(buffer);
+             }
+           })
+      .def("runtime.disco." TVM_DISCO_CCL_NAME ".test_worker2_sends_to_worker0",
+           [](NDArray buffer) {
+             CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+             CHECK_EQ(ctx->worker->num_workers, 4) << "The test requires the world size to be 4.";
+             CHECK_EQ(ctx->worker->num_groups, 2) << "The test requires the group size to be 2.";
+             if (ctx->worker->worker_id == 2) {
+               tvm::runtime::nccl::SendToWorker(buffer, 0);
+             } else if (ctx->worker->worker_id == 0) {
+               tvm::runtime::nccl::RecvFromWorker(buffer, 2);
+             }
+           });
 });
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl").set_body_typed(InitCCL);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker")
-    .set_body_typed(InitCCLPerWorker);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allreduce")
-    .set_body_typed([](NDArray send, int kind, bool in_group, NDArray recv) {
-      CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
-      nccl::AllReduce(send, static_cast<ReduceKind>(kind), in_group, recv);
-    });
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allgather")
-    .set_body_typed([](NDArray send, bool in_group, NDArray recv) {
-      nccl::AllGather(send, in_group, recv);
-    });
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".broadcast_from_worker0")
-    .set_body_typed(BroadcastFromWorker0);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".scatter_from_worker0")
-    .set_body_typed(ScatterFromWorker0);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".gather_to_worker0")
-    .set_body_typed(GatherToWorker0);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker0")
-    .set_body_typed(RecvFromWorker0);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".send_to_next_group")
-    .set_body_typed(SendToNextGroup);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_prev_group")
-    .set_body_typed(RecvFromPrevGroup);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".send_to_worker")
-    .set_body_typed(SendToWorker);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker")
-    .set_body_typed(RecvFromWorker);
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".sync_worker")
-    .set_body_typed(SyncWorker);
-
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME
-                        ".test_send_to_next_group_recv_from_prev_group")
-    .set_body_typed([](NDArray buffer) {
-      CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
-      CHECK_EQ(ctx->worker->num_workers, 4) << "The test requires the world size to be 4.";
-      CHECK_EQ(ctx->worker->num_groups, 2) << "The test requires the group size to be 2.";
-      int group_size = ctx->worker->num_workers / ctx->worker->num_groups;
-      int group_id = ctx->worker->worker_id / group_size;
-      if (group_id == 0) {
-        tvm::runtime::nccl::SendToNextGroup(buffer);
-      } else {
-        tvm::runtime::nccl::RecvFromPrevGroup(buffer);
-      }
-    });
-
-TVM_FFI_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".test_worker2_sends_to_worker0")
-    .set_body_typed([](NDArray buffer) {
-      CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
-      CHECK_EQ(ctx->worker->num_workers, 4) << "The test requires the world size to be 4.";
-      CHECK_EQ(ctx->worker->num_groups, 2) << "The test requires the group size to be 2.";
-      if (ctx->worker->worker_id == 2) {
-        tvm::runtime::nccl::SendToWorker(buffer, 0);
-      } else if (ctx->worker->worker_id == 0) {
-        tvm::runtime::nccl::RecvFromWorker(buffer, 2);
-      }
-    });
 
 }  // namespace nccl
 }  // namespace runtime

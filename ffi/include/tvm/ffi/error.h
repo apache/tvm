@@ -86,7 +86,7 @@ struct EnvErrorAlreadySet : public std::exception {};
 class ErrorObj : public Object, public TVMFFIErrorCell {
  public:
   static constexpr const int32_t _type_index = TypeIndex::kTVMFFIError;
-  static constexpr const char* _type_key = "object.Error";
+  static constexpr const char* _type_key = "ffi.Error";
 
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ErrorObj, Object);
 };

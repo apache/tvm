@@ -100,13 +100,13 @@ class PrimFuncNode : public BaseFuncNode {
    */
   Map<tir::Var, Buffer> buffer_map;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("params", &params);
-    v->Visit("body", &body);
-    v->Visit("ret_type", &ret_type);
-    v->Visit("buffer_map", &buffer_map);
-    v->Visit("attrs", &attrs);
-    v->Visit("span", &span);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PrimFuncNode>()
+        .def_ro("params", &PrimFuncNode::params)
+        .def_ro("body", &PrimFuncNode::body)
+        .def_ro("ret_type", &PrimFuncNode::ret_type)
+        .def_ro("buffer_map", &PrimFuncNode::buffer_map);
   }
 
   bool SEqualReduce(const PrimFuncNode* other, SEqualReducer equal) const {
@@ -180,9 +180,11 @@ class TensorIntrinNode : public Object {
   /*! \brief The function of the implementation for the execution. */
   PrimFunc impl;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("desc", &desc);
-    v->Visit("impl", &impl);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TensorIntrinNode>()
+        .def_ro("desc", &TensorIntrinNode::desc)
+        .def_ro("impl", &TensorIntrinNode::impl);
   }
 
   static constexpr const char* _type_key = "tir.TensorIntrin";

@@ -61,7 +61,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const BlockRealizeNode* op) {
   if (changed) {
     realize.CopyOnWrite()->iter_values = std::move(new_iter_values);
   }
-  return std::move(realize);
+  return realize;
 }
 
 Stmt DataTypeLegalizer::VisitStmt_(const BlockNode* op) {
@@ -80,7 +80,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const BlockNode* op) {
   if (!op->iter_vars.same_as(new_iter_vars)) {
     new_block.CopyOnWrite()->iter_vars = std::move(new_iter_vars);
   }
-  return std::move(new_block);
+  return new_block;
 }
 
 Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
@@ -269,7 +269,8 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const AllocateNode* op) {
     n->extents = std::move(new_extents);
     n->condition = std::move(new_cond);
     n->body = std::move(new_body);
-    return std::move(new_allocate);
+    return new_allocate;
+
   } else {
     return GetRef<Stmt>(op);
   }
@@ -292,7 +293,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const DeclBufferNode* op) {
   if (!new_buffer.same_as(op->buffer)) {
     decl_buffer.CopyOnWrite()->buffer = new_buffer;
   }
-  return std::move(decl_buffer);
+  return decl_buffer;
 }
 
 Stmt IndexDataTypeRewriter::VisitStmt_(const BlockRealizeNode* op) {
@@ -314,7 +315,8 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BlockRealizeNode* op) {
     n->predicate = std::move(new_predicate);
     n->iter_values = std::move(new_iter_values);
     n->block = std::move(new_body);
-    return std::move(new_block_realize);
+    return new_block_realize;
+
   } else {
     return GetRef<Stmt>(op);
   }
@@ -362,7 +364,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BlockNode* op) {
     n->init = std::move(new_init);
     n->annotations = std::move(new_annotations);
     n->body = std::move(new_body);
-    return std::move(new_block);
+    return new_block;
   }
   return GetRef<Stmt>(op);
 }
@@ -483,7 +485,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BufferStoreNode* op) {
     writer->indices = indices;
   }
 
-  return std::move(store);
+  return store;
 }
 
 PrimExpr IndexDataTypeRewriter::VisitExpr_(const BufferLoadNode* op) {
@@ -498,7 +500,7 @@ PrimExpr IndexDataTypeRewriter::VisitExpr_(const BufferLoadNode* op) {
     writer->buffer = new_buffer;
   }
 
-  return std::move(load);
+  return load;
 }
 
 Array<PrimExpr> IndexDataTypeRewriter::VisitIndices(Array<PrimExpr> indices) {
@@ -529,7 +531,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const IfThenElseNode* op) {
     n->condition = std::move(cond);
     n->then_case = std::move(then_case);
     n->else_case = std::move(else_case);
-    return std::move(new_stmt);
+    return new_stmt;
   }
   return GetRef<Stmt>(op);
 }
@@ -555,10 +557,11 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
       auto old_thread_binding = op->thread_binding.value();
       auto* ptr = old_thread_binding.CopyOnWrite();
       ptr->var = old_thread_binding->var.copy_with_dtype(new_loop_var.dtype());
-      n->thread_binding = std::move(Optional<IterVar>(std::move(old_thread_binding)));
+      n->thread_binding = Optional<IterVar>(std::move(old_thread_binding));
     }
     n->body = new_body;
-    return std::move(new_for);
+    return new_for;
+
   } else {
     return GetRef<Stmt>(op);
   }
@@ -585,7 +588,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const LetStmtNode* op) {
     is_enabled_ = is_condition_ && op->a->dtype.is_int() && op->b->dtype.is_int(); \
     auto result = Parent::VisitExpr_(op);                                          \
     is_enabled_ = is_enabled;                                                      \
-    return std::move(result);                                                      \
+    return result;                                                                 \
   }
 
 TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(EQNode, operator==);

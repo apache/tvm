@@ -21,6 +21,7 @@
 
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/meta_schedule/mutator.h>
 #include <tvm/meta_schedule/postproc.h>
@@ -82,10 +83,12 @@ class SpaceGeneratorNode : public runtime::Object {
   /*! \brief The probability of using certain mutator. */
   Optional<Map<Mutator, FloatImm>> mutator_probs;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("sch_rules", &sch_rules);
-    v->Visit("postprocs", &postprocs);
-    v->Visit("mutator_probs", &mutator_probs);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<SpaceGeneratorNode>()
+        .def_ro("sch_rules", &SpaceGeneratorNode::sch_rules)
+        .def_ro("postprocs", &SpaceGeneratorNode::postprocs)
+        .def_ro("mutator_probs", &SpaceGeneratorNode::mutator_probs);
   }
 
   /*! \brief Default destructor */
@@ -212,11 +215,10 @@ class PySpaceGeneratorNode : public SpaceGeneratorNode {
   /*! \brief The packed function to the `Clone` function. */
   FClone f_clone;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    SpaceGeneratorNode::VisitAttrs(v);
-    // `f_initialize_with_tune_context` is not visited
-    // `f_generate_design_space` is not visited
-    // `f_clone` is not visited
+  static void RegisterReflection() {
+    // `f_initialize_with_tune_context` is not registered
+    // `f_generate_design_space` is not registered
+    // `f_clone` is not registered
   }
 
   void InitializeWithTuneContext(const TuneContext& context) final;

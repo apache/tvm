@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/meta_schedule/schedule/cuda/thread_bind.h>
 
 #include "../utils.h"
@@ -109,9 +110,9 @@ class RewriteUnboundBlockNode : public PostprocNode {
   /*! \brief The max number of threadblocks in the cuda device */
   int max_threadblocks_ = -1;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    // `max_threads_per_block_` is not visited
-    // `max_threadblocks_` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RewriteUnboundBlockNode>();
   }
 
   static constexpr const char* _type_key = "meta_schedule.RewriteUnboundBlock";
@@ -145,9 +146,13 @@ Postproc Postproc::RewriteUnboundBlock(int max_threadblocks) {
   return Postproc(n);
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ RewriteUnboundBlockNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(RewriteUnboundBlockNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.PostprocRewriteUnboundBlock")
-    .set_body_typed(Postproc::RewriteUnboundBlock);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.PostprocRewriteUnboundBlock", Postproc::RewriteUnboundBlock);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

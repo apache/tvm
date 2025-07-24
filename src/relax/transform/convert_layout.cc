@@ -21,6 +21,7 @@
  * \brief Automatic layout conversion pass, especially for axis swapping.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/serialization.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
@@ -127,7 +128,7 @@ class LayoutConvertMutator : public ExprMutator {
         ObjectPtr<LayoutTransformAttrs> attrs = make_object<LayoutTransformAttrs>();
         Array<IntImm> axis_separator;
         Array<IntImm> input_axis_separator;
-        attrs->index_map = std::move(Downcast<IndexMap>(LoadJSON(SaveJSON(index_map))));
+        attrs->index_map = Downcast<IndexMap>(LoadJSON(SaveJSON(index_map)));
         attrs->axis_separators = std::move(axis_separator);
         attrs->input_axis_separators = std::move(input_axis_separator);
         const Op& layout_transform_op_ = Op::Get("relax.layout_transform");
@@ -157,7 +158,7 @@ class LayoutConvertMutator : public ExprMutator {
       new_args.push_back(arg);
     }
 
-    return std::move(new_args);
+    return new_args;
   }
 
   void VisitBinding(const Binding& binding) final {
@@ -350,7 +351,10 @@ Pass ConvertLayout(Map<String, Array<String>> desired_layouts) {
   return CreateDataflowBlockPass(pass_func, 0, "ConvertLayout", {});
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.ConvertLayout").set_body_typed(ConvertLayout);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.ConvertLayout", ConvertLayout);
+});
 
 }  // namespace transform
 }  // namespace relax

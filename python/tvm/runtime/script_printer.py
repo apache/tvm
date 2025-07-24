@@ -25,7 +25,7 @@ from . import _ffi_node_api
 from .object_path import ObjectPath
 
 
-@register_object("node.PrinterConfig")
+@register_object("script.PrinterConfig")
 class PrinterConfig(Object):
     """Configuration of TVMScript printer"""
 

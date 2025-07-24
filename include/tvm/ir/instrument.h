@@ -26,6 +26,7 @@
 #ifndef TVM_IR_INSTRUMENT_H_
 #define TVM_IR_INSTRUMENT_H_
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/node/reflection.h>
 
@@ -136,7 +137,10 @@ class PassInstrumentNode : public Object {
    */
   virtual void RunAfterPass(const IRModule& mod, const transform::PassInfo& info) const = 0;
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("name", &name); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<PassInstrumentNode>().def_ro("name", &PassInstrumentNode::name);
+  }
 
   static constexpr const char* _type_key = "instrument.PassInstrument";
   TVM_DECLARE_BASE_OBJECT_INFO(PassInstrumentNode, Object);

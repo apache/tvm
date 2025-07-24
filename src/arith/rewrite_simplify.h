@@ -25,6 +25,7 @@
 #define TVM_ARITH_REWRITE_SIMPLIFY_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 
 #include <algorithm>
@@ -53,13 +54,15 @@ struct RewriteSimplifierStatsNode : Object {
   int64_t max_recursive_depth{0};
   int64_t num_recursive_rewrites{0};
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("nodes_visited", &nodes_visited);
-    v->Visit("constraints_entered", &constraints_entered);
-    v->Visit("rewrites_attempted", &rewrites_attempted);
-    v->Visit("rewrites_performed", &rewrites_performed);
-    v->Visit("max_recursive_depth", &max_recursive_depth);
-    v->Visit("num_recursive_rewrites", &num_recursive_rewrites);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<RewriteSimplifierStatsNode>()
+        .def_ro("nodes_visited", &RewriteSimplifierStatsNode::nodes_visited)
+        .def_ro("constraints_entered", &RewriteSimplifierStatsNode::constraints_entered)
+        .def_ro("rewrites_attempted", &RewriteSimplifierStatsNode::rewrites_attempted)
+        .def_ro("rewrites_performed", &RewriteSimplifierStatsNode::rewrites_performed)
+        .def_ro("max_recursive_depth", &RewriteSimplifierStatsNode::max_recursive_depth)
+        .def_ro("num_recursive_rewrites", &RewriteSimplifierStatsNode::num_recursive_rewrites);
   }
 
   static constexpr const char* _type_key = "arith.RewriteSimplifierStats";

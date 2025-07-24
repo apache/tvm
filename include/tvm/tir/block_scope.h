@@ -67,10 +67,9 @@ class StmtSRefNode : public Object {
    */
   int64_t seq_index;
 
-  void VisitAttrs(AttrVisitor* v) {
-    // `stmt` is not visited
-    // `parent` is not visited
-    v->Visit("seq_index", &seq_index);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<StmtSRefNode>().def_ro("seq_index", &StmtSRefNode::seq_index);
   }
 
   static constexpr const char* _type_key = "tir.StmtSRef";
@@ -220,10 +219,12 @@ class DependencyNode : public Object {
   /*! \brief The dependency kind */
   DepKind kind;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("src", &src);
-    v->Visit("dst", &dst);
-    v->Visit("kind", &kind);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<DependencyNode>()
+        .def_ro("src", &DependencyNode::src)
+        .def_ro("dst", &DependencyNode::dst)
+        .def_ro("kind", &DependencyNode::kind);
   }
 
   static constexpr const char* _type_key = "tir.Dependency";
@@ -267,7 +268,9 @@ class BlockScopeNode : public Object {
   /*! \brief The mapping from the buffer to the blocks who write it */
   std::unordered_map<Buffer, Array<StmtSRef>, ObjectPtrHash, ObjectPtrEqual> buffer_writers;
 
-  void VisitAttrs(AttrVisitor* v) {}
+  static void RegisterReflection() {
+    // No fields to register as they are not visited
+  }
 
   static constexpr const char* _type_key = "tir.BlockScope";
   TVM_DECLARE_FINAL_OBJECT_INFO(BlockScopeNode, Object);

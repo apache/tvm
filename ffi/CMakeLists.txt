@@ -57,6 +57,9 @@ add_library(tvm_ffi_objs OBJECT
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/dtype.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/testing.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/container.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/reflection/access_path.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/reflection/structural_equal.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/reflection/structural_hash.cc"
 )
 set_target_properties(
   tvm_ffi_objs PROPERTIES

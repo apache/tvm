@@ -38,9 +38,10 @@ namespace relax {
  * It is required to be a one-dimensional tensor which has integer dtype.
  * \param axis The axis over which to select values.
  * If it is `std::nullopt`, the input tensor is required to be one-dimensional.
+ * \param mode The mode for handling out-of-bounds indices.
  * \return The taken result.
  */
-Expr take(Expr x, Expr indices, Optional<int64_t> axis);
+Expr take(Expr x, Expr indices, Optional<int64_t> axis, String mode = "fast");
 
 /*!
  * \brief Strided slice of a tensor.

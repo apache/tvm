@@ -25,6 +25,7 @@
 #define TVM_ARITH_INTERVAL_SET_H_
 
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/op.h>
 
 #include <limits>
@@ -49,9 +50,11 @@ class IntervalSetNode : public IntSetNode {
   PrimExpr max_value;
 
   // visitor overload.
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("min_value", &min_value);
-    v->Visit("max_value", &max_value);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<IntervalSetNode>()
+        .def_ro("min_value", &IntervalSetNode::min_value)
+        .def_ro("max_value", &IntervalSetNode::max_value);
   }
 
   /*! \return Whether the interval has upper bound. */

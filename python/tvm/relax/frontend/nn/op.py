@@ -2087,7 +2087,7 @@ def extern(
     out: OutType,
 ) -> OutType:
     """Invoke an extern function during runtime. The extern function must be registered with the "
-    TVM runtime using `TVM_FFI_REGISTER_GLOBAL` (C++), or `tvm.register_func` (Python).
+    TVM runtime using `reflection::GlobalDef().def` (C++), or `tvm.register_func` (Python).
 
     Parameters
     ----------

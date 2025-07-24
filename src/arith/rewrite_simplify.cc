@@ -44,6 +44,8 @@ namespace arith {
 
 using namespace tir;
 
+TVM_FFI_STATIC_INIT_BLOCK({ RewriteSimplifierStatsNode::RegisterReflection(); });
+
 // Note: When using matches_one_of or PMatchesOneOf alongside these
 // macros, be careful which patterns are used in the ResExpr.  While
 // the different source expressions may be in terms of different PVar,
@@ -1718,7 +1720,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
     // supported path.
     TVM_TRY_REWRITE_IF(x == x, ctrue, SideEffect(x.Eval()) <= CallEffectKind::kReadState);
   }
-  return std::move(ret);
+  return ret;
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NENode* op) {
@@ -1979,7 +1981,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
       return RecursiveRewrite(floordiv(ret->a, common_factor) < floordiv(ret->b, common_factor));
     }
   }
-  return std::move(ret);
+  return ret;
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
@@ -2007,7 +2009,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(Not ret) {
   TVM_TRY_REWRITE(!(x != y), x == y);
   TVM_TRY_RECURSIVE_REWRITE(!(x || y), (!x) && (!y));
   TVM_TRY_RECURSIVE_REWRITE(!(x && y), (!x) || (!y));
-  return std::move(ret);
+  return ret;
 }
 
 PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {

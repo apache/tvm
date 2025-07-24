@@ -24,6 +24,7 @@
  *        Ideally should be used before constant folding and eliminating unused bindings.
  */
 
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -591,8 +592,10 @@ Pass CanonicalizeBindings() {
       "CanonicalizeBindings");
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.transform.CanonicalizeBindings")
-    .set_body_typed(CanonicalizeBindings);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.transform.CanonicalizeBindings", CanonicalizeBindings);
+});
 
 }  // namespace transform
 

@@ -21,6 +21,7 @@
  * \file src/relax/backend/contrib/cutlass/codegen.cc
  * \brief Implementation of the CUTLASS code generator for Relax.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/name_supply.h>
 #include <tvm/relax/analysis.h>
@@ -79,10 +80,13 @@ class CodegenResultNode : public Object {
   String code;
   Array<String> headers;
 
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("code", &code);
-    v->Visit("headers", &headers);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<CodegenResultNode>()
+        .def_ro("code", &CodegenResultNode::code)
+        .def_ro("headers", &CodegenResultNode::headers);
   }
+
   static constexpr const char* _type_key = "contrib.cutlass.CodegenResult";
   TVM_DECLARE_FINAL_OBJECT_INFO(CodegenResultNode, Object);
 };
@@ -99,12 +103,16 @@ class CodegenResult : public ObjectRef {
   TVM_DEFINE_OBJECT_REF_METHODS(CodegenResult, ObjectRef, CodegenResultNode);
 };
 
+TVM_FFI_STATIC_INIT_BLOCK({ CodegenResultNode::RegisterReflection(); });
+
 TVM_REGISTER_NODE_TYPE(CodegenResultNode);
 
-TVM_FFI_REGISTER_GLOBAL("contrib.cutlass.CodegenResult")
-    .set_body_typed([](String code, Array<String> headers) {
-      return CodegenResult(code, headers);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("contrib.cutlass.CodegenResult", [](String code, Array<String> headers) {
+    return CodegenResult(code, headers);
+  });
+});
 
 GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string& ext_func_id,
                                 const std::vector<std::string>& output_types,
@@ -385,7 +393,10 @@ Array<runtime::Module> CUTLASSCompiler(Array<Function> functions, Map<String, ff
   return {cutlass_mod};
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.ext.cutlass").set_body_typed(CUTLASSCompiler);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.ext.cutlass", CUTLASSCompiler);
+});
 
 }  // namespace contrib
 }  // namespace relax

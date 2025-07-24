@@ -16,10 +16,17 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "./utils.h"
 
 namespace tvm {
 namespace tir {
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  InstructionKindNode::RegisterReflection();
+  InstructionNode::RegisterReflection();
+});
 
 bool InstructionKindNode::IsPostproc() const {
   static InstructionKind inst_enter_postproc = InstructionKind::Get("EnterPostproc");
@@ -100,12 +107,14 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 TVM_REGISTER_NODE_TYPE(InstructionNode);
 TVM_REGISTER_NODE_TYPE(InstructionKindNode);
 
-TVM_FFI_REGISTER_GLOBAL("tir.schedule.InstructionKindGet").set_body_typed(InstructionKind::Get);
-TVM_FFI_REGISTER_GLOBAL("tir.schedule.Instruction")
-    .set_body_typed([](InstructionKind kind, Array<Any> inputs, Array<Any> attrs,
-                       Array<Any> outputs) -> Instruction {
-      return Instruction(kind, inputs, attrs, outputs);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("tir.schedule.InstructionKindGet", InstructionKind::Get)
+      .def("tir.schedule.Instruction",
+           [](InstructionKind kind, Array<Any> inputs, Array<Any> attrs, Array<Any> outputs)
+               -> Instruction { return Instruction(kind, inputs, attrs, outputs); });
+});
 
 }  // namespace tir
 }  // namespace tvm

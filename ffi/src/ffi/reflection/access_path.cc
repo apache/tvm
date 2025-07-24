@@ -1,3 +1,4 @@
+
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -16,40 +17,18 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
-/*!
- * \file src/runtime/debug_compile.cc
- * \brief File used for debug migration
+/*
+ * \file src/ffi/reflection/access_path.cc
  */
-// #include <tvm/ir/expr.h>
-#include <tvm/ffi/container/array.h>
-#include <tvm/ffi/container/map.h>
-#include <tvm/ffi/container/variant.h>
-#include <tvm/ffi/function.h>
-#include <tvm/ffi/optional.h>
-#include <tvm/ffi/string.h>
-#include <tvm/node/reflection.h>
-#include <tvm/node/structural_hash.h>
 
-// #include <tvm/node/structural_hash.h>
-//  #include <tvm/runtime/profiling.h>
-//  #include <tvm/ffi/function.h>
-// #include <tvm/ir/expr.h>
-// #include <tvm/tir/expr.h>
-
-// #include <tvm/ffi/function.h>
-// #include <tvm/ffi/function.h>
-// #include <tvm/tir/expr.h>
+#include <tvm/ffi/reflection/access_path.h>
 
 namespace tvm {
-namespace debug {
+namespace ffi {
+namespace reflection {
 
-using namespace tvm::runtime;
+TVM_FFI_STATIC_INIT_BLOCK({ AccessStepObj::RegisterReflection(); });
 
-// TVM_FFI_REGISTER_GLOBAL("tvm.debug.Test").set_body_typed([](PrimExpr value) {
-//   LOG(INFO) << value;
-//   return value;
-// });
-
-}  // namespace debug
+}  // namespace reflection
+}  // namespace ffi
 }  // namespace tvm

@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -25,7 +27,11 @@ class OrderedUnionDatabaseNode : public DatabaseNode {
  public:
   Array<Database> databases;
 
-  void VisitAttrs(AttrVisitor* v) { v->Visit("databases", &databases); }
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<OrderedUnionDatabaseNode>().def_ro("databases",
+                                                       &OrderedUnionDatabaseNode::databases);
+  }
 
   static constexpr const char* _type_key = "meta_schedule.OrderedUnionDatabase";
   TVM_DECLARE_FINAL_OBJECT_INFO(OrderedUnionDatabaseNode, DatabaseNode);
@@ -79,8 +85,13 @@ Database Database::OrderedUnionDatabase(Array<Database> databases) {
 }
 
 TVM_REGISTER_NODE_TYPE(OrderedUnionDatabaseNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.DatabaseOrderedUnionDatabase")
-    .set_body_typed(Database::OrderedUnionDatabase);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.DatabaseOrderedUnionDatabase",
+                        Database::OrderedUnionDatabase);
+});
+
+TVM_FFI_STATIC_INIT_BLOCK({ OrderedUnionDatabaseNode::RegisterReflection(); });
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "./utils.h"
 
 namespace tvm {
@@ -158,19 +160,22 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     });
 
 /******** FFI ********/
+TVM_FFI_STATIC_INIT_BLOCK({ TensorInfoNode::RegisterReflection(); });
 
 TVM_REGISTER_OBJECT_TYPE(ArgInfoNode);
 TVM_REGISTER_NODE_TYPE(TensorInfoNode);
 
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ArgInfoAsJSON").set_body_method(&ArgInfoNode::AsJSON);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ArgInfoFromPrimFunc").set_body_typed(ArgInfo::FromPrimFunc);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ArgInfoFromEntryFunc")
-    .set_body_typed(ArgInfo::FromEntryFunc);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ArgInfoFromJSON").set_body_typed(ArgInfo::FromJSON);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.TensorInfo")
-    .set_body_typed([](runtime::DataType dtype, ffi::Shape shape) -> TensorInfo {
-      return TensorInfo(dtype, shape);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def_method("meta_schedule.ArgInfoAsJSON", &ArgInfoNode::AsJSON)
+      .def("meta_schedule.ArgInfoFromPrimFunc", ArgInfo::FromPrimFunc)
+      .def("meta_schedule.ArgInfoFromEntryFunc", ArgInfo::FromEntryFunc)
+      .def("meta_schedule.ArgInfoFromJSON", ArgInfo::FromJSON)
+      .def("meta_schedule.TensorInfo", [](runtime::DataType dtype, ffi::Shape shape) -> TensorInfo {
+        return TensorInfo(dtype, shape);
+      });
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

@@ -21,6 +21,7 @@
  * \file src/relax/backend/contrib/tensorrt/codegen.cc
  * \brief Implementation of the TensorRT JSON serializer.
  */
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/ir/transform.h>
 // TODO(sunggg): add operator attribute when it's ready
@@ -44,7 +45,7 @@ namespace relax {
 namespace contrib {
 
 /*! \brief Attributes to store the compiler options for TensorRT. */
-struct TensorRTCompilerConfigNode : public tvm::AttrsNode<TensorRTCompilerConfigNode> {
+struct TensorRTCompilerConfigNode : public AttrsNodeReflAdapter<TensorRTCompilerConfigNode> {
   Array<Integer> tensorrt_version;
   bool use_implicit_batch;
   size_t max_workspace_size;
@@ -52,16 +53,26 @@ struct TensorRTCompilerConfigNode : public tvm::AttrsNode<TensorRTCompilerConfig
   bool use_fp16;
   bool use_uint8;
 
-  TVM_DECLARE_ATTRS(TensorRTCompilerConfigNode, "relax.ext.attrs.TensorRTCompilerConfigNode") {
-    TVM_ATTR_FIELD(tensorrt_version)
-        .describe("TensorRT version as (major, minor, patch).")
-        .set_default(Array<Integer>({6, 0, 1}));
-    TVM_ATTR_FIELD(use_implicit_batch).set_default(true);
-    TVM_ATTR_FIELD(max_workspace_size).set_default(size_t(1) << 30);
-    TVM_ATTR_FIELD(remove_no_mac_subgraphs).set_default(false);
-    TVM_ATTR_FIELD(use_fp16).set_default(false);
-    TVM_ATTR_FIELD(use_uint8).set_default(false);
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TensorRTCompilerConfigNode>()
+        .def_ro("tensorrt_version", &TensorRTCompilerConfigNode::tensorrt_version,
+                "TensorRT version as (major, minor, patch).",
+                refl::DefaultValue(Array<Integer>({6, 0, 1})))
+        .def_ro("use_implicit_batch", &TensorRTCompilerConfigNode::use_implicit_batch,
+                "Use implicit batch", refl::DefaultValue(true))
+        .def_ro("max_workspace_size", &TensorRTCompilerConfigNode::max_workspace_size,
+                "Max workspace size", refl::DefaultValue(size_t(1) << 30))
+        .def_ro("remove_no_mac_subgraphs", &TensorRTCompilerConfigNode::remove_no_mac_subgraphs,
+                "Remove no-mac subgraphs", refl::DefaultValue(false))
+        .def_ro("use_fp16", &TensorRTCompilerConfigNode::use_fp16, "Use FP16",
+                refl::DefaultValue(false))
+        .def_ro("use_uint8", &TensorRTCompilerConfigNode::use_uint8, "Use uint8",
+                refl::DefaultValue(false));
   }
+
+  static constexpr const char* _type_key = "relax.ext.attrs.TensorRTCompilerConfig";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TensorRTCompilerConfigNode, BaseAttrsNode);
 };
 
 class TensorRTCompilerConfig : public Attrs {
@@ -69,6 +80,8 @@ class TensorRTCompilerConfig : public Attrs {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TensorRTCompilerConfig, Attrs,
                                             TensorRTCompilerConfigNode);
 };
+
+TVM_FFI_STATIC_INIT_BLOCK({ TensorRTCompilerConfigNode::RegisterReflection(); });
 
 TVM_REGISTER_NODE_TYPE(TensorRTCompilerConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.ext.tensorrt.options", TensorRTCompilerConfig);
@@ -231,7 +244,10 @@ Array<runtime::Module> TensorRTCompiler(Array<Function> functions, Map<String, f
   return compiled_functions;
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.ext.tensorrt").set_body_typed(TensorRTCompiler);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("relax.ext.tensorrt", TensorRTCompiler);
+});
 
 /*!
  * \brief Check whether TensorRT graph executor is enabled.
@@ -258,9 +274,12 @@ Array<Integer> GetTensorRTVersion() {
 #endif  // TVM_GRAPH_EXECUTOR_TENSORRT
 }
 
-TVM_FFI_REGISTER_GLOBAL("relax.is_tensorrt_runtime_enabled")
-    .set_body_typed(IsTensorRTRuntimeEnabled);
-TVM_FFI_REGISTER_GLOBAL("relax.get_tensorrt_version").set_body_typed(GetTensorRTVersion);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("relax.is_tensorrt_runtime_enabled", IsTensorRTRuntimeEnabled)
+      .def("relax.get_tensorrt_version", GetTensorRTVersion);
+});
 
 }  // namespace contrib
 }  // namespace relax

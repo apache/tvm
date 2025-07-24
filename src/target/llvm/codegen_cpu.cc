@@ -43,6 +43,7 @@
 #include <llvm/IR/MDBuilder.h>
 #include <llvm/IR/Metadata.h>
 #include <llvm/IR/Module.h>
+#include <tvm/ffi/reflection/registry.h>
 #if TVM_LLVM_VERSION >= 100
 #include <llvm/Support/Alignment.h>
 #endif
@@ -1037,6 +1038,10 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
         return builder_->CreateAlloca(t_tvm_ffi_any_, num);
       } else if (type == "array") {
         return builder_->CreateAlloca(t_tvm_array_, num);
+      } else if (type == "tensormap") {
+        auto* alloca = builder_->CreateAlloca(t_tvm_tensormap_, num);
+        alloca->setAlignment(llvm::Align(64));
+        return alloca;
       } else {
         LOG(FATAL) << "Unknown stack alloca type " << type;
       }
@@ -1157,10 +1162,13 @@ void CodeGenCPU::VisitStmt_(const ForNode* op) {
   }
 }
 
-TVM_FFI_REGISTER_GLOBAL("tvm.codegen.llvm.target_cpu")
-    .set_body_packed([](const ffi::PackedArgs& targs, ffi::Any* rv) {
-      *rv = static_cast<void*>(new CodeGenCPU());
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def_packed("tvm.codegen.llvm.target_cpu",
+                               [](const ffi::PackedArgs& targs, ffi::Any* rv) {
+                                 *rv = static_cast<void*>(new CodeGenCPU());
+                               });
+});
 
 }  // namespace codegen
 }  // namespace tvm

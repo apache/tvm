@@ -40,6 +40,7 @@
 #endif
 #include <picojson.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/vm/ndarray_cache_support.h>
 
@@ -266,33 +267,38 @@ class NDArrayCache {
   Map<String, NDArray> pool_;
 };
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.ndarray_cache.get").set_body_typed(NDArrayCache::Get);
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.ndarray_cache.update")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      CHECK(args.size() == 2 || args.size() == 3);
-      String name = args[0].cast<String>();
-      bool is_override = args.size() == 2 ? false : args[2].cast<bool>();
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("vm.builtin.ndarray_cache.get", NDArrayCache::Get)
+      .def_packed("vm.builtin.ndarray_cache.update",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    CHECK(args.size() == 2 || args.size() == 3);
+                    String name = args[0].cast<String>();
+                    bool is_override = args.size() == 2 ? false : args[2].cast<bool>();
 
-      NDArray arr;
-      if (auto opt_nd = args[1].as<NDArray>()) {
-        arr = opt_nd.value();
-      } else {
-        // We support converting DLTensors to NDArrays as RPC references are always DLTensors
-        auto tensor = args[1].cast<DLTensor*>();
-        std::vector<int64_t> shape;
-        for (int64_t i = 0; i < tensor->ndim; i++) {
-          shape.push_back(tensor->shape[i]);
-        }
-        arr = NDArray::Empty(shape, tensor->dtype, tensor->device);
-        arr.CopyFrom(tensor);
-        DeviceAPI::Get(arr->device)->StreamSync(arr->device, nullptr);
-      }
+                    NDArray arr;
+                    if (auto opt_nd = args[1].as<NDArray>()) {
+                      arr = opt_nd.value();
+                    } else {
+                      // We support converting DLTensors to NDArrays as RPC references are always
+                      // DLTensors
+                      auto tensor = args[1].cast<DLTensor*>();
+                      std::vector<int64_t> shape;
+                      for (int64_t i = 0; i < tensor->ndim; i++) {
+                        shape.push_back(tensor->shape[i]);
+                      }
+                      arr = NDArray::Empty(shape, tensor->dtype, tensor->device);
+                      arr.CopyFrom(tensor);
+                      DeviceAPI::Get(arr->device)->StreamSync(arr->device, nullptr);
+                    }
 
-      NDArrayCache::Update(name, arr, is_override);
-    });
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.ndarray_cache.remove").set_body_typed(NDArrayCache::Remove);
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.ndarray_cache.clear").set_body_typed(NDArrayCache::Clear);
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.ndarray_cache.load").set_body_typed(NDArrayCache::Load);
+                    NDArrayCache::Update(name, arr, is_override);
+                  })
+      .def("vm.builtin.ndarray_cache.remove", NDArrayCache::Remove)
+      .def("vm.builtin.ndarray_cache.clear", NDArrayCache::Clear)
+      .def("vm.builtin.ndarray_cache.load", NDArrayCache::Load);
+});
 
 // This param module node can be useful to get param dict in RPC mode
 // when the remote already have loaded parameters from file.
@@ -353,27 +359,27 @@ class ParamModuleNode : public runtime::ModuleNode {
   Array<NDArray> params_;
 };
 
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.param_module_from_cache")
-    .set_body_typed(ParamModuleNode::Create);
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.param_module_from_cache_by_name")
-    .set_body_typed(ParamModuleNode::CreateByName);
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.param_array_from_cache")
-    .set_body_typed(ParamModuleNode::GetParams);
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name")
-    .set_body_typed(ParamModuleNode::GetParamByName);
-TVM_FFI_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name_unpacked")
-    .set_body_packed([](ffi::PackedArgs args, ffi::Any* rv) {
-      Array<String> names;
-      names.reserve(args.size());
-      for (int i = 0; i < args.size(); ++i) {
-        if (!args[i].try_cast<String>()) {
-          LOG(FATAL) << "ValueError: Expect string as input, but get " << args[i].GetTypeKey()
-                     << " at " << i;
-        }
-        names.push_back(args[i].cast<String>());
-      }
-      *rv = ParamModuleNode::GetParamByName(names);
-    });
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef()
+      .def("vm.builtin.param_module_from_cache", ParamModuleNode::Create)
+      .def("vm.builtin.param_module_from_cache_by_name", ParamModuleNode::CreateByName)
+      .def("vm.builtin.param_array_from_cache", ParamModuleNode::GetParams)
+      .def("vm.builtin.param_array_from_cache_by_name", ParamModuleNode::GetParamByName)
+      .def_packed("vm.builtin.param_array_from_cache_by_name_unpacked",
+                  [](ffi::PackedArgs args, ffi::Any* rv) {
+                    Array<String> names;
+                    names.reserve(args.size());
+                    for (int i = 0; i < args.size(); ++i) {
+                      if (!args[i].try_cast<String>()) {
+                        LOG(FATAL) << "ValueError: Expect string as input, but get "
+                                   << args[i].GetTypeKey() << " at " << i;
+                      }
+                      names.push_back(args[i].cast<String>());
+                    }
+                    *rv = ParamModuleNode::GetParamByName(names);
+                  });
+});
 
 }  // namespace vm
 }  // namespace runtime

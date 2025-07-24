@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/reflection/registry.h>
+
 #include "../utils.h"
 
 namespace tvm {
@@ -56,11 +58,11 @@ class AddRFactorNode : public ScheduleRuleNode {
   /*! \brief The number of cores. */
   int max_parallel_basic_;
 
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("max_jobs_per_core", &max_jobs_per_core);
-    v->Visit("max_innermost_factor", &max_innermost_factor);
-    // `max_parallel_extent_` is not visited
-    // `max_parallel_basic_` is not visited
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<AddRFactorNode>()
+        .def_ro("max_jobs_per_core", &AddRFactorNode::max_jobs_per_core)
+        .def_ro("max_innermost_factor", &AddRFactorNode::max_innermost_factor);
   }
 
   static constexpr const char* _type_key = "meta_schedule.AddRFactor";
@@ -119,9 +121,12 @@ Array<tir::Schedule> AddRFactorNode::Apply(const tir::Schedule& sch, const tir::
   return res;
 }
 
+TVM_FFI_STATIC_INIT_BLOCK({ AddRFactorNode::RegisterReflection(); });
 TVM_REGISTER_NODE_TYPE(AddRFactorNode);
-TVM_FFI_REGISTER_GLOBAL("meta_schedule.ScheduleRuleAddRFactor")
-    .set_body_typed(ScheduleRule::AddRFactor);
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::GlobalDef().def("meta_schedule.ScheduleRuleAddRFactor", ScheduleRule::AddRFactor);
+});
 
 }  // namespace meta_schedule
 }  // namespace tvm

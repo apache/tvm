@@ -75,7 +75,7 @@ class TimerNode : public Object {
 
   virtual ~TimerNode() {}
 
-  static constexpr const char* _type_key = "TimerNode";
+  static constexpr const char* _type_key = "runtime.TimerNode";
   TVM_DECLARE_BASE_OBJECT_INFO(TimerNode, Object);
 };
 
@@ -125,7 +125,7 @@ class Timer : public ObjectRef {
    *    virtual int64_t SyncAndGetElapsedNanos() { return duration_.count(); }
    *    virtual ~CPUTimerNode() {}
    *
-   *    static constexpr const char* _type_key = "CPUTimerNode";
+   *    static constexpr const char* _type_key = "runtime.CPUTimerNode";
    *    TVM_DECLARE_FINAL_OBJECT_INFO(CPUTimerNode, TimerNode);
    *
    *   private:
@@ -134,8 +134,11 @@ class Timer : public ObjectRef {
    *  };
    *  TVM_REGISTER_OBJECT_TYPE(CPUTimerNode);
    *
-   *  TVM_FFI_REGISTER_GLOBAL("profiling.timer.cpu").set_body_typed([](Device dev) {
-   *    return Timer(make_object<CPUTimerNode>());
+   *  TVM_FFI_STATIC_INIT_BLOCK({
+   *    namespace refl = tvm::ffi::reflection;
+   *    refl::GlobalDef().def("profiling.timer.cpu", [](Device dev) {
+   *      return Timer(make_object<CPUTimerNode>());
+   *    });
    *  });
    * \endcode
    */
