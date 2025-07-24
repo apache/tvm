@@ -138,7 +138,6 @@ if not IS_IN_CI:
     # Need to allocate data and params on GPU device
     gpu_data = tvm.nd.array(np.random.rand(1, 3, 224, 224).astype("float32"), dev)
     gpu_params = [tvm.nd.array(p, dev) for p in params["main"]]
-    gpu_out = vm["main"](gpu_data, *gpu_params)
+    gpu_out = vm["main"](gpu_data, *gpu_params)[0].numpy()
 
-    gpu_out = np.array([gpu_out[0].numpy()[0][j] for j in range(1000)])
     print(gpu_out.shape)
