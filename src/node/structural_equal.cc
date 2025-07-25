@@ -20,7 +20,9 @@
  * \file src/node/structural_equal.cc
  */
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/reflection/structural_equal.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
@@ -599,34 +601,107 @@ bool SEqualHandlerDefault::DispatchSEqualReduce(const ObjectRef& lhs, const Obje
   return impl->DispatchSEqualReduce(lhs, rhs, map_free_vars, current_paths);
 }
 
+Optional<ObjectPathPair> ObjectPathPairFromAccessPathPair(
+    Optional<ffi::reflection::AccessPathPair> src) {
+  if (!src.has_value()) return std::nullopt;
+  auto translate_path = [](ffi::reflection::AccessPath path) {
+    ObjectPath result = ObjectPath::Root();
+    for (const auto& step : path) {
+      switch (step->kind) {
+        case ffi::reflection::AccessKind::kObjectField: {
+          result = result->Attr(step->key.cast<String>());
+          break;
+        }
+        case ffi::reflection::AccessKind::kArrayIndex: {
+          result = result->ArrayIndex(step->key.cast<int64_t>());
+          break;
+        }
+        case ffi::reflection::AccessKind::kMapKey: {
+          result = result->MapValue(step->key);
+          break;
+        }
+        case ffi::reflection::AccessKind::kArrayIndexMissing: {
+          result = result->MissingArrayElement(step->key.cast<int64_t>());
+          break;
+        }
+        case ffi::reflection::AccessKind::kMapKeyMissing: {
+          result = result->MissingMapEntry();
+          break;
+        }
+        default: {
+          LOG(FATAL) << "Invalid access path kind: " << static_cast<int>(step->kind);
+          break;
+        }
+      }
+    }
+    return result;
+  };
+
+  return ObjectPathPair(translate_path((*src).get<0>()), translate_path((*src).get<1>()));
+}
+
+bool NodeStructuralEqualAdapter(const Any& lhs, const Any& rhs, bool assert_mode,
+                                bool map_free_vars) {
+  if (assert_mode) {
+    auto first_mismatch = ObjectPathPairFromAccessPathPair(
+        ffi::reflection::StructuralEqual::GetFirstMismatch(lhs, rhs, map_free_vars));
+    if (first_mismatch.has_value()) {
+      std::ostringstream oss;
+      oss << "StructuralEqual check failed, caused by lhs";
+      oss << " at " << (*first_mismatch)->lhs_path;
+      {
+        // print lhs
+        PrinterConfig cfg;
+        cfg->syntax_sugar = false;
+        cfg->path_to_underline.push_back((*first_mismatch)->lhs_path);
+        // The TVMScriptPrinter::Script will fallback to Repr printer,
+        // if the root node to print is not supported yet,
+        // e.g. Relax nodes, ArrayObj, MapObj, etc.
+        oss << ":" << std::endl << TVMScriptPrinter::Script(lhs.cast<ObjectRef>(), cfg);
+      }
+      oss << std::endl << "and rhs";
+      {
+        // print rhs
+        oss << " at " << (*first_mismatch)->rhs_path;
+        {
+          PrinterConfig cfg;
+          cfg->syntax_sugar = false;
+          cfg->path_to_underline.push_back((*first_mismatch)->rhs_path);
+          // The TVMScriptPrinter::Script will fallback to Repr printer,
+          // if the root node to print is not supported yet,
+          // e.g. Relax nodes, ArrayObj, MapObj, etc.
+          oss << ":" << std::endl << TVMScriptPrinter::Script(rhs.cast<ObjectRef>(), cfg);
+        }
+      }
+      TVM_FFI_THROW(ValueError) << oss.str();
+    }
+    return true;
+  } else {
+    return ffi::reflection::StructuralEqual::Equal(lhs, rhs, map_free_vars);
+  }
+}
+
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("node.StructuralEqual",
-           [](const Any& lhs, const Any& rhs, bool assert_mode, bool map_free_vars) {
-             // If we are asserting on failure, then the `defer_fails` option
-             // should be enabled, to provide better error messages.  For
-             // example, if the number of bindings in a `relax::BindingBlock`
-             // differs, highlighting the first difference rather than the
-             // entire block.
-             bool defer_fails = assert_mode;
-             Optional<ObjectPathPair> first_mismatch;
-             return SEqualHandlerDefault(assert_mode, &first_mismatch, defer_fails)
-                 .Equal(lhs, rhs, map_free_vars);
-           })
+      .def("node.StructuralEqual", NodeStructuralEqualAdapter)
       .def("node.GetFirstStructuralMismatch",
            [](const Any& lhs, const Any& rhs, bool map_free_vars) {
-             Optional<ObjectPathPair> first_mismatch;
-             bool equal =
-                 SEqualHandlerDefault(false, &first_mismatch, true).Equal(lhs, rhs, map_free_vars);
-             ICHECK(equal == !first_mismatch.defined());
-             return first_mismatch;
+             /*
+              Optional<ObjectPathPair> first_mismatch;
+              bool equal =
+                  SEqualHandlerDefault(false, &first_mismatch, true).Equal(lhs, rhs, map_free_vars);
+              ICHECK(equal == !first_mismatch.defined());
+              return first_mismatch;
+             */
+             return ObjectPathPairFromAccessPathPair(
+                 ffi::reflection::StructuralEqual::GetFirstMismatch(lhs, rhs, map_free_vars));
            });
 });
 
 bool StructuralEqual::operator()(const ObjectRef& lhs, const ObjectRef& rhs,
                                  bool map_free_params) const {
-  return SEqualHandlerDefault(false, nullptr, false).Equal(lhs, rhs, map_free_params);
+  return ffi::reflection::StructuralEqual::Equal(lhs, rhs, map_free_params);
 }
 
 bool NDArrayEqual(const runtime::NDArray::Container* lhs, const runtime::NDArray::Container* rhs,

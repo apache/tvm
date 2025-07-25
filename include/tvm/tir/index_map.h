@@ -154,9 +154,11 @@ class IndexMapNode : public Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IndexMapNode>()
-        .def_ro("initial_indices", &IndexMapNode::initial_indices)
+        .def_ro("initial_indices", &IndexMapNode::initial_indices,
+                refl::AttachFieldFlag::SEqHashDef())
         .def_ro("final_indices", &IndexMapNode::final_indices)
-        .def_ro("inverse_index_map", &IndexMapNode::inverse_index_map);
+        .def_ro("inverse_index_map", &IndexMapNode::inverse_index_map,
+                refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   bool SEqualReduce(const IndexMapNode* other, SEqualReducer equal) const {
@@ -169,6 +171,7 @@ class IndexMapNode : public Object {
     hash_reduce(final_indices);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "tir.IndexMap";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;

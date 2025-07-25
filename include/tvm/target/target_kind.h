@@ -81,12 +81,14 @@ class TargetKindNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TargetKindNode>()
         .def_ro("name", &TargetKindNode::name)
-        .def_ro("default_device_type", &TargetKindNode::default_device_type)
-        .def_ro("default_keys", &TargetKindNode::default_keys);
+        .def_ro("default_device_type", &TargetKindNode::default_device_type,
+                refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("default_keys", &TargetKindNode::default_keys,
+                refl::AttachFieldFlag::SEqHashIgnore());
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
   static constexpr const char* _type_key = "target.TargetKind";
-
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetKindNode, Object);
 
  private:
@@ -134,9 +136,10 @@ class TargetKind : public ObjectRef {
    * \return The TargetKind requested
    */
   TVM_DLL static Optional<TargetKind> Get(const String& target_kind_name);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TargetKind, ObjectRef, TargetKindNode);
   /*! \brief Mutable access to the container class  */
   TargetKindNode* operator->() { return static_cast<TargetKindNode*>(data_.get()); }
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TargetKind, ObjectRef, TargetKindNode);
 
  private:
   TVM_DLL static const AttrRegistryMapContainerMap<TargetKind>& GetAttrMapContainer(

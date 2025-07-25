@@ -18,6 +18,8 @@
  */
 #include "module_equality.h"
 
+#include <tvm/ffi/reflection/structural_equal.h>
+#include <tvm/ffi/reflection/structural_hash.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
@@ -37,28 +39,15 @@ class ModuleEqualityStructural : public ModuleEquality {
   String GetName() const { return "structural"; }
 };
 
-class SEqualHandlerIgnoreNDArray : public SEqualHandlerDefault {
- public:
-  SEqualHandlerIgnoreNDArray() : SEqualHandlerDefault(false, nullptr, false) {}
-
- protected:
-  bool DispatchSEqualReduce(const ObjectRef& lhs, const ObjectRef& rhs, bool map_free_vars,
-                            const Optional<ObjectPathPair>& current_paths) {
-    if (auto lhs_ptr = lhs.as<runtime::NDArray::Container>(),
-        rhs_ptr = rhs.as<runtime::NDArray::Container>();
-        lhs_ptr && rhs_ptr) {
-      SEqualReducer reducer(this, nullptr, map_free_vars);
-      return NDArrayEqual(lhs_ptr, rhs_ptr, reducer, false);
-    }
-    return SEqualHandlerDefault::DispatchSEqualReduce(lhs, rhs, map_free_vars, current_paths);
-  }
-};
-
 class ModuleEqualityIgnoreNDArray : public ModuleEquality {
  public:
-  size_t Hash(IRModule mod) const { return SHashHandlerIgnoreNDArray().Hash(mod, false); }
+  size_t Hash(IRModule mod) const {
+    return tvm::ffi::reflection::StructuralHash::Hash(mod, /*map_free_vars=*/false,
+                                                      /*skip_ndarray_content=*/true);
+  }
   bool Equal(IRModule lhs, IRModule rhs) const {
-    return SEqualHandlerIgnoreNDArray().Equal(lhs, rhs, false);
+    return tvm::ffi::reflection::StructuralEqual::Equal(lhs, rhs, /*map_free_vars=*/false,
+                                                        /*skip_ndarray_content=*/true);
   }
   String GetName() const { return "ignore-ndarray"; }
 };
@@ -77,8 +66,10 @@ class ModuleEqualityAnchorBlock : public ModuleEquality {
     auto anchor_block_lhs = tir::FindAnchorBlock(lhs);
     auto anchor_block_rhs = tir::FindAnchorBlock(rhs);
     if (anchor_block_lhs && anchor_block_rhs) {
-      return SEqualHandlerIgnoreNDArray().Equal(GetRef<tir::Block>(anchor_block_lhs),
-                                                GetRef<tir::Block>(anchor_block_rhs), false);
+      return tvm::ffi::reflection::StructuralEqual::Equal(GetRef<tir::Block>(anchor_block_lhs),
+                                                          GetRef<tir::Block>(anchor_block_rhs),
+                                                          /*map_free_vars=*/false,
+                                                          /*skip_ndarray_content=*/true);
     }
     return ModuleEqualityIgnoreNDArray().Equal(lhs, rhs);
   }

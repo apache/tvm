@@ -181,6 +181,15 @@ def test_ndarray_dict():
     tvm.ir.assert_structural_equal(m1, m2)
 
 
+def test_free_var_equal():
+    x = tvm.tir.Var("x", dtype="int32")
+    y = tvm.tir.Var("y", dtype="int32")
+    z = tvm.tir.Var("z", dtype="int32")
+    v1 = x + y
+    v1 = y + z
+    tvm.ir.assert_structural_equal(x, z, map_free_vars=True)
+
+
 def test_alloc_const():
     dev = tvm.cpu(0)
     dtype = "float32"

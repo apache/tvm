@@ -58,11 +58,14 @@ class BaseExprNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()));
+    // span do not participate in structural equal and hash.
+    refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()),
+                                           refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr const char* _type_key = "ir.BaseExpr";
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 64;
@@ -474,6 +477,7 @@ class GlobalVarNode : public RelaxExprNode {
     hash_reduce.FreeVarHashImpl(this);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
   static constexpr const char* _type_key = "ir.GlobalVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelaxExprNode);
 };
@@ -711,6 +715,7 @@ class RangeNode : public Object {
   }
 
   static constexpr const char* _type_key = "ir.Range";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);

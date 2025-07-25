@@ -31,6 +31,7 @@ namespace tvm {
 namespace relax {
 
 TVM_FFI_STATIC_INIT_BLOCK({
+  StructInfoNode::RegisterReflection();
   ObjectStructInfoNode::RegisterReflection();
   PrimStructInfoNode::RegisterReflection();
   ShapeStructInfoNode::RegisterReflection();

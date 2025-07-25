@@ -341,7 +341,7 @@ class FuncStructInfoNode : public StructInfoNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FuncStructInfoNode>()
-        .def_ro("params", &FuncStructInfoNode::params)
+        .def_ro("params", &FuncStructInfoNode::params, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("ret", &FuncStructInfoNode::ret)
         .def_ro("derive_func", &FuncStructInfoNode::derive_func)
         .def_ro("purity", &FuncStructInfoNode::purity);

@@ -61,6 +61,7 @@ class PlacementSpecNode : public Object {
   }
 
   static constexpr const char* _type_key = "relax.distributed.PlacementSpec";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(PlacementSpecNode, Object);
@@ -119,6 +120,7 @@ class PlacementNode : public Object {
 
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
   static constexpr const char* _type_key = "relax.distributed.Placement";
   TVM_DECLARE_FINAL_OBJECT_INFO(PlacementNode, Object);
 };

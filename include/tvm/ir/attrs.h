@@ -122,6 +122,7 @@ class BaseAttrsNode : public Object {
   TVM_DLL virtual void InitByPackedArgs(const ffi::PackedArgs& kwargs,
                                         bool allow_unknown = false) = 0;
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const char* _type_key = "ir.Attrs";

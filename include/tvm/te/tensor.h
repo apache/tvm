@@ -88,6 +88,7 @@ class TensorNode : public DataProducerNode {
   TVM_DLL String GetNameHint() const final;
 
   static constexpr const char* _type_key = "te.Tensor";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
 
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorNode, DataProducerNode);
 };

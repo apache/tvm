@@ -45,6 +45,9 @@ def test_prim_func_buffer_map():
         A = T.match_buffer(a, (128, 128))
         B = T.match_buffer(b, (128, 256))
 
+    func1 = func1.with_attr("global_symbol", "main")
+    func2 = func2.with_attr("global_symbol", "main")
+
     with pytest.raises(ValueError) as ve:
         assert_structural_equal(func1, func2)
     assert _error_message(ve.value) == _expected_result(
@@ -109,8 +112,12 @@ def test_allocate():
         a_data = T.allocate((256, 128), dtype="float32")
         a = T.decl_buffer((256, 128), dtype="float32", data=a_data)
 
+    func1 = func1.with_attr("global_symbol", "main")
+    func2 = func2.with_attr("global_symbol", "main")
+
     with pytest.raises(ValueError) as ve:
         assert_structural_equal(func1, func2)
+
     assert _error_message(ve.value) == _expected_result(
         func1,
         func2,
@@ -131,6 +138,9 @@ def test_for():
         for i, j, k in T.grid(128, 128, 128):
             with T.block():
                 pass
+
+    func1 = func1.with_attr("global_symbol", "main")
+    func2 = func2.with_attr("global_symbol", "main")
 
     with pytest.raises(ValueError) as ve:
         assert_structural_equal(func1, func2)

@@ -113,6 +113,7 @@ class OpNode : public RelaxExprNode {
     hash_reduce(name);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
   static constexpr const char* _type_key = "ir.Op";
   TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, RelaxExprNode);
 

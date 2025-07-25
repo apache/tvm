@@ -79,6 +79,7 @@ class DiagnosticNode : public Object {
            equal(this->message, other->message);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "Diagnostic";
   TVM_DECLARE_FINAL_OBJECT_INFO(DiagnosticNode, Object);
 };
@@ -214,6 +215,7 @@ class DiagnosticContextNode : public Object {
     return equal(module, other->module) && equal(diagnostics, other->diagnostics);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "DiagnosticContext";
   TVM_DECLARE_FINAL_OBJECT_INFO(DiagnosticContextNode, Object);
 };
