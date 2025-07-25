@@ -833,7 +833,7 @@ class LetNode : public PrimExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LetNode>()
-        .def_ro("var", &LetNode::var)
+        .def_ro("var", &LetNode::var, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("value", &LetNode::value)
         .def_ro("body", &LetNode::body);
   }
@@ -989,11 +989,11 @@ class CommReducerNode : public Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<CommReducerNode>()
-        .def_ro("lhs", &CommReducerNode::lhs)
-        .def_ro("rhs", &CommReducerNode::rhs)
+        .def_ro("lhs", &CommReducerNode::lhs, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("rhs", &CommReducerNode::rhs, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("result", &CommReducerNode::result)
         .def_ro("identity_element", &CommReducerNode::identity_element)
-        .def_ro("span", &CommReducerNode::span);
+        .def_ro("span", &CommReducerNode::span, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   bool SEqualReduce(const CommReducerNode* other, SEqualReducer equal) const {
@@ -1009,6 +1009,7 @@ class CommReducerNode : public Object {
   }
 
   static constexpr const char* _type_key = "tir.CommReducer";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(CommReducerNode, Object);

@@ -517,6 +517,34 @@ void VarBindingNode::SHashReduce(SHashReducer hash_reduce) const {
   }
 }
 
+bool VarBindingNode::SEqual(const VarBindingNode* other,
+                            ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
+  if (value->IsInstance<FunctionNode>()) {
+    // Recursive function definitions may reference the bound variable
+    // within the value being bound.  In these cases, the
+    // var comparison must occur first to define the var, to ensure it is
+    // defined at point of use.
+    return equal(var, other->var, true, "var") && equal(value, other->value, false, "value");
+  } else {
+    // In all other cases, visit the bound value before the variable
+    // it is bound to, in order to provide better error messages.
+    return equal(value, other->value, false, "value") && equal(var, other->var, true, "var");
+  }
+}
+
+uint64_t VarBindingNode::SHash(uint64_t init_hash,
+                               ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
+  uint64_t hash_value = init_hash;
+  if (value->IsInstance<FunctionNode>()) {
+    hash_value = hash(var, hash_value, true);
+    hash_value = hash(value, hash_value, false);
+  } else {
+    hash_value = hash(value, hash_value, false);
+    hash_value = hash(var, hash_value, true);
+  }
+  return hash_value;
+}
+
 TVM_REGISTER_NODE_TYPE(BindingBlockNode);
 
 BindingBlock::BindingBlock(Array<Binding> bindings, Span span) {

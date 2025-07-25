@@ -27,6 +27,7 @@
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK({
+  TypeNode::RegisterReflection();
   PrimTypeNode::RegisterReflection();
   PointerTypeNode::RegisterReflection();
   TupleTypeNode::RegisterReflection();
@@ -50,8 +51,12 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 PointerType::PointerType(Type element_type, String storage_scope) {
   ObjectPtr<PointerTypeNode> n = make_object<PointerTypeNode>();
+  if (storage_scope.empty()) {
+    n->storage_scope = "global";
+  } else {
+    n->storage_scope = std::move(storage_scope);
+  }
   n->element_type = std::move(element_type);
-  n->storage_scope = std::move(storage_scope);
   data_ = std::move(n);
 }
 

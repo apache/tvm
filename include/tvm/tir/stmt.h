@@ -54,6 +54,7 @@ class StmtNode : public Object {
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
   static constexpr const char* _type_key = "tir.Stmt";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 15;
@@ -81,7 +82,7 @@ class LetStmtNode : public StmtNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LetStmtNode>()
-        .def_ro("var", &LetStmtNode::var)
+        .def_ro("var", &LetStmtNode::var, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("value", &LetStmtNode::value)
         .def_ro("body", &LetStmtNode::body);
   }
@@ -371,7 +372,7 @@ class AllocateNode : public StmtNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AllocateNode>()
-        .def_ro("buffer_var", &AllocateNode::buffer_var)
+        .def_ro("buffer_var", &AllocateNode::buffer_var, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("dtype", &AllocateNode::dtype)
         .def_ro("extents", &AllocateNode::extents)
         .def_ro("condition", &AllocateNode::condition)
@@ -460,7 +461,7 @@ class AllocateConstNode : public StmtNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AllocateConstNode>()
-        .def_ro("buffer_var", &AllocateConstNode::buffer_var)
+        .def_ro("buffer_var", &AllocateConstNode::buffer_var, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("data", &AllocateConstNode::data)
         .def_ro("irmod_storage_idx", &AllocateConstNode::irmod_storage_idx)
         .def_ro("dtype", &AllocateConstNode::dtype)
@@ -896,7 +897,7 @@ class ForNode : public StmtNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ForNode>()
-        .def_ro("loop_var", &ForNode::loop_var)
+        .def_ro("loop_var", &ForNode::loop_var, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("min", &ForNode::min)
         .def_ro("extent", &ForNode::extent)
         .def_ro("kind", &ForNode::kind)
@@ -1017,6 +1018,7 @@ class BufferRegionNode : public PrimExprConvertibleNode {
   TVM_DLL PrimExpr ToPrimExpr() const final;
 
   static constexpr const char* _type_key = "tir.BufferRegion";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferRegionNode, PrimExprConvertibleNode);
@@ -1082,6 +1084,7 @@ class MatchBufferRegionNode : public Object {
   }
 
   static constexpr const char* _type_key = "tir.MatchBufferRegion";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(MatchBufferRegionNode, Object);
@@ -1130,8 +1133,12 @@ class BlockNode : public StmtNode {
   Array<BufferRegion> writes;
   /*! \brief The name_hint of the block. */
   String name_hint;
-  /*! \brief The body of the block. */
-  Stmt body;
+  /*! \brief The buffer allocated in the block. */
+  Array<Buffer> alloc_buffers;
+  /*! \brief The match buffer regions. */
+  Array<MatchBufferRegion> match_buffers;
+  /*! \brief The annotation of the block. */
+  Map<String, ffi::Any> annotations;
   /*!
    * \brief The init statement is executed during the first iteration of reduction loops in a
    *  reduction block. The optional init field allows us to represent initialization and
@@ -1140,25 +1147,21 @@ class BlockNode : public StmtNode {
    *  Init field is `std::nullopt` if there is no reduction iter_vars
    */
   Optional<Stmt> init;
-  /*! \brief The buffer allocated in the block. */
-  Array<Buffer> alloc_buffers;
-  /*! \brief The match buffer regions. */
-  Array<MatchBufferRegion> match_buffers;
-  /*! \brief The annotation of the block. */
-  Map<String, ffi::Any> annotations;
+  /*! \brief The body of the block. */
+  Stmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BlockNode>()
-        .def_ro("iter_vars", &BlockNode::iter_vars)
+        .def_ro("iter_vars", &BlockNode::iter_vars, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("reads", &BlockNode::reads)
         .def_ro("writes", &BlockNode::writes)
-        .def_ro("name_hint", &BlockNode::name_hint)
-        .def_ro("body", &BlockNode::body)
-        .def_ro("init", &BlockNode::init)
+        .def_ro("name_hint", &BlockNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("alloc_buffers", &BlockNode::alloc_buffers)
         .def_ro("match_buffers", &BlockNode::match_buffers)
-        .def_ro("annotations", &BlockNode::annotations);
+        .def_ro("annotations", &BlockNode::annotations)
+        .def_ro("init", &BlockNode::init)
+        .def_ro("body", &BlockNode::body);
   }
 
   bool SEqualReduce(const BlockNode* other, SEqualReducer equal) const {

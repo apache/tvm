@@ -64,7 +64,7 @@ class VarNode : public PrimExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<VarNode>()
-        .def_ro("name", &VarNode::name_hint)
+        .def_ro("name", &VarNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("type_annotation", &VarNode::type_annotation);
   }
 
@@ -80,6 +80,7 @@ class VarNode : public PrimExprNode {
     hash_reduce.FreeVarHashImpl(this);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
   static constexpr const char* _type_key = "tir.Var";
   static constexpr const uint32_t _type_child_slots = 1;
   TVM_DECLARE_BASE_OBJECT_INFO(VarNode, PrimExprNode);
@@ -290,7 +291,7 @@ class IterVarNode : public PrimExprConvertibleNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IterVarNode>()
         .def_ro("dom", &IterVarNode::dom)
-        .def_ro("var", &IterVarNode::var)
+        .def_ro("var", &IterVarNode::var, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("iter_type", &IterVarNode::iter_type)
         .def_ro("thread_tag", &IterVarNode::thread_tag);
   }
@@ -308,6 +309,7 @@ class IterVarNode : public PrimExprConvertibleNode {
   }
 
   static constexpr const char* _type_key = "tir.IterVar";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IterVarNode, PrimExprConvertibleNode);

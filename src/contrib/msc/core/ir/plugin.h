@@ -290,6 +290,7 @@ class PluginAttrNode : public Object {
     hash_reduce(describe);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "msc.core.PluginAttr";
   TVM_DECLARE_FINAL_OBJECT_INFO(PluginAttrNode, Object);
 };
@@ -371,6 +372,7 @@ class PluginTensorNode : public Object {
     hash_reduce(describe);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "msc.core.PluginTensor";
   TVM_DECLARE_FINAL_OBJECT_INFO(PluginTensorNode, Object);
 };
@@ -454,6 +456,7 @@ class PluginExternNode : public Object {
     hash_reduce(describe);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "msc.core.PluginExtern";
   TVM_DECLARE_FINAL_OBJECT_INFO(PluginExternNode, Object);
 };
@@ -565,6 +568,7 @@ class PluginNode : public Object {
     hash_reduce(options);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "msc.core.Plugin";
   TVM_DECLARE_FINAL_OBJECT_INFO(PluginNode, Object);
 };
