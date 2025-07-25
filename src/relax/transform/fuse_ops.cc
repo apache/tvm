@@ -435,8 +435,7 @@ class FunctionCreator : public ExprMutator {
                 CheckDefAndUpdateParam(tup_arg);
                 ICHECK(GetStructInfoAs<TupleStructInfoNode>(tup_arg) == nullptr);
               }
-            }
-            else {
+            } else {
               CheckDefAndUpdateParam(arg);
             }
           }
