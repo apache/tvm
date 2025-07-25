@@ -55,6 +55,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   TPrimExprObj::RegisterReflection();
   TVarObj::RegisterReflection();
   TFuncObj::RegisterReflection();
+  TCustomFuncObj::RegisterReflection();
 
   refl::ObjectDef<TestObjA>().def_ro("x", &TestObjA::x).def_rw("y", &TestObjA::y);
   refl::ObjectDef<TestObjADerived>().def_ro("z", &TestObjADerived::z);

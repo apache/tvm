@@ -1,4 +1,10 @@
 file(GLOB _test_sources "${CMAKE_CURRENT_SOURCE_DIR}/test*.cc")
+file(GLOB _test_extra_sources "${CMAKE_CURRENT_SOURCE_DIR}/extra/test*.cc")
+
+if (TVM_FFI_USE_EXTRA_CXX_API)
+  list(APPEND _test_sources ${_test_extra_sources})
+endif()
+
 add_executable(
   tvm_ffi_tests
   EXCLUDE_FROM_ALL

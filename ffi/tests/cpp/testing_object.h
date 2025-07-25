@@ -158,7 +158,8 @@ class TVarObj : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TVarObj>().def_ro("name", &TVarObj::name);
+    refl::ObjectDef<TVarObj>().def_ro("name", &TVarObj::name,
+                                      refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr const char* _type_key = "test.Var";
@@ -202,6 +203,60 @@ class TFunc : public ObjectRef {
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS(TFunc, ObjectRef, TFuncObj);
+};
+
+class TCustomFuncObj : public Object {
+ public:
+  Array<TVar> params;
+  Array<ObjectRef> body;
+  String comment;
+
+  TCustomFuncObj(Array<TVar> params, Array<ObjectRef> body, String comment)
+      : params(params), body(body), comment(comment) {}
+
+  bool SEqual(const TCustomFuncObj* other,
+              ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> cmp) const {
+    if (!cmp(params, other->params, true, "params")) {
+      std::cout << "custom s_equal failed params" << std::endl;
+      return false;
+    }
+    if (!cmp(body, other->body, false, "body")) {
+      std::cout << "custom s_equal failed body" << std::endl;
+      return false;
+    }
+    return true;
+  }
+
+  uint64_t SHash(uint64_t type_key_hash, ffi::TypedFunction<uint64_t(AnyView, bool)> hash) const {
+    uint64_t hash_value = type_key_hash;
+    hash_value = tvm::ffi::details::StableHashCombine(hash_value, hash(params, true));
+    hash_value = tvm::ffi::details::StableHashCombine(hash_value, hash(body, false));
+    return hash_value;
+  }
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TCustomFuncObj>()
+        .def_ro("params", &TCustomFuncObj::params)
+        .def_ro("body", &TCustomFuncObj::body)
+        .def_ro("comment", &TCustomFuncObj::comment);
+    refl::TypeAttrDef<TCustomFuncObj>()
+        .def("__s_equal__", &TCustomFuncObj::SEqual)
+        .def("__s_hash__", &TCustomFuncObj::SHash);
+  }
+
+  static constexpr const char* _type_key = "test.CustomFunc";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindCustomTreeNode;
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TCustomFuncObj, Object);
+};
+
+class TCustomFunc : public ObjectRef {
+ public:
+  explicit TCustomFunc(Array<TVar> params, Array<ObjectRef> body, String comment) {
+    data_ = make_object<TCustomFuncObj>(params, body, comment);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS(TCustomFunc, ObjectRef, TCustomFuncObj);
 };
 
 }  // namespace testing

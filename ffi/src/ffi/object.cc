@@ -247,6 +247,8 @@ class TypeTable {
       column_index = type_attr_columns_.size();
       type_attr_columns_.emplace_back(std::make_unique<TypeAttrColumnData>());
       type_attr_name_to_column_index_.Set(name_str, column_index);
+    } else {
+      column_index = (*it).second;
     }
     TypeAttrColumnData* column = type_attr_columns_[column_index].get();
     if (column->data_.size() < static_cast<size_t>(type_index + 1)) {
