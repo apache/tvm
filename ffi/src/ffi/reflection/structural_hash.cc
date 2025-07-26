@@ -99,15 +99,7 @@ class StructuralHashHandler {
 
     // compute the hash value
     uint64_t hash_value = obj->GetTypeKeyHash();
-    if (structural_eq_hash_kind == kTVMFFISEqHashKindFreeVar) {
-      if (map_free_vars_) {
-        // use lexical order of free var and its type
-        hash_value = details::StableHashCombine(hash_value, free_var_counter_++);
-      } else {
-        // Fallback to pointer hash, we are not mapping free var.
-        return std::hash<const Object*>()(obj.get());
-      }
-    } else {
+    if (structural_eq_hash_kind != kTVMFFISEqHashKindCustomTreeNode) {
       // go over the content and hash the fields
       ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
         // skip fields that are marked as structural eq hash ignore
@@ -126,11 +118,42 @@ class StructuralHashHandler {
           }
         }
       });
-      // if it is a DAG node, also record the lexical order of graph counter
-      // this helps to distinguish DAG from trees.
-      if (structural_eq_hash_kind == kTVMFFISEqHashKindDAGNode) {
-        hash_value = details::StableHashCombine(hash_value, graph_node_counter_++);
+    } else {
+      static reflection::TypeAttrColumn custom_s_hash = reflection::TypeAttrColumn("__s_hash__");
+      TVM_FFI_ICHECK(custom_s_hash[type_info->type_index] != nullptr)
+          << "TypeAttr `__s_hash__` is not registered for type `" << String(type_info->type_key)
+          << "`";
+      if (s_hash_callback_ == nullptr) {
+        s_hash_callback_ = ffi::Function::FromTyped([this](AnyView val, bool def_region) {
+          if (def_region) {
+            bool allow_free_var = true;
+            std::swap(allow_free_var, map_free_vars_);
+            uint64_t hash_value = HashAny(val);
+            std::swap(allow_free_var, map_free_vars_);
+            return hash_value;
+          } else {
+            return HashAny(val);
+          }
+        });
       }
+      hash_value = custom_s_hash[type_info->type_index]
+                       .cast<ffi::Function>()(obj, hash_value, s_hash_callback_)
+                       .cast<uint64_t>();
+    }
+
+    if (structural_eq_hash_kind == kTVMFFISEqHashKindFreeVar) {
+      if (map_free_vars_) {
+        // use lexical order of free var and its type
+        hash_value = details::StableHashCombine(hash_value, free_var_counter_++);
+      } else {
+        // Fallback to pointer hash, we are not mapping free var.
+        hash_value = std::hash<const Object*>()(obj.get());
+      }
+    }
+    // if it is a DAG node, also record the lexical order of graph counter
+    // this helps to distinguish DAG from trees.
+    if (structural_eq_hash_kind == kTVMFFISEqHashKindDAGNode) {
+      hash_value = details::StableHashCombine(hash_value, graph_node_counter_++);
     }
     // record the hash value for this object
     hash_memo_[obj] = hash_value;
@@ -244,6 +267,8 @@ class StructuralHashHandler {
   uint32_t free_var_counter_{0};
   // graph node counter.
   uint32_t graph_node_counter_{0};
+  // lazily initialize custom hash function
+  ffi::Function s_hash_callback_ = nullptr;
   // map from lhs to rhs
   std::unordered_map<ObjectRef, uint64_t, ObjectPtrHash, ObjectPtrEqual> hash_memo_;
 };
@@ -258,6 +283,7 @@ uint64_t StructuralHash::Hash(const Any& value, bool map_free_vars, bool skip_nd
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ffi.reflection.StructuralHash", StructuralHash::Hash);
+  refl::EnsureTypeAttrColumn("__s_hash__");
 });
 
 }  // namespace reflection
