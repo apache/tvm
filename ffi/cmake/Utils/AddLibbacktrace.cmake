@@ -26,10 +26,6 @@ function(_libbacktrace_compile)
     set(_cmake_c_compiler "${CMAKE_C_COMPILER}")
   endif()
 
-  if(DEFINED CMAKE_C_COMPILER_TARGET)
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} --target=${CMAKE_C_COMPILER_TARGET}")
-  endif()
-
   message(STATUS CMAKC_C_COMPILER="${CMAKE_C_COMPILER}")
 
   file(MAKE_DIRECTORY ${_libbacktrace_prefix}/include)
