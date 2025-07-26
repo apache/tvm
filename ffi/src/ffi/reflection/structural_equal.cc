@@ -130,8 +130,10 @@ class StructEqualHandler {
       }
     }
 
+    static reflection::TypeAttrColumn custom_s_equal = reflection::TypeAttrColumn("__s_equal__");
+
     bool success = true;
-    if (structural_eq_hash_kind != kTVMFFISEqHashKindCustomTreeNode) {
+    if (custom_s_equal[type_info->type_index] == nullptr) {
       // We recursively compare the fields the object
       ForEachFieldInfoWithEarlyStop(type_info, [&](const TVMFFIFieldInfo* field_info) {
         // skip fields that are marked as structural eq hash ignore
@@ -165,7 +167,6 @@ class StructEqualHandler {
         }
       });
     } else {
-      static reflection::TypeAttrColumn custom_s_equal = reflection::TypeAttrColumn("__s_equal__");
       // run custom equal function defined via __s_equal__ type attribute
       if (s_equal_callback_ == nullptr) {
         s_equal_callback_ = ffi::Function::FromTyped(
@@ -191,9 +192,6 @@ class StructEqualHandler {
               return success;
             });
       }
-      TVM_FFI_ICHECK(custom_s_equal[type_info->type_index] != nullptr)
-          << "TypeAttr `__s_equal__` is not registered for type `" << String(type_info->type_key)
-          << "`";
       success = custom_s_equal[type_info->type_index]
                     .cast<ffi::Function>()(lhs, rhs, s_equal_callback_)
                     .cast<bool>();

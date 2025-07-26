@@ -465,6 +465,11 @@ class GlobalVarNode : public RelaxExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<GlobalVarNode>().def_ro("name_hint", &GlobalVarNode::name_hint);
+    // register custom structural equal and hash.
+    // skip checking struct_info_ for now
+    refl::TypeAttrDef<GlobalVarNode>()
+        .def("__s_equal__", &GlobalVarNode::SEqual)
+        .def("__s_hash__", &GlobalVarNode::SHash);
   }
 
   bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {
@@ -475,6 +480,16 @@ class GlobalVarNode : public RelaxExprNode {
   void SHashReduce(SHashReducer hash_reduce) const {
     hash_reduce(name_hint);
     hash_reduce.FreeVarHashImpl(this);
+  }
+
+  bool SEqual(const GlobalVarNode* other,
+              ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
+    return equal(name_hint, other->name_hint, false, "name_hint");
+  }
+
+  uint64_t SHash(uint64_t init_hash,
+                 ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
+    return hash(name_hint, init_hash, false);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;

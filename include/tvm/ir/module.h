@@ -150,8 +150,8 @@ class IRModuleNode : public Object {
 
   TVM_DLL bool SEqual(const IRModuleNode* other,
                       ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const;
-  TVM_DLL uint64_t SHash(uint64_t type_key_hash,
-                         ffi::TypedFunction<uint64_t(AnyView, bool)> hash) const;
+  TVM_DLL uint64_t SHash(uint64_t init_hash,
+                         ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const;
 
   /*!
    * \brief Add a function to the global environment.
@@ -246,7 +246,7 @@ class IRModuleNode : public Object {
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
   static constexpr const char* _type_key = "ir.IRModule";
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindCustomTreeNode;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IRModuleNode, Object);

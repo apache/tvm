@@ -424,27 +424,6 @@ typedef enum {
    * is only an unique copy of each value.
    */
   kTVMFFISEqHashKindUniqueInstance = 5,
-  /*!
-   * \brief provide custom __s_equal__ and __s_hash__ functions through TypeAttrColumn.
-   *
-   * The function signatures are(defined via ffi::Function)
-   *
-   * \code
-   * bool __s_equal__(
-   *   ObjectRefType self, ObjectRefType other,
-   *   ffi::TypedFunction<bool(AnyView, AnyView, bool def_region, string field_name)> cmp,
-   * );
-   *
-   * uint64_t __s_hash__(
-   *   ObjectRefType self, uint64_t type_key_hash,
-   *   ffi::TypedFunction<uint64_t(AnyView, bool def_region)> hash
-   * );
-   * \endcode
-   *
-   * Where the extra string field in cmp is the name of the field that is being compared.
-   * The function should be registered through TVMFFITypeRegisterAttr via reflection::TypeAttrDef.
-   */
-  kTVMFFISEqHashKindCustomTreeNode = 6,
 #ifdef __cplusplus
 };
 #else

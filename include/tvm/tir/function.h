@@ -107,6 +107,11 @@ class PrimFuncNode : public BaseFuncNode {
         .def_ro("ret_type", &PrimFuncNode::ret_type)
         .def_ro("buffer_map", &PrimFuncNode::buffer_map)
         .def_ro("body", &PrimFuncNode::body);
+    // register custom structural equal and hash.
+    // skip checking struct_info_ for now
+    refl::TypeAttrDef<PrimFuncNode>()
+        .def("__s_equal__", &PrimFuncNode::SEqual)
+        .def("__s_hash__", &PrimFuncNode::SHash);
   }
 
   bool SEqualReduce(const PrimFuncNode* other, SEqualReducer equal) const {
@@ -123,6 +128,26 @@ class PrimFuncNode : public BaseFuncNode {
     hash_reduce(body);
     hash_reduce(attrs);
   }
+
+  bool SEqual(const PrimFuncNode* other,
+              ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
+    return equal(params, other->params, true, "params") &&
+           equal(buffer_map, other->buffer_map, false, "buffer_map") &&
+           equal(ret_type, other->ret_type, false, "ret_type") &&
+           equal(body, other->body, false, "body") && equal(attrs, other->attrs, false, "attrs");
+  }
+
+  uint64_t SHash(uint64_t init_hash,
+                 ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
+    uint64_t hash_value = init_hash;
+    hash_value = hash(params, hash_value, true);
+    hash_value = hash(buffer_map, hash_value, false);
+    hash_value = hash(ret_type, hash_value, false);
+    hash_value = hash(body, hash_value, false);
+    hash_value = hash(attrs, hash_value, false);
+    return hash_value;
+  }
+
   /*!
    * \brief Return the derived function annotation of this function.
    *

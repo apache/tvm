@@ -113,9 +113,11 @@ class StructuralHashHandler {
       return it->second;
     }
 
+    static reflection::TypeAttrColumn custom_s_hash = reflection::TypeAttrColumn("__s_hash__");
+
     // compute the hash value
     uint64_t hash_value = obj->GetTypeKeyHash();
-    if (structural_eq_hash_kind != kTVMFFISEqHashKindCustomTreeNode) {
+    if (custom_s_hash[type_info->type_index] == nullptr) {
       // go over the content and hash the fields
       ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
         // skip fields that are marked as structural eq hash ignore
@@ -135,22 +137,19 @@ class StructuralHashHandler {
         }
       });
     } else {
-      static reflection::TypeAttrColumn custom_s_hash = reflection::TypeAttrColumn("__s_hash__");
-      TVM_FFI_ICHECK(custom_s_hash[type_info->type_index] != nullptr)
-          << "TypeAttr `__s_hash__` is not registered for type `" << String(type_info->type_key)
-          << "`";
       if (s_hash_callback_ == nullptr) {
-        s_hash_callback_ = ffi::Function::FromTyped([this](AnyView val, bool def_region) {
-          if (def_region) {
-            bool allow_free_var = true;
-            std::swap(allow_free_var, map_free_vars_);
-            uint64_t hash_value = HashAny(val);
-            std::swap(allow_free_var, map_free_vars_);
-            return hash_value;
-          } else {
-            return HashAny(val);
-          }
-        });
+        s_hash_callback_ =
+            ffi::Function::FromTyped([this](AnyView val, uint64_t init_hash, bool def_region) {
+              if (def_region) {
+                bool allow_free_var = true;
+                std::swap(allow_free_var, map_free_vars_);
+                uint64_t hash_value = HashAny(val);
+                std::swap(allow_free_var, map_free_vars_);
+                return details::StableHashCombine(init_hash, hash_value);
+              } else {
+                return details::StableHashCombine(init_hash, HashAny(val));
+              }
+            });
       }
       hash_value = custom_s_hash[type_info->type_index]
                        .cast<ffi::Function>()(obj, hash_value, s_hash_callback_)

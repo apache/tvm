@@ -151,11 +151,11 @@ void IRModuleNode::SHashReduce(SHashReducer hash_reduce) const {
   hash_reduce(this->global_infos);
 }
 
-uint64_t IRModuleNode::SHash(uint64_t type_key_hash,
-                             ffi::TypedFunction<uint64_t(AnyView, bool)> hash) const {
-  uint64_t hash_value = type_key_hash;
-  hash_value = tvm::ffi::details::StableHashCombine(hash_value, hash(this->attrs, false));
-  hash_value = tvm::ffi::details::StableHashCombine(hash_value, hash(this->global_infos, false));
+uint64_t IRModuleNode::SHash(uint64_t init_hash,
+                             ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
+  uint64_t hash_value = init_hash;
+  hash_value = hash(this->attrs, hash_value, false);
+  hash_value = hash(this->global_infos, hash_value, false);
 
   // hash the functions.
   using KV = std::tuple<std::string, ObjectRef, ObjectRef>;
@@ -166,17 +166,15 @@ uint64_t IRModuleNode::SHash(uint64_t type_key_hash,
   // sort by the hash key of the keys.
   std::sort(temp.begin(), temp.end(),
             [](const KV& lhs, const KV& rhs) { return std::get<0>(lhs) < std::get<0>(rhs); });
-  hash_value = tvm::ffi::details::StableHashCombine(hash_value, static_cast<uint64_t>(temp.size()));
+  hash_value = hash(static_cast<uint64_t>(temp.size()), hash_value, false);
   // first need to define the GlobalVar in the order of the keys
   for (size_t i = 0; i < temp.size(); ++i) {
-    hash_value = tvm::ffi::details::StableHashCombine(hash_value, hash(std::get<1>(temp[i]), true));
+    hash_value = hash(std::get<1>(temp[i]), hash_value, true);
   }
   // hash the name and content
   for (size_t i = 0; i < temp.size(); ++i) {
-    hash_value =
-        tvm::ffi::details::StableHashCombine(hash_value, hash(std::get<0>(temp[i]), false));
-    hash_value =
-        tvm::ffi::details::StableHashCombine(hash_value, hash(std::get<2>(temp[i]), false));
+    hash_value = hash(std::get<0>(temp[i]), hash_value, false);
+    hash_value = hash(std::get<2>(temp[i]), hash_value, false);
   }
   return hash_value;
 }
