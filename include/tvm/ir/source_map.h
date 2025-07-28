@@ -59,6 +59,7 @@ class SourceNameNode : public Object {
     return equal(name, other->name);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "ir.SourceName";
   TVM_DECLARE_FINAL_OBJECT_INFO(SourceNameNode, Object);
 };
@@ -118,6 +119,7 @@ class SpanNode : public Object {
            equal(end_column, other->end_column);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "ir.Span";
   TVM_DECLARE_BASE_OBJECT_INFO(SpanNode, Object);
 };
@@ -233,6 +235,7 @@ class SourceMapObj : public Object {
     return equal(source_map, other->source_map);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "ir.SourceMap";
   TVM_DECLARE_FINAL_OBJECT_INFO(SourceMapObj, Object);
 };

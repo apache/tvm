@@ -116,6 +116,7 @@ class IterMarkNode : public Object {
     hash_reduce(extent);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const char* _type_key = "arith.IterMark";
@@ -176,6 +177,7 @@ class IterSplitExprNode : public IterMapExprNode {
     hash_reduce(scale);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "arith.IterSplitExpr";
   TVM_DECLARE_FINAL_OBJECT_INFO(IterSplitExprNode, IterMapExprNode);
 };
@@ -239,6 +241,7 @@ class IterSumExprNode : public IterMapExprNode {
     hash_reduce(base);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "arith.IterSumExpr";
   TVM_DECLARE_FINAL_OBJECT_INFO(IterSumExprNode, IterMapExprNode);
 };

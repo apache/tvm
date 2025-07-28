@@ -80,6 +80,14 @@ class TypeNode : public Object {
    */
   mutable Span span;
 
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    // span do not participate in structural equal and hash.
+    refl::ObjectDef<TypeNode>().def_ro("span", &TypeNode::span, refl::DefaultValue(Span()),
+                                       refl::AttachFieldFlag::SEqHashIgnore());
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "ir.Type";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;

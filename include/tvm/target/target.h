@@ -177,7 +177,7 @@ class TargetNode : public Object {
   void SHashReduce(SHashReducer hash_reduce) const;
 
   static constexpr const char* _type_key = "target.Target";
-
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetNode, Object);
