@@ -115,13 +115,14 @@ class BufferNode : public Object {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BufferNode>()
-        .def_ro("data", &BufferNode::data)
+        .def_ro("data", &BufferNode::data, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("dtype", &BufferNode::dtype)
-        .def_ro("shape", &BufferNode::shape)
-        .def_ro("strides", &BufferNode::strides)
-        .def_ro("axis_separators", &BufferNode::axis_separators)
-        .def_ro("elem_offset", &BufferNode::elem_offset)
-        .def_ro("name", &BufferNode::name)
+        .def_ro("shape", &BufferNode::shape, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("strides", &BufferNode::strides, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("axis_separators", &BufferNode::axis_separators,
+                refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("elem_offset", &BufferNode::elem_offset, refl::AttachFieldFlag::SEqHashDef())
+        .def_ro("name", &BufferNode::name, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("data_alignment", &BufferNode::data_alignment)
         .def_ro("offset_factor", &BufferNode::offset_factor)
         .def_ro("buffer_type", &BufferNode::buffer_type)
@@ -163,6 +164,7 @@ class BufferNode : public Object {
   Array<PrimExpr> ElemOffset(Array<PrimExpr> index) const;
 
   static constexpr const char* _type_key = "tir.Buffer";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferNode, Object);

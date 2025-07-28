@@ -51,7 +51,10 @@ class EnvFuncNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<EnvFuncNode>().def_ro("name", &EnvFuncNode::name);
+    // func do not participate in structural equal and hash.
+    refl::ObjectDef<EnvFuncNode>()
+        .def_ro("name", &EnvFuncNode::name)
+        .def_ro("func", &EnvFuncNode::func, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   bool SEqualReduce(const EnvFuncNode* other, SEqualReducer equal) const {
@@ -64,6 +67,7 @@ class EnvFuncNode : public Object {
     hash_reduce(name);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "ir.EnvFunc";
   static constexpr bool _type_has_method_sequal_reduce = true;
   static constexpr bool _type_has_method_shash_reduce = true;

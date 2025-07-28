@@ -43,6 +43,8 @@ using MemoryScope = String;
 class GlobalInfoNode : public Object {
  public:
   static constexpr const char* _type_key = "ir.GlobalInfo";
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(GlobalInfoNode, Object);

@@ -96,6 +96,30 @@ bool IRModuleNode::SEqualReduce(const IRModuleNode* other, SEqualReducer equal) 
   return true;
 }
 
+bool IRModuleNode::SEqual(const IRModuleNode* other,
+                          ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
+  if (!equal(this->attrs, other->attrs, false, "attrs")) {
+    return false;
+  }
+  if (!equal(this->global_infos, other->global_infos, false, "global_infos")) {
+    return false;
+  }
+
+  // Define remaps for GlobalVar and GlobalTypeVar based on their string name.
+  for (const auto& gv : this->GetGlobalVars()) {
+    if (other->ContainGlobalVar(gv->name_hint)) {
+      if (!equal(gv, other->GetGlobalVar(gv->name_hint), true, "functions")) return false;
+    }
+  }
+
+  // now check the functions with the GlobalVar remappped
+  if (!equal(this->functions, other->functions, false, "functions")) {
+    return false;
+  }
+
+  return true;
+}
+
 void IRModuleNode::SHashReduce(SHashReducer hash_reduce) const {
   using KV = std::tuple<std::string, ObjectRef, ObjectRef>;
   // hash the functions.
@@ -125,6 +149,34 @@ void IRModuleNode::SHashReduce(SHashReducer hash_reduce) const {
 
   hash_reduce(this->attrs);
   hash_reduce(this->global_infos);
+}
+
+uint64_t IRModuleNode::SHash(uint64_t init_hash,
+                             ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
+  uint64_t hash_value = init_hash;
+  hash_value = hash(this->attrs, hash_value, false);
+  hash_value = hash(this->global_infos, hash_value, false);
+
+  // hash the functions.
+  using KV = std::tuple<std::string, ObjectRef, ObjectRef>;
+  std::vector<KV> temp;
+  for (const auto& kv : this->functions) {
+    temp.emplace_back(kv.first->name_hint, kv.first, kv.second);
+  }
+  // sort by the hash key of the keys.
+  std::sort(temp.begin(), temp.end(),
+            [](const KV& lhs, const KV& rhs) { return std::get<0>(lhs) < std::get<0>(rhs); });
+  hash_value = hash(static_cast<uint64_t>(temp.size()), hash_value, false);
+  // first need to define the GlobalVar in the order of the keys
+  for (size_t i = 0; i < temp.size(); ++i) {
+    hash_value = hash(std::get<1>(temp[i]), hash_value, true);
+  }
+  // hash the name and content
+  for (size_t i = 0; i < temp.size(); ++i) {
+    hash_value = hash(std::get<0>(temp[i]), hash_value, false);
+    hash_value = hash(std::get<2>(temp[i]), hash_value, false);
+  }
+  return hash_value;
 }
 
 bool IRModuleNode::ContainGlobalVar(const String& name) const {
