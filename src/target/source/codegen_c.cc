@@ -352,7 +352,22 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     os << ")";
     return os.str();
   } else {
-    TVM_FFI_THROW(RuntimeError) << "Unsupported type index: " << kind;
+    ICHECK_LT(kind, builtin::kTVMValueKindBound_);
+    std::ostringstream os;
+    os << "(((TVMValue*)";
+    this->PrintExpr(buffer, os);
+    os << ")[" << index << "].";
+    if (t.is_handle()) {
+      os << "v_handle";
+    } else if (t.is_float()) {
+      os << "v_float64";
+    } else if (t.is_int()) {
+      os << "v_int64";
+    } else {
+      LOG(FATAL) << "Do not know how to handle type" << t;
+    }
+    os << ")";
+    return os.str();
   }
 }
 
