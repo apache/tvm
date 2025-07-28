@@ -332,14 +332,16 @@ class LetFrameNode : public TIRFrameNode {
   /*! \brief The value we bind var to */
   PrimExpr value;
 
+
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LetFrameNode>()
         .def_ro("var", &LetFrameNode::var)
-        .def_ro("value", &LetFrameNode::value);
+        .def_rw("value", &LetFrameNode::value);
   }
 
   static constexpr const char* _type_key = "script.ir_builder.tir.LetFrame";
+  static constexpr bool _type_mutable = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(LetFrameNode, TIRFrameNode);
 
  public:
