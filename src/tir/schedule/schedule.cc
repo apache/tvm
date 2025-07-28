@@ -210,9 +210,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_method("tir.schedule.ScheduleCacheInplace", &ScheduleNode::CacheInplace)
       .def_method("tir.schedule.ScheduleCacheIndex", &ScheduleNode::CacheIndex)
       .def("tir.schedule.ScheduleReIndex",
-           [](Schedule self, const BlockRV& block_rv, int buffer_index, int buffer_index_type) {
+           [](Schedule self, const BlockRV& block_rv, int buffer_index, int buffer_index_type, bool skip_simplify) {
              return self->ReIndex(block_rv, buffer_index,
-                                  static_cast<BufferIndexType>(buffer_index_type));
+                                  static_cast<BufferIndexType>(buffer_index_type), skip_simplify);
            });
 });
 /******** (FFI) Data movement ********/
