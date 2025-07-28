@@ -400,6 +400,7 @@ class MSCTensorNode : public Object {
     hash_reduce(prims);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "msc.core.MSCTensor";
   TVM_DECLARE_FINAL_OBJECT_INFO(MSCTensorNode, Object);
 };
@@ -514,6 +515,7 @@ class BaseJointNode : public Object {
     hash_reduce(children);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "msc.core.BaseJoint";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
@@ -600,6 +602,7 @@ class MSCJointNode : public BaseJointNode {
     hash_reduce(weights);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "msc.core.MSCJoint";
   TVM_DECLARE_FINAL_OBJECT_INFO(MSCJointNode, BaseJointNode);
 };
@@ -833,6 +836,7 @@ class BaseGraphNode : public Object {
     hash_reduce(node_names);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "msc.core.BaseGraph";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;

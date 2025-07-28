@@ -58,11 +58,14 @@ class BaseExprNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()));
+    // span do not participate in structural equal and hash.
+    refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()),
+                                           refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr const char* _type_key = "ir.BaseExpr";
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 64;
@@ -428,7 +431,8 @@ class RelaxExprNode : public BaseExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RelaxExprNode>().def_ro("struct_info_", &RelaxExprNode::struct_info_);
+    refl::ObjectDef<RelaxExprNode>().def_ro("struct_info_", &RelaxExprNode::struct_info_,
+                                            refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr const char* _type_key = "ir.RelaxExpr";
@@ -474,6 +478,17 @@ class GlobalVarNode : public RelaxExprNode {
     hash_reduce.FreeVarHashImpl(this);
   }
 
+  bool SEqual(const GlobalVarNode* other,
+              ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
+    return equal(name_hint, other->name_hint, false, "name_hint");
+  }
+
+  uint64_t SHash(uint64_t init_hash,
+                 ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
+    return hash(name_hint, init_hash, false);
+  }
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
   static constexpr const char* _type_key = "ir.GlobalVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelaxExprNode);
 };
@@ -711,6 +726,7 @@ class RangeNode : public Object {
   }
 
   static constexpr const char* _type_key = "ir.Range";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);

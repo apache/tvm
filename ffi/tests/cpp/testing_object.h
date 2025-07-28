@@ -227,10 +227,11 @@ class TCustomFuncObj : public Object {
     return true;
   }
 
-  uint64_t SHash(uint64_t type_key_hash, ffi::TypedFunction<uint64_t(AnyView, bool)> hash) const {
-    uint64_t hash_value = type_key_hash;
-    hash_value = tvm::ffi::details::StableHashCombine(hash_value, hash(params, true));
-    hash_value = tvm::ffi::details::StableHashCombine(hash_value, hash(body, false));
+  uint64_t SHash(uint64_t init_hash,
+                 ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
+    uint64_t hash_value = init_hash;
+    hash_value = hash(params, hash_value, true);
+    hash_value = hash(body, hash_value, false);
     return hash_value;
   }
 
@@ -246,7 +247,7 @@ class TCustomFuncObj : public Object {
   }
 
   static constexpr const char* _type_key = "test.CustomFunc";
-  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindCustomTreeNode;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TCustomFuncObj, Object);
 };
 

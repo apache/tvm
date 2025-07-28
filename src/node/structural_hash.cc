@@ -22,6 +22,7 @@
 #include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/reflection/structural_hash.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
 #include <tvm/node/object_path.h>
@@ -296,13 +297,12 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("node.StructuralHash",
                         [](const Any& object, bool map_free_vars) -> int64_t {
-                          uint64_t hashed_value = SHashHandlerDefault().Hash(object, map_free_vars);
-                          return static_cast<int64_t>(hashed_value);
+                          return ffi::reflection::StructuralHash::Hash(object, map_free_vars);
                         });
 });
 
 uint64_t StructuralHash::operator()(const ObjectRef& object) const {
-  return SHashHandlerDefault().Hash(object, false);
+  return ffi::reflection::StructuralHash::Hash(object, false);
 }
 
 void SHashHandlerIgnoreNDArray::DispatchSHash(const ObjectRef& object, bool map_free_vars) {

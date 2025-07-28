@@ -30,6 +30,8 @@
 #include <tvm/ffi/reflection/structural_hash.h>
 #include <tvm/ffi/string.h>
 
+#include <cmath>
+#include <limits>
 #include <unordered_map>
 #include <utility>
 
@@ -48,6 +50,13 @@ class StructuralHashHandler {
     const TVMFFIAny* src_data = AnyUnsafe::TVMFFIAnyPtrFromAny(src);
 
     if (src_data->type_index < TypeIndex::kTVMFFIStaticObjectBegin) {
+      // specially handle nan for float, as there can be multiple representations of nan
+      // make sure they map to the same hash value
+      if (src_data->type_index == TypeIndex::kTVMFFIFloat && std::isnan(src_data->v_float64)) {
+        TVMFFIAny temp = *src_data;
+        temp.v_float64 = std::numeric_limits<double>::quiet_NaN();
+        return details::StableHashCombine(temp.type_index, temp.v_uint64);
+      }
       // this is POD data, we can just hash the value
       return details::StableHashCombine(src_data->type_index, src_data->v_uint64);
     }
@@ -83,9 +92,16 @@ class StructuralHashHandler {
     // NOTE: invariant: lhs and rhs are already the same type
     const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(obj->type_index());
     if (type_info->metadata == nullptr) {
-      // Fallback to pointer hash
-      return std::hash<const Object*>()(obj.get());
+      TVM_FFI_THROW(TypeError) << "Type metadata is not set for type `"
+                               << String(type_info->type_key)
+                               << "`, so StructuralHash is not supported for this type";
     }
+    if (type_info->metadata->structural_eq_hash_kind == kTVMFFISEqHashKindUnsupported) {
+      TVM_FFI_THROW(TypeError) << "_type_s_eq_hash_kind is not set for type `"
+                               << String(type_info->type_key)
+                               << "`, so StructuralHash is not supported for this type";
+    }
+
     auto structural_eq_hash_kind = type_info->metadata->structural_eq_hash_kind;
     if (structural_eq_hash_kind == kTVMFFISEqHashKindUnsupported) {
       // Fallback to pointer hash
@@ -97,9 +113,11 @@ class StructuralHashHandler {
       return it->second;
     }
 
+    static reflection::TypeAttrColumn custom_s_hash = reflection::TypeAttrColumn("__s_hash__");
+
     // compute the hash value
     uint64_t hash_value = obj->GetTypeKeyHash();
-    if (structural_eq_hash_kind != kTVMFFISEqHashKindCustomTreeNode) {
+    if (custom_s_hash[type_info->type_index] == nullptr) {
       // go over the content and hash the fields
       ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
         // skip fields that are marked as structural eq hash ignore
@@ -119,22 +137,19 @@ class StructuralHashHandler {
         }
       });
     } else {
-      static reflection::TypeAttrColumn custom_s_hash = reflection::TypeAttrColumn("__s_hash__");
-      TVM_FFI_ICHECK(custom_s_hash[type_info->type_index] != nullptr)
-          << "TypeAttr `__s_hash__` is not registered for type `" << String(type_info->type_key)
-          << "`";
       if (s_hash_callback_ == nullptr) {
-        s_hash_callback_ = ffi::Function::FromTyped([this](AnyView val, bool def_region) {
-          if (def_region) {
-            bool allow_free_var = true;
-            std::swap(allow_free_var, map_free_vars_);
-            uint64_t hash_value = HashAny(val);
-            std::swap(allow_free_var, map_free_vars_);
-            return hash_value;
-          } else {
-            return HashAny(val);
-          }
-        });
+        s_hash_callback_ =
+            ffi::Function::FromTyped([this](AnyView val, uint64_t init_hash, bool def_region) {
+              if (def_region) {
+                bool allow_free_var = true;
+                std::swap(allow_free_var, map_free_vars_);
+                uint64_t hash_value = HashAny(val);
+                std::swap(allow_free_var, map_free_vars_);
+                return details::StableHashCombine(init_hash, hash_value);
+              } else {
+                return details::StableHashCombine(init_hash, HashAny(val));
+              }
+            });
       }
       hash_value = custom_s_hash[type_info->type_index]
                        .cast<ffi::Function>()(obj, hash_value, s_hash_callback_)
