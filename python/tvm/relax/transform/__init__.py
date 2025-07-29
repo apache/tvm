@@ -97,5 +97,8 @@ from .optimize_layout_transform import OptimizeLayoutTransform
 from .fold_batch_norm_to_conv2d_for_inference import FoldBatchnormToConv2D
 from .remove_redundant_reshape import RemoveRedundantReshape
 
+# Import the specific fusion pass for Conv2d-Reshape-Add-ReLU.
+from .fuse_conv2d_reshape_add_relu import FuseConv2dReshapeAddRelu
+
 # Import to register the legalization functions.
 from . import legalize_ops
