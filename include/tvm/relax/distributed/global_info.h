@@ -54,26 +54,6 @@ class DeviceMeshNode : public GlobalInfoNode {
   }
 
   static constexpr const char* _type_key = "relax.distributed.DeviceMesh";
-
-  bool SEqualReduce(const DeviceMeshNode* other, SEqualReducer equal) const {
-    if (shape.size() != other->shape.size()) {
-      return false;
-    }
-    for (int i = 0; i < static_cast<int>(shape.size()); i++) {
-      if (!equal(shape[i], other->shape[i])) {
-        return false;
-      }
-    }
-    return equal(device_ids, other->device_ids);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(device_ids);
-    for (int i = 0; i < static_cast<int>(shape.size()); i++) {
-      hash_reduce(shape[i]);
-    }
-  }
-
   TVM_DECLARE_FINAL_OBJECT_INFO(DeviceMeshNode, GlobalInfoNode);
 };
 

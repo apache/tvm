@@ -103,16 +103,6 @@ class OpNode : public RelaxExprNode {
         .def_ro("support_level", &OpNode::support_level, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  bool SEqualReduce(const OpNode* other, SEqualReducer equal) const {
-    // pointer equality is fine as there is only one op with the same name.
-    return this == other;
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    // Name uniquely identifies an Op.
-    hash_reduce(name);
-  }
-
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
   static constexpr const char* _type_key = "ir.Op";
   TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, RelaxExprNode);

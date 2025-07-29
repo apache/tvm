@@ -450,33 +450,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
                         });
 });
 
-bool MatchCastNode::SEqualReduce(const MatchCastNode* other, SEqualReducer equal) const {
-  if (value->IsInstance<FunctionNode>()) {
-    // Recursive function definitions may reference the bound variable
-    // within the value being bound.  In these cases, the
-    // `DefEqual(var, other->var)` must occur first, to ensure it is
-    // defined at point of use.
-    return equal.DefEqual(var, other->var) && equal.DefEqual(struct_info, other->struct_info) &&
-           equal(value, other->value);
-  } else {
-    // In all other cases, visit the bound value before the variable
-    // it is bound to, in order to provide better error messages.
-    return equal(value, other->value) && equal.DefEqual(struct_info, other->struct_info) &&
-           equal.DefEqual(var, other->var);
-  }
-}
-void MatchCastNode::SHashReduce(SHashReducer hash_reduce) const {
-  if (value->IsInstance<FunctionNode>()) {
-    hash_reduce.DefHash(var);
-    hash_reduce.DefHash(struct_info);
-    hash_reduce(value);
-  } else {
-    hash_reduce(value);
-    hash_reduce.DefHash(struct_info);
-    hash_reduce.DefHash(var);
-  }
-}
-
 TVM_REGISTER_NODE_TYPE(VarBindingNode);
 
 VarBinding::VarBinding(Var var, Expr value, Span span) {
@@ -493,29 +466,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
     return VarBinding(var, value, span);
   });
 });
-
-bool VarBindingNode::SEqualReduce(const VarBindingNode* other, SEqualReducer equal) const {
-  if (value->IsInstance<FunctionNode>()) {
-    // Recursive function definitions may reference the bound variable
-    // within the value being bound.  In these cases, the
-    // `DefEqual(var, other->var)` must occur first, to ensure it is
-    // defined at point of use.
-    return equal.DefEqual(var, other->var) && equal(value, other->value);
-  } else {
-    // In all other cases, visit the bound value before the variable
-    // it is bound to, in order to provide better error messages.
-    return equal(value, other->value) && equal.DefEqual(var, other->var);
-  }
-}
-void VarBindingNode::SHashReduce(SHashReducer hash_reduce) const {
-  if (value->IsInstance<FunctionNode>()) {
-    hash_reduce.DefHash(var);
-    hash_reduce(value);
-  } else {
-    hash_reduce(value);
-    hash_reduce.DefHash(var);
-  }
-}
 
 bool VarBindingNode::SEqual(const VarBindingNode* other,
                             ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {

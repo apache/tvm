@@ -61,16 +61,9 @@ class IdNode : public Object {
                                      refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  bool SEqualReduce(const IdNode* other, SEqualReducer equal) const {
-    return equal.FreeVarEqualImpl(this, other);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce.FreeVarHashImpl(this); }
-
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
   static constexpr const char* _type_key = "relax.Id";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(IdNode, Object);
 };
 
@@ -130,8 +123,7 @@ class StructInfoNode : public Object {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "ir.StructInfo";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+
   static constexpr const uint32_t _type_child_slots = 7;
   TVM_DECLARE_BASE_OBJECT_INFO(StructInfoNode, Object);
 };
@@ -182,20 +174,6 @@ class CallNode : public ExprNode {
         .def_ro("sinfo_args", &CallNode::sinfo_args);
   }
 
-  bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
-    // skip sinfo_args check for primitive ops.
-    return equal(op, other->op) && equal(args, other->args) && equal(attrs, other->attrs) &&
-           equal(sinfo_args, other->sinfo_args) && equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(op);
-    hash_reduce(args);
-    hash_reduce(attrs);
-    hash_reduce(sinfo_args);
-    hash_reduce(struct_info_);
-  }
-
   static constexpr const char* _type_key = "relax.expr.Call";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, ExprNode);
 };
@@ -238,13 +216,6 @@ class TupleNode : public ExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TupleNode>().def_ro("fields", &TupleNode::fields);
   }
-
-  bool SEqualReduce(const TupleNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically derived from fields.
-    return equal(fields, other->fields);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(fields); }
 
   static constexpr const char* _type_key = "relax.expr.Tuple";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleNode, ExprNode);
@@ -302,16 +273,6 @@ class TupleGetItemNode : public ExprNode {
     refl::ObjectDef<TupleGetItemNode>()
         .def_ro("tuple_value", &TupleGetItemNode::tuple)
         .def_ro("index", &TupleGetItemNode::index);
-  }
-
-  bool SEqualReduce(const TupleGetItemNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically tuple and index.
-    return equal(tuple, other->tuple) && equal(index, other->index);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(tuple);
-    hash_reduce(index);
   }
 
   static constexpr const char* _type_key = "relax.expr.TupleGetItem";
@@ -373,16 +334,7 @@ class ShapeExprNode : public LeafExprNode {
     refl::ObjectDef<ShapeExprNode>().def_ro("values", &ShapeExprNode::values);
   }
 
-  bool SEqualReduce(const ShapeExprNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically derived from values.
-    return equal(values, other->values);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(values); }
-
   static constexpr const char* _type_key = "relax.expr.ShapeExpr";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(ShapeExprNode, LeafExprNode);
 };
 
@@ -412,16 +364,6 @@ class VarNode : public LeafExprNode {
         .def("__s_hash__", &VarNode::SHash);
   }
 
-  bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
-    return equal(vid, other->vid) && equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(vid);
-    hash_reduce(struct_info_);
-  }
-
   bool SEqual(const VarNode* other,
               ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
     return equal(vid, other->vid, false, "vid") &&
@@ -438,8 +380,6 @@ class VarNode : public LeafExprNode {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
   static constexpr const char* _type_key = "relax.expr.Var";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 1;
   TVM_DECLARE_BASE_OBJECT_INFO(VarNode, LeafExprNode);
 };
@@ -466,20 +406,8 @@ class DataflowVarNode : public VarNode {
     refl::ObjectDef<DataflowVarNode>();
   }
 
-  bool SEqualReduce(const DataflowVarNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
-    return equal(vid, other->vid) && equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(vid);
-    hash_reduce(struct_info_);
-  }
-
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
   static constexpr const char* _type_key = "relax.expr.DataflowVar";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(DataflowVarNode, VarNode);
 };
 
@@ -517,16 +445,6 @@ class ConstantNode : public LeafExprNode {
     refl::ObjectDef<ConstantNode>().def_ro("data", &ConstantNode::data);
   }
 
-  bool SEqualReduce(const ConstantNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically derived from data.
-    return equal(data, other->data) && equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(data);
-    hash_reduce(struct_info_);
-  }
-
   static constexpr const char* _type_key = "relax.expr.Constant";
   TVM_DECLARE_FINAL_OBJECT_INFO(ConstantNode, LeafExprNode);
 };
@@ -562,13 +480,6 @@ class PrimValueNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimValueNode>().def_ro("value", &PrimValueNode::value);
   }
-
-  bool SEqualReduce(const PrimValueNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically derived from data.
-    return equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
 
   static constexpr const char* _type_key = "relax.expr.PrimValue";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimValueNode, LeafExprNode);
@@ -612,13 +523,6 @@ class StringImmNode : public LeafExprNode {
     refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
   }
 
-  bool SEqualReduce(const StringImmNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically derived from data.
-    return equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
-
   static constexpr const char* _type_key = "relax.expr.StringImm";
   TVM_DECLARE_FINAL_OBJECT_INFO(StringImmNode, LeafExprNode);
 };
@@ -652,13 +556,6 @@ class DataTypeImmNode : public LeafExprNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<DataTypeImmNode>().def_ro("value", &DataTypeImmNode::value);
   }
-
-  bool SEqualReduce(const DataTypeImmNode* other, SEqualReducer equal) const {
-    // struct info can be deterministically derived from data.
-    return equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
 
   static constexpr const char* _type_key = "relax.expr.DataTypeImm";
   TVM_DECLARE_FINAL_OBJECT_INFO(DataTypeImmNode, LeafExprNode);
@@ -697,8 +594,7 @@ class BindingNode : public Object {
 
   static constexpr const char* _type_key = "relax.expr.Binding";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+
   TVM_DECLARE_BASE_OBJECT_INFO(BindingNode, Object);
 };
 
@@ -735,12 +631,7 @@ class MatchCastNode : public BindingNode {
         .def_ro("struct_info", &MatchCastNode::struct_info, refl::AttachFieldFlag::SEqHashDef());
   }
 
-  bool SEqualReduce(const MatchCastNode* other, SEqualReducer equal) const;
-  void SHashReduce(SHashReducer hash_reduce) const;
-
   static constexpr const char* _type_key = "relax.expr.MatchCast";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(MatchCastNode, BindingNode);
 };
 
@@ -770,17 +661,13 @@ class VarBindingNode : public BindingNode {
         .def("__s_hash__", &VarBindingNode::SHash);
   }
 
-  bool SEqualReduce(const VarBindingNode* other, SEqualReducer equal) const;
-  void SHashReduce(SHashReducer hash_reduce) const;
-
   bool SEqual(const VarBindingNode* other,
               ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const;
   uint64_t SHash(uint64_t init_hash,
                  ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const;
 
   static constexpr const char* _type_key = "relax.expr.VarBinding";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(VarBindingNode, BindingNode);
 };
 
@@ -804,16 +691,9 @@ class BindingBlockNode : public Object {
                 refl::DefaultValue(Span()));
   }
 
-  bool SEqualReduce(const BindingBlockNode* other, SEqualReducer equal) const {
-    return equal(bindings, other->bindings);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(bindings); }
-
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "relax.expr.BindingBlock";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+
   TVM_DECLARE_BASE_OBJECT_INFO(BindingBlockNode, Object);
 };
 
@@ -832,15 +712,8 @@ class DataflowBlockNode : public BindingBlockNode {
     refl::ObjectDef<DataflowBlockNode>();
   }
 
-  bool SEqualReduce(const DataflowBlockNode* other, SEqualReducer equal) const {
-    return equal(bindings, other->bindings);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(bindings); }
-
   static constexpr const char* _type_key = "relax.expr.DataflowBlock";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(DataflowBlockNode, BindingBlockNode);
 };
 
@@ -867,20 +740,8 @@ class SeqExprNode : public ExprNode {
         .def_ro("body", &SeqExprNode::body);
   }
 
-  bool SEqualReduce(const SeqExprNode* other, SEqualReducer equal) const {
-    return equal(blocks, other->blocks) && equal(body, other->body) &&
-           equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(blocks);
-    hash_reduce(body);
-    hash_reduce(struct_info_);
-  }
-
   static constexpr const char* _type_key = "relax.expr.SeqExpr";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(SeqExprNode, ExprNode);
 };
 
@@ -930,20 +791,6 @@ class IfNode : public ExprNode {
         .def_ro("cond", &IfNode::cond)
         .def_ro("true_branch", &IfNode::true_branch)
         .def_ro("false_branch", &IfNode::false_branch);
-  }
-
-  bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
-    return equal(cond, other->cond) && equal(true_branch, other->true_branch) &&
-           equal(false_branch, other->false_branch) && equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
-    hash_reduce(cond);
-    hash_reduce(true_branch);
-    hash_reduce(false_branch);
-    hash_reduce(struct_info_);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
@@ -1007,27 +854,8 @@ class FunctionNode : public BaseFuncNode {
         .def_ro("is_pure", &FunctionNode::is_pure);
   }
 
-  bool SEqualReduce(const FunctionNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
-    return equal.DefEqual(params, other->params) && equal(body, other->body) &&
-           equal(ret_struct_info, other->ret_struct_info) && equal(is_pure, other->is_pure) &&
-           equal(attrs, other->attrs) && equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
-    hash_reduce.DefHash(params);
-    hash_reduce(body);
-    hash_reduce(ret_struct_info);
-    hash_reduce(is_pure);
-    hash_reduce(attrs);
-    hash_reduce(struct_info_);
-  }
-
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
   static constexpr const char* _type_key = "relax.expr.Function";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionNode, BaseFuncNode);
 };
 
@@ -1111,18 +939,7 @@ class ExternFuncNode : public BaseFuncNode {
     refl::ObjectDef<ExternFuncNode>().def_ro("global_symbol", &ExternFuncNode::global_symbol);
   }
 
-  bool SEqualReduce(const ExternFuncNode* other, SEqualReducer equal) const {
-    return equal(global_symbol, other->global_symbol) && equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(global_symbol);
-    hash_reduce(struct_info_);
-  }
-
   static constexpr const char* _type_key = "relax.expr.ExternFunc";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(ExternFuncNode, BaseFuncNode);
 };
 

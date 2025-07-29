@@ -184,23 +184,4 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_packed("node.MakeNode", MakeNode);
 });
 
-Optional<String> GetAttrKeyByAddress(const Object* object, const void* attr_address) {
-  const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(object->type_index());
-  if (tinfo->metadata != nullptr) {
-    Optional<String> result;
-    // visit fields with the new reflection
-    ffi::reflection::ForEachFieldInfoWithEarlyStop(tinfo, [&](const TVMFFIFieldInfo* field_info) {
-      Any field_value = ffi::reflection::FieldGetter(field_info)(object);
-      const void* field_addr = reinterpret_cast<const char*>(object) + field_info->offset;
-      if (field_addr == attr_address) {
-        result = String(field_info->name);
-        return true;
-      }
-      return false;
-    });
-    return result;
-  }
-  return std::nullopt;
-}
-
 }  // namespace tvm

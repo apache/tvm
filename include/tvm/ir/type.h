@@ -89,8 +89,7 @@ class TypeNode : public Object {
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "ir.Type";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+
   static constexpr const uint32_t _type_child_slots = 14;
   TVM_DECLARE_BASE_OBJECT_INFO(TypeNode, Object);
 };
@@ -123,12 +122,6 @@ class PrimTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimTypeNode>().def_ro("dtype", &PrimTypeNode::dtype);
   }
-
-  bool SEqualReduce(const PrimTypeNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(dtype); }
 
   static constexpr const char* _type_key = "ir.PrimType";
   TVM_DECLARE_FINAL_OBJECT_INFO(PrimTypeNode, TypeNode);
@@ -178,19 +171,6 @@ class PointerTypeNode : public TypeNode {
         .def_ro("storage_scope", &PointerTypeNode::storage_scope);
   }
 
-  bool SEqualReduce(const PointerTypeNode* other, SEqualReducer equal) const {
-    // Make "global" equal to ""
-    String lhs_scope = storage_scope.empty() ? "global" : storage_scope;
-    String rhs_scope = other->storage_scope.empty() ? "global" : other->storage_scope;
-    return equal(element_type, other->element_type) && equal(lhs_scope, rhs_scope);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(element_type);
-    // Make "global" equal to ""
-    hash_reduce(storage_scope.empty() ? "global" : storage_scope);
-  }
-
   static constexpr const char* _type_key = "ir.PointerType";
   TVM_DECLARE_FINAL_OBJECT_INFO(PointerTypeNode, TypeNode);
 };
@@ -228,12 +208,6 @@ class TupleTypeNode : public TypeNode {
         .def_ro("fields", &TupleTypeNode::fields)
         .def_ro("span", &TupleTypeNode::span);
   }
-
-  bool SEqualReduce(const TupleTypeNode* other, SEqualReducer equal) const {
-    return equal(fields, other->fields);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(fields); }
 
   static constexpr const char* _type_key = "ir.TupleType";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleTypeNode, TypeNode);
@@ -298,16 +272,6 @@ class FuncTypeNode : public TypeNode {
         .def_ro("span", &FuncTypeNode::span);
   }
 
-  bool SEqualReduce(const FuncTypeNode* other, SEqualReducer equal) const {
-    // type params first as they defines type vars.
-    return equal(arg_types, other->arg_types) && equal(ret_type, other->ret_type);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(arg_types);
-    hash_reduce(ret_type);
-  }
-
   static constexpr const char* _type_key = "ir.FuncType";
   TVM_DECLARE_FINAL_OBJECT_INFO(FuncTypeNode, TypeNode);
 };
@@ -340,12 +304,6 @@ class TensorMapTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TensorMapTypeNode>().def_ro("span", &TensorMapTypeNode::span);
   }
-
-  bool SEqualReduce(const TensorMapTypeNode* other, SEqualReducer equal) const {
-    return equal(span, other->span);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(span); }
 
   static constexpr const char* _type_key = "ir.TensorMapType";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorMapTypeNode, TypeNode);

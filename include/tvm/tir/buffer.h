@@ -126,28 +126,7 @@ class BufferNode : public Object {
         .def_ro("data_alignment", &BufferNode::data_alignment)
         .def_ro("offset_factor", &BufferNode::offset_factor)
         .def_ro("buffer_type", &BufferNode::buffer_type)
-        .def_ro("span", &BufferNode::span);
-  }
-
-  bool SEqualReduce(const BufferNode* other, SEqualReducer equal) const {
-    // Use DefEqual as buffer can define variables in its semantics,
-    // skip name as name is not important.
-    return equal.DefEqual(data, other->data) && equal(dtype, other->dtype) &&
-           equal.DefEqual(shape, other->shape) && equal.DefEqual(strides, other->strides) &&
-           equal.DefEqual(axis_separators, other->axis_separators) &&
-           equal.DefEqual(elem_offset, other->elem_offset) &&
-           equal(data_alignment, other->data_alignment) && equal(buffer_type, other->buffer_type);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(data);
-    hash_reduce(dtype);
-    hash_reduce.DefHash(shape);
-    hash_reduce.DefHash(strides);
-    hash_reduce.DefHash(elem_offset);
-    hash_reduce.DefHash(axis_separators);
-    hash_reduce(data_alignment);
-    hash_reduce(buffer_type);
+        .def_ro("span", &BufferNode::span, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   /*! \return preferred index type for this buffer node */
@@ -165,8 +144,7 @@ class BufferNode : public Object {
 
   static constexpr const char* _type_key = "tir.Buffer";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferNode, Object);
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 };
@@ -299,16 +277,7 @@ class DataProducerNode : public PrimExprConvertibleNode {
    */
   virtual String GetNameHint() const = 0;
 
-  bool SEqualReduce(const DataProducerNode* other, SEqualReducer equal) const {
-    // because buffer producer is opaque, we just do pointer equality.
-    return this == other;
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {}
-
   static constexpr const char* _type_key = "tir.DataProducer";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_BASE_OBJECT_INFO(DataProducerNode, PrimExprConvertibleNode);
 };
 

@@ -23,6 +23,7 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/ffi/reflection/structural_hash.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr_functor.h>
@@ -37,8 +38,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#include "../../node/ndarray_hash_equal.h"
 
 // Block builder have three categories of logics that are interdependent with each other.
 //
@@ -429,12 +428,11 @@ class BlockBuilderImpl : public BlockBuilderNode {
   }
 
   /*! \brief A custom structural hashing that ignores NDArray raw data. */
-  class StructuralHashIgnoreNDarray : public BaseValueHash {
+  class StructuralHashIgnoreNDarray {
    public:
-    using BaseValueHash::operator();
-
     uint64_t operator()(const ObjectRef& key) const {
-      return SHashHandlerIgnoreNDArray().Hash(key, false);
+      return ffi::reflection::StructuralHash::Hash(key, /*map_free_vars=*/false,
+                                                   /*skip_ndarray_content=*/true);
     }
   };
 

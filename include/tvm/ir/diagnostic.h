@@ -74,11 +74,6 @@ class DiagnosticNode : public Object {
         .def_ro("message", &DiagnosticNode::message);
   }
 
-  bool SEqualReduce(const DiagnosticNode* other, SEqualReducer equal) const {
-    return equal(this->level, other->level) && equal(this->span, other->span) &&
-           equal(this->message, other->message);
-  }
-
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "Diagnostic";
   TVM_DECLARE_FINAL_OBJECT_INFO(DiagnosticNode, Object);
@@ -209,10 +204,6 @@ class DiagnosticContextNode : public Object {
     refl::ObjectDef<DiagnosticContextNode>()
         .def_ro("module", &DiagnosticContextNode::module)
         .def_ro("diagnostics", &DiagnosticContextNode::diagnostics);
-  }
-
-  bool SEqualReduce(const DiagnosticContextNode* other, SEqualReducer equal) const {
-    return equal(module, other->module) && equal(diagnostics, other->diagnostics);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;

@@ -27,8 +27,6 @@
 
 #include <memory>
 
-#include "../node/ndarray_hash_equal.h"
-
 namespace tvm {
 namespace meta_schedule {
 
@@ -58,7 +56,9 @@ class ModuleEqualityAnchorBlock : public ModuleEquality {
   size_t Hash(IRModule mod) const {
     auto anchor_block = tir::FindAnchorBlock(mod);
     if (anchor_block) {
-      return SHashHandlerIgnoreNDArray().Hash(GetRef<tir::Block>(anchor_block), false);
+      return ffi::reflection::StructuralHash::Hash(GetRef<tir::Block>(anchor_block),
+                                                   /*map_free_vars=*/false,
+                                                   /*skip_ndarray_content=*/true);
     }
     return ModuleEqualityIgnoreNDArray().Hash(mod);
   }

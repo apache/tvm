@@ -144,10 +144,6 @@ class IRModuleNode : public Object {
         .def("__s_hash__", &IRModuleNode::SHash);
   }
 
-  TVM_DLL bool SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const;
-
-  TVM_DLL void SHashReduce(SHashReducer hash_reduce) const;
-
   TVM_DLL bool SEqual(const IRModuleNode* other,
                       ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const;
   TVM_DLL uint64_t SHash(uint64_t init_hash,
@@ -247,8 +243,7 @@ class IRModuleNode : public Object {
 
   static constexpr const char* _type_key = "ir.IRModule";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(IRModuleNode, Object);
 
  private:

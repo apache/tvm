@@ -105,20 +105,8 @@ class IterMarkNode : public Object {
         .def_ro("extent", &IterMarkNode::extent);
   }
 
-  bool SEqualReduce(const IterMarkNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
-    return equal(source, other->source) && equal(extent, other->extent);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
-    hash_reduce(source);
-    hash_reduce(extent);
-  }
-
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindDAGNode;
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+
   static constexpr const char* _type_key = "arith.IterMark";
   TVM_DECLARE_FINAL_OBJECT_INFO(IterMarkNode, Object);
 };
@@ -163,18 +151,6 @@ class IterSplitExprNode : public IterMapExprNode {
         .def_ro("lower_factor", &IterSplitExprNode::lower_factor)
         .def_ro("extent", &IterSplitExprNode::extent)
         .def_ro("scale", &IterSplitExprNode::scale);
-  }
-
-  bool SEqualReduce(const IterSplitExprNode* other, SEqualReducer equal) const {
-    return equal(source, other->source) && equal(lower_factor, other->lower_factor) &&
-           equal(extent, other->extent) && equal(scale, other->scale);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(source);
-    hash_reduce(lower_factor);
-    hash_reduce(extent);
-    hash_reduce(scale);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
@@ -230,15 +206,6 @@ class IterSumExprNode : public IterMapExprNode {
     refl::ObjectDef<IterSumExprNode>()
         .def_ro("args", &IterSumExprNode::args)
         .def_ro("base", &IterSumExprNode::base);
-  }
-
-  bool SEqualReduce(const IterSumExprNode* other, SEqualReducer equal) const {
-    return equal(args, other->args) && equal(base, other->base);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(args);
-    hash_reduce(base);
   }
 
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;

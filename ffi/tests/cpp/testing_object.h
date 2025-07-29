@@ -217,11 +217,9 @@ class TCustomFuncObj : public Object {
   bool SEqual(const TCustomFuncObj* other,
               ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> cmp) const {
     if (!cmp(params, other->params, true, "params")) {
-      std::cout << "custom s_equal failed params" << std::endl;
       return false;
     }
     if (!cmp(body, other->body, false, "body")) {
-      std::cout << "custom s_equal failed body" << std::endl;
       return false;
     }
     return true;
