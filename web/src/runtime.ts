@@ -112,7 +112,7 @@ class FFILibrary implements Disposable {
   }
 
   private validateInstance(): void {
-    this.checkExports(["TVMWasmAllocSpace", "TVMWasmFreeSpace", "TVMFuncFree"]);
+    this.checkExports(["TVMWasmAllocSpace", "TVMWasmFreeSpace"]);
   }
 
   private checkExports(funcNames: Array<string>): void {
@@ -195,9 +195,9 @@ class RuntimeContext implements Disposable {
     this.ndarrayCopyFromTo = getGlobalFunc("runtime.TVMArrayCopyFromTo");
     this.ndarrayCopyFromJSBytes = getGlobalFunc("tvmjs.runtime.NDArrayCopyFromBytes");
     this.ndarrayCopyToJSBytes = getGlobalFunc("tvmjs.runtime.NDArrayCopyToBytes");
-    this.arrayGetItem = getGlobalFunc("runtime.ArrayGetItem");
-    this.arrayGetSize = getGlobalFunc("runtime.ArraySize");
-    this.arrayMake = getGlobalFunc("runtime.Array");
+    this.arrayGetItem = getGlobalFunc("ffi.ArrayGetItem");
+    this.arrayGetSize = getGlobalFunc("ffi.ArraySize");
+    this.arrayMake = getGlobalFunc("ffi.Array");
     this.arrayConcat = getGlobalFunc("tvmjs.runtime.ArrayConcat");
     this.getSysLib = getGlobalFunc("runtime.SystemLib");
     this.arrayCacheGet = getGlobalFunc("vm.builtin.ndarray_cache.get");
