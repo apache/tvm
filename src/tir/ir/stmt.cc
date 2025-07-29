@@ -244,7 +244,7 @@ TVM_REGISTER_NODE_TYPE(WhileNode);
 
 // Allocate
 Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, Map<String, ObjectRef> annotations, Span span) {
+                   Stmt body, Map<String, Any> annotations, Span span) {
 
   for (size_t i = 0; i < extents.size(); ++i) {
     ICHECK(extents[i].defined());
