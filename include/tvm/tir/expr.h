@@ -60,12 +60,6 @@ class StringImmNode : public PrimExprNode {
     refl::ObjectDef<StringImmNode>().def_ro("value", &StringImmNode::value);
   }
 
-  bool SEqualReduce(const StringImmNode* other, SEqualReducer equal) const {
-    return equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
-
   static constexpr const char* _type_key = "tir.StringImm";
   TVM_DECLARE_FINAL_OBJECT_INFO(StringImmNode, PrimExprNode);
 };
@@ -93,15 +87,6 @@ class CastNode : public PrimExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<CastNode>().def_ro("value", &CastNode::value);
-  }
-
-  bool SEqualReduce(const CastNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(value);
   }
 
   static constexpr const char* _type_key = "tir.Cast";
@@ -134,16 +119,6 @@ class BinaryOpNode : public PrimExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<T>().def_ro("a", &T::a).def_ro("b", &T::b);
-  }
-
-  bool SEqualReduce(const T* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(a, other->a) && equal(b, other->b);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(a);
-    hash_reduce(b);
   }
 
   TVM_DECLARE_FINAL_OBJECT_INFO(T, PrimExprNode);
@@ -326,16 +301,6 @@ class CmpOpNode : public PrimExprNode {
     refl::ObjectDef<T>().def_ro("a", &T::a).def_ro("b", &T::b);
   }
 
-  bool SEqualReduce(const T* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(a, other->a) && equal(b, other->b);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(a);
-    hash_reduce(b);
-  }
-
   TVM_DECLARE_FINAL_OBJECT_INFO(T, PrimExprNode);
 };
 
@@ -454,16 +419,6 @@ class AndNode : public PrimExprNode {
     refl::ObjectDef<AndNode>().def_ro("a", &AndNode::a).def_ro("b", &AndNode::b);
   }
 
-  bool SEqualReduce(const AndNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(a, other->a) && equal(b, other->b);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(a);
-    hash_reduce(b);
-  }
-
   static constexpr const char* _type_key = "tir.And";
   TVM_DECLARE_FINAL_OBJECT_INFO(AndNode, PrimExprNode);
 };
@@ -492,16 +447,6 @@ class OrNode : public PrimExprNode {
     refl::ObjectDef<OrNode>().def_ro("a", &OrNode::a).def_ro("b", &OrNode::b);
   }
 
-  bool SEqualReduce(const OrNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(a, other->a) && equal(b, other->b);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(a);
-    hash_reduce(b);
-  }
-
   static constexpr const char* _type_key = "tir.Or";
   TVM_DECLARE_FINAL_OBJECT_INFO(OrNode, PrimExprNode);
 };
@@ -526,15 +471,6 @@ class NotNode : public PrimExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<NotNode>().def_ro("a", &NotNode::a);
-  }
-
-  bool SEqualReduce(const NotNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(a, other->a);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(a);
   }
 
   static constexpr const char* _type_key = "tir.Not";
@@ -574,18 +510,6 @@ class SelectNode : public PrimExprNode {
         .def_ro("condition", &SelectNode::condition)
         .def_ro("true_value", &SelectNode::true_value)
         .def_ro("false_value", &SelectNode::false_value);
-  }
-
-  bool SEqualReduce(const SelectNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(condition, other->condition) &&
-           equal(true_value, other->true_value) && equal(false_value, other->false_value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(condition);
-    hash_reduce(true_value);
-    hash_reduce(false_value);
   }
 
   static constexpr const char* _type_key = "tir.Select";
@@ -629,18 +553,6 @@ class BufferLoadNode : public PrimExprNode {
         .def_ro("buffer", &BufferLoadNode::buffer)
         .def_ro("indices", &BufferLoadNode::indices)
         .def_ro("predicate", &BufferLoadNode::predicate);
-  }
-
-  bool SEqualReduce(const BufferLoadNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(buffer, other->buffer) &&
-           equal(indices, other->indices);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(buffer);
-    hash_reduce(indices);
-    hash_reduce(predicate);
   }
 
   static constexpr const char* _type_key = "tir.BufferLoad";
@@ -698,17 +610,6 @@ class ProducerLoadNode : public PrimExprNode {
         .def_ro("indices", &ProducerLoadNode::indices);
   }
 
-  bool SEqualReduce(const ProducerLoadNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(producer, other->producer) &&
-           equal(indices, other->indices);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(producer);
-    hash_reduce(indices);
-  }
-
   static constexpr const char* _type_key = "tir.ProducerLoad";
   TVM_DECLARE_FINAL_OBJECT_INFO(ProducerLoadNode, PrimExprNode);
 };
@@ -751,18 +652,6 @@ class RampNode : public PrimExprNode {
         .def_ro("lanes", &RampNode::lanes);
   }
 
-  bool SEqualReduce(const RampNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(base, other->base) && equal(stride, other->stride) &&
-           equal(lanes, other->lanes);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(base);
-    hash_reduce(stride);
-    hash_reduce(lanes);
-  }
-
   static constexpr const char* _type_key = "tir.Ramp";
   TVM_DECLARE_FINAL_OBJECT_INFO(RampNode, PrimExprNode);
 };
@@ -791,16 +680,6 @@ class BroadcastNode : public PrimExprNode {
     refl::ObjectDef<BroadcastNode>()
         .def_ro("value", &BroadcastNode::value)
         .def_ro("lanes", &BroadcastNode::lanes);
-  }
-
-  bool SEqualReduce(const BroadcastNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(value, other->value) && equal(lanes, other->lanes);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(value);
-    hash_reduce(lanes);
   }
 
   static constexpr const char* _type_key = "tir.Broadcast";
@@ -836,18 +715,6 @@ class LetNode : public PrimExprNode {
         .def_ro("var", &LetNode::var, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("value", &LetNode::value)
         .def_ro("body", &LetNode::body);
-  }
-
-  bool SEqualReduce(const LetNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal.DefEqual(var, other->var) &&
-           equal(value, other->value) && equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce.DefHash(var);
-    hash_reduce(value);
-    hash_reduce(body);
   }
 
   static constexpr const char* _type_key = "tir.Let";
@@ -886,16 +753,6 @@ class CallNode : public PrimExprNode {
     refl::ObjectDef<CallNode>().def_ro("op", &CallNode::op).def_ro("args", &CallNode::args);
   }
 
-  bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(op, other->op) && equal(args, other->args);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(op);
-    hash_reduce(args);
-  }
-
   static constexpr const char* _type_key = "tir.Call";
   TVM_DECLARE_FINAL_OBJECT_INFO(CallNode, PrimExprNode);
 };
@@ -928,17 +785,6 @@ class ShuffleNode : public PrimExprNode {
     refl::ObjectDef<ShuffleNode>()
         .def_ro("vectors", &ShuffleNode::vectors)
         .def_ro("indices", &ShuffleNode::indices);
-  }
-
-  bool SEqualReduce(const ShuffleNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(vectors, other->vectors) &&
-           equal(indices, other->indices);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(vectors);
-    hash_reduce(indices);
   }
 
   static constexpr const char* _type_key = "tir.Shuffle";
@@ -996,22 +842,8 @@ class CommReducerNode : public Object {
         .def_ro("span", &CommReducerNode::span, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  bool SEqualReduce(const CommReducerNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(lhs, other->lhs) && equal.DefEqual(rhs, other->rhs) &&
-           equal(result, other->result) && equal(identity_element, other->identity_element);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(lhs);
-    hash_reduce.DefHash(rhs);
-    hash_reduce(result);
-    hash_reduce(identity_element);
-  }
-
   static constexpr const char* _type_key = "tir.CommReducer";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(CommReducerNode, Object);
 };
 
@@ -1055,24 +887,6 @@ class ReduceNode : public PrimExprNode {
         .def_ro("axis", &ReduceNode::axis)
         .def_ro("condition", &ReduceNode::condition)
         .def_ro("value_index", &ReduceNode::value_index);
-  }
-
-  bool SEqualReduce(const ReduceNode* other, SEqualReducer equal) const {
-    // check axis first so IterVars can define the necessary variables.
-    return equal(dtype, other->dtype) && equal(axis, other->axis) &&
-           equal(combiner, other->combiner) && equal(source, other->source) &&
-           equal(init, other->init) && equal(condition, other->condition) &&
-           equal(value_index, other->value_index);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(axis);
-    hash_reduce(combiner);
-    hash_reduce(source);
-    hash_reduce(init);
-    hash_reduce(condition);
-    hash_reduce(value_index);
   }
 
   static constexpr const char* _type_key = "tir.Reduce";

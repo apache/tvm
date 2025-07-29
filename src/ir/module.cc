@@ -57,45 +57,6 @@ IRModule::IRModule(tvm::Map<GlobalVar, BaseFunc> functions, SourceMap source_map
   data_ = std::move(n);
 }
 
-bool IRModuleNode::SEqualReduce(const IRModuleNode* other, SEqualReducer equal) const {
-  if (!equal(this->attrs, other->attrs, [](const auto& path) { return path->Attr("attrs"); })) {
-    return false;
-  }
-
-  if (this->global_infos.size() != other->global_infos.size()) return false;
-  for (const auto& kv : this->global_infos) {
-    if (!equal(kv.second, other->global_infos[kv.first])) return false;
-  }
-
-  if (functions.size() != other->functions.size()) return false;
-  // Update GlobalVar remap
-  if (equal.IsPathTracingEnabled()) {
-    if (functions.size() != other->functions.size()) {
-      return false;
-    }
-  }
-
-  // Define remaps for GlobalVar and GlobalTypeVar based on their
-  // string name.  Early bail-out is only performed when path-tracing
-  // is disabled, as the later equality checks on the member variables
-  // will provide better error messages.
-  for (const auto& gv : this->GetGlobalVars()) {
-    if (other->ContainGlobalVar(gv->name_hint)) {
-      if (!equal.DefEqual(gv, other->GetGlobalVar(gv->name_hint))) return false;
-    } else if (!equal.IsPathTracingEnabled()) {
-      return false;
-    }
-  }
-
-  // Checking functions and type definitions
-  if (!equal(this->functions, other->functions,
-             [](const auto& path) { return path->Attr("functions"); })) {
-    return false;
-  }
-
-  return true;
-}
-
 bool IRModuleNode::SEqual(const IRModuleNode* other,
                           ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
   if (!equal(this->attrs, other->attrs, false, "attrs")) {
@@ -118,37 +79,6 @@ bool IRModuleNode::SEqual(const IRModuleNode* other,
   }
 
   return true;
-}
-
-void IRModuleNode::SHashReduce(SHashReducer hash_reduce) const {
-  using KV = std::tuple<std::string, ObjectRef, ObjectRef>;
-  // hash the functions.
-  std::vector<KV> temp;
-
-  auto reduce_temp = [&]() {
-    // sort by the hash key of the keys.
-    std::sort(temp.begin(), temp.end(),
-              [](const KV& lhs, const KV& rhs) { return std::get<0>(lhs) < std::get<0>(rhs); });
-
-    hash_reduce(static_cast<uint64_t>(temp.size()));
-    // Defhash the GlobalVar/GlobalTypeVar
-    for (size_t i = 0; i < temp.size(); ++i) {
-      hash_reduce.DefHash(std::get<1>(temp[i]));
-    }
-    // hash the name and content
-    for (size_t i = 0; i < temp.size(); ++i) {
-      hash_reduce(std::get<0>(temp[i]));
-      hash_reduce(std::get<2>(temp[i]));
-    }
-  };
-
-  for (const auto& kv : this->functions) {
-    temp.emplace_back(kv.first->name_hint, kv.first, kv.second);
-  }
-  reduce_temp();
-
-  hash_reduce(this->attrs);
-  hash_reduce(this->global_infos);
 }
 
 uint64_t IRModuleNode::SHash(uint64_t init_hash,

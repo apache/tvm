@@ -135,7 +135,7 @@ class PassContextNode : public Object {
   }
 
   static constexpr const char* _type_key = "transform.PassContext";
-  static constexpr bool _type_has_method_sequal_reduce = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(PassContextNode, Object);
 };
 
@@ -324,7 +324,7 @@ class PassInfoNode : public Object {
   }
 
   static constexpr const char* _type_key = "transform.PassInfo";
-  static constexpr bool _type_has_method_sequal_reduce = false;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(PassInfoNode, Object);
 };
 
