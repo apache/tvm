@@ -710,19 +710,6 @@ String TargetNode::ToDebugString() const {
   return os.str();
 }
 
-bool TargetNode::SEqualReduce(const TargetNode* other, SEqualReducer equal) const {
-  return equal(kind.get(), other->kind.get()) && equal(host, other->host) &&
-         equal(tag, other->tag) && equal(keys, other->keys) && equal(attrs, other->attrs);
-}
-
-void TargetNode::SHashReduce(SHashReducer hash_reduce) const {
-  hash_reduce(kind.get());
-  hash_reduce(host);
-  hash_reduce(tag);
-  hash_reduce(keys);
-  hash_reduce(attrs);
-}
-
 /*! \brief Entry to hold the Target context stack. */
 struct TVMTargetThreadLocalEntry {
   /*! \brief The current target context */
