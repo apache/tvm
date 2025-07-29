@@ -40,10 +40,6 @@ class ObjectStructInfoNode : public StructInfoNode {
     refl::ObjectDef<ObjectStructInfoNode>();
   }
 
-  bool SEqualReduce(const ObjectStructInfoNode* other, SEqualReducer equal) const { return true; }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
-
   static constexpr const char* _type_key = "relax.ObjectStructInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(ObjectStructInfoNode, StructInfoNode);
 };
@@ -75,15 +71,6 @@ class PrimStructInfoNode : public StructInfoNode {
     refl::ObjectDef<PrimStructInfoNode>()
         .def_ro("value", &PrimStructInfoNode::value)
         .def_ro("dtype", &PrimStructInfoNode::dtype);
-  }
-
-  bool SEqualReduce(const PrimStructInfoNode* other, SEqualReducer equal) const {
-    return equal(value, other->value) && equal(dtype, other->dtype);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(value);
-    hash_reduce(dtype);
   }
 
   static constexpr const char* _type_key = "relax.PrimStructInfo";
@@ -126,15 +113,6 @@ class ShapeStructInfoNode : public StructInfoNode {
     refl::ObjectDef<ShapeStructInfoNode>()
         .def_ro("values", &ShapeStructInfoNode::values)
         .def_ro("ndim", &ShapeStructInfoNode::ndim);
-  }
-
-  bool SEqualReduce(const ShapeStructInfoNode* other, SEqualReducer equal) const {
-    return equal(values, other->values) && equal(ndim, other->ndim);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(values);
-    hash_reduce(ndim);
   }
 
   static constexpr const char* _type_key = "relax.ShapeStructInfo";
@@ -207,18 +185,6 @@ class TensorStructInfoNode : public StructInfoNode {
         .def_ro("ndim", &TensorStructInfoNode::ndim);
   }
 
-  bool SEqualReduce(const TensorStructInfoNode* other, SEqualReducer equal) const {
-    return equal(shape, other->shape) && equal(ndim, other->ndim) &&
-           equal(vdevice, other->vdevice) && equal(dtype, other->dtype);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(shape);
-    hash_reduce(dtype);
-    hash_reduce(vdevice);
-    hash_reduce(ndim);
-  }
-
   static constexpr const char* _type_key = "relax.TensorStructInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(TensorStructInfoNode, StructInfoNode);
 };
@@ -266,12 +232,6 @@ class TupleStructInfoNode : public StructInfoNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TupleStructInfoNode>().def_ro("fields", &TupleStructInfoNode::fields);
   }
-
-  bool SEqualReduce(const TupleStructInfoNode* other, SEqualReducer equal) const {
-    return equal(fields, other->fields);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(fields); }
 
   static constexpr const char* _type_key = "relax.TupleStructInfo";
   TVM_DECLARE_FINAL_OBJECT_INFO(TupleStructInfoNode, StructInfoNode);
@@ -345,18 +305,6 @@ class FuncStructInfoNode : public StructInfoNode {
         .def_ro("ret", &FuncStructInfoNode::ret)
         .def_ro("derive_func", &FuncStructInfoNode::derive_func)
         .def_ro("purity", &FuncStructInfoNode::purity);
-  }
-
-  bool SEqualReduce(const FuncStructInfoNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(params, other->params) && equal(ret, other->ret) &&
-           equal(purity, other->purity) && equal(derive_func, other->derive_func);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(params);
-    hash_reduce(ret);
-    hash_reduce(purity);
-    hash_reduce(derive_func);
   }
 
   static constexpr const char* _type_key = "relax.FuncStructInfo";

@@ -52,14 +52,6 @@ using runtime::ObjectRef;
 class ReflectionVTable {
  public:
   /*!
-   * \brief Equality comparison function.
-   */
-  typedef bool (*FSEqualReduce)(const Object* self, const Object* other, SEqualReducer equal);
-  /*!
-   * \brief Structural hash reduction function.
-   */
-  typedef void (*FSHashReduce)(const Object* self, SHashReducer hash_reduce);
-  /*!
    * \brief creator function.
    * \param repr_bytes Repr bytes to create the object.
    *        If this is not empty then FReprBytes must be defined for the object.
@@ -80,20 +72,6 @@ class ReflectionVTable {
    * \return Whether repr bytes exists
    */
   inline bool GetReprBytes(const Object* self, std::string* repr_bytes) const;
-  /*!
-   * \brief Dispatch the SEqualReduce function.
-   * \param self The pointer to the object.
-   * \param other The pointer to another object to be compared.
-   * \param equal The equality comparator.
-   * \return the result.
-   */
-  bool SEqualReduce(const Object* self, const Object* other, SEqualReducer equal) const;
-  /*!
-   * \brief Dispatch the SHashReduce function.
-   * \param self The pointer to the object.
-   * \param hash_reduce The hash reducer.
-   */
-  void SHashReduce(const Object* self, SHashReducer hash_reduce) const;
   /*!
    * \brief Create an initial object using default constructor
    *        by type_key and global key.
@@ -138,14 +116,10 @@ class ReflectionVTable {
   TVM_DLL static ReflectionVTable* Global();
 
   class Registry;
-  template <typename T, typename TraitName>
+  template <typename T>
   inline Registry Register();
 
  private:
-  /*! \brief Structural equal function. */
-  std::vector<FSEqualReduce> fsequal_reduce_;
-  /*! \brief Structural hash function. */
-  std::vector<FSHashReduce> fshash_reduce_;
   /*! \brief Creation function. */
   std::vector<FCreate> fcreate_;
   /*! \brief ReprBytes function. */
@@ -189,125 +163,30 @@ class ReflectionVTable::Registry {
 /*!
  * \brief Directly register reflection VTable.
  * \param TypeName The name of the type.
- * \param TraitName A trait class that implements functions like SEqualReduce.
- *
- * \code
- *
- *  // Example SEQualReduce traits for runtime StringObj.
- *
- *  struct StringObjTrait {
- *
- *
- *    static void SHashReduce(const StringObj* key, SHashReducer hash_reduce) {
- *      hash_reduce->SHashReduceHashedValue(String::StableHashBytes(key->data, key->size));
- *    }
- *
- *    static bool SEqualReduce(const StringObj* lhs,
- *                             const StringObj* rhs,
- *                             SEqualReducer equal) {
- *      if (lhs == rhs) return true;
- *      if (lhs->size != rhs->size) return false;
- *      if (lhs->data != rhs->data) return true;
- *      return std::memcmp(lhs->data, rhs->data, lhs->size) != 0;
- *    }
- *  };
- *
- *  TVM_REGISTER_REFLECTION_VTABLE(StringObj, StringObjTrait);
- *
- * \endcode
  *
  * \note This macro can be called in different place as TVM_REGISTER_OBJECT_TYPE.
  *       And can be used to register the related reflection functions for runtime objects.
  */
-#define TVM_REGISTER_REFLECTION_VTABLE(TypeName, TraitName) \
+#define TVM_REGISTER_REFLECTION_VTABLE(TypeName)            \
   TVM_STR_CONCAT(TVM_REFLECTION_REG_VAR_DEF, __COUNTER__) = \
-      ::tvm::ReflectionVTable::Global()->Register<TypeName, TraitName>()
+      ::tvm::ReflectionVTable::Global()->Register<TypeName>()
 
 /*!
  * \brief Register a node type to object registry and reflection registry.
  * \param TypeName The name of the type.
  * \note This macro will call TVM_REGISTER_OBJECT_TYPE for the type as well.
  */
-#define TVM_REGISTER_NODE_TYPE(TypeName)                                             \
-  TVM_REGISTER_OBJECT_TYPE(TypeName);                                                \
-  TVM_REGISTER_REFLECTION_VTABLE(TypeName, ::tvm::detail::ReflectionTrait<TypeName>) \
-      .set_creator([](const std::string&) -> ObjectPtr<Object> {                     \
-        return ::tvm::ffi::make_object<TypeName>();                                  \
-      })
-
-// Implementation details
-namespace detail {
-
-template <typename T, bool = T::_type_has_method_sequal_reduce>
-struct ImplSEqualReduce {
-  static constexpr const std::nullptr_t SEqualReduce = nullptr;
-};
+#define TVM_REGISTER_NODE_TYPE(TypeName)                \
+  TVM_REGISTER_REFLECTION_VTABLE(TypeName).set_creator( \
+      [](const std::string&) -> ObjectPtr<Object> { return ::tvm::ffi::make_object<TypeName>(); })
 
 template <typename T>
-struct ImplSEqualReduce<T, true> {
-  static bool SEqualReduce(const T* self, const T* other, SEqualReducer equal) {
-    return self->SEqualReduce(other, equal);
-  }
-};
-
-template <typename T, bool = T::_type_has_method_shash_reduce>
-struct ImplSHashReduce {
-  static constexpr const std::nullptr_t SHashReduce = nullptr;
-};
-
-template <typename T>
-struct ImplSHashReduce<T, true> {
-  static void SHashReduce(const T* self, SHashReducer hash_reduce) {
-    self->SHashReduce(hash_reduce);
-  }
-};
-
-template <typename T>
-struct ReflectionTrait : public ImplSEqualReduce<T>, public ImplSHashReduce<T> {};
-
-template <typename T, typename TraitName,
-          bool = std::is_null_pointer<decltype(TraitName::SEqualReduce)>::value>
-struct SelectSEqualReduce {
-  static constexpr const std::nullptr_t SEqualReduce = nullptr;
-};
-
-template <typename T, typename TraitName>
-struct SelectSEqualReduce<T, TraitName, false> {
-  static bool SEqualReduce(const Object* self, const Object* other, SEqualReducer equal) {
-    return TraitName::SEqualReduce(static_cast<const T*>(self), static_cast<const T*>(other),
-                                   equal);
-  }
-};
-
-template <typename T, typename TraitName,
-          bool = std::is_null_pointer<decltype(TraitName::SHashReduce)>::value>
-struct SelectSHashReduce {
-  static constexpr const std::nullptr_t SHashReduce = nullptr;
-};
-
-template <typename T, typename TraitName>
-struct SelectSHashReduce<T, TraitName, false> {
-  static void SHashReduce(const Object* self, SHashReducer hash_reduce) {
-    return TraitName::SHashReduce(static_cast<const T*>(self), hash_reduce);
-  }
-};
-
-}  // namespace detail
-
-template <typename T, typename TraitName>
 inline ReflectionVTable::Registry ReflectionVTable::Register() {
   uint32_t tindex = T::RuntimeTypeIndex();
   if (tindex >= fcreate_.size()) {
     fcreate_.resize(tindex + 1, nullptr);
     frepr_bytes_.resize(tindex + 1, nullptr);
-    fsequal_reduce_.resize(tindex + 1, nullptr);
-    fshash_reduce_.resize(tindex + 1, nullptr);
   }
-  // functor that implements the redirection.
-  fsequal_reduce_[tindex] = ::tvm::detail::SelectSEqualReduce<T, TraitName>::SEqualReduce;
-
-  fshash_reduce_[tindex] = ::tvm::detail::SelectSHashReduce<T, TraitName>::SHashReduce;
-
   return Registry(this, tindex);
 }
 
@@ -322,12 +201,6 @@ inline bool ReflectionVTable::GetReprBytes(const Object* self, std::string* repr
     return false;
   }
 }
-
-/*!
- * \brief Given an object and an address of its attribute, return the key of the attribute.
- * \return nullptr if no attribute with the given address exists.
- */
-Optional<String> GetAttrKeyByAddress(const Object* object, const void* attr_address);
 
 }  // namespace tvm
 #endif  // TVM_NODE_REFLECTION_H_

@@ -68,18 +68,6 @@ class VarNode : public PrimExprNode {
         .def_ro("type_annotation", &VarNode::type_annotation);
   }
 
-  bool SEqualReduce(const VarNode* other, SEqualReducer equal) const {
-    if (!equal(dtype, other->dtype)) return false;
-    if (!equal(type_annotation, other->type_annotation)) return false;
-    return equal.FreeVarEqualImpl(this, other);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(type_annotation);
-    hash_reduce.FreeVarHashImpl(this);
-  }
-
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
   static constexpr const char* _type_key = "tir.Var";
   static constexpr const uint32_t _type_child_slots = 1;
@@ -296,22 +284,8 @@ class IterVarNode : public PrimExprConvertibleNode {
         .def_ro("thread_tag", &IterVarNode::thread_tag);
   }
 
-  bool SEqualReduce(const IterVarNode* other, SEqualReducer equal) const {
-    return equal(dom, other->dom) && equal.DefEqual(var, other->var) &&
-           equal(iter_type, other->iter_type) && equal(thread_tag, other->thread_tag);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dom);
-    hash_reduce.DefHash(var);
-    hash_reduce(iter_type);
-    hash_reduce(thread_tag);
-  }
-
   static constexpr const char* _type_key = "tir.IterVar";
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(IterVarNode, PrimExprConvertibleNode);
 };
 

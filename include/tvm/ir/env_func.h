@@ -57,20 +57,9 @@ class EnvFuncNode : public Object {
         .def_ro("func", &EnvFuncNode::func, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
-  bool SEqualReduce(const EnvFuncNode* other, SEqualReducer equal) const {
-    // name uniquely identifies the env function.
-    return name == other->name;
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    // Name uniquely identifies the env function.
-    hash_reduce(name);
-  }
-
   static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "ir.EnvFunc";
-  static constexpr bool _type_has_method_sequal_reduce = true;
-  static constexpr bool _type_has_method_shash_reduce = true;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(EnvFuncNode, Object);
 };
 
