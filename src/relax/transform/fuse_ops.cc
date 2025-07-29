@@ -427,9 +427,7 @@ class FunctionCreator : public ExprMutator {
           }
 
           for (const Expr& arg : call->args) {
-            if (GetStructInfoAs<TupleStructInfoNode>(arg) != nullptr) {
-              // The argument is fully referenced. Thus we remove it from the mapping.
-              partially_used_tuple_params_.erase(arg.get());
+            if (arg.as<TupleNode>()) {
               const Tuple& tup_args = Downcast<Tuple>(arg);
               for (const Expr& tup_arg : tup_args->fields) {
                 CheckDefAndUpdateParam(tup_arg);
@@ -437,6 +435,10 @@ class FunctionCreator : public ExprMutator {
               }
             } else {
               CheckDefAndUpdateParam(arg);
+            }
+            if (GetStructInfoAs<TupleStructInfoNode>(arg) != nullptr) {
+              // The argument is fully referenced. Thus we remove it from the mapping.
+              partially_used_tuple_params_.erase(arg.get());
             }
           }
         }
