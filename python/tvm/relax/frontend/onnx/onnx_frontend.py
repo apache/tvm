@@ -3108,6 +3108,7 @@ class NonZero(OnnxOpConverter):
             relax.op.nonzero(inputs[0]), relax.TensorStructInfo((ndim, nonzero_numbers), "int64")
         )
 
+
 class NonMaxSuppression(OnnxOpConverter):
     """Converts an onnx NonMaxSuppression node into an equivalent Relax expression."""
 
