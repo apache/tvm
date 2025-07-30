@@ -18,8 +18,8 @@
  */
 #include "module_equality.h"
 
-#include <tvm/ffi/reflection/structural_equal.h>
-#include <tvm/ffi/reflection/structural_hash.h>
+#include <tvm/ffi/extra/structural_equal.h>
+#include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
@@ -40,12 +40,12 @@ class ModuleEqualityStructural : public ModuleEquality {
 class ModuleEqualityIgnoreNDArray : public ModuleEquality {
  public:
   size_t Hash(IRModule mod) const {
-    return tvm::ffi::reflection::StructuralHash::Hash(mod, /*map_free_vars=*/false,
-                                                      /*skip_ndarray_content=*/true);
+    return tvm::ffi::StructuralHash::Hash(mod, /*map_free_vars=*/false,
+                                          /*skip_ndarray_content=*/true);
   }
   bool Equal(IRModule lhs, IRModule rhs) const {
-    return tvm::ffi::reflection::StructuralEqual::Equal(lhs, rhs, /*map_free_vars=*/false,
-                                                        /*skip_ndarray_content=*/true);
+    return tvm::ffi::StructuralEqual::Equal(lhs, rhs, /*map_free_vars=*/false,
+                                            /*skip_ndarray_content=*/true);
   }
   String GetName() const { return "ignore-ndarray"; }
 };
@@ -56,9 +56,9 @@ class ModuleEqualityAnchorBlock : public ModuleEquality {
   size_t Hash(IRModule mod) const {
     auto anchor_block = tir::FindAnchorBlock(mod);
     if (anchor_block) {
-      return ffi::reflection::StructuralHash::Hash(GetRef<tir::Block>(anchor_block),
-                                                   /*map_free_vars=*/false,
-                                                   /*skip_ndarray_content=*/true);
+      return ffi::StructuralHash::Hash(GetRef<tir::Block>(anchor_block),
+                                       /*map_free_vars=*/false,
+                                       /*skip_ndarray_content=*/true);
     }
     return ModuleEqualityIgnoreNDArray().Hash(mod);
   }
@@ -66,10 +66,10 @@ class ModuleEqualityAnchorBlock : public ModuleEquality {
     auto anchor_block_lhs = tir::FindAnchorBlock(lhs);
     auto anchor_block_rhs = tir::FindAnchorBlock(rhs);
     if (anchor_block_lhs && anchor_block_rhs) {
-      return tvm::ffi::reflection::StructuralEqual::Equal(GetRef<tir::Block>(anchor_block_lhs),
-                                                          GetRef<tir::Block>(anchor_block_rhs),
-                                                          /*map_free_vars=*/false,
-                                                          /*skip_ndarray_content=*/true);
+      return tvm::ffi::StructuralEqual::Equal(GetRef<tir::Block>(anchor_block_lhs),
+                                              GetRef<tir::Block>(anchor_block_rhs),
+                                              /*map_free_vars=*/false,
+                                              /*skip_ndarray_content=*/true);
     }
     return ModuleEqualityIgnoreNDArray().Equal(lhs, rhs);
   }

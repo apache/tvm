@@ -35,12 +35,12 @@ namespace reflection {
 
 enum class AccessKind : int32_t {
   kObjectField = 0,
-  kArrayIndex = 1,
-  kMapKey = 2,
+  kArrayItem = 1,
+  kMapItem = 2,
   // the following two are used for error reporting when
   // the supposed access field is not available
-  kArrayIndexMissing = 3,
-  kMapKeyMissing = 4,
+  kArrayItemMissing = 3,
+  kMapItemMissing = 4,
 };
 
 /*!
@@ -86,15 +86,15 @@ class AccessStep : public ObjectRef {
     return AccessStep(AccessKind::kObjectField, field_name);
   }
 
-  static AccessStep ArrayIndex(int64_t index) { return AccessStep(AccessKind::kArrayIndex, index); }
+  static AccessStep ArrayItem(int64_t index) { return AccessStep(AccessKind::kArrayItem, index); }
 
-  static AccessStep ArrayIndexMissing(int64_t index) {
-    return AccessStep(AccessKind::kArrayIndexMissing, index);
+  static AccessStep ArrayItemMissing(int64_t index) {
+    return AccessStep(AccessKind::kArrayItemMissing, index);
   }
 
-  static AccessStep MapKey(Any key) { return AccessStep(AccessKind::kMapKey, key); }
+  static AccessStep MapItem(Any key) { return AccessStep(AccessKind::kMapItem, key); }
 
-  static AccessStep MapKeyMissing(Any key) { return AccessStep(AccessKind::kMapKeyMissing, key); }
+  static AccessStep MapItemMissing(Any key) { return AccessStep(AccessKind::kMapItemMissing, key); }
 
   TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(AccessStep, ObjectRef, AccessStepObj);
 };
