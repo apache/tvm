@@ -1264,17 +1264,27 @@ inline ObjectPtr<Object> MapObj::CreateFromRange(IterType first, IterType last) 
   }
   uint64_t cap = static_cast<uint64_t>(_cap);
   if (cap < SmallMapObj::kMaxSize) {
-    return SmallMapObj::CreateFromRange(cap, first, last);
+    if (cap < 2) {
+      return SmallMapObj::CreateFromRange(cap, first, last);
+    }
+    // need to insert to avoid duplicate keys
+    ObjectPtr<Object> obj = SmallMapObj::Empty(cap);
+    for (; first != last; ++first) {
+      KVType kv(*first);
+      SmallMapObj::InsertMaybeReHash(std::move(kv), &obj);
+    }
+    return obj;
+  } else {
+    uint32_t fib_shift;
+    uint64_t n_slots;
+    DenseMapObj::CalcTableSize(cap, &fib_shift, &n_slots);
+    ObjectPtr<Object> obj = DenseMapObj::Empty(fib_shift, n_slots);
+    for (; first != last; ++first) {
+      KVType kv(*first);
+      DenseMapObj::InsertMaybeReHash(std::move(kv), &obj);
+    }
+    return obj;
   }
-  uint32_t fib_shift;
-  uint64_t n_slots;
-  DenseMapObj::CalcTableSize(cap, &fib_shift, &n_slots);
-  ObjectPtr<Object> obj = DenseMapObj::Empty(fib_shift, n_slots);
-  for (; first != last; ++first) {
-    KVType kv(*first);
-    DenseMapObj::InsertMaybeReHash(std::move(kv), &obj);
-  }
-  return obj;
 }
 
 inline void MapObj::InsertMaybeReHash(KVType&& kv, ObjectPtr<Object>* map) {
