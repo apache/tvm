@@ -83,9 +83,8 @@ class AttrFieldInfoNode : public Object {
   }
 
   static constexpr const char* _type_key = "ir.AttrFieldInfo";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  static constexpr bool _type_has_method_sequal_reduce = false;
-  static constexpr bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrFieldInfoNode, Object);
 };
 
@@ -122,8 +121,8 @@ class BaseAttrsNode : public Object {
   TVM_DLL virtual void InitByPackedArgs(const ffi::PackedArgs& kwargs,
                                         bool allow_unknown = false) = 0;
 
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
   static constexpr const char* _type_key = "ir.Attrs";
   TVM_DECLARE_BASE_OBJECT_INFO(BaseAttrsNode, Object);
 };
@@ -153,11 +152,6 @@ class DictAttrsNode : public BaseAttrsNode {
     rfl::ObjectDef<DictAttrsNode>().def_ro("__dict__", &DictAttrsNode::dict);
   }
 
-  bool SEqualReduce(const DictAttrsNode* other, SEqualReducer equal) const {
-    return equal(dict, other->dict);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(dict); }
   void InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) final;
 
   // type info
@@ -391,32 +385,6 @@ class AttrsNodeReflAdapter : public BaseAttrsNode {
  public:
   void InitByPackedArgs(const ffi::PackedArgs& args, bool allow_unknown) final {
     LOG(FATAL) << "`" << DerivedType::_type_key << "` uses new reflection mechanism for init";
-  }
-
-  bool SEqualReduce(const DerivedType* other, SEqualReducer equal) const {
-    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(DerivedType::RuntimeTypeIndex());
-    bool success = true;
-    ffi::reflection::ForEachFieldInfoWithEarlyStop(
-        type_info, [&](const TVMFFIFieldInfo* field_info) {
-          ffi::reflection::FieldGetter field_getter(field_info);
-          ffi::Any field_value = field_getter(self());
-          ffi::Any other_field_value = field_getter(other);
-          if (!equal.AnyEqual(field_value, other_field_value)) {
-            success = false;
-            return true;
-          }
-          return false;
-        });
-    return success;
-  }
-
-  void SHashReduce(SHashReducer hash_reducer) const {
-    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(DerivedType::RuntimeTypeIndex());
-    ffi::reflection::ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
-      ffi::reflection::FieldGetter field_getter(field_info);
-      ffi::Any field_value = field_getter(self());
-      hash_reducer(field_value);
-    });
   }
 
  private:

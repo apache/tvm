@@ -174,10 +174,5 @@ def test_string_structural_equal_to_self(contents):
     assert get_first_mismatch_ensure_symmetry(a, b) is None
 
 
-# The behavior of structural equality for maps with non-string keys is fairly specific
-# to IR variables because it assumes that map keys have been "mapped" using
-# `SEqualReducer::FreeVarEqualImpl()`. So we leave this case to TIR tests.
-
-
 if __name__ == "__main__":
     tvm.testing.main()

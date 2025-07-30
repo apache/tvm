@@ -49,8 +49,6 @@ class PrimFuncNode : public BaseFuncNode {
  public:
   /*! \brief Function parameters */
   Array<tir::Var> params;
-  /*! \brief The body of the function */
-  tir::Stmt body;
   /*! \brief The return type of the function. */
   Type ret_type;
   /*!
@@ -99,30 +97,18 @@ class PrimFuncNode : public BaseFuncNode {
    *  flattened alias of the buffer.
    */
   Map<tir::Var, Buffer> buffer_map;
+  /*! \brief The body of the function */
+  tir::Stmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PrimFuncNode>()
-        .def_ro("params", &PrimFuncNode::params)
-        .def_ro("body", &PrimFuncNode::body)
+        .def_ro("params", &PrimFuncNode::params, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("ret_type", &PrimFuncNode::ret_type)
-        .def_ro("buffer_map", &PrimFuncNode::buffer_map);
+        .def_ro("buffer_map", &PrimFuncNode::buffer_map)
+        .def_ro("body", &PrimFuncNode::body);
   }
 
-  bool SEqualReduce(const PrimFuncNode* other, SEqualReducer equal) const {
-    // visit params and buffer_map first as they contains defs.
-    return equal.DefEqual(params, other->params) && equal(buffer_map, other->buffer_map) &&
-           equal(ret_type, other->ret_type) && equal(body, other->body) &&
-           equal(attrs, other->attrs);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(params);
-    hash_reduce(buffer_map);
-    hash_reduce(ret_type);
-    hash_reduce(body);
-    hash_reduce(attrs);
-  }
   /*!
    * \brief Return the derived function annotation of this function.
    *

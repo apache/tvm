@@ -49,12 +49,6 @@ class ShapeTypeNode : public TypeNode {
     refl::ObjectDef<ShapeTypeNode>().def_ro("ndim", &ShapeTypeNode::ndim);
   }
 
-  bool SEqualReduce(const ShapeTypeNode* other, SEqualReducer equal) const {
-    return equal(ndim, other->ndim);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(ndim); }
-
   static constexpr const char* _type_key = "relax.ShapeType";
   TVM_DECLARE_FINAL_OBJECT_INFO(ShapeTypeNode, TypeNode);
 };
@@ -87,15 +81,6 @@ class TensorTypeNode : public TypeNode {
     refl::ObjectDef<TensorTypeNode>()
         .def_ro("ndim", &TensorTypeNode::ndim)
         .def_ro("dtype", &TensorTypeNode::dtype);
-  }
-
-  bool SEqualReduce(const TensorTypeNode* other, SEqualReducer equal) const {
-    return equal(ndim, other->ndim) && equal(dtype, other->dtype);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(ndim);
-    hash_reduce(dtype);
   }
 
   inline bool IsUnknownNdim() const { return ndim == kUnknownNDim; }
@@ -138,10 +123,6 @@ class ObjectTypeNode : public TypeNode {
     refl::ObjectDef<ObjectTypeNode>();
   }
 
-  bool SEqualReduce(const ObjectTypeNode* other, SEqualReducer equal) const { return true; }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
-
   static constexpr const char* _type_key = "relax.ObjectType";
   TVM_DECLARE_FINAL_OBJECT_INFO(ObjectTypeNode, TypeNode);
 };
@@ -159,10 +140,6 @@ class PackedFuncTypeNode : public TypeNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<PackedFuncTypeNode>();
   }
-
-  bool SEqualReduce(const PackedFuncTypeNode* other, SEqualReducer equal) const { return true; }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(0); }
 
   static constexpr const char* _type_key = "relax.PackedFuncType";
   TVM_DECLARE_FINAL_OBJECT_INFO(PackedFuncTypeNode, TypeNode);

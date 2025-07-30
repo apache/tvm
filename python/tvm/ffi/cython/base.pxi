@@ -151,7 +151,7 @@ cdef extern from "tvm/ffi/c_api.h":
         int64_t flags
         TVMFFIAny method
 
-    ctypedef struct TVMFFITypeExtraInfo:
+    ctypedef struct TVMFFITypeMetadata:
         TVMFFIByteArray doc
         TVMFFIObjectCreator creator
         int64_t total_size
@@ -166,7 +166,7 @@ cdef extern from "tvm/ffi/c_api.h":
         int32_t num_methods
         const TVMFFIFieldInfo* fields
         const TVMFFIMethodInfo* methods
-        const TVMFFITypeExtraInfo* extra_info
+        const TVMFFITypeMetadata* metadata
 
     int TVMFFIObjectFree(TVMFFIObjectHandle obj) nogil
     int TVMFFIObjectGetTypeIndex(TVMFFIObjectHandle obj) nogil

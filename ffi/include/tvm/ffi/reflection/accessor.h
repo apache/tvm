@@ -104,6 +104,29 @@ class FieldSetter {
   const TVMFFIFieldInfo* field_info_;
 };
 
+class TypeAttrColumn {
+ public:
+  explicit TypeAttrColumn(std::string_view attr_name) {
+    TVMFFIByteArray attr_name_array = {attr_name.data(), attr_name.size()};
+    column_ = TVMFFIGetTypeAttrColumn(&attr_name_array);
+    if (column_ == nullptr) {
+      TVM_FFI_THROW(RuntimeError) << "Cannot find type attribute " << attr_name;
+    }
+  }
+
+  AnyView operator[](int32_t type_index) const {
+    size_t tindex = static_cast<size_t>(type_index);
+    if (tindex >= column_->size) {
+      return AnyView();
+    }
+    const AnyView* any_view_data = reinterpret_cast<const AnyView*>(column_->data);
+    return any_view_data[tindex];
+  }
+
+ private:
+  const TVMFFITypeAttrColumn* column_;
+};
+
 /*!
  * \brief helper function to get reflection method info by type key and method name
  *

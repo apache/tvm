@@ -26,6 +26,7 @@ project(
 
 option(TVM_FFI_BUILD_TESTS "Adding test targets." OFF)
 option(TVM_FFI_USE_LIBBACKTRACE "Enable libbacktrace" ON)
+option(TVM_FFI_USE_EXTRA_CXX_API "Enable extra CXX API in shared lib" ON)
 option(TVM_FFI_BACKTRACE_ON_SEGFAULT "Set signal handler to print traceback on segfault" ON)
 
 include(cmake/Utils/CxxWarning.cmake)
@@ -47,7 +48,8 @@ target_include_directories(tvm_ffi_header INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}
 target_link_libraries(tvm_ffi_header INTERFACE dlpack_header)
 
 ########## Target: `tvm_ffi` ##########
-add_library(tvm_ffi_objs OBJECT
+
+set(tvm_ffi_objs_sources
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/traceback.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/traceback_win.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/object.cc"
@@ -58,6 +60,17 @@ add_library(tvm_ffi_objs OBJECT
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/testing.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/container.cc"
 )
+
+if (TVM_FFI_USE_EXTRA_CXX_API)
+  list(APPEND tvm_ffi_objs_sources
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/reflection/access_path.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/reflection/structural_equal.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/reflection/structural_hash.cc"
+  )
+endif()
+
+add_library(tvm_ffi_objs OBJECT ${tvm_ffi_objs_sources})
+
 set_target_properties(
   tvm_ffi_objs PROPERTIES
   POSITION_INDEPENDENT_CODE ON

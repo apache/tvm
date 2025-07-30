@@ -58,13 +58,15 @@ class BaseExprNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()));
+    // span do not participate in structural equal and hash.
+    refl::ObjectDef<BaseExprNode>().def_ro("span", &BaseExprNode::span, refl::DefaultValue(Span()),
+                                           refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr const char* _type_key = "ir.BaseExpr";
 
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
   static constexpr const uint32_t _type_child_slots = 64;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseExprNode, Object);
 };
@@ -428,7 +430,8 @@ class RelaxExprNode : public BaseExprNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<RelaxExprNode>().def_ro("struct_info_", &RelaxExprNode::struct_info_);
+    refl::ObjectDef<RelaxExprNode>().def_ro("struct_info_", &RelaxExprNode::struct_info_,
+                                            refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr const char* _type_key = "ir.RelaxExpr";
@@ -464,16 +467,17 @@ class GlobalVarNode : public RelaxExprNode {
     refl::ObjectDef<GlobalVarNode>().def_ro("name_hint", &GlobalVarNode::name_hint);
   }
 
-  bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {
-    // name matters for global var.
-    return equal(name_hint, other->name_hint) && equal.FreeVarEqualImpl(this, other);
+  bool SEqual(const GlobalVarNode* other,
+              ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> equal) const {
+    return equal(name_hint, other->name_hint, false, "name_hint");
   }
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(name_hint);
-    hash_reduce.FreeVarHashImpl(this);
+  uint64_t SHash(uint64_t init_hash,
+                 ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
+    return hash(name_hint, init_hash, false);
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindFreeVar;
   static constexpr const char* _type_key = "ir.GlobalVar";
   TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelaxExprNode);
 };
@@ -502,15 +506,6 @@ class IntImmNode : public PrimExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<IntImmNode>().def_ro("value", &IntImmNode::value);
-  }
-
-  bool SEqualReduce(const IntImmNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(value);
   }
 
   static constexpr const char* _type_key = "ir.IntImm";
@@ -548,15 +543,6 @@ class FloatImmNode : public PrimExprNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<FloatImmNode>().def_ro("value", &FloatImmNode::value);
-  }
-
-  bool SEqualReduce(const FloatImmNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype) && equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(dtype);
-    hash_reduce(value);
   }
 
   static constexpr const char* _type_key = "ir.FloatImm";
@@ -698,21 +684,13 @@ class RangeNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<RangeNode>()
         .def_ro("min", &RangeNode::min)
-        .def_ro("extent", &RangeNode::extent);
-  }
-
-  bool SEqualReduce(const RangeNode* other, SEqualReducer equal) const {
-    return equal(min, other->min) && equal(extent, other->extent);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(min);
-    hash_reduce(extent);
+        .def_ro("extent", &RangeNode::extent)
+        .def_ro("span", &RangeNode::span, refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr const char* _type_key = "ir.Range";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(RangeNode, Object);
 };
 

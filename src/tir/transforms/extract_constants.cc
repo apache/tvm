@@ -28,6 +28,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/transform.h>
+#include <tvm/node/structural_equal.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include "ir_utils.h"
@@ -40,12 +41,9 @@ class Applicator : public tir::StmtMutator {
  protected:
   // returns index of the a in constant_array_, if not found - appends
   size_t DeDup(const runtime::NDArray& a) {
-    tvm::SEqualReducer eql;
-    auto it = std::find_if(
-        constant_array_.begin(), constant_array_.end(), [&eql, a](const runtime::NDArray& v) {
-          return NDArrayContainerTrait::SEqualReduce(a.as<runtime::NDArray::Container>(),
-                                                     v.as<runtime::NDArray::Container>(), eql);
-        });
+    tvm::StructuralEqual eql;
+    auto it = std::find_if(constant_array_.begin(), constant_array_.end(),
+                           [&eql, a](const runtime::NDArray& v) { return eql(a, v); });
     if (it != constant_array_.end()) {
       return it - constant_array_.begin();
     }

@@ -147,7 +147,7 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
         }
       } else {
         const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
-        if (tinfo->extra_info != nullptr) {
+        if (tinfo->metadata != nullptr) {
           ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
             Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
             this->RecursiveVisitAny(&field_value);

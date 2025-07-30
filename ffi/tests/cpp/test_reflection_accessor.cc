@@ -50,22 +50,12 @@ struct TestObjADerived : public TestObjA {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
 
-  refl::ObjectDef<TFloatObj>()
-      .def_ro("value", &TFloatObj::value, "float value field", refl::DefaultValue(10.0))
-      .def("sub", [](const TFloatObj* self, double other) -> double { return self->value - other; })
-      .def("add", &TFloatObj::Add, "add method");
-
-  refl::ObjectDef<TIntObj>()
-      .def_ro("value", &TIntObj::value)
-      .def_static("static_add", &TInt::StaticAdd, "static add method");
-
-  refl::ObjectDef<TPrimExprObj>()
-      .def_rw("dtype", &TPrimExprObj::dtype, "dtype field", refl::DefaultValue("float"))
-      .def_ro("value", &TPrimExprObj::value, "value field", refl::DefaultValue(0))
-      .def("sub", [](TPrimExprObj* self, double other) -> double {
-        // this is ok because TPrimExprObj is declared asmutable
-        return self->value - other;
-      });
+  TIntObj::RegisterReflection();
+  TFloatObj::RegisterReflection();
+  TPrimExprObj::RegisterReflection();
+  TVarObj::RegisterReflection();
+  TFuncObj::RegisterReflection();
+  TCustomFuncObj::RegisterReflection();
 
   refl::ObjectDef<TestObjA>().def_ro("x", &TestObjA::x).def_rw("y", &TestObjA::y);
   refl::ObjectDef<TestObjADerived>().def_ro("z", &TestObjADerived::z);
@@ -152,6 +142,11 @@ TEST(Reflection, ForEachFieldInfo) {
   EXPECT_EQ(field_name_to_offset["x"], sizeof(TVMFFIObject));
   EXPECT_EQ(field_name_to_offset["y"], 8 + sizeof(TVMFFIObject));
   EXPECT_EQ(field_name_to_offset["z"], 16 + sizeof(TVMFFIObject));
+}
+
+TEST(Reflection, TypeAttrColumn) {
+  reflection::TypeAttrColumn size_attr("test.size");
+  EXPECT_EQ(size_attr[TIntObj::_type_index].cast<int>(), sizeof(TIntObj));
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({

@@ -71,19 +71,8 @@ class IntGroupBoundsNode : public Object {
         .def_ro("upper", &IntGroupBoundsNode::upper);
   }
 
-  bool SEqualReduce(const IntGroupBoundsNode* other, SEqualReducer eq) const {
-    return eq(coef, other->coef) && eq(lower, other->lower) && eq(equal, other->equal) &&
-           eq(upper, other->upper);
-  }
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(coef);
-    hash_reduce(lower);
-    hash_reduce(equal);
-    hash_reduce(upper);
-  }
-
-  static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const char* _type_key = "arith.IntGroupBounds";
   TVM_DECLARE_FINAL_OBJECT_INFO(IntGroupBoundsNode, Object);
 };
@@ -162,18 +151,8 @@ class IntConstraintsNode : public Object {
         .def_ro("relations", &IntConstraintsNode::relations);
   }
 
-  bool SEqualReduce(const IntConstraintsNode* other, SEqualReducer equal) const {
-    return equal(variables, other->variables) && equal(ranges, other->ranges) &&
-           equal(relations, other->relations);
-  }
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(variables);
-    hash_reduce(ranges);
-    hash_reduce(relations);
-  }
-
-  static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const char* _type_key = "arith.IntConstraints";
   TVM_DECLARE_FINAL_OBJECT_INFO(IntConstraintsNode, Object);
 };
@@ -226,19 +205,8 @@ class IntConstraintsTransformNode : public Object {
         .def_ro("dst_to_src", &IntConstraintsTransformNode::dst_to_src);
   }
 
-  bool SEqualReduce(const IntConstraintsTransformNode* other, SEqualReducer equal) const {
-    return equal(src, other->src) && equal(dst, other->dst) &&
-           equal(src_to_dst, other->src_to_dst) && equal(dst_to_src, other->dst_to_src);
-  }
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
 
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(src);
-    hash_reduce(dst);
-    hash_reduce(src_to_dst);
-    hash_reduce(dst_to_src);
-  }
-
-  static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const char* _type_key = "arith.IntConstraintsTransform";
   TVM_DECLARE_FINAL_OBJECT_INFO(IntConstraintsTransformNode, Object);
 };

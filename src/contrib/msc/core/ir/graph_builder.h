@@ -122,7 +122,7 @@ class AttrGetter {
       }
     } else {
       const TVMFFITypeInfo* attrs_tinfo = TVMFFIGetTypeInfo(attrs->type_index());
-      if (attrs_tinfo->extra_info != nullptr) {
+      if (attrs_tinfo->metadata != nullptr) {
         tvm::ffi::reflection::ForEachFieldInfo(attrs_tinfo, [&](const TVMFFIFieldInfo* field_info) {
           Any field_value = tvm::ffi::reflection::FieldGetter(field_info)(attrs);
           this->VisitAny(String(field_info->name), field_value);

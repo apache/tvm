@@ -51,18 +51,8 @@ class PlacementSpecNode : public Object {
         .def_ro("kind", &PlacementSpecNode::kind);
   }
 
-  bool SEqualReduce(const PlacementSpecNode* other, SEqualReducer equal) const {
-    return equal(axis, other->axis) && equal(kind, other->kind);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(axis);
-    hash_reduce(static_cast<int>(kind));
-  }
-
   static constexpr const char* _type_key = "relax.distributed.PlacementSpec";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
   TVM_DECLARE_BASE_OBJECT_INFO(PlacementSpecNode, Object);
 };
 
@@ -89,12 +79,6 @@ class ShardingNode : public PlacementSpecNode {
     refl::ObjectDef<ShardingNode>().def_ro("sharding_dim", &ShardingNode::sharding_dim);
   }
 
-  bool SEqualReduce(const ShardingNode* other, SEqualReducer equal) const {
-    return equal(sharding_dim, other->sharding_dim);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(sharding_dim); }
-  static constexpr const char* _type_key = "relax.distributed.Sharding";
   TVM_DECLARE_FINAL_OBJECT_INFO(ShardingNode, PlacementSpecNode);
 };
 
@@ -111,14 +95,7 @@ class PlacementNode : public Object {
     refl::ObjectDef<PlacementNode>().def_ro("dim_specs", &PlacementNode::dim_specs);
   }
 
-  bool SEqualReduce(const PlacementNode* other, SEqualReducer equal) const {
-    return equal(dim_specs, other->dim_specs);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(dim_specs); }
-
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindConstTreeNode;
   static constexpr const char* _type_key = "relax.distributed.Placement";
   TVM_DECLARE_FINAL_OBJECT_INFO(PlacementNode, Object);
 };
@@ -159,17 +136,6 @@ class DTensorStructInfoNode : public StructInfoNode {
         .def_ro("device_mesh", &DTensorStructInfoNode::device_mesh)
         .def_ro("placement", &DTensorStructInfoNode::placement)
         .def_ro("tensor_sinfo", &DTensorStructInfoNode::tensor_sinfo);
-  }
-
-  bool SEqualReduce(const DTensorStructInfoNode* other, SEqualReducer equal) const {
-    return equal(tensor_sinfo, other->tensor_sinfo) && equal(device_mesh, other->device_mesh) &&
-           equal(placement, other->placement);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(tensor_sinfo);
-    hash_reduce(device_mesh);
-    hash_reduce(placement);
   }
 
   static constexpr const char* _type_key = "relax.DTensorStructInfo";
