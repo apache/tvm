@@ -3108,6 +3108,54 @@ class NonZero(OnnxOpConverter):
             relax.op.nonzero(inputs[0]), relax.TensorStructInfo((ndim, nonzero_numbers), "int64")
         )
 
+class NonMaxSuppression(OnnxOpConverter):
+    """Converts an onnx NonMaxSuppression node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        # Get parameter values
+        boxes = inputs[0]
+        scores = inputs[1]
+        max_output_boxes_per_class = inputs[2] if len(inputs) >= 3 else relax.const([0], "int64")
+        iou_threshold = inputs[3] if len(inputs) >= 4 else relax.const([0.0], "float32")
+        score_threshold = inputs[4] if len(inputs) >= 5 else relax.const([0.0], "float32")
+
+        boxes_dtype = boxes.struct_info.dtype
+        if attr.get("center_point_box", 0) != 0:
+            xc, yc, w, h = relax.op.split(boxes, 4, axis=2)
+            half_w = w / relax.const(2.0, boxes_dtype)
+            half_h = h / relax.const(2.0, boxes_dtype)
+            x1 = xc - half_w
+            x2 = xc + half_w
+            y1 = yc - half_h
+            y2 = yc + half_h
+            boxes = relax.op.concat([y1, x1, y2, x2], axis=2)
+
+        def conditionally_squeeze_scalar(x):
+            rank = x.struct_info.ndim
+            assert rank <= 1, "nms thresholds must be scalars"
+            return relax.op.squeeze(x, [0]) if rank == 1 else x
+
+        max_output_boxes_per_class = conditionally_squeeze_scalar(max_output_boxes_per_class)
+        iou_threshold = conditionally_squeeze_scalar(iou_threshold)
+        score_threshold = conditionally_squeeze_scalar(score_threshold)
+
+        nms_out = bb.normalize(
+            relax.op.vision.all_class_non_max_suppression(
+                boxes,
+                scores,
+                max_output_boxes_per_class,
+                iou_threshold,
+                score_threshold,
+            )
+        )
+        return relax.op.dynamic_strided_slice(
+            nms_out[0],
+            begin=relax.const([0, 0], dtype="int64"),
+            end=relax.op.concat([nms_out[1], relax.const([3], dtype="int64")], axis=0),
+            strides=relax.const([1, 1], dtype="int64"),
+        )
+
 
 class HardSigmoid(OnnxOpConverter):
     """Converts an onnx HardSigmoid node into an equivalent Relax expression."""
@@ -3499,7 +3547,7 @@ def _get_convert_map():
         # "LRN": LRN,
         # "MaxRoiPool": MaxRoiPool,
         # "RoiAlign": RoiAlign,
-        # "NonMaxSuppression": NonMaxSuppression,
+        "NonMaxSuppression": NonMaxSuppression,
         # "GridSample": GridSample,
         # "Upsample": Upsample,
         # others

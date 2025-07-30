@@ -737,6 +737,27 @@ def test_gemm(alpha, beta, useC):
     check_correctness(model)
 
 
+def test_nms():
+    nms_node = helper.make_node(
+        "NonMaxSuppression", ["boxes", "scores"], ["selected_indices"], center_point_box=0
+    )
+
+    inputs = [
+        helper.make_tensor_value_info("boxes", TensorProto.FLOAT, [1, 10647, 4]),
+        helper.make_tensor_value_info("scores", TensorProto.FLOAT, [1, 80, 10647]),
+    ]
+
+    graph = helper.make_graph(
+        [nms_node],
+        "nms_test",
+        inputs=inputs,
+        outputs=[helper.make_tensor_value_info("selected_indices", TensorProto.INT64, [0, 3])],
+    )
+
+    model = helper.make_model(graph, producer_name="nms_test")
+    check_correctness(model)
+
+
 @pytest.mark.parametrize(
     "in_shape, shape, out_shape",
     [

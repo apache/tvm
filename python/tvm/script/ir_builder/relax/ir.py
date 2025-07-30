@@ -186,6 +186,7 @@ from tvm.relax.op import (
     wrap_param,
     zeros,
     zeros_like,
+    vision,
 )
 from tvm.relax.op.builtin import stop_lift_params
 from tvm.relax.struct_info import StructInfo
@@ -896,4 +897,5 @@ __all__ = [
     "nn",
     "ccl",
     "erf",
+    "vision",
 ]
