@@ -95,6 +95,24 @@ TEST(String, Comparisons) {
   EXPECT_EQ(m != s, mismatch != source);
 }
 
+TEST(String, Compare) {
+  // string compare const char*
+  String s{"hello"};
+  EXPECT_EQ(s.compare("hello"), 0);
+  EXPECT_EQ(s.compare(String("hello")), 0);
+
+  EXPECT_EQ(s.compare("hallo"), 1);
+  EXPECT_EQ(s.compare(String("hallo")), 1);
+  EXPECT_EQ(s.compare("hfllo"), -1);
+  EXPECT_EQ(s.compare(String("hfllo")), -1);
+  // s is longer
+  EXPECT_EQ(s.compare("hell"), 1);
+  EXPECT_EQ(s.compare(String("hell")), 1);
+  // s is shorter
+  EXPECT_EQ(s.compare("hello world"), -1);
+  EXPECT_EQ(s.compare(String("helloworld")), -1);
+}
+
 // Check '\0' handling
 TEST(String, null_byte_handling) {
   using namespace std;
@@ -369,4 +387,20 @@ TEST(String, CAPIAccessor) {
   EXPECT_EQ(arr->size, 5);
   EXPECT_EQ(std::string(arr->data, arr->size), "hello");
 }
+
+TEST(String, BytesHash) {
+  std::vector<int64_t> data1(10);
+  std::vector<int64_t> data2(11);
+  for (size_t i = 0; i < data1.size(); ++i) {
+    data1[i] = i;
+  }
+  char* data1_ptr = reinterpret_cast<char*>(data1.data());
+  char* data2_ptr = reinterpret_cast<char*>(data2.data()) + 1;
+  std::memcpy(data2_ptr, data1.data(), data1.size() * sizeof(int64_t));
+  // has of aligned and unaligned data should be the same
+  uint64_t hash1 = details::StableHashBytes(data1_ptr, data1.size() * sizeof(int64_t));
+  uint64_t hash2 = details::StableHashBytes(data2_ptr, data1.size() * sizeof(int64_t));
+  EXPECT_EQ(hash1, hash2);
+}
+
 }  // namespace
