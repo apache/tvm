@@ -181,17 +181,30 @@ TVM_FFI_INLINE uint64_t StableHashBytes(const char* data, size_t size) {
   const char* it = data;
   const char* end = it + size;
   uint64_t result = 0;
-  for (; it + 8 <= end; it += 8) {
-    if constexpr (TVM_FFI_IO_NO_ENDIAN_SWAP) {
-      u.a[0] = it[0];
-      u.a[1] = it[1];
-      u.a[2] = it[2];
-      u.a[3] = it[3];
-      u.a[4] = it[4];
-      u.a[5] = it[5];
-      u.a[6] = it[6];
-      u.a[7] = it[7];
+  if constexpr (TVM_FFI_IO_NO_ENDIAN_SWAP) {
+    // if alignment requirement is met, directly use load
+    if (reinterpret_cast<uintptr_t>(it) % 8 == 0) {
+      for (; it + 8 <= end; it += 8) {
+        u.b = *reinterpret_cast<const uint64_t*>(it);
+        result = (result * kMultiplier + u.b) % kMod;
+      }
     } else {
+      // unaligned version
+      for (; it + 8 <= end; it += 8) {
+        u.a[0] = it[0];
+        u.a[1] = it[1];
+        u.a[2] = it[2];
+        u.a[3] = it[3];
+        u.a[4] = it[4];
+        u.a[5] = it[5];
+        u.a[6] = it[6];
+        u.a[7] = it[7];
+        result = (result * kMultiplier + u.b) % kMod;
+      }
+    }
+  } else {
+    // need endian swap
+    for (; it + 8 <= end; it += 8) {
       u.a[0] = it[7];
       u.a[1] = it[6];
       u.a[2] = it[5];
@@ -200,9 +213,10 @@ TVM_FFI_INLINE uint64_t StableHashBytes(const char* data, size_t size) {
       u.a[5] = it[2];
       u.a[6] = it[1];
       u.a[7] = it[0];
+      result = (result * kMultiplier + u.b) % kMod;
     }
-    result = (result * kMultiplier + u.b) % kMod;
   }
+
   if (it < end) {
     u.b = 0;
     uint8_t* a = u.a;
