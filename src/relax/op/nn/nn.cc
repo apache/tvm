@@ -93,13 +93,54 @@ Expr prelu(Expr data, Expr alpha, int axis = 1) {
 
 TVM_FFI_REGISTER_GLOBAL("relax.op.nn.prelu").set_body_typed(prelu);
 
+StructInfo InferStructInfoPRelu(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  if (data_sinfo->IsUnknownNdim()) {
+    return data_sinfo;
+  }
+  if (!data_sinfo->IsUnknownDtype() && !data_sinfo->dtype.is_float()) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "Prelu requires the input tensor to have float "
+                                                "dtype. However, the given input dtype is "
+                                             << data_sinfo->dtype);
+  }
+  const auto* attrs = call->attrs.as<PReluAttrs>();
+  NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis);
+
+  return data_sinfo;
+}
+
+InferLayoutOutput InferLayoutPRelu(const Call& call,
+                                   const Map<String, Array<String>>& desired_layouts,
+                                   const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+  const auto* attrs = call->attrs.as<PReluAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+
+  LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
+
+  // TODO(Siva): We could handle if the axis is not the sub indexed one.
+  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+    const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
+    int ndim = tensor_sinfo->ndim;
+    layout = LayoutDecision(InitialLayout(ndim));
+  }
+
+  ObjectPtr<PReluAttrs> new_attrs = make_object<PReluAttrs>(*attrs);
+  new_attrs->axis = FindAxis(layout->layout, attrs->axis);
+
+  LayoutDecision alpha_layout = GetLayoutDecision(var_layout_map, call->args[1]);
+  return InferLayoutOutput({layout, alpha_layout}, {layout}, Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.nn.prelu")
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("alpha", "Tensor", "The channel-wise learnable slope.")
     .set_attrs_type<PReluAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo",
-                                InferStructInfoUnaryArith</*require_float_dtype=*/true>)
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPRelu)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPRelu)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.softmax */

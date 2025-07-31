@@ -1099,8 +1099,7 @@ class PRelu(OnnxOpConverter):
     def _impl_v1(cls, bb, inputs, attr, params):
         x = inputs[0]
         slope = inputs[1]
-        # TODO(tvm-team): Should add a new op for this.
-        return x * slope + relax.op.nn.relu(x) * (relax.const(1.0) - slope)
+        return relax.op.nn.prelu(x, slope)
 
 
 class ThresholdedRelu(OnnxOpConverter):
