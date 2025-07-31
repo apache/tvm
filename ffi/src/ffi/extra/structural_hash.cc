@@ -25,9 +25,9 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/container/ndarray.h>
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ffi/reflection/structural_hash.h>
 #include <tvm/ffi/string.h>
 
 #include <cmath>
@@ -37,7 +37,6 @@
 
 namespace tvm {
 namespace ffi {
-namespace reflection {
 /**
  * \brief Internal Handler class for structural hash.
  */
@@ -119,11 +118,11 @@ class StructuralHashHandler {
     uint64_t hash_value = obj->GetTypeKeyHash();
     if (custom_s_hash[type_info->type_index] == nullptr) {
       // go over the content and hash the fields
-      ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
+      reflection::ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
         // skip fields that are marked as structural eq hash ignore
         if (!(field_info->flags & kTVMFFIFieldFlagBitMaskSEqHashIgnore)) {
           // get the field value from both side
-          FieldGetter getter(field_info);
+          reflection::FieldGetter getter(field_info);
           Any field_value = getter(obj);
           // field is in def region, enable free var mapping
           if (field_info->flags & kTVMFFIFieldFlagBitMaskSEqHashDef) {
@@ -297,10 +296,9 @@ uint64_t StructuralHash::Hash(const Any& value, bool map_free_vars, bool skip_nd
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ffi.reflection.StructuralHash", StructuralHash::Hash);
+  refl::GlobalDef().def("ffi.StructuralHash", StructuralHash::Hash);
   refl::EnsureTypeAttrColumn("__s_hash__");
 });
 
-}  // namespace reflection
 }  // namespace ffi
 }  // namespace tvm

@@ -197,3 +197,8 @@ class EinsumAttrs(Attrs):
 @tvm.ffi.register_object("relax.attrs.FlipAttrs")
 class FlipAttrs(Attrs):
     """Attributes for flip operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.PadAttrs")
+class PadAttrs(Attrs):
+    """Attributes used in pad operator"""

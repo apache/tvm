@@ -56,27 +56,6 @@
 #define TVM_FFI_DLL_EXPORT __attribute__((visibility("default")))
 #endif
 
-/*!
- * \brief Marks the API as extra c++ api that is defined in cc files.
- *
- * These APIs are extra features that depend on, but are not required to
- * support essential core functionality, such as function calling and object
- * access.
- *
- * They are implemented in cc files to reduce compile-time overhead.
- * The input/output only uses POD/Any/ObjectRef for ABI stability.
- * However, these extra APIs may have an issue across MSVC/Itanium ABI,
- *
- * Related features are also available through reflection based function
- * that is fully based on C API
- *
- * The project aims to minimize the number of extra C++ APIs and only
- * restrict the use to non-core functionalities.
- */
-#ifndef TVM_FFI_EXTRA_CXX_API
-#define TVM_FFI_EXTRA_CXX_API TVM_FFI_DLL
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif

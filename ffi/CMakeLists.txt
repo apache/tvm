@@ -59,13 +59,13 @@ set(tvm_ffi_objs_sources
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/dtype.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/testing.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/container.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/reflection/access_path.cc"
 )
 
 if (TVM_FFI_USE_EXTRA_CXX_API)
   list(APPEND tvm_ffi_objs_sources
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/reflection/access_path.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/reflection/structural_equal.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/reflection/structural_hash.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/structural_equal.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/structural_hash.cc"
   )
 endif()
 

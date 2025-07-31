@@ -576,7 +576,7 @@ struct AnyEqual {
           details::AnyUnsafe::CopyFromAnyViewAfterCheck<const BytesObjBase*>(lhs);
       const BytesObjBase* rhs_str =
           details::AnyUnsafe::CopyFromAnyViewAfterCheck<const BytesObjBase*>(rhs);
-      return Bytes::memncmp(lhs_str->data, rhs_str->data, lhs_str->size, rhs_str->size) == 0;
+      return Bytes::memequal(lhs_str->data, rhs_str->data, lhs_str->size, rhs_str->size);
     }
     return false;
   }

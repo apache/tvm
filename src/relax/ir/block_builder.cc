@@ -21,9 +21,9 @@
  * \file src/relax/block_builder.cc
  */
 #include <tvm/arith/analyzer.h>
+#include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/ffi/reflection/structural_hash.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/block_builder.h>
 #include <tvm/relax/expr_functor.h>
@@ -431,8 +431,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
   class StructuralHashIgnoreNDarray {
    public:
     uint64_t operator()(const ObjectRef& key) const {
-      return ffi::reflection::StructuralHash::Hash(key, /*map_free_vars=*/false,
-                                                   /*skip_ndarray_content=*/true);
+      return ffi::StructuralHash::Hash(key, /*map_free_vars=*/false,
+                                       /*skip_ndarray_content=*/true);
     }
   };
 

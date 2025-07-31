@@ -17,17 +17,17 @@
  * under the License.
  */
 /*!
- * \file tvm/ffi/reflection/structural_hash.h
+ * \file tvm/ffi/extra/structural_hash.h
  * \brief Structural hash
  */
-#ifndef TVM_FFI_REFLECTION_STRUCTURAL_HASH_H_
-#define TVM_FFI_REFLECTION_STRUCTURAL_HASH_H_
+#ifndef TVM_FFI_EXTRA_STRUCTURAL_HASH_H_
+#define TVM_FFI_EXTRA_STRUCTURAL_HASH_H_
 
 #include <tvm/ffi/any.h>
+#include <tvm/ffi/extra/base.h>
 
 namespace tvm {
 namespace ffi {
-namespace reflection {
 
 /*
  * \brief Structural hash
@@ -52,7 +52,6 @@ class StructuralHash {
   TVM_FFI_INLINE uint64_t operator()(const Any& value) const { return Hash(value); }
 };
 
-}  // namespace reflection
 }  // namespace ffi
 }  // namespace tvm
-#endif  // TVM_FFI_REFLECTION_STRUCTURAL_HASH_H_
+#endif  // TVM_FFI_EXTRA_STRUCTURAL_HASH_H_

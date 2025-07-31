@@ -25,8 +25,8 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/container/ndarray.h>
 #include <tvm/ffi/container/shape.h>
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/accessor.h>
-#include <tvm/ffi/reflection/structural_equal.h>
 #include <tvm/ffi/string.h>
 
 #include <cmath>
@@ -34,7 +34,6 @@
 
 namespace tvm {
 namespace ffi {
-namespace reflection {
 
 /**
  * \brief Internal Handler class for structural equal comparison.
@@ -135,11 +134,11 @@ class StructEqualHandler {
     bool success = true;
     if (custom_s_equal[type_info->type_index] == nullptr) {
       // We recursively compare the fields the object
-      ForEachFieldInfoWithEarlyStop(type_info, [&](const TVMFFIFieldInfo* field_info) {
+      reflection::ForEachFieldInfoWithEarlyStop(type_info, [&](const TVMFFIFieldInfo* field_info) {
         // skip fields that are marked as structural eq hash ignore
         if (field_info->flags & kTVMFFIFieldFlagBitMaskSEqHashIgnore) return false;
         // get the field value from both side
-        FieldGetter getter(field_info);
+        reflection::FieldGetter getter(field_info);
         Any lhs_value = getter(lhs);
         Any rhs_value = getter(rhs);
         // field is in def region, enable free var mapping
@@ -155,9 +154,9 @@ class StructEqualHandler {
           // record the first mismatching field if we sub-rountine compare failed
           if (mismatch_lhs_reverse_path_ != nullptr) {
             mismatch_lhs_reverse_path_->emplace_back(
-                AccessStep::ObjectField(String(field_info->name)));
+                reflection::AccessStep::ObjectField(String(field_info->name)));
             mismatch_rhs_reverse_path_->emplace_back(
-                AccessStep::ObjectField(String(field_info->name)));
+                reflection::AccessStep::ObjectField(String(field_info->name)));
           }
           // return true to indicate early stop
           return true;
@@ -185,8 +184,10 @@ class StructEqualHandler {
               if (!success) {
                 if (mismatch_lhs_reverse_path_ != nullptr) {
                   String field_name_str = field_name.cast<String>();
-                  mismatch_lhs_reverse_path_->emplace_back(AccessStep::ObjectField(field_name_str));
-                  mismatch_rhs_reverse_path_->emplace_back(AccessStep::ObjectField(field_name_str));
+                  mismatch_lhs_reverse_path_->emplace_back(
+                      reflection::AccessStep::ObjectField(field_name_str));
+                  mismatch_rhs_reverse_path_->emplace_back(
+                      reflection::AccessStep::ObjectField(field_name_str));
                 }
               }
               return success;
@@ -235,16 +236,16 @@ class StructEqualHandler {
       auto it = rhs.find(rhs_key);
       if (it == rhs.end()) {
         if (mismatch_lhs_reverse_path_ != nullptr) {
-          mismatch_lhs_reverse_path_->emplace_back(AccessStep::MapKey(kv.first));
-          mismatch_rhs_reverse_path_->emplace_back(AccessStep::MapKeyMissing(rhs_key));
+          mismatch_lhs_reverse_path_->emplace_back(reflection::AccessStep::MapItem(kv.first));
+          mismatch_rhs_reverse_path_->emplace_back(reflection::AccessStep::MapItemMissing(rhs_key));
         }
         return false;
       }
       // now recursively compare value
       if (!CompareAny(kv.second, (*it).second)) {
         if (mismatch_lhs_reverse_path_ != nullptr) {
-          mismatch_lhs_reverse_path_->emplace_back(AccessStep::MapKey(kv.first));
-          mismatch_rhs_reverse_path_->emplace_back(AccessStep::MapKey(rhs_key));
+          mismatch_lhs_reverse_path_->emplace_back(reflection::AccessStep::MapItem(kv.first));
+          mismatch_rhs_reverse_path_->emplace_back(reflection::AccessStep::MapItem(rhs_key));
         }
         return false;
       }
@@ -258,8 +259,8 @@ class StructEqualHandler {
       auto it = lhs.find(lhs_key);
       if (it == lhs.end()) {
         if (mismatch_lhs_reverse_path_ != nullptr) {
-          mismatch_lhs_reverse_path_->emplace_back(AccessStep::MapKeyMissing(lhs_key));
-          mismatch_rhs_reverse_path_->emplace_back(AccessStep::MapKey(kv.first));
+          mismatch_lhs_reverse_path_->emplace_back(reflection::AccessStep::MapItemMissing(lhs_key));
+          mismatch_rhs_reverse_path_->emplace_back(reflection::AccessStep::MapItem(kv.first));
         }
         return false;
       }
@@ -276,8 +277,8 @@ class StructEqualHandler {
     for (size_t i = 0; i < std::min(lhs.size(), rhs.size()); ++i) {
       if (!CompareAny(lhs[i], rhs[i])) {
         if (mismatch_lhs_reverse_path_ != nullptr) {
-          mismatch_lhs_reverse_path_->emplace_back(AccessStep::ArrayIndex(i));
-          mismatch_rhs_reverse_path_->emplace_back(AccessStep::ArrayIndex(i));
+          mismatch_lhs_reverse_path_->emplace_back(reflection::AccessStep::ArrayItem(i));
+          mismatch_rhs_reverse_path_->emplace_back(reflection::AccessStep::ArrayItem(i));
         }
         return false;
       }
@@ -285,11 +286,13 @@ class StructEqualHandler {
     if (lhs.size() == rhs.size()) return true;
     if (mismatch_lhs_reverse_path_ != nullptr) {
       if (lhs.size() > rhs.size()) {
-        mismatch_lhs_reverse_path_->emplace_back(AccessStep::ArrayIndex(rhs.size()));
-        mismatch_rhs_reverse_path_->emplace_back(AccessStep::ArrayIndexMissing(rhs.size()));
+        mismatch_lhs_reverse_path_->emplace_back(reflection::AccessStep::ArrayItem(rhs.size()));
+        mismatch_rhs_reverse_path_->emplace_back(
+            reflection::AccessStep::ArrayItemMissing(rhs.size()));
       } else {
-        mismatch_lhs_reverse_path_->emplace_back(AccessStep::ArrayIndexMissing(lhs.size()));
-        mismatch_rhs_reverse_path_->emplace_back(AccessStep::ArrayIndex(lhs.size()));
+        mismatch_lhs_reverse_path_->emplace_back(
+            reflection::AccessStep::ArrayItemMissing(lhs.size()));
+        mismatch_rhs_reverse_path_->emplace_back(reflection::AccessStep::ArrayItem(lhs.size()));
       }
     }
     return false;
@@ -354,8 +357,8 @@ class StructEqualHandler {
   // whether we compare ndarray data
   bool skip_ndarray_content_{false};
   // the root lhs for result printing
-  std::vector<AccessStep>* mismatch_lhs_reverse_path_ = nullptr;
-  std::vector<AccessStep>* mismatch_rhs_reverse_path_ = nullptr;
+  std::vector<reflection::AccessStep>* mismatch_lhs_reverse_path_ = nullptr;
+  std::vector<reflection::AccessStep>* mismatch_rhs_reverse_path_ = nullptr;
   // lazily initialize custom equal function
   ffi::Function s_equal_callback_ = nullptr;
   // map from lhs to rhs
@@ -372,32 +375,31 @@ bool StructuralEqual::Equal(const Any& lhs, const Any& rhs, bool map_free_vars,
   return handler.CompareAny(lhs, rhs);
 }
 
-Optional<AccessPathPair> StructuralEqual::GetFirstMismatch(const Any& lhs, const Any& rhs,
-                                                           bool map_free_vars,
-                                                           bool skip_ndarray_content) {
+Optional<reflection::AccessPathPair> StructuralEqual::GetFirstMismatch(const Any& lhs,
+                                                                       const Any& rhs,
+                                                                       bool map_free_vars,
+                                                                       bool skip_ndarray_content) {
   StructEqualHandler handler;
   handler.map_free_vars_ = map_free_vars;
   handler.skip_ndarray_content_ = skip_ndarray_content;
-  std::vector<AccessStep> lhs_reverse_path;
-  std::vector<AccessStep> rhs_reverse_path;
+  std::vector<reflection::AccessStep> lhs_reverse_path;
+  std::vector<reflection::AccessStep> rhs_reverse_path;
   handler.mismatch_lhs_reverse_path_ = &lhs_reverse_path;
   handler.mismatch_rhs_reverse_path_ = &rhs_reverse_path;
   if (handler.CompareAny(lhs, rhs)) {
     return std::nullopt;
   }
-  AccessPath lhs_path(lhs_reverse_path.rbegin(), lhs_reverse_path.rend());
-  AccessPath rhs_path(rhs_reverse_path.rbegin(), rhs_reverse_path.rend());
-  return AccessPathPair(lhs_path, rhs_path);
+  reflection::AccessPath lhs_path(lhs_reverse_path.rbegin(), lhs_reverse_path.rend());
+  reflection::AccessPath rhs_path(rhs_reverse_path.rbegin(), rhs_reverse_path.rend());
+  return reflection::AccessPathPair(lhs_path, rhs_path);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ffi.reflection.GetFirstStructuralMismatch",
-                        StructuralEqual::GetFirstMismatch);
+  refl::GlobalDef().def("ffi.GetFirstStructuralMismatch", StructuralEqual::GetFirstMismatch);
   // ensure the type attribute column is presented in the system even if it is empty.
   refl::EnsureTypeAttrColumn("__s_equal__");
 });
 
-}  // namespace reflection
 }  // namespace ffi
 }  // namespace tvm

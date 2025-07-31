@@ -17,19 +17,19 @@
  * under the License.
  */
 /*!
- * \file tvm/ffi/reflection/structural_equal.h
+ * \file tvm/ffi/extra/structural_equal.h
  * \brief Structural equal implementation
  */
-#ifndef TVM_FFI_REFLECTION_STRUCTURAL_EQUAL_H_
-#define TVM_FFI_REFLECTION_STRUCTURAL_EQUAL_H_
+#ifndef TVM_FFI_EXTRA_STRUCTURAL_EQUAL_H_
+#define TVM_FFI_EXTRA_STRUCTURAL_EQUAL_H_
 
 #include <tvm/ffi/any.h>
+#include <tvm/ffi/extra/base.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/access_path.h>
 
 namespace tvm {
 namespace ffi {
-namespace reflection {
 /*
  * \brief Structural equality comparators
  */
@@ -59,7 +59,7 @@ class StructuralEqual {
    * \return If comparison fails, return the first mismatch AccessPath pair,
    *         otherwise return std::nullopt.
    */
-  TVM_FFI_EXTRA_CXX_API static Optional<AccessPathPair> GetFirstMismatch(
+  TVM_FFI_EXTRA_CXX_API static Optional<reflection::AccessPathPair> GetFirstMismatch(
       const Any& lhs, const Any& rhs, bool map_free_vars = false,
       bool skip_ndarray_content = false);
 
@@ -74,7 +74,6 @@ class StructuralEqual {
   }
 };
 
-}  // namespace reflection
 }  // namespace ffi
 }  // namespace tvm
-#endif  // TVM_FFI_REFLECTION_STRUCTURAL_EQUAL_H_
+#endif  // TVM_FFI_EXTRA_STRUCTURAL_EQUAL_H_

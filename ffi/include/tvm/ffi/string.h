@@ -175,7 +175,34 @@ class Bytes : public ObjectRef {
    * \return int zero if both char sequences compare equal. negative if this
    * appear before other, positive otherwise.
    */
-  static int memncmp(const char* lhs, const char* rhs, size_t lhs_count, size_t rhs_count);
+  static int memncmp(const char* lhs, const char* rhs, size_t lhs_count, size_t rhs_count) {
+    if (lhs == rhs && lhs_count == rhs_count) return 0;
+
+    for (size_t i = 0; i < lhs_count && i < rhs_count; ++i) {
+      if (lhs[i] < rhs[i]) return -1;
+      if (lhs[i] > rhs[i]) return 1;
+    }
+    if (lhs_count < rhs_count) {
+      return -1;
+    } else if (lhs_count > rhs_count) {
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+  /*!
+   * \brief Compare two char sequence for equality
+   *
+   * \param lhs Pointers to the char array to compare
+   * \param rhs Pointers to the char array to compare
+   * \param lhs_count Length of the char array to compare
+   * \param rhs_count Length of the char array to compare
+   *
+   * \return true if the two char sequences are equal, false otherwise.
+   */
+  static bool memequal(const char* lhs, const char* rhs, size_t lhs_count, size_t rhs_count) {
+    return lhs_count == rhs_count && (lhs == rhs || std::memcmp(lhs, rhs, lhs_count) == 0);
+  }
 
  private:
   friend class String;
@@ -311,7 +338,18 @@ class String : public ObjectRef {
    * before other, positive otherwise.
    */
   int compare(const char* other) const {
-    return Bytes::memncmp(data(), other, size(), std::strlen(other));
+    const char* this_data = data();
+    size_t this_size = size();
+    for (size_t i = 0; i < this_size; ++i) {
+      // other is shorter than this
+      if (other[i] == '\0') return 1;
+      if (this_data[i] < other[i]) return -1;
+      if (this_data[i] > other[i]) return 1;
+    }
+    // other equals this
+    if (other[this_size] == '\0') return 0;
+    // other longer than this
+    return -1;
   }
 
   /*!
@@ -616,11 +654,17 @@ inline bool operator>=(const String& lhs, const char* rhs) { return lhs.compare(
 inline bool operator>=(const char* lhs, const String& rhs) { return rhs.compare(lhs) <= 0; }
 
 // Overload == operator
-inline bool operator==(const String& lhs, const std::string& rhs) { return lhs.compare(rhs) == 0; }
+inline bool operator==(const String& lhs, const std::string& rhs) {
+  return Bytes::memequal(lhs.data(), rhs.data(), lhs.size(), rhs.size());
+}
 
-inline bool operator==(const std::string& lhs, const String& rhs) { return rhs.compare(lhs) == 0; }
+inline bool operator==(const std::string& lhs, const String& rhs) {
+  return Bytes::memequal(lhs.data(), rhs.data(), lhs.size(), rhs.size());
+}
 
-inline bool operator==(const String& lhs, const String& rhs) { return lhs.compare(rhs) == 0; }
+inline bool operator==(const String& lhs, const String& rhs) {
+  return Bytes::memequal(lhs.data(), rhs.data(), lhs.size(), rhs.size());
+}
 
 inline bool operator==(const String& lhs, const char* rhs) { return lhs.compare(rhs) == 0; }
 
@@ -640,22 +684,6 @@ inline bool operator!=(const char* lhs, const String& rhs) { return rhs.compare(
 inline std::ostream& operator<<(std::ostream& out, const String& input) {
   out.write(input.data(), input.size());
   return out;
-}
-
-inline int Bytes::memncmp(const char* lhs, const char* rhs, size_t lhs_count, size_t rhs_count) {
-  if (lhs == rhs && lhs_count == rhs_count) return 0;
-
-  for (size_t i = 0; i < lhs_count && i < rhs_count; ++i) {
-    if (lhs[i] < rhs[i]) return -1;
-    if (lhs[i] > rhs[i]) return 1;
-  }
-  if (lhs_count < rhs_count) {
-    return -1;
-  } else if (lhs_count > rhs_count) {
-    return 1;
-  } else {
-    return 0;
-  }
 }
 }  // namespace ffi
 
