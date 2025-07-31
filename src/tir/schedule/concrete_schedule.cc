@@ -916,8 +916,7 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
   if (auto opt_str = ann_val.try_cast<ffi::String>()) {
     return *std::move(opt_str);
   }
-
-  if (ann_val.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+  if (ann_val.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
     return ann_val;
   }
   // prefer to return int/float literals for annotations

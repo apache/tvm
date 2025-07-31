@@ -54,9 +54,9 @@ TEST(String, Assignment) {
   s = std::move(s2);
   EXPECT_EQ(s == "world2", true);
 
-  ObjectRef r;
+  Any r;
   r = String("hello");
-  EXPECT_EQ(r.defined(), true);
+  EXPECT_EQ(r != nullptr, true);
 }
 
 TEST(String, empty) {
@@ -265,7 +265,7 @@ TEST(String, Cast) {
   using namespace std;
   string source = "this is a string";
   String s{source};
-  ObjectRef r = s;
+  Any r = s;
   String s2 = Downcast<String>(r);
 }
 
@@ -284,14 +284,19 @@ TEST(String, Concat) {
   EXPECT_EQ(res3.compare("worldhello"), 0);
   EXPECT_EQ(res4.compare("helloworld"), 0);
   EXPECT_EQ(res5.compare("worldhello"), 0);
+
+  String storage_scope;
+  String res = "The input storage scope \"" + storage_scope + "\" is invalid.";
+  EXPECT_EQ(res.compare("The input storage scope \"\" is invalid."), 0);
 }
 
 TEST(String, Any) {
   // test anyview promotion to any
   AnyView view = "hello";
+  EXPECT_EQ(view.type_index(), TypeIndex::kTVMFFIRawStr);
 
   Any b = view;
-  EXPECT_EQ(b.type_index(), TypeIndex::kTVMFFIStr);
+  EXPECT_EQ(b.type_index(), TypeIndex::kTVMFFISmallStr);
   EXPECT_EQ(b.as<String>().value(), "hello");
   EXPECT_TRUE(b.as<String>().has_value());
   EXPECT_EQ(b.try_cast<std::string>().value(), "hello");
@@ -302,17 +307,21 @@ TEST(String, Any) {
 
   String s{"hello"};
   Any a = s;
-  EXPECT_EQ(a.type_index(), TypeIndex::kTVMFFIStr);
+  EXPECT_EQ(a.type_index(), TypeIndex::kTVMFFISmallStr);
   EXPECT_EQ(a.as<String>().value(), "hello");
   EXPECT_EQ(a.try_cast<std::string>().value(), "hello");
 
-  Any c = "helloworld";
+  Any c = "long string very long";
   EXPECT_EQ(c.type_index(), TypeIndex::kTVMFFIStr);
-  EXPECT_EQ(c.as<String>().value(), "helloworld");
-  EXPECT_EQ(c.try_cast<std::string>().value(), "helloworld");
+  EXPECT_EQ(c.as<String>().value(), "long string very long");
+  EXPECT_EQ(c.try_cast<std::string>().value(), "long string very long");
 }
 
 TEST(String, Bytes) {
+  Bytes b0;
+  EXPECT_EQ(b0.size(), 0);
+  EXPECT_EQ(b0.operator std::string(), "");
+
   // explicitly test zero element
   std::string s = {'\0', 'a', 'b', 'c'};
   Bytes b = s;
@@ -334,10 +343,17 @@ TEST(String, BytesAny) {
   EXPECT_EQ(view.try_cast<Bytes>().value().operator std::string(), s);
 
   Any b = view;
-  EXPECT_EQ(b.type_index(), TypeIndex::kTVMFFIBytes);
+  EXPECT_EQ(b.type_index(), TypeIndex::kTVMFFISmallBytes);
 
   EXPECT_EQ(b.try_cast<Bytes>().value().operator std::string(), s);
   EXPECT_EQ(b.cast<std::string>(), s);
+
+  std::string s2 = "hello long long long string";
+  s2[0] = '\0';
+  Any b2 = Bytes(s2);
+  EXPECT_EQ(b2.type_index(), TypeIndex::kTVMFFIBytes);
+  EXPECT_EQ(b2.try_cast<std::string>().value(), s2);
+  EXPECT_EQ(b2.cast<std::string>(), s2);
 }
 
 TEST(String, StdString) {
@@ -382,10 +398,9 @@ TEST(String, StdString) {
 TEST(String, CAPIAccessor) {
   using namespace std;
   String s{"hello"};
-  TVMFFIObjectHandle obj = details::ObjectUnsafe::RawObjectPtrFromObjectRef(s);
-  TVMFFIByteArray* arr = TVMFFIBytesGetByteArrayPtr(obj);
-  EXPECT_EQ(arr->size, 5);
-  EXPECT_EQ(std::string(arr->data, arr->size), "hello");
+  TVMFFIByteArray arr{s.data(), s.size()};
+  EXPECT_EQ(arr.size, 5);
+  EXPECT_EQ(std::string(arr.data, arr.size), "hello");
 }
 
 TEST(String, BytesHash) {
@@ -401,6 +416,16 @@ TEST(String, BytesHash) {
   uint64_t hash1 = details::StableHashBytes(data1_ptr, data1.size() * sizeof(int64_t));
   uint64_t hash2 = details::StableHashBytes(data2_ptr, data1.size() * sizeof(int64_t));
   EXPECT_EQ(hash1, hash2);
+}
+
+TEST(String, StdHash) {
+  String s1 = "a";
+  String s2(std::string("a"));
+  EXPECT_EQ(std::hash<String>()(s1), std::hash<String>()(s2));
+
+  Bytes s3("a", 1);
+  Bytes s4(std::string("a"));
+  EXPECT_EQ(std::hash<Bytes>()(s3), std::hash<Bytes>()(s4));
 }
 
 }  // namespace

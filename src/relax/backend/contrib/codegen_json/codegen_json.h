@@ -180,11 +180,8 @@ class OpAttrExtractor {
           break;
         }
         default: {
-          if (field_value.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-            this->Visit(field_info->name.data, &field_value);
-            break;
-          }
-          LOG(FATAL) << "Unsupported type: " << field_value.GetTypeKey();
+          this->Visit(field_info->name.data, &field_value);
+          break;
         }
       }
     });

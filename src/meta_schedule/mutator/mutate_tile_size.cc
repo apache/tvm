@@ -94,9 +94,8 @@ void FindSamplePerfectTile(const Trace& trace, std::vector<Instruction>* inst,
   decisions.reserve(trace->decisions.size());
   for (const auto& kv : trace->decisions) {
     const Instruction& inst = kv.first;
-    const ObjectRef& decision = kv.second.cast<ObjectRef>();
     if (inst->kind.same_as(inst_sample_perfect_tile)) {
-      std::vector<int64_t> tiles = DowncastTilingDecision(decision);
+      std::vector<int64_t> tiles = DowncastTilingDecision(kv.second.cast<ObjectRef>());
       if (tiles.size() >= 2 && Product(tiles) >= 2) {
         instructions.push_back(inst);
         decisions.push_back(tiles);
@@ -130,7 +129,6 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
   // Find sampling instruction that generates the annotation
   for (const auto& kv : trace->decisions) {
     const Instruction& inst = kv.first;
-    const ObjectRef& decision = kv.second.cast<ObjectRef>();
     if (inst->kind.same_as(inst_sample_categorical)) {
       ICHECK_EQ(inst->outputs.size(), 1);
       if (annotated.count(inst->outputs[0].as<Object>())) {
@@ -141,6 +139,7 @@ void FindSampleVectorize(const Trace& trace, std::vector<Instruction>* inst,
           // Skip mutating the sampling instructions who have only single candidate.
           continue;
         }
+        const ObjectRef& decision = kv.second.cast<ObjectRef>();
         const auto* d = TVM_TYPE_AS(decision, IntImmNode);
         instructions.push_back(inst);
         decisions.push_back(d->value);

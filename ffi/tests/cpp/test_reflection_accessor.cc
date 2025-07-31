@@ -99,7 +99,6 @@ TEST(Reflection, FieldInfo) {
   const TVMFFIFieldInfo* info_prim_expr_dtype = reflection::GetFieldInfo("test.PrimExpr", "dtype");
   AnyView default_value = AnyView::CopyFromTVMFFIAny(info_prim_expr_dtype->default_value);
   EXPECT_EQ(default_value.cast<String>(), "float");
-  EXPECT_EQ(default_value.as<String>().value().use_count(), 2);
   EXPECT_TRUE(info_prim_expr_dtype->flags & kTVMFFIFieldFlagBitMaskHasDefault);
   EXPECT_TRUE(info_prim_expr_dtype->flags & kTVMFFIFieldFlagBitMaskWritable);
   EXPECT_EQ(Bytes(info_prim_expr_dtype->doc).operator std::string(), "dtype field");

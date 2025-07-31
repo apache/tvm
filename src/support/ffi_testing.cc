@@ -212,7 +212,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              }
              return arr;
            })
-      .def("testing.AcceptsMapOfPrimExpr", [](Map<ObjectRef, PrimExpr> map) -> ObjectRef {
+      .def("testing.AcceptsMapOfPrimExpr", [](Map<Any, PrimExpr> map) -> ObjectRef {
         for (const auto& kv : map) {
           ObjectRef value = kv.second;
           CHECK(value->IsInstance<PrimExprNode>())

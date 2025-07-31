@@ -139,7 +139,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
 
     auto opt_composite = fn->GetAttr<String>(attr::kComposite);
-    ICHECK(opt_composite.defined());
+    ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
     std::shared_ptr<JSONGraphNode> node;
@@ -194,7 +194,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
     auto opt_composite = fn->GetAttr<String>(attr::kComposite);
-    ICHECK(opt_composite.defined());
+    ICHECK(opt_composite.has_value());
 
     nodes.pad = backend::TryGetOpInFunction(fn, "relax.nn.pad");
     nodes.conv = backend::TryGetOpInFunction(fn, "relax.nn.conv2d");
@@ -223,7 +223,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
     auto opt_composite = fn->GetAttr<String>(attr::kComposite);
-    ICHECK(opt_composite.defined());
+    ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
     std::vector<JSONGraphNodeEntry> inputs;

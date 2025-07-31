@@ -40,6 +40,8 @@ cdef extern from "tvm/ffi/c_api.h":
         kTVMFFIRawStr = 8
         kTVMFFIByteArrayPtr = 9
         kTVMFFIObjectRValueRef = 10
+        kTVMFFISmallStr = 11
+        kTVMFFISmallBytes = 12
         kTVMFFIStaticObjectBegin = 64
         kTVMFFIObject = 64
         kTVMFFIStr = 65
@@ -95,7 +97,7 @@ cdef extern from "tvm/ffi/c_api.h":
 
     ctypedef struct TVMFFIAny:
         int32_t type_index
-        int32_t padding
+        int32_t zero_padding
         int64_t v_int64
         double v_float64
         void* v_ptr
@@ -184,7 +186,7 @@ cdef extern from "tvm/ffi/c_api.h":
     int TVMFFIEnvRegisterCAPI(TVMFFIByteArray* name, void* ptr) nogil
     int TVMFFITypeKeyToIndex(TVMFFIByteArray* type_key, int32_t* out_tindex) nogil
     int TVMFFIDataTypeFromString(TVMFFIByteArray* str, DLDataType* out) nogil
-    int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIObjectHandle* out) nogil
+    int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIAny* out) nogil
     const TVMFFIByteArray* TVMFFITraceback(const char* filename, int lineno, const char* func) nogil;
     int TVMFFINDArrayFromDLPack(DLManagedTensor* src, int32_t require_alignment,
                                 int32_t require_contiguous, TVMFFIObjectHandle* out) nogil
@@ -196,6 +198,7 @@ cdef extern from "tvm/ffi/c_api.h":
     int TVMFFINDArrayToDLPackVersioned(TVMFFIObjectHandle src,
                                         DLManagedTensorVersioned** out) nogil
     const TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index) nogil
+    TVMFFIByteArray TVMFFISmallBytesGetContentByteArray(const TVMFFIAny* value) nogil
     TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) nogil
     TVMFFIErrorCell* TVMFFIErrorGetCellPtr(TVMFFIObjectHandle obj) nogil
     TVMFFIShapeCell* TVMFFIShapeGetCellPtr(TVMFFIObjectHandle obj) nogil

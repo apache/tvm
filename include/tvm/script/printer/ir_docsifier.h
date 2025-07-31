@@ -319,6 +319,7 @@ inline TDoc IRDocsifierNode::AsDoc(const Any& value, const ObjectPath& path) con
       return Downcast<TDoc>(LiteralDoc::Int(value.as<int64_t>().value(), path));
     case ffi::TypeIndex::kTVMFFIFloat:
       return Downcast<TDoc>(LiteralDoc::Float(value.as<double>().value(), path));
+    case ffi::TypeIndex::kTVMFFISmallStr:
     case ffi::TypeIndex::kTVMFFIStr: {
       std::string string_value = value.cast<std::string>();
       bool has_multiple_lines = string_value.find_first_of('\n') != std::string::npos;

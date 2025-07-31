@@ -613,7 +613,7 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
         // fill empty data with empty strings
         cols[i].push_back("");
       } else {
-        cols[i].push_back(print_metric((*it).second.cast<ObjectRef>()));
+        cols[i].push_back(print_metric((*it).second));
       }
     }
   }
@@ -653,7 +653,7 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
   // Add configuration information. It will not be aligned with the columns.
   s << std::endl << "Configuration" << std::endl << "-------------" << std::endl;
   for (auto kv : configuration) {
-    s << kv.first << ": " << print_metric(kv.second.cast<ObjectRef>()) << std::endl;
+    s << kv.first << ": " << print_metric(kv.second) << std::endl;
   }
   return s.str();
 }

@@ -394,4 +394,22 @@ TEST(Any, ObjectMove) {
   EXPECT_TRUE(any1 == nullptr);
 }
 
+TEST(Any, AnyEqualHash) {
+  // small string
+  Any a = "a1";
+  // on heap allocated string
+  Any b = String(std::string("a1"));
+  EXPECT_EQ(a.type_index(), TypeIndex::kTVMFFISmallStr);
+  EXPECT_EQ(b.type_index(), TypeIndex::kTVMFFIStr);
+  EXPECT_TRUE(AnyEqual()(a, b));
+  EXPECT_EQ(AnyHash()(a), AnyHash()(b));
+
+  Any c = Bytes("a1", 2);
+  Any d = Bytes(std::string("a1"));
+  EXPECT_EQ(c.type_index(), TypeIndex::kTVMFFISmallBytes);
+  EXPECT_EQ(d.type_index(), TypeIndex::kTVMFFIBytes);
+  EXPECT_TRUE(AnyEqual()(c, d));
+  EXPECT_EQ(AnyHash()(c), AnyHash()(d));
+}
+
 }  // namespace

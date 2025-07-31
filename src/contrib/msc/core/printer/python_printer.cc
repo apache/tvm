@@ -157,7 +157,7 @@ void PythonPrinter::PrintTypedDoc(const ScopeDoc& doc) {
 
 void PythonPrinter::PrintTypedDoc(const FunctionDoc& doc) {
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(arg_doc->comment == nullptr) << "Function arg cannot have comment attached to them.";
+    ICHECK(!arg_doc->comment.has_value()) << "Function arg cannot have comment attached to them.";
   }
 
   PrintDecorators(doc->decorators);

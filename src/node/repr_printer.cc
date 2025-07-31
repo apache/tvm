@@ -78,11 +78,13 @@ void ReprPrinter::Print(const ffi::Any& node) {
       Print(node.cast<ObjectRef>());
       break;
     }
+    case ffi::TypeIndex::kTVMFFISmallStr:
     case ffi::TypeIndex::kTVMFFIStr: {
       ffi::String str = node.cast<ffi::String>();
       stream << '"' << support::StrEscape(str.data(), str.size()) << '"';
       break;
     }
+    case ffi::TypeIndex::kTVMFFISmallBytes:
     case ffi::TypeIndex::kTVMFFIBytes: {
       ffi::Bytes bytes = node.cast<ffi::Bytes>();
       stream << "b\"" << support::StrEscape(bytes.data(), bytes.size()) << '"';

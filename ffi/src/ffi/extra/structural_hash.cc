@@ -56,6 +56,12 @@ class StructuralHashHandler {
         temp.v_float64 = std::numeric_limits<double>::quiet_NaN();
         return details::StableHashCombine(temp.type_index, temp.v_uint64);
       }
+      if (src_data->type_index == TypeIndex::kTVMFFISmallStr) {
+        // for small string, we use the same type key hash as normal string
+        // so heap allocated string and on stack string will have the same hash
+        return details::StableHashCombine(TypeIndex::kTVMFFIStr,
+                                          details::StableHashSmallStrBytes(src_data));
+      }
       // this is POD data, we can just hash the value
       return details::StableHashCombine(src_data->type_index, src_data->v_uint64);
     }
@@ -191,6 +197,13 @@ class StructuralHashHandler {
     const TVMFFIAny* src_data = AnyUnsafe::TVMFFIAnyPtrFromAny(src);
 
     if (src_data->type_index < TypeIndex::kTVMFFIStaticObjectBegin) {
+      if (src_data->type_index == TypeIndex::kTVMFFISmallStr) {
+        // for small string, we use the same type key hash as normal string
+        // so heap allocated string and on stack string will have the same hash
+        return details::StableHashCombine(
+            TypeIndex::kTVMFFIStr,
+            details::StableHashBytes(src_data->v_bytes, src_data->small_str_len));
+      }
       // this is POD data, we can just hash the value
       return details::StableHashCombine(src_data->type_index, src_data->v_uint64);
     } else {

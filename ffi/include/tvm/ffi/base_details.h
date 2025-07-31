@@ -170,7 +170,8 @@ TVM_FFI_INLINE uint64_t StableHashCombine(uint64_t key, const T& value) {
  * \param size The size of the bytes.
  * \return the hash value.
  */
-TVM_FFI_INLINE uint64_t StableHashBytes(const char* data, size_t size) {
+TVM_FFI_INLINE uint64_t StableHashBytes(const void* data_ptr, size_t size) {
+  const char* data = reinterpret_cast<const char*>(data_ptr);
   const constexpr uint64_t kMultiplier = 1099511628211ULL;
   const constexpr uint64_t kMod = 2147483647ULL;
   union Union {
@@ -248,6 +249,20 @@ TVM_FFI_INLINE uint64_t StableHashBytes(const char* data, size_t size) {
     result = (result * kMultiplier + u.b) % kMod;
   }
   return result;
+}
+
+/*!
+ *  \brief Same as StableHashBytes, but for small string data.
+ *  \param data The data pointer
+ *  \return the hash value.
+ */
+TVM_FFI_INLINE uint64_t StableHashSmallStrBytes(const TVMFFIAny* data) {
+  if constexpr (TVM_FFI_IO_NO_ENDIAN_SWAP) {
+    // fast path, no endian swap, simply hash as uint64_t
+    const constexpr uint64_t kMod = 2147483647ULL;
+    return data->v_uint64 % kMod;
+  }
+  return StableHashBytes(reinterpret_cast<const void*>(data), sizeof(data->v_uint64));
 }
 
 }  // namespace details

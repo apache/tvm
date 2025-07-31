@@ -408,6 +408,9 @@ struct RPCReference {
       int32_t type_index;
       channel->Read(&type_index);
       packed_args[i].type_index = type_index;
+      packed_args[i].zero_padding = 0;
+      // clear to ensure compact for 32 bit platform
+      packed_args[i].v_int64 = 0;
       switch (type_index) {
         case ffi::TypeIndex::kTVMFFINone: {
           break;
