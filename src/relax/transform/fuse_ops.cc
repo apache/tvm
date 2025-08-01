@@ -427,9 +427,8 @@ class FunctionCreator : public ExprMutator {
           }
 
           for (const Expr& arg : call->args) {
-            if (arg.as<TupleNode>()) {
-              const Tuple& tup_args = Downcast<Tuple>(arg);
-              for (const Expr& tup_arg : tup_args->fields) {
+            if (auto tuple = arg.as<TupleNode>()) {
+              for (const Expr& tup_arg : tuple->fields) {
                 CheckDefAndUpdateParam(tup_arg);
                 ICHECK(GetStructInfoAs<TupleStructInfoNode>(tup_arg) == nullptr);
               }
