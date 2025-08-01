@@ -313,7 +313,7 @@ llvm::Value* CodeGenNVPTX::CreateIntrinsic(const CallNode* op) {
 
 int GetCUDAComputeVersion(const Target& target) {
   Optional<String> mcpu = target->GetAttr<String>("mcpu");
-  ICHECK(mcpu.defined()) << "InternalError: \"-mcpu\" is undefined in the NVPTX target";
+  ICHECK(mcpu.has_value()) << "InternalError: \"-mcpu\" is undefined in the NVPTX target";
   std::string sm_version = mcpu.value();
   return std::stoi(sm_version.substr(3));
 }

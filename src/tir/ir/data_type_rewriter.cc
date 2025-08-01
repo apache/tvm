@@ -91,7 +91,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
                           << ", but get " << s->GetTypeKey();
     const IterVarNode* iv = op->node.as<IterVarNode>();
     ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
-                          << ", but get " << op->node->GetTypeKey();
+                          << ", but get " << op->node.GetTypeKey();
     PrimExpr e = VisitExpr(iv->var);
     Var var = Downcast<Var>(e);
     if (ivmap_.find(iv) == ivmap_.end()) {

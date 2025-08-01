@@ -87,7 +87,7 @@ Buffer Arg(String name, Buffer buffer) {
 
 void FuncName(String name) {
   PrimFuncFrame frame = FindPrimFuncFrame("T.func_name");
-  if (frame->name.defined()) {
+  if (frame->name.has_value()) {
     LOG(FATAL) << "ValueError: Duplicate prim func name, previous one is " << frame->name.value();
   }
   frame->name = name;

@@ -40,8 +40,6 @@ namespace runtime {
 
 inline String get_name_mangled(const String& module_name, const String& name) {
   std::stringstream ss;
-  ICHECK(module_name.defined());
-  ICHECK(name.defined());
   ss << module_name << "_" << name;
   return ss.str();
 }

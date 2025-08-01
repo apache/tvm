@@ -23,14 +23,6 @@ namespace script {
 namespace printer {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<String>("", [](String s, ObjectPath p, IRDocsifier d) -> Doc {
-      if (HasMultipleLines(s)) {
-        return d->AddMetadata(s);
-      }
-      return LiteralDoc::Str(s, p);
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<Array<Any>>(  //
         "", [](Array<Any> array, ObjectPath p, IRDocsifier d) -> Doc {
           int n = array.size();
