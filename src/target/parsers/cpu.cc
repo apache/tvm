@@ -44,7 +44,7 @@ TargetJSON ParseTarget(TargetJSON target) {
   Optional<String> mcpu = Downcast<Optional<String>>(target.Get("mcpu"));
 
   // Try to fill in the blanks by detecting target information from the system
-  if (kind == "llvm" && !mtriple.defined() && !mcpu.defined()) {
+  if (kind == "llvm" && !mtriple.has_value() && !mcpu.has_value()) {
     String system_triple = DetectSystemTriple().value_or("");
     target.Set("mtriple", system_triple);
   }

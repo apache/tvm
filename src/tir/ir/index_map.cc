@@ -329,7 +329,7 @@ IndexMap IndexMap::RenameVariables(
         }
         visited.emplace(obj.get());
         Var var = Downcast<Var>(obj);
-        if (Optional<String> opt_name = f_name_map(var); opt_name.defined()) {
+        if (Optional<String> opt_name = f_name_map(var); opt_name.has_value()) {
           String name = opt_name.value();
           ICHECK(!name_supply->ContainsName(name, /*add_prefix=*/false));
           name_supply->ReserveName(name, /*add_prefix=*/false);

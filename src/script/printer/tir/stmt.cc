@@ -415,7 +415,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ObjectPath body_p = stmt_p->Attr("body");
           if (stmt->attr_key == "realize_scope") {
             if (const auto* realize = stmt->body.as<tir::BufferRealizeNode>()) {
-              if (realize->buffer.same_as(stmt->node)) {
+              // TODO(tqchen): add any.same_as(ObjectRef)
+              if (realize->buffer.same_as(stmt->node.cast<ObjectRef>())) {
                 rhs = DocsifyBufferRealize(
                     realize,
                     /*value=*/d->AsDoc<ExprDoc>(stmt->value, stmt_p->Attr("value")),
@@ -426,7 +427,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             }
           }
           if (stmt->attr_key == "thread_extent" || stmt->attr_key == "virtual_thread") {
-            if (stmt->node->IsInstance<tir::IterVarNode>()) {
+            if (stmt->node.as<tir::IterVarNode>()) {
               rhs = DocsifyLaunchThread(stmt, stmt_p, &define_var, d);
             }
           }

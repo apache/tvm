@@ -246,7 +246,7 @@ class LiteralDocNode : public ExprDocNode {
    * - String
    * - null
    */
-  ObjectRef value;
+  ffi::Any value;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -265,16 +265,14 @@ class LiteralDocNode : public ExprDocNode {
  */
 class LiteralDoc : public ExprDoc {
  protected:
-  explicit LiteralDoc(ObjectRef value, const Optional<ObjectPath>& object_path);
+  explicit LiteralDoc(ffi::Any value, const Optional<ObjectPath>& object_path);
 
  public:
   /*!
    * \brief Create a LiteralDoc to represent None/null/empty value.
    * \param p The object path
    */
-  static LiteralDoc None(const Optional<ObjectPath>& p) {
-    return LiteralDoc(ObjectRef(nullptr), p);
-  }
+  static LiteralDoc None(const Optional<ObjectPath>& p) { return LiteralDoc(ffi::Any(nullptr), p); }
   /*!
    * \brief Create a LiteralDoc to represent integer.
    * \param v The integer value.

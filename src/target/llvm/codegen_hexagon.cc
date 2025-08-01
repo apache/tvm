@@ -495,7 +495,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
     auto f = Downcast<PrimFunc>(kv.second);
     if (f->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
       auto global_symbol = f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-      ICHECK(global_symbol.defined());
+      ICHECK(global_symbol.has_value());
       entry_func = global_symbol.value();
     }
   }

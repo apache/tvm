@@ -71,7 +71,7 @@ class FunctionClassifierVisitor : public StmtExprVisitor {
     // Only analyze externally exposed functions as potential callers
     // since they represent the entry points where host/device calls originate
     for (const auto& [gvar, func] : mod->functions) {
-      bool is_externally_exposed = func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+      bool is_externally_exposed = func->GetAttr<String>(tvm::attr::kGlobalSymbol).has_value();
       const auto* prim_func = func.as<PrimFuncNode>();
 
       if (is_externally_exposed && prim_func != nullptr) {
@@ -268,7 +268,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
     }
     auto prim_func = GetRef<PrimFunc>(prim_func_node);
 
-    bool is_externally_exposed = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+    bool is_externally_exposed = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).has_value();
 
     if (auto func_target = func->GetAttr<Target>(tvm::attr::kTarget)) {
       // Rule 1: If the function has a target, and the target has a host, and the function does not
@@ -341,7 +341,7 @@ IRModule BindTarget(IRModule mod, const Target& target) {
         continue;
       }
 
-      bool is_externally_exposed = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+      bool is_externally_exposed = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).has_value();
       if (is_externally_exposed) {
         // Update calls in externally exposed functions to use host duplicates
         PrimFunc new_func = substitutor.Substitute(Downcast<PrimFunc>(func));

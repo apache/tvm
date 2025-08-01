@@ -79,7 +79,7 @@ StmtBlockDoc::StmtBlockDoc(Array<StmtDoc> stmts) {
   this->data_ = std::move(n);
 }
 
-LiteralDoc::LiteralDoc(ObjectRef value, const Optional<ObjectPath>& object_path) {
+LiteralDoc::LiteralDoc(ffi::Any value, const Optional<ObjectPath>& object_path) {
   ObjectPtr<LiteralDocNode> n = make_object<LiteralDocNode>();
   n->value = value;
   if (object_path.defined()) {

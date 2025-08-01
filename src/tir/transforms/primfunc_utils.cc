@@ -47,7 +47,7 @@ transform::Pass AnnotateEntryFunc() {
     bool has_external_non_primfuncs = false;
     IRModule with_annotations;
     for (const auto& [gvar, base_func] : mod->functions) {
-      bool is_external = base_func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+      bool is_external = base_func->GetAttr<String>(tvm::attr::kGlobalSymbol).has_value();
       if (is_external) {
         if (auto ptr = base_func.as<PrimFuncNode>()) {
           with_annotations->Add(gvar,

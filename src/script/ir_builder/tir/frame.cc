@@ -52,7 +52,7 @@ void PrimFuncFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   // if the prim func is not private and there isn't already a global symbol,
   // add a global symbol
-  if (!is_private && name.defined() && !attrs.count(tvm::attr::kGlobalSymbol)) {
+  if (!is_private && name.has_value() && !attrs.count(tvm::attr::kGlobalSymbol)) {
     attrs.Set(tvm::attr::kGlobalSymbol, name.value());
   }
 
@@ -68,8 +68,8 @@ void PrimFuncFrameNode::ExitWithScope() {
     ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
     builder->result = func;
   } else if (Optional<ir::IRModuleFrame> opt_frame = builder->FindFrame<ir::IRModuleFrame>()) {
-    CHECK(name.defined()) << "ValueError: The function name must be defined before exiting the "
-                             "function scope, if it's defined in a Module";
+    CHECK(name.has_value()) << "ValueError: The function name must be defined before exiting the "
+                               "function scope, if it's defined in a Module";
     const ir::IRModuleFrame& frame = opt_frame.value();
     const String& func_name = name.value_or("");
     if (!frame->global_var_map.count(func_name)) {
