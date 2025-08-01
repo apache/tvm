@@ -71,7 +71,7 @@ void SendToRunner(TaskRecordNode* self, const Runner& runner) {
   for (int i = 0; i < n; ++i) {
     const MeasureCandidate& candidate = candidates[i];
     const BuilderResult& builder_result = builder_results[i];
-    if (builder_result->error_msg.defined()) {
+    if (builder_result->error_msg.has_value()) {
       ++n_build_errors;
       continue;
     }
@@ -88,7 +88,7 @@ void SendToRunner(TaskRecordNode* self, const Runner& runner) {
   results.reserve(n);
   for (int i = 0, j = 0; i < n; ++i) {
     const BuilderResult& builder_result = builder_results[i];
-    if (builder_result->error_msg.defined()) {
+    if (builder_result->error_msg.has_value()) {
       results.push_back(RunnerFuture(
           /*f_done=*/[]() -> bool { return true; },
           /*f_result=*/
@@ -129,7 +129,7 @@ void TaskCleanUp(TaskRecordNode* self, int task_id, const Array<RunnerResult>& r
       TVM_PY_LOG(INFO, logger) << std::fixed << std::setprecision(4)  //
                                << "[Task #" << task_id << ": " << name << "] Trial #" << trials
                                << ": Error in "
-                               << (builder_result->error_msg.defined() ? "building" : "running")
+                               << (builder_result->error_msg.has_value() ? "building" : "running")
                                << ":\n"
                                << err << "\n"
                                << sch->mod() << "\n"

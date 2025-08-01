@@ -77,7 +77,7 @@ ImageInfo GetImageInfo(const cl::BufferDescriptor* desc, const DLTensor* tensor)
 
 cl::BufferDescriptor::MemoryLayout cl::BufferDescriptor::MemoryLayoutFromScope(
     Optional<String> mem_scope) {
-  if (!mem_scope.defined()) {
+  if (!mem_scope.has_value()) {
     return cl::BufferDescriptor::MemoryLayout::kBuffer1D;
   } else if (mem_scope.value() == "global.texture") {
     return cl::BufferDescriptor::MemoryLayout::kImage2DActivation;
@@ -277,7 +277,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, D
     back_buffer->mbuf = buf;
   }
 
-  if (!mem_scope.defined()) {
+  if (!mem_scope.has_value()) {
     mem_scope = String("global.texture");
   }
   return AllocCLImage(dev, back_buffer, width, height, row_pitch, type_hint, mem_scope);
@@ -286,7 +286,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, D
 void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                                       Optional<String> mem_scope) {
   this->Init();
-  if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
+  if (!mem_scope.has_value() || (*mem_scope).empty() || (*mem_scope) == "global") {
     size_t size = GetMemObjectSize(dev, ndim, shape, dtype);
     cl::BufferDescriptor* ret_buffer = nullptr;
     auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kPooled)
@@ -349,7 +349,7 @@ void* OpenCLWorkspace::AllocCLImage(Device dev, void* back_buffer, size_t width,
 }
 
 size_t OpenCLWorkspace::GetDataSize(const DLTensor& arr, Optional<String> mem_scope) {
-  if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
+  if (!mem_scope.has_value() || (*mem_scope).empty() || (*mem_scope) == "global") {
     return DeviceAPI::GetDataSize(arr);
   }
   cl_uint row_align = GetImageAlignment(GetThreadEntry()->device.device_id);
@@ -366,7 +366,7 @@ void* OpenCLWorkspace::AllocDataSpaceView(Device dev, void* data, ffi::Shape sha
   // Fall back for devices w/o "cl_khr_image2d_from_buffer"
   if (!IsBufferToImageSupported(dev.device_id)) {
     cl::BufferDescriptor* ret_desc = desc;  // buffer -> buffer
-    if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
+    if (!mem_scope.has_value() || (*mem_scope).empty() || (*mem_scope) == "global") {
       if (desc->layout != cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
         // image -> buffer
         size_t nbytes = GetMemObjectSize(dev, shape.size(), shape.data(), dtype);
@@ -389,7 +389,7 @@ void* OpenCLWorkspace::AllocDataSpaceView(Device dev, void* data, ffi::Shape sha
     return ret_desc;
   }
 
-  if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
+  if (!mem_scope.has_value() || (*mem_scope).empty() || (*mem_scope) == "global") {
     if (desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
       //  buffer -> buffer
       return desc;

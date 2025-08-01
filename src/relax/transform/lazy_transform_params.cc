@@ -249,7 +249,7 @@ namespace transform {
 
 Pass LazyGetInput() {
   auto pass_func = [](Function func, IRModule, PassContext) -> Function {
-    if (!func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined()) {
+    if (!func->GetAttr<String>(tvm::attr::kGlobalSymbol).has_value()) {
       return func;
     }
     return WithLazyInputs(func);
@@ -267,7 +267,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 Pass LazySetOutput() {
   auto pass_func = [](Function func, IRModule, PassContext) -> Function {
-    if (!func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined()) {
+    if (!func->GetAttr<String>(tvm::attr::kGlobalSymbol).has_value()) {
       return func;
     }
     return WithLazyOutputs(func);

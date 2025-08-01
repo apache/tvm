@@ -689,7 +689,7 @@ PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
   Map<GlobalVar, BaseFunc> new_subroutines;
   for (const auto& [gvar, func] : mod->functions) {
     if (gvar->name_hint != "pattern" && gvar->name_hint != "replacement") {
-      bool is_public = func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+      bool is_public = func->GetAttr<String>(tvm::attr::kGlobalSymbol).has_value();
       CHECK(!is_public) << "ValueError: "
                         << "Expected module to have no publicly-exposed functions "
                         << "other than 'pattern' and 'replacement'.  "

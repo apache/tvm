@@ -415,7 +415,6 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
     if (iter->iter_type != IterVarType::kThreadIndex) {
       return false;
     }
-    ICHECK(iter->thread_tag.defined());
     // When there is warp memory
     // threadIdx.x must be set to be warp index.
     return CanRelaxStorageUnderThread(scope, runtime::ThreadScope::Create((iter->thread_tag)));

@@ -81,7 +81,7 @@ struct DiscoProtocol {
   }
 
   support::Arena arena_;
-  std::vector<ObjectRef> object_arena_;
+  std::vector<Any> object_arena_;
   friend struct RPCReference;
 };
 
@@ -175,7 +175,7 @@ inline void DiscoProtocol<SubClassType>::WriteObject(Object* obj) {
 template <class SubClassType>
 inline void DiscoProtocol<SubClassType>::ReadObject(TVMFFIAny* out) {
   SubClassType* self = static_cast<SubClassType*>(this);
-  ObjectRef result{nullptr};
+  ffi::Any result{nullptr};
   uint32_t type_index;
   self->template Read<uint32_t>(&type_index);
   if (type_index == TypeIndex::kRuntimeDiscoDRef) {

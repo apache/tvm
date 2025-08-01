@@ -72,7 +72,7 @@ void FunctionFrameNode::ExitWithScope() {
 
   Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
   // if the function is not private, add a global symbol to its attributes
-  if (!is_private.value_or(Bool(false))->value && name.defined() &&
+  if (!is_private.value_or(Bool(false))->value && name.has_value() &&
       !attrs.count(tvm::attr::kGlobalSymbol)) {
     attrs.Set(tvm::attr::kGlobalSymbol, name.value());
   }
@@ -89,8 +89,8 @@ void FunctionFrameNode::ExitWithScope() {
     builder->result = func;
   } else if (Optional<IRModuleFrame> opt_frame = builder->FindFrame<IRModuleFrame>()) {
     // Case 1. A global function of an IRModule
-    CHECK(name.defined()) << "ValueError: The function name must be defined before exiting the "
-                             "function scope, if it's defined in a Module";
+    CHECK(name.has_value()) << "ValueError: The function name must be defined before exiting the "
+                               "function scope, if it's defined in a Module";
     const IRModuleFrame& frame = opt_frame.value();
     const String& func_name = name.value_or("");
     if (!frame->global_var_map.count(func_name)) {

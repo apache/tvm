@@ -101,7 +101,7 @@ ObjectPath ObjectPathNode::Attr(const char* attr_key) const {
 }
 
 ObjectPath ObjectPathNode::Attr(Optional<String> attr_key) const {
-  if (attr_key.defined()) {
+  if (attr_key.has_value()) {
     return ObjectPath(make_object<AttributeAccessPathNode>(this, attr_key.value()));
   } else {
     return ObjectPath(make_object<UnknownAttributeAccessPathNode>(this));
@@ -235,7 +235,7 @@ RootPathNode::RootPathNode(Optional<String> name) : ObjectPathNode(nullptr), nam
 bool RootPathNode::LastNodeEqual(const ObjectPathNode* other_path) const {
   const auto* other = static_cast<const RootPathNode*>(other_path);
 
-  if (other->name.defined() != name.defined()) {
+  if (other->name.has_value() != name.has_value()) {
     return false;
   } else if (name && other->name) {
     return name.value() == other->name.value();

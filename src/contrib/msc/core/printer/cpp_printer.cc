@@ -28,9 +28,9 @@ namespace contrib {
 namespace msc {
 
 void CppPrinter::PrintTypedDoc(const LiteralDoc& doc) {
-  const ObjectRef& value = doc->value;
+  const ffi::Any& value = doc->value;
   bool defined = false;
-  if (!value.defined()) {
+  if (value == nullptr) {
     output_ << "nullptr";
     defined = true;
   } else if (const auto* int_imm = value.as<IntImmNode>()) {
@@ -217,7 +217,7 @@ void CppPrinter::PrintTypedDoc(const ClassDoc& doc) {
 }
 
 void CppPrinter::PrintTypedDoc(const CommentDoc& doc) {
-  if (doc->comment.defined()) {
+  if (doc->comment.has_value()) {
     output_ << "// " << doc->comment.value();
   }
 }

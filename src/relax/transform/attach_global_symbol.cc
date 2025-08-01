@@ -55,7 +55,7 @@ Pass AttachGlobalSymbol() {
         new_func = WithAttr(GetRef<Function>(relax_func), tvm::attr::kGlobalSymbol, new_name);
       }
 
-      if (new_name.defined() && (!old_name.defined() || old_name.value() != new_name.value())) {
+      if (new_name.has_value() && (!old_name.has_value() || old_name.value() != new_name.value())) {
         updates->Add(gvar, new_func);
         if (new_name.value() != gvar->name_hint) {
           GlobalVar new_gvar(new_name.value());

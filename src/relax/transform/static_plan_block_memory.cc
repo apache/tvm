@@ -379,30 +379,16 @@ void SetTIRVarUpperBound(Function func, arith::Analyzer* ana,
   // appear in the **function signature**.
   Map<String, IntImm> var_upper_bound_attr_raw =
       func->GetAttr<Map<String, IntImm>>("tir_var_upper_bound").value_or(Map<String, IntImm>());
-  Array<ObjectRef> non_negative_var_attr_raw =
-      func->GetAttr<Array<ObjectRef>>("tir_non_negative_var").value_or(Array<ObjectRef>());
+  Array<String> non_negative_var_attr_raw =
+      func->GetAttr<Array<String>>("tir_non_negative_var").value_or(Array<String>());
   std::unordered_map<String, IntImm> var_upper_bound_attr;
   std::unordered_set<String> non_negative_var_attr;
   // We manually check the value type to ensure the values are all positive IntImm.
-  for (auto it : var_upper_bound_attr_raw) {
-    const auto* key = it.first.as<ffi::StringObj>();
-    const auto* value = it.second.as<IntImmNode>();
-    CHECK(key != nullptr)
-        << "The entry key of attr `tir_var_upper_bound` should be string. However "
-        << it.first->GetTypeKey() << " is got.";
-    CHECK(value != nullptr)
-        << "The entry value of attr `tir_var_upper_bound` should be integer. However "
-        << it.second.GetTypeKey() << " is got.";
-    CHECK_GT(value->value, 0)
-        << "The entry value of attr `tir_var_upper_bound` should be a positive integer, while "
-        << value->value << " is got.";
-    var_upper_bound_attr[GetRef<String>(key)] = GetRef<IntImm>(value);
+  for (auto [key, value] : var_upper_bound_attr_raw) {
+    var_upper_bound_attr[key] = value;
   }
-  for (ObjectRef var_name : non_negative_var_attr_raw) {
-    const auto* key = var_name.as<ffi::StringObj>();
-    CHECK(key != nullptr) << "The element of attr `tir_non_negative_var` should be string. However "
-                          << var_name->GetTypeKey() << " is got.";
-    non_negative_var_attr.insert(GetRef<String>(key));
+  for (const String& var_name : non_negative_var_attr_raw) {
+    non_negative_var_attr.insert(var_name);
   }
   Array<tir::Var> var_in_signature = TIRVarsInStructInfo(GetStructInfo(func));
   for (const tir::Var& tir_var : var_in_signature) {

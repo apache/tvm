@@ -173,7 +173,7 @@ class StringUtils {
    * \brief Change Object to String.
    * \return The String.
    */
-  TVM_DLL static const String ToString(const runtime::ObjectRef& obj);
+  TVM_DLL static const String ToString(const ffi::Any& obj);
 };
 
 /*!
@@ -287,7 +287,7 @@ class SpanUtils {
    * \brief Get the value in <key>value</key> from the Span.
    * \return The value String.
    */
-  TVM_DLL static const String GetAttr(const Span& span, const String& key);
+  TVM_DLL static String GetAttr(const Span& span, const String& key);
 
   /*!
    * \brief Get all the key:value in format <key>value</key> from the Span.

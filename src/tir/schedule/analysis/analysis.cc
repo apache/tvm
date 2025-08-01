@@ -949,7 +949,7 @@ StmtSRef GetSRefLowestCommonAncestor(const Array<StmtSRef>& srefs) {
 }
 
 bool HasBeenMultiLevelTiled(const StmtSRef& block_sref) {
-  return tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_tiling_structure).defined();
+  return tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_tiling_structure).has_value();
 }
 
 std::pair<Array<StmtSRef>, std::vector<int>> CollectComputeLocation(const ScheduleState& self,

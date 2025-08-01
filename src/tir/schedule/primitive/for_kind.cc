@@ -164,13 +164,13 @@ void ParallelizeComputation(const ScheduleState& self, const StmtSRef& loop_sref
   // Step 2. Check whether the loop can be parallelized/vectorized/bound with regard to each
   // underlying block.
   CheckParallelizability(self, GetRef<For>(loop), for_kind,
-                         thread_axis.defined() ? runtime::ThreadScope::Create(thread_axis.value())
-                                               : runtime::ThreadScope{-1, -1});
+                         thread_axis.has_value() ? runtime::ThreadScope::Create(thread_axis.value())
+                                                 : runtime::ThreadScope{-1, -1});
 
   // Step 3. Loop update and IR replacement
   ObjectPtr<ForNode> new_loop = make_object<ForNode>(*loop);
   new_loop->kind = for_kind;
-  if (thread_axis.defined()) {
+  if (thread_axis.has_value()) {
     new_loop->thread_binding = IterVar(/*dom=*/Range(nullptr),                                    //
                                        /*var=*/Var(thread_axis.value(), loop->loop_var.dtype()),  //
                                        /*iter_type=*/kThreadIndex,                                //

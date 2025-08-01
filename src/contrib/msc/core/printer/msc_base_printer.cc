@@ -158,7 +158,7 @@ void MSCBasePrinter::PrintTypedDoc(const ExprStmtDoc& doc) {
 }
 
 void MSCBasePrinter::MaybePrintComment(const StmtDoc& stmt, bool multi_lines) {
-  if (stmt->comment.defined()) {
+  if (stmt->comment.has_value()) {
     if (multi_lines) {
       for (const auto& l : StringUtils::Split(stmt->comment.value(), "\n")) {
         PrintDoc(CommentDoc(l));

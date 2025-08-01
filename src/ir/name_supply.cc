@@ -68,7 +68,6 @@ String NameSupplyNode::add_prefix_to_name(const String& name) {
   }
 
   std::ostringstream ss;
-  ICHECK(name.defined());
   ss << prefix_ << "_" << name;
   return ss.str();
 }

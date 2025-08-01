@@ -81,11 +81,13 @@ Optional<ExprDoc> IRDocsifierNode::GetVarDoc(const ObjectRef& obj) const {
   return it->second.creator();
 }
 
-ExprDoc IRDocsifierNode::AddMetadata(const ObjectRef& obj) {
-  ICHECK(obj.defined()) << "TypeError: Cannot add nullptr to metadata";
-  String key = obj->GetTypeKey();
-  Array<ObjectRef>& array = metadata[key];
-  int index = std::find(array.begin(), array.end(), obj) - array.begin();
+ExprDoc IRDocsifierNode::AddMetadata(const ffi::Any& obj) {
+  ICHECK(obj != nullptr) << "TypeError: Cannot add nullptr to metadata";
+  String key = obj.GetTypeKey();
+  Array<ffi::Any>& array = metadata[key];
+  int index = std::find_if(array.begin(), array.end(),
+                           [&](const ffi::Any& a) { return ffi::AnyEqual()(a, obj); }) -
+              array.begin();
   if (index == static_cast<int>(array.size())) {
     array.push_back(obj);
   }
@@ -104,7 +106,7 @@ bool IRDocsifierNode::IsVarDefined(const ObjectRef& obj) const { return obj2info
 void IRDocsifierNode::RemoveVar(const ObjectRef& obj) {
   auto it = obj2info.find(obj);
   ICHECK(it != obj2info.end()) << "No such object: " << obj;
-  if (it->second.name.defined()) {
+  if (it->second.name.has_value()) {
     defined_names.erase(it->second.name.value());
   }
   obj2info.erase(it);

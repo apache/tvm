@@ -270,7 +270,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
 
   std::vector<Group*> GetGroupsToMerge(const CallNode* call) {
     Optional<String> codegen_name = GetCodegenName(call->op);
-    if (!codegen_name.defined()) {
+    if (!codegen_name.has_value()) {
       return {};
     }
 

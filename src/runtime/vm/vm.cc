@@ -1051,7 +1051,7 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
         }
       }
 
-      std::unordered_map<std::string, ObjectRef> metrics;
+      std::unordered_map<std::string, ffi::Any> metrics;
       metrics["Argument Shapes"] = profiling::ShapeString(arrs);
 
       // If a suitable device is found, enable profiling.

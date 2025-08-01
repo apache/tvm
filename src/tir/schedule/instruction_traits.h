@@ -541,7 +541,7 @@ void PythonAPICall::OutputList(Array<String> outputs) {
 
 String PythonAPICall::Str() const {
   std::ostringstream os;
-  if (output_.defined()) {
+  if (output_.has_value()) {
     os << output_.value() << " = ";
   }
   os << "sch." << method_name_ << '(';

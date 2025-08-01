@@ -103,7 +103,7 @@ bool IsInlinablePrimFunc(const GlobalVar& gvar, const PrimFunc& prim_func,
   // Only inline private functions.  Externally-exposed functions
   // must be preserved so to avoid breaking callsites outside of
   // the IRModule.
-  bool is_exposed = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+  bool is_exposed = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol).has_value();
   if (is_exposed) return false;
 
   // We do not currently implement any analysis for termination of

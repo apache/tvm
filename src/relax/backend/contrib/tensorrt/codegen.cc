@@ -141,7 +141,7 @@ class TensorRTJSONSerializer : public JSONSerializer {
     const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
 
     auto opt_composite = fn->GetAttr<String>(attr::kComposite);
-    ICHECK(opt_composite.defined());
+    ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
     // Collect the constants and attributes of all operator calls inside the composite body.

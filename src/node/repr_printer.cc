@@ -26,6 +26,8 @@
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/device_api.h>
 
+#include "../support/str_escape.h"
+
 namespace tvm {
 
 void ReprPrinter::Print(const ObjectRef& node) {

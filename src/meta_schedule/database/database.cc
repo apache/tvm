@@ -46,7 +46,7 @@ ObjectRef WorkloadNode::AsJSON() const {
   // Dump the JSON string to base64
   std::string b64_mod = Base64Encode(json_mod);
   // Output
-  return Array<ObjectRef>{SHash2Str(this->shash), String(b64_mod)};
+  return Array<ffi::Any>{SHash2Str(this->shash), String(b64_mod)};
 }
 
 Workload Workload::FromJSON(const ObjectRef& json_obj) {

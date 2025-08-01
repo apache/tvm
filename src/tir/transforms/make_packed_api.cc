@@ -187,7 +187,7 @@ Optional<String> RequiresPackedAPI(const PrimFunc& func) {
 
   // Internal function calls do not need the ffi::Function API
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  if (!global_symbol.defined()) {
+  if (!global_symbol.has_value()) {
     return std::nullopt;
   }
 
@@ -196,7 +196,7 @@ Optional<String> RequiresPackedAPI(const PrimFunc& func) {
 
 PrimFunc MakePackedAPI(PrimFunc func) {
   auto global_symbol = RequiresPackedAPI(func);
-  if (!global_symbol.defined()) {
+  if (!global_symbol.has_value()) {
     return func;
   }
   std::string name_hint = global_symbol.value();
@@ -365,7 +365,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                   StringImm(name_hint + "_compute_"), body);
   // Set device context
   if (vmap.count(device_id.get())) {
-    ObjectRef node = String("default");
+    ffi::Any node = ffi::String("default");
     seq_check.push_back(AttrStmt(node, attr::device_id, device_id, nop));
     seq_check.push_back(AttrStmt(node, attr::device_type, device_type, nop));
 

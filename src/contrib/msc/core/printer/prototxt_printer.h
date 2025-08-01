@@ -50,7 +50,7 @@ class PrototxtPrinter : public MSCBasePrinter {
   explicit PrototxtPrinter(const std::string& options = "") : MSCBasePrinter(options) {}
 
   /*! \brief Change object to LiteralDoc*/
-  static LiteralDoc ToLiteralDoc(const ObjectRef& obj);
+  static LiteralDoc ToLiteralDoc(const ffi::Any& obj);
 
   /*! \brief Change map to DictDoc*/
   static DictDoc ToDictDoc(const Map<String, ffi::Any>& dict);

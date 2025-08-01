@@ -44,8 +44,8 @@ class UpdateCostModelNode : public MeasureCallbackNode {
     pruned_candidate.reserve(n);
     pruned_runner_result.reserve(n);
     for (int i = 0; i < n; i++) {
-      if (!builder_results[i]->error_msg.defined() &&  //
-          (runner_results[i]->error_msg.defined() ||   //
+      if (!builder_results[i]->error_msg.has_value() &&  //
+          (runner_results[i]->error_msg.has_value() ||   //
            (runner_results[i]->run_secs.defined() &&
             Sum(runner_results[i]->run_secs.value()) > 0))) {
         pruned_candidate.push_back(measure_candidates[i]);

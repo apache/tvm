@@ -63,7 +63,7 @@ class ParamsInliner : public ExprMutator {
           }
           if (struct_info->IsInstance<FuncStructInfoNode>()) {
             const auto& optype_opt = func->GetAttr<String>(msc_attr::kOptype);
-            ICHECK(optype_opt.defined())
+            ICHECK(optype_opt.has_value())
                 << "Can not find attr " << msc_attr::kOptype << " form extern func";
             extern_types_.Set(p, optype_opt.value());
             continue;

@@ -606,7 +606,7 @@ Array<runtime::Module> MSCTensorRTCompiler(Array<Function> functions,
   for (const auto& func : functions) {
     VLOG(1) << "MSC.TensorRT partition:" << std::endl << func;
     const auto& name_opt = func->GetAttr<String>(msc_attr::kUnique);
-    ICHECK(name_opt.defined()) << "Can not find " << msc_attr::kUnique << " from attrs";
+    ICHECK(name_opt.has_value()) << "Can not find " << msc_attr::kUnique << " from attrs";
     const auto& name = name_opt.value();
     std::string func_name = GetExtSymbol(func);
     ICHECK(target_option.count(name)) << "Can not find target option for " << name;

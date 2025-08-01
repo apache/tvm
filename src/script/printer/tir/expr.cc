@@ -326,8 +326,8 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 bool IsNumber(const ExprDoc& e) {
   if (const auto* n = e.as<LiteralDocNode>()) {
-    if (n->value.defined()) {
-      return n->value->IsInstance<IntImmNode>() || n->value->IsInstance<FloatImmNode>();
+    if (n->value != nullptr) {
+      return n->value.as<IntImmNode>() || n->value.as<FloatImmNode>();
     }
   }
   return false;

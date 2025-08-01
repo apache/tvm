@@ -317,7 +317,7 @@ class MetricCollectorNode : public Object {
    * \returns A set of metric names and the associated values. Values must be
    * one of DurationNode, PercentNode, CountNode, or StringObj.
    */
-  virtual Map<String, ffi::Any> Stop(ObjectRef obj) = 0;
+  virtual Map<String, ffi::Any> Stop(ffi::ObjectRef obj) = 0;
 
   virtual ~MetricCollectorNode() {}
 
@@ -340,7 +340,7 @@ struct CallFrame {
   /*! Runtime of the function or op */
   Timer timer;
   /*! Extra performance metrics */
-  std::unordered_map<std::string, ObjectRef> extra_metrics;
+  std::unordered_map<std::string, ffi::Any> extra_metrics;
   /*! User defined metric collectors. Each pair is the MetricCollector and its
    * associated data (returned from MetricCollector.Start).
    */
@@ -404,12 +404,12 @@ class Profiler {
    * `StartCall` and `StopCall` must be nested properly.
    */
   void StartCall(String name, Device dev,
-                 std::unordered_map<std::string, ObjectRef> extra_metrics = {});
+                 std::unordered_map<std::string, ffi::Any> extra_metrics = {});
   /*! \brief Stop the last `StartCall`.
    * \param extra_metrics Optional additional profiling information to add to
    * the frame (input sizes, allocations).
    */
-  void StopCall(std::unordered_map<std::string, ObjectRef> extra_metrics = {});
+  void StopCall(std::unordered_map<std::string, ffi::Any> extra_metrics = {});
   /*! \brief A report of total runtime between `Start` and `Stop` as
    *        well as individual statistics for each `StartCall`-`StopCall` pair.
    *  \returns A `Report` that can either be formatted as CSV (with `.AsCSV`)
