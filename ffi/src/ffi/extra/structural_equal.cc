@@ -62,10 +62,10 @@ class StructEqualHandler {
       case TypeIndex::kTVMFFIStr:
       case TypeIndex::kTVMFFIBytes: {
         // compare bytes
-        const BytesObjBase* lhs_str =
-            AnyUnsafe::CopyFromAnyViewAfterCheck<const BytesObjBase*>(lhs);
-        const BytesObjBase* rhs_str =
-            AnyUnsafe::CopyFromAnyViewAfterCheck<const BytesObjBase*>(rhs);
+        const details::BytesObjBase* lhs_str =
+            AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(lhs);
+        const details::BytesObjBase* rhs_str =
+            AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(rhs);
         return Bytes::memncmp(lhs_str->data, rhs_str->data, lhs_str->size, rhs_str->size) == 0;
       }
       case TypeIndex::kTVMFFIArray: {

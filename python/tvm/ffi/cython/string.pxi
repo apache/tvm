@@ -40,7 +40,7 @@ class String(str, PyNativeObject):
     """
     def __new__(cls, value):
         val = str.__new__(cls, value)
-        val.__init_tvm_ffi_object_by_constructor__(_STR_CONSTRUCTOR, value)
+        val.__tvm_ffi_object__ = None
         return val
 
     # pylint: disable=no-self-argument
@@ -65,7 +65,7 @@ class Bytes(bytes, PyNativeObject):
     """
     def __new__(cls, value):
         val = bytes.__new__(cls, value)
-        val.__init_tvm_ffi_object_by_constructor__(_BYTES_CONSTRUCTOR, value)
+        val.__tvm_ffi_object__ = None
         return val
 
     # pylint: disable=no-self-argument

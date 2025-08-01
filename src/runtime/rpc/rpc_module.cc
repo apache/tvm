@@ -88,8 +88,9 @@ class RPCWrappedFunc : public Object {
     // scan and check whether we need rewrite these arguments
     // to their remote variant.
     for (int i = 0; i < args.size(); ++i) {
-      if (const auto* str = args[i].as<ffi::StringObj>()) {
-        packed_args[i] = str->data;
+      if (args[i].type_index() == ffi::TypeIndex::kTVMFFIStr) {
+        // pass string as c_str
+        packed_args[i] = args[i].cast<ffi::String>().data();
         continue;
       }
       packed_args[i] = args[i];

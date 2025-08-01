@@ -87,7 +87,7 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
             out[i].type_index = kTVMFFINDArray
             out[i].v_ptr = (<NDArray>arg).chandle
             temp_args.append(arg)
-        elif isinstance(arg, PyNativeObject):
+        elif isinstance(arg, PyNativeObject) and arg.__tvm_ffi_object__ is not None:
             arg = arg.__tvm_ffi_object__
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
             out[i].v_ptr = (<Object>arg).chandle

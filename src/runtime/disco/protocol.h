@@ -54,13 +54,13 @@ struct DiscoProtocol {
   }
 
   /*! \brief Get the length of the object being serialized. Used by RPCReference. */
-  inline uint64_t GetObjectBytes(Object* obj);
+  inline uint64_t GetFFIAnyProtocolBytes(const TVMFFIAny* obj);
 
   /*! \brief Write the object to stream. Used by RPCReference. */
-  inline void WriteObject(Object* obj);
+  inline void WriteFFIAny(const TVMFFIAny* obj);
 
   /*! \brief Read the object from stream. Used by RPCReference. */
-  inline void ReadObject(TVMFFIAny* out);
+  inline void ReadFFIAny(TVMFFIAny* out);
 
   /*! \brief Callback method used when starting a new message. Used by RPCReference. */
   void MessageStart(uint64_t packet_nbytes) {}
@@ -113,67 +113,70 @@ struct DiscoDebugObject : public Object {
   /*! \brief Deserialize the debug object from string */
   static inline ObjectPtr<DiscoDebugObject> LoadFromStr(std::string json_str);
   /*! \brief Get the size of the debug object in bytes */
-  inline uint64_t GetObjectBytes() const { return sizeof(uint64_t) + this->SaveToStr().size(); }
+  inline uint64_t GetFFIAnyProtocolBytes() const {
+    return sizeof(uint64_t) + this->SaveToStr().size();
+  }
 
   static constexpr const char* _type_key = "runtime.disco.DiscoDebugObject";
   TVM_DECLARE_FINAL_OBJECT_INFO(DiscoDebugObject, SessionObj);
 };
 
 template <class SubClassType>
-inline uint64_t DiscoProtocol<SubClassType>::GetObjectBytes(Object* obj) {
-  if (obj->IsInstance<DRefObj>()) {
+inline uint64_t DiscoProtocol<SubClassType>::GetFFIAnyProtocolBytes(const TVMFFIAny* value) {
+  const AnyView* any_view_ptr = reinterpret_cast<const AnyView*>(value);
+  if (any_view_ptr->as<DRefObj>()) {
     return sizeof(uint32_t) + sizeof(int64_t);
-  } else if (obj->IsInstance<ffi::StringObj>()) {
-    uint64_t size = static_cast<ffi::StringObj*>(obj)->size;
+  } else if (const auto opt_str = any_view_ptr->as<ffi::String>()) {
+    uint64_t size = (*opt_str).size();
     return sizeof(uint32_t) + sizeof(uint64_t) + size * sizeof(char);
-  } else if (obj->IsInstance<ffi::BytesObj>()) {
-    uint64_t size = static_cast<ffi::BytesObj*>(obj)->size;
+  } else if (const auto opt_bytes = any_view_ptr->as<ffi::Bytes>()) {
+    uint64_t size = (*opt_bytes).size();
     return sizeof(uint32_t) + sizeof(uint64_t) + size * sizeof(char);
-  } else if (obj->IsInstance<ffi::ShapeObj>()) {
-    uint64_t ndim = static_cast<ffi::ShapeObj*>(obj)->size;
+  } else if (const auto opt_shape = any_view_ptr->as<ffi::Shape>()) {
+    uint64_t ndim = (*opt_shape).size();
     return sizeof(uint32_t) + sizeof(uint64_t) + ndim * sizeof(ffi::ShapeObj::index_type);
-  } else if (obj->IsInstance<DiscoDebugObject>()) {
-    return sizeof(uint32_t) + static_cast<DiscoDebugObject*>(obj)->GetObjectBytes();
+  } else if (const auto opt_debug_obj = any_view_ptr->as<DiscoDebugObject>()) {
+    return sizeof(uint32_t) + (*opt_debug_obj).GetFFIAnyProtocolBytes();
   } else {
     LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
-               << obj->GetTypeKey() << " (type_index = " << obj->type_index() << ")";
+               << any_view_ptr->GetTypeKey() << " (type_index = " << any_view_ptr->type_index()
+               << ")";
   }
 }
 template <class SubClassType>
-inline void DiscoProtocol<SubClassType>::WriteObject(Object* obj) {
+inline void DiscoProtocol<SubClassType>::WriteFFIAny(const TVMFFIAny* value) {
   SubClassType* self = static_cast<SubClassType*>(this);
-  if (obj->IsInstance<DRefObj>()) {
-    int64_t reg_id = static_cast<DRefObj*>(obj)->reg_id;
+  const AnyView* any_view_ptr = reinterpret_cast<const AnyView*>(value);
+  if (const auto* ref = any_view_ptr->as<DRefObj>()) {
+    int64_t reg_id = ref->reg_id;
     self->template Write<uint32_t>(TypeIndex::kRuntimeDiscoDRef);
     self->template Write<int64_t>(reg_id);
-  } else if (obj->IsInstance<ffi::StringObj>()) {
-    ffi::StringObj* str = static_cast<ffi::StringObj*>(obj);
+  } else if (const auto opt_str = any_view_ptr->as<ffi::String>()) {
     self->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIStr);
-    self->template Write<uint64_t>(str->size);
-    self->template WriteArray<char>(str->data, str->size);
-  } else if (obj->IsInstance<ffi::BytesObj>()) {
-    ffi::BytesObj* bytes = static_cast<ffi::BytesObj*>(obj);
+    self->template Write<uint64_t>((*opt_str).size());
+    self->template WriteArray<char>((*opt_str).data(), (*opt_str).size());
+  } else if (const auto opt_bytes = any_view_ptr->as<ffi::Bytes>()) {
     self->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIBytes);
-    self->template Write<uint64_t>(bytes->size);
-    self->template WriteArray<char>(bytes->data, bytes->size);
-  } else if (obj->IsInstance<ffi::ShapeObj>()) {
-    ffi::ShapeObj* shape = static_cast<ffi::ShapeObj*>(obj);
+    self->template Write<uint64_t>((*opt_bytes).size());
+    self->template WriteArray<char>((*opt_bytes).data(), (*opt_bytes).size());
+  } else if (const auto opt_shape = any_view_ptr->as<ffi::Shape>()) {
     self->template Write<uint32_t>(ffi::TypeIndex::kTVMFFIShape);
-    self->template Write<uint64_t>(shape->size);
-    self->template WriteArray<ffi::ShapeObj::index_type>(shape->data, shape->size);
-  } else if (obj->IsInstance<DiscoDebugObject>()) {
+    self->template Write<uint64_t>((*opt_shape).size());
+    self->template WriteArray<ffi::ShapeObj::index_type>((*opt_shape).data(), (*opt_shape).size());
+  } else if (const auto opt_debug_obj = any_view_ptr->as<DiscoDebugObject>()) {
     self->template Write<uint32_t>(0);
-    std::string str = static_cast<DiscoDebugObject*>(obj)->SaveToStr();
+    std::string str = (*opt_debug_obj).SaveToStr();
     self->template Write<uint64_t>(str.size());
     self->template WriteArray<char>(str.data(), str.size());
   } else {
     LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
-               << obj->GetTypeKey() << " (type_index = " << obj->type_index() << ")";
+               << any_view_ptr->GetTypeKey() << " (type_index = " << any_view_ptr->type_index()
+               << ")";
   }
 }
 
 template <class SubClassType>
-inline void DiscoProtocol<SubClassType>::ReadObject(TVMFFIAny* out) {
+inline void DiscoProtocol<SubClassType>::ReadFFIAny(TVMFFIAny* out) {
   SubClassType* self = static_cast<SubClassType*>(this);
   ffi::Any result{nullptr};
   uint32_t type_index;

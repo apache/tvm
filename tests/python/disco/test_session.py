@@ -174,7 +174,7 @@ def test_string_obj(session_kind):
 
     for i in range(num_workers):
         value = result.debug_get_from_remote(i)
-        assert isinstance(value, String)
+        assert isinstance(value, str)
         assert value == "hello_suffix"
 
 

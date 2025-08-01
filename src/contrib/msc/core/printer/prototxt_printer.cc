@@ -31,8 +31,8 @@ namespace contrib {
 namespace msc {
 
 LiteralDoc PrototxtPrinter::ToLiteralDoc(const ffi::Any& obj) {
-  if (obj.as<ffi::StringObj>()) {
-    return LiteralDoc::Str(Downcast<String>(obj), std::nullopt);
+  if (auto opt_str = obj.as<ffi::String>()) {
+    return LiteralDoc::Str(*opt_str, std::nullopt);
   } else if (obj.as<IntImmNode>()) {
     return LiteralDoc::Int(Downcast<IntImm>(obj)->value, std::nullopt);
   } else if (obj.as<FloatImmNode>()) {

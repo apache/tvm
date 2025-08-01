@@ -289,8 +289,8 @@ String ReportNode::AsCSV() const {
           s << (*it).second.as<PercentNode>()->percent;
         } else if ((*it).second.as<RatioNode>()) {
           s << (*it).second.as<RatioNode>()->ratio;
-        } else if ((*it).second.as<ffi::StringObj>()) {
-          s << "\"" << Downcast<String>((*it).second) << "\"";
+        } else if (auto opt_str = (*it).second.as<ffi::String>()) {
+          s << "\"" << *opt_str << "\"";
         }
       }
       if (i < headers.size() - 1) {
@@ -418,9 +418,9 @@ Any AggregateMetric(const std::vector<ffi::Any>& metrics) {
       sum += metric.as<RatioNode>()->ratio;
     }
     return ObjectRef(make_object<RatioNode>(sum / metrics.size()));
-  } else if (metrics[0].as<ffi::StringObj>()) {
+  } else if (auto opt_str = metrics[0].as<ffi::String>()) {
     for (auto& m : metrics) {
-      if (Downcast<String>(metrics[0]) != Downcast<String>(m)) {
+      if (*opt_str != m.as<ffi::String>()) {
         return String("");
       }
     }
@@ -428,7 +428,7 @@ Any AggregateMetric(const std::vector<ffi::Any>& metrics) {
     return metrics[0];
   } else {
     LOG(FATAL) << "Can only aggregate metrics with types DurationNode, CountNode, "
-                  "PercentNode, RatioNode, and StringObj, but got "
+                  "PercentNode, RatioNode, and String, but got "
                << metrics[0].GetTypeKey();
     return ffi::Any();  // To silence warnings
   }
@@ -467,8 +467,8 @@ static String print_metric(ffi::Any metric) {
     set_locale_for_separators(s);
     s << std::setprecision(2) << metric.as<RatioNode>()->ratio;
     val = s.str();
-  } else if (metric.as<ffi::StringObj>()) {
-    val = Downcast<String>(metric);
+  } else if (auto opt_str = metric.as<ffi::String>()) {
+    val = *opt_str;
   } else {
     LOG(FATAL) << "Cannot print metric of type " << metric.GetTypeKey();
   }

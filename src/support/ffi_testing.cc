@@ -184,7 +184,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("testing.AcceptsVariant",
            [](Variant<String, Integer> arg) -> String {
              if (auto opt_str = arg.as<String>()) {
-               return ffi::StringObj::_type_key;
+               return ffi::StaticTypeKey::kTVMFFIStr;
              } else {
                return arg.get<Integer>().GetTypeKey();
              }

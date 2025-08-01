@@ -315,7 +315,7 @@ class MetricCollectorNode : public Object {
   /*! \brief Stop collecting metrics.
    * \param obj The object created by the corresponding `Start` call.
    * \returns A set of metric names and the associated values. Values must be
-   * one of DurationNode, PercentNode, CountNode, or StringObj.
+   * one of DurationNode, PercentNode, CountNode, or String.
    */
   virtual Map<String, ffi::Any> Stop(ffi::ObjectRef obj) = 0;
 
