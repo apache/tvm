@@ -78,7 +78,7 @@ tvm::relax::Var Arg(const String& name, const tvm::relax::StructInfo& struct_inf
 
 void FuncName(const String& name) {
   FunctionFrame frame = FindFunctionFrame("R.func_name");
-  if (frame->name.defined()) {
+  if (frame->name.has_value()) {
     LOG(FATAL) << "ValueError: Duplicate function name, previous one is: \"" << frame->name.value()
                << "\"";
   }

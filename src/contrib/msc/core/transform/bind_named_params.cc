@@ -49,7 +49,7 @@ std::tuple<Map<Var, Expr>, Map<tir::Var, PrimExpr>> NormalizeNamedBindings(
 
   Map<relax::Var, relax::Expr> relax_var_remap;
 
-  auto normalize_key = [&](ObjectRef obj) -> relax::Var {
+  auto normalize_key = [&](ffi::Any obj) -> relax::Var {
     if (auto opt_str = obj.as<String>()) {
       std::string str = opt_str.value();
       auto it = string_lookup.find(str);
@@ -77,18 +77,17 @@ std::tuple<Map<Var, Expr>, Map<tir::Var, PrimExpr>> NormalizeNamedBindings(
       LOG(FATAL)
           << "Expected bound parameter to be a relax::Var, "
           << " or a string that uniquely identifies a relax::Var param within the function.  "
-          << "However, received object " << obj << " of type " << obj->GetTypeKey();
+          << "However, received object " << obj << " of type " << obj.GetTypeKey();
     }
   };
-  auto normalize_value = [&](Var key, ObjectRef obj) -> relax::Expr {
+  auto normalize_value = [&](Var key, ffi::Any obj) -> relax::Expr {
     if (auto opt = obj.as<relax::Expr>()) {
       return opt.value();
     } else if (auto opt = obj.as<runtime::NDArray>()) {
       const auto& span = SpanUtils::CreateWithAttr(msc_attr::kName, key->name_hint());
       return Constant(opt.value(), StructInfo(), span);
     } else {
-      LOG(FATAL) << "Cannot coerce object of type " << obj->GetTypeKey()
-                 << " into relax expression";
+      LOG(FATAL) << "Cannot coerce object of type " << obj.GetTypeKey() << " into relax expression";
     }
   };
 
@@ -130,7 +129,7 @@ IRModule BindNamedParam(IRModule m, String func_name, Map<ObjectRef, ObjectRef> 
       if (relax_f->GetLinkageType() == LinkageType::kExternal) {
         // Use global_symbol if it's external linkage
         Optional<String> gsymbol = relax_f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-        if (gsymbol.defined() && gsymbol.value() == func_name) {
+        if (gsymbol.has_value() && gsymbol.value() == func_name) {
           Function f_after_bind = FunctionBindNamedParams(GetRef<Function>(relax_f), bind_params);
           new_module->Update(func_pr.first, f_after_bind);
         }

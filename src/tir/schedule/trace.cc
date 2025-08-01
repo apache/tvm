@@ -240,7 +240,7 @@ Array<String> TranslateAddOutputRVs(
     ICHECK(!rv_names->count(output.cast<ObjectRef>()))
         << "ValueError: The random variable has been produced once: "
         << rv_names->at(output.cast<ObjectRef>());
-    String result{ffi::ObjectPtr<ffi::StringObj>{nullptr}};
+    String result;
     if (output == nullptr) {
       result = "_";
     } else if (output.as<BlockRVNode>()) {
@@ -320,8 +320,8 @@ void TraceNode::ApplyToSchedule(
 
 ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
   std::unordered_map<ObjectRef, String, ObjectPtrHash, ObjectPtrEqual> rv_names;
-  Array<ObjectRef> json_insts;
-  Array<ObjectRef> json_decisions;
+  Array<ffi::Any> json_insts;
+  Array<ffi::Any> json_decisions;
   json_insts.reserve(this->insts.size());
   json_decisions.reserve(this->insts.size());
 
@@ -331,7 +331,7 @@ ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
     if (remove_postproc && kind->IsPostproc()) {
       break;
     }
-    json_insts.push_back(Array<ObjectRef>{
+    json_insts.push_back(Array<ffi::Any>{
         /* 0: inst name */ kind->name,
         /* 1: inputs    */ TranslateInputRVs(inst->inputs, rv_names),
         /* 2: attrs     */ kind->f_attrs_as_json != nullptr ? kind->f_attrs_as_json(inst->attrs)
@@ -346,7 +346,7 @@ ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
     }
     ++i;
   }
-  return Array<ObjectRef>{
+  return Array<ffi::Any>{
       /* 0: trace    */ std::move(json_insts),
       /* 1: decision */ std::move(json_decisions),
   };

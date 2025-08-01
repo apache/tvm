@@ -84,7 +84,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 TVM_REGISTER_NODE_TYPE(LetStmtNode);
 
 // AttrStmt
-AttrStmt::AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, Span span) {
+AttrStmt::AttrStmt(ffi::Any node, String attr_key, PrimExpr value, Stmt body, Span span) {
   auto n = make_object<AttrStmtNode>();
   n->node = node;
   n->attr_key = std::move(attr_key);

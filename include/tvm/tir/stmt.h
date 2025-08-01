@@ -115,7 +115,7 @@ class LetStmt : public Stmt {
 class AttrStmtNode : public StmtNode {
  public:
   /*! \brief this is attribute about certain node */
-  ObjectRef node;
+  ffi::Any node;
   /*! \brief the type key of the attribute */
   String attr_key;
   /*! \brief The attribute value, value is well defined at current scope. */
@@ -142,7 +142,7 @@ class AttrStmtNode : public StmtNode {
  */
 class AttrStmt : public Stmt {
  public:
-  TVM_DLL AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, Span span = Span());
+  TVM_DLL AttrStmt(ffi::Any node, String attr_key, PrimExpr value, Stmt body, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(AttrStmt, Stmt, AttrStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AttrStmtNode);

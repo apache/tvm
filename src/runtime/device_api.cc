@@ -107,7 +107,7 @@ static size_t GetDataAlignment(const DLDataType dtype) {
 }
 
 size_t DeviceAPI::GetDataSize(const DLTensor& arr, Optional<String> mem_scope) {
-  if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
+  if (!mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global") {
     size_t size = 1;
     for (int i = 0; i < arr.ndim; ++i) {
       size *= static_cast<size_t>(arr.shape[i]);
@@ -121,7 +121,7 @@ size_t DeviceAPI::GetDataSize(const DLTensor& arr, Optional<String> mem_scope) {
 
 void* DeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                                 Optional<String> mem_scope) {
-  if (!mem_scope.defined() || mem_scope.value() == "" || mem_scope.value() == "global") {
+  if (!mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global") {
     // by default, we can always redirect to the flat memory allocations
     DLTensor temp;
     temp.data = nullptr;

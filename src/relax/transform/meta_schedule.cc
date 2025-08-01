@@ -84,7 +84,7 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
     if (Database::Current().defined()) {
       database = Database::Current().value();
     } else {
-      ICHECK(work_dir.defined());
+      ICHECK(work_dir.has_value());
       String path_workload = work_dir.value() + "/database_workload.json";
       String path_tuning_record = work_dir.value() + "/database_tuning_record.json";
       LOG(WARNING) << "Creating JSONDatabase. Workload at: " << path_workload

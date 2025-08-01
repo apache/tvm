@@ -103,7 +103,7 @@ PrimFunc MakeUnpackedAPI(PrimFunc func) {
 
   // Internal function calls do not need API updates
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  if (!global_symbol.defined()) {
+  if (!global_symbol.has_value()) {
     return func;
   }
 
@@ -128,7 +128,7 @@ PrimFunc MakeUnpackedAPI(PrimFunc func) {
   // Setup device context
   Integer device_type(target_device_type);
   Integer device_id(0);
-  ObjectRef node = String("default");
+  ffi::Any node = ffi::String("default");
   const Stmt nop = Evaluate(0);
   std::vector<Stmt> device_init;
 

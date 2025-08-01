@@ -145,7 +145,7 @@ class IRDocsifierNode : public Object {
   /*! \brief Mapping from a var to its info */
   std::unordered_map<ObjectRef, VariableInfo, ObjectPtrHash, ObjectPtrEqual> obj2info;
   /*! \brief Metadata printing */
-  std::unordered_map<String, Array<ObjectRef>> metadata;
+  std::unordered_map<String, Array<ffi::Any>> metadata;
   /*! \brief GlobalInfo printing */
   std::unordered_map<String, Array<GlobalInfo>> global_infos;
   /*! \brief The variable names used already */
@@ -206,7 +206,7 @@ class IRDocsifierNode : public Object {
    */
   Optional<ExprDoc> GetVarDoc(const ObjectRef& obj) const;
   /*! \brief Add a TVM object to the metadata section*/
-  ExprDoc AddMetadata(const ObjectRef& obj);
+  ExprDoc AddMetadata(const ffi::Any& obj);
   /*! \brief Add a GlobalInfo to the global_infos map.
    * \param name The name of key of global_infos.
    * \param ginfo The GlobalInfo to be added.
@@ -275,7 +275,7 @@ inline static void AddDocDecoration(const Doc& d, const ObjectRef& obj, const Ob
                                     const PrinterConfig& cfg) {
   if (cfg->obj_to_annotate.count(obj)) {
     if (const auto* stmt = d.as<StmtDocNode>()) {
-      if (stmt->comment.defined()) {
+      if (stmt->comment.has_value()) {
         stmt->comment = stmt->comment.value() + "\n" + cfg->obj_to_annotate.at(obj);
       } else {
         stmt->comment = cfg->obj_to_annotate.at(obj);
@@ -295,7 +295,7 @@ inline static void AddDocDecoration(const Doc& d, const ObjectRef& obj, const Ob
     String attn = pair.second;
     if (p->IsPrefixOf(path) && path->IsPrefixOf(p)) {
       if (const auto* stmt = d.as<StmtDocNode>()) {
-        if (stmt->comment.defined()) {
+        if (stmt->comment.has_value()) {
           stmt->comment = stmt->comment.value() + "\n" + attn;
         } else {
           stmt->comment = attn;
@@ -319,8 +319,16 @@ inline TDoc IRDocsifierNode::AsDoc(const Any& value, const ObjectPath& path) con
       return Downcast<TDoc>(LiteralDoc::Int(value.as<int64_t>().value(), path));
     case ffi::TypeIndex::kTVMFFIFloat:
       return Downcast<TDoc>(LiteralDoc::Float(value.as<double>().value(), path));
-    case ffi::TypeIndex::kTVMFFIStr:
-      return Downcast<TDoc>(LiteralDoc::Str(value.as<String>().value(), path));
+    case ffi::TypeIndex::kTVMFFIStr: {
+      std::string string_value = value.cast<std::string>();
+      bool has_multiple_lines = string_value.find_first_of('\n') != std::string::npos;
+      if (has_multiple_lines) {
+        Doc d = const_cast<IRDocsifierNode*>(this)->AddMetadata(string_value);
+        // TODO(tqchen): cross check AddDocDecoration
+        return Downcast<TDoc>(d);
+      }
+      return Downcast<TDoc>(LiteralDoc::Str(string_value, path));
+    }
     case ffi::TypeIndex::kTVMFFIDataType:
       return Downcast<TDoc>(LiteralDoc::DataType(value.as<runtime::DataType>().value(), path));
     case ffi::TypeIndex::kTVMFFIDevice:

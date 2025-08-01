@@ -285,7 +285,7 @@ Expr RewriteAttention(BlockBuilder builder, const Var& var, const Call& src_call
 
   // causal_mask
   Expr s_value;
-  if (!src_attrs->causal_mask.defined()) {
+  if (!src_attrs->causal_mask.has_value()) {
     auto softmax_attrs = make_object<SoftmaxAttrs>();
     softmax_attrs->axis = 2;
     s_value = RewriteUtils::MakeCall(builder, ExprUtils::GetSpanName(call, "act"), softmax_op,

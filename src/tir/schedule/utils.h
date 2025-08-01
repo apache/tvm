@@ -290,7 +290,7 @@ inline Optional<TObjectRef> GetAnn(const StmtSRef& sref, const String& ann_key) 
  */
 inline bool HasAnn(const StmtSRef& sref, const String& ann_key, const String& ann_val) {
   Optional<String> result = GetAnn<String>(sref, ann_key);
-  return result.defined() && result.value() == ann_val;
+  return result.has_value() && result.value() == ann_val;
 }
 
 /*!

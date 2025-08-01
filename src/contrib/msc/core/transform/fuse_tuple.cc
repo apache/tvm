@@ -55,7 +55,7 @@ class TupleFuser : public ExprMutator {
         main_var = gv;
       } else {
         const auto& name_opt = func->GetAttr<String>(attr::kComposite);
-        if (name_opt.defined() && StringUtils::StartsWith(name_opt.value(), target_)) {
+        if (name_opt.has_value() && StringUtils::StartsWith(name_opt.value(), target_)) {
           target_funcs_.Set(gv, Downcast<Function>(func));
         }
       }
@@ -76,7 +76,7 @@ class TupleFuser : public ExprMutator {
         if (arg->IsInstance<TupleNode>()) {
           String tuple_name;
           const auto& name_opt = target_funcs_[val->op]->GetAttr<String>(msc_attr::kUnique);
-          if (name_opt.defined()) {
+          if (name_opt.has_value()) {
             if (val->args.size() == 1) {
               tuple_name = name_opt.value() + "_input";
             } else {

@@ -57,7 +57,6 @@ void InlinePostBlocks(Schedule sch, Trace anchor_trace, Target target) {
   for (const auto& inst : anchor_trace->insts) {
     if (inst->kind.same_as(kind_get_block)) {
       auto block_name = Downcast<String>(inst->attrs[0]);
-      ICHECK(block_name.defined());
       get_block_names.insert(block_name);
     }
   }

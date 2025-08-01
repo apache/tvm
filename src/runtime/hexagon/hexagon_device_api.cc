@@ -74,7 +74,7 @@ void* HexagonDeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shap
   //         in Hexagon's "indirect tensor" format:
   //         - shape[0] indicates the number of tensor-content memory allocations.
   //         - shape[1] indicates the size of each tensor-content memory allocation.
-  if (!mem_scope.defined() || mem_scope.value() == "global") {
+  if (!mem_scope.has_value() || mem_scope.value().empty() || mem_scope.value() == "global") {
     return DeviceAPI::AllocDataSpace(dev, ndim, shape, dtype, mem_scope);
   }
 

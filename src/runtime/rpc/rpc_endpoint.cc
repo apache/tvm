@@ -1160,7 +1160,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     temp.shape = const_cast<int64_t*>(shape);
     temp.strides = nullptr;
     temp.byte_offset = 0;
-    if (mem_scope.defined()) {
+    if (mem_scope.has_value()) {
       return endpoint_
           ->SysCallRemote(RPCCode::kDevAllocDataWithScope, &temp,
                           static_cast<std::string>(mem_scope.value()))

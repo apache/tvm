@@ -234,10 +234,10 @@ NDArray Allocator::Empty(ffi::Shape shape, DLDataType dtype, DLDevice dev,
   size_t size = ffi::GetDataSize(shape.Product(), dtype);
 
   Buffer buffer;
-  if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
+  if (!mem_scope.has_value() || (*mem_scope).empty() || (*mem_scope) == "global") {
     buffer = this->Alloc(dev, size, alignment, dtype);
   } else {
-    buffer = this->Alloc(dev, shape, dtype, mem_scope.value());
+    buffer = this->Alloc(dev, shape, dtype, *mem_scope);
   }
   return NDArray::FromNDAlloc(BufferAlloc(buffer), shape, dtype, dev);
 }

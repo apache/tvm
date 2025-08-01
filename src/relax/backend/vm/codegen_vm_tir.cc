@@ -127,7 +127,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
   void EmitCallCPacked(const tir::PrimFunc& prim_func, const Array<PrimExpr>& args,
                        int64_t dst_anylist_slot = -1) {
     Optional<String> gsymbol = prim_func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    ICHECK(gsymbol.defined()) << "All functions must have global symbol at this phase";
+    ICHECK(gsymbol.has_value()) << "All functions must have global symbol at this phase";
     Array<PrimExpr> all_args;
     // negative index indicate return value can be discarded, emit call_packed
     if (dst_anylist_slot >= 0) {
@@ -148,8 +148,8 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
 
   tir::PrimFunc Codegen(const Function& func) {
     Optional<String> gsymbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    ICHECK(gsymbol.defined()) << "there should be no local functions in Relax VM codegen phase. "
-                                 "Did you forget to apply LambdaLift or AttachGlobalSymbol Pass?";
+    ICHECK(gsymbol.has_value()) << "there should be no local functions in Relax VM codegen phase. "
+                                   "Did you forget to apply LambdaLift or AttachGlobalSymbol Pass?";
     // initialize the state
     stmt_stack_ = {};
     registers_num_ = 0;
@@ -379,7 +379,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
   Optional<PrimExpr> VisitExpr_(const GlobalVarNode* op) final {
     VMFuncInfo::FuncKind kind;
     auto symbol = LookupFunction(GetRef<Expr>(op), &kind);
-    ICHECK(symbol.defined());
+    ICHECK(symbol.has_value());
     builder_->DeclareFunction(symbol.value(), kind);
     return FuncListGet(builder_->GetFunction(symbol.value()).value());
   }
@@ -452,7 +452,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     VMFuncInfo::FuncKind kind;
     auto symbol = LookupFunction(call_node->op, &kind);
 
-    if (symbol.defined() && kind == VMFuncInfo::FuncKind::kPackedFunc) {
+    if (symbol.has_value() && kind == VMFuncInfo::FuncKind::kPackedFunc) {
       // primfunc in the same module.
       // use cpacked to directly invoke without named based lookup
       if (Optional<tir::PrimFunc> prim_func = LookupPrimFunc(symbol.value())) {

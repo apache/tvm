@@ -55,7 +55,7 @@ class ByocNameSetter : public ExprMutator {
         continue;
       }
       const auto& name_opt = func->GetAttr<String>(attr::kCodegen);
-      if (name_opt.defined() && name_opt.value() == target_) {
+      if (name_opt.has_value() && name_opt.value() == target_) {
         const String& func_name = target_ + "_" + std::to_string(func_cnt);
         const auto& new_func = Downcast<Function>(VisitExpr(func));
         builder_->UpdateFunction(gv, WithAttr(new_func, msc_attr::kUnique, func_name));
@@ -75,7 +75,7 @@ class ByocNameSetter : public ExprMutator {
     if (val->op->IsInstance<relax::VarNode>()) {
       ICHECK(local_funcs_.count(val->op)) << "Can not find local func " << val->op;
       const auto& name_opt = local_funcs_[val->op]->GetAttr<String>(msc_attr::kUnique);
-      if (name_opt.defined()) {
+      if (name_opt.has_value()) {
         val->span = SpanUtils::SetAttr(val->span, "name", name_opt.value());
       }
     }

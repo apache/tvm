@@ -118,7 +118,7 @@ LoopRV TracedScheduleNode::SampleComputeLocation(const BlockRV& block_rv,
 
 BlockRV TracedScheduleNode::GetBlock(const String& name, const Optional<String>& func_name) {
   GlobalVar gv = NullValue<GlobalVar>();
-  if (func_name.defined()) {
+  if (func_name.has_value()) {
     gv = state_->mod->GetGlobalVar(func_name.value());
   } else if (func_working_on_.defined()) {
     gv = this->func_working_on_.value();

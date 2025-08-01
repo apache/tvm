@@ -184,9 +184,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("testing.AcceptsVariant",
            [](Variant<String, Integer> arg) -> String {
              if (auto opt_str = arg.as<String>()) {
-               return opt_str.value()->GetTypeKey();
+               return ffi::StringObj::_type_key;
              } else {
-               return arg.get<Integer>()->GetTypeKey();
+               return arg.get<Integer>().GetTypeKey();
              }
            })
       .def("testing.AcceptsBool", [](bool arg) -> bool { return arg; })

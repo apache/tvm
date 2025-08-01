@@ -120,7 +120,7 @@ class GraphCreator : public ExprVisitor {
       // true.
       const auto* func = it.second.as<FunctionNode>();
       if (func == nullptr || func->HasNonzeroAttr(attr::kPrimitive) ||
-          func->GetAttr<String>(attr::kCodegen).defined()) {
+          func->GetAttr<String>(attr::kCodegen).has_value()) {
         continue;
       }
       creator(GetRef<Function>(func));
@@ -733,7 +733,7 @@ class OperatorFusor : public ExprMutator {
       // Only visit Relax functions with neither attr::kPrimitive nor
       // attr::kCodegen.
       if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive) &&
-          !func->GetAttr<String>(attr::kCodegen).defined()) {
+          !func->GetAttr<String>(attr::kCodegen).has_value()) {
         auto updated_func = Downcast<Function>(VisitExpr(func));
         builder_->UpdateFunction(gv, updated_func);
       }
@@ -1263,8 +1263,8 @@ class CompositeFunctionAnnotator : public ExprMutator {
       }
       const auto& base_func = (*it).second;
       if (const auto* func = base_func.as<FunctionNode>()) {
-        if (func->GetAttr<String>(attr::kComposite).defined() ||
-            func->GetAttr<String>(attr::kCodegen).defined()) {
+        if (func->GetAttr<String>(attr::kComposite).has_value() ||
+            func->GetAttr<String>(attr::kCodegen).has_value()) {
           continue;
         }
 
@@ -1363,8 +1363,8 @@ IRModule FuseOpsByPattern(const tvm::Array<transform::FusionPattern>& patterns, 
         }
         const FunctionNode* function = base_func.as<FunctionNode>();
         if (function->GetAttr<bool>(attr::kPrimitive).value_or(false) ||
-            function->GetAttr<String>(attr::kComposite).defined() ||
-            function->GetAttr<String>(attr::kCodegen).defined()) {
+            function->GetAttr<String>(attr::kComposite).has_value() ||
+            function->GetAttr<String>(attr::kCodegen).has_value()) {
           continue;
         }
         entry_functions.push_back(Downcast<Function>(base_func));

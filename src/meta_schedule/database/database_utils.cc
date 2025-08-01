@@ -75,7 +75,7 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
       if (i != 0) {
         os << ",";
       }
-      os << '"' << support::StrEscape(kv.first->data, kv.first->size) << '"';
+      os << '"' << support::StrEscape(kv.first.data(), kv.first.size()) << '"';
       os << ":";
       JSONDumps(kv.second, os);
     }

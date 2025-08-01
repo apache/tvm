@@ -311,9 +311,9 @@ BlockRV ConcreteScheduleNode::GetBlock(const String& name, const Optional<String
     Array<Block> blocks_;
   };
   GlobalVar gv = NullValue<GlobalVar>();
-  if (func_name.defined()) {
+  if (func_name.has_value()) {
     gv = state_->mod->GetGlobalVar(func_name.value());
-  } else if (func_working_on_.defined()) {
+  } else if (func_working_on_.has_value()) {
     gv = this->func_working_on_.value();
   } else {
     LOG(FATAL) << "ValueError: `get_block` does not know which function to be working on. Please "

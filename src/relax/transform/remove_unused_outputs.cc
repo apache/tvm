@@ -44,7 +44,7 @@ class PartialTupleUsageCollector : ExprVisitor {
     PMap<GlobalVar, size_t> num_outputs;
 
     for (const auto& [gvar, base_func] : mod->functions) {
-      bool is_exposed = base_func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+      bool is_exposed = base_func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol).has_value();
 
       if (!is_exposed) {
         if (auto relax_func = base_func.as<FunctionNode>()) {

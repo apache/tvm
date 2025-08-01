@@ -178,7 +178,7 @@ Pass InlinePrivateFunctions() {
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<relax::Function>()) {
         auto func = opt.value();
-        bool is_private = !func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+        bool is_private = !func->GetAttr<String>(tvm::attr::kGlobalSymbol).has_value();
         if (is_private) {
           replacements.Set(gvar, func);
         }
