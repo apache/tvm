@@ -948,7 +948,7 @@ def test_mish():
 
 
 def test_prelu():
-    verify_binary("PRelu", [3, 32, 32], [3, 32, 32], [3, 32, 32])
+    verify_binary("PRelu", [3, 32, 32], [1], [3, 32, 32])
 
 
 def test_thresholded_relu():

@@ -1159,6 +1159,89 @@ def test_leakyrelu_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_prelu():
+    # fmt: off
+    @tvm.script.ir_module
+    class PRelu:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((1,), "float32")) -> R.Tensor((2, 3), "float32"):
+            gv: R.Tensor((2, 3), "float32") = R.nn.prelu(x, y)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3), dtype="float32"), y: R.Tensor((1,), dtype="float32")) -> R.Tensor((2, 3), dtype="float32"):
+            gv = R.call_tir(Expected.prelu, (x, y), out_sinfo=R.Tensor((2, 3), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def prelu(x: T.Buffer((T.int64(2), T.int64(3)), "float32"), y: T.Buffer((T.int64(1),), "float32"), compute: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            # with T.block("root"):
+            slope_broadcasted = T.alloc_buffer((T.int64(3),))
+            for c in range(T.int64(3)):
+                with T.block("slope_broadcasted"):
+                    v_c = T.axis.spatial(T.int64(3), c)
+                    T.reads(y[T.int64(0)])
+                    T.writes(slope_broadcasted[v_c])
+                    slope_broadcasted[v_c] = y[T.int64(0)]
+            for i0, i1 in T.grid(T.int64(2), T.int64(3)):
+                with T.block("compute"):
+                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(x[v_i0, v_i1], slope_broadcasted[v_i1])
+                    T.writes(compute[v_i0, v_i1])
+                    compute[v_i0, v_i1] = T.Select(T.float32(0.0) < x[v_i0, v_i1], x[v_i0, v_i1], x[v_i0, v_i1] * slope_broadcasted[v_i1])
+    # fmt: on
+
+    mod = LegalizeOps()(PRelu)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_prelu_symbolic():
+    # fmt: off
+    @tvm.script.ir_module
+    class PRelu:
+        @R.function
+        def main(x: R.Tensor(("m", 7), "float32"), y: R.Tensor((1,), "float32")) -> R.Tensor(("m", 7), "float32"):
+            m = T.int64()
+            gv: R.Tensor((m, 7), "float32") = R.nn.prelu(x, y)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("m", 7), dtype="float32"), y: R.Tensor((1,), dtype="float32")) -> R.Tensor(("m", 7), dtype="float32"):
+            m = T.int64()
+            gv = R.call_tir(Expected.prelu, (x, y), out_sinfo=R.Tensor((m, 7), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def prelu(var_x: T.handle, y: T.Buffer((T.int64(1),), "float32"), var_compute: T.handle):
+            T.func_attr({"tir.noalias": True})
+            m = T.int64()
+            x = T.match_buffer(var_x, (m, T.int64(7)))
+            compute = T.match_buffer(var_compute, (m, T.int64(7)))
+            # with T.block("root"):
+            slope_broadcasted = T.alloc_buffer((T.int64(7),))
+            for c in range(T.int64(7)):
+                with T.block("slope_broadcasted"):
+                    v_c = T.axis.spatial(T.int64(7), c)
+                    T.reads(y[T.int64(0)])
+                    T.writes(slope_broadcasted[v_c])
+                    slope_broadcasted[v_c] = y[T.int64(0)]
+            for i0, i1 in T.grid(m, T.int64(7)):
+                with T.block("compute"):
+                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(x[v_i0, v_i1], slope_broadcasted[v_i1])
+                    T.writes(compute[v_i0, v_i1])
+                    compute[v_i0, v_i1] = T.Select(T.float32(0.0) < x[v_i0, v_i1], x[v_i0, v_i1], x[v_i0, v_i1] * slope_broadcasted[v_i1])
+    # fmt: on
+
+    mod = LegalizeOps()(PRelu)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_gelu():
     # fmt: off
     @tvm.script.ir_module

@@ -364,5 +364,24 @@ def test_nll_loss_no_weights():
     _check(foo, bb.get()["foo"])
 
 
+def test_prelu():
+    @R.function
+    def foo(
+        x: R.Tensor((2, 4, 4, 5), "float32"),
+        alpha: R.Tensor((1,), "float32"),
+    ) -> R.Tensor((2, 4, 4, 5), "float32"):
+        gv: R.Tensor((2, 4, 4, 5), "float32") = R.nn.prelu(x, alpha)
+        return gv
+
+    x = relax.Var("x", R.Tensor((2, 4, 4, 5), "float32"))
+    alpha = relax.Var("alpha", R.Tensor((1,), "float32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", [x, alpha]):
+        gv = bb.emit(relax.op.nn.prelu(x, alpha))
+        bb.emit_func_output(gv)
+
+    _check(foo, bb.get()["foo"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()
