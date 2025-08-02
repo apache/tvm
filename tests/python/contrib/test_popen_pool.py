@@ -96,7 +96,6 @@ def test_popen_pool_executor():
 
     assert value3.result() == 3
     value = value4.result()
-    assert isinstance(value, tvm.runtime.String)
     assert value == "xyz"
 
     pool = PopenPoolExecutor(max_workers=4, timeout=None)

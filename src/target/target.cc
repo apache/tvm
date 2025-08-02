@@ -431,7 +431,7 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
       return Target(TargetInternal::FromString(str.value()));
     } else if (const auto* ptr = obj.as<ffi::MapObj>()) {
       for (const auto& kv : *ptr) {
-        if (!kv.first.as<ffi::StringObj>()) {
+        if (!kv.first.as<ffi::String>()) {
           TVM_FFI_THROW(TypeError)
               << "Target object requires key of dict to be str, but get: " << kv.first.GetTypeKey();
         }
@@ -444,16 +444,16 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
   } else if (info.type_index == ffi::ArrayObj::RuntimeTypeIndex()) {
     // Parsing array
     const auto* array = ObjTypeCheck<const ffi::ArrayObj*>(obj, "Array");
-    std::vector<ObjectRef> result;
+    std::vector<Any> result;
     for (const Any& e : *array) {
       try {
-        result.push_back(TargetInternal::ParseType(e, *info.key).cast<ObjectRef>());
+        result.push_back(TargetInternal::ParseType(e, *info.key));
       } catch (const Error& e) {
         std::string index = '[' + std::to_string(result.size()) + ']';
         throw Error(e.kind(), index + e.message(), e.traceback());
       }
     }
-    return Array<ObjectRef>(result);
+    return Array<Any>(result);
   } else if (info.type_index == ffi::MapObj::RuntimeTypeIndex()) {
     // Parsing map
     const auto* map = ObjTypeCheck<const ffi::MapObj*>(obj, "Map");
