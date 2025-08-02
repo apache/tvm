@@ -418,8 +418,8 @@ TVM_ALWAYS_INLINE Array<Any> UnpackedInstTraits<TTraits>::_ConvertOutputs(const 
 inline void PythonAPICall::AsPythonString(const Any& obj, std::ostream& os) {
   if (obj == nullptr) {
     os << "None";
-  } else if (const auto* str = obj.as<ffi::StringObj>()) {
-    os << str->data;
+  } else if (auto opt_str = obj.as<ffi::String>()) {
+    os << *opt_str;
   } else if (const auto opt_int_imm = obj.try_cast<IntImm>()) {
     os << (*opt_int_imm)->value;
   } else if (const auto opt_float_imm = obj.try_cast<FloatImm>()) {

@@ -95,9 +95,8 @@ class NodeIndexer {
       }
     } else if (auto opt_map = node.as<const ffi::MapObj*>()) {
       const ffi::MapObj* n = opt_map.value();
-      bool is_str_map = std::all_of(n->begin(), n->end(), [](const auto& v) {
-        return v.first.template as<const ffi::StringObj*>();
-      });
+      bool is_str_map = std::all_of(
+          n->begin(), n->end(), [](const auto& v) { return v.first.template as<ffi::String>(); });
       if (is_str_map) {
         for (const auto& kv : *n) {
           MakeIndex(kv.second);
@@ -261,9 +260,8 @@ class JSONAttrGetter {
       }
     } else if (auto opt_map = node.as<const ffi::MapObj*>()) {
       const ffi::MapObj* n = opt_map.value();
-      bool is_str_map = std::all_of(n->begin(), n->end(), [](const auto& v) {
-        return v.first.template as<const ffi::StringObj*>();
-      });
+      bool is_str_map = std::all_of(
+          n->begin(), n->end(), [](const auto& v) { return v.first.template as<ffi::String>(); });
       if (is_str_map) {
         for (const auto& kv : *n) {
           node_->keys.push_back(kv.first.cast<String>());

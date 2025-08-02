@@ -58,18 +58,6 @@ struct RefToObjectPtr : public ObjectRef {
   }
 };
 
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ffi::StringObj>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const ffi::StringObj*>(node.get());
-      p->stream << '"' << support::StrEscape(op->data, op->size) << '"';
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
-    .set_dispatch<ffi::BytesObj>([](const ObjectRef& node, ReprPrinter* p) {
-      auto* op = static_cast<const ffi::BytesObj*>(node.get());
-      p->stream << "b\"" << support::StrEscape(op->data, op->size) << '"';
-    });
-
 TVM_REGISTER_REFLECTION_VTABLE(runtime::ModuleNode)
     .set_creator([](const std::string& blob) {
       runtime::Module rtmod = codegen::DeserializeModuleFromBytes(blob);

@@ -63,15 +63,16 @@ void LocalSession::EncodeReturn(ffi::Any rv, const FEncodeReturn& encode_return)
     packed_args[1] = TVMFFINDArrayGetDLTensorPtr(opaque_handle);
     packed_args[2] = opaque_handle;
     encode_return(ffi::PackedArgs(packed_args, 3));
-  } else if (const auto* bytes = rv.as<ffi::BytesObj>()) {
+  } else if (const auto opt_bytes = rv.as<ffi::Bytes>()) {
     // always pass bytes as byte array
     TVMFFIByteArray byte_arr;
-    byte_arr.data = bytes->data;
-    byte_arr.size = bytes->size;
+    byte_arr.data = (*opt_bytes).data();
+    byte_arr.size = (*opt_bytes).size();
     packed_args[1] = &byte_arr;
     encode_return(ffi::PackedArgs(packed_args, 2));
-  } else if (const auto* str = rv.as<ffi::StringObj>()) {
-    packed_args[1] = str->data;
+  } else if (auto opt_str = rv.as<ffi::String>()) {
+    // encode string as c_str
+    packed_args[1] = (*opt_str).data();
     encode_return(ffi::PackedArgs(packed_args, 2));
   } else if (rv.as<ffi::ObjectRef>()) {
     TVMFFIAny ret_any = ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(rv));

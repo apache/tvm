@@ -200,7 +200,7 @@ struct RPCReference {
       num_bytes_ += sizeof(T) * num;
     }
 
-    void WriteObject(ffi::Object* obj) { num_bytes_ += channel_->GetObjectBytes(obj); }
+    void WriteFFIAny(const TVMFFIAny* obj) { num_bytes_ += channel_->GetFFIAnyProtocolBytes(obj); }
 
     void ThrowError(RPCServerStatus status) { channel_->ThrowError(status); }
 
@@ -373,11 +373,7 @@ struct RPCReference {
           break;
         }
         default: {
-          if (type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-            channel->WriteObject(reinterpret_cast<ffi::Object*>(packed_args[i].v_obj));
-          } else {
-            channel->ThrowError(RPCServerStatus::kUnknownTypeIndex);
-          }
+          channel->WriteFFIAny(&(packed_args[i]));
           break;
         }
       }
@@ -472,7 +468,7 @@ struct RPCReference {
         }
         default: {
           if (type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-            channel->ReadObject(&(packed_args[i]));
+            channel->ReadFFIAny(&(packed_args[i]));
           } else {
             channel->ThrowError(RPCServerStatus::kUnknownTypeIndex);
           }

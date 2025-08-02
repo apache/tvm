@@ -64,8 +64,8 @@ class StructuralHashHandler {
       case TypeIndex::kTVMFFIStr:
       case TypeIndex::kTVMFFIBytes: {
         // return same hash as AnyHash
-        const BytesObjBase* src_str =
-            AnyUnsafe::CopyFromAnyViewAfterCheck<const BytesObjBase*>(src);
+        const details::BytesObjBase* src_str =
+            AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(src);
         return details::StableHashCombine(src_data->type_index,
                                           details::StableHashBytes(src_str->data, src_str->size));
       }
@@ -196,8 +196,8 @@ class StructuralHashHandler {
     } else {
       if (src_data->type_index == TypeIndex::kTVMFFIStr ||
           src_data->type_index == TypeIndex::kTVMFFIBytes) {
-        const BytesObjBase* src_str =
-            AnyUnsafe::CopyFromAnyViewAfterCheck<const BytesObjBase*>(src);
+        const details::BytesObjBase* src_str =
+            AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(src);
         // return same hash as AnyHash
         return details::StableHashCombine(src_data->type_index,
                                           details::StableHashBytes(src_str->data, src_str->size));

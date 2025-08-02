@@ -46,7 +46,7 @@
 
 namespace tvm {
 namespace ffi {
-
+namespace details {
 /*! \brief Base class for bytes and string. */
 class BytesObjBase : public Object, public TVMFFIByteArray {};
 
@@ -72,8 +72,6 @@ class StringObj : public BytesObjBase {
   static const constexpr bool _type_final = true;
   TVM_FFI_DECLARE_STATIC_OBJECT_INFO(StringObj, Object);
 };
-
-namespace details {
 
 // String moved from std::string
 // without having to trigger a copy
@@ -115,21 +113,21 @@ class Bytes : public ObjectRef {
    * \param other a char array.
    */
   Bytes(const char* data, size_t size)  // NOLINT(*)
-      : ObjectRef(details::MakeInplaceBytes<BytesObj>(data, size)) {}
+      : ObjectRef(details::MakeInplaceBytes<details::BytesObj>(data, size)) {}
   /*!
    * \brief constructor from char [N]
    *
    * \param other a char array.
    */
   Bytes(TVMFFIByteArray bytes)  // NOLINT(*)
-      : ObjectRef(details::MakeInplaceBytes<BytesObj>(bytes.data, bytes.size)) {}
+      : ObjectRef(details::MakeInplaceBytes<details::BytesObj>(bytes.data, bytes.size)) {}
   /*!
    * \brief constructor from char [N]
    *
    * \param other a char array.
    */
   Bytes(std::string other)  // NOLINT(*)
-      : ObjectRef(make_object<details::BytesObjStdImpl<BytesObj>>(std::move(other))) {}
+      : ObjectRef(make_object<details::BytesObjStdImpl<details::BytesObj>>(std::move(other))) {}
   /*!
    * \brief Swap this String with another string
    * \param other The other string
@@ -163,7 +161,7 @@ class Bytes : public ObjectRef {
    */
   operator std::string() const { return std::string{get()->data, size()}; }
 
-  TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Bytes, ObjectRef, BytesObj);
+  TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Bytes, ObjectRef, details::BytesObj);
 
   /*!
    * \brief Compare two char sequence
@@ -245,7 +243,7 @@ class String : public ObjectRef {
    */
   template <size_t N>
   String(const char other[N])  // NOLINT(*)
-      : ObjectRef(details::MakeInplaceBytes<StringObj>(other, N)) {}
+      : ObjectRef(details::MakeInplaceBytes<details::StringObj>(other, N)) {}
 
   /*!
    * \brief constructor
@@ -258,7 +256,7 @@ class String : public ObjectRef {
    * \param other a char array.
    */
   String(const char* other)  // NOLINT(*)
-      : ObjectRef(details::MakeInplaceBytes<StringObj>(other, std::strlen(other))) {}
+      : ObjectRef(details::MakeInplaceBytes<details::StringObj>(other, std::strlen(other))) {}
 
   /*!
    * \brief constructor from raw string
@@ -266,21 +264,21 @@ class String : public ObjectRef {
    * \param other a char array.
    */
   String(const char* other, size_t size)  // NOLINT(*)
-      : ObjectRef(details::MakeInplaceBytes<StringObj>(other, size)) {}
+      : ObjectRef(details::MakeInplaceBytes<details::StringObj>(other, size)) {}
 
   /*!
    * \brief Construct a new string object
    * \param other The std::string object to be copied
    */
   String(const std::string& other)  // NOLINT(*)
-      : ObjectRef(details::MakeInplaceBytes<StringObj>(other.data(), other.size())) {}
+      : ObjectRef(details::MakeInplaceBytes<details::StringObj>(other.data(), other.size())) {}
 
   /*!
    * \brief Construct a new string object
    * \param other The std::string object to be moved
    */
   String(std::string&& other)  // NOLINT(*)
-      : ObjectRef(make_object<details::BytesObjStdImpl<StringObj>>(std::move(other))) {}
+      : ObjectRef(make_object<details::BytesObjStdImpl<details::StringObj>>(std::move(other))) {}
 
   /*!
    * \brief constructor from TVMFFIByteArray
@@ -288,7 +286,7 @@ class String : public ObjectRef {
    * \param other a TVMFFIByteArray.
    */
   explicit String(TVMFFIByteArray other)
-      : ObjectRef(details::MakeInplaceBytes<StringObj>(other.data, other.size)) {}
+      : ObjectRef(details::MakeInplaceBytes<details::StringObj>(other.data, other.size)) {}
 
   /*!
    * \brief Swap this String with another string
@@ -423,7 +421,7 @@ class String : public ObjectRef {
    */
   operator std::string() const { return std::string{get()->data, size()}; }
 
-  TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(String, ObjectRef, StringObj);
+  TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(String, ObjectRef, details::StringObj);
 
  private:
   /*!

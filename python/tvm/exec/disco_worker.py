@@ -48,8 +48,8 @@ def _str_func(x: str):
 
 
 @register_func("tests.disco.str_obj", override=True)
-def _str_obj_func(x: String):
-    assert isinstance(x, String)
+def _str_obj_func(x: str):
+    assert isinstance(x, str)
     return String(x + "_suffix")
 
 
