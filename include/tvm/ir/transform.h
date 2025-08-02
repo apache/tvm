@@ -242,26 +242,40 @@ class PassContext : public ObjectRef {
   template <typename ValueType>
   static int32_t RegisterConfigOption(const char* key) {
     // NOTE: we could further update the function later.
-    int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
-    auto* reflection = ReflectionVTable::Global();
-    auto type_key = ffi::TypeIndexToTypeKey(tindex);
-
-    auto legalization = [=](ffi::Any value) -> ffi::Any {
-      if (auto opt_map = value.try_cast<Map<String, ffi::Any>>()) {
-        return reflection->CreateObject(type_key, opt_map.value());
-      } else {
+    if constexpr (std::is_base_of_v<ObjectRef, ValueType>) {
+      int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
+      auto* reflection = ReflectionVTable::Global();
+      auto type_key = ffi::TypeIndexToTypeKey(tindex);
+      auto legalization = [=](ffi::Any value) -> ffi::Any {
+        if (auto opt_map = value.try_cast<Map<String, ffi::Any>>()) {
+          return reflection->CreateObject(type_key, opt_map.value());
+        } else {
+          auto opt_val = value.try_cast<ValueType>();
+          if (!opt_val.has_value()) {
+            TVM_FFI_THROW(AttributeError)
+                << "Expect config " << key << " to have type " << type_key << ", but instead get "
+                << ffi::details::AnyUnsafe::GetMismatchTypeInfo<ValueType>(value);
+          }
+          return *opt_val;
+        }
+      };
+      RegisterConfigOption(key, type_key, legalization);
+    } else {
+      // non-object type, do not support implicit conversion from map
+      std::string type_str = ffi::TypeTraits<ValueType>::TypeStr();
+      auto legalization = [=](ffi::Any value) -> ffi::Any {
         auto opt_val = value.try_cast<ValueType>();
         if (!opt_val.has_value()) {
           TVM_FFI_THROW(AttributeError)
-              << "Expect config " << key << " to have type " << type_key << ", but instead get "
+              << "Expect config " << key << " to have type " << type_str << ", but instead get "
               << ffi::details::AnyUnsafe::GetMismatchTypeInfo<ValueType>(value);
+        } else {
+          return *opt_val;
         }
-        return value;
-      }
-    };
-
-    RegisterConfigOption(key, tindex, legalization);
-    return tindex;
+      };
+      RegisterConfigOption(key, type_str, legalization);
+    }
+    return 0;
   }
 
   // accessor.
@@ -274,7 +288,7 @@ class PassContext : public ObjectRef {
   // The exit of a pass context scope.
   TVM_DLL void ExitWithScope();
   // Register configuration key value type.
-  TVM_DLL static void RegisterConfigOption(const char* key, uint32_t value_type_index,
+  TVM_DLL static void RegisterConfigOption(const char* key, String value_type_str,
                                            std::function<ffi::Any(ffi::Any)> legalization);
 
   // Classes to get the Python `with` like syntax.

@@ -287,13 +287,27 @@ struct ValueTypeInfoMaker<ValueType, std::false_type, std::false_type> {
   using ValueTypeInfo = TargetKindNode::ValueTypeInfo;
 
   ValueTypeInfo operator()() const {
-    int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
     ValueTypeInfo info;
-    info.type_index = tindex;
-    info.type_key = runtime::Object::TypeIndex2Key(tindex);
     info.key = nullptr;
     info.val = nullptr;
-    return info;
+    if constexpr (std::is_base_of_v<ObjectRef, ValueType>) {
+      int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
+      info.type_index = tindex;
+      info.type_key = runtime::Object::TypeIndex2Key(tindex);
+      return info;
+    } else if constexpr (std::is_same_v<ValueType, String>) {
+      // special handle string since it can be backed by multiple types.
+      info.type_index = ffi::TypeIndex::kTVMFFIStr;
+      info.type_key = ffi::TypeTraits<ValueType>::TypeStr();
+      return info;
+    } else {
+      // TODO(tqchen) consider upgrade to leverage any system to support union type
+      constexpr int32_t tindex = ffi::TypeToFieldStaticTypeIndex<ValueType>::value;
+      static_assert(tindex != ffi::TypeIndex::kTVMFFIAny, "Do not support union type for now");
+      info.type_index = tindex;
+      info.type_key = runtime::Object::TypeIndex2Key(tindex);
+      return info;
+    }
   }
 };
 

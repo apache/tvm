@@ -107,12 +107,11 @@ bool PassContext::PassEnabled(const PassInfo& info) const {
 
 class PassConfigManager {
  public:
-  void Register(std::string key, uint32_t value_type_index,
+  void Register(std::string key, String value_type_str,
                 std::function<ffi::Any(ffi::Any)> legalization) {
     ICHECK_EQ(key2vtype_.count(key), 0U);
     ValueTypeInfo info;
-    info.type_index = value_type_index;
-    info.type_key = runtime::Object::TypeIndex2Key(value_type_index);
+    info.type_str = value_type_str;
     info.legalization = legalization;
     key2vtype_[key] = info;
   }
@@ -154,7 +153,7 @@ class PassConfigManager {
     Map<String, Map<String, String>> configs;
     for (const auto& kv : key2vtype_) {
       Map<String, String> metadata;
-      metadata.Set("type", kv.second.type_key);
+      metadata.Set("type", kv.second.type_str);
       configs.Set(kv.first, metadata);
     }
     return configs;
@@ -167,17 +166,16 @@ class PassConfigManager {
 
  private:
   struct ValueTypeInfo {
-    std::string type_key;
-    uint32_t type_index;
+    std::string type_str;
     std::function<ffi::Any(ffi::Any)> legalization;
   };
 
   std::unordered_map<std::string, ValueTypeInfo> key2vtype_;
 };
 
-void PassContext::RegisterConfigOption(const char* key, uint32_t value_type_index,
+void PassContext::RegisterConfigOption(const char* key, String value_type_str,
                                        std::function<ffi::Any(ffi::Any)> legalization) {
-  PassConfigManager::Global()->Register(key, value_type_index, legalization);
+  PassConfigManager::Global()->Register(key, value_type_str, legalization);
 }
 
 Map<String, Map<String, String>> PassContext::ListConfigs() {
