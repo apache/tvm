@@ -246,6 +246,8 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
   // must make sure type_index is set to none
   this->stream << result << ".type_index = kTVMFFINone;\n";
   this->PrintIndent();
+  this->stream << result << ".zero_padding = 0;\n";
+  this->PrintIndent();
   this->stream << result << ".v_int64 = 0;\n";
   this->PrintIndent();
   if (op->op.same_as(builtin::tvm_call_packed_lowered())) {

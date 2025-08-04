@@ -339,6 +339,11 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
       buf = builder_->CreateInBoundsGEP(t_tvm_ffi_any_, buf, {index, ConstInt32(0)});
       return TypedPointer(t_int32_, buf);
     }
+    case builtin::kTVMFFIAnyZeroPadding: {
+      buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_ffi_any_, 0));
+      buf = builder_->CreateInBoundsGEP(t_tvm_ffi_any_, buf, {index, ConstInt32(1)});
+      return TypedPointer(t_int32_, buf);
+    }
     case builtin::kTVMFFIAnyUnionValue: {
       ICHECK_EQ(t.lanes(), 1);
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_ffi_any_, 0));

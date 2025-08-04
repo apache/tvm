@@ -105,12 +105,17 @@ class ReturnRewriter : public StmtMutator {
                                 {ret_var_, IntImm(DataType::Int(32), 0),
                                  IntImm(DataType::Int(32), tir::builtin::kTVMFFIAnyTypeIndex),
                                  IntImm(DataType::Int(32), info.type_index)}));
+    Stmt store_zero_padding =
+        tir::Evaluate(tir::Call(DataType::Int(32), tir::builtin::tvm_struct_set(),
+                                {ret_var_, IntImm(DataType::Int(32), 0),
+                                 IntImm(DataType::Int(32), tir::builtin::kTVMFFIAnyZeroPadding),
+                                 IntImm(DataType::Int(32), 0)}));
     Stmt store_val = tir::Evaluate(
         tir::Call(DataType::Int(32), tir::builtin::tvm_struct_set(),
                   {ret_var_, IntImm(DataType::Int(32), 0),
                    IntImm(DataType::Int(32), tir::builtin::kTVMFFIAnyUnionValue), info.expr}));
     Stmt ret_zero = Evaluate(tvm::ret(0));
-    return SeqStmt({store_tindex, store_val, ret_zero});
+    return SeqStmt({store_tindex, store_zero_padding, store_val, ret_zero});
   }
 
   Var ret_var_;
