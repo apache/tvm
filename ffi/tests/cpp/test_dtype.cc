@@ -20,6 +20,7 @@
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/memory.h>
+#include <tvm/ffi/optional.h>
 
 namespace {
 

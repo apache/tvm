@@ -110,6 +110,7 @@ JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionPushArgHandle(J
   TVMFFIAny temp;
   temp.v_int64 = static_cast<int64_t>(arg);
   temp.type_index = static_cast<int>(argTypeIndex);
+  temp.zero_padding = 0;
   stack->packed_args.emplace_back(tvm::ffi::AnyView::CopyFromTVMFFIAny(temp));
 }
 
@@ -175,6 +176,7 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionCall(JNIEnv* en
   TVMFFIJVMStack* stack = TVMFFIJVMStack::ThreadLocal();
   TVMFFIAny ret_val;
   ret_val.type_index = tvm::ffi::TypeIndex::kTVMFFINone;
+  ret_val.zero_padding = 0;
   ret_val.v_int64 = 0;
   int ret = TVMFFIFunctionCall(reinterpret_cast<TVMFFIObjectHandle>(jhandle),
                                reinterpret_cast<TVMFFIAny*>(stack->packed_args.data()),

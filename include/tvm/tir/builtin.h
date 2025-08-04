@@ -984,6 +984,7 @@ enum TVMStructFieldKind : int {
   // TVMValue field
   kTVMValueContent,
   kTVMFFIAnyTypeIndex,
+  kTVMFFIAnyZeroPadding,
   kTVMFFIAnyUnionValue,
   kTVMValueKindBound_
 };

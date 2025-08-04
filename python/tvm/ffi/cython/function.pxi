@@ -23,6 +23,20 @@ except ImportError:
     torch = None
 
 
+cdef inline object make_ret_small_str(TVMFFIAny result):
+    """convert small string to return value."""
+    cdef TVMFFIByteArray bytes
+    bytes = TVMFFISmallBytesGetContentByteArray(&result)
+    return py_str(PyBytes_FromStringAndSize(bytes.data, bytes.size))
+
+
+cdef inline object make_ret_small_bytes(TVMFFIAny result):
+    """convert small bytes to return value."""
+    cdef TVMFFIByteArray bytes
+    bytes = TVMFFISmallBytesGetContentByteArray(&result)
+    return PyBytes_FromStringAndSize(bytes.data, bytes.size)
+
+
 cdef inline object make_ret(TVMFFIAny result):
     """convert result to return value."""
    # TODO: Implement
@@ -41,6 +55,10 @@ cdef inline object make_ret(TVMFFIAny result):
         return result.v_int64
     elif type_index == kTVMFFIFloat:
         return result.v_float64
+    elif type_index == kTVMFFISmallStr:
+        return make_ret_small_str(result)
+    elif type_index == kTVMFFISmallBytes:
+        return make_ret_small_bytes(result)
     elif type_index == kTVMFFIOpaquePtr:
         return ctypes_handle(result.v_ptr)
     elif type_index == kTVMFFIDataType:
@@ -65,6 +83,7 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
         # clear the value to ensure zero padding on 32bit platforms
         if sizeof(void*) != 8:
             out[i].v_int64 = 0
+        out[i].zero_padding = 0
 
         if isinstance(arg, NDArray):
             if (<Object>arg).chandle != NULL:

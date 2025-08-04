@@ -31,7 +31,8 @@
 namespace tvm {
 namespace relax {
 
-Function FunctionBindSymbolicVars(Function func, Map<ffi::Any, PrimExpr> obj_remap) {
+Function FunctionBindSymbolicVars(Function func,
+                                  Map<Variant<tir::Var, String>, PrimExpr> obj_remap) {
   // Early bail-out if no updates need to be made.
   if (obj_remap.empty()) {
     return func;
@@ -90,7 +91,8 @@ Function FunctionBindSymbolicVars(Function func, Map<ffi::Any, PrimExpr> obj_rem
 }
 
 namespace {
-IRModule ModuleBindSymbolicVars(IRModule mod, Map<ffi::Any, PrimExpr> binding_map) {
+IRModule ModuleBindSymbolicVars(IRModule mod,
+                                Map<Variant<tir::Var, String>, PrimExpr> binding_map) {
   std::unordered_set<ffi::Any, ffi::AnyHash, ffi::AnyEqual> used;
   IRModule updates;
   for (const auto& [gvar, base_func] : mod->functions) {
@@ -98,7 +100,7 @@ IRModule ModuleBindSymbolicVars(IRModule mod, Map<ffi::Any, PrimExpr> binding_ma
       auto func = opt.value();
 
       // Collect bindings that are used by this function.
-      auto func_binding_map = [&]() -> Map<ffi::Any, PrimExpr> {
+      auto func_binding_map = [&]() -> Map<Variant<tir::Var, String>, PrimExpr> {
         std::unordered_set<std::string> var_names;
         std::unordered_set<const tir::VarNode*> vars;
         for (const auto& var : DefinedSymbolicVars(func)) {
@@ -106,7 +108,7 @@ IRModule ModuleBindSymbolicVars(IRModule mod, Map<ffi::Any, PrimExpr> binding_ma
           vars.insert(var.get());
         }
 
-        Map<ffi::Any, PrimExpr> out;
+        Map<Variant<tir::Var, String>, PrimExpr> out;
         for (const auto& [key, replacement] : binding_map) {
           bool used_by_function = false;
           if (auto opt = key.as<String>()) {
@@ -156,7 +158,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 namespace transform {
 
-Pass BindSymbolicVars(Map<ObjectRef, PrimExpr> binding_map, Optional<String> func_name) {
+Pass BindSymbolicVars(Map<Variant<tir::Var, String>, PrimExpr> binding_map,
+                      Optional<String> func_name) {
   auto pass_func = [=](IRModule mod, PassContext context) -> IRModule {
     if (func_name) {
       auto gvar = mod->GetGlobalVar(func_name.value());

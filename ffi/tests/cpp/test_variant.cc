@@ -154,11 +154,11 @@ TEST(Variant, PODSameAs) {
   Variant<String, int> v0 = 1;
   Variant<String, int> v1 = 1;
   EXPECT_TRUE(v0.same_as(v1));
-  String s = String("hello");
+  String s = String("hello long str");
   v0 = s;
   v1 = s;
   EXPECT_TRUE(v0.same_as(v1));
-  v1 = String("hello");
+  v1 = String("hello long str");
   EXPECT_TRUE(!v0.same_as(v1));
 }
 }  // namespace

@@ -94,6 +94,7 @@ struct TypeTraits<RValueRef<TObjRef>> : public TypeTraitsBase {
 
   TVM_FFI_INLINE static void CopyToAnyView(const RValueRef<TObjRef>& src, TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFIObjectRValueRef;
+    result->zero_padding = 0;
     // store the address of the ObjectPtr, which allows us to move the value
     // and set the original ObjectPtr to nullptr
     result->v_ptr = &(src.data_);
@@ -106,7 +107,7 @@ struct TypeTraits<RValueRef<TObjRef>> : public TypeTraitsBase {
       // in this case we do not move the original rvalue ref since conversion creates a copy
       TVMFFIAny tmp_any;
       tmp_any.type_index = rvalue_ref->get()->type_index();
-
+      tmp_any.zero_padding = 0;
       tmp_any.v_obj = reinterpret_cast<TVMFFIObject*>(rvalue_ref->get());
       return "RValueRef<" + TypeTraits<TObjRef>::GetMismatchTypeInfo(&tmp_any) + ">";
     } else {
@@ -120,6 +121,7 @@ struct TypeTraits<RValueRef<TObjRef>> : public TypeTraitsBase {
       ObjectPtr<Object>* rvalue_ref = reinterpret_cast<ObjectPtr<Object>*>(src->v_ptr);
       TVMFFIAny tmp_any;
       tmp_any.type_index = rvalue_ref->get()->type_index();
+      tmp_any.zero_padding = 0;
       tmp_any.v_obj = reinterpret_cast<TVMFFIObject*>(rvalue_ref->get());
       // fast path, storage type matches, direct move the rvalue ref
       if (TypeTraits<TObjRef>::CheckAnyStrict(&tmp_any)) {

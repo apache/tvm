@@ -48,7 +48,7 @@ inline const TVMFFIFieldInfo* GetFieldInfo(std::string_view type_key, const char
       return &(info->fields[i]);
     }
   }
-  TVM_FFI_THROW(RuntimeError) << "Cannot find field " << field_name << " in " << type_key;
+  TVM_FFI_THROW(RuntimeError) << "Cannot find field  `" << field_name << "` in " << type_key;
   TVM_FFI_UNREACHABLE();
 }
 

@@ -47,6 +47,36 @@ class StructEqualHandler {
     const TVMFFIAny* lhs_data = AnyUnsafe::TVMFFIAnyPtrFromAny(lhs);
     const TVMFFIAny* rhs_data = AnyUnsafe::TVMFFIAnyPtrFromAny(rhs);
     if (lhs_data->type_index != rhs_data->type_index) {
+      // type_index mismatch, if index is not string, return false
+      if (lhs_data->type_index != kTVMFFIStr && lhs_data->type_index != kTVMFFISmallStr &&
+          lhs_data->type_index != kTVMFFISmallBytes && lhs_data->type_index != kTVMFFIBytes) {
+        return false;
+      }
+      // small string and normal string comparison
+      if (lhs_data->type_index == kTVMFFIStr && rhs_data->type_index == kTVMFFISmallStr) {
+        const details::BytesObjBase* lhs_str =
+            details::AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(lhs);
+        return Bytes::memequal(lhs_str->data, rhs_data->v_bytes, lhs_str->size,
+                               rhs_data->small_str_len);
+      }
+      if (lhs_data->type_index == kTVMFFISmallStr && rhs_data->type_index == kTVMFFIStr) {
+        const details::BytesObjBase* rhs_str =
+            details::AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(rhs);
+        return Bytes::memequal(lhs_data->v_bytes, rhs_str->data, lhs_data->small_str_len,
+                               rhs_str->size);
+      }
+      if (lhs_data->type_index == kTVMFFIBytes && rhs_data->type_index == kTVMFFISmallBytes) {
+        const details::BytesObjBase* lhs_bytes =
+            details::AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(lhs);
+        return Bytes::memequal(lhs_bytes->data, rhs_data->v_bytes, lhs_bytes->size,
+                               rhs_data->small_str_len);
+      }
+      if (lhs_data->type_index == kTVMFFISmallBytes && rhs_data->type_index == kTVMFFIBytes) {
+        const details::BytesObjBase* rhs_bytes =
+            details::AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(rhs);
+        return Bytes::memequal(lhs_data->v_bytes, rhs_bytes->data, lhs_data->small_str_len,
+                               rhs_bytes->size);
+      }
       return false;
     }
 
@@ -56,7 +86,8 @@ class StructEqualHandler {
         return std::isnan(rhs_data->v_float64);
       }
       // this is POD data, we can just compare the value
-      return lhs_data->v_int64 == rhs_data->v_int64;
+      return lhs_data->zero_padding == rhs_data->zero_padding &&
+             lhs_data->v_int64 == rhs_data->v_int64;
     }
     switch (lhs_data->type_index) {
       case TypeIndex::kTVMFFIStr:
@@ -66,7 +97,7 @@ class StructEqualHandler {
             AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(lhs);
         const details::BytesObjBase* rhs_str =
             AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(rhs);
-        return Bytes::memncmp(lhs_str->data, rhs_str->data, lhs_str->size, rhs_str->size) == 0;
+        return Bytes::memequal(lhs_str->data, rhs_str->data, lhs_str->size, rhs_str->size);
       }
       case TypeIndex::kTVMFFIArray: {
         return CompareArray(AnyUnsafe::MoveFromAnyAfterCheck<Array<Any>>(std::move(lhs)),

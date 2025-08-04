@@ -108,7 +108,9 @@ class NodeIndexer {
         }
       }
     } else if (node.type_index() == ffi::TypeIndex::kTVMFFIStr ||
-               node.type_index() == ffi::TypeIndex::kTVMFFIBytes) {
+               node.type_index() == ffi::TypeIndex::kTVMFFISmallStr ||
+               node.type_index() == ffi::TypeIndex::kTVMFFIBytes ||
+               node.type_index() == ffi::TypeIndex::kTVMFFISmallBytes) {
       // skip content index for string and bytes
     } else if (auto opt_object = node.as<const Object*>()) {
       Object* n = const_cast<Object*>(opt_object.value());
@@ -126,8 +128,8 @@ class NodeIndexer {
         << "` misses reflection registration and do not support serialization";
     ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
       Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
-      // only make index for ObjectRef
-      if (field_value.as<Object>()) {
+      // only make index for ObjectRef and String(which may not be object for small str)
+      if (field_value.as<Object>() || field_value.as<String>()) {
         this->MakeIndex(field_value);
       }
     });
@@ -234,9 +236,9 @@ class JSONAttrGetter {
     }
   }
 
-  void Visit(const char* key, ObjectRef* value) {
-    if (value->defined()) {
-      node_->attrs[key] = std::to_string(node_index_->at(Any(*value)));
+  void Visit(const char* key, Any* value) {
+    if (value != nullptr) {
+      node_->attrs[key] = std::to_string(node_index_->at(*value));
     } else {
       node_->attrs[key] = "null";
     }
@@ -249,6 +251,13 @@ class JSONAttrGetter {
       return;
     }
     node_->type_key = node.GetTypeKey();
+    // canonicalize type key for str
+    if (node_->type_key == ffi::StaticTypeKey::kTVMFFISmallStr) {
+      node_->type_key = ffi::StaticTypeKey::kTVMFFIStr;
+    }
+    if (node_->type_key == ffi::StaticTypeKey::kTVMFFISmallBytes) {
+      node_->type_key = ffi::StaticTypeKey::kTVMFFIBytes;
+    }
     // populates the fields.
     node_->attrs.clear();
     node_->data.clear();
@@ -344,19 +353,9 @@ class JSONAttrGetter {
           this->Visit(field_info->name.data, &value);
           break;
         }
-        case ffi::TypeIndex::kTVMFFINDArray: {
-          runtime::NDArray value = field_value.cast<runtime::NDArray>();
-          this->Visit(field_info->name.data, &value);
-          break;
-        }
         default: {
-          if (field_value.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-            ObjectRef obj = field_value.cast<ObjectRef>();
-            this->Visit(field_info->name.data, &obj);
-            break;
-          } else {
-            LOG(FATAL) << "Unsupported type: " << field_value.GetTypeKey();
-          }
+          this->Visit(field_info->name.data, &field_value);
+          break;
         }
       }
     });
@@ -401,12 +400,14 @@ class FieldDependencyFinder {
     if (node == nullptr) {
       return;
     }
-    if (node.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+    if (node.type_index() == ffi::TypeIndex::kTVMFFIStr ||
+        node.type_index() == ffi::TypeIndex::kTVMFFISmallStr ||
+        node.type_index() == ffi::TypeIndex::kTVMFFIBytes ||
+        node.type_index() == ffi::TypeIndex::kTVMFFISmallBytes) {
+      // skip indexing content of string and bytes
       return;
     }
-    if (node.type_index() == ffi::TypeIndex::kTVMFFIStr ||
-        node.type_index() == ffi::TypeIndex::kTVMFFIBytes) {
-      // skip indexing content of string and bytes
+    if (node.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
       return;
     }
     // Skip the objects that have their own string repr
@@ -562,9 +563,11 @@ class JSONAttrSetter {
       setter.ParseValue("v_device_type", &device_type);
       setter.ParseValue("v_device_id", &device_id);
       return Any(DLDevice{static_cast<DLDeviceType>(device_type), device_id});
-    } else if (jnode->type_key == ffi::StaticTypeKey::kTVMFFIStr) {
+    } else if (jnode->type_key == ffi::StaticTypeKey::kTVMFFIStr ||
+               jnode->type_key == ffi::StaticTypeKey::kTVMFFISmallStr) {
       return Any(String(jnode->repr_bytes));
-    } else if (jnode->type_key == ffi::StaticTypeKey::kTVMFFIBytes) {
+    } else if (jnode->type_key == ffi::StaticTypeKey::kTVMFFIBytes ||
+               jnode->type_key == ffi::StaticTypeKey::kTVMFFISmallBytes) {
       return Any(Bytes(jnode->repr_bytes));
     } else {
       return ObjectRef(reflection->CreateInitObject(jnode->type_key, jnode->repr_bytes));
@@ -596,7 +599,9 @@ class JSONAttrSetter {
       }
       *node = result;
     } else if (jnode->type_key == ffi::StaticTypeKey::kTVMFFIStr ||
-               jnode->type_key == ffi::StaticTypeKey::kTVMFFIBytes) {
+               jnode->type_key == ffi::StaticTypeKey::kTVMFFISmallStr ||
+               jnode->type_key == ffi::StaticTypeKey::kTVMFFIBytes ||
+               jnode->type_key == ffi::StaticTypeKey::kTVMFFISmallBytes) {
       // skip set attrs for string and bytes
     } else if (auto opt_object = node->as<const Object*>()) {
       Object* n = const_cast<Object*>(opt_object.value());
@@ -652,7 +657,7 @@ class JSONAttrSetter {
         ParseOptionalValue(field_info->name.data, &index,
                            [this](const char* key, int64_t* value) { ParseValue(key, value); });
         if (index.has_value()) {
-          Any value = node_list_->at(*index).cast<ObjectRef>();
+          Any value = node_list_->at(*index);
           setter(obj, value);
         } else {
           setter(obj, Any());

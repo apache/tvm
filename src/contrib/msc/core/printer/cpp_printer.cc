@@ -167,7 +167,7 @@ void CppPrinter::PrintTypedDoc(const ScopeDoc& doc) {
 void CppPrinter::PrintTypedDoc(const FunctionDoc& doc) {
   MaybePrintComment(doc, true);
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(arg_doc->comment == nullptr) << "Function arg cannot have comment attached to them.";
+    ICHECK(!arg_doc->comment.has_value()) << "Function arg cannot have comment attached to them.";
   }
   if (doc->return_type.defined()) {
     if (!IsEmptyDoc(doc->return_type.value())) {
@@ -273,7 +273,8 @@ void CppPrinter::PrintTypedDoc(const StructDoc& doc) {
 void CppPrinter::PrintTypedDoc(const ConstructorDoc& doc) {
   MaybePrintComment(doc, true);
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(arg_doc->comment == nullptr) << "Constructor arg cannot have comment attached to them.";
+    ICHECK(!arg_doc->comment.has_value())
+        << "Constructor arg cannot have comment attached to them.";
   }
   PrintDoc(doc->name, false);
   output_ << "(";
@@ -293,7 +294,7 @@ void CppPrinter::PrintTypedDoc(const ConstructorDoc& doc) {
 void CppPrinter::PrintTypedDoc(const LambdaDoc& doc) {
   MaybePrintComment(doc, true);
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(arg_doc->comment == nullptr) << "Function arg cannot have comment attached to them.";
+    ICHECK(!arg_doc->comment.has_value()) << "Function arg cannot have comment attached to them.";
   }
   output_ << "auto ";
   PrintDoc(doc->name, false);

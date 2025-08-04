@@ -56,24 +56,15 @@ vm::Instruction::Arg ExecBuilderNode::ConvertConstant_(Any cvalue) {
       return vm::Instruction::Arg::Immediate(val);
     }
   }
-
   // run dedup for object with structural equality
-  if (auto opt_obj = cvalue.as<ObjectRef>()) {
-    ObjectRef obj = opt_obj.value();
-    auto it = const_dedup_map_.find(obj);
-    if (it != const_dedup_map_.end()) {
-      return vm::Instruction::Arg::ConstIdx(it->second);
-    }
-    vm::Index idx = exec_->constants.size();
-    exec_->constants.push_back(cvalue);
-    const_dedup_map_[obj] = idx;
-    return vm::Instruction::Arg::ConstIdx(idx);
-  } else {
-    // emit normal constant
-    vm::Index idx = exec_->constants.size();
-    exec_->constants.push_back(cvalue);
-    return vm::Instruction::Arg::ConstIdx(idx);
+  auto it = const_dedup_map_.find(cvalue);
+  if (it != const_dedup_map_.end()) {
+    return vm::Instruction::Arg::ConstIdx(it->second);
   }
+  vm::Index idx = exec_->constants.size();
+  exec_->constants.push_back(cvalue);
+  const_dedup_map_[cvalue] = idx;
+  return vm::Instruction::Arg::ConstIdx(idx);
 }
 
 void ExecBuilderNode::DeclareFunction(const std::string& func_name, VMFuncInfo::FuncKind kind) {

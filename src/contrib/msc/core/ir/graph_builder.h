@@ -154,6 +154,7 @@ class AttrGetter {
         attrs_->Set(key, runtime::DLDataTypeToString(value.cast<DLDataType>()));
         break;
       }
+      case kTVMFFISmallStr:
       case kTVMFFIStr: {
         attrs_->Set(key, value.cast<String>());
         break;

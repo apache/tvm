@@ -72,6 +72,10 @@ export const enum TypeIndex {
   kTVMFFIByteArrayPtr = 9,
   /*! \brief R-value reference to ObjectRef */
   kTVMFFIObjectRValueRef = 10,
+  /*! \brief Small string on stack */
+  kTVMFFISmallStr = 11,
+  /*! \brief Small bytes on stack */
+  kTVMFFISmallBytes = 12,
   /*! \brief Start of statically defined objects. */
   kTVMFFIStaticObjectBegin = 64,
   /*!

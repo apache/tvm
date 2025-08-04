@@ -65,13 +65,7 @@ enum TVMFFITypeIndex : int32_t {
 #else
 typedef enum {
 #endif
-  // [Section] On-stack POD and special types: [0, kTVMFFIStaticObjectBegin)
-  // N.B. `kTVMFFIRawStr` is a string backed by a `\0`-terminated char array,
-  // which is not owned by TVMFFIAny. It is required that the following
-  // invariant holds:
-  // - `Any::type_index` is never `kTVMFFIRawStr`
-  // - `AnyView::type_index` can be `kTVMFFIRawStr`
-  //
+
   /*
    * \brief The root type of all FFI objects.
    *
@@ -80,6 +74,13 @@ typedef enum {
    * However, it may appear in field annotations during reflection.
    */
   kTVMFFIAny = -1,
+  // [Section] On-stack POD and special types: [0, kTVMFFIStaticObjectBegin)
+  // N.B. `kTVMFFIRawStr` is a string backed by a `\0`-terminated char array,
+  // which is not owned by TVMFFIAny. It is required that the following
+  // invariant holds:
+  // - `Any::type_index` is never `kTVMFFIRawStr`
+  // - `AnyView::type_index` can be `kTVMFFIRawStr`
+  //
   /*! \brief None/nullptr value */
   kTVMFFINone = 0,
   /*! \brief POD int value */
@@ -96,12 +97,16 @@ typedef enum {
   kTVMFFIDevice = 6,
   /*! \brief DLTensor* */
   kTVMFFIDLTensorPtr = 7,
-  /*! \brief const char**/
+  /*! \brief const char* */
   kTVMFFIRawStr = 8,
   /*! \brief TVMFFIByteArray* */
   kTVMFFIByteArrayPtr = 9,
   /*! \brief R-value reference to ObjectRef */
   kTVMFFIObjectRValueRef = 10,
+  /*! \brief Small string on stack */
+  kTVMFFISmallStr = 11,
+  /*! \brief Small bytes on stack */
+  kTVMFFISmallBytes = 12,
   /*! \brief Start of statically defined objects. */
   kTVMFFIStaticObjectBegin = 64,
   /*!
@@ -183,11 +188,17 @@ typedef struct TVMFFIAny {
    * \note The type index of Object and Any are shared in FFI.
    */
   int32_t type_index;
-  /*!
-   * \brief length for on-stack Any object, such as small-string
-   * \note This field is reserved for future compact.
-   */
-  int32_t small_len;
+  union {  // 4 bytes
+    /*! \brief padding, must set to zero for values other than small string. */
+    uint32_t zero_padding;
+    /*!
+     * \brief Length of small string, with a max value of 7.
+     *
+     * We keep small str to start at next 4 bytes to ensure alignment
+     * when accessing the small str content.
+     */
+    uint32_t small_str_len;
+  };
   union {                  // 8 bytes
     int64_t v_int64;       // integers
     double v_float64;      // floating-point numbers
@@ -823,7 +834,7 @@ TVM_FFI_DLL int TVMFFIDataTypeFromString(const TVMFFIByteArray* str, DLDataType*
 
  * \note The input dtype is a pointer to the DLDataType to avoid ABI compatibility issues.
  */
-TVM_FFI_DLL int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIObjectHandle* out);
+TVM_FFI_DLL int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIAny* out);
 
 //------------------------------------------------------------
 // Section: Backend noexcept functions for internal use
@@ -901,6 +912,15 @@ TVM_FFI_DLL const TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index);
  */
 inline int32_t TVMFFIObjectGetTypeIndex(TVMFFIObjectHandle obj) {
   return static_cast<TVMFFIObject*>(obj)->type_index;
+}
+
+/*!
+ * \brief Get the content of a small string in bytearray format.
+ * \param obj The object handle.
+ * \return The content of the small string in bytearray format.
+ */
+inline TVMFFIByteArray TVMFFISmallBytesGetContentByteArray(const TVMFFIAny* value) {
+  return TVMFFIByteArray{value->v_bytes, static_cast<size_t>(value->small_str_len)};
 }
 
 /*!

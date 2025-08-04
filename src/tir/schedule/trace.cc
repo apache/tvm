@@ -71,7 +71,7 @@ Array<Any> TranslateInputRVs(const Array<Any>& inputs,
   };
 
   for (const Any& input : inputs) {
-    if (input.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+    if (input.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
       // directly put back POD type
       result.push_back(input);
     } else if (auto expr = input.as<ffi::String>()) {
@@ -110,8 +110,11 @@ Array<Any> TranslateInputRVs(
       results.push_back(String("None"));
       continue;
     }
-    if (input.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-      // directly put back POD type
+    // string => "content"
+    if (auto opt_str = input.as<ffi::String>()) {
+      results.push_back(String('"' + (*opt_str).operator std::string() + '"'));
+    } else if (input.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
+      // directly put back POD type and not string
       results.push_back(input);
     } else if (input.as<BlockRVNode>() ||  // RV: block
                input.as<LoopRVNode>() ||   // RV: loop
@@ -124,9 +127,6 @@ Array<Any> TranslateInputRVs(
         LOG(FATAL) << "IndexError: Random variable is not defined " << input;
         throw;
       }
-    } else if (auto opt_str = input.as<ffi::String>()) {
-      // Case 2. string => "content"
-      results.push_back(String('"' + (*opt_str).operator std::string() + '"'));
     } else if (input.as<IntImmNode>() || input.as<FloatImmNode>()) {
       // Case 3. integer or floating-point number
       results.push_back(input);
@@ -159,7 +159,7 @@ Array<Any> TranslateInputRVs(const Array<Any>& inputs,
   Array<Any> results;
   results.reserve(inputs.size());
   for (const Any& input : inputs) {
-    if (input.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+    if (input.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
       // directly put back POD type
       results.push_back(input);
       continue;

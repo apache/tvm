@@ -170,7 +170,7 @@ class ExecBuilderNode : public Object {
   /*! \brief The mutable internal executable. */
   ObjectPtr<vm::VMExecutable> exec_;  // mutable
   /*! \brief internal dedup map when creating index for a new constant */
-  std::unordered_map<ObjectRef, vm::Index, StructuralHash, StructuralEqual> const_dedup_map_;
+  std::unordered_map<ffi::Any, vm::Index, StructuralHash, StructuralEqual> const_dedup_map_;
 };
 
 class ExecBuilder : public ObjectRef {

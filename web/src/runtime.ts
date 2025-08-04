@@ -2019,6 +2019,7 @@ export class Instance implements Disposable {
       const tp = typeof val;
       const argOffset = packedArgs + i * SizeOf.TVMFFIAny;
       const argTypeIndexOffset = argOffset;
+      const argZeroPaddingOffset = argOffset + SizeOf.I32;
       const argValueOffset = argOffset + SizeOf.I32 * 2;
 
       // Convert string[] to a TVMArray of, hence treated as a TVMObject
@@ -2028,8 +2029,9 @@ export class Instance implements Disposable {
         val = this.makeTVMArray(tvmStringArray);
       }
 
-      // clear off the extra padding valuesbefore ptr storage
-      stack.storeI32(argTypeIndexOffset + SizeOf.I32, 0);
+      // clear off the extra zero padding before ptr storage
+      stack.storeI32(argZeroPaddingOffset, 0);
+      // clear off the extra zero padding after ptr storage
       stack.storeI32(argValueOffset + SizeOf.I32, 0);
       if (val instanceof NDArray) {
         if (!val.isView) {
@@ -2177,6 +2179,8 @@ export class Instance implements Disposable {
       const retOffset = stack.allocRawBytes(SizeOf.TVMFFIAny);
       // pre-store the result to be null
       stack.storeI32(retOffset, TypeIndex.kTVMFFINone);
+      // clear off the extra zero padding before ptr storage
+      stack.storeI32(retOffset + SizeOf.I32, 0);
       stack.commitToWasmMemory();
       this.lib.checkCall(
         (this.exports.TVMFFIFunctionCall as ctypes.FTVMFFIFunctionCall)(
@@ -2253,6 +2257,9 @@ export class Instance implements Disposable {
         );
         return result;
       }
+      case TypeIndex.kTVMFFISmallStr: {
+        return this.memory.loadSmallStr(resultAnyPtr);
+      }
       case TypeIndex.kTVMFFIStr: {
         const strObjPtr = this.memory.loadPointer(valuePtr);
         const result = this.memory.loadByteArrayAsString(strObjPtr + SizeOf.ObjectHeader);
@@ -2260,6 +2267,9 @@ export class Instance implements Disposable {
           (this.lib.exports.TVMFFIObjectFree as ctypes.FTVMFFIObjectFree)(strObjPtr)
         );
         return result;
+      }
+      case TypeIndex.kTVMFFISmallBytes: {
+        return this.memory.loadSmallBytes(resultAnyPtr);
       }
       case TypeIndex.kTVMFFIBytes: {
         const bytesObjPtr = this.memory.loadPointer(valuePtr);

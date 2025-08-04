@@ -317,7 +317,7 @@ class TypeTable {
       type_table_.emplace_back(nullptr);
     }
     // initialize the entry for object
-    this->GetOrAllocTypeIndex(Object::_type_key, Object::_type_index, Object::_type_depth,
+    this->GetOrAllocTypeIndex(String(Object::_type_key), Object::_type_index, Object::_type_depth,
                               Object::_type_child_slots, Object::_type_child_slots_can_overflow,
                               -1);
     TVMFFITypeMetadata info;
@@ -337,20 +337,36 @@ class TypeTable {
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIByteArrayPtr, TypeIndex::kTVMFFIByteArrayPtr);
     ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIObjectRValueRef,
                             TypeIndex::kTVMFFIObjectRValueRef);
+    ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFISmallStr, TypeIndex::kTVMFFISmallStr);
+    ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFISmallBytes, TypeIndex::kTVMFFISmallBytes);
     // no need to reserve for object types as they will be registered
   }
 
   void ReserveBuiltinTypeIndex(const char* type_key, int32_t static_type_index) {
-    this->GetOrAllocTypeIndex(type_key, static_type_index, 0, 0, false, -1);
+    this->GetOrAllocTypeIndex(String(type_key), static_type_index, 0, 0, false, -1);
+  }
+
+  static ObjectPtr<details::StringObj> MakeInplaceString(const char* data, size_t length) {
+    ObjectPtr<details::StringObj> p =
+        make_inplace_array_object<details::StringObj, char>(length + 1);
+    static_assert(alignof(details::StringObj) % alignof(char) == 0);
+    static_assert(sizeof(details::StringObj) % alignof(char) == 0);
+    char* dest_data = reinterpret_cast<char*>(p.get()) + sizeof(details::StringObj);
+    p->data = dest_data;
+    p->size = length;
+    std::memcpy(dest_data, data, length);
+    dest_data[length] = '\0';
+    return p;
   }
 
   TVMFFIByteArray CopyString(TVMFFIByteArray str) {
     if (str.size == 0) {
       return TVMFFIByteArray{nullptr, 0};
     }
-    String val = String(str.data, str.size);
-    TVMFFIByteArray c_val{val.data(), val.length()};
-    any_pool_.emplace_back(std::move(val));
+    // use explicit object creation to ensure the space pointer to not move
+    auto str_obj = MakeInplaceString(str.data, str.size);
+    TVMFFIByteArray c_val{str_obj->data, str_obj->size};
+    any_pool_.emplace_back(ObjectRef(std::move(str_obj)));
     return c_val;
   }
 
