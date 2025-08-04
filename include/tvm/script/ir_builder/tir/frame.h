@@ -555,7 +555,7 @@ class AllocateConstFrame : public TIRFrame {
 class AttrFrameNode : public TIRFrameNode {
  public:
   /*! \brief The node to annotate the attribute. */
-  ObjectRef node;
+  Any node;
   /*! \brief Attribute type key. */
   String attr_key;
   /*! \brief The value of the attribute. */
