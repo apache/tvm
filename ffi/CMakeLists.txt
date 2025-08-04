@@ -68,6 +68,7 @@ if (TVM_FFI_USE_EXTRA_CXX_API)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/structural_hash.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/json_parser.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/json_writer.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/serialization.cc"
   )
 endif()
 

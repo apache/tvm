@@ -21,6 +21,7 @@
 #define TVM_FFI_TESTING_OBJECT_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -87,6 +88,15 @@ inline void TIntObj::RegisterReflection() {
   refl::TypeAttrDef<TIntObj>()
       .def("test.GetValue", &TIntObj::GetValue)
       .attr("test.size", sizeof(TIntObj));
+  // custom json serialization
+  refl::TypeAttrDef<TIntObj>()
+      .def("__data_to_json__",
+           [](const TIntObj* self) -> Map<String, Any> {
+             return Map<String, Any>{{"value", self->value}};
+           })
+      .def("__data_from_json__", [](Map<String, Any> json_obj) -> TInt {
+        return TInt(json_obj["value"].cast<int64_t>());
+      });
 }
 
 class TFloatObj : public TNumberObj {
@@ -154,6 +164,8 @@ class TVarObj : public Object {
  public:
   std::string name;
 
+  // need default constructor for json serialization
+  TVarObj() = default;
   TVarObj(std::string name) : name(name) {}
 
   static void RegisterReflection() {
@@ -178,9 +190,11 @@ class TFuncObj : public Object {
  public:
   Array<TVar> params;
   Array<ObjectRef> body;
-  String comment;
+  Optional<String> comment;
 
-  TFuncObj(Array<TVar> params, Array<ObjectRef> body, String comment)
+  // need default constructor for json serialization
+  TFuncObj() = default;
+  TFuncObj(Array<TVar> params, Array<ObjectRef> body, Optional<String> comment)
       : params(params), body(body), comment(comment) {}
 
   static void RegisterReflection() {
@@ -198,7 +212,7 @@ class TFuncObj : public Object {
 
 class TFunc : public ObjectRef {
  public:
-  explicit TFunc(Array<TVar> params, Array<ObjectRef> body, String comment) {
+  explicit TFunc(Array<TVar> params, Array<ObjectRef> body, Optional<String> comment) {
     data_ = make_object<TFuncObj>(params, body, comment);
   }
 
