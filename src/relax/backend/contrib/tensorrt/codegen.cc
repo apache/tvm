@@ -83,7 +83,6 @@ class TensorRTCompilerConfig : public Attrs {
 
 TVM_FFI_STATIC_INIT_BLOCK({ TensorRTCompilerConfigNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(TensorRTCompilerConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.ext.tensorrt.options", TensorRTCompilerConfig);
 
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;

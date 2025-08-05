@@ -19,7 +19,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
@@ -178,7 +177,6 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
       }
     }
 
-    ReflectionVTable* vtable_ = ReflectionVTable::Global();
     std::vector<const Object*> stack_;
     std::unordered_set<const Object*> visited_;
 
@@ -207,9 +205,6 @@ IRDocsifier::FType& IRDocsifier::vtable() {
   static IRDocsifier::FType inst;
   return inst;
 }
-
-TVM_REGISTER_NODE_TYPE(FrameNode);
-TVM_REGISTER_NODE_TYPE(IRDocsifierNode);
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_fallback([](ObjectRef obj, ObjectPath p, IRDocsifier d) -> Doc {

@@ -38,7 +38,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 /* relax.bucketize */
-TVM_REGISTER_NODE_TYPE(BucketizeAttrs);
 
 Expr bucketize(Expr input_tensor, Expr boundaries, bool out_int32, bool right) {
   auto attrs = make_object<BucketizeAttrs>();
@@ -188,7 +187,6 @@ TVM_REGISTER_OP("relax.where")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.argmax & relax.argmin */
-TVM_REGISTER_NODE_TYPE(ArgmaxArgminAttrs);
 
 StructInfo InferStructInfoArgmaxArgmin(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);

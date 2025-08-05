@@ -124,7 +124,6 @@ Optional<Profiler> Profiler::Current() {
 
 TVM_FFI_STATIC_INIT_BLOCK({ ProfilerNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(ProfilerNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

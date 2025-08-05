@@ -54,7 +54,6 @@ class InjectDoubleBufferConfig : public Attrs {
 
 TVM_FFI_STATIC_INIT_BLOCK({ InjectDoubleBufferConfigNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(InjectDoubleBufferConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.InjectDoubleBuffer", InjectDoubleBufferConfig);
 
 // Detect double buffer variables.

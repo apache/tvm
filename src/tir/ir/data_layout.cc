@@ -40,9 +40,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   BijectiveLayoutNode::RegisterReflection();
 });
 
-TVM_REGISTER_NODE_TYPE(LayoutNode);
-TVM_REGISTER_NODE_TYPE(BijectiveLayoutNode);
-
 const LayoutAxis LayoutAxis::UPPER_CASE[] = {
     LayoutAxis('A'), LayoutAxis('B'), LayoutAxis('C'), LayoutAxis('D'), LayoutAxis('E'),
     LayoutAxis('F'), LayoutAxis('G'), LayoutAxis('H'), LayoutAxis('I'), LayoutAxis('J'),

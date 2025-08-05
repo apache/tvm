@@ -566,7 +566,6 @@ TVM_REGISTER_INST_KIND_TRAITS(EnterPostprocTraits);
 
 /**************** FFI ****************/
 
-TVM_REGISTER_NODE_TYPE(TraceNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

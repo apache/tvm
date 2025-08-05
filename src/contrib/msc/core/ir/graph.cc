@@ -1432,22 +1432,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   WeightGraphNode::RegisterReflection();
 });
 
-TVM_REGISTER_NODE_TYPE(MSCTensorNode);
-
-TVM_REGISTER_NODE_TYPE(BaseJointNode);
-
-TVM_REGISTER_NODE_TYPE(MSCJointNode);
-
-TVM_REGISTER_NODE_TYPE(MSCPrimNode);
-
-TVM_REGISTER_NODE_TYPE(WeightJointNode);
-
-TVM_REGISTER_NODE_TYPE(BaseGraphNode);
-
-TVM_REGISTER_NODE_TYPE(MSCGraphNode);
-
-TVM_REGISTER_NODE_TYPE(WeightGraphNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

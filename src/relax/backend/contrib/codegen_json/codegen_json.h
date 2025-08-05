@@ -28,7 +28,6 @@
 #include <dmlc/json.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/reflection.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/tir/op.h>
 
@@ -188,7 +187,6 @@ class OpAttrExtractor {
   }
 
   JSONGraphObjectPtr node_;
-  ReflectionVTable* reflection_ = ReflectionVTable::Global();
 };
 
 using NodeEntries = std::vector<JSONGraphNodeEntry>;

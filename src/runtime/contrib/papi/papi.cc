@@ -288,9 +288,6 @@ MetricCollector CreatePAPIMetricCollector(Map<DeviceWrapper, Array<String>> metr
   return PAPIMetricCollector(metrics);
 }
 
-TVM_REGISTER_OBJECT_TYPE(PAPIEventSetNode);
-TVM_REGISTER_OBJECT_TYPE(PAPIMetricCollectorNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(

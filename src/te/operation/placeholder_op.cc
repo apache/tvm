@@ -38,8 +38,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "placeholder(" << op->name << ", " << op << ")";
     });
 
-TVM_REGISTER_NODE_TYPE(PlaceholderOpNode);
-
 int PlaceholderOpNode::num_outputs() const { return 1; }
 
 DataType PlaceholderOpNode::output_dtype(size_t i) const {

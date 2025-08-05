@@ -64,7 +64,6 @@ MeasureCallback MeasureCallback::UpdateCostModel() {
   return MeasureCallback(n);
 }
 
-TVM_REGISTER_NODE_TYPE(UpdateCostModelNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.MeasureCallbackUpdateCostModel",

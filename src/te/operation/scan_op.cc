@@ -37,7 +37,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       auto* op = static_cast<const ScanOpNode*>(node.get());
       p->stream << "scan(" << op->name << ", " << op << ")";
     });
-TVM_REGISTER_NODE_TYPE(ScanOpNode);
 
 int ScanOpNode::num_outputs() const { return static_cast<int>(update.size()); }
 

@@ -26,7 +26,6 @@
 #include <tvm/meta_schedule/mutator.h>
 #include <tvm/meta_schedule/postproc.h>
 #include <tvm/meta_schedule/schedule_rule.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/schedule/schedule.h>

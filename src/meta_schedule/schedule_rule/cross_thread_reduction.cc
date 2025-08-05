@@ -295,7 +295,7 @@ ScheduleRule ScheduleRule::CrossThreadReduction(Array<Integer> thread_extents) {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({ CrossThreadReductionNode::RegisterReflection(); });
-TVM_REGISTER_NODE_TYPE(CrossThreadReductionNode);
+
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleCrossThreadReduction",

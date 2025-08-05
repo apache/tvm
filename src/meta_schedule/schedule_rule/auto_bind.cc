@@ -83,7 +83,6 @@ ScheduleRule ScheduleRule::AutoBind(int max_threadblocks, Array<Integer> thread_
 
 TVM_FFI_STATIC_INIT_BLOCK({ AutoBindNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(AutoBindNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleAutoBind", ScheduleRule::AutoBind);

@@ -55,11 +55,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   PyBuilderNode::RegisterReflection();
 });
 
-TVM_REGISTER_NODE_TYPE(BuilderInputNode);
-TVM_REGISTER_NODE_TYPE(BuilderResultNode);
-TVM_REGISTER_OBJECT_TYPE(BuilderNode);
-TVM_REGISTER_NODE_TYPE(PyBuilderNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

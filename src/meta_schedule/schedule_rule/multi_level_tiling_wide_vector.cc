@@ -125,7 +125,6 @@ ScheduleRule ScheduleRule::MultiLevelTilingWideVector(String structure,
   return ScheduleRule(node);
 }
 
-TVM_REGISTER_NODE_TYPE(MultiLevelTilingWideVectorNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTilingWideVector",

@@ -118,8 +118,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
                         });
 });
 
-TVM_REGISTER_NODE_TYPE(TensorNode);
-
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TensorNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* t = static_cast<const TensorNode*>(node.get());

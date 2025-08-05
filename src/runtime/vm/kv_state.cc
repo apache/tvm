@@ -28,9 +28,6 @@ namespace runtime {
 namespace vm {
 
 // Register Object Type
-TVM_REGISTER_OBJECT_TYPE(KVStateObj);
-TVM_REGISTER_OBJECT_TYPE(AttentionKVCacheObj);
-TVM_REGISTER_OBJECT_TYPE(RNNStateObj);
 
 // KV State base methods
 TVM_FFI_STATIC_INIT_BLOCK({

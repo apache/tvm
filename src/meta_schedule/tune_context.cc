@@ -66,7 +66,6 @@ void TuneContextNode::Initialize() {
 
 TVM_FFI_STATIC_INIT_BLOCK({ TuneContextNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(TuneContextNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

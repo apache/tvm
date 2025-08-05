@@ -57,8 +57,6 @@ using tir::Schedule;
 
 TVM_FFI_STATIC_INIT_BLOCK({ MultiLevelTilingNode::RegisterReflection(); });
 
-TVM_REGISTER_OBJECT_TYPE(StateNode);
-
 State::State(tir::Schedule sch, tir::BlockRV block_rv, Array<Array<tir::LoopRV>> tiles) {
   ObjectPtr<StateNode> node = make_object<StateNode>();
   node->sch = std::move(sch);
@@ -407,7 +405,6 @@ ScheduleRule ScheduleRule::MultiLevelTiling(String structure, Optional<Array<Str
   return ScheduleRule(node);
 }
 
-TVM_REGISTER_NODE_TYPE(MultiLevelTilingNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTiling",

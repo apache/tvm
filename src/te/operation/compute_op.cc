@@ -53,8 +53,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << ", attrs=" << op->attrs << ")";
     });
 
-TVM_REGISTER_NODE_TYPE(ComputeOpNode);
-
 /// Verify if ComputeOp is valid with respect to Reduce operations.
 static void VerifyComputeOp(const ComputeOpNode* op);
 

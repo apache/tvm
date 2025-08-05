@@ -140,7 +140,6 @@ TVM_REGISTER_OP("relax.broadcast_to")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.concat */
-TVM_REGISTER_NODE_TYPE(ConcatAttrs);
 
 Expr concat(Expr tensors, Optional<int64_t> axis) {
   ObjectPtr<ConcatAttrs> attrs = make_object<ConcatAttrs>();
@@ -359,7 +358,6 @@ TVM_REGISTER_OP("relax.concat")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.expand_dims */
-TVM_REGISTER_NODE_TYPE(ExpandDimsAttrs);
 
 Expr expand_dims(Expr x, Array<Integer> axis) {
   ObjectPtr<ExpandDimsAttrs> attrs = make_object<ExpandDimsAttrs>();
@@ -658,7 +656,6 @@ TVM_REGISTER_OP("relax.index_tensor")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.layout_transform */
-TVM_REGISTER_NODE_TYPE(LayoutTransformAttrs);
 
 Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value,
                       Optional<Array<IntImm>> axis_separators,
@@ -733,7 +730,6 @@ TVM_REGISTER_OP("relax.layout_transform")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.permute_dims */
-TVM_REGISTER_NODE_TYPE(PermuteDimsAttrs);
 
 Expr permute_dims(Expr x, Optional<Array<Integer>> axes) {
   ObjectPtr<PermuteDimsAttrs> attrs = make_object<PermuteDimsAttrs>();
@@ -1014,7 +1010,6 @@ TVM_REGISTER_OP("relax.reshape")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.split */
-TVM_REGISTER_NODE_TYPE(SplitAttrs);
 
 Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis) {
   ObjectPtr<SplitAttrs> attrs = make_object<SplitAttrs>();
@@ -1190,7 +1185,6 @@ TVM_REGISTER_OP("relax.split")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.squeeze */
-TVM_REGISTER_NODE_TYPE(SqueezeAttrs);
 
 Expr squeeze(Expr x, Optional<Array<Integer>> axis) {
   ObjectPtr<SqueezeAttrs> attrs = make_object<SqueezeAttrs>();
@@ -1393,7 +1387,6 @@ void CheckCollapseShape(const Call& call, const BlockBuilder& ctx,
 }
 
 /* relax.stack */
-TVM_REGISTER_NODE_TYPE(StackAttrs);
 
 Expr stack(Expr tensors, Optional<Integer> axis) {
   ObjectPtr<StackAttrs> attrs = make_object<StackAttrs>();
@@ -1706,7 +1699,6 @@ TVM_REGISTER_OP("relax.collapse_sum_to")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.repeat */
-TVM_REGISTER_NODE_TYPE(RepeatAttrs);
 
 Expr repeat(Expr data, int repeats, Optional<int64_t> axis) {
   auto attrs = make_object<RepeatAttrs>();
@@ -1775,7 +1767,6 @@ TVM_REGISTER_OP("relax.repeat")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.tile */
-TVM_REGISTER_NODE_TYPE(TileAttrs);
 
 Expr tile(Expr data, Array<Integer> repeats) {
   auto attrs = make_object<TileAttrs>();
@@ -1842,7 +1833,6 @@ TVM_REGISTER_OP("relax.tile")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.flip */
-TVM_REGISTER_NODE_TYPE(FlipAttrs);
 
 Expr flip(Expr data, Integer axis) {
   auto attrs = make_object<FlipAttrs>();
@@ -1882,7 +1872,6 @@ TVM_REGISTER_OP("relax.flip")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.gather_elements */
-TVM_REGISTER_NODE_TYPE(GatherElementsAttrs);
 
 Expr gather_elements(Expr data, Expr indices, int axis) {
   auto attrs = make_object<GatherElementsAttrs>();
@@ -1954,7 +1943,6 @@ TVM_REGISTER_OP("relax.gather_elements")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.gather_nd */
-TVM_REGISTER_NODE_TYPE(GatherNDAttrs);
 
 Expr gather_nd(Expr data, Expr indices, int batch_dims) {
   auto attrs = make_object<GatherNDAttrs>();
@@ -2051,7 +2039,6 @@ TVM_REGISTER_OP("relax.gather_nd")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.index_put */
-TVM_REGISTER_NODE_TYPE(IndexPutAttrs);
 
 Expr index_put(Expr data, Expr indices, Expr values, bool accumulate) {
   auto attrs = make_object<IndexPutAttrs>();
@@ -2177,7 +2164,6 @@ TVM_REGISTER_OP("relax.index_put")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.meshgrid */
-TVM_REGISTER_NODE_TYPE(MeshgridAttrs);
 
 Expr meshgrid(Expr tensors, Optional<String> indexing) {
   ObjectPtr<MeshgridAttrs> attrs = make_object<MeshgridAttrs>();
@@ -2283,7 +2269,6 @@ TVM_REGISTER_OP("relax.meshgrid")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.scatter_elements */
-TVM_REGISTER_NODE_TYPE(ScatterElementsAttrs);
 
 Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, String reduction) {
   auto attrs = make_object<ScatterElementsAttrs>();
@@ -2401,7 +2386,6 @@ TVM_REGISTER_OP("relax.scatter_elements")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.scatter_nd */
-TVM_REGISTER_NODE_TYPE(ScatterNDAttrs);
 
 Expr scatter_nd(Expr data, Expr indices, Expr updates, String reduction) {
   auto attrs = make_object<ScatterNDAttrs>();
@@ -2538,7 +2522,6 @@ TVM_REGISTER_OP("relax.scatter_nd")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.scatter_nd */
-TVM_REGISTER_NODE_TYPE(SliceScatterAttrs);
 
 Expr slice_scatter(Expr input, Expr src, int axis, PrimValue start, PrimValue end, PrimValue step) {
   auto attrs = make_object<SliceScatterAttrs>();
@@ -2696,7 +2679,7 @@ TVM_REGISTER_OP("relax.slice_scatter")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.one_hot */
-TVM_REGISTER_NODE_TYPE(OneHotAttrs);
+
 Expr one_hot(Expr indices, PrimValue on_value, PrimValue off_value, int depth, int axis) {
   ObjectPtr<OneHotAttrs> attrs = make_object<OneHotAttrs>();
   attrs->depth = depth;

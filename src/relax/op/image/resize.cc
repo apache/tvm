@@ -34,7 +34,6 @@ namespace relax {
 TVM_FFI_STATIC_INIT_BLOCK({ Resize2DAttrs::RegisterReflection(); });
 
 /* relax.resize2d */
-TVM_REGISTER_NODE_TYPE(Resize2DAttrs);
 
 Expr resize2d(Expr data, Expr size, Array<FloatImm> roi, String layout, String method,
               String coordinate_transformation_mode, String rounding_method, double cubic_alpha,

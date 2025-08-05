@@ -41,7 +41,6 @@ ExtractedTask::ExtractedTask(String task_name, IRModule mod, Target target,
 
 TVM_FFI_STATIC_INIT_BLOCK({ ExtractedTaskNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(ExtractedTaskNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ExtractedTask",

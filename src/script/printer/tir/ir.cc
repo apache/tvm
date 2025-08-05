@@ -26,8 +26,6 @@ namespace printer {
 
 TVM_FFI_STATIC_INIT_BLOCK({ TIRFrameNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(TIRFrameNode);
-
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<IntImm>("", [](IntImm imm, ObjectPath imm_p, IRDocsifier d) -> Doc {
       DataType dtype = imm->dtype;

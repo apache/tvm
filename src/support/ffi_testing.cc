@@ -58,8 +58,6 @@ struct TestAttrs : public AttrsNodeReflAdapter<TestAttrs> {
 
 TVM_FFI_STATIC_INIT_BLOCK({ TestAttrs::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(TestAttrs);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

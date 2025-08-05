@@ -60,11 +60,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   PyRunnerNode::RegisterReflection();
 });
 
-TVM_REGISTER_NODE_TYPE(RunnerInputNode);
-TVM_REGISTER_NODE_TYPE(RunnerResultNode);
-TVM_REGISTER_NODE_TYPE(RunnerFutureNode);
-TVM_REGISTER_OBJECT_TYPE(RunnerNode);
-TVM_REGISTER_NODE_TYPE(PyRunnerNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

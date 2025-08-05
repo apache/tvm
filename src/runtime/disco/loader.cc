@@ -174,8 +174,6 @@ class ShardLoaderObj : public Object {
   NDArray LoadDirect(int weight_index) const;
 };
 
-TVM_REGISTER_OBJECT_TYPE(ShardLoaderObj);
-
 ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std::string& metadata,
                                  std::string shard_info, Module mod) {
   if (shard_info.empty() && mod.defined()) {

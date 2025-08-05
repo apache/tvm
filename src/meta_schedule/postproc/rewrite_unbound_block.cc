@@ -148,7 +148,6 @@ Postproc Postproc::RewriteUnboundBlock(int max_threadblocks) {
 
 TVM_FFI_STATIC_INIT_BLOCK({ RewriteUnboundBlockNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(RewriteUnboundBlockNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.PostprocRewriteUnboundBlock", Postproc::RewriteUnboundBlock);

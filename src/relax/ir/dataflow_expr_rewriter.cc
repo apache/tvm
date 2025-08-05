@@ -192,8 +192,6 @@ void RewriteSpec::Append(RewriteSpec other) {
   }
 }
 
-TVM_REGISTER_NODE_TYPE(PatternMatchingRewriterNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
@@ -216,8 +214,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
              }
            });
 });
-
-TVM_REGISTER_NODE_TYPE(ExprPatternRewriterNode);
 
 RewriteSpec ExprPatternRewriterNode::RewriteBindings(const Array<Binding>& bindings) const {
   Map<Var, Expr> variable_rewrites;
@@ -281,8 +277,6 @@ ExprPatternRewriter::ExprPatternRewriter(
   data_ = std::move(node);
 }
 
-TVM_REGISTER_NODE_TYPE(OrRewriterNode);
-
 RewriteSpec OrRewriterNode::RewriteBindings(const Array<Binding>& bindings) const {
   auto lhs_match = lhs->RewriteBindings(bindings);
   if (!lhs_match) {
@@ -327,8 +321,6 @@ OrRewriter::OrRewriter(PatternMatchingRewriter lhs, PatternMatchingRewriter rhs)
   node->rhs = std::move(rhs);
   data_ = std::move(node);
 }
-
-TVM_REGISTER_NODE_TYPE(TupleRewriterNode);
 
 RewriteSpec TupleRewriterNode::RewriteBindings(const Array<Binding>& bindings) const {
   CHECK_LE(patterns.size(), 3) << "For performance reasons, "

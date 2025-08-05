@@ -193,10 +193,6 @@ void SRefTreeCreator::VisitStmt_(const SeqStmtNode* seq_stmt) {
 
 /******** FFI ********/
 
-TVM_REGISTER_NODE_TYPE(StmtSRefNode);
-TVM_REGISTER_NODE_TYPE(DependencyNode);
-TVM_REGISTER_NODE_TYPE(BlockScopeNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

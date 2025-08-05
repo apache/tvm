@@ -29,7 +29,6 @@
 #include <tvm/meta_schedule/runner.h>
 #include <tvm/meta_schedule/search_strategy.h>
 #include <tvm/meta_schedule/tune_context.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
 
 namespace tvm {

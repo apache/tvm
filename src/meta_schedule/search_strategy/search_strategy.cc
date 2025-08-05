@@ -89,10 +89,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   PySearchStrategyNode::RegisterReflection();
 });
 
-TVM_REGISTER_NODE_TYPE(MeasureCandidateNode);
-TVM_REGISTER_OBJECT_TYPE(SearchStrategyNode);
-TVM_REGISTER_NODE_TYPE(PySearchStrategyNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

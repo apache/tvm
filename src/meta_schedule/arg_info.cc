@@ -162,9 +162,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 /******** FFI ********/
 TVM_FFI_STATIC_INIT_BLOCK({ TensorInfoNode::RegisterReflection(); });
 
-TVM_REGISTER_OBJECT_TYPE(ArgInfoNode);
-TVM_REGISTER_NODE_TYPE(TensorInfoNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

@@ -825,9 +825,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   PyStmtExprMutatorNode::RegisterReflection();
 });
 
-TVM_REGISTER_NODE_TYPE(PyStmtExprVisitorNode);
-TVM_REGISTER_NODE_TYPE(PyStmtExprMutatorNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

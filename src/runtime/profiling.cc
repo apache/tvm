@@ -64,9 +64,6 @@ class DefaultTimerNode : public TimerNode {
   Device device_;
 };
 
-TVM_REGISTER_OBJECT_TYPE(DefaultTimerNode);
-TVM_REGISTER_OBJECT_TYPE(TimerNode);
-
 Timer DefaultTimer(Device dev) { return Timer(make_object<DefaultTimerNode>(dev)); }
 
 class CPUTimerNode : public TimerNode {
@@ -83,7 +80,6 @@ class CPUTimerNode : public TimerNode {
   std::chrono::high_resolution_clock::time_point start_;
   std::chrono::duration<int64_t, std::nano> duration_;
 };
-TVM_REGISTER_OBJECT_TYPE(CPUTimerNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
@@ -785,14 +781,6 @@ Report Report::FromJSON(String json) {
   }
   return Report(calls, device_metrics, configuration);
 }
-
-TVM_REGISTER_OBJECT_TYPE(DurationNode);
-TVM_REGISTER_OBJECT_TYPE(PercentNode);
-TVM_REGISTER_OBJECT_TYPE(CountNode);
-TVM_REGISTER_OBJECT_TYPE(RatioNode);
-TVM_REGISTER_OBJECT_TYPE(ReportNode);
-TVM_REGISTER_OBJECT_TYPE(DeviceWrapperNode);
-TVM_REGISTER_OBJECT_TYPE(MetricCollectorNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

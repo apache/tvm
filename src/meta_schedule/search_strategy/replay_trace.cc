@@ -190,7 +190,6 @@ SearchStrategy SearchStrategy::ReplayTrace(int max_fail_count) {
 
 TVM_FFI_STATIC_INIT_BLOCK({ ReplayTraceNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(ReplayTraceNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.SearchStrategyReplayTrace", SearchStrategy::ReplayTrace);

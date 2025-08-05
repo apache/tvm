@@ -1189,8 +1189,6 @@ Array<IntSet> EstimateRegionUpperBound(const Array<Range>& region, const Map<Var
   return result;
 }
 
-TVM_REGISTER_NODE_TYPE(IntervalSetNode);
-
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IntervalSetNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const IntervalSetNode*>(node.get());

@@ -538,8 +538,6 @@ class InplaceOpportunityNode : public Object {
 
 TVM_FFI_STATIC_INIT_BLOCK({ InplaceOpportunityNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(InplaceOpportunityNode);
-
 class InplaceOpportunity : public ObjectRef {
  public:
   TVM_DLL InplaceOpportunity(const Integer& binding_idx, const Array<Integer>& arg_idxs) {

@@ -27,7 +27,6 @@ namespace tvm {
 namespace relax {
 
 /* relax.ccl.allreduce */
-TVM_REGISTER_NODE_TYPE(AllReduceAttrs);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   AllReduceAttrs::RegisterReflection();
@@ -63,7 +62,6 @@ TVM_REGISTER_OP("relax.ccl.allreduce")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.ccl.allgather */
-TVM_REGISTER_NODE_TYPE(AllGatherAttrs);
 
 Expr allgather(Expr x, int num_workers, bool in_group) {
   ObjectPtr<AllGatherAttrs> attrs = make_object<AllGatherAttrs>();
@@ -126,7 +124,6 @@ TVM_REGISTER_OP("relax.ccl.broadcast_from_worker0")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.ccl.scatter_from_worker0 */
-TVM_REGISTER_NODE_TYPE(ScatterCollectiveAttrs);
 
 Expr scatter_from_worker0(Expr data, int num_workers, int axis) {
   ObjectPtr<ScatterCollectiveAttrs> attrs = make_object<ScatterCollectiveAttrs>();

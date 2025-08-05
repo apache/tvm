@@ -332,8 +332,6 @@ class CUDATimerNode : public TimerNode {
   cudaEvent_t stop_;
 };
 
-TVM_REGISTER_OBJECT_TYPE(CUDATimerNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("profiling.timer.cuda",

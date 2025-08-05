@@ -134,7 +134,6 @@ Mutator Mutator::MutateComputeLocation() {
 
 TVM_FFI_STATIC_INIT_BLOCK({ MutateComputeLocationNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(MutateComputeLocationNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.MutatorMutateComputeLocation",

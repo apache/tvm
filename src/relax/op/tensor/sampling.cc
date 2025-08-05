@@ -35,7 +35,6 @@ namespace relax {
 TVM_FFI_STATIC_INIT_BLOCK({ MultinomialFromUniformAttrs::RegisterReflection(); });
 
 /* relax.multinomial_from_uniform */
-TVM_REGISTER_NODE_TYPE(MultinomialFromUniformAttrs);
 
 Expr multinomial_from_uniform(Expr prob, Expr uniform_sample, Expr sample_indices, DataType dtype) {
   ObjectPtr<MultinomialFromUniformAttrs> attrs = make_object<MultinomialFromUniformAttrs>();

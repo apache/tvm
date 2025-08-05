@@ -420,8 +420,6 @@ IndexMap Substitute(const IndexMap& index_map,
   return IndexMap{index_map->initial_indices, new_output, new_inverse_map};
 }
 
-TVM_REGISTER_NODE_TYPE(IndexMapNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

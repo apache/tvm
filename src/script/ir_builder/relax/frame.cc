@@ -269,13 +269,6 @@ void ElseFrameNode::ExitWithScope() {
       << ", while the R.Else branch provides variable " << var_name;
 }
 
-TVM_REGISTER_NODE_TYPE(FunctionFrameNode);
-TVM_REGISTER_NODE_TYPE(SeqExprFrameNode);
-TVM_REGISTER_NODE_TYPE(BlockFrameNode);
-TVM_REGISTER_NODE_TYPE(IfFrameNode);
-TVM_REGISTER_NODE_TYPE(ThenFrameNode);
-TVM_REGISTER_NODE_TYPE(ElseFrameNode);
-
 }  // namespace relax
 }  // namespace ir_builder
 }  // namespace script

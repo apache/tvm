@@ -46,8 +46,6 @@ ObjectStructInfo::ObjectStructInfo(Span span) {
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(ObjectStructInfoNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.ObjectStructInfo", [](Span span) { return ObjectStructInfo(span); });
@@ -69,8 +67,6 @@ PrimStructInfo::PrimStructInfo(DataType dtype, Span span) {
   n->span = span;
   data_ = std::move(n);
 }
-
-TVM_REGISTER_NODE_TYPE(PrimStructInfoNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
@@ -104,8 +100,6 @@ ShapeStructInfo::ShapeStructInfo(int ndim, Span span) {
   n->span = span;
   data_ = std::move(n);
 }
-
-TVM_REGISTER_NODE_TYPE(ShapeStructInfoNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
@@ -149,8 +143,6 @@ TensorStructInfo::TensorStructInfo(DataType dtype, int ndim, Optional<VDevice> v
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(TensorStructInfoNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.TensorStructInfo", [](Optional<Expr> shape, Optional<DataType> dtype,
@@ -171,8 +163,6 @@ TupleStructInfo::TupleStructInfo(Array<StructInfo> fields, Span span) {
   n->span = span;
   data_ = std::move(n);
 }
-
-TVM_REGISTER_NODE_TYPE(TupleStructInfoNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
@@ -208,8 +198,6 @@ FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfo ret, bool purity, Span span
   n->span = span;
   return FuncStructInfo(n);
 }
-
-TVM_REGISTER_NODE_TYPE(FuncStructInfoNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

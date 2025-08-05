@@ -90,8 +90,6 @@ std::string NameSupplyNode::GetUniqueName(std::string name, bool add_underscore)
   return name;
 }
 
-TVM_REGISTER_NODE_TYPE(NameSupplyNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
