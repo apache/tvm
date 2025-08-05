@@ -39,8 +39,6 @@ bool AtTopLevelFunction(const IRDocsifier& d) {
 
 TVM_FFI_STATIC_INIT_BLOCK({ RelaxFrameNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(RelaxFrameNode);
-
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Function>("", [](relax::Function n, ObjectPath n_p, IRDocsifier d) -> Doc {
       std::unordered_set<const tir::VarNode*> func_vars;

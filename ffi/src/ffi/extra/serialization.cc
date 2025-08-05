@@ -24,6 +24,7 @@
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/extra/base64.h>
@@ -119,6 +120,12 @@ class ObjectGraphSerializer {
         node.Set("data", CreateMapData(map));
         break;
       }
+      case TypeIndex::kTVMFFIShape: {
+        ffi::Shape shape = details::AnyUnsafe::CopyFromAnyViewAfterCheck<ffi::Shape>(value);
+        node.Set("type", ffi::StaticTypeKey::kTVMFFIShape);
+        node.Set("data", Array<int64_t>(shape->data, shape->data + shape->size));
+        break;
+      }
       default: {
         if (value.type_index() >= TypeIndex::kTVMFFIStaticObjectBegin) {
           // serialize type key since type index is runtime dependent
@@ -157,10 +164,10 @@ class ObjectGraphSerializer {
 
   // create the data for the object, if the type has a custom data to json function,
   // use it. otherwise, we go over the fields and create the data.
-  json::Object CreateObjectData(const Any& value) {
+  json::Value CreateObjectData(const Any& value) {
     static reflection::TypeAttrColumn data_to_json = reflection::TypeAttrColumn("__data_to_json__");
     if (data_to_json[value.type_index()] != nullptr) {
-      return data_to_json[value.type_index()].cast<Function>()(value).cast<json::Object>();
+      return data_to_json[value.type_index()].cast<Function>()(value);
     }
     // NOTE: invariant: lhs and rhs are already the same type
     const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(value.type_index());
@@ -285,6 +292,10 @@ class ObjectGraphDeserializer {
       }
       case TypeIndex::kTVMFFIArray: {
         return DecodeArrayData(node["data"].cast<json::Array>());
+      }
+      case TypeIndex::kTVMFFIShape: {
+        Array<int64_t> data = node["data"].cast<Array<int64_t>>();
+        return ffi::Shape(data);
       }
       default: {
         return DecodeObjectData(type_index, node["data"]);

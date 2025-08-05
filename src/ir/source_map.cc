@@ -30,11 +30,20 @@
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
   SourceNameNode::RegisterReflection();
   SpanNode::RegisterReflection();
   SequentialSpanNode::RegisterReflection();
   SourceNode::RegisterReflection();
   SourceMapObj::RegisterReflection();
+  // overrride SourceNameNode to serialization mechanism
+  refl::TypeAttrDef<SourceNameNode>()
+      .def("__data_to_json__",
+           [](const SourceNameNode* node) {
+             // simply save as the string
+             return node->name;
+           })
+      .def("__data_from_json__", SourceName::Get);
 });
 
 ObjectPtr<Object> GetSourceNameNode(const String& name) {
@@ -70,12 +79,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "SourceName(" << node->name << ", " << node << ")";
     });
 
-TVM_REGISTER_NODE_TYPE(SourceNameNode)
-    .set_creator(GetSourceNameNodeByStr)
-    .set_repr_bytes([](const Object* n) -> std::string {
-      return static_cast<const SourceNameNode*>(n)->name;
-    });
-
 Span::Span(SourceName source_name, int line, int end_line, int column, int end_column) {
   auto n = make_object<SpanNode>();
   n->source_name = std::move(source_name);
@@ -95,8 +98,6 @@ Span Span::Merge(const Span& other) const {
               std::min((*this)->column, other->column),
               std::max((*this)->end_column, other->end_column));
 }
-
-TVM_REGISTER_NODE_TYPE(SpanNode);
 
 SequentialSpan::SequentialSpan(tvm::Array<Span> spans) {
   auto n = make_object<SequentialSpanNode>();
@@ -139,8 +140,6 @@ SequentialSpan::SequentialSpan(std::initializer_list<Span> init) {
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(SequentialSpanNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
@@ -170,8 +169,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
       p->stream << node->spans[last] << " ])";
     });
-
-TVM_REGISTER_NODE_TYPE(SourceNode);
 
 /*! \brief Construct a source from a string. */
 Source::Source(SourceName src_name, std::string source) {
@@ -220,8 +217,6 @@ tvm::String Source::GetLine(int line) {
   VLOG(1) << "Source::GetLine: line_text=" << line_text;
   return line_text;
 }
-
-TVM_REGISTER_NODE_TYPE(SourceMapObj);
 
 SourceMap::SourceMap(Map<SourceName, Source> source_map) {
   auto n = make_object<SourceMapObj>();

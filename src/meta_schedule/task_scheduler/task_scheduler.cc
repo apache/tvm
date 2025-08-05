@@ -369,9 +369,6 @@ void PyTaskSchedulerNode::Tune(Array<TuneContext> tasks, Array<FloatImm> task_we
   }
 }
 
-TVM_REGISTER_NODE_TYPE(TaskRecordNode);
-TVM_REGISTER_OBJECT_TYPE(TaskSchedulerNode);
-TVM_REGISTER_NODE_TYPE(PyTaskSchedulerNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

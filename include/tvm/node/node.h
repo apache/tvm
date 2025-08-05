@@ -35,7 +35,6 @@
 #define TVM_NODE_NODE_H_
 
 #include <tvm/ffi/memory.h>
-#include <tvm/node/reflection.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>

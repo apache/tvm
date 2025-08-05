@@ -64,7 +64,6 @@ class ReduceBranchingThroughOvercomputeConfig : public Attrs {
 
 TVM_FFI_STATIC_INIT_BLOCK({ ReduceBranchingThroughOvercomputeConfigNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(ReduceBranchingThroughOvercomputeConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.ReduceBranchingThroughOvercompute",
                                 ReduceBranchingThroughOvercomputeConfig);
 

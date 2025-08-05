@@ -59,6 +59,7 @@ class TIntObj : public TNumberObj {
  public:
   int64_t value;
 
+  TIntObj() = default;
   TIntObj(int64_t value) : value(value) {}
 
   int64_t GetValue() const { return value; }

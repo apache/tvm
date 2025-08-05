@@ -63,9 +63,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   PyMeasureCallbackNode::RegisterReflection();
 });
 
-TVM_REGISTER_OBJECT_TYPE(MeasureCallbackNode);
-TVM_REGISTER_NODE_TYPE(PyMeasureCallbackNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

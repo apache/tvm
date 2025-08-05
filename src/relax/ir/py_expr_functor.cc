@@ -170,8 +170,6 @@ class PyExprVisitorNode : public Object, public ExprVisitor {
   }
 };
 
-TVM_REGISTER_NODE_TYPE(PyExprVisitorNode);
-
 /*!
  * \brief Managed reference to PyExprVisitorNode.
  * \sa PyExprVisitorNode
@@ -454,8 +452,6 @@ class PyExprMutatorNode : public Object, public ExprMutator {
     return post_order_vtable;
   }
 };
-
-TVM_REGISTER_NODE_TYPE(PyExprMutatorNode);
 
 /*!
  * \brief Managed reference to PyExprMutatorNode.

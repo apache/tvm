@@ -30,7 +30,6 @@
 #include <tvm/ffi/string.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/object_path.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/data_type.h>
 
 #include <iostream>

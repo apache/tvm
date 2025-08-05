@@ -40,7 +40,7 @@ namespace relax {
 TVM_FFI_STATIC_INIT_BLOCK({ DistributionAttrs::RegisterReflection(); });
 
 /* relax.dist.annotate_sharding */
-TVM_REGISTER_NODE_TYPE(DistributionAttrs);
+
 Expr annotate_sharding(Expr input, distributed::DeviceMesh device_mesh,
                        distributed::Placement placement) {
   ObjectPtr<DistributionAttrs> attrs = make_object<DistributionAttrs>();
@@ -68,7 +68,7 @@ TVM_REGISTER_OP("relax.dist.annotate_sharding")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.dist.redistribute */
-TVM_REGISTER_NODE_TYPE(DistributionAttrs);
+
 Expr redistribute(Expr input, distributed::DeviceMesh device_mesh,
                   distributed::Placement placement) {
   ObjectPtr<DistributionAttrs> attrs = make_object<DistributionAttrs>();

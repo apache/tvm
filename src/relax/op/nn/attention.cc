@@ -27,7 +27,6 @@ namespace tvm {
 namespace relax {
 
 /* relax.nn.attention */
-TVM_REGISTER_NODE_TYPE(AttentionAttrs);
 
 Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<FloatImm> scale,
                Optional<String> causal_mask, Optional<IntImm> window_size) {

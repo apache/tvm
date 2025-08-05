@@ -20,7 +20,6 @@
 #define TVM_TIR_SCHEDULE_INSTRUCTION_H_
 
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/reflection.h>
 
 #include <utility>
 

@@ -46,10 +46,6 @@ StmtSRef ScheduleNode::GetSRef(const StmtNode* stmt) const {
 
 /**************** FFI ****************/
 
-TVM_REGISTER_NODE_TYPE(BlockRVNode);
-TVM_REGISTER_NODE_TYPE(LoopRVNode);
-TVM_REGISTER_OBJECT_TYPE(ScheduleNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

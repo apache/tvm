@@ -1407,7 +1407,6 @@ FusionPattern::FusionPattern(String name, DFPattern pattern,
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(FusionPatternNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
@@ -1430,8 +1429,6 @@ PatternCheckContext::PatternCheckContext(Expr matched_expr, Map<String, Expr> an
   n->value_to_bound_var = std::move(value_to_bound_var);
   data_ = std::move(n);
 }
-
-TVM_REGISTER_NODE_TYPE(PatternCheckContextNode);
 
 Pass FuseOps(int fuse_opt_level) {
   auto pass_func =  //

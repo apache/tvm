@@ -169,8 +169,6 @@ class RPCWrappedFunc : public Object {
   }
 };
 
-TVM_REGISTER_OBJECT_TYPE(RPCObjectRefObj);
-
 // RPC that represents a remote module session.
 class RPCModuleNode final : public ModuleNode {
  public:

@@ -800,7 +800,6 @@ Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch self,
 
 TVM_FFI_STATIC_INIT_BLOCK({ EvolutionarySearchNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(EvolutionarySearchNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

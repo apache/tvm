@@ -21,6 +21,7 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection/accessor.h>
+#include <tvm/ffi/reflection/creator.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 
@@ -159,4 +160,9 @@ TEST(Reflection, FuncRegister) {
   EXPECT_EQ(fget_value(a).cast<int>(), 12);
 }
 
+TEST(Reflection, ObjectCreator) {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectCreator creator("test.Int");
+  EXPECT_EQ(creator(Map<String, Any>({{"value", 1}})).cast<TInt>()->value, 1);
+}
 }  // namespace

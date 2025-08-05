@@ -200,8 +200,6 @@ Range IntGroupBounds::FindBestRange(const Map<Var, Range>& vranges_addl) const {
   return Range::FromMinExtent(best_lower, analyzer.Simplify(best_diff_over + 1));
 }
 
-TVM_REGISTER_NODE_TYPE(IntGroupBoundsNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
@@ -248,8 +246,6 @@ IntConstraints::IntConstraints(Array<Var> variables, Map<Var, Range> ranges,
   data_ = std::move(node);
 }
 
-TVM_REGISTER_NODE_TYPE(IntConstraintsNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("arith.IntConstraints", [](Array<Var> variables, Map<Var, Range> ranges,
@@ -295,8 +291,6 @@ IntConstraintsTransform IntConstraintsTransform::operator+(
   }
   return IntConstraintsTransform(operator->()->src, other->dst, src_to_dst, dst_to_src);
 }
-
-TVM_REGISTER_NODE_TYPE(IntConstraintsTransformNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

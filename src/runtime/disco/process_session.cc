@@ -173,9 +173,6 @@ class ProcessSessionObj final : public BcastSessionObj {
   TVM_DECLARE_FINAL_OBJECT_INFO(ProcessSessionObj, SessionObj);
 };
 
-TVM_REGISTER_OBJECT_TYPE(DiscoDebugObject);
-TVM_REGISTER_OBJECT_TYPE(ProcessSessionObj);
-
 Session Session::ProcessSession(int num_workers, int num_group, String process_pool_creator,
                                 String entrypoint) {
   CHECK_EQ(num_workers % num_group, 0)

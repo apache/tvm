@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/container/shape.h>
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/extra/serialization.h>
 #include <tvm/ffi/extra/structural_equal.h>
@@ -269,6 +270,23 @@ TEST(Serialization, Maps) {
                 }}};
   EXPECT_TRUE(StructuralEqual()(ToJSONGraph(duplicated_map), expected_duplicated));
   EXPECT_TRUE(StructuralEqual()(FromJSONGraph(expected_duplicated), duplicated_map));
+}
+
+TEST(Serialization, Shapes) {
+  Shape empty_shape;
+
+  json::Object expected_empty_shape = json::Object{
+      {"root_index", 0},
+      {"nodes", json::Array{json::Object{{"type", "ffi.Shape"}, {"data", json::Array{}}}}}};
+  EXPECT_TRUE(StructuralEqual()(ToJSONGraph(empty_shape), expected_empty_shape));
+  EXPECT_TRUE(StructuralEqual()(FromJSONGraph(expected_empty_shape), empty_shape));
+
+  Shape shape({1, 2, 3});
+  json::Object expected_shape = json::Object{
+      {"root_index", 0},
+      {"nodes", json::Array{json::Object{{"type", "ffi.Shape"}, {"data", json::Array{1, 2, 3}}}}}};
+  EXPECT_TRUE(StructuralEqual()(ToJSONGraph(shape), expected_shape));
+  EXPECT_TRUE(StructuralEqual()(FromJSONGraph(expected_shape), shape));
 }
 
 TEST(Serialization, TestObjectVar) {

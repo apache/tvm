@@ -105,8 +105,6 @@ class CodegenResult : public ObjectRef {
 
 TVM_FFI_STATIC_INIT_BLOCK({ CodegenResultNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(CodegenResultNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("contrib.cutlass.CodegenResult", [](String code, Array<String> headers) {

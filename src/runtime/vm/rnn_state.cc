@@ -460,8 +460,6 @@ class RNNStateImpObj : public RNNStateObj {
   TVM_DECLARE_FINAL_OBJECT_INFO(RNNStateImpObj, RNNStateObj);
 };
 
-TVM_REGISTER_OBJECT_TYPE(RNNStateImpObj);
-
 //-------------------------------------------------
 //  Register runtime functions
 //-------------------------------------------------

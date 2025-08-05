@@ -100,7 +100,6 @@ class HoistExpressionConfig : public Attrs {
 
 TVM_FFI_STATIC_INIT_BLOCK({ HoistExpressionConfigNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(HoistExpressionConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.HoistExpression", HoistExpressionConfig);
 
 struct HoistIfThenElseConfigNode : public AttrsNodeReflAdapter<HoistIfThenElseConfigNode> {
@@ -125,7 +124,6 @@ class HoistIfThenElseConfig : public Attrs {
 
 TVM_FFI_STATIC_INIT_BLOCK({ HoistIfThenElseConfigNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(HoistIfThenElseConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.HoistIfThenElse", HoistIfThenElseConfig);
 
 class HoistInfoCollector : public StmtExprVisitor {

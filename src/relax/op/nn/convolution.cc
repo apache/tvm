@@ -40,7 +40,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 /* relax.nn.conv1d */
-TVM_REGISTER_NODE_TYPE(Conv1DAttrs);
 
 Expr conv1d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
             Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
@@ -200,7 +199,6 @@ TVM_REGISTER_OP("relax.nn.conv1d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.conv2d */
-TVM_REGISTER_NODE_TYPE(Conv2DAttrs);
 
 Expr conv2d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
             Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
@@ -400,7 +398,6 @@ TVM_REGISTER_OP("relax.nn.conv2d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.conv3d */
-TVM_REGISTER_NODE_TYPE(Conv3DAttrs);
 
 Expr conv3d(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
             Array<IntImm> dilation, int groups, String data_layout, String kernel_layout,
@@ -578,8 +575,6 @@ TVM_REGISTER_OP("relax.nn.conv3d")
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionConv3d)
     .set_attr<Bool>("FPurity", Bool(true));
 
-TVM_REGISTER_NODE_TYPE(Conv1DTransposeAttrs);
-
 Expr conv1d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
                       Array<IntImm> output_padding, Array<IntImm> dilation, int groups,
                       String data_layout, String kernel_layout, Optional<String> out_layout,
@@ -709,7 +704,6 @@ TVM_REGISTER_OP("relax.nn.conv1d_transpose")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.conv2d_transpose */
-TVM_REGISTER_NODE_TYPE(Conv2DTransposeAttrs);
 
 Expr conv2d_transpose(Expr data, Expr weight, Array<IntImm> strides, Array<IntImm> padding,
                       Array<IntImm> output_padding, Array<IntImm> dilation, int groups,

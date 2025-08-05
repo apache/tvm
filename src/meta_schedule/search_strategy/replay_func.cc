@@ -162,7 +162,6 @@ SearchStrategy SearchStrategy::ReplayFunc() {
 
 TVM_FFI_STATIC_INIT_BLOCK({ ReplayFuncNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(ReplayFuncNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.SearchStrategyReplayFunc", SearchStrategy::ReplayFunc);

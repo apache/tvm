@@ -38,7 +38,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 // failed to check to argument arg0.dims[0] != 0
 
 /* Diagnostic */
-TVM_REGISTER_NODE_TYPE(DiagnosticNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
@@ -104,7 +103,6 @@ DiagnosticBuilder Diagnostic::Note(const Object* loc) { return Note(GetRef<Objec
 DiagnosticBuilder Diagnostic::Help(const Object* loc) { return Help(GetRef<ObjectRef>(loc)); }
 
 /* Diagnostic Renderer */
-TVM_REGISTER_NODE_TYPE(DiagnosticRendererNode);
 
 void DiagnosticRenderer::Render(const DiagnosticContext& ctx) { (*this)->renderer(ctx); }
 
@@ -124,7 +122,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 /* Diagnostic Context */
-TVM_REGISTER_NODE_TYPE(DiagnosticContextNode);
 
 void DiagnosticContext::Render() {
   (*this)->renderer.Render(*this);

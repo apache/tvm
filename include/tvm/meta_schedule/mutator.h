@@ -23,7 +23,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
 #include <tvm/support/random_engine.h>
 #include <tvm/tir/schedule/schedule.h>

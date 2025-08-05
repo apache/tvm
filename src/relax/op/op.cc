@@ -224,8 +224,6 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
   return ret;
 }
 
-TVM_REGISTER_NODE_TYPE(CallInplacePackedAttrs);
-
 TVM_REGISTER_OP("relax.call_inplace_packed")
     .set_num_inputs(-1)
     .set_attrs_type<CallInplacePackedAttrs>()
@@ -622,8 +620,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 // call_tir_with_grad
 
-TVM_REGISTER_NODE_TYPE(CallTIRWithGradAttrs);
-
 TVM_REGISTER_OP("relax.call_tir_with_grad")
     .set_num_inputs(3)
     .set_attrs_type<CallTIRWithGradAttrs>()
@@ -765,8 +761,6 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
 
   return call;
 }
-
-TVM_REGISTER_NODE_TYPE(CallTIRInplaceAttrs);
 
 TVM_REGISTER_OP("relax.call_tir_inplace")
     .set_num_inputs(3)
@@ -1399,7 +1393,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 // to_vdevice
-TVM_REGISTER_NODE_TYPE(ToVDeviceAttrs);
 
 StructInfo InferToVDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
   ICHECK(call->args.size() == 1);
@@ -1433,7 +1426,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 // hint_on_device
-TVM_REGISTER_NODE_TYPE(HintOnDeviceAttrs);
 
 StructInfo InferHintOnDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
   ICHECK(call->args.size() == 1);

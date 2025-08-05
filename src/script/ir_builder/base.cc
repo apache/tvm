@@ -105,8 +105,6 @@ void Namer::Name(ObjectRef node, String name) {
 
 }  // namespace details
 
-TVM_REGISTER_NODE_TYPE(IRBuilderFrameNode);
-TVM_REGISTER_NODE_TYPE(IRBuilderNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

@@ -37,7 +37,6 @@ namespace vm {
 //---------------------------------------------
 // VM Closure object
 //---------------------------------------------
-TVM_REGISTER_OBJECT_TYPE(VMClosureObj);
 
 VMClosure::VMClosure(String func_name, ffi::Function impl) {
   auto ptr = make_object<VMClosureObj>();

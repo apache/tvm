@@ -132,7 +132,7 @@ class Timer : public ObjectRef {
    *    std::chrono::high_resolution_clock::time_point start_;
    *    std::chrono::duration<int64_t, std::nano> duration_;
    *  };
-   *  TVM_REGISTER_OBJECT_TYPE(CPUTimerNode);
+   *
    *
    *  TVM_FFI_STATIC_INIT_BLOCK({
    *    namespace refl = tvm::ffi::reflection;

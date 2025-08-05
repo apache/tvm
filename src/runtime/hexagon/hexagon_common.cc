@@ -55,8 +55,6 @@ class HexagonTimerNode : public TimerNode {
   uint64_t start, end;
 };
 
-TVM_REGISTER_OBJECT_TYPE(HexagonTimerNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("profiling.timer.hexagon",

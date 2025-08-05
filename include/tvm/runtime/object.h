@@ -147,9 +147,6 @@ static_assert(static_cast<int>(TypeIndex::kCustomStaticIndex) >=
 #define TVM_STR_CONCAT_(__x, __y) __x##__y
 #define TVM_STR_CONCAT(__x, __y) TVM_STR_CONCAT_(__x, __y)
 
-// Object register type is now a nop
-#define TVM_REGISTER_OBJECT_TYPE(x)
-
 }  // namespace runtime
 
 using tvm::ffi::ObjectPtr;

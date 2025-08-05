@@ -71,7 +71,6 @@ class LoopPartitionConfig : public Attrs {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LoopPartitionConfig, Attrs, LoopPartitionConfigNode);
 };
 
-TVM_REGISTER_NODE_TYPE(LoopPartitionConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.LoopPartition", LoopPartitionConfig);
 
 using arith::DeduceBound;

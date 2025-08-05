@@ -75,7 +75,7 @@ class UnrollLoopConfig : public Attrs {
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({ UnrollLoopConfigNode::RegisterReflection(); });
-TVM_REGISTER_NODE_TYPE(UnrollLoopConfigNode);
+
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.UnrollLoop", UnrollLoopConfig);
 
 class VarLocalAccessMarker : public ExprVisitor {

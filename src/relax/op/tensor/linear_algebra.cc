@@ -40,7 +40,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 /* relax.matmul */
-TVM_REGISTER_NODE_TYPE(MatmulAttrs);
 
 Expr matmul(Expr x1, Expr x2, Optional<DataType> out_dtype) {
   ObjectPtr<MatmulAttrs> attrs = make_object<MatmulAttrs>();
@@ -175,7 +174,6 @@ TVM_REGISTER_OP("relax.matmul")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.einsum */
-TVM_REGISTER_NODE_TYPE(EinsumAttrs);
 
 Expr einsum(Expr operands, String subscripts) {
   ObjectPtr<EinsumAttrs> attrs = make_object<EinsumAttrs>();

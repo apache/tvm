@@ -1051,7 +1051,6 @@ BlockBuilder BlockBuilder::Create(Optional<IRModule> mod,
 //---------------------------------------
 // User facing function registration.
 //---------------------------------------
-TVM_REGISTER_OBJECT_TYPE(BlockBuilderNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

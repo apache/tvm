@@ -152,8 +152,6 @@ InferLayoutOutput InferLayoutStatistical(const Call& call,
                            Attrs(new_attrs));
 }
 
-TVM_REGISTER_NODE_TYPE(ScanopAttrs);
-
 StructInfo InferStructInfoScan(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
   const auto* attrs = call->attrs.as<ScanopAttrs>();
@@ -227,8 +225,6 @@ TVM_REGISTER_OP("relax.cumsum")
     .add_argument("data", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScan)
     .set_attr<Bool>("FPurity", Bool(true));
-
-TVM_REGISTER_NODE_TYPE(StatisticalAttrs);
 
 RELAX_REGISTER_STATISTICAL_OP_INTERFACE(max);
 RELAX_REGISTER_STATISTICAL_OP_INTERFACE(mean);

@@ -275,7 +275,6 @@ Mutator Mutator::MutateTileSize() { return Mutator(make_object<MutateTileSizeNod
 
 TVM_FFI_STATIC_INIT_BLOCK({ MutateTileSizeNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(MutateTileSizeNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.MutatorMutateTileSize", Mutator::MutateTileSize);

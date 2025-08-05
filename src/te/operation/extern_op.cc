@@ -40,8 +40,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "extern(" << op->name << ", " << op << ")";
     });
 
-TVM_REGISTER_NODE_TYPE(ExternOpNode);
-
 int ExternOpNode::num_outputs() const { return static_cast<int>(output_placeholders.size()); }
 
 DataType ExternOpNode::output_dtype(size_t i) const { return output_placeholders[i]->dtype; }

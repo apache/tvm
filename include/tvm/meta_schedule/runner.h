@@ -26,7 +26,6 @@
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
 #include <tvm/meta_schedule/arg_info.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
 
 namespace tvm {

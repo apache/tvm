@@ -59,7 +59,6 @@ DeviceMesh::DeviceMesh(ffi::Shape shape, Range device_range) {
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(DeviceMeshNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(

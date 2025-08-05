@@ -286,10 +286,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   PyDatabaseNode::RegisterReflection();
 });
 
-TVM_REGISTER_NODE_TYPE(WorkloadNode);
-TVM_REGISTER_NODE_TYPE(TuningRecordNode);
-TVM_REGISTER_OBJECT_TYPE(DatabaseNode);
-TVM_REGISTER_NODE_TYPE(PyDatabaseNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

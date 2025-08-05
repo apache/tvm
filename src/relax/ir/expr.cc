@@ -52,8 +52,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   ExternFuncNode::RegisterReflection();
 });
 
-TVM_REGISTER_NODE_TYPE(IdNode);
-
 Id::Id(String name_hint) {
   ObjectPtr<IdNode> n = make_object<IdNode>();
   n->name_hint = std::move(name_hint);
@@ -119,8 +117,6 @@ Call WithFields(Call call, Optional<Expr> opt_op, Optional<Array<Expr>> opt_args
   return call;
 }
 
-TVM_REGISTER_NODE_TYPE(CallNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.Call",
@@ -157,8 +153,6 @@ If WithFields(If if_expr, Optional<Expr> opt_cond, Optional<Expr> opt_true_branc
   return if_expr;
 }
 
-TVM_REGISTER_NODE_TYPE(IfNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.If", [](Expr cond, Expr true_branch, Expr false_branch, Span span) {
@@ -185,8 +179,6 @@ Tuple::Tuple(tvm::Array<Expr> fields, Span span) {
   n->struct_info_ = tuple_sinfo;
   data_ = std::move(n);
 }
-
-TVM_REGISTER_NODE_TYPE(TupleNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
@@ -251,16 +243,12 @@ TupleGetItem WithFields(TupleGetItem tuple_get_item, Optional<Expr> opt_tuple,
   return tuple_get_item;
 }
 
-TVM_REGISTER_NODE_TYPE(TupleGetItemNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.TupleGetItem", [](Expr tuple, int index, Span span) {
     return TupleGetItem(tuple, index, span);
   });
 });
-
-TVM_REGISTER_NODE_TYPE(ShapeExprNode);
 
 ShapeExpr::ShapeExpr(Array<PrimExpr> values, Span span) {
   ObjectPtr<ShapeExprNode> n = make_object<ShapeExprNode>();
@@ -283,8 +271,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef().def("relax.ShapeExpr",
                         [](Array<PrimExpr> values, Span span) { return ShapeExpr(values, span); });
 });
-
-TVM_REGISTER_NODE_TYPE(VarNode);
 
 Var::Var(Id vid, Optional<StructInfo> struct_info_annotation, Span span) {
   ObjectPtr<VarNode> n = make_object<VarNode>();
@@ -322,8 +308,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
         return Var(vid, struct_info_annotation, span);
       });
 });
-
-TVM_REGISTER_NODE_TYPE(DataflowVarNode);
 
 DataflowVar::DataflowVar(Id vid, Optional<StructInfo> struct_info_annotation, Span span) {
   ObjectPtr<DataflowVarNode> n = make_object<DataflowVarNode>();
@@ -368,8 +352,6 @@ Constant::Constant(runtime::NDArray data, Optional<StructInfo> struct_info_annot
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(ConstantNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
@@ -390,8 +372,6 @@ PrimValue PrimValue::Int64(int64_t value, Span span) {
   return PrimValue(IntImm(DataType::Int(64), value), span);
 }
 
-TVM_REGISTER_NODE_TYPE(PrimValueNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.PrimValue",
@@ -405,8 +385,6 @@ StringImm::StringImm(String value, Span span) {
   n->struct_info_ = ObjectStructInfo();
   data_ = std::move(n);
 }
-
-TVM_REGISTER_NODE_TYPE(StringImmNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
@@ -422,15 +400,11 @@ DataTypeImm::DataTypeImm(DataType value, Span span) {
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(DataTypeImmNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.DataTypeImm",
                         [](DataType value, Span span) { return DataTypeImm(value, span); });
 });
-
-TVM_REGISTER_NODE_TYPE(MatchCastNode);
 
 MatchCast::MatchCast(Var var, Expr value, StructInfo struct_info, Span span) {
   ObjectPtr<MatchCastNode> n = make_object<MatchCastNode>();
@@ -449,8 +423,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
                           return MatchCast(var, value, struct_info, span);
                         });
 });
-
-TVM_REGISTER_NODE_TYPE(VarBindingNode);
 
 VarBinding::VarBinding(Var var, Expr value, Span span) {
   ObjectPtr<VarBindingNode> n = make_object<VarBindingNode>();
@@ -495,8 +467,6 @@ uint64_t VarBindingNode::SHash(uint64_t init_hash,
   return hash_value;
 }
 
-TVM_REGISTER_NODE_TYPE(BindingBlockNode);
-
 BindingBlock::BindingBlock(Array<Binding> bindings, Span span) {
   ObjectPtr<BindingBlockNode> n = make_object<BindingBlockNode>();
   n->bindings = std::move(bindings);
@@ -530,8 +500,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   });
 });
 
-TVM_REGISTER_NODE_TYPE(DataflowBlockNode);
-
 DataflowBlock::DataflowBlock(Array<Binding> bindings, Span span) {
   ObjectPtr<DataflowBlockNode> n = make_object<DataflowBlockNode>();
   n->bindings = std::move(bindings);
@@ -545,8 +513,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
     return DataflowBlock(bindings, span);
   });
 });
-
-TVM_REGISTER_NODE_TYPE(SeqExprNode);
 
 SeqExpr::SeqExpr(Expr body) {
   if (auto seq = body.as<SeqExpr>()) {
@@ -570,8 +536,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
     return SeqExpr(blocks, body, span);
   });
 });
-
-TVM_REGISTER_NODE_TYPE(FunctionNode);
 
 Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info, bool is_pure,
                    DictAttrs attrs, Span span) {
@@ -715,8 +679,6 @@ FuncStructInfo GetExternFuncStructInfo() {
   derive = fn;
   return FuncStructInfo::OpaqueFunc(derive);
 }
-
-TVM_REGISTER_NODE_TYPE(ExternFuncNode);
 
 ExternFunc::ExternFunc(String global_symbol, Span span)
     : ExternFunc(global_symbol, GetExternFuncStructInfo(), span) {}

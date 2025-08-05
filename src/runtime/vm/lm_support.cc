@@ -255,8 +255,6 @@ class AttentionKVCacheLegacy : public ObjectRef {
                                         AttentionKVCacheLegacyObj);
 };
 
-TVM_REGISTER_OBJECT_TYPE(AttentionKVCacheLegacyObj);
-
 //-------------------------------------------------
 //  Register runtime functions
 //-------------------------------------------------

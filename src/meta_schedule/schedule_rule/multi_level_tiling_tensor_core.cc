@@ -103,8 +103,6 @@ class TensorCoreState : public State {
   TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(TensorCoreState, State, TensorCoreStateNode);
 };
 
-TVM_REGISTER_OBJECT_TYPE(TensorCoreStateNode);
-
 TensorCoreState::TensorCoreState(TensorCoreIntrinGroup intrin_group,
                                  tir::AutoTensorizeMappingInfo mapping_info, Schedule sch,
                                  BlockRV block_rv, bool use_async, Array<Array<LoopRV>> tiles) {
@@ -923,7 +921,6 @@ ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
   return ScheduleRule(node);
 }
 
-TVM_REGISTER_NODE_TYPE(MultiLevelTilingTensorCoreNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTilingTensorCore",

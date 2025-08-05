@@ -47,7 +47,6 @@ MeasureCallback MeasureCallback::RemoveBuildArtifact() {
   return MeasureCallback(n);
 }
 
-TVM_REGISTER_NODE_TYPE(RemoveBuildArtifactNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.MeasureCallbackRemoveBuildArtifact",

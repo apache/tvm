@@ -61,7 +61,6 @@ class OpenCLMLCompilerConfig : public Attrs {
 
 TVM_FFI_STATIC_INIT_BLOCK({ OpenCLMLCompilerConfigNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(OpenCLMLCompilerConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.ext.clml.options", OpenCLMLCompilerConfig);
 
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;

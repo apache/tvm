@@ -2433,8 +2433,6 @@ RewriteSimplifier::RewriteSimplifier(Analyzer* parent) : impl_(new Impl(parent))
 
 RewriteSimplifier::~RewriteSimplifier() { delete impl_; }
 
-TVM_REGISTER_NODE_TYPE(RewriteSimplifierStatsNode);
-
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<RewriteSimplifierStatsNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* ptr = node.as<RewriteSimplifierStatsNode>();

@@ -117,7 +117,6 @@ SpaceGenerator SpaceGenerator::PostOrderApply(ffi::Function f_block_filter,
 
 TVM_FFI_STATIC_INIT_BLOCK({ PostOrderApplyNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(PostOrderApplyNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.SpaceGeneratorPostOrderApply",

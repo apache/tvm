@@ -63,7 +63,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
         REPR_LAMBDA(p, node);                                             \
       })
 
-TVM_REGISTER_NODE_TYPE(ExternFuncPatternNode);
 ExternFuncPattern::ExternFuncPattern(String global_symbol) {
   ObjectPtr<ExternFuncPatternNode> n = make_object<ExternFuncPatternNode>();
   n->global_symbol_ = std::move(global_symbol);
@@ -78,7 +77,6 @@ RELAX_PATTERN_PRINTER_DEF(ExternFuncPatternNode, [](auto p, auto node) {
   p->stream << "ExternFuncPattern(" << node->global_symbol() << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(VarPatternNode);
 VarPattern::VarPattern(String name_hint) {
   ObjectPtr<VarPatternNode> n = make_object<VarPatternNode>();
   n->name = std::move(name_hint);
@@ -93,7 +91,6 @@ RELAX_PATTERN_PRINTER_DEF(VarPatternNode, [](auto p, auto node) {
   p->stream << "VarPattern(" << node->name_hint() << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(DataflowVarPatternNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.dpl.DataflowVarPattern",
@@ -108,7 +105,6 @@ RELAX_PATTERN_PRINTER_DEF(DataflowVarPatternNode, [](auto p, auto node) {
   p->stream << "DataflowVarPattern(" << node->name_hint() << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(GlobalVarPatternNode);
 GlobalVarPattern::GlobalVarPattern(String name_hint) {
   ObjectPtr<GlobalVarPatternNode> n = make_object<GlobalVarPatternNode>();
   n->name = std::move(name_hint);
@@ -123,7 +119,6 @@ RELAX_PATTERN_PRINTER_DEF(GlobalVarPatternNode, [](auto p, auto node) {
   p->stream << "GlobalVarPattern(" << node->name_hint() << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(ExprPatternNode);
 ExprPattern::ExprPattern(Expr expr) {
   ObjectPtr<ExprPatternNode> n = make_object<ExprPatternNode>();
   n->expr = std::move(expr);
@@ -135,7 +130,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 RELAX_PATTERN_PRINTER_DEF(ExprPatternNode, [](auto p, auto node) { p->Print(node->expr); });
 
-TVM_REGISTER_NODE_TYPE(ConstantPatternNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("relax.dpl.ConstantPattern", []() {
@@ -146,7 +140,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 RELAX_PATTERN_PRINTER_DEF(ConstantPatternNode,
                           [](auto p, auto node) { p->stream << "ConstantPattern()"; });
 
-TVM_REGISTER_NODE_TYPE(CallPatternNode);
 CallPattern::CallPattern(DFPattern op, Array<DFPattern> args, bool varg_default_wildcard) {
   ObjectPtr<CallPatternNode> n = make_object<CallPatternNode>();
   n->op = std::move(op);
@@ -174,7 +167,6 @@ RELAX_PATTERN_PRINTER_DEF(CallPatternNode, [](auto p, auto node) {
   p->stream << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(PrimArrPatternNode);
 PrimArrPattern::PrimArrPattern(Array<PrimExpr> arr) {
   ObjectPtr<PrimArrPatternNode> n = make_object<PrimArrPatternNode>();
   n->fields = std::move(arr);
@@ -189,7 +181,6 @@ RELAX_PATTERN_PRINTER_DEF(PrimArrPatternNode, [](auto p, auto node) {
   p->stream << "PrimArrPattern(" << node->fields << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(FunctionPatternNode);
 FunctionPattern::FunctionPattern(Array<DFPattern> params, DFPattern body) {
   ObjectPtr<FunctionPatternNode> n = make_object<FunctionPatternNode>();
   n->params = std::move(params);
@@ -206,7 +197,6 @@ RELAX_PATTERN_PRINTER_DEF(FunctionPatternNode, [](auto p, auto node) {
   p->stream << "FunctionPattern(" << node->params << ", " << node->body << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(TuplePatternNode);
 TuplePattern::TuplePattern(tvm::Array<DFPattern> fields) {
   ObjectPtr<TuplePatternNode> n = make_object<TuplePatternNode>();
   n->fields = std::move(fields);
@@ -221,7 +211,6 @@ RELAX_PATTERN_PRINTER_DEF(TuplePatternNode, [](auto p, auto node) {
   p->stream << "TuplePattern(" << node->fields << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(UnorderedTuplePatternNode);
 UnorderedTuplePattern::UnorderedTuplePattern(tvm::Array<DFPattern> fields) {
   ObjectPtr<UnorderedTuplePatternNode> n = make_object<UnorderedTuplePatternNode>();
   n->fields = std::move(fields);
@@ -236,7 +225,6 @@ RELAX_PATTERN_PRINTER_DEF(UnorderedTuplePatternNode, [](auto p, auto node) {
   p->stream << "UnorderedTuplePattern(" << node->fields << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(TupleGetItemPatternNode);
 TupleGetItemPattern::TupleGetItemPattern(DFPattern tuple, int index) {
   ObjectPtr<TupleGetItemPatternNode> n = make_object<TupleGetItemPatternNode>();
   n->tuple = std::move(tuple);
@@ -253,7 +241,6 @@ RELAX_PATTERN_PRINTER_DEF(TupleGetItemPatternNode, [](auto p, auto node) {
   p->stream << "TupleGetItemPattern(" << node->tuple << ", " << node->index << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(AndPatternNode);
 AndPattern::AndPattern(DFPattern left, DFPattern right) {
   ObjectPtr<AndPatternNode> n = make_object<AndPatternNode>();
   n->left = std::move(left);
@@ -269,7 +256,6 @@ RELAX_PATTERN_PRINTER_DEF(AndPatternNode, [](auto p, auto node) {
   p->stream << "AndPattern(" << node->left << " & " << node->right << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(OrPatternNode);
 OrPattern::OrPattern(DFPattern left, DFPattern right) {
   ObjectPtr<OrPatternNode> n = make_object<OrPatternNode>();
   n->left = std::move(left);
@@ -285,7 +271,6 @@ RELAX_PATTERN_PRINTER_DEF(OrPatternNode, [](auto p, auto node) {
   p->stream << "OrPattern(" << node->left << " | " << node->right << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(NotPatternNode);
 NotPattern::NotPattern(DFPattern reject) {
   ObjectPtr<NotPatternNode> n = make_object<NotPatternNode>();
   n->reject = std::move(reject);
@@ -299,7 +284,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 RELAX_PATTERN_PRINTER_DEF(NotPatternNode,
                           [](auto p, auto node) { p->stream << "!(" << node->reject << ")"; });
 
-TVM_REGISTER_NODE_TYPE(WildcardPatternNode);
 WildcardPattern::WildcardPattern() { data_ = make_object<WildcardPatternNode>(); }
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
@@ -307,7 +291,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 RELAX_PATTERN_PRINTER_DEF(WildcardPatternNode, [](auto p, auto node) { p->stream << "*"; });
 
-TVM_REGISTER_NODE_TYPE(StructInfoPatternNode);
 StructInfoPattern::StructInfoPattern(DFPattern pattern, StructInfo struct_info) {
   ObjectPtr<StructInfoPatternNode> n = make_object<StructInfoPatternNode>();
   n->pattern = std::move(pattern);
@@ -326,7 +309,6 @@ RELAX_PATTERN_PRINTER_DEF(StructInfoPatternNode, [](auto p, auto node) {
             << node->struct_info << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(ShapePatternNode);
 ShapePattern::ShapePattern(DFPattern pattern, Array<PrimExpr> shape) {
   ObjectPtr<ShapePatternNode> n = make_object<ShapePatternNode>();
   n->pattern = std::move(pattern);
@@ -343,7 +325,6 @@ RELAX_PATTERN_PRINTER_DEF(ShapePatternNode, [](auto p, auto node) {
   p->stream << "ShapePattern(" << node->pattern << " has shape " << node->shape << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(SameShapeConstraintNode);
 SameShapeConstraint::SameShapeConstraint(Array<DFPattern> args) {
   ObjectPtr<SameShapeConstraintNode> n = make_object<SameShapeConstraintNode>();
   n->args = std::move(args);
@@ -369,7 +350,6 @@ RELAX_PATTERN_PRINTER_DEF(SameShapeConstraintNode, [](auto p, auto node) {
   p->stream << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(DataTypePatternNode);
 DataTypePattern::DataTypePattern(DFPattern pattern, DataType dtype) {
   ObjectPtr<DataTypePatternNode> n = make_object<DataTypePatternNode>();
   n->pattern = std::move(pattern);
@@ -386,7 +366,6 @@ RELAX_PATTERN_PRINTER_DEF(DataTypePatternNode, [](auto p, auto node) {
   p->stream << "DataTypePattern(" << node->pattern << " has dtype " << node->dtype << ")";
 });
 
-TVM_REGISTER_NODE_TYPE(AttrPatternNode);
 AttrPattern::AttrPattern(DFPattern pattern, DictAttrs attrs) {
   ObjectPtr<AttrPatternNode> n = make_object<AttrPatternNode>();
   n->pattern = std::move(pattern);
@@ -526,7 +505,6 @@ static void sync_graph_constraints(const DFPattern& lhs, const DFPattern& rhs, P
   }
 }
 
-TVM_REGISTER_NODE_TYPE(PatternSeqNode);
 PatternSeq::PatternSeq(DFPattern init_pattern) {
   ObjectPtr<PatternSeqNode> n = make_object<PatternSeqNode>();
   n->patterns = {init_pattern};

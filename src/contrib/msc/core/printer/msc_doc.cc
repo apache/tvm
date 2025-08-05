@@ -96,14 +96,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   LambdaDocNode::RegisterReflection();
 });
 
-TVM_REGISTER_NODE_TYPE(DeclareDocNode);
-TVM_REGISTER_NODE_TYPE(StrictListDocNode);
-TVM_REGISTER_NODE_TYPE(PointerDocNode);
-TVM_REGISTER_NODE_TYPE(StructDocNode);
-TVM_REGISTER_NODE_TYPE(ConstructorDocNode);
-TVM_REGISTER_NODE_TYPE(SwitchDocNode);
-TVM_REGISTER_NODE_TYPE(LambdaDocNode);
-
 }  // namespace msc
 }  // namespace contrib
 }  // namespace tvm

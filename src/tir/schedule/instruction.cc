@@ -104,9 +104,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 /**************** FFI ****************/
 
-TVM_REGISTER_NODE_TYPE(InstructionNode);
-TVM_REGISTER_NODE_TYPE(InstructionKindNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

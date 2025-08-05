@@ -145,7 +145,6 @@ Mutator Mutator::MutateUnroll() { return Mutator(make_object<MutateUnrollNode>()
 
 TVM_FFI_STATIC_INIT_BLOCK({ MutateUnrollNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(MutateUnrollNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.MutatorMutateUnroll", Mutator::MutateUnroll);

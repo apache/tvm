@@ -2430,8 +2430,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   }
 };  // namespace vm
 
-TVM_REGISTER_OBJECT_TYPE(PagedAttentionKVCacheObj);
-
 //-------------------------------------------------
 //  Register runtime functions
 //-------------------------------------------------

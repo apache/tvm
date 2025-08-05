@@ -59,7 +59,6 @@ RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(selu, "nn.selu", /*require_float_dtype=*/tru
 RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(silu, "nn.silu", /*require_float_dtype=*/true);
 
 /* relax.nn.leakyrelu */
-TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);
 
 Expr leakyrelu(Expr data, double alpha) {
   auto attrs = make_object<LeakyReluAttrs>();
@@ -82,7 +81,6 @@ TVM_REGISTER_OP("relax.nn.leakyrelu")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.softplus */
-TVM_REGISTER_NODE_TYPE(SoftplusAttrs);
 
 Expr softplus(Expr data, double beta, double threshold) {
   auto attrs = make_object<SoftplusAttrs>();
@@ -106,7 +104,6 @@ TVM_REGISTER_OP("relax.nn.softplus")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.prelu */
-TVM_REGISTER_NODE_TYPE(PReluAttrs);
 
 Expr prelu(Expr data, Expr alpha, int axis = 1) {
   auto attrs = make_object<PReluAttrs>();
@@ -171,7 +168,6 @@ TVM_REGISTER_OP("relax.nn.prelu")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.softmax */
-TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
 
 Expr softmax(Expr data, int axis) {
   auto attrs = make_object<SoftmaxAttrs>();
@@ -254,7 +250,6 @@ TVM_REGISTER_OP("relax.nn.log_softmax")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.pad */
-TVM_REGISTER_NODE_TYPE(PadAttrs);
 
 Expr pad(Expr data, Array<Integer> pad_width, String pad_mode, double pad_value) {
   auto attrs = make_object<PadAttrs>();
@@ -302,7 +297,6 @@ TVM_REGISTER_OP("relax.nn.pad")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.pixel_shuffle */
-TVM_REGISTER_NODE_TYPE(PixelShuffleAttrs);
 
 Expr pixel_shuffle(Expr data, int upscale_factor) {
   auto attrs = make_object<PixelShuffleAttrs>();
@@ -445,7 +439,6 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
 }
 
 /* relax.nn.batch_norm */
-TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
 
 Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,  //
                 int axis, double epsilon, bool center, bool scale, double momentum, bool training) {
@@ -529,7 +522,6 @@ TVM_REGISTER_OP("relax.nn.batch_norm")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.layer_norm */
-TVM_REGISTER_NODE_TYPE(LayerNormAttrs);
 
 Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double epsilon, bool center,
                 bool scale) {
@@ -598,7 +590,6 @@ TVM_REGISTER_OP("relax.nn.layer_norm")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.group_norm */
-TVM_REGISTER_NODE_TYPE(GroupNormAttrs);
 
 Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_axis,
                 Array<Integer> axes, double epsilon, bool center, bool scale) {
@@ -713,7 +704,6 @@ TVM_REGISTER_OP("relax.nn.group_norm")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.instance_norm */
-TVM_REGISTER_NODE_TYPE(InstanceNormAttrs);
 
 Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, Array<Integer> axes,
                    double epsilon, bool center, bool scale) {
@@ -816,7 +806,6 @@ TVM_REGISTER_OP("relax.nn.instance_norm")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 /* relax.nn.rms_norm */
-TVM_REGISTER_NODE_TYPE(RMSNormAttrs);
 
 Expr rms_norm(Expr data, Expr weight, Array<Integer> axes, double epsilon) {
   ObjectPtr<RMSNormAttrs> attrs = make_object<RMSNormAttrs>();
@@ -879,7 +868,6 @@ TVM_REGISTER_OP("relax.nn.rms_norm")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.dropout */
-TVM_REGISTER_NODE_TYPE(DropoutAttrs);
 
 Expr dropout(Expr data, double rate) {
   ObjectPtr<DropoutAttrs> attrs = make_object<DropoutAttrs>();
@@ -973,7 +961,6 @@ TVM_REGISTER_OP("relax.nn.cross_entropy_with_logits")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.nll_loss */
-TVM_REGISTER_NODE_TYPE(NLLLossAttrs);
 
 Expr nll_loss(Expr predictions, Expr targets, Optional<Expr> weights, String reduction,
               int ignore_index) {

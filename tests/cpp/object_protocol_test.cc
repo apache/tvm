@@ -55,11 +55,6 @@ class ObjAA : public ObjA {
   TVM_DECLARE_FINAL_OBJECT_INFO(ObjAA, ObjA);
 };
 
-TVM_REGISTER_OBJECT_TYPE(ObjBase);
-TVM_REGISTER_OBJECT_TYPE(ObjA);
-TVM_REGISTER_OBJECT_TYPE(ObjB);
-TVM_REGISTER_OBJECT_TYPE(ObjAA);
-
 }  // namespace test
 }  // namespace tvm
 

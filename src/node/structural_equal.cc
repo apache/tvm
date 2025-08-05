@@ -27,15 +27,12 @@
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
 #include <tvm/node/object_path.h>
-#include <tvm/node/reflection.h>
 #include <tvm/node/structural_equal.h>
 
 #include <optional>
 #include <unordered_map>
 
 namespace tvm {
-
-TVM_REGISTER_OBJECT_TYPE(ObjectPathPairNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
