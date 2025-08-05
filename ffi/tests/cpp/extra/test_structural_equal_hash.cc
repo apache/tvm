@@ -147,10 +147,10 @@ TEST(StructuralEqualHash, FuncDefAndIgnoreField) {
   TVar x = TVar("x");
   TVar y = TVar("y");
   // comment fields are ignored
-  TFunc fa = TFunc({x}, {TInt(1), x}, "comment a");
-  TFunc fb = TFunc({y}, {TInt(1), y}, "comment b");
+  TFunc fa = TFunc({x}, {TInt(1), x}, String("comment a"));
+  TFunc fb = TFunc({y}, {TInt(1), y}, String("comment b"));
 
-  TFunc fc = TFunc({x}, {TInt(1), TInt(2)}, "comment c");
+  TFunc fc = TFunc({x}, {TInt(1), TInt(2)}, String("comment c"));
 
   EXPECT_TRUE(StructuralEqual()(fa, fb));
   EXPECT_EQ(StructuralHash()(fa), StructuralHash()(fb));

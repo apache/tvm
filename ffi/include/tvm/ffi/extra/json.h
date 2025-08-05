@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file tvm/ffi/json/json.h
+ * \file tvm/ffi/extra/json.h
  * \brief Minimal lightweight JSON parsing and serialization utilities
  */
 #ifndef TVM_FFI_EXTRA_JSON_H_
