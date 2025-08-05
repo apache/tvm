@@ -148,8 +148,6 @@ Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)>
 
 TVM_FFI_STATIC_INIT_BLOCK({ PrimFuncPassNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(PrimFuncPassNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(

@@ -85,8 +85,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   });
 });
 
-TVM_REGISTER_NODE_TYPE(IntImmNode);
-
 FloatImm::FloatImm(DataType dtype, double value, Span span) {
   ICHECK_EQ(dtype.lanes(), 1) << "ValueError: FloatImm can only take scalar.";
 
@@ -190,8 +188,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   });
 });
 
-TVM_REGISTER_NODE_TYPE(FloatImmNode);
-
 Range::Range(PrimExpr begin, PrimExpr end, Span span)
     : Range(make_object<RangeNode>(begin, tir::is_zero(begin) ? end : (end - begin), span)) {}
 
@@ -212,16 +208,12 @@ TVM_FFI_STATIC_INIT_BLOCK({
       });
 });
 
-TVM_REGISTER_NODE_TYPE(RangeNode);
-
 GlobalVar::GlobalVar(String name_hint, Span span) {
   ObjectPtr<GlobalVarNode> n = make_object<GlobalVarNode>();
   n->name_hint = std::move(name_hint);
   n->span = std::move(span);
   data_ = std::move(n);
 }
-
-TVM_REGISTER_NODE_TYPE(GlobalVarNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

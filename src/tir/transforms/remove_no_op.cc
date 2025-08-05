@@ -71,7 +71,6 @@ class RemoveNoOpConfig : public Attrs {
 
 TVM_FFI_STATIC_INIT_BLOCK({ RemoveNoOpConfigNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(RemoveNoOpConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.RemoveNoOp", RemoveNoOpConfig);
 
 // Mark the statement of each stage.

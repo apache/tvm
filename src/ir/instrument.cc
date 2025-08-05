@@ -176,8 +176,6 @@ void BasePassInstrumentNode::RunAfterPass(const IRModule& ir_module,
   }
 }
 
-TVM_REGISTER_NODE_TYPE(BasePassInstrumentNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(

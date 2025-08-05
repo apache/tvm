@@ -225,24 +225,6 @@ void DeclBufferFrameNode::ExitWithScope() {
   }
 }
 
-TVM_REGISTER_NODE_TYPE(TIRFrameNode);
-TVM_REGISTER_NODE_TYPE(PrimFuncFrameNode);
-TVM_REGISTER_NODE_TYPE(BlockFrameNode);
-TVM_REGISTER_NODE_TYPE(BlockInitFrameNode);
-TVM_REGISTER_NODE_TYPE(ForFrameNode);
-TVM_REGISTER_NODE_TYPE(AssertFrameNode);
-TVM_REGISTER_NODE_TYPE(LetFrameNode);
-TVM_REGISTER_NODE_TYPE(RealizeFrameNode);
-TVM_REGISTER_NODE_TYPE(LaunchThreadFrameNode);
-TVM_REGISTER_NODE_TYPE(AllocateFrameNode);
-TVM_REGISTER_NODE_TYPE(AllocateConstFrameNode);
-TVM_REGISTER_NODE_TYPE(AttrFrameNode);
-TVM_REGISTER_NODE_TYPE(WhileFrameNode);
-TVM_REGISTER_NODE_TYPE(IfFrameNode);
-TVM_REGISTER_NODE_TYPE(ThenFrameNode);
-TVM_REGISTER_NODE_TYPE(ElseFrameNode);
-TVM_REGISTER_NODE_TYPE(DeclBufferFrameNode);
-
 }  // namespace tir
 }  // namespace ir_builder
 }  // namespace script

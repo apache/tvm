@@ -106,8 +106,6 @@ FuncType PrimFuncNode::func_type_annotation() const {
   return FuncType(param_types, ret_type);
 }
 
-TVM_REGISTER_NODE_TYPE(PrimFuncNode);
-
 class TensorIntrinManager {
  public:
   Map<String, tir::TensorIntrin> reg;
@@ -158,8 +156,6 @@ Optional<TensorIntrin> TensorIntrin::Get(String name, bool allow_missing) {
   }
   return (*it).second;
 }
-
-TVM_REGISTER_NODE_TYPE(TensorIntrinNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

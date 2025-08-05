@@ -44,8 +44,6 @@ void IRModuleFrameNode::ExitWithScope() {
   builder->result = tvm::IRModule(func_map, {}, dict_attrs, global_infos);
 }
 
-TVM_REGISTER_NODE_TYPE(IRModuleFrameNode);
-
 }  // namespace ir
 }  // namespace ir_builder
 }  // namespace script

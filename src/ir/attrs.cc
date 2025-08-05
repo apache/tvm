@@ -69,10 +69,6 @@ DictAttrs::DictAttrs(Map<String, Any> dict) {
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(DictAttrsNode);
-
-TVM_REGISTER_NODE_TYPE(AttrFieldInfoNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({ tvm::ffi::reflection::ObjectDef<BaseAttrsNode>(); });
 
 TVM_FFI_STATIC_INIT_BLOCK({
