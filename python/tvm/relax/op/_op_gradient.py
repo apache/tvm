@@ -829,8 +829,8 @@ def cumsum_grad(
         The "reversed" cumsum along the same axis. Implemented by some tricks now.
     """
 
-    axis = orig_call.attrs["axis"]
-    dtype = orig_call.attrs["dtype"]
+    axis = orig_call.attrs.axis
+    dtype = orig_call.attrs.dtype
     x_shape = _get_shape(orig_call.args[0])
 
     if axis is not None:

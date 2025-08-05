@@ -52,7 +52,7 @@ class RXPlaceholderOpNode : public te::PlaceholderOpNode {
         .def_ro("dtype", &RXPlaceholderOpNode::dtype);
   }
 
-  static constexpr const char* _type_key = "RXPlaceholderOp";
+  static constexpr const char* _type_key = "relax.TEPlaceholderOp";
   TVM_DECLARE_FINAL_OBJECT_INFO(RXPlaceholderOpNode, te::PlaceholderOpNode);
 };
 

@@ -408,9 +408,20 @@ class ObjectGraphDeserializer {
 
 Any FromJSONGraph(const json::Value& value) { return ObjectGraphDeserializer::Deserialize(value); }
 
+// string version of the api
+Any FromJSONGraphString(const String& value) { return FromJSONGraph(json::Parse(value)); }
+
+String ToJSONGraphString(const Any& value, const Any& metadata) {
+  return json::Stringify(ToJSONGraph(value, metadata));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("ffi.ToJSONGraph", ToJSONGraph).def("ffi.FromJSONGraph", FromJSONGraph);
+  refl::GlobalDef()
+      .def("ffi.ToJSONGraph", ToJSONGraph)
+      .def("ffi.ToJSONGraphString", ToJSONGraphString)
+      .def("ffi.FromJSONGraph", FromJSONGraph)
+      .def("ffi.FromJSONGraphString", FromJSONGraphString);
   refl::EnsureTypeAttrColumn("__data_to_json__");
   refl::EnsureTypeAttrColumn("__data_from_json__");
 });

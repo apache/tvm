@@ -14,11 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-import sys
-
-sys.path.append("/ssd1/htalendr/tvm/python")
-
 import tvm
 from tvm import relax
 from tvm.relax.transform import LegalizeOps
@@ -676,7 +671,7 @@ def test_reshape_symbolic():
 
         @R.function
         def main(
-            x: R.Tensor((10, "b"), dtype="float32")
+            x: R.Tensor((10, "b"), dtype="float32"),
         ) -> R.Tensor((5, "b * 2"), dtype="float32"):
             b = T.int64()
             lv: R.Shape([5, b * 2]) = R.shape([5, b * 2])

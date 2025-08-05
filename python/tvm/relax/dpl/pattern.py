@@ -326,7 +326,7 @@ class VarPattern(DFPattern):
 
 
 @register_df_node
-class DataflowVarPattern(DFPattern):
+class DataflowVarPattern(VarPattern):
     """A pattern for DataflowVar.
 
     Parameters

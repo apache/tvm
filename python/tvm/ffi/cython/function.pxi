@@ -426,3 +426,5 @@ def _convert_to_ffi_func(object pyfunc):
 
 _STR_CONSTRUCTOR = _get_global_func("ffi.String", False)
 _BYTES_CONSTRUCTOR = _get_global_func("ffi.Bytes", False)
+_OBJECT_FROM_JSON_GRAPH_STR = _get_global_func("ffi.FromJSONGraphString", True)
+_OBJECT_TO_JSON_GRAPH_STR = _get_global_func("ffi.ToJSONGraphString", True)
