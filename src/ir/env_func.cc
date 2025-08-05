@@ -61,12 +61,13 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     env->func.CallPacked(args.Slice(1), rv);
                   })
       .def("ir.EnvFuncGetFunction", [](const EnvFunc& n) { return n->func; });
+  // override EnvFuncNode to use name as the repr
+  refl::TypeAttrDef<EnvFuncNode>()
+      .def("__data_to_json__",
+           [](const EnvFuncNode* node) {
+             // simply save as the string
+             return node->name;
+           })
+      .def("__data_from_json__", EnvFunc::Get);
 });
-
-TVM_REGISTER_NODE_TYPE(EnvFuncNode)
-    .set_creator(CreateEnvNode)
-    .set_repr_bytes([](const Object* n) -> std::string {
-      return static_cast<const EnvFuncNode*>(n)->name;
-    });
-
 }  // namespace tvm

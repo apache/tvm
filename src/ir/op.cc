@@ -149,17 +149,15 @@ TVM_FFI_STATIC_INIT_BLOCK({
              tvm::OpRegEntry::RegisterOrGet(name).set_attr<FLowerIntrinsic>(
                  target + ".FLowerIntrinsic", f, plevel);
            });
+  // override OpNode to use name as the repr
+  refl::TypeAttrDef<OpNode>()
+      .def("__data_to_json__",
+           [](const OpNode* node) -> String {
+             // simply save as the string
+             return node->name;
+           })
+      .def("__data_from_json__", [](const String& name) -> Op { return Op::Get(name); });
 });
-
-ObjectPtr<Object> CreateOp(const std::string& name) {
-  // Hack use ffi::Any as exchange
-  auto op = Op::Get(name);
-  ICHECK(op.defined()) << "Cannot find op \'" << name << '\'';
-  return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(op);
-}
-
-TVM_REGISTER_NODE_TYPE(OpNode).set_creator(CreateOp).set_repr_bytes(
-    [](const Object* n) -> std::string { return static_cast<const OpNode*>(n)->name; });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<OpNode>([](const ObjectRef& ref, ReprPrinter* p) {

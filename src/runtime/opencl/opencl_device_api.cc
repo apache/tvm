@@ -811,8 +811,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
       });
 });
 
-TVM_REGISTER_OBJECT_TYPE(OpenCLTimerNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("profiling.timer.opencl",

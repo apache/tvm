@@ -497,8 +497,6 @@ Pass CreateModulePass(std::function<IRModule(IRModule, PassContext)> pass_func, 
   return ModulePass(std::move(pass_func), pass_info);
 }
 
-TVM_REGISTER_NODE_TYPE(PassInfoNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
@@ -537,8 +535,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   ModulePassNode::RegisterReflection();
 });
 
-TVM_REGISTER_NODE_TYPE(ModulePassNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
@@ -561,8 +557,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << "Run Module pass: " << info->name << " at the optimization level "
                 << info->opt_level;
     });
-
-TVM_REGISTER_NODE_TYPE(SequentialNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
@@ -590,8 +584,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       }
       p->stream << "]";
     });
-
-TVM_REGISTER_NODE_TYPE(PassContextNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

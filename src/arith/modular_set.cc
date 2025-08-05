@@ -41,8 +41,6 @@ using namespace tir;
 
 TVM_FFI_STATIC_INIT_BLOCK({ ModularSetNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(ModularSetNode);
-
 ModularSet::ModularSet(int64_t coeff, int64_t base) {
   auto node = make_object<ModularSetNode>();
   node->coeff = coeff;

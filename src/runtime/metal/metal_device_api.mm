@@ -405,8 +405,6 @@ class MetalTimerNode : public TimerNode {
   MTLTimestamp stop_gpu_time_;
 };
 
-TVM_REGISTER_OBJECT_TYPE(MetalTimerNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("profiling.timer.metal",

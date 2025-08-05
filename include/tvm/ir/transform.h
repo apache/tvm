@@ -57,6 +57,7 @@
 #define TVM_IR_TRANSFORM_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/creator.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/diagnostic.h>
@@ -244,11 +245,10 @@ class PassContext : public ObjectRef {
     // NOTE: we could further update the function later.
     if constexpr (std::is_base_of_v<ObjectRef, ValueType>) {
       int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
-      auto* reflection = ReflectionVTable::Global();
       auto type_key = ffi::TypeIndexToTypeKey(tindex);
       auto legalization = [=](ffi::Any value) -> ffi::Any {
         if (auto opt_map = value.try_cast<Map<String, ffi::Any>>()) {
-          return reflection->CreateObject(type_key, opt_map.value());
+          return ffi::reflection::ObjectCreator(type_key)(opt_map.value());
         } else {
           auto opt_val = value.try_cast<ValueType>();
           if (!opt_val.has_value()) {
