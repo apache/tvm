@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import pickle
 import tvm.ffi as tvm_ffi
 
 
@@ -93,3 +94,9 @@ def test_repr():
 
     smap = tvm_ffi.convert({"a": 1, "b": 2})
     assert str(smap) == "{'a': 1, 'b': 2}"
+
+
+def test_serialization():
+    a = tvm_ffi.convert([1, 2, 3])
+    b = pickle.loads(pickle.dumps(a))
+    assert str(b) == "[1, 2, 3]"

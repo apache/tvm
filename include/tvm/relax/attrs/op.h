@@ -51,16 +51,19 @@ struct CallTIRWithGradAttrs : public AttrsNodeReflAdapter<CallTIRWithGradAttrs> 
 
 /*! \brief Attributes used in call_tir_inplace */
 struct CallTIRInplaceAttrs : public AttrsNodeReflAdapter<CallTIRInplaceAttrs> {
+  /*!
+   * \brief Indices that describe which input corresponds to which output.
+   *
+   * If the `i`th member has the value `k` >= 0, then that means that input `k` should be used to
+   * store the `i`th output. If an element has the value -1, that means a new tensor should be
+   * allocated for that output.
+   */
   Array<Integer> inplace_indices;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CallTIRInplaceAttrs>().def_ro(
-        "inplace_indices", &CallTIRInplaceAttrs::inplace_indices,
-        "Indices that describe which input corresponds to which output. If the `i`th member "
-        "has the value `k` >= 0, then that means that input `k` should be used to store the "
-        "`i`th output. If an element has the value -1, that means a new tensor should be "
-        "allocated for that output.");
+    refl::ObjectDef<CallTIRInplaceAttrs>().def_ro("inplace_indices",
+                                                  &CallTIRInplaceAttrs::inplace_indices);
   }
 
   static constexpr const char* _type_key = "relax.attrs.CallTIRInplaceAttrs";
@@ -69,16 +72,19 @@ struct CallTIRInplaceAttrs : public AttrsNodeReflAdapter<CallTIRInplaceAttrs> {
 
 /*! \brief Attributes used in call_inplace_packed */
 struct CallInplacePackedAttrs : public AttrsNodeReflAdapter<CallInplacePackedAttrs> {
+  /*!
+   * \brief Indices that describe which input corresponds to which output.
+   *
+   * If the `i`th member has the value `k` >= 0, then that means that input `k` should be used to
+   * store the `i`th output. If an element has the value -1, that means the output will be newly
+   * allocated.
+   */
   Array<Integer> inplace_indices;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<CallInplacePackedAttrs>().def_ro(
-        "inplace_indices", &CallInplacePackedAttrs::inplace_indices,
-        "Indices that describe which input corresponds to which output. If the `i`th member "
-        "has the value `k` >= 0, then that means that input `k` should be used to store the "
-        "`i`th output. If an element has the value -1, that means the output will be newly "
-        "allocated.");
+    refl::ObjectDef<CallInplacePackedAttrs>().def_ro("inplace_indices",
+                                                     &CallInplacePackedAttrs::inplace_indices);
   }
 
   static constexpr const char* _type_key = "relax.attrs.CallInplacePackedAttrs";

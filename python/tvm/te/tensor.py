@@ -85,26 +85,6 @@ class Tensor(DataProducer, _expr.ExprOp):
         return len(self.shape)
 
     @property
-    def axis(self):
-        """Axis of the tensor."""
-        return self.__getattr__("axis")
-
-    @property
-    def op(self):
-        """The corressponding :py:class:`Operation`."""
-        return self.__getattr__("op")
-
-    @property
-    def value_index(self):
-        """The output value index the tensor corresponds to."""
-        return self.__getattr__("value_index")
-
-    @property
-    def shape(self):
-        """The output shape of the tensor."""
-        return self.__getattr__("shape")
-
-    @property
     def name(self):
         op = self.op
         if op.num_outputs == 1:

@@ -33,75 +33,6 @@ using ffi::Any;
 using ffi::Function;
 using ffi::PackedArgs;
 
-// Expose to FFI APIs.
-void NodeGetAttr(ffi::PackedArgs args, ffi::Any* ret) {
-  Object* self = const_cast<Object*>(args[0].cast<const Object*>());
-  String field_name = args[1].cast<String>();
-
-  bool success;
-  if (field_name == "type_key") {
-    *ret = self->GetTypeKey();
-    success = true;
-  } else if (!self->IsInstance<DictAttrsNode>()) {
-    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(self->type_index());
-    success = false;
-    // use new reflection mechanism
-    if (type_info->metadata != nullptr) {
-      ffi::reflection::ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
-        if (field_name.compare(field_info->name) == 0) {
-          ffi::reflection::FieldGetter field_getter(field_info);
-          *ret = field_getter(self);
-          success = true;
-        }
-      });
-    }
-  } else {
-    // specially handle dict attr
-    DictAttrsNode* dnode = static_cast<DictAttrsNode*>(self);
-    auto it = dnode->dict.find(field_name);
-    if (it != dnode->dict.end()) {
-      success = true;
-      *ret = (*it).second;
-    } else {
-      success = false;
-    }
-  }
-  if (!success) {
-    TVM_FFI_THROW(AttributeError) << self->GetTypeKey() << " object has no attribute `"
-                                  << field_name << "`";
-  }
-}
-
-void NodeListAttrNames(ffi::PackedArgs args, ffi::Any* ret) {
-  Object* self = const_cast<Object*>(args[0].cast<const Object*>());
-
-  std::vector<String> names;
-  if (!self->IsInstance<DictAttrsNode>()) {
-    const TVMFFITypeInfo* type_info = TVMFFIGetTypeInfo(self->type_index());
-    if (type_info->metadata != nullptr) {
-      // use new reflection mechanism
-      ffi::reflection::ForEachFieldInfo(type_info, [&](const TVMFFIFieldInfo* field_info) {
-        names.push_back(std::string(field_info->name.data, field_info->name.size));
-      });
-    }
-  } else {
-    // specially handle dict attr
-    DictAttrsNode* dnode = static_cast<DictAttrsNode*>(self);
-    for (const auto& kv : dnode->dict) {
-      names.push_back(kv.first);
-    }
-  }
-
-  *ret = ffi::Function::FromPacked([names](ffi::PackedArgs args, ffi::Any* rv) {
-    int64_t i = args[0].cast<int64_t>();
-    if (i == -1) {
-      *rv = static_cast<int64_t>(names.size());
-    } else {
-      *rv = names[i];
-    }
-  });
-}
-
 // API function to make node.
 // args format:
 //   key1, value1, ..., key_n, value_n
@@ -123,10 +54,7 @@ void MakeNode(const ffi::PackedArgs& args, ffi::Any* rv) {
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef()
-      .def_packed("node.NodeGetAttr", NodeGetAttr)
-      .def_packed("node.NodeListAttrNames", NodeListAttrNames)
-      .def_packed("node.MakeNode", MakeNode);
+  refl::GlobalDef().def_packed("node.MakeNode", MakeNode);
 });
 
 }  // namespace tvm

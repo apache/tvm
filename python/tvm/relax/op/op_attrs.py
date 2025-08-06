@@ -202,3 +202,158 @@ class FlipAttrs(Attrs):
 @tvm.ffi.register_object("relax.attrs.PadAttrs")
 class PadAttrs(Attrs):
     """Attributes used in pad operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.MultinomialFromUniformAttrs")
+class MultinomialFromUniformAttrs(Attrs):
+    """Attributes for multinomial_from_uniform operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.CallInplacePackedAttrs")
+class CallInplacePackedAttrs(Attrs):
+    """Attributes used in call_inplace_packed operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.CallTIRInplaceAttrs")
+class CallTIRInplaceAttrs(Attrs):
+    """Attributes used in call_tir_inplace operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.ToVDeviceAttrs")
+class ToVDeviceAttrs(Attrs):
+    """Attributes used in to_vdevice operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.HintOnDeviceAttrs")
+class HintOnDeviceAttrs(Attrs):
+    """Attributes used in hint_on_device operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.ScatterCollectiveAttrs")
+class ScatterCollectiveAttrs(Attrs):
+    """Attributes used in scatter collective operators"""
+
+
+@tvm.ffi.register_object("relax.attrs.AttentionAttrs")
+class AttentionAttrs(Attrs):
+    """Attributes used in attention operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.Conv1DAttrs")
+class Conv1DAttrs(Attrs):
+    """Attributes for nn.conv1d"""
+
+
+@tvm.ffi.register_object("relax.attrs.Conv1DTransposeAttrs")
+class Conv1DTransposeAttrs(Attrs):
+    """Attributes for nn.conv1d_transpose"""
+
+
+@tvm.ffi.register_object("relax.attrs.Pool1DAttrs")
+class Pool1DAttrs(Attrs):
+    """Attributes for nn.max_pool1d and nn.avg_pool1d"""
+
+
+@tvm.ffi.register_object("relax.attrs.Pool3DAttrs")
+class Pool3DAttrs(Attrs):
+    """Attributes for nn.max_pool3d and nn.avg_pool3d"""
+
+
+@tvm.ffi.register_object("relax.attrs.AdaptivePool1DAttrs")
+class AdaptivePool1DAttrs(Attrs):
+    """Attributes for 1d adaptive pool operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.AdaptivePool3DAttrs")
+class AdaptivePool3DAttrs(Attrs):
+    """Attributes for 3d adaptive pool operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.LeakyReluAttrs")
+class LeakyReluAttrs(Attrs):
+    """Attributes used in leaky_relu operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.SoftplusAttrs")
+class SoftplusAttrs(Attrs):
+    """Attributes used in softplus operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.PReluAttrs")
+class PReluAttrs(Attrs):
+    """Attributes used in prelu operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.PixelShuffleAttrs")
+class PixelShuffleAttrs(Attrs):
+    """Attributes used in pixel_shuffle operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.GroupNormAttrs")
+class GroupNormAttrs(Attrs):
+    """Attributes used in group_norm operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.RMSNormAttrs")
+class RMSNormAttrs(Attrs):
+    """Attributes used in rms_norm operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.NLLLossAttrs")
+class NLLLossAttrs(Attrs):
+    """Attributes used in nll_loss operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.AllReduceAttrs")
+class AllReduceAttrs(Attrs):
+    """Attributes used in allreduce operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.AllGatherAttrs")
+class AllGatherAttrs(Attrs):
+    """Attributes used in allgather operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.WrapParamAttrs")
+class WrapParamAttrs(Attrs):
+    """Attributes used in wrap_param operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.QuantizeAttrs")
+class QuantizeAttrs(Attrs):
+    """Attributes used in quantize/dequantize operators"""
+
+
+@tvm.ffi.register_object("relax.attrs.GatherElementsAttrs")
+class GatherElementsAttrs(Attrs):
+    """Attributes for gather_elements operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.GatherNDAttrs")
+class GatherNDAttrs(Attrs):
+    """Attributes for gather_nd operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.MeshgridAttrs")
+class MeshgridAttrs(Attrs):
+    """Attributes for meshgrid operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.ScatterElementsAttrs")
+class ScatterElementsAttrs(Attrs):
+    """Attributes for scatter_elements operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.ScatterNDAttrs")
+class ScatterNDAttrs(Attrs):
+    """Attributes for scatter_nd operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.SliceScatterAttrs")
+class SliceScatterAttrs(Attrs):
+    """Attributes for slice_scatter operator"""
+
+
+@tvm.ffi.register_object("relax.attrs.OneHotAttrs")
+class OneHotAttrs(Attrs):
+    """Attributes for one_hot operator"""

@@ -194,6 +194,7 @@ class MSCTensor(Object):
         return len(self.shape)
 
 
+@tvm.ffi.register_object("msc.core.BaseJoint")
 class BaseJoint(Object):
     """Base class of all MSC Nodes."""
 
@@ -561,6 +562,7 @@ class WeightJoint(BaseJoint):
         return bool(_ffi_api.WeightJointHasAttr(self, key))
 
 
+@tvm.ffi.register_object("msc.core.BaseGraph")
 class BaseGraph(Object):
     """Base class of all MSC Graphs."""
 
@@ -955,7 +957,7 @@ class MSCGraph(BaseGraph):
 
 
 @tvm.ffi.register_object("msc.core.WeightGraph")
-class WeightGraph(Object):
+class WeightGraph(BaseGraph):
     """The WeightGraph
 
     Parameters

@@ -82,7 +82,7 @@ struct HoistExpressionConfigNode : public AttrsNodeReflAdapter<HoistExpressionCo
     return static_cast<int>(flag) & hoisted_let_bindings;
   }
 
-  static constexpr const char* _type_key = "tir.transforms.HoistExpressionConfig";
+  static constexpr const char* _type_key = "tir.transform.HoistExpressionConfig";
   TVM_DECLARE_FINAL_OBJECT_INFO(HoistExpressionConfigNode, Object);
 };
 
@@ -112,7 +112,7 @@ struct HoistIfThenElseConfigNode : public AttrsNodeReflAdapter<HoistIfThenElseCo
         "Hoist if cond with block scope variables", refl::DefaultValue(false));
   }
 
-  static constexpr const char* _type_key = "tir.transforms.HoistIfThenElseConfig";
+  static constexpr const char* _type_key = "tir.transform.HoistIfThenElseConfig";
   TVM_DECLARE_FINAL_OBJECT_INFO(HoistIfThenElseConfigNode, Object);
 };
 

@@ -1177,6 +1177,11 @@ def const(
     return Constant(value)
 
 
+@tvm.ffi.register_object("relax.TEPlaceholderOp")
+class TEPlaceholderOp(tvm.te.tensor.Operation):
+    """The placeholder op that represents a relax expression."""
+
+
 def te_tensor(
     value: Expr, tir_var_map: Dict[tvm.tir.Var, tvm.tir.PrimExpr], name: str = "rxplaceholder"
 ):
