@@ -31,7 +31,7 @@ def _set_func_convert_to_object(func):
 
 def __object_repr__(obj):
     """Object repr function that can be overridden by assigning to it"""
-    return type(obj).__name__ + "(" + obj.__ctypes_handle__().value + ")"
+    return type(obj).__name__ + "(" + str(obj.__ctypes_handle__().value) + ")"
 
 
 def _new_object(cls):

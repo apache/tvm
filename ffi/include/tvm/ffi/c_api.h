@@ -896,7 +896,7 @@ TVM_FFI_DLL const TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index);
 #endif
 
 //---------------------------------------------------------------
-// The following API defines static object field accessors
+// The following API defines static object attribute accessors
 // for language bindings.
 //
 // They are defined in C++ inline functions for cleaner code.
