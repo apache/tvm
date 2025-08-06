@@ -81,7 +81,7 @@ inline IdDoc DefineVar(const relax::Var& var, const Frame& frame, const IRDocsif
   return d->Define(var, frame, var->name_hint().empty() ? "v" : var->name_hint());
 }
 
-inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const ObjectPath& v_p,
+inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const AccessPath& v_p,
                                          const IRDocsifier& d, const Optional<relax::Expr>& rhs) {
   if (!v->struct_info_.defined()) {
     return std::nullopt;
@@ -133,10 +133,10 @@ inline Optional<ExprDoc> StructInfoAsAnn(const relax::Var& v, const ObjectPath& 
   return d->AsDoc<ExprDoc>(v->struct_info_, v_p->Attr("struct_info_"));
 }
 
-Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const ObjectPath& n_p, const IRDocsifier& d,
+Array<StmtDoc> PrintSeqExpr(const relax::SeqExpr& n, const AccessPath& n_p, const IRDocsifier& d,
                             bool use_ret);
 
-ExprDoc PrintShapeVar(const PrimExpr& e, const ObjectPath& e_p, const IRDocsifier& d);
+ExprDoc PrintShapeVar(const PrimExpr& e, const AccessPath& e_p, const IRDocsifier& d);
 
 inline int FindVDeviceIndexByTargetKind(const VDevice& vdevice, const IRDocsifier& d) {
   Array<GlobalInfo> vdevices = d->global_infos["vdevice"];

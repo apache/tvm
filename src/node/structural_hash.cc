@@ -23,10 +23,10 @@
 #include <tvm/ffi/extra/base64.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/node/functor.h>
 #include <tvm/node/node.h>
-#include <tvm/node/object_path.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/profiling.h>
 #include <tvm/target/codegen.h>

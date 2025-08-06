@@ -116,6 +116,16 @@ void Dump(const runtime::ObjectRef& n) { std::cerr << n << "\n"; }
 
 void Dump(const runtime::Object* n) { Dump(runtime::GetRef<runtime::ObjectRef>(n)); }
 
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ffi::reflection::AccessPathObj>([](const ObjectRef& node, ReprPrinter* p) {
+      p->stream << Downcast<ffi::reflection::AccessPath>(node);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ffi::reflection::AccessStepObj>([](const ObjectRef& node, ReprPrinter* p) {
+      p->stream << Downcast<ffi::reflection::AccessStep>(node);
+    });
+
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("node.AsRepr", [](ffi::Any obj) {

@@ -207,7 +207,7 @@ IRDocsifier::FType& IRDocsifier::vtable() {
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_fallback([](ObjectRef obj, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_fallback([](ObjectRef obj, AccessPath p, IRDocsifier d) -> Doc {
       return d->AddMetadata(obj);
     });
 

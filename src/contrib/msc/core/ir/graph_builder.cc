@@ -168,7 +168,7 @@ const MSCGraph GraphBuilder::Build(const Function& func) {
       continue;
     }
     if (func_params_.count(p) && func_params_[p]->IsInstance<TupleNode>()) {
-      const auto& tuple = Downcast<Tuple>(func_params_[p]);
+      const auto& tuple = Downcast<relax::Tuple>(func_params_[p]);
       Array<String> tuple_names;
       for (const auto& f : tuple->fields) {
         if (expr_tensor_map_.count(f)) {
@@ -735,7 +735,7 @@ void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const CallNode* 
 void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const TupleNode* val) {
   ExprVisitor::VisitBinding_(binding, val);
   const String& name = config_.use_var_name ? binding->var->name_hint() : "";
-  AddNode(GetRef<Tuple>(val), binding->var, name);
+  AddNode(GetRef<relax::Tuple>(val), binding->var, name);
 }
 
 void GraphBuilder::VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) {
@@ -806,7 +806,7 @@ Array<Expr> GraphBuilder::GetPluginInputs(const Expr& expr) {
   ICHECK(expr->IsInstance<CallNode>()) << "plugin expr should be call";
   const auto& call = Downcast<Call>(expr);
   ICHECK(call->args[1]->IsInstance<TupleNode>()) << "plugin argument 1 should be call";
-  return Downcast<Tuple>(call->args[1])->fields;
+  return Downcast<relax::Tuple>(call->args[1])->fields;
 }
 
 Map<MSCTensor, NDArray> WeightsExtractor::GetWeights(const Function& func) {
