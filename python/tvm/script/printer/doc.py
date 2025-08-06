@@ -26,25 +26,12 @@ from tvm.tir import FloatImm, IntImm
 from . import _ffi_api
 
 
+@register_object("script.printer.Doc")
 class Doc(Object):
     """Base class of all Docs"""
 
-    @property
-    def source_paths(self) -> Sequence[ObjectPath]:
-        """
-        The list of object paths of the source IR node.
 
-        This is used to trace back to the IR node position where
-        this Doc is generated, in order to position the diagnostic
-        message.
-        """
-        return self.__getattr__("source_paths")  # pylint: disable=unnecessary-dunder-call
-
-    @source_paths.setter
-    def source_paths(self, value):
-        return _ffi_api.DocSetSourcePaths(self, value)  # type: ignore # pylint: disable=no-member
-
-
+@register_object("script.printer.ExprDoc")
 class ExprDoc(Doc):
     """Base class of all expression Docs"""
 
@@ -114,25 +101,9 @@ class ExprDoc(Doc):
         raise RuntimeError(f"{self.__class__} cannot be used as iterable.")
 
 
+@register_object("script.printer.StmtDoc")
 class StmtDoc(Doc):
     """Base class of statement doc"""
-
-    @property
-    def comment(self) -> Optional[str]:
-        """
-        The comment of this doc.
-
-        The actual position of the comment depends on the type of Doc
-        and also the DocPrinter implementation. It could be on the same
-        line as the statement, or the line above, or inside the statement
-        if it spans over multiple lines.
-        """
-        # It has to call the dunder method to avoid infinite recursion
-        return self.__getattr__("comment")  # pylint: disable=unnecessary-dunder-call
-
-    @comment.setter
-    def comment(self, value):
-        return _ffi_api.StmtDocSetComment(self, value)  # type: ignore # pylint: disable=no-member
 
 
 @register_object("script.printer.StmtBlockDoc")
