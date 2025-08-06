@@ -257,7 +257,7 @@ def test_globalmaxpool2d():
         mod = tvm.IRModule()
         mod["main"] = func
         option_dict = {"num_tiles": 1}
-        verify_codegen(mod, params=params, tvm_ops=2, contains="mrvl.globalmaxpool2d_nhwc2nhwc")
+        verify_codegen(mod, params=params, tvm_ops=1, contains="mrvl.globalmaxpool2d_nhwc2nhwc")
         return func, {"x": (1, 3, 224, 224), "w": (16, 3, 3, 3)}, ["w"], option_dict
 
     run_and_verify_func(get_graph())
