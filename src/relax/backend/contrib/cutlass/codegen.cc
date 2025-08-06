@@ -67,6 +67,7 @@ runtime::Module Finalize(const std::string& code, const Array<String>& func_name
   default_headers << "#include <cutlass/coord.h>\n";
   default_headers << "#include <cutlass/tensor_ref.h>\n";
   default_headers << "#include <cutlass/util/host_tensor.h>\n";
+  default_headers << "#include <tvm/runtime/logging.h>\n";
 
   const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.CSourceModuleCreate");
   VLOG(1) << "Generated CUTLASS code:" << std::endl << code;

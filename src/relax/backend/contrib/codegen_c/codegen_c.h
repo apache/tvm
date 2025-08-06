@@ -85,29 +85,26 @@ class CodegenCBase {
     code_stream_ << "#endif\n";
     code_stream_ << "TVM_DLL int32_t ";
     code_stream_ << func_name << "(";
-    code_stream_ << "TVMValue* args, ";
-    code_stream_ << "int* type_code, ";
-    code_stream_ << "int num_args, ";
-    code_stream_ << "TVMValue* out_value, ";
-    code_stream_ << "int* out_type_code) {\n";
+    code_stream_ << "tvm::ffi::PackedArgs args, ";
+    code_stream_ << "tvm::ffi::AnyView* out_value) {\n";
   }
 
   /*!
-   * \brief Adds a line to convert TVMValue args to DLTensors
+   * \brief Adds a line to convert tvm::ffi::PackedArgs args to DLTensors
    */
   void PrintArgToData(int idx) {
     PrintIndents();
     code_stream_ << "DLTensor* arg" << idx << " = ";
-    code_stream_ << "(DLTensor*)(((TVMValue*)args)[" << idx << "].v_handle);\n";
+    code_stream_ << "(DLTensor*)(args[" << idx << "].cast<DLTensor*>());\n";
   }
 
   /*!
-   * \brief Adds a line to convert TVMValue rets to DLTensors
+   * \brief Adds a line to convert tvm::ffi::PackedArgs rets to DLTensors
    */
   void PrintRetToData(int idx) {
     PrintIndents();
     code_stream_ << "DLTensor* ret" << idx << " = ";
-    code_stream_ << "(DLTensor*)(((TVMValue*)args)[" << idx << "].v_handle);\n";
+    code_stream_ << "(DLTensor*)(args[" << idx << "].cast<DLTensor*>());\n";
   }
 
   /*!
