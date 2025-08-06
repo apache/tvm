@@ -41,7 +41,7 @@ class Attrs(Object):
         -------
         value: Tuple of int
         """
-        return tuple(x if isinstance(x, int) else x.value for x in self.__getattr__(key))
+        return tuple(x if isinstance(x, int) else x.value for x in getattr(self, key))
 
     def get_int(self, key):
         """Get a python int value of a key
@@ -54,7 +54,7 @@ class Attrs(Object):
         -------
         value: int
         """
-        return self.__getattr__(key)
+        return getattr(self, key)
 
     def get_str(self, key):
         """Get a python int value of a key
@@ -67,10 +67,10 @@ class Attrs(Object):
         -------
         value: int
         """
-        return self.__getattr__(key)
+        return getattr(self, key)
 
     def __getitem__(self, item):
-        return self.__getattr__(item)
+        return getattr(self, item)
 
 
 @tvm.ffi.register_object("ir.DictAttrs")
@@ -100,6 +100,12 @@ class DictAttrs(Attrs):
 
     def __contains__(self, k):
         return self._dict().__contains__(k)
+
+    def __getattr__(self, name):
+        try:
+            return self._dict().__getitem__(name)
+        except KeyError:
+            raise AttributeError(f"DictAttrs has no attribute {name}")
 
     def items(self):
         """Get items from the map."""

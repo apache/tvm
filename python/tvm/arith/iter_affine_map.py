@@ -22,6 +22,7 @@ from tvm.ir import PrimExpr
 from . import _ffi_api
 
 
+@tvm.ffi.register_object("arith.IterMapExpr")
 class IterMapExpr(PrimExpr):
     """Base class of all IterMap expressions."""
 
@@ -87,6 +88,11 @@ class IterSumExpr(IterMapExpr):
 
     def __init__(self, args, base):
         self.__init_handle_by_constructor__(_ffi_api.IterSumExpr, args, base)
+
+
+@tvm.ffi.register_object("arith.IterMapResult")
+class IterMapResult(Object):
+    """Result of iter map detection."""
 
 
 class IterMapLevel(IntEnum):

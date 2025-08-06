@@ -65,10 +65,11 @@ class DocNode : public Object {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<DocNode>().def_ro("source_paths", &DocNode::source_paths);
+    refl::ObjectDef<DocNode>().def_rw("source_paths", &DocNode::source_paths);
   }
 
   static constexpr const char* _type_key = "script.printer.Doc";
+  static constexpr bool _type_mutable = true;
 
   TVM_DECLARE_BASE_OBJECT_INFO(DocNode, Object);
 
@@ -174,7 +175,7 @@ class StmtDocNode : public DocNode {
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<StmtDocNode>().def_ro("comment", &StmtDocNode::comment);
+    refl::ObjectDef<StmtDocNode>().def_rw("comment", &StmtDocNode::comment);
   }
 
   static constexpr const char* _type_key = "script.printer.StmtDoc";
