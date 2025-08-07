@@ -50,7 +50,7 @@ inline void RedirectedReprPrinterMethod(const ObjectRef& obj, ReprPrinter* p) {
 
 inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Frame& f,
                            const PrinterConfig& cfg) {
-  Doc doc = d->AsDoc(obj, ObjectPath::Root());
+  Doc doc = d->AsDoc(obj, AccessPath::Root());
   bool move_source_paths = false;
   if (const auto* expr_doc = doc.as<ExprDocNode>()) {
     if (!cfg->verbose_expr) {

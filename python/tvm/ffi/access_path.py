@@ -177,3 +177,5 @@ class AccessPath(core.Object):
             The list of access steps
         """
         return self._to_steps()
+
+    __hash__ = core.Object.__hash__

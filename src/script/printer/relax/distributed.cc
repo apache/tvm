@@ -29,14 +29,14 @@ namespace printer {
 // distributed::Placement
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::distributed::Placement>("",
-                                                 [](relax::distributed::Placement n, ObjectPath n_p,
+                                                 [](relax::distributed::Placement n, AccessPath n_p,
                                                     IRDocsifier d) -> Doc {
                                                    return d->AsDoc<Doc>(n->ToString(), n_p);
                                                  });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::distributed::DTensorStructInfo>(
-        "", [](relax::distributed::DTensorStructInfo n, ObjectPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::distributed::DTensorStructInfo n, AccessPath n_p, IRDocsifier d) -> Doc {
           Array<ExprDoc> args;
           Array<String> kwargs_keys;
           Array<ExprDoc> kwargs_values;
@@ -45,11 +45,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             // Need to dig into ShapeExpr to preserve the `R.shape` prefix
             if (const auto* shape = n->tensor_sinfo->shape.value().as<relax::ShapeExprNode>()) {
               auto shape_expr = GetRef<relax::ShapeExpr>(shape);
-              ObjectPath shape_p = n_p->Attr("shape")->Attr("values");
+              AccessPath shape_p = n_p->Attr("shape")->Attr("values");
               Array<ExprDoc> shape_docs;
               for (int i = 0, ndim = shape_expr->values.size(); i < ndim; ++i) {
                 shape_docs.push_back(
-                    PrintShapeVar(shape_expr->values[i], shape_p->ArrayIndex(i), d));
+                    PrintShapeVar(shape_expr->values[i], shape_p->ArrayItem(i), d));
               }
               args.push_back(TupleDoc(shape_docs));
             } else {
@@ -90,7 +90,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::distributed::DeviceMesh>(
-        "", [](relax::distributed::DeviceMesh n, ObjectPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::distributed::DeviceMesh n, AccessPath n_p, IRDocsifier d) -> Doc {
           bool has_relax_frame = false;
           const IRFrameNode* f = nullptr;
           for (const Frame& frame : d->frames) {

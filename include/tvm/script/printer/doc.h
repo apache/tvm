@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_DOC_H_
 #define TVM_SCRIPT_PRINTER_DOC_H_
 
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/expr.h>
 #include <tvm/node/node.h>
@@ -30,6 +31,8 @@
 namespace tvm {
 namespace script {
 namespace printer {
+
+using AccessPath = ffi::reflection::AccessPath;
 
 // Forward declaration
 class Doc;
@@ -61,7 +64,7 @@ class DocNode : public Object {
    * this Doc is generated, in order to position the diagnostic
    * message.
    */
-  mutable Array<ObjectPath> source_paths;
+  mutable Array<ffi::reflection::AccessPath> source_paths;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
@@ -266,20 +269,20 @@ class LiteralDocNode : public ExprDocNode {
  */
 class LiteralDoc : public ExprDoc {
  protected:
-  explicit LiteralDoc(ffi::Any value, const Optional<ObjectPath>& object_path);
+  explicit LiteralDoc(ffi::Any value, const Optional<AccessPath>& object_path);
 
  public:
   /*!
    * \brief Create a LiteralDoc to represent None/null/empty value.
    * \param p The object path
    */
-  static LiteralDoc None(const Optional<ObjectPath>& p) { return LiteralDoc(ffi::Any(nullptr), p); }
+  static LiteralDoc None(const Optional<AccessPath>& p) { return LiteralDoc(ffi::Any(nullptr), p); }
   /*!
    * \brief Create a LiteralDoc to represent integer.
    * \param v The integer value.
    * \param p The object path
    */
-  static LiteralDoc Int(int64_t v, const Optional<ObjectPath>& p) {
+  static LiteralDoc Int(int64_t v, const Optional<AccessPath>& p) {
     return LiteralDoc(IntImm(DataType::Int(64), v), p);
   }
   /*!
@@ -287,7 +290,7 @@ class LiteralDoc : public ExprDoc {
    * \param v The boolean value.
    * \param p The object path
    */
-  static LiteralDoc Boolean(bool v, const Optional<ObjectPath>& p) {
+  static LiteralDoc Boolean(bool v, const Optional<AccessPath>& p) {
     return LiteralDoc(IntImm(DataType::Bool(), v), p);
   }
   /*!
@@ -295,7 +298,7 @@ class LiteralDoc : public ExprDoc {
    * \param v The float value.
    * \param p The object path
    */
-  static LiteralDoc Float(double v, const Optional<ObjectPath>& p) {
+  static LiteralDoc Float(double v, const Optional<AccessPath>& p) {
     return LiteralDoc(FloatImm(DataType::Float(64), v), p);
   }
   /*!
@@ -303,13 +306,13 @@ class LiteralDoc : public ExprDoc {
    * \param v The string value.
    * \param p The object path
    */
-  static LiteralDoc Str(const String& v, const Optional<ObjectPath>& p) { return LiteralDoc(v, p); }
+  static LiteralDoc Str(const String& v, const Optional<AccessPath>& p) { return LiteralDoc(v, p); }
   /*!
    * \brief Create a LiteralDoc to represent string.
    * \param v The string value.
    * \param p The object path
    */
-  static LiteralDoc DataType(const runtime::DataType& v, const Optional<ObjectPath>& p) {
+  static LiteralDoc DataType(const runtime::DataType& v, const Optional<AccessPath>& p) {
     std::string dtype = v.is_void() ? "void" : runtime::DLDataTypeToString(v);
     return LiteralDoc::Str(dtype, p);
   }
@@ -318,7 +321,7 @@ class LiteralDoc : public ExprDoc {
    * \param v The device.
    * \param p The object path
    */
-  static LiteralDoc Device(const DLDevice& v, const Optional<ObjectPath>& p) {
+  static LiteralDoc Device(const DLDevice& v, const Optional<AccessPath>& p) {
     std::ostringstream os;
     runtime::operator<<(os, v);
     return LiteralDoc::Str(os.str(), p);

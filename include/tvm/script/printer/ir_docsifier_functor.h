@@ -35,7 +35,7 @@ namespace script {
 namespace printer {
 
 /*!
- * \brief Dynamic dispatch functor based on ObjectPath.
+ * \brief Dynamic dispatch functor based on AccessPath.
  *
  * This functor dispatches based on the type of object and the input dispatch token.
  */

@@ -24,8 +24,8 @@
 #define TVM_NODE_STRUCTURAL_EQUAL_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/node/functor.h>
-#include <tvm/node/object_path.h>
 #include <tvm/runtime/data_type.h>
 
 #include <cmath>
@@ -75,27 +75,6 @@ class BaseValueEqual {
 };
 
 /*!
- * \brief Pair of `ObjectPath`s, one for each object being tested for structural equality.
- */
-class ObjectPathPairNode : public Object {
- public:
-  ObjectPath lhs_path;
-  ObjectPath rhs_path;
-
-  ObjectPathPairNode(ObjectPath lhs_path, ObjectPath rhs_path);
-
-  static constexpr const char* _type_key = "node.ObjectPathPair";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ObjectPathPairNode, Object);
-};
-
-class ObjectPathPair : public ObjectRef {
- public:
-  ObjectPathPair(ObjectPath lhs_path, ObjectPath rhs_path);
-
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(ObjectPathPair, ObjectRef, ObjectPathPairNode);
-};
-
-/*!
  * \brief Content-aware structural equality comparator for objects.
  *
  *  The structural equality is recursively defined in the DAG of IR nodes via SEqual.
@@ -129,5 +108,6 @@ class StructuralEqual : public BaseValueEqual {
   TVM_DLL bool operator()(const ffi::Any& lhs, const ffi::Any& rhs,
                           const bool map_free_params = false) const;
 };
+
 }  // namespace tvm
 #endif  // TVM_NODE_STRUCTURAL_EQUAL_H_
