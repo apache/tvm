@@ -291,6 +291,12 @@ cdef _get_method_from_method_info(const TVMFFIMethodInfo* method):
     return make_ret(result)
 
 
+def _member_method_wrapper(method_func):
+    def wrapper(self, *args):
+        return method_func(self, *args)
+    return wrapper
+
+
 def _add_class_attrs_by_reflection(int type_index, object cls):
     """Decorate the class attrs by reflection"""
     cdef const TVMFFITypeInfo* info = TVMFFIGetTypeInfo(type_index)
@@ -335,8 +341,10 @@ def _add_class_attrs_by_reflection(int type_index, object cls):
         if method.flags & kTVMFFIFieldFlagBitMaskIsStaticMethod:
             method_pyfunc = staticmethod(method_func)
         else:
-            def method_pyfunc(self, *args):
-                return method_func(self, *args)
+            # must call into another method instead of direct capture
+            # to avoid the same method_func variable being used
+            # across multiple loop iterations
+            method_pyfunc = _member_method_wrapper(method_func)
 
         if doc is not None:
             method_pyfunc.__doc__ = doc
@@ -345,7 +353,6 @@ def _add_class_attrs_by_reflection(int type_index, object cls):
         if hasattr(cls, name):
             # skip already defined attributes
             continue
-
         setattr(cls, name, method_pyfunc)
 
     return cls

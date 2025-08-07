@@ -55,9 +55,9 @@ Optional<ObjectPathPair> ObjectPathPairFromAccessPathPair(
   if (!src.has_value()) return std::nullopt;
   auto translate_path = [](ffi::reflection::AccessPath path) {
     ObjectPath result = ObjectPath::Root();
-    for (const auto& step : path) {
+    for (const auto& step : path->ToSteps()) {
       switch (step->kind) {
-        case ffi::reflection::AccessKind::kObjectField: {
+        case ffi::reflection::AccessKind::kAttr: {
           result = result->Attr(step->key.cast<String>());
           break;
         }

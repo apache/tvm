@@ -59,7 +59,6 @@ set(tvm_ffi_objs_sources
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/dtype.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/testing.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/container.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/reflection/access_path.cc"
 )
 
 if (TVM_FFI_USE_EXTRA_CXX_API)
@@ -69,6 +68,7 @@ if (TVM_FFI_USE_EXTRA_CXX_API)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/json_parser.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/json_writer.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/serialization.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/reflection_extra.cc"
   )
 endif()
 

@@ -185,9 +185,9 @@ class StructEqualHandler {
           // record the first mismatching field if we sub-rountine compare failed
           if (mismatch_lhs_reverse_path_ != nullptr) {
             mismatch_lhs_reverse_path_->emplace_back(
-                reflection::AccessStep::ObjectField(String(field_info->name)));
+                reflection::AccessStep::Attr(String(field_info->name)));
             mismatch_rhs_reverse_path_->emplace_back(
-                reflection::AccessStep::ObjectField(String(field_info->name)));
+                reflection::AccessStep::Attr(String(field_info->name)));
           }
           // return true to indicate early stop
           return true;
@@ -216,9 +216,9 @@ class StructEqualHandler {
                 if (mismatch_lhs_reverse_path_ != nullptr) {
                   String field_name_str = field_name.cast<String>();
                   mismatch_lhs_reverse_path_->emplace_back(
-                      reflection::AccessStep::ObjectField(field_name_str));
+                      reflection::AccessStep::Attr(field_name_str));
                   mismatch_rhs_reverse_path_->emplace_back(
-                      reflection::AccessStep::ObjectField(field_name_str));
+                      reflection::AccessStep::Attr(field_name_str));
                 }
               }
               return success;
@@ -420,8 +420,11 @@ Optional<reflection::AccessPathPair> StructuralEqual::GetFirstMismatch(const Any
   if (handler.CompareAny(lhs, rhs)) {
     return std::nullopt;
   }
-  reflection::AccessPath lhs_path(lhs_reverse_path.rbegin(), lhs_reverse_path.rend());
-  reflection::AccessPath rhs_path(rhs_reverse_path.rbegin(), rhs_reverse_path.rend());
+  using reflection::AccessPath;
+  reflection::AccessPath lhs_path =
+      AccessPath::FromSteps(lhs_reverse_path.rbegin(), lhs_reverse_path.rend());
+  reflection::AccessPath rhs_path =
+      AccessPath::FromSteps(rhs_reverse_path.rbegin(), rhs_reverse_path.rend());
   return reflection::AccessPathPair(lhs_path, rhs_path);
 }
 
