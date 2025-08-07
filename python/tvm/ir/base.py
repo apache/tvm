@@ -196,8 +196,8 @@ def structural_equal(lhs, rhs, map_free_vars=False):
     return bool(_ffi_node_api.StructuralEqual(lhs, rhs, False, map_free_vars))  # type: ignore # pylint: disable=no-member
 
 
-def get_first_structural_mismatch(lhs, rhs, map_free_vars=False):
-    """Like structural_equal(), but returns the ObjectPaths of the first detected mismatch.
+def get_first_structural_mismatch(lhs, rhs, map_free_vars=False, skip_ndarray_content=False):
+    """Like structural_equal(), but returns the AccessPath pair of the first detected mismatch.
 
     Parameters
     ----------
@@ -211,19 +211,18 @@ def get_first_structural_mismatch(lhs, rhs, map_free_vars=False):
         Whether free variables (i.e. variables without a definition site) should be mapped
         as equal to each other.
 
+    skip_ndarray_content : bool
+        Whether to skip the content of ndarray.
+
     Returns
     -------
-    mismatch: Optional[Tuple[ObjectPath, ObjectPath]]
+    mismatch: Optional[Tuple[AccessPath, AccessPath]]
         `None` if `lhs` and `rhs` are structurally equal.
-        Otherwise, a tuple of two ObjectPath objects that point to the first detected mismtach.
+        Otherwise, a tuple of two AccessPath objects that point to the first detected mismtach.
     """
     lhs = tvm.runtime.convert(lhs)
     rhs = tvm.runtime.convert(rhs)
-    mismatch = _ffi_node_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars)  # type: ignore # pylint: disable=no-member
-    if mismatch is None:
-        return None
-    else:
-        return mismatch.lhs_path, mismatch.rhs_path
+    return _ffi_node_api.GetFirstStructuralMismatch(lhs, rhs, map_free_vars, skip_ndarray_content)  # type: ignore # pylint: disable=no-member
 
 
 def assert_structural_equal(lhs, rhs, map_free_vars=False):

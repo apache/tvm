@@ -79,7 +79,7 @@ StmtBlockDoc::StmtBlockDoc(Array<StmtDoc> stmts) {
   this->data_ = std::move(n);
 }
 
-LiteralDoc::LiteralDoc(ffi::Any value, const Optional<ObjectPath>& object_path) {
+LiteralDoc::LiteralDoc(ffi::Any value, const Optional<AccessPath>& object_path) {
   ObjectPtr<LiteralDocNode> n = make_object<LiteralDocNode>();
   n->value = value;
   if (object_path.defined()) {
@@ -268,7 +268,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "script.printer.DocSetSourcePaths",
-      [](Doc doc, Array<ObjectPath> source_paths) { doc->source_paths = source_paths; });
+      [](Doc doc, Array<AccessPath> source_paths) { doc->source_paths = source_paths; });
 });
 
 TVM_FFI_STATIC_INIT_BLOCK({

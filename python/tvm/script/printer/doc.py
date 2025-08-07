@@ -20,7 +20,8 @@ from enum import IntEnum, unique
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 from tvm.ffi import register_object
-from tvm.runtime import Object, ObjectPath
+from tvm.ffi.access_path import AccessPath
+from tvm.runtime import Object
 from tvm.tir import FloatImm, IntImm
 
 from . import _ffi_api
@@ -129,7 +130,7 @@ class LiteralDoc(ExprDoc):
     def __init__(
         self,
         value: Union[str, float, bool, int, None],
-        path: Optional[ObjectPath] = None,
+        path: Optional[AccessPath] = None,
     ):
         if value is None:
             self.__init_handle_by_constructor__(_ffi_api.LiteralDocNone, path)  # type: ignore # pylint: disable=no-member
