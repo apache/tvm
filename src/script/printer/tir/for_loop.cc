@@ -23,7 +23,7 @@ namespace script {
 namespace printer {
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::For>("", [](tir::For loop, ObjectPath loop_p, IRDocsifier d) -> Doc {
+    .set_dispatch<tir::For>("", [](tir::For loop, AccessPath loop_p, IRDocsifier d) -> Doc {
       // Step 1. Check syntactic sugar: `T.grid`
       std::vector<const tir::ForNode*> grid;
       std::unordered_set<const tir::VarNode*> grid_loop_vars;
