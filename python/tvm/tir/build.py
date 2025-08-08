@@ -17,14 +17,14 @@
 
 # pylint: disable=invalid-name
 """The build utils in python."""
-from typing import Union, Optional, Dict, Tuple
+from typing import Dict, Optional, Tuple, Union
 
 import tvm
 from tvm import ir
-from tvm.runtime import ndarray
-from tvm.tir import PrimFunc
 from tvm.ir.module import IRModule
+from tvm.runtime import ndarray
 from tvm.target import Target
+from tvm.tir import PrimFunc
 
 
 def split_host_device_mods(mod: IRModule) -> Tuple[IRModule, Dict[Target, IRModule]]:
@@ -100,10 +100,12 @@ def split_host_device_mods(mod: IRModule) -> Tuple[IRModule, Dict[Target, IRModu
         - Device kernel functions: use `calling_conv: 2` (kDeviceKernelLaunch)
     """
 
-    host_mod = tvm.tir.transform.Filter(lambda f: "cpu" in str(f.attrs.get("target", "cpu")))(mod)
-    device_mod = tvm.tir.transform.Filter(lambda f: "cpu" not in str(f.attrs.get("target", "cpu")))(
-        mod
-    )
+    def is_host_func(f):
+        target = f.attrs.get("target", tvm.target.Target("llvm"))
+        return str(target.kind) in ["llvm", "c"]
+
+    host_mod = tvm.tir.transform.Filter(is_host_func)(mod)
+    device_mod = tvm.tir.transform.Filter(lambda f: not is_host_func(f))(mod)
     # TODO(syfeng): Here we use str as key since target hash is not correct
     target_str2target = {}
     device_func_dict = {}
