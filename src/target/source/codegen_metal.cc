@@ -370,7 +370,7 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
   };
   if (op->op.same_as(builtin::make_filled_simdgroup_matrix())) {
     ICHECK_EQ(op->args.size(), 5);
-    Var var = runtime::Downcast<Var>(op->args[0]);
+    Var var = Downcast<Var>(op->args[0]);
     // Get the data type of the simdgroup matrix
     auto it = simdgroup_dtype_.find(var.get());
     ICHECK(it != simdgroup_dtype_.end())
