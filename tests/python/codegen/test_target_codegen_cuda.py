@@ -820,10 +820,12 @@ def test_device_host_call_same_func():
                 for tx in T.thread_binding(length, "threadIdx.x"):
                     C[bx, tx] = Module.add(A[bx, tx], B[bx, tx])  # Call from device
 
-    # If we set host to llvm, it will raise an error of
-    # "the tir.ret should be transformed to return zero before the llvm code generation."
-    # Need to revisit this.
-    target = tvm.target.Target("cuda", host="c")
+    # 1. If we set host to llvm, it will raise an error of
+    #    "the tir.ret should be transformed to return zero before the llvm code generation."
+    #    Need to revisit this.
+    # 2. We set a dummy mcpu value for testing purpose,
+    #    in order to avoid checking a function is host or device based on the "cpu" substring.
+    target = tvm.target.Target({"kind": "cuda", "mcpu": "dummy_mcpu"}, host="c")
     lib = tvm.compile(Module, target=target)
     cuda_code = lib.mod.imported_modules[0].get_source()
     assert 'extern "C" __device__ int add(int a, int b) {\n  return (a + b);\n}' in cuda_code
