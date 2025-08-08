@@ -635,7 +635,6 @@ struct AnyEqual {
     }
   }
 };
-
 }  // namespace ffi
 
 // Expose to the tvm namespace for usability

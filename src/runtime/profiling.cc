@@ -479,15 +479,15 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
     for (size_t i = 0; i < calls.size(); i++) {
       auto& frame = calls[i];
       auto it = frame.find("Hash");
-      std::string name = Downcast<String>(frame["Name"]);
+      std::string name = frame["Name"].cast<String>();
       if (it != frame.end()) {
-        name = Downcast<String>((*it).second);
+        name = (*it).second.cast<String>();
       }
       if (frame.find("Argument Shapes") != frame.end()) {
-        name += Downcast<String>(frame["Argument Shapes"]);
+        name += frame["Argument Shapes"].cast<String>();
       }
       if (frame.find("Device") != frame.end()) {
-        name += Downcast<String>(frame["Device"]);
+        name += frame["Device"].cast<String>();
       }
 
       if (aggregates.find(name) == aggregates.end()) {
@@ -680,7 +680,7 @@ Report Profiler::Report() {
   for (size_t i = 0; i < devs_.size(); i++) {
     auto row = rows[rows.size() - 1];
     rows.pop_back();
-    device_metrics[Downcast<String>(row["Device"])] = row;
+    device_metrics[row["Device"].cast<String>()] = row;
     overall_time_us =
         std::max(overall_time_us, row["Duration (us)"].as<DurationNode>()->microseconds);
   }

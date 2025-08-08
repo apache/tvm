@@ -204,9 +204,9 @@ Stmt InverseMapping::Rewrite(const Stmt& stmt, const ConstraintSet& constraints,
     if (is_one(write_region->region[i]->extent)) {
       write_index.push_back(write_region->region[i]->min);
     } else {
-      Var var = runtime::Downcast<Var>(loop_vars[j]).copy_with_suffix("_inverse");
+      Var var = Downcast<Var>(loop_vars[j]).copy_with_suffix("_inverse");
       new_loop_vars.push_back(var);
-      substitute_map.Set(runtime::Downcast<Var>(loop_vars[j++]), var);
+      substitute_map.Set(Downcast<Var>(loop_vars[j++]), var);
       write_index.push_back(write_region->region[i]->min + var);
     }
   }
