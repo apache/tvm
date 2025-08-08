@@ -189,10 +189,12 @@ class VirtualMachine : public runtime::ModuleNode {
     using ContainerType = typename T::ContainerType;
     uint32_t key = ContainerType::RuntimeTypeIndex();
     if (auto it = extensions.find(key); it != extensions.end()) {
-      return Downcast<T>((*it).second);
+      ffi::Any value = (*it).second;
+      return value.cast<T>();
     }
     auto [it, _] = extensions.emplace(key, T::Create());
-    return Downcast<T>((*it).second);
+    ffi::Any value = (*it).second;
+    return value.cast<T>();
   }
 
   /*!
@@ -224,7 +226,7 @@ class VirtualMachine : public runtime::ModuleNode {
   std::vector<Device> devices;
   /*! \brief The VM extensions. Mapping from the type index of the extension to the extension
    * instance. */
-  std::unordered_map<uint32_t, VMExtension> extensions;
+  std::unordered_map<uint32_t, Any> extensions;
 };
 
 }  // namespace vm

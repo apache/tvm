@@ -18,7 +18,6 @@
  */
 #include <gtest/gtest.h>
 #include <tvm/ffi/any.h>
-#include <tvm/ffi/cast.h>
 #include <tvm/ffi/string.h>
 
 namespace {
@@ -266,7 +265,7 @@ TEST(String, Cast) {
   string source = "this is a string";
   String s{source};
   Any r = s;
-  String s2 = Downcast<String>(r);
+  String s2 = r.cast<String>();
 }
 
 TEST(String, Concat) {

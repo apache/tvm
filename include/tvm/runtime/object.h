@@ -39,7 +39,6 @@ using tvm::ffi::ObjectPtrEqual;
 using tvm::ffi::ObjectPtrHash;
 using tvm::ffi::ObjectRef;
 
-using tvm::ffi::Downcast;
 using tvm::ffi::GetObjectPtr;
 using tvm::ffi::GetRef;
 

@@ -124,6 +124,8 @@ inline std::string DiscoAction2String(DiscoAction action) {
   LOG(FATAL) << "ValueError: Unknown DiscoAction: " << static_cast<int>(action);
 }
 
+class SessionObj;
+
 /*!
  * \brief An object that exists on all workers.
  *
@@ -156,6 +158,9 @@ class DRefObj : public Object {
   int64_t reg_id;
   /*! \brief Back-pointer to the host controler session */
   ObjectRef session{nullptr};
+
+ private:
+  inline SessionObj* GetSession();
 };
 
 /*!
@@ -321,18 +326,22 @@ class WorkerZeroData {
 
 // Implementation details
 
+inline SessionObj* DRefObj::GetSession() {
+  return const_cast<SessionObj*>(static_cast<const SessionObj*>(session.get()));
+}
+
 DRefObj::~DRefObj() {
   if (this->session.defined()) {
-    Downcast<Session>(this->session)->DeallocReg(reg_id);
+    GetSession()->DeallocReg(reg_id);
   }
 }
 
 ffi::Any DRefObj::DebugGetFromRemote(int worker_id) {
-  return Downcast<Session>(this->session)->DebugGetFromRemote(this->reg_id, worker_id);
+  return GetSession()->DebugGetFromRemote(this->reg_id, worker_id);
 }
 
 void DRefObj::DebugCopyFrom(int worker_id, ffi::AnyView value) {
-  return Downcast<Session>(this->session)->DebugSetRegister(this->reg_id, value, worker_id);
+  return GetSession()->DebugSetRegister(this->reg_id, value, worker_id);
 }
 
 template <typename... Args>
