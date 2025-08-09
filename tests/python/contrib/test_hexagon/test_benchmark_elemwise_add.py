@@ -218,7 +218,7 @@ def _benchmark_hexagon_elementwise_add_kernel(
             # Create an actual Hexagon-native shared object file, initially stored on the
             # host's file system...
             host_dso_binary_path = os.path.join(host_files_dir_path, "test_binary.so")
-            built_module.save(host_dso_binary_path)
+            built_module.write_to_file(host_dso_binary_path)
             print(f"SAVED BINARY TO HOST PATH: {host_dso_binary_path}")
 
             # Upload the .so to the Android device's file system (or wherever is appropriate

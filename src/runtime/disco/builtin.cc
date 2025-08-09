@@ -34,36 +34,39 @@ namespace runtime {
 
 class DSOLibraryCache {
  public:
-  Module Open(const std::string& library_path) {
+  ffi::Module Open(const std::string& library_path) {
     std::lock_guard<std::mutex> lock(mutex_);
-    Module& lib = cache_[library_path];
-    if (!lib.defined()) {
-      lib = Module::LoadFromFile(library_path, "");
+    auto it = cache_.find(library_path);
+    if (it == cache_.end()) {
+      ffi::Module lib = ffi::Module::LoadFromFile(library_path);
+      cache_.emplace(library_path, lib);
+      return lib;
     }
-    return lib;
+    return it->second;
   }
 
-  std::unordered_map<std::string, Module> cache_;
+  std::unordered_map<std::string, ffi::Module> cache_;
   std::mutex mutex_;
 };
 
-Module LoadVMModule(std::string path, Optional<Device> device) {
+ffi::Module LoadVMModule(std::string path, Optional<Device> device) {
   static DSOLibraryCache cache;
-  Module dso_mod = cache.Open(path);
+  ffi::Module dso_mod = cache.Open(path);
   Device dev = UseDefaultDeviceIfNone(device);
-  ffi::Function vm_load_executable = dso_mod.GetFunction("vm_load_executable");
-  if (vm_load_executable == nullptr) {
+  Optional<ffi::Function> vm_load_executable = dso_mod->GetFunction("vm_load_executable");
+  if (!vm_load_executable.has_value()) {
     // not built by RelaxVM, return the dso_mod directly
     return dso_mod;
   }
-  auto mod = vm_load_executable().cast<Module>();
-  ffi::Function vm_initialization = mod.GetFunction("vm_initialization");
-  CHECK(vm_initialization != nullptr)
-      << "ValueError: File `" << path
-      << "` is not built by RelaxVM, because `vm_initialization` does not exist";
-  vm_initialization(static_cast<int>(dev.device_type), static_cast<int>(dev.device_id),
-                    static_cast<int>(AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
-                    static_cast<int>(AllocatorType::kPooled));
+  auto mod = (*vm_load_executable)().cast<ffi::Module>();
+  Optional<ffi::Function> vm_initialization = mod->GetFunction("vm_initialization");
+  if (!vm_initialization.has_value()) {
+    LOG(FATAL) << "ValueError: File `" << path
+               << "` is not built by RelaxVM, because `vm_initialization` does not exist";
+  }
+  (*vm_initialization)(static_cast<int>(dev.device_type), static_cast<int>(dev.device_id),
+                       static_cast<int>(AllocatorType::kPooled), static_cast<int>(kDLCPU), 0,
+                       static_cast<int>(AllocatorType::kPooled));
   return mod;
 }
 

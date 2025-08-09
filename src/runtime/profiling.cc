@@ -792,59 +792,60 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("runtime.profiling.DeviceWrapper", [](Device dev) { return DeviceWrapper(dev); });
 });
 
-ffi::Function ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
-                              int warmup_iters, Array<MetricCollector> collectors) {
+ffi::Function ProfileFunction(ffi::Module mod, std::string func_name, int device_type,
+                              int device_id, int warmup_iters, Array<MetricCollector> collectors) {
   // Module::GetFunction is not const, so this lambda has to be mutable
-  return ffi::Function::FromPacked(
-      [=](const ffi::AnyView* args, int32_t num_args, ffi::Any* ret) mutable {
-        ffi::Function f = mod.GetFunction(func_name);
-        CHECK(f.defined()) << "There is no function called \"" << func_name << "\" in the module";
-        Device dev{static_cast<DLDeviceType>(device_type), device_id};
+  return ffi::Function::FromPacked([=](const ffi::AnyView* args, int32_t num_args,
+                                       ffi::Any* ret) mutable {
+    auto optf = mod->GetFunction(func_name);
+    CHECK(optf.has_value()) << "There is no function called \"" << func_name << "\" in the module";
+    auto f = *optf;
+    Device dev{static_cast<DLDeviceType>(device_type), device_id};
 
-        // warmup
-        for (int i = 0; i < warmup_iters; i++) {
-          f.CallPacked(args, num_args, ret);
-        }
+    // warmup
+    for (int i = 0; i < warmup_iters; i++) {
+      f.CallPacked(args, num_args, ret);
+    }
 
-        for (auto& collector : collectors) {
-          collector->Init({DeviceWrapper(dev)});
-        }
-        std::vector<Map<String, ffi::Any>> results;
-        results.reserve(collectors.size());
-        std::vector<std::pair<MetricCollector, ObjectRef>> collector_data;
-        collector_data.reserve(collectors.size());
-        for (auto& collector : collectors) {
-          ObjectRef o = collector->Start(dev);
-          // If not defined, then the collector cannot time this device.
-          if (o.defined()) {
-            collector_data.push_back({collector, o});
-          }
-        }
+    for (auto& collector : collectors) {
+      collector->Init({DeviceWrapper(dev)});
+    }
+    std::vector<Map<String, ffi::Any>> results;
+    results.reserve(collectors.size());
+    std::vector<std::pair<MetricCollector, ObjectRef>> collector_data;
+    collector_data.reserve(collectors.size());
+    for (auto& collector : collectors) {
+      ObjectRef o = collector->Start(dev);
+      // If not defined, then the collector cannot time this device.
+      if (o.defined()) {
+        collector_data.push_back({collector, o});
+      }
+    }
 
-        // TODO(tkonolige): repeated calls if the runtime is small?
-        f.CallPacked(args, num_args, ret);
+    // TODO(tkonolige): repeated calls if the runtime is small?
+    f.CallPacked(args, num_args, ret);
 
-        for (auto& kv : collector_data) {
-          results.push_back(kv.first->Stop(kv.second));
-        }
-        Map<String, ffi::Any> combined_results;
-        for (auto m : results) {
-          for (auto p : m) {
-            // assume that there is no shared metric name between collectors
-            combined_results.Set(p.first, p.second);
-          }
-        }
-        *ret = combined_results;
-      });
+    for (auto& kv : collector_data) {
+      results.push_back(kv.first->Stop(kv.second));
+    }
+    Map<String, ffi::Any> combined_results;
+    for (auto m : results) {
+      for (auto p : m) {
+        // assume that there is no shared metric name between collectors
+        combined_results.Set(p.first, p.second);
+      }
+    }
+    *ret = combined_results;
+  });
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
       "runtime.profiling.ProfileFunction",
-      [](Module mod, String func_name, int device_type, int device_id, int warmup_iters,
+      [](ffi::Module mod, String func_name, int device_type, int device_id, int warmup_iters,
          Array<MetricCollector> collectors) {
-        if (mod->type_key() == std::string("rpc")) {
+        if (mod->kind() == std::string("rpc")) {
           LOG(FATAL)
               << "Profiling a module over RPC is not yet supported";  // because we can't send
                                                                       // MetricCollectors over rpc.

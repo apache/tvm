@@ -94,9 +94,9 @@ class TestSigmoid(BaseSigmoid):
         with tvm.transform.PassContext(opt_level=3):
             runtime_module = tvm.compile(tir_s.mod, target=get_hexagon_target("v69"))
 
-        assert "hvx_sigmoid" in runtime_module.get_source("asm")
-        assert "vmin" in runtime_module.get_source("asm")
-        assert "vmax" in runtime_module.get_source("asm")
+        assert "hvx_sigmoid" in runtime_module.inspect_source("asm")
+        assert "vmin" in runtime_module.inspect_source("asm")
+        assert "vmax" in runtime_module.inspect_source("asm")
         mod = hexagon_session.load_module(runtime_module)
 
         mod(input_data, output_data)

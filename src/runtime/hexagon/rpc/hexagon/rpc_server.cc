@@ -36,7 +36,6 @@ extern "C" {
 #include <memory>
 #include <string>
 
-#include "../../../library_module.h"
 #include "../../../minrpc/minrpc_server.h"
 #include "../../hexagon/hexagon_common.h"
 #include "../../hexagon/hexagon_device_api.h"
@@ -335,9 +334,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def_packed("tvm.hexagon.load_module",
                   [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {
                     auto soname = args[0].cast<std::string>();
-                    tvm::ObjectPtr<tvm::runtime::Library> n =
-                        tvm::runtime::CreateDSOLibraryObject(soname);
-                    *rv = CreateModuleFromLibrary(n);
+                    auto floader =
+                        tvm::ffi::Function::GetGlobalRequired("ffi.Module.load_from_file.so");
+                    *rv = floader(soname, "so");
                   })
       .def_packed(
           "tvm.hexagon.get_profile_output", [](tvm::ffi::PackedArgs args, tvm::ffi::Any* rv) {

@@ -64,7 +64,7 @@ def test_dso_module_load(target):
         )
         m = tvm.tir.build(mod, target=target)
         for name in names:
-            m.save(name)
+            m.write_to_file(name)
 
     path_obj = temp.relpath("test.o")
     path_ll = temp.relpath("test.ll")
@@ -169,8 +169,8 @@ def test_combine_module_llvm():
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
-        fadd1.save(path1)
-        fadd2.save(path2)
+        fadd1.write_to_file(path1)
+        fadd2.write_to_file(path2)
         # create shared library with multiple functions
         cc.create_shared(path_dso, [path1, path2])
         m = tvm.runtime.load_module(path_dso)
@@ -195,8 +195,8 @@ def test_combine_module_llvm():
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
-        fadd1.save(path1)
-        fadd2.save(path2)
+        fadd1.write_to_file(path1)
+        fadd2.write_to_file(path2)
         cc.create_shared(path_dso, [path1, path2])
 
         def popen_check():

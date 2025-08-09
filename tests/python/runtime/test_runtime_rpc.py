@@ -80,7 +80,7 @@ def test_bigendian_rpc():
         b = tvm.nd.array(np.zeros(shape).astype(A.dtype), device=dev)
         temp = utils.tempdir()
         path_dso = temp.relpath("dev_lib.o")
-        f.save(path_dso)
+        f.write_to_file(path_dso)
         remote.upload(path_dso)
         f = remote.load_module("dev_lib.o")
         f(a, b)

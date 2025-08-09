@@ -43,7 +43,7 @@ namespace runtime {
  *
  * \return The created ConstLoaderModule.
  */
-Module ConstLoaderModuleCreate(
+ffi::Module ConstLoaderModuleCreate(
     const std::unordered_map<std::string, NDArray>& const_var_ndarray,
     const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol);
 

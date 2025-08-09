@@ -192,7 +192,7 @@ def test_subroutine_call():
         "subroutine" not in func_names
     ), "Internal function should not be listed in available functions."
 
-    source = built.get_source()
+    source = built.inspect_source()
     assert (
         source.count("main(void*") == 2
     ), "Expected two occurrences, for forward-declaration and definition"

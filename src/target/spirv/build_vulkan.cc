@@ -32,7 +32,7 @@
 namespace tvm {
 namespace codegen {
 
-runtime::Module BuildSPIRV(IRModule mod, Target target) {
+ffi::Module BuildSPIRV(IRModule mod, Target target) {
   auto [smap, spirv_text] = LowerToSPIRV(mod, target);
   return runtime::VulkanModuleCreate(smap, ExtractFuncInfo(mod), spirv_text);
 }

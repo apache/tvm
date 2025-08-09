@@ -94,7 +94,7 @@ class DModule(DRef):
         self.session = session
 
     def __getitem__(self, name: str) -> DPackedFunc:
-        func = self.session._get_cached_method("runtime.ModuleGetFunction")
+        func = self.session._get_cached_method("ffi.ModuleGetFunction")
         return DPackedFunc(func(self, name, False), self.session)
 
 
@@ -328,7 +328,10 @@ class Session(Object):
         self._clear_ipc_memory_pool()
 
     def broadcast(
-        self, src: Union[np.ndarray, NDArray], dst: Optional[DRef] = None, in_group: bool = True
+        self,
+        src: Union[np.ndarray, NDArray],
+        dst: Optional[DRef] = None,
+        in_group: bool = True,
     ) -> DRef:
         """Broadcast an array to all workers
 
@@ -383,7 +386,10 @@ class Session(Object):
         func(src, in_group, dst)
 
     def scatter(
-        self, src: Union[np.ndarray, NDArray], dst: Optional[DRef] = None, in_group: bool = True
+        self,
+        src: Union[np.ndarray, NDArray],
+        dst: Optional[DRef] = None,
+        in_group: bool = True,
     ) -> DRef:
         """Scatter an array across all workers
 
@@ -540,7 +546,10 @@ class ProcessSession(Session):
     """A Disco session backed by pipe-based multi-processing."""
 
     def __init__(
-        self, num_workers: int, num_groups: int = 1, entrypoint: str = "tvm.exec.disco_worker"
+        self,
+        num_workers: int,
+        num_groups: int = 1,
+        entrypoint: str = "tvm.exec.disco_worker",
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.SessionProcess,  # type: ignore # pylint: disable=no-member
@@ -585,7 +594,12 @@ class SocketSession(Session):
     """A Disco session backed by socket-based multi-node communication."""
 
     def __init__(
-        self, num_nodes: int, num_workers_per_node: int, num_groups: int, host: str, port: int
+        self,
+        num_nodes: int,
+        num_workers_per_node: int,
+        num_groups: int,
+        host: str,
+        port: int,
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.SocketSession,  # type: ignore # pylint: disable=no-member

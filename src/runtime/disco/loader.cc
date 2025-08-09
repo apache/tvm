@@ -117,7 +117,7 @@ class ShardLoaderObj : public Object {
  public:
   /*! \brief Create a shard loader. */
   static ObjectRef Create(const std::string& path_to_metadata, const std::string& metadata,
-                          std::string shard_info, Module mod);
+                          std::string shard_info, Optional<ffi::Module> mod);
   /*! \brief Load the i-th parameter */
   NDArray Load(int weight_index) const;
 
@@ -175,11 +175,10 @@ class ShardLoaderObj : public Object {
 };
 
 ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std::string& metadata,
-                                 std::string shard_info, Module mod) {
-  if (shard_info.empty() && mod.defined()) {
-    if (ffi::Function get_shard_info = mod->GetFunction("get_shard_info");
-        get_shard_info != nullptr) {
-      shard_info = get_shard_info().cast<String>();
+                                 std::string shard_info, Optional<ffi::Module> mod) {
+  if (shard_info.empty() && mod.has_value()) {
+    if (auto get_shard_info = (*mod)->GetFunction("get_shard_info")) {
+      shard_info = (*get_shard_info)().cast<String>();
     }
   }
   ObjectPtr<ShardLoaderObj> n = make_object<ShardLoaderObj>();
@@ -195,9 +194,9 @@ ObjectRef ShardLoaderObj::Create(const std::string& path_to_metadata, const std:
       ShardInfo& shard_info = shards[name];
       for (const ShardInfo::ShardFunc& shard_func : shard_info.funcs) {
         const std::string& name = shard_func.name;
-        if (ffi::Function f = mod.defined() ? mod->GetFunction(name, true) : nullptr;
-            f != nullptr) {
-          n->shard_funcs_[name] = f;
+        if (Optional<ffi::Function> f =
+                mod.has_value() ? (*mod)->GetFunction(name, true) : std::nullopt) {
+          n->shard_funcs_[name] = *f;
         } else if (const auto f = tvm::ffi::Function::GetGlobal(name)) {
           n->shard_funcs_[name] = *f;
         } else {

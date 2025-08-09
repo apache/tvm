@@ -123,13 +123,13 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef().def("testing.ErrorTest", ErrorTest);
 });
 
-class FrontendTestModuleNode : public runtime::ModuleNode {
+class FrontendTestModuleNode : public ffi::ModuleObj {
  public:
-  const char* type_key() const final { return "frontend_test"; }
+  const char* kind() const final { return "frontend_test"; }
 
   static constexpr const char* kAddFunctionName = "__add_function";
 
-  virtual ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
+  virtual ffi::Optional<ffi::Function> GetFunction(const String& name);
 
  private:
   std::unordered_map<std::string, ffi::Function> functions_;
@@ -137,11 +137,11 @@ class FrontendTestModuleNode : public runtime::ModuleNode {
 
 constexpr const char* FrontendTestModuleNode::kAddFunctionName;
 
-ffi::Function FrontendTestModuleNode::GetFunction(const String& name,
-                                                  const ObjectPtr<Object>& sptr_to_self) {
+ffi::Optional<ffi::Function> FrontendTestModuleNode::GetFunction(const String& name) {
+  ffi::Module self_strong_ref = GetRef<ffi::Module>(this);
   if (name == kAddFunctionName) {
-    return ffi::TypedFunction<void(std::string, ffi::Function)>(
-        [this, sptr_to_self](std::string func_name, ffi::Function pf) {
+    return ffi::Function::FromTyped(
+        [this, self_strong_ref](std::string func_name, ffi::Function pf) {
           CHECK_NE(func_name, kAddFunctionName)
               << "func_name: cannot be special function " << kAddFunctionName;
           functions_[func_name] = pf;
@@ -150,15 +150,15 @@ ffi::Function FrontendTestModuleNode::GetFunction(const String& name,
 
   auto it = functions_.find(name);
   if (it == functions_.end()) {
-    return ffi::Function();
+    return std::nullopt;
   }
 
   return it->second;
 }
 
-runtime::Module NewFrontendTestModule() {
+ffi::Module NewFrontendTestModule() {
   auto n = make_object<FrontendTestModuleNode>();
-  return runtime::Module(n);
+  return ffi::Module(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({

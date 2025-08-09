@@ -225,9 +225,9 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
  * \param functions The extern functions to be compiled via TensorRT
  * \return Runtime modules.
  */
-Array<runtime::Module> TensorRTCompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
-                                        Map<Constant, String> constant_names) {
-  Array<runtime::Module> compiled_functions;
+Array<ffi::Module> TensorRTCompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
+                                    Map<Constant, String> constant_names) {
+  Array<ffi::Module> compiled_functions;
   for (const auto& func : functions) {
     VLOG(1) << "TensorRT partition:" << std::endl << func;
     TensorRTJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
@@ -237,8 +237,8 @@ Array<runtime::Module> TensorRTCompiler(Array<Function> functions, Map<String, f
     auto constant_names = serializer.GetConstantNames();
     const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.tensorrt_runtime_create");
     std::string func_name = GetExtSymbol(func);
-    VLOG(1) << "Creating tensorrt runtime::Module for '" << func_name << "'";
-    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<runtime::Module>());
+    VLOG(1) << "Creating tensorrt ffi::Module for '" << func_name << "'";
+    compiled_functions.push_back(pf(func_name, graph_json, constant_names).cast<ffi::Module>());
   }
   return compiled_functions;
 }

@@ -267,7 +267,7 @@ class RPCSession {
   /*! \brief Insert the current session to the session table.*/
   static void InsertToSessionTable(std::shared_ptr<RPCSession> sess);
   // friend declaration
-  friend Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess);
+  friend ffi::Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess);
 };
 
 /*!
@@ -341,14 +341,14 @@ class RPCObjectRef : public ObjectRef {
  * \param sess The RPC session of the global module.
  * \return The created module.
  */
-Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess);
+ffi::Module CreateRPCSessionModule(std::shared_ptr<RPCSession> sess);
 
 /*!
  * \brief Get the session module from a RPC session Module.
  * \param mod The input module(must be an RPCModule).
  * \return The internal RPCSession.
  */
-std::shared_ptr<RPCSession> RPCModuleGetSession(Module mod);
+std::shared_ptr<RPCSession> RPCModuleGetSession(ffi::Module mod);
 
 }  // namespace runtime
 }  // namespace tvm

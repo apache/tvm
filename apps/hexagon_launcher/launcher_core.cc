@@ -144,7 +144,7 @@ const tvm::ffi::Function get_runtime_func(const std::string& name) {
 }
 
 const tvm::ffi::Function get_module_func(tvm::runtime::Module module, const std::string& name) {
-  return module.GetFunction(name, false);
+  return module->GetFunction(name, false).value_or(tvm::ffi::Function());
 }
 
 void reset_device_api() {
@@ -153,7 +153,7 @@ void reset_device_api() {
 }
 
 tvm::runtime::Module load_module(const std::string& file_name) {
-  static const tvm::ffi::Function loader = get_runtime_func("runtime.module.loadfile_hexagon");
+  static const tvm::ffi::Function loader = get_runtime_func("ffi.Module.load_from_file.hexagon");
   tvm::ffi::Any rv = loader(file_name);
   if (rv.type_code() == kTVMModuleHandle) {
     ICHECK_EQ(rv.type_code(), kTVMModuleHandle)
