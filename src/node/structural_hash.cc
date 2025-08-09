@@ -21,6 +21,7 @@
  */
 #include <dmlc/memory_io.h>
 #include <tvm/ffi/extra/base64.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/extra/structural_hash.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/access_path.h>
@@ -46,16 +47,16 @@ TVM_FFI_STATIC_INIT_BLOCK({
                         [](const Any& object, bool map_free_vars) -> int64_t {
                           return ffi::StructuralHash::Hash(object, map_free_vars);
                         });
-  refl::TypeAttrDef<runtime::ModuleNode>()
+  refl::TypeAttrDef<ffi::ModuleObj>()
       .def("__data_to_json__",
-           [](const runtime::ModuleNode* node) {
-             std::string bytes = codegen::SerializeModuleToBytes(GetRef<runtime::Module>(node),
+           [](const ffi::ModuleObj* node) {
+             std::string bytes = codegen::SerializeModuleToBytes(GetRef<ffi::Module>(node),
                                                                  /*export_dso*/ false);
              return ffi::Base64Encode(ffi::Bytes(bytes));
            })
       .def("__data_from_json__", [](const String& base64_bytes) {
         Bytes bytes = ffi::Base64Decode(base64_bytes);
-        runtime::Module rtmod = codegen::DeserializeModuleFromBytes(bytes.operator std::string());
+        ffi::Module rtmod = codegen::DeserializeModuleFromBytes(bytes.operator std::string());
         return rtmod;
       });
 

@@ -440,7 +440,7 @@ void ProcessLLVMOptions(const std::vector<std::string>& llvm_vec) {
 }
 }  // namespace
 
-runtime::Module BuildHexagon(IRModule mod, Target target) {
+ffi::Module BuildHexagon(IRModule mod, Target target) {
   LLVMInstance llvm_instance;
   With<LLVMTarget> llvm_target(llvm_instance, target);
 

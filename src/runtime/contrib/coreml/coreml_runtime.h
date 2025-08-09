@@ -29,6 +29,7 @@
 #import <Foundation/Foundation.h>
 
 #include <dlpack/dlpack.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
 
@@ -95,7 +96,7 @@ class CoreMLModel {
  *  This runtime can be accessed in various language via
  *  TVM runtime ffi::Function API.
  */
-class CoreMLRuntime : public ModuleNode {
+class CoreMLRuntime : public ffi::ModuleObj {
  public:
   /*!
    * \brief Get member function to front-end.
@@ -103,11 +104,11 @@ class CoreMLRuntime : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  virtual ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
+  virtual Optional<ffi::Function> GetFunction(const String& name);
 
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final {
-    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+    return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
 
   /*!
@@ -115,12 +116,12 @@ class CoreMLRuntime : public ModuleNode {
    *        binary stream.
    * \param stream The binary stream to save to.
    */
-  void SaveToBinary(dmlc::Stream* stream) final;
+  ffi::Bytes SaveToBytes() const final;
 
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const { return "coreml"; }
+  const char* kind() const { return "coreml"; }
 
   /*!
    * \brief Initialize the coreml runtime with coreml model and context.

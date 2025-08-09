@@ -454,7 +454,7 @@ def test_alignment():
     # Build with name
     f = tvm.tir.build(sch.mod, target="llvm")
 
-    lines = f.get_source().split("\n")
+    lines = f.inspect_source().split("\n")
 
     # Check alignment on load/store.
     for l in lines:
@@ -702,7 +702,7 @@ def test_dwarf_debug_information():
         m = tvm.compile(mod, target="llvm")
         temp = utils.tempdir()
         o_path = temp.relpath("temp.o")
-        m.save(o_path)
+        m.write_to_file(o_path)
         import shutil
         import subprocess
         import sys
@@ -738,7 +738,7 @@ def test_dwarf_debug_information():
             }
         )
         m = tvm.tir.build(mod, target="llvm -mtriple=aarch64-linux-gnu")
-        ll = m.get_source("ll")
+        ll = m.inspect_source("ll")
 
         # On non-Darwin OS, don't explicitly specify DWARF version.
         import re
@@ -748,7 +748,7 @@ def test_dwarf_debug_information():
 
         # Try Darwin, require DWARF-2
         m = tvm.tir.build(mod, target="llvm -mtriple=x86_64-apple-darwin-macho")
-        ll = m.get_source("ll")
+        ll = m.inspect_source("ll")
         assert re.search(r"""i32 4, !"Dwarf Version", i32 2""", ll)
         assert re.search(r"""llvm.dbg.value""", ll)
 
@@ -802,9 +802,9 @@ def test_llvm_crt_static_lib():
         mod.with_attr("system_lib_prefix", ""),
         target=tvm.target.Target("llvm"),
     )
-    module.get_source()
+    module.inspect_source()
     with utils.tempdir() as temp:
-        module.save(temp.relpath("test.o"))
+        module.write_to_file(temp.relpath("test.o"))
 
 
 @tvm.testing.requires_llvm
@@ -829,7 +829,7 @@ def test_llvm_order_functions():
         "Kirby": make_call_extern("Kirby", "Fred"),
     }
     mod = tvm.IRModule(functions=functions)
-    ir_text = tvm.tir.build(mod, target="llvm").get_source("ll")
+    ir_text = tvm.tir.build(mod, target="llvm").inspect_source("ll")
     # Skip functions whose names start with _.
     matches = re.findall(r"^define[^@]*@([a-zA-Z][a-zA-Z0-9_]*)", ir_text, re.MULTILINE)
     assert matches == sorted(matches)
@@ -930,7 +930,7 @@ def test_llvm_target_attributes():
     target = tvm.target.Target(target_llvm, host=target_llvm)
     module = tvm.tir.build(sch.mod, target=target)
 
-    llvm_ir = module.get_source()
+    llvm_ir = module.inspect_source()
     llvm_ir_lines = llvm_ir.split("\n")
 
     attribute_definitions = dict()

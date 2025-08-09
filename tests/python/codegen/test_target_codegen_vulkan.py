@@ -86,7 +86,7 @@ def test_vector_comparison(target, dev, dtype):
 
     # Verify we generate the boolx4 type declaration and the OpSelect
     # v4{float,half,int} instruction
-    assembly = f.imported_modules[0].get_source()
+    assembly = f.imports[0].inspect_source()
     matches = re.findall("%v4bool = OpTypeVector %bool 4", assembly)
     assert len(matches) == 1
     matches = re.findall("OpSelect %v4.*", assembly)

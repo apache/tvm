@@ -20,6 +20,8 @@
 #ifndef TVM_RUNTIME_VULKAN_VULKAN_MODULE_H_
 #define TVM_RUNTIME_VULKAN_VULKAN_MODULE_H_
 
+#include <tvm/ffi/extra/module.h>
+
 #include <string>
 #include <unordered_map>
 
@@ -29,8 +31,9 @@
 namespace tvm {
 namespace runtime {
 namespace vulkan {
-Module VulkanModuleCreate(std::unordered_map<std::string, SPIRVShader> smap,
-                          std::unordered_map<std::string, FunctionInfo> fmap, std::string source);
+ffi::Module VulkanModuleCreate(std::unordered_map<std::string, SPIRVShader> smap,
+                               std::unordered_map<std::string, FunctionInfo> fmap,
+                               std::string source);
 
 }  // namespace vulkan
 

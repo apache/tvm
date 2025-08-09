@@ -147,7 +147,7 @@ RPCEnv::RPCEnv(const std::string& wd) {
                              std::string file_name = this->GetPath(path);
                              file_name = BuildSharedLibrary(file_name);
                              LOG(INFO) << "Load module from " << file_name << " ...";
-                             return Module::LoadFromFile(file_name, "");
+                             return ffi::Module::LoadFromFile(file_name);
                            }));
 
   ffi::Function::SetGlobal("tvm.rpc.server.download_linked_module",

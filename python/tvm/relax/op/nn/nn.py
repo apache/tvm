@@ -1621,7 +1621,17 @@ def batch_norm(
         The computed result.
     """
     return _ffi_api.batch_norm(  # type: ignore
-        data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale, momentum, training
+        data,
+        gamma,
+        beta,
+        moving_mean,
+        moving_var,
+        axis,
+        epsilon,
+        center,
+        scale,
+        momentum,
+        training,
     )
 
 

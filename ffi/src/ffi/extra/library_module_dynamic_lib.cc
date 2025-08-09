@@ -18,15 +18,14 @@
  */
 
 /*!
- * \file dso_libary.cc
+ * \file library_module_dynamic_lib.cc
  * \brief Create library module to load from dynamic shared library.
  */
-#include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/module.h>
+#include <tvm/ffi/string.h>
 
-#include "library_module.h"
+#include "module_internal.h"
 
 #if defined(_WIN32)
 #include <windows.h>
@@ -41,46 +40,21 @@ extern "C" {
 #endif
 
 namespace tvm {
-namespace runtime {
+namespace ffi {
 
-/*!
- * \brief Dynamic shared library object used to load
- * and retrieve symbols by name. This is the default
- * module TVM uses for host-side AOT compilation.
- */
 class DSOLibrary final : public Library {
  public:
-  ~DSOLibrary();
-  /*!
-   * \brief Initialize by loading and storing
-   * a handle to the underlying shared library.
-   * \param name The string name/path to the
-   * shared library over which to initialize.
-   */
-  void Init(const std::string& name);
-  /*!
-   * \brief Returns the symbol address within
-   * the shared library for a given symbol name.
-   * \param name The name of the symbol.
-   * \return The symbol.
-   */
-  void* GetSymbol(const char* name) final;
+  explicit DSOLibrary(const String& name) { Load(name); }
+  ~DSOLibrary() {
+    if (lib_handle_) Unload();
+  }
+
+  void* GetSymbol(const char* name) final { return GetSymbol_(name); }
 
  private:
-  /*! \brief Private implementation of symbol lookup.
-   *  Implementation is operating system dependent.
-   *  \param The name of the symbol.
-   * \return The symbol.
-   */
+  // private system dependent implementation
   void* GetSymbol_(const char* name);
-  /*! \brief Implementation of shared library load.
-   *  Implementation is operating system dependent.
-   *  \param The name/path of the shared library.
-   */
-  void Load(const std::string& name);
-  /*! \brief Implementation of shared library unload.
-   *  Implementation is operating system dependent.
-   */
+  void Load(const String& name);
   void Unload();
 
 #if defined(_WIN32)
@@ -92,25 +66,17 @@ class DSOLibrary final : public Library {
 #endif
 };
 
-DSOLibrary::~DSOLibrary() {
-  if (lib_handle_) Unload();
-}
-
-void DSOLibrary::Init(const std::string& name) { Load(name); }
-
-void* DSOLibrary::GetSymbol(const char* name) { return GetSymbol_(name); }
-
 #if defined(_WIN32)
 
 void* DSOLibrary::GetSymbol_(const char* name) {
   return reinterpret_cast<void*>(GetProcAddress(lib_handle_, (LPCSTR)name));  // NOLINT(*)
 }
 
-void DSOLibrary::Load(const std::string& name) {
+void DSOLibrary::Load(const String& name) {
   // use wstring version that is needed by LLVM.
-  std::wstring wname(name.begin(), name.end());
+  std::wstring wname(name.data(), name.data() + name.size());
   lib_handle_ = LoadLibraryW(wname.c_str());
-  ICHECK(lib_handle_ != nullptr) << "Failed to load dynamic shared library " << name;
+  TVM_FFI_ICHECK(lib_handle_ != nullptr) << "Failed to load dynamic shared library " << name;
 }
 
 void DSOLibrary::Unload() {
@@ -120,10 +86,10 @@ void DSOLibrary::Unload() {
 
 #else
 
-void DSOLibrary::Load(const std::string& name) {
+void DSOLibrary::Load(const String& name) {
   lib_handle_ = dlopen(name.c_str(), RTLD_LAZY | RTLD_LOCAL);
-  ICHECK(lib_handle_ != nullptr) << "Failed to load dynamic shared library " << name << " "
-                                 << dlerror();
+  TVM_FFI_ICHECK(lib_handle_ != nullptr)
+      << "Failed to load dynamic shared library " << name << " " << dlerror();
 #if defined(__hexagon__)
   int p;
   int rc = dlinfo(lib_handle_, RTLD_DI_LOAD_ADDR, &p);
@@ -140,21 +106,13 @@ void DSOLibrary::Unload() {
   dlclose(lib_handle_);
   lib_handle_ = nullptr;
 }
-
 #endif
-
-ObjectPtr<Library> CreateDSOLibraryObject(std::string library_path) {
-  auto n = make_object<DSOLibrary>();
-  n->Init(library_path);
-  return n;
-}
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.module.loadfile_so", [](std::string library_path, std::string) {
-    ObjectPtr<Library> n = CreateDSOLibraryObject(library_path);
-    return CreateModuleFromLibrary(n);
+  refl::GlobalDef().def("ffi.Module.load_from_file.so", [](String library_path, String) {
+    return CreateLibraryModule(make_object<DSOLibrary>(library_path));
   });
 });
-}  // namespace runtime
+}  // namespace ffi
 }  // namespace tvm

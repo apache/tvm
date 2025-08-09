@@ -41,7 +41,7 @@ def test_fp16_to_fp32():
         sch.vectorize(sch.get_loops("B")[1])
         f = tvm.tir.build(sch.mod, target=target)
 
-        assembly = f.get_source("asm").splitlines()
+        assembly = f.inspect_source("asm").splitlines()
         if match:
             matches = [l for l in assembly if re.search(match, l)]
             assert matches

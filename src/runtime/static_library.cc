@@ -24,6 +24,7 @@
  */
 #include "./static_library.h"
 
+#include <dmlc/memory_io.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -42,30 +43,34 @@ namespace {
  * \brief A '.o' library which can be linked into the final output library by export_library.
  * Can be used by external codegen tools which can produce a ready-to-link artifact.
  */
-class StaticLibraryNode final : public runtime::ModuleNode {
+class StaticLibraryNode final : public ffi::ModuleObj {
  public:
-  ~StaticLibraryNode() override = default;
+  const char* kind() const final { return "static_library"; }
 
-  const char* type_key() const final { return "static_library"; }
-
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  Optional<ffi::Function> GetFunction(const String& name) final {
+    const ObjectPtr<Object>& sptr_to_self = ffi::GetObjectPtr<Object>(this);
     if (name == "get_func_names") {
       return ffi::Function(
           [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = func_names_; });
     } else {
-      return {};
+      return std::nullopt;
     }
   }
 
-  void SaveToBinary(dmlc::Stream* stream) final {
+  ffi::Bytes SaveToBytes() const final {
+    std::string buffer;
+    dmlc::MemoryStringStream ms(&buffer);
+    dmlc::Stream* stream = &ms;
     stream->Write(data_);
     std::vector<std::string> func_names;
     for (const auto func_name : func_names_) func_names.push_back(func_name);
     stream->Write(func_names);
+    return Bytes(buffer);
   }
 
-  static Module LoadFromBinary(void* strm) {
-    dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+  static ffi::Module LoadFromBytes(ffi::Bytes bytes) {
+    dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
+    dmlc::Stream* stream = &ms;
     auto n = make_object<StaticLibraryNode>();
     // load data
     std::string data;
@@ -77,10 +82,10 @@ class StaticLibraryNode final : public runtime::ModuleNode {
     ICHECK(stream->Read(&func_names)) << "Loading func names failed";
     for (auto func_name : func_names) n->func_names_.push_back(String(func_name));
 
-    return Module(n);
+    return ffi::Module(n);
   }
 
-  void SaveToFile(const String& file_name, const String& format) final {
+  void WriteToFile(const String& file_name, const String& format) const final {
     VLOG(0) << "Saving static library of " << data_.size() << " bytes implementing " << FuncNames()
             << " to '" << file_name << "'";
     SaveBinaryToFile(file_name, data_);
@@ -88,14 +93,14 @@ class StaticLibraryNode final : public runtime::ModuleNode {
 
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const override {
-    return runtime::ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kDSOExportable;
+    return ffi::Module::kBinarySerializable | ffi::Module::kCompilationExportable;
   }
 
-  bool ImplementsFunction(const String& name, bool query_imports) final {
+  bool ImplementsFunction(const String& name) final {
     return std::find(func_names_.begin(), func_names_.end(), name) != func_names_.end();
   }
 
-  std::string FuncNames() {
+  std::string FuncNames() const {
     std::ostringstream os;
     os << "[";
     bool first = true;
@@ -119,19 +124,19 @@ class StaticLibraryNode final : public runtime::ModuleNode {
 
 }  // namespace
 
-Module LoadStaticLibrary(const std::string& filename, Array<String> func_names) {
+ffi::Module LoadStaticLibrary(const std::string& filename, Array<String> func_names) {
   auto node = make_object<StaticLibraryNode>();
   LoadBinaryFromFile(filename, &node->data_);
   node->func_names_ = std::move(func_names);
   VLOG(0) << "Loaded static library from '" << filename << "' implementing " << node->FuncNames();
-  return Module(node);
+  return ffi::Module(node);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.ModuleLoadStaticLibrary", LoadStaticLibrary)
-      .def("runtime.module.loadbinary_static_library", StaticLibraryNode::LoadFromBinary);
+      .def("ffi.Module.load_from_bytes.static_library", StaticLibraryNode::LoadFromBytes);
 });
 
 }  // namespace runtime

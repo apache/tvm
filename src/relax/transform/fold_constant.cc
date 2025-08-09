@@ -119,8 +119,8 @@ class ConstantFolder : public ExprMutator {
       // TODO(Hongyi): further check and narrow the scope of foldable function
       const auto pf = tvm::ffi::Function::GetGlobalRequired("tir.build");
       func = WithAttr(func, tvm::attr::kGlobalSymbol, String("tir_function"));
-      runtime::Module rt_module = pf(func, eval_cpu_target).cast<runtime::Module>();
-      build_func = rt_module.GetFunction("tir_function");
+      ffi::Module rt_module = pf(func, eval_cpu_target).cast<ffi::Module>();
+      build_func = rt_module->GetFunction("tir_function");
     } catch (const tvm::Error& err) {
       // build failure may happen in which case we skip
       DLOG(WARNING) << "Build failure for function " << func << ", Error message: " << err.what();

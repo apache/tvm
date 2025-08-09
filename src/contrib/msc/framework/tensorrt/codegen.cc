@@ -599,10 +599,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
  * \param functions The extern functions to be compiled via TensorRT
  * \return Runtime modules.
  */
-Array<runtime::Module> MSCTensorRTCompiler(Array<Function> functions,
-                                           Map<String, ffi::Any> target_option,
-                                           Map<Constant, String> constant_names) {
-  Array<runtime::Module> compiled_functions;
+Array<ffi::Module> MSCTensorRTCompiler(Array<Function> functions,
+                                       Map<String, ffi::Any> target_option,
+                                       Map<Constant, String> constant_names) {
+  Array<ffi::Module> compiled_functions;
   for (const auto& func : functions) {
     VLOG(1) << "MSC.TensorRT partition:" << std::endl << func;
     const auto& name_opt = func->GetAttr<String>(msc_attr::kUnique);
@@ -615,9 +615,9 @@ Array<runtime::Module> MSCTensorRTCompiler(Array<Function> functions,
     serializer.serialize(func);
     std::string graph_json = serializer.GetJSON();
     const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.msc_tensorrt_runtime_create");
-    VLOG(1) << "Creating msc_tensorrt runtime::Module for '" << func_name << "'";
+    VLOG(1) << "Creating msc_tensorrt ffi::Module for '" << func_name << "'";
     compiled_functions.push_back(
-        pf(func_name, graph_json, serializer.GetConstantNames()).cast<runtime::Module>());
+        pf(func_name, graph_json, serializer.GetConstantNames()).cast<ffi::Module>());
   }
   return compiled_functions;
 }

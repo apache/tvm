@@ -52,7 +52,7 @@ from mod_utils import (
 
 
 def compare_codegen(clml_mod, clml_codegen):
-    source = clml_mod.attrs["external_mods"][0].get_source()
+    source = clml_mod.attrs["external_mods"][0].inspect_source()
     codegen = json.loads(source)["nodes"]
     for node in range(len(codegen)):
         if codegen[node]["op"] == "input" or codegen[node]["op"] == "const":

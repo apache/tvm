@@ -169,9 +169,9 @@ class AsyncLocalSession : public LocalSession {
       // special handle time evaluator.
       try {
         ffi::Function retfunc = this->GetTimeEvaluator(
-            args[0].cast<ffi::Optional<Module>>(), args[1].cast<std::string>(), args[2].cast<int>(),
-            args[3].cast<int>(), args[4].cast<int>(), args[5].cast<int>(), args[6].cast<int>(),
-            args[7].cast<int>(), args[8].cast<int>(), args[9].cast<int>());
+            args[0].cast<ffi::Optional<ffi::Module>>(), args[1].cast<std::string>(),
+            args[2].cast<int>(), args[3].cast<int>(), args[4].cast<int>(), args[5].cast<int>(),
+            args[6].cast<int>(), args[7].cast<int>(), args[8].cast<int>(), args[9].cast<int>());
         ffi::Any rv;
         rv = retfunc;
         this->EncodeReturn(std::move(rv), [&](ffi::PackedArgs encoded_args) {
@@ -252,7 +252,7 @@ class AsyncLocalSession : public LocalSession {
   std::optional<ffi::Function> async_wait_;
 
   // time evaluator
-  ffi::Function GetTimeEvaluator(Optional<Module> opt_mod, std::string name, int device_type,
+  ffi::Function GetTimeEvaluator(Optional<ffi::Module> opt_mod, std::string name, int device_type,
                                  int device_id, int number, int repeat, int min_repeat_ms,
                                  int limit_zero_time_iterations, int cooldown_interval_ms,
                                  int repeats_to_cooldown) {
@@ -261,10 +261,10 @@ class AsyncLocalSession : public LocalSession {
     dev.device_id = device_id;
 
     if (opt_mod.defined()) {
-      Module m = opt_mod.value();
-      std::string tkey = m->type_key();
-      return WrapWasmTimeEvaluator(m.GetFunction(name, false), dev, number, repeat, min_repeat_ms,
-                                   limit_zero_time_iterations, cooldown_interval_ms,
+      ffi::Module m = opt_mod.value();
+      std::string tkey = m->kind();
+      return WrapWasmTimeEvaluator(m->GetFunction(name, false).value(), dev, number, repeat,
+                                   min_repeat_ms, limit_zero_time_iterations, cooldown_interval_ms,
                                    repeats_to_cooldown);
     } else {
       auto pf = tvm::ffi::Function::GetGlobal(name);

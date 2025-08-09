@@ -189,8 +189,8 @@ class RuntimeContext implements Disposable {
     this.functionListGlobalNamesFunctor = getGlobalFunc(
       "ffi.FunctionListGlobalNamesFunctor"
     );
-    this.moduleGetFunction = getGlobalFunc("runtime.ModuleGetFunction");
-    this.moduleImport = getGlobalFunc("runtime.ModuleImport");
+    this.moduleGetFunction = getGlobalFunc("ffi.ModuleGetFunction");
+    this.moduleImport = getGlobalFunc("ffi.ModuleImportModule");
     this.ndarrayEmpty = getGlobalFunc("runtime.TVMArrayAllocWithScope");
     this.ndarrayCopyFromTo = getGlobalFunc("runtime.TVMArrayCopyFromTo");
     this.ndarrayCopyFromJSBytes = getGlobalFunc("tvmjs.runtime.NDArrayCopyFromBytes");
@@ -199,7 +199,7 @@ class RuntimeContext implements Disposable {
     this.arrayGetSize = getGlobalFunc("ffi.ArraySize");
     this.arrayMake = getGlobalFunc("ffi.Array");
     this.arrayConcat = getGlobalFunc("tvmjs.runtime.ArrayConcat");
-    this.getSysLib = getGlobalFunc("runtime.SystemLib");
+    this.getSysLib = getGlobalFunc("ffi.SystemLib");
     this.arrayCacheGet = getGlobalFunc("vm.builtin.ndarray_cache.get");
     this.arrayCacheRemove = getGlobalFunc("vm.builtin.ndarray_cache.remove");
     this.arrayCacheUpdate = getGlobalFunc("vm.builtin.ndarray_cache.update");
@@ -1900,7 +1900,7 @@ export class Instance implements Disposable {
       (handle: number, lib: FFILibrary, ctx: RuntimeContext) => {
         return new TVMArray(handle, lib, ctx);
       });
-    this.registerObjectConstructor("runtime.Module",
+    this.registerObjectConstructor("ffi.Module",
       (handle: number, lib: FFILibrary, ctx: RuntimeContext) => {
         return new Module(handle, lib, ctx);
       });
