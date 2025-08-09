@@ -13,24 +13,7 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
-"""Legalize high-level operator calls in Relax functions to call_tir."""
-from . import binary
-from . import ccl
-from . import create
-from . import datatype
-from . import distributed
-from . import grad
-from . import image
-from . import index
-from . import inspect_op
-from . import linear_algebra
-from . import manipulate
-from . import nn
-from . import qdq
-from . import search
-from . import statistical
-from . import unary
+"""FFI APIs for Adreno transform"""
+import tvm.ffi
 
-# Device specific legalizations
-from . import adreno
+tvm.ffi._init_api("relax.backend.adreno.transform", __name__)
