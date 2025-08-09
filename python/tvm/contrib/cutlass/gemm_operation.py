@@ -341,15 +341,15 @@ def instantiate_gemm_template(attrs):
   cutlass::device_memory::allocation<uint8_t> workspace(workspace_size);
   ${kernel} gemm_op;
   cutlass::Status status = gemm_op.can_implement(arguments);
-  CHECK(status == cutlass::Status::kSuccess);
+  TVM_FFI_ICHECK(status == cutlass::Status::kSuccess);
   status = gemm_op.initialize(arguments, workspace.get());
-  CHECK(status == cutlass::Status::kSuccess);
+  TVM_FFI_ICHECK(status == cutlass::Status::kSuccess);
 
   auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
   cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
 
   status = gemm_op(stream);
-  CHECK(status == cutlass::Status::kSuccess);
+  TVM_FFI_ICHECK(status == cutlass::Status::kSuccess);
 """
     op_type = attrs["op_type"]
     has_bias = "bias" in op_type

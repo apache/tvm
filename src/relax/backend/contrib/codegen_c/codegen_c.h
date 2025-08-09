@@ -83,7 +83,7 @@ class CodegenCBase {
     code_stream_ << "#ifdef __cplusplus\n";
     code_stream_ << "extern \"C\" {\n";
     code_stream_ << "#endif\n";
-    code_stream_ << "TVM_DLL int32_t ";
+    code_stream_ << "int32_t ";
     code_stream_ << func_name << "(";
     code_stream_ << "tvm::ffi::PackedArgs args, ";
     code_stream_ << "tvm::ffi::AnyView* out_value) {\n";
