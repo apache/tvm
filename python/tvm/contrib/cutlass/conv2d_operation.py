@@ -418,17 +418,17 @@ def instantiate_conv2d_template(attrs):
   size_t workspace_size = conv2d_op.get_workspace_size(arguments);
   cutlass::device_memory::allocation<uint8_t> workspace(workspace_size);
   cutlass::Status status = conv2d_op.can_implement(arguments);
-  CHECK(status == cutlass::Status::kSuccess);
+  TVM_FFI_ICHECK(status == cutlass::Status::kSuccess);
   ${split_k_reset}
   status = conv2d_op.initialize(arguments, workspace.get());
-  CHECK(status == cutlass::Status::kSuccess);
+  TVM_FFI_ICHECK(status == cutlass::Status::kSuccess);
   ${split_k_update}
 
   auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
   cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
 
   status = conv2d_op(stream);
-  CHECK(status == cutlass::Status::kSuccess);
+  TVM_FFI_ICHECK(status == cutlass::Status::kSuccess);
   ${split_k_reduction}
 """
 
@@ -439,7 +439,7 @@ def instantiate_conv2d_template(attrs):
     split_k_update = """
   arguments.output_op = {ElementComputeEpilogue(1), ElementComputeEpilogue(0)};
   status = conv2d_op.update(arguments, workspace.get());
-  CHECK(status == cutlass::Status::kSuccess);
+  TVM_FFI_ICHECK(status == cutlass::Status::kSuccess);
 """
 
     split_k_reduction = """
