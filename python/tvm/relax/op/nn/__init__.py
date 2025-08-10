@@ -20,7 +20,6 @@ from .nn import (
     adaptive_avg_pool2d,
     adaptive_avg_pool3d,
     attention,
-    attention_gqa,
     attention_bias,
     attention_var_len,
     avg_pool1d,

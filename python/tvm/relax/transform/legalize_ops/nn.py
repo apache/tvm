@@ -18,6 +18,7 @@
 """Default legalization function for neural network operators."""
 import logging
 import math
+from turtle import shape
 from typing import Optional
 
 from tvm import te, tir, topi
@@ -664,107 +665,42 @@ def _nn_dropout(bb: BlockBuilder, call: Call) -> Expr:
     return call
 
 
-# def _te_attention(
-#     q: te.Tensor,
-#     k: te.Tensor,
-#     v: te.Tensor,
-#     bias: te.Tensor,
-#     scale: tir.FloatImm,
-#     causal_mask: Optional[str],
-#     enable_gqa: Optional[bool]
-# ) -> te.Tensor:
-#     batch_size, seq_len, num_head, head_dim = q.shape
-#     _, seq_len_kv, _, head_dim_v = v.shape
-#     q = topi.transpose(q, [0, 2, 1, 3])
-#     k = topi.transpose(k, [0, 2, 1, 3])
-#     v = topi.transpose(v, [0, 2, 1, 3])
-#     q = topi.reshape(q, [batch_size * num_head, seq_len, head_dim])
-#     k = topi.reshape(k, [batch_size * num_head, seq_len_kv, head_dim])
-#     v = topi.reshape(v, [batch_size * num_head, seq_len_kv, head_dim_v])
-#     p = topi.nn.batch_matmul(q, k)
-#     if scale is not None:
-#         p = topi.multiply(p, scale)
-#     else:
-#         p = topi.divide(p, tir.sqrt(tir.Cast(p.dtype, head_dim)))
-#     if bias is not None:
-#         p = topi.reshape(p, [batch_size, num_head, seq_len, seq_len_kv])
-#         p = topi.add(p, bias)
-#         p = topi.reshape(p, [batch_size * num_head, seq_len, seq_len_kv])
-#     if causal_mask is None:
-#         s = topi.nn.softmax(p)
-#     else:
-#         if causal_mask == "TopLeft":
-#             offset = tir.IntImm("int32", 0)
-#         elif causal_mask == "BottomRight":
-#             offset = tir.abs(seq_len - seq_len_kv).astype("int32")
-#         else:
-#             raise NotImplementedError()
-#         p_masked = topi.trilu(p, k=offset, upper=False)
-#         p_masked_exp = topi.trilu(
-#             topi.exp(p_masked - topi.max(p_masked, axis=-1, keepdims=True)), k=offset, upper=False
-#         )
-#         p_masked_sum = topi.sum(p_masked_exp, axis=-1, keepdims=True)
-#         s = topi.divide(p_masked_exp, p_masked_sum)
-#     o = topi.nn.batch_matmul(s, v, transpose_b=False)
-#     o = topi.reshape(o, [batch_size, num_head, seq_len, head_dim_v])
-#     return topi.transpose(o, [0, 2, 1, 3])
-
 def _te_attention(
     q: te.Tensor,
     k: te.Tensor,
     v: te.Tensor,
-    bias: Optional[te.Tensor],
-    scale: Optional[tir.FloatImm],
+    bias: te.Tensor,
+    scale: tir.FloatImm,
     causal_mask: Optional[str],
-    enable_gqa: Optional[bool]=False,
-    num_kv_heads: Optional[tir.IntImm] = None,  # Required if GQA enabled
+    enable_gqa: Optional[bool] = False,
 ) -> te.Tensor:
-    batch_size, seq_len, num_q_heads, head_dim = q.shape
-    _, seq_len_kv, _, head_dim_v = v.shape
+    batch_size, seq_len, num_head, head_dim = q.shape
+    _, seq_len_kv, num_head_v, head_dim_v = v.shape
+
+    q = topi.transpose(q, [0, 2, 1, 3])
+    q = topi.reshape(q, [batch_size * num_head, seq_len, head_dim])
 
     if enable_gqa:
-        assert num_kv_heads is not None, "num_kv_heads must be provided when GQA is enabled"
-        head_group_size = num_q_heads // num_kv_heads
-        head_group_size = int(head_group_size)  # Ensure it's a Python int
+        assert int(num_head) % int(num_head_v) == 0, "num_q_heads must be divisible by num_kv_heads"
+        head_group_size = int(num_head) // int(num_head_v)
 
-        assert num_q_heads % num_kv_heads == 0, "num_q_heads must be divisible by num_kv_heads"
+        k = topi.repeat(k, head_group_size, axis=2)
+        v = topi.repeat(v, head_group_size, axis=2)
 
-        # Reshape Q to (B * num_q_heads, S_q, D)
-        q = topi.transpose(q, [0, 2, 1, 3])
-        q = topi.reshape(q, [batch_size * num_q_heads, seq_len, head_dim])
+    k = topi.transpose(k, [0, 2, 1, 3])
+    v = topi.transpose(v, [0, 2, 1, 3])
+    k = topi.reshape(k, [batch_size * num_head, seq_len_kv, head_dim])
+    v = topi.reshape(v, [batch_size * num_head, seq_len_kv, head_dim_v])
 
-        # Reshape K/V to (B, num_kv_heads, S_kv, D) → tile across query groups
-        k = topi.transpose(k, [0, 2, 1, 3])  # (B, Hk, S_kv, D)
-        v = topi.transpose(v, [0, 2, 1, 3])  # (B, Hk, S_kv, D)
-
-        k = topi.repeat(k, head_group_size, axis=1)  # (B, Hq, S_kv, D)
-        v = topi.repeat(v, head_group_size, axis=1)  # (B, Hq, S_kv, D)
-
-        k = topi.reshape(k, [batch_size * num_q_heads, seq_len_kv, head_dim])
-        v = topi.reshape(v, [batch_size * num_q_heads, seq_len_kv, head_dim_v])
-    else:
-        # Standard MHA flow
-        q = topi.transpose(q, [0, 2, 1, 3])
-        k = topi.transpose(k, [0, 2, 1, 3])
-        v = topi.transpose(v, [0, 2, 1, 3])
-        q = topi.reshape(q, [batch_size * num_q_heads, seq_len, head_dim])
-        k = topi.reshape(k, [batch_size * num_q_heads, seq_len_kv, head_dim])
-        v = topi.reshape(v, [batch_size * num_q_heads, seq_len_kv, head_dim_v])
-
-    # Attention score
-    p = topi.nn.batch_matmul(q, k, transpose_b=True)
-
+    p = topi.nn.batch_matmul(q, k)
     if scale is not None:
         p = topi.multiply(p, scale)
     else:
         p = topi.divide(p, tir.sqrt(tir.Cast(p.dtype, head_dim)))
-
     if bias is not None:
-        p = topi.reshape(p, [batch_size, num_q_heads, seq_len, seq_len_kv])
+        p = topi.reshape(p, [batch_size, num_head, seq_len, seq_len_kv])
         p = topi.add(p, bias)
-        p = topi.reshape(p, [batch_size * num_q_heads, seq_len, seq_len_kv])
-
-    # Masking
+        p = topi.reshape(p, [batch_size * num_head, seq_len, seq_len_kv])
     if causal_mask is None:
         s = topi.nn.softmax(p)
     else:
@@ -774,36 +710,16 @@ def _te_attention(
             offset = tir.abs(seq_len - seq_len_kv).astype("int32")
         else:
             raise NotImplementedError()
-
         p_masked = topi.trilu(p, k=offset, upper=False)
         p_masked_exp = topi.trilu(
             topi.exp(p_masked - topi.max(p_masked, axis=-1, keepdims=True)), k=offset, upper=False
         )
         p_masked_sum = topi.sum(p_masked_exp, axis=-1, keepdims=True)
         s = topi.divide(p_masked_exp, p_masked_sum)
-
     o = topi.nn.batch_matmul(s, v, transpose_b=False)
-    o = topi.reshape(o, [batch_size, num_q_heads, seq_len, head_dim_v])
+    o = topi.reshape(o, [batch_size, num_head, seq_len, head_dim_v])
     return topi.transpose(o, [0, 2, 1, 3])
 
-
-@register_legalize("relax.nn.attention_gqa")
-def _nn_attention(bb: BlockBuilder, call: Call) -> Expr:
-    assert (
-        call.attrs.window_size is None
-    ), "Legalization for sliding-window attention is not supported yet."
-    return bb.call_te(
-        _te_attention,
-        call.args[0],
-        call.args[1],
-        call.args[2],
-        None,
-        call.attrs.scale,
-        call.attrs.causal_mask,
-        call.attrs.enable_gqa,
-        call.attrs.num_kv_heads,
-        primfunc_name_hint="attention_gqa",
-    )
 
 @register_legalize("relax.nn.attention")
 def _nn_attention(bb: BlockBuilder, call: Call) -> Expr:
@@ -818,6 +734,7 @@ def _nn_attention(bb: BlockBuilder, call: Call) -> Expr:
         None,
         call.attrs.scale,
         call.attrs.causal_mask,
+        call.attrs.enable_gqa,
         primfunc_name_hint="attention",
     )
 
@@ -835,6 +752,7 @@ def _nn_attention_bias(bb: BlockBuilder, call: Call) -> Expr:
         call.args[3],
         call.attrs.scale,
         call.attrs.causal_mask,
+        call.attrs.enable_gqa,
         primfunc_name_hint="attention_bias",
     )
 

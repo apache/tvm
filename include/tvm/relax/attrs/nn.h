@@ -715,7 +715,7 @@ struct AttentionAttrs : public AttrsNodeReflAdapter<AttentionAttrs> {
   Optional<String> causal_mask;
   Optional<IntImm> window_size;
   Optional<bool> enable_gqa;
-  Optional<IntImm> num_kv_heads;
+
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AttentionAttrs>()
@@ -727,10 +727,7 @@ struct AttentionAttrs : public AttrsNodeReflAdapter<AttentionAttrs> {
         .def_ro("window_size", &AttentionAttrs::window_size,
                 "The size of the window for sliding-window attention.")
         .def_ro("enable_gqa", &AttentionAttrs::enable_gqa,
-                "The size of the enable_gqa GQA attention.")
-        .def_ro("num_kv_heads", &AttentionAttrs::num_kv_heads,
-                "The size of the num_kv_heads GQA attention.");
-    ;
+                "The size of the enable_gqa GQA attention.");
   }
 
   static constexpr const char* _type_key = "relax.attrs.AttentionAttrs";
