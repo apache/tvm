@@ -317,7 +317,7 @@ TEST_F(AProfileParser, DefaultSVESupportSVESupport) {
   TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
   EXPECT_TRUE(IsArch(target));
-#if TVM_LLVM_VERSION >= 190
+#if TVM_LLVM_VERSION >= 190 || (TVM_LLVM_VERSION / 10) == 13
   // The generic aarch64 should not have SVE enabled
   EXPECT_FALSE(Downcast<Bool>(features.at("has_sve")));
 #else
@@ -364,7 +364,7 @@ TEST_F(AProfileParser, DefaultFP16Support) {
   TargetJSON target = ParseTargetWithAttrs("", "aarch64-arm-none-eabi", {arch_attr});
   TargetFeatures features = Downcast<TargetFeatures>(target.at("features"));
   EXPECT_TRUE(IsArch(target));
-#if TVM_LLVM_VERSION >= 190
+#if TVM_LLVM_VERSION >= 190 || (TVM_LLVM_VERSION / 10) == 13
   // The generic aarch64 should not have FP16 enabled
   EXPECT_FALSE(Downcast<Bool>(features.at("has_fp16_simd")));
 #else
