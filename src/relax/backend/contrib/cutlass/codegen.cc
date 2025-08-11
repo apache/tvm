@@ -105,8 +105,6 @@ class CodegenResult : public ObjectRef {
 
 TVM_FFI_STATIC_INIT_BLOCK({ CodegenResultNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(CodegenResultNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("contrib.cutlass.CodegenResult", [](String code, Array<String> headers) {
@@ -221,7 +219,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
   }
 
   OutputType VisitExpr_(const FunctionNode* fn) final {
-    ICHECK(fn->GetAttr<String>(attr::kComposite).defined())
+    ICHECK(fn->GetAttr<String>(attr::kComposite).has_value())
         << "JSON runtime only supports composite functions";
     // FunctionNode should be handled by the caller.
     return {};

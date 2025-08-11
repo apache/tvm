@@ -46,7 +46,7 @@ ObjectRef WorkloadNode::AsJSON() const {
   // Dump the JSON string to base64
   std::string b64_mod = Base64Encode(json_mod);
   // Output
-  return Array<ObjectRef>{SHash2Str(this->shash), String(b64_mod)};
+  return Array<ffi::Any>{SHash2Str(this->shash), String(b64_mod)};
 }
 
 Workload Workload::FromJSON(const ObjectRef& json_obj) {
@@ -286,10 +286,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   PyDatabaseNode::RegisterReflection();
 });
 
-TVM_REGISTER_NODE_TYPE(WorkloadNode);
-TVM_REGISTER_NODE_TYPE(TuningRecordNode);
-TVM_REGISTER_OBJECT_TYPE(DatabaseNode);
-TVM_REGISTER_NODE_TYPE(PyDatabaseNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

@@ -43,8 +43,8 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
   } else if (auto opt_float_imm = json_obj.try_cast<FloatImm>()) {
     FloatImm float_imm = *std::move(opt_float_imm);
     os << std::setprecision(20) << float_imm->value;
-  } else if (const auto* str = json_obj.as<ffi::StringObj>()) {
-    os << '"' << support::StrEscape(str->data, str->size) << '"';
+  } else if (auto opt_str = json_obj.as<ffi::String>()) {
+    os << '"' << support::StrEscape((*opt_str).data(), (*opt_str).size()) << '"';
   } else if (const auto* array = json_obj.as<ffi::ArrayObj>()) {
     os << "[";
     int n = array->size();
@@ -75,7 +75,7 @@ void JSONDumps(Any json_obj, std::ostringstream& os) {
       if (i != 0) {
         os << ",";
       }
-      os << '"' << support::StrEscape(kv.first->data, kv.first->size) << '"';
+      os << '"' << support::StrEscape(kv.first.data(), kv.first.size()) << '"';
       os << ":";
       JSONDumps(kv.second, os);
     }
@@ -371,7 +371,7 @@ class JSONParser {
         }
         // Case 3
         Any key = ParseObject(std::move(token));
-        ICHECK(key.as<ffi::StringObj>()) << "ValueError: key must be a string, but gets: " << key;
+        ICHECK(key.as<ffi::String>()) << "ValueError: key must be a string, but gets: " << key;
         token = tokenizer_.Next();
         CHECK(token.type == TokenType::kColon)
             << "ValueError: Unexpected token before: " << tokenizer_.cur_;

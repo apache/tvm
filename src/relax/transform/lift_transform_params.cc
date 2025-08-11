@@ -22,6 +22,7 @@
  * \brief Lift local functions into global functions.
  */
 
+#include <tvm/ffi/extra/structural_equal.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
@@ -540,8 +541,8 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
     } else {
       var_remap_.Set(GetRef<Var>(lhs_var), rhs_var);
     }
-    CHECK(structural_equal.Equal(lhs_var->struct_info_, rhs_var->struct_info_,
-                                 /*map_free_vars=*/true))
+    CHECK(tvm::ffi::StructuralEqual::Equal(lhs_var->struct_info_, rhs_var->struct_info_,
+                                           /*map_free_vars=*/true))
         << "The struct info of the parameters should be the same for all target functions";
     auto lhs_tir_vars = DefinableTIRVarsInStructInfo(GetStructInfo(GetRef<Var>(lhs_var)));
     auto rhs_tir_vars = DefinableTIRVarsInStructInfo(GetStructInfo(rhs_expr));
@@ -555,8 +556,6 @@ class ParamRemapper : private ExprFunctor<void(const Expr&, const Expr&)> {
     }
   }
 
-  SEqualHandlerDefault structural_equal{/*assert_mode=*/false, /*first_mismatch=*/nullptr,
-                                        /*defer_fail=*/false};
   Map<Var, Expr> var_remap_;
   Map<tir::Var, PrimExpr> tir_var_remap_;
 };

@@ -111,7 +111,7 @@ Postproc Postproc::RewriteTensorize(bool vectorize_init_loop) {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({ RewriteTensorizeNode::RegisterReflection(); });
-TVM_REGISTER_NODE_TYPE(RewriteTensorizeNode);
+
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.PostprocRewriteTensorize", Postproc::RewriteTensorize);

@@ -82,7 +82,7 @@ struct HoistExpressionConfigNode : public AttrsNodeReflAdapter<HoistExpressionCo
     return static_cast<int>(flag) & hoisted_let_bindings;
   }
 
-  static constexpr const char* _type_key = "tir.transforms.HoistExpressionConfig";
+  static constexpr const char* _type_key = "tir.transform.HoistExpressionConfig";
   TVM_DECLARE_FINAL_OBJECT_INFO(HoistExpressionConfigNode, Object);
 };
 
@@ -100,7 +100,6 @@ class HoistExpressionConfig : public Attrs {
 
 TVM_FFI_STATIC_INIT_BLOCK({ HoistExpressionConfigNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(HoistExpressionConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.HoistExpression", HoistExpressionConfig);
 
 struct HoistIfThenElseConfigNode : public AttrsNodeReflAdapter<HoistIfThenElseConfigNode> {
@@ -113,7 +112,7 @@ struct HoistIfThenElseConfigNode : public AttrsNodeReflAdapter<HoistIfThenElseCo
         "Hoist if cond with block scope variables", refl::DefaultValue(false));
   }
 
-  static constexpr const char* _type_key = "tir.transforms.HoistIfThenElseConfig";
+  static constexpr const char* _type_key = "tir.transform.HoistIfThenElseConfig";
   TVM_DECLARE_FINAL_OBJECT_INFO(HoistIfThenElseConfigNode, Object);
 };
 
@@ -125,7 +124,6 @@ class HoistIfThenElseConfig : public Attrs {
 
 TVM_FFI_STATIC_INIT_BLOCK({ HoistIfThenElseConfigNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(HoistIfThenElseConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.HoistIfThenElse", HoistIfThenElseConfig);
 
 class HoistInfoCollector : public StmtExprVisitor {

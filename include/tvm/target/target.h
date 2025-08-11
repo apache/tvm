@@ -173,13 +173,8 @@ class TargetNode : public Object {
   /*! \brief Get the keys for this target as an unordered_set of string */
   TVM_DLL std::unordered_set<std::string> GetLibs() const;
 
-  bool SEqualReduce(const TargetNode* other, SEqualReducer equal) const;
-  void SHashReduce(SHashReducer hash_reduce) const;
-
   static constexpr const char* _type_key = "target.Target";
-
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetNode, Object);
 
  private:

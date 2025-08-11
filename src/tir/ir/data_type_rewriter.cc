@@ -91,7 +91,7 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
                           << ", but get " << s->GetTypeKey();
     const IterVarNode* iv = op->node.as<IterVarNode>();
     ICHECK(iv != nullptr) << "Expected type to be IterVarNode"
-                          << ", but get " << op->node->GetTypeKey();
+                          << ", but get " << op->node.GetTypeKey();
     PrimExpr e = VisitExpr(iv->var);
     Var var = Downcast<Var>(e);
     if (ivmap_.find(iv) == ivmap_.end()) {
@@ -373,18 +373,17 @@ Map<String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
     const Map<String, ffi::Any>& annotations) {
   auto new_annotations = annotations;
 
-  std::function<ObjectRef(const ObjectRef&)> f_mutate_obj =
-      [this, &f_mutate_obj](const ObjectRef& obj) -> ObjectRef {
-    if (!obj.defined()) {
+  std::function<Any(const Any&)> f_mutate_obj = [this, &f_mutate_obj](const Any& obj) -> Any {
+    if (obj == nullptr) {
       return obj;
     }
-    if (obj->IsInstance<BufferNode>()) {
+    if (obj.as<BufferNode>()) {
       Buffer buffer = Downcast<Buffer>(obj);
       if (Buffer new_buffer = GetRemappedBuffer(buffer); !new_buffer.same_as(buffer)) {
         return new_buffer;
       }
-    } else if (obj->IsInstance<ffi::ArrayObj>()) {
-      return Downcast<Array<ObjectRef>>(obj).Map(f_mutate_obj);
+    } else if (obj.as<ffi::ArrayObj>()) {
+      return Downcast<Array<Any>>(obj).Map(f_mutate_obj);
     }
     return obj;
   };

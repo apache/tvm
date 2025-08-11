@@ -84,7 +84,6 @@ Postproc Postproc::DisallowDynamicLoop() {
   return Postproc(n);
 }
 
-TVM_REGISTER_NODE_TYPE(DisallowDynamicLoopNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.PostprocDisallowDynamicLoop", Postproc::DisallowDynamicLoop);

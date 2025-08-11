@@ -27,7 +27,6 @@
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/expr.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/object.h>
 #include <tvm/tir/schedule/schedule.h>
 

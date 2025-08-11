@@ -48,8 +48,6 @@ PlacementSpec PlacementSpec::Replica() {
   return PlacementSpec(n);
 }
 
-TVM_REGISTER_NODE_TYPE(PlacementSpecNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
@@ -111,7 +109,6 @@ Placement Placement::FromText(String text_repr) {
   return Placement(dim_specs);
 }
 
-TVM_REGISTER_NODE_TYPE(PlacementNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
@@ -137,8 +134,6 @@ DTensorStructInfo::DTensorStructInfo(TensorStructInfo tensor_sinfo, DeviceMesh d
   n->span = span;
   data_ = std::move(n);
 }
-
-TVM_REGISTER_NODE_TYPE(DTensorStructInfoNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

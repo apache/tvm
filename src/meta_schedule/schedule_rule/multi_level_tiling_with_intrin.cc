@@ -107,7 +107,6 @@ ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(String intrin_name, String
   return ScheduleRule(node);
 }
 
-TVM_REGISTER_NODE_TYPE(MultiLevelTilingWithIntrinNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleMultiLevelTilingWithIntrin",

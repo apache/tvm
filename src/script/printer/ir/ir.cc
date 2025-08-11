@@ -26,8 +26,6 @@ namespace printer {
 
 TVM_FFI_STATIC_INIT_BLOCK({ IRFrameNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(IRFrameNode);
-
 struct SortableFunction {
   int priority;
   GlobalVar gv;
@@ -58,7 +56,7 @@ struct SortableFunction {
 };
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<IRModule>("", [](IRModule mod, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<IRModule>("", [](IRModule mod, AccessPath p, IRDocsifier d) -> Doc {
       std::vector<SortableFunction> functions;
       for (const auto& kv : mod->functions) {
         functions.push_back(SortableFunction(kv));
@@ -91,7 +89,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         const GlobalVar& gv = entry.gv;
         const BaseFunc& base_func = entry.func;
         d->cfg->binding_names.push_back(gv->name_hint);
-        Doc doc = d->AsDoc(base_func, p->Attr("functions")->MapValue(gv));
+        Doc doc = d->AsDoc(base_func, p->Attr("functions")->MapItem(gv));
         d->cfg->binding_names.pop_back();
         if (const auto* stmt_block = doc.as<StmtBlockDocNode>()) {
           (*f)->stmts.push_back(stmt_block->stmts.back());
@@ -115,22 +113,22 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<DictAttrs>("", [](DictAttrs attrs, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<DictAttrs>("", [](DictAttrs attrs, AccessPath p, IRDocsifier d) -> Doc {
       return d->AsDoc(attrs->dict, p->Attr("dict"));
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<GlobalVar>("", [](GlobalVar gv, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<GlobalVar>("", [](GlobalVar gv, AccessPath p, IRDocsifier d) -> Doc {
       return IR(d, "GlobalVar")->Call({LiteralDoc::Str(gv->name_hint, p->Attr("name_hint"))});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<DummyGlobalInfo>("", [](GlobalInfo ginfo, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<DummyGlobalInfo>("", [](GlobalInfo ginfo, AccessPath p, IRDocsifier d) -> Doc {
       return IR(d, "dummy_global_info")->Call({});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<VDevice>("", [](VDevice vdev, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<VDevice>("", [](VDevice vdev, AccessPath p, IRDocsifier d) -> Doc {
       d->AddGlobalInfo("vdevice", vdev);
       Map<String, ffi::Any> config = vdev->target->Export();
       return IR(d, "vdevice")
@@ -140,12 +138,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Op>("", [](Op op, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<Op>("", [](Op op, AccessPath p, IRDocsifier d) -> Doc {
       return IR(d, "Op")->Call({LiteralDoc::Str(op->name, p->Attr("name"))});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<FuncType>("", [](FuncType func_type, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<FuncType>("", [](FuncType func_type, AccessPath p, IRDocsifier d) -> Doc {
       return IR(d, "FuncType")
           ->Call({
               d->AsDoc<ExprDoc>(func_type->arg_types, p->Attr("arg_types")),
@@ -154,7 +152,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Range>("ir", [](Range range, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<Range>("ir", [](Range range, AccessPath p, IRDocsifier d) -> Doc {
       return IR(d, "Range")
           ->Call({
               d->AsDoc<ExprDoc>(range->min, p->Attr("min")),

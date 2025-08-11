@@ -162,7 +162,7 @@ inline InlineType AutoInlineNode::CheckInline(const tir::Schedule& sch,
     if (producer_srefs.size() == 1 &&
         tir::IsCompleteBlock(sch->state(), producer_srefs[0], scope_block) &&
         CanReverseComputeInline(state, block_sref) &&
-        !GetAnn<String>(producer_srefs[0], tir::attr::meta_schedule_auto_tensorize).defined()) {
+        !GetAnn<String>(producer_srefs[0], tir::attr::meta_schedule_auto_tensorize).has_value()) {
       return InlineType::kInlineIntoProducer;
     }
   }
@@ -195,7 +195,7 @@ ScheduleRule ScheduleRule::AutoInline(bool into_producer,          //
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({ AutoInlineNode::RegisterReflection(); });
-TVM_REGISTER_NODE_TYPE(AutoInlineNode);
+
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleAutoInline", ScheduleRule::AutoInline);
@@ -244,7 +244,7 @@ ScheduleRule ScheduleRule::InlineConstantScalars() {
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({ InlineConstantScalarsNode::RegisterReflection(); });
-TVM_REGISTER_NODE_TYPE(InlineConstantScalarsNode);
+
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleInlineConstantScalars",

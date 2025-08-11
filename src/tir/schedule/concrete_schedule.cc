@@ -311,9 +311,9 @@ BlockRV ConcreteScheduleNode::GetBlock(const String& name, const Optional<String
     Array<Block> blocks_;
   };
   GlobalVar gv = NullValue<GlobalVar>();
-  if (func_name.defined()) {
+  if (func_name.has_value()) {
     gv = state_->mod->GetGlobalVar(func_name.value());
-  } else if (func_working_on_.defined()) {
+  } else if (func_working_on_.has_value()) {
     gv = this->func_working_on_.value();
   } else {
     LOG(FATAL) << "ValueError: `get_block` does not know which function to be working on. Please "
@@ -916,8 +916,7 @@ Any ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
   if (auto opt_str = ann_val.try_cast<ffi::String>()) {
     return *std::move(opt_str);
   }
-
-  if (ann_val.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+  if (ann_val.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
     return ann_val;
   }
   // prefer to return int/float literals for annotations

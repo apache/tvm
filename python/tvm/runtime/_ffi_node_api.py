@@ -28,14 +28,6 @@ def AsRepr(obj):
     return type(obj).__name__ + "(" + obj.__ctypes_handle__().value + ")"
 
 
-def NodeListAttrNames(obj):
-    return lambda x: 0
-
-
-def NodeGetAttr(obj, name):
-    raise AttributeError()
-
-
 def SaveJSON(obj):
     raise RuntimeError("Do not support object serialization in runtime only mode")
 

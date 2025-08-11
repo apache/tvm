@@ -60,6 +60,7 @@ class AnyView {
   void reset() {
     data_.type_index = TypeIndex::kTVMFFINone;
     // invariance: always set the union padding part to 0
+    data_.zero_padding = 0;
     data_.v_int64 = 0;
   }
   /*!
@@ -72,6 +73,7 @@ class AnyView {
   // default constructors
   AnyView() {
     data_.type_index = TypeIndex::kTVMFFINone;
+    data_.zero_padding = 0;
     data_.v_int64 = 0;
   }
   ~AnyView() = default;
@@ -80,6 +82,7 @@ class AnyView {
   AnyView& operator=(const AnyView&) = default;
   AnyView(AnyView&& other) : data_(other.data_) {
     other.data_.type_index = TypeIndex::kTVMFFINone;
+    other.data_.zero_padding = 0;
     other.data_.v_int64 = 0;
   }
   TVM_FFI_INLINE AnyView& operator=(AnyView&& other) {
@@ -198,13 +201,11 @@ TVM_FFI_INLINE void InplaceConvertAnyViewToAny(TVMFFIAny* data,
     if (data->type_index == TypeIndex::kTVMFFIRawStr) {
       // convert raw string to owned string object
       String temp(data->v_c_str);
-      data->type_index = TypeIndex::kTVMFFIStr;
-      data->v_obj = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(temp));
+      TypeTraits<String>::MoveToAny(std::move(temp), data);
     } else if (data->type_index == TypeIndex::kTVMFFIByteArrayPtr) {
       // convert byte array to owned bytes object
       Bytes temp(*static_cast<TVMFFIByteArray*>(data->v_ptr));
-      data->type_index = TypeIndex::kTVMFFIBytes;
-      data->v_obj = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(temp));
+      TypeTraits<Bytes>::MoveToAny(std::move(temp), data);
     } else if (data->type_index == TypeIndex::kTVMFFIObjectRValueRef) {
       // convert rvalue ref to owned object
       Object** obj_addr = static_cast<Object**>(data->v_ptr);
@@ -212,8 +213,7 @@ TVM_FFI_INLINE void InplaceConvertAnyViewToAny(TVMFFIAny* data,
       ObjectRef temp(details::ObjectUnsafe::ObjectPtrFromOwned<Object>(obj_addr[0]));
       // set the rvalue ref to nullptr to avoid double move
       obj_addr[0] = nullptr;
-      data->type_index = temp->type_index();
-      data->v_obj = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(temp));
+      TypeTraits<ObjectRef>::MoveToAny(std::move(temp), data);
     }
   }
 }
@@ -239,6 +239,7 @@ class Any {
       details::ObjectUnsafe::DecRefObjectHandle(data_.v_obj);
     }
     data_.type_index = TVMFFITypeIndex::kTVMFFINone;
+    data_.zero_padding = 0;
     data_.v_int64 = 0;
   }
   /*!
@@ -251,6 +252,7 @@ class Any {
   // default constructors
   Any() {
     data_.type_index = TypeIndex::kTVMFFINone;
+    data_.zero_padding = 0;
     data_.v_int64 = 0;
   }
   ~Any() { this->reset(); }
@@ -262,6 +264,7 @@ class Any {
   }
   Any(Any&& other) : data_(other.data_) {
     other.data_.type_index = TypeIndex::kTVMFFINone;
+    other.data_.zero_padding = 0;
     other.data_.v_int64 = 0;
   }
   TVM_FFI_INLINE Any& operator=(const Any& other) {
@@ -408,7 +411,8 @@ class Any {
    * \return True if the two Any are same type and value, false otherwise.
    */
   TVM_FFI_INLINE bool same_as(const Any& other) const noexcept {
-    return data_.type_index == other.data_.type_index && data_.v_int64 == other.data_.v_int64;
+    return data_.type_index == other.data_.type_index &&
+           data_.zero_padding == other.data_.zero_padding && data_.v_int64 == other.data_.v_int64;
   }
 
   /*
@@ -485,6 +489,7 @@ struct AnyUnsafe : public ObjectUnsafe {
   TVM_FFI_INLINE static TVMFFIAny MoveAnyToTVMFFIAny(Any&& any) {
     TVMFFIAny result = any.data_;
     any.data_.type_index = TypeIndex::kTVMFFINone;
+    any.data_.zero_padding = 0;
     any.data_.v_int64 = 0;
     return result;
   }
@@ -493,6 +498,7 @@ struct AnyUnsafe : public ObjectUnsafe {
     Any any;
     any.data_ = data;
     data.type_index = TypeIndex::kTVMFFINone;
+    data.zero_padding = 0;
     data.v_int64 = 0;
     return any;
   }
@@ -543,17 +549,24 @@ struct AnyHash {
    * \return Hash code of a, string hash for strings and pointer address otherwise.
    */
   uint64_t operator()(const Any& src) const {
-    uint64_t val_hash = [&]() -> uint64_t {
-      if (src.data_.type_index == TypeIndex::kTVMFFIStr ||
-          src.data_.type_index == TypeIndex::kTVMFFIBytes) {
-        const BytesObjBase* src_str =
-            details::AnyUnsafe::CopyFromAnyViewAfterCheck<const BytesObjBase*>(src);
-        return details::StableHashBytes(src_str->data, src_str->size);
-      } else {
-        return src.data_.v_uint64;
-      }
-    }();
-    return details::StableHashCombine(src.data_.type_index, val_hash);
+    if (src.data_.type_index == TypeIndex::kTVMFFISmallStr) {
+      // for small string, we use the same type key hash as normal string
+      // so heap allocated string and on stack string will have the same hash
+      return details::StableHashCombine(TypeIndex::kTVMFFIStr,
+                                        details::StableHashSmallStrBytes(&src.data_));
+    } else if (src.data_.type_index == TypeIndex::kTVMFFISmallBytes) {
+      // use byte the same type key as bytes
+      return details::StableHashCombine(TypeIndex::kTVMFFIBytes,
+                                        details::StableHashSmallStrBytes(&src.data_));
+    } else if (src.data_.type_index == TypeIndex::kTVMFFIStr ||
+               src.data_.type_index == TypeIndex::kTVMFFIBytes) {
+      const details::BytesObjBase* src_str =
+          details::AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(src);
+      return details::StableHashCombine(src.data_.type_index,
+                                        details::StableHashBytes(src_str->data, src_str->size));
+    } else {
+      return details::StableHashCombine(src.data_.type_index, src.data_.v_uint64);
+    }
   }
 };
 
@@ -566,22 +579,62 @@ struct AnyEqual {
    * \return String equality if both are strings, pointer address equality otherwise.
    */
   bool operator()(const Any& lhs, const Any& rhs) const {
-    if (lhs.data_.type_index != rhs.data_.type_index) return false;
-    // byte equivalence
-    if (lhs.data_.v_int64 == rhs.data_.v_int64) return true;
-    // specialy handle string hash
-    if (lhs.data_.type_index == TypeIndex::kTVMFFIStr ||
-        lhs.data_.type_index == TypeIndex::kTVMFFIBytes) {
-      const BytesObjBase* lhs_str =
-          details::AnyUnsafe::CopyFromAnyViewAfterCheck<const BytesObjBase*>(lhs);
-      const BytesObjBase* rhs_str =
-          details::AnyUnsafe::CopyFromAnyViewAfterCheck<const BytesObjBase*>(rhs);
-      return Bytes::memncmp(lhs_str->data, rhs_str->data, lhs_str->size, rhs_str->size) == 0;
+    // header with type index
+    const int64_t* lhs_as_int64 = reinterpret_cast<const int64_t*>(&lhs.data_);
+    const int64_t* rhs_as_int64 = reinterpret_cast<const int64_t*>(&rhs.data_);
+    static_assert(sizeof(TVMFFIAny) == 16);
+    // fast path, check byte equality
+    if (lhs_as_int64[0] == rhs_as_int64[0] && lhs_as_int64[1] == rhs_as_int64[1]) {
+      return true;
     }
-    return false;
+    // common false case type index match, in this case we only need to pay attention to string
+    // equality
+    if (lhs.data_.type_index == rhs.data_.type_index) {
+      // specialy handle string hash
+      if (lhs.data_.type_index == TypeIndex::kTVMFFIStr ||
+          lhs.data_.type_index == TypeIndex::kTVMFFIBytes) {
+        const details::BytesObjBase* lhs_str =
+            details::AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(lhs);
+        const details::BytesObjBase* rhs_str =
+            details::AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(rhs);
+        return Bytes::memequal(lhs_str->data, rhs_str->data, lhs_str->size, rhs_str->size);
+      }
+      return false;
+    } else {
+      // type_index mismatch, if index is not string, return false
+      if (lhs.data_.type_index != kTVMFFIStr && lhs.data_.type_index != kTVMFFISmallStr &&
+          lhs.data_.type_index != kTVMFFISmallBytes && lhs.data_.type_index != kTVMFFIBytes) {
+        return false;
+      }
+      // small string and normal string comparison
+      if (lhs.data_.type_index == kTVMFFIStr && rhs.data_.type_index == kTVMFFISmallStr) {
+        const details::BytesObjBase* lhs_str =
+            details::AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(lhs);
+        return Bytes::memequal(lhs_str->data, rhs.data_.v_bytes, lhs_str->size,
+                               rhs.data_.small_str_len);
+      }
+      if (lhs.data_.type_index == kTVMFFISmallStr && rhs.data_.type_index == kTVMFFIStr) {
+        const details::BytesObjBase* rhs_str =
+            details::AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(rhs);
+        return Bytes::memequal(lhs.data_.v_bytes, rhs_str->data, lhs.data_.small_str_len,
+                               rhs_str->size);
+      }
+      if (lhs.data_.type_index == kTVMFFIBytes && rhs.data_.type_index == kTVMFFISmallBytes) {
+        const details::BytesObjBase* lhs_bytes =
+            details::AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(lhs);
+        return Bytes::memequal(lhs_bytes->data, rhs.data_.v_bytes, lhs_bytes->size,
+                               rhs.data_.small_str_len);
+      }
+      if (lhs.data_.type_index == kTVMFFISmallBytes && rhs.data_.type_index == kTVMFFIBytes) {
+        const details::BytesObjBase* rhs_bytes =
+            details::AnyUnsafe::CopyFromAnyViewAfterCheck<const details::BytesObjBase*>(rhs);
+        return Bytes::memequal(lhs.data_.v_bytes, rhs_bytes->data, lhs.data_.small_str_len,
+                               rhs_bytes->size);
+      }
+      return false;
+    }
   }
 };
-
 }  // namespace ffi
 
 // Expose to the tvm namespace for usability

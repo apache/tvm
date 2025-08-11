@@ -252,7 +252,7 @@ class PythonDocPrinter : public DocPrinter {
   }
 
   void MaybePrintCommentInline(const StmtDoc& stmt) {
-    if (stmt->comment.defined()) {
+    if (stmt->comment.has_value()) {
       const std::string& comment = stmt->comment.value();
       bool has_newline = std::find(comment.begin(), comment.end(), '\n') != comment.end();
       CHECK(!has_newline) << "ValueError: the comment string of " << stmt->GetTypeKey()
@@ -265,7 +265,7 @@ class PythonDocPrinter : public DocPrinter {
   }
 
   void MaybePrintCommenMultiLines(const StmtDoc& stmt, bool new_line = false) {
-    if (stmt->comment.defined()) {
+    if (stmt->comment.has_value()) {
       std::vector<std::string> comment_lines = support::Split(stmt->comment.value(), '\n');
       bool first_line = true;
       size_t start_pos = output_.tellp();
@@ -313,8 +313,8 @@ class PythonDocPrinter : public DocPrinter {
 };
 
 void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
-  const ObjectRef& value = doc->value;
-  if (!value.defined()) {
+  const ffi::Any& value = doc->value;
+  if (value == nullptr) {
     output_ << "None";
   } else if (const auto* int_imm = value.as<IntImmNode>()) {
     if (int_imm->dtype.is_bool()) {
@@ -351,10 +351,10 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
       output_ << float_imm->value;
     }
 
-  } else if (const auto* string_obj = value.as<ffi::StringObj>()) {
-    output_ << "\"" << support::StrEscape(string_obj->data, string_obj->size) << "\"";
+  } else if (const auto opt_str = value.as<ffi::String>()) {
+    output_ << "\"" << support::StrEscape((*opt_str).data(), (*opt_str).size()) << "\"";
   } else {
-    LOG(FATAL) << "TypeError: Unsupported literal value type: " << value->GetTypeKey();
+    LOG(FATAL) << "TypeError: Unsupported literal value type: " << value.GetTypeKey();
   }
 }
 
@@ -663,7 +663,7 @@ void PythonDocPrinter::PrintTypedDoc(const ReturnDoc& doc) {
 
 void PythonDocPrinter::PrintTypedDoc(const FunctionDoc& doc) {
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(arg_doc->comment == nullptr) << "Function arg cannot have comment attached to them.";
+    ICHECK(!arg_doc->comment.has_value()) << "Function arg cannot have comment attached to them.";
   }
 
   PrintDecorators(doc->decorators);
@@ -682,7 +682,7 @@ void PythonDocPrinter::PrintTypedDoc(const FunctionDoc& doc) {
 
   output_ << ":";
 
-  if (doc->comment.defined()) {
+  if (doc->comment.has_value()) {
     PrintBlockComment(doc->comment.value());
   }
   PrintIndentedBlock(doc->body);
@@ -696,20 +696,20 @@ void PythonDocPrinter::PrintTypedDoc(const ClassDoc& doc) {
   PrintDoc(doc->name);
   output_ << ":";
 
-  if (doc->comment.defined()) {
+  if (doc->comment.has_value()) {
     PrintBlockComment(doc->comment.value());
   }
   PrintIndentedBlock(doc->body);
 }
 
 void PythonDocPrinter::PrintTypedDoc(const CommentDoc& doc) {
-  if (doc->comment.defined()) {
+  if (doc->comment.has_value()) {
     MaybePrintCommenMultiLines(doc, false);
   }
 }
 
 void PythonDocPrinter::PrintTypedDoc(const DocStringDoc& doc) {
-  if (doc->comment.defined() && !doc->comment.value().empty()) {
+  if (doc->comment.has_value() && !doc->comment.value().empty()) {
     PrintDocString(doc->comment.value());
   }
 }

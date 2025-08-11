@@ -406,9 +406,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   PyScheduleRuleNode::RegisterReflection();
 });
 
-TVM_REGISTER_OBJECT_TYPE(ScheduleRuleNode);
-TVM_REGISTER_NODE_TYPE(PyScheduleRuleNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

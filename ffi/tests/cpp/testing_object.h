@@ -21,6 +21,7 @@
 #define TVM_FFI_TESTING_OBJECT_H_
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/container/map.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -58,6 +59,7 @@ class TIntObj : public TNumberObj {
  public:
   int64_t value;
 
+  TIntObj() = default;
   TIntObj(int64_t value) : value(value) {}
 
   int64_t GetValue() const { return value; }
@@ -83,6 +85,19 @@ inline void TIntObj::RegisterReflection() {
   refl::ObjectDef<TIntObj>()
       .def_ro("value", &TIntObj::value)
       .def_static("static_add", &TInt::StaticAdd, "static add method");
+  // define extra type attributes
+  refl::TypeAttrDef<TIntObj>()
+      .def("test.GetValue", &TIntObj::GetValue)
+      .attr("test.size", sizeof(TIntObj));
+  // custom json serialization
+  refl::TypeAttrDef<TIntObj>()
+      .def("__data_to_json__",
+           [](const TIntObj* self) -> Map<String, Any> {
+             return Map<String, Any>{{"value", self->value}};
+           })
+      .def("__data_from_json__", [](Map<String, Any> json_obj) -> TInt {
+        return TInt(json_obj["value"].cast<int64_t>());
+      });
 }
 
 class TFloatObj : public TNumberObj {
@@ -150,11 +165,14 @@ class TVarObj : public Object {
  public:
   std::string name;
 
+  // need default constructor for json serialization
+  TVarObj() = default;
   TVarObj(std::string name) : name(name) {}
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
-    refl::ObjectDef<TVarObj>().def_ro("name", &TVarObj::name);
+    refl::ObjectDef<TVarObj>().def_ro("name", &TVarObj::name,
+                                      refl::AttachFieldFlag::SEqHashIgnore());
   }
 
   static constexpr const char* _type_key = "test.Var";
@@ -173,9 +191,11 @@ class TFuncObj : public Object {
  public:
   Array<TVar> params;
   Array<ObjectRef> body;
-  String comment;
+  Optional<String> comment;
 
-  TFuncObj(Array<TVar> params, Array<ObjectRef> body, String comment)
+  // need default constructor for json serialization
+  TFuncObj() = default;
+  TFuncObj(Array<TVar> params, Array<ObjectRef> body, Optional<String> comment)
       : params(params), body(body), comment(comment) {}
 
   static void RegisterReflection() {
@@ -193,11 +213,64 @@ class TFuncObj : public Object {
 
 class TFunc : public ObjectRef {
  public:
-  explicit TFunc(Array<TVar> params, Array<ObjectRef> body, String comment) {
+  explicit TFunc(Array<TVar> params, Array<ObjectRef> body, Optional<String> comment) {
     data_ = make_object<TFuncObj>(params, body, comment);
   }
 
   TVM_FFI_DEFINE_OBJECT_REF_METHODS(TFunc, ObjectRef, TFuncObj);
+};
+
+class TCustomFuncObj : public Object {
+ public:
+  Array<TVar> params;
+  Array<ObjectRef> body;
+  String comment;
+
+  TCustomFuncObj(Array<TVar> params, Array<ObjectRef> body, String comment)
+      : params(params), body(body), comment(comment) {}
+
+  bool SEqual(const TCustomFuncObj* other,
+              ffi::TypedFunction<bool(AnyView, AnyView, bool, AnyView)> cmp) const {
+    if (!cmp(params, other->params, true, "params")) {
+      return false;
+    }
+    if (!cmp(body, other->body, false, "body")) {
+      return false;
+    }
+    return true;
+  }
+
+  uint64_t SHash(uint64_t init_hash,
+                 ffi::TypedFunction<uint64_t(AnyView, uint64_t, bool)> hash) const {
+    uint64_t hash_value = init_hash;
+    hash_value = hash(params, hash_value, true);
+    hash_value = hash(body, hash_value, false);
+    return hash_value;
+  }
+
+  static void RegisterReflection() {
+    namespace refl = tvm::ffi::reflection;
+    refl::ObjectDef<TCustomFuncObj>()
+        .def_ro("params", &TCustomFuncObj::params)
+        .def_ro("body", &TCustomFuncObj::body)
+        .def_ro("comment", &TCustomFuncObj::comment);
+    refl::TypeAttrDef<TCustomFuncObj>()
+        .def("__s_equal__", &TCustomFuncObj::SEqual)
+        .def("__s_hash__", &TCustomFuncObj::SHash);
+  }
+
+  static constexpr const char* _type_key = "test.CustomFunc";
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TCustomFuncObj, Object);
+};
+
+class TCustomFunc : public ObjectRef {
+ public:
+  explicit TCustomFunc(Array<TVar> params, Array<ObjectRef> body, String comment) {
+    data_ = make_object<TCustomFuncObj>(params, body, comment);
+  }
+
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS(TCustomFunc, ObjectRef, TCustomFuncObj);
 };
 
 }  // namespace testing

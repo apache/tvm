@@ -37,7 +37,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 /* relax.nn.max_pool1d */
-TVM_REGISTER_NODE_TYPE(Pool1DAttrs);
 
 Expr MakePool1d(String op_name, Expr data, Array<IntImm> pool_size, Array<IntImm> strides,
                 Array<IntImm> padding, Array<IntImm> dilation, bool ceil_mode,
@@ -144,7 +143,6 @@ TVM_REGISTER_OP("relax.nn.max_pool1d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.max_pool2d */
-TVM_REGISTER_NODE_TYPE(Pool2DAttrs);
 
 Expr MakePool2d(String op_name, Expr data, Array<IntImm> pool_size, Array<IntImm> strides,
                 Array<IntImm> padding, Array<IntImm> dilation, bool ceil_mode,
@@ -283,7 +281,6 @@ TVM_REGISTER_OP("relax.nn.max_pool2d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.max_pool3d */
-TVM_REGISTER_NODE_TYPE(Pool3DAttrs);
 
 Expr MakePool3d(String op_name, Expr data, Array<IntImm> pool_size, Array<IntImm> strides,
                 Array<IntImm> padding, Array<IntImm> dilation, bool ceil_mode,
@@ -480,7 +477,6 @@ TVM_REGISTER_OP("relax.nn.avg_pool3d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.adaptive_avg_pool1d */
-TVM_REGISTER_NODE_TYPE(AdaptivePool1DAttrs);
 
 Expr adaptive_avg_pool1d(Expr data, Optional<Array<IntImm>> output_size, String layout,
                          Optional<String> out_layout) {
@@ -563,7 +559,6 @@ TVM_REGISTER_OP("relax.nn.adaptive_avg_pool1d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.adaptive_avg_pool2d */
-TVM_REGISTER_NODE_TYPE(AdaptivePool2DAttrs);
 
 Expr adaptive_avg_pool2d(Expr data, Optional<Array<IntImm>> output_size, String layout,
                          Optional<String> out_layout) {
@@ -665,7 +660,6 @@ TVM_REGISTER_OP("relax.nn.adaptive_avg_pool2d")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.adaptive_avg_pool3d */
-TVM_REGISTER_NODE_TYPE(AdaptivePool3DAttrs);
 
 Expr adaptive_avg_pool3d(Expr data, Optional<Array<IntImm>> output_size, String layout,
                          Optional<String> out_layout) {

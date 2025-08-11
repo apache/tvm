@@ -37,7 +37,6 @@ namespace vm {
 //---------------------------------------------
 // VM Closure object
 //---------------------------------------------
-TVM_REGISTER_OBJECT_TYPE(VMClosureObj);
 
 VMClosure::VMClosure(String func_name, ffi::Function impl) {
   auto ptr = make_object<VMClosureObj>();
@@ -75,7 +74,7 @@ ffi::Any IndexIntoNestedObject(ffi::Any obj, ffi::PackedArgs args, int starting_
       LOG(FATAL) << "ValueError: Attempted to index into an object that is not an Array.";
     }
     int index = args[i].cast<int>();
-    auto arr = Downcast<ffi::Array<ffi::Any>>(obj);
+    auto arr = obj.cast<ffi::Array<ffi::Any>>();
     // make sure the index is in bounds
     if (index >= static_cast<int>(arr.size())) {
       LOG(FATAL) << "IndexError: Invalid index (" << index << " >= " << arr.size() << ").";
@@ -97,10 +96,10 @@ NDArray ConvertNDArrayToDevice(NDArray src, const DLDevice& dev, Allocator* allo
 
 Any ConvertObjectToDevice(Any src, const Device& dev, Allocator* alloc) {
   if (src.as<NDArray::ContainerType>()) {
-    return ConvertNDArrayToDevice(Downcast<NDArray>(src), dev, alloc);
+    return ConvertNDArrayToDevice(src.cast<NDArray>(), dev, alloc);
   } else if (src.as<ffi::ArrayObj>()) {
     std::vector<Any> ret;
-    auto arr = Downcast<ffi::Array<Any>>(src);
+    auto arr = src.cast<ffi::Array<Any>>();
     for (size_t i = 0; i < arr.size(); i++) {
       ret.push_back(ConvertObjectToDevice(arr[i], dev, alloc));
     }
@@ -1051,7 +1050,7 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
         }
       }
 
-      std::unordered_map<std::string, ObjectRef> metrics;
+      std::unordered_map<std::string, ffi::Any> metrics;
       metrics["Argument Shapes"] = profiling::ShapeString(arrs);
 
       // If a suitable device is found, enable profiling.

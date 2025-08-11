@@ -27,6 +27,7 @@
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK({
+  TypeNode::RegisterReflection();
   PrimTypeNode::RegisterReflection();
   PointerTypeNode::RegisterReflection();
   TupleTypeNode::RegisterReflection();
@@ -41,8 +42,6 @@ PrimType::PrimType(runtime::DataType dtype, Span span) {
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(PrimTypeNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("ir.PrimType", [](runtime::DataType dtype) { return PrimType(dtype); });
@@ -50,12 +49,14 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 PointerType::PointerType(Type element_type, String storage_scope) {
   ObjectPtr<PointerTypeNode> n = make_object<PointerTypeNode>();
+  if (storage_scope.empty()) {
+    n->storage_scope = "global";
+  } else {
+    n->storage_scope = std::move(storage_scope);
+  }
   n->element_type = std::move(element_type);
-  n->storage_scope = std::move(storage_scope);
   data_ = std::move(n);
 }
-
-TVM_REGISTER_NODE_TYPE(PointerTypeNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
@@ -71,8 +72,6 @@ FuncType::FuncType(tvm::Array<Type> arg_types, Type ret_type, Span span) {
   n->span = std::move(span);
   data_ = std::move(n);
 }
-
-TVM_REGISTER_NODE_TYPE(FuncTypeNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
@@ -90,8 +89,6 @@ TupleType::TupleType(Array<Type> fields, Span span) {
 
 TupleType TupleType::Empty() { return TupleType(Array<Type>()); }
 
-TVM_REGISTER_NODE_TYPE(TupleTypeNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
@@ -104,7 +101,5 @@ TensorMapType::TensorMapType(Span span) {
   n->span = std::move(span);
   data_ = std::move(n);
 }
-
-TVM_REGISTER_NODE_TYPE(TensorMapTypeNode);
 
 }  // namespace tvm

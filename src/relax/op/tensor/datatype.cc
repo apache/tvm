@@ -37,7 +37,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 /* relax.astype */
-TVM_REGISTER_NODE_TYPE(AstypeAttrs);
 
 Expr astype(Expr x, DataType dtype) {
   ObjectPtr<AstypeAttrs> attrs = make_object<AstypeAttrs>();
@@ -70,7 +69,6 @@ TVM_REGISTER_OP("relax.astype")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.wrap_param */
-TVM_REGISTER_NODE_TYPE(WrapParamAttrs);
 
 Expr MakeWrapParam(Expr data, DataType dtype) {
   ObjectPtr<WrapParamAttrs> attrs = make_object<WrapParamAttrs>();

@@ -78,7 +78,7 @@ void CodeGenMetal::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
 
   // add to alloc buffer type.
   auto global_symbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-  ICHECK(global_symbol.defined())
+  ICHECK(global_symbol.has_value())
       << "CodeGenC: Expect PrimFunc to have the global_symbol attribute";
 
   // Function header.
@@ -370,7 +370,7 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
   };
   if (op->op.same_as(builtin::make_filled_simdgroup_matrix())) {
     ICHECK_EQ(op->args.size(), 5);
-    Var var = runtime::Downcast<Var>(op->args[0]);
+    Var var = Downcast<Var>(op->args[0]);
     // Get the data type of the simdgroup matrix
     auto it = simdgroup_dtype_.find(var.get());
     ICHECK(it != simdgroup_dtype_.end())
@@ -443,7 +443,7 @@ runtime::Module BuildMetal(IRModule mod, Target target) {
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenMetal: Can only take PrimFunc";
     auto global_symbol = kv.second->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    ICHECK(global_symbol.defined());
+    ICHECK(global_symbol.has_value());
     std::string func_name = global_symbol.value();
 
     source_maker << "// Function: " << func_name << "\n";

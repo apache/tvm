@@ -71,7 +71,7 @@ Array<Any> TranslateInputRVs(const Array<Any>& inputs,
   };
 
   for (const Any& input : inputs) {
-    if (input.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+    if (input.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
       // directly put back POD type
       result.push_back(input);
     } else if (auto expr = input.as<ffi::String>()) {
@@ -110,8 +110,11 @@ Array<Any> TranslateInputRVs(
       results.push_back(String("None"));
       continue;
     }
-    if (input.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-      // directly put back POD type
+    // string => "content"
+    if (auto opt_str = input.as<ffi::String>()) {
+      results.push_back(String('"' + (*opt_str).operator std::string() + '"'));
+    } else if (input.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
+      // directly put back POD type and not string
       results.push_back(input);
     } else if (input.as<BlockRVNode>() ||  // RV: block
                input.as<LoopRVNode>() ||   // RV: loop
@@ -124,9 +127,6 @@ Array<Any> TranslateInputRVs(
         LOG(FATAL) << "IndexError: Random variable is not defined " << input;
         throw;
       }
-    } else if (const auto* str_obj = input.as<ffi::StringObj>()) {
-      // Case 2. string => "content"
-      results.push_back(String('"' + std::string(str_obj->data) + '"'));
     } else if (input.as<IntImmNode>() || input.as<FloatImmNode>()) {
       // Case 3. integer or floating-point number
       results.push_back(input);
@@ -159,7 +159,7 @@ Array<Any> TranslateInputRVs(const Array<Any>& inputs,
   Array<Any> results;
   results.reserve(inputs.size());
   for (const Any& input : inputs) {
-    if (input.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+    if (input.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
       // directly put back POD type
       results.push_back(input);
       continue;
@@ -179,11 +179,11 @@ Array<Any> TranslateInputRVs(const Array<Any>& inputs,
       results.push_back(input);
       continue;
     }
-    const auto* str = input.as<ffi::StringObj>();
-    CHECK(str) << "TypeError: Expect String, but gets: " << input.GetTypeKey();
-    CHECK_GT(str->size, 0) << "ValueError: Empty string is not allowed in input names";
-    const char* name = str->data;
-    int64_t size = str->size;
+    auto opt_str = input.as<ffi::String>();
+    CHECK(opt_str) << "TypeError: Expect String, but gets: " << input.GetTypeKey();
+    CHECK_GT((*opt_str).size(), 0) << "ValueError: Empty string is not allowed in input names";
+    const char* name = (*opt_str).data();
+    int64_t size = (*opt_str).size();
     if (name[0] == '{' && name[size - 1] == '}') {
       Any obj = LoadJSON(name);
       // Case 6. IndexMap
@@ -240,7 +240,7 @@ Array<String> TranslateAddOutputRVs(
     ICHECK(!rv_names->count(output.cast<ObjectRef>()))
         << "ValueError: The random variable has been produced once: "
         << rv_names->at(output.cast<ObjectRef>());
-    String result{ffi::ObjectPtr<ffi::StringObj>{nullptr}};
+    String result;
     if (output == nullptr) {
       result = "_";
     } else if (output.as<BlockRVNode>()) {
@@ -320,8 +320,8 @@ void TraceNode::ApplyToSchedule(
 
 ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
   std::unordered_map<ObjectRef, String, ObjectPtrHash, ObjectPtrEqual> rv_names;
-  Array<ObjectRef> json_insts;
-  Array<ObjectRef> json_decisions;
+  Array<ffi::Any> json_insts;
+  Array<ffi::Any> json_decisions;
   json_insts.reserve(this->insts.size());
   json_decisions.reserve(this->insts.size());
 
@@ -331,7 +331,7 @@ ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
     if (remove_postproc && kind->IsPostproc()) {
       break;
     }
-    json_insts.push_back(Array<ObjectRef>{
+    json_insts.push_back(Array<ffi::Any>{
         /* 0: inst name */ kind->name,
         /* 1: inputs    */ TranslateInputRVs(inst->inputs, rv_names),
         /* 2: attrs     */ kind->f_attrs_as_json != nullptr ? kind->f_attrs_as_json(inst->attrs)
@@ -346,7 +346,7 @@ ObjectRef TraceNode::AsJSON(bool remove_postproc) const {
     }
     ++i;
   }
-  return Array<ObjectRef>{
+  return Array<ffi::Any>{
       /* 0: trace    */ std::move(json_insts),
       /* 1: decision */ std::move(json_decisions),
   };
@@ -363,8 +363,8 @@ Array<String> TraceNode::AsPython(bool remove_postproc) const {
     Array<Any> attrs;
     attrs.reserve(inst->attrs.size());
     for (const Any& obj : inst->attrs) {
-      if (const auto* str = obj.as<ffi::StringObj>()) {
-        attrs.push_back(String('"' + std::string(str->data) + '"'));
+      if (auto opt_str = obj.as<ffi::String>()) {
+        attrs.push_back(String('"' + (*opt_str).operator std::string() + '"'));
       } else {
         attrs.push_back(obj);
       }
@@ -428,8 +428,8 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
     try {
       const auto* arr = inst_entry.as<ffi::ArrayObj>();
       ICHECK(arr && arr->size() == 4);
-      const auto* arr0 = arr->at(0).as<ffi::StringObj>();
-      kind = InstructionKind::Get(arr0->data);
+      ffi::String arr0 = arr->at(0).cast<ffi::String>();
+      kind = InstructionKind::Get(arr0);
       inputs = arr->at(1).cast<Array<Any>>();
       attrs = arr->at(2).cast<Array<Any>>();
       outputs = arr->at(3).cast<Array<String>>();
@@ -566,7 +566,6 @@ TVM_REGISTER_INST_KIND_TRAITS(EnterPostprocTraits);
 
 /**************** FFI ****************/
 
-TVM_REGISTER_NODE_TYPE(TraceNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

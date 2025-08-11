@@ -26,10 +26,8 @@ namespace printer {
 
 TVM_FFI_STATIC_INIT_BLOCK({ TIRFrameNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(TIRFrameNode);
-
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<IntImm>("", [](IntImm imm, ObjectPath imm_p, IRDocsifier d) -> Doc {
+    .set_dispatch<IntImm>("", [](IntImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
       DataType dtype = imm->dtype;
       if (dtype == d->cfg->int_dtype) {
         return LiteralDoc::Int(imm->value, imm_p->Attr("value"));
@@ -42,7 +40,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<FloatImm>("", [](FloatImm imm, ObjectPath imm_p, IRDocsifier d) -> Doc {
+    .set_dispatch<FloatImm>("", [](FloatImm imm, AccessPath imm_p, IRDocsifier d) -> Doc {
       DataType dtype = imm->dtype;
       if (dtype == d->cfg->float_dtype) {
         return LiteralDoc::Float(imm->value, imm_p->Attr("value"));
@@ -53,7 +51,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Range>("tir", [](Range range, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<Range>("tir", [](Range range, AccessPath p, IRDocsifier d) -> Doc {
       return TIR(d, "Range")
           ->Call({
               d->AsDoc<ExprDoc>(range->min, p->Attr("min")),
@@ -62,12 +60,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<PrimType>("", [](PrimType ty, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<PrimType>("", [](PrimType ty, AccessPath p, IRDocsifier d) -> Doc {
       return TIR(d, DType2Str(ty->dtype));
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<PointerType>("", [](PointerType ty, ObjectPath ty_p, IRDocsifier d) -> Doc {
+    .set_dispatch<PointerType>("", [](PointerType ty, AccessPath ty_p, IRDocsifier d) -> Doc {
       ExprDoc element_type{nullptr};
       if (const auto* prim_type = ty->element_type.as<PrimTypeNode>()) {
         element_type = LiteralDoc::DataType(prim_type->dtype,  //
@@ -84,7 +82,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<TupleType>("", [](TupleType ty, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<TupleType>("", [](TupleType ty, AccessPath p, IRDocsifier d) -> Doc {
       if (ty->fields.empty()) {
         return LiteralDoc::None(p);
       }
@@ -92,7 +90,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Target>("", [](Target target, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_dispatch<Target>("", [](Target target, AccessPath p, IRDocsifier d) -> Doc {
       Map<String, ffi::Any> config = target->Export();
       return TIR(d, "target")->Call({d->AsDoc<ExprDoc>(config, p)});
     });

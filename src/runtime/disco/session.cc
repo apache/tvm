@@ -30,8 +30,6 @@ struct SessionObj::FFI {
   }
 };
 
-TVM_REGISTER_OBJECT_TYPE(DRefObj);
-TVM_REGISTER_OBJECT_TYPE(SessionObj);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

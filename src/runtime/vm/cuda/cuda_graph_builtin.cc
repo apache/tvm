@@ -149,7 +149,7 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
    * \param entry_index The unique index of the capture function used for lookup.
    * \return The return value of the capture function.
    */
-  ObjectRef RunOrCapture(VirtualMachine* vm, const ObjectRef& capture_func, ObjectRef args,
+  ObjectRef RunOrCapture(VirtualMachine* vm, const ObjectRef& capture_func, Any args,
                          int64_t entry_index, Optional<ffi::Shape> shape_expr) {
     CUDAGraphCaptureKey entry_key{entry_index, shape_expr};
     if (auto it = capture_cache_.find(entry_key); it != capture_cache_.end()) {
@@ -160,7 +160,7 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
     }
 
     // Set up arguments for the graph execution
-    Array<ObjectRef> tuple_args = Downcast<Array<ObjectRef>>(args);
+    Array<Any> tuple_args = args.cast<ffi::Array<Any>>();
     int nargs = static_cast<int>(tuple_args.size());
 
     std::vector<AnyView> packed_args(nargs);
@@ -250,7 +250,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
                     auto extension = vm->GetOrCreateExtension<CUDAGraphExtension>();
                     auto capture_func = args[1].cast<ObjectRef>();
-                    auto func_args = args[2].cast<ObjectRef>();
+                    Any func_args = args[2];
                     int64_t entry_index = args[3].cast<int64_t>();
                     Optional<ffi::Shape> shape_expr = std::nullopt;
                     if (args.size() == 5) {

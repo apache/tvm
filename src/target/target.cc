@@ -45,8 +45,6 @@ namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK({ TargetNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(TargetNode);
-
 class TargetInternal {
  public:
   static void EnterScope(Target target) { target.EnterWithScope(); }
@@ -431,7 +429,7 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
       return Target(TargetInternal::FromString(str.value()));
     } else if (const auto* ptr = obj.as<ffi::MapObj>()) {
       for (const auto& kv : *ptr) {
-        if (!kv.first.as<ffi::StringObj>()) {
+        if (!kv.first.as<ffi::String>()) {
           TVM_FFI_THROW(TypeError)
               << "Target object requires key of dict to be str, but get: " << kv.first.GetTypeKey();
         }
@@ -444,16 +442,16 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
   } else if (info.type_index == ffi::ArrayObj::RuntimeTypeIndex()) {
     // Parsing array
     const auto* array = ObjTypeCheck<const ffi::ArrayObj*>(obj, "Array");
-    std::vector<ObjectRef> result;
+    std::vector<Any> result;
     for (const Any& e : *array) {
       try {
-        result.push_back(TargetInternal::ParseType(e, *info.key).cast<ObjectRef>());
+        result.push_back(TargetInternal::ParseType(e, *info.key));
       } catch (const Error& e) {
         std::string index = '[' + std::to_string(result.size()) + ']';
         throw Error(e.kind(), index + e.message(), e.traceback());
       }
     }
-    return Array<ObjectRef>(result);
+    return Array<Any>(result);
   } else if (info.type_index == ffi::MapObj::RuntimeTypeIndex()) {
     // Parsing map
     const auto* map = ObjTypeCheck<const ffi::MapObj*>(obj, "Map");
@@ -708,19 +706,6 @@ String TargetNode::ToDebugString() const {
   }
   os << ")";
   return os.str();
-}
-
-bool TargetNode::SEqualReduce(const TargetNode* other, SEqualReducer equal) const {
-  return equal(kind.get(), other->kind.get()) && equal(host, other->host) &&
-         equal(tag, other->tag) && equal(keys, other->keys) && equal(attrs, other->attrs);
-}
-
-void TargetNode::SHashReduce(SHashReducer hash_reduce) const {
-  hash_reduce(kind.get());
-  hash_reduce(host);
-  hash_reduce(tag);
-  hash_reduce(keys);
-  hash_reduce(attrs);
 }
 
 /*! \brief Entry to hold the Target context stack. */

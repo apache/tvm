@@ -54,8 +54,8 @@ class StmtNode : public Object {
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
   static constexpr const char* _type_key = "tir.Stmt";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
   static constexpr const uint32_t _type_child_slots = 15;
   TVM_DECLARE_BASE_OBJECT_INFO(StmtNode, Object);
 };
@@ -81,20 +81,9 @@ class LetStmtNode : public StmtNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<LetStmtNode>()
-        .def_ro("var", &LetStmtNode::var)
+        .def_ro("var", &LetStmtNode::var, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("value", &LetStmtNode::value)
         .def_ro("body", &LetStmtNode::body);
-  }
-
-  bool SEqualReduce(const LetStmtNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(var, other->var) && equal(value, other->value) &&
-           equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(var);
-    hash_reduce(value);
-    hash_reduce(body);
   }
 
   static constexpr const char* _type_key = "tir.LetStmt";
@@ -126,7 +115,7 @@ class LetStmt : public Stmt {
 class AttrStmtNode : public StmtNode {
  public:
   /*! \brief this is attribute about certain node */
-  ObjectRef node;
+  ffi::Any node;
   /*! \brief the type key of the attribute */
   String attr_key;
   /*! \brief The attribute value, value is well defined at current scope. */
@@ -143,18 +132,6 @@ class AttrStmtNode : public StmtNode {
         .def_ro("body", &AttrStmtNode::body);
   }
 
-  bool SEqualReduce(const AttrStmtNode* other, SEqualReducer equal) const {
-    return equal(node, other->node) && equal(attr_key, other->attr_key) &&
-           equal(value, other->value) && equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(node);
-    hash_reduce(attr_key);
-    hash_reduce(value);
-    hash_reduce(body);
-  }
-
   static constexpr const char* _type_key = "tir.AttrStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttrStmtNode, StmtNode);
 };
@@ -165,7 +142,7 @@ class AttrStmtNode : public StmtNode {
  */
 class AttrStmt : public Stmt {
  public:
-  TVM_DLL AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, Span span = Span());
+  TVM_DLL AttrStmt(ffi::Any node, String attr_key, PrimExpr value, Stmt body, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(AttrStmt, Stmt, AttrStmtNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AttrStmtNode);
@@ -192,17 +169,6 @@ class AssertStmtNode : public StmtNode {
         .def_ro("condition", &AssertStmtNode::condition)
         .def_ro("message", &AssertStmtNode::message)
         .def_ro("body", &AssertStmtNode::body);
-  }
-
-  bool SEqualReduce(const AssertStmtNode* other, SEqualReducer equal) const {
-    return equal(condition, other->condition) && equal(message, other->message) &&
-           equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(condition);
-    hash_reduce(message);
-    hash_reduce(body);
   }
 
   static constexpr const char* _type_key = "tir.AssertStmt";
@@ -249,18 +215,6 @@ class BufferStoreNode : public StmtNode {
         .def_ro("value", &BufferStoreNode::value)
         .def_ro("indices", &BufferStoreNode::indices)
         .def_ro("predicate", &BufferStoreNode::predicate);
-  }
-
-  bool SEqualReduce(const BufferStoreNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(value, other->value) &&
-           equal(indices, other->indices);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
-    hash_reduce(value);
-    hash_reduce(indices);
-    hash_reduce(predicate);
   }
 
   static constexpr const char* _type_key = "tir.BufferStore";
@@ -311,18 +265,6 @@ class BufferRealizeNode : public StmtNode {
         .def_ro("body", &BufferRealizeNode::body);
   }
 
-  bool SEqualReduce(const BufferRealizeNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(bounds, other->bounds) &&
-           equal(condition, other->condition) && equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
-    hash_reduce(bounds);
-    hash_reduce(condition);
-    hash_reduce(body);
-  }
-
   BufferRealizeNode() = default;
   BufferRealizeNode(Buffer buffer, Array<Range> bounds, PrimExpr condition, Stmt body,
                     Span span = Span())
@@ -371,27 +313,12 @@ class AllocateNode : public StmtNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AllocateNode>()
-        .def_ro("buffer_var", &AllocateNode::buffer_var)
+        .def_ro("buffer_var", &AllocateNode::buffer_var, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("dtype", &AllocateNode::dtype)
         .def_ro("extents", &AllocateNode::extents)
         .def_ro("condition", &AllocateNode::condition)
         .def_ro("body", &AllocateNode::body)
         .def_ro("annotations", &AllocateNode::annotations);
-  }
-
-  bool SEqualReduce(const AllocateNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
-           equal(extents, other->extents) && equal(condition, other->condition) &&
-           equal(body, other->body) && equal(annotations, other->annotations);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(buffer_var);
-    hash_reduce(dtype);
-    hash_reduce(extents);
-    hash_reduce(condition);
-    hash_reduce(body);
-    hash_reduce(annotations);
   }
 
   /*!
@@ -409,8 +336,7 @@ class AllocateNode : public StmtNode {
   TVM_DLL static int64_t ConstantAllocationSize(const Array<PrimExpr>& extents);
 
   static constexpr const char* _type_key = "tir.Allocate";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateNode, StmtNode);
 };
 
@@ -460,28 +386,13 @@ class AllocateConstNode : public StmtNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<AllocateConstNode>()
-        .def_ro("buffer_var", &AllocateConstNode::buffer_var)
+        .def_ro("buffer_var", &AllocateConstNode::buffer_var, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("data", &AllocateConstNode::data)
         .def_ro("irmod_storage_idx", &AllocateConstNode::irmod_storage_idx)
         .def_ro("dtype", &AllocateConstNode::dtype)
         .def_ro("extents", &AllocateConstNode::extents)
         .def_ro("body", &AllocateConstNode::body)
         .def_ro("annotations", &AllocateConstNode::annotations);
-  }
-
-  bool SEqualReduce(const AllocateConstNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(buffer_var, other->buffer_var) && equal(dtype, other->dtype) &&
-           equal(extents, other->extents) && equal(data, other->data) && equal(body, other->body) &&
-           equal(annotations, other->annotations);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(buffer_var);
-    hash_reduce(dtype);
-    hash_reduce(extents);
-    hash_reduce(body);
-    hash_reduce(annotations);
-    hash_reduce(data);
   }
 
   /*!
@@ -499,8 +410,6 @@ class AllocateConstNode : public StmtNode {
   TVM_DLL static int64_t ConstantAllocationSize(const Array<PrimExpr>& extents);
 
   static constexpr const char* _type_key = "tir.AllocateConst";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(AllocateConstNode, StmtNode);
 };
 
@@ -537,15 +446,6 @@ class DeclBufferNode : public StmtNode {
         .def_ro("body", &DeclBufferNode::body);
   }
 
-  bool SEqualReduce(const DeclBufferNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
-    hash_reduce(body);
-  }
-
   static constexpr const char* _type_key = "tir.DeclBuffer";
   TVM_DECLARE_FINAL_OBJECT_INFO(DeclBufferNode, StmtNode);
 };
@@ -579,12 +479,6 @@ class SeqStmtNode : public StmtNode {
     refl::ObjectDef<SeqStmtNode>().def_ro("seq", &SeqStmtNode::seq);
   }
 
-  bool SEqualReduce(const SeqStmtNode* other, SEqualReducer equal) const {
-    return equal(seq, other->seq);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(seq); }
-
   static constexpr const char* _type_key = "tir.SeqStmt";
   TVM_DECLARE_FINAL_OBJECT_INFO(SeqStmtNode, StmtNode);
 };
@@ -604,12 +498,6 @@ class EvaluateNode : public StmtNode {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<EvaluateNode>().def_ro("value", &EvaluateNode::value);
   }
-
-  bool SEqualReduce(const EvaluateNode* other, SEqualReducer equal) const {
-    return equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const { hash_reduce(value); }
 
   static constexpr const char* _type_key = "tir.Evaluate";
   TVM_DECLARE_FINAL_OBJECT_INFO(EvaluateNode, StmtNode);
@@ -800,17 +688,6 @@ class IfThenElseNode : public StmtNode {
         .def_ro("else_case", &IfThenElseNode::else_case);
   }
 
-  bool SEqualReduce(const IfThenElseNode* other, SEqualReducer equal) const {
-    return equal(condition, other->condition) && equal(then_case, other->then_case) &&
-           equal(else_case, other->else_case);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(condition);
-    hash_reduce(then_case);
-    hash_reduce(else_case);
-  }
-
   static constexpr const char* _type_key = "tir.IfThenElse";
   TVM_DECLARE_FINAL_OBJECT_INFO(IfThenElseNode, StmtNode);
 };
@@ -896,29 +773,13 @@ class ForNode : public StmtNode {
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<ForNode>()
-        .def_ro("loop_var", &ForNode::loop_var)
+        .def_ro("loop_var", &ForNode::loop_var, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("min", &ForNode::min)
         .def_ro("extent", &ForNode::extent)
         .def_ro("kind", &ForNode::kind)
         .def_ro("body", &ForNode::body)
         .def_ro("thread_binding", &ForNode::thread_binding)
         .def_ro("annotations", &ForNode::annotations);
-  }
-
-  bool SEqualReduce(const ForNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(loop_var, other->loop_var) && equal(min, other->min) &&
-           equal(extent, other->extent) && equal(kind, other->kind) && equal(body, other->body) &&
-           equal(thread_binding, other->thread_binding) && equal(annotations, other->annotations);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(loop_var);
-    hash_reduce(min);
-    hash_reduce(extent);
-    hash_reduce(kind);
-    hash_reduce(body);
-    hash_reduce(thread_binding);
-    hash_reduce(annotations);
   }
 
   static constexpr const char* _type_key = "tir.For";
@@ -963,15 +824,6 @@ class WhileNode : public StmtNode {
         .def_ro("body", &WhileNode::body);
   }
 
-  bool SEqualReduce(const WhileNode* other, SEqualReducer equal) const {
-    return equal(condition, other->condition) && equal(body, other->body);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(condition);
-    hash_reduce(body);
-  }
-
   static constexpr const char* _type_key = "tir.While";
   TVM_DECLARE_FINAL_OBJECT_INFO(WhileNode, StmtNode);
 };
@@ -1005,20 +857,10 @@ class BufferRegionNode : public PrimExprConvertibleNode {
         .def_ro("region", &BufferRegionNode::region);
   }
 
-  bool SEqualReduce(const BufferRegionNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(region, other->region);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
-    hash_reduce(region);
-  }
-
   TVM_DLL PrimExpr ToPrimExpr() const final;
 
   static constexpr const char* _type_key = "tir.BufferRegion";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferRegionNode, PrimExprConvertibleNode);
 };
 
@@ -1072,18 +914,8 @@ class MatchBufferRegionNode : public Object {
         .def_ro("source", &MatchBufferRegionNode::source);
   }
 
-  bool SEqualReduce(const MatchBufferRegionNode* other, SEqualReducer equal) const {
-    return equal(buffer, other->buffer) && equal(source, other->source);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(buffer);
-    hash_reduce(source);
-  }
-
   static constexpr const char* _type_key = "tir.MatchBufferRegion";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   TVM_DECLARE_FINAL_OBJECT_INFO(MatchBufferRegionNode, Object);
 };
 
@@ -1130,8 +962,12 @@ class BlockNode : public StmtNode {
   Array<BufferRegion> writes;
   /*! \brief The name_hint of the block. */
   String name_hint;
-  /*! \brief The body of the block. */
-  Stmt body;
+  /*! \brief The buffer allocated in the block. */
+  Array<Buffer> alloc_buffers;
+  /*! \brief The match buffer regions. */
+  Array<MatchBufferRegion> match_buffers;
+  /*! \brief The annotation of the block. */
+  Map<String, ffi::Any> annotations;
   /*!
    * \brief The init statement is executed during the first iteration of reduction loops in a
    *  reduction block. The optional init field allows us to represent initialization and
@@ -1140,45 +976,21 @@ class BlockNode : public StmtNode {
    *  Init field is `std::nullopt` if there is no reduction iter_vars
    */
   Optional<Stmt> init;
-  /*! \brief The buffer allocated in the block. */
-  Array<Buffer> alloc_buffers;
-  /*! \brief The match buffer regions. */
-  Array<MatchBufferRegion> match_buffers;
-  /*! \brief The annotation of the block. */
-  Map<String, ffi::Any> annotations;
+  /*! \brief The body of the block. */
+  Stmt body;
 
   static void RegisterReflection() {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<BlockNode>()
-        .def_ro("iter_vars", &BlockNode::iter_vars)
+        .def_ro("iter_vars", &BlockNode::iter_vars, refl::AttachFieldFlag::SEqHashDef())
         .def_ro("reads", &BlockNode::reads)
         .def_ro("writes", &BlockNode::writes)
-        .def_ro("name_hint", &BlockNode::name_hint)
-        .def_ro("body", &BlockNode::body)
-        .def_ro("init", &BlockNode::init)
+        .def_ro("name_hint", &BlockNode::name_hint, refl::AttachFieldFlag::SEqHashIgnore())
         .def_ro("alloc_buffers", &BlockNode::alloc_buffers)
         .def_ro("match_buffers", &BlockNode::match_buffers)
-        .def_ro("annotations", &BlockNode::annotations);
-  }
-
-  bool SEqualReduce(const BlockNode* other, SEqualReducer equal) const {
-    // Need first reduce iter_vars, alloc_buffers and match_buffers to define new vars
-    return equal.DefEqual(iter_vars, other->iter_vars) &&
-           equal(alloc_buffers, other->alloc_buffers) &&
-           equal(match_buffers, other->match_buffers) && equal(reads, other->reads) &&
-           equal(writes, other->writes) && equal(body, other->body) && equal(init, other->init) &&
-           equal(annotations, other->annotations);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(iter_vars);
-    hash_reduce(alloc_buffers);
-    hash_reduce(match_buffers);
-    hash_reduce(reads);
-    hash_reduce(writes);
-    hash_reduce(body);
-    hash_reduce(init);
-    hash_reduce(annotations);
+        .def_ro("annotations", &BlockNode::annotations)
+        .def_ro("init", &BlockNode::init)
+        .def_ro("body", &BlockNode::body);
   }
 
   static constexpr const char* _type_key = "tir.Block";
@@ -1224,17 +1036,6 @@ class BlockRealizeNode : public StmtNode {
         .def_ro("iter_values", &BlockRealizeNode::iter_values)
         .def_ro("predicate", &BlockRealizeNode::predicate)
         .def_ro("block", &BlockRealizeNode::block);
-  }
-
-  bool SEqualReduce(const BlockRealizeNode* other, SEqualReducer equal) const {
-    return equal(iter_values, other->iter_values) && equal(predicate, other->predicate) &&
-           equal(block, other->block);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(iter_values);
-    hash_reduce(predicate);
-    hash_reduce(block);
   }
 
   static constexpr const char* _type_key = "tir.BlockRealize";

@@ -145,7 +145,6 @@ class SimplifyConfig : public Attrs {
 
 TVM_FFI_STATIC_INIT_BLOCK({ SimplifyConfigNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(SimplifyConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.Simplify", SimplifyConfig);
 
 class StmtSimplifier : public IRMutatorWithAnalyzer {

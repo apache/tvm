@@ -218,7 +218,7 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer
     }
   }
   auto output_dtype = [&]() {
-    int max_bits = 0;
+    int max_bits = ranges.empty() ? 32 : 0;
     for (const auto& range : ranges) {
       max_bits = std::max(max_bits, range->extent.dtype().bits());
     }
@@ -329,7 +329,7 @@ IndexMap IndexMap::RenameVariables(
         }
         visited.emplace(obj.get());
         Var var = Downcast<Var>(obj);
-        if (Optional<String> opt_name = f_name_map(var); opt_name.defined()) {
+        if (Optional<String> opt_name = f_name_map(var); opt_name.has_value()) {
           String name = opt_name.value();
           ICHECK(!name_supply->ContainsName(name, /*add_prefix=*/false));
           name_supply->ReserveName(name, /*add_prefix=*/false);
@@ -419,8 +419,6 @@ IndexMap Substitute(const IndexMap& index_map,
   }
   return IndexMap{index_map->initial_indices, new_output, new_inverse_map};
 }
-
-TVM_REGISTER_NODE_TYPE(IndexMapNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

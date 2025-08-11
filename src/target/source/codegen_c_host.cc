@@ -73,7 +73,7 @@ void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func,
   emit_fwd_func_decl_ = emit_fwd_func_decl;
   CodeGenC::AddFunction(gvar, func);
   if (func->HasNonzeroAttr(tir::attr::kIsEntryFunc)) {
-    ICHECK(global_symbol.defined())
+    ICHECK(global_symbol.has_value())
         << "CodeGenCHost: The entry func must have the global_symbol attribute, "
         << "but function " << gvar << " only has attributes " << func->attrs;
 
@@ -245,6 +245,8 @@ void CodeGenCHost::PrintCallPacked(const CallNode* op) {
   this->PrintIndent();
   // must make sure type_index is set to none
   this->stream << result << ".type_index = kTVMFFINone;\n";
+  this->PrintIndent();
+  this->stream << result << ".zero_padding = 0;\n";
   this->PrintIndent();
   this->stream << result << ".v_int64 = 0;\n";
   this->PrintIndent();

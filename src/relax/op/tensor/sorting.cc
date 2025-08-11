@@ -38,7 +38,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 /* relax.sort */
-TVM_REGISTER_NODE_TYPE(SortAttrs);
 
 Expr sort(Expr data, int axis, bool descending) {
   auto attrs = make_object<SortAttrs>();
@@ -66,7 +65,6 @@ TVM_REGISTER_OP("relax.sort")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.argsort */
-TVM_REGISTER_NODE_TYPE(ArgsortAttrs);
 
 Expr argsort(Expr data, int axis, bool descending, DataType dtype) {
   auto attrs = make_object<ArgsortAttrs>();
@@ -101,7 +99,6 @@ TVM_REGISTER_OP("relax.argsort")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.topk */
-TVM_REGISTER_NODE_TYPE(TopKAttrs);
 
 Expr topk(Expr data, int k, int axis, String ret_type, bool largest, DataType dtype) {
   auto attrs = make_object<TopKAttrs>();

@@ -571,7 +571,7 @@ std::pair<PrimFunc, Optional<PrimFunc>> SplitFunctions(PrimFunc func,
   if (match_results.empty()) {
     return {func, std::nullopt};
   }
-  Array<ObjectRef> codegen_result = f_codegen(match_results);
+  Array<ffi::Any> codegen_result = f_codegen(match_results);
   ICHECK(codegen_result.size() == 3);
   String library_code = Downcast<String>(codegen_result[0]);
   int num_matched_ops = Downcast<Integer>(codegen_result[1])->value;
@@ -662,7 +662,7 @@ void StringReplace(std::string* subject, const std::string& search, const std::s
 tvm::BaseFunc CodegenWithLibrary(const tir::PrimFuncNode* pf, String global_symbol) {
   using namespace tvm::tir;
   Optional<String> library_code = pf->attrs.GetAttr<String>(kLibraryKernel);
-  if (!library_code.defined()) {
+  if (!library_code.has_value()) {
     return GetRef<tir::PrimFunc>(pf);
   }
   std::string source = library_code.value();

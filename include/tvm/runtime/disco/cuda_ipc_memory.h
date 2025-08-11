@@ -71,8 +71,6 @@ class CUDAIPCMemoryObj : public Object {
   int barrier_flag;
 
   static constexpr const char* _type_key = "tvm.runtime.disco.cuda_ipc_memory";
-  static constexpr const bool _type_has_method_sequal_reduce = false;
-  static constexpr const bool _type_has_method_shash_reduce = false;
   TVM_DECLARE_BASE_OBJECT_INFO(CUDAIPCMemoryObj, Object);
 };
 

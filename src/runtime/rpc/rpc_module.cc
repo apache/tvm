@@ -88,8 +88,16 @@ class RPCWrappedFunc : public Object {
     // scan and check whether we need rewrite these arguments
     // to their remote variant.
     for (int i = 0; i < args.size(); ++i) {
-      if (const auto* str = args[i].as<ffi::StringObj>()) {
-        packed_args[i] = str->data;
+      // handle both str and small str
+      if (args[i].type_index() == ffi::TypeIndex::kTVMFFIStr) {
+        // pass string as c_str
+        packed_args[i] = args[i].cast<ffi::String>().data();
+        continue;
+      } else if (args[i].type_index() == ffi::TypeIndex::kTVMFFISmallStr) {
+        // we cannot cast here, since we need to make sure the space is alive
+        const TVMFFIAny* any_view_ptr = reinterpret_cast<const TVMFFIAny*>(&args.data()[i]);
+        TVMFFIByteArray bytes = TVMFFISmallBytesGetContentByteArray(any_view_ptr);
+        packed_args[i] = bytes.data;
         continue;
       }
       packed_args[i] = args[i];
@@ -160,8 +168,6 @@ class RPCWrappedFunc : public Object {
     return RemoveRPCSessionMask(dev);
   }
 };
-
-TVM_REGISTER_OBJECT_TYPE(RPCObjectRefObj);
 
 // RPC that represents a remote module session.
 class RPCModuleNode final : public ModuleNode {
@@ -313,7 +319,9 @@ void RPCWrappedFunc::WrapRemoteReturnToValue(ffi::PackedArgs args, ffi::Any* rv)
                                         AddRPCSessionMask(tensor->device, sess_->table_index()),
                                         nd_handle);
   } else if (type_index == ffi::TypeIndex::kTVMFFIBytes ||
-             type_index == ffi::TypeIndex::kTVMFFIStr) {
+             type_index == ffi::TypeIndex::kTVMFFIStr ||
+             type_index == ffi::TypeIndex::kTVMFFISmallStr ||
+             type_index == ffi::TypeIndex::kTVMFFISmallBytes) {
     ICHECK_EQ(args.size(), 2);
     *rv = args[1];
   } else if (type_index >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {

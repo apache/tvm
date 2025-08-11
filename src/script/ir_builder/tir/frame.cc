@@ -52,7 +52,7 @@ void PrimFuncFrameNode::ExitWithScope() {
   TIRFrameNode::ExitWithScope();
   // if the prim func is not private and there isn't already a global symbol,
   // add a global symbol
-  if (!is_private && name.defined() && !attrs.count(tvm::attr::kGlobalSymbol)) {
+  if (!is_private && name.has_value() && !attrs.count(tvm::attr::kGlobalSymbol)) {
     attrs.Set(tvm::attr::kGlobalSymbol, name.value());
   }
 
@@ -68,8 +68,8 @@ void PrimFuncFrameNode::ExitWithScope() {
     ICHECK(!builder->result.defined()) << "ValueError: Builder.result has already been set";
     builder->result = func;
   } else if (Optional<ir::IRModuleFrame> opt_frame = builder->FindFrame<ir::IRModuleFrame>()) {
-    CHECK(name.defined()) << "ValueError: The function name must be defined before exiting the "
-                             "function scope, if it's defined in a Module";
+    CHECK(name.has_value()) << "ValueError: The function name must be defined before exiting the "
+                               "function scope, if it's defined in a Module";
     const ir::IRModuleFrame& frame = opt_frame.value();
     const String& func_name = name.value_or("");
     if (!frame->global_var_map.count(func_name)) {
@@ -224,24 +224,6 @@ void DeclBufferFrameNode::ExitWithScope() {
                                    tvm::tir::DeclBuffer(buffer, AsStmt(stmts))));
   }
 }
-
-TVM_REGISTER_NODE_TYPE(TIRFrameNode);
-TVM_REGISTER_NODE_TYPE(PrimFuncFrameNode);
-TVM_REGISTER_NODE_TYPE(BlockFrameNode);
-TVM_REGISTER_NODE_TYPE(BlockInitFrameNode);
-TVM_REGISTER_NODE_TYPE(ForFrameNode);
-TVM_REGISTER_NODE_TYPE(AssertFrameNode);
-TVM_REGISTER_NODE_TYPE(LetFrameNode);
-TVM_REGISTER_NODE_TYPE(RealizeFrameNode);
-TVM_REGISTER_NODE_TYPE(LaunchThreadFrameNode);
-TVM_REGISTER_NODE_TYPE(AllocateFrameNode);
-TVM_REGISTER_NODE_TYPE(AllocateConstFrameNode);
-TVM_REGISTER_NODE_TYPE(AttrFrameNode);
-TVM_REGISTER_NODE_TYPE(WhileFrameNode);
-TVM_REGISTER_NODE_TYPE(IfFrameNode);
-TVM_REGISTER_NODE_TYPE(ThenFrameNode);
-TVM_REGISTER_NODE_TYPE(ElseFrameNode);
-TVM_REGISTER_NODE_TYPE(DeclBufferFrameNode);
 
 }  // namespace tir
 }  // namespace ir_builder

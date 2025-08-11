@@ -123,7 +123,7 @@ class AlterOpImplMutator : public ExprMutator {
 
     // If the callee does not have kOperatorName attribute or no replacement is requested for
     // it, nothing to do here.
-    if (!maybe_op_kind.defined() || op_impl_map_.count(maybe_op_kind.value()) == 0) return call;
+    if (!maybe_op_kind.has_value() || op_impl_map_.count(maybe_op_kind.value()) == 0) return call;
     auto op_kind = maybe_op_kind.value();
 
     const auto& replacement_func = op_impl_map_[op_kind];

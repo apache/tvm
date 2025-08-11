@@ -61,7 +61,6 @@ class OpenCLMLCompilerConfig : public Attrs {
 
 TVM_FFI_STATIC_INIT_BLOCK({ OpenCLMLCompilerConfigNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(OpenCLMLCompilerConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.ext.clml.options", OpenCLMLCompilerConfig);
 
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
@@ -139,7 +138,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
 
     auto opt_composite = fn->GetAttr<String>(attr::kComposite);
-    ICHECK(opt_composite.defined());
+    ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
     std::shared_ptr<JSONGraphNode> node;
@@ -194,7 +193,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
     auto opt_composite = fn->GetAttr<String>(attr::kComposite);
-    ICHECK(opt_composite.defined());
+    ICHECK(opt_composite.has_value());
 
     nodes.pad = backend::TryGetOpInFunction(fn, "relax.nn.pad");
     nodes.conv = backend::TryGetOpInFunction(fn, "relax.nn.conv2d");
@@ -223,7 +222,7 @@ class OpenCLMLJSONSerializer : public JSONSerializer {
     ICHECK(fn_var);
     const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
     auto opt_composite = fn->GetAttr<String>(attr::kComposite);
-    ICHECK(opt_composite.defined());
+    ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
     std::vector<JSONGraphNodeEntry> inputs;

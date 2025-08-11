@@ -207,8 +207,6 @@ class SocketSessionObj : public BcastSessionObj {
   BcastSession local_session_{nullptr};
 };
 
-TVM_REGISTER_OBJECT_TYPE(SocketSessionObj);
-
 class RemoteSocketSession {
  public:
   explicit RemoteSocketSession(const String& server_host, int server_port, int num_local_workers) {

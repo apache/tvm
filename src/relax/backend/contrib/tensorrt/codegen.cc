@@ -83,7 +83,6 @@ class TensorRTCompilerConfig : public Attrs {
 
 TVM_FFI_STATIC_INIT_BLOCK({ TensorRTCompilerConfigNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(TensorRTCompilerConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.ext.tensorrt.options", TensorRTCompilerConfig);
 
 using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
@@ -141,7 +140,7 @@ class TensorRTJSONSerializer : public JSONSerializer {
     const auto fn = Downcast<Function>(bindings_[GetRef<Var>(fn_var)]);
 
     auto opt_composite = fn->GetAttr<String>(attr::kComposite);
-    ICHECK(opt_composite.defined());
+    ICHECK(opt_composite.has_value());
     std::string name = opt_composite.value();
 
     // Collect the constants and attributes of all operator calls inside the composite body.

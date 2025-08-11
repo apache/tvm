@@ -19,7 +19,6 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/script/printer/ir_docsifier.h>
 
@@ -81,11 +80,13 @@ Optional<ExprDoc> IRDocsifierNode::GetVarDoc(const ObjectRef& obj) const {
   return it->second.creator();
 }
 
-ExprDoc IRDocsifierNode::AddMetadata(const ObjectRef& obj) {
-  ICHECK(obj.defined()) << "TypeError: Cannot add nullptr to metadata";
-  String key = obj->GetTypeKey();
-  Array<ObjectRef>& array = metadata[key];
-  int index = std::find(array.begin(), array.end(), obj) - array.begin();
+ExprDoc IRDocsifierNode::AddMetadata(const ffi::Any& obj) {
+  ICHECK(obj != nullptr) << "TypeError: Cannot add nullptr to metadata";
+  String key = obj.GetTypeKey();
+  Array<ffi::Any>& array = metadata[key];
+  int index = std::find_if(array.begin(), array.end(),
+                           [&](const ffi::Any& a) { return ffi::AnyEqual()(a, obj); }) -
+              array.begin();
   if (index == static_cast<int>(array.size())) {
     array.push_back(obj);
   }
@@ -104,7 +105,7 @@ bool IRDocsifierNode::IsVarDefined(const ObjectRef& obj) const { return obj2info
 void IRDocsifierNode::RemoveVar(const ObjectRef& obj) {
   auto it = obj2info.find(obj);
   ICHECK(it != obj2info.end()) << "No such object: " << obj;
-  if (it->second.name.defined()) {
+  if (it->second.name.has_value()) {
     defined_names.erase(it->second.name.value());
   }
   obj2info.erase(it);
@@ -147,7 +148,7 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
         }
       } else {
         const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
-        if (tinfo->extra_info != nullptr) {
+        if (tinfo->metadata != nullptr) {
           ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
             Any field_value = ffi::reflection::FieldGetter(field_info)(obj);
             this->RecursiveVisitAny(&field_value);
@@ -176,7 +177,6 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
       }
     }
 
-    ReflectionVTable* vtable_ = ReflectionVTable::Global();
     std::vector<const Object*> stack_;
     std::unordered_set<const Object*> visited_;
 
@@ -206,11 +206,8 @@ IRDocsifier::FType& IRDocsifier::vtable() {
   return inst;
 }
 
-TVM_REGISTER_NODE_TYPE(FrameNode);
-TVM_REGISTER_NODE_TYPE(IRDocsifierNode);
-
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_fallback([](ObjectRef obj, ObjectPath p, IRDocsifier d) -> Doc {
+    .set_fallback([](ObjectRef obj, AccessPath p, IRDocsifier d) -> Doc {
       return d->AddMetadata(obj);
     });
 

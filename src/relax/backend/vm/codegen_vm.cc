@@ -83,8 +83,8 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
 
   void Codegen(const Function& func) {
     Optional<String> gsymbol = func->GetAttr<String>(tvm::attr::kGlobalSymbol);
-    ICHECK(gsymbol.defined()) << "there should be no local functions in Relax VM codegen phase. "
-                                 "Did you forget to apply LambdaLift or AttachGlobalSymbol Pass?";
+    ICHECK(gsymbol.has_value()) << "there should be no local functions in Relax VM codegen phase. "
+                                   "Did you forget to apply LambdaLift or AttachGlobalSymbol Pass?";
 
     Array<String> param_names;
     for (Var param : func->params) {
@@ -293,12 +293,12 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     // At this point: all global var must corresponds to the right symbol.
     // TODO(relax-team): switch everything to extern before splitting TIR/relax
     // so we do not have idle global var here.
-    if (!symbol.defined()) {
+    if (!symbol.has_value()) {
       symbol = gvar->name_hint;
       kind = VMFuncInfo::FuncKind::kPackedFunc;
     }
     // declare the function to be safe.
-    ICHECK(symbol.defined());
+    ICHECK(symbol.has_value());
     builder_->DeclareFunction(symbol.value(), kind);
     return builder_->GetFunction(symbol.value());
   }

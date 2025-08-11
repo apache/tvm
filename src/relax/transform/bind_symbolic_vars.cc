@@ -31,7 +31,8 @@
 namespace tvm {
 namespace relax {
 
-Function FunctionBindSymbolicVars(Function func, Map<ObjectRef, PrimExpr> obj_remap) {
+Function FunctionBindSymbolicVars(Function func,
+                                  Map<Variant<tir::Var, String>, PrimExpr> obj_remap) {
   // Early bail-out if no updates need to be made.
   if (obj_remap.empty()) {
     return func;
@@ -50,7 +51,7 @@ Function FunctionBindSymbolicVars(Function func, Map<ObjectRef, PrimExpr> obj_re
   // Replacement map to be used when rewriting the function.
   Map<tir::Var, PrimExpr> var_remap;
   for (const auto& [key, replacement] : obj_remap) {
-    if (auto opt = key.as<String>()) {
+    if (auto opt = key.as<ffi::String>()) {
       String string_key = opt.value();
       auto it = string_lookup.find(string_key);
       CHECK(it != string_lookup.end())
@@ -74,7 +75,7 @@ Function FunctionBindSymbolicVars(Function func, Map<ObjectRef, PrimExpr> obj_re
       var_remap.Set(var, replacement);
     } else {
       LOG(FATAL) << "Expected symbolic variable to be a tir::Var or a string name, "
-                 << "but " << key << " was of type " << key->GetTypeKey();
+                 << "but " << key << " was of type " << key.GetTypeKey();
     }
   }
 
@@ -90,15 +91,16 @@ Function FunctionBindSymbolicVars(Function func, Map<ObjectRef, PrimExpr> obj_re
 }
 
 namespace {
-IRModule ModuleBindSymbolicVars(IRModule mod, Map<ObjectRef, PrimExpr> binding_map) {
-  std::unordered_set<const Object*> used;
+IRModule ModuleBindSymbolicVars(IRModule mod,
+                                Map<Variant<tir::Var, String>, PrimExpr> binding_map) {
+  std::unordered_set<ffi::Any, ffi::AnyHash, ffi::AnyEqual> used;
   IRModule updates;
   for (const auto& [gvar, base_func] : mod->functions) {
     if (auto opt = base_func.as<Function>()) {
       auto func = opt.value();
 
       // Collect bindings that are used by this function.
-      auto func_binding_map = [&]() -> Map<ObjectRef, PrimExpr> {
+      auto func_binding_map = [&]() -> Map<Variant<tir::Var, String>, PrimExpr> {
         std::unordered_set<std::string> var_names;
         std::unordered_set<const tir::VarNode*> vars;
         for (const auto& var : DefinedSymbolicVars(func)) {
@@ -106,7 +108,7 @@ IRModule ModuleBindSymbolicVars(IRModule mod, Map<ObjectRef, PrimExpr> binding_m
           vars.insert(var.get());
         }
 
-        Map<ObjectRef, PrimExpr> out;
+        Map<Variant<tir::Var, String>, PrimExpr> out;
         for (const auto& [key, replacement] : binding_map) {
           bool used_by_function = false;
           if (auto opt = key.as<String>()) {
@@ -115,10 +117,10 @@ IRModule ModuleBindSymbolicVars(IRModule mod, Map<ObjectRef, PrimExpr> binding_m
             used_by_function = vars.count(ptr);
           } else {
             LOG(FATAL) << "Expected symbolic variable to be a tir::Var "
-                       << "or a string name, but " << key << " was of type " << key->GetTypeKey();
+                       << "or a string name, but " << key << " was of type " << key.GetTypeKey();
           }
           if (used_by_function) {
-            used.insert(key.get());
+            used.insert(key);
             out.Set(key, replacement);
           }
         }
@@ -132,9 +134,9 @@ IRModule ModuleBindSymbolicVars(IRModule mod, Map<ObjectRef, PrimExpr> binding_m
     }
   }
 
-  Array<ObjectRef> unused;
+  Array<ffi::Any> unused;
   for (const auto& [key, replacement] : binding_map) {
-    if (!used.count(key.get())) {
+    if (!used.count(key)) {
       unused.push_back(key);
     }
   }
@@ -156,7 +158,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 namespace transform {
 
-Pass BindSymbolicVars(Map<ObjectRef, PrimExpr> binding_map, Optional<String> func_name) {
+Pass BindSymbolicVars(Map<Variant<tir::Var, String>, PrimExpr> binding_map,
+                      Optional<String> func_name) {
   auto pass_func = [=](IRModule mod, PassContext context) -> IRModule {
     if (func_name) {
       auto gvar = mod->GetGlobalVar(func_name.value());

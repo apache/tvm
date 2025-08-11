@@ -81,12 +81,14 @@ class TargetKindNode : public Object {
     namespace refl = tvm::ffi::reflection;
     refl::ObjectDef<TargetKindNode>()
         .def_ro("name", &TargetKindNode::name)
-        .def_ro("default_device_type", &TargetKindNode::default_device_type)
-        .def_ro("default_keys", &TargetKindNode::default_keys);
+        .def_ro("default_device_type", &TargetKindNode::default_device_type,
+                refl::AttachFieldFlag::SEqHashIgnore())
+        .def_ro("default_keys", &TargetKindNode::default_keys,
+                refl::AttachFieldFlag::SEqHashIgnore());
   }
 
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindUniqueInstance;
   static constexpr const char* _type_key = "target.TargetKind";
-
   TVM_DECLARE_FINAL_OBJECT_INFO(TargetKindNode, Object);
 
  private:
@@ -134,9 +136,10 @@ class TargetKind : public ObjectRef {
    * \return The TargetKind requested
    */
   TVM_DLL static Optional<TargetKind> Get(const String& target_kind_name);
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TargetKind, ObjectRef, TargetKindNode);
   /*! \brief Mutable access to the container class  */
   TargetKindNode* operator->() { return static_cast<TargetKindNode*>(data_.get()); }
+
+  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TargetKind, ObjectRef, TargetKindNode);
 
  private:
   TVM_DLL static const AttrRegistryMapContainerMap<TargetKind>& GetAttrMapContainer(
@@ -284,13 +287,27 @@ struct ValueTypeInfoMaker<ValueType, std::false_type, std::false_type> {
   using ValueTypeInfo = TargetKindNode::ValueTypeInfo;
 
   ValueTypeInfo operator()() const {
-    int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
     ValueTypeInfo info;
-    info.type_index = tindex;
-    info.type_key = runtime::Object::TypeIndex2Key(tindex);
     info.key = nullptr;
     info.val = nullptr;
-    return info;
+    if constexpr (std::is_base_of_v<ObjectRef, ValueType>) {
+      int32_t tindex = ffi::TypeToRuntimeTypeIndex<ValueType>::v();
+      info.type_index = tindex;
+      info.type_key = runtime::Object::TypeIndex2Key(tindex);
+      return info;
+    } else if constexpr (std::is_same_v<ValueType, String>) {
+      // special handle string since it can be backed by multiple types.
+      info.type_index = ffi::TypeIndex::kTVMFFIStr;
+      info.type_key = ffi::TypeTraits<ValueType>::TypeStr();
+      return info;
+    } else {
+      // TODO(tqchen) consider upgrade to leverage any system to support union type
+      constexpr int32_t tindex = ffi::TypeToFieldStaticTypeIndex<ValueType>::value;
+      static_assert(tindex != ffi::TypeIndex::kTVMFFIAny, "Do not support union type for now");
+      info.type_index = tindex;
+      info.type_key = runtime::Object::TypeIndex2Key(tindex);
+      return info;
+    }
   }
 };
 

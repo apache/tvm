@@ -19,7 +19,6 @@
 # class exposures
 from .packed_func import PackedFunc
 from .object import Object
-from .object_path import ObjectPath, ObjectPathPair
 from .script_printer import Scriptable
 from .object_generic import ObjectGeneric
 from .device import Device

@@ -35,7 +35,7 @@
 #define TVM_NODE_NODE_H_
 
 #include <tvm/ffi/memory.h>
-#include <tvm/node/reflection.h>
+#include <tvm/node/cast.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
@@ -58,8 +58,6 @@ using ffi::ObjectPtrHash;
 using ffi::ObjectRef;
 using ffi::PackedArgs;
 using ffi::TypeIndex;
-using runtime::Downcast;
-using runtime::GetRef;
 
 }  // namespace tvm
 #endif  // TVM_NODE_NODE_H_

@@ -30,9 +30,9 @@ namespace contrib {
 namespace msc {
 
 void PythonPrinter::PrintTypedDoc(const LiteralDoc& doc) {
-  const ObjectRef& value = doc->value;
+  const ffi::Any& value = doc->value;
   bool defined = false;
-  if (!value.defined()) {
+  if (value == nullptr) {
     output_ << "None";
     defined = true;
   } else if (const auto* int_imm = value.as<IntImmNode>()) {
@@ -157,7 +157,7 @@ void PythonPrinter::PrintTypedDoc(const ScopeDoc& doc) {
 
 void PythonPrinter::PrintTypedDoc(const FunctionDoc& doc) {
   for (const AssignDoc& arg_doc : doc->args) {
-    ICHECK(arg_doc->comment == nullptr) << "Function arg cannot have comment attached to them.";
+    ICHECK(!arg_doc->comment.has_value()) << "Function arg cannot have comment attached to them.";
   }
 
   PrintDecorators(doc->decorators);
@@ -176,7 +176,7 @@ void PythonPrinter::PrintTypedDoc(const FunctionDoc& doc) {
 
   output_ << ":";
 
-  if (doc->comment.defined()) {
+  if (doc->comment.has_value()) {
     IncreaseIndent();
     MaybePrintComment(doc, true);
     DecreaseIndent();
@@ -197,7 +197,7 @@ void PythonPrinter::PrintTypedDoc(const ClassDoc& doc) {
 }
 
 void PythonPrinter::PrintTypedDoc(const CommentDoc& doc) {
-  if (doc->comment.defined()) {
+  if (doc->comment.has_value()) {
     output_ << "# " << doc->comment.value();
   }
 }
@@ -234,7 +234,7 @@ void PythonPrinter::PrintTypedDoc(const SwitchDoc& doc) {
 }
 
 void PythonPrinter::MaybePrintComment(const StmtDoc& stmt, bool multi_lines) {
-  if (stmt->comment.defined() && multi_lines) {
+  if (stmt->comment.has_value() && multi_lines) {
     NewLine();
     output_ << "\"\"\"";
     for (const auto& l : StringUtils::Split(stmt->comment.value(), "\n")) {

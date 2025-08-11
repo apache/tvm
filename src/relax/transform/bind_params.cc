@@ -83,7 +83,7 @@ void MatchSymbolicVar(const Expr& arg, const Expr& constant,
 }
 
 std::tuple<Map<Var, Expr>, Map<tir::Var, PrimExpr>> NormalizeBindings(
-    const Function& func, const Map<ObjectRef, ObjectRef>& untyped_params) {
+    const Function& func, const Map<Any, ObjectRef>& untyped_params) {
   ICHECK(func.defined());
   ICHECK(untyped_params.defined());
 
@@ -97,7 +97,7 @@ std::tuple<Map<Var, Expr>, Map<tir::Var, PrimExpr>> NormalizeBindings(
 
   Map<relax::Var, relax::Expr> relax_var_remap;
 
-  auto normalize_key = [&](ObjectRef obj) -> relax::Var {
+  auto normalize_key = [&](ffi::Any obj) -> relax::Var {
     if (auto opt_str = obj.as<String>()) {
       std::string str = opt_str.value();
       auto it = string_lookup.find(str);
@@ -125,17 +125,16 @@ std::tuple<Map<Var, Expr>, Map<tir::Var, PrimExpr>> NormalizeBindings(
       LOG(FATAL)
           << "Expected bound parameter to be a relax::Var, "
           << " or a string that uniquely identifies a relax::Var param within the function.  "
-          << "However, received object " << obj << " of type " << obj->GetTypeKey();
+          << "However, received object " << obj << " of type " << obj.GetTypeKey();
     }
   };
-  auto normalize_value = [&](ObjectRef obj) -> relax::Expr {
+  auto normalize_value = [&](ffi::Any obj) -> relax::Expr {
     if (auto opt = obj.as<relax::Expr>()) {
       return opt.value();
     } else if (auto opt = obj.as<runtime::NDArray>()) {
       return Constant(opt.value());
     } else {
-      LOG(FATAL) << "Cannot coerce object of type " << obj->GetTypeKey()
-                 << " into relax expression";
+      LOG(FATAL) << "Cannot coerce object of type " << obj.GetTypeKey() << " into relax expression";
     }
   };
 
@@ -159,7 +158,7 @@ std::tuple<Map<Var, Expr>, Map<tir::Var, PrimExpr>> NormalizeBindings(
  * \param params params dict
  * \return Function
  */
-Function FunctionBindParams(Function func, const Map<ObjectRef, ObjectRef>& untyped_params) {
+Function FunctionBindParams(Function func, const Map<Any, ObjectRef>& untyped_params) {
   auto [bind_dict, symbolic_var_map] = NormalizeBindings(func, untyped_params);
 
   Expr bound_expr = Bind(func, bind_dict, symbolic_var_map);
@@ -173,7 +172,7 @@ Function FunctionBindParams(Function func, const Map<ObjectRef, ObjectRef>& unty
  * \param param The param dict
  * \return The module after binding params.
  */
-IRModule BindParam(IRModule m, String func_name, Map<ObjectRef, ObjectRef> bind_params) {
+IRModule BindParam(IRModule m, String func_name, Map<Any, ObjectRef> bind_params) {
   IRModuleNode* new_module = m.CopyOnWrite();
   Map<GlobalVar, BaseFunc> functions = m->functions;
   for (const auto& func_pr : functions) {
@@ -181,7 +180,7 @@ IRModule BindParam(IRModule m, String func_name, Map<ObjectRef, ObjectRef> bind_
       if (relax_f->GetLinkageType() == LinkageType::kExternal) {
         // Use global_symbol if it's external linkage
         Optional<String> gsymbol = relax_f->GetAttr<String>(tvm::attr::kGlobalSymbol);
-        if (gsymbol.defined() && gsymbol.value() == func_name) {
+        if (gsymbol.has_value() && gsymbol.value() == func_name) {
           Function f_after_bind = FunctionBindParams(GetRef<Function>(relax_f), bind_params);
           new_module->Update(func_pr.first, f_after_bind);
         }
@@ -204,7 +203,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 namespace transform {
 
-Pass BindParams(String func_name, Map<ObjectRef, ObjectRef> params) {
+Pass BindParams(String func_name, Map<Any, ObjectRef> params) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     return BindParam(std::move(mod), func_name, params);
   };

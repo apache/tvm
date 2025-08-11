@@ -80,10 +80,12 @@ class VariantBase<true> : public ObjectRef {
     TVMFFIAny any_data;
     if (data_ == nullptr) {
       any_data.type_index = TypeIndex::kTVMFFINone;
+      any_data.zero_padding = 0;
       any_data.v_int64 = 0;
     } else {
       TVM_FFI_CLEAR_PTR_PADDING_IN_FFI_ANY(&any_data);
       any_data.type_index = data_->type_index();
+      any_data.zero_padding = 0;
       any_data.v_obj = details::ObjectUnsafe::TVMFFIObjectPtrFromObjectPtr<Object>(data_);
     }
     return AnyView::CopyFromTVMFFIAny(any_data);

@@ -30,9 +30,9 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
-LiteralDoc PrototxtPrinter::ToLiteralDoc(const ObjectRef& obj) {
-  if (obj.as<ffi::StringObj>()) {
-    return LiteralDoc::Str(Downcast<String>(obj), std::nullopt);
+LiteralDoc PrototxtPrinter::ToLiteralDoc(const ffi::Any& obj) {
+  if (auto opt_str = obj.as<ffi::String>()) {
+    return LiteralDoc::Str(*opt_str, std::nullopt);
   } else if (obj.as<IntImmNode>()) {
     return LiteralDoc::Int(Downcast<IntImm>(obj)->value, std::nullopt);
   } else if (obj.as<FloatImmNode>()) {
@@ -51,7 +51,7 @@ DictDoc PrototxtPrinter::ToDictDoc(const Map<String, ffi::Any>& dict) {
     if (pair.second.as<DictDocNode>()) {
       values.push_back(Downcast<DictDoc>(pair.second));
     } else {
-      values.push_back(ToLiteralDoc(pair.second.cast<ObjectRef>()));
+      values.push_back(ToLiteralDoc(pair.second));
     }
   }
   return DictDoc(keys, values);
@@ -65,7 +65,7 @@ DictDoc PrototxtPrinter::ToDictDoc(const std::vector<std::pair<String, Any>>& di
     if (pair.second.as<DictDocNode>()) {
       values.push_back(Downcast<DictDoc>(pair.second));
     } else {
-      values.push_back(ToLiteralDoc(pair.second.cast<ObjectRef>()));
+      values.push_back(ToLiteralDoc(pair.second));
     }
   }
   return DictDoc(keys, values);

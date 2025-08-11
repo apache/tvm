@@ -116,9 +116,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   PyPostprocNode::RegisterReflection();
 });
 
-TVM_REGISTER_OBJECT_TYPE(PostprocNode);
-TVM_REGISTER_NODE_TYPE(PyPostprocNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

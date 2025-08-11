@@ -14,37 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-import tvm
-import tvm.testing
-from tvm import relax
-import json
-
-
-# 0.13 BACKWARDS COMPATIBILITY TESTS
-def test_vdevice():
-    nodes = [
-        {"type_key": ""},
-        {
-            "type_key": "relax.TensorStructInfo",
-            "attrs": {
-                "dtype": "float32",
-                "ndim": "-1",
-                "shape": "0",
-                "span": "0",
-            },
-        },
-    ]
-    data = {
-        "root": 1,
-        "nodes": nodes,
-        "attrs": {"tvm_version": "0.13.0"},
-        "b64ndarrays": [],
-    }
-    tsinfo = tvm.ir.load_json(json.dumps(data))
-    assert isinstance(tsinfo, relax.TensorStructInfo)
-    assert not tsinfo.vdevice
+# pylint: disable=invalid-name, import-outside-toplevel, unused-variable
+"""Testing utilities for attrs"""
+from ..ir import Attrs
+from ..ffi import register_object
 
 
-if __name__ == "__main__":
-    tvm.testing.main()
+@register_object("attrs.TestAttrs")
+class TestAttrs(Attrs):
+    """Attrs used for testing purposes"""
+
+
+__all__ = ["TestAttrs"]

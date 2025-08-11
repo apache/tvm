@@ -28,7 +28,6 @@
 #include <dmlc/json.h>
 #include <tvm/ffi/reflection/accessor.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/reflection.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/tir/op.h>
 
@@ -112,7 +111,7 @@ class OpAttrExtractor {
     }
   }
 
-  void Visit(const char* key, runtime::ObjectRef* value) {
+  void Visit(const char* key, ffi::Any* value) {
     if (const auto* an = (*value).as<ffi::ArrayObj>()) {
       std::vector<std::string> attr;
       for (size_t i = 0; i < an->size(); ++i) {
@@ -120,25 +119,23 @@ class OpAttrExtractor {
           attr.push_back(std::to_string(im->value));
         } else if (const auto* fm = (*an)[i].as<FloatImmNode>()) {
           attr.push_back(Fp2String(fm->value));
-        } else if (const auto* str = (*an)[i].as<ffi::StringObj>()) {
-          String s = GetRef<String>(str);
-          attr.push_back(s);
+        } else if (auto opt_str = (*an)[i].as<String>()) {
+          attr.push_back(*opt_str);
         } else {
           LOG(FATAL) << "Not supported type: " << (*an)[i].GetTypeKey();
         }
       }
       SetNodeAttr(key, attr);
-    } else if (!(*value).defined()) {  // Skip NullValue
+    } else if (*value == nullptr) {  // Skip NullValue
       SetNodeAttr(key, std::vector<std::string>{""});
     } else if (const auto* im = (*value).as<IntImmNode>()) {
       SetNodeAttr(key, std::vector<std::string>{std::to_string(im->value)});
     } else if (const auto* fm = (*value).as<FloatImmNode>()) {
       SetNodeAttr(key, std::vector<std::string>{Fp2String(fm->value)});
-    } else if (const auto* str = (*value).as<ffi::StringObj>()) {
-      String s = GetRef<String>(str);
-      SetNodeAttr(key, std::vector<std::string>{s});
+    } else if (const auto opt_str = (*value).as<ffi::String>()) {
+      SetNodeAttr(key, std::vector<std::string>{*opt_str});
     } else {
-      LOG(FATAL) << "Not yet supported type: " << (*value)->GetTypeKey() << ": " << *value;
+      LOG(FATAL) << "Not yet supported type: " << (*value).GetTypeKey();
     }
   }
 
@@ -151,7 +148,7 @@ class OpAttrExtractor {
  private:
   void VisitObjectFields(Object* obj) {
     const TVMFFITypeInfo* tinfo = TVMFFIGetTypeInfo(obj->type_index());
-    ICHECK(tinfo->extra_info != nullptr)
+    ICHECK(tinfo->metadata != nullptr)
         << "Object `" << obj->GetTypeKey()
         << "` misses reflection registration and do not support serialization";
     ffi::reflection::ForEachFieldInfo(tinfo, [&](const TVMFFIFieldInfo* field_info) {
@@ -178,24 +175,18 @@ class OpAttrExtractor {
           break;
         }
         case ffi::TypeIndex::kTVMFFINDArray: {
-          runtime::NDArray value = field_value.cast<runtime::NDArray>();
-          this->Visit(field_info->name.data, &value);
+          this->Visit(field_info->name.data, &field_value);
           break;
         }
         default: {
-          if (field_value.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
-            ObjectRef obj = field_value.cast<ObjectRef>();
-            this->Visit(field_info->name.data, &obj);
-            break;
-          }
-          LOG(FATAL) << "Unsupported type: " << field_value.GetTypeKey();
+          this->Visit(field_info->name.data, &field_value);
+          break;
         }
       }
     });
   }
 
   JSONGraphObjectPtr node_;
-  ReflectionVTable* reflection_ = ReflectionVTable::Global();
 };
 
 using NodeEntries = std::vector<JSONGraphNodeEntry>;
@@ -294,7 +285,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
       ICHECK(false);
       auto pattern = fn->GetAttr<String>(attr::kPartitionedFromPattern);
-      ICHECK(pattern.defined());
+      ICHECK(pattern.has_value());
       std::vector<std::string> values;
       values.push_back(pattern.value());
       std::vector<dmlc::any> attr;
@@ -394,7 +385,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
       name = op_node->name;
     } else if (const auto* fn = cn->op.as<FunctionNode>()) {
       auto comp = fn->GetAttr<String>(attr::kComposite);
-      ICHECK(comp.defined()) << "JSON runtime only supports composite functions.";
+      ICHECK(comp.has_value()) << "JSON runtime only supports composite functions.";
       name = comp.value();
     } else {
       LOG(FATAL) << "JSON runtime does not support calls to " << cn->op->GetTypeKey();
@@ -422,7 +413,7 @@ class JSONSerializer : public relax::MemoizedExprTranslator<NodeEntries> {
   }
 
   NodeEntries VisitExpr_(const FunctionNode* fn) {
-    ICHECK(fn->GetAttr<String>(attr::kComposite).defined())
+    ICHECK(fn->GetAttr<String>(attr::kComposite).has_value())
         << "JSON runtime only supports composite functions";
 
     // FunctionNode should be handled by the caller.

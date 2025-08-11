@@ -69,7 +69,7 @@ ArgInfo ArgInfo::FromJSON(const ObjectRef& json_obj) {
   // The JSON object is always an array whose first element is a tag. For example:
   // `['TENSOR', 'float32', [1, 224, 224, 3]]
   // Step 1. Extract the tag
-  String tag{ffi::ObjectPtr<ffi::StringObj>(nullptr)};
+  Optional<String> tag{std::nullopt};
   try {
     const ffi::ArrayObj* json_array = json_obj.as<ffi::ArrayObj>();
     CHECK(json_array && json_array->size() >= 1);
@@ -124,7 +124,7 @@ ObjectRef TensorInfoNode::AsJSON() const {
   static String tag = "TENSOR";
   String dtype = DLDataTypeToString(this->dtype);
   Array<Integer> shape = support::AsArray(this->shape);
-  return Array<ObjectRef>{tag, dtype, shape};
+  return Array<ffi::Any>{tag, dtype, shape};
 }
 
 TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
@@ -161,9 +161,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 /******** FFI ********/
 TVM_FFI_STATIC_INIT_BLOCK({ TensorInfoNode::RegisterReflection(); });
-
-TVM_REGISTER_OBJECT_TYPE(ArgInfoNode);
-TVM_REGISTER_NODE_TYPE(TensorInfoNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

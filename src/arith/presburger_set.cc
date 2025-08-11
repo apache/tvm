@@ -280,7 +280,5 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef().def("arith.PresburgerSet", MakePresburgerSet);
 });
 
-TVM_REGISTER_NODE_TYPE(PresburgerSetNode);
-
 }  // namespace arith
 }  // namespace tvm

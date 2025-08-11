@@ -59,7 +59,6 @@ RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(selu, "nn.selu", /*require_float_dtype=*/tru
 RELAX_REGISTER_UNARY_NN_OP_AND_IMPL(silu, "nn.silu", /*require_float_dtype=*/true);
 
 /* relax.nn.leakyrelu */
-TVM_REGISTER_NODE_TYPE(LeakyReluAttrs);
 
 Expr leakyrelu(Expr data, double alpha) {
   auto attrs = make_object<LeakyReluAttrs>();
@@ -82,7 +81,6 @@ TVM_REGISTER_OP("relax.nn.leakyrelu")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.softplus */
-TVM_REGISTER_NODE_TYPE(SoftplusAttrs);
 
 Expr softplus(Expr data, double beta, double threshold) {
   auto attrs = make_object<SoftplusAttrs>();
@@ -106,7 +104,6 @@ TVM_REGISTER_OP("relax.nn.softplus")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.prelu */
-TVM_REGISTER_NODE_TYPE(PReluAttrs);
 
 Expr prelu(Expr data, Expr alpha, int axis = 1) {
   auto attrs = make_object<PReluAttrs>();
@@ -120,17 +117,57 @@ TVM_FFI_STATIC_INIT_BLOCK({
   refl::GlobalDef().def("relax.op.nn.prelu", prelu);
 });
 
+StructInfo InferStructInfoPRelu(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  if (data_sinfo->IsUnknownNdim()) {
+    return data_sinfo;
+  }
+  if (!data_sinfo->IsUnknownDtype() && !data_sinfo->dtype.is_float()) {
+    ctx->ReportFatal(Diagnostic::Error(call) << "Prelu requires the input tensor to have float "
+                                                "dtype. However, the given input dtype is "
+                                             << data_sinfo->dtype);
+  }
+  const auto* attrs = call->attrs.as<PReluAttrs>();
+  NormalizeAxis(call, ctx, data_sinfo->ndim, attrs->axis);
+
+  return data_sinfo;
+}
+
+InferLayoutOutput InferLayoutPRelu(const Call& call,
+                                   const Map<String, Array<String>>& desired_layouts,
+                                   const VarLayoutMap& var_layout_map) {
+  ICHECK(NoDesiredLayout(call, desired_layouts));
+  const auto* attrs = call->attrs.as<PReluAttrs>();
+  ICHECK(attrs) << "Invalid Call";
+
+  LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
+
+  // TODO(Siva): We could handle if the axis is not the sub indexed one.
+  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+    const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
+    int ndim = tensor_sinfo->ndim;
+    layout = LayoutDecision(InitialLayout(ndim));
+  }
+
+  ObjectPtr<PReluAttrs> new_attrs = make_object<PReluAttrs>(*attrs);
+  new_attrs->axis = FindAxis(layout->layout, attrs->axis);
+
+  LayoutDecision alpha_layout = GetLayoutDecision(var_layout_map, call->args[1]);
+  return InferLayoutOutput({layout, alpha_layout}, {layout}, Attrs(new_attrs));
+}
+
 TVM_REGISTER_OP("relax.nn.prelu")
     .set_num_inputs(2)
     .add_argument("data", "Tensor", "The input tensor.")
     .add_argument("alpha", "Tensor", "The channel-wise learnable slope.")
     .set_attrs_type<PReluAttrs>()
-    .set_attr<FInferStructInfo>("FInferStructInfo",
-                                InferStructInfoUnaryArith</*require_float_dtype=*/true>)
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoPRelu)
+    .set_attr<FRelaxInferLayout>("FRelaxInferLayout", InferLayoutPRelu)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.softmax */
-TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
 
 Expr softmax(Expr data, int axis) {
   auto attrs = make_object<SoftmaxAttrs>();
@@ -213,7 +250,6 @@ TVM_REGISTER_OP("relax.nn.log_softmax")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.pad */
-TVM_REGISTER_NODE_TYPE(PadAttrs);
 
 Expr pad(Expr data, Array<Integer> pad_width, String pad_mode, double pad_value) {
   auto attrs = make_object<PadAttrs>();
@@ -261,7 +297,6 @@ TVM_REGISTER_OP("relax.nn.pad")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.pixel_shuffle */
-TVM_REGISTER_NODE_TYPE(PixelShuffleAttrs);
 
 Expr pixel_shuffle(Expr data, int upscale_factor) {
   auto attrs = make_object<PixelShuffleAttrs>();
@@ -404,7 +439,6 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
 }
 
 /* relax.nn.batch_norm */
-TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
 
 Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,  //
                 int axis, double epsilon, bool center, bool scale, double momentum, bool training) {
@@ -488,7 +522,6 @@ TVM_REGISTER_OP("relax.nn.batch_norm")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.layer_norm */
-TVM_REGISTER_NODE_TYPE(LayerNormAttrs);
 
 Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double epsilon, bool center,
                 bool scale) {
@@ -557,7 +590,6 @@ TVM_REGISTER_OP("relax.nn.layer_norm")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.group_norm */
-TVM_REGISTER_NODE_TYPE(GroupNormAttrs);
 
 Expr group_norm(Expr data, Expr gamma, Expr beta, int num_groups, int channel_axis,
                 Array<Integer> axes, double epsilon, bool center, bool scale) {
@@ -672,7 +704,6 @@ TVM_REGISTER_OP("relax.nn.group_norm")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.instance_norm */
-TVM_REGISTER_NODE_TYPE(InstanceNormAttrs);
 
 Expr instance_norm(Expr data, Expr gamma, Expr beta, int channel_axis, Array<Integer> axes,
                    double epsilon, bool center, bool scale) {
@@ -775,7 +806,6 @@ TVM_REGISTER_OP("relax.nn.instance_norm")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
     .set_attr<Bool>("FPurity", Bool(true));
 /* relax.nn.rms_norm */
-TVM_REGISTER_NODE_TYPE(RMSNormAttrs);
 
 Expr rms_norm(Expr data, Expr weight, Array<Integer> axes, double epsilon) {
   ObjectPtr<RMSNormAttrs> attrs = make_object<RMSNormAttrs>();
@@ -838,7 +868,6 @@ TVM_REGISTER_OP("relax.nn.rms_norm")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.dropout */
-TVM_REGISTER_NODE_TYPE(DropoutAttrs);
 
 Expr dropout(Expr data, double rate) {
   ObjectPtr<DropoutAttrs> attrs = make_object<DropoutAttrs>();
@@ -932,7 +961,6 @@ TVM_REGISTER_OP("relax.nn.cross_entropy_with_logits")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.nn.nll_loss */
-TVM_REGISTER_NODE_TYPE(NLLLossAttrs);
 
 Expr nll_loss(Expr predictions, Expr targets, Optional<Expr> weights, String reduction,
               int ignore_index) {

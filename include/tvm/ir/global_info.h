@@ -43,8 +43,9 @@ using MemoryScope = String;
 class GlobalInfoNode : public Object {
  public:
   static constexpr const char* _type_key = "ir.GlobalInfo";
-  static constexpr const bool _type_has_method_sequal_reduce = true;
-  static constexpr const bool _type_has_method_shash_reduce = true;
+
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
+
   TVM_DECLARE_BASE_OBJECT_INFO(GlobalInfoNode, Object);
 };
 
@@ -78,16 +79,6 @@ class VDeviceNode : public GlobalInfoNode {
         .def_ro("memory_scope", &VDeviceNode::memory_scope);
   }
 
-  TVM_DLL bool SEqualReduce(const VDeviceNode* other, SEqualReducer equal) const {
-    return equal(target, other->target) && equal(vdevice_id, other->vdevice_id) &&
-           equal(memory_scope, other->memory_scope);
-  }
-
-  TVM_DLL void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(target);
-    hash_reduce(vdevice_id);
-    hash_reduce(memory_scope);
-  }
   static constexpr const char* _type_key = "ir.VDevice";
   TVM_DECLARE_FINAL_OBJECT_INFO(VDeviceNode, GlobalInfoNode);
 };
@@ -113,12 +104,6 @@ class DummyGlobalInfoNode : public GlobalInfoNode {
   }
 
   static constexpr const char* _type_key = "ir.DummyGlobalInfo";
-
-  TVM_DLL bool SEqualReduce(const DummyGlobalInfoNode* other, SEqualReducer equal) const {
-    return true;
-  }
-
-  TVM_DLL void SHashReduce(SHashReducer hash_reduce) const {}
   TVM_DECLARE_FINAL_OBJECT_INFO(DummyGlobalInfoNode, GlobalInfoNode);
 };
 

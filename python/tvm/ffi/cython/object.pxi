@@ -14,9 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import warnings
 
 _CLASS_OBJECT = None
 _FUNC_CONVERT_TO_OBJECT = None
+
 
 def _set_class_object(cls):
     global _CLASS_OBJECT
@@ -29,32 +31,16 @@ def _set_func_convert_to_object(func):
 
 def __object_repr__(obj):
     """Object repr function that can be overridden by assigning to it"""
-    return type(obj).__name__ + "(" + obj.__ctypes_handle__().value + ")"
-
-
-def __object_save_json__(obj):
-    """Object repr function that can be overridden by assigning to it"""
-    raise NotImplementedError("JSON serialization depends on downstream init")
-
-
-def __object_load_json__(json_str):
-    """Object repr function that can be overridden by assigning to it"""
-    raise NotImplementedError("JSON serialization depends on downstream init")
-
-
-def __object_dir__(obj):
-    """Object dir function that can be overridden by assigning to it"""
-    return []
-
-
-def __object_getattr__(obj, name):
-    """Object getattr function that can be overridden by assigning to it"""
-    raise AttributeError()
+    return type(obj).__name__ + "(" + str(obj.__ctypes_handle__().value) + ")"
 
 
 def _new_object(cls):
     """Helper function for pickle"""
     return cls.__new__(cls)
+
+
+_OBJECT_FROM_JSON_GRAPH_STR = None
+_OBJECT_TO_JSON_GRAPH_STR = None
 
 
 class ObjectGeneric:
@@ -107,33 +93,23 @@ cdef class Object:
         return (_new_object, (cls,), self.__getstate__())
 
     def __getstate__(self):
+        if _OBJECT_TO_JSON_GRAPH_STR is None:
+            raise RuntimeError("ffi.ToJSONGraphString is not registered, make sure build project with extra API")
         if not self.__chandle__() == 0:
             # need to explicit convert to str in case String
             # returned and triggered another infinite recursion in get state
-            return {"handle": str(__object_save_json__(self))}
+            return {"handle": str(_OBJECT_TO_JSON_GRAPH_STR(self, None))}
         return {"handle": None}
 
     def __setstate__(self, state):
         # pylint: disable=assigning-non-slot, assignment-from-no-return
+        if _OBJECT_FROM_JSON_GRAPH_STR is None:
+            raise RuntimeError("ffi.FromJSONGraphString is not registered, make sure build project with extra API")
         handle = state["handle"]
         if handle is not None:
-            self.__init_handle_by_constructor__(__object_load_json__, handle)
+            self.__init_handle_by_constructor__(_OBJECT_FROM_JSON_GRAPH_STR, handle)
         else:
             self.chandle = NULL
-
-    def __getattr__(self, name):
-        if self.chandle == NULL:
-            raise AttributeError(f"{type(self)} has no attribute {name}")
-        try:
-            return __object_getattr__(self, name)
-        except AttributeError:
-            raise AttributeError(f"{type(self)} has no attribute {name}")
-
-    def __dir__(self):
-        # exception safety handling for chandle=None
-        if self.chandle == NULL:
-            return []
-        return __object_dir__(self)
 
     def __repr__(self):
         # exception safety handling for chandle=None
@@ -146,9 +122,6 @@ cdef class Object:
 
     def __ne__(self, other):
         return not self.__eq__(other)
-
-    def __init_handle_by_load_json__(self, json_str):
-        raise NotImplementedError("JSON serialization depends on downstream init")
 
     def __init_handle_by_constructor__(self, fconstructor, *args):
         """Initialize the handle by calling constructor function.
@@ -269,6 +242,15 @@ def _object_type_key_to_index(str type_key):
         return tidx
     return None
 
+cdef inline str _type_index_to_key(int32_t tindex):
+    """get the type key of object class"""
+    cdef const TVMFFITypeInfo* info = TVMFFIGetTypeInfo(tindex)
+    cdef const TVMFFIByteArray* type_key
+    if info == NULL:
+        return "<unknown>"
+    type_key = &(info.type_key)
+    return py_str(PyBytes_FromStringAndSize(type_key.data, type_key.size))
+
 
 cdef inline object make_ret_object(TVMFFIAny result):
     global OBJECT_TYPE
@@ -284,10 +266,14 @@ cdef inline object make_ret_object(TVMFFIAny result):
                 (<Object>obj).chandle = result.v_obj
                 return cls.__from_tvm_ffi_object__(cls, obj)
             obj = cls.__new__(cls)
-        else:
-            obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
-    else:
-        obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
+            (<Object>obj).chandle = result.v_obj
+            return obj
+
+    # object is not found in registered entry
+    # in this case we need to report an warning
+    type_key = _type_index_to_key(tindex)
+    warnings.warn(f"Returning type `{type_key}` which is not registered via register_object, fallback to Object")
+    obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
     (<Object>obj).chandle = result.v_obj
     return obj
 

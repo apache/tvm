@@ -1014,7 +1014,6 @@ TVM_DLL Array<Bool> GetCachedFlags(const ScheduleState& self, const StmtSRef& bl
 
 /**************** FFI ****************/
 
-TVM_REGISTER_NODE_TYPE(ScheduleStateNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

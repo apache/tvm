@@ -38,8 +38,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
                 << "head_address=" << op->head_address << ")";
     });
 
-TVM_REGISTER_NODE_TYPE(MemoryInfoNode);
-
 MemoryInfo GetMemoryInfo(const std::string& scope) {
   std::string fname = "tvm.info.mem." + scope;
   const auto f = tvm::ffi::Function::GetGlobal(fname);

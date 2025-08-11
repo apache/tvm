@@ -23,8 +23,6 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/object_path.h>
-#include <tvm/node/reflection.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/expr_functor.h>
 

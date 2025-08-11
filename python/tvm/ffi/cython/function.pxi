@@ -23,6 +23,20 @@ except ImportError:
     torch = None
 
 
+cdef inline object make_ret_small_str(TVMFFIAny result):
+    """convert small string to return value."""
+    cdef TVMFFIByteArray bytes
+    bytes = TVMFFISmallBytesGetContentByteArray(&result)
+    return py_str(PyBytes_FromStringAndSize(bytes.data, bytes.size))
+
+
+cdef inline object make_ret_small_bytes(TVMFFIAny result):
+    """convert small bytes to return value."""
+    cdef TVMFFIByteArray bytes
+    bytes = TVMFFISmallBytesGetContentByteArray(&result)
+    return PyBytes_FromStringAndSize(bytes.data, bytes.size)
+
+
 cdef inline object make_ret(TVMFFIAny result):
     """convert result to return value."""
    # TODO: Implement
@@ -41,6 +55,10 @@ cdef inline object make_ret(TVMFFIAny result):
         return result.v_int64
     elif type_index == kTVMFFIFloat:
         return result.v_float64
+    elif type_index == kTVMFFISmallStr:
+        return make_ret_small_str(result)
+    elif type_index == kTVMFFISmallBytes:
+        return make_ret_small_bytes(result)
     elif type_index == kTVMFFIOpaquePtr:
         return ctypes_handle(result.v_ptr)
     elif type_index == kTVMFFIDataType:
@@ -65,6 +83,7 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
         # clear the value to ensure zero padding on 32bit platforms
         if sizeof(void*) != 8:
             out[i].v_int64 = 0
+        out[i].zero_padding = 0
 
         if isinstance(arg, NDArray):
             if (<Object>arg).chandle != NULL:
@@ -87,7 +106,7 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args) except 
             out[i].type_index = kTVMFFINDArray
             out[i].v_ptr = (<NDArray>arg).chandle
             temp_args.append(arg)
-        elif isinstance(arg, PyNativeObject):
+        elif isinstance(arg, PyNativeObject) and arg.__tvm_ffi_object__ is not None:
             arg = arg.__tvm_ffi_object__
             out[i].type_index = TVMFFIObjectGetTypeIndex((<Object>arg).chandle)
             out[i].v_ptr = (<Object>arg).chandle
@@ -272,6 +291,12 @@ cdef _get_method_from_method_info(const TVMFFIMethodInfo* method):
     return make_ret(result)
 
 
+def _member_method_wrapper(method_func):
+    def wrapper(self, *args):
+        return method_func(self, *args)
+    return wrapper
+
+
 def _add_class_attrs_by_reflection(int type_index, object cls):
     """Decorate the class attrs by reflection"""
     cdef const TVMFFITypeInfo* info = TVMFFIGetTypeInfo(type_index)
@@ -316,8 +341,10 @@ def _add_class_attrs_by_reflection(int type_index, object cls):
         if method.flags & kTVMFFIFieldFlagBitMaskIsStaticMethod:
             method_pyfunc = staticmethod(method_func)
         else:
-            def method_pyfunc(self, *args):
-                return method_func(self, *args)
+            # must call into another method instead of direct capture
+            # to avoid the same method_func variable being used
+            # across multiple loop iterations
+            method_pyfunc = _member_method_wrapper(method_func)
 
         if doc is not None:
             method_pyfunc.__doc__ = doc
@@ -326,7 +353,6 @@ def _add_class_attrs_by_reflection(int type_index, object cls):
         if hasattr(cls, name):
             # skip already defined attributes
             continue
-
         setattr(cls, name, method_pyfunc)
 
     return cls
@@ -407,3 +433,5 @@ def _convert_to_ffi_func(object pyfunc):
 
 _STR_CONSTRUCTOR = _get_global_func("ffi.String", False)
 _BYTES_CONSTRUCTOR = _get_global_func("ffi.Bytes", False)
+_OBJECT_FROM_JSON_GRAPH_STR = _get_global_func("ffi.FromJSONGraphString", True)
+_OBJECT_TO_JSON_GRAPH_STR = _get_global_func("ffi.ToJSONGraphString", True)

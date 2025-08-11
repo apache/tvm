@@ -19,6 +19,7 @@
 #ifndef TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 #define TVM_SCRIPT_PRINTER_IR_DOCSIFIER_H_
 
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/node.h>
@@ -34,6 +35,8 @@
 namespace tvm {
 namespace script {
 namespace printer {
+
+using AccessPath = ffi::reflection::AccessPath;
 
 //////////////////////// Frame ////////////////////////
 
@@ -145,7 +148,7 @@ class IRDocsifierNode : public Object {
   /*! \brief Mapping from a var to its info */
   std::unordered_map<ObjectRef, VariableInfo, ObjectPtrHash, ObjectPtrEqual> obj2info;
   /*! \brief Metadata printing */
-  std::unordered_map<String, Array<ObjectRef>> metadata;
+  std::unordered_map<String, Array<ffi::Any>> metadata;
   /*! \brief GlobalInfo printing */
   std::unordered_map<String, Array<GlobalInfo>> global_infos;
   /*! \brief The variable names used already */
@@ -206,7 +209,7 @@ class IRDocsifierNode : public Object {
    */
   Optional<ExprDoc> GetVarDoc(const ObjectRef& obj) const;
   /*! \brief Add a TVM object to the metadata section*/
-  ExprDoc AddMetadata(const ObjectRef& obj);
+  ExprDoc AddMetadata(const ffi::Any& obj);
   /*! \brief Add a GlobalInfo to the global_infos map.
    * \param name The name of key of global_infos.
    * \param ginfo The GlobalInfo to be added.
@@ -235,7 +238,7 @@ class IRDocsifierNode : public Object {
    * \return The Doc object.
    */
   template <class TDoc = Doc>
-  inline TDoc AsDoc(const Any& obj, const ObjectPath& path) const;
+  inline TDoc AsDoc(const Any& obj, const AccessPath& path) const;
 };
 
 /*!
@@ -243,7 +246,7 @@ class IRDocsifierNode : public Object {
  */
 class IRDocsifier : public ObjectRef {
  public:
-  using FType = IRDocsifierFunctor<printer::Doc, ObjectPath, IRDocsifier>;
+  using FType = IRDocsifierFunctor<printer::Doc, AccessPath, IRDocsifier>;
   /*! \brief Create a IRDocsifier. */
   explicit IRDocsifier(const PrinterConfig& cfg);
   /*! \brief The registration table for IRDocsifier. */
@@ -271,11 +274,11 @@ inline void FrameNode::ExitWithScope() {
 }
 
 template <class TDoc>
-inline static void AddDocDecoration(const Doc& d, const ObjectRef& obj, const ObjectPath& path,
+inline static void AddDocDecoration(const Doc& d, const ObjectRef& obj, const AccessPath& path,
                                     const PrinterConfig& cfg) {
   if (cfg->obj_to_annotate.count(obj)) {
     if (const auto* stmt = d.as<StmtDocNode>()) {
-      if (stmt->comment.defined()) {
+      if (stmt->comment.has_value()) {
         stmt->comment = stmt->comment.value() + "\n" + cfg->obj_to_annotate.at(obj);
       } else {
         stmt->comment = cfg->obj_to_annotate.at(obj);
@@ -291,11 +294,11 @@ inline static void AddDocDecoration(const Doc& d, const ObjectRef& obj, const Ob
     }
   }
   for (const auto& pair : cfg->path_to_annotate) {
-    ObjectPath p = pair.first;
+    AccessPath p = pair.first;
     String attn = pair.second;
     if (p->IsPrefixOf(path) && path->IsPrefixOf(p)) {
       if (const auto* stmt = d.as<StmtDocNode>()) {
-        if (stmt->comment.defined()) {
+        if (stmt->comment.has_value()) {
           stmt->comment = stmt->comment.value() + "\n" + attn;
         } else {
           stmt->comment = attn;
@@ -309,7 +312,7 @@ inline static void AddDocDecoration(const Doc& d, const ObjectRef& obj, const Ob
 }
 
 template <class TDoc>
-inline TDoc IRDocsifierNode::AsDoc(const Any& value, const ObjectPath& path) const {
+inline TDoc IRDocsifierNode::AsDoc(const Any& value, const AccessPath& path) const {
   switch (value.type_index()) {
     case ffi::TypeIndex::kTVMFFINone:
       return Downcast<TDoc>(LiteralDoc::None(path));
@@ -319,8 +322,17 @@ inline TDoc IRDocsifierNode::AsDoc(const Any& value, const ObjectPath& path) con
       return Downcast<TDoc>(LiteralDoc::Int(value.as<int64_t>().value(), path));
     case ffi::TypeIndex::kTVMFFIFloat:
       return Downcast<TDoc>(LiteralDoc::Float(value.as<double>().value(), path));
-    case ffi::TypeIndex::kTVMFFIStr:
-      return Downcast<TDoc>(LiteralDoc::Str(value.as<String>().value(), path));
+    case ffi::TypeIndex::kTVMFFISmallStr:
+    case ffi::TypeIndex::kTVMFFIStr: {
+      std::string string_value = value.cast<std::string>();
+      bool has_multiple_lines = string_value.find_first_of('\n') != std::string::npos;
+      if (has_multiple_lines) {
+        Doc d = const_cast<IRDocsifierNode*>(this)->AddMetadata(string_value);
+        // TODO(tqchen): cross check AddDocDecoration
+        return Downcast<TDoc>(d);
+      }
+      return Downcast<TDoc>(LiteralDoc::Str(string_value, path));
+    }
     case ffi::TypeIndex::kTVMFFIDataType:
       return Downcast<TDoc>(LiteralDoc::DataType(value.as<runtime::DataType>().value(), path));
     case ffi::TypeIndex::kTVMFFIDevice:

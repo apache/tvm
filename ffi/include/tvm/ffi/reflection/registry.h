@@ -150,7 +150,7 @@ class ReflectionDefBase {
   }
 
   template <typename T>
-  TVM_FFI_INLINE static void ApplyExtraInfoTrait(TVMFFITypeExtraInfo* info, const T& value) {
+  TVM_FFI_INLINE static void ApplyExtraInfoTrait(TVMFFITypeMetadata* info, const T& value) {
     if constexpr (std::is_same_v<std::decay_t<T>, char*>) {
       info->doc = TVMFFIByteArray{value, std::char_traits<char>::length(value)};
     }
@@ -198,7 +198,7 @@ class ReflectionDefBase {
     }
   }
 
-  template <typename Class, typename Func>
+  template <typename Func>
   TVM_FFI_INLINE static Function GetMethod(std::string name, Func&& func) {
     return ffi::Function::FromTyped(std::forward<Func>(func), name);
   }
@@ -258,27 +258,12 @@ class GlobalDef : public ReflectionDefBase {
    */
   template <typename Func, typename... Extra>
   GlobalDef& def_method(const char* name, Func&& func, Extra&&... extra) {
-    RegisterFunc(name, GetMethod_(std::string(name), std::forward<Func>(func)),
+    RegisterFunc(name, GetMethod(std::string(name), std::forward<Func>(func)),
                  std::forward<Extra>(extra)...);
     return *this;
   }
 
  private:
-  template <typename Func>
-  TVM_FFI_INLINE static Function GetMethod_(std::string name, Func&& func) {
-    return ffi::Function::FromTyped(std::forward<Func>(func), name);
-  }
-
-  template <typename Class, typename R, typename... Args>
-  TVM_FFI_INLINE static Function GetMethod_(std::string name, R (Class::*func)(Args...) const) {
-    return GetMethod<Class>(std::string(name), func);
-  }
-
-  template <typename Class, typename R, typename... Args>
-  TVM_FFI_INLINE static Function GetMethod_(std::string name, R (Class::*func)(Args...)) {
-    return GetMethod<Class>(std::string(name), func);
-  }
-
   template <typename... Extra>
   void RegisterFunc(const char* name, ffi::Function func, Extra&&... extra) {
     TVMFFIMethodInfo info;
@@ -381,7 +366,7 @@ class ObjectDef : public ReflectionDefBase {
  private:
   template <typename... ExtraArgs>
   void RegisterExtraInfo(ExtraArgs&&... extra_args) {
-    TVMFFITypeExtraInfo info;
+    TVMFFITypeMetadata info;
     info.total_size = sizeof(Class);
     info.structural_eq_hash_kind = Class::_type_s_eq_hash_kind;
     info.creator = nullptr;
@@ -391,7 +376,7 @@ class ObjectDef : public ReflectionDefBase {
     }
     // apply extra info traits
     ((ApplyExtraInfoTrait(&info, std::forward<ExtraArgs>(extra_args)), ...));
-    TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeRegisterExtraInfo(type_index_, &info));
+    TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeRegisterMetadata(type_index_, &info));
   }
 
   template <typename T, typename BaseClass, typename... ExtraArgs>
@@ -434,8 +419,7 @@ class ObjectDef : public ReflectionDefBase {
       info.flags |= kTVMFFIFieldFlagBitMaskIsStaticMethod;
     }
     // obtain the method function
-    Function method =
-        GetMethod<Class>(std::string(type_key_) + "." + name, std::forward<Func>(func));
+    Function method = GetMethod(std::string(type_key_) + "." + name, std::forward<Func>(func));
     info.method = AnyView(method).CopyToTVMFFIAny();
     // apply method info traits
     ((ApplyMethodInfoTrait(&info, std::forward<Extra>(extra)), ...));
@@ -445,6 +429,68 @@ class ObjectDef : public ReflectionDefBase {
   int32_t type_index_;
   const char* type_key_;
 };
+
+template <typename Class, typename = std::enable_if_t<std::is_base_of_v<Object, Class>>>
+class TypeAttrDef : public ReflectionDefBase {
+ public:
+  template <typename... ExtraArgs>
+  explicit TypeAttrDef(ExtraArgs&&... extra_args)
+      : type_index_(Class::RuntimeTypeIndex()), type_key_(Class::_type_key) {}
+
+  /*
+   * \brief Define a function-valued type attribute.
+   *
+   * \tparam Func The function type.
+   *
+   * \param name The name of the function.
+   * \param func The function to be registered.
+   *
+   * \return The TypeAttrDef object.
+   */
+  template <typename Func>
+  TypeAttrDef& def(const char* name, Func&& func) {
+    TVMFFIByteArray name_array = {name, std::char_traits<char>::length(name)};
+    ffi::Function ffi_func =
+        GetMethod(std::string(type_key_) + "." + name, std::forward<Func>(func));
+    TVMFFIAny value_any = AnyView(ffi_func).CopyToTVMFFIAny();
+    TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeRegisterAttr(type_index_, &name_array, &value_any));
+    return *this;
+  }
+
+  /*
+   * \brief Define a constant-valued type attribute.
+   *
+   * \tparam T The type of the value.
+   *
+   * \param name The name of the attribute.
+   * \param value The value of the attribute.
+   *
+   * \return The TypeAttrDef object.
+   */
+  template <typename T>
+  TypeAttrDef& attr(const char* name, T value) {
+    TVMFFIByteArray name_array = {name, std::char_traits<char>::length(name)};
+    TVMFFIAny value_any = AnyView(value).CopyToTVMFFIAny();
+    TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeRegisterAttr(type_index_, &name_array, &value_any));
+    return *this;
+  }
+
+ private:
+  int32_t type_index_;
+  const char* type_key_;
+};
+
+/*!
+ * \brief Ensure the type attribute column is presented in the system.
+ *
+ * \param name The name of the type attribute.
+ */
+inline void EnsureTypeAttrColumn(std::string_view name) {
+  TVMFFIByteArray name_array = {name.data(), name.size()};
+  AnyView any_view(nullptr);
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeRegisterAttr(kTVMFFINone, &name_array,
+                                                 reinterpret_cast<const TVMFFIAny*>(&any_view)));
+}
 
 }  // namespace reflection
 }  // namespace ffi

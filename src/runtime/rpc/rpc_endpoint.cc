@@ -218,33 +218,36 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     this->Write(cdata);
   }
 
-  void WriteObject(Object* obj) {
+  void WriteFFIAny(const TVMFFIAny* in) {
     // NOTE: for now all remote object are encoded as RPCObjectRef
     // follow the same disco protocol in case we would like to upgrade later
     //
     // Rationale note: Only handle remote object allows the same mechanism to work for minRPC
     // which is needed for wasm and other env that goes through C API
-    if (obj->IsInstance<RPCObjectRefObj>()) {
-      auto* ref = static_cast<RPCObjectRefObj*>(obj);
+    const AnyView* any_view_ptr = reinterpret_cast<const AnyView*>(in);
+    if (const auto* ref = any_view_ptr->as<RPCObjectRefObj>()) {
       this->template Write<uint32_t>(runtime::TypeIndex::kRuntimeRPCObjectRef);
       uint64_t handle = reinterpret_cast<uint64_t>(ref->object_handle());
       this->template Write<int64_t>(handle);
     } else {
       LOG(FATAL) << "ValueError: Object type is not supported in RPC calling convention: "
-                 << obj->GetTypeKey() << " (type_index = " << obj->type_index() << ")";
+                 << any_view_ptr->GetTypeKey() << " (type_index = " << any_view_ptr->type_index()
+                 << ")";
     }
   }
-  uint64_t GetObjectBytes(Object* obj) {
-    if (obj->IsInstance<RPCObjectRefObj>()) {
+  uint64_t GetFFIAnyProtocolBytes(const TVMFFIAny* in) {
+    const AnyView* any_view_ptr = reinterpret_cast<const AnyView*>(in);
+    if (any_view_ptr->as<RPCObjectRefObj>()) {
       return sizeof(uint32_t) + sizeof(int64_t);
     } else {
       LOG(FATAL) << "ValueError: Object type is not supported in RPC calling convention: "
-                 << obj->GetTypeKey() << " (type_index = " << obj->type_index() << ")";
+                 << any_view_ptr->GetTypeKey() << " (type_index = " << any_view_ptr->type_index()
+                 << ")";
       TVM_FFI_UNREACHABLE();
     }
   }
 
-  void ReadObject(TVMFFIAny* out) {
+  void ReadFFIAny(TVMFFIAny* out) {
     // NOTE: for now all remote object are encoded as RPCObjectRef
     // follow the same disco protocol in case we would like to upgrade later
     //
@@ -1160,7 +1163,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     temp.shape = const_cast<int64_t*>(shape);
     temp.strides = nullptr;
     temp.byte_offset = 0;
-    if (mem_scope.defined()) {
+    if (mem_scope.has_value()) {
       return endpoint_
           ->SysCallRemote(RPCCode::kDevAllocDataWithScope, &temp,
                           static_cast<std::string>(mem_scope.value()))

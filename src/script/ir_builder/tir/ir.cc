@@ -87,7 +87,7 @@ Buffer Arg(String name, Buffer buffer) {
 
 void FuncName(String name) {
   PrimFuncFrame frame = FindPrimFuncFrame("T.func_name");
-  if (frame->name.defined()) {
+  if (frame->name.has_value()) {
     LOG(FATAL) << "ValueError: Duplicate prim func name, previous one is " << frame->name.value();
   }
   frame->name = name;
@@ -245,8 +245,7 @@ Map<String, Any> MergeAnnotations(const Map<String, Any>& new_attrs,
     // Case 2.2: the values are not both dicts, check if the keys are the same
     if (!ffi::AnyEqual()(old_value.value(), value)) {
       LOG(FATAL) << "ValueError: Try to merge two annotations with different values for key `"
-                 << key << "`, previous one is " << old_value->cast<ObjectRef>() << ", new one is "
-                 << value.cast<ObjectRef>();
+                 << key << "`, previous one is " << old_value.value() << ", new one is " << value;
     }
   }
   return result;
@@ -521,11 +520,11 @@ AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
 
 AttrFrame Attr(ffi::Any node, String attr_key, PrimExpr value) {
   // convert POD value to PrimExpr
-  if (node.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+  if (node.type_index() < ffi::TypeIndex::kTVMFFISmallStr) {
     node = node.cast<PrimExpr>();
   }
   ObjectPtr<AttrFrameNode> n = make_object<AttrFrameNode>();
-  n->node = node.cast<ObjectRef>();
+  n->node = std::move(node);
   n->attr_key = attr_key;
   n->value = value;
   return AttrFrame(n);

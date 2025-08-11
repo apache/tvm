@@ -38,8 +38,6 @@ namespace relax {
 
 TVM_FFI_STATIC_INIT_BLOCK({ DataflowBlockRewriteNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(DataflowBlockRewriteNode);
-
 DataflowBlockRewrite::DataflowBlockRewrite(DataflowBlock dfb, Function root_fn) {
   auto n = make_object<DataflowBlockRewriteNode>();
   n->dfb_ = dfb;

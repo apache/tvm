@@ -53,12 +53,7 @@ class SourceNameNode : public Object {
     refl::ObjectDef<SourceNameNode>().def_ro("name", &SourceNameNode::name);
   }
 
-  static constexpr bool _type_has_method_sequal_reduce = true;
-
-  bool SEqualReduce(const SourceNameNode* other, SEqualReducer equal) const {
-    return equal(name, other->name);
-  }
-
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "ir.SourceName";
   TVM_DECLARE_FINAL_OBJECT_INFO(SourceNameNode, Object);
 };
@@ -110,14 +105,7 @@ class SpanNode : public Object {
         .def_ro("end_column", &SpanNode::end_column);
   }
 
-  static constexpr bool _type_has_method_sequal_reduce = true;
-
-  bool SEqualReduce(const SpanNode* other, SEqualReducer equal) const {
-    return equal(source_name, other->source_name) && equal(line, other->line) &&
-           equal(column, other->column) && equal(end_line, other->end_line) &&
-           equal(end_column, other->end_column);
-  }
-
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "ir.Span";
   TVM_DECLARE_BASE_OBJECT_INFO(SpanNode, Object);
 };
@@ -147,19 +135,6 @@ class SequentialSpanNode : public SpanNode {
 
   static constexpr const char* _type_key = "ir.SequentialSpan";
   TVM_DECLARE_FINAL_OBJECT_INFO(SequentialSpanNode, SpanNode);
-
-  bool SEqualReduce(const SequentialSpanNode* other, SEqualReducer equal) const {
-    if (spans.size() != other->spans.size()) {
-      return false;
-    }
-
-    for (size_t i = 0, e = spans.size(); i != e; ++i) {
-      if (!StructuralEqual()(spans[i], other->spans[i])) {
-        return false;
-      }
-    }
-    return true;
-  }
 };
 
 /*!
@@ -229,10 +204,7 @@ class SourceMapObj : public Object {
     refl::ObjectDef<SourceMapObj>().def_ro("source_map", &SourceMapObj::source_map);
   }
 
-  bool SEqualReduce(const SourceMapObj* other, SEqualReducer equal) const {
-    return equal(source_map, other->source_map);
-  }
-
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "ir.SourceMap";
   TVM_DECLARE_FINAL_OBJECT_INFO(SourceMapObj, Object);
 };

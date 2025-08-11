@@ -278,18 +278,7 @@ class PluginAttrNode : public Object {
         .def_ro("describe", &PluginAttrNode::describe);
   }
 
-  bool SEqualReduce(const PluginAttrNode* other, SEqualReducer equal) const {
-    return equal(name, other->name) && equal(type, other->type) &&
-           equal(default_value, other->default_value) && equal(describe, other->describe);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(name);
-    hash_reduce(type);
-    hash_reduce(default_value);
-    hash_reduce(describe);
-  }
-
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "msc.core.PluginAttr";
   TVM_DECLARE_FINAL_OBJECT_INFO(PluginAttrNode, Object);
 };
@@ -358,19 +347,7 @@ class PluginTensorNode : public Object {
         .def_ro("describe", &PluginTensorNode::describe);
   }
 
-  bool SEqualReduce(const PluginTensorNode* other, SEqualReducer equal) const {
-    return equal(name, other->name) && equal(dtype, other->dtype) && equal(ndim, other->ndim) &&
-           equal(device, other->device) && equal(describe, other->describe);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(name);
-    hash_reduce(dtype);
-    hash_reduce(ndim);
-    hash_reduce(device);
-    hash_reduce(describe);
-  }
-
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "msc.core.PluginTensor";
   TVM_DECLARE_FINAL_OBJECT_INFO(PluginTensorNode, Object);
 };
@@ -440,20 +417,7 @@ class PluginExternNode : public Object {
         .def_ro("describe", &PluginExternNode::describe);
   }
 
-  bool SEqualReduce(const PluginExternNode* other, SEqualReducer equal) const {
-    return equal(name, other->name) && equal(header, other->header) &&
-           equal(source, other->source) && equal(lib, other->lib) &&
-           equal(describe, other->describe);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(name);
-    hash_reduce(header);
-    hash_reduce(source);
-    hash_reduce(lib);
-    hash_reduce(describe);
-  }
-
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "msc.core.PluginExtern";
   TVM_DECLARE_FINAL_OBJECT_INFO(PluginExternNode, Object);
 };
@@ -543,28 +507,7 @@ class PluginNode : public Object {
         .def_ro("options", &PluginNode::options);
   }
 
-  bool SEqualReduce(const PluginNode* other, SEqualReducer equal) const {
-    return equal(name, other->name) && equal(version, other->version) &&
-           equal(describe, other->describe) && equal(attrs, other->attrs) &&
-           equal(inputs, other->inputs) && equal(outputs, other->outputs) &&
-           equal(buffers, other->buffers) && equal(externs, other->externs) &&
-           equal(support_dtypes, other->support_dtypes) && equal(options, other->options);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce(name);
-    hash_reduce(version);
-    hash_reduce(describe);
-    hash_reduce(attrs);
-    hash_reduce(inputs);
-    hash_reduce(outputs);
-    hash_reduce(buffers);
-    hash_reduce(externs);
-    hash_reduce(externs);
-    hash_reduce(support_dtypes);
-    hash_reduce(options);
-  }
-
+  static constexpr TVMFFISEqHashKind _type_s_eq_hash_kind = kTVMFFISEqHashKindTreeNode;
   static constexpr const char* _type_key = "msc.core.Plugin";
   TVM_DECLARE_FINAL_OBJECT_INFO(PluginNode, Object);
 };

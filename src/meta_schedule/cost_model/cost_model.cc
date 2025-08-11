@@ -70,9 +70,6 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
       p->stream << f_as_string();
     });
 
-TVM_REGISTER_OBJECT_TYPE(CostModelNode);
-TVM_REGISTER_NODE_TYPE(PyCostModelNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

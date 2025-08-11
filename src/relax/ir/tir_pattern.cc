@@ -33,7 +33,5 @@ MatchResult::MatchResult(TIRPattern pattern, Array<PrimExpr> symbol_values,
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(MatchResultNode);
-
 }  // namespace relax
 }  // namespace tvm

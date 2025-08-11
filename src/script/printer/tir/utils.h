@@ -109,12 +109,12 @@ inline IdDoc DefineBuffer(const tir::Buffer& buffer, const Frame& frame, const I
  * \param f The frame
  * \param d The IRDocsifier
  */
-inline void AsDocBody(const tir::Stmt& stmt, ObjectPath p, TIRFrameNode* f, const IRDocsifier& d) {
+inline void AsDocBody(const tir::Stmt& stmt, AccessPath p, TIRFrameNode* f, const IRDocsifier& d) {
   if (const auto* seq_stmt = stmt.as<tir::SeqStmtNode>()) {
     Array<tir::Stmt> body = seq_stmt->seq;
     for (int i = 0, n = body.size(); i < n; ++i) {
       f->allow_concise_scoping = (i == n - 1);
-      Doc doc = d->AsDoc(body[i], p->Attr("seq")->ArrayIndex(i));
+      Doc doc = d->AsDoc(body[i], p->Attr("seq")->ArrayItem(i));
       doc->source_paths.push_back(p);
       if (const auto* block = doc.as<StmtBlockDocNode>()) {
         f->stmts.insert(f->stmts.end(), block->stmts.begin(), block->stmts.end());
@@ -215,7 +215,7 @@ enum class BufferVarDefinition {
  * \return The ExprDoc corresponding to the buffer declaration
  */
 ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<ExprDoc>& args,
-                   const ObjectPath& p, const Frame& frame, const IRDocsifier& d,
+                   const AccessPath& p, const Frame& frame, const IRDocsifier& d,
                    BufferVarDefinition var_definitions);
 
 /*!
@@ -226,7 +226,7 @@ ExprDoc BufferDecl(const tir::Buffer& buffer, const String& method, const Array<
  * \param d The IRDocsifier
  * \return The ExprDoc corresponding to the buffer declaration
  */
-ExprDoc BufferAttn(const tir::Buffer& buffer, const ObjectPath& p, const Frame& frame,
+ExprDoc BufferAttn(const tir::Buffer& buffer, const AccessPath& p, const Frame& frame,
                    const IRDocsifier& d);
 
 /*!
@@ -236,7 +236,7 @@ ExprDoc BufferAttn(const tir::Buffer& buffer, const ObjectPath& p, const Frame& 
  * \param d The IRDocsifier
  * \return The ExprDoc corresponding to the Var creation
  */
-ExprDoc PrintVarCreation(const tir::Var& var, const ObjectPath& var_p, const IRDocsifier& d);
+ExprDoc PrintVarCreation(const tir::Var& var, const AccessPath& var_p, const IRDocsifier& d);
 
 /*! \brief A Var occurrence counter visitor */
 class OccurrenceCounter : public tir::StmtExprVisitor {

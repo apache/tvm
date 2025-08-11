@@ -165,8 +165,6 @@ Pass CreateFunctionPass(std::function<Function(Function, IRModule, PassContext)>
   return FunctionPass(std::move(pass_func), pass_info);
 }
 
-TVM_REGISTER_NODE_TYPE(FunctionPassNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
@@ -390,8 +388,6 @@ Pass CreateDataflowBlockPass(
   PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
   return DataflowBlockPass(std::move(pass_func), pass_info);
 }
-
-TVM_REGISTER_NODE_TYPE(DataflowBlockPassNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

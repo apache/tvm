@@ -23,15 +23,12 @@
  * compile code to compute it.
  */
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/target/virtual_device.h>
 
 namespace tvm {
 
 TVM_FFI_STATIC_INIT_BLOCK({ VirtualDeviceNode::RegisterReflection(); });
-
-TVM_REGISTER_NODE_TYPE(VirtualDeviceNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<VirtualDeviceNode>([](const ObjectRef& ref, ReprPrinter* p) {

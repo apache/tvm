@@ -170,7 +170,8 @@ TVM_FFI_INLINE uint64_t StableHashCombine(uint64_t key, const T& value) {
  * \param size The size of the bytes.
  * \return the hash value.
  */
-TVM_FFI_INLINE uint64_t StableHashBytes(const char* data, size_t size) {
+TVM_FFI_INLINE uint64_t StableHashBytes(const void* data_ptr, size_t size) {
+  const char* data = reinterpret_cast<const char*>(data_ptr);
   const constexpr uint64_t kMultiplier = 1099511628211ULL;
   const constexpr uint64_t kMod = 2147483647ULL;
   union Union {
@@ -181,17 +182,30 @@ TVM_FFI_INLINE uint64_t StableHashBytes(const char* data, size_t size) {
   const char* it = data;
   const char* end = it + size;
   uint64_t result = 0;
-  for (; it + 8 <= end; it += 8) {
-    if constexpr (TVM_FFI_IO_NO_ENDIAN_SWAP) {
-      u.a[0] = it[0];
-      u.a[1] = it[1];
-      u.a[2] = it[2];
-      u.a[3] = it[3];
-      u.a[4] = it[4];
-      u.a[5] = it[5];
-      u.a[6] = it[6];
-      u.a[7] = it[7];
+  if constexpr (TVM_FFI_IO_NO_ENDIAN_SWAP) {
+    // if alignment requirement is met, directly use load
+    if (reinterpret_cast<uintptr_t>(it) % 8 == 0) {
+      for (; it + 8 <= end; it += 8) {
+        u.b = *reinterpret_cast<const uint64_t*>(it);
+        result = (result * kMultiplier + u.b) % kMod;
+      }
     } else {
+      // unaligned version
+      for (; it + 8 <= end; it += 8) {
+        u.a[0] = it[0];
+        u.a[1] = it[1];
+        u.a[2] = it[2];
+        u.a[3] = it[3];
+        u.a[4] = it[4];
+        u.a[5] = it[5];
+        u.a[6] = it[6];
+        u.a[7] = it[7];
+        result = (result * kMultiplier + u.b) % kMod;
+      }
+    }
+  } else {
+    // need endian swap
+    for (; it + 8 <= end; it += 8) {
       u.a[0] = it[7];
       u.a[1] = it[6];
       u.a[2] = it[5];
@@ -200,9 +214,10 @@ TVM_FFI_INLINE uint64_t StableHashBytes(const char* data, size_t size) {
       u.a[5] = it[2];
       u.a[6] = it[1];
       u.a[7] = it[0];
+      result = (result * kMultiplier + u.b) % kMod;
     }
-    result = (result * kMultiplier + u.b) % kMod;
   }
+
   if (it < end) {
     u.b = 0;
     uint8_t* a = u.a;
@@ -234,6 +249,20 @@ TVM_FFI_INLINE uint64_t StableHashBytes(const char* data, size_t size) {
     result = (result * kMultiplier + u.b) % kMod;
   }
   return result;
+}
+
+/*!
+ *  \brief Same as StableHashBytes, but for small string data.
+ *  \param data The data pointer
+ *  \return the hash value.
+ */
+TVM_FFI_INLINE uint64_t StableHashSmallStrBytes(const TVMFFIAny* data) {
+  if constexpr (TVM_FFI_IO_NO_ENDIAN_SWAP) {
+    // fast path, no endian swap, simply hash as uint64_t
+    const constexpr uint64_t kMod = 2147483647ULL;
+    return data->v_uint64 % kMod;
+  }
+  return StableHashBytes(reinterpret_cast<const void*>(data), sizeof(data->v_uint64));
 }
 
 }  // namespace details

@@ -128,7 +128,6 @@ ScheduleRule ScheduleRule::RandomComputeLocation() {
 
 TVM_FFI_STATIC_INIT_BLOCK({ RandomComputeLocationNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(RandomComputeLocationNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.ScheduleRuleRandomComputeLocation",

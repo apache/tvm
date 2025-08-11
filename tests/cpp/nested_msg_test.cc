@@ -53,7 +53,7 @@ TEST(NestedMsg, Basic) {
   EXPECT_ANY_THROW(msg.LeafValue());
 
   auto arr = msg.NestedArray();
-  EXPECT_TRUE(arr[0].same_as(x));
+  EXPECT_TRUE(arr[0].LeafValue().same_as(x));
   EXPECT_TRUE(arr[1] == nullptr);
   EXPECT_TRUE(arr[1].IsNull());
 
@@ -72,13 +72,24 @@ TEST(NestedMsg, Basic) {
   EXPECT_TRUE(a0.IsNested());
   auto t0 = a0.NestedArray()[1];
   EXPECT_TRUE(t0.IsNested());
-  EXPECT_TRUE(t0.NestedArray()[2].same_as(y));
+  EXPECT_TRUE(t0.NestedArray()[2].LeafValue().same_as(y));
 
   // assign leaf
   a0 = x;
 
   EXPECT_TRUE(a0.IsLeaf());
-  EXPECT_TRUE(a0.same_as(x));
+  EXPECT_TRUE(a0.LeafValue().same_as(x));
+}
+
+TEST(NestedMsg, IntAndAny) {
+  NestedMsg<int64_t> msg({1, std::nullopt, 2});
+  Any any_msg = msg;
+  NestedMsg<int64_t> msg2 = any_msg.cast<NestedMsg<int64_t>>();
+
+  EXPECT_TRUE(msg2.IsNested());
+  EXPECT_EQ(msg2.NestedArray()[0].LeafValue(), 1);
+  EXPECT_TRUE(msg2.NestedArray()[1].IsNull());
+  EXPECT_EQ(msg2.NestedArray()[2].LeafValue(), 2);
 }
 
 TEST(NestedMsg, ForEachLeaf) {
@@ -174,13 +185,13 @@ TEST(NestedMsg, MapAndDecompose) {
 
   DecomposeNestedMsg(t1, expected, [&](Expr value, NestedMsg<Integer> msg) {
     if (value.same_as(x)) {
-      EXPECT_TRUE(msg.same_as(c0));
+      EXPECT_TRUE(msg.LeafValue().same_as(c0));
       ++x_count;
     } else if (value.same_as(y)) {
-      EXPECT_TRUE(msg.same_as(c1));
+      EXPECT_TRUE(msg.LeafValue().same_as(c1));
       ++y_count;
     } else {
-      EXPECT_TRUE(msg.same_as(c2));
+      EXPECT_TRUE(msg.LeafValue().same_as(c2));
       ++z_count;
     }
   });

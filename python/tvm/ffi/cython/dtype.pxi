@@ -92,12 +92,19 @@ cdef class DataType:
         return (self.cdtype.bits * self.cdtype.lanes + 7) // 8
 
     def __str__(self):
-        cdef TVMFFIObjectHandle dtype_str
-        cdef TVMFFIByteArray* bytes
-        CHECK_CALL(TVMFFIDataTypeToString(&(self.cdtype), &dtype_str))
-        bytes = TVMFFIBytesGetByteArrayPtr(dtype_str)
-        res = py_str(PyBytes_FromStringAndSize(bytes.data, bytes.size))
-        CHECK_CALL(TVMFFIObjectFree(dtype_str))
+        cdef TVMFFIAny temp_any
+        cdef TVMFFIByteArray* bytes_ptr
+        cdef TVMFFIByteArray bytes
+
+        CHECK_CALL(TVMFFIDataTypeToString(&(self.cdtype), &temp_any))
+        if temp_any.type_index == kTVMFFISmallStr:
+            bytes = TVMFFISmallBytesGetContentByteArray(&temp_any)
+            res = py_str(PyBytes_FromStringAndSize(bytes.data, bytes.size))
+            return res
+
+        bytes_ptr = TVMFFIBytesGetByteArrayPtr(temp_any.v_obj)
+        res = py_str(PyBytes_FromStringAndSize(bytes_ptr.data, bytes_ptr.size))
+        CHECK_CALL(TVMFFIObjectFree(temp_any.v_obj))
         return res
 
 

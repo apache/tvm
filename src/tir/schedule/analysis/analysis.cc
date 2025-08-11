@@ -949,7 +949,7 @@ StmtSRef GetSRefLowestCommonAncestor(const Array<StmtSRef>& srefs) {
 }
 
 bool HasBeenMultiLevelTiled(const StmtSRef& block_sref) {
-  return tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_tiling_structure).defined();
+  return tir::GetAnn<String>(block_sref, tir::attr::meta_schedule_tiling_structure).has_value();
 }
 
 std::pair<Array<StmtSRef>, std::vector<int>> CollectComputeLocation(const ScheduleState& self,
@@ -1695,8 +1695,6 @@ PrimExpr SimplifyNonTrivialExpr(const PrimExpr& expr, arith::Analyzer* analyzer)
   }
 }
 
-TVM_REGISTER_NODE_TYPE(TensorizeInfoNode);
-
 /*! \brief Auxiliary data structure of information extracted from tensor intrin description */
 struct TensorIntrinDescInfo {
   /*! \brief The block of the description function, which is the (unique) direct child of the root
@@ -2136,8 +2134,6 @@ Optional<AutoTensorizeMappingInfo> GetAutoTensorizeMappingInfo(const tir::Schedu
   ret->rhs_iters = std::move(extractor.rhs_iters_);
   return AutoTensorizeMappingInfo(ret);
 }
-
-TVM_REGISTER_NODE_TYPE(AutoTensorizeMappingInfoNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

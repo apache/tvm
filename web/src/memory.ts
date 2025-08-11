@@ -187,10 +187,43 @@ export class Memory {
     return this.loadByteArrayAsString(typeKeyPtr);
   }
   /**
+   * Load small string from value pointer.
+   * @param ffiAnyPtr The pointer to the value.
+   * @returns The small string.
+   */
+  loadSmallStr(ffiAnyPtr: Pointer): string {
+    if (this.buffer != this.memory.buffer) {
+      this.updateViews();
+    }
+    const sizePtr = ffiAnyPtr + SizeOf.I32;
+    const length = this.loadU32(sizePtr);
+    const dataPtr = ffiAnyPtr + SizeOf.I32 + SizeOf.I32;
+    const ret = [];
+    for (let i = 0; i < length; i++) {
+      ret.push(String.fromCharCode(this.viewU8[dataPtr + i]));
+    }
+    return ret.join("");
+  }
+  /**
+   * Load small bytes from value pointer.
+   * @param ffiAnyPtr
+   */
+  loadSmallBytes(ffiAnyPtr: Pointer): Uint8Array {
+    if (this.buffer != this.memory.buffer) {
+      this.updateViews();
+    }
+    const sizePtr = ffiAnyPtr + SizeOf.I32;
+    const length = this.loadU32(sizePtr);
+    const dataPtr = ffiAnyPtr + SizeOf.I32 + SizeOf.I32;
+    const result = new Uint8Array(length);
+    result.set(this.viewU8.slice(dataPtr, dataPtr + length));
+    return result;
+  }
+  /**
    * Load bytearray as string from ptr.
    * @param byteArrayPtr The head address of the bytearray.
    */
- loadByteArrayAsString(byteArrayPtr: Pointer): string {
+  loadByteArrayAsString(byteArrayPtr: Pointer): string {
     if (this.buffer != this.memory.buffer) {
       this.updateViews();
     }
@@ -207,16 +240,16 @@ export class Memory {
    * Load bytearray as bytes from ptr.
    * @param byteArrayPtr The head address of the bytearray.
    */
- loadByteArrayAsBytes(byteArrayPtr: Pointer): Uint8Array {
-  if (this.buffer != this.memory.buffer) {
-    this.updateViews();
+  loadByteArrayAsBytes(byteArrayPtr: Pointer): Uint8Array {
+    if (this.buffer != this.memory.buffer) {
+      this.updateViews();
+    }
+    const ptr = this.loadPointer(byteArrayPtr);
+    const length = this.loadUSize(byteArrayPtr + this.sizeofPtr());
+    const result = new Uint8Array(length);
+    result.set(this.viewU8.slice(ptr, ptr + length));
+    return result;
   }
-  const ptr = this.loadPointer(byteArrayPtr);
-  const length = this.loadUSize(byteArrayPtr + this.sizeofPtr());
-  const result = new Uint8Array(length);
-  result.set(this.viewU8.slice(ptr, ptr + length));
-  return result;
-}
   // private functions
   /**
    * Update memory view after the memory growth.

@@ -187,8 +187,6 @@ class ThreadedSessionObj final : public BcastSessionObj {
   std::vector<DiscoWorkerThread> workers_;
 };
 
-TVM_REGISTER_OBJECT_TYPE(ThreadedSessionObj);
-
 Session Session::ThreadedSession(int num_workers, int num_group) {
   CHECK_EQ(num_workers % num_group, 0)
       << "The number of workers should be divisible by the number of worker group.";

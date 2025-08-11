@@ -41,7 +41,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 /* Initialization operators */
-TVM_REGISTER_NODE_TYPE(InitAttrs);
 
 /* relax.full */
 Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, Optional<DataType> dtype) {
@@ -441,7 +440,6 @@ TVM_REGISTER_OP("relax.hamming_window")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.tril & relax.triu */
-TVM_REGISTER_NODE_TYPE(TriluAttrs);
 
 Expr tril(Expr x, Expr k) {
   static const Op& op = Op::Get("relax.tril");

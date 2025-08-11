@@ -20,7 +20,9 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/object.h>
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/accessor.h>
+#include <tvm/ffi/reflection/creator.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 
@@ -55,6 +57,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   TPrimExprObj::RegisterReflection();
   TVarObj::RegisterReflection();
   TFuncObj::RegisterReflection();
+  TCustomFuncObj::RegisterReflection();
 
   refl::ObjectDef<TestObjA>().def_ro("x", &TestObjA::x).def_rw("y", &TestObjA::y);
   refl::ObjectDef<TestObjADerived>().def_ro("z", &TestObjADerived::z);
@@ -98,7 +101,6 @@ TEST(Reflection, FieldInfo) {
   const TVMFFIFieldInfo* info_prim_expr_dtype = reflection::GetFieldInfo("test.PrimExpr", "dtype");
   AnyView default_value = AnyView::CopyFromTVMFFIAny(info_prim_expr_dtype->default_value);
   EXPECT_EQ(default_value.cast<String>(), "float");
-  EXPECT_EQ(default_value.as<String>().value().use_count(), 2);
   EXPECT_TRUE(info_prim_expr_dtype->flags & kTVMFFIFieldFlagBitMaskHasDefault);
   EXPECT_TRUE(info_prim_expr_dtype->flags & kTVMFFIFieldFlagBitMaskWritable);
   EXPECT_EQ(Bytes(info_prim_expr_dtype->doc).operator std::string(), "dtype field");
@@ -143,6 +145,11 @@ TEST(Reflection, ForEachFieldInfo) {
   EXPECT_EQ(field_name_to_offset["z"], 16 + sizeof(TVMFFIObject));
 }
 
+TEST(Reflection, TypeAttrColumn) {
+  reflection::TypeAttrColumn size_attr("test.size");
+  EXPECT_EQ(size_attr[TIntObj::_type_index].cast<int>(), sizeof(TIntObj));
+}
+
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_method("testing.Int_GetValue", &TIntObj::GetValue);
@@ -154,4 +161,112 @@ TEST(Reflection, FuncRegister) {
   EXPECT_EQ(fget_value(a).cast<int>(), 12);
 }
 
+TEST(Reflection, ObjectCreator) {
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectCreator creator("test.Int");
+  EXPECT_EQ(creator(Map<String, Any>({{"value", 1}})).cast<TInt>()->value, 1);
+}
+
+TEST(Reflection, AccessPath) {
+  namespace refl = tvm::ffi::reflection;
+
+  // Test basic path construction and ToSteps()
+  refl::AccessPath path = refl::AccessPath::Root()->Attr("body")->ArrayItem(1);
+  auto steps = path->ToSteps();
+  EXPECT_EQ(steps.size(), 2);
+  EXPECT_EQ(steps[0]->kind, refl::AccessKind::kAttr);
+  EXPECT_EQ(steps[1]->kind, refl::AccessKind::kArrayItem);
+  EXPECT_EQ(steps[0]->key.cast<String>(), "body");
+  EXPECT_EQ(steps[1]->key.cast<int64_t>(), 1);
+
+  // Test PathEqual with identical paths
+  refl::AccessPath path2 = refl::AccessPath::Root()->Attr("body")->ArrayItem(1);
+  EXPECT_TRUE(path->PathEqual(path2));
+  EXPECT_TRUE(path->IsPrefixOf(path2));
+
+  // Test PathEqual with different paths
+  refl::AccessPath path3 = refl::AccessPath::Root()->Attr("body")->ArrayItem(2);
+  EXPECT_FALSE(path->PathEqual(path3));
+  EXPECT_FALSE(path->IsPrefixOf(path3));
+
+  // Test prefix relationship - path4 extends path, so path should be prefix of path4
+  refl::AccessPath path4 = refl::AccessPath::Root()->Attr("body")->ArrayItem(1)->Attr("body");
+  EXPECT_FALSE(path->PathEqual(path4));  // Not equal (different lengths)
+  EXPECT_TRUE(path->IsPrefixOf(path4));  // But path is a prefix of path4
+
+  // Test completely different paths
+  refl::AccessPath path5 = refl::AccessPath::Root()->ArrayItem(0)->ArrayItem(1)->Attr("body");
+  EXPECT_FALSE(path->PathEqual(path5));
+  EXPECT_FALSE(path->IsPrefixOf(path5));
+
+  // Test Root path
+  refl::AccessPath root = refl::AccessPath::Root();
+  auto root_steps = root->ToSteps();
+  EXPECT_EQ(root_steps.size(), 0);
+  EXPECT_EQ(root->depth, 0);
+  EXPECT_TRUE(root->IsPrefixOf(path));
+  EXPECT_TRUE(root->IsPrefixOf(root));
+  EXPECT_TRUE(root->PathEqual(refl::AccessPath::Root()));
+
+  // Test depth calculations
+  EXPECT_EQ(path->depth, 2);
+  EXPECT_EQ(path4->depth, 3);
+  EXPECT_EQ(root->depth, 0);
+
+  // Test MapItem access
+  refl::AccessPath map_path = refl::AccessPath::Root()->Attr("data")->MapItem("key1");
+  auto map_steps = map_path->ToSteps();
+  EXPECT_EQ(map_steps.size(), 2);
+  EXPECT_EQ(map_steps[0]->kind, refl::AccessKind::kAttr);
+  EXPECT_EQ(map_steps[1]->kind, refl::AccessKind::kMapItem);
+  EXPECT_EQ(map_steps[0]->key.cast<String>(), "data");
+  EXPECT_EQ(map_steps[1]->key.cast<String>(), "key1");
+
+  // Test MapItemMissing access
+  refl::AccessPath map_missing_path = refl::AccessPath::Root()->MapItemMissing(42);
+  auto map_missing_steps = map_missing_path->ToSteps();
+  EXPECT_EQ(map_missing_steps.size(), 1);
+  EXPECT_EQ(map_missing_steps[0]->kind, refl::AccessKind::kMapItemMissing);
+  EXPECT_EQ(map_missing_steps[0]->key.cast<int64_t>(), 42);
+
+  // Test ArrayItemMissing access
+  refl::AccessPath array_missing_path = refl::AccessPath::Root()->ArrayItemMissing(5);
+  auto array_missing_steps = array_missing_path->ToSteps();
+  EXPECT_EQ(array_missing_steps.size(), 1);
+  EXPECT_EQ(array_missing_steps[0]->kind, refl::AccessKind::kArrayItemMissing);
+  EXPECT_EQ(array_missing_steps[0]->key.cast<int64_t>(), 5);
+
+  // Test FromSteps static method - round trip conversion
+  auto original_steps = path->ToSteps();
+  refl::AccessPath reconstructed = refl::AccessPath::FromSteps(original_steps);
+  EXPECT_TRUE(path->PathEqual(reconstructed));
+  EXPECT_EQ(path->depth, reconstructed->depth);
+
+  // Test complex prefix relationships
+  refl::AccessPath short_path = refl::AccessPath::Root()->Attr("x");
+  refl::AccessPath medium_path = refl::AccessPath::Root()->Attr("x")->ArrayItem(0);
+  refl::AccessPath long_path = refl::AccessPath::Root()->Attr("x")->ArrayItem(0)->MapItem("z");
+
+  EXPECT_TRUE(short_path->IsPrefixOf(medium_path));
+  EXPECT_TRUE(short_path->IsPrefixOf(long_path));
+  EXPECT_TRUE(medium_path->IsPrefixOf(long_path));
+  EXPECT_FALSE(medium_path->IsPrefixOf(short_path));
+  EXPECT_FALSE(long_path->IsPrefixOf(medium_path));
+  EXPECT_FALSE(long_path->IsPrefixOf(short_path));
+
+  // Test non-prefix relationships
+  refl::AccessPath branch1 = refl::AccessPath::Root()->Attr("x")->ArrayItem(0);
+  refl::AccessPath branch2 = refl::AccessPath::Root()->Attr("x")->ArrayItem(1);
+  EXPECT_FALSE(branch1->IsPrefixOf(branch2));
+  EXPECT_FALSE(branch2->IsPrefixOf(branch1));
+  EXPECT_FALSE(branch1->PathEqual(branch2));
+
+  // Test GetParent functionality
+  auto parent = path4->GetParent();
+  EXPECT_TRUE(parent.has_value());
+  EXPECT_TRUE(parent.value()->PathEqual(path));
+
+  auto root_parent = root->GetParent();
+  EXPECT_FALSE(root_parent.has_value());
+}
 }  // namespace

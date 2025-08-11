@@ -26,11 +26,10 @@
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/reflection/access_path.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 #include <tvm/node/functor.h>
-#include <tvm/node/object_path.h>
-#include <tvm/node/reflection.h>
 #include <tvm/runtime/data_type.h>
 
 #include <iostream>
@@ -38,7 +37,7 @@
 
 namespace tvm {
 
-class PrinterConfigNode : public Object {
+class PrinterConfigNode : public ffi::Object {
  public:
   /*! \brief A stack that tracks the names of the binding hierarchy */
   Array<String> binding_names = {};
@@ -114,9 +113,9 @@ class PrinterConfigNode : public Object {
   bool show_all_struct_info = true;
 
   /* \brief Object path to be underlined */
-  Array<ObjectPath> path_to_underline = Array<ObjectPath>();
+  Array<ffi::reflection::AccessPath> path_to_underline;
   /*! \brief Object path to be annotated. */
-  Map<ObjectPath, String> path_to_annotate = Map<ObjectPath, String>();
+  Map<ffi::reflection::AccessPath, String> path_to_annotate;
   /*! \brief Object to be underlined. */
   Array<ObjectRef> obj_to_underline = Array<ObjectRef>();
   /*! \brief Object to be annotated. */

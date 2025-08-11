@@ -26,6 +26,7 @@ from tvm.relax.dpl.pattern import (
     is_tuple_get_item,
     make_fused_bias_activation_pattern,
     wildcard,
+    is_tuple,
 )
 from tvm.relax.transform import PatternCheckContext
 from tvm.script import ir as I
@@ -1346,6 +1347,78 @@ def test_dataflow_inside_branch():
         annotate_codegen=True,
     )(Before)
     tvm.ir.assert_structural_equal(Expected, After)
+
+
+def test_concat():
+    @R.function
+    def func(x: R.Tensor((10,), "float32"), y: R.Tensor((10,), "float32")):
+        R.func_attr({"global_symbol": "main"})
+        with R.dataflow():
+            lv = R.abs(x)
+            lv1 = R.abs(y)
+            lv2 = R.concat([lv, lv1])
+            gv = R.nn.relu(lv2)
+            R.output(gv)
+        return gv
+
+    @I.ir_module
+    class Expected1:
+        @R.function(private=True)
+        def fused_relax_abs_relax_abs_relax_concat(
+            x: R.Tensor((10,), dtype="float32"), y: R.Tensor((10,), dtype="float32")
+        ) -> R.Tensor((20,), dtype="float32"):
+            R.func_attr({"Composite": "x.concat_abs_abs", "Primitive": True})
+            with R.dataflow():
+                lv: R.Tensor((10,), dtype="float32") = R.abs(x)
+                lv1: R.Tensor((10,), dtype="float32") = R.abs(y)
+                gv: R.Tensor((20,), dtype="float32") = R.concat((lv, lv1), axis=0)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            x: R.Tensor((10,), dtype="float32"), y: R.Tensor((10,), dtype="float32")
+        ) -> R.Tensor((20,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor(
+                    (20,), dtype="float32"
+                ) = Expected1.fused_relax_abs_relax_abs_relax_concat(x, y)
+                gv: R.Tensor((20,), dtype="float32") = R.nn.relu(lv)
+                R.output(gv)
+            return gv
+
+    mod = tvm.IRModule({"main": func})
+    inp = is_tuple([is_op("relax.abs")(wildcard()), is_op("relax.abs")(wildcard())])
+    pat_clip = is_op("relax.concat")(inp)
+
+    check(mod, [("x.concat_abs_abs", pat_clip)], Expected1)
+
+    @I.ir_module
+    class Expected2:
+        @R.function(private=True)
+        def fused_relax_concat(
+            lv: R.Tensor((10,), dtype="float32"), lv1: R.Tensor((10,), dtype="float32")
+        ) -> R.Tensor((20,), dtype="float32"):
+            R.func_attr({"Composite": "x.concat", "Primitive": True})
+            with R.dataflow():
+                gv: R.Tensor((20,), dtype="float32") = R.concat((lv, lv1), axis=0)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            x: R.Tensor((10,), dtype="float32"), y: R.Tensor((10,), dtype="float32")
+        ) -> R.Tensor((20,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((10,), dtype="float32") = R.abs(x)
+                lv1: R.Tensor((10,), dtype="float32") = R.abs(y)
+                lv_1: R.Tensor((20,), dtype="float32") = Expected2.fused_relax_concat(lv, lv1)
+                gv: R.Tensor((20,), dtype="float32") = R.nn.relu(lv_1)
+                R.output(gv)
+            return gv
+
+    pat_clip = is_op("relax.concat")(wildcard())
+    check(mod, [("x.concat", pat_clip)], Expected2)
 
 
 if __name__ == "__main__":

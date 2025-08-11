@@ -68,7 +68,6 @@ String NameSupplyNode::add_prefix_to_name(const String& name) {
   }
 
   std::ostringstream ss;
-  ICHECK(name.defined());
   ss << prefix_ << "_" << name;
   return ss.str();
 }
@@ -90,8 +89,6 @@ std::string NameSupplyNode::GetUniqueName(std::string name, bool add_underscore)
   name_map[name] = 0;
   return name;
 }
-
-TVM_REGISTER_NODE_TYPE(NameSupplyNode);
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

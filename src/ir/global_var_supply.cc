@@ -94,8 +94,6 @@ GlobalVar GlobalVarSupplyNode::FreshGlobal(String name, bool add_prefix) {
   return var;
 }
 
-TVM_REGISTER_NODE_TYPE(GlobalVarSupplyNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

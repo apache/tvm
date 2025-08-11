@@ -43,13 +43,11 @@ def test_echo():
     str_result = fecho("hello")
     assert isinstance(str_result, str)
     assert str_result == "hello"
-    assert isinstance(str_result, tvm_ffi.String)
 
     # test bytes
     bytes_result = fecho(b"abc")
     assert isinstance(bytes_result, bytes)
     assert bytes_result == b"abc"
-    assert isinstance(bytes_result, tvm_ffi.Bytes)
 
     # test dtype
     dtype_result = fecho(tvm_ffi.dtype("float32"))

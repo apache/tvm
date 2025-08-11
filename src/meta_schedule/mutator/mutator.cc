@@ -92,9 +92,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   PyMutatorNode::RegisterReflection();
 });
 
-TVM_REGISTER_OBJECT_TYPE(MutatorNode);
-TVM_REGISTER_NODE_TYPE(PyMutatorNode);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

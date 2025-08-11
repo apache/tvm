@@ -71,7 +71,6 @@ class LoopPartitionConfig : public Attrs {
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(LoopPartitionConfig, Attrs, LoopPartitionConfigNode);
 };
 
-TVM_REGISTER_NODE_TYPE(LoopPartitionConfigNode);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.LoopPartition", LoopPartitionConfig);
 
 using arith::DeduceBound;
@@ -155,9 +154,9 @@ class CandidateSelector final : public StmtExprVisitor {
     } else if (op->attr_key == attr::pragma_loop_partition_hint) {
       if (analyzer_.CanProve(op->value)) {
         const VarNode* var = nullptr;
-        if (op->node->IsInstance<VarNode>()) {
+        if (op->node.as<VarNode>()) {
           var = op->node.as<VarNode>();
-        } else if (op->node->IsInstance<IterVarNode>()) {
+        } else if (op->node.as<IterVarNode>()) {
           var = op->node.as<IterVarNode>()->var.get();
         }
         ICHECK(var);

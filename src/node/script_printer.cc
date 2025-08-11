@@ -26,6 +26,8 @@
 
 namespace tvm {
 
+using AccessPath = ffi::reflection::AccessPath;
+
 TVM_FFI_STATIC_INIT_BLOCK({ PrinterConfigNode::RegisterReflection(); });
 
 TVMScriptPrinter::FType& TVMScriptPrinter::vtable() {
@@ -99,11 +101,11 @@ PrinterConfig::PrinterConfig(Map<String, Any> config_dict) {
     n->num_context_lines = v.value().cast<int>();
   }
   if (auto v = config_dict.Get("path_to_underline")) {
-    n->path_to_underline = Downcast<Optional<Array<ObjectPath>>>(v).value_or(Array<ObjectPath>());
+    n->path_to_underline = Downcast<Optional<Array<AccessPath>>>(v).value_or(Array<AccessPath>());
   }
   if (auto v = config_dict.Get("path_to_annotate")) {
     n->path_to_annotate =
-        Downcast<Optional<Map<ObjectPath, String>>>(v).value_or(Map<ObjectPath, String>());
+        Downcast<Optional<Map<AccessPath, String>>>(v).value_or(Map<AccessPath, String>());
   }
   if (auto v = config_dict.Get("obj_to_underline")) {
     n->obj_to_underline = Downcast<Optional<Array<ObjectRef>>>(v).value_or(Array<ObjectRef>());
@@ -140,7 +142,6 @@ Array<String> PrinterConfigNode::GetBuiltinKeywords() {
   return result;
 }
 
-TVM_REGISTER_NODE_TYPE(PrinterConfigNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()

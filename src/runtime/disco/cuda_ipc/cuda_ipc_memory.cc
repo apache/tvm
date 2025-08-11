@@ -223,8 +223,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 /******************** CUDAIPCMemoryObj ********************/
 
-TVM_REGISTER_OBJECT_TYPE(CUDAIPCMemoryObj);
-
 // Direct to CUDAIPCMemoryAllocator::Global.
 memory::Allocator* CUDAIPCMemory::GlobalAllocator() { return CUDAIPCMemoryAllocator::Global(); }
 

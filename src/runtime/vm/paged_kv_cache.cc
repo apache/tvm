@@ -2430,8 +2430,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   }
 };  // namespace vm
 
-TVM_REGISTER_OBJECT_TYPE(PagedAttentionKVCacheObj);
-
 //-------------------------------------------------
 //  Register runtime functions
 //-------------------------------------------------
@@ -2470,21 +2468,21 @@ TVM_FFI_STATIC_INIT_BLOCK({
         Optional<ffi::Function> f_transpose_append_mha = std::nullopt;  // args[13]
         Optional<ffi::Function> f_transpose_append_mla = std::nullopt;  // args[14]
         std::unique_ptr<RaggedPrefillFunc> f_attention_prefill_ragged =
-            ConvertRaggedPrefillFunc(args[15].cast<Array<ObjectRef>>(), AttnKind::kMHA);
+            ConvertRaggedPrefillFunc(args[15].cast<Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedPrefillFunc> f_attention_prefill =
-            ConvertPagedPrefillFunc(args[16].cast<Array<ObjectRef>>(), AttnKind::kMHA);
+            ConvertPagedPrefillFunc(args[16].cast<Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedDecodeFunc> f_attention_decode =
-            ConvertPagedDecodeFunc(args[17].cast<Array<ObjectRef>>(), AttnKind::kMHA);
+            ConvertPagedDecodeFunc(args[17].cast<Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedPrefillFunc> f_attention_prefill_sliding_window =
-            ConvertPagedPrefillFunc(args[18].cast<Array<ObjectRef>>(), AttnKind::kMHA);
+            ConvertPagedPrefillFunc(args[18].cast<Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedDecodeFunc> f_attention_decode_sliding_window =
-            ConvertPagedDecodeFunc(args[19].cast<Array<ObjectRef>>(), AttnKind::kMHA);
+            ConvertPagedDecodeFunc(args[19].cast<Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask_paged_kv =
-            ConvertPagedPrefillTreeMaskFunc(args[20].cast<Array<ObjectRef>>(), AttnKind::kMHA);
+            ConvertPagedPrefillTreeMaskFunc(args[20].cast<Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<RaggedPrefillTreeMaskFunc> f_attention_prefill_with_tree_mask =
-            ConvertRaggedPrefillTreeMaskFunc(args[21].cast<Array<ObjectRef>>(), AttnKind::kMHA);
+            ConvertRaggedPrefillTreeMaskFunc(args[21].cast<Array<ffi::Any>>(), AttnKind::kMHA);
         std::unique_ptr<PagedPrefillFunc> f_mla_prefill =
-            ConvertPagedPrefillFunc(args[22].cast<Array<ObjectRef>>(), AttnKind::kMLA);
+            ConvertPagedPrefillFunc(args[22].cast<Array<ffi::Any>>(), AttnKind::kMLA);
         Array<ffi::Function> f_merge_inplace = args[23].cast<Array<ffi::Function>>();
         ffi::Function f_split_rotary = args[24].cast<ffi::Function>();
         ffi::Function f_copy_single_page = args[25].cast<ffi::Function>();

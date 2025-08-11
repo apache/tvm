@@ -55,7 +55,7 @@ struct CalleeAnalysis {
 };
 
 std::optional<CalleeAnalysis> AnalyzeCallee(Function func) {
-  bool is_exposed = func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol).defined();
+  bool is_exposed = func->attrs.GetAttr<String>(tvm::attr::kGlobalSymbol).has_value();
   if (is_exposed) return std::nullopt;
 
   auto free_relax_vars = [&]() -> PSet<Var> {

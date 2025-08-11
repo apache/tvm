@@ -335,6 +335,12 @@ std::string CodeGenC::GetStructRef(DataType t, const PrimExpr& buffer, const Pri
     this->PrintExpr(buffer, os);
     os << ")[" << index << "].type_index)";
     return os.str();
+  } else if (kind == builtin::kTVMFFIAnyZeroPadding) {
+    std::ostringstream os;
+    os << "(((TVMFFIAny*)";
+    this->PrintExpr(buffer, os);
+    os << ")[" << index << "].zero_padding)";
+    return os.str();
   } else if (kind == builtin::kTVMFFIAnyUnionValue) {
     std::ostringstream os;
     os << "(((TVMFFIAny*)";

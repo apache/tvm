@@ -120,7 +120,7 @@ class GraphCreator : public ExprVisitor {
       // true.
       const auto* func = it.second.as<FunctionNode>();
       if (func == nullptr || func->HasNonzeroAttr(attr::kPrimitive) ||
-          func->GetAttr<String>(attr::kCodegen).defined()) {
+          func->GetAttr<String>(attr::kCodegen).has_value()) {
         continue;
       }
       creator(GetRef<Function>(func));
@@ -427,7 +427,14 @@ class FunctionCreator : public ExprMutator {
           }
 
           for (const Expr& arg : call->args) {
-            CheckDefAndUpdateParam(arg);
+            if (auto tuple = arg.as<TupleNode>()) {
+              for (const Expr& tup_arg : tuple->fields) {
+                CheckDefAndUpdateParam(tup_arg);
+                ICHECK(GetStructInfoAs<TupleStructInfoNode>(tup_arg) == nullptr);
+              }
+            } else {
+              CheckDefAndUpdateParam(arg);
+            }
             if (GetStructInfoAs<TupleStructInfoNode>(arg) != nullptr) {
               // The argument is fully referenced. Thus we remove it from the mapping.
               partially_used_tuple_params_.erase(arg.get());
@@ -726,7 +733,7 @@ class OperatorFusor : public ExprMutator {
       // Only visit Relax functions with neither attr::kPrimitive nor
       // attr::kCodegen.
       if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive) &&
-          !func->GetAttr<String>(attr::kCodegen).defined()) {
+          !func->GetAttr<String>(attr::kCodegen).has_value()) {
         auto updated_func = Downcast<Function>(VisitExpr(func));
         builder_->UpdateFunction(gv, updated_func);
       }
@@ -1256,8 +1263,8 @@ class CompositeFunctionAnnotator : public ExprMutator {
       }
       const auto& base_func = (*it).second;
       if (const auto* func = base_func.as<FunctionNode>()) {
-        if (func->GetAttr<String>(attr::kComposite).defined() ||
-            func->GetAttr<String>(attr::kCodegen).defined()) {
+        if (func->GetAttr<String>(attr::kComposite).has_value() ||
+            func->GetAttr<String>(attr::kCodegen).has_value()) {
           continue;
         }
 
@@ -1356,8 +1363,8 @@ IRModule FuseOpsByPattern(const tvm::Array<transform::FusionPattern>& patterns, 
         }
         const FunctionNode* function = base_func.as<FunctionNode>();
         if (function->GetAttr<bool>(attr::kPrimitive).value_or(false) ||
-            function->GetAttr<String>(attr::kComposite).defined() ||
-            function->GetAttr<String>(attr::kCodegen).defined()) {
+            function->GetAttr<String>(attr::kComposite).has_value() ||
+            function->GetAttr<String>(attr::kCodegen).has_value()) {
           continue;
         }
         entry_functions.push_back(Downcast<Function>(base_func));
@@ -1400,7 +1407,6 @@ FusionPattern::FusionPattern(String name, DFPattern pattern,
   data_ = std::move(n);
 }
 
-TVM_REGISTER_NODE_TYPE(FusionPatternNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def(
@@ -1423,8 +1429,6 @@ PatternCheckContext::PatternCheckContext(Expr matched_expr, Map<String, Expr> an
   n->value_to_bound_var = std::move(value_to_bound_var);
   data_ = std::move(n);
 }
-
-TVM_REGISTER_NODE_TYPE(PatternCheckContextNode);
 
 Pass FuseOps(int fuse_opt_level) {
   auto pass_func =  //

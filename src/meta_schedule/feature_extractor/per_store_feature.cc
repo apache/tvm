@@ -1448,7 +1448,6 @@ FeatureExtractor FeatureExtractor::PerStoreFeature(int buffers_per_store,
 
 TVM_FFI_STATIC_INIT_BLOCK({ PerStoreFeatureNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(PerStoreFeatureNode);
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("meta_schedule.FeatureExtractorPerStoreFeature",

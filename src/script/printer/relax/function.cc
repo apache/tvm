@@ -39,10 +39,8 @@ bool AtTopLevelFunction(const IRDocsifier& d) {
 
 TVM_FFI_STATIC_INIT_BLOCK({ RelaxFrameNode::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(RelaxFrameNode);
-
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<relax::Function>("", [](relax::Function n, ObjectPath n_p, IRDocsifier d) -> Doc {
+    .set_dispatch<relax::Function>("", [](relax::Function n, AccessPath n_p, IRDocsifier d) -> Doc {
       std::unordered_set<const tir::VarNode*> func_vars;
       With<RelaxFrame> f(d);
 
@@ -66,12 +64,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       // Step 2. Print params
       Array<AssignDoc> params;
       {
-        ObjectPath params_p = n_p->Attr("params");
+        AccessPath params_p = n_p->Attr("params");
         for (int i = 0, l = n->params.size(); i < l; ++i) {
           params.push_back(AssignDoc(
               /*lhs=*/DefineVar(n->params[i], *f, d),
               /*rhs=*/std::nullopt,
-              StructInfoAsAnn(n->params[i], params_p->ArrayIndex(i), d, std::nullopt)));
+              StructInfoAsAnn(n->params[i], params_p->ArrayItem(i), d, std::nullopt)));
         }
       }
       // Step 3. Clean up func variables
@@ -108,14 +106,14 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       Array<ExprDoc, void> dec_values;
       if (!n->is_pure) {
         dec_keys.push_back("pure");
-        dec_values.push_back(LiteralDoc::Boolean(false, Optional<ObjectPath>()));
+        dec_values.push_back(LiteralDoc::Boolean(false, Optional<AccessPath>()));
       }
       // if the function is global or is not in a module and does not have a global symbol,
       // indicate that it's private
       if (AtTopLevelFunction(d) &&
           (!n->attrs.defined() || !n->attrs->dict.count(tvm::attr::kGlobalSymbol))) {
         dec_keys.push_back("private");
-        dec_values.push_back(LiteralDoc::Boolean(true, Optional<ObjectPath>()));
+        dec_values.push_back(LiteralDoc::Boolean(true, Optional<AccessPath>()));
       }
       if (dec_keys.size()) {
         decorator = decorator->Call(pos_args, dec_keys, dec_values);
@@ -129,7 +127,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::ExternFunc>(  //
-        "", [](relax::ExternFunc n, ObjectPath n_p, IRDocsifier d) -> Doc {
+        "", [](relax::ExternFunc n, AccessPath n_p, IRDocsifier d) -> Doc {
           // TODO(@junrushao): print more information out of extern function.
           return Relax(d, "ExternFunc")->Call({LiteralDoc::Str(n->global_symbol, n_p)});
         });

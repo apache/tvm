@@ -43,7 +43,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
 });
 
 /* relax.take */
-TVM_REGISTER_NODE_TYPE(TakeAttrs);
 
 Expr take(Expr x, Expr indices, Optional<int64_t> axis, String mode) {
   ObjectPtr<TakeAttrs> attrs = make_object<TakeAttrs>();
@@ -137,7 +136,6 @@ TVM_REGISTER_OP("relax.take")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.strided_slice */
-TVM_REGISTER_NODE_TYPE(StridedSliceAttrs);
 
 Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, Optional<Expr> strides,
                    bool assume_inbound) {

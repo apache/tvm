@@ -23,8 +23,11 @@
  */
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/node/cast.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/device_api.h>
+
+#include "../support/str_escape.h"
 
 namespace tvm {
 
@@ -76,6 +79,18 @@ void ReprPrinter::Print(const ffi::Any& node) {
       Print(node.cast<ObjectRef>());
       break;
     }
+    case ffi::TypeIndex::kTVMFFISmallStr:
+    case ffi::TypeIndex::kTVMFFIStr: {
+      ffi::String str = node.cast<ffi::String>();
+      stream << '"' << support::StrEscape(str.data(), str.size()) << '"';
+      break;
+    }
+    case ffi::TypeIndex::kTVMFFISmallBytes:
+    case ffi::TypeIndex::kTVMFFIBytes: {
+      ffi::Bytes bytes = node.cast<ffi::Bytes>();
+      stream << "b\"" << support::StrEscape(bytes.data(), bytes.size()) << '"';
+      break;
+    }
     default: {
       if (auto opt_obj = node.as<ObjectRef>()) {
         Print(opt_obj.value());
@@ -101,6 +116,16 @@ ReprPrinter::FType& ReprPrinter::vtable() {
 void Dump(const runtime::ObjectRef& n) { std::cerr << n << "\n"; }
 
 void Dump(const runtime::Object* n) { Dump(runtime::GetRef<runtime::ObjectRef>(n)); }
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ffi::reflection::AccessPathObj>([](const ObjectRef& node, ReprPrinter* p) {
+      p->stream << Downcast<ffi::reflection::AccessPath>(node);
+    });
+
+TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
+    .set_dispatch<ffi::reflection::AccessStepObj>([](const ObjectRef& node, ReprPrinter* p) {
+      p->stream << Downcast<ffi::reflection::AccessStep>(node);
+    });
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;

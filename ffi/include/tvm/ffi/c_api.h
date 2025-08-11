@@ -56,27 +56,6 @@
 #define TVM_FFI_DLL_EXPORT __attribute__((visibility("default")))
 #endif
 
-/*!
- * \brief Marks the API as extra c++ api that is defined in cc files.
- *
- * These APIs are extra features that depend on, but are not required to
- * support essential core functionality, such as function calling and object
- * access.
- *
- * They are implemented in cc files to reduce compile-time overhead.
- * The input/output only uses POD/Any/ObjectRef for ABI stability.
- * However, these extra APIs may have an issue across MSVC/Itanium ABI,
- *
- * Related features are also available through reflection based function
- * that is fully based on C API
- *
- * The project aims to minimize the number of extra C++ APIs and only
- * restrict the use to non-core functionalities.
- */
-#ifndef TVM_FFI_EXTRA_CXX_API
-#define TVM_FFI_EXTRA_CXX_API TVM_FFI_DLL
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -86,13 +65,7 @@ enum TVMFFITypeIndex : int32_t {
 #else
 typedef enum {
 #endif
-  // [Section] On-stack POD and special types: [0, kTVMFFIStaticObjectBegin)
-  // N.B. `kTVMFFIRawStr` is a string backed by a `\0`-terminated char array,
-  // which is not owned by TVMFFIAny. It is required that the following
-  // invariant holds:
-  // - `Any::type_index` is never `kTVMFFIRawStr`
-  // - `AnyView::type_index` can be `kTVMFFIRawStr`
-  //
+
   /*
    * \brief The root type of all FFI objects.
    *
@@ -101,6 +74,13 @@ typedef enum {
    * However, it may appear in field annotations during reflection.
    */
   kTVMFFIAny = -1,
+  // [Section] On-stack POD and special types: [0, kTVMFFIStaticObjectBegin)
+  // N.B. `kTVMFFIRawStr` is a string backed by a `\0`-terminated char array,
+  // which is not owned by TVMFFIAny. It is required that the following
+  // invariant holds:
+  // - `Any::type_index` is never `kTVMFFIRawStr`
+  // - `AnyView::type_index` can be `kTVMFFIRawStr`
+  //
   /*! \brief None/nullptr value */
   kTVMFFINone = 0,
   /*! \brief POD int value */
@@ -117,12 +97,16 @@ typedef enum {
   kTVMFFIDevice = 6,
   /*! \brief DLTensor* */
   kTVMFFIDLTensorPtr = 7,
-  /*! \brief const char**/
+  /*! \brief const char* */
   kTVMFFIRawStr = 8,
   /*! \brief TVMFFIByteArray* */
   kTVMFFIByteArrayPtr = 9,
   /*! \brief R-value reference to ObjectRef */
   kTVMFFIObjectRValueRef = 10,
+  /*! \brief Small string on stack */
+  kTVMFFISmallStr = 11,
+  /*! \brief Small bytes on stack */
+  kTVMFFISmallBytes = 12,
   /*! \brief Start of statically defined objects. */
   kTVMFFIStaticObjectBegin = 64,
   /*!
@@ -204,11 +188,17 @@ typedef struct TVMFFIAny {
    * \note The type index of Object and Any are shared in FFI.
    */
   int32_t type_index;
-  /*!
-   * \brief length for on-stack Any object, such as small-string
-   * \note This field is reserved for future compact.
-   */
-  int32_t small_len;
+  union {  // 4 bytes
+    /*! \brief padding, must set to zero for values other than small string. */
+    uint32_t zero_padding;
+    /*!
+     * \brief Length of small string, with a max value of 7.
+     *
+     * We keep small str to start at next 4 bytes to ensure alignment
+     * when accessing the small str content.
+     */
+    uint32_t small_str_len;
+  };
   union {                  // 8 bytes
     int64_t v_int64;       // integers
     double v_float64;      // floating-point numbers
@@ -534,7 +524,24 @@ typedef struct {
    * \brief Optional meta-data for structural eq/hash.
    */
   TVMFFISEqHashKind structural_eq_hash_kind;
-} TVMFFITypeExtraInfo;
+} TVMFFITypeMetadata;
+
+/*
+ * \brief Column array that stores extra attributes about types
+ *
+ * The attributes stored in a column array that can be looked up by type index.
+ * Note that the TypeAttr behaves like type_traits so column[T] so not contain
+ * attributes from base classes.
+ *
+ * \note
+ * \sa TVMFFIRegisterTypeAttr
+ */
+typedef struct {
+  /*! \brief The data of the column. */
+  const TVMFFIAny* data;
+  /*! \brief The size of the column. */
+  size_t size;
+} TVMFFITypeAttrColumn;
 
 /*!
  * \brief Runtime type information for object type checking.
@@ -567,7 +574,7 @@ typedef struct TVMFFITypeInfo {
   /*! \brief The reflection method. */
   const TVMFFIMethodInfo* methods;
   /*! \brief The extra information of the type. */
-  const TVMFFITypeExtraInfo* extra_info;
+  const TVMFFITypeMetadata* metadata;
 } TVMFFITypeInfo;
 
 //------------------------------------------------------------
@@ -738,11 +745,27 @@ TVM_FFI_DLL int TVMFFITypeRegisterMethod(int32_t type_index, const TVMFFIMethodI
 /*!
  * \brief Register type creator information for runtime reflection.
  * \param type_index The type index
- * \param extra_info The extra information to be registered.
+ * \param metadata The extra information to be registered.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFITypeRegisterExtraInfo(int32_t type_index,
-                                            const TVMFFITypeExtraInfo* extra_info);
+TVM_FFI_DLL int TVMFFITypeRegisterMetadata(int32_t type_index, const TVMFFITypeMetadata* metadata);
+
+/*!
+ * \brief Register extra type attributes that can be looked up during runtime.
+ * \param type_index The type index
+ * \param attr_value The attribute value to be registered.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFITypeRegisterAttr(int32_t type_index, const TVMFFIByteArray* attr_name,
+                                       const TVMFFIAny* attr_value);
+
+/*!
+ * \brief Get the type attribute column by name.
+ * \param attr_name The name of the attribute.
+ * \return The pointer to the type attribute column.
+ * \return NULL if the attribute was not registered in the system
+ */
+TVM_FFI_DLL const TVMFFITypeAttrColumn* TVMFFIGetTypeAttrColumn(const TVMFFIByteArray* attr_name);
 
 //------------------------------------------------------------
 // Section: DLPack support APIs
@@ -811,7 +834,7 @@ TVM_FFI_DLL int TVMFFIDataTypeFromString(const TVMFFIByteArray* str, DLDataType*
 
  * \note The input dtype is a pointer to the DLDataType to avoid ABI compatibility issues.
  */
-TVM_FFI_DLL int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIObjectHandle* out);
+TVM_FFI_DLL int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIAny* out);
 
 //------------------------------------------------------------
 // Section: Backend noexcept functions for internal use
@@ -873,7 +896,7 @@ TVM_FFI_DLL const TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index);
 #endif
 
 //---------------------------------------------------------------
-// The following API defines static object field accessors
+// The following API defines static object attribute accessors
 // for language bindings.
 //
 // They are defined in C++ inline functions for cleaner code.
@@ -889,6 +912,15 @@ TVM_FFI_DLL const TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index);
  */
 inline int32_t TVMFFIObjectGetTypeIndex(TVMFFIObjectHandle obj) {
   return static_cast<TVMFFIObject*>(obj)->type_index;
+}
+
+/*!
+ * \brief Get the content of a small string in bytearray format.
+ * \param obj The object handle.
+ * \return The content of the small string in bytearray format.
+ */
+inline TVMFFIByteArray TVMFFISmallBytesGetContentByteArray(const TVMFFIAny* value) {
+  return TVMFFIByteArray{value->v_bytes, static_cast<size_t>(value->small_str_len)};
 }
 
 /*!

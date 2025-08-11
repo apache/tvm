@@ -61,8 +61,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
                         [](PrimExpr source, PrimExpr extent) { return IterMark(source, extent); });
 });
 
-TVM_REGISTER_NODE_TYPE(IterMarkNode);
-
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IterMarkNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const IterMarkNode*>(node.get());
@@ -110,8 +108,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   });
 });
 
-TVM_REGISTER_NODE_TYPE(IterSplitExprNode);
-
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IterSplitExprNode>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const IterSplitExprNode*>(node.get());
@@ -133,8 +129,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
     return IterSumExpr(args, base);
   });
 });
-
-TVM_REGISTER_NODE_TYPE(IterSumExprNode);
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<IterSumExprNode>([](const ObjectRef& node, ReprPrinter* p) {
@@ -2672,8 +2666,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def("arith.InverseAffineIterMap", InverseAffineIterMap);
 });
-
-TVM_REGISTER_NODE_TYPE(IterMapResultNode);
 
 }  // namespace arith
 }  // namespace tvm

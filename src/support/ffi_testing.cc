@@ -58,8 +58,6 @@ struct TestAttrs : public AttrsNodeReflAdapter<TestAttrs> {
 
 TVM_FFI_STATIC_INIT_BLOCK({ TestAttrs::RegisterReflection(); });
 
-TVM_REGISTER_NODE_TYPE(TestAttrs);
-
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
@@ -184,9 +182,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("testing.AcceptsVariant",
            [](Variant<String, Integer> arg) -> String {
              if (auto opt_str = arg.as<String>()) {
-               return opt_str.value()->GetTypeKey();
+               return ffi::StaticTypeKey::kTVMFFIStr;
              } else {
-               return arg.get<Integer>()->GetTypeKey();
+               return arg.get<Integer>().GetTypeKey();
              }
            })
       .def("testing.AcceptsBool", [](bool arg) -> bool { return arg; })
@@ -212,7 +210,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
              }
              return arr;
            })
-      .def("testing.AcceptsMapOfPrimExpr", [](Map<ObjectRef, PrimExpr> map) -> ObjectRef {
+      .def("testing.AcceptsMapOfPrimExpr", [](Map<Any, PrimExpr> map) -> ObjectRef {
         for (const auto& kv : map) {
           ObjectRef value = kv.second;
           CHECK(value->IsInstance<PrimExprNode>())

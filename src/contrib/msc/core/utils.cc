@@ -108,6 +108,7 @@ const String CommonUtils::ToAttrKey(const String& key) {
     return msc_attr::kConsumerType;
   }
   LOG_FATAL << "Unexpected key " << key;
+  TVM_FFI_UNREACHABLE();
 }
 
 bool StringUtils::Contains(const String& src_string, const String& sub_string) {
@@ -261,12 +262,12 @@ const String StringUtils::Lower(const String& src_string) {
   return str;
 }
 
-const String StringUtils::ToString(const runtime::ObjectRef& obj) {
+const String StringUtils::ToString(const ffi::Any& obj) {
   String obj_string;
-  if (!obj.defined()) {
+  if (obj == nullptr) {
     obj_string = "";
-  } else if (obj.as<ffi::StringObj>()) {
-    obj_string = Downcast<String>(obj);
+  } else if (auto opt_str = obj.as<String>()) {
+    obj_string = *opt_str;
   } else if (const auto* n = obj.as<IntImmNode>()) {
     obj_string = std::to_string(n->value);
   } else if (const auto* n = obj.as<FloatImmNode>()) {
@@ -370,7 +371,7 @@ const Span SpanUtils::SetAttr(const Span& span, const String& key, const String&
   return Span(SourceName::Get(new_source), 0, 0, 0, 0);
 }
 
-const String SpanUtils::GetAttr(const Span& span, const String& key) {
+String SpanUtils::GetAttr(const Span& span, const String& key) {
   if (span.defined() && span->source_name.defined()) {
     Array<String> tokens{"<" + key + ">", "</" + key + ">"};
     return StringUtils::GetClosureOnce(span->source_name->name, tokens[0], tokens[1]);
