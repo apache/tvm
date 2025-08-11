@@ -1173,6 +1173,54 @@ def exp(x: Tensor, name: str = "exp") -> Tensor:
     """
     return wrap_nested(_op.exp(x._expr), name)
 
+def log(x: Tensor, name: str = "log") -> Tensor:
+    r"""Applies the natural logarithm function.
+
+    .. math::
+        \text{Log}(x) = \log(x)
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data to the operator.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return wrap_nested(_op.log(x._expr), name)
+
+def floor(x: Tensor, name: str = "floor") -> Tensor:
+    r"""Computes the floor of the input tensor.
+
+    .. math::
+        \text{Floor}(x) = \floor(x)
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data to the operator.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return wrap_nested(_op.floor(x._expr), name)
 
 def permute(x: Tensor, axes: Optional[List[int]], name: str = "permute") -> Tensor:
     """Permutes the dimensions of the input tensor.
@@ -2005,6 +2053,9 @@ def tensor_ir_op(
 
     if len(tir_vars) == 0:
         tir_vars = None
+
+    # if tir_vars:
+    #     print(f"tir_vars {tir_vars} dtype: {[tir_var.dtype for tir_var in tir_vars]}")
 
     return wrap_nested(
         bb.emit(rx.call_tir(global_var, call_tir_args, out_sinfo, tir_vars=tir_vars)),
