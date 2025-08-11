@@ -262,6 +262,10 @@
 #define TVM_INFO_USE_NNAPI_RUNTIME "NOT-FOUND"
 #endif
 
+#ifndef TVM_INFO_USE_GNA
+#define TVM_INFO_USE_GNA "NOT-FOUND"
+#endif
+
 namespace tvm {
 
 /*!
@@ -361,6 +365,7 @@ TVM_DLL ffi::Map<ffi::String, ffi::String> GetLibInfo() {
       {"USE_NVSHMEM", TVM_INFO_USE_NVSHMEM},
       {"USE_NNAPI_CODEGEN", TVM_INFO_USE_NNAPI_CODEGEN},
       {"USE_NNAPI_RUNTIME", TVM_INFO_USE_NNAPI_RUNTIME},
+      {"USE_GNA", TVM_INFO_USE_GNA},
       {"BACKTRACE_ON_SEGFAULT", TVM_INFO_BACKTRACE_ON_SEGFAULT},
   };
   return result;
