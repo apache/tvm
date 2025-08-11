@@ -398,6 +398,8 @@ def test_nn():
             rms_norm_out = op.rms_norm(x, weight, axes=[-2, -1])
             rms_norm_with_bias_out = op.rms_norm(x, weight, axes=[-2, -1])
             group_norm_out = op.group_norm(x, num_groups=1, weight=bias, bias=bias)
+            log_out = op.log(x)
+            floor_out = op.floor(x)
             return x
 
     @R.function
@@ -409,6 +411,8 @@ def test_nn():
     ) -> R.Tuple(R.Tensor((2, 3, 4, 5), dtype="float32"), R.Tuple(R.Object)):
         R.func_attr({"num_input": 4})
         with R.dataflow():
+            log: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.log(x)
+            floor: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.floor(x)
             relu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu(x)
             relu6: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.relu6(x)
             silu: R.Tensor((2, 3, 4, 5), dtype="float32") = R.nn.silu(x)
@@ -1269,4 +1273,5 @@ def test_sort_argsort_topk():
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    test_tensor_ir_op()

@@ -566,6 +566,9 @@ void ValidateCallTIR(Call call) {
   auto inferred_sinfo = InferCallTIROutputStructInfoFromArguments(
       GetStructInfo(callee), GetStructInfo(arg_tuple), packed_int_sinfo, opt_inplace_indices);
   if (inferred_sinfo.defined()) {
+    // if (!IsBaseOf(inferred_sinfo.value(), explicit_sinfo)){
+    //   LOG(INFO) << "inferred_sinfo" << inferred_sinfo.value() << "explicit_sinfo" << explicit_sinfo;
+    // }
     CHECK(IsBaseOf(inferred_sinfo.value(), explicit_sinfo))
         << "TypeError: "
         << "The `out_sinfo` argument for R.call_tir must be compatible with the PrimFunc.  "

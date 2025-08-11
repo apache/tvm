@@ -321,7 +321,9 @@ class StructInfoBaseChecker
   BaseCheckResult VisitStructInfo_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<PrimStructInfoNode>();
     if (rhs == nullptr) {
-      if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
+      if (other.as<ObjectStructInfoNode>()) {
+        return BaseCheckResult::kFailL1;
+      }
       return BaseCheckResult::kFailL0;
     }
 
@@ -425,7 +427,11 @@ class StructInfoBaseChecker
   BaseCheckResult VisitStructInfo_(const TupleStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<TupleStructInfoNode>();
     if (rhs == nullptr) {
-      if (other.as<ObjectStructInfoNode>()) return BaseCheckResult::kFailL1;
+      if (other.as<ObjectStructInfoNode>()){
+        LOG(INFO) << "1";
+       return BaseCheckResult::kFailL1;
+      }
+      LOG(INFO) << "2";
       return BaseCheckResult::kFailL0;
     }
     return ArrayCheck(lhs->fields, rhs->fields);
@@ -586,7 +592,10 @@ class StructInfoBaseChecker
 
     for (size_t i = 0; i < lhs.size(); ++i) {
       auto cmp_ret = this->VisitStructInfo(lhs[i], rhs[i]);
-      if (ret == BaseCheckResult::kFailL0) return ret;
+      if (ret == BaseCheckResult::kFailL0){
+        LOG(INFO) << "4";
+         return ret;
+      }
       ret = CombineCheck(cmp_ret, ret);
     }
     return ret;
