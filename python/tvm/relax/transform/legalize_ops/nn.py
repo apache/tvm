@@ -18,7 +18,6 @@
 """Default legalization function for neural network operators."""
 import logging
 import math
-from turtle import shape
 from typing import Optional
 
 from tvm import te, tir, topi
