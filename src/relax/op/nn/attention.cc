@@ -150,7 +150,8 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
     };
     diag_equal_or_broadcast(num_batches, bias_shape->values[0], "query", "bias", "batch size");
     diag_equal_or_broadcast(num_heads, bias_shape->values[1], "query", "bias", "number of heads ");
-    diag_equal_or_broadcast(num_queries, bias_shape->values[2], " query ", " bias", "sequence length");
+    diag_equal_or_broadcast(num_queries, bias_shape->values[2], " query ", " bias",
+                            "sequence length");
     diag_equal(num_keys, bias_shape->values[3], "key", "bias", "sequence length");
   }
   Array<PrimExpr> output_shape = {num_batches, num_queries, num_heads, head_dim_value};
