@@ -208,7 +208,6 @@ VulkanModuleNode::~VulkanModuleNode() {
 ffi::Function VulkanModuleNode::GetFunction(const String& name,
                                             const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
-  ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   auto it = fmap_.find(name);
   if (it == fmap_.end()) return ffi::Function();
   const FunctionInfo& info = it->second;

@@ -258,7 +258,6 @@ class CUDAPrepGlobalBarrier {
 ffi::Function CUDAModuleNode::GetFunction(const String& name,
                                           const ObjectPtr<Object>& sptr_to_self) {
   ICHECK_EQ(sptr_to_self.get(), this);
-  ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
   if (name == symbol::tvm_prepare_global_barrier) {
     return ffi::Function(CUDAPrepGlobalBarrier(this, sptr_to_self));
   }

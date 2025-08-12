@@ -264,7 +264,6 @@ ffi::Function MetalModuleNode::GetFunction(const String& name,
   ffi::Function ret;
   AUTORELEASEPOOL {
     ICHECK_EQ(sptr_to_self.get(), this);
-    ICHECK_NE(name, symbol::tvm_module_main) << "Device function do not have main";
     auto it = fmap_.find(name);
     if (it == fmap_.end()) {
       ret = ffi::Function();
