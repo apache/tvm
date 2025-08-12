@@ -981,7 +981,11 @@ std::string LLVMTarget::GetTargetMetadata(const llvm::Module& module) {
       return meta.str();
     }
   }
+#if TVM_LLVM_VERSION >= 210
+  return "llvm -mtriple " + module.getTargetTriple().str();
+#else
   return "llvm -mtriple " + module.getTargetTriple();
+#endif
 }
 
 void LLVMTarget::SetTargetMetadata(llvm::Module* module) const {
