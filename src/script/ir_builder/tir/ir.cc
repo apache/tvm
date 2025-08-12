@@ -663,8 +663,9 @@ TVM_STATIC_IR_FUNCTOR(Namer, vtable)
       int n = buffer->strides.size();
       for (int i = 0; i < n; ++i) {
         PrimExpr e = buffer->strides[i];
-        if (auto v = e.as<tvm::tir::Var>()) {
-          Namer::Name(v.value(), name + "_s" + std::to_string(i));
+        if (const auto* v = e.as<tvm::tir::VarNode>()) {
+          String new_name = v->name_hint.defined() ? v->name_hint : (name + "_s" + std::to_string(i));
+          Namer::Name(GetRef<tvm::tir::Var>(v), new_name);
         }
       }
     });
