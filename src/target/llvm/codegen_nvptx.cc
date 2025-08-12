@@ -189,7 +189,11 @@ class CodeGenNVPTX : public CodeGenLLVM {
     } else if (sync == "shared" || sync == "shared.dyn") {
 #if TVM_LLVM_VERSION >= 200
       llvm::Function* f = llvm::cast<llvm::Function>(llvm::Intrinsic::getOrInsertDeclaration(
+#if TVM_LLVM_VERSION >= 210
+          module_.get(), llvm::Intrinsic::nvvm_barrier_cta_sync_aligned_all, {}));
+#else
           module_.get(), llvm::Intrinsic::nvvm_barrier0, {}));
+#endif
 #else
       llvm::Function* f =
           llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::nvvm_barrier0);
@@ -335,7 +339,11 @@ runtime::Module BuildNVPTX(IRModule mod, Target target) {
     std::string path = (*flibdevice_path)(compute_ver).cast<std::string>();
     if (path.length() != 0) {
       std::unique_ptr<llvm::Module> mlib = llvm_instance.LoadIR(path);
+#if TVM_LLVM_VERSION >= 210
+      mlib->setTargetTriple(llvm::Triple(llvm_target->GetTargetTriple()));
+#else
       mlib->setTargetTriple(llvm_target->GetTargetTriple());
+#endif
       mlib->setDataLayout(tm->createDataLayout());
       cg->AddLinkModule(std::move(mlib));
     }
