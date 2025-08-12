@@ -46,7 +46,7 @@ public class Module extends TVMObject {
   }
 
   private Function entry = null;
-  private final String entryName = "__tvm_main__";
+  private final String entryName = "__tvm_ffi_main__";
 
 
   /**

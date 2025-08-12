@@ -105,7 +105,7 @@ def evaluate(hexagon_session, operations, expected, sch):
     repeat = 1
 
     timer = module.time_evaluator(
-        "__tvm_main__", hexagon_session.device, number=number, repeat=repeat
+        "__tvm_ffi_main__", hexagon_session.device, number=number, repeat=repeat
     )
     runtime = timer(a_hexagon, b_hexagon, c_hexagon)
 
