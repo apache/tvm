@@ -22,6 +22,7 @@
 #include <tvm/script/ir_builder/tir/ir.h>
 
 #include "./utils.h"
+#include "tvm/ffi/string.h"
 
 namespace tvm {
 namespace script {
@@ -221,9 +222,9 @@ void Writes(Array<ObjectRef> buffer_slices) {
 }
 
 /*! \brief Recursively merge two annotations, the new attrs will override the old ones */
-Map<String, Any> MergeAnnotations(const Map<String, Any>& new_attrs,
-                                  const Map<String, Any>& old_attrs) {
-  Map<String, Any> result = old_attrs;
+Map<Any, Any> MergeAnnotations(const Map<Any, Any>& new_attrs,
+                                  const Map<Any, Any>& old_attrs) {
+  Map<Any, Any> result = old_attrs;
   for (const auto& [key, value] : new_attrs) {
     auto old_value = old_attrs.Get(key);
     // Case 1: the key is not in the old annotations, set the key to the new value
@@ -234,15 +235,15 @@ Map<String, Any> MergeAnnotations(const Map<String, Any>& new_attrs,
 
     // Case 2: the key is in the old annotations
     // Case 2.1: both are dicts
-    auto old_dict = old_value->try_cast<Map<String, Any>>();
-    auto new_dict = value.try_cast<Map<String, Any>>();
+    auto old_dict = old_value->try_cast<Map<Any, Any>>();
+    auto new_dict = value.try_cast<Map<Any, Any>>();
     if (old_dict && new_dict) {
       // Recursively merge the two dicts
       auto merged_dict = MergeAnnotations(*old_dict, *new_dict);
       result.Set(key, merged_dict);
       continue;
     }
-    // Case 2.2: the values are not both dicts, check if the keys are the same
+    // Case 2.3: the values are not both dicts, check if the keys are the same
     if (!ffi::AnyEqual()(old_value.value(), value)) {
       LOG(FATAL) << "ValueError: Try to merge two annotations with different values for key `"
                  << key << "`, previous one is " << old_value->cast<ObjectRef>() << ", new one is "
@@ -259,7 +260,7 @@ void BlockAttrs(Map<String, Any> attrs) {
     frame->annotations = attrs;
   } else {
     // Case 2: the block has annotations, merge the new annotations with the old ones
-    frame->annotations = MergeAnnotations(attrs, frame->annotations.value());
+    frame->annotations = Downcast<Map<String, Any>>(MergeAnnotations(Downcast<Map<Any, Any>>(attrs), Downcast<Map<Any, Any>>(frame->annotations.value())));
   }
 }
 
