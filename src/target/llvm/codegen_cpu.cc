@@ -229,28 +229,42 @@ void CodeGenCPU::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
 }
 
 void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
-  llvm::Function* f = module_->getFunction(entry_func_name);
-  ICHECK(f) << "Function " << entry_func_name << "does not in module";
-  llvm::Type* type = llvm::ArrayType::get(t_char_, entry_func_name.length() + 1);
-  llvm::GlobalVariable* global =
-      new llvm::GlobalVariable(*module_, type, true, llvm::GlobalValue::WeakAnyLinkage, nullptr,
-                               runtime::symbol::tvm_module_main);
-#if TVM_LLVM_VERSION >= 100
-  global->setAlignment(llvm::Align(1));
-#else
-  global->setAlignment(1);
-#endif
-  // comdat is needed for windows select any linking to work
-  // set comdat to Any(weak linking)
+  // create a wrapper function with tvm_ffi_main name and redirects to the entry function
+  llvm::Function* target_func = module_->getFunction(entry_func_name);
+  ICHECK(target_func) << "Function " << entry_func_name << " does not exist in module";
+
+  // Create wrapper function
+  llvm::Function* wrapper_func =
+      llvm::Function::Create(target_func->getFunctionType(), llvm::Function::WeakAnyLinkage,
+                             runtime::symbol::tvm_ffi_main, module_.get());
+
+  // Set attributes (Windows comdat, DLL export, etc.)
   if (llvm_target_->GetOrCreateTargetMachine()->getTargetTriple().isOSWindows()) {
-    llvm::Comdat* comdat = module_->getOrInsertComdat(runtime::symbol::tvm_module_main);
+    llvm::Comdat* comdat = module_->getOrInsertComdat(runtime::symbol::tvm_ffi_main);
     comdat->setSelectionKind(llvm::Comdat::Any);
-    global->setComdat(comdat);
+    wrapper_func->setComdat(comdat);
   }
 
-  global->setInitializer(
-      llvm::ConstantDataArray::getString(*llvm_target_->GetContext(), entry_func_name));
-  global->setDLLStorageClass(llvm::GlobalVariable::DLLExportStorageClass);
+  wrapper_func->setCallingConv(llvm::CallingConv::C);
+  wrapper_func->setDLLStorageClass(llvm::GlobalValue::DLLStorageClassTypes::DLLExportStorageClass);
+
+  // Create simple tail call
+  llvm::BasicBlock* entry =
+      llvm::BasicBlock::Create(*llvm_target_->GetContext(), "entry", wrapper_func);
+  builder_->SetInsertPoint(entry);
+
+  // Forward all arguments to target function
+  std::vector<llvm::Value*> call_args;
+  for (llvm::Value& arg : wrapper_func->args()) {
+    call_args.push_back(&arg);
+  }
+
+  llvm::Value* result = builder_->CreateCall(target_func, call_args);
+  if (target_func->getReturnType()->isVoidTy()) {
+    builder_->CreateRetVoid();
+  } else {
+    builder_->CreateRet(result);
+  }
 }
 
 std::unique_ptr<llvm::Module> CodeGenCPU::Finish() {

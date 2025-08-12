@@ -103,7 +103,7 @@ class Module(tvm.ffi.Object):
 
     def __new__(cls):
         instance = super(Module, cls).__new__(cls)  # pylint: disable=no-value-for-parameter
-        instance.entry_name = "__tvm_main__"
+        instance.entry_name = "__tvm_ffi_main__"
         instance._entry = None
         return instance
 
@@ -118,7 +118,7 @@ class Module(tvm.ffi.Object):
         """
         if self._entry:
             return self._entry
-        self._entry = self.get_function("__tvm_main__")
+        self._entry = self.get_function("__tvm_ffi_main__")
         return self._entry
 
     def implements_function(self, name, query_imports=False):
