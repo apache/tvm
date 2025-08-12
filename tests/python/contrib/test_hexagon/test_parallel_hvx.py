@@ -85,7 +85,6 @@ def get_vmpy_operator(operations):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind, T.ramp(0, 1, 128)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vmpybusv.128B"),
-                    T.uint32(2),
                     T.reinterpret(a_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     T.reinterpret(b_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     dtype="int16x128",
@@ -108,7 +107,6 @@ def get_vadd_operator(operations):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind, T.ramp(0, 1, 128)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vaddubh.128B"),
-                    T.uint32(2),
                     T.reinterpret(a_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     T.reinterpret(b_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     dtype="int16x128",
@@ -131,7 +129,6 @@ def get_vrmpy_operator(operations):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind, T.ramp(0, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
-                    T.uint32(2),
                     T.reinterpret(a_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     T.reinterpret(b_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     dtype="int32x32",

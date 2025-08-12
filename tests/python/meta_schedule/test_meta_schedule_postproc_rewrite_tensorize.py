@@ -236,7 +236,6 @@ class Conv2dNCHWcVNNIModuleTensorized:
                     C_i32x16 = C.vload([0], dtype="int32x16")
                     C[T.ramp(0, 1, 16)] = T.call_llvm_pure_intrin(
                         T.llvm_lookup_intrinsic_id("llvm.x86.avx512.vpdpbusd.512"),
-                        T.uint32(3),
                         C_i32x16,
                         T.broadcast(A_i32, 16),
                         B_i32x16,

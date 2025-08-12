@@ -225,7 +225,7 @@ TVM_DLL const Op& call_spirv_pure_glsl450();
 // TODO(tvm-team) revisit the builtins below
 // some of them can simply become ops with special codegen attr.
 /*!
- * \brief Prefetch a cacheline
+ * \brief same signature as llvm.prefetch
  */
 TVM_DLL const Op& prefetch();
 

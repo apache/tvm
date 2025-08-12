@@ -1351,34 +1351,18 @@ void CodeGenLLVM::EmitFloat16ConversionBuiltins(bool use_float16_abi) {
 
 llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
   if (op->op.same_as(builtin_call_llvm_intrin_) || op->op.same_as(builtin_call_llvm_pure_intrin_)) {
-    ICHECK_GE(op->args.size(), 2U);
+    ICHECK_GE(op->args.size(), 1U);
     llvm::Intrinsic::ID id = static_cast<llvm::Intrinsic::ID>(Downcast<IntImm>(op->args[0])->value);
-    int64_t num_signature = Downcast<IntImm>(op->args[1])->value;
     std::vector<llvm::Value*> arg_value;
     std::vector<llvm::Type*> arg_type;
-    for (size_t i = 2; i < op->args.size(); ++i) {
+    for (size_t i = 1; i < op->args.size(); ++i) {
       arg_value.push_back(MakeValue(op->args[i]));
-      if (i - 2 < static_cast<size_t>(num_signature)) {
-        arg_type.push_back(arg_value.back()->getType());
-      }
+      arg_type.push_back(arg_value.back()->getType());
     }
-    // LLVM's prefetch intrinsic returns "void", while TVM's prefetch
-    // returns int32. This causes problems because prefetch is one of
-    // those intrinsics that is generated automatically via the
-    // tvm.intrin.rule mechanism. Any other intrinsic with a type
-    // mismatch will have to be treated specially here.
-    // TODO(kparzysz-quic): fix this once TVM prefetch uses the same
-    // type as LLVM.
-    llvm::Type* return_type =
-        (id != llvm::Intrinsic::prefetch) ? GetLLVMType(GetRef<PrimExpr>(op)) : t_void_;
+    llvm::Type* return_type = GetLLVMType(GetRef<PrimExpr>(op));
     llvm::Function* f = GetIntrinsicDecl(id, return_type, arg_type);
     ICHECK(f) << "Cannot find intrinsic declaration, possible type mismatch: "
-#if TVM_LLVM_VERSION >= 130
-              << llvm::Intrinsic::getBaseName(id).str();
-#else
-              << llvm::Intrinsic::getName(id, {});
-#endif
-
+              << llvmGetIntrinName(id);
     // In earlier versions of LLVM's, the prefetch intrinsic is not
     // overloaded, and always takes the first argument as i8*.  If
     // this is the case, this argument should insert a cast to i8*.
@@ -1391,7 +1375,6 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
             builder_->CreatePointerCast(arg_value[0], llvmGetPointerTo(t_char_, addrspace));
       }
     }
-
     return builder_->CreateCall(f, arg_value);
   } else if (op->op.same_as(builtin::bitwise_and())) {
     return builder_->CreateAnd(MakeValue(op->args[0]), MakeValue(op->args[1]));
