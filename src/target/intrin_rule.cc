@@ -34,6 +34,9 @@ using tir::FLowerIntrinsic;
 TVM_REGISTER_OP("tir.exp").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
                                                      DispatchPureExtern<FloatSuffix>);
 
+TVM_REGISTER_OP("tir.exp2")
+    .set_attr<FLowerIntrinsic>("default.FLowerIntrinsic", DispatchPureExtern<FloatSuffix>);
+
 TVM_REGISTER_OP("tir.erf").set_attr<FLowerIntrinsic>("default.FLowerIntrinsic",
                                                      DispatchPureExtern<FloatSuffix>);
 
