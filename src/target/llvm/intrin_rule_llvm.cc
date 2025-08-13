@@ -266,7 +266,6 @@ TVM_REGISTER_OP("tir.clz").set_attr<FLegalize>("llvm.FLegalize", [](const PrimEx
   ICHECK_EQ(call->args.size(), 1);
   Array<PrimExpr> cargs;
   cargs.push_back(IntImm(DataType::UInt(32), ::llvm::Intrinsic::ctlz));
-  cargs.push_back(IntImm(DataType::UInt(32), 2));
   cargs.push_back(call->args[0]);
   cargs.push_back(IntImm(DataType::Int(1), 1));  // is_zero_undef
   // LLVM requires that the return type must match the first argument type

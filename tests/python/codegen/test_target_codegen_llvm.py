@@ -35,7 +35,7 @@ def test_llvm_intrin():
     n = tvm.runtime.convert(4)
     A = ib.pointer("float32", name="A")
     args = [tvm.tir.call_intrin("handle", "tir.address_of", A[0]), 0, 3, 1]
-    ib.emit(tvm.tir.Evaluate(tvm.tir.Call("int32", "tir.prefetch", args)))
+    ib.emit(tvm.tir.Evaluate(tvm.tir.Call("void", "tir.prefetch", args)))
     body = ib.get()
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "prefetch"))
@@ -47,7 +47,7 @@ def test_llvm_void_intrin():
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("uint8", name="A")
     # Create an intrinsic that returns void.
-    x = tvm.tir.call_llvm_intrin("", "llvm.va_start", tvm.tir.const(1, "uint32"), A.asobject().data)
+    x = tvm.tir.call_llvm_intrin("", "llvm.assume", tvm.tir.const(1, "int1"))
     ib.emit(x)
     body = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "main"))
@@ -72,9 +72,7 @@ def test_llvm_overloaded_intrin():
     def use_llvm_intrinsic(A, C):
         ib = tvm.tir.ir_builder.create()
         L = A.vload((0, 0))
-        I = tvm.tir.call_llvm_pure_intrin(
-            "int32", "llvm.ctlz", tvm.tir.const(2, "uint32"), L, tvm.tir.const(0, "int1")
-        )
+        I = tvm.tir.call_llvm_pure_intrin("int32", "llvm.ctlz", L, tvm.tir.const(0, "int1"))
         S = C.vstore((0, 0), I)
         ib.emit(S)
         return ib.get()

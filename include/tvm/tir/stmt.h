@@ -1107,11 +1107,6 @@ constexpr const char* pragma_import_llvm = "pragma_import_llvm";
 /*! \brief Try to modify the AST to support Tensor Core */
 constexpr const char* pragma_tensor_core = "pragma_tensor_core";
 /*!
- * \brief Mark of prefetch scope, value=offset,
- *  run prefetch of Tensor on the current loop scope
- */
-constexpr const char* prefetch_scope = "prefetch_scope";
-/*!
  * \brief Marks the layout transforms to be used for a tensor.
  *
  * Only applies to a DataProducer, as it should be made part of the
