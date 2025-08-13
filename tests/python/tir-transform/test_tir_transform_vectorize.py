@@ -781,16 +781,14 @@ def test_vectorize_llvm_pure_intrin(extent, vec_str, target):
         @T.prim_func
         def main(A: T.Buffer((25,), "float32"), B: T.Buffer((25,), "float32")):
             for j in T.vectorized(extent):
-                A[j] = T.call_llvm_pure_intrin(
-                    "float32", "llvm.sqrt", tvm.tir.const(1, "uint"), B[j]
-                )
+                A[j] = T.call_llvm_pure_intrin("float32", "llvm.sqrt", B[j])
 
     @I.ir_module
     class After:
         @T.prim_func
         def main(A: T.Buffer((25,), "float32"), B: T.Buffer((25,), "float32")):
             A[T.Ramp(0, 1, extent)] = T.call_llvm_pure_intrin(
-                vec_str, "llvm.sqrt", tvm.tir.const(1, "uint"), B[T.Ramp(0, 1, extent)]
+                vec_str, "llvm.sqrt", B[T.Ramp(0, 1, extent)]
             )
 
     with tvm.target.Target(target):
@@ -809,16 +807,14 @@ def test_vectorize_llvm_pure_intrin_fail(extent, vec_str, target):
         @T.prim_func
         def main(A: T.Buffer((25,), "int32"), B: T.Buffer((25,), "float32")):
             for j in T.vectorized(extent):
-                A[j] = T.call_llvm_pure_intrin(
-                    "int32", "llvm.lround", tvm.tir.const(1, "uint"), B[j]
-                )
+                A[j] = T.call_llvm_pure_intrin("int32", "llvm.lround", B[j])
 
     @I.ir_module
     class After:
         @T.prim_func
         def main(A: T.Buffer((25,), "int32"), B: T.Buffer((25,), "float32")):
             A[T.Ramp(0, 1, extent)] = T.call_llvm_pure_intrin(
-                vec_str, "llvm.lround", tvm.tir.const(1, "uint"), B[T.Ramp(0, 1, extent)]
+                vec_str, "llvm.lround", B[T.Ramp(0, 1, extent)]
             )
 
     with pytest.raises(Exception) as e_info:
