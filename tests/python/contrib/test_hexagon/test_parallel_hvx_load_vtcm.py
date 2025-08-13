@@ -87,7 +87,6 @@ def vrmpy(operations):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[vn_ind, T.ramp(0, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
-                    T.uint32(2),
                     T.reinterpret(a_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     T.reinterpret(b_buffer[vn_ind, T.ramp(0, 1, 128)], dtype="int32x32"),
                     dtype="int32x32",
@@ -124,7 +123,6 @@ def preloaded_vrmpy(operations):
                 vn_ind = T.axis.remap("S", [n])
                 c_buffer[T.ramp(T.cast(vn_ind, "int32") * 32, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
-                    T.uint32(2),
                     T.reinterpret(
                         a_buffer[T.ramp(T.cast(vn_ind, "int32") * 128, 1, 128)], dtype="int32x32"
                     ),
@@ -168,7 +166,6 @@ def preallocated_vrmpy(operations):
                 vn_ind = T.axis.remap("S", [n])
                 c_global_vtcm[T.ramp(T.cast(vn_ind, "int32") * 32, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
-                    T.uint32(2),
                     T.reinterpret(
                         a_global_vtcm[T.ramp(T.cast(vn_ind, "int32") * 128, 1, 128)],
                         dtype="int32x32",
@@ -267,7 +264,6 @@ def preallocated_single_dma_vrmpy(operations):
                 vn_ind = T.axis.remap("S", [n])
                 c_global_vtcm[T.ramp(T.cast(vn_ind, "int32") * 32, 1, 32)] = T.call_llvm_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.hexagon.V6.vrmpyubv.128B"),
-                    T.uint32(2),
                     T.reinterpret(
                         a_global_vtcm[T.ramp(T.cast(vn_ind, "int32") * 128, 1, 128)],
                         dtype="int32x32",

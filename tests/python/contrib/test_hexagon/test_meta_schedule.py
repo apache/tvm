@@ -294,7 +294,7 @@ class ModuleVRMPYAutoTensorize:
                         b_buffer[0, 0:128], dtype="int32x32"
                     )  # type: ignore
                     c_buffer[0:32] = T.call_llvm_pure_intrin(  # type: ignore
-                        4390, T.uint32(3), c_buffer[0:32], b_i32x32, a_i32, dtype="int32x32"
+                        4390, c_buffer[0:32], b_i32x32, a_i32, dtype="int32x32"
                     )
 
 

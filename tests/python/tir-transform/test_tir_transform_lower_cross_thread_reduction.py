@@ -832,7 +832,7 @@ def single_reduction_loop_with_tensorize(
                 B_i8x128 = B[0, 0:128]
                 B_i32x32: T.int32x32 = T.reinterpret(B_i8x128, dtype="int32x32")
                 C[0:32] = T.call_llvm_pure_intrin(
-                    4217, T.uint32(3), C[0:32], T.broadcast(A_i32, 32), B_i32x32, dtype="int32x32"
+                    4217, C[0:32], T.broadcast(A_i32, 32), B_i32x32, dtype="int32x32"
                 )
 
 

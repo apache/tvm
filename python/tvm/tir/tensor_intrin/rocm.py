@@ -39,7 +39,6 @@ def sdot4(
 
         C[0] += T.call_llvm_pure_intrin(
             T.llvm_lookup_intrinsic_id("llvm.amdgcn.sdot4"),
-            T.uint32(4),
             T.reinterpret(A.vload([0], "int8x4"), dtype="int32"),
             T.reinterpret(B.vload([0], "int8x4"), dtype="int32"),
             T.int32(0),
@@ -337,7 +336,6 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
             T.launch_thread(tx, WARP_SIZE)
             C[tx, 0:local_size_out] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id(mfma_intrin),
-                T.uint32(6),
                 A[tx, 0:local_size],
                 B[tx, 0:local_size],
                 C[tx, 0:local_size_out],
@@ -365,7 +363,6 @@ def get_mfma_intrin(k_dim, in_dtype="float32", out_dtype="float32", b_transposed
 
             C[tx, 0:local_size_out] = T.call_llvm_pure_intrin(
                 T.llvm_lookup_intrinsic_id(mfma_intrin),
-                T.uint32(6),
                 T.call_intrin("int32", "tir.reinterpret", A[tx, 0:local_size]),
                 T.call_intrin("int32", "tir.reinterpret", A[tx, 0:local_size]),
                 C[tx, 0:local_size_out],

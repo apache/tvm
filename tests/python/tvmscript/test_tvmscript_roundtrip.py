@@ -375,7 +375,6 @@ def opt_gemm_mod_host():
                                 for x_c in T.serial(0, 32):
                                     C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
                                         T.uint32(97),
-                                        T.uint32(3),
                                         T.broadcast(
                                             A[
                                                 (
@@ -393,7 +392,6 @@ def opt_gemm_mod_host():
                                     )
                                     C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
                                         T.uint32(97),
-                                        T.uint32(3),
                                         T.broadcast(
                                             A[
                                                 (
@@ -416,7 +414,6 @@ def opt_gemm_mod_host():
                                     )
                                     C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
                                         T.uint32(97),
-                                        T.uint32(3),
                                         T.broadcast(
                                             A[
                                                 (
@@ -439,7 +436,6 @@ def opt_gemm_mod_host():
                                     )
                                     C_global[T.ramp((x_c * 32), 1, 32)] = T.call_llvm_pure_intrin(
                                         T.uint32(97),
-                                        T.uint32(3),
                                         T.broadcast(
                                             A[
                                                 (
@@ -3216,7 +3212,6 @@ def llvm_intrin_call():
                 )
                 B[vi] = T.call_llvm_pure_intrin(
                     T.llvm_lookup_intrinsic_id("llvm.ctpop.i8"),
-                    T.uint32(1),
                     A[vi],
                     dtype="uint8",
                 )
