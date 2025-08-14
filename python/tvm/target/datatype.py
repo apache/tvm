@@ -26,6 +26,7 @@ from tvm.tir.expr import (
     BinaryOpExpr as _BinaryOpExpr,
 )
 from tvm.tir.op import call_pure_extern
+from tvm.ffi import get_global_func
 from tvm.ffi import register_func as _register_func
 from tvm.tir import call_intrin
 
@@ -55,7 +56,7 @@ def register(type_name, type_code):
         The type's code, which should be >= kCustomBegin. See
         include/tvm/runtime/data_type.h.
     """
-    tvm.runtime._ffi_api._datatype_register(type_name, type_code)
+    get_global_func("dtype.register_custom_type")(type_name, type_code)
 
 
 def get_type_name(type_code):
@@ -82,7 +83,7 @@ def get_type_name(type_code):
         The name of the custom datatype.
 
     """
-    return tvm.runtime._ffi_api._datatype_get_type_name(type_code)
+    return get_global_func("dtype.get_custom_type_name")(type_code)
 
 
 def get_type_code(type_name):
@@ -108,7 +109,7 @@ def get_type_code(type_name):
     type_code : int
         The type code of the custom datatype.
     """
-    return tvm.runtime._ffi_api._datatype_get_type_code(type_name)
+    return get_global_func("dtype.get_custom_type_code")(type_name)
 
 
 def get_type_registered(type_code):
