@@ -88,6 +88,7 @@ tvm_option(USE_BLAS "The blas library to be linked" none)
 tvm_option(USE_AMX "Enable Intel AMX" OFF)
 tvm_option(USE_MKL "MKL root path when use MKL blas" OFF)
 tvm_option(USE_DNNL "Enable DNNL codegen" OFF)
+tvm_option(USE_GNA "Enable Intel GNA codegen" OFF)
 tvm_option(USE_CUDNN "Build with cuDNN" OFF)
 tvm_option(USE_CUBLAS "Build with cuBLAS" OFF)
 tvm_option(USE_NVTX "Build with NVTX" OFF)
@@ -327,6 +328,8 @@ tvm_file_glob(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
 list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
 
+list(APPEND COMPILER_SRCS "src/relax/backend/contrib/gna/codegen.cc")
+
 tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/*.cc
   src/runtime/vm/*.cc
@@ -387,6 +390,40 @@ if (USE_CUDA AND USE_NVSHMEM)
   set(CMAKE_POSITION_INDEPENDENT_CODE ON)
   tvm_file_glob(GLOB RUNTIME_NVSHMEM_SRCS src/runtime/contrib/nvshmem/*.cc src/runtime/contrib/nvshmem/*.cu)
   list(APPEND RUNTIME_SRCS ${RUNTIME_NVSHMEM_SRCS})
+endif()
+
+if(USE_GNA)
+  message(STATUS "Build with Intel GNA...")
+  tvm_file_glob(GLOB RUNTIME_GNA_SRCS src/runtime/contrib/gna/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_GNA_SRCS})
+
+  find_path(GNA_INCLUDE_DIR gna2-api.h HINTS ../gna/src/gna-api)
+  if(NOT GNA_INCLUDE_DIR)
+    message(FATAL_ERROR "Cannot find GNA headers. Expected gna2-api.h in ../gna/src/gna-api")
+  endif()
+
+  find_path(GNA_LIB_DIR NAMES gna.dll gna.so libgna.so HINTS
+    ../gna/bin/gna-lib/WIN-DEBUG/x64
+    ../gna/bin/gna-lib/WIN-RELEASE/x64
+    ../gna/bin/gna-lib/LNX-DEBUG/x64
+    ../gna/bin/gna-lib/LNX-RELEASE/x64
+    ../gna/build/src/gna-lib)
+
+  if(GNA_LIB_DIR)
+    message(STATUS "Found GNA library directory: ${GNA_LIB_DIR}")
+  else()
+    message(WARNING "GNA library not found. Build GNA first: cd ../gna && mkdir -p build && cd build && cmake .. && make")
+  endif()
+
+  include_directories(${GNA_INCLUDE_DIR})
+  if(GNA_LIB_DIR)
+    link_directories(${GNA_LIB_DIR})
+    if(WIN32)
+      list(APPEND TVM_RUNTIME_LINKER_LIBS gna.lib)
+    else()
+      list(APPEND TVM_RUNTIME_LINKER_LIBS gna)
+    endif()
+  endif()
 endif()
 
 if(USE_ROCM AND USE_RCCL)
