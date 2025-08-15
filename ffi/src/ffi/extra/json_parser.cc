@@ -167,7 +167,7 @@ class JSONParserContext {
       ++cur_;
       if (cur_ != end_ && *cur_ == 'I') {
         if (this->MatchLiteral("Infinity", 8)) {
-          *out = -std::numeric_limits<double>::infinity();
+          *out = FastMathSafeNegInf();
           return true;
         } else {
           this->SetCurrentPosForBetterErrorMsg(start_pos);
@@ -177,7 +177,7 @@ class JSONParserContext {
       }
     } else if (*cur_ == 'I') {
       if (this->MatchLiteral("Infinity", 8)) {
-        *out = std::numeric_limits<double>::infinity();
+        *out = FastMathSafePosInf();
         return true;
       } else {
         this->SetCurrentPosForBetterErrorMsg(start_pos);
@@ -186,7 +186,7 @@ class JSONParserContext {
       }
     } else if (*cur_ == 'N') {
       if (this->MatchLiteral("NaN", 3)) {
-        *out = std::numeric_limits<double>::quiet_NaN();
+        *out = FastMathSafeNaN();
         return true;
       } else {
         this->SetCurrentPosForBetterErrorMsg(start_pos);
@@ -296,6 +296,33 @@ class JSONParserContext {
   void SetErrorExpectingComma() { error_msg_ = GetSyntaxErrorContext("Expecting \',\' delimiter"); }
 
  private:
+  static double FastMathSafePosInf() {
+#ifdef __FAST_MATH__
+    const uint64_t inf_bits = 0x7FF0000000000000ULL;
+    return *reinterpret_cast<const double*>(&inf_bits);
+#else
+    return std::numeric_limits<double>::infinity();
+#endif
+  }
+
+  static double FastMathSafeNegInf() {
+#ifdef __FAST_MATH__
+    const uint64_t inf_bits = 0xFFF0000000000000ULL;
+    return *reinterpret_cast<const double*>(&inf_bits);
+#else
+    return -std::numeric_limits<double>::infinity();
+#endif
+  }
+
+  static double FastMathSafeNaN() {
+#ifdef __FAST_MATH__
+    const uint64_t nan_bits = 0x7FF8000000000000ULL;
+    return *reinterpret_cast<const double*>(&nan_bits);
+#else
+    return std::numeric_limits<double>::quiet_NaN();
+#endif
+  }
+
   // Full string parsing with escape and unicode handling
   bool NextStringWithFullHandling(Any* out, const char* start_pos) {
     // copy over the prefix that was already parsed

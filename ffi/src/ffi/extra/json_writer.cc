@@ -60,6 +60,37 @@ class JSONWriter {
  private:
   explicit JSONWriter(int indent) : indent_(indent), out_iter_(result_) {}
 
+  static bool FastMathSafeIsNaN(double x) {
+#ifdef __FAST_MATH__
+    // Bit-level NaN detection (IEEE 754 double)
+    // IEEE 754 standard: https://en.wikipedia.org/wiki/IEEE_754
+    // NaN is encoded as all 1s in the exponent and non-zero in the mantissa
+    static_assert(sizeof(double) == sizeof(uint64_t), "Unexpected double size");
+    uint64_t bits = *reinterpret_cast<const uint64_t*>(&x);
+    uint64_t exponent = (bits >> 52) & 0x7FF;
+    uint64_t mantissa = bits & 0xFFFFFFFFFFFFFull;
+    return (exponent == 0x7FF) && (mantissa != 0);
+#else
+    // Safe to use std::isnan when fast-math is off
+    return std::isnan(x);
+#endif
+  }
+
+  static bool FastMathSafeIsInf(double x) {
+#ifdef __FAST_MATH__
+    // IEEE 754 standard: https://en.wikipedia.org/wiki/IEEE_754
+    // Inf is encoded as all 1s in the exponent and zero in the mantissa
+    static_assert(sizeof(double) == sizeof(uint64_t), "Unexpected double size");
+    uint64_t bits = *reinterpret_cast<const uint64_t*>(&x);
+    uint64_t exponent = (bits >> 52) & 0x7FF;
+    uint64_t mantissa = bits & 0xFFFFFFFFFFFFFull;
+    // inf is encoded as all 1s in the exponent and zero in the mantissa
+    return (exponent == 0x7FF) && (mantissa == 0);
+#else
+    return std::isinf(x);
+#endif
+  }
+
   void WriteValue(const json::Value& value) {
     switch (value.type_index()) {
       case TypeIndex::kTVMFFINone: {
@@ -120,9 +151,9 @@ class JSONWriter {
     // largest possible string representation of a double is around 24 chars plus
     // one null terminator keep 32 to be safe
     char buffer[32];
-    if (std::isnan(value)) {
+    if (FastMathSafeIsNaN(value)) {
       WriteLiteral("NaN", 3);
-    } else if (std::isinf(value)) {
+    } else if (FastMathSafeIsInf(value)) {
       if (value < 0) {
         WriteLiteral("-Infinity", 9);
       } else {

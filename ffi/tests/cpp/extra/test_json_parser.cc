@@ -28,6 +28,37 @@ namespace {
 
 using namespace tvm::ffi;
 
+inline bool FastMathSafeIsNaN(double x) {
+#ifdef __FAST_MATH__
+  // Bit-level NaN detection (IEEE 754 double)
+  // IEEE 754 standard: https://en.wikipedia.org/wiki/IEEE_754
+  // NaN is encoded as all 1s in the exponent and non-zero in the mantissa
+  static_assert(sizeof(double) == sizeof(uint64_t), "Unexpected double size");
+  uint64_t bits = *reinterpret_cast<const uint64_t*>(&x);
+  uint64_t exponent = (bits >> 52) & 0x7FF;
+  uint64_t mantissa = bits & 0xFFFFFFFFFFFFFull;
+  return (exponent == 0x7FF) && (mantissa != 0);
+#else
+  // Safe to use std::isnan when fast-math is off
+  return std::isnan(x);
+#endif
+}
+
+inline bool FastMathSafeIsInf(double x) {
+#ifdef __FAST_MATH__
+  // IEEE 754 standard: https://en.wikipedia.org/wiki/IEEE_754
+  // Inf is encoded as all 1s in the exponent and zero in the mantissa
+  static_assert(sizeof(double) == sizeof(uint64_t), "Unexpected double size");
+  uint64_t bits = *reinterpret_cast<const uint64_t*>(&x);
+  uint64_t exponent = (bits >> 52) & 0x7FF;
+  uint64_t mantissa = bits & 0xFFFFFFFFFFFFFull;
+  // inf is encoded as all 1s in the exponent and zero in the mantissa
+  return (exponent == 0x7FF) && (mantissa == 0);
+#else
+  return std::isinf(x);
+#endif
+}
+
 TEST(JSONParser, BoolNull) {
   // boolean value
   EXPECT_EQ(json::Parse("true").cast<bool>(), true);
@@ -61,11 +92,11 @@ TEST(JSONParser, Number) {
   // parsing scientific notation
   EXPECT_EQ(json::Parse("1.456e12").cast<double>(), 1.456e12);
   // NaN
-  EXPECT_EQ(std::isnan(json::Parse("NaN").cast<double>()), true);
+  EXPECT_EQ(FastMathSafeIsNaN(json::Parse("NaN").cast<double>()), true);
   // Infinity
-  EXPECT_EQ(std::isinf(json::Parse("Infinity").cast<double>()), true);
+  EXPECT_EQ(FastMathSafeIsInf(json::Parse("Infinity").cast<double>()), true);
   // -Infinity
-  EXPECT_EQ(std::isinf(-json::Parse("-Infinity").cast<double>()), true);
+  EXPECT_EQ(FastMathSafeIsInf(-json::Parse("-Infinity").cast<double>()), true);
 
   // Test zero variants
   EXPECT_EQ(json::Parse("0").cast<int64_t>(), 0);
