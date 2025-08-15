@@ -848,13 +848,12 @@ InferLayoutOutput InferLayoutRMSNorm(const Call& call,
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ObjectPtr<RMSNormAttrs> new_attrs = make_object<RMSNormAttrs>(*attrs);
-  std::vector<Integer> new_axis;
+  std::vector<Integer> new_axes;
   for (const auto& axis : attrs->axes) {
-    new_axis.push_back(FindAxis(layout->layout, axis->value));
+    new_axes.push_back(FindAxis(layout->layout, axis->value));
   }
-  new_attrs->axes = std::move(new_axis);
-  return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
-                           Attrs(new_attrs));
+  new_attrs->axes = std::move(new_axes);
+  return InferLayoutOutput({layout, initial_layouts[1]}, {layout}, Attrs(new_attrs));
 }
 
 TVM_REGISTER_OP("relax.nn.rms_norm")
