@@ -29,12 +29,13 @@ namespace relax {
 /* relax.nn.attention */
 
 Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<FloatImm> scale,
-               Optional<String> causal_mask, Optional<IntImm> window_size) {
+               Optional<String> causal_mask, Optional<IntImm> window_size,
+               Optional<bool> enable_gqa) {
   ObjectPtr<AttentionAttrs> attrs = make_object<AttentionAttrs>();
   attrs->scale = scale;
   attrs->causal_mask = causal_mask;
   attrs->window_size = window_size;
-
+  attrs->enable_gqa = enable_gqa;
   if (bias) {
     return Call(Op::Get("relax.nn.attention_bias"),
                 {std::move(query), std::move(key), std::move(value), bias.value()}, Attrs(attrs),
@@ -82,12 +83,16 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
   const ShapeExprNode* q_shape = q_sinfo->shape.as<ShapeExprNode>();
   const ShapeExprNode* k_shape = k_sinfo->shape.as<ShapeExprNode>();
   const ShapeExprNode* v_shape = v_sinfo->shape.as<ShapeExprNode>();
+
   PrimExpr num_batches = q_shape->values[0];
   PrimExpr num_queries = q_shape->values[1];
   PrimExpr num_heads = q_shape->values[2];
   PrimExpr head_dim = q_shape->values[3];
   PrimExpr num_keys = k_shape->values[1];
   PrimExpr head_dim_value = v_shape->values[3];
+  PrimExpr k_heads = k_shape->values[2];
+  PrimExpr v_heads = v_shape->values[2];
+
   arith::Analyzer* analyzer = ctx->GetAnalyzer();
   auto diag_equal = [&](PrimExpr v1, PrimExpr v2, String m1, String m2, String dim) {
     if (analyzer->CanProve(v1 != v2)) {
@@ -106,10 +111,23 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
     }
   };
 
+  bool enable_gqa = false;
+  if (const auto* attrs = call->attrs.as<AttentionAttrs>()) {
+    if (attrs->enable_gqa) {
+      enable_gqa = attrs->enable_gqa.value();
+    }
+  }
+
+  if (enable_gqa) {
+    multiple_of(num_heads, k_heads, "query", "key", "number of heads");
+    multiple_of(num_heads, v_heads, "query", "value", "number of heads");
+  } else {
+    diag_equal(num_heads, k_heads, "query", "key", "number of heads");
+    diag_equal(num_heads, v_heads, "query", "value", "number of heads");
+  }
+
   diag_equal(num_batches, k_shape->values[0], "query", "key", "batch size");
   diag_equal(num_batches, v_shape->values[0], "query", "value", "batch size");
-  multiple_of(num_heads, k_shape->values[2], "query", "key", "number of heads");
-  multiple_of(num_heads, v_shape->values[2], "query", "value", "number of heads");
   diag_equal(num_keys, v_shape->values[1], "key", "value", "sequence length");
   diag_equal(head_dim, k_shape->values[3], "query", "key", "dimension of heads");
 
@@ -131,18 +149,18 @@ StructInfo InferStructInfoAttention(const Call& call, const BlockBuilder& ctx) {
       }
     };
     diag_equal_or_broadcast(num_batches, bias_shape->values[0], "query", "bias", "batch size");
-    diag_equal_or_broadcast(num_heads, bias_shape->values[1], "query", "bias", "number of heads");
-    diag_equal_or_broadcast(num_queries, bias_shape->values[2], "query", "bias", "sequence length");
+    diag_equal_or_broadcast(num_heads, bias_shape->values[1], "query", "bias", "number of heads ");
+    diag_equal_or_broadcast(num_queries, bias_shape->values[2], " query ", " bias",
+                            "sequence length");
     diag_equal(num_keys, bias_shape->values[3], "key", "bias", "sequence length");
   }
-
   Array<PrimExpr> output_shape = {num_batches, num_queries, num_heads, head_dim_value};
   return TensorStructInfo(ShapeExpr(output_shape), q_sinfo->dtype, q_sinfo->vdevice);
 }
 
 Call InferMixedPrecisionAttention(const Call& call, const DataType& out_dtype) {
   return Downcast<Call>(attention(call->args[0], call->args[1], call->args[2], std::nullopt,
-                                  std::nullopt, std::nullopt, std::nullopt));
+                                  std::nullopt, std::nullopt, std::nullopt, std::nullopt));
 }
 
 TVM_REGISTER_OP("relax.nn.attention")

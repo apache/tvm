@@ -1944,6 +1944,7 @@ def attention(
     scale: Optional[FloatImm] = None,
     causal_mask: Optional[str] = None,
     window_size: Optional[int] = None,
+    enable_gqa: Optional[bool] = False,
 ) -> Expr:
     r"""Computes fused multi head attention.
 
@@ -2018,6 +2019,9 @@ def attention(
     window_size: Optional[int]
         The size of the window for sliding-window attention.
 
+    enable_gqa: Optional[bool]
+        Flag to enable Grouped Query Attention (GQA).
+
     Returns
     -------
     result : relax.Expr
@@ -2025,7 +2029,7 @@ def attention(
         (batch_size, seq_len, num_head, head_dim_v).
     """
     return _ffi_api.attention(
-        query, key, value, bias, scale, causal_mask, window_size
+        query, key, value, bias, scale, causal_mask, window_size, enable_gqa
     )  # type: ignore
 
 
@@ -2037,6 +2041,7 @@ def attention_bias(
     scale: Optional[FloatImm] = None,
     causal_mask: Optional[str] = None,
     window_size: Optional[int] = None,
+    enable_gqa: Optional[bool] = False,
 ) -> Expr:
     r"""Computes fused multi head attention.
 
@@ -2122,7 +2127,7 @@ def attention_bias(
         (batch_size, seq_len, num_head, head_dim_v).
     """
     return _ffi_api.attention(
-        query, key, value, bias, scale, causal_mask, window_size
+        query, key, value, bias, scale, causal_mask, window_size, enable_gqa
     )  # type: ignore
 
 

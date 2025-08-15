@@ -34,7 +34,8 @@ namespace relax {
 
 /*! \brief fused multi head attention */
 Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<FloatImm> scale,
-               Optional<String> causal_mask, Optional<IntImm> window_size);
+               Optional<String> causal_mask, Optional<IntImm> window_size,
+               Optional<bool> enable_gqa);
 
 }  // namespace relax
 }  // namespace tvm

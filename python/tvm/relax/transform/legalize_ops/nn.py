@@ -671,15 +671,26 @@ def _te_attention(
     bias: te.Tensor,
     scale: tir.FloatImm,
     causal_mask: Optional[str],
+    enable_gqa: Optional[bool] = False,
 ) -> te.Tensor:
     batch_size, seq_len, num_head, head_dim = q.shape
-    _, seq_len_kv, _, head_dim_v = v.shape
+    _, seq_len_kv, num_head_v, head_dim_v = v.shape
+
     q = topi.transpose(q, [0, 2, 1, 3])
+    q = topi.reshape(q, [batch_size * num_head, seq_len, head_dim])
+
+    if enable_gqa:
+        assert int(num_head) % int(num_head_v) == 0, "num_q_heads must be divisible by num_kv_heads"
+        head_group_size = int(num_head) // int(num_head_v)
+
+        k = topi.repeat(k, head_group_size, axis=2)
+        v = topi.repeat(v, head_group_size, axis=2)
+
     k = topi.transpose(k, [0, 2, 1, 3])
     v = topi.transpose(v, [0, 2, 1, 3])
-    q = topi.reshape(q, [batch_size * num_head, seq_len, head_dim])
     k = topi.reshape(k, [batch_size * num_head, seq_len_kv, head_dim])
     v = topi.reshape(v, [batch_size * num_head, seq_len_kv, head_dim_v])
+
     p = topi.nn.batch_matmul(q, k)
     if scale is not None:
         p = topi.multiply(p, scale)
@@ -722,6 +733,7 @@ def _nn_attention(bb: BlockBuilder, call: Call) -> Expr:
         None,
         call.attrs.scale,
         call.attrs.causal_mask,
+        call.attrs.enable_gqa,
         primfunc_name_hint="attention",
     )
 
@@ -739,6 +751,7 @@ def _nn_attention_bias(bb: BlockBuilder, call: Call) -> Expr:
         call.args[3],
         call.attrs.scale,
         call.attrs.causal_mask,
+        call.attrs.enable_gqa,
         primfunc_name_hint="attention_bias",
     )
 
