@@ -27,6 +27,8 @@
 #define TVM_VM_ENABLE_PROFILER 1
 #endif
 
+#include <tvm/ffi/extra/module.h>
+
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -128,7 +130,7 @@ class VMExtension : public ObjectRef {
  * multiple threads, or serialize them to disk or over the
  * wire.
  */
-class VirtualMachine : public runtime::ModuleNode {
+class VirtualMachine : public ffi::ModuleObj {
  public:
   /*!
    * \brief Initialize the virtual machine for a set of devices.

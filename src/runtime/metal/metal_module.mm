@@ -22,9 +22,9 @@
  */
 #include "metal_module.h"
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/module.h>
 #include <array>
 #include <mutex>
 #include <string>
@@ -45,33 +45,37 @@ static constexpr const char* kMetalModuleVersion = "0.1.0";
 // Module to support thread-safe multi-GPU execution.
 // The runtime will contain a per-device module table
 // The modules will be lazily loaded
-class MetalModuleNode final : public runtime::ModuleNode {
+class MetalModuleNode final : public ffi::ModuleObj {
  public:
   explicit MetalModuleNode(std::unordered_map<std::string, std::string> smap,
                            std::unordered_map<std::string, FunctionInfo> fmap, std::string fmt,
                            std::string source)
       : smap_(smap), fmap_(fmap), fmt_(fmt), source_(source) {}
-  const char* type_key() const final { return "metal"; }
+  const char* kind() const final { return "metal"; }
 
   /*! \brief Get the property of the runtime module. */
   int GetPropertyMask() const final {
-    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+    return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+  Optional<ffi::Function> GetFunction(const String& name) final;
 
-  void SaveToFile(const String& file_name, const String& format) final {
+  void WriteToFile(const String& file_name, const String& format) const final {
     LOG(FATAL) << "Do not support save to file, use save to binary and export instead";
   }
 
-  void SaveToBinary(dmlc::Stream* stream) final {
+  ffi::Bytes SaveToBytes() const final {
+    std::string buffer;
+    dmlc::MemoryStringStream ms(&buffer);
+    dmlc::Stream* stream = &ms;
     std::string version = kMetalModuleVersion;
     stream->Write(version);
     stream->Write(smap_);
     stream->Write(fmap_);
     stream->Write(fmt_);
+    return ffi::Bytes(buffer);
   }
-  String GetSource(const String& format) final {
+  String InspectSource(const String& format) const final {
     // return text source if available.
     return source_;
   }
@@ -259,15 +263,14 @@ class MetalWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-ffi::Function MetalModuleNode::GetFunction(const String& name,
-                                           const ObjectPtr<Object>& sptr_to_self) {
+Optional<ffi::Function> MetalModuleNode::GetFunction(const String& name) {
   ffi::Function ret;
   AUTORELEASEPOOL {
+    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
     ICHECK_EQ(sptr_to_self.get(), this);
     auto it = fmap_.find(name);
     if (it == fmap_.end()) {
-      ret = ffi::Function();
-      return;
+      return std::nullopt;
     }
     const FunctionInfo& info = it->second;
     MetalWrappedFunc f;
@@ -279,12 +282,12 @@ ffi::Function MetalModuleNode::GetFunction(const String& name,
   return ret;
 }
 
-Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
-                         std::unordered_map<std::string, FunctionInfo> fmap, std::string fmt,
-                         std::string source) {
+ffi::Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
+                              std::unordered_map<std::string, FunctionInfo> fmap, std::string fmt,
+                              std::string source) {
   ObjectPtr<Object> n;
   AUTORELEASEPOOL { n = make_object<MetalModuleNode>(smap, fmap, fmt, source); };
-  return Module(n);
+  return ffi::Module(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({
@@ -303,8 +306,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
       });
 });
 
-Module MetalModuleLoadBinary(void* strm) {
-  dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+ffi::Module MetalModuleLoadFromBytes(const ffi::Bytes& bytes) {
+  dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
+  dmlc::Stream* stream = &ms;
   // version is reserved for future changes and
   // is discarded for now
   std::string ver;
@@ -322,7 +326,7 @@ Module MetalModuleLoadBinary(void* strm) {
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.module.loadbinary_metal", MetalModuleLoadBinary);
+  refl::GlobalDef().def("ffi.Module.load_from_bytes.metal", MetalModuleLoadFromBytes);
 });
 }  // namespace runtime
 }  // namespace tvm

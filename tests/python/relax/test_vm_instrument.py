@@ -93,7 +93,7 @@ def test_lib_comparator():
     ex = get_exec_int32(data_np.shape)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     # compare against library module
-    cmp = LibCompareVMInstrument(vm.module.imported_modules[0], tvm.cpu(), verbose=False)
+    cmp = LibCompareVMInstrument(vm.module.imports[0], tvm.cpu(), verbose=False)
     vm.set_instrument(cmp)
     vm["main"](tvm.nd.array(data_np))
 

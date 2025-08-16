@@ -27,12 +27,13 @@
  * code and constants significantly reduces the efforts for handling external
  * codegen and runtimes.
  */
+#include <dmlc/memory_io.h>
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
-#include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 
 #include <cstdint>
@@ -44,9 +45,9 @@ namespace runtime {
  * \brief The const-loader module is designed to manage initialization of the
  * imported submodules for the C++ runtime.
  */
-class ConstLoaderModuleNode : public ModuleNode {
+class ConstLoaderModuleObj : public ffi::ModuleObj {
  public:
-  ConstLoaderModuleNode(
+  ConstLoaderModuleObj(
       const std::unordered_map<std::string, NDArray>& const_var_ndarray,
       const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol)
       : const_var_ndarray_(const_var_ndarray), const_vars_by_symbol_(const_vars_by_symbol) {
@@ -66,7 +67,7 @@ class ConstLoaderModuleNode : public ModuleNode {
     }
   }
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  ffi::Optional<ffi::Function> GetFunction(const String& name) final {
     VLOG(1) << "ConstLoaderModuleNode::GetFunction(" << name << ")";
     // Initialize and memoize the module.
     // Usually, we have some warmup runs. The module initialization should be
@@ -75,9 +76,10 @@ class ConstLoaderModuleNode : public ModuleNode {
       this->InitSubModule(name);
       initialized_[name] = true;
     }
+    ObjectRef _self = ffi::GetRef<ObjectRef>(this);
 
     if (name == "get_const_var_ndarray") {
-      return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
+      return ffi::Function([_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         Map<String, ffi::Any> ret_map;
         for (const auto& kv : const_var_ndarray_) {
           ret_map.Set(kv.first, kv.second);
@@ -89,18 +91,18 @@ class ConstLoaderModuleNode : public ModuleNode {
     // Run the module.
     // Normally we would only have a limited number of submodules. The runtime
     // symobl lookup overhead should be minimal.
-    ICHECK(!this->imports().empty());
-    for (Module it : this->imports()) {
-      ffi::Function pf = it.GetFunction(name);
-      if (pf != nullptr) return pf;
+    ICHECK(!this->imports_.empty());
+    for (const Any& it : this->imports_) {
+      ffi::Optional<ffi::Function> pf = it.cast<ffi::Module>()->GetFunction(name);
+      if (pf.has_value()) return pf.value();
     }
-    return ffi::Function(nullptr);
+    return std::nullopt;
   }
 
-  const char* type_key() const final { return "const_loader"; }
+  const char* kind() const final { return "const_loader"; }
 
   /*! \brief Get the property of the runtime module .*/
-  int GetPropertyMask() const final { return ModulePropertyMask::kBinarySerializable; };
+  int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; };
 
   /*!
    * \brief Get the list of constants that is required by the given module.
@@ -134,15 +136,14 @@ class ConstLoaderModuleNode : public ModuleNode {
    *  found module accordingly by passing the needed constants into it.
    */
   void InitSubModule(const std::string& symbol) {
-    ffi::Function init(nullptr);
-    for (Module it : this->imports()) {
+    for (const Any& it : this->imports_) {
       // Get the initialization function from the imported modules.
       std::string init_name = "__init_" + symbol;
-      init = it.GetFunction(init_name, false);
-      if (init != nullptr) {
+      Optional<ffi::Function> init = it.cast<ffi::Module>()->GetFunction(init_name, false);
+      if (init.has_value()) {
         auto md = GetRequiredConstants(symbol);
         // Initialize the module with constants.
-        int ret = init(md).cast<int>();
+        int ret = (*init)(md).cast<int>();
         // Report the error if initialization is failed.
         ICHECK_EQ(ret, 0);
         break;
@@ -150,7 +151,11 @@ class ConstLoaderModuleNode : public ModuleNode {
     }
   }
 
-  void SaveToBinary(dmlc::Stream* stream) final {
+  ffi::Bytes SaveToBytes() const final {
+    std::string bytes_buffer;
+    dmlc::MemoryStringStream ms(&bytes_buffer);
+    dmlc::Stream* stream = &ms;
+
     std::vector<std::string> variables;
     std::vector<NDArray> const_var_ndarray;
     for (const auto& it : const_var_ndarray_) {
@@ -182,10 +187,12 @@ class ConstLoaderModuleNode : public ModuleNode {
     for (uint64_t i = 0; i < sz; i++) {
       stream->Write(const_vars[i]);
     }
+    return ffi::Bytes(bytes_buffer);
   }
 
-  static Module LoadFromBinary(void* strm) {
-    dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+  static ffi::Module LoadFromBytes(const ffi::Bytes& bytes) {
+    dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
+    dmlc::Stream* stream = &ms;
 
     // Load the variables.
     std::vector<std::string> variables;
@@ -225,8 +232,8 @@ class ConstLoaderModuleNode : public ModuleNode {
       const_vars_by_symbol[symbols[i]] = const_vars[i];
     }
 
-    auto n = make_object<ConstLoaderModuleNode>(const_var_ndarray, const_vars_by_symbol);
-    return Module(n);
+    auto n = make_object<ConstLoaderModuleObj>(const_var_ndarray, const_vars_by_symbol);
+    return ffi::Module(n);
   }
 
  private:
@@ -241,17 +248,17 @@ class ConstLoaderModuleNode : public ModuleNode {
   std::unordered_map<std::string, std::vector<std::string>> const_vars_by_symbol_;
 };
 
-Module ConstLoaderModuleCreate(
+ffi::Module ConstLoaderModuleCreate(
     const std::unordered_map<std::string, NDArray>& const_var_ndarray,
     const std::unordered_map<std::string, std::vector<std::string>>& const_vars_by_symbol) {
-  auto n = make_object<ConstLoaderModuleNode>(const_var_ndarray, const_vars_by_symbol);
-  return Module(n);
+  auto n = make_object<ConstLoaderModuleObj>(const_var_ndarray, const_vars_by_symbol);
+  return ffi::Module(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.module.loadbinary_const_loader",
-                        ConstLoaderModuleNode::LoadFromBinary);
+  refl::GlobalDef().def("ffi.Module.load_from_bytes.const_loader",
+                        ConstLoaderModuleObj::LoadFromBytes);
 });
 
 }  // namespace runtime

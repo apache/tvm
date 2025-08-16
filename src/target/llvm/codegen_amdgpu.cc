@@ -263,7 +263,7 @@ class CodeGenAMDGPU : public CodeGenLLVM {
   }
 };
 
-runtime::Module BuildAMDGPU(IRModule mod, Target target) {
+ffi::Module BuildAMDGPU(IRModule mod, Target target) {
   LLVMInstance llvm_instance;
 
   With<LLVMTarget> llvm_target(llvm_instance, target);

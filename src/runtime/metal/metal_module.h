@@ -24,7 +24,7 @@
 #ifndef TVM_RUNTIME_METAL_METAL_MODULE_H_
 #define TVM_RUNTIME_METAL_METAL_MODULE_H_
 
-#include <tvm/ffi/function.h>
+#include <tvm/ffi/extra/module.h>
 
 #include <memory>
 #include <string>
@@ -46,9 +46,9 @@ static constexpr const int kMetalMaxNumDevice = 32;
  * \param fmt The format of the source, can be "metal" or "metallib"
  * \param source Optional, source file, concatenaed for debug dump
  */
-Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
-                         std::unordered_map<std::string, FunctionInfo> fmap, std::string fmt,
-                         std::string source);
+ffi::Module MetalModuleCreate(std::unordered_map<std::string, std::string> smap,
+                              std::unordered_map<std::string, FunctionInfo> fmap, std::string fmt,
+                              std::string source);
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_METAL_METAL_MODULE_H_

@@ -55,7 +55,7 @@ std::string EmitSignature(const std::vector<Output>& out, const std::string& fun
   return code_stream_.str();
 }
 
-runtime::Module Finalize(const std::string& code, const Array<String>& func_names) {
+ffi::Module Finalize(const std::string& code, const Array<String>& func_names) {
   ICHECK(!func_names.empty())
       << "Should only create CUTLASS CSourceModule if there is at least one CUTLASS partition";
 
@@ -72,7 +72,7 @@ runtime::Module Finalize(const std::string& code, const Array<String>& func_name
   VLOG(1) << "Generated CUTLASS code:" << std::endl << code;
   return pf(default_headers.str() + code, "cu", func_names,
             /*const_vars=*/Array<String>())
-      .cast<runtime::Module>();
+      .cast<ffi::Module>();
 }
 
 class CodegenResultNode : public Object {
@@ -337,8 +337,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
 
 class CutlassModuleCodegen {
  public:
-  runtime::Module CreateCSourceModule(Array<Function> functions,
-                                      const Map<String, ffi::Any>& options) {
+  ffi::Module CreateCSourceModule(Array<Function> functions, const Map<String, ffi::Any>& options) {
     std::string headers = "";
     std::string code = "";
     for (const auto& f : functions) {
@@ -373,8 +372,8 @@ class CutlassModuleCodegen {
   Array<String> func_names_;
 };
 
-Array<runtime::Module> CUTLASSCompiler(Array<Function> functions, Map<String, ffi::Any> options,
-                                       Map<Constant, String> /*unused*/) {
+Array<ffi::Module> CUTLASSCompiler(Array<Function> functions, Map<String, ffi::Any> options,
+                                   Map<Constant, String> /*unused*/) {
   const auto tune_func = tvm::ffi::Function::GetGlobal("contrib.cutlass.tune_relax_function");
   ICHECK(tune_func.has_value())
       << "The packed function contrib.cutlass.tune_relax_function not found, "
@@ -386,7 +385,7 @@ Array<runtime::Module> CUTLASSCompiler(Array<Function> functions, Map<String, ff
   const auto pf = tvm::ffi::Function::GetGlobal("contrib.cutlass.compile");
   ICHECK(pf.has_value()) << "The packed function contrib.cutlass.compile not found, please import "
                             "tvm.contrib.cutlass.build";
-  runtime::Module cutlass_mod = (*pf)(source_mod, options).cast<runtime::Module>();
+  ffi::Module cutlass_mod = (*pf)(source_mod, options).cast<ffi::Module>();
 
   return {cutlass_mod};
 }

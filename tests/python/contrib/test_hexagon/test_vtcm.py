@@ -50,7 +50,7 @@ def test_vtcm_building():
     sch = get_scale_by_two_schedule()
     target = get_hexagon_target("v68")
     built = tvm.compile(sch.mod, target=target)
-    assert "global.vtcm" in built.get_source("asm")
+    assert "global.vtcm" in built.inspect_source("asm")
 
 
 @tvm.testing.requires_hexagon

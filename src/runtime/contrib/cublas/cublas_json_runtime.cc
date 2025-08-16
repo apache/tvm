@@ -49,21 +49,22 @@ class CublasJSONRuntime : public JSONRuntimeBase {
 
   void Init(const Array<NDArray>& consts) override {}
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override {
+  ffi::Optional<ffi::Function> GetFunction(const String& name) override {
     // JSONRuntimeBase::SetInputOutputBuffers(...) is not thread safe. Since CublasJSONRuntime
     // can be used by multiple GPUs running on different threads, we avoid using that function
     // and directly call cuBLAS on the inputs from ffi::PackedArgs.
+    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
     if (this->symbol_name_ == name) {
       return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
         ICHECK(this->initialized_) << "The module has not been initialized";
         this->Run(args);
       });
     } else {
-      return JSONRuntimeBase::GetFunction(name, sptr_to_self);
+      return JSONRuntimeBase::GetFunction(name);
     }
   }
 
-  const char* type_key() const override { return "cublas_json"; }  // May be overridden
+  const char* kind() const override { return "cublas_json"; }  // May be overridden
 
   void Run(ffi::PackedArgs args) {
     auto* entry_ptr = tvm::contrib::CuBlasLtThreadEntry::ThreadLocal();
@@ -148,18 +149,18 @@ class CublasJSONRuntime : public JSONRuntimeBase {
   void Run() override { LOG(FATAL) << "Unreachable"; }
 };
 
-runtime::Module CublasJSONRuntimeCreate(String symbol_name, String graph_json,
-                                        const Array<String>& const_names) {
+ffi::Module CublasJSONRuntimeCreate(String symbol_name, String graph_json,
+                                    const Array<String>& const_names) {
   auto n = make_object<CublasJSONRuntime>(symbol_name, graph_json, const_names);
-  return runtime::Module(n);
+  return ffi::Module(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.CublasJSONRuntimeCreate", CublasJSONRuntimeCreate)
-      .def("runtime.module.loadbinary_cublas_json",
-           JSONRuntimeBase::LoadFromBinary<CublasJSONRuntime>);
+      .def("ffi.Module.load_from_bytes.cublas_json",
+           JSONRuntimeBase::LoadFromBytes<CublasJSONRuntime>);
 });
 
 }  // namespace contrib

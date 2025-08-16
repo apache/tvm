@@ -105,8 +105,8 @@ std::shared_ptr<RPCEndpoint> RPCConnect(std::string url, int port, std::string k
   return endpt;
 }
 
-Module RPCClientConnect(std::string url, int port, std::string key, bool enable_logging,
-                        ffi::PackedArgs init_seq) {
+ffi::Module RPCClientConnect(std::string url, int port, std::string key, bool enable_logging,
+                             ffi::PackedArgs init_seq) {
   auto endpt = RPCConnect(url, port, "client:" + key, enable_logging, init_seq);
   return CreateRPCSessionModule(CreateClientSession(endpt));
 }

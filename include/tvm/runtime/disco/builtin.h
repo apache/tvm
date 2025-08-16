@@ -62,7 +62,7 @@ inline std::string ReduceKind2String(ReduceKind kind) {
  * \param device The default device used to initialize the RelaxVM
  * \return The RelaxVM as a runtime Module
  */
-TVM_DLL Module LoadVMModule(std::string path, Optional<Device> device);
+TVM_DLL ffi::Module LoadVMModule(std::string path, Optional<Device> device);
 /*!
  * \brief Create an uninitialized empty NDArray
  * \param shape The shape of the NDArray

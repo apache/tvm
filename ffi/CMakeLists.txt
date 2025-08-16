@@ -69,6 +69,10 @@ if (TVM_FFI_USE_EXTRA_CXX_API)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/json_writer.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/serialization.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/reflection_extra.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/module.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/library_module.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/library_module_system_lib.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/library_module_dynamic_lib.cc"
   )
 endif()
 

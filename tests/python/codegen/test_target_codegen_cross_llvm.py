@@ -51,7 +51,7 @@ def test_llvm_add_pipeline():
         target = "llvm -mtriple=i386-pc-linux-gnu"
         f = tvm.tir.build(sch.mod, target=target)
         path = temp.relpath("myadd.o")
-        f.save(path)
+        f.write_to_file(path)
         verify_elf(path, 0x03)
 
     def build_arm():
@@ -62,10 +62,10 @@ def test_llvm_add_pipeline():
         temp = utils.tempdir()
         f = tvm.tir.build(sch.mod, target=target)
         path = temp.relpath("myadd.o")
-        f.save(path)
+        f.write_to_file(path)
         verify_elf(path, 0x28)
         asm_path = temp.relpath("myadd.asm")
-        f.save(asm_path)
+        f.write_to_file(asm_path)
         # Do a RPC verification, launch kernel on Arm Board if available.
         host = os.environ.get("TVM_RPC_ARM_HOST", None)
         remote = None

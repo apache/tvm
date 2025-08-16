@@ -32,7 +32,6 @@
 #include <utility>
 #include <vector>
 
-#include "../library_module.h"
 #include "HAP_debug.h"
 #include "HAP_perf.h"
 #include "hexagon_buffer.h"
@@ -93,9 +92,9 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed(
-      "runtime.module.loadfile_hexagon", [](ffi::PackedArgs args, ffi::Any* rv) {
-        ObjectPtr<Library> n = CreateDSOLibraryObject(args[0].cast<String>());
-        *rv = CreateModuleFromLibrary(n);
+      "ffi.Module.load_from_file.hexagon", [](ffi::PackedArgs args, ffi::Any* rv) {
+        auto floader = tvm::ffi::Function::GetGlobalRequired("ffi.Module.load_from_file.so");
+        *rv = floader(args[0].cast<String>(), "so");
       });
 });
 

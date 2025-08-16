@@ -302,11 +302,11 @@ TVM_FFI_STATIC_INIT_BLOCK({
 
 // This param module node can be useful to get param dict in RPC mode
 // when the remote already have loaded parameters from file.
-class ParamModuleNode : public runtime::ModuleNode {
+class ParamModuleNode : public ffi::ModuleObj {
  public:
-  const char* type_key() const final { return "param_module"; }
+  const char* kind() const final { return "param_module"; }
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  Optional<ffi::Function> GetFunction(const String& name) final {
     if (name == "get_params") {
       auto params = params_;
       return ffi::Function([params](ffi::PackedArgs args, ffi::Any* rv) { *rv = params; });
@@ -343,16 +343,16 @@ class ParamModuleNode : public runtime::ModuleNode {
     return result;
   }
 
-  static Module Create(const std::string& prefix, int num_params) {
+  static ffi::Module Create(const std::string& prefix, int num_params) {
     auto n = make_object<ParamModuleNode>();
     n->params_ = GetParams(prefix, num_params);
-    return Module(n);
+    return ffi::Module(n);
   }
 
-  static Module CreateByName(const Array<String>& names) {
+  static ffi::Module CreateByName(const Array<String>& names) {
     auto n = make_object<ParamModuleNode>();
     n->params_ = GetParamByName(names);
-    return Module(n);
+    return ffi::Module(n);
   }
 
  private:

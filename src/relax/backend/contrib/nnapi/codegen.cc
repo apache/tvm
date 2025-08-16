@@ -247,11 +247,11 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
   ExprVisitor::VisitExpr_(call_node);
 }
 
-Array<runtime::Module> NNAPICompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
-                                     Map<Constant, String> constant_names) {
+Array<ffi::Module> NNAPICompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
+                                 Map<Constant, String> constant_names) {
   VLOG(1) << "NNAPI Compiler";
 
-  Array<runtime::Module> compiled_functions;
+  Array<ffi::Module> compiled_functions;
   for (const auto& func : functions) {
     NNAPIJSONSerializer serializer(constant_names, AnalyzeVar2Value(func));
     serializer.serialize(func);
@@ -260,7 +260,7 @@ Array<runtime::Module> NNAPICompiler(Array<Function> functions, Map<String, ffi:
     const auto pf = tvm::ffi::Function::GetGlobalRequired("runtime.nnapi_runtime_create");
     auto func_name = GetExtSymbol(func);
     auto result = pf(func_name, graph_json, constant_names);
-    tvm::runtime::Module mod = result.cast<tvm::runtime::Module>();
+    tvm::ffi::Module mod = result.cast<tvm::ffi::Module>();
     compiled_functions.push_back(mod);
   }
 
