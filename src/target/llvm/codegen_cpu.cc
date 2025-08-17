@@ -146,10 +146,10 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   if (system_lib_prefix_.has_value() && !target_c_runtime) {
     // We will need this in environment for backward registration.
     // Defined in include/tvm/runtime/c_backend_api.h:
-    // int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr);
+    // int TVMFFIEnvRegisterSystemLibSymbol(const char* name, void* ptr);
     f_tvm_register_system_symbol_ = llvm::Function::Create(
         llvm::FunctionType::get(t_int_, {llvmGetPointerTo(t_char_, 0), t_void_p_}, false),
-        llvm::Function::ExternalLinkage, "TVMBackendRegisterSystemLibSymbol", module_.get());
+        llvm::Function::ExternalLinkage, "TVMFFIEnvRegisterSystemLibSymbol", module_.get());
   } else {
     f_tvm_register_system_symbol_ = nullptr;
   }
@@ -236,11 +236,11 @@ void CodeGenCPU::AddMainFunction(const std::string& entry_func_name) {
   // Create wrapper function
   llvm::Function* wrapper_func =
       llvm::Function::Create(target_func->getFunctionType(), llvm::Function::WeakAnyLinkage,
-                             runtime::symbol::tvm_ffi_main, module_.get());
+                             ffi::symbol::tvm_ffi_main, module_.get());
 
   // Set attributes (Windows comdat, DLL export, etc.)
   if (llvm_target_->GetOrCreateTargetMachine()->getTargetTriple().isOSWindows()) {
-    llvm::Comdat* comdat = module_->getOrInsertComdat(runtime::symbol::tvm_ffi_main);
+    llvm::Comdat* comdat = module_->getOrInsertComdat(ffi::symbol::tvm_ffi_main);
     comdat->setSelectionKind(llvm::Comdat::Any);
     wrapper_func->setComdat(comdat);
   }
@@ -454,8 +454,7 @@ llvm::Value* CodeGenCPU::GetContextPtr(llvm::GlobalVariable* gv) {
 }
 
 void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
-  std::string ctx_symbol =
-      system_lib_prefix_.value_or("") + tvm::runtime::symbol::tvm_ffi_library_ctx;
+  std::string ctx_symbol = system_lib_prefix_.value_or("") + ffi::symbol::tvm_ffi_library_ctx;
   // Module context
   gv_mod_ctx_ = InitContextPtr(t_void_p_, ctx_symbol);
   // Register back the locations.

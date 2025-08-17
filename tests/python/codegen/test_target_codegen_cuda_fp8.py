@@ -71,7 +71,7 @@ def test_fp8_conversions(input):
     target = "cuda"
     fadd = tvm.tir.build(sch.mod, target=target)
 
-    cuda_src = fadd.imported_modules[0].get_source()
+    cuda_src = fadd.imports[0].inspect_source()
     assert nv_dtype in cuda_src, f"{nv_dtype} datatype not found in generated CUDA"
 
     dev = tvm.device(target, 0)
@@ -190,7 +190,7 @@ def test_fp8_vector_conversions(native_dtype, promoted_dtype, numpytype):
 
     target = "cuda"
     fadd = tvm.tir.build(sch.mod, target=target)
-    cuda_src = fadd.imported_modules[0].get_source()
+    cuda_src = fadd.imports[0].inspect_source()
     dev = tvm.device(target, 0)
 
     if "x" in native_dtype:
@@ -710,7 +710,7 @@ class BaseFP8E4M3QuantScaleOnly:
             if name:
                 mod = mod[name]
             f = tvm.tir.build(mod, target=target)
-            cuda_src = f.imported_modules[0].get_source()
+            cuda_src = f.imports[0].inspect_source()
             print(cuda_src)
 
         print_cuda(target, dequant_mod, name="dequant")

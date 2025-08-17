@@ -57,11 +57,11 @@
 #include <llvm/Target/TargetOptions.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/string.h>
 #include <tvm/ir/module.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
 #include <tvm/support/with.h>
 #include <tvm/target/codegen.h>
@@ -77,7 +77,6 @@
 #include <vector>
 
 #include "../../runtime/file_utils.h"
-#include "../../runtime/library_module.h"
 #include "codegen_blob.h"
 #include "codegen_cpu.h"
 #include "codegen_llvm.h"
@@ -90,29 +89,29 @@ using ffi::Any;
 using ffi::Function;
 using ffi::PackedArgs;
 
-class LLVMModuleNode final : public runtime::ModuleNode {
+class LLVMModuleNode final : public ffi::ModuleObj {
  public:
   ~LLVMModuleNode();
 
-  const char* type_key() const final { return "llvm"; }
+  const char* kind() const final { return "llvm"; }
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+  Optional<ffi::Function> GetFunction(const String& name) final;
 
   /*! \brief Get the property of the runtime module .*/
   // TODO(tvm-team): Make it serializable
   int GetPropertyMask() const override {
-    return runtime::ModulePropertyMask::kRunnable | runtime::ModulePropertyMask::kDSOExportable;
+    return ffi::Module::kRunnable | ffi::Module::kCompilationExportable;
   }
 
-  void SaveToFile(const String& file_name, const String& format) final;
-  void SaveToBinary(dmlc::Stream* stream) final;
-  String GetSource(const String& format) final;
+  void WriteToFile(const String& file_name, const String& format) const final;
+  ffi::Bytes SaveToBytes() const final;
+  String InspectSource(const String& format) const final;
 
   void Init(const IRModule& mod, const Target& target);
   void Init(std::unique_ptr<llvm::Module> module, std::unique_ptr<LLVMInstance> llvm_instance);
   void LoadIR(const std::string& file_name);
 
-  bool ImplementsFunction(const String& name, bool query_imports) final;
+  bool ImplementsFunction(const String& name) final;
 
   void SetJITEngine(const std::string& jit_engine) { jit_engine_ = jit_engine; }
 
@@ -156,8 +155,8 @@ LLVMModuleNode::~LLVMModuleNode() {
   module_owning_ptr_.reset();
 }
 
-ffi::Function LLVMModuleNode::GetFunction(const String& name,
-                                          const ObjectPtr<Object>& sptr_to_self) {
+Optional<ffi::Function> LLVMModuleNode::GetFunction(const String& name) {
+  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   if (name == "__tvm_is_system_module") {
     bool flag = (module_->getFunction("__tvm_module_startup") != nullptr);
     return ffi::Function([flag](ffi::PackedArgs args, ffi::Any* rv) { *rv = flag; });
@@ -174,9 +173,9 @@ ffi::Function LLVMModuleNode::GetFunction(const String& name,
     return ffi::Function(
         [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->function_names_; });
   } else if (name == "get_symbol") {
-    return ffi::Function(nullptr);
+    return std::nullopt;
   } else if (name == "get_const_vars") {
-    return ffi::Function(nullptr);
+    return std::nullopt;
   } else if (name == "_get_target_string") {
     std::string target_string = LLVMTarget::GetTargetMetadata(*module_);
     return ffi::Function(
@@ -191,8 +190,13 @@ ffi::Function LLVMModuleNode::GetFunction(const String& name,
   TVMFFISafeCallType faddr;
   With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
   faddr = reinterpret_cast<TVMFFISafeCallType>(GetFunctionAddr(name, *llvm_target));
-  if (faddr == nullptr) return ffi::Function();
-  return tvm::runtime::WrapFFIFunction(faddr, sptr_to_self);
+  if (faddr == nullptr) return std::nullopt;
+  ffi::Module self_strong_ref = GetRef<ffi::Module>(this);
+  return ffi::Function::FromPacked([faddr, self_strong_ref](ffi::PackedArgs args, ffi::Any* rv) {
+    TVM_FFI_ICHECK_LT(rv->type_index(), ffi::TypeIndex::kTVMFFIStaticObjectBegin);
+    TVM_FFI_CHECK_SAFE_CALL((*faddr)(nullptr, reinterpret_cast<const TVMFFIAny*>(args.data()),
+                                     args.size(), reinterpret_cast<TVMFFIAny*>(rv)));
+  });
 }
 
 namespace {
@@ -231,7 +235,7 @@ bool LLVMAddPassesToEmitFile(llvm::TargetMachine* tm, llvm::legacy::PassManager*
 
 }  // namespace
 
-void LLVMModuleNode::SaveToFile(const String& file_name_str, const String& format) {
+void LLVMModuleNode::WriteToFile(const String& file_name_str, const String& format) const {
   // CHECK(imports_.empty()) << "SaveToFile does not handle imported modules";
   std::string file_name = file_name_str;
   std::string fmt = runtime::GetFileFormat(file_name, format);
@@ -266,11 +270,11 @@ void LLVMModuleNode::SaveToFile(const String& file_name_str, const String& forma
   dest.close();
 }
 
-void LLVMModuleNode::SaveToBinary(dmlc::Stream* stream) {
-  LOG(FATAL) << "LLVMModule: SaveToBinary not supported";
+ffi::Bytes LLVMModuleNode::SaveToBytes() const {
+  LOG(FATAL) << "LLVMModule: SaveToBytes not supported";
 }
 
-String LLVMModuleNode::GetSource(const String& format) {
+String LLVMModuleNode::InspectSource(const String& format) const {
   std::string fmt = runtime::GetFileFormat("", format);
   std::string type_str;
   llvm::SmallString<256> str;
@@ -381,7 +385,7 @@ void LLVMModuleNode::LoadIR(const std::string& file_name) {
   Init(std::move(module), std::move(llvm_instance));
 }
 
-bool LLVMModuleNode::ImplementsFunction(const String& name, bool query_imports) {
+bool LLVMModuleNode::ImplementsFunction(const String& name) {
   return std::find(function_names_.begin(), function_names_.end(), name) != function_names_.end();
 }
 
@@ -434,12 +438,16 @@ void LLVMModuleNode::InitMCJIT() {
   // run ctors
   mcjit_ee_->runStaticConstructorsDestructors(false);
 
-  if (void** ctx_addr = reinterpret_cast<void**>(
-          GetGlobalAddr(runtime::symbol::tvm_ffi_library_ctx, *llvm_target))) {
+  if (void** ctx_addr =
+          reinterpret_cast<void**>(GetGlobalAddr(ffi::symbol::tvm_ffi_library_ctx, *llvm_target))) {
     *ctx_addr = this;
   }
-  runtime::InitContextFunctions(
-      [this, &llvm_target](const char* name) { return GetGlobalAddr(name, *llvm_target); });
+
+  ffi::Module::VisitContextSymbols([this, &llvm_target](const String& name, void* symbol) {
+    if (void** ctx_addr = reinterpret_cast<void**>(GetGlobalAddr(name, *llvm_target))) {
+      *ctx_addr = symbol;
+    }
+  });
   // There is a problem when a JITed function contains a call to a runtime function.
   // The runtime function (e.g. __truncsfhf2) may not be resolved, and calling it will
   // lead to a runtime crash.
@@ -575,12 +583,15 @@ void LLVMModuleNode::InitORCJIT() {
   err = ctorRunner.run();
   ICHECK(!err) << llvm::toString(std::move(err));
 
-  if (void** ctx_addr = reinterpret_cast<void**>(
-          GetGlobalAddr(runtime::symbol::tvm_ffi_library_ctx, *llvm_target))) {
+  if (void** ctx_addr =
+          reinterpret_cast<void**>(GetGlobalAddr(ffi::symbol::tvm_ffi_library_ctx, *llvm_target))) {
     *ctx_addr = this;
   }
-  runtime::InitContextFunctions(
-      [this, &llvm_target](const char* name) { return GetGlobalAddr(name, *llvm_target); });
+  ffi::Module::VisitContextSymbols([this, &llvm_target](const String& name, void* symbol) {
+    if (void** ctx_addr = reinterpret_cast<void**>(GetGlobalAddr(name, *llvm_target))) {
+      *ctx_addr = symbol;
+    }
+  });
 }
 
 bool LLVMModuleNode::IsCompatibleWithHost(const llvm::TargetMachine* tm) const {
@@ -638,13 +649,13 @@ static void LLVMReflectionRegister() {
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("target.build.llvm",
-           [](IRModule mod, Target target) -> runtime::Module {
+           [](IRModule mod, Target target) -> ffi::Module {
              auto n = make_object<LLVMModuleNode>();
              n->Init(mod, target);
-             return runtime::Module(n);
+             return ffi::Module(n);
            })
       .def("codegen.LLVMModuleCreate",
-           [](std::string target_str, std::string module_name) -> runtime::Module {
+           [](std::string target_str, std::string module_name) -> ffi::Module {
              auto llvm_instance = std::make_unique<LLVMInstance>();
              With<LLVMTarget> llvm_target(*llvm_instance, target_str);
              auto n = make_object<LLVMModuleNode>();
@@ -659,7 +670,7 @@ static void LLVMReflectionRegister() {
              module->setDataLayout(llvm_target->GetOrCreateTargetMachine()->createDataLayout());
              n->Init(std::move(module), std::move(llvm_instance));
              n->SetJITEngine(llvm_target->GetJITEngine());
-             return runtime::Module(n);
+             return ffi::Module(n);
            })
       .def("target.llvm_lookup_intrinsic_id",
            [](std::string name) -> int64_t {
@@ -765,12 +776,12 @@ static void LLVMReflectionRegister() {
              return llvm_target.TargetHasCPUFeature(feature);
            })
       .def("target.llvm_version_major", []() -> int { return TVM_LLVM_VERSION / 10; })
-      .def("runtime.module.loadfile_ll",
-           [](std::string filename, std::string fmt) -> runtime::Module {
+      .def("ffi.Module.load_from_file.ll",
+           [](std::string filename, std::string fmt) -> ffi::Module {
              auto n = make_object<LLVMModuleNode>();
              n->SetJITEngine("orcjit");
              n->LoadIR(filename);
-             return runtime::Module(n);
+             return ffi::Module(n);
            })
       .def("codegen.llvm_target_enabled",
            [](std::string target_str) -> bool {
@@ -781,7 +792,7 @@ static void LLVMReflectionRegister() {
            })
       .def("codegen.codegen_blob",
            [](std::string data, bool system_lib, std::string llvm_target_string,
-              std::string c_symbol_prefix) -> runtime::Module {
+              std::string c_symbol_prefix) -> ffi::Module {
              auto n = make_object<LLVMModuleNode>();
              auto llvm_instance = std::make_unique<LLVMInstance>();
              With<LLVMTarget> llvm_target(*llvm_instance, llvm_target_string);
@@ -789,7 +800,7 @@ static void LLVMReflectionRegister() {
                  CodeGenBlob(data, system_lib, llvm_target.get(), c_symbol_prefix);
              n->Init(std::move(blob), std::move(llvm_instance));
              n->SetJITEngine(llvm_target->GetJITEngine());
-             return runtime::Module(n);
+             return ffi::Module(n);
            });
 }
 

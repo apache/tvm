@@ -28,6 +28,7 @@ from tvm.base import _RUNTIME_ONLY
 from tvm.libinfo import find_include_path
 
 from . import _ffi_api
+from ..ffi import _ffi_api as _mod_ffi_api
 
 
 class BenchmarkResult:
@@ -94,10 +95,10 @@ class ModulePropertyMask(object):
 
     BINARY_SERIALIZABLE = 0b001
     RUNNABLE = 0b010
-    DSO_EXPORTABLE = 0b100
+    COMPILATION_EXPORTABLE = 0b100
 
 
-@tvm.ffi.register_object("runtime.Module")
+@tvm.ffi.register_object("ffi.Module")
 class Module(tvm.ffi.Object):
     """Runtime Module."""
 
@@ -121,6 +122,22 @@ class Module(tvm.ffi.Object):
         self._entry = self.get_function("__tvm_ffi_main__")
         return self._entry
 
+    @property
+    def kind(self):
+        """Get type key of the module."""
+        return _mod_ffi_api.ModuleGetKind(self)
+
+    @property
+    def imports(self):
+        """Get imported modules
+
+        Returns
+        ----------
+        modules : list of Module
+            The module
+        """
+        return self.imports_
+
     def implements_function(self, name, query_imports=False):
         """Returns True if the module has a definition for the global function with name. Note
         that has_function(name) does not imply get_function(name) is non-null since the module
@@ -141,7 +158,7 @@ class Module(tvm.ffi.Object):
         b : Bool
             True if module (or one of its imports) has a definition for name.
         """
-        return _ffi_api.ModuleImplementsFunction(self, name, query_imports)
+        return _mod_ffi_api.ModuleImplementsFunction(self, name, query_imports)
 
     def get_function(self, name, query_imports=False):
         """Get function from the module.
@@ -159,7 +176,7 @@ class Module(tvm.ffi.Object):
         f : tvm.runtime.PackedFunc
             The result function.
         """
-        func = _ffi_api.ModuleGetFunction(self, name, query_imports)
+        func = _mod_ffi_api.ModuleGetFunction(self, name, query_imports)
         if func is None:
             raise AttributeError(f"Module has no function '{name}'")
         return func
@@ -172,7 +189,7 @@ class Module(tvm.ffi.Object):
         module : tvm.runtime.Module
             The other module.
         """
-        _ffi_api.ModuleImport(self, module)
+        _mod_ffi_api.ModuleImportModule(self, module)
 
     def __getitem__(self, name):
         if not isinstance(name, str):
@@ -185,17 +202,7 @@ class Module(tvm.ffi.Object):
         # pylint: disable=not-callable
         return self.entry_func(*args)
 
-    @property
-    def type_key(self):
-        """Get type key of the module."""
-        return _ffi_api.ModuleGetTypeKey(self)
-
-    @property
-    def format(self):
-        """Get the format of the module."""
-        return _ffi_api.ModuleGetFormat(self)
-
-    def get_source(self, fmt=""):
+    def inspect_source(self, fmt=""):
         """Get source code from module, if available.
 
         Parameters
@@ -208,19 +215,11 @@ class Module(tvm.ffi.Object):
         source : str
             The result source code.
         """
-        return _ffi_api.ModuleGetSource(self, fmt)
+        return _mod_ffi_api.ModuleInspectSource(self, fmt)
 
-    @property
-    def imported_modules(self):
-        """Get imported modules
-
-        Returns
-        ----------
-        modules : list of Module
-            The module
-        """
-        nmod = _ffi_api.ModuleImportsSize(self)
-        return [_ffi_api.ModuleGetImport(self, i) for i in range(nmod)]
+    def get_write_formats(self):
+        """Get the format of the module."""
+        return _mod_ffi_api.ModuleGetWriteFormats(self)
 
     def get_property_mask(self):
         """Get the runtime module property mask. The mapping is stated in ModulePropertyMask.
@@ -230,9 +229,8 @@ class Module(tvm.ffi.Object):
         mask : int
             Bitmask of runtime module property
         """
-        return _ffi_api.ModuleGetPropertyMask(self)
+        return _mod_ffi_api.ModuleGetPropertyMask(self)
 
-    @property
     def is_binary_serializable(self):
         """Returns true if module is 'binary serializable', ie can be serialzed into binary
          stream and loaded back to the runtime module.
@@ -244,7 +242,6 @@ class Module(tvm.ffi.Object):
         """
         return (self.get_property_mask() & ModulePropertyMask.BINARY_SERIALIZABLE) != 0
 
-    @property
     def is_runnable(self):
         """Returns true if module is 'runnable'. ie can be executed without any extra
         compilation/linking steps.
@@ -256,31 +253,26 @@ class Module(tvm.ffi.Object):
         """
         return (self.get_property_mask() & ModulePropertyMask.RUNNABLE) != 0
 
-    @property
     def is_device_module(self):
-        return self.type_key in ["cuda", "opencl", "metal", "hip", "vulkan", "webgpu"]
+        return self.kind in ["cuda", "opencl", "metal", "hip", "vulkan", "webgpu"]
 
-    @property
-    def is_dso_exportable(self):
-        """Returns true if module is 'DSO exportable', ie can be included in result of
+    def is_compilation_exportable(self):
+        """Returns true if module is 'compilation exportable', ie can be included in result of
         export_library by the external compiler directly.
 
         Returns
         -------
         b : Bool
-            True if the module is DSO exportable.
+            True if the module is compilation exportable.
         """
-        return (self.get_property_mask() & ModulePropertyMask.DSO_EXPORTABLE) != 0
+        return (self.get_property_mask() & ModulePropertyMask.COMPILATION_EXPORTABLE) != 0
 
     def clear_imports(self):
         """Remove all imports of the module."""
-        _ffi_api.ModuleClearImports(self)
+        _mod_ffi_api.ModuleClearImports(self)
 
-    def save(self, file_name, fmt=""):
-        """Save the module to file.
-
-        This do not save the dependent device modules.
-        See also export_shared
+    def write_to_file(self, file_name, fmt=""):
+        """Write the current module to file.
 
         Parameters
         ----------
@@ -293,7 +285,7 @@ class Module(tvm.ffi.Object):
         --------
         runtime.Module.export_library : export the module to shared library.
         """
-        _ffi_api.ModuleSaveToFile(self, file_name, fmt)
+        _mod_ffi_api.ModuleWriteToFile(self, file_name, fmt)
 
     def time_evaluator(
         self,
@@ -414,19 +406,19 @@ class Module(tvm.ffi.Object):
         while stack:
             module = stack.pop()
             assert (
-                module.is_dso_exportable or module.is_binary_serializable
-            ), f"Module {module.type_key} should be either dso exportable or binary serializable."
+                module.is_compilation_exportable() or module.is_binary_serializable()
+            ), f"Module {module.kind} should be either dso exportable or binary serializable."
 
             if filter_func(module):
                 dso_modules.append(module)
-            for m in module.imported_modules:
+            for m in module.imports:
                 if m not in visited:
                     visited.add(m)
                     stack.append(m)
         return dso_modules
 
     def _collect_dso_modules(self):
-        return self._collect_from_import_tree(lambda m: m.is_dso_exportable)
+        return self._collect_from_import_tree(lambda m: m.is_compilation_exportable())
 
     def export_library(
         self,
@@ -509,29 +501,24 @@ class Module(tvm.ffi.Object):
         system_lib_prefix = None
         llvm_target_string = None
         global_object_format = "o"
+
+        def get_source_format_from_module(module):
+            for fmt in module.get_write_formats():
+                if fmt in ["c", "cc", "cpp", "cu"]:
+                    return fmt
+            raise ValueError(f"Module {module.kind} does not exporting to c, cc, cpp or cu.")
+
         for index, module in enumerate(modules):
             if fcompile is not None and hasattr(fcompile, "object_format"):
-                if module.type_key == "c":
-                    assert module.format in [
-                        "c",
-                        "cc",
-                        "cpp",
-                        "cu",
-                    ], "The module.format needs to be either c, cc, cpp or cu."
-                    object_format = module.format
+                if module.kind == "c":
+                    object_format = get_source_format_from_module(module)
                     has_c_module = True
                 else:
                     global_object_format = object_format = fcompile.object_format
             else:
-                if module.type_key == "c":
-                    if len(module.format) > 0:
-                        assert module.format in [
-                            "c",
-                            "cc",
-                            "cpp",
-                            "cu",
-                        ], "The module.format needs to be either c, cc, cpp, or cu."
-                        object_format = module.format
+                if module.kind == "c":
+                    if len(module.get_write_formats()) > 0:
+                        object_format = get_source_format_from_module(module)
                     else:
                         object_format = "c"
                     if "cc" in kwargs:
@@ -539,13 +526,13 @@ class Module(tvm.ffi.Object):
                             object_format = "cu"
                     has_c_module = True
                 else:
-                    assert module.is_dso_exportable
+                    assert module.is_compilation_exportable()
                     global_object_format = object_format = "o"
 
             path_obj = os.path.join(workspace_dir, f"lib{index}.{object_format}")
-            module.save(path_obj)
+            module.write_to_file(path_obj)
             files.append(path_obj)
-            if module.type_key == "llvm":
+            if module.kind == "llvm":
                 is_system_lib = module.get_function("__tvm_is_system_module")()
                 llvm_target_string = module.get_function("_get_target_string")()
                 system_lib_prefix = module.get_function("__tvm_get_system_lib_prefix")()
@@ -566,7 +553,7 @@ class Module(tvm.ffi.Object):
         if getattr(fcompile, "need_system_lib", False) and not is_system_lib:
             raise ValueError(f"{str(fcompile)} need --system-lib option")
 
-        if self.imported_modules:
+        if self.imports:
             pack_lib_prefix = system_lib_prefix if system_lib_prefix else ""
 
             if fpack_imports is not None:
@@ -579,7 +566,7 @@ class Module(tvm.ffi.Object):
                 m = _ffi_api.ModulePackImportsToLLVM(
                     self, is_system_lib, llvm_target_string, pack_lib_prefix
                 )
-                m.save(path_obj)
+                m.write_to_file(path_obj)
                 files.append(path_obj)
             else:
                 path_cc = os.path.join(workspace_dir, f"{pack_lib_prefix}devc.c")
@@ -625,20 +612,16 @@ def system_lib(symbol_prefix=""):
     module : runtime.Module
         The system-wide library module.
     """
-    return _ffi_api.SystemLib(symbol_prefix)
+    return _mod_ffi_api.SystemLib(symbol_prefix)
 
 
-def load_module(path, fmt=""):
+def load_module(path):
     """Load module from file.
 
     Parameters
     ----------
     path : str
         The path to the module file.
-
-    fmt : str, optional
-        The format of the file, if not specified
-        it will be inferred from suffix of the file.
 
     Returns
     -------
@@ -673,7 +656,7 @@ def load_module(path, fmt=""):
         _cc.create_shared(path + ".so", files)
         path += ".so"
     # Redirect to the load API
-    return _ffi_api.ModuleLoadFromFile(path, fmt)
+    return _mod_ffi_api.ModuleLoadFromFile(path)
 
 
 def load_static_library(path, func_names):
