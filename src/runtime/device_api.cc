@@ -22,6 +22,7 @@
  * \brief Device specific implementations
  */
 #include <tvm/ffi/container/ndarray.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/optional.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -235,10 +236,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 using namespace tvm::runtime;
 
 int TVMBackendGetFuncFromEnv(void* mod_node, const char* func_name, TVMFFIObjectHandle* func) {
-  TVM_FFI_SAFE_CALL_BEGIN();
-  *func = const_cast<tvm::ffi::FunctionObj*>(
-      static_cast<ModuleNode*>(mod_node)->GetFuncFromEnv(func_name)->get());
-  TVM_FFI_SAFE_CALL_END();
+  return TVMFFIEnvLookupFromImports(mod_node, func_name, func);
 }
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size, int dtype_code_hint,

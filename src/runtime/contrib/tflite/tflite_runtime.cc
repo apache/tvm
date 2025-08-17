@@ -87,6 +87,7 @@ DataType TfLiteDType2TVMDType(TfLiteType dtype) {
       return DataType::Float(16);
     default:
       LOG(FATAL) << "tflite data type not support yet: " << dtype;
+      TVM_FFI_UNREACHABLE();
   }
 }
 
@@ -151,8 +152,8 @@ NDArray TFLiteRuntime::GetOutput(int index) const {
   return ret;
 }
 
-ffi::Function TFLiteRuntime::GetFunction(const String& name,
-                                         const ObjectPtr<Object>& sptr_to_self) {
+ffi::Optional<ffi::Function> TFLiteRuntime::GetFunction(const String& name) {
+  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   // Return member functions during query.
   if (name == "set_input") {
     return ffi::Function([sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) {
@@ -174,14 +175,14 @@ ffi::Function TFLiteRuntime::GetFunction(const String& name,
       this->SetNumThreads(num_threads);
     });
   } else {
-    return ffi::Function();
+    return std::nullopt;
   }
 }
 
-Module TFLiteRuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
+ffi::Module TFLiteRuntimeCreate(const std::string& tflite_model_bytes, Device dev) {
   auto exec = make_object<TFLiteRuntime>();
   exec->Init(tflite_model_bytes, dev);
-  return Module(exec);
+  return ffi::Module(exec);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({

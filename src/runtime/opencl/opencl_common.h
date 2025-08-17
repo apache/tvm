@@ -456,7 +456,7 @@ struct BufferDescriptor {
 // To make the call thread-safe, we create a thread-local kernel table
 // and lazily install new kernels into the kernel table when the kernel is called.
 // The kernels are recycled when the module get destructed.
-class OpenCLModuleNodeBase : public ModuleNode {
+class OpenCLModuleNodeBase : public ffi::ModuleObj {
  public:
   // Kernel table reference entry.
   struct KTRefEntry {
@@ -472,14 +472,14 @@ class OpenCLModuleNodeBase : public ModuleNode {
    */
   virtual cl::OpenCLWorkspace* GetGlobalWorkspace();
 
-  const char* type_key() const final { return workspace_->type_key.c_str(); }
+  const char* kind() const final { return workspace_->type_key.c_str(); }
 
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final {
-    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+    return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) override;
+  Optional<ffi::Function> GetFunction(const String& name) override;
 
   // Initialize the programs
   virtual void Init() = 0;
@@ -509,14 +509,14 @@ class OpenCLModuleNode : public OpenCLModuleNodeBase {
                             std::unordered_map<std::string, FunctionInfo> fmap, std::string source)
       : OpenCLModuleNodeBase(fmap), data_(data), fmt_(fmt), source_(source) {}
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+  Optional<ffi::Function> GetFunction(const String& name) final;
   // Return true if OpenCL program for the requested function and device was created
   bool IsProgramCreated(const std::string& func_name, int device_id);
-  void SaveToFile(const String& file_name, const String& format) final;
-  void SaveToBinary(dmlc::Stream* stream) final;
+  void WriteToFile(const String& file_name, const String& format) const final;
+  ffi::Bytes SaveToBytes() const final;
   void SetPreCompiledPrograms(const std::string& bytes);
   std::string GetPreCompiledPrograms();
-  String GetSource(const String& format) final;
+  String InspectSource(const String& format) const final;
 
   // Initialize the programs
   void Init() override;

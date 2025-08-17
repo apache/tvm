@@ -91,7 +91,7 @@ class Executable:
         # TODO(tvm-team): Update runtime.Module interface
         # to query these properties as bitmask.
         def _not_runnable(x):
-            return x.type_key in ("c", "static_library")
+            return x.kind in ("c", "static_library")
 
         # pylint:disable = protected-access
         not_runnable_list = self.mod._collect_from_import_tree(_not_runnable)

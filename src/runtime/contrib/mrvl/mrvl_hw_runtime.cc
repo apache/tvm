@@ -23,9 +23,9 @@
  */
 
 #include <dlfcn.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 
 #include <cstddef>
@@ -155,7 +155,7 @@ hardware and then runs the generated binary on the target hardware.
  *
  */
 
-class MarvellHardwareModuleNode : public ModuleNode {
+class MarvellHardwareModuleNode : public ffi::ModuleObj {
  public:
   MarvellHardwareModuleNode(const std::string& symbol_name, const std::string& nodes_json,
                             const std::string& bin_code, const int input_count,
@@ -200,10 +200,10 @@ class MarvellHardwareModuleNode : public ModuleNode {
     }
   }
 
-  const char* type_key() const { return "mrvl_hw"; }
+  const char* kind() const { return "mrvl_hw"; }
 
   int GetPropertyMask() const final {
-    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+    return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
 
   /*!
@@ -212,7 +212,8 @@ class MarvellHardwareModuleNode : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The packed function.
    */
-  virtual ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {
+  virtual Optional<ffi::Function> GetFunction(const String& name) {
+    ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
     if (name == "get_symbol") {
       return ffi::Function(
           [sptr_to_self, this](ffi::PackedArgs args, ffi::Any* rv) { *rv = this->symbol_name_; });
@@ -240,10 +241,13 @@ class MarvellHardwareModuleNode : public ModuleNode {
         *rv = 0;
       });
     }
-    return ffi::Function(nullptr);
+    return std::nullopt;
   }
 
-  virtual void SaveToBinary(dmlc::Stream* stream) {
+  virtual ffi::Bytes SaveToBytes() const {
+    std::string buffer;
+    dmlc::MemoryStringStream ms(&buffer);
+    dmlc::Stream* stream = &ms;
     // Save the symbol name and other data and serialize them to
     // binary format.
     stream->Write(symbol_name_);
@@ -252,10 +256,12 @@ class MarvellHardwareModuleNode : public ModuleNode {
     stream->Write(num_inputs_);
     stream->Write(num_outputs_);
     stream->Write(run_arg.num_batches);
+    return ffi::Bytes(buffer);
   }
 
-  static Module LoadFromBinary(void* strm) {
-    dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+  static ffi::Module LoadFromBytes(const ffi::Bytes& bytes) {
+    dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
+    dmlc::Stream* stream = &ms;
     std::string symbol_name;
     std::string nodes_json;
     std::string bin_code;
@@ -270,7 +276,7 @@ class MarvellHardwareModuleNode : public ModuleNode {
     ICHECK(stream->Read(&batch_size)) << "Loading batch_size failed";
     auto n = make_object<MarvellHardwareModuleNode>(symbol_name, nodes_json, bin_code, num_inputs,
                                                     num_outputs, batch_size);
-    return Module(n);
+    return ffi::Module(n);
   }
 
   /*!
@@ -279,7 +285,7 @@ class MarvellHardwareModuleNode : public ModuleNode {
    * \param format the format to return.
    * \return A string of JSON.
    */
-  String GetSource(const String& format = "json") override { return nodes_json_; }
+  String InspectSource(const String& format) const override { return nodes_json_; }
 
  protected:
   std::string symbol_name_;
@@ -463,12 +469,12 @@ class MarvellHardwareModuleNode : public ModuleNode {
   }
 };
 
-runtime::Module MarvellHardwareModuleRuntimeCreate(const String& symbol_name,
-                                                   const String& nodes_json, const String& bin_code,
-                                                   int num_input, int num_output, int batch_size) {
+ffi::Module MarvellHardwareModuleRuntimeCreate(const String& symbol_name, const String& nodes_json,
+                                               const String& bin_code, int num_input,
+                                               int num_output, int batch_size) {
   auto n = make_object<MarvellHardwareModuleNode>(symbol_name, nodes_json, bin_code, num_input,
                                                   num_output, batch_size);
-  return runtime::Module(n);
+  return ffi::Module(n);
 }
 
 bool MarvellHardwareModuleNode::initialized_model = false;
@@ -481,7 +487,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.mrvl_hw_runtime_create", MarvellHardwareModuleRuntimeCreate)
-      .def("runtime.module.loadbinary_mrvl_hw", MarvellHardwareModuleNode::LoadFromBinary);
+      .def("ffi.Module.load_from_bytes.mrvl_hw", MarvellHardwareModuleNode::LoadFromBytes);
 });
 }  // namespace contrib
 }  // namespace runtime

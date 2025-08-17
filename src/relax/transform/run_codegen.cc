@@ -80,7 +80,7 @@ class CodeGenRunner : ExprMutator {
     auto out_mod = builder_->GetContextIRModule();
 
     if (ext_mods.size()) {
-      if (auto opt_old_ext_mods = mod->GetAttr<Array<runtime::Module>>(tvm::attr::kExternalMods)) {
+      if (auto opt_old_ext_mods = mod->GetAttr<Array<ffi::Module>>(tvm::attr::kExternalMods)) {
         auto old_ext_mods = opt_old_ext_mods.value();
         ext_mods.insert(ext_mods.begin(), old_ext_mods.begin(), old_ext_mods.end());
       }
@@ -168,7 +168,7 @@ class CodeGenRunner : ExprMutator {
   }
 
  private:
-  Array<runtime::Module> InvokeCodegen(IRModule mod, Map<String, OptionMap> target_options) {
+  Array<ffi::Module> InvokeCodegen(IRModule mod, Map<String, OptionMap> target_options) {
     std::unordered_map<std::string, Array<Function>> target_functions;
 
     for (const auto& entry : mod->functions) {
@@ -186,7 +186,7 @@ class CodeGenRunner : ExprMutator {
       });
     }
 
-    Array<runtime::Module> ext_mods;
+    Array<ffi::Module> ext_mods;
 
     for (const auto& [target, functions] : target_functions) {
       OptionMap options = target_options.Get(target).value_or(OptionMap());
@@ -196,8 +196,8 @@ class CodeGenRunner : ExprMutator {
       const auto codegen = tvm::ffi::Function::GetGlobal(codegen_name);
       ICHECK(codegen.has_value()) << "Codegen is not found: " << codegen_name << "\n";
 
-      Array<runtime::Module> compiled_functions =
-          (*codegen)(functions, options, constant_names).cast<Array<runtime::Module>>();
+      Array<ffi::Module> compiled_functions =
+          (*codegen)(functions, options, constant_names).cast<Array<ffi::Module>>();
       ext_mods.insert(ext_mods.end(), compiled_functions.begin(), compiled_functions.end());
     }
 

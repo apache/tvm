@@ -27,8 +27,8 @@
 
 #include <dlpack/dlpack.h>
 #include <tensorflow/lite/interpreter.h>
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 
 #include <memory>
@@ -46,7 +46,7 @@ namespace runtime {
  *  This runtime can be accessed in various language via
  *  TVM runtime ffi::Function API.
  */
-class TFLiteRuntime : public ModuleNode {
+class TFLiteRuntime : public ffi::ModuleObj {
  public:
   /*!
    * \brief Get member function to front-end.
@@ -54,15 +54,15 @@ class TFLiteRuntime : public ModuleNode {
    * \param sptr_to_self The pointer to the module node.
    * \return The corresponding member function.
    */
-  virtual ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self);
+  virtual Optional<ffi::Function> GetFunction(const String& name);
 
   /*!
    * \return The type key of the executor.
    */
-  const char* type_key() const { return "TFLiteRuntime"; }
+  const char* kind() const { return "TFLiteRuntime"; }
 
   /*! \brief Get the property of the runtime module .*/
-  int GetPropertyMask() const final { return ModulePropertyMask::kRunnable; };
+  int GetPropertyMask() const final { return ffi::Module::kRunnable; };
 
   /*!
    * \brief Invoke the internal tflite interpreter and run the whole model in

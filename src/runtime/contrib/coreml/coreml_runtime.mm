@@ -129,8 +129,7 @@ void CoreMLRuntime::Init(const std::string& symbol, const std::string& _model_pa
   model_ = std::unique_ptr<CoreMLModel>(new CoreMLModel(url));
 }
 
-ffi::Function CoreMLRuntime::GetFunction(const String& name,
-                                         const ObjectPtr<Object>& sptr_to_self) {
+Optional<ffi::Function> CoreMLRuntime::GetFunction(const String& name) {
   // Return member functions during query.
   if (name == "invoke" || name == "run") {
     return ffi::Function([this](ffi::PackedArgs args, ffi::Any* rv) { model_->Invoke(); });
@@ -183,14 +182,14 @@ ffi::Function CoreMLRuntime::GetFunction(const String& name,
       *rv = out;
     });
   } else {
-    return ffi::Function();
+    return std::nullopt;
   }
 }
 
-Module CoreMLRuntimeCreate(const std::string& symbol, const std::string& model_path) {
+ffi::Module CoreMLRuntimeCreate(const std::string& symbol, const std::string& model_path) {
   auto exec = make_object<CoreMLRuntime>();
   exec->Init(symbol, model_path);
-  return Module(exec);
+  return ffi::Module(exec);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({
@@ -200,7 +199,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
   });
 });
 
-void CoreMLRuntime::SaveToBinary(dmlc::Stream* stream) {
+ffi::Bytes CoreMLRuntime::SaveToBytes() const {
+  std::string buffer;
+  dmlc::MemoryStringStream ms(&buffer);
+  dmlc::Stream* stream = &ms;
   NSURL* url = model_->url_;
   NSFileWrapper* dirWrapper = [[[NSFileWrapper alloc] initWithURL:url options:0
                                                             error:nil] autorelease];
@@ -209,6 +211,7 @@ void CoreMLRuntime::SaveToBinary(dmlc::Stream* stream) {
   stream->Write((uint64_t)[dirData length]);
   stream->Write([dirData bytes], [dirData length]);
   DLOG(INFO) << "Save " << symbol_ << " (" << [dirData length] << " bytes)";
+  return ffi::Bytes(buffer);
 }
 
 /*!
@@ -218,8 +221,9 @@ void CoreMLRuntime::SaveToBinary(dmlc::Stream* stream) {
  *
  * \return The created CoreML module.
  */
-Module CoreMLRuntimeLoadFromBinary(void* strm) {
-  dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+ffi::Module CoreMLRuntimeLoadFromBytes(const ffi::Bytes& bytes) {
+  dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
+  dmlc::Stream* stream = &ms;
 
   NSString* tempBaseDir = NSTemporaryDirectory();
   if (tempBaseDir == nil) tempBaseDir = @"/tmp";
@@ -249,12 +253,12 @@ Module CoreMLRuntimeLoadFromBinary(void* strm) {
 
   auto exec = make_object<CoreMLRuntime>();
   exec->Init(symbol, [model_path UTF8String]);
-  return Module(exec);
+  return ffi::Module(exec);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("runtime.module.loadbinary_coreml", CoreMLRuntimeLoadFromBinary);
+  refl::GlobalDef().def("ffi.Module.load_from_bytes.coreml", CoreMLRuntimeLoadFromBytes);
 });
 
 }  // namespace runtime

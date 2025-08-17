@@ -22,6 +22,7 @@
  */
 #include "codegen_webgpu.h"
 
+#include <dmlc/memory_io.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/tir/builtin.h>
@@ -705,27 +706,30 @@ void CodeGenWebGPU::VisitStmt_(const WhileNode* op) {
 //-------------------------------------------------
 // WebGPUSourceModule to enable export
 //-------------------------------------------------
-class WebGPUSourceModuleNode final : public runtime::ModuleNode {
+class WebGPUSourceModuleNode final : public ffi::ModuleObj {
  public:
   explicit WebGPUSourceModuleNode(std::unordered_map<std::string, std::string> smap,
                                   std::unordered_map<std::string, runtime::FunctionInfo> fmap)
       : smap_(smap), fmap_(fmap) {}
 
-  const char* type_key() const final { return "webgpu"; }
+  const char* kind() const final { return "webgpu"; }
   /*! \brief Get the property of the runtime module .*/
-  int GetPropertyMask() const final { return runtime::ModulePropertyMask::kBinarySerializable; }
+  int GetPropertyMask() const final { return ffi::Module::kBinarySerializable; }
 
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+  Optional<ffi::Function> GetFunction(const String& name) final {
     LOG(FATAL) << "WebGPUSourceModule is not directly runnable, export and run through tvmjs";
-    return ffi::Function(nullptr);
   }
 
-  void SaveToBinary(dmlc::Stream* stream) final {
+  ffi::Bytes SaveToBytes() const final {
+    std::string buffer;
+    dmlc::MemoryStringStream ms(&buffer);
+    dmlc::Stream* stream = &ms;
     stream->Write(fmap_);
     stream->Write(smap_);
+    return ffi::Bytes(buffer);
   }
 
-  String GetSource(const String& format) final {
+  String InspectSource(const String& format) const final {
     if (format == "func_info") {
       std::ostringstream stream;
       dmlc::JSONWriter(&stream).Write(fmap_);
@@ -749,7 +753,7 @@ class WebGPUSourceModuleNode final : public runtime::ModuleNode {
 //-------------------------------------------------
 // Build logic.
 //-------------------------------------------------
-runtime::Module BuildWebGPU(IRModule mod, Target target) {
+ffi::Module BuildWebGPU(IRModule mod, Target target) {
   mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
   bool output_ssa = false;
   bool skip_readonly_decl = false;
@@ -777,7 +781,7 @@ runtime::Module BuildWebGPU(IRModule mod, Target target) {
   }
 
   auto n = make_object<WebGPUSourceModuleNode>(smap, fmap);
-  return runtime::Module(n);
+  return ffi::Module(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({

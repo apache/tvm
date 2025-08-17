@@ -96,11 +96,11 @@ class TensorRTRuntime : public JSONRuntimeBase {
    *
    * \return module type key.
    */
-  const char* type_key() const final { return "tensorrt"; }
+  const char* kind() const final { return "tensorrt"; }
 
   /*! \brief Get the property of the runtime module .*/
   int GetPropertyMask() const final {
-    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+    return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
 
   /*!
@@ -519,17 +519,17 @@ class TensorRTRuntime : public JSONRuntimeBase {
   bool use_fp16_;
 };
 
-runtime::Module TensorRTRuntimeCreate(const String& symbol_name, const String& graph_json,
-                                      const Array<String>& const_names) {
+ffi::Module TensorRTRuntimeCreate(const String& symbol_name, const String& graph_json,
+                                  const Array<String>& const_names) {
   auto n = make_object<TensorRTRuntime>(symbol_name, graph_json, const_names);
-  return runtime::Module(n);
+  return ffi::Module(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.tensorrt_runtime_create", TensorRTRuntimeCreate)
-      .def("runtime.module.loadbinary_tensorrt", JSONRuntimeBase::LoadFromBinary<TensorRTRuntime>);
+      .def("ffi.Module.load_from_bytes.tensorrt", JSONRuntimeBase::LoadFromBytes<TensorRTRuntime>);
 });
 
 }  // namespace contrib

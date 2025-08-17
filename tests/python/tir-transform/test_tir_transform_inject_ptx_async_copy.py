@@ -393,7 +393,7 @@ def postproc_if_missing_async_support():
     # way, even though the generated code doesn't compile on platforms
     # that do not support async, the comparison against an expected
     # output can still be performed.  We cannot use
-    # `mod.get_source()`, as that contains the source after all
+    # `mod.inspect_source()`, as that contains the source after all
     # post-processing.
     original_code = None
 

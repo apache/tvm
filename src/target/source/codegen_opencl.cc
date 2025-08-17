@@ -633,7 +633,7 @@ void CodeGenOpenCL::SetTextureScope(
   }
 }
 
-runtime::Module BuildOpenCL(IRModule mod, Target target) {
+ffi::Module BuildOpenCL(IRModule mod, Target target) {
 #if TVM_ENABLE_SPIRV
   Optional<String> device = target->GetAttr<String>("device");
   if (device && device.value() == "spirv") {

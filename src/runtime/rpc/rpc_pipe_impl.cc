@@ -76,7 +76,7 @@ class PipeChannel final : public RPCChannel {
   pid_t child_pid_;
 };
 
-Module CreatePipeClient(std::vector<std::string> cmd) {
+ffi::Module CreatePipeClient(std::vector<std::string> cmd) {
   int parent2child[2];
   int child2parent[2];
   ICHECK_EQ(pipe(parent2child), 0);

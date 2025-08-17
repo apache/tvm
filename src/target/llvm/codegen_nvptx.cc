@@ -322,7 +322,7 @@ int GetCUDAComputeVersion(const Target& target) {
   return std::stoi(sm_version.substr(3));
 }
 
-runtime::Module BuildNVPTX(IRModule mod, Target target) {
+ffi::Module BuildNVPTX(IRModule mod, Target target) {
   LLVMInstance llvm_instance;
   With<LLVMTarget> llvm_target(llvm_instance, target);
 

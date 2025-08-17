@@ -235,17 +235,17 @@ class NNAPIRuntime : public JSONRuntimeBase {
 #endif  // ifdef TVM_GRAPH_EXECUTOR_NNAPI
 };
 
-runtime::Module NNAPIRuntimeCreate(const String& symbol_name, const String& graph_json,
-                                   const Array<String>& const_names) {
+ffi::Module NNAPIRuntimeCreate(const String& symbol_name, const String& graph_json,
+                               const Array<String>& const_names) {
   auto n = make_object<NNAPIRuntime>(symbol_name, graph_json, const_names);
-  return runtime::Module(n);
+  return ffi::Module(n);
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.nnapi_runtime_create", NNAPIRuntimeCreate)
-      .def("runtime.module.loadbinary_nnapi", JSONRuntimeBase::LoadFromBinary<NNAPIRuntime>);
+      .def("ffi.Module.load_from_bytes.nnapi", JSONRuntimeBase::LoadFromBytes<NNAPIRuntime>);
 });
 
 }  // namespace contrib

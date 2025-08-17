@@ -374,7 +374,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
            [](ExecBuilder builder, String value) { return builder->GetFunction(value).data(); })
       .def("relax.ExecBuilderGet", [](ExecBuilder builder) {
         ObjectPtr<VMExecutable> p_exec = builder->Get();
-        return runtime::Module(p_exec);
+        return ffi::Module(p_exec);
       });
 });
 

@@ -593,13 +593,13 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
                    << " Error caught from session constructor " << constructor_name << ":\n"
                    << e.what();
       }
-      auto opt_con_ret = con_ret.as<runtime::Module>();
+      auto opt_con_ret = con_ret.as<ffi::Module>();
       // Legacy ABI translation
       ICHECK(opt_con_ret.has_value())
           << "Server[" << name_ << "]:"
           << " Constructor " << constructor_name << " need to return an RPCModule";
-      Module mod = opt_con_ret.value();
-      std::string tkey = mod->type_key();
+      ffi::Module mod = opt_con_ret.value();
+      std::string tkey = mod->kind();
       ICHECK_EQ(tkey, "rpc") << "Constructor " << constructor_name << " to return an RPCModule";
       serving_session_ = RPCModuleGetSession(mod);
       this->ReturnVoid();

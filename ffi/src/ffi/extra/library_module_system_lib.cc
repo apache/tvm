@@ -21,35 +21,34 @@
  * \file system_library.cc
  * \brief Create library module that directly get symbol from the system lib.
  */
-#include <tvm/ffi/function.h>
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/c_backend_api.h>
+#include <tvm/ffi/string.h>
 
 #include <mutex>
 
-#include "library_module.h"
+#include "module_internal.h"
 
 namespace tvm {
-namespace runtime {
+namespace ffi {
 
 class SystemLibSymbolRegistry {
  public:
   void RegisterSymbol(const std::string& name, void* ptr) {
-    std::lock_guard<std::mutex> lock(mutex_);
     auto it = symbol_table_.find(name);
-    if (it != symbol_table_.end() && ptr != it->second) {
-      LOG(WARNING) << "SystemLib symbol " << name << " get overriden to a different address " << ptr
-                   << "->" << it->second;
+    if (it != symbol_table_.end() && ptr != (*it).second) {
+      std::cerr << "Warning:SystemLib symbol " << name << " get overriden to a different address "
+                << ptr << "->" << (*it).second << std::endl;
     }
-    symbol_table_[name] = ptr;
+    symbol_table_.Set(name, ptr);
   }
 
   void* GetSymbol(const char* name) {
-    std::lock_guard<std::mutex> lock(mutex_);
     auto it = symbol_table_.find(name);
     if (it != symbol_table_.end()) {
-      return it->second;
+      return (*it).second;
     } else {
       return nullptr;
     }
@@ -61,19 +60,17 @@ class SystemLibSymbolRegistry {
   }
 
  private:
-  // Internal mutex
-  std::mutex mutex_;
   // Internal symbol table
-  std::unordered_map<std::string, void*> symbol_table_;
+  Map<String, void*> symbol_table_;
 };
 
-class SystemLibrary : public Library {
+class SystemLibrary final : public Library {
  public:
-  explicit SystemLibrary(const std::string& symbol_prefix) : symbol_prefix_(symbol_prefix) {}
+  explicit SystemLibrary(const String& symbol_prefix) : symbol_prefix_(symbol_prefix) {}
 
   void* GetSymbol(const char* name) {
     if (symbol_prefix_.length() != 0) {
-      std::string name_with_prefix = symbol_prefix_ + name;
+      String name_with_prefix = symbol_prefix_ + name;
       void* symbol = reg_->GetSymbol(name_with_prefix.c_str());
       if (symbol != nullptr) return symbol;
     }
@@ -82,19 +79,19 @@ class SystemLibrary : public Library {
 
  private:
   SystemLibSymbolRegistry* reg_ = SystemLibSymbolRegistry::Global();
-  std::string symbol_prefix_;
+  String symbol_prefix_;
 };
 
 class SystemLibModuleRegistry {
  public:
-  runtime::Module GetOrCreateModule(std::string symbol_prefix) {
+  Module GetOrCreateModule(String symbol_prefix) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = lib_map_.find(symbol_prefix);
     if (it != lib_map_.end()) {
-      return it->second;
+      return (*it).second;
     } else {
-      auto mod = CreateModuleFromLibrary(make_object<SystemLibrary>(symbol_prefix));
-      lib_map_[symbol_prefix] = mod;
+      Module mod = CreateLibraryModule(make_object<SystemLibrary>(symbol_prefix));
+      lib_map_.Set(symbol_prefix, mod);
       return mod;
     }
   }
@@ -107,26 +104,26 @@ class SystemLibModuleRegistry {
  private:
   // Internal mutex
   std::mutex mutex_;
+  // maps prefix to the library module
   // we need to make sure each lib map have an unique
   // copy through out the entire lifetime of the process
-  // so the cached ffi::Function in the system do not get out dated.
-  std::unordered_map<std::string, runtime::Module> lib_map_;
+  Map<String, ffi::Module> lib_map_;
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def_packed("runtime.SystemLib", [](ffi::PackedArgs args, ffi::Any* rv) {
-    std::string symbol_prefix = "";
+  refl::GlobalDef().def_packed("ffi.SystemLib", [](ffi::PackedArgs args, ffi::Any* rv) {
+    String symbol_prefix = "";
     if (args.size() != 0) {
-      symbol_prefix = args[0].cast<std::string>();
+      symbol_prefix = args[0].cast<String>();
     }
     *rv = SystemLibModuleRegistry::Global()->GetOrCreateModule(symbol_prefix);
   });
 });
-}  // namespace runtime
+}  // namespace ffi
 }  // namespace tvm
 
-int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr) {
-  tvm::runtime::SystemLibSymbolRegistry::Global()->RegisterSymbol(name, ptr);
+int TVMFFIEnvRegisterSystemLibSymbol(const char* name, void* ptr) {
+  tvm::ffi::SystemLibSymbolRegistry::Global()->RegisterSymbol(name, ptr);
   return 0;
 }

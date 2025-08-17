@@ -46,7 +46,7 @@ def test_codegen_vscale(target):
     with tvm.target.Target(target):
         build_mod = tvm.tir.build(main)
 
-    llvm = build_mod.get_source()
+    llvm = build_mod.inspect_source()
     assert re.findall(r"llvm.vscale.i32", llvm), "No vscale in generated LLVM."
 
 
@@ -68,7 +68,7 @@ def test_scalable_buffer_load_store(target):
     with tvm.target.Target(target):
         mod = tvm.tir.build(my_func)
 
-    llvm = mod.get_source("ll")
+    llvm = mod.inspect_source("ll")
     assert re.findall(r"load <vscale x 4 x float>", llvm), "No scalable load in generated LLVM."
     assert re.findall(r" store <vscale x 4 x float>", llvm), "No scalable store in generated LLVM."
 
@@ -90,7 +90,7 @@ def test_scalable_broadcast(target):
     with tvm.target.Target(target):
         mod = tvm.tir.build(my_func)
 
-    llvm = mod.get_source("ll")
+    llvm = mod.inspect_source("ll")
     assert re.findall(
         r"shufflevector \(<vscale x 4 x float> insertelement \(<vscale x 4 x float>", llvm
     ), "No scalable broadcast in generated LLVM."
@@ -114,7 +114,7 @@ def test_get_active_lane_mask(target):
     with tvm.target.Target(target):
         out = tvm.tir.build(before)
 
-    ll = out.get_source("ll")
+    ll = out.inspect_source("ll")
     assert "get.active.lane.mask" in ll
 
 
@@ -139,7 +139,7 @@ def test_predicated_scalable_buffer(target):
     with tvm.target.Target(target):
         out = tvm.tir.build(before)
 
-    ll = out.get_source("ll")
+    ll = out.inspect_source("ll")
     assert "get.active.lane.mask" in ll
     assert "llvm.masked.load" in ll
     assert "llvm.masked.store" in ll
