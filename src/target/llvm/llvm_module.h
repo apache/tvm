@@ -35,7 +35,7 @@
 namespace tvm {
 namespace codegen {
 
-runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata, Target target);
+ffi::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata, Target target);
 
 }  // namespace codegen
 }  // namespace tvm

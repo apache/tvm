@@ -22,6 +22,7 @@
  */
 #include "rocm_module.h"
 
+#include <dmlc/memory_io.h>
 #include <hip/hip_runtime_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
@@ -45,7 +46,7 @@ namespace runtime {
 // hipModule_t is a per-GPU module
 // The runtime will contain a per-device module table
 // The modules will be lazily loaded
-class ROCMModuleNode : public runtime::ModuleNode {
+class ROCMModuleNode : public ffi::ModuleObj {
  public:
   explicit ROCMModuleNode(std::string data, std::string fmt,
                           std::unordered_map<std::string, FunctionInfo> fmap,
@@ -63,13 +64,13 @@ class ROCMModuleNode : public runtime::ModuleNode {
     }
   }
 
-  const char* type_key() const final { return "hip"; }
+  const char* kind() const final { return "hip"; }
   int GetPropertyMask() const final {
-    return ModulePropertyMask::kBinarySerializable | ModulePropertyMask::kRunnable;
+    return ffi::Module::kBinarySerializable | ffi::Module::kRunnable;
   }
-  ffi::Function GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final;
+  Optional<ffi::Function> GetFunction(const String& name) final;
 
-  void SaveToFile(const String& file_name, const String& format) final {
+  void WriteToFile(const String& file_name, const String& format) const final {
     std::string fmt = GetFileFormat(file_name, format);
     std::string meta_file = GetMetaFilePath(file_name);
     // note: llvm and asm formats are not laodable, so we don't save them
@@ -78,13 +79,17 @@ class ROCMModuleNode : public runtime::ModuleNode {
     SaveBinaryToFile(file_name, data_);
   }
 
-  void SaveToBinary(dmlc::Stream* stream) final {
+  ffi::Bytes SaveToBytes() const final {
+    std::string buffer;
+    dmlc::MemoryStringStream ms(&buffer);
+    dmlc::Stream* stream = &ms;
     stream->Write(fmt_);
     stream->Write(fmap_);
     stream->Write(data_);
+    return ffi::Bytes(buffer);
   }
 
-  String GetSource(const String& format) final {
+  String InspectSource(const String& format) const final {
     if (format == fmt_) {
       return data_;
     }
@@ -192,25 +197,25 @@ class ROCMWrappedFunc {
   LaunchParamConfig launch_param_config_;
 };
 
-ffi::Function ROCMModuleNode::GetFunction(const String& name,
-                                          const ObjectPtr<Object>& sptr_to_self) {
+Optional<ffi::Function> ROCMModuleNode::GetFunction(const String& name) {
+  ObjectPtr<Object> sptr_to_self = ffi::GetObjectPtr<Object>(this);
   ICHECK_EQ(sptr_to_self.get(), this);
   auto it = fmap_.find(name);
-  if (it == fmap_.end()) return ffi::Function();
+  if (it == fmap_.end()) return std::nullopt;
   const FunctionInfo& info = it->second;
   ROCMWrappedFunc f;
   f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
   return PackFuncPackedArgAligned(f, info.arg_types);
 }
 
-Module ROCMModuleCreate(std::string data, std::string fmt,
-                        std::unordered_map<std::string, FunctionInfo> fmap, std::string hip_source,
-                        std::string assembly) {
+ffi::Module ROCMModuleCreate(std::string data, std::string fmt,
+                             std::unordered_map<std::string, FunctionInfo> fmap,
+                             std::string hip_source, std::string assembly) {
   auto n = make_object<ROCMModuleNode>(data, fmt, fmap, hip_source, assembly);
-  return Module(n);
+  return ffi::Module(n);
 }
 
-Module ROCMModuleLoadFile(const std::string& file_name, const std::string& format) {
+ffi::Module ROCMModuleLoadFile(const std::string& file_name, const std::string& format) {
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt = GetFileFormat(file_name, format);
@@ -220,8 +225,9 @@ Module ROCMModuleLoadFile(const std::string& file_name, const std::string& forma
   return ROCMModuleCreate(data, fmt, fmap, std::string(), std::string());
 }
 
-Module ROCMModuleLoadBinary(void* strm) {
-  dmlc::Stream* stream = static_cast<dmlc::Stream*>(strm);
+ffi::Module ROCMModuleLoadFromBytes(const ffi::Bytes& bytes) {
+  dmlc::MemoryFixedSizeStream ms(const_cast<char*>(bytes.data()), bytes.size());
+  dmlc::Stream* stream = &ms;
   std::string data;
   std::unordered_map<std::string, FunctionInfo> fmap;
   std::string fmt;
@@ -234,10 +240,10 @@ Module ROCMModuleLoadBinary(void* strm) {
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
-      .def("runtime.module.loadbinary_hsaco", ROCMModuleLoadBinary)
-      .def("runtime.module.loadbinary_hip", ROCMModuleLoadBinary)
-      .def("runtime.module.loadfile_hsaco", ROCMModuleLoadFile)
-      .def("runtime.module.loadfile_hip", ROCMModuleLoadFile);
+      .def("ffi.Module.load_from_bytes.hsaco", ROCMModuleLoadFromBytes)
+      .def("ffi.Module.load_from_bytes.hip", ROCMModuleLoadFromBytes)
+      .def("ffi.Module.load_from_file.hsaco", ROCMModuleLoadFile)
+      .def("ffi.Module.load_from_file.hip", ROCMModuleLoadFile);
 });
 }  // namespace runtime
 }  // namespace tvm

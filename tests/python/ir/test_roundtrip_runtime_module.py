@@ -25,11 +25,11 @@ from tvm import TVMError
 
 def test_csource_module():
     mod = tvm.runtime._ffi_api.CSourceModuleCreate("", "cc", [], [])
-    assert mod.type_key == "c"
-    assert mod.is_binary_serializable
+    assert mod.kind == "c"
+    assert mod.is_binary_serializable()
     new_mod = tvm.ir.load_json(tvm.ir.save_json(mod))
-    assert new_mod.type_key == "c"
-    assert new_mod.is_binary_serializable
+    assert new_mod.kind == "c"
+    assert new_mod.is_binary_serializable()
 
 
 if __name__ == "__main__":

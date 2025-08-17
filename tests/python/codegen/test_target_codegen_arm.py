@@ -30,7 +30,7 @@ def test_popcount():
         sch.vectorize(sch.get_loops("B")[0])
         f = tvm.tir.build(sch.mod, target=target)
         # Verify we see the correct number of vpaddl and vcnt instructions in the assembly
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         matches = re.findall("vpaddl", assembly)
         assert len(matches) == counts
         matches = re.findall("vcnt", assembly)
@@ -61,7 +61,7 @@ def test_vmlal_s16():
         f = tvm.tir.build(sch.mod, target=target)
 
         # Verify we see the correct number of vmlal.s16 instructions
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         matches = re.findall("vmlal.s16", assembly)
         assert len(matches) == N // 4
 
@@ -85,7 +85,7 @@ def test_vmlal_s16():
         f = tvm.tir.build(sch.mod, target=target)
 
         # Verify we see the correct number of vmlal.s16 instructions
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         matches = re.findall("vmlal.s16", assembly)
         assert len(matches) == N // 4
 

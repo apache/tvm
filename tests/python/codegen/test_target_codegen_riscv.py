@@ -36,7 +36,7 @@ def test_rvv(target):
 
         f = tvm.tir.build(load_vec, target)
         # Check RVV `vsetvli` prensence
-        assembly = f.get_source("asm")
+        assembly = f.inspect_source("asm")
         if target_has_features("v"):
             assert "vsetvli" in assembly
         else:

@@ -22,8 +22,8 @@
  */
 #include "codegen_c_host.h"
 
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/reflection/registry.h>
-#include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 
 #include <algorithm>
@@ -54,7 +54,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
 }
 
 void CodeGenCHost::InitGlobalContext() {
-  decl_stream << "void* " << tvm::runtime::symbol::tvm_ffi_library_ctx << " = NULL;\n";
+  decl_stream << "void* " << ffi::symbol::tvm_ffi_library_ctx << " = NULL;\n";
 }
 
 void CodeGenCHost::DefineModuleName() { decl_stream << "void* " << module_name_ << " = NULL;\n"; }
@@ -77,11 +77,11 @@ void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func,
         << "CodeGenCHost: The entry func must have the global_symbol attribute, "
         << "but function " << gvar << " only has attributes " << func->attrs;
 
-    function_names_.push_back(runtime::symbol::tvm_ffi_main);
+    function_names_.push_back(ffi::symbol::tvm_ffi_main);
     stream << "// CodegenC: NOTE: Auto-generated entry function\n";
     PrintFuncPrefix(stream);
     PrintType(func->ret_type, stream);
-    stream << " " << tvm::runtime::symbol::tvm_ffi_main
+    stream << " " << ffi::symbol::tvm_ffi_main
            << "(void* self, void* args,int num_args, void* result) {\n";
     stream << "  return " << global_symbol.value() << "(self, args, num_args, result);\n";
     stream << "}\n";
@@ -355,7 +355,7 @@ inline void CodeGenCHost::PrintTernaryCondExpr(const T* op, const char* compare,
      << "? (" << a_id << ") : (" << b_id << "))";
 }
 
-runtime::Module BuildCHost(IRModule mod, Target target) {
+ffi::Module BuildCHost(IRModule mod, Target target) {
   bool output_ssa = false;
   bool emit_asserts = false;
   bool emit_fwd_func_decl = true;

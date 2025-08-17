@@ -431,7 +431,7 @@ void CodeGenMetal::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NO
   os << temp.str();
 }
 
-runtime::Module BuildMetal(IRModule mod, Target target) {
+ffi::Module BuildMetal(IRModule mod, Target target) {
   bool output_ssa = false;
   mod = tir::transform::PointerValueTypeRewrite()(std::move(mod));
 

@@ -663,7 +663,7 @@ def test_try_unaligned_vector_load():
 
         f = tvm.tir.build(sch.mod, target="cuda")
 
-        kernel_source = f.imported_modules[0].get_source()
+        kernel_source = f.imports[0].inspect_source()
         dev = tvm.cuda()
         a_data = np.arange(0, N).astype(A.dtype)
         a = tvm.nd.array(a_data, dev)
@@ -774,7 +774,7 @@ extern "C" __global__ void __launch_bounds__(128) main_kernel(float* __restrict_
     A[0] = ((float)(*(double *)(&(A_map))));
   }
 }""".strip()
-        in mod.mod.imported_modules[0].get_source()
+        in mod.mod.imports[0].inspect_source()
     )
 
 
@@ -797,7 +797,7 @@ def test_cuda_device_func_call():
                     C[bx, tx] = Module.add(A[bx, tx], B[bx, tx])
 
     lib = tvm.compile(Module, target="cuda")
-    cuda_code = lib.mod.imported_modules[0].get_source()
+    cuda_code = lib.mod.imports[0].inspect_source()
     assert 'extern "C" __device__ float add(float a, float b) {\n  return (a + b);\n}' in cuda_code
 
 
@@ -827,7 +827,7 @@ def test_device_host_call_same_func():
     #    in order to avoid checking a function is host or device based on the "cpu" substring.
     target = tvm.target.Target({"kind": "cuda", "mcpu": "dummy_mcpu"}, host="c")
     lib = tvm.compile(Module, target=target)
-    cuda_code = lib.mod.imported_modules[0].get_source()
+    cuda_code = lib.mod.imports[0].inspect_source()
     assert 'extern "C" __device__ int add(int a, int b) {\n  return (a + b);\n}' in cuda_code
 
     # Run a simple test
@@ -854,7 +854,7 @@ def test_thread_return():
                     B[bx, tx] = A[bx, tx]
 
     lib = tvm.compile(Module, target="cuda")
-    cuda_code = lib.mod.imported_modules[0].get_source()
+    cuda_code = lib.mod.imports[0].inspect_source()
     assert "return;" in cuda_code
 
 
