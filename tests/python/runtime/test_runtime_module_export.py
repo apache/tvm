@@ -54,7 +54,7 @@ def test_import_static_library():
     # Import mod1 as a static library into mod0 and compile to its own DSO.
     mod0.import_module(mod1_o)
     mod0_dso_path = temp.relpath("mod0.so")
-    mod0.export_library(mod0_dso_path)
+    tvm.runtime.Executable(mod0).export_library(mod0_dso_path)
 
     # The imported mod1 is statically linked into mod0.
     loaded_lib = tvm.runtime.load_module(mod0_dso_path)
