@@ -27,10 +27,8 @@
 #include <memory>
 #include <string>
 
-#include "../../runtime/regex.h"
 #include "../../support/utils.h"
 #include "../llvm/llvm_instance.h"
-#include "cpu.h"
 
 namespace tvm {
 namespace target {
@@ -82,16 +80,6 @@ bool CheckContains(Array<String> array, String predicate) {
   return std::any_of(array.begin(), array.end(), [&](String var) { return var == predicate; });
 }
 
-int FindRISCVVLEN(Map<String, String> features) {
-  int vlen = 128;
-  for (auto const& feature : features) {
-    std::string feature_str = Downcast<String>(feature.first);
-    if (feature_str.find("zvl") != std::string::npos) {
-      vlen = tvm::target::parsers::cpu::extractVLENFromString(feature_str);
-    }
-  }
-  return vlen;
-}
 
 static TargetFeatures GetFeatures(TargetJSON target) {
 #ifdef TVM_LLVM_VERSION
@@ -122,8 +110,6 @@ static TargetFeatures GetFeatures(TargetJSON target) {
   return {{"is_aarch64", Bool(IsAArch64(mtriple))},
           {"has_asimd", Bool(has_feature("neon"))},
           {"has_sve", Bool(has_feature("sve"))},
-          {"has_rvv", Bool(has_feature("v"))},
-          {"rvv_vlen", Integer(FindRISCVVLEN(features))},
           {"has_dotprod", Bool(has_feature("dotprod"))},
           {"has_matmul_i8", Bool(has_feature("i8mm"))},
           {"has_fp16_simd", Bool(has_feature("fullfp16"))},

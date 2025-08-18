@@ -60,28 +60,6 @@ TargetJSON ParseTarget(TargetJSON target) {
   return target;
 }
 
-int extractVLENFromString(const std::string& input) {
-  for (size_t i = 0; i + 4 <= input.size(); ++i) {
-    // Look for the starting sequence "zvl"
-    if (input[i] == 'z' && input[i + 1] == 'v' && input[i + 2] == 'l') {
-      size_t j = i + 3;
-      std::string number;
-
-      // Collect digits
-      while (j < input.size() && std::isdigit(input[j])) {
-        number += input[j];
-        ++j;
-      }
-
-      // Check if followed by 'b' after digits
-      if (!number.empty() && j < input.size() && input[j] == 'b') {
-        return std::stoi(number);  // Convert the number to int
-      }
-    }
-  }
-
-  throw std::runtime_error("No valid pattern found");
-}
 
 }  // namespace cpu
 }  // namespace parsers

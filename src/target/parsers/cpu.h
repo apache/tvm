@@ -27,7 +27,6 @@
 
 #include <tvm/target/target.h>
 
-#include <string>
 
 namespace tvm {
 namespace target {
@@ -35,7 +34,6 @@ namespace parsers {
 namespace cpu {
 
 TargetJSON ParseTarget(TargetJSON target);
-int extractVLENFromString(const std::string& input);
 
 }  // namespace cpu
 }  // namespace parsers
