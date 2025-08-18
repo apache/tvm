@@ -19,6 +19,7 @@
 
 #include <cuda_fp16.h>
 #include <float.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/ndarray.h>
@@ -42,8 +43,8 @@ void tvm_cutlass_fp8_gemm(NDArray x, NDArray weight, NDArray workspace, NDArray 
                           NDArray out) {
   // Workspace is used for storing device-side gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
-  static auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-  cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
+  cudaStream_t stream =
+      static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, x->device.device_id));
 
   CHECK_GE(x->ndim, 2);
   CHECK_EQ(weight->ndim, 2);
@@ -68,7 +69,7 @@ void tvm_cutlass_fp8_gemm(NDArray x, NDArray weight, NDArray workspace, NDArray 
         static_cast<float*>(alpha->data), beta, static_cast<ElementC*>(out->data), stream);
   } else {
     tvm::contrib::CuBlasLtThreadEntry* cublas_entry =
-        tvm::contrib::CuBlasLtThreadEntry::ThreadLocal();
+        tvm::contrib::CuBlasLtThreadEntry::ThreadLocal(x->device);
     tvm::contrib::CallCublasLt(cublas_entry->handle, stream, cublas_entry->matmul_pref_desc,
                                x.operator->(), weight.operator->(), nullptr, alpha.operator->(),
                                nullptr, out.operator->(), /*transa=*/false, /*transb=*/true,

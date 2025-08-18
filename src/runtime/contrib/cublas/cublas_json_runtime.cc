@@ -22,6 +22,7 @@
  * \brief A simple JSON runtime for CUBLAS.
  */
 
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/ndarray.h>
@@ -30,6 +31,7 @@
 #include <string>
 #include <vector>
 
+#include "../../cuda/cuda_common.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 #include "cublas_utils.h"
@@ -67,13 +69,8 @@ class CublasJSONRuntime : public JSONRuntimeBase {
   const char* kind() const override { return "cublas_json"; }  // May be overridden
 
   void Run(ffi::PackedArgs args) {
-    auto* entry_ptr = tvm::contrib::CuBlasLtThreadEntry::ThreadLocal();
-
-    auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-    cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
-
     std::vector<const DLTensor*> dl_tensors(NumEntries());
-
+    int device_id = -1;
     for (size_t i = 0; i < static_cast<size_t>(args.size()); i++) {
       auto eid = i < input_var_eid_.size() ? input_var_eid_[i]
                                            : EntryID(outputs_[i - input_var_eid_.size()]);
@@ -87,7 +84,14 @@ class CublasJSONRuntime : public JSONRuntimeBase {
       }
 
       dl_tensors[eid] = arg;
+      device_id = arg->device.device_id;
     }
+
+    if (device_id == -1) {
+      CUDA_CALL(cudaGetDevice(&device_id));
+    }
+    auto* entry_ptr = tvm::contrib::CuBlasLtThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
+    cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, device_id));
 
     auto get_input = [this, &dl_tensors](const JSONGraphNode& node, int idx) {
       ICHECK_LT(idx, node.GetInputs().size());

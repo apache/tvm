@@ -24,6 +24,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
@@ -249,14 +250,6 @@ class CUDADeviceAPI final : public DeviceAPI {
     CUDA_CALL(cudaStreamSynchronize(static_cast<cudaStream_t>(stream)));
   }
 
-  void SetStream(Device dev, TVMStreamHandle stream) final {
-    CUDAThreadEntry::ThreadLocal()->stream = static_cast<cudaStream_t>(stream);
-  }
-
-  TVMStreamHandle GetCurrentStream(Device dev) final {
-    return static_cast<TVMStreamHandle>(CUDAThreadEntry::ThreadLocal()->stream);
-  }
-
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
     return CUDAThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
   }
@@ -306,9 +299,16 @@ class CUDATimerNode : public TimerNode {
   virtual void Start() {
     // This initial cudaEventRecord is sometimes pretty slow (~100us). Does
     // cudaEventRecord do some stream synchronization?
-    CUDA_CALL(cudaEventRecord(start_, CUDAThreadEntry::ThreadLocal()->stream));
+    int device_id;
+    CUDA_CALL(cudaGetDevice(&device_id));
+    stream_ = TVMFFIEnvGetCurrentStream(kDLCUDA, device_id);
+    CUDA_CALL(cudaEventRecord(start_, static_cast<cudaStream_t>(stream_)));
   }
-  virtual void Stop() { CUDA_CALL(cudaEventRecord(stop_, CUDAThreadEntry::ThreadLocal()->stream)); }
+  virtual void Stop() {
+    int device_id;
+    CUDA_CALL(cudaGetDevice(&device_id));
+    CUDA_CALL(cudaEventRecord(stop_, static_cast<cudaStream_t>(stream_)));
+  }
   virtual int64_t SyncAndGetElapsedNanos() {
     CUDA_CALL(cudaEventSynchronize(stop_));
     float milliseconds = 0;
@@ -330,6 +330,7 @@ class CUDATimerNode : public TimerNode {
  private:
   cudaEvent_t start_;
   cudaEvent_t stop_;
+  TVMStreamHandle stream_;
 };
 
 TVM_FFI_STATIC_INIT_BLOCK({
@@ -351,8 +352,13 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef()
       .def("runtime.GetCudaFreeMemory", GetCudaFreeMemory)
-      .def("runtime.get_cuda_stream",
-           []() { return static_cast<void*>(CUDAThreadEntry::ThreadLocal()->stream); });
+      .def("runtime.get_cuda_stream", []() {
+        // TODO(tvm-team): remove once confirms all dep such as flashinfer
+        // migrated to TVMFFIEnvGetCurrentStream
+        int device_id;
+        CUDA_CALL(cudaGetDevice(&device_id));
+        return static_cast<void*>(TVMFFIEnvGetCurrentStream(kDLCUDA, device_id));
+      });
 });
 
 TVM_DLL int GetCudaDeviceCount() {

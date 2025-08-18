@@ -29,6 +29,39 @@
 extern "C" {
 #endif
 
+// ----------------------------------------------------------------------------
+// Stream context
+// Focusing on minimalistic thread-local context recording stream being used.
+// We explicitly not handle allocation/de-allocation of stream here.
+// ----------------------------------------------------------------------------
+typedef void* TVMFFIStreamHandle;
+
+/*!
+ * \brief FFI function to set the current stream for a device
+ *
+ * \param device_type The type of the device.
+ * \param device_id The id of the device.
+ * \param stream The stream to set.
+ * \param opt_out_original_stream Output original stream if the address is not nullptr.
+ * \note The stream is a weak reference that is cached/owned by the module.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIEnvSetStream(int32_t device_type, int32_t device_id,
+                                   TVMFFIStreamHandle stream,
+                                   TVMFFIStreamHandle* opt_out_original_stream);
+
+/*!
+ * \brief FFI function to get the current stream for a device
+ *
+ * \param device_type The type of the device.
+ * \param device_id The id of the device.
+ * \return The current stream of the device.
+ */
+TVM_FFI_DLL TVMFFIStreamHandle TVMFFIEnvGetCurrentStream(int32_t device_type, int32_t device_id);
+
+// ----------------------------------------------------------------------------
+// Module symbol management
+// ----------------------------------------------------------------------------
 /*!
  * \brief FFI function to lookup a function from a module's imports.
  *

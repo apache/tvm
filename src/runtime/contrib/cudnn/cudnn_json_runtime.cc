@@ -22,6 +22,7 @@
  * \brief A simple JSON runtime for CUDNN.
  */
 
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/ndarray.h>
@@ -100,7 +101,9 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
   }
 
   std::function<void()> GetConv2DExec(const JSONGraphNode& node) {
-    auto* entry_ptr = tvm::contrib::CuDNNThreadEntry::ThreadLocal();
+    int device_id;
+    CUDA_CALL(cudaGetDevice(&device_id));
+    auto* entry_ptr = tvm::contrib::CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
     auto op_name = node.GetOpName();
 
     std::vector<int> input_dims, kernel_dims, output_dims;
@@ -159,7 +162,10 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
 
     int algo = best_algo.cast<int>();
     std::function<void()> op_exec = [=]() {
-      auto stream = static_cast<cudaStream_t>(GetCUDAStream());
+      int device_id;
+      CUDA_CALL(cudaGetDevice(&device_id));
+      cudaStream_t stream =
+          static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, device_id));
       CUDNN_CALL(cudnnSetStream(entry_ptr->handle, stream));
 
       auto get_inputs = [this](const JSONGraphNode& node, bool has_bias) {

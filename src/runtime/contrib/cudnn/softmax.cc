@@ -40,8 +40,9 @@ void softmax_impl(cudnnSoftmaxAlgorithm_t alg, ffi::PackedArgs args, ffi::Any* r
   int64_t* shape = x->shape;
   if (axis < 0) axis += ndim;
   ICHECK(axis >= 0 && axis < ndim);
-
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  int device_id;
+  CUDA_CALL(cudaGetDevice(&device_id));
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
   entry_ptr->softmax_entry.data_type = CuDNNDataType::DLTypeToCuDNNType(x->dtype);
 
   // Set mode and shape descriptor

@@ -416,7 +416,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
                     auto A = args[0].cast<DLTensor*>();
                     auto C = args[2].cast<DLTensor*>();
 
-                    HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal();
+                    HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal(A->device);
 
                     if (TypeEqual(A->dtype, C->dtype)) {
                       ICHECK(TypeMatch(A->dtype, kDLFloat, 16) ||
@@ -438,7 +438,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         auto A = args[0].cast<DLTensor*>();
         auto C = args[2].cast<DLTensor*>();
 
-        HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal();
+        HipBlasThreadEntry* entry_ptr = HipBlasThreadEntry::ThreadLocal(A->device);
 
         if (TypeEqual(A->dtype, C->dtype)) {
           ICHECK(TypeMatch(A->dtype, kDLFloat, 16) || TypeMatch(A->dtype, kDLFloat, 32) ||

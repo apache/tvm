@@ -59,8 +59,10 @@ TVM_FFI_STATIC_INIT_BLOCK({
             const int w_dim3 = args[15].cast<int>();
             const int n_group = args[16].cast<int>();
             void* out_shape = args[17].cast<void*>();
-
-            MIOpenThreadEntry* entry_ptr = MIOpenThreadEntry::ThreadLocal();
+            int device_id = -1;
+            ROCM_CALL(hipGetDevice(&device_id));
+            MIOpenThreadEntry* entry_ptr =
+                MIOpenThreadEntry::ThreadLocal(Device{kDLROCM, device_id});
             assert(n_group > 0 && "Group Size > 0 is expected");
             if (n_group > 1)
               assert(mode > 1 && "Group /Depthwise Conv mode when num of groups > 1");
@@ -168,7 +170,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         const auto w = args[10].cast<DLTensor*>();
         const auto y = args[11].cast<DLTensor*>();
 
-        MIOpenThreadEntry* entry_ptr = MIOpenThreadEntry::ThreadLocal();
+        MIOpenThreadEntry* entry_ptr = MIOpenThreadEntry::ThreadLocal(x->device);
         entry_ptr->conv_entry.fwd_algo = static_cast<miopenConvFwdAlgorithm_t>(algo);
         // Set Mode
         entry_ptr->conv_entry.mode = static_cast<miopenConvolutionMode_t>(mode);

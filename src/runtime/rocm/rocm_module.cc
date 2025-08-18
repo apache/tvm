@@ -24,6 +24,7 @@
 
 #include <dmlc/memory_io.h>
 #include <hip/hip_runtime_api.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 
@@ -171,7 +172,7 @@ class ROCMWrappedFunc {
       fcache_[device_id] = m_->GetFunc(device_id, func_name_);
     }
 
-    hipStream_t strm = static_cast<hipStream_t>(ROCMThreadEntry::ThreadLocal()->stream);
+    hipStream_t strm = static_cast<hipStream_t>(TVMFFIEnvGetCurrentStream(kDLROCM, device_id));
 
     ThreadWorkLoad wl = launch_param_config_.Extract(args);
     void* config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER, packed_args, HIP_LAUNCH_PARAM_BUFFER_SIZE,

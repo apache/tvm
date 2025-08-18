@@ -19,6 +19,7 @@
 #include "../../../3rdparty/nvbench/l2_cache_flush.h"
 
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
@@ -37,7 +38,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
   refl::GlobalDef().def_packed("l2_cache_flush_cuda", [](ffi::PackedArgs args, ffi::Any* rv) {
     ICHECK(L2Flush::ThreadLocal() != nullptr) << "L2Flush::ThreadLocal do not exist.";
-    cudaStream_t stream = CUDAThreadEntry::ThreadLocal()->stream;
+    int device_id;
+    CUDA_CALL(cudaGetDevice(&device_id));
+    cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, device_id));
     L2Flush::ThreadLocal()->Flush(stream);
   });
 });

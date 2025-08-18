@@ -35,7 +35,7 @@ using namespace runtime;
 void ConvolutionBackwardData(int mode, int format, int algo, int dims, int groups, const int pad[],
                              const int stride[], const int dilation[], DLTensor* dy, DLTensor* w,
                              DLTensor* dx, const std::string& conv_dtype) {
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(dy->device);
   // Set Mode
   entry_ptr->conv_entry.mode = static_cast<cudnnConvolutionMode_t>(mode);
   SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, dx->shape, w->shape,
@@ -65,7 +65,9 @@ void BackwardDataFindAlgo(int format, int dims, int groups, const int pad[], con
                           const int dilation[], const int dy_dim[], const int w_dim[],
                           const int dx_dim[], const std::string& data_dtype,
                           const std::string& conv_dtype, bool verbose, ffi::Any* ret) {
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  int device_id;
+  CUDA_CALL(cudaGetDevice(&device_id));
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
   const int full_dims = dims + 2;
   std::vector<int64_t> dy_dim_int64(full_dims);
   std::vector<int64_t> w_dim_int64(full_dims);
@@ -112,7 +114,7 @@ void ConvolutionBackwardFilter(int mode, int format, int algo, int dims, int gro
                                const int pad[], const int stride[], const int dilation[],
                                DLTensor* dy, DLTensor* x, DLTensor* dw,
                                const std::string& conv_dtype) {
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(x->device);
   // Set Mode
   entry_ptr->conv_entry.mode = static_cast<cudnnConvolutionMode_t>(mode);
   SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, x->shape, dw->shape,
@@ -142,7 +144,9 @@ void BackwardFilterFindAlgo(int format, int dims, int groups, const int pad[], c
                             const int dilation[], const int dy_dim[], const int x_dim[],
                             const int dw_dim[], const std::string& data_dtype,
                             const std::string& conv_dtype, bool verbose, ffi::Any* ret) {
-  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal();
+  int device_id;
+  CUDA_CALL(cudaGetDevice(&device_id));
+  CuDNNThreadEntry* entry_ptr = CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id});
   const int full_dims = dims + 2;
   std::vector<int64_t> x_dim_int64(full_dims);
   std::vector<int64_t> dy_dim_int64(full_dims);

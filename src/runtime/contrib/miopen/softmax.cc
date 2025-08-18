@@ -45,7 +45,7 @@ void softmax_impl(ffi::PackedArgs args, ffi::Any* ret, miopenSoftmaxAlgorithm_t 
   ICHECK(TypeMatch(x->dtype, kDLFloat, 32));
   ICHECK(TypeMatch(y->dtype, kDLFloat, 32));
 
-  MIOpenThreadEntry* entry_ptr = MIOpenThreadEntry::ThreadLocal();
+  MIOpenThreadEntry* entry_ptr = MIOpenThreadEntry::ThreadLocal(x->device);
 
   miopenSoftmaxMode_t mode;
   if (axis == ndim - 1) {

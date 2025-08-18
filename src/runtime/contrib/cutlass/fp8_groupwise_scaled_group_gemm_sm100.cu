@@ -37,8 +37,8 @@ void tvm_fp8_groupwise_scaled_group_gemm_sm100(NDArray a, NDArray b, NDArray sca
                                                NDArray out) {
   // Workspace is used for storing device-side group gemm arguments and cutlass internal workspace.
   // Recommended size is 4MB.
-  static auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-  cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
+  cudaStream_t stream =
+      static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, a->device.device_id));
   CHECK_EQ(a->ndim, 2);
   CHECK_EQ(b->ndim, 3);
   CHECK_EQ(indptr->ndim, 1);

@@ -230,6 +230,7 @@ void TVMPluginCodeGen::CodeGenOpRuntime(const Plugin& plugin) {
   const auto& attr_name = MetaAttrCls(plugin);
   const auto& func_name = ComputeName(plugin);
   String device_cond = "";
+  String device_index = "";
   for (size_t i = 0; i < plugin->inputs.size(); i++) {
     String device_type = "";
     if (plugin->inputs[i]->device == "cuda" || plugin->inputs[i]->device == "default") {
@@ -381,7 +382,8 @@ void TVMPluginCodeGen::CodeGenCompute(const Plugin& plugin, const String& device
       ICHECK(plugin->buffers.size() == 0) << "Plugin with buffers is not supported in tvm";
       compute_args.push_back("meta_attr");
       if (device == "cuda") {
-        stack_.assign("stream", "runtime::CUDAThreadEntry::ThreadLocal()->stream", "auto");
+        // TODO(tvm-team): update to support get stream from device id
+        stack_.assign("stream", "TVMFFIEnvGetCurrentStream(kDLCUDA, 0)", "auto");
         compute_args.push_back("stream");
       }
       CodeGenSafeCall(plugin->externs[device + "_compute"], compute_args);
