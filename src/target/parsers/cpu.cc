@@ -60,7 +60,6 @@ TargetJSON ParseTarget(TargetJSON target) {
   return target;
 }
 
-
 }  // namespace cpu
 }  // namespace parsers
 }  // namespace target

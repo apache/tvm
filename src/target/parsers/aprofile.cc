@@ -80,7 +80,6 @@ bool CheckContains(Array<String> array, String predicate) {
   return std::any_of(array.begin(), array.end(), [&](String var) { return var == predicate; });
 }
 
-
 static TargetFeatures GetFeatures(TargetJSON target) {
 #ifdef TVM_LLVM_VERSION
   String kind = Downcast<String>(target.Get("kind").value());

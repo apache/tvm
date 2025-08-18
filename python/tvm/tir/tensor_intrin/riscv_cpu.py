@@ -177,12 +177,10 @@ def rvv_vmacc(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int
                 T.call_llvm_intrin(
                     llvm_macc_dtype,
                     expand_llvm_intrinsic,
-                    T.uint32(3),
                     T.broadcast(broadcast_output, n_output_dtype * T.vscale()),
                     T.call_llvm_intrin(
                         llvm_input_dtype,
                         load_llvm_intrinsic,
-                        T.uint32(3),
                         T.broadcast(broadcast_input, n_input_dtype * T.vscale()),
                         A.access_ptr(access_mask=A.READ, ptr_type="handle"),
                         T.int64(vlmax),
@@ -193,7 +191,6 @@ def rvv_vmacc(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int
                 else T.call_llvm_intrin(
                     llvm_input_dtype,
                     load_llvm_intrinsic,
-                    T.uint32(3),
                     T.broadcast(broadcast_input, n_input_dtype * T.vscale()),
                     A.access_ptr(access_mask=A.READ, ptr_type="handle"),
                     T.int64(vlmax),
@@ -204,12 +201,10 @@ def rvv_vmacc(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int
                 T.call_llvm_intrin(
                     llvm_macc_dtype,
                     expand_llvm_intrinsic,
-                    T.uint32(3),
                     T.broadcast(broadcast_output, n_output_dtype * T.vscale()),
                     T.call_llvm_intrin(
                         llvm_input_dtype,
                         load_llvm_intrinsic,
-                        T.uint32(3),
                         T.broadcast(broadcast_input, n_input_dtype * T.vscale()),
                         B.access_ptr(access_mask=B.READ, ptr_type="handle"),
                         T.int64(vlmax),
@@ -220,7 +215,6 @@ def rvv_vmacc(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int
                 else T.call_llvm_intrin(
                     llvm_input_dtype,
                     load_llvm_intrinsic,
-                    T.uint32(3),
                     T.broadcast(broadcast_input, n_input_dtype * T.vscale()),
                     B.access_ptr(access_mask=B.READ, ptr_type="handle"),
                     T.int64(vlmax),
@@ -230,7 +224,6 @@ def rvv_vmacc(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int
             init = T.call_llvm_intrin(
                 llvm_macc_dtype,
                 init_llvm_intrinsic,
-                T.uint32(3),
                 T.broadcast(broadcast_output, n_output_dtype * T.vscale()),
                 C.access_ptr(access_mask=C.READ, ptr_type="handle"),
                 T.uint64(vlmax),
@@ -240,7 +233,6 @@ def rvv_vmacc(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int
                 T.call_llvm_intrin(
                     llvm_macc_dtype,
                     macc_llvm_intrinsic,
-                    T.uint32(6),
                     init,
                     vec_A,
                     vec_B,
@@ -252,7 +244,6 @@ def rvv_vmacc(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int
                 else T.call_llvm_intrin(
                     llvm_macc_dtype,
                     macc_llvm_intrinsic,
-                    T.uint32(5),
                     init,
                     vec_A,
                     vec_B,
@@ -264,7 +255,6 @@ def rvv_vmacc(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int
             T.call_llvm_intrin(
                 "",
                 store_llvm_intrinsic,
-                T.uint32(3),
                 product,
                 C.access_ptr(access_mask=C.WRITE, ptr_type="handle"),
                 T.uint64(vlmax),
@@ -362,12 +352,10 @@ def rvv_multivmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul:
                 T.call_llvm_intrin(
                     llvm_mult_dtype,
                     expand_llvm_intrinsic,
-                    T.uint32(3),
                     T.broadcast(broadcast_intermmediate, n_intermmediate_dtype * T.vscale()),
                     T.call_llvm_intrin(
                         llvm_input_dtype,
                         load_llvm_intrinsic,
-                        T.uint32(3),
                         T.broadcast(broadcast_input, n_input_dtype * T.vscale()),
                         A.access_ptr(access_mask=A.READ, ptr_type="handle"),
                         T.int64(vlmax),
@@ -378,7 +366,6 @@ def rvv_multivmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul:
                 else T.call_llvm_intrin(
                     llvm_input_dtype,
                     load_llvm_intrinsic,
-                    T.uint32(3),
                     T.broadcast(broadcast_input, n_input_dtype * T.vscale()),
                     A.access_ptr(access_mask=A.READ, ptr_type="handle"),
                     T.int64(vlmax),
@@ -389,12 +376,10 @@ def rvv_multivmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul:
                 T.call_llvm_intrin(
                     llvm_mult_dtype,
                     expand_llvm_intrinsic,
-                    T.uint32(3),
                     T.broadcast(broadcast_intermmediate, n_intermmediate_dtype * T.vscale()),
                     T.call_llvm_intrin(
                         llvm_input_dtype,
                         load_llvm_intrinsic,
-                        T.uint32(3),
                         T.broadcast(broadcast_input, n_input_dtype * T.vscale()),
                         B.access_ptr(access_mask=B.READ, ptr_type="handle"),
                         T.int64(vlmax),
@@ -405,7 +390,6 @@ def rvv_multivmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul:
                 else T.call_llvm_intrin(
                     llvm_kernel_dtype,
                     load_llvm_intrinsic,
-                    T.uint32(3),
                     T.broadcast(broadcast_kernel, n_kernel_dtype * T.vscale()),
                     B.access_ptr(access_mask=B.READ, ptr_type="handle"),
                     T.int64(vlmax),
@@ -415,7 +399,6 @@ def rvv_multivmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul:
             redsum = T.call_llvm_intrin(
                 llvm_redsum_dtype,
                 init_llvm_intrinsic,
-                T.uint32(3),
                 T.broadcast(broadcast_output, n_redsum_dtype * T.vscale()),
                 C[0],
                 T.uint64(1),
@@ -425,7 +408,6 @@ def rvv_multivmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul:
                 T.call_llvm_intrin(
                     llvm_mult_dtype,
                     mult_llvm_intrinsic,
-                    T.uint32(5),
                     T.broadcast(broadcast_output, n_intermmediate_dtype * T.vscale()),
                     vec_A,
                     vec_B,
@@ -436,7 +418,6 @@ def rvv_multivmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul:
                 else T.call_llvm_intrin(
                     llvm_mult_dtype,
                     mult_llvm_intrinsic,
-                    T.uint32(4),
                     T.broadcast(broadcast_output, n_intermmediate_dtype * T.vscale()),
                     vec_A,
                     vec_B,
@@ -448,7 +429,6 @@ def rvv_multivmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul:
                 T.call_llvm_intrin(
                     llvm_redsum_dtype,
                     redsum_llvm_intrinsic,
-                    T.uint32(5),
                     T.broadcast(broadcast_output, n_redsum_dtype * T.vscale()),
                     product,
                     redsum,
@@ -459,7 +439,6 @@ def rvv_multivmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul:
                 else T.call_llvm_intrin(
                     llvm_redsum_dtype,
                     redsum_llvm_intrinsic,
-                    T.uint32(4),
                     T.broadcast(broadcast_output, n_redsum_dtype * T.vscale()),
                     product,
                     redsum,
@@ -470,7 +449,6 @@ def rvv_multivmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul:
             T.call_llvm_intrin(
                 "",
                 store_llvm_intrinsic,
-                T.uint32(3),
                 redsum_result,
                 C.access_ptr(access_mask=C.WRITE, ptr_type="handle"),
                 T.uint64(1),
@@ -560,12 +538,10 @@ def rvv_vmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int)
                 T.call_llvm_intrin(
                     llvm_mult_dtype,
                     expand_llvm_intrinsic,
-                    T.uint32(3),
                     T.broadcast(broadcast_intermmediate, n_intermmediate_dtype * T.vscale()),
                     T.call_llvm_intrin(
                         llvm_input_dtype,
                         load_llvm_intrinsic,
-                        T.uint32(3),
                         T.broadcast(broadcast_input, n_input_dtype * T.vscale()),
                         A.access_ptr(access_mask=A.READ, ptr_type="handle"),
                         T.int64(vlmax),
@@ -576,7 +552,6 @@ def rvv_vmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int)
                 else T.call_llvm_intrin(
                     llvm_input_dtype,
                     load_llvm_intrinsic,
-                    T.uint32(3),
                     T.broadcast(broadcast_input, n_input_dtype * T.vscale()),
                     A.access_ptr(access_mask=A.READ, ptr_type="handle"),
                     T.int64(vlmax),
@@ -587,12 +562,10 @@ def rvv_vmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int)
                 T.call_llvm_intrin(
                     llvm_mult_dtype,
                     expand_llvm_intrinsic,
-                    T.uint32(3),
                     T.broadcast(broadcast_intermmediate, n_intermmediate_dtype * T.vscale()),
                     T.call_llvm_intrin(
                         llvm_input_dtype,
                         load_llvm_intrinsic,
-                        T.uint32(3),
                         T.broadcast(broadcast_input, n_input_dtype * T.vscale()),
                         B.access_ptr(access_mask=B.READ, ptr_type="handle"),
                         T.int64(vlmax),
@@ -603,7 +576,6 @@ def rvv_vmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int)
                 else T.call_llvm_intrin(
                     llvm_kernel_dtype,
                     load_llvm_intrinsic,
-                    T.uint32(3),
                     T.broadcast(broadcast_kernel, n_kernel_dtype * T.vscale()),
                     B.access_ptr(access_mask=B.READ, ptr_type="handle"),
                     T.int64(vlmax),
@@ -613,7 +585,6 @@ def rvv_vmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int)
             redsum = T.call_llvm_intrin(
                 llvm_redsum_dtype,
                 init_llvm_intrinsic,
-                T.uint32(3),
                 T.broadcast(broadcast_output, n_redsum_dtype * T.vscale()),
                 C[0],
                 T.uint64(1),
@@ -623,7 +594,6 @@ def rvv_vmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int)
                 T.call_llvm_intrin(
                     llvm_mult_dtype,
                     mult_llvm_intrinsic,
-                    T.uint32(5),
                     T.broadcast(broadcast_output, n_intermmediate_dtype * T.vscale()),
                     vec_A,
                     vec_B,
@@ -634,7 +604,6 @@ def rvv_vmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int)
                 else T.call_llvm_intrin(
                     llvm_mult_dtype,
                     mult_llvm_intrinsic,
-                    T.uint32(4),
                     T.broadcast(broadcast_output, n_intermmediate_dtype * T.vscale()),
                     vec_A,
                     vec_B,
@@ -646,7 +615,6 @@ def rvv_vmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int)
                 T.call_llvm_intrin(
                     llvm_redsum_dtype,
                     redsum_llvm_intrinsic,
-                    T.uint32(5),
                     T.broadcast(broadcast_output, n_redsum_dtype * T.vscale()),
                     product,
                     redsum,
@@ -657,7 +625,6 @@ def rvv_vmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int)
                 else T.call_llvm_intrin(
                     llvm_redsum_dtype,
                     redsum_llvm_intrinsic,
-                    T.uint32(4),
                     T.broadcast(broadcast_output, n_redsum_dtype * T.vscale()),
                     product,
                     redsum,
@@ -668,7 +635,6 @@ def rvv_vmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int)
             T.call_llvm_intrin(
                 "",
                 store_llvm_intrinsic,
-                T.uint32(3),
                 redsum_result,
                 C.access_ptr(access_mask=C.WRITE, ptr_type="handle"),
                 T.uint64(1),
