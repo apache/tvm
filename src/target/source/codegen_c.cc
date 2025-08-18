@@ -268,8 +268,6 @@ std::string CodeGenC::GetBufferRef(DataType t, const BufferNode* buffer, PrimExp
        << " + " << index_str << " / " << div_factor << ")";
   } else if (t == buffer_element_dtype) {
     os << buffer_str << "[" << index_str << "]";
-  } else if (t == buffer_element_dtype) {
-    os << buffer_str << "[" << index_str << "]";
   } else {
     os << "*" << ptr_cast(t) << "(" << buffer_str << " + " << index_str << ")";
   }

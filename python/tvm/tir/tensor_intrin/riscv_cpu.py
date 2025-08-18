@@ -20,9 +20,12 @@
 **Author**: `Federico Peccia <https://fPecc.github.io/>`_
 """
 import re
+import logging
 from tvm.script import tir as T
-from tvm.target.datatype import lower_call_pure_extern, register, register_op
+from tvm.target.codegen import llvm_get_vector_width
 from .. import TensorIntrin
+
+logger = logging.getLogger(__name__)
 
 #####################################################
 # LLVM RISC-V Intrinsic usage:
@@ -327,7 +330,7 @@ def rvv_multivmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul:
     @T.prim_func
     def rvv_multivmul_desc(
         A: T.Buffer((int(vlmax),), input_dtype, align=4, offset_factor=1),
-        B: T.Buffer((J, int(vlmax)), kernel_dtype, align=4, offset_factor=1),
+        B: T.Buffer((J, int(vlmax)), input_dtype, align=4, offset_factor=1),
         C: T.Buffer((J,), output_dtype, align=4, offset_factor=1),
     ) -> None:
         with T.block("root"):
@@ -345,7 +348,7 @@ def rvv_multivmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul:
     def rvv_multivmul_llvm_impl(
         A: T.Buffer((int(vlmax),), input_dtype, align=4, offset_factor=1),
         B: T.Buffer(
-            (J, int(vlmax)), kernel_dtype, align=4, offset_factor=1, strides=[T.int32(), T.int32()]
+            (J, int(vlmax)), input_dtype, align=4, offset_factor=1, strides=[T.int32(), T.int32()]
         ),
         C: T.Buffer((J,), output_dtype, align=4, offset_factor=1),
     ) -> None:
@@ -530,7 +533,7 @@ def rvv_vmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int)
     @T.prim_func
     def rvv_vmul_desc(
         A: T.Buffer((int(vlmax),), input_dtype, align=4, offset_factor=1),
-        B: T.Buffer((int(vlmax),), kernel_dtype, align=4, offset_factor=1),
+        B: T.Buffer((int(vlmax),), input_dtype, align=4, offset_factor=1),
         C: T.Buffer((1,), output_dtype, align=4, offset_factor=1),
     ) -> None:
         with T.block("root"):
@@ -544,7 +547,7 @@ def rvv_vmul(J: int, vlmax: int, input_dtype: str, output_dtype: str, lmul: int)
     @T.prim_func
     def rvv_vmul_llvm_impl(
         A: T.Buffer((int(vlmax),), input_dtype, align=4, offset_factor=1),
-        B: T.Buffer((int(vlmax),), kernel_dtype, align=4, offset_factor=1),
+        B: T.Buffer((int(vlmax),), input_dtype, align=4, offset_factor=1),
         C: T.Buffer((1,), output_dtype, align=4, offset_factor=1),
     ) -> None:
 
@@ -690,7 +693,7 @@ def register_intrinsic_combinations(
 
             desc, impl = generator(J, current_vlmax, input_dtype, output_dtype, lmul)
 
-            print(f"Registering intrin {name}...")
+            logger.debug(f"Registering intrin {name}...")
 
             TensorIntrin.register(name, desc, impl, override=True)
 
@@ -701,25 +704,7 @@ def register_riscv_tensor_intrinsics(target):
     target_kind = target.kind.name
     assert target_kind in ["llvm"]
 
-    #####################################################
-    # Register custom RVV types for C code generation
-    #####################################################
-    dtype_counter = 0
-    for bits in [8, 16, 32, 64]:
-        for dtype in ["int", "uint", "float"]:
-            for m in [1, 2, 4, 8]:
-                custom_rvv_type = f"v{dtype}{bits}m{m}_t"
-                register(custom_rvv_type, 150 + dtype_counter)
-                register_op(
-                    lower_call_pure_extern,
-                    "Call",
-                    "c",
-                    custom_rvv_type,
-                    intrinsic_name="tir.call_pure_extern",
-                )
-                dtype_counter += 1
-
-    vlen = get_vlen_from_mattrs(target.mattr)
+    vlen = llvm_get_vector_width(target)
 
     for vmul_type, func, outer_loops in zip(
         ["vmacc", "multivmul", "vmul"],
@@ -727,7 +712,7 @@ def register_riscv_tensor_intrinsics(target):
         [[1], [get_vlmax(vlen, lmul=1, max_sew=32)], [1]],
     ):
 
-        for idtype, odtype in zip(["int16", "float32"], ["int32", "float32"]):
+        for idtype, odtype in zip(["int16", "float16", "float32"], ["int32", "float16", "float32"]):
 
             if idtype == "float32" and vmul_type == "multivmul":
                 continue

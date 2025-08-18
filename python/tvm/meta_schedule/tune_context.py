@@ -28,6 +28,7 @@ from tvm.ffi import register_object, register_func
 from tvm.runtime import Object
 from tvm.target import Target
 from tvm.tir import PrimFunc, Schedule
+from tvm.target.codegen import target_has_features
 
 from . import _ffi_api
 from .logging import Logger, get_logger, get_logging_func
@@ -118,8 +119,7 @@ class TuneContext(Object):
             if not isinstance(target, Target):
                 target = Target(target)
             if "riscv_cpu" in target.keys:
-                base_features = str(target.attrs["march"]).split("_")[0].replace("rv", "")
-                if "v" in base_features:
+                if target_has_features("v", target):
                     # Because the RVV intrinsics depend on the target, we register them here
                     # pylint: disable=import-outside-toplevel
                     from tvm.tir.tensor_intrin.riscv_cpu import register_riscv_tensor_intrinsics
