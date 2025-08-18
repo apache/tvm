@@ -205,6 +205,14 @@ cdef extern from "tvm/ffi/c_api.h":
     DLTensor* TVMFFINDArrayGetDLTensorPtr(TVMFFIObjectHandle obj) nogil
     DLDevice TVMFFIDLDeviceFromIntPair(int32_t device_type, int32_t device_id) nogil
 
+cdef extern from "tvm/ffi/extra/c_env_api.h":
+    ctypedef void* TVMFFIStreamHandle
+
+    void* TVMFFIEnvGetCurrentStream(int32_t device_type, int32_t device_id) nogil
+    int TVMFFIEnvSetStream(int32_t device_type, int32_t device_id,
+                           TVMFFIStreamHandle stream,
+                           TVMFFIStreamHandle* opt_out_original_stream) nogil
+
 
 cdef class ByteArrayArg:
     cdef TVMFFIByteArray cdata
