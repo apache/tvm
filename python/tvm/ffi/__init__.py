@@ -30,6 +30,7 @@ from .ndarray import Device, device
 from .ndarray import cpu, cuda, rocm, opencl, metal, vpi, vulkan, ext_dev, hexagon, webgpu
 from .ndarray import from_dlpack, NDArray, Shape
 from .container import Array, Map
+from .module import Module, ModulePropertyMask, system_lib, load_module
 from . import serialization
 from . import access_path
 from . import testing
@@ -71,4 +72,8 @@ __all__ = [
     "testing",
     "access_path",
     "serialization",
+    "Module",
+    "ModulePropertyMask",
+    "system_lib",
+    "load_module",
 ]
