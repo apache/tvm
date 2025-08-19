@@ -312,17 +312,6 @@ void MetalWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
   };
 }
 
-void MetalWorkspace::SetStream(Device dev, TVMStreamHandle stream) {
-  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
-  ICHECK(stream != nullptr);
-  MetalThreadEntry::ThreadLocal()->stream[dev.device_id] = stream;
-}
-
-TVMStreamHandle MetalWorkspace::GetCurrentStream(Device dev) {
-  ICHECK_LT(dev.device_id, devices.size()) << "Invalid device id " << dev.device_id;
-  return MetalThreadEntry::ThreadLocal()->stream[dev.device_id];
-}
-
 void* MetalWorkspace::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
   return MetalThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
 }

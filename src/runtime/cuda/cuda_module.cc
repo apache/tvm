@@ -25,6 +25,7 @@
 #include <cuda.h>
 #include <cuda_runtime.h>
 #include <dmlc/memory_io.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 
@@ -198,7 +199,7 @@ class CUDAWrappedFunc {
         }
       }
     }
-    CUstream strm = static_cast<CUstream>(CUDAThreadEntry::ThreadLocal()->stream);
+    CUstream strm = static_cast<CUstream>(TVMFFIEnvGetCurrentStream(kDLCUDA, device_id));
     CUresult result = cuLaunchKernel(fcache_[device_id], wl.grid_dim(0), wl.grid_dim(1),
                                      wl.grid_dim(2), wl.block_dim(0), wl.block_dim(1),
                                      wl.block_dim(2), wl.dyn_shmem_size, strm, void_args, nullptr);
