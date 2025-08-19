@@ -164,7 +164,13 @@ TVMStreamHandle DeviceAPI::CreateStream(Device dev) { return nullptr; }
 
 void DeviceAPI::FreeStream(Device dev, TVMStreamHandle stream) {}
 
-TVMStreamHandle DeviceAPI::GetCurrentStream(Device dev) { return nullptr; }
+void DeviceAPI::SetStream(Device dev, TVMStreamHandle stream) {
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFIEnvSetStream(dev.device_type, dev.device_id, stream, nullptr));
+}
+
+TVMStreamHandle DeviceAPI::GetCurrentStream(Device dev) {
+  return TVMFFIEnvGetCurrentStream(dev.device_type, dev.device_id);
+}
 
 void DeviceAPI::SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) {
 }
