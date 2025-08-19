@@ -146,10 +146,10 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   if (system_lib_prefix_.has_value() && !target_c_runtime) {
     // We will need this in environment for backward registration.
     // Defined in include/tvm/runtime/c_backend_api.h:
-    // int TVMFFIEnvRegisterSystemLibSymbol(const char* name, void* ptr);
+    // int TVMFFIEnvModRegisterSystemLibSymbol(const char* name, void* ptr);
     f_tvm_register_system_symbol_ = llvm::Function::Create(
         llvm::FunctionType::get(t_int_, {llvmGetPointerTo(t_char_, 0), t_void_p_}, false),
-        llvm::Function::ExternalLinkage, "TVMFFIEnvRegisterSystemLibSymbol", module_.get());
+        llvm::Function::ExternalLinkage, "TVMFFIEnvModRegisterSystemLibSymbol", module_.get());
   } else {
     f_tvm_register_system_symbol_ = nullptr;
   }

@@ -43,7 +43,6 @@ def load_torch_get_current_cuda_stream():
     def fallback_get_current_cuda_stream(device_id):
         """Fallback with python api"""
         return torch.cuda.current_stream(device_id).cuda_stream
-    return fallback_get_current_cuda_stream
     try:
         result = cpp_extension.load_inline(
             name="get_current_cuda_stream",

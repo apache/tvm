@@ -57,7 +57,7 @@ struct ModuleObj::InternalUnsafe {
   static Array<Any>* GetImports(ModuleObj* module) { return &(module->imports_); }
 
   static void* GetFunctionFromImports(ModuleObj* module, const char* name) {
-    // backend implementation for TVMFFIEnvLookupFromImports
+    // backend implementation for TVMFFIEnvModLookupFromImports
     static std::mutex mutex_;
     std::lock_guard<std::mutex> lock(mutex_);
     String s_name(name);

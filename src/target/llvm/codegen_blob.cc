@@ -151,11 +151,11 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
         llvm::FunctionType::get(void_ty, false), llvm::GlobalValue::InternalLinkage,
         llvm::Twine("__cxx_global_var_init"), module.get());
 
-    // Create TVMFFIEnvRegisterSystemLibSymbol function
+    // Create TVMFFIEnvModRegisterSystemLibSymbol function
     llvm::Function* tvm_backend_fn =
         llvm::Function::Create(llvm::FunctionType::get(int32_ty, {int8_ptr_ty, int8_ptr_ty}, false),
                                llvm::GlobalValue::ExternalLinkage,
-                               llvm::Twine("TVMFFIEnvRegisterSystemLibSymbol"), module.get());
+                               llvm::Twine("TVMFFIEnvModRegisterSystemLibSymbol"), module.get());
 
     // Set necessary fn sections
     auto get_static_init_section_specifier = [&triple]() -> std::string {

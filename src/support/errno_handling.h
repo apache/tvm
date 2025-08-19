@@ -24,6 +24,7 @@
 #ifndef TVM_SUPPORT_ERRNO_HANDLING_H_
 #define TVM_SUPPORT_ERRNO_HANDLING_H_
 #include <errno.h>
+#include <tvm/ffi/extra/c_env_api.h>
 
 #include "ssize.h"
 
