@@ -24,6 +24,7 @@
 #include "cudnn_utils.h"
 
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
@@ -101,7 +102,6 @@ const void* CuDNNDataType::GetConst<1>(cudnnDataType_t type) {
 // CuDNNThreadEntry
 
 CuDNNThreadEntry::CuDNNThreadEntry() {
-  auto stream = runtime::CUDAThreadEntry::ThreadLocal()->stream;
   auto func = tvm::ffi::Function::GetGlobalRequired("device_api.cuda");
   void* ret = func().cast<void*>();
   cuda_api = static_cast<runtime::DeviceAPI*>(ret);
@@ -116,8 +116,6 @@ CuDNNThreadEntry::CuDNNThreadEntry() {
     }
     CUDNN_CALL(create_res);
   }
-
-  CUDNN_CALL(cudnnSetStream(handle, stream));
   conv_entry.cuda_api = cuda_api;
 }
 
@@ -125,12 +123,15 @@ CuDNNThreadEntry::~CuDNNThreadEntry() {}
 
 typedef dmlc::ThreadLocalStore<CuDNNThreadEntry> CuDNNThreadStore;
 
-CuDNNThreadEntry* CuDNNThreadEntry::ThreadLocal(bool check_exists) {
+CuDNNThreadEntry* CuDNNThreadEntry::ThreadLocal(Device curr_device, bool check_exists) {
   auto* res = CuDNNThreadStore::Get();
   if (check_exists) {
     ICHECK(res->exists()) << "CUDNN_STATUS_NOT_INITIALIZED";
   }
 
+  cudaStream_t stream = static_cast<cudaStream_t>(
+      TVMFFIEnvGetCurrentStream(curr_device.device_type, curr_device.device_id));
+  CUDNN_CALL(cudnnSetStream(res->handle, stream));
   return res;
 }
 
@@ -268,8 +269,11 @@ SoftmaxEntry::~SoftmaxEntry() { CUDNN_CALL(cudnnDestroyTensorDescriptor(shape_de
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
-  refl::GlobalDef().def("tvm.contrib.cudnn.exists",
-                        []() -> bool { return CuDNNThreadEntry::ThreadLocal(false)->exists(); });
+  refl::GlobalDef().def("tvm.contrib.cudnn.exists", []() -> bool {
+    int device_id;
+    CUDA_CALL(cudaGetDevice(&device_id));
+    return CuDNNThreadEntry::ThreadLocal(DLDevice{kDLCUDA, device_id}, false)->exists();
+  });
 });
 
 }  // namespace contrib

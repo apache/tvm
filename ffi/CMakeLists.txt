@@ -73,6 +73,7 @@ if (TVM_FFI_USE_EXTRA_CXX_API)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/library_module.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/library_module_system_lib.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/library_module_dynamic_lib.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/stream_context.cc"
   )
 endif()
 

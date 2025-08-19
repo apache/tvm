@@ -23,6 +23,7 @@
  */
 
 #include <tvm/ffi/container/array.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/vm/vm.h>
@@ -114,18 +115,20 @@ class ScopedCUDAStream {
 
 class CUDACaptureStream {
  public:
-  explicit CUDACaptureStream(cudaGraph_t* graph)
-      : prev_default_stream_(CUDAThreadEntry::ThreadLocal()->stream), output_graph_(graph) {
-    CUDAThreadEntry::ThreadLocal()->stream = capture_stream_;
-
+  explicit CUDACaptureStream(cudaGraph_t* graph) : output_graph_(graph) {
+    CUDA_CALL(cudaGetDevice(&device_id_));
+    TVM_FFI_CHECK_SAFE_CALL(
+        TVMFFIEnvSetStream(kDLCUDA, device_id_, capture_stream_,
+                           reinterpret_cast<TVMFFIStreamHandle*>(&prev_default_stream_)));
     CUDA_CALL(cudaStreamBeginCapture(capture_stream_, cudaStreamCaptureModeGlobal));
   }
-  ~CUDACaptureStream() {
+  ~CUDACaptureStream() noexcept(false) {
     cudaStreamEndCapture(capture_stream_, output_graph_);
-    CUDAThreadEntry::ThreadLocal()->stream = prev_default_stream_;
+    TVM_FFI_CHECK_SAFE_CALL(TVMFFIEnvSetStream(kDLCUDA, device_id_, prev_default_stream_, nullptr));
   }
 
  private:
+  int device_id_;
   cudaStream_t prev_default_stream_;
   ScopedCUDAStream capture_stream_;
 
@@ -155,7 +158,10 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
     if (auto it = capture_cache_.find(entry_key); it != capture_cache_.end()) {
       // Launch CUDA graph
       const auto& [states, exec] = it->second;
-      CUDA_CALL(cudaGraphLaunch(exec, CUDAThreadEntry::ThreadLocal()->stream));
+      int device_id;
+      CUDA_CALL(cudaGetDevice(&device_id));
+      CUDA_CALL(cudaGraphLaunch(
+          exec, static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, device_id))));
       return states;
     }
 

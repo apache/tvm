@@ -65,10 +65,7 @@ class HipblasJSONRuntime : public JSONRuntimeBase {
   const char* kind() const override { return "hipblas_json"; }  // May be overridden
 
   void Run(ffi::PackedArgs args) {
-    auto* entry_ptr = tvm::contrib::HipBlasLtThreadEntry::ThreadLocal();
-    static auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_rocm_stream");
-    hipStream_t stream = static_cast<hipStream_t>(func().cast<void*>());
-
+    int device_id = -1;
     std::vector<const DLTensor*> dl_tensors(NumEntries());
 
     for (size_t i = 0; i < static_cast<size_t>(args.size()); i++) {
@@ -84,7 +81,13 @@ class HipblasJSONRuntime : public JSONRuntimeBase {
       }
 
       dl_tensors[eid] = arg;
+      device_id = arg->device.device_id;
     }
+    if (device_id == -1) {
+      ROCM_CALL(hipGetDevice(&device_id));
+    }
+    auto* entry_ptr = tvm::contrib::HipBlasLtThreadEntry::ThreadLocal(Device(kDLROCM, device_id));
+    hipStream_t stream = static_cast<hipStream_t>(TVMFFIEnvGetCurrentStream(kDLROCM, device_id));
 
     auto get_input = [this, &dl_tensors](const JSONGraphNode& node, int idx) {
       ICHECK_LT(idx, node.GetInputs().size());

@@ -41,9 +41,10 @@ HipBlasThreadEntry::~HipBlasThreadEntry() {
 
 typedef dmlc::ThreadLocalStore<HipBlasThreadEntry> HipBlasThreadStore;
 
-HipBlasThreadEntry* HipBlasThreadEntry::ThreadLocal() {
-  auto stream = runtime::ROCMThreadEntry::ThreadLocal()->stream;
+HipBlasThreadEntry* HipBlasThreadEntry::ThreadLocal(Device curr_device) {
   HipBlasThreadEntry* retval = HipBlasThreadStore::Get();
+  TVMFFIStreamHandle stream =
+      TVMFFIEnvGetCurrentStream(curr_device.device_type, curr_device.device_id);
   CHECK_HIPBLAS_ERROR(hipblasSetStream(retval->handle, static_cast<hipStream_t>(stream)));
   return retval;
 }
@@ -71,7 +72,9 @@ HipBlasLtThreadEntry::~HipBlasLtThreadEntry() {
 
 typedef dmlc::ThreadLocalStore<HipBlasLtThreadEntry> HipBlasLtThreadStore;
 
-HipBlasLtThreadEntry* HipBlasLtThreadEntry::ThreadLocal() { return HipBlasLtThreadStore::Get(); }
+HipBlasLtThreadEntry* HipBlasLtThreadEntry::ThreadLocal(Device curr_device) {
+  return HipBlasLtThreadStore::Get();
+}
 
 }  // namespace contrib
 

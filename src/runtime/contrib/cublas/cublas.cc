@@ -20,6 +20,7 @@
 /*!
  * \file Use external cblas library call.
  */
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/data_type.h>
@@ -522,7 +523,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         auto A = args[0].cast<DLTensor*>();
         auto C = args[2].cast<DLTensor*>();
 
-        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal(A->device);
 
         CUBLASTryEnableTensorCore(entry_ptr->handle);
 
@@ -549,15 +550,15 @@ TVM_FFI_STATIC_INIT_BLOCK({
       "tvm.contrib.cublaslt.matmul", [](ffi::PackedArgs args, ffi::Any* ret) {
         auto A = args[0].cast<DLTensor*>();
 
-        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal(A->device);
 
         CUBLASTryEnableTensorCore(entry_ptr->handle);
 
         ICHECK(TypeMatch(A->dtype, kDLInt, 8)) << "Expects dtype to be int8\n";
         cublasLtHandle_t ltHandle;
         CHECK_CUBLAS_ERROR(cublasLtCreate(&ltHandle));
-        auto func = tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-        cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
+        cudaStream_t stream =
+            static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, A->device.device_id));
         CallLtIgemm(args, ret, ltHandle, stream);
         CHECK_CUBLAS_ERROR(cublasLtDestroy(ltHandle));
       });
@@ -571,7 +572,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
         auto A = args[0].cast<DLTensor*>();
         auto C = args[2].cast<DLTensor*>();
 
-        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal();
+        CuBlasThreadEntry* entry_ptr = CuBlasThreadEntry::ThreadLocal(A->device);
 
         CUBLASTryEnableTensorCore(entry_ptr->handle);
         if (TypeEqual(A->dtype, C->dtype)) {

@@ -123,15 +123,17 @@ class MSCTensorRTRuntime : public JSONRuntimeBase {
       const auto pf = tvm::ffi::Function::GetGlobal("msc_tool.callback_step");
       ICHECK(pf.has_value()) << "Cannot find msc_tool.callback_step func.";
       Map<String, runtime::NDArray> input_datas;
+      int device_id = 0;
       for (const auto& pair : input_bindings_) {
         const auto& tensor_name = engine_->getBindingName(pair.first);
         input_datas.Set(tensor_name, device_buffers_[pair.first]);
+        device_id = data_entry_[pair.first]->device.device_id;
       }
       Map<String, Map<String, runtime::NDArray>> context;
       context.Set("datas", input_datas);
       (*pf)(context, "before_forward", graph_name_, tool_tag_);
     }
-    auto tvm_stream = CUDAThreadEntry::ThreadLocal()->stream;
+    auto tvm_stream = TVMFFIEnvGetCurrentStream(kDLCUDA, device_id);
 #if TRT_VERSION_GE(6, 0, 1)
     ICHECK(context_->enqueueV2(bindings_.data(), tvm_stream, nullptr))
         << "Running TensorRT failed.";

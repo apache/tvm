@@ -20,6 +20,7 @@
 #include <cuda_fp16.h>
 #include <float.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/runtime/ndarray.h>
 
 #include "cutlass/bfloat16.h"
@@ -39,9 +40,7 @@ void tvm_cutlass_fp8_groupwise_scaled_gemm_impl(NDArray a, NDArray b, NDArray sc
                                                 NDArray out) {
   // Workspace is used for storing device-side gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
-  static tvm::ffi::Function get_stream_func =
-      tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-  cudaStream_t stream = static_cast<cudaStream_t>(get_stream_func().cast<void*>());
+  cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, a->device.device_id));
 
   CHECK_GE(a->ndim, 2);
   CHECK_EQ(scales_a->ndim, a->ndim);
@@ -107,9 +106,7 @@ void tvm_cutlass_fp8_groupwise_scaled_bmm_impl(NDArray a, NDArray b, NDArray sca
                                                NDArray out) {
   // Workspace is used for storing device-side gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
-  static tvm::ffi::Function get_stream_func =
-      tvm::ffi::Function::GetGlobalRequired("runtime.get_cuda_stream");
-  cudaStream_t stream = static_cast<cudaStream_t>(get_stream_func().cast<void*>());
+  cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, a->device.device_id));
 
   CHECK_EQ(a->ndim, 3);
   CHECK_EQ(scales_a->ndim, 3);
