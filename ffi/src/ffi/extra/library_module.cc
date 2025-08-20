@@ -191,7 +191,7 @@ Module CreateLibraryModule(ObjectPtr<Library> lib) {
 }  // namespace ffi
 }  // namespace tvm
 
-int TVMFFIEnvRegisterContextSymbol(const char* name, void* symbol) {
+int TVMFFIEnvModRegisterContextSymbol(const char* name, void* symbol) {
   TVM_FFI_SAFE_CALL_BEGIN();
   tvm::ffi::String s_name(name);
   tvm::ffi::ContextSymbolRegistry::Global()->Register(s_name, symbol);

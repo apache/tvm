@@ -311,10 +311,10 @@ std::string PackImportsToC(const ffi::Module& mod, bool system_lib,
   }
   os << "\n};\n";
   if (system_lib) {
-    os << "extern int TVMFFIEnvRegisterSystemLibSymbol(const char*, void*);\n";
+    os << "extern int TVMFFIEnvModRegisterSystemLibSymbol(const char*, void*);\n";
     os << "static int " << mdev_blob_name << "_reg_ = "
-       << "TVMFFIEnvRegisterSystemLibSymbol(\"" << mdev_blob_name << "\", (void*)" << mdev_blob_name
-       << ");\n";
+       << "TVMFFIEnvModRegisterSystemLibSymbol(\"" << mdev_blob_name << "\", (void*)"
+       << mdev_blob_name << ");\n";
   }
   os << "#ifdef __cplusplus\n"
      << "}\n"

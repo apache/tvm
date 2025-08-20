@@ -54,7 +54,7 @@ TVM_DLL int TVMBackendGetFuncFromEnv(void* mod_node, const char* func_name,
  * \param ptr The symbol address.
  * \return 0 when no error is thrown, -1 when failure happens
  */
-TVM_DLL int TVMFFIEnvRegisterSystemLibSymbol(const char* name, void* ptr);
+TVM_DLL int TVMFFIEnvModRegisterSystemLibSymbol(const char* name, void* ptr);
 
 /*!
  * \brief Backend function to allocate temporal workspace.

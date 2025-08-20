@@ -59,8 +59,23 @@ TVM_FFI_DLL int TVMFFIEnvSetStream(int32_t device_type, int32_t device_id,
  */
 TVM_FFI_DLL TVMFFIStreamHandle TVMFFIEnvGetCurrentStream(int32_t device_type, int32_t device_id);
 
+/*!
+ * \brief Check if there are any signals raised in the surrounding env.
+ * \return 0 when success, nonzero when failure happens
+ * \note Under python this function redirects to PyErr_CheckSignals
+ */
+TVM_FFI_DLL int TVMFFIEnvCheckSignals();
+
+/*!
+ * \brief Register a symbol into the from the surrounding env such as python
+ * \param name The name of the symbol.
+ * \param symbol The symbol to register.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIEnvRegisterCAPI(const char* name, void* symbol);
+
 // ----------------------------------------------------------------------------
-// Module symbol management
+// Module symbol management in callee side
 // ----------------------------------------------------------------------------
 /*!
  * \brief FFI function to lookup a function from a module's imports.
@@ -73,8 +88,8 @@ TVM_FFI_DLL TVMFFIStreamHandle TVMFFIEnvGetCurrentStream(int32_t device_type, in
  * \note The returned function is a weak reference that is cached/owned by the module.
  * \return 0 when no error is thrown, -1 when failure happens
  */
-TVM_FFI_DLL int TVMFFIEnvLookupFromImports(TVMFFIObjectHandle library_ctx, const char* func_name,
-                                           TVMFFIObjectHandle* out);
+TVM_FFI_DLL int TVMFFIEnvModLookupFromImports(TVMFFIObjectHandle library_ctx, const char* func_name,
+                                              TVMFFIObjectHandle* out);
 
 /*
  * \brief Register a symbol value that will be initialized when a library with the symbol is loaded.
@@ -86,7 +101,7 @@ TVM_FFI_DLL int TVMFFIEnvLookupFromImports(TVMFFIObjectHandle library_ctx, const
  * \param symbol The symbol to register.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFIEnvRegisterContextSymbol(const char* name, void* symbol);
+TVM_FFI_DLL int TVMFFIEnvModRegisterContextSymbol(const char* name, void* symbol);
 
 /*!
  * \brief Register a symbol that will be initialized when a system library is loaded.
@@ -95,7 +110,7 @@ TVM_FFI_DLL int TVMFFIEnvRegisterContextSymbol(const char* name, void* symbol);
  * \param symbol The symbol to register.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFIEnvRegisterSystemLibSymbol(const char* name, void* symbol);
+TVM_FFI_DLL int TVMFFIEnvModRegisterSystemLibSymbol(const char* name, void* symbol);
 
 #ifdef __cplusplus
 }  // extern "C"

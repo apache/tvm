@@ -19,6 +19,7 @@
 // This file is used for testing the FFI API.
 #include <tvm/ffi/container/array.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 

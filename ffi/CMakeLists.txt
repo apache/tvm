@@ -57,7 +57,6 @@ set(tvm_ffi_objs_sources
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/function.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/ndarray.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/dtype.cc"
-  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/testing.cc"
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/container.cc"
 )
 
@@ -74,6 +73,8 @@ if (TVM_FFI_USE_EXTRA_CXX_API)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/library_module_system_lib.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/library_module_dynamic_lib.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/stream_context.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/env_c_api.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/testing.cc"
   )
 endif()
 

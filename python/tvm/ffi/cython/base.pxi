@@ -183,7 +183,7 @@ cdef extern from "tvm/ffi/c_api.h":
     void TVMFFIErrorSetRaised(TVMFFIObjectHandle error) nogil
     TVMFFIObjectHandle TVMFFIErrorCreate(TVMFFIByteArray* kind, TVMFFIByteArray* message,
                                          TVMFFIByteArray* traceback) nogil
-    int TVMFFIEnvRegisterCAPI(TVMFFIByteArray* name, void* ptr) nogil
+
     int TVMFFITypeKeyToIndex(TVMFFIByteArray* type_key, int32_t* out_tindex) nogil
     int TVMFFIDataTypeFromString(TVMFFIByteArray* str, DLDataType* out) nogil
     int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIAny* out) nogil
@@ -208,6 +208,7 @@ cdef extern from "tvm/ffi/c_api.h":
 cdef extern from "tvm/ffi/extra/c_env_api.h":
     ctypedef void* TVMFFIStreamHandle
 
+    int TVMFFIEnvRegisterCAPI(const char* name, void* ptr) nogil
     void* TVMFFIEnvGetCurrentStream(int32_t device_type, int32_t device_id) nogil
     int TVMFFIEnvSetStream(int32_t device_type, int32_t device_id,
                            TVMFFIStreamHandle stream,
@@ -279,11 +280,8 @@ cdef _init_env_api():
     # Initialize env api for signal handling
     # Also registers the gil state release and ensure as PyErr_CheckSignals
     # function is called with gil released and we need to regrab the gil
-    cdef ByteArrayArg pyerr_check_signals_arg = ByteArrayArg(c_str("PyErr_CheckSignals"))
-    cdef ByteArrayArg pygilstate_ensure_arg = ByteArrayArg(c_str("PyGILState_Ensure"))
-    cdef ByteArrayArg pygilstate_release_arg = ByteArrayArg(c_str("PyGILState_Release"))
-    CHECK_CALL(TVMFFIEnvRegisterCAPI(pyerr_check_signals_arg.cptr(), <void*>PyErr_CheckSignals))
-    CHECK_CALL(TVMFFIEnvRegisterCAPI(pygilstate_ensure_arg.cptr(), <void*>PyGILState_Ensure))
-    CHECK_CALL(TVMFFIEnvRegisterCAPI(pygilstate_release_arg.cptr(), <void*>PyGILState_Release))
+    CHECK_CALL(TVMFFIEnvRegisterCAPI(c_str("PyErr_CheckSignals"), <void*>PyErr_CheckSignals))
+    CHECK_CALL(TVMFFIEnvRegisterCAPI(c_str("PyGILState_Ensure"), <void*>PyGILState_Ensure))
+    CHECK_CALL(TVMFFIEnvRegisterCAPI(c_str("PyGILState_Release"), <void*>PyGILState_Release))
 
 _init_env_api()

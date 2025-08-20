@@ -300,6 +300,185 @@ typedef struct {
   TVMFFISafeCallType safe_call;
 } TVMFFIFunctionCell;
 
+//------------------------------------------------------------
+// Section: Basic object API
+//------------------------------------------------------------
+/*!
+ * \brief Free an object handle by decreasing reference
+ * \param obj The object handle.
+ * \note Internally we decrease the reference counter of the object.
+ *       The object will be freed when every reference to the object are removed.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIObjectFree(TVMFFIObjectHandle obj);
+
+/*!
+ * \brief Convert type key to type index.
+ * \param type_key The key of the type.
+ * \param out_tindex the corresponding type index.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFITypeKeyToIndex(const TVMFFIByteArray* type_key, int32_t* out_tindex);
+
+//-----------------------------------------------------------------------
+// Section: Basic function calling API for function implementation
+//-----------------------------------------------------------------------
+/*!
+ * \brief Create a FFIFunc by passing in callbacks from C callback.
+ *
+ * The registered function then can be pulled by the backend by the name.
+ *
+ * \param self The resource handle of the C callback.
+ * \param safe_call The C callback implementation
+ * \param deleter deleter to recycle
+ * \param out The output of the function.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIFunctionCreate(void* self, TVMFFISafeCallType safe_call,
+                                     void (*deleter)(void* self), TVMFFIObjectHandle* out);
+
+/*!
+ * \brief Get a global function registered in system.
+ *
+ * \param name The name of the function.
+ * \param out the result function pointer, NULL if it does not exist.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIFunctionGetGlobal(const TVMFFIByteArray* name, TVMFFIObjectHandle* out);
+
+/*!
+ * \brief Convert a AnyView to an owned Any.
+ * \param any The AnyView to convert.
+ * \param out The output Any, must be an empty object
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIAnyViewToOwnedAny(const TVMFFIAny* any_view, TVMFFIAny* out);
+
+/*!
+ * \brief Call a FFIFunc by passing in arguments.
+ *
+ * \param func The resource handle of the C callback.
+ * \param args The input arguments to the call.
+ * \param num_args The number of input arguments.
+ * \param result The output result, caller must ensure result->type_index is set to kTVMFFINone.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIFunctionCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args,
+                                   TVMFFIAny* result);
+
+/*!
+ * \brief Move the last error from the environment to result.
+ *
+ * \param result The result error.
+ *
+ * \note This function clears the error stored in the TLS.
+ */
+TVM_FFI_DLL void TVMFFIErrorMoveFromRaised(TVMFFIObjectHandle* result);
+
+/*!
+ * \brief Set raised error in TLS, which can be fetched by TVMFFIErrorMoveFromRaised.
+ *
+ * \param error The error object handle
+ */
+TVM_FFI_DLL void TVMFFIErrorSetRaised(TVMFFIObjectHandle error);
+
+/*!
+ * \brief Set raised error in TLS, which can be fetched by TVMFFIMoveFromRaised.
+ *
+ * \param kind The kind of the error.
+ * \param message The error message.
+ * \note This is a convenient method for C API side to set error directly from string.
+ */
+TVM_FFI_DLL void TVMFFIErrorSetRaisedFromCStr(const char* kind, const char* message);
+
+/*!
+ * \brief Create an initial error object.
+ *
+ * \param kind The kind of the error.
+ * \param message The error message.
+ * \param traceback The traceback of the error.
+ * \return The created error object handle.
+ * \note This function is different from other functions as it is used in error handling loop.
+ *       So we do not follow normal error handling patterns via returning error code.
+ */
+TVM_FFI_DLL TVMFFIObjectHandle TVMFFIErrorCreate(const TVMFFIByteArray* kind,
+                                                 const TVMFFIByteArray* message,
+                                                 const TVMFFIByteArray* traceback);
+
+//------------------------------------------------------------
+// Section: DLPack support APIs
+//------------------------------------------------------------
+/*!
+ * \brief Produce a managed NDArray from a DLPack tensor.
+ * \param from The source DLPack tensor.
+ * \param require_alignment The minimum alignment requored of the data + byte_offset.
+ * \param require_contiguous Boolean flag indicating if we need to check for contiguity.
+ * \param out The output NDArray handle.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFINDArrayFromDLPack(DLManagedTensor* from, int32_t require_alignment,
+                                        int32_t require_contiguous, TVMFFIObjectHandle* out);
+
+/*!
+ * \brief Produce a DLMangedTensor from the array that shares data memory with the array.
+ * \param from The source array.
+ * \param out The DLManagedTensor handle.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFINDArrayToDLPack(TVMFFIObjectHandle from, DLManagedTensor** out);
+
+/*!
+ * \brief Produce a managed NDArray from a DLPack tensor.
+ * \param from The source DLPack tensor.
+ * \param require_alignment The minimum alignment requored of the data + byte_offset.
+ * \param require_contiguous Boolean flag indicating if we need to check for contiguity.
+ * \param out The output NDArray handle.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFINDArrayFromDLPackVersioned(DLManagedTensorVersioned* from,
+                                                 int32_t require_alignment,
+                                                 int32_t require_contiguous,
+                                                 TVMFFIObjectHandle* out);
+
+/*!
+ * \brief Produce a DLMangedTensor from the array that shares data memory with the array.
+ * \param from The source array.
+ * \param out The DLManagedTensor handle.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFINDArrayToDLPackVersioned(TVMFFIObjectHandle from,
+                                               DLManagedTensorVersioned** out);
+
+//---------------------------------------------------------------
+// Section: dtype string support APIs.
+// These APIs are used to simplify the dtype printings during FFI
+//---------------------------------------------------------------
+
+/*!
+ * \brief Convert a string to a DLDataType.
+ * \param str The string to convert.
+ * \param out The output DLDataType.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIDataTypeFromString(const TVMFFIByteArray* str, DLDataType* out);
+
+/*!
+* \brief Convert a DLDataType to a string.
+* \param dtype The DLDataType to convert.
+* \param out The output string.
+* \return 0 when success, nonzero when failure happens
+* \note out is a String object that needs to be freed by the caller via TVMFFIObjectFree.
+The content of string can be accessed via TVMFFIObjectGetByteArrayPtr.
+
+* \note The input dtype is a pointer to the DLDataType to avoid ABI compatibility issues.
+*/
+TVM_FFI_DLL int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIAny* out);
+
+//------------------------------------------------------------
+// Section: Type reflection support APIs
+//
+// The reflec
+//------------------------------------------------------------
 /*!
  * \brief Getter that can take address of a field and set the result.
  * \param field The raw address of the field.
@@ -577,63 +756,6 @@ typedef struct TVMFFITypeInfo {
   const TVMFFITypeMetadata* metadata;
 } TVMFFITypeInfo;
 
-//------------------------------------------------------------
-// Section: User APIs to interact with the FFI
-//------------------------------------------------------------
-/*!
- * \brief Free an object handle by decreasing reference
- * \param obj The object handle.
- * \note Internally we decrease the reference counter of the object.
- *       The object will be freed when every reference to the object are removed.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFIObjectFree(TVMFFIObjectHandle obj);
-
-/*!
- * \brief Convert type key to type index.
- * \param type_key The key of the type.
- * \param out_tindex the corresponding type index.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFITypeKeyToIndex(const TVMFFIByteArray* type_key, int32_t* out_tindex);
-
-//-----------------------------------------------------------------------
-// Section: Function calling APIs and support API for func implementation
-//-----------------------------------------------------------------------
-/*!
- * \brief Create a FFIFunc by passing in callbacks from C callback.
- *
- * The registered function then can be pulled by the backend by the name.
- *
- * \param self The resource handle of the C callback.
- * \param safe_call The C callback implementation
- * \param deleter deleter to recycle
- * \param out The output of the function.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFIFunctionCreate(void* self, TVMFFISafeCallType safe_call,
-                                     void (*deleter)(void* self), TVMFFIObjectHandle* out);
-
-/*!
- * \brief Convert a AnyView to an owned Any.
- * \param any The AnyView to convert.
- * \param out The output Any, must be an empty object
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFIAnyViewToOwnedAny(const TVMFFIAny* any_view, TVMFFIAny* out);
-
-/*!
- * \brief Call a FFIFunc by passing in arguments.
- *
- * \param func The resource handle of the C callback.
- * \param args The input arguments to the call.
- * \param num_args The number of input arguments.
- * \param result The output result, caller must ensure result->type_index is set to kTVMFFINone.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFIFunctionCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args,
-                                   TVMFFIAny* result);
-
 /*!
  * \brief Register the function to runtime's global table.
  *
@@ -660,72 +782,6 @@ TVM_FFI_DLL int TVMFFIFunctionSetGlobal(const TVMFFIByteArray* name, TVMFFIObjec
 TVM_FFI_DLL int TVMFFIFunctionSetGlobalFromMethodInfo(const TVMFFIMethodInfo* method_info,
                                                       int override);
 
-/*!
- * \brief Get a global function.
- *
- * \param name The name of the function.
- * \param out the result function pointer, NULL if it does not exist.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFIFunctionGetGlobal(const TVMFFIByteArray* name, TVMFFIObjectHandle* out);
-
-/*!
- * \brief Move the last error from the environment to result.
- *
- * \param result The result error.
- *
- * \note This function clears the error stored in the TLS.
- */
-TVM_FFI_DLL void TVMFFIErrorMoveFromRaised(TVMFFIObjectHandle* result);
-
-/*!
- * \brief Set raised error in TLS, which can be fetched by TVMFFIErrorMoveFromRaised.
- *
- * \param error The error object handle
- */
-TVM_FFI_DLL void TVMFFIErrorSetRaised(TVMFFIObjectHandle error);
-
-/*!
- * \brief Set raised error in TLS, which can be fetched by TVMFFIMoveFromRaised.
- *
- * \param kind The kind of the error.
- * \param message The error message.
- * \note This is a convenient method for C API side to set error directly from string.
- */
-TVM_FFI_DLL void TVMFFIErrorSetRaisedFromCStr(const char* kind, const char* message);
-
-/*!
- * \brief Create an initial error object.
- *
- * \param kind The kind of the error.
- * \param message The error message.
- * \param traceback The traceback of the error.
- * \return The created error object handle.
- * \note This function is different from other functions as it is used in error handling loop.
- *       So we do not follow normal error handling patterns via returning error code.
- */
-TVM_FFI_DLL TVMFFIObjectHandle TVMFFIErrorCreate(const TVMFFIByteArray* kind,
-                                                 const TVMFFIByteArray* message,
-                                                 const TVMFFIByteArray* traceback);
-
-/*!
- * \brief Check if there are any signals raised in the surrounding env.
- * \return 0 when success, nonzero when failure happens
- * \note Under python this function redirects to PyErr_CheckSignals
- */
-TVM_FFI_DLL int TVMFFIEnvCheckSignals();
-
-/*!
- * \brief Register a symbol into the from the surrounding env.
- * \param name The name of the symbol.
- * \param symbol The symbol to register.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFIEnvRegisterCAPI(const TVMFFIByteArray* name, void* symbol);
-
-//------------------------------------------------------------
-// Section: Type reflection support APIs
-//------------------------------------------------------------
 /*!
  * \brief Register type field information for runtime reflection.
  * \param type_index The type index
@@ -766,75 +822,6 @@ TVM_FFI_DLL int TVMFFITypeRegisterAttr(int32_t type_index, const TVMFFIByteArray
  * \return NULL if the attribute was not registered in the system
  */
 TVM_FFI_DLL const TVMFFITypeAttrColumn* TVMFFIGetTypeAttrColumn(const TVMFFIByteArray* attr_name);
-
-//------------------------------------------------------------
-// Section: DLPack support APIs
-//------------------------------------------------------------
-/*!
- * \brief Produce a managed NDArray from a DLPack tensor.
- * \param from The source DLPack tensor.
- * \param require_alignment The minimum alignment requored of the data + byte_offset.
- * \param require_contiguous Boolean flag indicating if we need to check for contiguity.
- * \param out The output NDArray handle.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFINDArrayFromDLPack(DLManagedTensor* from, int32_t require_alignment,
-                                        int32_t require_contiguous, TVMFFIObjectHandle* out);
-
-/*!
- * \brief Produce a DLMangedTensor from the array that shares data memory with the array.
- * \param from The source array.
- * \param out The DLManagedTensor handle.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFINDArrayToDLPack(TVMFFIObjectHandle from, DLManagedTensor** out);
-
-/*!
- * \brief Produce a managed NDArray from a DLPack tensor.
- * \param from The source DLPack tensor.
- * \param require_alignment The minimum alignment requored of the data + byte_offset.
- * \param require_contiguous Boolean flag indicating if we need to check for contiguity.
- * \param out The output NDArray handle.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFINDArrayFromDLPackVersioned(DLManagedTensorVersioned* from,
-                                                 int32_t require_alignment,
-                                                 int32_t require_contiguous,
-                                                 TVMFFIObjectHandle* out);
-
-/*!
- * \brief Produce a DLMangedTensor from the array that shares data memory with the array.
- * \param from The source array.
- * \param out The DLManagedTensor handle.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFINDArrayToDLPackVersioned(TVMFFIObjectHandle from,
-                                               DLManagedTensorVersioned** out);
-
-//---------------------------------------------------------------
-// Section: dtype string support APIs.
-// These APIs are used to simplify the dtype printings during FFI
-//---------------------------------------------------------------
-
-/*!
- * \brief Convert a string to a DLDataType.
- * \param str The string to convert.
- * \param out The output DLDataType.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFIDataTypeFromString(const TVMFFIByteArray* str, DLDataType* out);
-
-/*!
- * \brief Convert a DLDataType to a string.
- * \param dtype The DLDataType to convert.
- * \param out The output string.
- * \return 0 when success, nonzero when failure happens
- * \note out is a String object that needs to be freed by the caller via TVMFFIObjectFree.
-         The content of string can be accessed via TVMFFIObjectGetByteArrayPtr.
-
- * \note The input dtype is a pointer to the DLDataType to avoid ABI compatibility issues.
- */
-TVM_FFI_DLL int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIAny* out);
 
 //------------------------------------------------------------
 // Section: Backend noexcept functions for internal use
