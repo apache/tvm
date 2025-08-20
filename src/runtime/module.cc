@@ -70,7 +70,7 @@ bool RuntimeEnabled(const String& target_str) {
 
 #define TVM_INIT_CONTEXT_FUNC(FuncName) \
   TVM_FFI_CHECK_SAFE_CALL(              \
-      TVMFFIEnvRegisterContextSymbol("__" #FuncName, reinterpret_cast<void*>(FuncName)))
+      TVMFFIEnvModRegisterContextSymbol("__" #FuncName, reinterpret_cast<void*>(FuncName)))
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
