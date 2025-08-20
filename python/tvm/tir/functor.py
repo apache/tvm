@@ -18,9 +18,8 @@
 """The expression and statement functor of TIR."""
 from typing import Callable
 
-import tvm
+import tvm_ffi
 from tvm.ir import PrimExpr
-from tvm.runtime import Object
 from tvm.runtime.support import derived_object
 
 from . import _ffi_api
@@ -144,8 +143,8 @@ Example
 """
 
 
-@tvm.ffi.register_object("tir.PyStmtExprVisitor")
-class _PyStmtExprVisitor(Object):
+@tvm_ffi.register_object("tir.PyStmtExprVisitor")
+class _PyStmtExprVisitor(tvm_ffi.core.Object):
     """
     An internal wrapper to interface between C++ and Python StmtExprVisitor.
     This is the TVM object that wraps PyStmtExprVisitor.
@@ -978,8 +977,8 @@ class PyStmtExprVisitor:
         _ffi_api.PyStmtExprVisitorDefaultVisitExpr(self._outer(), op)  # type: ignore
 
 
-@tvm.ffi.register_object("tir.PyStmtExprMutator")
-class _PyStmtExprMutator(Object):
+@tvm_ffi.register_object("tir.PyStmtExprMutator")
+class _PyStmtExprMutator(tvm_ffi.core.Object):
     """
     A TVM object to support customization of StmtExprMutator on the python side.
     This is the decorated result returned from stmt_expr_mutator decorator.

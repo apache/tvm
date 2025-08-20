@@ -16,6 +16,6 @@
 # under the License.
 """FFI API for Relax backend."""
 
-import tvm.ffi
+import tvm_ffi
 
-tvm.ffi._init_api("relax.backend", __name__)
+tvm_ffi._init_api("relax.backend", __name__)

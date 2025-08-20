@@ -18,7 +18,7 @@
 """The struct info nodes of the Relax language."""
 from typing import List, Optional, Union
 
-import tvm.ffi
+import tvm_ffi
 import tvm
 
 from tvm.ir import Span, EnvFunc, Array, VDevice
@@ -29,7 +29,7 @@ from .expr import StructInfo, Expr, ShapeExpr
 from . import _ffi_api, ty, expr
 
 
-@tvm.ffi.register_object("relax.ObjectStructInfo")
+@tvm_ffi.register_object("relax.ObjectStructInfo")
 class ObjectStructInfo(StructInfo):
     """StructInfo of an Object."""
 
@@ -37,7 +37,7 @@ class ObjectStructInfo(StructInfo):
         self.__init_handle_by_constructor__(_ffi_api.ObjectStructInfo, span)  # type: ignore
 
 
-@tvm.ffi.register_object("relax.PrimStructInfo")
+@tvm_ffi.register_object("relax.PrimStructInfo")
 class PrimStructInfo(StructInfo):
     """StructInfo of a primitive POD value.
 
@@ -107,7 +107,7 @@ class PrimStructInfo(StructInfo):
             )  # type: ignore
 
 
-@tvm.ffi.register_object("relax.ShapeStructInfo")
+@tvm_ffi.register_object("relax.ShapeStructInfo")
 class ShapeStructInfo(StructInfo):
     """StructInfo of a shape value.
 
@@ -136,7 +136,7 @@ class ShapeStructInfo(StructInfo):
         )
 
 
-@tvm.ffi.register_object("relax.TensorStructInfo")
+@tvm_ffi.register_object("relax.TensorStructInfo")
 class TensorStructInfo(StructInfo):
     """StructInfo of a Tensor value.
 
@@ -180,7 +180,7 @@ class TensorStructInfo(StructInfo):
         )
 
 
-@tvm.ffi.register_object("relax.TupleStructInfo")
+@tvm_ffi.register_object("relax.TupleStructInfo")
 class TupleStructInfo(StructInfo):
     """StructInfo of a Tuple value.
 
@@ -197,7 +197,7 @@ class TupleStructInfo(StructInfo):
         self.__init_handle_by_constructor__(_ffi_api.TupleStructInfo, fields, span)  # type: ignore
 
 
-@tvm.ffi.register_object("relax.FuncStructInfo")
+@tvm_ffi.register_object("relax.FuncStructInfo")
 class FuncStructInfo(StructInfo):
     """StructInfo of a function value.
 

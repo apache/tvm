@@ -21,7 +21,7 @@ Doc objects, then access and modify their attributes correctly.
 
 import pytest
 import tvm
-from tvm.ffi.access_path import AccessPath
+from tvm_ffi.access_path import AccessPath
 from tvm.script.printer.doc import (
     AssertDoc,
     AssignDoc,

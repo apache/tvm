@@ -17,6 +17,9 @@
 """Bring Your Own Datatypes custom datatype framework
 
 TODO(@gussmith23 @hypercubestart) link to BYODT docs when they exist"""
+from tvm_ffi import get_global_func
+from tvm_ffi import register_func as _register_func
+
 import tvm
 from tvm.runtime import convert, DataType
 from tvm.tir.expr import (
@@ -26,8 +29,6 @@ from tvm.tir.expr import (
     BinaryOpExpr as _BinaryOpExpr,
 )
 from tvm.tir.op import call_pure_extern
-from tvm.ffi import get_global_func
-from tvm.ffi import register_func as _register_func
 from tvm.tir import call_intrin
 
 
@@ -215,7 +216,7 @@ def register_op(
         )
     else:
         lower_func_name = "tvm.datatype.lower." + target + "." + op_name + "." + src_type_name
-    tvm.ffi.register_func(lower_func_name, lower_func)
+    tvm_ffi.register_func(lower_func_name, lower_func)
 
 
 def register_min_func(func, type_name):

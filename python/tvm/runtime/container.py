@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Runtime container structures."""
-from tvm.ffi import String, Shape as ShapeTuple
+from tvm_ffi import String, Shape as ShapeTuple
 
 
 __all__ = ["ShapeTuple", "String"]

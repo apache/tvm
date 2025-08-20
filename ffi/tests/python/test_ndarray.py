@@ -21,7 +21,7 @@ try:
 except ImportError:
     torch = None
 
-from tvm import ffi as tvm_ffi
+import tvm_ffi
 import numpy as np
 
 

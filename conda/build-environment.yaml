@@ -36,3 +36,4 @@ dependencies:
   - make
   - scipy
   - pillow
+  - pip

@@ -231,7 +231,7 @@ class RPCModuleNode final : public ffi::ModuleObj {
     return remote_load_module_(name);
   }
 
-  void ImportModule(ffi::Module other) {
+  void ImportModule(const ffi::Module& other) final {
     InitRemoteFunc(&remote_import_module_, "tvm.rpc.server.ImportModule");
     remote_import_module_(GetRef<ffi::Module>(this), other);
   }

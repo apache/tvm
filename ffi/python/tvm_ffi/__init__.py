@@ -14,12 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM FFI binding module.
+"""TVM FFI Python package."""
+# base always go first to load the libtvm_ffi
+from . import base
+from . import libinfo
 
-This module binds the TVM FFI C API to python.
-This is a standalone module that can be
-"""
-
+# package init part
 from .registry import register_object, register_func, get_global_func, _init_api
 from .dtype import dtype, DataTypeCode
 from .core import String, Bytes

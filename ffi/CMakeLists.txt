@@ -14,40 +14,42 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.18)
 
 project(
   tvm_ffi
-  VERSION 1.0
-  DESCRIPTION "TVM's FFI system"
   LANGUAGES CXX C
 )
 
-option(TVM_FFI_BUILD_TESTS "Adding test targets." OFF)
 option(TVM_FFI_USE_LIBBACKTRACE "Enable libbacktrace" ON)
 option(TVM_FFI_USE_EXTRA_CXX_API "Enable extra CXX API in shared lib" ON)
 option(TVM_FFI_BACKTRACE_ON_SEGFAULT "Set signal handler to print traceback on segfault" ON)
 
-include(cmake/Utils/CxxWarning.cmake)
-include(cmake/Utils/Sanitizer.cmake)
-include(cmake/Utils/Library.cmake)
 if (TVM_FFI_USE_LIBBACKTRACE)
-  include(cmake/Utils/AddLibbacktrace.cmake)
+  include(${CMAKE_CURRENT_LIST_DIR}/cmake/Utils/AddLibbacktrace.cmake)
 endif()
 
-########## Target: `dlpack_header` ##########
+include(${CMAKE_CURRENT_LIST_DIR}/cmake/Utils/Library.cmake)
 
-add_library(dlpack_header INTERFACE)
-target_include_directories(dlpack_header INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/dlpack/include")
 
 ########## Target: `tvm_ffi_header` ##########
 
+# they can be used in cases where user do not want to link into the library
+# in cases like deferred linking
 add_library(tvm_ffi_header INTERFACE)
-target_include_directories(tvm_ffi_header INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
-target_link_libraries(tvm_ffi_header INTERFACE dlpack_header)
+target_compile_features(tvm_ffi_header INTERFACE cxx_std_17)
+target_include_directories(
+  tvm_ffi_header INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+  $<INSTALL_INTERFACE:include>
+)
+target_include_directories(
+  tvm_ffi_header INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/dlpack/include>
+  $<INSTALL_INTERFACE:include>
+)
 
-########## Target: `tvm_ffi` ##########
+########## Target: `tvm_ffi_objs` ##########
 
 set(tvm_ffi_objs_sources
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/traceback.cc"
@@ -60,39 +62,40 @@ set(tvm_ffi_objs_sources
   "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/container.cc"
 )
 
+set(tvm_ffi_extra_objs_sources
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/structural_equal.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/structural_hash.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/json_parser.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/json_writer.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/serialization.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/reflection_extra.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/module.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/library_module.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/library_module_system_lib.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/library_module_dynamic_lib.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/stream_context.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/env_c_api.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/testing.cc"
+)
 if (TVM_FFI_USE_EXTRA_CXX_API)
-  list(APPEND tvm_ffi_objs_sources
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/structural_equal.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/structural_hash.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/json_parser.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/json_writer.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/serialization.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/reflection_extra.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/module.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/library_module.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/library_module_system_lib.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/library_module_dynamic_lib.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/stream_context.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/env_c_api.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/extra/testing.cc"
-  )
+  list(APPEND tvm_ffi_objs_sources ${tvm_ffi_extra_objs_sources})
 endif()
 
 add_library(tvm_ffi_objs OBJECT ${tvm_ffi_objs_sources})
+target_compile_features(tvm_ffi_objs PRIVATE cxx_std_17)
 
 set_target_properties(
   tvm_ffi_objs PROPERTIES
   POSITION_INDEPENDENT_CODE ON
-  CXX_STANDARD 17
   CXX_EXTENSIONS OFF
   CXX_STANDARD_REQUIRED ON
   CXX_VISIBILITY_PRESET hidden
   VISIBILITY_INLINES_HIDDEN ON
   PREFIX "lib"
 )
-add_cxx_warning(tvm_ffi_objs)
-target_link_libraries(tvm_ffi_objs PRIVATE dlpack_header)
-target_include_directories(tvm_ffi_objs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+
+# add the include path as public so they are visible to downstreams
+target_link_libraries(tvm_ffi_objs PUBLIC tvm_ffi_header)
 
 if (TVM_FFI_USE_LIBBACKTRACE)
   message(STATUS "Setting C++ macro TVM_FFI_USE_LIBBACKTRACE - 1")
@@ -110,7 +113,8 @@ else()
   target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_BACKTRACE_ON_SEGFAULT=0)
 endif()
 
-add_target_from_obj(tvm_ffi tvm_ffi_objs)
+tvm_ffi_add_msvc_flags(tvm_ffi_objs)
+tvm_ffi_add_target_from_obj(tvm_ffi tvm_ffi_objs)
 
 if (TARGET libbacktrace)
   target_link_libraries(tvm_ffi_objs PRIVATE libbacktrace)
@@ -124,22 +128,122 @@ if (MSVC)
   target_link_libraries(tvm_ffi_static PRIVATE DbgHelp.lib)
 endif ()
 
+# expose the headers as public dependencies
 target_link_libraries(tvm_ffi_objs PUBLIC tvm_ffi_header)
 target_link_libraries(tvm_ffi_shared PUBLIC tvm_ffi_header)
 target_link_libraries(tvm_ffi_static PUBLIC tvm_ffi_header)
 
-install(TARGETS tvm_ffi_static DESTINATION lib${LIB_SUFFIX})
-install(TARGETS tvm_ffi_shared DESTINATION lib${LIB_SUFFIX})
+#----------------------------------------------------------------------------
+# The following code section only is triggered when the project is the root
+# and will be skipped when the project is a subproject.
+#----------------------------------------------------------------------------
+if (NOT ${PROJECT_NAME} STREQUAL ${CMAKE_PROJECT_NAME})
+  return()
+endif()
 
-add_msvc_flags(tvm_ffi_objs)
+option(TVM_FFI_USE_RELEASE_FLAGS "Set O3 with RelWithDebInfo, useful to get lineno" OFF)
+option(TVM_FFI_BUILD_TESTS "Adding test targets." OFF)
 
-########## Adding tests ##########
-
-if (${PROJECT_NAME} STREQUAL ${CMAKE_PROJECT_NAME})
-  if (TVM_FFI_BUILD_TESTS)
-    enable_testing()
-    message(STATUS "Enable Testing")
-    include(cmake/Utils/AddGoogleTest.cmake)
-    add_subdirectory(tests/cpp/)
+# related options
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  if (TVM_FFI_USE_RELEASE_FLAGS)
+    message(STATUS "Targeting global CXX flags to -O3 for optimized build")
+    target_compile_options(tvm_ffi_objs PRIVATE -O3 -g)
+    target_compile_options(tvm_ffi_shared PRIVATE -O3)
+    target_compile_options(tvm_ffi_static PRIVATE -O3)
   endif()
-endif ()
+endif()
+
+
+include(cmake/Utils/CxxWarning.cmake)
+include(cmake/Utils/Sanitizer.cmake)
+
+tvm_ffi_add_cxx_warning(tvm_ffi_objs)
+
+########## Adding cpp tests ##########
+
+# logics below are only executed when the project is the root project.
+# but not when the project is a subproject.
+if (TVM_FFI_BUILD_TESTS)
+  enable_testing()
+  message(STATUS "Enable Testing")
+  include(cmake/Utils/AddGoogleTest.cmake)
+  add_subdirectory(tests/cpp/)
+endif()
+
+########## Install the related for normal cmake library ##########
+
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/include/tvm/ffi/ DESTINATION include/tvm/ffi/)
+install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/dlpack/include/ DESTINATION include/)
+
+if (WIN32)
+  # on windows, install by target is more robust as sometimes target may
+  # append subfolders lib/Release in msbuild
+  install(TARGETS tvm_ffi_shared tvm_ffi_static DESTINATION lib)
+else()
+  # on mac and other platforms, install by dir helps to also copy
+  # .dSYM over for debugging symbols
+  install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/lib/ DESTINATION lib)
+endif()
+
+########## Adding python module ##########
+option(TVM_FFI_BUILD_PYTHON_MODULE "Adding python module." OFF)
+
+if (TVM_FFI_BUILD_PYTHON_MODULE)
+  # Helper function to build the cython module
+  message(STATUS "Building cython module..")
+  find_package(
+    Python COMPONENTS Interpreter Development.Module Development.SABIModule
+    REQUIRED)
+  set(core_cpp ${CMAKE_CURRENT_BINARY_DIR}/core.cpp)
+  set(core_pyx ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/core.pyx)
+  set(cython_sources
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/core.pyx
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/base.pxi
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/device.pxi
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/dtype.pxi
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/error.pxi
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/function.pxi
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/ndarray.pxi
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/object.pxi
+    ${CMAKE_CURRENT_SOURCE_DIR}/python/tvm_ffi/cython/string.pxi
+  )
+  add_custom_command(
+      OUTPUT ${core_cpp}
+      COMMAND ${Python_EXECUTABLE} -m cython --cplus ${core_pyx} -o ${core_cpp}
+      COMMENT "Transpiling ${core_pyx} to ${core_cpp}"
+      DEPENDS ${cython_sources}
+      VERBATIM
+  )
+  if(Python_VERSION VERSION_GREATER_EQUAL "3.12")
+    # >= Python3.12, use Use_SABI version
+    Python_add_library(tvm_ffi_cython MODULE "${core_cpp}" USE_SABI 3.12)
+    set_target_properties(tvm_ffi_cython PROPERTIES OUTPUT_NAME "core")
+    if(NOT WIN32)
+      set_target_properties(tvm_ffi_cython PROPERTIES SUFFIX ".abi3.so")
+    endif()
+  else()
+    # before Python3.12, use WITH_SOABI version
+    Python_add_library(tvm_ffi_cython MODULE "${core_cpp}" WITH_SOABI)
+    set_target_properties(tvm_ffi_cython PROPERTIES OUTPUT_NAME "core")
+  endif()
+  target_compile_features(tvm_ffi_cython PRIVATE cxx_std_17)
+  target_link_libraries(tvm_ffi_cython PRIVATE tvm_ffi_header)
+  target_link_libraries(tvm_ffi_cython PRIVATE tvm_ffi_shared)
+  install(TARGETS tvm_ffi_cython DESTINATION .)
+
+  ########## Installing the source ##########
+  install(
+    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/dlpack/include DESTINATION 3rdparty/dlpack/include
+  )
+  install(
+    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/libbacktrace DESTINATION 3rdparty/libbacktrace
+    PATTERN ".git" EXCLUDE
+    PATTERN ".git*" EXCLUDE
+    PATTERN "*.tmp" EXCLUDE
+  )
+  install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/ DESTINATION src/ffi/)
+  install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Utils/ DESTINATION cmake/Utils/)
+  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt DESTINATION .)
+  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tvm_ffi-config.cmake DESTINATION lib/cmake/tvm_ffi/)
+endif()

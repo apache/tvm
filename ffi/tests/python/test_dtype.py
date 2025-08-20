@@ -18,9 +18,7 @@
 import pytest
 import pickle
 import numpy as np
-import tvm
-import tvm.testing
-from tvm import ffi as tvm_ffi
+import tvm_ffi
 
 
 def test_dtype():

@@ -22,7 +22,7 @@ from typing import Any, Callable, List, Optional, Union
 
 import numpy as np  # type: ignore
 import psutil  # type: ignore
-from tvm.ffi import get_global_func, register_func
+from tvm_ffi import get_global_func, register_func
 from tvm.error import TVMError
 from tvm.ir import Array, IRModule, Map
 from tvm.rpc import RPCSession

@@ -16,7 +16,7 @@
 # under the License.
 import pytest
 import pickle
-import tvm.ffi as tvm_ffi
+import tvm_ffi
 
 
 def test_array():

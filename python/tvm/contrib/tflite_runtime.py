@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """TFLite runtime that load and run tflite models."""
-import tvm.ffi
+import tvm_ffi
 from ..rpc import base as rpc_base
 
 
@@ -45,7 +45,7 @@ def create(tflite_model_bytes, device, runtime_target="cpu"):
     if device_type >= rpc_base.RPC_SESS_MASK:
         fcreate = device._rpc_sess.get_function(runtime_func)
     else:
-        fcreate = tvm.ffi.get_global_func(runtime_func)
+        fcreate = tvm_ffi.get_global_func(runtime_func)
 
     return TFLiteModule(fcreate(bytearray(tflite_model_bytes), device))
 

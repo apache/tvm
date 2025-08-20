@@ -50,7 +50,7 @@ class Module(core.Object):
 
         Returns
         -------
-        f : tvm.ffi.Function
+        f : tvm_ffi.Function
             The entry function if exist
         """
         if self._entry:
@@ -96,6 +96,15 @@ class Module(core.Object):
         """
         return _ffi_api.ModuleImplementsFunction(self, name, query_imports)
 
+    def __getattr__(self, name):
+        """Accessor to allow getting functions as attributes."""
+        try:
+            func = self.get_function(name)
+            self.__dict__[name] = func
+            return func
+        except AttributeError:
+            raise AttributeError(f"Module has no function '{name}'")
+
     def get_function(self, name, query_imports=False):
         """Get function from the module.
 
@@ -109,7 +118,7 @@ class Module(core.Object):
 
         Returns
         -------
-        f : tvm.ffi.Function
+        f : tvm_ffi.Function
             The result function.
         """
         func = _ffi_api.ModuleGetFunction(self, name, query_imports)

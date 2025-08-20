@@ -21,7 +21,6 @@ import inspect
 from numbers import Integral as _Integral
 from typing import List, Optional, Union
 
-import tvm.ffi
 import tvm.arith._ffi_api
 import tvm.tir
 import tvm.tir._ffi_api

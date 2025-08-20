@@ -23,14 +23,8 @@ import sys
 
 from setuptools import find_packages
 from setuptools.dist import Distribution
-
-# need to use distutils.core for correct placement of cython dll
-if "--inplace" in sys.argv:
-    from distutils.core import setup
-    from distutils.extension import Extension
-else:
-    from setuptools import setup
-    from setuptools.extension import Extension
+from setuptools import setup
+from setuptools.extension import Extension
 
 CURRENT_DIR = os.path.dirname(__file__)
 FFI_MODE = os.environ.get("TVM_FFI", "auto")
@@ -136,65 +130,6 @@ if not CONDA_BUILD and not INPLACE_BUILD:
         _remove_path(f"tvm/{libname}")
 
 
-def config_cython():
-    """Try to configure cython and return cython configuration"""
-    # Enforce cython unless FFI_MODE is explicitly set to ctypes
-    # we might consider fully converge to cython later
-    if FFI_MODE == "ctypes":
-        return []
-    try:
-        from Cython.Build import cythonize
-
-        # for python 3.12+, use limited API for future compact
-        limited_api_kwargs = {}
-        if sys.version_info >= (3, 12):
-            limited_api_kwargs = {
-                "define_macros": [
-                    ("Py_LIMITED_API", 0x030C0000),
-                ],
-                "py_limited_api": True,
-            }
-
-        ret = []
-        extra_compile_args = ["-std=c++17", "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>"]
-        if os.name == "nt":
-            library_dirs = ["tvm", "../build/Release", "../build"]
-            libraries = ["tvm"]
-            extra_compile_args = [
-                "/std:c++17",
-                "/D DMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>",
-            ]
-            # library is available via conda env.
-            if CONDA_BUILD:
-                library_dirs = [os.environ["LIBRARY_LIB"]]
-        else:
-            library_dirs = None
-            libraries = None
-
-        # the latest ffi source
-        for fn in os.listdir("tvm/ffi/cython"):
-            if not fn.endswith(".pyx"):
-                continue
-            ret.append(
-                Extension(
-                    f"tvm.ffi.{fn[:-4]}",
-                    ["tvm/ffi/cython/%s" % fn],
-                    include_dirs=[
-                        "../ffi/include/",
-                        "../ffi/3rdparty/dlpack/include",
-                    ],
-                    extra_compile_args=extra_compile_args,
-                    library_dirs=library_dirs,
-                    libraries=libraries,
-                    language="c++",
-                    **limited_api_kwargs,
-                )
-            )
-        return cythonize(ret, compiler_directives={"language_level": 3})
-    except ImportError as error:
-        raise RuntimeError("Cython is not installed, please pip install cython")
-
-
 class BinaryDistribution(Distribution):
     def has_ext_modules(self):
         return True
@@ -263,7 +198,6 @@ setup(
     packages=find_packages(),
     package_dir={"tvm": "tvm"},
     distclass=BinaryDistribution,
-    ext_modules=config_cython(),
     **setup_kwargs,
 )
 

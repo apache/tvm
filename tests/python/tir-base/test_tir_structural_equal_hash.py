@@ -18,7 +18,7 @@ import tvm
 import numpy as np
 import pytest
 from tvm import te
-from tvm.ffi.access_path import AccessPath
+from tvm_ffi.access_path import AccessPath
 from tvm.script import tir as T, ir as I
 
 

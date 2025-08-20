@@ -21,7 +21,7 @@ from typing import Callable, Dict, List, Optional, Union
 from typing_extensions import Literal
 
 # isort: on
-from tvm.ffi import register_object
+from tvm_ffi import register_object
 from tvm.ir import IRModule
 from tvm.runtime import NDArray, Object
 from tvm.target import Target

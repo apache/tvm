@@ -42,7 +42,7 @@ if (NOT googletest_POPULATED)
   )
 endif()
 
-macro(add_googletest target_name)
+macro(tvm_ffi_add_googletest target_name)
   add_test(
     NAME ${target_name}
     COMMAND ${target_name}

@@ -177,7 +177,7 @@ class ErrorBuilder {
 
 // MSVC disable warning in error builder as it is exepected
 #ifdef _MSC_VER
-#pragma disagnostic push
+#pragma warning(push)
 #pragma warning(disable : 4722)
 #endif
   // avoid inline to reduce binary size, error throw path do not need to be fast
@@ -189,7 +189,7 @@ class ErrorBuilder {
     throw error;
   }
 #ifdef _MSC_VER
-#pragma disagnostic pop
+#pragma warning(pop)
 #endif
 
   std::ostringstream& stream() { return stream_; }

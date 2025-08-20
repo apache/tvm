@@ -16,14 +16,14 @@
 # under the License.
 """Unified type system in the project."""
 import tvm
-import tvm.ffi
+import tvm_ffi
 from tvm.runtime import Scriptable
 
 from . import _ffi_api
 from .base import Node
 
 
-@tvm.ffi.register_object("ir.Type")
+@tvm_ffi.register_object("ir.Type")
 class Type(Node, Scriptable):
     """The base class of all types."""
 
@@ -39,7 +39,7 @@ class Type(Node, Scriptable):
         return super().__eq__(other)
 
 
-@tvm.ffi.register_object("ir.PrimType")
+@tvm_ffi.register_object("ir.PrimType")
 class PrimType(Type):
     """Primitive data type in the low level IR
 
@@ -53,7 +53,7 @@ class PrimType(Type):
         self.__init_handle_by_constructor__(_ffi_api.PrimType, dtype)
 
 
-@tvm.ffi.register_object("ir.PointerType")
+@tvm_ffi.register_object("ir.PointerType")
 class PointerType(Type):
     """PointerType used in the low-level TIR.
 
@@ -70,7 +70,7 @@ class PointerType(Type):
         self.__init_handle_by_constructor__(_ffi_api.PointerType, element_type, storage_scope)
 
 
-@tvm.ffi.register_object("ir.TupleType")
+@tvm_ffi.register_object("ir.TupleType")
 class TupleType(Type):
     """The type of tuple values.
 
@@ -84,7 +84,7 @@ class TupleType(Type):
         self.__init_handle_by_constructor__(_ffi_api.TupleType, fields)
 
 
-@tvm.ffi.register_object("ir.FuncType")
+@tvm_ffi.register_object("ir.FuncType")
 class FuncType(Type):
     """Function type.
 
@@ -110,7 +110,7 @@ class FuncType(Type):
         )
 
 
-@tvm.ffi.register_object("ir.TensorMapType")
+@tvm_ffi.register_object("ir.TensorMapType")
 class TensorMapType(Type):
     """TensorMapType used in the low-level TIR.
 

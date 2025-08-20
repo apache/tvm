@@ -307,8 +307,8 @@ class Function(Object):
 
     See Also
     --------
-    tvm.ffi.register_func: How to register global function.
-    tvm.ffi.get_global_func: How to get global function.
+    tvm_ffi.register_func: How to register global function.
+    tvm_ffi.get_global_func: How to get global function.
     """
     def __call__(self, *args):
         cdef TVMFFIAny result

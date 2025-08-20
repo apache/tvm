@@ -22,7 +22,7 @@ three key abstractions: a Diagnostic, the DiagnosticContext,
 and the DiagnosticRenderer.
 """
 import enum
-import tvm.ffi
+import tvm_ffi
 from . import _ffi_api
 from ... import get_global_func, register_func, Object
 
@@ -38,7 +38,7 @@ def get_renderer():
     return _ffi_api.GetRenderer()
 
 
-@tvm.register_func("diagnostics.override_renderer")
+@tvm_ffi.register_func("diagnostics.override_renderer")
 def override_renderer(render_func):
     """
     Sets a custom renderer for diagnostics.
@@ -69,7 +69,7 @@ class DiagnosticLevel(enum.IntEnum):
     HELP = 50
 
 
-@tvm.ffi.register_object("Diagnostic")
+@tvm_ffi.register_object("Diagnostic")
 class Diagnostic(Object):
     """A single diagnostic object from TVM."""
 
@@ -77,7 +77,7 @@ class Diagnostic(Object):
         self.__init_handle_by_constructor__(_ffi_api.Diagnostic, level, span, message)
 
 
-@tvm.ffi.register_object("DiagnosticRenderer")
+@tvm_ffi.register_object("DiagnosticRenderer")
 class DiagnosticRenderer(Object):
     """
     A diagnostic renderer, which given a diagnostic context produces a "rendered"
@@ -100,7 +100,7 @@ class DiagnosticRenderer(Object):
 
 
 # Register the diagnostic context.
-@tvm.ffi.register_object("DiagnosticContext")
+@tvm_ffi.register_object("DiagnosticContext")
 class DiagnosticContext(Object):
     """
     A diagnostic context which records active errors

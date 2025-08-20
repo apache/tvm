@@ -20,11 +20,11 @@ import multiprocessing
 import sys
 import os
 
-# top-level alias
-# tvm._ffi
-from .base import TVMError, __version__, _RUNTIME_ONLY
+# ffi module must load first
+from tvm_ffi import register_object, register_func, get_global_func
 
-from .ffi import register_object, register_func, get_global_func
+# top-level alias
+from .base import TVMError, __version__, _RUNTIME_ONLY
 
 # top-level alias
 # tvm.runtime

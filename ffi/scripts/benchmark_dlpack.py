@@ -39,7 +39,7 @@ Summary of some takeaways:
 import os
 import torch
 import numpy as np
-from tvm import ffi as tvm_ffi
+import tvm_ffi
 import time
 
 
@@ -124,11 +124,11 @@ def tvm_ffi_nop(repeat):
     for i in range(repeat):
         y = tvm_ffi.from_dlpack(x)
     end = time.time()
-    print_speed("tvm.ffi.nop", (end - start) / repeat)
+    print_speed("tvm_ffi.nop", (end - start) / repeat)
 
 
 def bench_ffi_nop_from_dlpack(name, x, y, z, repeat):
-    """run dlpack conversion + tvm.ffi.nop
+    """run dlpack conversion + tvm_ffi.nop
 
     Measures overhead of running dlpack for each args then invoke
     """
@@ -149,40 +149,40 @@ def bench_ffi_nop_from_dlpack(name, x, y, z, repeat):
 
 
 def tvm_ffi_nop_from_torch_dlpack(repeat):
-    """run dlpack conversion + tvm.ffi.nop
+    """run dlpack conversion + tvm_ffi.nop
 
     Measures overhead of running dlpack for each args then invoke
     """
     x = torch.arange(1)
     y = torch.arange(1)
     z = torch.arange(1)
-    bench_ffi_nop_from_dlpack("tvm.ffi.nop+from_dlpack(torch)", x, y, z, repeat)
+    bench_ffi_nop_from_dlpack("tvm_ffi.nop+from_dlpack(torch)", x, y, z, repeat)
 
 
 def tvm_ffi_nop_from_numpy_dlpack(repeat):
-    """run dlpack conversion + tvm.ffi.nop
+    """run dlpack conversion + tvm_ffi.nop
 
     Measures overhead of running dlpack for each args then invoke
     """
     x = np.arange(1)
     y = np.arange(1)
     z = np.arange(1)
-    bench_ffi_nop_from_dlpack("tvm.ffi.nop+from_dlpack(numpy)", x, y, z, repeat)
+    bench_ffi_nop_from_dlpack("tvm_ffi.nop+from_dlpack(numpy)", x, y, z, repeat)
 
 
 def tvm_ffi_self_dlpack_nop(repeat):
-    """run dlpack conversion + tvm.ffi.nop
+    """run dlpack conversion + tvm_ffi.nop
 
     Measures overhead of running dlpack for each args then invoke
     """
     x = tvm_ffi.from_dlpack(torch.arange(1))
     y = tvm_ffi.from_dlpack(torch.arange(1))
     z = tvm_ffi.from_dlpack(torch.arange(1))
-    bench_ffi_nop_from_dlpack("tvm.ffi.nop+from_dlpack(tvm)", x, y, z, repeat)
+    bench_ffi_nop_from_dlpack("tvm_ffi.nop+from_dlpack(tvm)", x, y, z, repeat)
 
 
 def bench_ffi_nop_from_dlpack(name, x, y, z, repeat):
-    """run dlpack conversion + tvm.ffi.nop
+    """run dlpack conversion + tvm_ffi.nop
 
     Measures overhead of running dlpack for each args then invoke
     """
@@ -227,7 +227,7 @@ def tvm_ffi_nop_from_torch_utils_to_dlpack(repeat):
         nop(tx, ty, tz)
     end = time.time()
     speed = (end - start) / repeat
-    print_speed("tvm.ffi.nop+from_dlpack(torch.utils)", speed)
+    print_speed("tvm_ffi.nop+from_dlpack(torch.utils)", speed)
 
 
 def bench_tvm_ffi_nop_autodlpack(name, x, y, z, repeat):
@@ -257,10 +257,10 @@ def tvm_ffi_nop_autodlpack_from_torch(repeat, device="cpu", stream=False):
     if stream:
         with torch.cuda.stream(torch.cuda.Stream()):
             bench_tvm_ffi_nop_autodlpack(
-                f"tvm.ffi.nop.autodlpack(torch[{device}][stream])", x, y, z, repeat
+                f"tvm_ffi.nop.autodlpack(torch[{device}][stream])", x, y, z, repeat
             )
     else:
-        bench_tvm_ffi_nop_autodlpack(f"tvm.ffi.nop.autodlpack(torch[{device}])", x, y, z, repeat)
+        bench_tvm_ffi_nop_autodlpack(f"tvm_ffi.nop.autodlpack(torch[{device}])", x, y, z, repeat)
 
 
 def tvm_ffi_nop_autodlpack_from_numpy(repeat):
@@ -272,7 +272,7 @@ def tvm_ffi_nop_autodlpack_from_numpy(repeat):
     x = np.arange(256)
     y = np.arange(256)
     z = np.arange(256)
-    bench_tvm_ffi_nop_autodlpack("tvm.ffi.nop.autodlpack(numpy)", x, y, z, repeat)
+    bench_tvm_ffi_nop_autodlpack("tvm_ffi.nop.autodlpack(numpy)", x, y, z, repeat)
 
 
 def bench_to_dlpack(x, name, repeat):

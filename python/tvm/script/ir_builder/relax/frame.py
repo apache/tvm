@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """IR Builder Frame for Relax dialect"""
-from tvm.ffi import register_object as _register_object
+from tvm_ffi import register_object as _register_object
 
 from ..base import IRBuilderFrame
 

@@ -18,7 +18,7 @@
 """Struct Info for distributed tensor."""
 import enum
 from typing import List
-import tvm
+import tvm_ffi
 from tvm.relax.struct_info import StructInfo, TensorStructInfo
 from tvm.ir import Span
 from tvm.runtime.object import Object
@@ -33,7 +33,7 @@ class PlacementSpecKind(enum.IntEnum):
     kReplica = 1
 
 
-@tvm.ffi.register_object("relax.distributed.PlacementSpec")
+@tvm_ffi.register_object("relax.distributed.PlacementSpec")
 class PlacementSpec(Object):
     """Describes how data is distributed in one dimension of the device mesh
 
@@ -80,7 +80,7 @@ class PlacementSpec(Object):
         return _ffi_api.Replica()
 
 
-@tvm.ffi.register_object("relax.distributed.Placement")
+@tvm_ffi.register_object("relax.distributed.Placement")
 class Placement(Object):
     """Describes how data is distributed in each dimension of the device mesh
 
@@ -110,7 +110,7 @@ class Placement(Object):
         return _ffi_api.PlacementFromText(text)
 
 
-@tvm.ffi.register_object("relax.DTensorStructInfo")
+@tvm_ffi.register_object("relax.DTensorStructInfo")
 class DTensorStructInfo(StructInfo):
     """StructInfo of a Distributed Tensor value.
 

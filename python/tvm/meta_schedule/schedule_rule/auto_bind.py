@@ -17,7 +17,7 @@
 """Auto-bind Rule that binds blocks to threads if needed"""
 from typing import List, Optional
 
-from tvm.ffi import register_object
+from tvm_ffi import register_object
 
 from .. import _ffi_api
 from .schedule_rule import ScheduleRule

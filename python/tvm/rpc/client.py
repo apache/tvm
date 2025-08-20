@@ -22,7 +22,7 @@ import stat
 import struct
 import time
 
-import tvm.ffi
+import tvm_ffi
 from tvm.base import TVMError
 from tvm.contrib import utils
 from tvm.runtime import ndarray as nd
@@ -263,7 +263,7 @@ class LocalSession(RPCSession):
         RPCSession.__init__(self, _ffi_api.LocalSession())
 
 
-@tvm.ffi.register_func("rpc.PopenSession")
+@tvm_ffi.register_func("rpc.PopenSession")
 def _popen_session(binary):
     temp = utils.tempdir()
 

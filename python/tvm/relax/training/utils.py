@@ -18,10 +18,10 @@
 """Utility functions for relax training."""
 
 from typing import Optional, Callable
+from tvm_ffi import register_func
 
 import tvm
 from tvm import relax
-from tvm.ffi.registry import register_func
 from tvm.relax.block_builder import BlockBuilder
 
 from ..expr import Function, Var, Call

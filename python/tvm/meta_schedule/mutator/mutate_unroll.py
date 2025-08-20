@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Mutator that mutates auto unroll step"""
-from tvm.ffi.registry import register_object
+from tvm_ffi.registry import register_object
 
 from .. import _ffi_api
 from .mutator import Mutator

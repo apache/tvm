@@ -18,7 +18,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm.ffi.access_path import AccessPath
+from tvm_ffi.access_path import AccessPath
 from tvm.ir.base import get_first_structural_mismatch
 
 

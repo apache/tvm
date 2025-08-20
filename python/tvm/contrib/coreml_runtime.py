@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """CoreML runtime that load and run coreml models."""
-import tvm.ffi
+import tvm_ffi
 from ..rpc import base as rpc_base
 
 
@@ -41,7 +41,7 @@ def create(symbol, compiled_model_path, device):
     if device_type >= rpc_base.RPC_SESS_MASK:
         fcreate = device._rpc_sess.get_function(runtime_func)
     else:
-        fcreate = tvm.ffi.get_global_func(runtime_func)
+        fcreate = tvm_ffi.get_global_func(runtime_func)
         assert fcreate, "Cannot find `tvm.coreml_runtime.create` function."
 
     return CoreMLModule(fcreate(symbol, compiled_model_path))

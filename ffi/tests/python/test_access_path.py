@@ -16,7 +16,7 @@
 # under the License.
 
 import pytest
-from tvm.ffi.access_path import AccessPath, AccessKind
+from tvm_ffi.access_path import AccessPath, AccessKind
 
 
 def test_root_path():

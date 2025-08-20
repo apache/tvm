@@ -23,8 +23,8 @@ source tests/scripts/setup-pytest-env.sh
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
 
-# setup cython
-cd python; python3 setup.py build_ext --inplace; cd ..
+# setup tvm-ffi into python folder
+python3 -m pip install  -v --target=python ./ffi
 
 # NOTE: also set by task_python_unittest_gpuonly.sh.
 if [ -z "${TVM_UNITTEST_TESTSUITE_NAME:-}" ]; then

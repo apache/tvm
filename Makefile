@@ -37,7 +37,7 @@ TVM_BUILD_PATH := $(abspath $(TVM_BUILD_PATH))
 # Allow environment variables for 3rd-party libraries, default to
 # packaged version.
 DMLC_CORE_PATH ?= $(ROOTDIR)/3rdparty/dmlc-core
-DLPACK_PATH ?= $(ROOTDIR)/3rdparty/dlpack
+DLPACK_PATH ?= $(ROOTDIR)/ffi/3rdparty/dlpack
 
 all: $(addsuffix /all,$(TVM_BUILD_PATH))
 
@@ -106,16 +106,6 @@ mypy:
 
 cppdoc:
 	doxygen docs/Doxyfile
-
-
-# Cython build
-cython cython3:
-	cd python; python3 setup.py build_ext --inplace
-
-cyclean:
-	rm -rf python/tvm/*/*/*.so python/tvm/*/*/*.dylib python/tvm/*/*/*.cpp
-
-
 
 # EMCC; Web related scripts
 web:

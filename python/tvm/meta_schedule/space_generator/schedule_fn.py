@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Union of meta Schedule design space generators."""
-from tvm.ffi import register_object
+from tvm_ffi import register_object
 
 from .. import _ffi_api
 from .space_generator import (

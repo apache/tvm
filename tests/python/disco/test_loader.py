@@ -25,7 +25,7 @@ import tvm
 import tvm.testing
 from tvm import dlight as dl
 from tvm import relax as rx
-from tvm.ffi import register_func
+from tvm_ffi import register_func
 from tvm.contrib import tvmjs
 from tvm.runtime import ShapeTuple
 from tvm.runtime import disco as di

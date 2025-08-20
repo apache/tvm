@@ -23,7 +23,7 @@ from numbers import Number, Integral
 import numpy as np  # type: ignore
 
 import tvm
-from tvm.ffi import register_func
+from tvm_ffi import register_func
 from tvm.runtime import Device, Object, PackedFunc
 from tvm.runtime.profiling import Report
 
