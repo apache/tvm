@@ -36,6 +36,7 @@ Summary of some takeaways:
 -
 
 """
+import os
 import torch
 import numpy as np
 from tvm import ffi as tvm_ffi
@@ -244,7 +245,7 @@ def bench_tvm_ffi_nop_autodlpack(name, x, y, z, repeat):
     print_speed(name, speed)
 
 
-def tvm_ffi_nop_autodlpack_from_torch(repeat, device="cpu"):
+def tvm_ffi_nop_autodlpack_from_torch(repeat, device="cpu", stream=False):
     """
     Measures overhead of running dlpack via auto convert by directly
     take torch.Tensor as inputs.
@@ -253,7 +254,13 @@ def tvm_ffi_nop_autodlpack_from_torch(repeat, device="cpu"):
     x = torch.arange(1, device=device)
     y = torch.arange(1, device=device)
     z = torch.arange(1, device=device)
-    bench_tvm_ffi_nop_autodlpack(f"tvm.ffi.nop.autodlpack(torch[{device}])", x, y, z, repeat)
+    if stream:
+        with torch.cuda.stream(torch.cuda.Stream()):
+            bench_tvm_ffi_nop_autodlpack(
+                f"tvm.ffi.nop.autodlpack(torch[{device}][stream])", x, y, z, repeat
+            )
+    else:
+        bench_tvm_ffi_nop_autodlpack(f"tvm.ffi.nop.autodlpack(torch[{device}])", x, y, z, repeat)
 
 
 def tvm_ffi_nop_autodlpack_from_numpy(repeat):
@@ -308,6 +315,50 @@ def bench_torch_utils_to_dlpack(repeat):
     print_speed("torch.utils.dlpack.to_dlpack", speed)
 
 
+def torch_get_cuda_stream_native(device_id):
+    return torch.cuda.current_stream(device_id).cuda_stream
+
+
+def load_torch_get_current_cuda_stream():
+    """Create a faster get_current_cuda_stream for torch through cpp extension."""
+    from torch.utils import cpp_extension
+
+    source = """
+    #include <c10/cuda/CUDAStream.h>
+
+    int64_t get_current_cuda_stream(int device_id) {
+        at::cuda::CUDAStream stream = at::cuda::getCurrentCUDAStream(device_id);
+        // fast invariant, default stream is always 0
+        if (stream.id() == 0) return 0;
+        // convert to cudaStream_t
+        return reinterpret_cast<int64_t>(static_cast<cudaStream_t>(stream));
+    }
+    """
+    result = cpp_extension.load_inline(
+        name="get_current_cuda_stream",
+        cpp_sources=[source],
+        cuda_sources=[],
+        extra_cflags=["-O3"],
+        extra_include_paths=cpp_extension.include_paths("cuda"),
+        functions=["get_current_cuda_stream"],
+    )
+    return result.get_current_cuda_stream
+
+
+def bench_torch_get_current_stream(repeat, name, func):
+    """
+    Measures overhead of running torch.cuda.current_stream
+    """
+    x = torch.arange(1, device="cuda")
+    func(0)
+    start = time.time()
+    for i in range(repeat):
+        func(0)
+    end = time.time()
+    speed = (end - start) / repeat
+    print_speed(f"torch.cuda.current_stream[{name}]", speed)
+
+
 def main():
     repeat = 10000
     print("-----------------------------")
@@ -323,6 +374,8 @@ def main():
     tvm_ffi_nop_from_torch_utils_to_dlpack(repeat)
     tvm_ffi_nop_autodlpack_from_torch(repeat, "cpu")
     tvm_ffi_nop_autodlpack_from_torch(repeat, "cuda")
+    tvm_ffi_nop_autodlpack_from_torch(repeat, "cuda", stream=True)
+
     tvm_ffi_nop_autodlpack_from_numpy(repeat)
     print("-------------------------------")
     print("Benchmark x.__dlpack__ overhead")
@@ -339,6 +392,19 @@ def main():
     bench_to_dlpack_versioned(
         tvm_ffi.from_dlpack(torch.arange(1)), "tvm.__dlpack__(max_version=(1,1))", repeat
     )
+    print("---------------------------------------------------")
+    print("Benchmark torch.get_cuda_stream[default stream]")
+    print("---------------------------------------------------")
+    bench_torch_get_current_stream(repeat, "cpp-extension", load_torch_get_current_cuda_stream())
+    bench_torch_get_current_stream(repeat, "python", torch_get_cuda_stream_native)
+    print("---------------------------------------------------")
+    print("Benchmark torch.get_cuda_stream[non-default stream]")
+    print("---------------------------------------------------")
+    with torch.cuda.stream(torch.cuda.Stream()):
+        bench_torch_get_current_stream(
+            repeat, "cpp-extension", load_torch_get_current_cuda_stream()
+        )
+        bench_torch_get_current_stream(repeat, "python", torch_get_cuda_stream_native)
 
 
 if __name__ == "__main__":
