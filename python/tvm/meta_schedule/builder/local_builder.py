@@ -192,7 +192,7 @@ class LocalBuilder(PyBuilder):
                 )
             else:
                 raise ValueError("Unreachable: unexpected result: {map_result}")
-        del pool
+        pool.shutdown()
         return results
 
     def _sanity_check(self) -> None:
@@ -208,7 +208,7 @@ class LocalBuilder(PyBuilder):
         )
         value = pool.submit(_check, self.f_build, self.f_export)
         value.result()
-        del pool
+        pool.shutdown()
 
 
 def _worker_func(
