@@ -242,7 +242,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
 using namespace tvm::runtime;
 
 int TVMBackendGetFuncFromEnv(void* mod_node, const char* func_name, TVMFFIObjectHandle* func) {
-  return TVMFFIEnvLookupFromImports(mod_node, func_name, func);
+  return TVMFFIEnvModLookupFromImports(mod_node, func_name, func);
 }
 
 void* TVMBackendAllocWorkspace(int device_type, int device_id, uint64_t size, int dtype_code_hint,
