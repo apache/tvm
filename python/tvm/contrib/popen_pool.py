@@ -366,11 +366,39 @@ class PopenPoolExecutor:
         self._maximum_process_uses = maximum_process_uses
         self._stdout = stdout
         self._stderr = stderr
+        self._shutdown = False
 
         if self._initializer is not None and not callable(self._initializer):
             raise TypeError("initializer must be callable for PopenPoolExecutor")
 
     def __del__(self):
+        """Destructor.
+
+        Note
+        ----
+        Called during garbage collection. This may be called later than expected.
+        Always call shutdown() explicitly to avoid deadlocks.
+        """
+        if not self._shutdown:
+            self.shutdown(wait=True)
+
+    def shutdown(self, wait=True):
+        """Shutdown the executor and clean up resources.
+
+        Parameters
+        ----------
+        wait : bool
+            If True, wait for pending work to complete.
+
+        Note
+        ----
+        DEADLOCK WARNING: This method can deadlock when called during garbage
+        collection due to exception reference cycles. When exceptions occur,
+        Python creates reference cycles that delay garbage collection. The
+        deadlock happens when: exception creates reference cycle → new pool
+        creates worker → GC cleans old pool → old pool's __del__ calls shutdown()
+        which tries to acquire locks again.
+        """
         self._lock.acquire()
         for worker in self._worker_map.values():
             try:
@@ -378,7 +406,8 @@ class PopenPoolExecutor:
             except ImportError:
                 pass
         self._lock.release()
-        self._threadpool.shutdown()
+        self._threadpool.shutdown(wait=wait)
+        self._shutdown = True
 
     def _worker_run(self, fn, args, kwargs):
         """Internal thread runner."""
