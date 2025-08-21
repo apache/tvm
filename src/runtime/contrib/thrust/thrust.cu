@@ -32,6 +32,7 @@
 #include <thrust/sequence.h>
 #include <thrust/sort.h>
 #include <tvm/ffi/dtype.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 
@@ -91,7 +92,10 @@ class WorkspaceMemoryResource : public thrust::mr::memory_resource<void*> {
 };
 
 auto get_thrust_exec_policy(WorkspaceMemoryResource* memory_resouce) {
-  return thrust::cuda::par_nosync(memory_resouce).on(GetCUDAStream());
+  int device_id;
+  CUDA_CALL(cudaGetDevice(&device_id));
+  cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, device_id));
+  return thrust::cuda::par_nosync(memory_resouce).on(stream);
 }
 
 // Performs sorting along axis -1 and returns both sorted values and indices.
