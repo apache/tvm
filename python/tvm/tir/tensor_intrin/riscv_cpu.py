@@ -693,6 +693,7 @@ def register_riscv_tensor_intrinsics(target):
     logger.debug("Finished registering all intrinsics.")
 
 
-target = Target.current()
-if "riscv_cpu" in target.keys and "rvv" in target.model and target_has_features("v", target):
-    register_riscv_tensor_intrinsics(target)
+current_target = Target.current()
+if "riscv_cpu" in current_target.keys and "rvv" in current_target.model and \
+    target_has_features("v", current_target):
+    register_riscv_tensor_intrinsics(current_target)

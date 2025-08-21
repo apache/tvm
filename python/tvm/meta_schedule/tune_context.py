@@ -28,7 +28,6 @@ from tvm.ffi import register_object, register_func
 from tvm.runtime import Object
 from tvm.target import Target
 from tvm.tir import PrimFunc, Schedule
-from tvm.target.codegen import target_has_features
 
 from . import _ffi_api
 from .logging import Logger, get_logger, get_logging_func
