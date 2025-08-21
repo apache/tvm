@@ -18,6 +18,9 @@
 """Intrinsics for RVV tensorization, both for C and LLVM targets.
 =====================
 **Author**: `Federico Peccia <https://fPecc.github.io/>`_
+    [*] Tensor Program Optimization for the RISC-V Vector 
+        Extension Using Probabilistic Programs
+        https://arxiv.org/abs/2507.01457
 """
 import re
 import logging
@@ -680,12 +683,9 @@ def register_riscv_tensor_intrinsics(target):
 
         for idtype, odtype in zip(["int16", "float16", "float32"], ["int32", "float16", "float32"]):
 
-            if idtype == "float32" and vmul_type == "multivmul":
-                continue
-
             vlmax = get_vlmax(vlen, lmul=8, max_sew=32)
             register_intrinsic_combinations(
                 outer_loops, vlmax, 8, idtype, odtype, f"rvv_{idtype}_{vmul_type}", func
             )
 
-    print("Finished registering all intrinsics.")
+    logger.debug("Finished registering all intrinsics.")
