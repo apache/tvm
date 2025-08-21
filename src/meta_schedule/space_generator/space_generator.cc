@@ -129,9 +129,15 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       default_postprocs = Postproc::DefaultCPUTensorization();
       default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "rvv") {
-      int vlen = GetRISCVVLENFromLLVMTarget(context->target.value());
-      default_sch_rules = ScheduleRule::DefaultRISCV(vlen);
-      default_postprocs = Postproc::DefaultRISCV();
+      if (context->target.value()->GetAttr<String>("model") == "rvv") {
+        // experimental rvv tensorization
+        int vlen = GetRISCVVLENFromLLVMTarget(context->target.value());
+        default_sch_rules = ScheduleRule::DefaultRISCV(vlen);
+        default_postprocs = Postproc::DefaultRISCV();
+      } else {
+        default_sch_rules = ScheduleRule::DefaultLLVM();
+        default_postprocs = Postproc::DefaultLLVM();
+      }
       default_mutator_probs = Mutator::DefaultLLVM();
     } else if (kind == "asimd") {
       default_sch_rules = ScheduleRule::DefaultARM("neon");

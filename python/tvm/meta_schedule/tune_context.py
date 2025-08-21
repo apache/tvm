@@ -118,13 +118,6 @@ class TuneContext(Object):
         if target is not None:
             if not isinstance(target, Target):
                 target = Target(target)
-            if "riscv_cpu" in target.keys:
-                if target_has_features("v", target):
-                    # Because the RVV intrinsics depend on the target, we register them here
-                    # pylint: disable=import-outside-toplevel
-                    from tvm.tir.tensor_intrin.riscv_cpu import register_riscv_tensor_intrinsics
-
-                    register_riscv_tensor_intrinsics(target)
         if space_generator is not None:
             if not isinstance(space_generator, SpaceGenerator):
                 space_generator = SpaceGenerator.create(space_generator)

@@ -18,7 +18,7 @@
 """Intrinsics for RVV tensorization, both for C and LLVM targets.
 =====================
 **Author**: `Federico Peccia <https://fPecc.github.io/>`_
-    [*] Tensor Program Optimization for the RISC-V Vector 
+    [*] Tensor Program Optimization for the RISC-V Vector
         Extension Using Probabilistic Programs
         https://arxiv.org/abs/2507.01457
 """
@@ -26,6 +26,8 @@ import re
 import logging
 from tvm.script import tir as T
 from tvm.target.codegen import llvm_get_vector_width
+from tvm.target import Target
+from tvm.target.codegen import target_has_features
 from .. import TensorIntrin
 
 logger = logging.getLogger(__name__)
@@ -683,9 +685,14 @@ def register_riscv_tensor_intrinsics(target):
 
         for idtype, odtype in zip(["int16", "float16", "float32"], ["int32", "float16", "float32"]):
 
-            vlmax = get_vlmax(vlen, lmul=8, max_sew=32)
+            vlmax = get_vlmax(vlen, lmul=8, max_sew=16 if odtype == "float16" else 32)
             register_intrinsic_combinations(
                 outer_loops, vlmax, 8, idtype, odtype, f"rvv_{idtype}_{vmul_type}", func
             )
 
     logger.debug("Finished registering all intrinsics.")
+
+
+target = Target.current()
+if "riscv_cpu" in target.keys and "rvv" in target.model and target_has_features("v", target):
+    register_riscv_tensor_intrinsics(target)
