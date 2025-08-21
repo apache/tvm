@@ -66,7 +66,12 @@ class JSONWriter {
     // IEEE 754 standard: https://en.wikipedia.org/wiki/IEEE_754
     // NaN is encoded as all 1s in the exponent and non-zero in the mantissa
     static_assert(sizeof(double) == sizeof(uint64_t), "Unexpected double size");
-    uint64_t bits = *reinterpret_cast<const uint64_t*>(&x);
+    union {
+      double from;
+      uint64_t to;
+    } u;
+    u.from = x;  // write "from", read "to"
+    uint64_t bits = u.to;
     uint64_t exponent = (bits >> 52) & 0x7FF;
     uint64_t mantissa = bits & 0xFFFFFFFFFFFFFull;
     return (exponent == 0x7FF) && (mantissa != 0);
@@ -81,7 +86,12 @@ class JSONWriter {
     // IEEE 754 standard: https://en.wikipedia.org/wiki/IEEE_754
     // Inf is encoded as all 1s in the exponent and zero in the mantissa
     static_assert(sizeof(double) == sizeof(uint64_t), "Unexpected double size");
-    uint64_t bits = *reinterpret_cast<const uint64_t*>(&x);
+    union {
+      double from;
+      uint64_t to;
+    } u;
+    u.from = x;  // write "from", read "to"
+    uint64_t bits = u.to;
     uint64_t exponent = (bits >> 52) & 0x7FF;
     uint64_t mantissa = bits & 0xFFFFFFFFFFFFFull;
     // inf is encoded as all 1s in the exponent and zero in the mantissa
