@@ -57,10 +57,13 @@ def compile_cuda(code, target_format=None, arch=None, options=None, path_target=
     """
     # Check for NVSHMEM dependency
     nvshmem_include_path, nvshmem_lib_path = None, None
-    use_nvshmem = (
-        tvm.get_global_func("runtime.nvshmem.cumodule_init", allow_missing=True) is not None
-    )
+    use_nvshmem = "#include <nvshmem.h>" in code or "#include <nvshmemx.h>" in code
     if use_nvshmem:
+        # NOTE: we cannot check whether nvshmem is used based on whether
+        # the global function "runtime.nvshmem.cumodule_init" is defined.
+        # The reason is because that if the input code does not use any NVSHMEM functions
+        # while the global function is defined, using cubin to compile the
+        # code may cause a compilation error.
         target_format = "cubin"
         nvshmem_include_path, nvshmem_lib_path = find_nvshmem_paths()
 

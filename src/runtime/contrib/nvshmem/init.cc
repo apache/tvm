@@ -114,8 +114,10 @@ void NVSHMEMXCumoduleInit(void* cuModule) {
   // nvshmemx_cumodule_init. If not, we skip the cumodule initialization.
   if (status == NVSHMEM_STATUS_IS_INITIALIZED || status == NVSHMEM_STATUS_LIMITED_MPG ||
       status == NVSHMEM_STATUS_FULL_MPG) {
-    int result = nvshmemx_cumodule_init(mod);
-    ICHECK_EQ(result, 0) << "nvshmemx_cumodule_init failed with error code: " << result;
+    // NOTE: we do not check the return value of nvshmemx_cumodule_init.
+    // The reason is because that the input cuModule might not use any NVSHMEM functions,
+    // in which case the nvshmemx_cumodule_init will fail.
+    nvshmemx_cumodule_init(mod);
   }
 }
 
