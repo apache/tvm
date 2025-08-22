@@ -695,7 +695,8 @@ def register_riscv_tensor_intrinsics(target):
 
 current_target = Target.current()
 if (
-    "riscv_cpu" in current_target.keys
+    current_target is not None
+    and "riscv_cpu" in current_target.keys
     and "rvv" in current_target.model
     and target_has_features("v", current_target)
 ):
