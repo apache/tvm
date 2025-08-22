@@ -298,8 +298,12 @@ class JSONParserContext {
  private:
   static double FastMathSafePosInf() {
 #ifdef __FAST_MATH__
-    const uint64_t inf_bits = 0x7FF0000000000000ULL;
-    return *reinterpret_cast<const double*>(&inf_bits);
+    union {
+      uint64_t from;
+      double to;
+    } u;
+    u.from = 0x7FF0000000000000ULL;  // write "from", read "to"
+    return u.to;
 #else
     return std::numeric_limits<double>::infinity();
 #endif
@@ -307,8 +311,12 @@ class JSONParserContext {
 
   static double FastMathSafeNegInf() {
 #ifdef __FAST_MATH__
-    const uint64_t inf_bits = 0xFFF0000000000000ULL;
-    return *reinterpret_cast<const double*>(&inf_bits);
+    union {
+      uint64_t from;
+      double to;
+    } u;
+    u.from = 0xFFF0000000000000ULL;  // write "from", read "to"
+    return u.to;
 #else
     return -std::numeric_limits<double>::infinity();
 #endif
@@ -316,8 +324,12 @@ class JSONParserContext {
 
   static double FastMathSafeNaN() {
 #ifdef __FAST_MATH__
-    const uint64_t nan_bits = 0x7FF8000000000000ULL;
-    return *reinterpret_cast<const double*>(&nan_bits);
+    union {
+      uint64_t from;
+      double to;
+    } u;
+    u.from = 0x7FF8000000000000ULL;  // write "from", read "to"
+    return u.to;
 #else
     return std::numeric_limits<double>::quiet_NaN();
 #endif
