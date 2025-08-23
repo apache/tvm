@@ -22,6 +22,7 @@
  * \brief A simple JSON runtime for HIPBLAS.
  */
 
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/ndarray.h>
@@ -30,6 +31,7 @@
 #include <string>
 #include <vector>
 
+#include "../../rocm/rocm_common.h"
 #include "../json/json_node.h"
 #include "../json/json_runtime.h"
 #include "hipblas_utils.h"
@@ -86,7 +88,7 @@ class HipblasJSONRuntime : public JSONRuntimeBase {
     if (device_id == -1) {
       ROCM_CALL(hipGetDevice(&device_id));
     }
-    auto* entry_ptr = tvm::contrib::HipBlasLtThreadEntry::ThreadLocal(Device(kDLROCM, device_id));
+    auto* entry_ptr = tvm::contrib::HipBlasLtThreadEntry::ThreadLocal(DLDevice{kDLROCM, device_id});
     hipStream_t stream = static_cast<hipStream_t>(TVMFFIEnvGetCurrentStream(kDLROCM, device_id));
 
     auto get_input = [this, &dl_tensors](const JSONGraphNode& node, int idx) {

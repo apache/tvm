@@ -23,6 +23,7 @@
 #include "hipblas_utils.h"
 
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 
 #include "../../rocm/rocm_common.h"
@@ -41,7 +42,7 @@ HipBlasThreadEntry::~HipBlasThreadEntry() {
 
 typedef dmlc::ThreadLocalStore<HipBlasThreadEntry> HipBlasThreadStore;
 
-HipBlasThreadEntry* HipBlasThreadEntry::ThreadLocal(Device curr_device) {
+HipBlasThreadEntry* HipBlasThreadEntry::ThreadLocal(DLDevice curr_device) {
   HipBlasThreadEntry* retval = HipBlasThreadStore::Get();
   TVMFFIStreamHandle stream =
       TVMFFIEnvGetCurrentStream(curr_device.device_type, curr_device.device_id);
@@ -72,7 +73,7 @@ HipBlasLtThreadEntry::~HipBlasLtThreadEntry() {
 
 typedef dmlc::ThreadLocalStore<HipBlasLtThreadEntry> HipBlasLtThreadStore;
 
-HipBlasLtThreadEntry* HipBlasLtThreadEntry::ThreadLocal(Device curr_device) {
+HipBlasLtThreadEntry* HipBlasLtThreadEntry::ThreadLocal(DLDevice curr_device) {
   return HipBlasLtThreadStore::Get();
 }
 
