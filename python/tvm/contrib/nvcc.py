@@ -23,7 +23,8 @@ import subprocess
 import warnings
 from typing import Tuple
 
-import tvm.ffi
+import tvm_ffi
+import tvm
 from tvm.target import Target
 
 from ..base import py_str
@@ -88,7 +89,7 @@ def compile_cuda(code, target_format=None, arch=None, options=None, path_target=
     temp_code = temp.relpath(f"{file_name}.cu")
     temp_target = temp.relpath(f"{file_name}.{target_format}")
 
-    pass_context = tvm.get_global_func("transform.GetCurrentPassContext")()
+    pass_context = tvm_ffi.get_global_func("transform.GetCurrentPassContext")()
     kernels_output_dir = (
         pass_context.config["cuda.kernels_output_dir"]
         if "cuda.kernels_output_dir" in pass_context.config
@@ -311,14 +312,14 @@ def find_nvshmem_paths() -> Tuple[str, str]:
     raise RuntimeError("\n".join(error_message))
 
 
-@tvm.ffi.register_func
+@tvm_ffi.register_func
 def tvm_callback_cuda_compile(code, target):  # pylint: disable=unused-argument
     """use nvcc to generate fatbin code for better optimization"""
     ptx = compile_cuda(code, target_format="fatbin")
     return ptx
 
 
-@tvm.ffi.register_func("tvm_callback_libdevice_path")
+@tvm_ffi.register_func("tvm_callback_libdevice_path")
 def find_libdevice_path(arch):
     """Utility function to find libdevice
 
@@ -383,7 +384,7 @@ def callback_libdevice_path(arch):
         return ""
 
 
-@tvm.ffi.register_func("tvm.contrib.nvcc.get_compute_version")
+@tvm_ffi.register_func("tvm.contrib.nvcc.get_compute_version")
 def get_target_compute_version(target=None):
     """Utility function to get compute capability of compilation target.
 
@@ -528,7 +529,7 @@ def have_cudagraph():
         return False
 
 
-@tvm.ffi.register_func("tvm.contrib.nvcc.supports_bf16")
+@tvm_ffi.register_func("tvm.contrib.nvcc.supports_bf16")
 def have_bf16(compute_version):
     """Either bf16 support is provided in the compute capability or not
 
@@ -544,7 +545,7 @@ def have_bf16(compute_version):
     return False
 
 
-@tvm.ffi.register_func("tvm.contrib.nvcc.supports_fp8")
+@tvm_ffi.register_func("tvm.contrib.nvcc.supports_fp8")
 def have_fp8(compute_version):
     """Whether fp8 support is provided in the specified compute capability or not
 
@@ -562,7 +563,7 @@ def have_fp8(compute_version):
     return False
 
 
-@tvm.ffi.register_func("tvm.contrib.nvcc.supports_fp4")
+@tvm_ffi.register_func("tvm.contrib.nvcc.supports_fp4")
 def have_fp4(compute_version):
     """Whether fp4 support is provided in the specified compute capability or not
 

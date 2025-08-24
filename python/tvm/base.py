@@ -62,7 +62,7 @@ _RUNTIME_ONLY = "runtime" in _LIB_NAME
 
 
 if _RUNTIME_ONLY:
-    from .ffi import registry as _tvm_ffi_registry
+    from tvm_ffi import registry as _tvm_ffi_registry
 
     _tvm_ffi_registry._SKIP_UNKNOWN_OBJECTS = True
 

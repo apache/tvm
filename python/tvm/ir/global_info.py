@@ -16,11 +16,12 @@
 # under the License.
 """Global Info."""
 import tvm
+import tvm_ffi
 from tvm.runtime.object import Object
 from . import _ffi_api
 
 
-@tvm.ffi.register_object("ir.GlobalInfo")
+@tvm_ffi.register_object("ir.GlobalInfo")
 class GlobalInfo(Object):
     """Base node for all global info that can appear in the IR"""
 
@@ -36,7 +37,7 @@ class GlobalInfo(Object):
         return super().__eq__(other)
 
 
-@tvm.ffi.register_object("ir.DummyGlobalInfo")
+@tvm_ffi.register_object("ir.DummyGlobalInfo")
 class DummyGlobalInfo(GlobalInfo):
     def __init__(self) -> None:
         self.__init_handle_by_constructor__(
@@ -44,7 +45,7 @@ class DummyGlobalInfo(GlobalInfo):
         )
 
 
-@tvm.ffi.register_object("ir.VDevice")
+@tvm_ffi.register_object("ir.VDevice")
 class VDevice(GlobalInfo):
     def __init__(
         self,
