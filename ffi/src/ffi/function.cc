@@ -188,8 +188,16 @@ int TVMFFIFunctionGetGlobal(const TVMFFIByteArray* name, TVMFFIObjectHandle* out
 int TVMFFIFunctionCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args,
                        TVMFFIAny* result) {
   using namespace tvm::ffi;
+#ifdef _MSC_VER
+  // Avoid tail call optimization
+  // in MSVC many cases python symbols are hidden, so we need this function symbol
+  // to be in the call frame to reliably detect the ffi boundary
+  volatile int ret = reinterpret_cast<FunctionObj*>(func)->safe_call(func, args, num_args, result);
+  return ret;
+#else
   // NOTE: this is a tail call
   return reinterpret_cast<FunctionObj*>(func)->safe_call(func, args, num_args, result);
+#endif
 }
 
 TVM_FFI_STATIC_INIT_BLOCK({

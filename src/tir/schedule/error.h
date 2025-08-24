@@ -30,7 +30,8 @@ namespace tir {
 class ScheduleError : public tvm::runtime::Error {
  public:
   /*! \brief Base constructor */
-  ScheduleError() : tvm::runtime::Error("ScheduleError", "", TVM_FFI_TRACEBACK_HERE) {}
+  ScheduleError()
+      : tvm::runtime::Error("ScheduleError", "", TVMFFITraceback(nullptr, 0, nullptr, 0)) {}
   /*! \brief The error occurred in this IRModule */
   virtual IRModule mod() const = 0;
   /*! \brief The locations of interest that we want to point out */

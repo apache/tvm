@@ -201,8 +201,6 @@ class ErrorBuilder {
   bool log_before_throw_;
 };
 
-// define traceback here as call into traceback function
-#define TVM_FFI_TRACEBACK_HERE TVMFFITraceback(__FILE__, __LINE__, TVM_FFI_FUNC_SIG)
 }  // namespace details
 
 /*!
@@ -216,9 +214,10 @@ class ErrorBuilder {
  *
  * \endcode
  */
-#define TVM_FFI_THROW(ErrorKind)                                        \
-  ::tvm::ffi::details::ErrorBuilder(#ErrorKind, TVM_FFI_TRACEBACK_HERE, \
-                                    TVM_FFI_ALWAYS_LOG_BEFORE_THROW)    \
+#define TVM_FFI_THROW(ErrorKind)                                                              \
+  ::tvm::ffi::details::ErrorBuilder(#ErrorKind,                                               \
+                                    TVMFFITraceback(__FILE__, __LINE__, TVM_FFI_FUNC_SIG, 0), \
+                                    TVM_FFI_ALWAYS_LOG_BEFORE_THROW)                          \
       .stream()
 
 /*!
@@ -228,8 +227,10 @@ class ErrorBuilder {
  *  cannot be caught, and it is better to have a clear log message.
  *  In most cases, we should use use TVM_FFI_THROW.
  */
-#define TVM_FFI_LOG_AND_THROW(ErrorKind) \
-  ::tvm::ffi::details::ErrorBuilder(#ErrorKind, TVM_FFI_TRACEBACK_HERE, true).stream()
+#define TVM_FFI_LOG_AND_THROW(ErrorKind)                                          \
+  ::tvm::ffi::details::ErrorBuilder(                                              \
+      #ErrorKind, TVMFFITraceback(__FILE__, __LINE__, TVM_FFI_FUNC_SIG, 0), true) \
+      .stream()
 
 // Glog style checks with TVM_FFI prefix
 // NOTE: we explicitly avoid glog style generic macros (LOG/CHECK) in tvm ffi

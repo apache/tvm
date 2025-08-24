@@ -36,12 +36,21 @@
 
 #include "./traceback.h"
 
-namespace tvm {
-namespace ffi {
-namespace {
+const TVMFFIByteArray* TVMFFITraceback(const char* filename, int lineno, const char* func,
+                                       int cross_ffi_boundary) {
+  static thread_local std::string traceback_str;
+  static thread_local TVMFFIByteArray traceback_array;
 
-std::string Traceback() {
-  TracebackStorage traceback;
+  // pass in current line as here so last line of traceback is always accurate
+  tvm::ffi::TracebackStorage traceback;
+  traceback.stop_at_boundary = cross_ffi_boundary == 0;
+  if (filename != nullptr && func != nullptr) {
+    // need to skip TVMFFITraceback and the caller function
+    // which is already included in filename and func
+    traceback.skip_frame_count = 2;
+    traceback.Append(filename, func, lineno);
+  }
+
   HANDLE process = GetCurrentProcess();
   HANDLE thread = GetCurrentThread();
 
@@ -99,33 +108,33 @@ std::string Traceback() {
     size_t total_u64_words = (total_symbol_bytes + 7) / 8;
     static_assert(8 % alignof(SYMBOL_INFO) == 0);
     std::vector<uint64_t> symbol_buffer(total_u64_words, 0);
-    PSYMBOL_INFO symbol_info = reinterpret_cast<PSYMBOL_INFO>(symbol_buffer.data());
-    symbol_info->SizeOfStruct = sizeof(SYMBOL_INFO);
-    symbol_info->MaxNameLen = MAX_SYM_NAME;
-    DWORD64 displacement = 0;
-    if (SymFromAddr(process, stack.AddrPC.Offset, &displacement, symbol_info)) {
-      symbol = symbol_info->Name;
+    if (filename != nullptr) {
+      // only run symbol translation if we have the file name
+      // this is because SymFromAddr can return wrong symbol which becomes even more
+      // confusing when pdb file do not exist
+      PSYMBOL_INFO symbol_info = reinterpret_cast<PSYMBOL_INFO>(symbol_buffer.data());
+      symbol_info->SizeOfStruct = sizeof(SYMBOL_INFO);
+      symbol_info->MaxNameLen = MAX_SYM_NAME;
+      DWORD64 displacement = 0;
+      if (SymFromAddr(process, stack.AddrPC.Offset, &displacement, symbol_info)) {
+        symbol = symbol_info->Name;
+      }
     }
-
-    if (ShouldStopTraceback(filename, symbol)) {
+    if (traceback.stop_at_boundary && tvm::ffi::DetectFFIBoundary(filename, symbol)) {
       break;
     }
-    if (ShouldExcludeFrame(filename, symbol)) {
+    // skip extra frames
+    if (traceback.skip_frame_count > 0) {
+      traceback.skip_frame_count--;
+      continue;
+    }
+    if (tvm::ffi::ShouldExcludeFrame(filename, symbol)) {
       continue;
     }
     traceback.Append(filename, symbol, lineno);
   }
   SymCleanup(process);
-  return traceback.GetTraceback();
-}
-}  // namespace
-}  // namespace ffi
-}  // namespace tvm
-
-const TVMFFIByteArray* TVMFFITraceback(const char* filename, int lineno, const char* func) {
-  static thread_local std::string traceback_str;
-  static thread_local TVMFFIByteArray traceback_array;
-  traceback_str = ::tvm::ffi::Traceback();
+  traceback_str = traceback.GetTraceback();
   traceback_array.data = traceback_str.data();
   traceback_array.size = traceback_str.size();
   return &traceback_array;

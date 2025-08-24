@@ -14,6 +14,14 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+function(tvm_ffi_add_prefix_map target_name prefix_path)
+  # Add prefix map so the path displayed becomes relative to prefix_path
+  if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    target_compile_options(${target_name} PRIVATE "-ffile-prefix-map=${prefix_path}/=")
+  endif()
+endfunction()
+
 function(tvm_ffi_add_apple_dsymutil target_name)
   # running dsymutil on macos to generate debugging symbols for backtraces
   if(APPLE AND TVM_FFI_USE_LIBBACKTRACE)
@@ -36,7 +44,7 @@ function(tvm_ffi_add_msvc_flags target_name)
     target_compile_definitions(${target_name} PUBLIC -D_SCL_SECURE_NO_WARNINGS)
     target_compile_definitions(${target_name} PUBLIC -D_ENABLE_EXTENDED_ALIGNED_STORAGE)
     target_compile_definitions(${target_name} PUBLIC -DNOMINMAX)
-    target_compile_options(${target_name} PRIVATE "/Z7")
+    target_compile_options(${target_name} PRIVATE "/Zi")
   endif()
 endfunction()
 
@@ -77,5 +85,4 @@ function(tvm_ffi_add_target_from_obj target_name obj_target_name)
     endforeach()
   endif()
   tvm_ffi_add_apple_dsymutil(${target_name}_shared)
-  tvm_ffi_add_msvc_flags(${target_name}_shared)
 endfunction()

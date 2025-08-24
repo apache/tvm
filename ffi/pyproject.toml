@@ -62,7 +62,7 @@ build.verbose = true
 cmake.version = "CMakeLists.txt"
 cmake.build-type = "Release"
 cmake.args = [
-  "-DTVM_FFI_USE_RELEASE_FLAGS=ON",
+  "-DTVM_FFI_ATTACH_DEBUG_SYMBOLS=ON",
   "-DTVM_FFI_BUILD_TESTS=OFF",
   "-DTVM_FFI_BUILD_PYTHON_MODULE=ON"
 ]
