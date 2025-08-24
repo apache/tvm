@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 from ...ir_builder.relax import *  # pylint: disable=redefined-builtin
 from ...ir_builder.relax import ir as _relax
 from . import parser as _parser
-from .entry import Callable, Object, Prim, Shape, Tensor, Tuple, match_cast, call_py_func
+from .entry import Callable, Object, Prim, Shape, Tensor, Tuple, match_cast
 
 from . import dist
 from .dist import *  # pylint: disable=wildcard-import,redefined-builtin
@@ -45,5 +45,4 @@ __all__ = _relax.__all__ + [
     "function",
     "macro",
     "match_cast",
-    "call_py_func",
 ]

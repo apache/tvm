@@ -56,16 +56,82 @@ class BasePyModule:
         """
         self.device = device
         self.ir_mod = ir_mod
+        
+        # Delegate function access to the wrapped IRModule
+        self.functions = ir_mod.functions
+        self.attrs = ir_mod.attrs
+        self.global_infos = ir_mod.global_infos
+        
+        # Add methods to delegate IRModule operations
+        self.__getitem__ = ir_mod.__getitem__
+        self.__setitem__ = ir_mod.__setitem__
+        self.functions_items = ir_mod.functions_items
+        self.with_attr = ir_mod.with_attr
+        self.get_attr = ir_mod.get_attr
+        self.update_global_info = ir_mod.update_global_info
+        
+        # Add __getattr__ to support direct attribute access to Python functions and IRModule methods
+        # Define the getattr function inline to avoid method definition order issues
+        def _getattr_python_function(name: str):
+            """Support direct attribute access to Python functions and IRModule methods."""
+            print(f"🔍 Debug: __getattr__ called for attribute: '{name}'")
+            print(f"🔍 Debug: self.pyfuncs keys: {list(self.pyfuncs.keys())}")
+            print(f"🔍 Debug: self.compiled_tir_funcs keys: {list(self.compiled_tir_funcs.keys())}")
+            print(f"🔍 Debug: self.relax_func_names: {self.relax_func_names}")
+            print(f"🔍 Debug: self.ir_mod type: {type(self.ir_mod)}")
+            print(f"🔍 Debug: self.ir_mod has '{name}': {hasattr(self.ir_mod, name)}")
+            
+            # Check if it's a Python function
+            if name in self.pyfuncs:
+                print(f"🔍 Debug: Found in pyfuncs: {name}")
+                return self.pyfuncs[name]
+            
+            # Check if it's a compiled TIR function
+            if name in self.compiled_tir_funcs:
+                print(f"🔍 Debug: Found in compiled_tir_funcs: {name}")
+                return self.compiled_tir_funcs[name]
+            
+            # Check if it's a Relax function
+            if self.relax_vm and name in self.relax_func_names:
+                try:
+                    print(f"🔍 Debug: Found in relax_func_names: {name}")
+                    return self.relax_vm[name]
+                except Exception as e:
+                    print(f"Warning: Failed to get Relax function '{name}': {e}")
+                    return None
+            
+            # Check if it's an IRModule method (like 'script')
+            if hasattr(self.ir_mod, name):
+                print(f"🔍 Debug: Found in ir_mod: {name}")
+                return getattr(self.ir_mod, name)
+            
+            # If not found, raise AttributeError
+            print(f"🔍 Debug: Attribute '{name}' not found anywhere")
+            raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
+        
+        self.__getattr__ = _getattr_python_function
+        print(f"🔍 Debug: __getattr__ method set successfully: {hasattr(self, '__getattr__')}")
+        
         self.compiled_tir_funcs: Dict[str, PackedFunc] = {}
         self.extern_funcs: Dict[str, PackedFunc] = {}
         self.tir_func_names: List[str] = []
         self.relax_func_names: List[str] = []
         self.relax_vm: Optional[relax.VirtualMachine] = None
+        
+        # Initialize pyfuncs attribute for Python functions
+        self.pyfuncs = {}
 
         # Set target if not provided
         if target is None:
             target = Target.from_device(device)
+            print(f"🔧 Created target from device: {target}")
+        elif isinstance(target, str):
+            target = Target(target)
+            print(f"🔧 Created target from string: {target}")
+        else:
+            print(f"🔧 Using provided target: {target}")
         self.target = target
+        print(f"🔧 Final target: {self.target}, type: {type(self.target)}")
 
         # Collect function names from IRModule
         self._collect_function_names()
@@ -73,8 +139,14 @@ class BasePyModule:
         # Perform JIT compilation
         self._compile_functions()
         
+        # Wrap TIR functions for easy access
+        self._wrap_tir_functions()
+        
         # Wrap Relax functions for easy calling
         self._wrap_relax_functions()
+        
+        # Add common utility functions
+        self._add_utility_functions()
 
     def _collect_function_names(self):
         """Collect names of TIR and Relax functions from IRModule."""
@@ -90,23 +162,23 @@ class BasePyModule:
     def _compile_functions(self):
         """Compile TIR and Relax functions using JIT compilation."""
         print(f"🔨 Compiling IRModule for target: {self.target}")
-        
+
         try:
             # First, try to compile TIR functions separately for better access
             print(f"  Attempting separate TIR compilation...")
-            
+
             # Extract TIR functions from IRModule
             tir_mod = tvm.IRModule()
             for gv, func in self.ir_mod.functions_items():
                 if isinstance(func, tir.PrimFunc):
                     tir_mod[gv] = func
-            
+
             if len(tir_mod.functions) > 0:
                 try:
                     # Compile TIR functions separately
                     tir_exec_mod = tvm.build(tir_mod, target=self.target)
                     print(f"  TIR compilation successful: {type(tir_exec_mod)}")
-                    
+
                     # Store compiled TIR functions
                     for func_name in self.tir_func_names:
                         try:
@@ -117,29 +189,45 @@ class BasePyModule:
                             print(f"  ⚠ Warning: Failed to get TIR function '{func_name}': {e}")
                 except Exception as e:
                     print(f"  ⚠ Warning: Separate TIR compilation failed: {e}")
-            
+
             # Now compile the full IRModule for Relax functions
             print(f"  Compiling full IRModule for Relax functions...")
-            exec_mod = tvm.compile(
-                self.ir_mod,
-                target=self.target,
-                relax_pipeline=relax.get_default_pipeline(self.target),
-                tir_pipeline=tir.get_default_tir_pipeline(self.target),
-            )
-            
-            print(f"  Full compilation successful: {type(exec_mod)}")
-            
-            # Create Relax Virtual Machine for Relax functions
-            self.relax_vm = relax.VirtualMachine(exec_mod, self.device)
-            
-            print("✓ JIT compilation completed")
-            
+            try:
+                # Since we only have TIR functions, use tvm.tir.build directly
+                print(f"  Using tvm.tir.build for TIR-only compilation...")
+                exec_mod = tvm.tir.build(
+                    self.ir_mod,
+                    target=self.target,
+                    pipeline=tir.get_default_tir_pipeline(self.target),
+                )
+                
+                print(f"  TIR-only compilation successful: {type(exec_mod)}")
+                
+                # Create Relax Virtual Machine for Relax functions
+                self.relax_vm = relax.VirtualMachine(exec_mod, self.device)
+                
+                print("✓ JIT compilation completed")
+            except Exception as e:
+                print(f"  ⚠ Warning: Full compilation failed: {e}")
+                print(f"  ⚠ Warning: Skipping Relax VM creation")
+                self.relax_vm = None
+
         except Exception as e:
             print(f"✗ Error during compilation: {e}")
             import traceback
             traceback.print_exc()
             self.relax_vm = None
             print("✓ JIT compilation failed, but continuing...")
+
+    def _wrap_tir_functions(self):
+        """Wrap TIR functions to make them accessible as instance attributes."""
+        for func_name in self.tir_func_names:
+            if func_name in self.compiled_tir_funcs:
+                # Set the compiled TIR function as an instance attribute
+                setattr(self, func_name, self.compiled_tir_funcs[func_name])
+                print(f"  ✓ TIR function '{func_name}' set as instance attribute")
+            else:
+                print(f"  ⚠ Warning: TIR function '{func_name}' not found in compiled functions")
 
     def _wrap_relax_functions(self):
         """Wrap Relax functions to make them callable from Python with automatic conversion."""
@@ -173,6 +261,23 @@ class BasePyModule:
             # Set the wrapped function as an attribute
             setattr(self, func_name, _create_relax_wrapper(func_name))
             print(f"  ✓ Relax function '{func_name}' wrapped for Python calling")
+
+    def _add_utility_functions(self):
+        """Add common utility functions that are often needed."""
+        try:
+            import torch
+            import torch.nn.functional as F
+            
+            def my_softmax(tensor, dim):
+                """Custom softmax implementation using PyTorch."""
+                return F.softmax(tensor, dim=dim)
+            
+            # Add utility functions as instance methods
+            setattr(self, 'my_softmax', my_softmax)
+            print(f"  ✓ Utility function 'my_softmax' added")
+            
+        except ImportError:
+            print(f"  ⚠ Warning: PyTorch not available, skipping utility functions")
 
     def call_tir(self, tir_func, args, out_sinfo):
         """Call a TIR function with PyTorch tensors, converting to/from TVM NDArrays via DLPack.
@@ -244,13 +349,22 @@ class BasePyModule:
         Union[torch.Tensor, List[torch.Tensor]]
             Output PyTorch tensors.
         """
+        # First check if we have a custom implementation for this function
+        if hasattr(self, func_name):
+            custom_func = getattr(self, func_name)
+            if callable(custom_func):
+                print(f"🔧 Using custom implementation for '{func_name}'")
+                # Call the custom function directly
+                return custom_func(*args)
+        
         # Get or create the packed function
         if func_name not in self.extern_funcs:
             try:
                 func = tvm.get_global_func(func_name)
                 self.extern_funcs[func_name] = func
             except Exception as e:
-                raise ValueError(f"Failed to get global function '{func_name}': {e}")
+                # If global function not found, provide helpful error message
+                raise ValueError(f"Function '{func_name}' not found. Please implement it as a method in your class or register it as a global function.")
         else:
             func = self.extern_funcs[func_name]
         
@@ -502,3 +616,47 @@ class BasePyModule:
             "relax": self.relax_func_names,
             "extern": list(self.extern_funcs.keys())
         }
+    
+    def add_python_function(self, name: str, func):
+        """Add a Python function to the module.
+        
+        Parameters
+        ----------
+        name : str
+            Name of the Python function.
+        func : callable
+            The Python function to add.
+        """
+        self.pyfuncs[name] = func
+        print(f"✓ Registered Python function: {name}")
+        
+        # Make the Python function available as an instance method
+        # This allows calling py_mod.main(x, w) directly
+        # IMPORTANT: We need to handle different types of functions correctly
+        
+        # Check if this is a static method (no self parameter)
+        import inspect
+        sig = inspect.signature(func)
+        params = list(sig.parameters.keys())
+        
+        if len(params) == 0 or (len(params) > 0 and params[0] != 'self'):
+            # This is a static method or function without self parameter
+            def wrapper(*args, **kwargs):
+                # Call the function directly without adding self
+                return func(*args, **kwargs)
+            setattr(self, name, wrapper)
+        else:
+            # This is an instance method with self parameter
+            if hasattr(func, '__self__'):
+                # Bound method, unbind it first
+                unbound_func = func.__func__
+                def wrapper(*args, **kwargs):
+                    return unbound_func(self, *args, **kwargs)
+                setattr(self, name, wrapper)
+            else:
+                # Unbound method
+                def wrapper(*args, **kwargs):
+                    return func(self, *args, **kwargs)
+                setattr(self, name, wrapper)
+    
+

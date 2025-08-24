@@ -534,27 +534,3 @@ def _normalize_struct_info(
     else:
         proxy = _normalize_struct_info_proxy(struct_info)
         return proxy.as_struct_info(dict_globals)
-
-
-############################ R.call_py_func #############################
-
-def call_py_func(func_name: str, *args):
-    """Call a Python function from Relax.
-    
-    This primitive allows Relax functions to invoke Python functions
-    that are stored in the IRModule's pyfuncs attribute.
-    
-    Parameters
-    ----------
-    func_name : str
-        The name of the Python function to call.
-    *args : Expr
-        The arguments to pass to the Python function.
-        
-    Returns
-    -------
-    Call
-        A call expression that will invoke the Python function at runtime.
-    """
-    from tvm.relax import call_py_func as relax_call_py_func
-    return relax_call_py_func(func_name, list(args))
