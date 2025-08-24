@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-06-03T18:16:35.861918
+// Generated at 2025-08-24T11:52:44.639508
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -532,6 +532,9 @@ def build() {
   stage('Build') {
     try {
         run_build('CPU-SPOT')
+    } catch (hudson.AbortException abortEx) {
+        echo "Received normal AbortException, exit now. Details:" + abortEx.toString()
+        throw abortEx
     } catch (Throwable ex) {
       echo 'Exception during SPOT run ' + ex.toString()
       if (is_last_build()) {
