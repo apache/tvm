@@ -16,11 +16,12 @@
 # under the License.
 """Suppliers that are used to guarantee uniqueness of names and GlobalVars."""
 import tvm
+import tvm_ffi
 from tvm import Object, IRModule
 from . import _ffi_api
 
 
-@tvm.ffi.register_object("ir.NameSupply")
+@tvm_ffi.register_object("ir.NameSupply")
 class NameSupply(Object):
     """NameSupply that can be used to generate unique names.
 
@@ -77,7 +78,7 @@ class NameSupply(Object):
         return _ffi_api.NameSupply_ContainsName(self, name, add_prefix)
 
 
-@tvm.ffi.register_object("ir.GlobalVarSupply")
+@tvm_ffi.register_object("ir.GlobalVarSupply")
 class GlobalVarSupply(Object):
     """GlobalVarSupply that holds a mapping between names and GlobalVars.
 

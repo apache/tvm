@@ -624,9 +624,9 @@ struct ObjectPtrEqual {
  * \param TypeName The name of the current type.
  * \param ParentType The name of the ParentType
  */
-#define TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TypeName, ParentType) \
-  static const constexpr int _type_child_slots = 0;             \
-  static const constexpr bool _type_final = true;               \
+#define TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TypeName, ParentType)      \
+  static const constexpr int _type_child_slots [[maybe_unused]] = 0; \
+  static const constexpr bool _type_final [[maybe_unused]] = true;   \
   TVM_FFI_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)
 
 /*

@@ -19,13 +19,13 @@
 import inspect
 import functools
 
-import tvm.ffi
+import tvm_ffi
 import tvm.runtime
 
 from . import _ffi_transform_api
 
 
-@tvm.ffi.register_object("transform.PassInfo")
+@tvm_ffi.register_object("transform.PassInfo")
 class PassInfo(tvm.runtime.Object):
     """The class contains the meta data required by a pass. It is the
     container of information needed by running an optimization or analysis.
@@ -50,7 +50,7 @@ class PassInfo(tvm.runtime.Object):
         )
 
 
-@tvm.ffi.register_object("transform.PassContext")
+@tvm_ffi.register_object("transform.PassContext")
 class PassContext(tvm.runtime.Object):
     """The basis where a TVM optimization/analysis runs on.
     Each pass context contains a number of auxiliary information that is used
@@ -138,7 +138,7 @@ class PassContext(tvm.runtime.Object):
         return _ffi_transform_api.ListConfigs()
 
 
-@tvm.ffi.register_object("transform.Pass")
+@tvm_ffi.register_object("transform.Pass")
 class Pass(tvm.runtime.Object):
     """The base class of all passes. All methods here are just simple wrappers
     that are implemented in the backend. They are defined for users to
@@ -167,7 +167,7 @@ class Pass(tvm.runtime.Object):
         return _ffi_transform_api.RunPass(self, mod)
 
 
-@tvm.ffi.register_object("transform.ModulePass")
+@tvm_ffi.register_object("transform.ModulePass")
 class ModulePass(Pass):
     """A pass that works on tvm.IRModule. Users don't need to interact with
     this class directly. Instead, a module pass should be created through
@@ -178,7 +178,7 @@ class ModulePass(Pass):
     """
 
 
-@tvm.ffi.register_object("transform.Sequential")
+@tvm_ffi.register_object("transform.Sequential")
 class Sequential(Pass):
     """A pass that works on a sequence of pass objects. Multiple passes can be
     executed sequentially using this class.

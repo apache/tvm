@@ -20,8 +20,8 @@ import re
 import warnings
 from typing import Union
 
-import tvm.ffi
-from tvm.ffi import register_func as _register_func
+import tvm_ffi
+from tvm_ffi import register_func as _register_func
 from tvm.runtime import Device
 from tvm.runtime import Object, convert
 from tvm.runtime.container import String
@@ -30,7 +30,7 @@ from tvm.ir.container import Map, Array
 from . import _ffi_api
 
 
-@tvm.ffi.register_object("target.TargetKind")
+@tvm_ffi.register_object("target.TargetKind")
 class TargetKind(Object):
     """Kind of a compilation target"""
 
@@ -53,7 +53,7 @@ class TargetFeatures:
         return _ffi_api.TargetGetFeature(self.target, name)
 
 
-@tvm.ffi.register_object("target.Target")
+@tvm_ffi.register_object("target.Target")
 class Target(Object):
     """Target device information, use through TVM API.
 

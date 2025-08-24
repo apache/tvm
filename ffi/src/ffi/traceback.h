@@ -24,6 +24,8 @@
 #ifndef TVM_FFI_TRACEBACK_H_
 #define TVM_FFI_TRACEBACK_H_
 
+#include <tvm/ffi/base_details.h>
+
 #include <cstring>
 #include <sstream>
 #include <string>
@@ -52,47 +54,49 @@ inline int32_t GetTracebackLimit() {
  * \brief List frame patterns that should be excluded as they contain less information
  */
 inline bool ShouldExcludeFrame(const char* filename, const char* symbol) {
+  if (symbol != nullptr) {
+    if (strncmp(symbol, "tvm::ffi::Function", 18) == 0) {
+      return true;
+    }
+    if (strncmp(symbol, "tvm::ffi::details::", 19) == 0) {
+      return true;
+    }
+    if (strncmp(symbol, "TVMFFITraceback", 15) == 0) {
+      return true;
+    }
+    if (strncmp(symbol, "TVMFFIErrorSetRaisedFromCStr", 28) == 0) {
+      return true;
+    }
+    // C++ stdlib frames
+    if (strncmp(symbol, "__libc_", 7) == 0) {
+      return true;
+    }
+    // libffi.so stack frames.  These may also show up as numeric
+    // addresses with no symbol name.  This could be improved in the
+    // future by using dladdr() to check whether an address is contained
+    // in libffi.so
+    if (strncmp(symbol, "ffi_call_", 9) == 0) {
+      return true;
+    }
+  }
   if (filename) {
     // Stack frames for TVM FFI
-    if (strstr(filename, "include/tvm/ffi/error.h")) {
+    if (strstr(filename, "include/tvm/ffi/error.h") != nullptr) {
       return true;
     }
-    if (strstr(filename, "include/tvm/ffi/function_details.h")) {
+    if (strstr(filename, "include/tvm/ffi/function_details.h") != nullptr) {
       return true;
     }
-    if (strstr(filename, "include/tvm/ffi/function.h")) {
+    if (strstr(filename, "include/tvm/ffi/function.h") != nullptr) {
       return true;
     }
-    if (strstr(filename, "include/tvm/ffi/any.h")) {
-      return true;
-    }
-    if (strstr(filename, "include/tvm/runtime/logging.h")) {
-      return true;
-    }
-    if (strstr(filename, "src/ffi/traceback.cc")) {
+    if (strstr(filename, "include/tvm/ffi/any.h") != nullptr) {
       return true;
     }
     // C++ stdlib frames
-    if (strstr(filename, "include/c++/")) {
+    if (strstr(filename, "include/c++/") != nullptr) {
       return true;
     }
-  }
-
-  if (symbol) {
-    // C++ stdlib frames
-    if (strstr(symbol, "__libc_")) {
-      return true;
-    }
-  }
-  if (strncmp(symbol, "TVMFFIErrorSetRaisedFromCStr", 28) == 0) {
-    return true;
-  }
-  // libffi.so stack frames.  These may also show up as numeric
-  // addresses with no symbol name.  This could be improved in the
-  // future by using dladdr() to check whether an address is contained
-  // in libffi.so
-  if (strstr(symbol, "ffi_call_")) {
-    return true;
   }
   return false;
 }
@@ -104,15 +108,22 @@ inline bool ShouldExcludeFrame(const char* filename, const char* symbol) {
  * \return true if the frame should stop the traceback.
  * \note We stop traceback at the FFI boundary.
  */
-inline bool ShouldStopTraceback(const char* filename, const char* symbol) {
+inline bool DetectFFIBoundary(const char* filename, const char* symbol) {
   if (symbol != nullptr) {
-    if (strncmp(symbol, "TVMFFIFunctionCall", 14) == 0) {
+    if (strncmp(symbol, "TVMFFIFunctionCall", 18) == 0) {
+      return true;
+    }
+    // python ABI functions
+    if (strncmp(symbol, "slot_tp_call", 12) == 0) {
+      return true;
+    }
+    if (strncmp(symbol, "object_is_not_callable", 11) == 0) {
       return true;
     }
     // Python interpreter stack frames
     // we stop traceback at the Python interpreter stack frames
     // since these frame will be handled from by the python side.
-    if (strncmp(symbol, "_Py", 3) == 0 || strncmp(symbol, "PyObject", 9) == 0) {
+    if (strncmp(symbol, "_Py", 3) == 0 || strncmp(symbol, "PyObject", 8) == 0) {
       return true;
     }
   }
@@ -126,12 +137,19 @@ struct TracebackStorage {
   std::vector<std::string> lines;
   /*! \brief Maximum size of the traceback. */
   size_t max_frame_size = GetTracebackLimit();
+  /*! \brief Number of frames to skip. */
+  size_t skip_frame_count = 0;
+  /*! \brief Whether to stop at the ffi boundary. */
+  bool stop_at_boundary = true;
 
   void Append(const char* filename, const char* func, int lineno) {
     // skip frames with empty filename
     if (filename == nullptr) {
       if (func != nullptr) {
         if (strncmp(func, "0x0", 3) == 0) {
+          return;
+        }
+        if (strncmp(func, "<unknown>", 9) == 0) {
           return;
         }
         filename = "<unknown>";
@@ -141,9 +159,7 @@ struct TracebackStorage {
     }
     std::ostringstream trackeback_stream;
     trackeback_stream << "  File \"" << filename << "\"";
-    if (lineno != 0) {
-      trackeback_stream << ", line " << lineno;
-    }
+    trackeback_stream << ", line " << lineno;
     trackeback_stream << ", in " << func << '\n';
     lines.push_back(trackeback_stream.str());
   }

@@ -19,7 +19,7 @@
 from enum import IntEnum
 from typing import Optional, Union, List
 import tvm
-from tvm.runtime import Object
+import tvm_ffi
 from tvm.runtime.container import ShapeTuple
 from .vm_build import VMExecutable
 from . import _ffi_api
@@ -56,8 +56,8 @@ class VMFuncScope(object):
         self.exit_callback()
 
 
-@tvm.ffi.register_object("relax.ExecBuilder")
-class ExecBuilder(Object):
+@tvm_ffi.register_object("relax.ExecBuilder")
+class ExecBuilder(tvm_ffi.core.Object):
     """A builder to emit instructions and build executable for the virtual machine."""
 
     def __init__(self) -> None:

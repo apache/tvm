@@ -56,7 +56,7 @@ def device(dev_type, dev_id=0):
 
     Returns
     -------
-    dev: tvm.ffi.Device
+    dev: tvm_ffi.Device
 
     Examples
     --------
@@ -65,8 +65,8 @@ def device(dev_type, dev_id=0):
 
     .. code-block:: python
 
-      assert tvm.ffi.device("cuda:0") == tvm.ffi.cuda(1)
-      assert tvm.ffi.device("cpu", 0) == tvm.ffi.cpu(0)
+      assert tvm_ffi.device("cuda:0") == tvm_ffi.cuda(1)
+      assert tvm_ffi.device("cpu", 0) == tvm_ffi.cpu(0)
     """
     if isinstance(dev_type, str):
         dev_type = dev_type.split(" ")[0]

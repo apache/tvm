@@ -130,6 +130,14 @@ Once ``config.cmake`` is edited accordingly, kick off build with the commands be
 
 A success build should produce ``libtvm`` and ``libtvm_runtime`` under ``build/`` directory.
 
+Apache TVM relies on the tvm-ffi package to support its python bindings.
+Therefore, after we finish the build, we need to install the tvm-ffi package.
+
+.. code-block:: bash
+
+    cd ffi; pip install .; cd ..
+
+
 Leaving the build environment ``tvm-build-venv``, there are two ways to install the successful build into your environment:
 
 -  Install via environment variable
@@ -137,7 +145,7 @@ Leaving the build environment ``tvm-build-venv``, there are two ways to install 
 .. code-block:: bash
 
     export TVM_HOME=/path-to-tvm
-    export PYTHONPATH=$TVM_HOME/python:$PYTHONPATH
+    export PYTHONPATH=$TVM_HOME/python:$TVM_HOME/ffi/python:$PYTHONPATH
 
 - Install via pip local project
 

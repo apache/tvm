@@ -1,0 +1,149 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+[project]
+name = "apache-tvm-ffi"
+version = "0.1.0a0"
+description = "tvm ffi"
+
+authors = [{ name = "TVM FFI team" }]
+readme = "README.md"
+license = { text = "Apache 2.0" }
+classifiers = [
+  "License :: OSI Approved :: Apache Software License",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Education",
+  "Intended Audience :: Science/Research",
+]
+keywords = ["machine learning", "inference"]
+requires-python = ">=3.9"
+dependencies = []
+
+
+[project.urls]
+Homepage = "https://github.com/apache/tvm/ffi"
+GitHub = "https://github.com/apache/tvm/ffi"
+
+[project.optional-dependencies]
+torch = ["torch"]
+test = ["pytest"]
+
+[project.scripts]
+tvm-ffi-config = "tvm_ffi.config:__main__"
+
+[build-system]
+requires = ["scikit-build-core>=0.10.0", "cython"]
+build-backend = "scikit_build_core.build"
+
+[tool.scikit-build]
+wheel.py-api = "cp312"
+minimum-version = "build-system.requires"
+
+# Build configuration
+build-dir = "build"
+build.verbose = true
+
+# CMake configuration
+cmake.version = "CMakeLists.txt"
+cmake.build-type = "Release"
+cmake.args = [
+  "-DTVM_FFI_ATTACH_DEBUG_SYMBOLS=ON",
+  "-DTVM_FFI_BUILD_TESTS=OFF",
+  "-DTVM_FFI_BUILD_PYTHON_MODULE=ON"
+]
+
+# Logging
+logging.level = "INFO"
+
+# Wheel configuration
+wheel.packages = ["python/tvm_ffi"]
+wheel.install-dir = "tvm_ffi"
+
+# Source distribution configuration
+sdist.include = [
+  # Build files
+  "/CMakeLists.txt",
+  "/pyproject.toml",
+  "/cmake/**/*",
+  # Source code
+  "/src/**/*.cc",
+  "/include/**/*",
+
+  # python and cython
+  "/python/tvm_ffi/**/*.py",
+  "/python/tvm_ffi/**/*.pyx",
+  "/python/tvm_ffi/**/*.pyi",
+
+  # Third party files
+  "/3rdparty/libbacktrace/**/*",
+  "/3rdparty/dlpack/include/*/*",
+
+  # Documentation and metadata
+  "/docs/**/*",
+  "/LICENSE",
+  "/README.md",
+  "/NOTICE",
+
+  # Tests
+  "/tests/**/*",
+]
+
+sdist.exclude = ["**/.git", "**/.github", "**/__pycache__", "**/*.pyc", "build", "dist"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.black]
+exclude = "3rdparty/*"
+line-length = 100
+skip-magic-trailing-comma = true
+
+[tool.isort]
+profile = "black"
+src_paths = ["python", "tests"]
+extend_skip = ["3rdparty"]
+line_length = 100
+skip_gitignore = true
+
+[tool.cibuildwheel]
+build-verbosity = 1
+# skip pp and low python version
+# sdist should be sufficient
+skip = [
+  "cp36-*",
+  "cp37-*",
+  "cp38-*",
+  "cp39-*",
+  "cp310-*",
+  "cp311-*",
+  "pp*",
+  "*musllinux*",
+] # pypy doesn't play nice with pybind11
+build-frontend = "build[uv]"
+test-command = "pytest {project}/tests -m "
+test-extras = ["test"]
+
+[tool.cibuildwheel.linux]
+archs = ["x86_64", "aarch64"]
+
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
+environment = { MACOSX_DEPLOYMENT_TARGET = "10.14" }
+
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]

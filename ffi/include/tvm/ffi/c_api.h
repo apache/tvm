@@ -836,13 +836,15 @@ TVM_FFI_DLL const TVMFFITypeAttrColumn* TVMFFIGetTypeAttrColumn(const TVMFFIByte
  * \param filename The current file name.
  * \param lineno The current line number
  * \param func The current function
+ * \param cross_ffi_boundary Whether the traceback is crossing the ffi boundary
+ *                           or we should stop at the ffi boundary when detected
  * \return The traceback string
  *
- * \note filename func and lino are only used as a backup info, most cases they are not needed.
- *  The return value is set to const char* to be more compatible across dll boundaries.
+ * \note filename/func can be nullptr, then these info are skipped, they are useful
+ *       for cases when debug symbols is not available.
  */
 TVM_FFI_DLL const TVMFFIByteArray* TVMFFITraceback(const char* filename, int lineno,
-                                                   const char* func);
+                                                   const char* func, int cross_ffi_boundary);
 
 /*!
  * \brief Initialize the type info during runtime.

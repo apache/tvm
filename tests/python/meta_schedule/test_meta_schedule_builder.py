@@ -25,7 +25,7 @@ import pytest
 import tvm.testing
 
 from tvm import script
-from tvm.ffi import register_func
+from tvm_ffi import register_func
 from tvm.meta_schedule.builder import (
     BuilderInput,
     BuilderResult,

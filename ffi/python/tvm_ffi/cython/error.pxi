@@ -98,7 +98,7 @@ cdef inline int set_last_ffi_error(error) except -1:
     kind = ERROR_TYPE_TO_NAME.get(type(error), "RuntimeError")
     message = error.__str__()
     py_traceback = _TRACEBACK_TO_STR(error.__traceback__)
-    c_traceback = bytearray_to_str(TVMFFITraceback("<unknown>", 0, "<unknown>"))
+    c_traceback = bytearray_to_str(TVMFFITraceback(NULL, 0, NULL, 0))
 
     # error comes from an exception thrown from C++ side
     if hasattr(error, "__tvm_ffi_error__"):

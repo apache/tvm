@@ -57,8 +57,8 @@ trap "{ kill ${TRACKER_PID}; kill ${DEVICE_PID}; cleanup; }" 0
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
-# setup cython
-cd python; python3 setup.py build_ext --inplace; cd ..
+# setup tvm-ffi into python folder
+python3 -m pip install --target=python -v ./ffi
 
 exit 0
 

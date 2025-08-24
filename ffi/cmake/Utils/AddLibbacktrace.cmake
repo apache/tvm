@@ -18,7 +18,7 @@
 include(ExternalProject)
 
 function(_libbacktrace_compile)
-  set(_libbacktrace_source ${CMAKE_CURRENT_LIST_DIR}/../../../3rdparty/libbacktrace)
+  set(_libbacktrace_source ${CMAKE_CURRENT_LIST_DIR}/../../3rdparty/libbacktrace)
   set(_libbacktrace_prefix ${CMAKE_CURRENT_BINARY_DIR}/libbacktrace)
   if(CMAKE_SYSTEM_NAME MATCHES "Darwin" AND (CMAKE_C_COMPILER MATCHES "^/Library" OR CMAKE_C_COMPILER MATCHES "^/Applications"))
     set(_cmake_c_compiler "/usr/bin/cc")
@@ -36,6 +36,7 @@ function(_libbacktrace_compile)
     SOURCE_DIR ${_libbacktrace_source}
     BINARY_DIR ${_libbacktrace_prefix}
     CONFIGURE_COMMAND
+      "sh"
       "${_libbacktrace_source}/configure"
       "--prefix=${_libbacktrace_prefix}"
       --with-pic

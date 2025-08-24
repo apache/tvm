@@ -20,7 +20,7 @@ import os
 import subprocess
 import sys
 
-from tvm.ffi import register_func
+from tvm_ffi import register_func
 from tvm.runtime import ShapeTuple
 
 

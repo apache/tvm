@@ -23,10 +23,10 @@ import operator
 import os
 from functools import reduce
 from typing import Optional, Sequence
+from tvm_ffi import register_func
 
 import tvm
 from tvm import relax, runtime
-from tvm.ffi.registry import register_func
 from tvm.contrib.nvcc import get_cuda_version
 from tvm.topi.utils import get_const_tuple
 

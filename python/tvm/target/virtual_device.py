@@ -16,14 +16,13 @@
 # under the License.
 """Python bindings for creating VirtualDevices."""
 
-import tvm
-from tvm.runtime import Object
+import tvm_ffi
 
 from . import _ffi_api
 
 
-@tvm.ffi.register_object("target.VirtualDevice")
-class VirtualDevice(Object):
+@tvm_ffi.register_object("target.VirtualDevice")
+class VirtualDevice(tvm_ffi.core.Object):
     """A compile time representation for where data is to be stored at runtime,
     and how to compile code to compute it."""
 

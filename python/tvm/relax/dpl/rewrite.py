@@ -20,7 +20,7 @@ from typing import Dict, Callable, Union
 
 from tvm.ir import IRModule
 from tvm.runtime import Object
-from tvm.ffi import register_object
+from tvm_ffi import register_object
 
 from .pattern import DFPattern
 from .context import PatternContext

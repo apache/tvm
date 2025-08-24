@@ -37,7 +37,7 @@ def register_object(type_key=None):
 
     .. code-block:: python
 
-      @tvm.ffi.register_object("test.MyObject")
+      @tvm_ffi.register_object("test.MyObject")
       class MyObject(Object):
           pass
     """

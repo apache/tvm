@@ -17,10 +17,10 @@
 # under the License.
 set -euxo pipefail
 
-BUILD_TYPE=RelWithDebugInfo
+BUILD_TYPE=Release
 
 rm -rf build/CMakeFiles build/CMakeCache.txt
 cmake -G Ninja -S . -B build  -DTVM_FFI_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
-  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+  -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_FLAGS="-O3"
 cmake --build build --parallel 16 --clean-first --config ${BUILD_TYPE} --target tvm_ffi_tests
 GTEST_COLOR=1 ctest -V -C ${BUILD_TYPE} --test-dir build --output-on-failure

@@ -19,10 +19,10 @@ from typing import List, Mapping, Optional, Tuple, Union
 
 # isort: off
 from typing_extensions import Literal
+from tvm_ffi import register_func
 
 # isort: on
 from tvm import ir, tir
-from tvm.ffi import register_func
 from tvm.target import Target
 from tvm.tir.expr import IntImm
 

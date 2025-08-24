@@ -18,7 +18,7 @@
 import gc
 import ctypes
 import numpy as np
-from tvm import ffi as tvm_ffi
+import tvm_ffi
 
 
 def test_echo():

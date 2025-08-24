@@ -25,8 +25,8 @@ export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 export TVM_BIND_THREADS=0
 export TVM_NUM_THREADS=2
 
-# setup cython
-cd python; python3 setup.py build_ext --inplace; cd ..
+# setup tvm-ffi into python folder
+python3 -m pip install  -v --target=python ./ffi
 
 # Run Relax tests
 TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/relax

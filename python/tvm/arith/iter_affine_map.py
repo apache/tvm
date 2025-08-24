@@ -16,18 +16,18 @@
 # under the License.
 """Iterator (quasi)affine mapping patterns."""
 from enum import IntEnum
-import tvm.ffi
+import tvm_ffi
 from tvm.runtime import Object
 from tvm.ir import PrimExpr
 from . import _ffi_api
 
 
-@tvm.ffi.register_object("arith.IterMapExpr")
+@tvm_ffi.register_object("arith.IterMapExpr")
 class IterMapExpr(PrimExpr):
     """Base class of all IterMap expressions."""
 
 
-@tvm.ffi.register_object("arith.IterMark")
+@tvm_ffi.register_object("arith.IterMark")
 class IterMark(Object):
     """Mark the source as an iterator in [0, extent).
 
@@ -44,7 +44,7 @@ class IterMark(Object):
         self.__init_handle_by_constructor__(_ffi_api.IterMark, source, extent)
 
 
-@tvm.ffi.register_object("arith.IterSplitExpr")
+@tvm_ffi.register_object("arith.IterSplitExpr")
 class IterSplitExpr(IterMapExpr):
     """Split of an iterator.
 
@@ -71,7 +71,7 @@ class IterSplitExpr(IterMapExpr):
         )
 
 
-@tvm.ffi.register_object("arith.IterSumExpr")
+@tvm_ffi.register_object("arith.IterSumExpr")
 class IterSumExpr(IterMapExpr):
     """Fuse multiple iterators by summing them with scaling.
 
@@ -90,7 +90,7 @@ class IterSumExpr(IterMapExpr):
         self.__init_handle_by_constructor__(_ffi_api.IterSumExpr, args, base)
 
 
-@tvm.ffi.register_object("arith.IterMapResult")
+@tvm_ffi.register_object("arith.IterMapResult")
 class IterMapResult(Object):
     """Result of iter map detection."""
 

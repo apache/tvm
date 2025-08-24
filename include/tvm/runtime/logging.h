@@ -206,7 +206,7 @@ class InternalError : public Error {
    */
   InternalError(std::string file, int lineno, std::string message)
       : Error(DetectKind(message), DetectMessage(message),
-              TVMFFITraceback(file.c_str(), lineno, "")) {}
+              TVMFFITraceback(file.c_str(), lineno, "", 0)) {}
 
  private:
   // try to detect the kind of error from the message when the error type

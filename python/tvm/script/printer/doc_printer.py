@@ -18,7 +18,7 @@
 
 from typing import List, Optional
 
-from tvm.ffi.access_path import AccessPath
+from tvm_ffi.access_path import AccessPath
 from tvm.runtime.script_printer import PrinterConfig
 
 from . import _ffi_api

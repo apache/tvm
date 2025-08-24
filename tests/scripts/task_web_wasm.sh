@@ -20,6 +20,9 @@ set -euxo pipefail
 
 export PYTHONPATH=`pwd`/python
 
+# setup tvm-ffi into python folder
+python3 -m pip install  -v --target=python ./ffi
+
 rm -rf .emscripten_cache
 cd web
 make clean

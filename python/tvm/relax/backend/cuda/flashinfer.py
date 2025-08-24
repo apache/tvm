@@ -131,7 +131,7 @@ def _compile_flashinfer_kernels(
         FLASHINFER_TVM_BINDING_DIR,
         Path(tvm_home).resolve() / "include",
         Path(tvm_home).resolve() / "ffi" / "include",
-        Path(tvm_home).resolve() / "3rdparty" / "dlpack" / "include",
+        Path(tvm_home).resolve() / "ffi" / "3rdparty" / "dlpack" / "include",
         Path(tvm_home).resolve() / "3rdparty" / "dmlc-core" / "include",
     ] + CUTLASS_INCLUDE_DIRS
 

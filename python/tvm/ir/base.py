@@ -15,9 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common base structures."""
-import tvm.ffi
 import tvm.error
-from tvm.ffi import get_global_func, register_object
+from tvm_ffi import get_global_func, register_object
 from tvm.runtime import Object, _ffi_node_api
 
 from . import _ffi_api, json_compact

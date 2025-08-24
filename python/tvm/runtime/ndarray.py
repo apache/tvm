@@ -27,13 +27,8 @@ try:
 except ImportError:
     ml_dtypes = None
 
-from tvm.runtime import Device
-
-import tvm.ffi
-from . import _ffi_api
-
-
-from ..ffi import (
+import tvm_ffi
+from tvm_ffi import (
     device,
     cpu,
     cuda,
@@ -46,6 +41,10 @@ from ..ffi import (
     hexagon,
     webgpu,
 )
+
+import tvm
+from tvm.runtime import Device
+from . import _ffi_api
 
 
 def from_dlpack(ext_tensor):
@@ -63,15 +62,15 @@ def from_dlpack(ext_tensor):
     required_contiguous : bool
         Whether to check for contiguous memory.
     """
-    return tvm.ffi.from_dlpack(
+    return tvm_ffi.from_dlpack(
         ext_tensor,
         required_alignment=64,
         required_contiguous=True,
     )
 
 
-@tvm.ffi.register_object("ffi.NDArray")
-class NDArray(tvm.ffi.core.NDArray):
+@tvm_ffi.register_object("ffi.NDArray")
+class NDArray(tvm_ffi.core.NDArray):
     """Lightweight NDArray class of TVM runtime.
 
     Strictly this is only an Array Container (a buffer object)
@@ -124,7 +123,7 @@ class NDArray(tvm.ffi.core.NDArray):
                     f"array must be an array_like data, type {type(source_array)} is not supported"
                 )
 
-        t = tvm.ffi.dtype(self.dtype)
+        t = tvm_ffi.dtype(self.dtype)
         shape, dtype = self.shape, self.dtype
         if t.lanes > 1:
             shape = shape + (t.lanes,)
@@ -135,7 +134,7 @@ class NDArray(tvm.ffi.core.NDArray):
             raise ValueError(
                 f"array shape do not match the shape of NDArray {source_array.shape} vs {shape}"
             )
-        numpy_str_map = tvm.ffi.dtype.NUMPY_DTYPE_TO_STR
+        numpy_str_map = tvm_ffi.dtype.NUMPY_DTYPE_TO_STR
         np_dtype_str = (
             numpy_str_map[source_array.dtype]
             if source_array.dtype in numpy_str_map
@@ -182,7 +181,7 @@ class NDArray(tvm.ffi.core.NDArray):
         np_arr : numpy.ndarray
             The corresponding numpy array.
         """
-        t = tvm.ffi.dtype(self.dtype)
+        t = tvm_ffi.dtype(self.dtype)
         shape, dtype = self.shape, self.dtype
         old_dtype = dtype
         if t.lanes > 1:
@@ -247,7 +246,7 @@ class NDArray(tvm.ffi.core.NDArray):
         """
         if isinstance(target, NDArray):
             return self._copyto(target)
-        if isinstance(target, tvm.ffi.core.Device):
+        if isinstance(target, tvm_ffi.core.Device):
             res = empty(self.shape, self.dtype, target, mem_scope)
             return self._copyto(res)
         raise ValueError(f"Unsupported target type {type(target)}")
@@ -330,7 +329,7 @@ def empty(shape, dtype="float32", device=None, mem_scope=None):
     device = device or cpu()
     if not isinstance(shape, tvm.runtime.ShapeTuple):
         shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
-    dtype = tvm.ffi.dtype(dtype)
+    dtype = tvm_ffi.dtype(dtype)
     arr = _ffi_api.TVMArrayAllocWithScope(shape, dtype, device, mem_scope)
     return arr
 
@@ -362,4 +361,4 @@ def array(arr, device=None, mem_scope=None):
 
 
 # Register back to FFI
-tvm.ffi.core._set_class_ndarray(NDArray)
+tvm_ffi.core._set_class_ndarray(NDArray)

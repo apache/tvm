@@ -17,8 +17,8 @@
 
 import pytest
 import pickle
-from tvm.ffi import Device
-from tvm import ffi as tvm_ffi
+from tvm_ffi import Device
+import tvm_ffi
 
 
 def test_device():

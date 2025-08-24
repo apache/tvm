@@ -22,8 +22,9 @@
 import typing
 from typing import Dict, List, Optional, Tuple, Union
 
+import tvm_ffi
+
 import tvm
-import tvm.ffi as tvm_ffi
 from tvm.ir.container import Array
 from tvm.ir.expr import PrimExpr
 from tvm.ir.op import Op

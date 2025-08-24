@@ -36,3 +36,7 @@ runs:
       mamba list
       mamba info --envs
       mamba list --name base
+  - name: Install tvm-ffi pip package
+    shell: bash -l {0}
+    run: |
+      pip install -v ./ffi

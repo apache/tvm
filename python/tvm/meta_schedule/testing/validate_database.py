@@ -22,10 +22,11 @@ import itertools
 from statistics import mean
 from typing import Callable, Tuple, Union, List, Any
 import numpy as np  # type: ignore
+from tvm_ffi import get_global_func, register_func
+
 
 import tvm
 from tvm import meta_schedule as ms
-from tvm.ffi import get_global_func, register_func
 from tvm.ir import IRModule
 from tvm.support import describe
 from tvm.target import Target

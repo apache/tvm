@@ -16,7 +16,7 @@
 # under the License.
 import pytest
 
-from tvm import ffi as tvm_ffi
+import tvm_ffi
 
 
 def test_make_object():

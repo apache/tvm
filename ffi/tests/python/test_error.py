@@ -17,7 +17,7 @@
 
 import pytest
 import platform
-from tvm import ffi as tvm_ffi
+import tvm_ffi
 
 
 def test_parse_traceback():
@@ -51,9 +51,9 @@ def test_error_from_cxx():
         tvm_ffi.convert(lambda x: x)()
 
 
-@pytest.mark.skipif(
-    "32bit" in platform.architecture(),
-    reason="libbacktrace file name support is not available in i386 yet",
+@pytest.mark.xfail(
+    "32bit" in platform.architecture() or platform.system() == "Windows",
+    reason="May fail if debug symbols are missing",
 )
 def test_error_from_nested_pyfunc():
     fapply = tvm_ffi.convert(lambda f, *args: f(*args))

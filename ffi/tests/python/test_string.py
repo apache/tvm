@@ -16,7 +16,7 @@
 # under the License.
 
 import pickle
-from tvm import ffi as tvm_ffi
+import tvm_ffi
 
 
 def test_string():

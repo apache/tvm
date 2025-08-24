@@ -23,5 +23,5 @@ source tests/scripts/setup-pytest-env.sh
 
 find . -type f -path "*.pyc" | xargs rm -f
 
-# setup cython
-cd python; python3 setup.py build_ext --inplace; cd ..
+# setup tvm-ffi into python folder
+python3 -m pip install  -v --target=python ./ffi

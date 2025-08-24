@@ -16,6 +16,7 @@
 # under the License.
 """Utils to path."""
 import os
+import tvm_ffi
 from tvm import libinfo
 from tvm.contrib import cc
 
@@ -65,17 +66,20 @@ def with_minrpc(compile_func, server="posix_popen_server", runtime="libtvm"):
     """
     minrpc_dir, server_path = find_minrpc_server_libpath(server)
     runtime_path = libinfo.find_lib_path([runtime, runtime + ".so", runtime + ".dylib"])[0]
+    tvm_ffi_path = tvm_ffi.libinfo.find_libtvm_ffi()
 
     runtime_dir = os.path.abspath(os.path.dirname(runtime_path))
+    tvm_ffi_dir = os.path.abspath(os.path.dirname(tvm_ffi_path))
     options = ["-std=c++17"]
     # Make sure the rpath to the libtvm is set so we can do local tests.
     # Note that however, this approach won't work on remote.
     # Always recommend to link statically.
     options += ["-Wl,-rpath=" + runtime_dir]
+    options += ["-Wl,-rpath=" + tvm_ffi_dir]
     options += ["-I" + path for path in libinfo.find_include_path()]
     options += ["-I" + minrpc_dir]
     fcompile = cc.cross_compiler(
-        compile_func, options=options, add_files=[server_path, runtime_path]
+        compile_func, options=options, add_files=[server_path, runtime_path, tvm_ffi_path]
     )
     fcompile.__name__ = "with_minrpc"
     fcompile.need_system_lib = True

@@ -26,6 +26,7 @@ from typing import Tuple as typing_Tuple
 from typing import Any, Callable, List, Dict, Optional
 
 import tvm
+import tvm_ffi
 from .. import tir
 from ..tir import PrimExpr
 from . import _ffi_api
@@ -99,7 +100,7 @@ def convert_to_expr(value: Any) -> Expr:
     if isinstance(value, float):
         return PrimValue(tir.FloatImm("float64", value))
 
-    tvm_value = tvm.ffi.convert(value)
+    tvm_value = tvm_ffi.convert(value)
     # Case 1
     if isinstance(tvm_value, Expr):  # type: ignore
         return tvm_value

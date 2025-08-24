@@ -187,7 +187,8 @@ cdef extern from "tvm/ffi/c_api.h":
     int TVMFFITypeKeyToIndex(TVMFFIByteArray* type_key, int32_t* out_tindex) nogil
     int TVMFFIDataTypeFromString(TVMFFIByteArray* str, DLDataType* out) nogil
     int TVMFFIDataTypeToString(const DLDataType* dtype, TVMFFIAny* out) nogil
-    const TVMFFIByteArray* TVMFFITraceback(const char* filename, int lineno, const char* func) nogil;
+    const TVMFFIByteArray* TVMFFITraceback(
+        const char* filename, int lineno, const char* func, int cross_ffi_boundary) nogil;
     int TVMFFINDArrayFromDLPack(DLManagedTensor* src, int32_t require_alignment,
                                 int32_t require_contiguous, TVMFFIObjectHandle* out) nogil
     int TVMFFINDArrayFromDLPackVersioned(DLManagedTensorVersioned* src,

@@ -18,7 +18,7 @@
 """Intrinsics for tensorization on NVIDIA GPU."""
 from typing import Dict, Literal, Optional, Tuple
 
-from tvm.ffi import register_func
+from tvm_ffi import register_func
 from tvm.runtime import convert
 from tvm.script import tir as T
 from tvm.tir import Cast, IntImm, TensorIntrin

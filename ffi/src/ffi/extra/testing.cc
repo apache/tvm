@@ -55,11 +55,16 @@ class TestObjectDerived : public TestObjectBase {
   TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TestObjectDerived, TestObjectBase);
 };
 
-void TestRaiseError(String kind, String msg) {
-  throw ffi::Error(kind, msg, TVM_FFI_TRACEBACK_HERE);
+TVM_FFI_NO_INLINE void TestRaiseError(String kind, String msg) {
+  // keep name and no liner for testing traceback
+  throw ffi::Error(kind, msg, TVMFFITraceback(__FILE__, __LINE__, TVM_FFI_FUNC_SIG, 0));
 }
 
-void TestApply(Function f, PackedArgs args, Any* ret) { f.CallPacked(args, ret); }
+TVM_FFI_NO_INLINE void TestApply(PackedArgs args, Any* ret) {
+  // keep name and no liner for testing traceback
+  auto f = args[0].cast<Function>();
+  f.CallPacked(args.Slice(1), ret);
+}
 
 TVM_FFI_STATIC_INIT_BLOCK({
   namespace refl = tvm::ffi::reflection;
@@ -78,11 +83,7 @@ TVM_FFI_STATIC_INIT_BLOCK({
       .def("testing.test_raise_error", TestRaiseError)
       .def_packed("testing.nop", [](PackedArgs args, Any* ret) { *ret = args[0]; })
       .def_packed("testing.echo", [](PackedArgs args, Any* ret) { *ret = args[0]; })
-      .def_packed("testing.apply",
-                  [](PackedArgs args, Any* ret) {
-                    auto f = args[0].cast<Function>();
-                    TestApply(f, args.Slice(1), ret);
-                  })
+      .def_packed("testing.apply", TestApply)
       .def("testing.run_check_signal",
            [](int nsec) {
              for (int i = 0; i < nsec; ++i) {
