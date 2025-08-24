@@ -18,7 +18,7 @@
 from tvm.ir import Range
 from ...ir_builder.ir import *  # pylint: disable=redefined-builtin
 from . import parser as _parser
-from .entry import ir_module
+from .entry import ir_module, pyfunc
 
 
 __all__ = [
@@ -28,5 +28,6 @@ __all__ = [
     "dummy_global_info",
     "Range",
     "lookup_vdevice",
+    "pyfunc",
     "vdevice",
 ]

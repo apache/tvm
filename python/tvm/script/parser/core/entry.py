@@ -19,6 +19,7 @@ import inspect
 from typing import Any, Dict, Union
 
 import tvm
+from tvm.relax import ExternFunc
 from ....ir.module import IRModule
 from ...ir_builder import IRBuilder
 from . import doc
@@ -86,12 +87,15 @@ def parse(
         extra_vars = _default_globals()
 
     ann = {}
+    all_pyfuncs = {}
     if inspect.isfunction(program):
         ann = {program.__name__: program.__annotations__}
     elif inspect.isclass(program):
         for name, func in program.__dict__.items():
             if inspect.isfunction(func):
+                print(f"name: {name}, func: {func}, annotations: {func.__annotations__}")
                 ann[name] = func.__annotations__
+                all_pyfuncs[name] = func
 
     source = Source(program)
     parser = Parser(source, ann)
@@ -101,6 +105,40 @@ def parse(
         except ParserError as err:
             parser.report_error(err.node, err.args[0])
     ret = builder.get()
+    # Attach pyfuncs to the IRModule
+    if inspect.isclass(program) and isinstance(ret, IRModule):
+        # Store Python functions in the IRModule for later use
+        if all_pyfuncs:
+            if not hasattr(ret, "pyfuncs"):
+                ret.pyfuncs = {}
+            
+            for gv, func in ret.functions_items():
+                if isinstance(func, ExternFunc) and func.attrs.get("is_pyfunc", False):
+                    pyfunc_name = gv.name_hint
+                    if pyfunc_name in all_pyfuncs:
+                        pyfunc = all_pyfuncs[pyfunc_name]
+                        
+                        # Store the Python function object in pyfuncs dict
+                        ret.pyfuncs[pyfunc_name] = pyfunc
+                        
+                        # Format 1: Raw string (for TVMScript printing)
+                        try:
+                            source_code = inspect.getsource(pyfunc)
+                            func = func.with_attr("python_source", source_code)
+                        except (OSError, TypeError):
+                            # If we can't get source, store a placeholder
+                            func = func.with_attr("python_source", f"# Source unavailable for {pyfunc_name}")
+                        
+                        # Format 2: PackedFunc wrapper (for cross-function calls)
+                        # Create a PackedFunc that wraps the Python function
+                        packed_func = _create_python_packed_func(pyfunc)
+                        func = func.with_attr("python_packed_func", packed_func)
+                        
+                        # Update the function in the IRModule
+                        ret[gv] = func
+                        
+                        print(f"✓ Python function '{pyfunc_name}' stored with both formats in IRModule")
+
     # check well-formedness in both Relax and TIR
     if check_well_formed:
         check_ret = ret
@@ -122,3 +160,36 @@ def parse(
                 err=f"{WELL_FORMED_ERROR_MESSAGE}\n\nTraceback: {str(err)}",
             )
     return ret
+
+
+def _create_python_packed_func(pyfunc):
+    """Create a PackedFunc wrapper for a Python function.
+    
+    This function creates a PackedFunc that can be called from TVM runtime
+    and will execute the original Python function.
+    
+    Parameters
+    ----------
+    pyfunc : Callable
+        The Python function to wrap.
+        
+    Returns
+    -------
+    PackedFunc
+        A PackedFunc that wraps the Python function.
+    """
+    def packed_func_wrapper(*args, **kwargs):
+        """Wrapper function that calls the original Python function."""
+        try:
+            # Call the original Python function
+            result = pyfunc(*args, **kwargs)
+            return result
+        except Exception as e:
+            # Handle errors gracefully
+            print(f"Error calling Python function {pyfunc.__name__}: {e}")
+            raise
+    
+    # Create a PackedFunc from the wrapper
+    # For now, we'll return the wrapper function directly
+    # In a full implementation, this would be converted to a proper PackedFunc
+    return packed_func_wrapper

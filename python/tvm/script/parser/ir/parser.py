@@ -17,6 +17,10 @@
 # pylint: disable=unused-argument
 """The base parser for ir module"""
 
+from tvm.ir import GlobalVar
+from tvm.relax import ExternFunc
+
+from ...ir_builder import IRBuilder
 from ...ir_builder import ir as I
 from .._core import Parser, dispatch, doc
 
@@ -48,6 +52,19 @@ def _visit_class_def(self: Parser, node: doc.ClassDef) -> None:
             # Step 0. Add the class name to the var table
             fake_module = ModuleWithGlobalVars()
             self.var_table.add(node.name, fake_module)
+
+            # Step 0.5: Check if this class inherits from BasePyModule
+            is_base_py_module = _check_base_py_module_inheritance(node)
+            if is_base_py_module:
+                print(f"✓ Class '{node.name}' inherits from BasePyModule - Python functions allowed")
+                # Store this information in the IRModule for later use
+                I.module_attrs({"base_py_module": True})
+                # Set the parser context to allow Python functions
+                self.set_class_context(node.name, True)
+            else:
+                print(f"ℹ Class '{node.name}' does not inherit from BasePyModule - Python functions not allowed")
+                # Set the parser context to disallow Python functions
+                self.set_class_context(node.name, False)
 
             # Step 1. Visit non-function stmts, including but not limited to
             # 1. `I.module_attrs`
@@ -125,3 +142,89 @@ def pre_visit_local_function(self: Parser, node: doc.Expr) -> None:
 @dispatch.register(token="default", type_name="post_visit_local_function")
 def post_visit_local_function(self: Parser, node: doc.Expr) -> None:
     pass
+
+@dispatch.register(token="pyfunc", type_name="tvm_declare_function")
+def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar:
+    """Declare a Python function as an ExternFunc in the IRModule."""
+    # Check if Python functions are allowed in this context
+    # We need to check if we're in a class that inherits from BasePyModule
+    current_class = self._get_current_class_context()
+    if current_class and not self._is_base_py_module_context():
+        self.report_error(
+            node, 
+            f"Python functions (@I.pyfunc) are only allowed in classes that inherit from BasePyModule. "
+            f"Class '{current_class}' does not inherit from BasePyModule."
+        )
+    
+    # Create ExternFunc with proper attributes for Python functions
+    func = ExternFunc(node.name)
+    func = func.with_attr("is_pyfunc", True)
+    func = func.with_attr("function_type", "python")
+    func = func.with_attr("python_function_name", node.name)
+    
+    # Add placeholder attributes that will be filled in later
+    func = func.with_attr("python_source", f"# Source will be filled for {node.name}")
+    func = func.with_attr("python_packed_func", None)  # Will be filled in entry.py
+    
+    # Store the function name for later retrieval
+    return I.decl_function(node.name, func)
+
+
+@dispatch.register(token="pyfunc", type_name="FunctionDef")
+def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
+    """Visit Python function definition - no need to parse the body."""
+    # For Python functions, we don't need to parse the function body
+    # The function will be executed directly in Python runtime
+    # We just need to ensure it's properly registered
+    pass
+
+
+def _check_base_py_module_inheritance(node: doc.ClassDef) -> bool:
+    """Check if a class inherits from BasePyModule.
+    
+    Parameters
+    ----------
+    node : doc.ClassDef
+        The class definition node to check.
+        
+    Returns
+    -------
+    bool
+        True if the class inherits from BasePyModule, False otherwise.
+    """
+    # Check if the class has any base classes
+    if not node.bases:
+        return False
+    
+    # Debug: print the base classes to understand the AST structure
+    print(f"Debug: Checking inheritance for class {node.name}")
+    print(f"Debug: Base classes: {node.bases}")
+    
+    # Check each base class
+    for base in node.bases:
+        print(f"Debug: Examining base class: {base}")
+        print(f"Debug: Base class type: {type(base)}")
+        print(f"Debug: Base class attributes: {dir(base)}")
+        
+        # Handle different types of base class expressions
+        if hasattr(base, 'id'):
+            # Direct class name: BasePyModule
+            print(f"Debug: Base has id: {base.id}")
+            if base.id == 'BasePyModule':
+                print(f"Debug: Found direct BasePyModule inheritance")
+                return True
+        elif hasattr(base, 'attr'):
+            # Qualified name: module.BasePyModule
+            print(f"Debug: Base has attr: {base.attr}")
+            if base.attr == 'BasePyModule':
+                print(f"Debug: Found qualified BasePyModule inheritance")
+                return True
+        elif hasattr(base, 'value') and hasattr(base.value, 'id'):
+            # Qualified name: module.BasePyModule
+            print(f"Debug: Base has value.id: {base.value.id}")
+            if base.value.id in ['BasePyModule', 'tvm', 'relax'] and hasattr(base, 'attr') and base.attr == 'BasePyModule':
+                print(f"Debug: Found nested BasePyModule inheritance")
+                return True
+    
+    print(f"Debug: No BasePyModule inheritance found")
+    return False

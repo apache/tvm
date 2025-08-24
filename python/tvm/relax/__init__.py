@@ -98,6 +98,13 @@ from .pipeline import register_pipeline
 # utils
 from .utils import convert_to_expr
 
+# BasePyModule
+from .base_py_module import BasePyModule
+
+# Python printer
+from .python_printer import RelaxToPythonPrinter, print_relax_to_python, relax_to_python
+from .op.call_py_func import call_py_func
+
 # Import submodules in the last to avoid dependency
 from . import exec_builder
 from . import expr

@@ -42,6 +42,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
                return WithAttr(Downcast<tir::PrimFunc>(std::move(func)), key, value);
              } else if (func->IsInstance<relax::FunctionNode>()) {
                return WithAttr(Downcast<relax::Function>(std::move(func)), key, value);
+             } else if (func->IsInstance<relax::ExternFuncNode>()) {
+               return WithAttr(Downcast<relax::ExternFunc>(std::move(func)), key, value);
              } else {
                LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
              }
@@ -57,6 +59,9 @@ TVM_FFI_STATIC_INIT_BLOCK({
                  return ret.value();
                }
              }
+             if (func->IsInstance<relax::ExternFuncNode>()) {
+              return WithAttrs(Downcast<relax::ExternFunc>(std::move(func)), attr_map);
+            }
              LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
              TVM_FFI_UNREACHABLE();
            })

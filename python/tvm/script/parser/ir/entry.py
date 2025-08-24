@@ -17,7 +17,7 @@
 """The entry point of TVM parser for ir module."""
 
 import inspect
-from typing import Optional, Type
+from typing import Callable, Optional, Type
 
 from tvm.ir import IRModule
 
@@ -47,12 +47,15 @@ def ir_module(mod: Optional[Type] = None, check_well_formed: bool = True) -> IRM
     def decorator_wrapper(mod):
         if not inspect.isclass(mod):
             raise TypeError(f"Expect a class, but got: {mod}")
+        # TODO: add pyfunc to the IRModule
         m = parse(mod, utils.inspect_class_capture(mod), check_well_formed=check_well_formed)
         setattr(m, "__name__", mod.__name__)
         return m
 
     if mod is not None:
         # if there are no optional args given, this will directly invoke the wrapper
+        print(f"type of mod: {type(mod)}")
+        print(f"mod: {mod}")
         return decorator_wrapper(mod)
     else:
         # if there is a optional arg given, it returns the wrapper function
@@ -61,4 +64,7 @@ def ir_module(mod: Optional[Type] = None, check_well_formed: bool = True) -> IRM
         return decorator_wrapper
 
 
-setattr(ir_module, "dispatch_token", "ir")
+def pyfunc(func: Callable):
+    return func
+
+setattr(pyfunc, "dispatch_token", "pyfunc")
