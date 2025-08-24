@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 """Integer set."""
-import tvm.ffi
+import tvm_ffi
 from tvm.runtime import Object
 from . import _ffi_api
 
 
-@tvm.ffi.register_object("ir.IntSet")
+@tvm_ffi.register_object("ir.IntSet")
 class IntSet(Object):
     """Represent a set of integer in one dimension."""
 
@@ -65,7 +65,7 @@ class IntSet(Object):
         return _ffi_api.intset_single_point(point)
 
 
-@tvm.ffi.register_object("arith.IntervalSet")
+@tvm_ffi.register_object("arith.IntervalSet")
 class IntervalSet(IntSet):
     """Represent set of continuous interval [min_value, max_value]
 
@@ -82,7 +82,7 @@ class IntervalSet(IntSet):
         self.__init_handle_by_constructor__(_ffi_api.IntervalSet, min_value, max_value)
 
 
-@tvm.ffi.register_object("arith.PresburgerSet")
+@tvm_ffi.register_object("arith.PresburgerSet")
 class PresburgerSet(IntSet):
     """Represent of Presburger Set"""
 

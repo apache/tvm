@@ -17,7 +17,7 @@
 """A generic IRBuilder across the TVM stack"""
 from typing import Any, Callable, List
 
-from tvm.ffi import register_object as _register_object
+from tvm_ffi import register_object as _register_object
 from tvm.runtime import Object as _Object
 
 from . import _ffi_api

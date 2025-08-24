@@ -25,7 +25,7 @@ copy the examples and raise errors with the same message convention.
 
     Please also refer to :ref:`error-handling-guide`.
 """
-from tvm.ffi import register_error
+from tvm_ffi import register_error
 
 
 class TVMError(RuntimeError):

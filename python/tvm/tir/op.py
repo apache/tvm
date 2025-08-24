@@ -18,7 +18,8 @@
 """Operators used in TIR expression."""
 from typing import Any, Optional, Union
 
-import tvm.ffi
+import tvm_ffi
+import tvm
 from tvm import tir
 from tvm.ir import Array, Op, PrimExpr
 from tvm.ir.base import Span
@@ -1952,7 +1953,7 @@ def all(*args, span=None):
     return val
 
 
-@tvm.ffi.register_func("tvm.default_trace_action")
+@tvm_ffi.register_func("tvm.default_trace_action")
 def _tvm_default_trace_action(*args):
     print(list(args))
 
@@ -3634,7 +3635,7 @@ def get_active_lane_mask(dtype, base, limit):
     return call_intrin(dtype, "tir.get_active_lane_mask", base, limit)
 
 
-def get_vscale_expr(dtype: Union[str, tvm.ffi.dtype], min_size: int = 128) -> PrimExpr:
+def get_vscale_expr(dtype: Union[str, tvm_ffi.dtype], min_size: int = 128) -> PrimExpr:
     """
     Create a datatype dependent scalable expression.
 
@@ -3646,7 +3647,7 @@ def get_vscale_expr(dtype: Union[str, tvm.ffi.dtype], min_size: int = 128) -> Pr
         The minimum size of the scalable vector in bits.
     """
     if isinstance(dtype, str):
-        dtype = tvm.ffi.dtype(dtype)
+        dtype = tvm_ffi.dtype(dtype)
     return min_size // dtype.bits * vscale()
 
 

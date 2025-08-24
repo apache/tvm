@@ -17,7 +17,7 @@
 """Detect target."""
 from typing import Union
 
-from ..ffi import get_global_func
+from tvm_ffi import get_global_func
 from ..runtime import Device
 from ..runtime.ndarray import device
 from . import Target

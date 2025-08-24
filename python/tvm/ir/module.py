@@ -20,7 +20,8 @@ from __future__ import annotations
 
 from typing import Dict, Union
 
-import tvm.ffi
+import tvm
+import tvm_ffi
 from tvm.runtime import Scriptable
 from tvm.runtime.object import Object
 
@@ -30,7 +31,7 @@ from .attrs import DictAttrs
 from .base import Node
 
 
-@tvm.ffi.register_object("ir.IRModule")
+@tvm_ffi.register_object("ir.IRModule")
 class IRModule(Node, Scriptable):
     """IRModule that holds functions and type definitions.
 

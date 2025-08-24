@@ -18,21 +18,22 @@
 from numbers import Number
 from typing import Optional
 
-import tvm.ffi
+import tvm
+import tvm_ffi
 
 from ..runtime import Object, Scriptable
 from . import _ffi_api
 from .base import Node, Span
 
 
-@tvm.ffi.register_object("ir.BaseExpr")
+@tvm_ffi.register_object("ir.BaseExpr")
 class BaseExpr(Node):
     """Base class of all the expressions."""
 
     span: Optional[Span]
 
 
-@tvm.ffi.register_object("ir.PrimExpr")
+@tvm_ffi.register_object("ir.PrimExpr")
 class PrimExpr(BaseExpr):
     """Base class of all primitive expressions.
 
@@ -43,7 +44,7 @@ class PrimExpr(BaseExpr):
     dtype: str
 
 
-@tvm.ffi.register_object("ir.RelaxExpr")
+@tvm_ffi.register_object("ir.RelaxExpr")
 class RelaxExpr(BaseExpr):
     """Base class of all non-primitive expressions."""
 
@@ -59,7 +60,7 @@ class RelaxExpr(BaseExpr):
         return _ffi_api.ExprStructInfo(self)
 
 
-@tvm.ffi.register_object("ir.GlobalVar")
+@tvm_ffi.register_object("ir.GlobalVar")
 class GlobalVar(RelaxExpr):
     """A global variable in the IR.
 
@@ -105,7 +106,7 @@ class GlobalVar(RelaxExpr):
         raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")
 
 
-@tvm.ffi.register_object("ir.Range")
+@tvm_ffi.register_object("ir.Range")
 class Range(Node, Scriptable):
     """Represent a range in TVM.
 

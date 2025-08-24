@@ -18,8 +18,8 @@
 import os
 from typing import Dict, List, Optional, Sequence
 
-from tvm.ffi import get_global_func, register_object
-from tvm.ffi.access_path import AccessPath
+from tvm_ffi import get_global_func, register_object
+from tvm_ffi.access_path import AccessPath
 from tvm.runtime import Object
 
 from . import _ffi_node_api

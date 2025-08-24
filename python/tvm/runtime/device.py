@@ -18,7 +18,7 @@
 # pylint: disable=invalid-name
 import json
 
-import tvm.ffi
+import tvm_ffi
 
 from . import _ffi_api
 
@@ -26,7 +26,7 @@ from . import _ffi_api
 RPC_SESS_MASK = 128
 
 
-class Device(tvm.ffi.core.Device):
+class Device(tvm_ffi.core.Device):
     """TVM device strucure."""
 
     def _GetDeviceAttr(self, device_type, device_id, attr_id):
@@ -334,4 +334,4 @@ class Device(tvm.ffi.core.Device):
         return Device.DEVICE_TYPE_TO_NAME[self.device_type]
 
 
-tvm.ffi.core._set_class_device(Device)
+tvm_ffi.core._set_class_device(Device)

@@ -362,6 +362,7 @@ def _linux_compile(
             env.update(ccache_env)
         else:
             raise ValueError("ccache not found")
+
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=cwd, env=env)
     (out, _) = proc.communicate()
     if proc.returncode != 0:
