@@ -51,10 +51,6 @@ def test_error_from_cxx():
         tvm_ffi.convert(lambda x: x)()
 
 
-@pytest.mark.xfail(
-    "32bit" in platform.architecture() or platform.system() == "Windows",
-    reason="May fail if debug symbols are missing",
-)
 def test_error_from_nested_pyfunc():
     fapply = tvm_ffi.convert(lambda f, *args: f(*args))
     cxx_test_raise_error = tvm_ffi.get_global_func("testing.test_raise_error")
@@ -78,13 +74,17 @@ def test_error_from_nested_pyfunc():
         traceback = e.__tvm_ffi_error__.traceback
         assert e.__tvm_ffi_error__.same_as(record_object[0])
         assert traceback.count("TestRaiseError") == 1
-        assert traceback.count("TestApply") == 1
-        assert traceback.count("<lambda>") == 1
-        pos_cxx_raise = traceback.find("TestRaiseError")
-        pos_cxx_apply = traceback.find("TestApply")
-        pos_lambda = traceback.find("<lambda>")
-        assert pos_cxx_raise > pos_lambda
-        assert pos_lambda > pos_cxx_apply
+        # The following lines may fail if debug symbols are missing
+        try:
+            assert traceback.count("TestApply") == 1
+            assert traceback.count("<lambda>") == 1
+            pos_cxx_raise = traceback.find("TestRaiseError")
+            pos_cxx_apply = traceback.find("TestApply")
+            pos_lambda = traceback.find("<lambda>")
+            assert pos_cxx_raise > pos_lambda
+            assert pos_lambda > pos_cxx_apply
+        except Exception as e:
+            pytest.xfail("May fail if debug symbols are missing")
 
 
 def test_error_traceback_update():

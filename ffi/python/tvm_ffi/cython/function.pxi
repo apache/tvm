@@ -27,8 +27,6 @@ except ImportError:
 def load_torch_get_current_cuda_stream():
     """Create a faster get_current_cuda_stream for torch through cpp extension.
     """
-    from torch.utils import cpp_extension
-
     source = """
     #include <c10/cuda/CUDAStream.h>
 
@@ -44,6 +42,7 @@ def load_torch_get_current_cuda_stream():
         """Fallback with python api"""
         return torch.cuda.current_stream(device_id).cuda_stream
     try:
+        from torch.utils import cpp_extension
         result = cpp_extension.load_inline(
             name="get_current_cuda_stream",
             cpp_sources=[source],
@@ -55,6 +54,7 @@ def load_torch_get_current_cuda_stream():
         return result.get_current_cuda_stream
     except Exception:
         return fallback_get_current_cuda_stream
+
 
 if torch is not None:
     # when torch is available, jit compile the get_current_cuda_stream function

@@ -17,7 +17,6 @@
 """dtype class."""
 # pylint: disable=invalid-name
 from enum import IntEnum
-import numpy as np
 
 from . import core
 
@@ -58,22 +57,7 @@ class dtype(str):
 
     __slots__ = ["__tvm_ffi_dtype__"]
 
-    NUMPY_DTYPE_TO_STR = {
-        np.dtype(np.bool_): "bool",
-        np.dtype(np.int8): "int8",
-        np.dtype(np.int16): "int16",
-        np.dtype(np.int32): "int32",
-        np.dtype(np.int64): "int64",
-        np.dtype(np.uint8): "uint8",
-        np.dtype(np.uint16): "uint16",
-        np.dtype(np.uint32): "uint32",
-        np.dtype(np.uint64): "uint64",
-        np.dtype(np.float16): "float16",
-        np.dtype(np.float32): "float32",
-        np.dtype(np.float64): "float64",
-    }
-    if hasattr(np, "float_"):
-        NUMPY_DTYPE_TO_STR[np.dtype(np.float_)] = "float64"
+    NUMPY_DTYPE_TO_STR = {}
 
     def __new__(cls, content):
         content = str(content)
@@ -121,6 +105,28 @@ class dtype(str):
     def lanes(self):
         return self.__tvm_ffi_dtype__.lanes
 
+
+try:
+    # this helps to make numpy as optional
+    # although almost in all cases we want numpy
+    import numpy as np
+
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.bool_)] = "bool"
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.int8)] = "int8"
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.int16)] = "int16"
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.int32)] = "int32"
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.int64)] = "int64"
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.uint8)] = "uint8"
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.uint16)] = "uint16"
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.uint32)] = "uint32"
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.uint64)] = "uint64"
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.float16)] = "float16"
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.float32)] = "float32"
+    dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.float64)] = "float64"
+    if hasattr(np, "float_"):
+        dtype.NUMPY_DTYPE_TO_STR[np.dtype(np.float_)] = "float64"
+except ImportError:
+    pass
 
 try:
     import ml_dtypes
