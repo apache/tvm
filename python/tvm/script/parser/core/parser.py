@@ -418,7 +418,7 @@ class Parser(doc.NodeVisitor):
 
     def set_class_context(self, class_name: str, is_base_py_module: bool = False):
         """Set the current class context for parsing.
-        
+
         Parameters
         ----------
         class_name : str
@@ -431,7 +431,7 @@ class Parser(doc.NodeVisitor):
 
     def _get_current_class_context(self) -> Optional[str]:
         """Get the current class context.
-        
+
         Returns
         -------
         Optional[str]
@@ -441,7 +441,7 @@ class Parser(doc.NodeVisitor):
 
     def _is_base_py_module_context(self) -> bool:
         """Check if the current class context allows Python functions.
-        
+
         Returns
         -------
         bool

@@ -107,37 +107,7 @@ def parse(
     ret = builder.get()
     # Attach pyfuncs to the IRModule
     if inspect.isclass(program) and isinstance(ret, IRModule):
-        # Store Python functions in the IRModule for later use
-        if all_pyfuncs:
-            if not hasattr(ret, "pyfuncs"):
-                ret.pyfuncs = {}
-            
-            for gv, func in ret.functions_items():
-                if isinstance(func, ExternFunc) and func.attrs.get("is_pyfunc", False):
-                    pyfunc_name = gv.name_hint
-                    if pyfunc_name in all_pyfuncs:
-                        pyfunc = all_pyfuncs[pyfunc_name]
-                        
-                        # Store the Python function object in pyfuncs dict
-                        ret.pyfuncs[pyfunc_name] = pyfunc
-                        
-                        # Format 1: Raw string (for TVMScript printing)
-                        try:
-                            source_code = inspect.getsource(pyfunc)
-                            func = func.with_attr("python_source", source_code)
-                        except (OSError, TypeError):
-                            # If we can't get source, store a placeholder
-                            func = func.with_attr("python_source", f"# Source unavailable for {pyfunc_name}")
-                        
-                        # Format 2: PackedFunc wrapper (for cross-function calls)
-                        # Create a PackedFunc that wraps the Python function
-                        packed_func = _create_python_packed_func(pyfunc)
-                        func = func.with_attr("python_packed_func", packed_func)
-                        
-                        # Update the function in the IRModule
-                        ret[gv] = func
-                        
-                        print(f"✓ Python function '{pyfunc_name}' stored with both formats in IRModule")
+        _attach_pyfuncs_to_irmodule(ret, all_pyfuncs)
 
     # check well-formedness in both Relax and TIR
     if check_well_formed:
@@ -164,32 +134,64 @@ def parse(
 
 def _create_python_packed_func(pyfunc):
     """Create a PackedFunc wrapper for a Python function.
-    
+
     This function creates a PackedFunc that can be called from TVM runtime
     and will execute the original Python function.
-    
+
     Parameters
     ----------
     pyfunc : Callable
         The Python function to wrap.
-        
+
     Returns
     -------
     PackedFunc
         A PackedFunc that wraps the Python function.
     """
+
     def packed_func_wrapper(*args, **kwargs):
         """Wrapper function that calls the original Python function."""
         try:
             # Call the original Python function
             result = pyfunc(*args, **kwargs)
             return result
-        except Exception as e:
+        except Exception as error:
             # Handle errors gracefully
-            print(f"Error calling Python function {pyfunc.__name__}: {e}")
+            print(f"Error calling Python function {pyfunc.__name__}: {error}")
             raise
-    
-    # Create a PackedFunc from the wrapper
-    # For now, we'll return the wrapper function directly
-    # In a full implementation, this would be converted to a proper PackedFunc
+
     return packed_func_wrapper
+
+
+def _attach_pyfuncs_to_irmodule(irmodule, all_pyfuncs):
+    """Attach Python functions to IRModule with reduced nesting."""
+    if not all_pyfuncs:
+        return
+
+    if not hasattr(irmodule, "pyfuncs"):
+        irmodule.pyfuncs = {}
+
+    for global_var, func in irmodule.functions_items():
+        if not isinstance(func, ExternFunc):
+            continue
+        if not func.attrs.get("is_pyfunc", False):
+            continue
+
+        pyfunc_name = global_var.name_hint
+        if pyfunc_name not in all_pyfuncs:
+            continue
+
+        pyfunc = all_pyfuncs[pyfunc_name]
+        irmodule.pyfuncs[pyfunc_name] = pyfunc
+
+        try:
+            source_code = inspect.getsource(pyfunc)
+            func = func.with_attr("python_source", source_code)
+        except (OSError, TypeError):
+            # If we can't get source, store a placeholder
+            func = func.with_attr("python_source", f"# Source unavailable for {pyfunc_name}")
+
+        packed_func = _create_python_packed_func(pyfunc)
+        func = func.with_attr("python_packed_func", packed_func)
+
+        irmodule[global_var] = func

@@ -30,11 +30,11 @@ class TestBasePyModule:
         ir_mod = tvm.IRModule({"simple_func": simple_func})
         device = tvm.cpu(0)
         py_mod = BasePyModule(ir_mod, device)
-        
+
         assert isinstance(py_mod, BasePyModule)
-        assert hasattr(py_mod, 'call_tir')
-        assert hasattr(py_mod, 'call_dps_packed')
-        assert hasattr(py_mod, 'compiled_tir_funcs')
+        assert hasattr(py_mod, "call_tir")
+        assert hasattr(py_mod, "call_dps_packed")
+        assert hasattr(py_mod, "compiled_tir_funcs")
 
     def test_base_py_module_instantiation_gpu(self):
         @T.prim_func
@@ -43,15 +43,15 @@ class TestBasePyModule:
                 B[i] = A[i] * 2.0
 
         ir_mod = tvm.IRModule({"simple_func": simple_func})
-        
+
         if tvm.cuda().exist:
             device = tvm.cuda(0)
             py_mod = BasePyModule(ir_mod, device)
-            
+
             assert isinstance(py_mod, BasePyModule)
-            assert hasattr(py_mod, 'call_tir')
-            assert hasattr(py_mod, 'call_dps_packed')
-            assert hasattr(py_mod, 'compiled_tir_funcs')
+            assert hasattr(py_mod, "call_tir")
+            assert hasattr(py_mod, "call_dps_packed")
+            assert hasattr(py_mod, "compiled_tir_funcs")
             # Check if target contains "cuda" instead of exact match
             assert "cuda" in str(py_mod.target)
         else:
@@ -59,14 +59,16 @@ class TestBasePyModule:
 
     def test_tir_function_compilation(self):
         @T.prim_func
-        def add_func(A: T.Buffer((5,), "float32"), B: T.Buffer((5,), "float32"), C: T.Buffer((5,), "float32")):
+        def add_func(
+            A: T.Buffer((5,), "float32"), B: T.Buffer((5,), "float32"), C: T.Buffer((5,), "float32")
+        ):
             for i in T.grid(5):
                 C[i] = A[i] + B[i]
 
         ir_mod = tvm.IRModule({"add_func": add_func})
         device = tvm.cpu(0)
         py_mod = BasePyModule(ir_mod, device)
-        
+
         assert "add_func" in py_mod.tir_func_names
         assert "add_func" in py_mod.compiled_tir_funcs
 
@@ -79,16 +81,12 @@ class TestBasePyModule:
         ir_mod = tvm.IRModule({"scale_func": scale_func})
         device = tvm.cpu(0)
         py_mod = BasePyModule(ir_mod, device)
-        
+
         input_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32)
         scale_value = 2.5
-        
-        result = py_mod.call_tir(
-            scale_func, 
-            [input_tensor], 
-            R.Tensor((4,), "float32")
-        )
-        
+
+        result = py_mod.call_tir(scale_func, [input_tensor], R.Tensor((4,), "float32"))
+
         assert isinstance(result, torch.Tensor)
         assert result.shape == (4,)
         expected = input_tensor * scale_value
@@ -100,13 +98,13 @@ class TestBasePyModule:
             ir_mod = tvm.IRModule({})
             device = tvm.cuda(0)
             py_mod = BasePyModule(ir_mod, device)
-            
+
             # Test basic GPU functionality without TIR compilation issues
             assert isinstance(py_mod, BasePyModule)
-            assert hasattr(py_mod, 'call_tir')
-            assert hasattr(py_mod, 'call_dps_packed')
+            assert hasattr(py_mod, "call_tir")
+            assert hasattr(py_mod, "call_dps_packed")
             assert "cuda" in str(py_mod.target)
-            
+
             # Test that we can create GPU tensors and they work
             input_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0], dtype=torch.float32, device="cuda")
             assert input_tensor.device.type == "cuda"
@@ -123,15 +121,11 @@ class TestBasePyModule:
         ir_mod = tvm.IRModule({"identity_func": identity_func})
         device = tvm.cpu(0)
         py_mod = BasePyModule(ir_mod, device)
-        
+
         input_tensor = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
-        
-        result = py_mod.call_tir(
-            identity_func, 
-            [input_tensor], 
-            R.Tensor((3,), "float32")
-        )
-        
+
+        result = py_mod.call_tir(identity_func, [input_tensor], R.Tensor((3,), "float32"))
+
         assert isinstance(result, torch.Tensor)
         assert torch.allclose(result, input_tensor, atol=1e-5)
 
@@ -144,13 +138,9 @@ class TestBasePyModule:
         ir_mod = tvm.IRModule({"constant_func": constant_func})
         device = tvm.cpu(0)
         py_mod = BasePyModule(ir_mod, device)
-        
-        result = py_mod.call_tir(
-            constant_func, 
-            [], 
-            R.Tensor((2,), "float32")
-        )
-        
+
+        result = py_mod.call_tir(constant_func, [], R.Tensor((2,), "float32"))
+
         assert isinstance(result, torch.Tensor)
         assert result.shape == (2,)
         expected = torch.tensor([5.0, 5.0], dtype=torch.float32)
@@ -160,18 +150,18 @@ class TestBasePyModule:
         ir_mod = tvm.IRModule({})
         device = tvm.cpu(0)
         py_mod = BasePyModule(ir_mod, device)
-        
+
         def custom_activation(x):
             return torch.tanh(x)
-        
+
         py_mod.add_python_function("custom_activation", custom_activation)
-        
-        assert hasattr(py_mod, 'custom_activation')
+
+        assert hasattr(py_mod, "custom_activation")
         assert "custom_activation" in py_mod.pyfuncs
-        
+
         input_tensor = torch.tensor([1.0, -1.0, 0.0], dtype=torch.float32)
         result = py_mod.custom_activation(input_tensor)
-        
+
         assert isinstance(result, torch.Tensor)
         expected = torch.tanh(input_tensor)
         assert torch.allclose(result, expected, atol=1e-5)
@@ -180,20 +170,18 @@ class TestBasePyModule:
         ir_mod = tvm.IRModule({})
         device = tvm.cpu(0)
         py_mod = BasePyModule(ir_mod, device)
-        
+
         def my_softmax(tensor, dim):
             return torch.softmax(tensor, dim=dim)
-        
+
         py_mod.add_python_function("my_softmax", my_softmax)
-        
+
         input_tensor = torch.tensor([[1.0, 2.0], [3.0, 4.0]], dtype=torch.float32)
-        
+
         result = py_mod.call_dps_packed(
-            "my_softmax", 
-            [input_tensor, 1], 
-            R.Tensor((2, 2), "float32")
+            "my_softmax", [input_tensor, 1], R.Tensor((2, 2), "float32")
         )
-        
+
         assert isinstance(result, torch.Tensor)
         expected = torch.softmax(input_tensor, dim=1)
         assert torch.allclose(result, expected, atol=1e-5)
