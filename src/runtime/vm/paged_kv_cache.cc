@@ -161,6 +161,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   ffi::Shape cur_seq_ids_;
   /*! \brief The append lengths of the sequences in the current round of forwarding. */
   ffi::Shape cur_append_lengths_;
+  /*! \brief The padding factor of the sequences in the current round of forwarding. */
+  int64_t cur_seqlen_padding_factor_;
   /*! \brief Whether the current batch of sequences are token chains (not token trees). */
   std::vector<bool> is_chain_on_depths_;
   /*! \brief Number of fork depth in the current round of forward. */
@@ -849,6 +851,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   /************** Attention **************/
 
   void BeginForward(const ffi::Shape& seq_ids, const ffi::Shape& append_lengths,
+                    const int64_t seqlen_padding_factor,
                     const Optional<ffi::Shape>& opt_token_tree_parent_ptr) final {
     // Note: MLA does not supported tree attention for now.
     if (attn_kinds_[0] == AttnKind::kMLA) {
@@ -861,6 +864,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     cur_batch_size_ = seq_ids.size();
     cur_seq_ids_ = seq_ids;
     cur_append_lengths_ = append_lengths;
+    cur_seqlen_padding_factor_ = seqlen_padding_factor;
 
     // - Collect sequence/block/page information for attention.
     std::vector<Sequence*> sequences;
@@ -1189,11 +1193,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  ffi::Shape DisaggPrepareRecv(int64_t seq_id, int append_length) final {
+  ffi::Shape DisaggPrepareRecv(int64_t seq_id, int append_length, int64_t seqlen_padding_factor) final {
     // No CPU to GPU copy is needed.
     // Essentially we
     // (step 1.) redirect the preparation to BeginForward.
-    BeginForward({seq_id}, {append_length}, /*opt_token_tree_parent_ptr=*/std::nullopt);
+    BeginForward({seq_id}, {append_length}, seqlen_padding_factor, /*opt_token_tree_parent_ptr=*/std::nullopt);
     // (step 2.) fetch the append_position_map, compress and return.
     // Compression format: [n, begin_1, length_1, begin_2, length_2, ..., begin_n, length_n]
     // The compressed format will be decompressed to:
@@ -2298,6 +2302,18 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // 1. q_rope_position_map
     // q_rope_position_map has to be synced first so that it has a 0 byte offset
     ICHECK_EQ(q_rope_position_map_host_.size(), total_append_length);
+    if (cur_seqlen_padding_factor_ > 1) {
+      for (int i = 0; i < num_sequences; ++i) {
+        int actual_len = cur_append_lengths_[i];
+        int padded_len = ((actual_len + cur_seqlen_padding_factor_ - 1) / cur_seqlen_padding_factor_) * cur_seqlen_padding_factor_;
+        int length_to_pad = padded_len - actual_len;
+
+        for (int j = 0; j < length_to_pad; ++j) {
+          q_rope_position_map_host_.push_back(0);
+        }
+      }
+    }
+
     q_rope_position_map_view_ = aux_data_manager_->CopyQRoPEPosMapAsync(&q_rope_position_map_host_);
     // 2. qo_indptr_on_depths
     for (int d = 0; d < num_depths_; ++d) {
@@ -2385,6 +2401,18 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     k_ragged_rope_pos_offset_view_ =
         aux_data_manager_->CopyKRaggedRoPEPosOffsetAsync(&k_ragged_rope_pos_offset_host_);
     // 9. append_position_map
+    if (cur_seqlen_padding_factor_ > 1) {
+      for (int i = 0; i < num_sequences; ++i) {
+        int actual_len = cur_append_lengths_[i];
+        int padded_len = ((actual_len + cur_seqlen_padding_factor_ - 1) / cur_seqlen_padding_factor_) * cur_seqlen_padding_factor_;
+        int length_to_pad = padded_len - actual_len;
+
+        for (int j = 0; j < length_to_pad; ++j) {
+          append_position_map_host_.push_back(-1);  // -1 indicates padding token
+        }
+      }
+    }
+
     append_position_map_view_ =
         aux_data_manager_->CopyAppendPositionMapAsync(&append_position_map_host_);
     // 10. kv_transfer_remote_position_map
