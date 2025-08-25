@@ -21,7 +21,7 @@ This test verifies:
 1. DLPack conversion from PyTorch to TVM
 2. DLPack conversion from TVM to PyTorch
 3. Data integrity preservation during conversion
-4. Performance characteristics of DLPack vs numpy fallback
+4. Functionality equivalence between DLPack and numpy fallback
 5. Error handling for unsupported data types
 """
 
