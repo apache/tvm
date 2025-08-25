@@ -10,16 +10,17 @@ add_executable(
   EXCLUDE_FROM_ALL
   ${_test_sources}
 )
+
 set_target_properties(
   tvm_ffi_tests PROPERTIES
   CXX_STANDARD 17
   CXX_STANDARD_REQUIRED ON
   CXX_EXTENSIONS OFF
-  MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>"
   ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
   LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
-  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
+  RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib"
 )
+
 tvm_ffi_add_cxx_warning(tvm_ffi_tests)
 add_sanitizer_address(tvm_ffi_tests)
 tvm_ffi_add_apple_dsymutil(tvm_ffi_tests)
