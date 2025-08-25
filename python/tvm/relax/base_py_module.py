@@ -120,14 +120,12 @@ class BasePyModule:
         )
         if tir_mod:
             try:
-                # Use tvm.compile for modern API
                 tir_exec_mod = tvm.compile(tir_mod, target=self.target)
                 for func_name in self.tir_func_names:
                     self.compiled_tir_funcs[func_name] = tir_exec_mod[func_name]
             except (tvm.TVMError, RuntimeError) as error:
                 print(f"Warning: Failed to compile one or more TIR functions: {error}")
 
-        # Compile the full IRModule for Relax VM
         relax_mod = tvm.IRModule(
             {
                 gv: func
