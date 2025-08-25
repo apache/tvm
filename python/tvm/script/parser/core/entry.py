@@ -152,11 +152,9 @@ def _create_python_packed_func(pyfunc):
     def packed_func_wrapper(*args, **kwargs):
         """Wrapper function that calls the original Python function."""
         try:
-            # Call the original Python function
             result = pyfunc(*args, **kwargs)
             return result
         except Exception as error:
-            # Handle errors gracefully
             print(f"Error calling Python function {pyfunc.__name__}: {error}")
             raise
 
@@ -188,7 +186,6 @@ def _attach_pyfuncs_to_irmodule(irmodule, all_pyfuncs):
             source_code = inspect.getsource(pyfunc)
             func = func.with_attr("python_source", source_code)
         except (OSError, TypeError):
-            # If we can't get source, store a placeholder
             func = func.with_attr("python_source", f"# Source unavailable for {pyfunc_name}")
 
         packed_func = _create_python_packed_func(pyfunc)
