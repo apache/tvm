@@ -19,7 +19,6 @@
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
-import torch
 import tvm
 from tvm import relax, tir
 from tvm.ir import IRModule
@@ -123,7 +122,8 @@ class BasePyModule:
                 tir_exec_mod = tvm.compile(tir_mod, target=self.target)
                 for func_name in self.tir_func_names:
                     self.compiled_tir_funcs[func_name] = tir_exec_mod[func_name]
-            except (tvm.TVMError, RuntimeError) as error:
+            # pylint: disable=broad-exception-caught
+            except Exception as error:
                 print(f"Warning: Failed to compile one or more TIR functions: {error}")
 
         relax_mod = tvm.IRModule(
@@ -137,7 +137,8 @@ class BasePyModule:
             try:
                 exec_mod = tvm.compile(self.ir_mod, target=self.target)
                 self.relax_vm = relax.VirtualMachine(exec_mod, self.device)
-            except (tvm.TVMError, RuntimeError) as error:
+            # pylint: disable=broad-exception-caught
+            except Exception as error:
                 print(f"Warning: Failed to compile Relax VM: {error}")
                 self.relax_vm = None
 
@@ -236,6 +237,9 @@ class BasePyModule:
 
     def _create_output_tensors(self, out_sinfo):
         """Create output PyTorch tensors based on shape and type information."""
+        # pylint: disable=import-outside-toplevel
+        import torch
+
         sinfo_list = out_sinfo if isinstance(out_sinfo, list) else [out_sinfo]
         out_tensors = []
         for sinfo in sinfo_list:
@@ -247,8 +251,11 @@ class BasePyModule:
                 out_tensors.append(torch.empty((1,), dtype=torch.float32))
         return out_tensors
 
-    def _convert_tvm_dtype_to_torch(self, tvm_dtype: str) -> torch.dtype:
+    def _convert_tvm_dtype_to_torch(self, tvm_dtype: str) -> "torch.dtype":
         """Convert TVM dtype string to PyTorch dtype."""
+        # pylint: disable=import-outside-toplevel
+        import torch
+
         dtype_mapping = {
             "float32": torch.float32,
             "float64": torch.float64,
@@ -262,12 +269,18 @@ class BasePyModule:
         self, tensors: Union[Any, List[Any], Tuple[Any, ...]]
     ) -> Union[NDArray, List[NDArray]]:
         """Convert PyTorch tensors to TVM NDArrays using DLPack."""
+        # pylint: disable=import-outside-toplevel
+        import torch
+
         if isinstance(tensors, (list, tuple)):
             return [self._convert_single_pytorch_to_tvm(t) for t in tensors]
         return self._convert_single_pytorch_to_tvm(tensors)
 
     def _convert_single_pytorch_to_tvm(self, tensor: Any) -> NDArray:
         """Convert a single PyTorch tensor to TVM NDArray with robust fallbacks."""
+        # pylint: disable=import-outside-toplevel
+        import torch
+
         if isinstance(tensor, NDArray):
             return tensor
         if isinstance(tensor, torch.Tensor):
@@ -302,14 +315,17 @@ class BasePyModule:
 
     def _convert_tvm_to_pytorch(
         self, tvm_arrays: Union[Any, List[Any]]
-    ) -> Union[torch.Tensor, List[torch.Tensor]]:
+    ) -> Union["torch.Tensor", List["torch.Tensor"]]:
         """Convert TVM NDArrays to PyTorch tensors using DLPack."""
         if isinstance(tvm_arrays, (list, tuple)):
             return [self._convert_single_tvm_to_pytorch(arr) for arr in tvm_arrays]
         return self._convert_single_tvm_to_pytorch(tvm_arrays)
 
-    def _convert_single_tvm_to_pytorch(self, tvm_array: Any) -> torch.Tensor:
+    def _convert_single_tvm_to_pytorch(self, tvm_array: Any) -> "torch.Tensor":
         """Convert a single TVM NDArray to PyTorch tensor using DLPack."""
+        # pylint: disable=import-outside-toplevel
+        import torch
+
         if isinstance(tvm_array, torch.Tensor):
             return tvm_array
         if not isinstance(tvm_array, NDArray):
@@ -317,9 +333,10 @@ class BasePyModule:
         try:
             dlpack = tvm_array.to_dlpack()
             return torch.from_dlpack(dlpack)
-        except (tvm.TVMError, RuntimeError) as error:
+        # pylint: disable=broad-exception-caught
+        except Exception as error:
             print(f"Warning: DLPack conversion from TVM failed ({error}), using numpy fallback")
-            numpy_array = tvm_array.asnumpy()
+            numpy_array = tvm_array.numpy()
             return torch.from_numpy(numpy_array)
 
     def get_function(self, name: str) -> Optional[PackedFunc]:
@@ -350,6 +367,7 @@ class BasePyModule:
         self.pyfuncs[name] = func
 
         # Create a wrapper that handles both instance methods and static functions
+        # pylint: disable=import-outside-toplevel
         import functools
         import inspect
 
