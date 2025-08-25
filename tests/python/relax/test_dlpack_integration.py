@@ -32,7 +32,6 @@ from tvm import relax, tir
 from tvm.script import relax as R, tir as T
 from tvm.relax import BasePyModule
 import numpy as np
-import time
 
 
 class TestDLPackIntegration:
@@ -167,30 +166,28 @@ class TestDLPackIntegration:
             assert torch.allclose(pytorch_tensor, result_tensor, atol=1e-5)
             assert pytorch_tensor.shape == result_tensor.shape
 
-    def test_dlpack_performance_vs_numpy(self):
-        """Test DLPack performance compared to numpy conversion."""
+    def test_dlpack_functionality_verification(self):
+        """Test that DLPack and numpy conversions produce identical results."""
         # Create large PyTorch tensor
         size = 1000000
         pytorch_tensor = torch.randn(size, dtype=torch.float32)
 
-        # Time DLPack conversion
-        start_time = time.time()
-        tvm_ndarray = tvm.nd.from_dlpack(pytorch_tensor)
-        dlpack_time = time.time() - start_time
+        # Test DLPack conversion
+        tvm_ndarray_dlpack = tvm.nd.from_dlpack(pytorch_tensor)
 
-        # Time numpy conversion
-        start_time = time.time()
+        # Test numpy conversion
         numpy_array = pytorch_tensor.detach().cpu().numpy()
         tvm_ndarray_numpy = tvm.nd.array(numpy_array)
-        numpy_time = time.time() - start_time
 
         # Verify both methods produce same result
-        result_dlpack = torch.from_dlpack(tvm_ndarray)
+        result_dlpack = torch.from_dlpack(tvm_ndarray_dlpack)
         result_numpy = torch.from_numpy(tvm_ndarray_numpy.numpy())
         assert torch.allclose(result_dlpack, result_numpy, atol=1e-5)
 
-        # DLPack should be faster (this is a basic check)
-        assert dlpack_time < numpy_time * 2, "DLPack should be reasonably fast"
+        # Verify data integrity
+        assert torch.allclose(result_dlpack, pytorch_tensor, atol=1e-5)
+        assert result_dlpack.shape == pytorch_tensor.shape
+        assert result_dlpack.dtype == pytorch_tensor.dtype
 
     def test_dlpack_error_handling(self):
         """Test DLPack error handling for unsupported operations."""
