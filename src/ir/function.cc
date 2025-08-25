@@ -60,8 +60,8 @@ TVM_FFI_STATIC_INIT_BLOCK({
                }
              }
              if (func->IsInstance<relax::ExternFuncNode>()) {
-              return WithAttrs(Downcast<relax::ExternFunc>(std::move(func)), attr_map);
-            }
+               return WithAttrs(Downcast<relax::ExternFunc>(std::move(func)), attr_map);
+             }
              LOG(FATAL) << "Do not support function type " << func->GetTypeKey();
              TVM_FFI_UNREACHABLE();
            })
