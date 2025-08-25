@@ -2274,9 +2274,11 @@ void CodeGenLLVM::AddDebugInformation(llvm::Value* llvm_value, const Var& tir_va
 #if TVM_LLVM_VERSION >= 50
   if (!di_subprogram_) return;
 
+  auto dbg_dtype = GetDebugType(GetType(tir_var));
+  // no invalid dtypes
+  if (!dbg_dtype) return;
   auto local_var = dbg_info_->di_builder_->createAutoVariable(
-      di_subprogram_, std::string(tir_var->name_hint), dbg_info_->file_, 0,
-      GetDebugType(GetType(tir_var)));
+      di_subprogram_, std::string(tir_var->name_hint), dbg_info_->file_, 0, dbg_dtype);
 
   auto* di_loc = llvm::DILocation::get(*llvm_target_->GetContext(), 0, 0, di_subprogram_);
 
@@ -2329,6 +2331,8 @@ llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm)
     } else {
       return nullptr;
     }
+
+    if (dtype.is_scalable_vector()) return nullptr;
 
     return dbg_info_->di_builder_->createBasicType(DLDataTypeToString(dtype).operator std::string(),
                                                    dtype.bits() * dtype.lanes(), dwarf_type);

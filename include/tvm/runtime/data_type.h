@@ -206,7 +206,9 @@ class DataType {
   /*! \return whether type is a bool vector type. */
   bool is_vector_bool() const { return is_scalable_or_fixed_length_vector() && bits() == 1; }
   /*! \return whether type is a Void type. */
-  bool is_void() const { return code() == DataType::kHandle && bits() == 0 && lanes() == 0; }
+  bool is_void() const {
+    return code() == DataType::kHandle && bits() == 0 && static_cast<int16_t>(data_.lanes) == 0;
+  }
   /*!
    * \brief Create a new data type by change lanes to a specified value.
    * \param lanes The target number of lanes.
