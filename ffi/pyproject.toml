@@ -17,7 +17,7 @@
 
 [project]
 name = "apache-tvm-ffi"
-version = "0.1.0a0"
+version = "0.1.0a2"
 description = "tvm ffi"
 
 authors = [{ name = "TVM FFI team" }]
@@ -32,6 +32,7 @@ classifiers = [
 ]
 keywords = ["machine learning", "inference"]
 requires-python = ">=3.9"
+
 dependencies = []
 
 
@@ -40,8 +41,9 @@ Homepage = "https://github.com/apache/tvm/ffi"
 GitHub = "https://github.com/apache/tvm/ffi"
 
 [project.optional-dependencies]
-torch = ["torch"]
-test = ["pytest"]
+# setup tools is needed by torch jit for best perf
+torch = ["torch", "setuptools"]
+test = ["pytest", "numpy", "torch"]
 
 [project.scripts]
 tvm-ffi-config = "tvm_ffi.config:__main__"
@@ -122,20 +124,27 @@ skip_gitignore = true
 
 [tool.cibuildwheel]
 build-verbosity = 1
-# skip pp and low python version
-# sdist should be sufficient
-skip = [
-  "cp36-*",
-  "cp37-*",
-  "cp38-*",
+
+# only build up to cp312, cp312
+# will be abi3 and can be used in future versions
+build = [
   "cp39-*",
   "cp310-*",
   "cp311-*",
-  "pp*",
-  "*musllinux*",
-] # pypy doesn't play nice with pybind11
+  "cp312-*",
+]
+skip = [
+  "*musllinux*"
+]
+# we only need to test on cp312
+test-skip = [
+  "cp39-*",
+  "cp310-*",
+  "cp311-*",
+]
+# focus on testing abi3 wheel
 build-frontend = "build[uv]"
-test-command = "pytest {project}/tests -m "
+test-command = "pytest {package}/tests/python -vvs"
 test-extras = ["test"]
 
 [tool.cibuildwheel.linux]

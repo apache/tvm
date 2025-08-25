@@ -218,6 +218,20 @@ if (TVM_FFI_BUILD_PYTHON_MODULE)
   target_compile_features(tvm_ffi_cython PRIVATE cxx_std_17)
   target_link_libraries(tvm_ffi_cython PRIVATE tvm_ffi_header)
   target_link_libraries(tvm_ffi_cython PRIVATE tvm_ffi_shared)
+  # Set RPATH for tvm_ffi_cython to find tvm_ffi_shared.so relatively
+  if(APPLE)
+    # macOS uses @loader_path
+    set_target_properties(tvm_ffi_cython PROPERTIES
+      INSTALL_RPATH "@loader_path/lib"
+      BUILD_WITH_INSTALL_RPATH ON
+    )
+  elseif(LINUX)
+      # Linux uses $ORIGIN
+    set_target_properties(tvm_ffi_cython PROPERTIES
+      INSTALL_RPATH "\$ORIGIN/lib"
+      BUILD_WITH_INSTALL_RPATH ON
+    )
+  endif()
   install(TARGETS tvm_ffi_cython DESTINATION .)
 
   ########## Installing the source ##########
