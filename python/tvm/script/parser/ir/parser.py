@@ -53,7 +53,7 @@ def _visit_class_def(self: Parser, node: doc.ClassDef) -> None:
             fake_module = ModuleWithGlobalVars()
             self.var_table.add(node.name, fake_module)
 
-            # Step 0.5: Check if this class inherits from BasePyModule
+            # Step 1: Check if this class inherits from BasePyModule
             is_base_py_module = _check_base_py_module_inheritance(node)
             if is_base_py_module:
                 print(f"✓ Class '{node.name}' inherits from BasePyModule - Python functions allowed")
@@ -66,7 +66,7 @@ def _visit_class_def(self: Parser, node: doc.ClassDef) -> None:
                 # Set the parser context to disallow Python functions
                 self.set_class_context(node.name, False)
 
-            # Step 1. Visit non-function stmts, including but not limited to
+            # Step 2. Visit non-function stmts, including but not limited to
             # 1. `I.module_attrs`
             # 2. `I.module_global_infos`
             with self.with_dispatch_token("ir"):
@@ -74,13 +74,13 @@ def _visit_class_def(self: Parser, node: doc.ClassDef) -> None:
                     if not isinstance(stmt, doc.FunctionDef):
                         self.visit(stmt)
 
-            # Step 2. Visit function stmts to declare the global vars
+            # Step 3. Visit function stmts to declare the global vars
             for stmt in node.body:
                 if isinstance(stmt, doc.FunctionDef):
                     global_var = self.visit_tvm_declare_function(stmt)
                     fake_module.__setattr__(stmt.name, global_var)
 
-            # Step 3. Visit and parse the functions
+            # Step 4. Visit and parse the functions
             with self.with_dispatch_token("ir"):
                 for stmt in node.body:
                     if isinstance(stmt, doc.FunctionDef):
@@ -173,9 +173,6 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
 @dispatch.register(token="pyfunc", type_name="FunctionDef")
 def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
     """Visit Python function definition - no need to parse the body."""
-    # For Python functions, we don't need to parse the function body
-    # The function will be executed directly in Python runtime
-    # We just need to ensure it's properly registered
     pass
 
 
@@ -192,39 +189,19 @@ def _check_base_py_module_inheritance(node: doc.ClassDef) -> bool:
     bool
         True if the class inherits from BasePyModule, False otherwise.
     """
-    # Check if the class has any base classes
     if not node.bases:
         return False
     
-    # Debug: print the base classes to understand the AST structure
-    print(f"Debug: Checking inheritance for class {node.name}")
-    print(f"Debug: Base classes: {node.bases}")
-    
     # Check each base class
     for base in node.bases:
-        print(f"Debug: Examining base class: {base}")
-        print(f"Debug: Base class type: {type(base)}")
-        print(f"Debug: Base class attributes: {dir(base)}")
-        
-        # Handle different types of base class expressions
         if hasattr(base, 'id'):
-            # Direct class name: BasePyModule
-            print(f"Debug: Base has id: {base.id}")
             if base.id == 'BasePyModule':
-                print(f"Debug: Found direct BasePyModule inheritance")
                 return True
         elif hasattr(base, 'attr'):
-            # Qualified name: module.BasePyModule
-            print(f"Debug: Base has attr: {base.attr}")
             if base.attr == 'BasePyModule':
-                print(f"Debug: Found qualified BasePyModule inheritance")
                 return True
         elif hasattr(base, 'value') and hasattr(base.value, 'id'):
-            # Qualified name: module.BasePyModule
-            print(f"Debug: Base has value.id: {base.value.id}")
             if base.value.id in ['BasePyModule', 'tvm', 'relax'] and hasattr(base, 'attr') and base.attr == 'BasePyModule':
-                print(f"Debug: Found nested BasePyModule inheritance")
                 return True
     
-    print(f"Debug: No BasePyModule inheritance found")
     return False

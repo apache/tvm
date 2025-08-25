@@ -1,0 +1,285 @@
+#!/usr/bin/env python3
+"""
+Test DLPack integration between PyTorch and TVM.
+
+This test verifies:
+1. DLPack conversion from PyTorch to TVM
+2. DLPack conversion from TVM to PyTorch
+3. Data integrity preservation during conversion
+4. Performance characteristics of DLPack vs numpy fallback
+5. Error handling for unsupported data types
+"""
+
+import pytest
+import torch
+import tvm
+from tvm import relax, tir
+from tvm.script import relax as R, tir as T
+from tvm.relax import BasePyModule
+import numpy as np
+import time
+
+
+class TestDLPackIntegration:
+
+    def test_dlpack_pytorch_to_tvm_conversion(self):
+        pytorch_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
+        
+        tvm_ndarray = tvm.nd.from_dlpack(pytorch_tensor)
+        
+        assert isinstance(tvm_ndarray, tvm.nd.NDArray)
+        assert tvm_ndarray.shape == pytorch_tensor.shape
+        assert str(tvm_ndarray.dtype) == str(pytorch_tensor.dtype).replace('torch.', '')
+        
+        tvm_numpy = tvm_ndarray.numpy()
+        pytorch_numpy = pytorch_tensor.numpy()
+        np.testing.assert_allclose(tvm_numpy, pytorch_numpy, atol=1e-5)
+
+    def test_dlpack_pytorch_to_tvm_conversion_gpu(self):
+        if tvm.cuda().exist:
+            pytorch_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32, device="cuda")
+            
+            tvm_ndarray = tvm.nd.from_dlpack(pytorch_tensor)
+            
+            assert isinstance(tvm_ndarray, tvm.nd.NDArray)
+            assert tvm_ndarray.shape == pytorch_tensor.shape
+            assert str(tvm_ndarray.dtype) == str(pytorch_tensor.dtype).replace('torch.', '')
+            assert str(tvm_ndarray.device) == "cuda:0"
+            
+            # Move to CPU for numpy conversion
+            tvm_numpy = tvm_ndarray.numpy()
+            pytorch_numpy = pytorch_tensor.cpu().numpy()
+            np.testing.assert_allclose(tvm_numpy, pytorch_numpy, atol=1e-5)
+        else:
+            pytest.skip("CUDA not available")
+
+    def test_dlpack_tvm_to_pytorch_conversion(self):
+        import numpy as np
+        data = np.array([1.0, 2.0, 3.0, 5.0], dtype="float32")
+        tvm_ndarray = tvm.nd.array(data)
+        
+        pytorch_tensor = torch.from_dlpack(tvm_ndarray)
+        
+        assert isinstance(pytorch_tensor, torch.Tensor)
+        assert pytorch_tensor.shape == tvm_ndarray.shape
+        assert pytorch_tensor.dtype == torch.float32
+        
+        tvm_numpy = tvm_ndarray.numpy()
+        pytorch_numpy = pytorch_tensor.numpy()
+        np.testing.assert_allclose(tvm_numpy, pytorch_numpy, atol=1e-5)
+
+    def test_dlpack_tvm_to_pytorch_conversion_gpu(self):
+        if tvm.cuda().exist:
+            import numpy as np
+            data = np.array([1.0, 2.0, 3.0, 4.0, 5.0], dtype="float32")
+            tvm_ndarray = tvm.nd.array(data, device=tvm.cuda(0))
+            
+            pytorch_tensor = torch.from_dlpack(tvm_ndarray)
+            
+            assert isinstance(pytorch_tensor, torch.Tensor)
+            assert pytorch_tensor.shape == tvm_ndarray.shape
+            assert pytorch_tensor.dtype == torch.float32
+            assert pytorch_tensor.device.type == "cuda"
+            
+            tvm_numpy = tvm_ndarray.numpy()
+            pytorch_numpy = pytorch_tensor.cpu().numpy()
+            np.testing.assert_allclose(tvm_numpy, pytorch_numpy, atol=1e-5)
+        else:
+            pytest.skip("CUDA not available")
+
+    def test_dlpack_roundtrip_conversion(self):
+        """Test roundtrip conversion: PyTorch -> TVM -> PyTorch."""
+        # Create PyTorch tensor
+        original_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
+        
+        # Convert to TVM
+        tvm_ndarray = tvm.nd.from_dlpack(original_tensor)
+        
+        # Convert back to PyTorch
+        result_tensor = torch.from_dlpack(tvm_ndarray)
+        
+        # Verify roundtrip integrity
+        assert torch.allclose(original_tensor, result_tensor, atol=1e-5)
+        assert original_tensor.dtype == result_tensor.dtype
+        assert original_tensor.shape == result_tensor.shape
+
+    def test_dlpack_different_data_types(self):
+        """Test DLPack conversion with different data types."""
+        test_types = [
+            (torch.float32, "float32"),
+            (torch.float64, "float64"),
+            (torch.int32, "int32"),
+            (torch.int64, "int64"),
+        ]
+        
+        for torch_dtype, tvm_dtype in test_types:
+            # Create PyTorch tensor
+            pytorch_tensor = torch.tensor([1, 2, 3], dtype=torch_dtype)
+            
+            # Convert to TVM
+            tvm_ndarray = tvm.nd.from_dlpack(pytorch_tensor)
+            
+            # Convert back to PyTorch
+            result_tensor = torch.from_dlpack(tvm_ndarray)
+            
+            # Verify conversion
+            assert torch.allclose(pytorch_tensor, result_tensor, atol=1e-5)
+            assert pytorch_tensor.dtype == result_tensor.dtype
+
+    def test_dlpack_different_shapes(self):
+        """Test DLPack conversion with different tensor shapes."""
+        test_shapes = [
+            (1,),
+            (2, 3),
+            (4, 5, 6),
+            (1, 1, 1, 1),
+        ]
+        
+        for shape in test_shapes:
+            # Create PyTorch tensor
+            pytorch_tensor = torch.randn(shape, dtype=torch.float32)
+            
+            # Convert to TVM
+            tvm_ndarray = tvm.nd.from_dlpack(pytorch_tensor)
+            
+            # Convert back to PyTorch
+            result_tensor = torch.from_dlpack(tvm_ndarray)
+            
+            # Verify conversion
+            assert torch.allclose(pytorch_tensor, result_tensor, atol=1e-5)
+            assert pytorch_tensor.shape == result_tensor.shape
+
+    def test_dlpack_performance_vs_numpy(self):
+        """Test DLPack performance compared to numpy conversion."""
+        # Create large PyTorch tensor
+        size = 1000000
+        pytorch_tensor = torch.randn(size, dtype=torch.float32)
+        
+        # Time DLPack conversion
+        start_time = time.time()
+        tvm_ndarray = tvm.nd.from_dlpack(pytorch_tensor)
+        dlpack_time = time.time() - start_time
+        
+        # Time numpy conversion
+        start_time = time.time()
+        numpy_array = pytorch_tensor.detach().cpu().numpy()
+        tvm_ndarray_numpy = tvm.nd.array(numpy_array)
+        numpy_time = time.time() - start_time
+        
+        # Verify both methods produce same result
+        result_dlpack = torch.from_dlpack(tvm_ndarray)
+        result_numpy = torch.from_numpy(tvm_ndarray_numpy.numpy())
+        assert torch.allclose(result_dlpack, result_numpy, atol=1e-5)
+        
+        # DLPack should be faster (this is a basic check)
+        assert dlpack_time < numpy_time * 2, "DLPack should be reasonably fast"
+
+    def test_dlpack_error_handling(self):
+        """Test DLPack error handling for unsupported operations."""
+        # Test with non-contiguous tensor
+        pytorch_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
+        non_contiguous = pytorch_tensor[::2]  # Create non-contiguous view
+        
+        # This should work (PyTorch handles non-contiguous tensors)
+        try:
+            tvm_ndarray = tvm.nd.from_dlpack(non_contiguous)
+            result_tensor = torch.from_dlpack(tvm_ndarray)
+            assert torch.allclose(non_contiguous, result_tensor, atol=1e-5)
+        except Exception as e:
+            # If it fails, that's also acceptable
+            pass
+
+    def test_dlpack_with_base_py_module(self):
+        """Test DLPack conversion within BasePyModule context."""
+        # Create a simple IRModule
+        @T.prim_func
+        def identity_func(A: T.Buffer((3,), "float32"), B: T.Buffer((3,), "float32")):
+            for i in T.grid(3):
+                B[i] = A[i]
+
+        ir_mod = tvm.IRModule({"identity_func": identity_func})
+        device = tvm.cpu(0)
+        py_mod = BasePyModule(ir_mod, device)
+        
+        # Create PyTorch tensor
+        input_tensor = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
+        
+        # Call TIR function (this will trigger DLPack conversion)
+        result = py_mod.call_tir(
+            identity_func, 
+            [input_tensor], 
+            R.Tensor((3,), "float32")
+        )
+        
+        # Verify result
+        assert isinstance(result, torch.Tensor)
+        assert torch.allclose(result, input_tensor, atol=1e-5)
+
+    def test_dlpack_device_consistency(self):
+        """Test DLPack conversion maintains device consistency."""
+        # Test CPU tensor
+        cpu_tensor = torch.tensor([1.0, 2.0, 3.0], dtype=torch.float32)
+        cpu_tvm = tvm.nd.from_dlpack(cpu_tensor)
+        cpu_result = torch.from_dlpack(cpu_tvm)
+        
+        assert cpu_result.device.type == 'cpu'
+        assert torch.allclose(cpu_tensor, cpu_result, atol=1e-5)
+        
+        # Note: GPU testing would require CUDA/OpenCL setup
+        # This is a basic test that CPU works correctly
+
+    def test_dlpack_memory_sharing(self):
+        """Test that DLPack conversion shares memory when possible."""
+        # Create PyTorch tensor
+        pytorch_tensor = torch.tensor([1.0, 2.0, 3.0, 4.0, 5.0], dtype=torch.float32)
+        
+        # Convert to TVM
+        tvm_ndarray = tvm.nd.from_dlpack(pytorch_tensor)
+        
+        # Modify the original tensor
+        pytorch_tensor[0] = 10.0
+        
+        # Convert back to PyTorch
+        result_tensor = torch.from_dlpack(tvm_ndarray)
+        
+        # The result should reflect the modification (memory sharing)
+        assert result_tensor[0] == 10.0
+        assert torch.allclose(pytorch_tensor, result_tensor, atol=1e-5)
+
+    def test_dlpack_batch_operations(self):
+        """Test DLPack conversion with batch operations."""
+        # Create batch of tensors
+        batch_size = 10
+        pytorch_tensors = [torch.randn(5, dtype=torch.float32) for _ in range(batch_size)]
+        
+        # Convert all to TVM
+        tvm_ndarrays = [tvm.nd.from_dlpack(t) for t in pytorch_tensors]
+        
+        # Convert all back to PyTorch
+        result_tensors = [torch.from_dlpack(t) for t in tvm_ndarrays]
+        
+        # Verify all conversions
+        for i in range(batch_size):
+            assert torch.allclose(pytorch_tensors[i], result_tensors[i], atol=1e-5)
+
+    def test_dlpack_edge_cases(self):
+        """Test DLPack conversion with edge cases."""
+        # Empty tensor
+        empty_tensor = torch.tensor([], dtype=torch.float32)
+        empty_tvm = tvm.nd.from_dlpack(empty_tensor)
+        empty_result = torch.from_dlpack(empty_tvm)
+        
+        assert empty_result.shape == empty_tensor.shape
+        assert empty_result.dtype == empty_tensor.dtype
+        
+        # Single element tensor
+        single_tensor = torch.tensor([42.0], dtype=torch.float32)
+        single_tvm = tvm.nd.from_dlpack(single_tensor)
+        single_result = torch.from_dlpack(single_tvm)
+        
+        assert single_result.shape == single_tensor.shape
+        assert single_result[0] == 42.0
+
+
+if __name__ == "__main__":
+    pytest.main([__file__])

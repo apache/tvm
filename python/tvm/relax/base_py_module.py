@@ -43,26 +43,14 @@ class BasePyModule:
         device: Device,
         target: Optional[Target] = None,
     ):
-        """Initialize BasePyModule with JIT compilation and DLPack conversion.
-        
-        Parameters
-        ----------
-        ir_mod : IRModule
-            The IRModule containing TIR and Relax functions to compile.
-        device : Device
-            The target device for execution.
-        target : Optional[Target]
-            The compilation target. If None, inferred from device.
-        """
+        """Initialize BasePyModule with JIT compilation and DLPack conversion."""
         self.device = device
         self.ir_mod = ir_mod
         
-        # Delegate function access to the wrapped IRModule
+        # Delegate IRModule operations
         self.functions = ir_mod.functions
         self.attrs = ir_mod.attrs
         self.global_infos = ir_mod.global_infos
-        
-        # Add methods to delegate IRModule operations
         self.__getitem__ = ir_mod.__getitem__
         self.__setitem__ = ir_mod.__setitem__
         self.functions_items = ir_mod.functions_items
@@ -70,47 +58,22 @@ class BasePyModule:
         self.get_attr = ir_mod.get_attr
         self.update_global_info = ir_mod.update_global_info
         
-        # Add __getattr__ to support direct attribute access to Python functions and IRModule methods
-        # Define the getattr function inline to avoid method definition order issues
         def _getattr_python_function(name: str):
             """Support direct attribute access to Python functions and IRModule methods."""
-            print(f"🔍 Debug: __getattr__ called for attribute: '{name}'")
-            print(f"🔍 Debug: self.pyfuncs keys: {list(self.pyfuncs.keys())}")
-            print(f"🔍 Debug: self.compiled_tir_funcs keys: {list(self.compiled_tir_funcs.keys())}")
-            print(f"🔍 Debug: self.relax_func_names: {self.relax_func_names}")
-            print(f"🔍 Debug: self.ir_mod type: {type(self.ir_mod)}")
-            print(f"🔍 Debug: self.ir_mod has '{name}': {hasattr(self.ir_mod, name)}")
-            
-            # Check if it's a Python function
             if name in self.pyfuncs:
-                print(f"🔍 Debug: Found in pyfuncs: {name}")
                 return self.pyfuncs[name]
-            
-            # Check if it's a compiled TIR function
             if name in self.compiled_tir_funcs:
-                print(f"🔍 Debug: Found in compiled_tir_funcs: {name}")
                 return self.compiled_tir_funcs[name]
-            
-            # Check if it's a Relax function
             if self.relax_vm and name in self.relax_func_names:
                 try:
-                    print(f"🔍 Debug: Found in relax_func_names: {name}")
                     return self.relax_vm[name]
-                except Exception as e:
-                    print(f"Warning: Failed to get Relax function '{name}': {e}")
+                except Exception:
                     return None
-            
-            # Check if it's an IRModule method (like 'script')
             if hasattr(self.ir_mod, name):
-                print(f"🔍 Debug: Found in ir_mod: {name}")
                 return getattr(self.ir_mod, name)
-            
-            # If not found, raise AttributeError
-            print(f"🔍 Debug: Attribute '{name}' not found anywhere")
             raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
         
         self.__getattr__ = _getattr_python_function
-        print(f"🔍 Debug: __getattr__ method set successfully: {hasattr(self, '__getattr__')}")
         
         self.compiled_tir_funcs: Dict[str, PackedFunc] = {}
         self.extern_funcs: Dict[str, PackedFunc] = {}
@@ -124,14 +87,9 @@ class BasePyModule:
         # Set target if not provided
         if target is None:
             target = Target.from_device(device)
-            print(f"🔧 Created target from device: {target}")
         elif isinstance(target, str):
             target = Target(target)
-            print(f"🔧 Created target from string: {target}")
-        else:
-            print(f"🔧 Using provided target: {target}")
         self.target = target
-        print(f"🔧 Final target: {self.target}, type: {type(self.target)}")
 
         # Collect function names from IRModule
         self._collect_function_names()
@@ -145,8 +103,7 @@ class BasePyModule:
         # Wrap Relax functions for easy calling
         self._wrap_relax_functions()
         
-        # Add common utility functions
-        self._add_utility_functions()
+
 
     def _collect_function_names(self):
         """Collect names of TIR and Relax functions from IRModule."""
@@ -155,18 +112,10 @@ class BasePyModule:
                 self.tir_func_names.append(gv.name_hint)
             elif isinstance(func, relax.Function):
                 self.relax_func_names.append(gv.name_hint)
-        
-        print(f"✓ Collected {len(self.tir_func_names)} TIR functions: {self.tir_func_names}")
-        print(f"✓ Collected {len(self.relax_func_names)} Relax functions: {self.relax_func_names}")
 
     def _compile_functions(self):
         """Compile TIR and Relax functions using JIT compilation."""
-        print(f"🔨 Compiling IRModule for target: {self.target}")
-
         try:
-            # First, try to compile TIR functions separately for better access
-            print(f"  Attempting separate TIR compilation...")
-
             # Extract TIR functions from IRModule
             tir_mod = tvm.IRModule()
             for gv, func in self.ir_mod.functions_items():
@@ -175,49 +124,31 @@ class BasePyModule:
 
             if len(tir_mod.functions) > 0:
                 try:
-                    # Compile TIR functions separately
-                    tir_exec_mod = tvm.build(tir_mod, target=self.target)
-                    print(f"  TIR compilation successful: {type(tir_exec_mod)}")
-
-                    # Store compiled TIR functions
+                    # Simplified compilation without pipeline specification
+                    tir_exec_mod = tvm.compile(tir_mod, target=self.target)
                     for func_name in self.tir_func_names:
                         try:
                             func = tir_exec_mod[func_name]
                             self.compiled_tir_funcs[func_name] = func
-                            print(f"  ✓ TIR function '{func_name}' compiled successfully")
                         except Exception as e:
-                            print(f"  ⚠ Warning: Failed to get TIR function '{func_name}': {e}")
+                            print(f"Warning: Failed to get TIR function {func_name}: {e}")
                 except Exception as e:
-                    print(f"  ⚠ Warning: Separate TIR compilation failed: {e}")
+                    print(f"Warning: Failed to compile TIR functions: {e}")
 
             # Now compile the full IRModule for Relax functions
-            print(f"  Compiling full IRModule for Relax functions...")
             try:
-                # Since we only have TIR functions, use tvm.tir.build directly
-                print(f"  Using tvm.tir.build for TIR-only compilation...")
-                exec_mod = tvm.tir.build(
-                    self.ir_mod,
-                    target=self.target,
-                    pipeline=tir.get_default_tir_pipeline(self.target),
-                )
-                
-                print(f"  TIR-only compilation successful: {type(exec_mod)}")
+                # Simplified compilation without pipeline specification
+                exec_mod = tvm.compile(self.ir_mod, target=self.target)
                 
                 # Create Relax Virtual Machine for Relax functions
                 self.relax_vm = relax.VirtualMachine(exec_mod, self.device)
                 
-                print("✓ JIT compilation completed")
             except Exception as e:
-                print(f"  ⚠ Warning: Full compilation failed: {e}")
-                print(f"  ⚠ Warning: Skipping Relax VM creation")
+                print(f"Warning: Failed to compile Relax functions: {e}")
                 self.relax_vm = None
 
         except Exception as e:
-            print(f"✗ Error during compilation: {e}")
-            import traceback
-            traceback.print_exc()
             self.relax_vm = None
-            print("✓ JIT compilation failed, but continuing...")
 
     def _wrap_tir_functions(self):
         """Wrap TIR functions to make them accessible as instance attributes."""
@@ -225,14 +156,10 @@ class BasePyModule:
             if func_name in self.compiled_tir_funcs:
                 # Set the compiled TIR function as an instance attribute
                 setattr(self, func_name, self.compiled_tir_funcs[func_name])
-                print(f"  ✓ TIR function '{func_name}' set as instance attribute")
-            else:
-                print(f"  ⚠ Warning: TIR function '{func_name}' not found in compiled functions")
 
     def _wrap_relax_functions(self):
         """Wrap Relax functions to make them callable from Python with automatic conversion."""
         if self.relax_vm is None:
-            print(f"  ⚠ Warning: Relax VM not available, skipping function wrapping")
             return
             
         for func_name in self.relax_func_names:
@@ -251,7 +178,6 @@ class BasePyModule:
                         # Convert result back to PyTorch tensors if needed
                         return self._convert_tvm_to_pytorch(result)
                     except Exception as e:
-                        print(f"Error calling Relax function '{name}': {e}")
                         raise
                 
                 wrapper.__name__ = name
@@ -260,24 +186,7 @@ class BasePyModule:
             
             # Set the wrapped function as an attribute
             setattr(self, func_name, _create_relax_wrapper(func_name))
-            print(f"  ✓ Relax function '{func_name}' wrapped for Python calling")
 
-    def _add_utility_functions(self):
-        """Add common utility functions that are often needed."""
-        try:
-            import torch
-            import torch.nn.functional as F
-            
-            def my_softmax(tensor, dim):
-                """Custom softmax implementation using PyTorch."""
-                return F.softmax(tensor, dim=dim)
-            
-            # Add utility functions as instance methods
-            setattr(self, 'my_softmax', my_softmax)
-            print(f"  ✓ Utility function 'my_softmax' added")
-            
-        except ImportError:
-            print(f"  ⚠ Warning: PyTorch not available, skipping utility functions")
 
     def call_tir(self, tir_func, args, out_sinfo):
         """Call a TIR function with PyTorch tensors, converting to/from TVM NDArrays via DLPack.
@@ -353,18 +262,24 @@ class BasePyModule:
         if hasattr(self, func_name):
             custom_func = getattr(self, func_name)
             if callable(custom_func):
-                print(f"🔧 Using custom implementation for '{func_name}'")
                 # Call the custom function directly
                 return custom_func(*args)
         
         # Get or create the packed function
         if func_name not in self.extern_funcs:
+            # First try to get from global functions
             try:
                 func = tvm.get_global_func(func_name)
                 self.extern_funcs[func_name] = func
-            except Exception as e:
-                # If global function not found, provide helpful error message
-                raise ValueError(f"Function '{func_name}' not found. Please implement it as a method in your class or register it as a global function.")
+            except Exception:
+                # If global function not found, check if it's an instance method
+                if hasattr(self, func_name):
+                    func = getattr(self, func_name)
+                    # Convert Python function to packed function
+                    func = self._wrap_python_function_as_packed(func)
+                    self.extern_funcs[func_name] = func
+                else:
+                    raise ValueError(f"Function '{func_name}' not found. Please implement it as a method in your class or register it as a global function.")
         else:
             func = self.extern_funcs[func_name]
         
@@ -453,6 +368,22 @@ class BasePyModule:
         except ImportError:
             raise ImportError("PyTorch is required for output tensor creation")
 
+    def _wrap_python_function_as_packed(self, python_func):
+        """Wrap a Python function to make it callable as a packed function."""
+        def packed_wrapper(*args):
+            # Convert TVM NDArrays to PyTorch tensors
+            pytorch_args = self._convert_tvm_to_pytorch(args)
+            
+            # Call the Python function
+            result = python_func(*pytorch_args)
+            
+            # Convert result back to TVM NDArray if needed
+            if isinstance(result, torch.Tensor):
+                return self._convert_pytorch_to_tvm(result)
+            return result
+        
+        return packed_wrapper
+
     def _convert_tvm_dtype_to_torch(self, tvm_dtype):
         """Convert TVM dtype to PyTorch dtype."""
         try:
@@ -506,14 +437,12 @@ class BasePyModule:
             # If it's a PyTorch tensor, convert using DLPack
             if isinstance(tensor, torch.Tensor):
                 # Use DLPack for efficient conversion
-                if hasattr(tensor, 'to_dlpack'):
-                    try:
-                        # PyTorch 1.10+ supports to_dlpack
-                        dlpack = tensor.to_dlpack()
-                        tvm_tensor = tvm.nd.from_dlpack(dlpack)
-                        return tvm_tensor
-                    except Exception as e:
-                        print(f"Warning: DLPack conversion failed, using fallback method: {e}")
+                try:
+                    dlpack = torch.to_dlpack(tensor)
+                    tvm_tensor = tvm.nd.from_dlpack(dlpack)
+                    return tvm_tensor
+                except Exception as e:
+                    print(f"Warning: DLPack conversion failed ({e}), using numpy fallback")
                 
                 # Fallback: convert to numpy then to TVM
                 numpy_array = tensor.detach().cpu().numpy()
@@ -561,7 +490,7 @@ class BasePyModule:
                 torch_tensor = torch.from_dlpack(dlpack)
                 return torch_tensor
             except Exception as e:
-                print(f"Warning: DLPack conversion failed, using fallback method: {e}")
+                print(f"Warning: DLPack conversion failed ({e}), using numpy fallback")
             
             # Fallback: convert to numpy then to PyTorch
             numpy_array = tvm_array.numpy()
@@ -628,11 +557,6 @@ class BasePyModule:
             The Python function to add.
         """
         self.pyfuncs[name] = func
-        print(f"✓ Registered Python function: {name}")
-        
-        # Make the Python function available as an instance method
-        # This allows calling py_mod.main(x, w) directly
-        # IMPORTANT: We need to handle different types of functions correctly
         
         # Check if this is a static method (no self parameter)
         import inspect
