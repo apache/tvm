@@ -467,6 +467,7 @@ struct TypeTraits<runtime::DataType> : public TypeTraitsBase {
   TVM_FFI_INLINE static void CopyToAnyView(const runtime::DataType& src, TVMFFIAny* result) {
     // clear padding part to ensure the equality check can always check the v_uint64 part
     result->v_uint64 = 0;
+    result->zero_padding = 0;
     result->type_index = TypeIndex::kTVMFFIDataType;
     result->v_dtype = src;
   }
@@ -474,6 +475,7 @@ struct TypeTraits<runtime::DataType> : public TypeTraitsBase {
   TVM_FFI_INLINE static void MoveToAny(runtime::DataType src, TVMFFIAny* result) {
     // clear padding part to ensure the equality check can always check the v_uint64 part
     result->v_uint64 = 0;
+    result->zero_padding = 0;
     result->type_index = TypeIndex::kTVMFFIDataType;
     result->v_dtype = src;
   }
