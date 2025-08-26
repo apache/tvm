@@ -19,6 +19,7 @@
 
 #include <cuda_fp16.h>
 #include <float.h>
+#include <tvm/ffi/extra/c_env_api.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/ndarray.h>
 
@@ -36,7 +37,8 @@ void tvm_cutlass_group_gemm_impl(NDArray x, NDArray weight, NDArray indptr, NDAr
                                  NDArray out) {
   // Workspace is used for storing device-side group gemm arguments and cutlass internal workspace.
   // Recommened size is 4MB.
-  cudaStream_t stream = static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, x->device.device_id));
+  cudaStream_t stream =
+      static_cast<cudaStream_t>(TVMFFIEnvGetCurrentStream(kDLCUDA, x->device.device_id));
   CHECK_EQ(x->ndim, 2);
   CHECK_EQ(weight->ndim, 3);
   CHECK_EQ(indptr->ndim, 1);
@@ -47,7 +49,6 @@ void tvm_cutlass_group_gemm_impl(NDArray x, NDArray weight, NDArray indptr, NDAr
   int k = weight->shape[2];
   float alpha = 1.0f;
   float beta = 0.0f;
-  cudaStream_t stream = static_cast<cudaStream_t>(func().cast<void*>());
 
   if (DataType(x->dtype) == DataType::Float(16)) {
     CHECK(DataType(weight->dtype) == DataType::Float(16));
