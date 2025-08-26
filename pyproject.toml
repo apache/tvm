@@ -16,7 +16,7 @@
 # under the License.
 
 [build-system]
-requires = ["scikit-build-core>=0.7.0", "cmake>=3.24.0"]
+requires = ["scikit-build-core>=0.7.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
@@ -122,30 +122,37 @@ Repository = "https://github.com/apache/tvm"
 cmake.source-dir = "."
 cmake.build-type = "Release"
 
-
-
-# Configure the wheel to be Python version-agnostic (as requested by mentor)
+# Configure the wheel to be Python version-agnostic
 wheel.py-api = "py3"
-
-# Ensure a rebuild happens during editable installs for better developer experience
-editable.rebuild = true
 
 # Build configuration
 build-dir = "build"
-build.verbose = true
 
-# CMake configuration - ensure Python module is built
+# CMake configuration - ensure proper installation paths
 cmake.args = [
-    "-G", "Unix Makefiles",
-    "-DTVM_FFI_ATTACH_DEBUG_SYMBOLS=ON",
-    "-DTVM_FFI_BUILD_TESTS=OFF",
-    "-DTVM_FFI_BUILD_PYTHON_MODULE=ON",
     "-DTVM_BUILD_PYTHON_MODULE=ON",
+    "-DTVM_FFI_BUILD_PYTHON_MODULE=ON",
+    "-DTVM_USE_CUTLASS=ON",
+    "-DTVM_USE_FLASH_ATTN=ON",
+    "-DTVM_USE_LLVM=ON",
+    "-DTVM_USE_CUDA=OFF",  # Set based on your needs
+    "-DTVM_USE_OPENCL=OFF",
+    "-DTVM_USE_VULKAN=OFF",
+    "-DTVM_USE_METAL=OFF",
+    "-DTVM_USE_OPENGL=OFF",
+    "-DTVM_USE_RPC=ON",
+    "-DTVM_USE_GRAPH_EXECUTOR=ON",
+    "-DTVM_USE_PROFILER=ON",
+    "-DTVM_USE_UTILS=ON",
 ]
 
-# Wheel configuration - ensure Python source files are included
+# Ensure dependent libraries install to same location as libtvm.so
+cmake.define.CMAKE_INSTALL_PREFIX = "python/tvm"
+cmake.define.CMAKE_INSTALL_LIBDIR = "lib"
+cmake.define.CMAKE_INSTALL_INCLUDEDIR = "include"
+
+# Wheel configuration
 wheel.packages = ["python/tvm"]
-wheel.install-dir = "tvm"
 
 # Ensure wheel is self-contained with all necessary files
 # Note: wheel.packages already handles this
@@ -200,51 +207,85 @@ python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 
-[tool.black]
-exclude = "3rdparty/*"
-line-length = 100
-skip-magic-trailing-comma = true
-
 [tool.isort]
 profile = "black"
-src_paths = ["python", "tests"]
-extend_skip = ["3rdparty"]
-line_length = 100
-skip_gitignore = true
+src_paths = ["python", "tests/python"]
 
-[tool.mypy]
-python_version = "3.8"
-warn_return_any = true
-warn_unused_configs = true
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-check_untyped_defs = true
-disallow_untyped_decorators = true
-no_implicit_optional = true
-warn_redundant_casts = true
-warn_unused_ignores = true
-warn_no_return = true
-warn_unreachable = true
-strict_equality = true
+[tool.black]
+line-length = 100
+target-version = ['py36']
+include = '(\.pyi?$)'
+exclude = '''
 
-[tool.pylint.messages_control]
-disable = [
-    "C0114",  # missing-module-docstring
-    "C0115",  # missing-class-docstring
-    "C0116",  # missing-function-docstring
-    "R0903",  # too-few-public-methods
-    "R0913",  # too-many-arguments
-    "R0914",  # too-many-locals
-    "R0915",  # too-many-statements
-    "W0621",  # redefined-outer-name
-    "W0622",  # redefined-builtin
-    "W0703",  # broad-except
-    "W0612",  # unused-variable
-    "W0613",  # unused-argument
+(
+  /(
+      \.github
+    | \.tvm
+    | \.tvm_test_data
+    | \.vscode
+    | \.venv
+    | 3rdparty
+    | build\/
+    | cmake\/
+    | conda\/
+    | docker\/
+    | docs\/
+    | golang\/
+    | include\/
+    | jvm\/
+    | licenses\/
+    | nnvm\/
+    | rust\/
+    | src\/
+    | vta\/
+    | web\/
+  )/
+)
+'''
+
+[tool.ruff]
+# Enable pycodestyle (`E`), Pyflakes (`F`), and isort (`I`) codes
+select = ["E", "F", "I"]
+ignore = []
+
+# Allow fix for all enabled rules (when `--fix`) is provided.
+fixable = ["A", "B", "C", "D", "E", "F", "I", "N", "UP", "W", "ARG", "B", "C4", "DTZ", "T10", "EM", "EXE", "FA", "ICN", "Q", "T20", "TID", "TCH", "RUF"]
+unfixable = []
+
+# Exclude a variety of commonly ignored directories.
+exclude = [
+    ".bzr",
+    ".darcs",
+    ".git",
+    ".git",
+    ".hg",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "venv",
+    "3rdparty",
 ]
 
-[tool.pylint.format]
-max-line-length = 100
+line-length = 100
+indent-width = 4
 
-[tool.pylint.basic]
-good-names = ["i", "j", "k", "ex", "Run", "_", "id", "ip", "db", "fp", "np", "pd", "tf", "torch", "tvm"]
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+
+[tool.ruff.mccabe]
+max-complexity = 10
+
+[tool.ruff.isort]
+known-first-party = ["tvm"]

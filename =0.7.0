@@ -1,3 +1,0 @@
-Requirement already satisfied: scikit-build-core in /home/tlopex/miniconda3/envs/te/lib/python3.11/site-packages (0.11.6)
-Requirement already satisfied: packaging>=23.2 in /home/tlopex/miniconda3/envs/te/lib/python3.11/site-packages (from scikit-build-core) (25.0)
-Requirement already satisfied: pathspec>=0.10.1 in /home/tlopex/miniconda3/envs/te/lib/python3.11/site-packages (from scikit-build-core) (0.12.1)

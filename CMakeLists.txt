@@ -567,7 +567,6 @@ if(USE_IOS_RPC)
   add_subdirectory("apps/ios_rpc")
 endif()
 
-# Ensure ffi is built before tvm targets
 add_subdirectory(ffi)
 
 if(TVM_DEBUG_WITH_ABI_CHANGE)
@@ -824,11 +823,10 @@ endif()
 
 # Python package installation configuration
 # This section ensures that all necessary files are installed for the Python wheel
-# Following the pattern from ffi/CMakeLists.txt to avoid installing extra things
 if(TVM_BUILD_PYTHON_MODULE)
   message(STATUS "Configuring Python package installation")
   
-  # Install Python source files (essential for the package)
+  # Install Python source files
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/tvm"
     DESTINATION "tvm"
@@ -839,7 +837,7 @@ if(TVM_BUILD_PYTHON_MODULE)
     PATTERN "*.pyc" EXCLUDE
   )
   
-  # Install compiled shared libraries (essential for runtime)
+  # Install compiled shared libraries
   install(TARGETS tvm DESTINATION "tvm")
   install(TARGETS tvm_runtime DESTINATION "tvm")
   
@@ -859,13 +857,13 @@ if(TVM_BUILD_PYTHON_MODULE)
     PATTERN "*.h"
   )
   
-  # Install DLPack headers (required for tensor operations)
+  # Install DLPack headers
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/ffi/3rdparty/dlpack/include"
     DESTINATION "tvm/3rdparty/dlpack"
   )
   
-  # Install libbacktrace only if enabled (for stack traces)
+  # Install libbacktrace only if enabled
   if(USE_LIBBACKTRACE)
     install(
       DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/ffi/3rdparty/libbacktrace"
@@ -876,7 +874,7 @@ if(TVM_BUILD_PYTHON_MODULE)
     )
   endif()
   
-  # Install minimal CMake configuration (for potential future use)
+  # Install minimal CMake configuration
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils"
     DESTINATION "tvm/cmake/utils"
@@ -911,7 +909,7 @@ if(TVM_BUILD_PYTHON_MODULE)
     PATTERN "*.h"
   )
   
-  # Install minimal source files (only what's needed for extensions)
+  # Install minimal source files
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime"
     DESTINATION "tvm/src/runtime"
@@ -940,5 +938,5 @@ if(TVM_BUILD_PYTHON_MODULE)
     DESTINATION "tvm"
   )
   
-  message(STATUS "Python package installation configured (minimal)")
+  message(STATUS "Python package installation configured")
 endif()
