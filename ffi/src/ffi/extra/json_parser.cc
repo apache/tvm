@@ -385,9 +385,9 @@ class JSONParserContext {
             // W2 = 110111xxxxxxxxxx      // 0xDC00 + xxxxxxxxxx
             //
             // Range of W1 and W2:
-            // 0xD800–0xDBFF for W1
-            // 0xDC00–0xDFFF for W2
-            // both W1 and W2 fit into 0xD800–0xDFFF
+            // 0xD800 - 0xDBFF for W1
+            // 0xDC00 - 0xDFFF for W2
+            // both W1 and W2 fit into 0xD800 - 0xDFFF
             // Detect if the first i16 fit into range of W1/W2
             if (first_i16 >= 0xD800 && first_i16 <= 0xDFFF) {
               // we are in the surrogate pair range
