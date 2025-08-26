@@ -567,8 +567,8 @@ if(USE_IOS_RPC)
   add_subdirectory("apps/ios_rpc")
 endif()
 
+# Ensure ffi is built before tvm targets
 add_subdirectory(ffi)
-
 
 if(TVM_DEBUG_WITH_ABI_CHANGE)
   message(STATUS "Building with debug code that may cause ABI changes...")
@@ -843,9 +843,11 @@ if(TVM_BUILD_PYTHON_MODULE)
   install(TARGETS tvm DESTINATION "tvm")
   install(TARGETS tvm_runtime DESTINATION "tvm")
   
-  # Install third-party compiled dependencies (only if enabled)
-  if(USE_CUDA AND USE_CUTLASS)
+  # Install third-party compiled dependencies
+  if(TARGET fpA_intB_gemm)
     install(TARGETS fpA_intB_gemm DESTINATION "tvm")
+  endif()
+  if(TARGET flash_attn)
     install(TARGETS flash_attn DESTINATION "tvm")
   endif()
   
@@ -882,18 +884,31 @@ if(TVM_BUILD_PYTHON_MODULE)
     PATTERN "*.cmake"
   )
   
-  # Install essential third-party source files (excluding large docs/media)
+  # Install minimal third-party files
   install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty"
-    DESTINATION "tvm/3rdparty"
-    PATTERN "**/docs" EXCLUDE
-    PATTERN "**/media" EXCLUDE
-    PATTERN "**/examples" EXCLUDE
-    PATTERN "**/test" EXCLUDE
-    PATTERN ".git" EXCLUDE
-    PATTERN ".git*" EXCLUDE
-    PATTERN "**/*.md" EXCLUDE
-    PATTERN "**/*.txt" EXCLUDE
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/dlpack/include"
+    DESTINATION "tvm/3rdparty/dlpack"
+    FILES_MATCHING
+    PATTERN "*.h"
+  )
+  
+  # Install CUTLASS headers only if available
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/cutlass/include")
+    install(
+      DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/cutlass/include"
+      DESTINATION "tvm/3rdparty/cutlass"
+      FILES_MATCHING
+      PATTERN "*.h"
+      PATTERN "*.hpp"
+    )
+  endif()
+  
+  # Install other essential third-party headers
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/dmlc-core/include"
+    DESTINATION "tvm/3rdparty/dmlc-core"
+    FILES_MATCHING
+    PATTERN "*.h"
   )
   
   # Install minimal source files (only what's needed for extensions)

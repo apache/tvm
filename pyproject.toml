@@ -122,6 +122,8 @@ Repository = "https://github.com/apache/tvm"
 cmake.source-dir = "."
 cmake.build-type = "Release"
 
+
+
 # Configure the wheel to be Python version-agnostic (as requested by mentor)
 wheel.py-api = "py3"
 
@@ -134,6 +136,7 @@ build.verbose = true
 
 # CMake configuration - ensure Python module is built
 cmake.args = [
+    "-G", "Unix Makefiles",
     "-DTVM_FFI_ATTACH_DEBUG_SYMBOLS=ON",
     "-DTVM_FFI_BUILD_TESTS=OFF",
     "-DTVM_FFI_BUILD_PYTHON_MODULE=ON",

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Complete test script for the new TVM build system.
-This script tests the entire build flow from source to wheel.
+Quick test script for TVM functionality after successful installation.
+This script skips the installation step and directly tests the working features.
 """
 
 import os
@@ -64,26 +64,6 @@ def run_command_with_progress(cmd, cwd=None, description="Command", timeout=None
         print(f"   ❌ {description} failed: {e}")
         return False
 
-def run_command(cmd, cwd=None, capture_output=True, check=True):
-    """Run a command and return the result."""
-    try:
-        result = subprocess.run(
-            cmd, 
-            cwd=cwd, 
-            capture_output=capture_output, 
-            text=True, 
-            check=check
-        )
-        return result
-    except subprocess.CalledProcessError as e:
-        print(f"❌ Command failed: {' '.join(cmd)}")
-        print(f"   Error: {e}")
-        if e.stdout:
-            print(f"   Stdout: {e.stdout}")
-        if e.stderr:
-            print(f"   Stderr: {e.stderr}")
-        return None
-
 def check_file_exists(filepath, description):
     """Check if a file exists and print status."""
     if Path(filepath).exists():
@@ -93,94 +73,27 @@ def check_file_exists(filepath, description):
         print(f"❌ {description}: {filepath} (not found)")
         return False
 
-def show_build_progress():
-    """Show build progress information."""
-    print("\n📊 Build Progress Information:")
-    print("   • First-time builds typically take 10-30 minutes")
-    print("   • CMake configuration: ~1-2 minutes")
-    print("   • C++ compilation: ~8-25 minutes (most time)")
-    print("   • Python package installation: ~1-2 minutes")
-    print("   • Subsequent builds will be much faster")
-    print("   • You can monitor progress in the build/ directory")
-    print("   • Look for files like: build/CMakeCache.txt, build/Makefile")
-
 def main():
-    print("🚀 Testing TVM Build System Migration\n")
+    print("🚀 Quick TVM Functionality Test (Skip Installation)\n")
     
-    # Step 1: Check prerequisites
-    print("📋 Step 1: Checking prerequisites...")
-    
-    # Check required files
-    required_files = [
-        ("pyproject.toml", "Root pyproject.toml"),
-        ("CMakeLists.txt", "Root CMakeLists.txt"),
-        ("python/tvm/__init__.py", "TVM Python package"),
-    ]
-    
-    all_files_exist = True
-    for filepath, description in required_files:
-        if not check_file_exists(filepath, description):
-            all_files_exist = False
-    
-    if not all_files_exist:
-        print("❌ Missing required files. Cannot proceed.")
-        sys.exit(1)
-    
-    # Check build dependencies
-    print("\n🔧 Checking build dependencies...")
-    try:
-        import scikit_build_core
-        print(f"✅ scikit-build-core available: {scikit_build_core.__version__}")
-    except ImportError:
-        try:
-            import skbuild_core
-            print(f"✅ scikit-build-core available: {skbuild_core.__version__}")
-        except ImportError:
-            print("❌ scikit-build-core not available")
-            print("   Install with: pip install scikit-build-core>=0.7.0")
-            sys.exit(1)
-    
-    # Check CMake
-    cmake_result = run_command(["cmake", "--version"])
-    if not cmake_result:
-        print("❌ CMake not found in PATH")
-        sys.exit(1)
-    print("✅ CMake available")
-    
-    print("\n✅ Prerequisites check passed!")
-    
-    # Show build progress information
-    show_build_progress()
-    
-    # Step 2: Test editable install
-    print("\n📦 Step 2: Testing editable install...")
-    
-    print("   Installing in editable mode...")
-    print("   This step includes CMake configuration and C++ compilation.")
-    print("   Please be patient - this is the most time-consuming step.\n")
-    
-    install_result = run_command_with_progress([
-        sys.executable, "-m", "pip", "install", "-e", "."
-    ], description="Editable install")
-    
-    if not install_result:
-        print("❌ Editable install failed")
-        sys.exit(1)
-    
-    print("✅ Editable install successful!")
-    
-    # Step 3: Test import
-    print("\n🐍 Step 3: Testing TVM import...")
+    # Step 1: Verify TVM is already installed
+    print("📋 Step 1: Verifying TVM installation...")
     
     try:
         import tvm
         print(f"✅ TVM imported successfully!")
         print(f"   Version: {tvm.__version__}")
         print(f"   Runtime only: {getattr(tvm, '_RUNTIME_ONLY', False)}")
-        
-        # Test basic functionality
-        print("\n🔧 Testing basic functionality...")
-        
+        print(f"   Installation path: {tvm.__file__}")
+    except ImportError as e:
+        print(f"❌ TVM not found: {e}")
+        print("   Please run the full test script first: python test_build_system.py")
+        sys.exit(1)
+    
+    # Step 2: Test basic functionality
+    print("\n🔧 Step 2: Testing basic functionality...")
+    
+    try:
         # Test device creation
         cpu_dev = tvm.cpu(0)
         print(f"   CPU device: {cpu_dev}")
@@ -203,17 +116,12 @@ def main():
         
         print("\n✅ All basic tests passed!")
         
-    except ImportError as e:
-        print(f"❌ Failed to import TVM: {e}")
-        print("   Make sure you have installed TVM correctly.")
-        sys.exit(1)
     except Exception as e:
         print(f"❌ Error during testing: {e}")
-        print("   TVM imported but encountered an error during testing.")
         sys.exit(1)
     
-    # Step 4: Test wheel building
-    print("\n🏗️  Step 4: Testing wheel building...")
+    # Step 3: Test wheel building
+    print("\n🏗️  Step 3: Testing wheel building...")
     
     # Create dist directory if it doesn't exist
     dist_dir = Path("dist")
@@ -244,8 +152,8 @@ def main():
         print("❌ No wheel files found in dist/")
         sys.exit(1)
     
-    # Step 5: Test wheel installation
-    print("\n📥 Step 5: Testing wheel installation...")
+    # Step 4: Test wheel installation
+    print("\n📥 Step 4: Testing wheel installation...")
     
     # Create temporary directory for testing
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -278,8 +186,8 @@ def main():
             os.chdir("/home/tlopex/tvm")  # Return to original directory
             sys.exit(1)
     
-    # Step 6: Test source distribution
-    print("\n📦 Step 6: Testing source distribution...")
+    # Step 5: Test source distribution
+    print("\n📦 Step 5: Testing source distribution...")
     
     try:
         import build
@@ -306,7 +214,7 @@ def main():
         print("   Install with: pip install build")
     
     # Summary
-    print("\n🎉 All tests passed! The new build system is working correctly.")
+    print("\n🎉 Quick test completed! The new build system is working correctly.")
     print("\n📚 Migration Summary:")
     print("   ✅ pyproject.toml configured with scikit-build-core")
     print("   ✅ CMake install rules configured for minimal wheel")
@@ -321,6 +229,8 @@ def main():
     print("   3. Update CI/CD pipelines")
     print("   4. Remove old setup.py")
     print("   5. Update mlc-ai/package for version-agnostic wheels")
+    
+    print("\n⏱️  Time saved: Skipped ~15-30 minutes of installation!")
 
 if __name__ == "__main__":
     main()
