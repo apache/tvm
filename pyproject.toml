@@ -14,42 +14,234 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-[tool.isort]
-profile = "black"
-src_paths = ["python", "tests/python"]
+
+[build-system]
+requires = ["scikit-build-core>=0.7.0", "cmake>=3.24.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "tvm"
+version = "0.16.0.dev0"
+description = "Apache TVM: An End-to-End Deep Learning Compiler Stack"
+readme = "README.md"
+license = { text = "Apache-2.0" }
+requires-python = ">=3.8"
+authors = [
+    { name = "Apache TVM Community", email = "dev@tvm.apache.org" }
+]
+keywords = ["machine learning", "compiler", "deep learning", "inference"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Education",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+# Core dependencies - these are the minimum required for basic TVM functionality
+dependencies = [
+    "cloudpickle",
+    "ml_dtypes",
+    "numpy",
+    "packaging",
+    "psutil",
+    "scipy",
+    "tornado",
+    "typing_extensions",
+]
+
+# Optional dependencies for different features
+[project.optional-dependencies]
+# Model importers
+importer-coreml = ["coremltools"]
+importer-keras = ["tensorflow", "tensorflow-estimator"]
+importer-onnx = ["future", "onnx", "onnxoptimizer", "onnxruntime", "torch", "torchvision"]
+importer-pytorch = ["torch", "torchvision"]
+importer-tensorflow = ["tensorflow", "tensorflow-estimator"]
+importer-tflite = ["tflite"]
+importer-paddle = ["paddlepaddle"]
+
+# AutoTVM and autoscheduler
+autotvm = ["xgboost"]
+autoscheduler = ["xgboost"]
+
+# Development and testing
+dev = [
+    "black",
+    "isort",
+    "mypy",
+    "pylint",
+    "pytest",
+    "pytest-xdist",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-benchmark",
+    "pytest-timeout",
+    "pytest-rerunfailures",
+    "pytest-repeat",
+    "pytest-xdist",
+    "pytest-cov",
+    "pytest-mock",
+    "pytest-benchmark",
+    "pytest-timeout",
+    "pytest-rerunfailures",
+    "pytest-repeat",
+]
+
+# All optional dependencies (excluding dev)
+all = [
+    "coremltools",
+    "tensorflow",
+    "tensorflow-estimator",
+    "future",
+    "onnx",
+    "onnxoptimizer",
+    "onnxruntime",
+    "torch",
+    "torchvision",
+    "tflite",
+    "paddlepaddle",
+    "xgboost",
+]
+
+[project.urls]
+Homepage = "https://tvm.apache.org/"
+Documentation = "https://tvm.apache.org/docs/"
+Repository = "https://github.com/apache/tvm"
+"Bug Tracker" = "https://github.com/apache/tvm/issues"
+
+[tool.scikit-build]
+# Point to the root CMakeLists.txt
+cmake.source-dir = "."
+cmake.build-type = "Release"
+
+# Configure the wheel to be Python version-agnostic (as requested by mentor)
+wheel.py-api = "py3"
+
+# Ensure a rebuild happens during editable installs for better developer experience
+editable.rebuild = true
+
+# Build configuration
+build-dir = "build"
+build.verbose = true
+
+# CMake configuration - ensure Python module is built
+cmake.args = [
+    "-DTVM_FFI_ATTACH_DEBUG_SYMBOLS=ON",
+    "-DTVM_FFI_BUILD_TESTS=OFF",
+    "-DTVM_FFI_BUILD_PYTHON_MODULE=ON",
+    "-DTVM_BUILD_PYTHON_MODULE=ON",
+]
+
+# Wheel configuration - ensure Python source files are included
+wheel.packages = ["python/tvm"]
+wheel.install-dir = "tvm"
+
+# Ensure wheel is self-contained with all necessary files
+# Note: wheel.packages already handles this
+
+# Source distribution configuration
+sdist.include = [
+    # Build files
+    "/CMakeLists.txt",
+    "/pyproject.toml",
+    "/cmake/**/*",
+    "/3rdparty/**/*",
+    
+    # Source code
+    "/src/**/*.cc",
+    "/src/**/*.h",
+    "/include/**/*.h",
+    
+    # Python source
+    "/python/tvm/**/*.py",
+    "/python/tvm/**/*.pyi",
+    
+    # Documentation and metadata
+    "/docs/**/*",
+    "/LICENSE",
+    "/README.md",
+    "/NOTICE",
+    
+    # Tests
+    "/tests/**/*",
+]
+
+sdist.exclude = [
+    "**/.git", 
+    "**/.github", 
+    "**/__pycache__", 
+    "**/*.pyc", 
+    "build", 
+    "dist",
+    "**/3rdparty/*/docs",
+    "**/3rdparty/*/media",
+    "**/3rdparty/*/examples",
+    "**/3rdparty/*/test",
+]
+
+# Logging
+logging.level = "INFO"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
 
 [tool.black]
+exclude = "3rdparty/*"
 line-length = 100
-target-version = ['py36']
-include = '(\.pyi?$)'
-exclude = '''
+skip-magic-trailing-comma = true
 
-(
-  /(
-      \.github
-    | \.tvm
-    | \.tvm_test_data
-    | \.vscode
-    | \.venv
-    | 3rdparty
-    | build\/
-    | cmake\/
-    | conda\/
-    | docker\/
-    | docs\/
-    | golang\/
-    | include\/
-    | jvm\/
-    | licenses\/
-    | nnvm\/
-    | rust\/
-    | src\/
-    | vta\/
-    | web\/
-  )/
-)
-'''
+[tool.isort]
+profile = "black"
+src_paths = ["python", "tests"]
+extend_skip = ["3rdparty"]
+line_length = 100
+skip_gitignore = true
 
-[tool.ruff]
-line-length = 100
-indent-width = 4
+[tool.mypy]
+python_version = "3.8"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+disallow_untyped_decorators = true
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+
+[tool.pylint.messages_control]
+disable = [
+    "C0114",  # missing-module-docstring
+    "C0115",  # missing-class-docstring
+    "C0116",  # missing-function-docstring
+    "R0903",  # too-few-public-methods
+    "R0913",  # too-many-arguments
+    "R0914",  # too-many-locals
+    "R0915",  # too-many-statements
+    "W0621",  # redefined-outer-name
+    "W0622",  # redefined-builtin
+    "W0703",  # broad-except
+    "W0612",  # unused-variable
+    "W0613",  # unused-argument
+]
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint.basic]
+good-names = ["i", "j", "k", "ex", "Run", "_", "id", "ip", "db", "fp", "np", "pd", "tf", "torch", "tvm"]
