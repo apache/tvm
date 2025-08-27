@@ -16,16 +16,16 @@
 # under the License.
 
 [build-system]
-requires = ["scikit-build-core>=0.7.0"]
+requires = ["scikit-build-core>=0.10.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
 name = "tvm"
-version = "0.16.0.dev0"
+version = "0.22.0.dev0"
 description = "Apache TVM: An End-to-End Deep Learning Compiler Stack"
 readme = "README.md"
 license = { text = "Apache-2.0" }
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 authors = [
     { name = "Apache TVM Community", email = "dev@tvm.apache.org" }
 ]
@@ -37,7 +37,6 @@ classifiers = [
     "Intended Audience :: Science/Research",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
@@ -131,31 +130,23 @@ build-dir = "build"
 # CMake configuration - ensure proper installation paths
 cmake.args = [
     "-DTVM_BUILD_PYTHON_MODULE=ON",
-    "-DTVM_FFI_BUILD_PYTHON_MODULE=ON",
-    "-DTVM_USE_CUTLASS=ON",
-    "-DTVM_USE_FLASH_ATTN=ON",
-    "-DTVM_USE_LLVM=ON",
-    "-DTVM_USE_CUDA=OFF",  # Set based on your needs
+    "-DTVM_FFI_BUILD_PYTHON_MODULE=OFF",
+    "-DTVM_USE_CUTLASS=OFF",
+    "-DTVM_USE_FLASH_ATTN=OFF",
+    "-DTVM_USE_LLVM=OFF",
+    "-DTVM_USE_CUDA=OFF",
     "-DTVM_USE_OPENCL=OFF",
     "-DTVM_USE_VULKAN=OFF",
     "-DTVM_USE_METAL=OFF",
     "-DTVM_USE_OPENGL=OFF",
-    "-DTVM_USE_RPC=ON",
-    "-DTVM_USE_GRAPH_EXECUTOR=ON",
-    "-DTVM_USE_PROFILER=ON",
-    "-DTVM_USE_UTILS=ON",
+    "-DTVM_USE_RPC=OFF",
+    "-DTVM_USE_GRAPH_EXECUTOR=OFF",
+    "-DTVM_USE_PROFILER=OFF",
+    "-DTVM_USE_UTILS=OFF",
 ]
-
-# Ensure dependent libraries install to same location as libtvm.so
-cmake.define.CMAKE_INSTALL_PREFIX = "python/tvm"
-cmake.define.CMAKE_INSTALL_LIBDIR = "lib"
-cmake.define.CMAKE_INSTALL_INCLUDEDIR = "include"
 
 # Wheel configuration
 wheel.packages = ["python/tvm"]
-
-# Ensure wheel is self-contained with all necessary files
-# Note: wheel.packages already handles this
 
 # Source distribution configuration
 sdist.include = [

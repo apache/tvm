@@ -124,8 +124,7 @@ disable=
     use-list-literal,
     arguments-renamed,
     super-init-not-called,
-    c-extension-no-member,
-    wrong-import-order
+    c-extension-no-member
 
 [REPORTS]
 

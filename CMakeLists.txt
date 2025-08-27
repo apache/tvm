@@ -829,7 +829,7 @@ if(TVM_BUILD_PYTHON_MODULE)
   # Install Python source files
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/tvm"
-    DESTINATION "tvm"
+    DESTINATION "."
     FILES_MATCHING
     PATTERN "*.py"
     PATTERN "*.pyi"
@@ -857,37 +857,12 @@ if(TVM_BUILD_PYTHON_MODULE)
     PATTERN "*.h"
   )
 
-  # Install DLPack headers
-  install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/ffi/3rdparty/dlpack/include"
-    DESTINATION "tvm/3rdparty/dlpack"
-  )
-
-  # Install libbacktrace only if enabled
-  if(USE_LIBBACKTRACE)
-    install(
-      DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/ffi/3rdparty/libbacktrace"
-      DESTINATION "tvm/3rdparty"
-      PATTERN ".git" EXCLUDE
-      PATTERN ".git*" EXCLUDE
-      PATTERN "*.tmp" EXCLUDE
-    )
-  endif()
-
   # Install minimal CMake configuration
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils"
     DESTINATION "tvm/cmake/utils"
     FILES_MATCHING
     PATTERN "*.cmake"
-  )
-
-  # Install minimal third-party files
-  install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/dlpack/include"
-    DESTINATION "tvm/3rdparty/dlpack"
-    FILES_MATCHING
-    PATTERN "*.h"
   )
 
   # Install CUTLASS headers only if available
@@ -900,14 +875,6 @@ if(TVM_BUILD_PYTHON_MODULE)
       PATTERN "*.hpp"
     )
   endif()
-
-  # Install other essential third-party headers
-  install(
-    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/dmlc-core/include"
-    DESTINATION "tvm/3rdparty/dmlc-core"
-    FILES_MATCHING
-    PATTERN "*.h"
-  )
 
   # Install minimal source files
   install(
