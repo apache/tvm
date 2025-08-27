@@ -93,7 +93,6 @@ def parse(
     elif inspect.isclass(program):
         for name, func in program.__dict__.items():
             if inspect.isfunction(func):
-                print(f"name: {name}, func: {func}, annotations: {func.__annotations__}")
                 ann[name] = func.__annotations__
                 all_pyfuncs[name] = func
 

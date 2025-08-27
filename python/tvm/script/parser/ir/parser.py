@@ -55,18 +55,11 @@ def _visit_class_def(self: Parser, node: doc.ClassDef) -> None:
             # Step 1: Check if this class inherits from BasePyModule
             is_base_py_module = _check_base_py_module_inheritance(node)
             if is_base_py_module:
-                print(
-                    f"✓ Class '{node.name}' inherits from BasePyModule - Python functions allowed"
-                )
                 # Store this information in the IRModule for later use
                 I.module_attrs({"base_py_module": True})
                 # Set the parser context to allow Python functions
                 self.set_class_context(node.name, True)
             else:
-                print(
-                    f"ℹ Class '{node.name}' does not inherit from BasePyModule - "
-                    f"Python functions not allowed"
-                )
                 # Set the parser context to disallow Python functions
                 self.set_class_context(node.name, False)
 
