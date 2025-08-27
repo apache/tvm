@@ -343,6 +343,8 @@ class Parser(doc.NodeVisitor):
     function_annotations: Optional[Dict[str, Dict[str, Any]]]
     var_table: VarTable
     inside_function: bool  # whether we are within a function
+    current_class: Optional[str] = None  # current class being parsed
+    base_py_module_context: bool = False  # whether current class inherits from BasePyModule
 
     def __init__(
         self,
@@ -413,6 +415,39 @@ class Parser(doc.NodeVisitor):
             self.dispatch_tokens.pop()
 
         return _deferred(pop_token)
+
+    def set_class_context(self, class_name: str, is_base_py_module: bool = False):
+        """Set the current class context for parsing.
+
+        Parameters
+        ----------
+        class_name : str
+            The name of the current class being parsed.
+        is_base_py_module : bool
+            Whether the current class inherits from BasePyModule.
+        """
+        self.current_class = class_name
+        self.base_py_module_context = is_base_py_module
+
+    def _get_current_class_context(self) -> Optional[str]:
+        """Get the current class context.
+
+        Returns
+        -------
+        Optional[str]
+            The name of the current class, or None if not in a class context.
+        """
+        return self.current_class
+
+    def _is_base_py_module_context(self) -> bool:
+        """Check if the current class context allows Python functions.
+
+        Returns
+        -------
+        bool
+            True if Python functions are allowed in the current context.
+        """
+        return self.base_py_module_context
 
     def with_diag_source(self, source: Source):
         """Add a new source as with statement.

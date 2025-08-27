@@ -67,6 +67,7 @@ class IRModule(Node, Scriptable):
             attrs,
             global_infos,
         )
+        self.pyfuncs = {}
 
     def clone(self) -> "IRModule":
         return _ffi_api.Module_Clone(self)
