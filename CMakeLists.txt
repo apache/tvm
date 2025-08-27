@@ -825,7 +825,7 @@ endif()
 # This section ensures that all necessary files are installed for the Python wheel
 if(TVM_BUILD_PYTHON_MODULE)
   message(STATUS "Configuring Python package installation")
-  
+
   # Install Python source files
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/tvm"
@@ -836,11 +836,11 @@ if(TVM_BUILD_PYTHON_MODULE)
     PATTERN "__pycache__" EXCLUDE
     PATTERN "*.pyc" EXCLUDE
   )
-  
+
   # Install compiled shared libraries
   install(TARGETS tvm DESTINATION "tvm")
   install(TARGETS tvm_runtime DESTINATION "tvm")
-  
+
   # Install third-party compiled dependencies
   if(TARGET fpA_intB_gemm)
     install(TARGETS fpA_intB_gemm DESTINATION "tvm")
@@ -848,7 +848,7 @@ if(TVM_BUILD_PYTHON_MODULE)
   if(TARGET flash_attn)
     install(TARGETS flash_attn DESTINATION "tvm")
   endif()
-  
+
   # Install minimal header files needed by Python extensions
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/tvm/runtime"
@@ -856,13 +856,13 @@ if(TVM_BUILD_PYTHON_MODULE)
     FILES_MATCHING
     PATTERN "*.h"
   )
-  
+
   # Install DLPack headers
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/ffi/3rdparty/dlpack/include"
     DESTINATION "tvm/3rdparty/dlpack"
   )
-  
+
   # Install libbacktrace only if enabled
   if(USE_LIBBACKTRACE)
     install(
@@ -873,7 +873,7 @@ if(TVM_BUILD_PYTHON_MODULE)
       PATTERN "*.tmp" EXCLUDE
     )
   endif()
-  
+
   # Install minimal CMake configuration
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils"
@@ -881,7 +881,7 @@ if(TVM_BUILD_PYTHON_MODULE)
     FILES_MATCHING
     PATTERN "*.cmake"
   )
-  
+
   # Install minimal third-party files
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/dlpack/include"
@@ -889,7 +889,7 @@ if(TVM_BUILD_PYTHON_MODULE)
     FILES_MATCHING
     PATTERN "*.h"
   )
-  
+
   # Install CUTLASS headers only if available
   if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/cutlass/include")
     install(
@@ -900,7 +900,7 @@ if(TVM_BUILD_PYTHON_MODULE)
       PATTERN "*.hpp"
     )
   endif()
-  
+
   # Install other essential third-party headers
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/dmlc-core/include"
@@ -908,7 +908,7 @@ if(TVM_BUILD_PYTHON_MODULE)
     FILES_MATCHING
     PATTERN "*.h"
   )
-  
+
   # Install minimal source files
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime"
@@ -917,26 +917,26 @@ if(TVM_BUILD_PYTHON_MODULE)
     PATTERN "*.cc"
     PATTERN "*.h"
   )
-  
+
   # Install essential configuration files
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/configs"
     DESTINATION "tvm/configs"
   )
-  
+
   # Install licenses (required for distribution)
   install(
     DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/licenses"
     DESTINATION "tvm/licenses"
   )
-  
+
   # Install essential metadata files
-  install(FILES 
+  install(FILES
     "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
     "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
     "${CMAKE_CURRENT_SOURCE_DIR}/NOTICE"
     DESTINATION "tvm"
   )
-  
+
   message(STATUS "Python package installation configured")
 endif()

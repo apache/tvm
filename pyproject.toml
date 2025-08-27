@@ -164,32 +164,32 @@ sdist.include = [
     "/pyproject.toml",
     "/cmake/**/*",
     "/3rdparty/**/*",
-    
+
     # Source code
     "/src/**/*.cc",
     "/src/**/*.h",
     "/include/**/*.h",
-    
+
     # Python source
     "/python/tvm/**/*.py",
     "/python/tvm/**/*.pyi",
-    
+
     # Documentation and metadata
     "/docs/**/*",
     "/LICENSE",
     "/README.md",
     "/NOTICE",
-    
+
     # Tests
     "/tests/**/*",
 ]
 
 sdist.exclude = [
-    "**/.git", 
-    "**/.github", 
-    "**/__pycache__", 
-    "**/*.pyc", 
-    "build", 
+    "**/.git",
+    "**/.github",
+    "**/__pycache__",
+    "**/*.pyc",
+    "build",
     "dist",
     "**/3rdparty/*/docs",
     "**/3rdparty/*/media",
