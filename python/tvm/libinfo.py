@@ -195,7 +195,9 @@ def find_include_path(name=None, search_path=None, optional=False):
     include_path : list(string)
         List of all found paths to header files.
     """
-    if os.environ.get("TVM_HOME", None):
+    if os.environ.get("TVM_SOURCE_DIR", None):
+        source_dir = os.environ["TVM_SOURCE_DIR"]
+    elif os.environ.get("TVM_HOME", None):
         source_dir = os.environ["TVM_HOME"]
     else:
         ffi_dir = os.path.dirname(os.path.abspath(os.path.expanduser(__file__)))
@@ -204,7 +206,7 @@ def find_include_path(name=None, search_path=None, optional=False):
             if os.path.isdir(os.path.join(source_dir, "include")):
                 break
         else:
-            raise AssertionError("Cannot find the source directory given ffi_dir: {ffi_dir}")
+            raise AssertionError(f"Cannot find the source directory given ffi_dir: {ffi_dir}")
     third_party_dir = os.path.join(source_dir, "3rdparty")
 
     header_path = []
