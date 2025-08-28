@@ -121,6 +121,9 @@ tvm_option(USE_MSC "Enable Multi-System Compiler" OFF)
 tvm_option(USE_MRVL "Build with MRVL TVM support" OFF)
 tvm_option(USE_NVSHMEM "Build with NVSHMEM support" OFF)
 
+# Python package options
+tvm_option(TVM_BUILD_PYTHON_MODULE "Build Python module with scikit-build-core" ON)
+
 # include directories
 include_directories(${CMAKE_INCLUDE_PATH})
 include_directories("include")
@@ -566,7 +569,6 @@ endif()
 
 add_subdirectory(ffi)
 
-
 if(TVM_DEBUG_WITH_ABI_CHANGE)
   message(STATUS "Building with debug code that may cause ABI changes...")
   target_compile_definitions(tvm_objs PRIVATE "TVM_DEBUG_WITH_ABI_CHANGE")
@@ -817,4 +819,91 @@ endif()
 if(USE_ROCM AND USE_RCCL)
   target_link_libraries(tvm PRIVATE rccl)
   target_link_libraries(tvm_runtime PRIVATE rccl)
+endif()
+
+# Python package installation configuration
+# This section ensures that all necessary files are installed for the Python wheel
+if(TVM_BUILD_PYTHON_MODULE)
+  message(STATUS "Configuring Python package installation")
+
+  # Install Python source files
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/python/tvm"
+    DESTINATION "."
+    FILES_MATCHING
+    PATTERN "*.py"
+    PATTERN "*.pyi"
+    PATTERN "__pycache__" EXCLUDE
+    PATTERN "*.pyc" EXCLUDE
+  )
+
+  # Install compiled shared libraries
+  install(TARGETS tvm DESTINATION "tvm")
+  install(TARGETS tvm_runtime DESTINATION "tvm")
+
+  # Install third-party compiled dependencies
+  if(TARGET fpA_intB_gemm)
+    install(TARGETS fpA_intB_gemm DESTINATION "tvm")
+  endif()
+  if(TARGET flash_attn)
+    install(TARGETS flash_attn DESTINATION "tvm")
+  endif()
+
+  # Install minimal header files needed by Python extensions
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/include/tvm/runtime"
+    DESTINATION "tvm/include/tvm/runtime"
+    FILES_MATCHING
+    PATTERN "*.h"
+  )
+
+  # Install minimal CMake configuration
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/cmake/utils"
+    DESTINATION "tvm/cmake/utils"
+    FILES_MATCHING
+    PATTERN "*.cmake"
+  )
+
+  # Install CUTLASS headers only if available
+  if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/cutlass/include")
+    install(
+      DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/cutlass/include"
+      DESTINATION "tvm/3rdparty/cutlass"
+      FILES_MATCHING
+      PATTERN "*.h"
+      PATTERN "*.hpp"
+    )
+  endif()
+
+  # Install minimal source files
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/src/runtime"
+    DESTINATION "tvm/src/runtime"
+    FILES_MATCHING
+    PATTERN "*.cc"
+    PATTERN "*.h"
+  )
+
+  # Install essential configuration files
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/configs"
+    DESTINATION "tvm/configs"
+  )
+
+  # Install licenses (required for distribution)
+  install(
+    DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/licenses"
+    DESTINATION "tvm/licenses"
+  )
+
+  # Install essential metadata files
+  install(FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/README.md"
+    "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE"
+    "${CMAKE_CURRENT_SOURCE_DIR}/NOTICE"
+    DESTINATION "tvm"
+  )
+
+  message(STATUS "Python package installation configured")
 endif()
