@@ -21,6 +21,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "tvm"
+# Note: Call version.py to update the version before building the wheel
 version = "0.22.0.dev0"
 description = "Apache TVM: An End-to-End Deep Learning Compiler Stack"
 readme = "README.md"
