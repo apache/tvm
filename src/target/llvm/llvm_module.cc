@@ -515,7 +515,13 @@ void LLVMModuleNode::InitORCJIT() {
           const llvm::Triple& triple) -> std::unique_ptr<llvm::orc::ObjectLayer> {
 #endif
 #if _WIN32
+#if TVM_LLVM_VERSION >= 210
+    auto GetMemMgr = [](const llvm::MemoryBuffer&) {
+      return std::make_unique<llvm::SectionMemoryManager>();
+    };
+#else
     auto GetMemMgr = []() { return std::make_unique<llvm::SectionMemoryManager>(); };
+#endif
     auto ObjLinkingLayer =
         std::make_unique<llvm::orc::RTDyldObjectLinkingLayer>(session, std::move(GetMemMgr));
 #else
