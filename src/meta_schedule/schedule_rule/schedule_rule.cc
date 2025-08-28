@@ -17,6 +17,7 @@
  * under the License.
  */
 #include <tvm/ffi/reflection/registry.h>
+#include <tvm/runtime/data_type.h>
 
 #include "../utils.h"
 
@@ -302,6 +303,62 @@ Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
           /*unroll_max_steps=*/Array<Integer>{0, 16, 64, 512},
           /*unroll_explicit=*/true),
   };
+}
+
+Array<ScheduleRule> ScheduleRule::DefaultRISCV(const int vlen) {
+  Array<ScheduleRule> rules;
+  rules.push_back(ScheduleRule::ApplyCustomRule());
+  rules.push_back(ScheduleRule::InlineConstantScalars());
+  rules.push_back(ScheduleRule::AutoInline(
+      /*into_producer=*/false,
+      /*into_consumer=*/true,
+      /*inline_const_tensor=*/true,
+      /*disallow_if_then_else=*/true,
+      /*require_injective=*/true,
+      /*require_ordered=*/true,
+      /*disallow_op=*/Array<String>{"tir.exp"}));
+  rules.push_back(ScheduleRule::AddRFactor(
+      /*max_jobs_per_core=*/16,
+      /*max_innermost_factor=*/Integer(64)));
+  auto current_target = tvm::Target::Current();
+  const auto reg_rvv_intrinsics =
+      tvm::ffi::Function::GetGlobalRequired("tir.tensor_intrin.register_rvv_isa_intrinsics");
+  const auto rvv_kernels_inventory =
+      reg_rvv_intrinsics(current_target, /* inventory_only */ true).cast<Map<String, int>>();
+  for (const auto& intrin : rvv_kernels_inventory) {
+    if (!tir::TensorIntrin::Get(intrin.first, /*allow_missing*/ true)) {
+      // on demand intrinsic register
+      reg_rvv_intrinsics(current_target, /* inventory_only */ false);
+    }
+    rules.push_back(ScheduleRule::MultiLevelTilingWithIntrin(
+        /*intrin_name=*/intrin.first,
+        /*structure=*/"SSRSRS",
+        /*tile_binds=*/std::nullopt,
+        /*max_innermost_factor=*/Integer(intrin.second),
+        /*vector_load_lens=*/std::nullopt,
+        /*reuse_read=*/std::nullopt,
+        /*reuse_write=*/
+        Map<String, ffi::Any>{{"req", String("may")},
+                              {"levels", Array<Integer>{1, 2}},
+                              {"scope", String("global")}}));
+  }
+  rules.push_back(ScheduleRule::MultiLevelTiling(
+      /*structure=*/"SSRSRS",
+      /*tile_binds=*/std::nullopt,
+      /*max_innermost_factor=*/Integer(64),
+      /*vector_load_lens=*/std::nullopt,
+      /*reuse_read=*/std::nullopt,
+      /*reuse_write=*/
+      Map<String, ffi::Any>{
+          {"req", String("may")}, {"levels", Array<Integer>{1, 2}}, {"scope", String("global")}}));
+  rules.push_back(ScheduleRule::ParallelizeVectorizeUnroll(
+      /*max_jobs_per_core=*/16,
+      /*max_vectorize_extent=*/64,
+      /*unroll_max_steps=*/Array<Integer>{0, 16, 64, 512},
+      /*unroll_explicit=*/true));
+  rules.push_back(ScheduleRule::RandomComputeLocation());
+
+  return rules;
 }
 
 Array<ScheduleRule> GetARMNeonSpecificRules() {
