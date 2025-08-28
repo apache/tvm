@@ -33,6 +33,8 @@ function(_libbacktrace_compile)
 
   ExternalProject_Add(project_libbacktrace
     PREFIX libbacktrace
+    GIT_REPOSITORY "https://github.com/ianlancetaylor/libbacktrace.git"
+    GIT_TAG "793921876c981ce49759114d7bb89bb89b2d3a2d"
     SOURCE_DIR ${_libbacktrace_source}
     BINARY_DIR ${_libbacktrace_prefix}
     CONFIGURE_COMMAND
