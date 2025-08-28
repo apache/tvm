@@ -339,6 +339,7 @@ TVM_DLL ffi::Map<ffi::String, ffi::String> GetLibInfo() {
       {"USE_ROCM", TVM_INFO_USE_ROCM},
       {"USE_RCCL", TVM_INFO_USE_RCCL},
       {"USE_RPC", TVM_INFO_USE_RPC},
+      {"TVM_BUILD_PYTHON_MODULE", TVM_INFO_TVM_BUILD_PYTHON_MODULE},
       {"USE_RTTI", TVM_INFO_USE_RTTI},
       {"USE_RUST_EXT", TVM_INFO_USE_RUST_EXT},
       {"USE_SORT", TVM_INFO_USE_SORT},
