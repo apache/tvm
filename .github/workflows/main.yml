@@ -44,7 +44,7 @@ jobs:
           submodules: 'recursive'
       - name: Set up environment
         uses: ./.github/actions/setup
-      - name: Install LLVM dependencies via conda
+      - name: Install LLVM dependencies
         shell: bash -l {0}
         run: |
           conda install -c conda-forge llvmdev cmake ninja
@@ -106,7 +106,7 @@ jobs:
           submodules: 'recursive'
       - name: Set up environment
         uses: ./.github/actions/setup
-      - name: Install LLVM dependencies via conda
+      - name: Install LLVM dependencies
         shell: cmd /C call {0}
         run: |
           conda install -c conda-forge llvmdev cmake ninja

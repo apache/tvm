@@ -36,11 +36,8 @@ dependencies:
   - python >=3.9
   - pip
   
-  # Optional: Additional build dependencies
   - git
   - bzip2
-  
-  # Optional: For development and testing
   - pytest
   - numpy
   - scipy
