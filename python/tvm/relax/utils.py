@@ -347,6 +347,7 @@ def gen_call_tir_inputs(
         )
 
     primfunc_attrs = kwargs.pop("primfunc_attrs", None)
+    custom_out_sinfo = kwargs.pop("sinfo_args", [])
 
     te_args = _convert_te_arg(args)
     te_kwargs = _convert_te_arg(kwargs)
@@ -371,14 +372,17 @@ def gen_call_tir_inputs(
     # with old set of variables.
     tir_var_inverse_map = {v: k for k, v in tir_var_map.items()}
 
-    output_sinfo = [
-        TensorStructInfo(
-            _shape_with_old_tir_var(out.shape, tir_var_inverse_map),
-            out.dtype,
-            _get_vdevice(args),
-        )
-        for out in outs
-    ]
+    if len(custom_out_sinfo) == 1:
+        output_sinfo = custom_out_sinfo[0]
+    else:
+        output_sinfo = [
+            TensorStructInfo(
+                _shape_with_old_tir_var(out.shape, tir_var_inverse_map),
+                out.dtype,
+                _get_vdevice(args),
+            )
+            for out in outs
+        ]
 
     tir_vars = None
     if len(unbound_tir_vars) > 0:
