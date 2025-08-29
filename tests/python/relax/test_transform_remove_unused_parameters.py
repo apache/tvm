@@ -60,6 +60,9 @@ class TestReplaceSymbolicVariables(BaseCompare):
     its shape defines the symbolic variables `m` and `n`.  When
     removing the `R.Tensor` argument, we may need to provide
     additional parameters to define the symbolic variables.
+
+    The order of symbolic variables is determined by the order of
+    their first occurrence in the subroutine's signature.
     """
 
     @I.ir_module
@@ -80,12 +83,12 @@ class TestReplaceSymbolicVariables(BaseCompare):
         def main(A: R.Tensor(["m", "n"], "float32")) -> R.Tensor(["m", "n"], "float32"):
             m = T.int64()
             n = T.int64()
-            out: R.Tensor([m, n], "float32") = Expected.func(R.prim_value(n), R.prim_value(m))
+            out: R.Tensor([m, n], "float32") = Expected.func(R.prim_value(m), R.prim_value(n))
             return out
 
         @R.function(private=True)
         def func(
-            param_n: R.Prim(value="n"), param_m: R.Prim(value="m")
+            param_m: R.Prim(value="m"), param_n: R.Prim(value="n")
         ) -> R.Tensor(["m", "n"], "float32"):
             m = T.int64()
             n = T.int64()
