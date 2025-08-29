@@ -47,7 +47,7 @@ jobs:
       - name: Install LLVM dependencies
         shell: bash -l {0}
         run: |
-          conda install -c conda-forge llvmdev cmake ninja
+          conda install -c conda-forge llvmdev cmake ninja zlib
       - name: Build TVM wheel
         shell: bash -l {0}
         run: |
@@ -110,7 +110,7 @@ jobs:
       - name: Install LLVM dependencies
         shell: cmd /C call {0}
         run: |
-          conda install -c conda-forge llvmdev cmake ninja
+          conda install -c conda-forge llvmdev cmake ninja zlib
       - name: Build TVM wheel
         shell: cmd /C call {0}
         run: |
