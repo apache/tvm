@@ -28,16 +28,12 @@ dependencies:
   - cmake >=3.24
   - ninja
   - make
-  
-  # LLVM for TVM compilation
-  - llvmdev >=15
-  
-  # Python and build tools
+  - llvmdev >=11
   - python >=3.9
   - pip
-  
   - git
   - bzip2
   - pytest
   - numpy
   - scipy
+  - cython
