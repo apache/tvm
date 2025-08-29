@@ -28,6 +28,7 @@ from .transform import (
     BundleModelParams,
     CallTIRRewrite,
     CanonicalizeBindings,
+    CheckForSpecialCase,
     CombineParallelMatmul,
     ComputePrimValue,
     ConvertLayout,
