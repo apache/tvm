@@ -47,6 +47,7 @@ classifiers = [
 ]
 # Core dependencies - these are the minimum required for basic TVM functionality
 dependencies = [
+    "apache-tvm-ffi",
     "cloudpickle",
     "ml_dtypes",
     "numpy",
@@ -129,25 +130,11 @@ wheel.py-api = "py3"
 build-dir = "build"
 
 # CMake configuration - ensure proper installation paths
-cmake.args = [
-    "-DTVM_BUILD_PYTHON_MODULE=ON",
-    "-DTVM_FFI_BUILD_PYTHON_MODULE=OFF",
-    "-DTVM_USE_CUTLASS=OFF",
-    "-DTVM_USE_FLASH_ATTN=OFF",
-    "-DTVM_USE_LLVM=OFF",
-    "-DTVM_USE_CUDA=OFF",
-    "-DTVM_USE_OPENCL=OFF",
-    "-DTVM_USE_VULKAN=OFF",
-    "-DTVM_USE_METAL=OFF",
-    "-DTVM_USE_OPENGL=OFF",
-    "-DTVM_USE_RPC=OFF",
-    "-DTVM_USE_GRAPH_EXECUTOR=OFF",
-    "-DTVM_USE_PROFILER=OFF",
-    "-DTVM_USE_UTILS=OFF",
-]
+cmake.args = ["-DTVM_BUILD_PYTHON_MODULE=ON"]
 
 # Wheel configuration
 wheel.packages = ["python/tvm"]
+wheel.install-dir = "tvm"
 
 # Source distribution configuration
 sdist.include = [

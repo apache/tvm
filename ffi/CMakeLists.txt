@@ -221,16 +221,10 @@ if (TVM_FFI_BUILD_PYTHON_MODULE)
   # Set RPATH for tvm_ffi_cython to find tvm_ffi_shared.so relatively
   if(APPLE)
     # macOS uses @loader_path
-    set_target_properties(tvm_ffi_cython PROPERTIES
-      INSTALL_RPATH "@loader_path/lib"
-      BUILD_WITH_INSTALL_RPATH ON
-    )
+    set_target_properties(tvm_ffi_cython PROPERTIES INSTALL_RPATH "@loader_path/lib")
   elseif(LINUX)
       # Linux uses $ORIGIN
-    set_target_properties(tvm_ffi_cython PROPERTIES
-      INSTALL_RPATH "\$ORIGIN/lib"
-      BUILD_WITH_INSTALL_RPATH ON
-    )
+    set_target_properties(tvm_ffi_cython PROPERTIES INSTALL_RPATH "\$ORIGIN/lib")
   endif()
   install(TARGETS tvm_ffi_cython DESTINATION .)
 
