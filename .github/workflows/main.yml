@@ -44,11 +44,19 @@ jobs:
           submodules: 'recursive'
       - name: Set up environment
         uses: ./.github/actions/setup
-      - name: Conda Build
+      - name: Install LLVM dependencies via conda
         shell: bash -l {0}
-        run: >-
-          conda build --output-folder=conda/pkg  conda/recipe &&
-          conda install tvm -c ./conda/pkg
+        run: |
+          conda install -c conda-forge llvmdev cmake ninja
+      - name: Build TVM wheel
+        shell: bash -l {0}
+        run: |
+          pip install scikit-build-core
+          pip wheel -w dist .
+      - name: Install TVM from wheel
+        shell: bash -l {0}
+        run: |
+          pip install dist/*.whl
 #      - name: Build iOS RPC
 #        run: |
 #          IOS_VERSION="14.0"
@@ -98,11 +106,19 @@ jobs:
           submodules: 'recursive'
       - name: Set up environment
         uses: ./.github/actions/setup
-      - name: Conda Build
+      - name: Install LLVM dependencies via conda
         shell: cmd /C call {0}
-        run: >-
-          conda build --output-folder=conda/pkg conda/recipe &&
-          conda install tvm -c ./conda/pkg
+        run: |
+          conda install -c conda-forge llvmdev cmake ninja
+      - name: Build TVM wheel
+        shell: cmd /C call {0}
+        run: |
+          pip install scikit-build-core
+          pip wheel -w dist .
+      - name: Install TVM from wheel
+        shell: cmd /C call {0}
+        run: |
+          pip install dist/*.whl
       - name: Test
         shell: cmd /C call {0}
         run: >-
