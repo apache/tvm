@@ -11,12 +11,12 @@
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
-# specific language governing permissions and limitations
-# under the License.
+# KIND, either express or implied.  See the License for the specific
+# language governing permissions and limitations under the License.
 
-# Build environment that can be used to build tvm.
-name: tvm-build
+# Build environment for TVM wheel building.
+# This environment provides the necessary dependencies for building TVM wheels.
+name: tvm-wheel-build
 
 # The conda channels to lookup the dependencies
 channels:
@@ -24,16 +24,16 @@ channels:
 
 # The packages to install to the environment
 dependencies:
-  - conda < 24.9.0
-  - conda-build < 24.9.0
-  - git
-  - llvmdev >=11
-  - numpy
-  - pytest
-  - cython
-  - cmake
-  - bzip2
+  # Core build tools
+  - cmake >=3.24
+  - ninja
   - make
-  - scipy
-  - pillow
+  - llvmdev >=11
+  - python >=3.9
   - pip
+  - git
+  - bzip2
+  - pytest
+  - numpy
+  - scipy
+  - cython

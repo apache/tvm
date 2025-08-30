@@ -16,5 +16,5 @@
 :: under the License.
 echo on
 
-cd %SRC_DIR%\python || exit /b
-%PYTHON% setup.py install --single-version-externally-managed --record=%SRC_DIR%\record.txt || exit /b
+cd %SRC_DIR% || exit /b
+%PYTHON% -m pip install . --no-deps --no-build-isolation --record=%SRC_DIR%\record.txt || exit /b
