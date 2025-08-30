@@ -126,19 +126,22 @@ typedef enum {
   kTVMFFIError = 67,
   /*! \brief Function object. */
   kTVMFFIFunction = 68,
-  /*! \brief Array object. */
-  kTVMFFIArray = 69,
-  /*! \brief Map object. */
-  kTVMFFIMap = 70,
   /*!
    * \brief Shape object, layout = { TVMFFIObject, { const int64_t*, size_t }, ... }
    */
-  kTVMFFIShape = 71,
+  kTVMFFIShape = 69,
   /*!
    * \brief NDArray object, layout = { TVMFFIObject, DLTensor, ... }
    */
-  kTVMFFINDArray = 72,
-  /*! \brief Runtime module object. */
+  kTVMFFINDArray = 70,
+  /*! \brief Array object. */
+  kTVMFFIArray = 71,
+  //----------------------------------------------------------------
+  // more complex objects
+  //----------------------------------------------------------------
+  /*! \brief Map object. */
+  kTVMFFIMap = 72,
+  /*! \brief Runtime dynamic loaded module object. */
   kTVMFFIModule = 73,
   kTVMFFIStaticObjectEnd,
   // [Section] Dynamic Boxed: [kTVMFFIDynObjectBegin, +oo)
@@ -763,11 +766,11 @@ typedef struct TVMFFITypeInfo {
  *
  * \param name The name of the function.
  * \param f The function to be registered.
- * \param override Whether allow override already registered function.
+ * \param allow_override Whether allow override already registered function.
  * \return 0 when success, nonzero when failure happens
  */
 TVM_FFI_DLL int TVMFFIFunctionSetGlobal(const TVMFFIByteArray* name, TVMFFIObjectHandle f,
-                                        int override);
+                                        int allow_override);
 
 /*!
  * \brief Register the function to runtime's global table with method info.
@@ -780,7 +783,7 @@ TVM_FFI_DLL int TVMFFIFunctionSetGlobal(const TVMFFIByteArray* name, TVMFFIObjec
  * \return 0 when success, nonzero when failure happens
  */
 TVM_FFI_DLL int TVMFFIFunctionSetGlobalFromMethodInfo(const TVMFFIMethodInfo* method_info,
-                                                      int override);
+                                                      int allow_override);
 
 /*!
  * \brief Register type field information for runtime reflection.

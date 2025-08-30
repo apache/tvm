@@ -69,6 +69,12 @@ class TVM_FFI_EXTRA_CXX_API ModuleObj : public Object {
    */
   virtual bool ImplementsFunction(const String& name) { return GetFunction(name).defined(); }
   /*!
+   * \brief Get the metadata of the function, if available.
+   * \param name The name of the function.
+   * \return The metadata stored in json string format.
+   */
+  virtual Optional<String> GetFunctionMetadata(const String& name) { return std::nullopt; }
+  /*!
    * \brief Write the current module to file with given format (for further compilation).
    *
    * \param file_name The file to be saved to.
@@ -121,6 +127,12 @@ class TVM_FFI_EXTRA_CXX_API ModuleObj : public Object {
    * \return True if the module implements the function, false otherwise.
    */
   bool ImplementsFunction(const String& name, bool query_imports);
+  /*!
+   * \brief Get the function metadata of the function if available.
+   * \param name The name of the function.
+   * \return The function metadata of the function in json format.
+   */
+  Optional<String> GetFunctionMetadata(const String& name, bool query_imports);
   /*!
    * \brief Get the imports of the module.
    * \return The imports of the module.
@@ -215,6 +227,8 @@ namespace symbol {
 constexpr const char* tvm_ffi_library_ctx = "__tvm_ffi_library_ctx";
 /*! \brief Global variable to store binary data alongside a library module. */
 constexpr const char* tvm_ffi_library_bin = "__tvm_ffi_library_bin";
+/*! \brief Optional metadata prefix of a symbol. */
+constexpr const char* tvm_ffi_metadata_prefix = "__tvm_ffi_metadata_";
 /*! \brief Default entry function of a library module. */
 constexpr const char* tvm_ffi_main = "__tvm_ffi_main__";
 }  // namespace symbol
