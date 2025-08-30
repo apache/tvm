@@ -637,6 +637,14 @@ def riscv_cpu(model="sifive-u54", options=None):
             "-mabi=lp64d",
             # cc: riscv64-unknown-linux-gnu-g++ -march=rv64gc -mabi=lp64d -mcpu=sifive-u74
         ],
+        "licheepi3a": [
+            "-num-cores=8",
+            "-mtriple=riscv64-unknown-linux-gnu",
+            "-mcpu=spacemit-x60",
+            "-mfloat-abi=hard",
+            "-mabi=lp64d",
+            # cc: riscv64-unknown-linux-gnu-g++ -march=rv64gcv -mabi=lp64d -mcpu=spacemit-x60
+        ],
     }
     pre_defined_opt = trans_table.get(model, ["-model=%s" % model])
 
