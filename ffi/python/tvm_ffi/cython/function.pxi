@@ -56,10 +56,7 @@ def load_torch_get_current_cuda_stream():
         return fallback_get_current_cuda_stream
 
 
-if torch is not None:
-    # when torch is available, jit compile the get_current_cuda_stream function
-    # the torch caches the extension so second loading is faster
-    torch_get_current_cuda_stream = load_torch_get_current_cuda_stream()
+torch_get_current_cuda_stream = None
 
 
 cdef inline object make_ret_small_str(TVMFFIAny result):
@@ -149,6 +146,8 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args,
             if is_cuda and ctx_dev_type != NULL and ctx_dev_type[0] == -1:
                 ctx_dev_type[0] = temp_dltensor.device.device_type
                 ctx_dev_id[0] = temp_dltensor.device.device_id
+                if torch_get_current_cuda_stream is None:
+                    torch_get_current_cuda_stream = load_torch_get_current_cuda_stream()
                 temp_ptr = torch_get_current_cuda_stream(temp_dltensor.device.device_id)
                 ctx_stream[0] = <TVMFFIStreamHandle>temp_ptr
             temp_args.append(arg)

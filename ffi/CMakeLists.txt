@@ -239,9 +239,9 @@ if (TVM_FFI_BUILD_PYTHON_MODULE)
     PATTERN "*.tmp" EXCLUDE
   )
   install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/ DESTINATION src/ffi/)
-  install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Utils/ DESTINATION cmake/Utils/)
+  install(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/cmake/Utils/ DESTINATION cmake/Utils)
   install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/CMakeLists.txt DESTINATION .)
-  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tvm_ffi-config.cmake DESTINATION lib/cmake/tvm_ffi/)
+  install(FILES ${CMAKE_CURRENT_SOURCE_DIR}/cmake/tvm_ffi-config.cmake DESTINATION cmake)
 endif()
 
 ########## Install the related for normal cmake library ##########

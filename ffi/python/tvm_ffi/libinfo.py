@@ -95,7 +95,7 @@ def find_source_path():
 def find_cmake_path():
     """Find the preferred cmake path."""
     candidates = [
-        os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib", "cmake"),
+        os.path.join(os.path.dirname(os.path.realpath(__file__)), "cmake"),
         os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "cmake"),
     ]
     for candidate in candidates:
