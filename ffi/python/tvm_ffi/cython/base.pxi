@@ -48,11 +48,12 @@ cdef extern from "tvm/ffi/c_api.h":
         kTVMFFIBytes = 66
         kTVMFFIError = 67
         kTVMFFIFunction = 68
-        kTVMFFIArray = 69
-        kTVMFFIMap = 70
-        kTVMFFIShape = 71
-        kTVMFFINDArray = 72
+        kTVMFFIShape = 69
+        kTVMFFINDArray = 70
+        kTVMFFIArray = 71
+        kTVMFFIMap = 72
         kTVMFFIModule = 73
+
 
     ctypedef void* TVMFFIObjectHandle
 
