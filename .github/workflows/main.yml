@@ -53,7 +53,7 @@ jobs:
         run: |
           pip install scikit-build-core
           export CMAKE_ARGS="-DUSE_LLVM=ON -DBUILD_TESTING=OFF"
-          pip wheel -w dist .
+          pip wheel --no-deps -w dist . -v
       - name: Install TVM from wheel
         shell: bash -l {0}
         run: |
@@ -116,12 +116,12 @@ jobs:
         run: |
           pip install scikit-build-core
           set CMAKE_ARGS=-DUSE_LLVM=ON -DBUILD_TESTING=OFF
-          pip wheel -w dist .
+          pip wheel --no-deps -w dist . -v
       - name: Install TVM from wheel
         shell: cmd /C call {0}
         run: |
           dir dist\*.whl
-          pip install dist\tvm-0.22.0.dev0-py3-none-win_amd64.whl
+          pip install dist\tvm-*.whl
       - name: Test
         shell: cmd /C call {0}
         run: >-
