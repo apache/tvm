@@ -121,7 +121,7 @@ jobs:
         shell: cmd /C call {0}
         run: |
           dir dist\*.whl
-          pip install dist\tvm-*.whl
+          pip install dist\tvm-0.22.0.dev0-py3-none-win_amd64.whl
       - name: Test
         shell: cmd /C call {0}
         run: >-
