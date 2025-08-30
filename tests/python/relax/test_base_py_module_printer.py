@@ -674,15 +674,14 @@ def test_script_and_show_methods():
     assert isinstance(script_output, str)
     assert len(script_output) > 0
     
-    # Test show() method (should not raise an error)
+    # Test show() method
     try:
         module.show()
         # If we get here, show() worked
         assert True
     except Exception as e:
-        # If show() fails, that's also acceptable for testing
-        print(f"show() method failed (this is acceptable for testing): {e}")
-        assert True
+        # If show() fails, the feature is not working properly
+        pytest.fail(f"show() method failed: {e}")
 
 
 def test_python_functions_in_irmodule():
@@ -706,7 +705,4 @@ def test_python_functions_in_irmodule():
         assert pyfuncs['add'].__name__ == 'add'
         assert pyfuncs['multiply'].__name__ == 'multiply'
     else:
-        # If pyfuncs doesn't exist, that's also acceptable for testing
-        # as it might be added later in the implementation
-        print("Note: pyfuncs attribute not found in IRModule (this is acceptable for testing)")
-        assert True
+        pytest.fail("pyfuncs attribute not found in IRModule")
