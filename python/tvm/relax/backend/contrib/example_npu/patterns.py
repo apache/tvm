@@ -27,6 +27,8 @@ from tvm.relax.dpl.pattern import is_op, wildcard
 from tvm.relax.transform import PatternCheckContext
 from tvm.relax.struct_info import TensorStructInfo
 from tvm import DataType
+from tvm.ir import Op
+from tvm import TVMError
 
 from ...pattern_registry import register_patterns
 
@@ -242,7 +244,11 @@ def matmul_patterns():
     def _matmul_pattern(pattern_name):
         return (pattern_name, *_make_matmul_pattern(), _check_matmul)
 
-    return [_matmul_pattern("example_npu.matmul")]
+    # Register both common names used for matrix multiplication in patterns/tests
+    return [
+        _matmul_pattern("example_npu.dense"),
+        _matmul_pattern("example_npu.matmul"),
+    ]
 
 
 def conv1d_patterns():
@@ -465,6 +471,11 @@ def activation_patterns():
 
     patterns = []
     for pattern_name, op_name, properties in activations:
+        try:
+            Op.get(op_name)
+        except TVMError:  # pylint: disable=broad-exception-caught
+            continue
+
         pattern_fn = _make_activation_pattern(op_name, properties)
         patterns.append((pattern_name, *pattern_fn(), _check_activation))
 
@@ -503,6 +514,11 @@ def elementwise_patterns():
     ops = ["relax.add", "relax.multiply", "relax.subtract", "relax.divide"]
     patterns = []
     for op in ops:
+        try:
+            Op.get(op)
+        except TVMError:  # pylint: disable=broad-exception-caught
+            continue
+
         op_short = op.split(".")[-1]
         pattern_fn = _make_elementwise_pattern(op)
         patterns.append((f"example_npu.{op_short}", *pattern_fn(), _check_elementwise))
@@ -548,10 +564,23 @@ def quantization_patterns():
         """Check quantization operations"""
         return True
 
-    return [
-        ("example_npu.quantize", *_make_quantize_pattern(), _check_quantization),
-        ("example_npu.dequantize", *_make_dequantize_pattern(), _check_quantization),
-    ]
+    patterns = []
+
+    try:
+        Op.get("relax.quantize")
+        patterns.append(("example_npu.quantize", *_make_quantize_pattern(), _check_quantization))
+    except TVMError:  # pylint: disable=broad-exception-caught
+        pass
+
+    try:
+        Op.get("relax.dequantize")
+        patterns.append(
+            ("example_npu.dequantize", *_make_dequantize_pattern(), _check_quantization)
+        )
+    except TVMError:  # pylint: disable=broad-exception-caught
+        pass
+
+    return patterns
 
 
 # Register all NPU patterns with architectural awareness

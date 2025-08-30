@@ -56,10 +56,10 @@ using namespace tvm::runtime::json;
  * Models the hierarchical memory structure common in NPUs
  */
 enum class MemoryTier {
-  L0_REGISTER,    // Register file (immediate access)
-  L1_SRAM,        // On-chip SRAM/scratchpad (single cycle)
-  L2_CMX,         // Compute memory/shared memory (few cycles)
-  L3_DRAM         // External DRAM (high latency)
+  L0_REGISTER,  // Register file (immediate access)
+  L1_SRAM,      // On-chip SRAM/scratchpad (single cycle)
+  L2_CMX,       // Compute memory/shared memory (few cycles)
+  L3_DRAM       // External DRAM (high latency)
 };
 
 /*!
@@ -67,8 +67,8 @@ enum class MemoryTier {
  */
 enum class PowerMode {
   HIGH_PERFORMANCE,  // Maximum frequency, all units active
-  BALANCED,         // Moderate frequency, selective unit activation
-  LOW_POWER        // Reduced frequency, minimal units
+  BALANCED,          // Moderate frequency, selective unit activation
+  LOW_POWER          // Reduced frequency, minimal units
 };
 
 /*!
@@ -123,8 +123,8 @@ class NPUMemoryManager {
       if (available_memory_[current_tier] >= size_bytes) {
         available_memory_[current_tier] -= size_bytes;
         allocated_blocks_.push_back({current_tier, size_bytes});
-        LOG(INFO) << "Memory spilled from tier " << static_cast<int>(preferred_tier)
-                  << " to tier " << tier;
+        LOG(INFO) << "Memory spilled from tier " << static_cast<int>(preferred_tier) << " to tier "
+                  << tier;
         return current_tier;
       }
     }
@@ -137,12 +137,10 @@ class NPUMemoryManager {
    * \brief Get memory access cost for a tier
    */
   int GetMemoryAccessCost(MemoryTier tier) {
-    static const std::unordered_map<MemoryTier, int> access_costs = {
-      {MemoryTier::L0_REGISTER, 0},
-      {MemoryTier::L1_SRAM, 1},
-      {MemoryTier::L2_CMX, 4},
-      {MemoryTier::L3_DRAM, 100}
-    };
+    static const std::unordered_map<MemoryTier, int> access_costs = {{MemoryTier::L0_REGISTER, 0},
+                                                                     {MemoryTier::L1_SRAM, 1},
+                                                                     {MemoryTier::L2_CMX, 4},
+                                                                     {MemoryTier::L3_DRAM, 100}};
     return access_costs.at(tier);
   }
 
@@ -170,8 +168,7 @@ class NPUTilingEngine {
   /*!
    * \brief Calculate optimal tiling for a tensor
    */
-  static TileInfo CalculateTiling(const std::vector<int64_t>& shape,
-                                  size_t dtype_bytes,
+  static TileInfo CalculateTiling(const std::vector<int64_t>& shape, size_t dtype_bytes,
                                   size_t available_sram_bytes) {
     TileInfo info;
 
@@ -202,8 +199,7 @@ class NPUTilingEngine {
     info.tile_size_bytes = tile_elements * batch_channels * dtype_bytes;
 
     // Reduce tile size if needed
-    while (info.tile_size_bytes > available_sram_bytes &&
-           (info.tile_h > 8 || info.tile_w > 8)) {
+    while (info.tile_size_bytes > available_sram_bytes && (info.tile_h > 8 || info.tile_w > 8)) {
       info.tile_h = std::max(8, info.tile_h / 2);
       info.tile_w = std::max(8, info.tile_w / 2);
       tile_elements = info.tile_h * info.tile_w;
@@ -231,8 +227,8 @@ class NPUQuantizationEngine {
   /*!
    * \brief Quantize float32 to int8
    */
-  static void QuantizeToInt8(const float* input, int8_t* output,
-                             size_t num_elements, float scale, int zero_point) {
+  static void QuantizeToInt8(const float* input, int8_t* output, size_t num_elements, float scale,
+                             int zero_point) {
     for (size_t i = 0; i < num_elements; ++i) {
       int quantized = static_cast<int>(std::round(input[i] / scale + zero_point));
       quantized = std::max(-128, std::min(127, quantized));
@@ -243,8 +239,8 @@ class NPUQuantizationEngine {
   /*!
    * \brief Dequantize int8 to float32
    */
-  static void DequantizeFromInt8(const int8_t* input, float* output,
-                                 size_t num_elements, float scale, int zero_point) {
+  static void DequantizeFromInt8(const int8_t* input, float* output, size_t num_elements,
+                                 float scale, int zero_point) {
     for (size_t i = 0; i < num_elements; ++i) {
       output[i] = scale * (static_cast<float>(input[i]) - zero_point);
     }
@@ -253,8 +249,7 @@ class NPUQuantizationEngine {
   /*!
    * \brief Calculate quantization parameters
    */
-  static std::pair<float, int> CalculateQuantizationParams(
-      const float* data, size_t num_elements) {
+  static std::pair<float, int> CalculateQuantizationParams(const float* data, size_t num_elements) {
     float min_val = *std::min_element(data, data + num_elements);
     float max_val = *std::max_element(data, data + num_elements);
 
@@ -273,8 +268,7 @@ class ExampleNPURuntime : public JSONRuntimeBase {
  public:
   ExampleNPURuntime(const std::string& symbol_name, const std::string& graph_json,
                     const Array<String> const_names)
-      : JSONRuntimeBase(symbol_name, graph_json, const_names),
-        power_mode_(PowerMode::BALANCED) {}
+      : JSONRuntimeBase(symbol_name, graph_json, const_names), power_mode_(PowerMode::BALANCED) {}
 
   ~ExampleNPURuntime() override = default;
 
@@ -440,10 +434,8 @@ class ExampleNPURuntime : public JSONRuntimeBase {
     const auto& inputs = node.GetInputs();
     if (inputs.size() >= 2) {
       // Demonstrate memory allocation
-      MemoryTier input_tier = memory_manager_.AllocateMemory(
-          1024 * 4, MemoryTier::L1_SRAM);
-      MemoryTier weight_tier = memory_manager_.AllocateMemory(
-          1024 * 4, MemoryTier::L1_SRAM);
+      MemoryTier input_tier = memory_manager_.AllocateMemory(1024 * 4, MemoryTier::L1_SRAM);
+      MemoryTier weight_tier = memory_manager_.AllocateMemory(1024 * 4, MemoryTier::L1_SRAM);
 
       LOG(INFO) << "    Input allocated in tier " << static_cast<int>(input_tier);
       LOG(INFO) << "    Weights allocated in tier " << static_cast<int>(weight_tier);
@@ -473,13 +465,11 @@ class ExampleNPURuntime : public JSONRuntimeBase {
       }
 
       if (output_size > 256 * 1024) {  // Larger than L1 SRAM
-        auto tile_info = NPUTilingEngine::CalculateTiling(
-            output_shape, 4, 256 * 1024);
+        auto tile_info = NPUTilingEngine::CalculateTiling(output_shape, 4, 256 * 1024);
 
-        LOG(INFO) << "    Tiling required: " << tile_info.num_tiles_h
-                  << "x" << tile_info.num_tiles_w << " tiles";
-        LOG(INFO) << "    Tile size: " << tile_info.tile_h
-                  << "x" << tile_info.tile_w;
+        LOG(INFO) << "    Tiling required: " << tile_info.num_tiles_h << "x"
+                  << tile_info.num_tiles_w << " tiles";
+        LOG(INFO) << "    Tile size: " << tile_info.tile_h << "x" << tile_info.tile_w;
 
         // Process tiles sequentially
         for (int th = 0; th < tile_info.num_tiles_h; ++th) {
@@ -541,8 +531,7 @@ class ExampleNPURuntime : public JSONRuntimeBase {
     const std::string& op_name = node.GetOpName();
     LOG(INFO) << "  Executing Activation on " << GetEngineString(engine);
 
-    if (op_name.find("sigmoid") != std::string::npos ||
-        op_name.find("tanh") != std::string::npos) {
+    if (op_name.find("sigmoid") != std::string::npos || op_name.find("tanh") != std::string::npos) {
       LOG(INFO) << "    Using lookup table for complex activation";
     } else if (op_name.find("relu") != std::string::npos) {
       LOG(INFO) << "    Using comparator unit for ReLU";
@@ -581,8 +570,7 @@ class ExampleNPURuntime : public JSONRuntimeBase {
 
     // Example quantization (in real NPU, this would be hardware-accelerated)
     float dummy_data[] = {1.0f, 2.0f, 3.0f, 4.0f};
-    auto [scale, zero_point] = NPUQuantizationEngine::CalculateQuantizationParams(
-        dummy_data, 4);
+    auto [scale, zero_point] = NPUQuantizationEngine::CalculateQuantizationParams(dummy_data, 4);
 
     LOG(INFO) << "    Scale: " << scale << ", Zero point: " << zero_point;
   }
@@ -602,10 +590,14 @@ class ExampleNPURuntime : public JSONRuntimeBase {
    */
   std::string GetPowerModeString() const {
     switch (power_mode_) {
-      case PowerMode::HIGH_PERFORMANCE: return "HIGH_PERFORMANCE";
-      case PowerMode::BALANCED: return "BALANCED";
-      case PowerMode::LOW_POWER: return "LOW_POWER";
-      default: return "UNKNOWN";
+      case PowerMode::HIGH_PERFORMANCE:
+        return "HIGH_PERFORMANCE";
+      case PowerMode::BALANCED:
+        return "BALANCED";
+      case PowerMode::LOW_POWER:
+        return "LOW_POWER";
+      default:
+        return "UNKNOWN";
     }
   }
 
@@ -614,12 +606,18 @@ class ExampleNPURuntime : public JSONRuntimeBase {
    */
   std::string GetEngineString(ExecutionEngine engine) const {
     switch (engine) {
-      case ExecutionEngine::MATRIX_ENGINE: return "MATRIX_ENGINE";
-      case ExecutionEngine::VECTOR_ENGINE: return "VECTOR_ENGINE";
-      case ExecutionEngine::CONV_ENGINE: return "CONV_ENGINE";
-      case ExecutionEngine::POOLING_ENGINE: return "POOLING_ENGINE";
-      case ExecutionEngine::ACTIVATION_ENGINE: return "ACTIVATION_ENGINE";
-      default: return "UNKNOWN";
+      case ExecutionEngine::MATRIX_ENGINE:
+        return "MATRIX_ENGINE";
+      case ExecutionEngine::VECTOR_ENGINE:
+        return "VECTOR_ENGINE";
+      case ExecutionEngine::CONV_ENGINE:
+        return "CONV_ENGINE";
+      case ExecutionEngine::POOLING_ENGINE:
+        return "POOLING_ENGINE";
+      case ExecutionEngine::ACTIVATION_ENGINE:
+        return "ACTIVATION_ENGINE";
+      default:
+        return "UNKNOWN";
     }
   }
 };
@@ -634,8 +632,7 @@ runtime::Module ExampleNPURuntimeCreate(const Array<String>& args) {
   return runtime::Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.ExampleNPUJSONRuntimeCreate")
-    .set_body_typed(ExampleNPURuntimeCreate);
+TVM_REGISTER_GLOBAL("runtime.ExampleNPUJSONRuntimeCreate").set_body_typed(ExampleNPURuntimeCreate);
 
 }  // namespace contrib
 }  // namespace runtime
