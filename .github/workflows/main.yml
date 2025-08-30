@@ -120,7 +120,8 @@ jobs:
       - name: Install TVM from wheel
         shell: cmd /C call {0}
         run: |
-          for /f "delims=" %i in ('dir /b dist\*.whl') do pip install dist\%i
+          dir dist\*.whl
+          pip install dist\tvm-*.whl
       - name: Test
         shell: cmd /C call {0}
         run: >-
