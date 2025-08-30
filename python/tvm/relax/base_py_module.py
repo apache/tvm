@@ -371,7 +371,6 @@ class BasePyModule:
         # Create a wrapper that handles both instance methods and static functions
         # pylint: disable=import-outside-toplevel
         import functools
-        import inspect
 
         @functools.wraps(func)
         def wrapper(*args, **kwargs):
