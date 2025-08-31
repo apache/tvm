@@ -157,6 +157,36 @@ typedef enum {
 typedef void* TVMFFIObjectHandle;
 
 /*!
+ * \brief bitmask of the object deleter flag.
+ */
+#ifdef __cplusplus
+enum TVMFFIObjectDeleterFlagBitMask : int32_t {
+#else
+typedef enum {
+#endif
+  /*!
+   * \brief deleter action when strong reference count becomes zero.
+   * Need to call destructor of the object but not free the memory block.
+   */
+  kTVMFFIObjectDeleterFlagBitMaskStrong = 1 << 0,
+  /*!
+   * \brief deleter action when weak reference count becomes zero.
+   * Need to free the memory block.
+   */
+  kTVMFFIObjectDeleterFlagBitMaskWeak = 1 << 1,
+  /*!
+   * \brief deleter action when both strong and weak reference counts become zero.
+   * \note This is the most common case.
+   */
+  kTVMFFIObjectDeleterFlagBitMaskBoth =
+      (kTVMFFIObjectDeleterFlagBitMaskStrong | kTVMFFIObjectDeleterFlagBitMaskWeak),
+#ifdef __cplusplus
+};
+#else
+} TVMFFIObjectDeleterFlagBitMask;
+#endif
+
+/*!
  * \brief C-based type of all FFI object header that allocates on heap.
  * \note TVMFFIObject and TVMFFIAny share the common type_index header
  */
@@ -166,11 +196,22 @@ typedef struct TVMFFIObject {
    * \note The type index of Object and Any are shared in FFI.
    */
   int32_t type_index;
-  /*! \brief Reference counter of the object. */
-  int32_t ref_counter;
+  /*!
+   * \brief Weak reference counter of the object, for compatiblity with weak_ptr design.
+   * \note Use u32 to ensure that overall object stays within 24-byte boundary, usually
+   *       manipulation of weak counter is less common than strong counter.
+   */
+  uint32_t weak_ref_count;
+  /*! \brief Strong reference counter of the object. */
+  uint64_t strong_ref_count;
   union {
-    /*! \brief Deleter to be invoked when reference counter goes to zero. */
-    void (*deleter)(struct TVMFFIObject* self);
+    /*!
+     * \brief Deleter to be invoked when strong reference counter goes to zero.
+     * \param self The self object handle.
+     * \param flags The flags to indicate deletion behavior.
+     * \sa TVMFFIObjectDeleterFlagBitMask
+     */
+    void (*deleter)(struct TVMFFIObject* self, int flags);
     /*!
      * \brief auxilary field to TVMFFIObject is always 8 bytes aligned.
      * \note This helps us to ensure cross platform compatibility.
@@ -307,13 +348,19 @@ typedef struct {
 // Section: Basic object API
 //------------------------------------------------------------
 /*!
- * \brief Free an object handle by decreasing reference
+ * \brief Increas the strong reference count of an object handle
  * \param obj The object handle.
- * \note Internally we decrease the reference counter of the object.
- *       The object will be freed when every reference to the object are removed.
+ * \note Internally we increase the reference counter of the object.
  * \return 0 when success, nonzero when failure happens
  */
-TVM_FFI_DLL int TVMFFIObjectFree(TVMFFIObjectHandle obj);
+TVM_FFI_DLL int TVMFFIObjectIncRef(TVMFFIObjectHandle obj);
+
+/*!
+ * \brief Free an object handle by decreasing strong reference
+ * \param obj The object handle.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIObjectDecRef(TVMFFIObjectHandle obj);
 
 /*!
  * \brief Convert type key to type index.
@@ -470,7 +517,7 @@ TVM_FFI_DLL int TVMFFIDataTypeFromString(const TVMFFIByteArray* str, DLDataType*
 * \param dtype The DLDataType to convert.
 * \param out The output string.
 * \return 0 when success, nonzero when failure happens
-* \note out is a String object that needs to be freed by the caller via TVMFFIObjectFree.
+* \note out is a String object that needs to be freed by the caller via TVMFFIObjectDecRef.
 The content of string can be accessed via TVMFFIObjectGetByteArrayPtr.
 
 * \note The input dtype is a pointer to the DLDataType to avoid ABI compatibility issues.

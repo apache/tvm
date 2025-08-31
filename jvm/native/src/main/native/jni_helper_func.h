@@ -236,7 +236,7 @@ jobject tvmRetValueToJava(JNIEnv* env, TVMFFIAny value) {
     }
     case TypeIndex::kTVMFFIBytes: {
       jobject ret = newTVMValueBytes(env, TVMFFIBytesGetByteArrayPtr(value.v_obj));
-      TVMFFIObjectFree(value.v_obj);
+      TVMFFIObjectDecRef(value.v_obj);
       return ret;
     }
     default: {

@@ -143,7 +143,8 @@ class Object {
 
  public:
   Object() {
-    header_.ref_counter = 0;
+    header_.strong_ref_count = 0;
+    header_.weak_ref_count = 0;
     header_.deleter = nullptr;
   }
   /*!
@@ -197,9 +198,9 @@ class Object {
   int32_t use_count() const {
     // only need relaxed load of counters
 #ifdef _MSC_VER
-    return (reinterpret_cast<const volatile long*>(&header_.ref_counter))[0];  // NOLINT(*)
+    return (reinterpret_cast<const volatile __int64*>(&header_.strong_ref_count))[0];  // NOLINT(*)
 #else
-    return __atomic_load_n(&(header_.ref_counter), __ATOMIC_RELAXED);
+    return __atomic_load_n(&(header_.strong_ref_count), __ATOMIC_RELAXED);
 #endif
   }
 
@@ -230,33 +231,121 @@ class Object {
   static int32_t _GetOrAllocRuntimeTypeIndex() { return TypeIndex::kTVMFFIObject; }
 
  private:
-  /*! \brief increase reference count */
+  /*! \brief increase strong reference count, the caller must already hold a strong reference */
   void IncRef() {
 #ifdef _MSC_VER
-    _InterlockedIncrement(reinterpret_cast<volatile long*>(&header_.ref_counter));  // NOLINT(*)
+    _InterlockedIncrement64(
+        reinterpret_cast<volatile __int64*>(&header_.strong_ref_count));  // NOLINT(*)
 #else
-    __atomic_fetch_add(&(header_.ref_counter), 1, __ATOMIC_RELAXED);
+    __atomic_fetch_add(&(header_.strong_ref_count), 1, __ATOMIC_RELAXED);
+#endif
+  }
+  /*!
+   * \brief Try to lock the object to increase the strong reference count,
+   *        the caller must already hold a strong reference.
+   * \return whether the lock call is successful and object is still alive.
+   */
+  bool TryPromoteWeakPtr() {
+#ifdef _MSC_VER
+    uint64_t old_count =
+        (reinterpret_cast<const volatile __int64*>(&header_.strong_ref_count))[0];  // NOLINT(*)
+    while (old_count > 0) {
+      uint64_t new_count = old_count + 1;
+      uint64_t old_count_loaded = _InterlockedCompareExchange64(
+          reinterpret_cast<volatile __int64*>(&header_.strong_ref_count), new_count, old_count);
+      if (old_count == old_count_loaded) {
+        return true;
+      }
+      old_count = old_count_loaded;
+    }
+    return false;
+#else
+    uint64_t old_count = __atomic_load_n(&(header_.strong_ref_count), __ATOMIC_RELAXED);
+    while (old_count > 0) {
+      // must do CAS to ensure that we are the only one that increases the reference count
+      // avoid condition when two threads tries to promote weak to strong at same time
+      // or when strong deletion happens between the load and the CAS
+      uint64_t new_count = old_count + 1;
+      if (__atomic_compare_exchange_n(&(header_.strong_ref_count), &old_count, new_count, true,
+                                      __ATOMIC_ACQ_REL, __ATOMIC_RELAXED)) {
+        return true;
+      }
+    }
+    return false;
 #endif
   }
 
-  /*! \brief decrease reference count and delete the object */
+  /*! \brief increase weak reference count */
+  void IncWeakRef() {
+#ifdef _MSC_VER
+    _InterlockedIncrement(reinterpret_cast<volatile long*>(&header_.weak_ref_count));  // NOLINT(*)
+#else
+    __atomic_fetch_add(&(header_.weak_ref_count), 1, __ATOMIC_RELAXED);
+#endif
+  }
+
+  /*! \brief decrease strong reference count and delete the object */
   void DecRef() {
 #ifdef _MSC_VER
-    if (_InterlockedDecrement(                                               //
-            reinterpret_cast<volatile long*>(&header_.ref_counter)) == 0) {  // NOLINT(*)
+    // use simpler impl in windows to ensure correctness
+    if (_InterlockedDecrement64(                                                     //
+            reinterpret_cast<volatile __int64*>(&header_.strong_ref_count)) == 0) {  // NOLINT(*)
       // full barrrier is implicit in InterlockedDecrement
       if (header_.deleter != nullptr) {
-        header_.deleter(&(this->header_));
+        header_.deleter(&(this->header_), kTVMFFIObjectDeleterFlagBitMaskStrong);
+      }
+      if (_InterlockedDecrement(                                                  //
+              reinterpret_cast<volatile long*>(&header_.weak_ref_count)) == 0) {  // NOLINT(*)
+        if (header_.deleter != nullptr) {
+          header_.deleter(&(this->header_), kTVMFFIObjectDeleterFlagBitMaskWeak);
+        }
       }
     }
 #else
     // first do a release, note we only need to acquire for deleter
-    if (__atomic_fetch_sub(&(header_.ref_counter), 1, __ATOMIC_RELEASE) == 1) {
-      // only acquire when we need to call deleter
-      // in this case we need to ensure all previous writes are visible
+    if (__atomic_fetch_sub(&(header_.strong_ref_count), 1, __ATOMIC_RELEASE) == 1) {
+      if (__atomic_load_n(&(header_.weak_ref_count), __ATOMIC_RELAXED) == 1) {
+        // common case, we need to delete both the object and the memory block
+        // only acquire when we need to call deleter
+        __atomic_thread_fence(__ATOMIC_ACQUIRE);
+        if (header_.deleter != nullptr) {
+          // call deleter once
+          header_.deleter(&(this->header_), kTVMFFIObjectDeleterFlagBitMaskBoth);
+        }
+      } else {
+        // Slower path: there is still a weak reference left
+        __atomic_thread_fence(__ATOMIC_ACQUIRE);
+        // call destructor first, then decrease weak reference count
+        if (header_.deleter != nullptr) {
+          header_.deleter(&(this->header_), kTVMFFIObjectDeleterFlagBitMaskStrong);
+        }
+        // now decrease weak reference count
+        if (__atomic_fetch_sub(&(header_.weak_ref_count), 1, __ATOMIC_RELEASE) == 1) {
+          __atomic_thread_fence(__ATOMIC_ACQUIRE);
+          if (header_.deleter != nullptr) {
+            header_.deleter(&(this->header_), kTVMFFIObjectDeleterFlagBitMaskWeak);
+          }
+        }
+      }
+    }
+#endif
+  }
+
+  /*! \brief decrease weak reference count */
+  void DecWeakRef() {
+#ifdef _MSC_VER
+    if (_InterlockedDecrement(                                                  //
+            reinterpret_cast<volatile long*>(&header_.weak_ref_count)) == 0) {  // NOLINT(*)
+      if (header_.deleter != nullptr) {
+        header_.deleter(&(this->header_), kTVMFFIObjectDeleterFlagBitMaskWeak);
+      }
+    }
+#else
+    // now decrease weak reference count
+    if (__atomic_fetch_sub(&(header_.weak_ref_count), 1, __ATOMIC_RELEASE) == 1) {
       __atomic_thread_fence(__ATOMIC_ACQUIRE);
       if (header_.deleter != nullptr) {
-        header_.deleter(&(this->header_));
+        header_.deleter(&(this->header_), kTVMFFIObjectDeleterFlagBitMaskWeak);
       }
     }
 #endif
@@ -265,6 +354,8 @@ class Object {
   // friend classes
   template <typename>
   friend class ObjectPtr;
+  template <typename>
+  friend class WeakObjectPtr;
   friend struct tvm::ffi::details::ObjectUnsafe;
 };
 
@@ -402,6 +493,148 @@ class ObjectPtr {
   friend struct ObjectPtrHash;
   template <typename>
   friend class ObjectPtr;
+  template <typename>
+  friend class WeakObjectPtr;
+  friend struct tvm::ffi::details::ObjectUnsafe;
+};
+
+/*!
+ * \brief A custom smart pointer for Object.
+ * \tparam T the content data type.
+ * \sa make_object
+ */
+template <typename T>
+class WeakObjectPtr {
+ public:
+  /*! \brief default constructor */
+  WeakObjectPtr() {}
+  /*! \brief default constructor */
+  WeakObjectPtr(std::nullptr_t) {}  // NOLINT(*)
+  /*!
+   * \brief copy constructor
+   * \param other The value to be moved
+   */
+  WeakObjectPtr(const WeakObjectPtr<T>& other)  // NOLINT(*)
+      : WeakObjectPtr(other.data_) {}
+
+  /*!
+   * \brief copy constructor
+   * \param other The value to be moved
+   */
+  WeakObjectPtr(const ObjectPtr<T>& other)  // NOLINT(*)
+      : WeakObjectPtr(other.get()) {}
+  /*!
+   * \brief copy constructor
+   * \param other The value to be moved
+   */
+  template <typename U>
+  WeakObjectPtr(const WeakObjectPtr<U>& other)  // NOLINT(*)
+      : WeakObjectPtr(other.data_) {
+    static_assert(std::is_base_of<T, U>::value,
+                  "can only assign of child class ObjectPtr to parent");
+  }
+  /*!
+   * \brief copy constructor
+   * \param other The value to be moved
+   */
+  template <typename U>
+  WeakObjectPtr(const ObjectPtr<U>& other)  // NOLINT(*)
+      : WeakObjectPtr(other.data_) {
+    static_assert(std::is_base_of<T, U>::value,
+                  "can only assign of child class ObjectPtr to parent");
+  }
+  /*!
+   * \brief move constructor
+   * \param other The value to be moved
+   */
+  WeakObjectPtr(WeakObjectPtr<T>&& other)  // NOLINT(*)
+      : data_(other.data_) {
+    other.data_ = nullptr;
+  }
+  /*!
+   * \brief move constructor
+   * \param other The value to be moved
+   */
+  template <typename Y>
+  WeakObjectPtr(WeakObjectPtr<Y>&& other)  // NOLINT(*)
+      : data_(other.data_) {
+    static_assert(std::is_base_of<T, Y>::value,
+                  "can only assign of child class ObjectPtr to parent");
+    other.data_ = nullptr;
+  }
+  /*! \brief destructor */
+  ~WeakObjectPtr() { this->reset(); }
+  /*!
+   * \brief Swap this array with another Object
+   * \param other The other Object
+   */
+  void swap(WeakObjectPtr<T>& other) {  // NOLINT(*)
+    std::swap(data_, other.data_);
+  }
+
+  /*!
+   * \brief copy assignment
+   * \param other The value to be assigned.
+   * \return reference to self.
+   */
+  WeakObjectPtr<T>& operator=(const WeakObjectPtr<T>& other) {  // NOLINT(*)
+    // takes in plane operator to enable copy elison.
+    // copy-and-swap idiom
+    WeakObjectPtr(other).swap(*this);  // NOLINT(*)
+    return *this;
+  }
+  /*!
+   * \brief move assignment
+   * \param other The value to be assigned.
+   * \return reference to self.
+   */
+  WeakObjectPtr<T>& operator=(WeakObjectPtr<T>&& other) {  // NOLINT(*)
+    // copy-and-swap idiom
+    WeakObjectPtr(std::move(other)).swap(*this);  // NOLINT(*)
+    return *this;
+  }
+
+  /*! \return The internal object pointer if the object is still alive, otherwise nullptr */
+  ObjectPtr<T> lock() const {
+    if (data_ != nullptr && data_->TryPromoteWeakPtr()) {
+      ObjectPtr<T> ret;
+      // we already increase the reference count, so we don't need to do it again
+      ret.data_ = data_;
+      return ret;
+    }
+    return nullptr;
+  }
+
+  /*! \brief reset the content of ptr to be nullptr */
+  void reset() {
+    if (data_ != nullptr) {
+      data_->DecWeakRef();
+      data_ = nullptr;
+    }
+  }
+
+  /*! \return The use count of the ptr, for debug purposes */
+  int use_count() const { return data_ != nullptr ? data_->use_count() : 0; }
+
+  /*! \return whether the pointer is nullptr */
+  bool expired() const { return data_ == nullptr || data_->use_count() == 0; }
+
+ private:
+  /*! \brief internal pointer field */
+  Object* data_{nullptr};
+
+  /*!
+   * \brief constructor from Object
+   * \param data The data pointer
+   */
+  explicit WeakObjectPtr(Object* data) : data_(data) {
+    if (data_ != nullptr) {
+      data_->IncWeakRef();
+    }
+  }
+
+  template <typename>
+  friend class WeakObjectPtr;
   friend struct tvm::ffi::details::ObjectUnsafe;
 };
 

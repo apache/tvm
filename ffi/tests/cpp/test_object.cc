@@ -103,4 +103,123 @@ TEST(Object, CAPIAccessor) {
   int32_t type_index = TVMFFIObjectGetTypeIndex(obj);
   EXPECT_EQ(type_index, TIntObj::RuntimeTypeIndex());
 }
+
+TEST(Object, WeakObjectPtr) {
+  // Test basic construction from ObjectPtr
+  ObjectPtr<TIntObj> strong_ptr = make_object<TIntObj>(42);
+  WeakObjectPtr<TIntObj> weak_ptr(strong_ptr);
+
+  EXPECT_EQ(strong_ptr.use_count(), 1);
+  EXPECT_FALSE(weak_ptr.expired());
+  EXPECT_EQ(weak_ptr.use_count(), 1);
+
+  // Test lock() when object is still alive
+  ObjectPtr<TIntObj> locked_ptr = weak_ptr.lock();
+  EXPECT_TRUE(locked_ptr != nullptr);
+  EXPECT_EQ(locked_ptr->value, 42);
+  EXPECT_EQ(strong_ptr.use_count(), 2);
+  EXPECT_EQ(weak_ptr.use_count(), 2);
+
+  // Test lock() when object is expired
+  strong_ptr.reset();
+  locked_ptr.reset();
+  EXPECT_TRUE(weak_ptr.expired());
+  EXPECT_EQ(weak_ptr.use_count(), 0);
+
+  ObjectPtr<TIntObj> expired_lock = weak_ptr.lock();
+  EXPECT_TRUE(expired_lock == nullptr);
+}
+
+TEST(Object, WeakObjectPtrAssignment) {
+  // Test copy construction
+  ObjectPtr<TIntObj> new_strong = make_object<TIntObj>(100);
+  WeakObjectPtr<TIntObj> weak1(new_strong);
+  WeakObjectPtr<TIntObj> weak2(weak1);
+
+  EXPECT_EQ(new_strong.use_count(), 1);
+  EXPECT_FALSE(weak1.expired());
+  EXPECT_FALSE(weak2.expired());
+  EXPECT_EQ(weak1.use_count(), 1);
+  EXPECT_EQ(weak2.use_count(), 1);
+
+  // Test move construction
+  WeakObjectPtr<TIntObj> weak3(std::move(weak1));
+  EXPECT_TRUE(weak1.expired());  // weak1 should be moved from
+  EXPECT_FALSE(weak3.expired());
+  EXPECT_EQ(weak3.use_count(), 1);
+
+  // Test assignment
+  WeakObjectPtr<TIntObj> weak4;
+  weak4 = weak2;
+  EXPECT_FALSE(weak2.expired());
+  EXPECT_FALSE(weak4.expired());
+  EXPECT_EQ(weak2.use_count(), 1);
+  EXPECT_EQ(weak4.use_count(), 1);
+
+  // Test move assignment
+  WeakObjectPtr<TIntObj> weak5;
+  weak5 = std::move(weak2);
+  EXPECT_TRUE(weak2.expired());  // weak2 should be moved from
+  EXPECT_FALSE(weak5.expired());
+  EXPECT_EQ(weak5.use_count(), 1);
+
+  // Test reset()
+  weak3.reset();
+  EXPECT_TRUE(weak3.expired());
+  EXPECT_EQ(weak3.use_count(), 0);
+
+  // Test swap()
+  ObjectPtr<TIntObj> strong_a = make_object<TIntObj>(200);
+  ObjectPtr<TIntObj> strong_b = make_object<TIntObj>(300);
+  WeakObjectPtr<TIntObj> weak_a(strong_a);
+  WeakObjectPtr<TIntObj> weak_b(strong_b);
+
+  weak_a.swap(weak_b);
+  EXPECT_EQ(weak_a.lock()->value, 300);
+  EXPECT_EQ(weak_b.lock()->value, 200);
+
+  // Test construction from nullptr
+  WeakObjectPtr<TIntObj> null_weak(nullptr);
+  EXPECT_TRUE(null_weak.expired());
+  EXPECT_EQ(null_weak.use_count(), 0);
+  EXPECT_TRUE(null_weak.lock() == nullptr);
+
+  // Test inheritance compatibility
+  ObjectPtr<TNumberObj> number_ptr = make_object<TIntObj>(500);
+  WeakObjectPtr<TNumberObj> number_weak(number_ptr);
+
+  EXPECT_FALSE(number_weak.expired());
+  EXPECT_EQ(number_weak.use_count(), 1);
+
+  // Test that weak references don't prevent object deletion
+  ObjectPtr<TIntObj> temp_strong = make_object<TIntObj>(999);
+  WeakObjectPtr<TIntObj> temp_weak(temp_strong);
+
+  EXPECT_FALSE(temp_weak.expired());
+  temp_strong.reset();
+  EXPECT_TRUE(temp_weak.expired());
+  EXPECT_TRUE(temp_weak.lock() == nullptr);
+
+  // Test multiple weak references
+  ObjectPtr<TIntObj> multi_strong = make_object<TIntObj>(777);
+  WeakObjectPtr<TIntObj> multi_weak1(multi_strong);
+  WeakObjectPtr<TIntObj> multi_weak2(multi_strong);
+  WeakObjectPtr<TIntObj> multi_weak3(multi_strong);
+
+  EXPECT_EQ(multi_strong.use_count(), 1);
+  EXPECT_FALSE(multi_weak1.expired());
+  EXPECT_FALSE(multi_weak2.expired());
+  EXPECT_FALSE(multi_weak3.expired());
+
+  // All weak references should be able to lock
+  ObjectPtr<TIntObj> lock1 = multi_weak1.lock();
+  ObjectPtr<TIntObj> lock2 = multi_weak2.lock();
+  ObjectPtr<TIntObj> lock3 = multi_weak3.lock();
+
+  EXPECT_EQ(multi_strong.use_count(), 4);
+  EXPECT_EQ(lock1->value, 777);
+  EXPECT_EQ(lock2->value, 777);
+  EXPECT_EQ(lock3->value, 777);
+}
+
 }  // namespace

@@ -78,7 +78,7 @@ cdef class Object:
 
     def __dealloc__(self):
         if self.chandle != NULL:
-            CHECK_CALL(TVMFFIObjectFree(self.chandle))
+            CHECK_CALL(TVMFFIObjectDecRef(self.chandle))
             self.chandle = NULL
 
     def __ctypes_handle__(self):

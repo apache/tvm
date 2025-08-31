@@ -450,7 +450,7 @@ export class TVMObject implements Disposable {
   dispose(): void {
     if (this.handle != 0) {
       this.lib.checkCall(
-        (this.lib.exports.TVMFFIObjectFree as ctypes.FTVMFFIObjectFree)(this.handle)
+        (this.lib.exports.TVMFFIObjectDecRef as ctypes.FTVMFFIObjectDecRef)(this.handle)
       );
       this.handle = 0;
     }
@@ -2253,7 +2253,7 @@ export class Instance implements Disposable {
         const strObjPtr = this.memory.loadPointer(valuePtr);
         const result = this.memory.loadByteArrayAsString(strObjPtr + SizeOf.ObjectHeader);
         this.lib.checkCall(
-          (this.lib.exports.TVMFFIObjectFree as ctypes.FTVMFFIObjectFree)(strObjPtr)
+          (this.lib.exports.TVMFFIObjectDecRef as ctypes.FTVMFFIObjectDecRef)(strObjPtr)
         );
         return result;
       }
@@ -2264,7 +2264,7 @@ export class Instance implements Disposable {
         const strObjPtr = this.memory.loadPointer(valuePtr);
         const result = this.memory.loadByteArrayAsString(strObjPtr + SizeOf.ObjectHeader);
         this.lib.checkCall(
-          (this.lib.exports.TVMFFIObjectFree as ctypes.FTVMFFIObjectFree)(strObjPtr)
+          (this.lib.exports.TVMFFIObjectDecRef as ctypes.FTVMFFIObjectDecRef)(strObjPtr)
         );
         return result;
       }
@@ -2275,7 +2275,7 @@ export class Instance implements Disposable {
         const bytesObjPtr = this.memory.loadPointer(valuePtr);
         const result = this.memory.loadByteArrayAsBytes(bytesObjPtr + SizeOf.ObjectHeader);
         this.lib.checkCall(
-          (this.lib.exports.TVMFFIObjectFree as ctypes.FTVMFFIObjectFree)(bytesObjPtr)
+          (this.lib.exports.TVMFFIObjectDecRef as ctypes.FTVMFFIObjectDecRef)(bytesObjPtr)
         );
         return result;
       }

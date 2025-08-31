@@ -388,9 +388,15 @@ class TypeTable {
 }  // namespace ffi
 }  // namespace tvm
 
-int TVMFFIObjectFree(TVMFFIObjectHandle handle) {
+int TVMFFIObjectDecRef(TVMFFIObjectHandle handle) {
   TVM_FFI_SAFE_CALL_BEGIN();
   tvm::ffi::details::ObjectUnsafe::DecRefObjectHandle(handle);
+  TVM_FFI_SAFE_CALL_END();
+}
+
+int TVMFFIObjectIncRef(TVMFFIObjectHandle handle) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  tvm::ffi::details::ObjectUnsafe::IncRefObjectHandle(handle);
   TVM_FFI_SAFE_CALL_END();
 }
 

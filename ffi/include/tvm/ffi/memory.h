@@ -33,7 +33,7 @@ namespace tvm {
 namespace ffi {
 
 /*! \brief Deleter function for obeject */
-typedef void (*FObjectDeleter)(TVMFFIObject* obj);
+typedef void (*FObjectDeleter)(TVMFFIObject* obj, int flags);
 
 /*!
  * \brief Allocate an object using default allocator.
@@ -75,7 +75,8 @@ class ObjAllocatorBase {
     static_assert(std::is_base_of<Object, T>::value, "make can only be used to create Object");
     T* ptr = Handler::New(static_cast<Derived*>(this), std::forward<Args>(args)...);
     TVMFFIObject* ffi_ptr = details::ObjectUnsafe::GetHeader(ptr);
-    ffi_ptr->ref_counter = 1;
+    ffi_ptr->strong_ref_count = 1;
+    ffi_ptr->weak_ref_count = 1;
     ffi_ptr->type_index = T::RuntimeTypeIndex();
     ffi_ptr->deleter = Handler::Deleter();
     return details::ObjectUnsafe::ObjectPtrFromOwned<T>(ptr);
@@ -96,7 +97,8 @@ class ObjAllocatorBase {
     ArrayType* ptr =
         Handler::New(static_cast<Derived*>(this), num_elems, std::forward<Args>(args)...);
     TVMFFIObject* ffi_ptr = details::ObjectUnsafe::GetHeader(ptr);
-    ffi_ptr->ref_counter = 1;
+    ffi_ptr->strong_ref_count = 1;
+    ffi_ptr->weak_ref_count = 1;
     ffi_ptr->type_index = ArrayType::RuntimeTypeIndex();
     ffi_ptr->deleter = Handler::Deleter();
     return details::ObjectUnsafe::ObjectPtrFromOwned<ArrayType>(ptr);
@@ -136,14 +138,18 @@ class SimpleObjAllocator : public ObjAllocatorBase<SimpleObjAllocator> {
     static FObjectDeleter Deleter() { return Deleter_; }
 
    private:
-    static void Deleter_(TVMFFIObject* objptr) {
+    static void Deleter_(TVMFFIObject* objptr, int flags) {
       T* tptr = details::ObjectUnsafe::RawObjectPtrFromUnowned<T>(objptr);
-      // It is important to do tptr->T::~T(),
-      // so that we explicitly call the specific destructor
-      // instead of tptr->~T(), which could mean the intention
-      // call a virtual destructor(which may not be available and is not required).
-      tptr->T::~T();
-      delete reinterpret_cast<StorageType*>(tptr);
+      if (flags & kTVMFFIObjectDeleterFlagBitMaskStrong) {
+        // It is important to do tptr->T::~T(),
+        // so that we explicitly call the specific destructor
+        // instead of tptr->~T(), which could mean the intention
+        // call a virtual destructor(which may not be available and is not required).
+        tptr->T::~T();
+      }
+      if (flags & kTVMFFIObjectDeleterFlagBitMaskWeak) {
+        delete reinterpret_cast<StorageType*>(tptr);
+      }
     }
   };
 
@@ -182,15 +188,19 @@ class SimpleObjAllocator : public ObjAllocatorBase<SimpleObjAllocator> {
     static FObjectDeleter Deleter() { return Deleter_; }
 
    private:
-    static void Deleter_(TVMFFIObject* objptr) {
+    static void Deleter_(TVMFFIObject* objptr, int flags) {
       ArrayType* tptr = details::ObjectUnsafe::RawObjectPtrFromUnowned<ArrayType>(objptr);
-      // It is important to do tptr->ArrayType::~ArrayType(),
-      // so that we explicitly call the specific destructor
-      // instead of tptr->~ArrayType(), which could mean the intention
-      // call a virtual destructor(which may not be available and is not required).
-      tptr->ArrayType::~ArrayType();
-      StorageType* p = reinterpret_cast<StorageType*>(tptr);
-      delete[] p;
+      if (flags & kTVMFFIObjectDeleterFlagBitMaskStrong) {
+        // It is important to do tptr->ArrayType::~ArrayType(),
+        // so that we explicitly call the specific destructor
+        // instead of tptr->~ArrayType(), which could mean the intention
+        // call a virtual destructor(which may not be available and is not required).
+        tptr->ArrayType::~ArrayType();
+      }
+      if (flags & kTVMFFIObjectDeleterFlagBitMaskWeak) {
+        StorageType* p = reinterpret_cast<StorageType*>(tptr);
+        delete[] p;
+      }
     }
   };
 };

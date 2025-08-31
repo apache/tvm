@@ -104,7 +104,7 @@ cdef class DataType:
 
         bytes_ptr = TVMFFIBytesGetByteArrayPtr(temp_any.v_obj)
         res = py_str(PyBytes_FromStringAndSize(bytes_ptr.data, bytes_ptr.size))
-        CHECK_CALL(TVMFFIObjectFree(temp_any.v_obj))
+        CHECK_CALL(TVMFFIObjectDecRef(temp_any.v_obj))
         return res
 
 

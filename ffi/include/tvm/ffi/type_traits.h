@@ -472,7 +472,7 @@ struct TypeTraits<DLTensor*> : public TypeTraitsBase {
     } else if (src->type_index == TypeIndex::kTVMFFINDArray) {
       // Conversion from NDArray pointer to DLTensor
       // based on the assumption that NDArray always follows the TVMFFIObject header
-      static_assert(sizeof(TVMFFIObject) == 16, "TVMFFIObject must be 8 bytes");
+      static_assert(sizeof(TVMFFIObject) == 24);
       return reinterpret_cast<DLTensor*>(reinterpret_cast<char*>(src->v_obj) +
                                          sizeof(TVMFFIObject));
     }
