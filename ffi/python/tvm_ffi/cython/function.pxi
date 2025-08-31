@@ -186,6 +186,7 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args,
             temp_args.append(tstr)
         elif arg is None:
             out[i].type_index = kTVMFFINone
+            out[i].v_int64 = 0
         elif isinstance(arg, Real):
             out[i].type_index = kTVMFFIFloat
             out[i].v_float64 = arg
