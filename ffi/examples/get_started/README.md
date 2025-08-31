@@ -23,11 +23,10 @@ that can be loaded in different environments.
 The example implements a simple "add one" operation that adds 1 to each element
 of an input tensor, showing how to create C++ functions callable from Python.
 
-
 You can run this quick start example by:
 
 ```bash
-# ensure you installed tvm-ffi first once
+# ensure you installed tvm-ffi first
 pip install -e ../..
 
 # Build and run the complete example
@@ -49,8 +48,8 @@ in Python and C++.
 
 ## Compile without CMake
 
-You can also compile the modules directly using using
-flags provided by the `tvm-ffi-config` tool
+You can also compile the modules directly using
+flags provided by the `tvm-ffi-config` tool.
 
 ```bash
 g++ -shared -fPIC `tvm-ffi-config --cxxflags`  \
