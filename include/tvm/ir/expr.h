@@ -742,7 +742,9 @@ inline constexpr bool use_default_type_traits_v<Integer> = false;
 
 template <>
 struct TypeTraits<Integer> : public ObjectRefWithFallbackTraitsBase<Integer, int64_t> {
-  TVM_FFI_INLINE static Integer ConvertFallbackValue(int64_t value) { return Integer(value); }
+  TVM_FFI_INLINE static Integer ConvertFallbackValue(int64_t value) {
+    return Integer(TypeTraits<IntImm>::ConvertFallbackValue(value));
+  }
 };
 
 template <>
