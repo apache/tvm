@@ -16,7 +16,7 @@
 # under the License.
 
 [project]
-name = "tvm-ffi-extension"
+name = "my-ffi-extension"
 version = "0.1.0"
 
 readme = "README.md"
@@ -54,5 +54,5 @@ cmake.build-type = "RelWithDebugInfo"
 logging.level = "INFO"
 
 # Wheel configuration
-wheel.packages = ["python/tvm_ffi_extension"]
-wheel.install-dir = "tvm_ffi_extension"
+wheel.packages = ["python/my_ffi_extension"]
+wheel.install-dir = "my_ffi_extension"

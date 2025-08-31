@@ -29,7 +29,7 @@
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 
-namespace tvm_ffi_extension {
+namespace my_ffi_extension {
 
 namespace ffi = tvm::ffi;
 
@@ -57,7 +57,7 @@ void AddOne(DLTensor* x, DLTensor* y) {
 }
 
 // expose global symbol add_one
-TVM_FFI_DLL_EXPORT_TYPED_FUNC(add_one, tvm_ffi_extension::AddOne);
+TVM_FFI_DLL_EXPORT_TYPED_FUNC(add_one, my_ffi_extension::AddOne);
 
 // The static initialization block is
 // called once when the library is loaded.
@@ -83,6 +83,6 @@ TVM_FFI_STATIC_INIT_BLOCK({
   // When registering via reflection mechanisms, the library do not need to be loaded via
   // tvm::ffi::Module::LoadFromFile, instead, just load the dll or simply bundle into the
   // final project
-  refl::GlobalDef().def("tvm_ffi_extension.raise_error", RaiseError);
+  refl::GlobalDef().def("my_ffi_extension.raise_error", RaiseError);
 });
-}  // namespace tvm_ffi_extension
+}  // namespace my_ffi_extension
