@@ -171,7 +171,7 @@ cdef extern from "tvm/ffi/c_api.h":
         const TVMFFIMethodInfo* methods
         const TVMFFITypeMetadata* metadata
 
-    int TVMFFIObjectFree(TVMFFIObjectHandle obj) nogil
+    int TVMFFIObjectDecRef(TVMFFIObjectHandle obj) nogil
     int TVMFFIObjectGetTypeIndex(TVMFFIObjectHandle obj) nogil
     int TVMFFIFunctionCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args,
                            TVMFFIAny* result) nogil

@@ -322,7 +322,7 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIFunctionSetGlobal(JNIEn
 // Module
 JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFFIObjectFree(JNIEnv* env, jobject obj,
                                                                     jlong jhandle) {
-  return TVMFFIObjectFree(reinterpret_cast<TVMFFIObjectHandle>(jhandle));
+  return TVMFFIObjectDecRef(reinterpret_cast<TVMFFIObjectHandle>(jhandle));
 }
 
 // NDArray

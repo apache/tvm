@@ -41,7 +41,7 @@ export const enum SizeOf {
   TVMFFIAny = 8 * 2,
   DLDataType = I32,
   DLDevice = I32 + I32,
-  ObjectHeader = 8 * 2,
+  ObjectHeader = 8 * 3,
 }
 
 //---------------The new TVM FFI---------------
@@ -142,9 +142,9 @@ export type FTVMFFIWasmFunctionCreate = (
 export type FTVMFFIWasmFunctionDeleter = (self: Pointer) => void;
 
 /**
- * int TVMFFIObjectFree(TVMFFIObjectHandle obj);
+ * int TVMFFIObjectDecRef(TVMFFIObjectHandle obj);
  */
-export type FTVMFFIObjectFree = (obj: Pointer) => number;
+export type FTVMFFIObjectDecRef = (obj: Pointer) => number;
 
 /**
  * int TVMFFITypeKeyToIndex(const TVMFFIByteArray* type_key, int32_t* out_tindex);
