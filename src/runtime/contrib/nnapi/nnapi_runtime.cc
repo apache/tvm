@@ -54,7 +54,7 @@ class NNAPIRuntime : public JSONRuntimeBase {
                         const Array<String>& const_names)
       : JSONRuntimeBase(symbol_name, graph_json, const_names) {}
 
-  const char* type_key() const final { return "nnapi"; }
+  const char* kind() const final { return "nnapi"; }
 
 #ifdef TVM_GRAPH_EXECUTOR_NNAPI
   struct CompiledModel {
