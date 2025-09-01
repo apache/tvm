@@ -299,10 +299,12 @@ PrimFunc MakePackedAPI(PrimFunc func) {
                                        tvm::tir::StringImm(msg.str()), nop));
       // if type_index is NDArray, we need to add the offset of the DLTensor header
       // which always equals 16 bytes, this ensures that T.handle always shows up as a DLTensor*
+      const int64_t object_cell_offset = sizeof(TVMFFIObject);
+      static_assert(object_cell_offset == 24);
       arg_value = f_load_arg_value(param.dtype(), i);
       PrimExpr handle_from_ndarray =
           Call(DataType::Handle(), tir::builtin::handle_add_byte_offset(),
-               {arg_value, IntImm(DataType::Int(32), 16)});
+               {arg_value, IntImm(DataType::Int(32), object_cell_offset)});
       arg_value =
           Select(type_index == ffi::TypeIndex::kTVMFFINDArray, handle_from_ndarray, arg_value);
     } else if (dtype.is_bool()) {
