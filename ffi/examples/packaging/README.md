@@ -35,11 +35,11 @@ pip install .
 ### Note on build and auditwheel
 
 Note: When running the auditwheel process, make sure to skip
-`libtvm_ffi_shared.so` as they are shipped via the tvm_ffi package.
+`libtvm_ffi.so` as they are shipped via the tvm_ffi package.
 
 ## Run the example
 
-After installing the `tvm_ffi_extension` example package, you can run the following example
+After installing the `my_ffi_extension` example package, you can run the following example
 that invokes the `add_one` function exposed.
 
 ```bash
@@ -55,7 +55,7 @@ python run_example.py raise_error
 
 When possible, tvm_ffi will try to preserve traceback across language boundary. You will see traceback like
 ```
-File "src/extension.cc", line 45, in void tvm_ffi_extension::RaiseError(tvm::ffi::String)
+File "src/extension.cc", line 45, in void my_ffi_extension::RaiseError(tvm::ffi::String)
 ```
 If you are in an IDE like VSCode, you can click and jump to the C++ lines of error when
 the debug symbols are preserved.

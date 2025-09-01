@@ -24,11 +24,11 @@ def _load_lib():
     file_dir = os.path.dirname(os.path.realpath(__file__))
 
     if sys.platform.startswith("win32"):
-        lib_dll_name = "tvm_ffi_extension.dll"
+        lib_dll_name = "my_ffi_extension.dll"
     elif sys.platform.startswith("darwin"):
-        lib_dll_name = "tvm_ffi_extension.dylib"
+        lib_dll_name = "my_ffi_extension.dylib"
     else:
-        lib_dll_name = "tvm_ffi_extension.so"
+        lib_dll_name = "my_ffi_extension.so"
 
     lib_path = os.path.join(file_dir, lib_dll_name)
     return tvm_ffi.load_module(lib_path)

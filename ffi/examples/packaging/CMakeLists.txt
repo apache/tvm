@@ -16,7 +16,7 @@
 # under the License.
 
 cmake_minimum_required(VERSION 3.18)
-project(tvm_ffi_extension)
+project(my_ffi_extension)
 
 option(TVM_FFI_EXT_FROM_SOURCE "Build tvm_ffi from source, useful for cross compilation." ON)
 option(TVM_FFI_EXT_SHIP_DEBUG_SYMBOLS "Ship debug symbols" ON)
@@ -35,7 +35,7 @@ option(TVM_FFI_EXT_SHIP_DEBUG_SYMBOLS "Ship debug symbols" ON)
 #   So when in doubt, you can always choose to the building tvm_ffi from source route.
 #
 # In python or other cases when we dynamically load libtvm_ffi_shared. Even when you build
-# from source, you do not need to ship libtvm_ffi_shared.so built here as they are only
+# from source, you do not need to ship libtvm_ffi.so built here as they are only
 # used to supply the linking information.
 # first find python related components
 find_package(Python COMPONENTS Interpreter REQUIRED)
@@ -54,20 +54,20 @@ else()
 endif()
 
 # use the projects as usual
-add_library(tvm_ffi_extension SHARED src/extension.cc)
-target_link_libraries(tvm_ffi_extension tvm_ffi_header)
-target_link_libraries(tvm_ffi_extension tvm_ffi_shared)
+add_library(my_ffi_extension SHARED src/extension.cc)
+target_link_libraries(my_ffi_extension tvm_ffi_header)
+target_link_libraries(my_ffi_extension tvm_ffi_shared)
 
-# show as tvm_ffi_extension.so
+# show as my_ffi_extension.so
 set_target_properties(
-  tvm_ffi_extension PROPERTIES PREFIX ""
+  my_ffi_extension PROPERTIES PREFIX ""
 )
 
 if (TVM_FFI_EXT_SHIP_DEBUG_SYMBOLS)
   # ship debugging symbols for backtrace on macos
-  tvm_ffi_add_prefix_map(tvm_ffi_extension ${CMAKE_CURRENT_SOURCE_DIR})
-  tvm_ffi_add_apple_dsymutil(tvm_ffi_extension)
+  tvm_ffi_add_prefix_map(my_ffi_extension ${CMAKE_CURRENT_SOURCE_DIR})
+  tvm_ffi_add_apple_dsymutil(my_ffi_extension)
   install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/ DESTINATION . FILES_MATCHING PATTERN "*.dSYM")
 endif()
 
-install(TARGETS tvm_ffi_extension DESTINATION .)
+install(TARGETS my_ffi_extension DESTINATION .)

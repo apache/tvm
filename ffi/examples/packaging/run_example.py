@@ -16,18 +16,18 @@
 # Base logic to load library for extension package
 import torch
 import sys
-import tvm_ffi_extension
+import my_ffi_extension
 
 
 def run_add_one():
     x = torch.tensor([1, 2, 3, 4, 5], dtype=torch.float32)
     y = torch.empty_like(x)
-    tvm_ffi_extension.add_one(x, y)
+    my_ffi_extension.add_one(x, y)
     print(y)
 
 
 def run_raise_error():
-    tvm_ffi_extension.raise_error("This is an error")
+    my_ffi_extension.raise_error("This is an error")
 
 
 if __name__ == "__main__":

@@ -30,6 +30,41 @@
 namespace tvm {
 namespace ffi {
 
+// Step 1: Define the object class (stores the actual data)
+class TestIntPairObj : public tvm::ffi::Object {
+ public:
+  int64_t a;
+  int64_t b;
+
+  TestIntPairObj() = default;
+  TestIntPairObj(int64_t a, int64_t b) : a(a), b(b) {}
+
+  // Required: declare type information
+  static constexpr const char* _type_key = "testing.TestIntPair";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TestIntPairObj, tvm::ffi::Object);
+};
+
+// Step 2: Define the reference wrapper (user-facing interface)
+class TestIntPair : public tvm::ffi::ObjectRef {
+ public:
+  // Constructor
+  explicit TestIntPair(int64_t a, int64_t b) {
+    data_ = tvm::ffi::make_object<TestIntPairObj>(a, b);
+  }
+
+  // Required: define object reference methods
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS(TestIntPair, tvm::ffi::ObjectRef, TestIntPairObj);
+};
+
+TVM_FFI_STATIC_INIT_BLOCK({
+  namespace refl = tvm::ffi::reflection;
+  refl::ObjectDef<TestIntPairObj>()
+      .def_ro("a", &TestIntPairObj::a)
+      .def_ro("b", &TestIntPairObj::b)
+      .def_static("__create__",
+                  [](int64_t a, int64_t b) -> TestIntPair { return TestIntPair(a, b); });
+});
+
 class TestObjectBase : public Object {
  public:
   int64_t v_i64;

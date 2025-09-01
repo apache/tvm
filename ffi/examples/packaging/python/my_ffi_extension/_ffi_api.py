@@ -20,5 +20,5 @@ import tvm_ffi
 from .base import _LIB
 
 # this is a short cut to register all the global functions
-# prefixed by `tvm_ffi_extension.` to this module
-tvm_ffi._init_api("tvm_ffi_extension", __name__)
+# prefixed by `my_ffi_extension.` to this module
+tvm_ffi._init_api("my_ffi_extension", __name__)
