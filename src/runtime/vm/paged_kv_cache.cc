@@ -865,6 +865,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     cur_seq_ids_ = seq_ids;
     cur_append_lengths_ = append_lengths;
     cur_seqlen_padding_factor_ = seqlen_padding_factor;
+    LOG(INFO) << cur_seqlen_padding_factor_;
 
     // - Collect sequence/block/page information for attention.
     std::vector<Sequence*> sequences;
@@ -1396,7 +1397,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
     int64_t total_seq_length = 0;
     for (int64_t seq_id = 0; seq_id < cur_batch_size_; ++seq_id) {
-      total_seq_length += cur_append_lengths_[seq_id];
+      int actual_len = cur_append_lengths_[seq_id];
+      int padded_len = ((actual_len + cur_seqlen_padding_factor_ - 1) / cur_seqlen_padding_factor_) * cur_seqlen_padding_factor_;
+      total_seq_length += padded_len;
     }
     CHECK_EQ(q_data->ndim, 3);
     CHECK_EQ(k_data->ndim, 3);
@@ -1435,7 +1438,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
     int64_t total_seq_length = 0;
     for (int64_t seq_id = 0; seq_id < cur_batch_size_; ++seq_id) {
-      total_seq_length += cur_append_lengths_[seq_id];
+      int actual_len = cur_append_lengths_[seq_id];
+      int padded_len = ((actual_len + cur_seqlen_padding_factor_ - 1) / cur_seqlen_padding_factor_) * cur_seqlen_padding_factor_;
+      total_seq_length += padded_len;
     }
     CHECK_EQ(q_data->ndim, 3);
     CHECK_EQ(o_data->ndim, 3);
@@ -1472,7 +1477,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     CHECK_EQ(kv_data->ndim, 2);
     int64_t total_seq_length = 0;
     for (int64_t seq_id = 0; seq_id < cur_batch_size_; ++seq_id) {
-      total_seq_length += cur_append_lengths_[seq_id];
+        int actual_len = cur_append_lengths_[seq_id];
+        int padded_len = ((actual_len + cur_seqlen_padding_factor_ - 1) / cur_seqlen_padding_factor_) * cur_seqlen_padding_factor_;
+      total_seq_length += padded_len;
     }
     CHECK_LE(kv_data->shape[0], total_seq_length);
     CHECK_EQ(kv_data->shape[1], qk_head_dim_);
@@ -2307,8 +2314,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         int actual_len = cur_append_lengths_[i];
         int padded_len = ((actual_len + cur_seqlen_padding_factor_ - 1) / cur_seqlen_padding_factor_) * cur_seqlen_padding_factor_;
         int length_to_pad = padded_len - actual_len;
-
+        LOG(INFO) << "Q Rope Position Info, Actual Len: " << actual_len << ", Padded Len: " << padded_len << ", Length to Pad: " << length_to_pad;
         for (int j = 0; j < length_to_pad; ++j) {
+          LOG(INFO) << "ADDING SINGLE ROPE POSITION PAD";
           q_rope_position_map_host_.push_back(0);
         }
       }
@@ -2406,8 +2414,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         int actual_len = cur_append_lengths_[i];
         int padded_len = ((actual_len + cur_seqlen_padding_factor_ - 1) / cur_seqlen_padding_factor_) * cur_seqlen_padding_factor_;
         int length_to_pad = padded_len - actual_len;
-
+        LOG(INFO) << "Position Map Info, Actual Len: " << actual_len << ", Padded Len: " << padded_len << ", Length to Pad: " << length_to_pad;
         for (int j = 0; j < length_to_pad; ++j) {
+          LOG(INFO) << "ADDING SINGLE POSITION PAD";
           append_position_map_host_.push_back(-1);  // -1 indicates padding token
         }
       }
