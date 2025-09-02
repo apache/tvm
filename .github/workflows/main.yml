@@ -117,7 +117,7 @@ jobs:
           pip install scikit-build-core
           set CMAKE_ARGS=-DUSE_LLVM=ON -DBUILD_TESTING=OFF
           pip install --no-deps . -v
-      - name: Install dependencies
+      - name: Install test dependencies
         shell: cmd /C call {0}
         run: |
           pip install psutil cloudpickle ml_dtypes numpy packaging scipy tornado typing_extensions
