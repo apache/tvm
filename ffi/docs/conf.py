@@ -116,6 +116,9 @@ html_title = project
 html_copy_source = True
 html_last_updated_fmt = ""
 
+html_favicon = "https://tvm.apache.org/images/logo/tvm-logo-square.png"
+
+
 footer_dropdown = {
     "name": "ASF",
     "items": [
