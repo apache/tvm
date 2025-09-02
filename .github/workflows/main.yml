@@ -44,11 +44,20 @@ jobs:
           submodules: 'recursive'
       - name: Set up environment
         uses: ./.github/actions/setup
-      - name: Conda Build
+      - name: Install LLVM dependencies
         shell: bash -l {0}
-        run: >-
-          conda build --output-folder=conda/pkg  conda/recipe &&
-          conda install tvm -c ./conda/pkg
+        run: |
+          conda install -c conda-forge llvmdev cmake ninja zlib
+      - name: Build TVM wheel
+        shell: bash -l {0}
+        run: |
+          pip install scikit-build-core
+          export CMAKE_ARGS="-DUSE_LLVM=ON -DBUILD_TESTING=OFF"
+          pip wheel --no-deps -w dist . -v
+      - name: Install TVM from wheel
+        shell: bash -l {0}
+        run: |
+          pip install dist/*.whl
 #      - name: Build iOS RPC
 #        run: |
 #          IOS_VERSION="14.0"
@@ -98,11 +107,20 @@ jobs:
           submodules: 'recursive'
       - name: Set up environment
         uses: ./.github/actions/setup
-      - name: Conda Build
+      - name: Install LLVM dependencies
         shell: cmd /C call {0}
-        run: >-
-          conda build --output-folder=conda/pkg conda/recipe &&
-          conda install tvm -c ./conda/pkg
+        run: |
+          conda install -c conda-forge llvmdev cmake ninja zlib
+      - name: Install TVM
+        shell: cmd /C call {0}
+        run: |
+          pip install scikit-build-core
+          set CMAKE_ARGS=-DUSE_LLVM=ON -DBUILD_TESTING=OFF
+          pip install --no-deps . -v
+      - name: Install test dependencies
+        shell: cmd /C call {0}
+        run: |
+          pip install psutil cloudpickle ml_dtypes numpy packaging scipy tornado typing_extensions
       - name: Test
         shell: cmd /C call {0}
         run: >-
