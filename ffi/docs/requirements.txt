@@ -1,4 +1,5 @@
 autodocsumm
+linkify-it-py
 matplotlib
 myst-parser
 nbconvert
