@@ -425,27 +425,27 @@ if __name__ == "__main__":
     # In normal pytest usage, these classes are automatically tested by TVMScript
     print("All test modules defined successfully!")
     print("TVMScript will automatically validate these modules during testing.")
-    
+
     # Demo the printer functionality
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("DEMO: BasePyModule Printer Functionality")
-    print("="*60)
-    
+    print("=" * 60)
+
     # Test the printer with SimplePyFuncModule
     try:
         ir_mod = SimplePyFuncModule
         device = tvm.cpu()
         module = BasePyModule(ir_mod, device)
-        
+
         print("\n1. Testing script() method:")
         print("-" * 40)
         script_output = module.script()
         print(script_output[:500] + "..." if len(script_output) > 500 else script_output)
-        
+
         print("\n2. Testing show() method:")
         print("-" * 40)
         module.show()
-        
+
         print("\n3. Python functions found in pyfuncs:")
         print("-" * 40)
         if hasattr(ir_mod, "pyfuncs"):
@@ -453,17 +453,18 @@ if __name__ == "__main__":
                 print(f"  - {name}: {func}")
         else:
             print("  No pyfuncs attribute found")
-            
+
     except Exception as e:
         print(f"Demo failed: {e}")
         print("This is expected for testing-only TVMScript code.")
-    
+
     # Run all tests using tvm.testing.main()
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("Running all tests with tvm.testing.main()...")
-    print("="*60)
-    
+    print("=" * 60)
+
     import tvm.testing
+
     tvm.testing.main()
 
 
