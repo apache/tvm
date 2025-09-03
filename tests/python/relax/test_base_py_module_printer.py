@@ -425,6 +425,46 @@ if __name__ == "__main__":
     # In normal pytest usage, these classes are automatically tested by TVMScript
     print("All test modules defined successfully!")
     print("TVMScript will automatically validate these modules during testing.")
+    
+    # Demo the printer functionality
+    print("\n" + "="*60)
+    print("DEMO: BasePyModule Printer Functionality")
+    print("="*60)
+    
+    # Test the printer with SimplePyFuncModule
+    try:
+        ir_mod = SimplePyFuncModule
+        device = tvm.cpu()
+        module = BasePyModule(ir_mod, device)
+        
+        print("\n1. Testing script() method:")
+        print("-" * 40)
+        script_output = module.script()
+        print(script_output[:500] + "..." if len(script_output) > 500 else script_output)
+        
+        print("\n2. Testing show() method:")
+        print("-" * 40)
+        module.show()
+        
+        print("\n3. Python functions found in pyfuncs:")
+        print("-" * 40)
+        if hasattr(ir_mod, "pyfuncs"):
+            for name, func in ir_mod.pyfuncs.items():
+                print(f"  - {name}: {func}")
+        else:
+            print("  No pyfuncs attribute found")
+            
+    except Exception as e:
+        print(f"Demo failed: {e}")
+        print("This is expected for testing-only TVMScript code.")
+    
+    # Run all tests using tvm.testing.main()
+    print("\n" + "="*60)
+    print("Running all tests with tvm.testing.main()...")
+    print("="*60)
+    
+    import tvm.testing
+    tvm.testing.main()
 
 
 # Pytest test functions to verify the classes work correctly
@@ -448,9 +488,9 @@ def test_simple_pyfunc_module_creation():
     assert hasattr(module, "add_tir")
     assert hasattr(module, "multiply_tir")
 
-    # Note: Relax functions may not be available due to TVMScript compilation issues
-    # This is acceptable for testing as the focus is on Python functions
-    print("Note: Relax functions may not be available due to TVMScript compilation")
+    # Note: This particular TVMScript is for testing purpose only, and cannot compile
+    # Relax functions may not be available due to TVMScript compilation issues
+    print("Note: This TVMScript is for testing purpose only, and cannot compile")
 
 
 def test_complex_pyfunc_module_creation():
@@ -613,9 +653,9 @@ def test_relax_functions():
     device = tvm.cpu()
     module = BasePyModule(ir_mod, device)
 
-    # Note: Relax functions may not be available due to TVMScript compilation issues
-    # This is acceptable for testing as the focus is on Python functions
-    print("Note: Relax functions may not be available due to TVMScript compilation")
+    # Note: This particular TVMScript is for testing purpose only, and cannot compile
+    # Relax functions may not be available due to TVMScript compilation issues
+    print("Note: This TVMScript is for testing purpose only, and cannot compile")
 
     # We can still check that the module was created successfully
     assert isinstance(module, BasePyModule)
