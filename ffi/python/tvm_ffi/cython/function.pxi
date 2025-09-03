@@ -146,6 +146,7 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args,
             if is_cuda and ctx_dev_type != NULL and ctx_dev_type[0] == -1:
                 ctx_dev_type[0] = temp_dltensor.device.device_type
                 ctx_dev_id[0] = temp_dltensor.device.device_id
+                global torch_get_current_cuda_stream
                 if torch_get_current_cuda_stream is None:
                     torch_get_current_cuda_stream = load_torch_get_current_cuda_stream()
                 temp_ptr = torch_get_current_cuda_stream(temp_dltensor.device.device_id)
