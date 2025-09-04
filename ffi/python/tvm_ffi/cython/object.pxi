@@ -194,6 +194,17 @@ cdef class Object:
         (<Object>other).chandle = NULL
 
 
+cdef class OpaquePyObject(Object):
+    """Opaque PyObject container"""
+    def pyobject(self):
+        """Get the underlying python object"""
+        cdef object obj
+        cdef PyObject* py_handle
+        py_handle = <PyObject*>(TVMFFIOpaqueObjectGetCellPtr(self.chandle).handle)
+        obj = <object>py_handle
+        return obj
+
+
 class PyNativeObject:
     """Base class of all TVM objects that also subclass python's builtin types."""
     __slots__ = []
@@ -250,6 +261,12 @@ cdef inline str _type_index_to_key(int32_t tindex):
         return "<unknown>"
     type_key = &(info.type_key)
     return py_str(PyBytes_FromStringAndSize(type_key.data, type_key.size))
+
+
+cdef inline object make_ret_opaque_object(TVMFFIAny result):
+    obj = OpaquePyObject.__new__(OpaquePyObject)
+    (<Object>obj).chandle = result.v_obj
+    return obj.pyobject()
 
 
 cdef inline object make_ret_object(TVMFFIAny result):

@@ -56,13 +56,13 @@ def convert(value: Any) -> Any:
         return None
     elif hasattr(value, "__dlpack__"):
         return core.from_dlpack(
-            value,
-            required_alignment=core.__dlpack_auto_import_required_alignment__,
+            value, required_alignment=core.__dlpack_auto_import_required_alignment__
         )
     elif isinstance(value, Exception):
         return core._convert_to_ffi_error(value)
     else:
-        raise TypeError(f"don't know how to convert type {type(value)} to object")
+        # in this case, it is an opaque python object
+        return core._convert_to_opaque_object(value)
 
 
 core._set_func_convert_to_object(convert)

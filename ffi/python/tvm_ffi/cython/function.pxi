@@ -46,6 +46,8 @@ cdef inline object make_ret(TVMFFIAny result):
     if type_index == kTVMFFINDArray:
         # specially handle NDArray as it needs a special dltensor field
         return make_ndarray_from_any(result)
+    elif type_index == kTVMFFIOpaquePyObject:
+        return make_ret_opaque_object(result)
     elif type_index >= kTVMFFIStaticObjectBegin:
         return make_ret_object(result)
     elif type_index == kTVMFFINone:
@@ -182,7 +184,10 @@ cdef inline int make_args(tuple py_args, TVMFFIAny* out, list temp_args,
             out[i].v_ptr = (<Object>arg).chandle
             temp_args.append(arg)
         else:
-            raise TypeError("Unsupported argument type: %s" % type(arg))
+            arg = _convert_to_opaque_object(arg)
+            out[i].type_index = kTVMFFIOpaquePyObject
+            out[i].v_ptr = (<Object>arg).chandle
+            temp_args.append(arg)
 
 
 cdef inline int FuncCall3(void* chandle,
@@ -431,9 +436,9 @@ def _get_global_func(name, allow_missing):
 
 
 # handle callbacks
-cdef void tvm_ffi_callback_deleter(void* fhandle) noexcept with gil:
-    local_pyfunc = <object>(fhandle)
-    Py_DECREF(local_pyfunc)
+cdef void tvm_ffi_pyobject_deleter(void* fhandle) noexcept with gil:
+    local_pyobject = <object>(fhandle)
+    Py_DECREF(local_pyobject)
 
 
 cdef int tvm_ffi_callback(void* context,
@@ -468,11 +473,26 @@ def _convert_to_ffi_func(object pyfunc):
     CHECK_CALL(TVMFFIFunctionCreate(
         <void*>(pyfunc),
         tvm_ffi_callback,
-        tvm_ffi_callback_deleter,
+        tvm_ffi_pyobject_deleter,
         &chandle))
     ret = Function.__new__(Function)
     (<Object>ret).chandle = chandle
     return ret
+
+
+def _convert_to_opaque_object(object pyobject):
+    """Convert a python object to TVM FFI opaque object"""
+    cdef TVMFFIObjectHandle chandle
+    Py_INCREF(pyobject)
+    CHECK_CALL(TVMFFIObjectCreateOpaque(
+        <void*>(pyobject),
+        kTVMFFIOpaquePyObject,
+        tvm_ffi_pyobject_deleter,
+        &chandle))
+    ret = OpaquePyObject.__new__(OpaquePyObject)
+    (<Object>ret).chandle = chandle
+    return ret
+
 
 _STR_CONSTRUCTOR = _get_global_func("ffi.String", False)
 _BYTES_CONSTRUCTOR = _get_global_func("ffi.Bytes", False)

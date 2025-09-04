@@ -53,6 +53,7 @@ cdef extern from "tvm/ffi/c_api.h":
         kTVMFFIArray = 71
         kTVMFFIMap = 72
         kTVMFFIModule = 73
+        kTVMFFIOpaquePyObject = 74
 
 
     ctypedef void* TVMFFIObjectHandle
@@ -110,6 +111,9 @@ cdef extern from "tvm/ffi/c_api.h":
     ctypedef struct TVMFFIByteArray:
         const char* data
         size_t size
+
+    ctypedef struct TVMFFIOpaqueObjectCell:
+        void* handle
 
     ctypedef struct TVMFFIShapeCell:
         const int64_t* data
@@ -172,6 +176,8 @@ cdef extern from "tvm/ffi/c_api.h":
         const TVMFFITypeMetadata* metadata
 
     int TVMFFIObjectDecRef(TVMFFIObjectHandle obj) nogil
+    int TVMFFIObjectCreateOpaque(void* handle, int32_t type_index,
+                                 void (*deleter)(void*), TVMFFIObjectHandle* out) nogil
     int TVMFFIObjectGetTypeIndex(TVMFFIObjectHandle obj) nogil
     int TVMFFIFunctionCall(TVMFFIObjectHandle func, TVMFFIAny* args, int32_t num_args,
                            TVMFFIAny* result) nogil
@@ -203,6 +209,7 @@ cdef extern from "tvm/ffi/c_api.h":
     TVMFFIByteArray TVMFFISmallBytesGetContentByteArray(const TVMFFIAny* value) nogil
     TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) nogil
     TVMFFIErrorCell* TVMFFIErrorGetCellPtr(TVMFFIObjectHandle obj) nogil
+    TVMFFIOpaqueObjectCell* TVMFFIOpaqueObjectGetCellPtr(TVMFFIObjectHandle obj) nogil
     TVMFFIShapeCell* TVMFFIShapeGetCellPtr(TVMFFIObjectHandle obj) nogil
     DLTensor* TVMFFINDArrayGetDLTensorPtr(TVMFFIObjectHandle obj) nogil
     DLDevice TVMFFIDLDeviceFromIntPair(int32_t device_type, int32_t device_id) nogil

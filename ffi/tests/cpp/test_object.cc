@@ -222,4 +222,29 @@ TEST(Object, WeakObjectPtrAssignment) {
   EXPECT_EQ(lock3->value, 777);
 }
 
+TEST(Object, OpaqueObject) {
+  thread_local int deleter_trigger_counter = 0;
+  struct DummyOpaqueObject {
+    int value;
+    DummyOpaqueObject(int value) : value(value) {}
+
+    static void Deleter(void* handle) {
+      deleter_trigger_counter++;
+      delete static_cast<DummyOpaqueObject*>(handle);
+    }
+  };
+  TVMFFIObjectHandle handle = nullptr;
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFIObjectCreateOpaque(new DummyOpaqueObject(10), kTVMFFIOpaquePyObject,
+                                                   DummyOpaqueObject::Deleter, &handle));
+  ObjectPtr<Object> a =
+      details::ObjectUnsafe::ObjectPtrFromOwned<Object>(static_cast<Object*>(handle));
+  EXPECT_EQ(a->type_index(), kTVMFFIOpaquePyObject);
+  EXPECT_EQ(static_cast<DummyOpaqueObject*>(TVMFFIOpaqueObjectGetCellPtr(a.get())->handle)->value,
+            10);
+  EXPECT_EQ(a.use_count(), 1);
+  EXPECT_EQ(deleter_trigger_counter, 0);
+  a.reset();
+  EXPECT_EQ(deleter_trigger_counter, 1);
+}
+
 }  // namespace

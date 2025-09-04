@@ -143,6 +143,18 @@ typedef enum {
   kTVMFFIMap = 72,
   /*! \brief Runtime dynamic loaded module object. */
   kTVMFFIModule = 73,
+  /*!
+   * \brief Opaque python object.
+   *
+   * This is a special type index to indicate we are storing an opaque PyObject.
+   * Such object may interact with callback functions that are registered to support
+   * python-related operations.
+   *
+   * We only translate the objects that we do not recognize into this type index.
+   *
+   * \sa TVMFFIObjectCreateOpaque
+   */
+  kTVMFFIOpaquePyObject = 74,
   kTVMFFIStaticObjectEnd,
   // [Section] Dynamic Boxed: [kTVMFFIDynObjectBegin, +oo)
   /*! \brief Start of type indices that are allocated at runtime. */
@@ -344,6 +356,14 @@ typedef struct {
   TVMFFISafeCallType safe_call;
 } TVMFFIFunctionCell;
 
+/*!
+ * \brief Object cell for opaque object following header.
+ */
+typedef struct {
+  /*! \brief The handle of the opaque object, for python it is PyObject* */
+  void* handle;
+} TVMFFIOpaqueObjectCell;
+
 //------------------------------------------------------------
 // Section: Basic object API
 //------------------------------------------------------------
@@ -361,6 +381,33 @@ TVM_FFI_DLL int TVMFFIObjectIncRef(TVMFFIObjectHandle obj);
  * \return 0 when success, nonzero when failure happens
  */
 TVM_FFI_DLL int TVMFFIObjectDecRef(TVMFFIObjectHandle obj);
+
+/*!
+ * \brief Create an Opaque object by passing in handle, type_index and deleter.
+ *
+ * The opaque object's lifetime is managed as an Object, so it can be retained
+ * and released like other objects.
+ * When the opaque object is kTVMFFIOpaquePyObject, it can be converted back to
+ * the python type when returned or passed as arguments to a python function.
+ *
+ * We can support ffi::Function that interacts with these objects,
+ * most likely callback registered from python.
+ *
+ * For language bindings, we only convert types that we do not recognize into this type.
+ * On the C++ side, the most common way to represent such OpaqueObject is to simply
+ * use ffi::ObjectRef or ffi::Any.
+ *
+ * \param handle The resource handle of the opaque object.
+ * \param type_index The type index of the object.
+ * \param deleter deleter to recycle
+ * \param out The output of the opaque object.
+ * \return 0 when success, nonzero when failure happens
+ *
+ * \note The caller must ensure the type_index is a valid opaque object type index.
+ * \sa kTVMFFIOpaquePyObject
+ */
+TVM_FFI_DLL int TVMFFIObjectCreateOpaque(void* handle, int32_t type_index,
+                                         void (*deleter)(void* handle), TVMFFIObjectHandle* out);
 
 /*!
  * \brief Convert type key to type index.
@@ -974,7 +1021,7 @@ inline TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) {
 /*!
  * \brief Get the data pointer of a ErrorInfo from an Error object.
  * \param obj The object handle.
- * \return The data pointer.
+ * \return The cell pointer.
  */
 inline TVMFFIErrorCell* TVMFFIErrorGetCellPtr(TVMFFIObjectHandle obj) {
   return reinterpret_cast<TVMFFIErrorCell*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
@@ -983,16 +1030,26 @@ inline TVMFFIErrorCell* TVMFFIErrorGetCellPtr(TVMFFIObjectHandle obj) {
 /*!
  * \brief Get the data pointer of a function cell from a function object.
  * \param obj The object handle.
- * \return The data pointer.
+ * \return The cell pointer.
  */
 inline TVMFFIFunctionCell* TVMFFIFunctionGetCellPtr(TVMFFIObjectHandle obj) {
   return reinterpret_cast<TVMFFIFunctionCell*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
 }
 
 /*!
+ * \brief Get the data pointer of a opaque object cell from a opaque object.
+ * \param obj The object handle.
+ * \return The cell pointer.
+ */
+inline TVMFFIOpaqueObjectCell* TVMFFIOpaqueObjectGetCellPtr(TVMFFIObjectHandle obj) {
+  return reinterpret_cast<TVMFFIOpaqueObjectCell*>(reinterpret_cast<char*>(obj) +
+                                                   sizeof(TVMFFIObject));
+}
+
+/*!
  * \brief Get the data pointer of a shape array from a shape object.
  * \param obj The object handle.
- * \return The data pointer.
+ * \return The cell pointer.
  */
 inline TVMFFIShapeCell* TVMFFIShapeGetCellPtr(TVMFFIObjectHandle obj) {
   return reinterpret_cast<TVMFFIShapeCell*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
