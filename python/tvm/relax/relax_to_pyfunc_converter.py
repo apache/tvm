@@ -22,11 +22,12 @@ that can be executed directly in Python/PyTorch environment.
 
 from typing import Any, Dict, List, Union
 
+import torch
+import torch.nn.functional as F
+
 import tvm
 from tvm import relax
 from tvm.ir import IRModule, Op
-import torch
-import torch.nn.functional as F
 
 
 class RelaxToPyFuncConverter:
@@ -44,7 +45,7 @@ class RelaxToPyFuncConverter:
             ir_module: The IRModule containing Relax functions to convert
         """
         self.ir_module = ir_module
-        self.operator_map = self._get_relax_to_pytorch_operator_map()
+        self.operator_map = self._get_op_map()
         # Cache for RelaxExpressionConverter instances to avoid recreating them
         self._converter_cache = {}
         # Cache for operator mappings to avoid repeated lookups
@@ -78,9 +79,9 @@ class RelaxToPyFuncConverter:
 
         # Get Relax function names from IRModule
         relax_func_names = []
-        for gv, func in self.ir_module.functions_items():
+        for global_var, func in self.ir_module.functions_items():
             if isinstance(func, relax.Function):
-                relax_func_names.append(gv.name_hint)
+                relax_func_names.append(global_var.name_hint)
 
         # Convert each Relax function
         for func_name in relax_function_names:
@@ -89,8 +90,8 @@ class RelaxToPyFuncConverter:
 
             # Get the Relax function
             relax_func = None
-            for gv, func in self.ir_module.functions_items():
-                if gv.name_hint == func_name and isinstance(func, relax.Function):
+            for global_var, func in self.ir_module.functions_items():
+                if global_var.name_hint == func_name and isinstance(func, relax.Function):
                     relax_func = func
                     break
 
@@ -98,22 +99,20 @@ class RelaxToPyFuncConverter:
                 raise ValueError(f"Could not find Relax function '{func_name}'")
 
             # Convert to Python function
-            py_func = self._convert_relax_function_to_python(relax_func, func_name)
+            py_func = self._convert_relax_func_to_python(relax_func, func_name)
 
             # Store in pyfuncs
             new_ir_mod.pyfuncs[func_name] = py_func
 
         return new_ir_mod
 
-    def _convert_relax_function_to_python(
-        self, relax_func: relax.Function, func_name: str
-    ) -> callable:
+    def _convert_relax_func_to_python(self, relax_func: relax.Function, func_name: str) -> callable:
         """Convert a single Relax function to a Python function with caching."""
         # Get function parameters
         params = relax_func.params
 
         # Create the Python function
-        def converted_function(*args, **kwargs):
+        def converted_function(*args, **_kwargs):
             """Converted Python function from Relax function."""
             # Handle arguments
             if len(args) != len(params):
@@ -137,7 +136,7 @@ class RelaxToPyFuncConverter:
         return converted_function
 
     @staticmethod
-    def _get_relax_to_pytorch_operator_map() -> Dict[str, str]:
+    def _get_op_map() -> Dict[str, str]:
         """Get the mapping from Relax operators to PyTorch operators."""
         return {
             # Binary operations
@@ -480,46 +479,69 @@ class RelaxExpressionConverter:
                     return self._convert_repeat(call, args)
                 # Handle special cases for PyTorch operations
                 elif pytorch_op.startswith("F."):
-                    # Neural network function
-                    func_name = pytorch_op[2:]  # Remove "F." prefix
-                    func = getattr(F, func_name)
-
-                    # Special handling for functions that need dim parameter
-                    if func_name in ["softmax", "log_softmax"]:
-                        # Extract axis from call.attrs and convert to dim
-                        axis = None
-                        if call.attrs and hasattr(call.attrs, "axis"):
-                            axis = call.attrs.axis
-                            if hasattr(axis, "value"):
-                                axis = int(axis.value)
-                            elif isinstance(axis, (int, float)):
-                                axis = int(axis)
-
-                        if axis is not None:
-                            return func(call_args[0], dim=axis)
-                        else:
-                            # Default to last dimension if no axis specified
-                            return func(call_args[0], dim=-1)
-                    else:
-                        return func(*call_args)
+                    return self._handle_functional_operation(pytorch_op, call, call_args)
                 elif pytorch_op.startswith("torch."):
                     # Regular PyTorch operation
                     func_name = pytorch_op[6:]  # Remove "torch." prefix
                     func = getattr(torch, func_name)
                     return func(*call_args)
                 else:
-                    # Direct function reference
-                    return eval(pytorch_op)(*call_args)
-            except Exception as e:
+                    # Direct function reference - use getattr for safer access
+                    if pytorch_op.startswith("torch."):
+                        module = torch
+                        func_name = pytorch_op[6:]  # Remove "torch." prefix
+                    elif pytorch_op.startswith("F."):
+                        module = F
+                        func_name = pytorch_op[2:]  # Remove "F." prefix
+                    else:
+                        return (
+                            f"<exec_error: {pytorch_op}({', '.join(map(str, call_args))}) "
+                            f"- unsupported operation>"
+                        )
+
+                    func = getattr(module, func_name, None)
+                    if func is None:
+                        return (
+                            f"<exec_error: {pytorch_op}({', '.join(map(str, call_args))}) "
+                            f"- function not found>"
+                        )
+                    return func(*call_args)
+            except (AttributeError, TypeError, ValueError) as error:
                 # This allows the test framework to catch and handle the errors appropriately
                 if pytorch_op.startswith("torch.") or pytorch_op.startswith("F."):
-                    raise e
-                else:
-                    # Fallback to string representation for non-PyTorch operations
-                    return f"<exec_error: {pytorch_op}({', '.join(map(str, call_args))}) - {e}>"
+                    raise error
+                # Fallback to string representation for non-PyTorch operations
+                return f"<exec_error: {pytorch_op}({', '.join(map(str, call_args))}) - {error}>"
         else:
             # Unknown operator
             return f"<unknown_op: {op_name}({', '.join(map(str, call_args))})>"
+
+    def _handle_functional_operation(
+        self, pytorch_op: str, call: relax.Call, call_args: List[Any]
+    ) -> Any:
+        """Handle PyTorch functional operations with special parameter handling."""
+        # Neural network function
+        func_name = pytorch_op[2:]  # Remove "F." prefix
+        func = getattr(F, func_name)
+
+        # Special handling for functions that need dim parameter
+        if func_name in ["softmax", "log_softmax"]:
+            # Extract axis from call.attrs and convert to dim
+            axis = None
+            if call.attrs and hasattr(call.attrs, "axis"):
+                axis = call.attrs.axis
+                if hasattr(axis, "value"):
+                    axis = int(axis.value)
+                elif isinstance(axis, (int, float)):
+                    axis = int(axis)
+
+            if axis is not None:
+                return func(call_args[0], dim=axis)
+            else:
+                # Default to last dimension if no axis specified
+                return func(call_args[0], dim=-1)
+        else:
+            return func(*call_args)
 
     def _convert_extern_func_call(self, call: relax.Call, args: List[Any]) -> Any:
         """Convert an external function call."""
@@ -558,15 +580,15 @@ class RelaxExpressionConverter:
             tir_function = None
             if self.ir_module:
                 # Look for the TIR function in the current IRModule
-                for gv, func in self.ir_module.functions.items():
-                    if gv.name_hint == func_name and hasattr(func, "body"):
+                for global_var, func in self.ir_module.functions.items():
+                    if global_var.name_hint == func_name and hasattr(func, "body"):
                         try:
                             # Compile the TIR function
                             target = tvm.target.Target("llvm")
                             with tvm.target.Target(target):
                                 tir_function = tvm.compile(func, target=target)
                             break
-                        except Exception as compile_e:
+                        except (RuntimeError, ValueError, TypeError) as compile_e:
                             print(
                                 f"Warning: Failed to compile TIR function {func_name}: {compile_e}"
                             )
@@ -615,15 +637,15 @@ class RelaxExpressionConverter:
             # Convert result back to PyTorch tensor via DLPack
             return torch.from_dlpack(output_tensor.to_dlpack())
 
-        except Exception as e:
-            return f"<call_tir_error: {func_name} - {e}>"
+        except (RuntimeError, ValueError, TypeError) as error:
+            return f"<call_tir_error: {func_name} - {error}>"
 
     def _convert_call_dps_packed(self, call: relax.Call, args: List[Any]) -> Any:
         """Convert call_dps_packed to Python equivalent with DLPack conversion."""
         # Extract packed function name and arguments
         packed_func = call.args[0]
         packed_args = call.args[1] if len(call.args) > 1 else []
-        out_sinfo = call.attrs.get("out_sinfo") if call.attrs else None
+        _out_sinfo = call.attrs.get("out_sinfo") if call.attrs else None
 
         # Get function name
         if isinstance(packed_func, relax.GlobalVar):
@@ -661,8 +683,8 @@ class RelaxExpressionConverter:
             else:
                 return result
 
-        except Exception as e:
-            return f"<call_dps_packed_error: {func_name} - {e}>"
+        except (RuntimeError, ValueError, TypeError) as error:
+            return f"<call_dps_packed_error: {func_name} - {error}>"
 
     def _convert_constant(self, const: relax.Constant) -> Any:
         """Convert a Relax constant to Python equivalent."""
@@ -718,7 +740,7 @@ class RelaxExpressionConverter:
     def _convert_expand_dims(self, call: relax.Call, args: List[Any]) -> Any:
         """Convert expand_dims to torch.unsqueeze with proper axis handling."""
         if len(call.args) < 1:
-            return f"<expand_dims_error: insufficient arguments>"
+            return "<expand_dims_error: insufficient arguments>"
 
         # Convert the tensor argument
         tensor_arg = self.convert_expr(call.args[0], args)
@@ -740,7 +762,7 @@ class RelaxExpressionConverter:
                 axis = int(axis)
 
         if axis is None:
-            return f"<expand_dims_error: cannot determine axis>"
+            return "<expand_dims_error: cannot determine axis>"
 
         # Use torch.unsqueeze with the correct axis
         return torch.unsqueeze(tensor_arg, dim=axis)
@@ -799,7 +821,7 @@ class RelaxExpressionConverter:
     def _convert_squeeze(self, call: relax.Call, args: List[Any]) -> Any:
         """Convert squeeze to torch.squeeze with proper axis handling."""
         if len(call.args) < 1:
-            return f"<squeeze_error: insufficient arguments>"
+            return "<squeeze_error: insufficient arguments>"
 
         # Convert the tensor argument
         tensor_arg = self.convert_expr(call.args[0], args)

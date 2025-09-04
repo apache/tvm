@@ -353,7 +353,7 @@ class TestRelaxToPyFuncConverter:
 
     def test_operator_mapping_completeness(self):
         """Test that operator mapping is comprehensive."""
-        operator_map = RelaxToPyFuncConverter._get_relax_to_pytorch_operator_map()
+        operator_map = RelaxToPyFuncConverter._get_op_map()
 
         # Check that we have a good number of operators
         assert len(operator_map) > 100, f"Expected >100 operators, got {len(operator_map)}"
