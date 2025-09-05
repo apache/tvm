@@ -1,3 +1,20 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
 from typing import Sequence, Optional, Mapping
 import os
 import sys
@@ -12,6 +29,7 @@ from tvm_ffi.utils import FileLock
 from tvm_ffi.libinfo import find_include_path, find_dlpack_include_path
 
 IS_WINDOWS = sys.platform == "win32"
+
 
 def _hash_sources(
     cpp_source: str,
@@ -43,6 +61,7 @@ def _hash_sources(
         m.update(path.encode("utf-8"))
     return m.hexdigest()[:16]
 
+
 def _maybe_write(path: str, content: str) -> None:
     """Write content to path if it does not already exist with the same content."""
     if os.path.exists(path):
@@ -58,7 +77,7 @@ def _maybe_write(path: str, content: str) -> None:
 def _find_cuda_home() -> Optional[str]:
     """Find the CUDA install path."""
     # Guess #1
-    cuda_home = os.environ.get('CUDA_HOME') or os.environ.get('CUDA_PATH')
+    cuda_home = os.environ.get("CUDA_HOME") or os.environ.get("CUDA_PATH")
     if cuda_home is None:
         # Guess #2
         nvcc_path = shutil.which("nvcc")
@@ -67,18 +86,20 @@ def _find_cuda_home() -> Optional[str]:
         else:
             # Guess #3
             if IS_WINDOWS:
-                cuda_homes = glob.glob(
-                    'C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v*.*')
+                cuda_homes = glob.glob("C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v*.*")
                 if len(cuda_homes) == 0:
-                    cuda_home = ''
+                    cuda_home = ""
                 else:
                     cuda_home = cuda_homes[0]
             else:
-                cuda_home = '/usr/local/cuda'
+                cuda_home = "/usr/local/cuda"
             if not os.path.exists(cuda_home):
-                raise RuntimeError("Could not find CUDA installation. "
-                                   "Please set CUDA_HOME environment variable.")
+                raise RuntimeError(
+                    "Could not find CUDA installation. "
+                    "Please set CUDA_HOME environment variable."
+                )
     return cuda_home
+
 
 def _generate_ninja_build(
     name: str,
@@ -89,23 +110,20 @@ def _generate_ninja_build(
     extra_ldflags: Sequence[str],
     extra_include_paths: Sequence[str],
 ) -> str:
-    """ Generate the content of build.ninja for building the module. """
-    default_include_paths = [
-        find_include_path(),
-        find_dlpack_include_path(),
-    ]
+    """Generate the content of build.ninja for building the module."""
+    default_include_paths = [find_include_path(), find_dlpack_include_path()]
 
     if IS_WINDOWS:
-        default_cflags = ['/std:c++17']
-        default_cuda_cflags = ['-Xcompiler', '/std:c++17', '/O2']
-        default_ldflags = ['/DLL']
+        default_cflags = ["/std:c++17"]
+        default_cuda_cflags = ["-Xcompiler", "/std:c++17", "/O2"]
+        default_ldflags = ["/DLL"]
     else:
-        default_cflags = ['-std=c++17', '-fPIC', '-O2']
-        default_cuda_cflags = ['-Xcompiler', '-fPIC', '-std=c++17', '-O2']
-        default_ldflags = ['-shared']
+        default_cflags = ["-std=c++17", "-fPIC", "-O2"]
+        default_cuda_cflags = ["-Xcompiler", "-fPIC", "-std=c++17", "-O2"]
+        default_ldflags = ["-shared"]
 
         if with_cuda:
-            default_ldflags += ['-L{}'.format(os.path.join(_find_cuda_home(), 'lib64')), '-lcudart']
+            default_ldflags += ["-L{}".format(os.path.join(_find_cuda_home(), "lib64")), "-lcudart"]
 
     cflags = default_cflags + [flag.strip() for flag in extra_cflags]
     cuda_cflags = default_cuda_cflags + [flag.strip() for flag in extra_cuda_cflags]
@@ -114,88 +132,92 @@ def _generate_ninja_build(
 
     # append include paths
     for path in include_paths:
-        cflags.append('-I{}'.format(path))
-        cuda_cflags.append('-I{}'.format(path))
+        cflags.append("-I{}".format(path))
+        cuda_cflags.append("-I{}".format(path))
 
     # flags
     ninja = []
-    ninja.append('ninja_required_version = 1.3')
-    ninja.append('cxx = {}'.format(os.environ.get("CXX", 'cl' if IS_WINDOWS else 'c++')))
-    ninja.append('cflags = {}'.format(' '.join(cflags)))
+    ninja.append("ninja_required_version = 1.3")
+    ninja.append("cxx = {}".format(os.environ.get("CXX", "cl" if IS_WINDOWS else "c++")))
+    ninja.append("cflags = {}".format(" ".join(cflags)))
     if with_cuda:
-        ninja.append('nvcc = {}'.format(os.path.join(_find_cuda_home(), 'bin', 'nvcc')))
-        ninja.append('cuda_cflags = {}'.format(' '.join(cuda_cflags)))
-    ninja.append('ldflags = {}'.format(' '.join(ldflags)))
+        ninja.append("nvcc = {}".format(os.path.join(_find_cuda_home(), "bin", "nvcc")))
+        ninja.append("cuda_cflags = {}".format(" ".join(cuda_cflags)))
+    ninja.append("ldflags = {}".format(" ".join(ldflags)))
 
     # rules
-    ninja.append('')
-    ninja.append('rule compile')
-    ninja.append('  depfile = $out.d')
-    ninja.append('  deps = gcc')
-    ninja.append('  command = $cxx -MMD -MF $out.d $cflags -c $in -o $out')
-    ninja.append('')
+    ninja.append("")
+    ninja.append("rule compile")
+    ninja.append("  depfile = $out.d")
+    ninja.append("  deps = gcc")
+    ninja.append("  command = $cxx -MMD -MF $out.d $cflags -c $in -o $out")
+    ninja.append("")
 
     if with_cuda:
-        ninja.append('rule compile_cuda')
-        ninja.append('  depfile = $out.d')
-        ninja.append('  deps = gcc')
-        ninja.append('  command = $nvcc --generate-dependencies-with-compile --dependency-output $out.d $cuda_cflags -c $in -o $out')
-        ninja.append('')
+        ninja.append("rule compile_cuda")
+        ninja.append("  depfile = $out.d")
+        ninja.append("  deps = gcc")
+        ninja.append(
+            "  command = $nvcc --generate-dependencies-with-compile --dependency-output $out.d $cuda_cflags -c $in -o $out"
+        )
+        ninja.append("")
 
-    ninja.append('rule link')
-    ninja.append('  command = $cxx $in $ldflags -o $out')
-    ninja.append('')
+    ninja.append("rule link")
+    ninja.append("  command = $cxx $in $ldflags -o $out")
+    ninja.append("")
 
     # build targets
-    ninja.append('build main.o: compile {}'.format(os.path.abspath(os.path.join(build_dir, 'main.cpp'))))
+    ninja.append(
+        "build main.o: compile {}".format(os.path.abspath(os.path.join(build_dir, "main.cpp")))
+    )
     if with_cuda:
-        ninja.append('build cuda.o: compile_cuda {}'.format(os.path.abspath(os.path.join(build_dir, 'cuda.cu'))))
-    ninja.append('build {}.so: link main.o{}'.format(name, ' cuda.o' if with_cuda else ''))
-    ninja.append('')
+        ninja.append(
+            "build cuda.o: compile_cuda {}".format(
+                os.path.abspath(os.path.join(build_dir, "cuda.cu"))
+            )
+        )
+    ninja.append("build {}.so: link main.o{}".format(name, " cuda.o" if with_cuda else ""))
+    ninja.append("")
 
     # default target
-    ninja.append('default {}.so'.format(name))
-    ninja.append('')
-    return '\n'.join(ninja)
+    ninja.append("default {}.so".format(name))
+    ninja.append("")
+    return "\n".join(ninja)
 
 
 def _build_ninja(build_dir: str) -> None:
-    """ Build the module in the given build directory using ninja. """
-    command = ['ninja', '-v']
+    """Build the module in the given build directory using ninja."""
+    command = ["ninja", "-v"]
     num_workers = os.environ.get("MAX_JOBS", None)
     if num_workers is not None:
-        command += ['-j', num_workers]
-    status = subprocess.run(
-        args=command,
-        cwd=build_dir,
-        capture_output=True,
-    )
+        command += ["-j", num_workers]
+    status = subprocess.run(args=command, cwd=build_dir, capture_output=True)
     if status.returncode != 0:
-        msg = ['ninja exited with status {}'.format(status.returncode)]
+        msg = ["ninja exited with status {}".format(status.returncode)]
         if status.stdout:
-            msg.append('stdout:\n{}'.format(status.stdout.decode('utf-8')))
+            msg.append("stdout:\n{}".format(status.stdout.decode("utf-8")))
         if status.stderr:
-            msg.append('stderr:\n{}'.format(status.stderr.decode('utf-8')))
+            msg.append("stderr:\n{}".format(status.stderr.decode("utf-8")))
 
-        raise RuntimeError('\n'.join(msg))
+        raise RuntimeError("\n".join(msg))
 
 
 def _decorate_with_tvm_ffi(source: str, functions: Mapping[str, str]) -> str:
-    """ Decorate the given source code with TVM FFI export macros. """
+    """Decorate the given source code with TVM FFI export macros."""
     sources = [
-        '#include <tvm/ffi/dtype.h>',
-        '#include <tvm/ffi/error.h>',
-        '#include <tvm/ffi/extra/c_env_api.h>',
-        '#include <tvm/ffi/function.h>',
-        '',
+        "#include <tvm/ffi/dtype.h>",
+        "#include <tvm/ffi/error.h>",
+        "#include <tvm/ffi/extra/c_env_api.h>",
+        "#include <tvm/ffi/function.h>",
+        "",
         source,
     ]
 
     for exported_name, func_name_in_source in functions.items():
-        sources.append(f'TVM_FFI_DLL_EXPORT_TYPED_FUNC({exported_name}, {func_name_in_source});')
-    sources.append('')
+        sources.append(f"TVM_FFI_DLL_EXPORT_TYPED_FUNC({exported_name}, {func_name_in_source});")
+    sources.append("")
 
-    return '\n'.join(sources)
+    return "\n".join(sources)
 
 
 def load_inline(
@@ -210,7 +232,7 @@ def load_inline(
     extra_ldflags: Sequence[str] | None = None,
     extra_include_paths: Sequence[str] | None = None,
 ) -> Module:
-    """ Compile and load a C++/CUDA tvm ffi module from inline source code.
+    """Compile and load a C++/CUDA tvm ffi module from inline source code.
 
     This function compiles the given C++ and/or CUDA source code into a shared library. Both cpp_source and cuda_source
     are compiled to an object file, and then linked together into a shared library. It's possible to only provide
@@ -271,9 +293,9 @@ def load_inline(
         The loaded tvm ffi module.
     """
     if cpp_source is None:
-        cpp_source = ''
+        cpp_source = ""
     if cuda_source is None:
-        cuda_source = ''
+        cuda_source = ""
     if cpp_functions is None:
         cpp_functions = {}
     if cuda_functions is None:
@@ -295,9 +317,16 @@ def load_inline(
         os.environ.get("TVM_FFI_CACHE_DIR", os.path.expanduser("~/.cache/tvm-ffi"))
     )
     source_hash: str = _hash_sources(
-        cpp_source, cuda_source, cpp_functions, cuda_functions, extra_cflags, extra_cuda_cflags, extra_ldflags, extra_include_paths
+        cpp_source,
+        cuda_source,
+        cpp_functions,
+        cuda_functions,
+        extra_cflags,
+        extra_cuda_cflags,
+        extra_ldflags,
+        extra_include_paths,
     )
-    build_dir: str = os.path.join(cache_dir, '{}_{}'.format(name, source_hash))
+    build_dir: str = os.path.join(cache_dir, "{}_{}".format(name, source_hash))
     os.makedirs(build_dir, exist_ok=True)
 
     # generate build.ninja
@@ -308,7 +337,7 @@ def load_inline(
         extra_cflags=extra_cflags,
         extra_cuda_cflags=extra_cuda_cflags,
         extra_ldflags=extra_ldflags,
-        extra_include_paths=extra_include_paths
+        extra_include_paths=extra_include_paths,
     )
 
     with FileLock(os.path.join(build_dir, "lock")):
