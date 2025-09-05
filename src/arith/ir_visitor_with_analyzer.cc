@@ -69,8 +69,16 @@ void IRVisitorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
     IterVar iv = Downcast<IterVar>(op->node);
     ICHECK_NE(iv->thread_tag.length(), 0U);
     analyzer_.Bind(iv->var, Range::FromMinExtent(IntImm(op->value->dtype, 0), op->value));
+    StmtExprVisitor::VisitStmt_(op);
   }
-  StmtExprVisitor::VisitStmt_(op);
+  else if(op->attr_key == tir::attr::tilelang_assume) {
+    auto condition = Downcast<PrimExpr>(op->node);
+    With<ConstraintContext> constraint(&analyzer_, condition);
+    StmtExprVisitor::VisitStmt_(op);
+  }
+  else {
+    StmtExprVisitor::VisitStmt_(op);
+  }
 }
 
 void IRVisitorWithAnalyzer::VisitStmt_(const AssertStmtNode* op) {

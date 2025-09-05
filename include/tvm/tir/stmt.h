@@ -1543,6 +1543,8 @@ constexpr const char* explicit_read_region = "explicit_read_region";
  */
 constexpr const char* explicit_write_region = "explicit_write_region";
 
+constexpr const char* tilelang_assume = "tl.assume";
+
 /*!
  * \brief Check if attr_key is a pragma key extension
  * \param attr_key The attr key to be compared
