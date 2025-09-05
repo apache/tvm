@@ -101,6 +101,33 @@ def _find_cuda_home() -> Optional[str]:
     return cuda_home
 
 
+def _get_cuda_target() -> str:
+    """Get the CUDA target architecture flag."""
+    if 'TVM_FFI_CUDA_ARCH_LIST' in os.environ:
+        arch_list = os.environ['TVM_FFI_CUDA_ARCH_LIST'].split()    # e.g., "8.9 9.0a"
+        flags = []
+        for arch in arch_list:
+            if len(arch.split('.')) != 2:
+                raise ValueError(f"Invalid CUDA architecture: {arch}")
+            major, minor = arch.split('.')
+            flags.append(f"-gencode=arch=compute_{major}{minor},code=sm_{major}{minor}")
+        return " ".join(flags)
+    else:
+        #
+        try:
+            status = subprocess.run(
+                args=["nvidia-smi", "--query-gpu=compute_cap", "--format=csv,noheader"],
+                capture_output=True,
+                check=True,
+            )
+            compute_cap = status.stdout.decode("utf-8").strip().split("\n")[0]
+            major, minor = compute_cap.split(".")
+            return f"-gencode=arch=compute_{major}{minor},code=sm_{major}{minor}"
+        except Exception:
+            # fallback to a reasonable default
+            return "-gencode=arch=compute_70,code=sm_70"
+
+
 def _generate_ninja_build(
     name: str,
     build_dir: str,
@@ -123,6 +150,8 @@ def _generate_ninja_build(
         default_ldflags = ["-shared"]
 
         if with_cuda:
+            # determine the compute capability of the current GPU
+            default_cuda_cflags += [_get_cuda_target()]
             default_ldflags += ["-L{}".format(os.path.join(_find_cuda_home(), "lib64")), "-lcudart"]
 
     cflags = default_cflags + [flag.strip() for flag in extra_cflags]
