@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
 import numpy
 
 try:
@@ -52,7 +53,7 @@ def test_load_inline_cpp():
     numpy.testing.assert_equal(x + 1, y)
 
 
-
+@pytest.mark.skip(reason="Requires CUDA")
 def test_load_inline_cuda():
     mod: Module = tvm_ffi.cpp.load_inline(
         name="hello",
@@ -96,6 +97,7 @@ def test_load_inline_cuda():
         torch.testing.assert_close(x_cuda + 1, y_cuda)
 
 
+@pytest.mark.skip(reason="Requires CUDA")
 def test_load_inline_both():
     mod: Module = tvm_ffi.cpp.load_inline(
         name="hello",
