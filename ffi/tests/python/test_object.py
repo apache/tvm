@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+import sys
 
 import tvm_ffi
 
@@ -68,3 +69,23 @@ def test_derived_object():
 
     obj0.v_i64 = 21
     assert obj0.v_i64 == 21
+
+
+class MyObject:
+    def __init__(self, value):
+        self.value = value
+
+
+def test_opaque_object():
+    obj0 = MyObject("hello")
+    assert sys.getrefcount(obj0) == 2
+    obj0_converted = tvm_ffi.convert(obj0)
+    assert sys.getrefcount(obj0) == 3
+    assert isinstance(obj0_converted, tvm_ffi.core.OpaquePyObject)
+    obj0_cpy = obj0_converted.pyobject()
+    assert obj0_cpy is obj0
+    assert sys.getrefcount(obj0) == 4
+    obj0_converted = None
+    assert sys.getrefcount(obj0) == 3
+    obj0_cpy = None
+    assert sys.getrefcount(obj0) == 2

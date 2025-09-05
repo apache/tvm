@@ -66,6 +66,28 @@ def test_int_map():
     assert tuple(amap.values()) == (2, 3)
 
 
+def test_array_map_of_opaque_object():
+    class MyObject:
+        def __init__(self, value):
+            self.value = value
+
+    a = tvm_ffi.convert([MyObject("hello"), MyObject(1)])
+    assert isinstance(a, tvm_ffi.Array)
+    assert len(a) == 2
+    assert isinstance(a[0], MyObject)
+    assert a[0].value == "hello"
+    assert isinstance(a[1], MyObject)
+    assert a[1].value == 1
+
+    y = tvm_ffi.convert({"a": MyObject(1), "b": MyObject("hello")})
+    assert isinstance(y, tvm_ffi.Map)
+    assert len(y) == 2
+    assert isinstance(y["a"], MyObject)
+    assert y["a"].value == 1
+    assert isinstance(y["b"], MyObject)
+    assert y["b"].value == "hello"
+
+
 def test_str_map():
     data = []
     for i in reversed(range(10)):

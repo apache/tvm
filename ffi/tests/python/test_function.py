@@ -17,6 +17,7 @@
 
 import gc
 import ctypes
+import sys
 import numpy as np
 import tvm_ffi
 
@@ -161,3 +162,27 @@ def test_rvalue_ref():
 
     check0()
     check1()
+
+
+def test_echo_with_opaque_object():
+    class MyObject:
+        def __init__(self, value):
+            self.value = value
+
+    fecho = tvm_ffi.get_global_func("testing.echo")
+    x = MyObject("hello")
+    assert sys.getrefcount(x) == 2
+    y = fecho(x)
+    assert isinstance(y, MyObject)
+    assert y is x
+    assert sys.getrefcount(x) == 3
+
+    def py_callback(z):
+        """python callback with opaque object"""
+        assert z is x
+        return z
+
+    fcallback = tvm_ffi.convert(py_callback)
+    z = fcallback(x)
+    assert z is x
+    assert sys.getrefcount(x) == 4

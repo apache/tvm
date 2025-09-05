@@ -24,6 +24,7 @@
 #include <tvm/ffi/container/map.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/function.h>
+#include <tvm/ffi/memory.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/ffi/string.h>
 
@@ -385,6 +386,29 @@ class TypeTable {
   Map<String, int64_t> type_attr_name_to_column_index_;
 };
 
+/**
+ * \brief Opaque implementation
+ */
+class OpaqueObjectImpl : public Object, public TVMFFIOpaqueObjectCell {
+ public:
+  OpaqueObjectImpl(void* handle, void (*deleter)(void* handle)) : deleter_(deleter) {
+    this->handle = handle;
+  }
+
+  void SetTypeIndex(int32_t type_index) {
+    details::ObjectUnsafe::GetHeader(this)->type_index = type_index;
+  }
+
+  ~OpaqueObjectImpl() {
+    if (deleter_ != nullptr) {
+      deleter_(handle);
+    }
+  }
+
+ private:
+  void (*deleter_)(void* handle);
+};
+
 }  // namespace ffi
 }  // namespace tvm
 
@@ -397,6 +421,22 @@ int TVMFFIObjectDecRef(TVMFFIObjectHandle handle) {
 int TVMFFIObjectIncRef(TVMFFIObjectHandle handle) {
   TVM_FFI_SAFE_CALL_BEGIN();
   tvm::ffi::details::ObjectUnsafe::IncRefObjectHandle(handle);
+  TVM_FFI_SAFE_CALL_END();
+}
+
+int TVMFFIObjectCreateOpaque(void* handle, int32_t type_index, void (*deleter)(void* handle),
+                             TVMFFIObjectHandle* out) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  if (type_index != kTVMFFIOpaquePyObject) {
+    TVM_FFI_THROW(RuntimeError) << "Only kTVMFFIOpaquePyObject is supported for now";
+  }
+  // create initial opaque object
+  tvm::ffi::ObjectPtr<tvm::ffi::OpaqueObjectImpl> p =
+      tvm::ffi::make_object<tvm::ffi::OpaqueObjectImpl>(handle, deleter);
+  // need to set the type index after creation, because the set to RuntimeTypeIndex()
+  // happens after the constructor is called
+  p->SetTypeIndex(type_index);
+  *out = tvm::ffi::details::ObjectUnsafe::MoveObjectPtrToTVMFFIObjectPtr(std::move(p));
   TVM_FFI_SAFE_CALL_END();
 }
 
