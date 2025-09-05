@@ -140,7 +140,13 @@ Stmt IRMutatorWithAnalyzer::VisitStmt_(const AttrStmtNode* op) {
     iter_vars_.Set(iv->var, dom);
     Stmt stmt = StmtExprMutator::VisitStmt_(op);
     return stmt;
-  } else {
+  } 
+  else if(op->attr_key == tir::attr::tilelang_assume) {
+    auto condition = Downcast<PrimExpr>(op->node);
+    With<ConstraintContext> constraint(&analyzer_, condition);
+    return StmtExprMutator::VisitStmt_(op);
+  }
+  else {
     return StmtExprMutator::VisitStmt_(op);
   }
 }
