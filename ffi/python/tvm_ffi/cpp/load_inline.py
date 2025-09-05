@@ -103,13 +103,13 @@ def _find_cuda_home() -> Optional[str]:
 
 def _get_cuda_target() -> str:
     """Get the CUDA target architecture flag."""
-    if 'TVM_FFI_CUDA_ARCH_LIST' in os.environ:
-        arch_list = os.environ['TVM_FFI_CUDA_ARCH_LIST'].split()    # e.g., "8.9 9.0a"
+    if "TVM_FFI_CUDA_ARCH_LIST" in os.environ:
+        arch_list = os.environ["TVM_FFI_CUDA_ARCH_LIST"].split()  # e.g., "8.9 9.0a"
         flags = []
         for arch in arch_list:
-            if len(arch.split('.')) != 2:
+            if len(arch.split(".")) != 2:
                 raise ValueError(f"Invalid CUDA architecture: {arch}")
-            major, minor = arch.split('.')
+            major, minor = arch.split(".")
             flags.append(f"-gencode=arch=compute_{major}{minor},code=sm_{major}{minor}")
         return " ".join(flags)
     else:

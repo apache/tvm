@@ -56,8 +56,7 @@ def convert(value: Any) -> Any:
         return None
     elif hasattr(value, "__dlpack__"):
         return core.from_dlpack(
-            value,
-            required_alignment=core.__dlpack_auto_import_required_alignment__,
+            value, required_alignment=core.__dlpack_auto_import_required_alignment__
         )
     elif isinstance(value, Exception):
         return core._convert_to_ffi_error(value)
