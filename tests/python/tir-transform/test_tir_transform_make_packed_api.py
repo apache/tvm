@@ -261,6 +261,7 @@ def test_zero_arg_function():
                 {
                     "calling_conv": 1,
                     "target": T.target("llvm"),
+                    "global_symbol": "__tvm_ffi_func_without_arg",
                 }
             )
             assert num_args == 0, "func_without_arg: num_args should be 0"
@@ -315,6 +316,7 @@ def test_int_parameter():
                 {
                     "calling_conv": 1,
                     "target": T.target("llvm"),
+                    "global_symbol": "__tvm_ffi_main",
                 }
             )
             assert num_args == 1, "main: num_args should be 1"
@@ -372,6 +374,7 @@ def test_bool_parameter():
                 {
                     "calling_conv": 1,
                     "target": T.target("llvm"),
+                    "global_symbol": "__tvm_ffi_main",
                 }
             )
             assert num_args == 1, "main: num_args should be 1"

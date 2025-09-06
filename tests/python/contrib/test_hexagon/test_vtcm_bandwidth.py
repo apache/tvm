@@ -108,13 +108,9 @@ def evaluate(hexagon_session, sch, size):
 
     if tvm.testing.utils.IS_IN_CI:
         # Run with reduced number and repeat for CI
-        timer = module.time_evaluator(
-            "__tvm_ffi_main__", hexagon_session.device, number=1, repeat=1
-        )
+        timer = module.time_evaluator("main", hexagon_session.device, number=1, repeat=1)
     else:
-        timer = module.time_evaluator(
-            "__tvm_ffi_main__", hexagon_session.device, number=10, repeat=10
-        )
+        timer = module.time_evaluator("main", hexagon_session.device, number=10, repeat=10)
 
     runtime = timer(a_hexagon, a_vtcm_hexagon)
 

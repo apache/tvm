@@ -48,7 +48,17 @@ class Library : public Object {
    * \param name The name of the symbol.
    * \return The symbol.
    */
-  virtual void* GetSymbol(const char* name) = 0;
+  virtual void* GetSymbol(const String& name) = 0;
+  /*!
+   * \brief Get the symbol address for a given name with the tvm ffi symbol prefix.
+   * \param name The name of the symbol.
+   * \return The symbol.
+   * \note This function will be overloaded by systemlib implementation.
+   */
+  virtual void* GetSymbolWithSymbolPrefix(const String& name) {
+    String name_with_prefix = symbol::tvm_ffi_symbol_prefix + name;
+    return GetSymbol(name_with_prefix);
+  }
   // NOTE: we do not explicitly create an type index and type_key here for libary.
   // This is because we do not need dynamic type downcasting and only need to use the refcounting
 };

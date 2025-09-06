@@ -20,6 +20,7 @@
 /*!
  * \file make_packed_api.cc Lower PrimFunc to use the packed function API.
  */
+#include <tvm/ffi/extra/module.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/reflection/registry.h>
 #include <tvm/runtime/device_api.h>
@@ -196,7 +197,7 @@ Optional<String> RequiresPackedAPI(const PrimFunc& func) {
     return std::nullopt;
   }
 
-  return global_symbol;
+  return global_symbol.value();
 }
 
 PrimFunc MakePackedAPI(PrimFunc func) {
@@ -223,6 +224,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   }
 
   auto* func_ptr = func.CopyOnWrite();
+  // set the global symbol to the packed function name
   const Stmt nop = Evaluate(0);
   int num_args = static_cast<int>(func_ptr->params.size());
 
@@ -362,10 +364,12 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     binder.BindDLTensor(buffer, device_type, device_id, var, name_hint + "." + var->name_hint);
     arg_buffer_declarations.push_back(DeclBuffer(buffer, nop));
   }
-
-  func = WithAttrs(std::move(func),
-                   {{tvm::attr::kCallingConv, static_cast<int>(CallingConv::kCPackedFunc)},
-                    {tvm::attr::kTarget, target_host}});
+  // reset global symbol to attach prefix
+  func = WithAttrs(
+      std::move(func),
+      {{tvm::attr::kCallingConv, static_cast<int>(CallingConv::kCPackedFunc)},
+       {tvm::attr::kTarget, target_host},
+       {tvm::attr::kGlobalSymbol, ffi::symbol::tvm_ffi_symbol_prefix + global_symbol.value()}});
 
   Stmt body = ReturnRewriter(v_result)(func_ptr->body);
   body = AttrStmt(make_zero(DataType::Int(32)), attr::compute_scope,

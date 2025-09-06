@@ -45,7 +45,7 @@ class SystemLibSymbolRegistry {
     symbol_table_.Set(name, ptr);
   }
 
-  void* GetSymbol(const char* name) {
+  void* GetSymbol(const String& name) {
     auto it = symbol_table_.find(name);
     if (it != symbol_table_.end()) {
       return (*it).second;
@@ -68,13 +68,14 @@ class SystemLibrary final : public Library {
  public:
   explicit SystemLibrary(const String& symbol_prefix) : symbol_prefix_(symbol_prefix) {}
 
-  void* GetSymbol(const char* name) {
-    if (symbol_prefix_.length() != 0) {
-      String name_with_prefix = symbol_prefix_ + name;
-      void* symbol = reg_->GetSymbol(name_with_prefix.c_str());
-      if (symbol != nullptr) return symbol;
-    }
-    return reg_->GetSymbol(name);
+  void* GetSymbol(const String& name) final {
+    String name_with_prefix = symbol_prefix_ + name;
+    return reg_->GetSymbol(name_with_prefix);
+  }
+
+  void* GetSymbolWithSymbolPrefix(const String& name) final {
+    String name_with_prefix = symbol::tvm_ffi_symbol_prefix + symbol_prefix_ + name;
+    return reg_->GetSymbol(name_with_prefix);
   }
 
  private:

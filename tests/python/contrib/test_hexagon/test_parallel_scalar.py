@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test parallelism for multiple different scalar workloads. """
+"""Test parallelism for multiple different scalar workloads."""
 
 import numpy as np
 
@@ -104,9 +104,7 @@ def evaluate(hexagon_session, operations, expected, sch):
     number = 1
     repeat = 1
 
-    timer = module.time_evaluator(
-        "__tvm_ffi_main__", hexagon_session.device, number=number, repeat=repeat
-    )
+    timer = module.time_evaluator("main", hexagon_session.device, number=number, repeat=repeat)
     runtime = timer(a_hexagon, b_hexagon, c_hexagon)
 
     tvm.testing.assert_allclose(c_hexagon.numpy(), expected(a, b))

@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test different strategies for loading data into vtcm before running HVX workloads. """
+"""Test different strategies for loading data into vtcm before running HVX workloads."""
 
 import numpy as np
 import tvm
@@ -326,9 +326,7 @@ def setup_and_run(hexagon_session, sch, a, b, c, operations, mem_scope="global")
     number = 1
     repeat = 1
 
-    timer = module.time_evaluator(
-        "__tvm_ffi_main__", hexagon_session.device, number=number, repeat=repeat
-    )
+    timer = module.time_evaluator("main", hexagon_session.device, number=number, repeat=repeat)
     time = timer(a_hexagon, b_hexagon, c_hexagon)
     gops = round(operations * 128 * 3 / time.mean / 1e9, 4)
     return gops, c_hexagon.numpy()
@@ -360,9 +358,7 @@ def setup_and_run_preallocated(hexagon_session, sch, a, b, c, operations):
     number = 1
     repeat = 1
 
-    timer = module.time_evaluator(
-        "__tvm_ffi_main__", hexagon_session.device, number=number, repeat=repeat
-    )
+    timer = module.time_evaluator("main", hexagon_session.device, number=number, repeat=repeat)
     time = timer(a_hexagon, b_hexagon, c_hexagon, a_vtcm_hexagon, b_vtcm_hexagon, c_vtcm_hexagon)
     gops = round(operations * 128 * 3 / time.mean / 1e9, 4)
     return gops, c_hexagon.numpy()

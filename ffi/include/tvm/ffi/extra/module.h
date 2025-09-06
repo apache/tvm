@@ -223,14 +223,19 @@ class Module : public ObjectRef {
  * \brief Symbols for library module.
  */
 namespace symbol {
+/*!\ brief symbol prefix for tvm ffi related function symbols */
+constexpr const char* tvm_ffi_symbol_prefix = "__tvm_ffi_";
+// Special symbols have one extra _ prefix to avoid conflict with user symbols
+/*!
+ * \brief Default entry function of a library module is tvm_ffi_symbol_prefix + "main"
+ */
+constexpr const char* tvm_ffi_main = "__tvm_ffi_main";
 /*! \brief Global variable to store context pointer for a library module. */
-constexpr const char* tvm_ffi_library_ctx = "__tvm_ffi_library_ctx";
+constexpr const char* tvm_ffi_library_ctx = "__tvm_ffi__library_ctx";
 /*! \brief Global variable to store binary data alongside a library module. */
-constexpr const char* tvm_ffi_library_bin = "__tvm_ffi_library_bin";
+constexpr const char* tvm_ffi_library_bin = "__tvm_ffi__library_bin";
 /*! \brief Optional metadata prefix of a symbol. */
-constexpr const char* tvm_ffi_metadata_prefix = "__tvm_ffi_metadata_";
-/*! \brief Default entry function of a library module. */
-constexpr const char* tvm_ffi_main = "__tvm_ffi_main__";
+constexpr const char* tvm_ffi_metadata_prefix = "__tvm_ffi__metadata_";
 }  // namespace symbol
 }  // namespace ffi
 }  // namespace tvm
